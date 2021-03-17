@@ -507,12 +507,23 @@ public:
 
   /// True if the C++ Standard Requires Progress.
   bool CPlusPlusWithProgress() {
+    if (CGM.getCodeGenOpts().getFiniteLoops() ==
+        CodeGenOptions::FiniteLoopsKind::Never)
+      return false;
+
     return getLangOpts().CPlusPlus11 || getLangOpts().CPlusPlus14 ||
            getLangOpts().CPlusPlus17 || getLangOpts().CPlusPlus20;
   }
 
   /// True if the C Standard Requires Progress.
   bool CWithProgress() {
+    if (CGM.getCodeGenOpts().getFiniteLoops() ==
+        CodeGenOptions::FiniteLoopsKind::Always)
+      return true;
+    if (CGM.getCodeGenOpts().getFiniteLoops() ==
+        CodeGenOptions::FiniteLoopsKind::Never)
+      return false;
+
     return getLangOpts().C11 || getLangOpts().C17 || getLangOpts().C2x;
   }
 
@@ -1442,7 +1453,8 @@ public:
   /// Increment the profiler's counter for the given statement by \p StepV.
   /// If \p StepV is null, the default increment is 1.
   void incrementProfileCounter(const Stmt *S, llvm::Value *StepV = nullptr) {
-    if (CGM.getCodeGenOpts().hasProfileClangInstr())
+    if (CGM.getCodeGenOpts().hasProfileClangInstr() &&
+        !CurFn->hasFnAttribute(llvm::Attribute::NoProfile))
       PGO.emitCounterIncrement(Builder, S, StepV);
     PGO.setCurrentStmt(S);
   }
@@ -4205,6 +4217,8 @@ public:
 
   void EmitARCIntrinsicUse(ArrayRef<llvm::Value*> values);
 
+  void EmitARCNoopIntrinsicUse(ArrayRef<llvm::Value *> values);
+
   static Destroyer destroyARCStrongImprecise;
   static Destroyer destroyARCStrongPrecise;
   static Destroyer destroyARCWeak;
@@ -4404,6 +4418,21 @@ public:
   /// constant folds return true and set the folded value.
   bool ConstantFoldsToSimpleInteger(const Expr *Cond, llvm::APSInt &Result,
                                     bool AllowLabels = false);
+
+  /// isInstrumentedCondition - Determine whether the given condition is an
+  /// instrumentable condition (i.e. no "&&" or "||").
+  static bool isInstrumentedCondition(const Expr *C);
+
+  /// EmitBranchToCounterBlock - Emit a conditional branch to a new block that
+  /// increments a profile counter based on the semantics of the given logical
+  /// operator opcode.  This is used to instrument branch condition coverage
+  /// for logical operators.
+  void EmitBranchToCounterBlock(const Expr *Cond, BinaryOperator::Opcode LOp,
+                                llvm::BasicBlock *TrueBlock,
+                                llvm::BasicBlock *FalseBlock,
+                                uint64_t TrueCount = 0,
+                                Stmt::Likelihood LH = Stmt::LH_None,
+                                const Expr *CntrIdx = nullptr);
 
   /// EmitBranchOnBoolExpr - Emit a branch on a boolean condition (e.g. for an
   /// if statement) to the specified blocks.  Based on the condition, this might

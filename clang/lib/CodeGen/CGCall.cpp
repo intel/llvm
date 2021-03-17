@@ -1271,6 +1271,21 @@ static llvm::Value *CreateCoercedLoad(Address Src, llvm::Type *Ty,
     return CGF.Builder.CreateLoad(Src);
   }
 
+  // If coercing a fixed vector to a scalable vector for ABI compatibility, and
+  // the types match, use the llvm.experimental.vector.insert intrinsic to
+  // perform the conversion.
+  if (auto *ScalableDst = dyn_cast<llvm::ScalableVectorType>(Ty)) {
+    if (auto *FixedSrc = dyn_cast<llvm::FixedVectorType>(SrcTy)) {
+      if (ScalableDst->getElementType() == FixedSrc->getElementType()) {
+        auto *Load = CGF.Builder.CreateLoad(Src);
+        auto *UndefVec = llvm::UndefValue::get(ScalableDst);
+        auto *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
+        return CGF.Builder.CreateInsertVector(ScalableDst, UndefVec, Load, Zero,
+                                              "castScalableSve");
+      }
+    }
+  }
+
   // Otherwise do coercion through memory. This is stupid, but simple.
   Address Tmp =
       CreateTempAllocaForCoercion(CGF, Ty, Src.getAlignment(), Src.getName());
@@ -1976,7 +1991,9 @@ void CodeGenModule::ConstructAttributeList(
           FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
-      if (!AttrOnCallSite && TargetDecl->hasAttr<NoMergeAttr>())
+      // Only place nomerge attribute on call sites, never functions. This
+      // allows it to work on indirect virtual function calls.
+      if (AttrOnCallSite && TargetDecl->hasAttr<NoMergeAttr>())
         FuncAttrs.addAttribute(llvm::Attribute::NoMerge);
     }
 
@@ -2695,6 +2712,27 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
 
         ArgVals.push_back(ParamValue::forDirect(V));
         break;
+      }
+
+      // VLST arguments are coerced to VLATs at the function boundary for
+      // ABI consistency. If this is a VLST that was coerced to
+      // a VLAT at the function boundary and the types match up, use
+      // llvm.experimental.vector.extract to convert back to the original
+      // VLST.
+      if (auto *VecTyTo = dyn_cast<llvm::FixedVectorType>(ConvertType(Ty))) {
+        auto *Coerced = Fn->getArg(FirstIRArg);
+        if (auto *VecTyFrom =
+                dyn_cast<llvm::ScalableVectorType>(Coerced->getType())) {
+          if (VecTyFrom->getElementType() == VecTyTo->getElementType()) {
+            llvm::Value *Zero = llvm::Constant::getNullValue(CGM.Int64Ty);
+
+            assert(NumIRArgs == 1);
+            Coerced->setName(Arg->getName() + ".coerce");
+            ArgVals.push_back(ParamValue::forDirect(Builder.CreateExtractVector(
+                VecTyTo, Coerced, Zero, "castFixedSve")));
+            break;
+          }
+        }
       }
 
       Address Alloca = CreateMemTemp(Ty, getContext().getDeclAlign(Arg),
@@ -4733,17 +4771,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
             V->getType()->isIntegerTy())
           V = Builder.CreateZExt(V, ArgInfo.getCoerceToType());
 
-        if (FirstIRArg < IRFuncTy->getNumParams()) {
-          const auto *LHSPtrTy =
-              dyn_cast_or_null<llvm::PointerType>(V->getType());
-          const auto *RHSPtrTy = dyn_cast_or_null<llvm::PointerType>(
-              IRFuncTy->getParamType(FirstIRArg));
-          if (LHSPtrTy && RHSPtrTy &&
-              LHSPtrTy->getAddressSpace() != RHSPtrTy->getAddressSpace())
-            V = Builder.CreateAddrSpaceCast(V,
-                                            IRFuncTy->getParamType(FirstIRArg));
-        }
-
         // If the argument doesn't match, perform a bitcast to coerce it.  This
         // can happen due to trivial type mismatches.
         if (FirstIRArg < IRFuncTy->getNumParams() &&
@@ -4964,20 +4991,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   if (!CallArgs.getCleanupsToDeactivate().empty())
     deactivateArgCleanupsBeforeCall(*this, CallArgs);
 
-  // Addrspace cast to generic if necessary
-  for (unsigned i = 0; i < IRFuncTy->getNumParams(); ++i) {
-    if (auto *PtrTy = dyn_cast<llvm::PointerType>(IRCallArgs[i]->getType())) {
-      auto *ExpectedPtrType =
-          cast<llvm::PointerType>(IRFuncTy->getParamType(i));
-      unsigned ValueAS = PtrTy->getAddressSpace();
-      unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
-      if (ValueAS != ExpectedAS) {
-        IRCallArgs[i] = Builder.CreatePointerBitCastOrAddrSpaceCast(
-            IRCallArgs[i], ExpectedPtrType);
-      }
-    }
-  }
-
   // Assert that the arguments we computed match up.  The IR verifier
   // will catch this, but this is a common enough source of problems
   // during IRGen changes that it's way better for debugging to catch
@@ -5016,13 +5029,11 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
                            llvm::Attribute::StrictFP);
 
-  // Add nomerge attribute to the call-site if the callee function doesn't have
-  // the attribute.
-  if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl))
-    if (!FD->hasAttr<NoMergeAttr>() && InNoMergeAttributedStmt)
-      Attrs = Attrs.addAttribute(getLLVMContext(),
-                                 llvm::AttributeList::FunctionIndex,
-                                 llvm::Attribute::NoMerge);
+  // Add call-site nomerge attribute if exists.
+  if (InNoMergeAttributedStmt)
+    Attrs =
+        Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
+                           llvm::Attribute::NoMerge);
 
   // Apply some call-site-specific attributes.
   // TODO: work this into building the attribute set.

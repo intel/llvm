@@ -23,12 +23,13 @@ namespace sycl {
 namespace ONEAPI {
 
 enum class memory_order : int {
-  relaxed,
-  acquire,
-  __consume_unsupported, // helps optimizer when mapping to std::memory_order
-  release,
-  acq_rel,
-  seq_cst
+  relaxed = 0,
+  acquire = 1,
+  __consume_unsupported =
+      2, // helps optimizer when mapping to std::memory_order
+  release = 3,
+  acq_rel = 4,
+  seq_cst = 5
 };
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_relaxed =
     memory_order::relaxed;
@@ -42,11 +43,11 @@ __SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst =
     memory_order::seq_cst;
 
 enum class memory_scope : int {
-  work_item,
-  sub_group,
-  work_group,
-  device,
-  system
+  work_item = 0,
+  sub_group = 1,
+  work_group = 2,
+  device = 3,
+  system = 4
 };
 __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_work_item =
     memory_scope::work_item;
@@ -59,9 +60,7 @@ __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_system = memory_scope::system;
 
 #ifndef __SYCL_DEVICE_ONLY__
 namespace detail {
-// Cannot use switch statement in constexpr before C++14
-// Nested ternary conditions in else branch required for C++11
-#if __cplusplus >= 201402L
+
 static inline constexpr std::memory_order
 getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
   switch (order) {
@@ -79,22 +78,7 @@ getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
     return std::memory_order_seq_cst;
   }
 }
-#else
-static inline constexpr std::memory_order
-getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
-  return (order == memory_order::relaxed)
-             ? std::memory_order_relaxed
-             : (order == memory_order::__consume_unsupported)
-                   ? std::memory_order_consume
-                   : (order == memory_order::acquire)
-                         ? std::memory_order_acquire
-                         : (order == memory_order::release)
-                               ? std::memory_order_release
-                               : (order == memory_order::acq_rel)
-                                     ? std::memory_order_acq_rel
-                                     : std::memory_order_seq_cst;
-}
-#endif // __cplusplus
+
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 

@@ -240,9 +240,8 @@ class GenericDINode : public DINode {
                                 StorageType Storage, bool ShouldCreate = true);
 
   TempGenericDINode cloneImpl() const {
-    return getTemporary(
-        getContext(), getTag(), getHeader(),
-        SmallVector<Metadata *, 4>(dwarf_op_begin(), dwarf_op_end()));
+    return getTemporary(getContext(), getTag(), getHeader(),
+                        SmallVector<Metadata *, 4>(dwarf_operands()));
   }
 
 public:
@@ -2053,6 +2052,10 @@ public:
     return getNumOperands() > 10 ? getOperandAs<Metadata>(10) : nullptr;
   }
 
+  void replaceRawLinkageName(MDString *LinkageName) {
+    replaceOperandWith(3, LinkageName);
+  }
+
   /// Check if this subprogram describes the given function.
   ///
   /// FIXME: Should this be looking through bitcasts?
@@ -3543,10 +3546,10 @@ public:
         InlinedAt(InlinedAt) {}
 
   const DILocalVariable *getVariable() const { return Variable; }
-  const Optional<FragmentInfo> getFragment() const { return Fragment; }
+  Optional<FragmentInfo> getFragment() const { return Fragment; }
   const DILocation *getInlinedAt() const { return InlinedAt; }
 
-  const FragmentInfo getFragmentOrDefault() const {
+  FragmentInfo getFragmentOrDefault() const {
     return Fragment.getValueOr(DefaultFragment);
   }
 

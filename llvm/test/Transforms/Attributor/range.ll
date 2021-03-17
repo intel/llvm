@@ -9,13 +9,13 @@
 define i32 @test0(i32* %p) {
 ; IS__TUNIT____: Function Attrs: argmemonly nofree nosync nounwind readonly willreturn
 ; IS__TUNIT____-LABEL: define {{[^@]+}}@test0
-; IS__TUNIT____-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0:#.*]] {
+; IS__TUNIT____-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0:#.*]] {
 ; IS__TUNIT____-NEXT:    [[A:%.*]] = load i32, i32* [[P]], align 4, [[RNG0:!range !.*]]
 ; IS__TUNIT____-NEXT:    ret i32 [[A]]
 ;
 ; IS__CGSCC____: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC____-LABEL: define {{[^@]+}}@test0
-; IS__CGSCC____-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0:#.*]] {
+; IS__CGSCC____-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0:#.*]] {
 ; IS__CGSCC____-NEXT:    [[A:%.*]] = load i32, i32* [[P]], align 4, [[RNG0:!range !.*]]
 ; IS__CGSCC____-NEXT:    ret i32 [[A]]
 ;
@@ -38,14 +38,14 @@ define i32 @test0-range-check(i32* %p) {
 ;
 ; IS__CGSCC_OPM: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@test0-range-check
-; IS__CGSCC_OPM-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0:#.*]] {
-; IS__CGSCC_OPM-NEXT:    [[A:%.*]] = tail call i32 @test0(i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR3:#.*]], [[RNG0:!range !.*]]
+; IS__CGSCC_OPM-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0:#.*]] {
+; IS__CGSCC_OPM-NEXT:    [[A:%.*]] = tail call i32 @test0(i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR3:#.*]], [[RNG0:!range !.*]]
 ; IS__CGSCC_OPM-NEXT:    ret i32 [[A]]
 ;
 ; IS__CGSCC_NPM: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@test0-range-check
-; IS__CGSCC_NPM-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0:#.*]] {
-; IS__CGSCC_NPM-NEXT:    [[A:%.*]] = tail call i32 @test0(i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR2:#.*]], [[RNG0:!range !.*]]
+; IS__CGSCC_NPM-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0:#.*]] {
+; IS__CGSCC_NPM-NEXT:    [[A:%.*]] = tail call i32 @test0(i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR2:#.*]], [[RNG0:!range !.*]]
 ; IS__CGSCC_NPM-NEXT:    ret i32 [[A]]
 ;
   %a = tail call i32 @test0(i32* %p)
@@ -161,8 +161,8 @@ define void @test0-icmp-check(i32* %p){
 ; IS__TUNIT_NPM-NEXT:    ret void
 ;
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@test0-icmp-check
-; IS__CGSCC_OPM-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) {
-; IS__CGSCC_OPM-NEXT:    [[RET:%.*]] = tail call i32 @test0(i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR3]], [[RNG0]]
+; IS__CGSCC_OPM-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) {
+; IS__CGSCC_OPM-NEXT:    [[RET:%.*]] = tail call i32 @test0(i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR3]], [[RNG0]]
 ; IS__CGSCC_OPM-NEXT:    [[CMP_EQ_2:%.*]] = icmp eq i32 [[RET]], 9
 ; IS__CGSCC_OPM-NEXT:    [[CMP_EQ_3:%.*]] = icmp eq i32 [[RET]], 8
 ; IS__CGSCC_OPM-NEXT:    [[CMP_EQ_4:%.*]] = icmp eq i32 [[RET]], 1
@@ -208,8 +208,8 @@ define void @test0-icmp-check(i32* %p){
 ; IS__CGSCC_OPM-NEXT:    ret void
 ;
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@test0-icmp-check
-; IS__CGSCC_NPM-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) {
-; IS__CGSCC_NPM-NEXT:    [[RET:%.*]] = tail call i32 @test0(i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR2]], [[RNG0]]
+; IS__CGSCC_NPM-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) {
+; IS__CGSCC_NPM-NEXT:    [[RET:%.*]] = tail call i32 @test0(i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR2]], [[RNG0]]
 ; IS__CGSCC_NPM-NEXT:    [[CMP_EQ_2:%.*]] = icmp eq i32 [[RET]], 9
 ; IS__CGSCC_NPM-NEXT:    [[CMP_EQ_3:%.*]] = icmp eq i32 [[RET]], 8
 ; IS__CGSCC_NPM-NEXT:    [[CMP_EQ_4:%.*]] = icmp eq i32 [[RET]], 1
@@ -341,7 +341,7 @@ define void @test0-icmp-check(i32* %p){
 define i32 @test1(i32* %p) {
 ; IS__TUNIT____: Function Attrs: argmemonly nofree nosync nounwind readonly willreturn
 ; IS__TUNIT____-LABEL: define {{[^@]+}}@test1
-; IS__TUNIT____-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
+; IS__TUNIT____-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
 ; IS__TUNIT____-NEXT:    [[LOAD_10_100:%.*]] = load i32, i32* [[P]], align 4, [[RNG1:!range !.*]]
 ; IS__TUNIT____-NEXT:    [[ADD_10_THEN_20_110:%.*]] = add i32 [[LOAD_10_100]], 10
 ; IS__TUNIT____-NEXT:    [[MUL_10_THEN_200_1091:%.*]] = mul i32 [[ADD_10_THEN_20_110]], 10
@@ -349,7 +349,7 @@ define i32 @test1(i32* %p) {
 ;
 ; IS__CGSCC____: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC____-LABEL: define {{[^@]+}}@test1
-; IS__CGSCC____-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
+; IS__CGSCC____-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
 ; IS__CGSCC____-NEXT:    [[LOAD_10_100:%.*]] = load i32, i32* [[P]], align 4, [[RNG1:!range !.*]]
 ; IS__CGSCC____-NEXT:    [[ADD_10_THEN_20_110:%.*]] = add i32 [[LOAD_10_100]], 10
 ; IS__CGSCC____-NEXT:    [[MUL_10_THEN_200_1091:%.*]] = mul i32 [[ADD_10_THEN_20_110]], 10
@@ -379,15 +379,15 @@ define i1 @test1-check(i32* %p) {
 ;
 ; IS__CGSCC_OPM: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@test1-check
-; IS__CGSCC_OPM-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
-; IS__CGSCC_OPM-NEXT:    [[RES:%.*]] = tail call i32 @test1(i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR3]], [[RNG2:!range !.*]]
+; IS__CGSCC_OPM-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
+; IS__CGSCC_OPM-NEXT:    [[RES:%.*]] = tail call i32 @test1(i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR3]], [[RNG2:!range !.*]]
 ; IS__CGSCC_OPM-NEXT:    [[CMP:%.*]] = icmp eq i32 [[RES]], 500
 ; IS__CGSCC_OPM-NEXT:    ret i1 [[CMP]]
 ;
 ; IS__CGSCC_NPM: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@test1-check
-; IS__CGSCC_NPM-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
-; IS__CGSCC_NPM-NEXT:    [[RES:%.*]] = tail call i32 @test1(i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR2]], [[RNG2:!range !.*]]
+; IS__CGSCC_NPM-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
+; IS__CGSCC_NPM-NEXT:    [[RES:%.*]] = tail call i32 @test1(i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P]]) [[ATTR2]], [[RNG2:!range !.*]]
 ; IS__CGSCC_NPM-NEXT:    [[CMP:%.*]] = icmp eq i32 [[RES]], 500
 ; IS__CGSCC_NPM-NEXT:    ret i1 [[CMP]]
 ;
@@ -411,7 +411,7 @@ define i1 @test1-check(i32* %p) {
 define i32 @test2(i32* %p) {
 ; IS__TUNIT____: Function Attrs: argmemonly nofree nosync nounwind readonly willreturn
 ; IS__TUNIT____-LABEL: define {{[^@]+}}@test2
-; IS__TUNIT____-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
+; IS__TUNIT____-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
 ; IS__TUNIT____-NEXT:  entry:
 ; IS__TUNIT____-NEXT:    [[TMP0:%.*]] = load i32, i32* [[P]], align 4
 ; IS__TUNIT____-NEXT:    [[TOBOOL:%.*]] = icmp eq i32 [[TMP0]], 0
@@ -420,7 +420,7 @@ define i32 @test2(i32* %p) {
 ;
 ; IS__CGSCC____: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC____-LABEL: define {{[^@]+}}@test2
-; IS__CGSCC____-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
+; IS__CGSCC____-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
 ; IS__CGSCC____-NEXT:  entry:
 ; IS__CGSCC____-NEXT:    [[TMP0:%.*]] = load i32, i32* [[P]], align 4
 ; IS__CGSCC____-NEXT:    [[TOBOOL:%.*]] = icmp eq i32 [[TMP0]], 0
@@ -449,7 +449,7 @@ define i32 @test2_check(i32* %p) {
 ;
 ; IS__CGSCC____: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC____-LABEL: define {{[^@]+}}@test2_check
-; IS__CGSCC____-SAME: (i32* nocapture nofree nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
+; IS__CGSCC____-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[P:%.*]]) [[ATTR0]] {
 ; IS__CGSCC____-NEXT:  entry:
 ; IS__CGSCC____-NEXT:    br label [[IF_THEN:%.*]]
 ; IS__CGSCC____:       if.then:
@@ -600,7 +600,7 @@ define void @f1(i32){
 ;
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@f1
 ; IS__CGSCC_OPM-SAME: (i32 [[TMP0:%.*]]) {
-; IS__CGSCC_OPM-NEXT:    [[TMP2:%.*]] = tail call i32 @r1(), [[RNG3:!range !.*]]
+; IS__CGSCC_OPM-NEXT:    [[TMP2:%.*]] = tail call i32 @r1() [[ATTR4:#.*]], [[RNG3:!range !.*]]
 ; IS__CGSCC_OPM-NEXT:    [[TMP3:%.*]] = icmp sgt i32 [[TMP2]], 15
 ; IS__CGSCC_OPM-NEXT:    br i1 [[TMP3]], label [[TMP4:%.*]], label [[TMP5:%.*]]
 ; IS__CGSCC_OPM:       4:
@@ -698,7 +698,7 @@ define dso_local i32 @test4-g1(i32 %u) {
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@test4-g1
 ; IS__CGSCC_OPM-SAME: (i32 [[U:%.*]]) [[ATTR2:#.*]] {
 ; IS__CGSCC_OPM-NEXT:  entry:
-; IS__CGSCC_OPM-NEXT:    [[CALL:%.*]] = tail call i32 @test4-f1(i32 [[U]]) [[ATTR4:#.*]]
+; IS__CGSCC_OPM-NEXT:    [[CALL:%.*]] = tail call i32 @test4-f1(i32 [[U]]) [[ATTR5:#.*]]
 ; IS__CGSCC_OPM-NEXT:    ret i32 [[CALL]]
 ;
 ; IS__CGSCC_NPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
@@ -790,7 +790,7 @@ define dso_local i32 @test4-g2(i32 %u) {
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@test4-g2
 ; IS__CGSCC_OPM-SAME: (i32 [[U:%.*]]) [[ATTR2]] {
 ; IS__CGSCC_OPM-NEXT:  entry:
-; IS__CGSCC_OPM-NEXT:    [[CALL:%.*]] = tail call i32 @test4-f2(i32 [[U]]) [[ATTR4]]
+; IS__CGSCC_OPM-NEXT:    [[CALL:%.*]] = tail call i32 @test4-f2(i32 [[U]]) [[ATTR5]]
 ; IS__CGSCC_OPM-NEXT:    ret i32 [[CALL]]
 ;
 ; IS__CGSCC_NPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
@@ -1154,10 +1154,10 @@ define i1 @fcmp_caller(float %fa, float %fb, double %da, double %db, double* %dp
 ; IS__CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@fcmp_caller
 ; IS__CGSCC_OPM-SAME: (float [[FA:%.*]], float [[FB:%.*]], double [[DA:%.*]], double [[DB:%.*]], double* nofree readnone [[DPA:%.*]], double* nofree readnone [[DPB:%.*]], i8* nofree readnone [[IPA:%.*]], i8* nofree readnone [[IPB:%.*]]) [[ATTR2]] {
-; IS__CGSCC_OPM-NEXT:    [[R1:%.*]] = call i1 @f_fcmp(float [[FA]], float [[FB]]) [[ATTR4]]
-; IS__CGSCC_OPM-NEXT:    [[R2:%.*]] = call i1 @d_fcmp(double [[DA]], double [[DB]]) [[ATTR4]]
-; IS__CGSCC_OPM-NEXT:    [[R3:%.*]] = call i1 @dp_icmp(double* noalias nofree readnone [[DPA]], double* noalias nofree readnone [[DPB]]) [[ATTR4]]
-; IS__CGSCC_OPM-NEXT:    [[R4:%.*]] = call i1 @ip_icmp(i8* noalias nofree readnone [[IPA]], i8* noalias nofree readnone [[IPB]]) [[ATTR4]]
+; IS__CGSCC_OPM-NEXT:    [[R1:%.*]] = call i1 @f_fcmp(float [[FA]], float [[FB]]) [[ATTR5]]
+; IS__CGSCC_OPM-NEXT:    [[R2:%.*]] = call i1 @d_fcmp(double [[DA]], double [[DB]]) [[ATTR5]]
+; IS__CGSCC_OPM-NEXT:    [[R3:%.*]] = call i1 @dp_icmp(double* noalias nofree readnone [[DPA]], double* noalias nofree readnone [[DPB]]) [[ATTR5]]
+; IS__CGSCC_OPM-NEXT:    [[R4:%.*]] = call i1 @ip_icmp(i8* noalias nofree readnone [[IPA]], i8* noalias nofree readnone [[IPB]]) [[ATTR5]]
 ; IS__CGSCC_OPM-NEXT:    [[O1:%.*]] = or i1 [[R1]], [[R2]]
 ; IS__CGSCC_OPM-NEXT:    [[O2:%.*]] = or i1 [[R3]], [[R4]]
 ; IS__CGSCC_OPM-NEXT:    [[O3:%.*]] = or i1 [[O1]], [[O2]]
@@ -1329,8 +1329,8 @@ define i1 @callee_range_2(i1 %c1, i1 %c2) {
 ; IS__CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@callee_range_2
 ; IS__CGSCC_OPM-SAME: (i1 [[C1:%.*]], i1 [[C2:%.*]]) [[ATTR2]] {
-; IS__CGSCC_OPM-NEXT:    [[R1:%.*]] = call i32 @ret1or2(i1 [[C1]]) [[ATTR4]], [[RNG5:!range !.*]]
-; IS__CGSCC_OPM-NEXT:    [[R2:%.*]] = call i32 @ret1or2(i1 [[C2]]) [[ATTR4]], [[RNG5]]
+; IS__CGSCC_OPM-NEXT:    [[R1:%.*]] = call i32 @ret1or2(i1 [[C1]]) [[ATTR5]], [[RNG5:!range !.*]]
+; IS__CGSCC_OPM-NEXT:    [[R2:%.*]] = call i32 @ret1or2(i1 [[C2]]) [[ATTR5]], [[RNG5]]
 ; IS__CGSCC_OPM-NEXT:    [[A:%.*]] = add i32 [[R1]], [[R2]]
 ; IS__CGSCC_OPM-NEXT:    [[I1:%.*]] = icmp sle i32 [[A]], 3
 ; IS__CGSCC_OPM-NEXT:    [[I2:%.*]] = icmp sge i32 [[A]], 2
@@ -1488,10 +1488,10 @@ define i32 @simplify_callsite_argument(i1 %d) {
 ; IS__CGSCC_OPM-NEXT:    [[C:%.*]] = select i1 [[D]], i1 true, i1 false
 ; IS__CGSCC_OPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
 ; IS__CGSCC_OPM:       t:
-; IS__CGSCC_OPM-NEXT:    [[RET1:%.*]] = call i32 @func(i1 noundef [[C]]) [[ATTR4]], [[RNG4:!range !.*]]
+; IS__CGSCC_OPM-NEXT:    [[RET1:%.*]] = call i32 @func(i1 noundef [[C]]) [[ATTR5]], [[RNG4:!range !.*]]
 ; IS__CGSCC_OPM-NEXT:    ret i32 [[RET1]]
 ; IS__CGSCC_OPM:       f:
-; IS__CGSCC_OPM-NEXT:    [[RET2:%.*]] = call i32 @func(i1 noundef false) [[ATTR4]], [[RNG4]]
+; IS__CGSCC_OPM-NEXT:    [[RET2:%.*]] = call i32 @func(i1 noundef false) [[ATTR5]], [[RNG4]]
 ; IS__CGSCC_OPM-NEXT:    ret i32 [[RET2]]
 ;
 ; IS__CGSCC_NPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
@@ -1575,10 +1575,10 @@ define i1 @check_divided_range(i32 %arg) {
 ; IS__CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@check_divided_range
 ; IS__CGSCC_OPM-SAME: (i32 [[ARG:%.*]]) [[ATTR2]] {
-; IS__CGSCC_OPM-NEXT:    [[CSRET1:%.*]] = call i32 @less_than_65536(i32 noundef 0) [[ATTR4]]
-; IS__CGSCC_OPM-NEXT:    [[CSRET2:%.*]] = call i32 @less_than_65536(i32 [[ARG]]) [[ATTR4]]
-; IS__CGSCC_OPM-NEXT:    [[TRUE1:%.*]] = call i1 @is_less_than_65536(i32 [[CSRET1]]) [[ATTR4]]
-; IS__CGSCC_OPM-NEXT:    [[TRUE2:%.*]] = call i1 @is_less_than_65536(i32 [[CSRET2]]) [[ATTR4]]
+; IS__CGSCC_OPM-NEXT:    [[CSRET1:%.*]] = call i32 @less_than_65536(i32 noundef 0) [[ATTR5]]
+; IS__CGSCC_OPM-NEXT:    [[CSRET2:%.*]] = call i32 @less_than_65536(i32 [[ARG]]) [[ATTR5]]
+; IS__CGSCC_OPM-NEXT:    [[TRUE1:%.*]] = call i1 @is_less_than_65536(i32 [[CSRET1]]) [[ATTR5]]
+; IS__CGSCC_OPM-NEXT:    [[TRUE2:%.*]] = call i1 @is_less_than_65536(i32 [[CSRET2]]) [[ATTR5]]
 ; IS__CGSCC_OPM-NEXT:    [[RET:%.*]] = and i1 [[TRUE1]], [[TRUE2]]
 ; IS__CGSCC_OPM-NEXT:    ret i1 [[RET]]
 ;
@@ -1902,7 +1902,7 @@ define internal i1 @non_zero(i8 %v) {
 define i1 @context(i8* %p) {
 ; IS__TUNIT_OPM: Function Attrs: argmemonly nofree nosync nounwind readonly willreturn
 ; IS__TUNIT_OPM-LABEL: define {{[^@]+}}@context
-; IS__TUNIT_OPM-SAME: (i8* nocapture nofree nonnull readonly dereferenceable(1) [[P:%.*]]) [[ATTR0]] {
+; IS__TUNIT_OPM-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1) [[P:%.*]]) [[ATTR0]] {
 ; IS__TUNIT_OPM-NEXT:    [[L:%.*]] = load i8, i8* [[P]], align 1
 ; IS__TUNIT_OPM-NEXT:    [[C:%.*]] = icmp slt i8 0, [[L]]
 ; IS__TUNIT_OPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
@@ -1914,7 +1914,7 @@ define i1 @context(i8* %p) {
 ;
 ; IS__TUNIT_NPM: Function Attrs: argmemonly nofree nosync nounwind readonly willreturn
 ; IS__TUNIT_NPM-LABEL: define {{[^@]+}}@context
-; IS__TUNIT_NPM-SAME: (i8* nocapture nofree nonnull readonly dereferenceable(1) [[P:%.*]]) [[ATTR0]] {
+; IS__TUNIT_NPM-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1) [[P:%.*]]) [[ATTR0]] {
 ; IS__TUNIT_NPM-NEXT:    [[L:%.*]] = load i8, i8* [[P]], align 1
 ; IS__TUNIT_NPM-NEXT:    [[C:%.*]] = icmp slt i8 0, [[L]]
 ; IS__TUNIT_NPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
@@ -1925,19 +1925,19 @@ define i1 @context(i8* %p) {
 ;
 ; IS__CGSCC_OPM: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@context
-; IS__CGSCC_OPM-SAME: (i8* nocapture nofree nonnull readonly dereferenceable(1) [[P:%.*]]) [[ATTR0]] {
+; IS__CGSCC_OPM-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1) [[P:%.*]]) [[ATTR0]] {
 ; IS__CGSCC_OPM-NEXT:    [[L:%.*]] = load i8, i8* [[P]], align 1
 ; IS__CGSCC_OPM-NEXT:    [[C:%.*]] = icmp slt i8 0, [[L]]
 ; IS__CGSCC_OPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
 ; IS__CGSCC_OPM:       t:
-; IS__CGSCC_OPM-NEXT:    [[R:%.*]] = call i1 @non_zero(i8 [[L]]) [[ATTR4]]
+; IS__CGSCC_OPM-NEXT:    [[R:%.*]] = call i1 @non_zero(i8 [[L]]) [[ATTR5]]
 ; IS__CGSCC_OPM-NEXT:    ret i1 [[R]]
 ; IS__CGSCC_OPM:       f:
 ; IS__CGSCC_OPM-NEXT:    ret i1 false
 ;
 ; IS__CGSCC_NPM: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@context
-; IS__CGSCC_NPM-SAME: (i8* nocapture nofree nonnull readonly dereferenceable(1) [[P:%.*]]) [[ATTR0]] {
+; IS__CGSCC_NPM-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1) [[P:%.*]]) [[ATTR0]] {
 ; IS__CGSCC_NPM-NEXT:    [[L:%.*]] = load i8, i8* [[P]], align 1
 ; IS__CGSCC_NPM-NEXT:    [[C:%.*]] = icmp slt i8 0, [[L]]
 ; IS__CGSCC_NPM-NEXT:    br i1 [[C]], label [[T:%.*]], label [[F:%.*]]
@@ -1959,7 +1959,7 @@ f:
 
 define void @spam(i32* %arg, i32* %arg1) {
 ; CHECK-LABEL: define {{[^@]+}}@spam
-; CHECK-SAME: (i32* nocapture nonnull readonly align 8 dereferenceable(4) [[ARG:%.*]], i32* nocapture nofree readnone [[ARG1:%.*]]) {
+; CHECK-SAME: (i32* nocapture noundef nonnull readonly align 8 dereferenceable(4) [[ARG:%.*]], i32* nocapture nofree readnone [[ARG1:%.*]]) {
 ; CHECK-NEXT:  bb:
 ; CHECK-NEXT:    [[TMP:%.*]] = load i32, i32* [[ARG]], align 8
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult i32 [[TMP]], 4

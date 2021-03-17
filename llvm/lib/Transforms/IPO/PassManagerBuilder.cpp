@@ -60,7 +60,7 @@ UseGVNAfterVectorization("use-gvn-after-vectorization",
   cl::init(false), cl::Hidden,
   cl::desc("Run GVN instead of Early CSE after vectorization passes"));
 
-static cl::opt<bool> ExtraVectorizerPasses(
+cl::opt<bool> ExtraVectorizerPasses(
     "extra-vectorizer-passes", cl::init(false), cl::Hidden,
     cl::desc("Run cleanup optimization passes after vectorization."));
 
@@ -77,15 +77,15 @@ cl::opt<bool> RunNewGVN("enable-newgvn", cl::init(false), cl::Hidden,
 
 // Experimental option to use CFL-AA
 enum class CFLAAType { None, Steensgaard, Andersen, Both };
-static cl::opt<CFLAAType>
-    UseCFLAA("use-cfl-aa", cl::init(CFLAAType::None), cl::Hidden,
+static cl::opt<::CFLAAType>
+    UseCFLAA("use-cfl-aa", cl::init(::CFLAAType::None), cl::Hidden,
              cl::desc("Enable the new, experimental CFL alias analysis"),
-             cl::values(clEnumValN(CFLAAType::None, "none", "Disable CFL-AA"),
-                        clEnumValN(CFLAAType::Steensgaard, "steens",
+             cl::values(clEnumValN(::CFLAAType::None, "none", "Disable CFL-AA"),
+                        clEnumValN(::CFLAAType::Steensgaard, "steens",
                                    "Enable unification-based CFL-AA"),
-                        clEnumValN(CFLAAType::Andersen, "anders",
+                        clEnumValN(::CFLAAType::Andersen, "anders",
                                    "Enable inclusion-based CFL-AA"),
-                        clEnumValN(CFLAAType::Both, "both",
+                        clEnumValN(::CFLAAType::Both, "both",
                                    "Enable both variants of CFL-AA")));
 
 static cl::opt<bool> EnableLoopInterchange(
@@ -280,13 +280,13 @@ void PassManagerBuilder::addExtensionsToPM(ExtensionPointTy ETy,
 void PassManagerBuilder::addInitialAliasAnalysisPasses(
     legacy::PassManagerBase &PM) const {
   switch (UseCFLAA) {
-  case CFLAAType::Steensgaard:
+  case ::CFLAAType::Steensgaard:
     PM.add(createCFLSteensAAWrapperPass());
     break;
-  case CFLAAType::Andersen:
+  case ::CFLAAType::Andersen:
     PM.add(createCFLAndersAAWrapperPass());
     break;
-  case CFLAAType::Both:
+  case ::CFLAAType::Both:
     PM.add(createCFLSteensAAWrapperPass());
     PM.add(createCFLAndersAAWrapperPass());
     break;
@@ -437,7 +437,7 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
     MPM.add(createLoopSimplifyCFGPass());
   }
   // Rotate Loop - disable header duplication at -Oz
-  MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1));
+  MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, PrepareForLTO));
   // TODO: Investigate promotion cap for O1.
   MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
   if (EnableSimpleLoopUnswitch)
@@ -467,7 +467,7 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (EnableLoopInterchange)
     MPM.add(createLoopInterchangePass()); // Interchange loops
 
-  // Unroll small loops
+  // Unroll small loops and perform peeling.
   MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
                                      ForgetAllSCEVInLoopUnroll));
   addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
@@ -786,7 +786,7 @@ void PassManagerBuilder::populateModulePassManager(
   // Re-rotate loops in all our loop nests. These may have fallout out of
   // rotated form due to GVN or other transformations, and the vectorizer relies
   // on the rotated form. Disable header duplication at -Oz.
-  MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1));
+  MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, PrepareForLTO));
 
   // Distribute loops to allow partial vectorization.  I.e. isolate dependences
   // into separate loop that would otherwise inhibit vectorization.  This is
@@ -1081,7 +1081,7 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   if (EnableConstraintElimination)
     PM.add(createConstraintEliminationPass());
 
-  // Unroll small loops
+  // Unroll small loops and perform peeling.
   PM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
                                     ForgetAllSCEVInLoopUnroll));
   PM.add(createLoopDistributePass());
@@ -1096,7 +1096,8 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   // we may have exposed more scalar opportunities. Run parts of the scalar
   // optimizer again at this point.
   PM.add(createInstructionCombiningPass()); // Initial cleanup
-  PM.add(createCFGSimplificationPass()); // if-convert
+  PM.add(createCFGSimplificationPass(SimplifyCFGOptions() // if-convert
+                                         .hoistCommonInsts(true)));
   PM.add(createSCCPPass()); // Propagate exposed constants
   PM.add(createInstructionCombiningPass()); // Clean up again
   PM.add(createBitTrackingDCEPass());
@@ -1126,7 +1127,8 @@ void PassManagerBuilder::addLateLTOOptimizationPasses(
     PM.add(createHotColdSplittingPass());
 
   // Delete basic blocks, which optimization passes may have killed.
-  PM.add(createCFGSimplificationPass());
+  PM.add(
+      createCFGSimplificationPass(SimplifyCFGOptions().hoistCommonInsts(true)));
 
   // Drop bodies of available externally objects to improve GlobalDCE.
   PM.add(createEliminateAvailableExternallyPass());

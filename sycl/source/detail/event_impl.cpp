@@ -35,13 +35,13 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 bool event_impl::is_host() const { return MHostEvent || !MOpenCLInterop; }
 
 cl_event event_impl::get() const {
-  if (MOpenCLInterop) {
-    getPlugin().call<PiApiKind::piEventRetain>(MEvent);
-    return pi::cast<cl_event>(MEvent);
+  if (!MOpenCLInterop) {
+    throw invalid_object_error(
+        "This instance of event doesn't support OpenCL interoperability.",
+        PI_INVALID_EVENT);
   }
-  throw invalid_object_error(
-      "This instance of event doesn't support OpenCL interoperability.",
-      PI_INVALID_EVENT);
+  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
+  return pi::cast<cl_event>(MEvent);
 }
 
 event_impl::~event_impl() {
@@ -291,6 +291,8 @@ void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() const {
   auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

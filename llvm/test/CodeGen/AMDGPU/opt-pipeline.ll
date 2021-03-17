@@ -1,7 +1,7 @@
-; RUN: opt -O0 -mtriple=amdgcn--amdhsa -disable-output -disable-verify -debug-pass=Structure %s 2>&1 | FileCheck -check-prefix=GCN-O0 %s
-; RUN: opt -O1 -mtriple=amdgcn--amdhsa -disable-output -disable-verify -debug-pass=Structure %s 2>&1 | FileCheck -check-prefix=GCN-O1 %s
-; RUN: opt -O2 -mtriple=amdgcn--amdhsa -disable-output -disable-verify -debug-pass=Structure %s 2>&1 | FileCheck -check-prefix=GCN-O2 %s
-; RUN: opt -O3 -mtriple=amdgcn--amdhsa -disable-output -disable-verify -debug-pass=Structure %s 2>&1 | FileCheck -check-prefix=GCN-O3 %s
+; RUN: opt -O0 -mtriple=amdgcn--amdhsa -disable-output -disable-verify -debug-pass=Structure -enable-new-pm=0 %s 2>&1 | FileCheck -check-prefix=GCN-O0 %s
+; RUN: opt -O1 -mtriple=amdgcn--amdhsa -disable-output -disable-verify -debug-pass=Structure -enable-new-pm=0 %s 2>&1 | FileCheck -check-prefix=GCN-O1 %s
+; RUN: opt -O2 -mtriple=amdgcn--amdhsa -disable-output -disable-verify -debug-pass=Structure -enable-new-pm=0 %s 2>&1 | FileCheck -check-prefix=GCN-O2 %s
+; RUN: opt -O3 -mtriple=amdgcn--amdhsa -disable-output -disable-verify -debug-pass=Structure -enable-new-pm=0 %s 2>&1 | FileCheck -check-prefix=GCN-O3 %s
 
 ; REQUIRES: asserts
 
@@ -23,7 +23,7 @@
 ; GCN-O0-NEXT:     Force set function attributes
 ; GCN-O0-NEXT:     CallGraph Construction
 ; GCN-O0-NEXT:     Call Graph SCC Pass Manager
-; GCN-O0-NEXT:       AMDGPU Function Integration/Inlining
+; GCN-O0-NEXT:       Function Integration/Inlining
 ; GCN-O0-NEXT:     A No-Op Barrier Pass
 
 
@@ -97,7 +97,7 @@
 ; GCN-O1-NEXT:     Globals Alias Analysis
 ; GCN-O1-NEXT:     Call Graph SCC Pass Manager
 ; GCN-O1-NEXT:       Remove unused exception handling info
-; GCN-O1-NEXT:       AMDGPU Function Integration/Inlining
+; GCN-O1-NEXT:       Function Integration/Inlining
 ; GCN-O1-NEXT:       Deduce function attributes
 ; GCN-O1-NEXT:       FunctionPass Manager
 ; GCN-O1-NEXT:         Infer address spaces
@@ -208,7 +208,6 @@
 ; GCN-O1-NEXT:       Dominator Tree Construction
 ; GCN-O1-NEXT:       Float to int
 ; GCN-O1-NEXT:       Lower constant intrinsics
-; GCN-O1-NEXT:       Dominator Tree Construction
 ; GCN-O1-NEXT:       Natural Loop Information
 ; GCN-O1-NEXT:       Canonicalize natural loops
 ; GCN-O1-NEXT:       LCSSA Verifier
@@ -408,7 +407,7 @@
 ; GCN-O2-NEXT:     Globals Alias Analysis
 ; GCN-O2-NEXT:     Call Graph SCC Pass Manager
 ; GCN-O2-NEXT:       Remove unused exception handling info
-; GCN-O2-NEXT:       AMDGPU Function Integration/Inlining
+; GCN-O2-NEXT:       Function Integration/Inlining
 ; GCN-O2-NEXT:       OpenMP specific optimizations
 ; GCN-O2-NEXT:       Deduce function attributes
 ; GCN-O2-NEXT:       FunctionPass Manager
@@ -560,7 +559,6 @@
 ; GCN-O2-NEXT:       Dominator Tree Construction
 ; GCN-O2-NEXT:       Float to int
 ; GCN-O2-NEXT:       Lower constant intrinsics
-; GCN-O2-NEXT:       Dominator Tree Construction
 ; GCN-O2-NEXT:       Natural Loop Information
 ; GCN-O2-NEXT:       Canonicalize natural loops
 ; GCN-O2-NEXT:       LCSSA Verifier
@@ -770,7 +768,7 @@
 ; GCN-O3-NEXT:     Globals Alias Analysis
 ; GCN-O3-NEXT:     Call Graph SCC Pass Manager
 ; GCN-O3-NEXT:       Remove unused exception handling info
-; GCN-O3-NEXT:       AMDGPU Function Integration/Inlining
+; GCN-O3-NEXT:       Function Integration/Inlining
 ; GCN-O3-NEXT:       OpenMP specific optimizations
 ; GCN-O3-NEXT:       Deduce function attributes
 ; GCN-O3-NEXT:       Promote 'by reference' arguments to scalars
@@ -924,7 +922,6 @@
 ; GCN-O3-NEXT:       Dominator Tree Construction
 ; GCN-O3-NEXT:       Float to int
 ; GCN-O3-NEXT:       Lower constant intrinsics
-; GCN-O3-NEXT:       Dominator Tree Construction
 ; GCN-O3-NEXT:       Natural Loop Information
 ; GCN-O3-NEXT:       Canonicalize natural loops
 ; GCN-O3-NEXT:       LCSSA Verifier

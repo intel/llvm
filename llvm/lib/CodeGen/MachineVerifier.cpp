@@ -123,8 +123,7 @@ namespace {
     void addRegWithSubRegs(RegVector &RV, Register Reg) {
       RV.push_back(Reg);
       if (Reg.isPhysical())
-        for (const MCPhysReg &SubReg : TRI->subregs(Reg.asMCReg()))
-          RV.push_back(SubReg);
+        append_range(RV, TRI->subregs(Reg.asMCReg()));
     }
 
     struct BBInfo {
@@ -942,6 +941,39 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
 
   // Verify properties of various specific instruction types
   switch (MI->getOpcode()) {
+  case TargetOpcode::G_ASSERT_ZEXT: {
+    if (!MI->getOperand(2).isImm()) {
+      report("G_ASSERT_ZEXT expects an immediate operand #2", MI);
+      break;
+    }
+
+    Register Dst = MI->getOperand(0).getReg();
+    Register Src = MI->getOperand(1).getReg();
+    LLT SrcTy = MRI->getType(Src);
+    int64_t Imm = MI->getOperand(2).getImm();
+    if (Imm <= 0) {
+      report("G_ASSERT_ZEXT size must be >= 1", MI);
+      break;
+    }
+
+    if (Imm >= SrcTy.getScalarSizeInBits()) {
+      report("G_ASSERT_ZEXT size must be less than source bit width", MI);
+      break;
+    }
+
+    if (MRI->getRegBankOrNull(Src) != MRI->getRegBankOrNull(Dst)) {
+      report("G_ASSERT_ZEXT source and destination register banks must match",
+             MI);
+      break;
+    }
+
+    if (MRI->getRegClassOrNull(Src) != MRI->getRegClassOrNull(Dst))
+      report("G_ASSERT_ZEXT source and destination register classes must match",
+             MI);
+
+    break;
+  }
+
   case TargetOpcode::G_CONSTANT:
   case TargetOpcode::G_FCONSTANT: {
     LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
@@ -1005,16 +1037,15 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
   }
   case TargetOpcode::G_PHI: {
     LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
-    if (!DstTy.isValid() ||
-        !std::all_of(MI->operands_begin() + 1, MI->operands_end(),
-                     [this, &DstTy](const MachineOperand &MO) {
-                       if (!MO.isReg())
-                         return true;
-                       LLT Ty = MRI->getType(MO.getReg());
-                       if (!Ty.isValid() || (Ty != DstTy))
-                         return false;
-                       return true;
-                     }))
+    if (!DstTy.isValid() || !all_of(drop_begin(MI->operands()),
+                                    [this, &DstTy](const MachineOperand &MO) {
+                                      if (!MO.isReg())
+                                        return true;
+                                      LLT Ty = MRI->getType(MO.getReg());
+                                      if (!Ty.isValid() || (Ty != DstTy))
+                                        return false;
+                                      return true;
+                                    }))
       report("Generic Instruction G_PHI has operands with incompatible/missing "
              "types",
              MI);
@@ -1365,10 +1396,7 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
       break;
     }
 
-    LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
     LLT SrcTy = MRI->getType(MI->getOperand(1).getReg());
-    verifyVectorElementMatch(DstTy, SrcTy, MI);
-
     int64_t Imm = MI->getOperand(2).getImm();
     if (Imm <= 0)
       report("G_SEXT_INREG size must be >= 1", MI);
@@ -1596,7 +1624,8 @@ void MachineVerifier::visitMachineInstrBefore(const MachineInstr *MI) {
     }
   }
 
-  if (isPreISelGenericOpcode(MCID.getOpcode())) {
+  unsigned Opc = MCID.getOpcode();
+  if (isPreISelGenericOpcode(Opc) || isPreISelGenericOptimizationHint(Opc)) {
     verifyPreISelGenericInstruction(MI);
     return;
   }
@@ -1647,6 +1676,10 @@ void MachineVerifier::visitMachineInstrBefore(const MachineInstr *MI) {
     }
 
     auto VerifyStackMapConstant = [&](unsigned Offset) {
+      if (Offset >= MI->getNumOperands()) {
+        report("stack map constant to STATEPOINT is out of range!", MI);
+        return;
+      }
       if (!MI->getOperand(Offset - 1).isImm() ||
           MI->getOperand(Offset - 1).getImm() != StackMaps::ConstantOp ||
           !MI->getOperand(Offset).isImm())
@@ -1655,6 +1688,25 @@ void MachineVerifier::visitMachineInstrBefore(const MachineInstr *MI) {
     VerifyStackMapConstant(SO.getCCIdx());
     VerifyStackMapConstant(SO.getFlagsIdx());
     VerifyStackMapConstant(SO.getNumDeoptArgsIdx());
+    VerifyStackMapConstant(SO.getNumGCPtrIdx());
+    VerifyStackMapConstant(SO.getNumAllocaIdx());
+    VerifyStackMapConstant(SO.getNumGcMapEntriesIdx());
+
+    // Verify that all explicit statepoint defs are tied to gc operands as
+    // they are expected to be a relocation of gc operands.
+    unsigned FirstGCPtrIdx = SO.getFirstGCPtrIdx();
+    unsigned LastGCPtrIdx = SO.getNumAllocaIdx() - 2;
+    for (unsigned Idx = 0; Idx < MI->getNumDefs(); Idx++) {
+      unsigned UseOpIdx;
+      if (!MI->isRegTiedToUseOperand(Idx, &UseOpIdx)) {
+        report("STATEPOINT defs expected to be tied", MI);
+        break;
+      }
+      if (UseOpIdx < FirstGCPtrIdx || UseOpIdx > LastGCPtrIdx) {
+        report("STATEPOINT def tied to non-gc operand", MI);
+        break;
+      }
+    }
 
     // TODO: verify we have properly encoded deopt arguments
   } break;
@@ -2129,12 +2181,8 @@ void MachineVerifier::checkLiveness(const MachineOperand *MO, unsigned MONum) {
             if (!Register::isPhysicalRegister(MOP.getReg()))
               continue;
 
-            for (const MCPhysReg &SubReg : TRI->subregs(MOP.getReg())) {
-              if (SubReg == Reg) {
-                Bad = false;
-                break;
-              }
-            }
+            if (llvm::is_contained(TRI->subregs(MOP.getReg()), Reg))
+              Bad = false;
           }
         }
         if (Bad)

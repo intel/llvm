@@ -18,6 +18,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/MapVector.h"
 
 using namespace mlir;
@@ -45,14 +46,24 @@ struct BuiltinOpAsmDialectInterface : public OpAsmDialectInterface {
     }
     return failure();
   }
+
+  LogicalResult getAlias(Type type, raw_ostream &os) const final {
+    if (auto tupleType = type.dyn_cast<TupleType>()) {
+      if (tupleType.size() > 16) {
+        os << "tuple";
+        return success();
+      }
+    }
+    return failure();
+  }
 };
 } // end anonymous namespace.
 
 void BuiltinDialect::initialize() {
   addTypes<ComplexType, BFloat16Type, Float16Type, Float32Type, Float64Type,
-           FunctionType, IndexType, IntegerType, MemRefType, UnrankedMemRefType,
-           NoneType, OpaqueType, RankedTensorType, TupleType,
-           UnrankedTensorType, VectorType>();
+           Float80Type, Float128Type, FunctionType, IndexType, IntegerType,
+           MemRefType, UnrankedMemRefType, NoneType, OpaqueType,
+           RankedTensorType, TupleType, UnrankedTensorType, VectorType>();
   addAttributes<AffineMapAttr, ArrayAttr, DenseIntOrFPElementsAttr,
                 DenseStringElementsAttr, DictionaryAttr, FloatAttr,
                 SymbolRefAttr, IntegerAttr, IntegerSetAttr, OpaqueAttr,
@@ -155,7 +166,7 @@ void FuncOp::cloneInto(FuncOp dest, BlockAndValueMapping &mapper) {
     newAttrs.insert(attr);
   for (auto &attr : getAttrs())
     newAttrs.insert(attr);
-  dest->setAttrs(DictionaryAttr::get(newAttrs.takeVector(), getContext()));
+  dest->setAttrs(DictionaryAttr::get(getContext(), newAttrs.takeVector()));
 
   // Clone the body.
   getBody().cloneInto(&dest.getBody(), mapper);
@@ -234,6 +245,38 @@ static LogicalResult verify(ModuleOp op) {
   }
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// UnrealizedConversionCastOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult
+UnrealizedConversionCastOp::fold(ArrayRef<Attribute> attrOperands,
+                                 SmallVectorImpl<OpFoldResult> &foldResults) {
+  OperandRange operands = inputs();
+  if (operands.empty())
+    return failure();
+
+  // Check that the input is a cast with results that all feed into this
+  // operation, and operand types that directly match the result types of this
+  // operation.
+  ResultRange results = outputs();
+  Value firstInput = operands.front();
+  auto inputOp = firstInput.getDefiningOp<UnrealizedConversionCastOp>();
+  if (!inputOp || inputOp.getResults() != operands ||
+      inputOp.getOperandTypes() != results.getTypes())
+    return failure();
+
+  // If everything matches up, we can fold the passthrough.
+  foldResults.append(inputOp->operand_begin(), inputOp->operand_end());
+  return success();
+}
+
+bool UnrealizedConversionCastOp::areCastCompatible(TypeRange inputs,
+                                                   TypeRange outputs) {
+  // `UnrealizedConversionCastOp` is agnostic of the input/output types.
+  return true;
 }
 
 //===----------------------------------------------------------------------===//

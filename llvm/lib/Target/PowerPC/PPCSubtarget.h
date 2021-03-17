@@ -100,6 +100,7 @@ protected:
   bool HasAltivec;
   bool HasFPU;
   bool HasSPE;
+  bool HasEFPU2;
   bool HasVSX;
   bool NeedsTwoConstNR;
   bool HasP8Vector;
@@ -152,6 +153,8 @@ protected:
   bool UsePPCPostRASchedStrategy;
   bool PairedVectorMemops;
   bool PredictableSelectIsExpensive;
+  bool HasModernAIXAs;
+  bool IsAIX;
 
   POPCNTDKind HasPOPCNTD;
 
@@ -182,9 +185,6 @@ public:
   /// stack frame on entry to the function and which must be maintained by every
   /// function for this subtarget.
   Align getStackAlignment() const { return StackAlignment; }
-
-  /// getDarwinDirective - Returns the -m directive specified for the cpu.
-  unsigned getDarwinDirective() const { return CPUDirective; }
 
   /// getCPUDirective - Returns the -m directive specified for the cpu.
   ///
@@ -260,6 +260,7 @@ public:
   bool hasFPCVT() const { return HasFPCVT; }
   bool hasAltivec() const { return HasAltivec; }
   bool hasSPE() const { return HasSPE; }
+  bool hasEFPU2() const { return HasEFPU2; }
   bool hasFPU() const { return HasFPU; }
   bool hasVSX() const { return HasVSX; }
   bool needsTwoConstNR() const { return NeedsTwoConstNR; }

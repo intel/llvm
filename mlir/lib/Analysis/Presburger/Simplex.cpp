@@ -9,6 +9,7 @@
 #include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/Support/MathExtras.h"
+#include "llvm/ADT/Optional.h"
 
 namespace mlir {
 using Direction = Simplex::Direction;
@@ -271,7 +272,7 @@ LogicalResult Simplex::restoreRow(Unknown &u) {
 
     pivot(*maybePivot);
     if (u.orientation == Orientation::Column)
-      return LogicalResult::Success; // the unknown is unbounded above.
+      return success(); // the unknown is unbounded above.
   }
   return success(tableau(u.pos, 1) >= 0);
 }
@@ -482,7 +483,7 @@ Optional<Fraction> Simplex::computeRowOptimum(Direction direction,
 /// or None if it is unbounded.
 Optional<Fraction> Simplex::computeOptimum(Direction direction,
                                            ArrayRef<int64_t> coeffs) {
-  assert(!empty && "Tableau should not be empty");
+  assert(!empty && "Simplex should not be empty");
 
   unsigned snapshot = getSnapshot();
   unsigned conIndex = addRow(coeffs);
@@ -490,6 +491,34 @@ Optional<Fraction> Simplex::computeOptimum(Direction direction,
   Optional<Fraction> optimum = computeRowOptimum(direction, row);
   rollback(snapshot);
   return optimum;
+}
+
+Optional<Fraction> Simplex::computeOptimum(Direction direction, Unknown &u) {
+  assert(!empty && "Simplex should not be empty!");
+  if (u.orientation == Orientation::Column) {
+    unsigned column = u.pos;
+    Optional<unsigned> pivotRow = findPivotRow({}, direction, column);
+    // If no pivot is returned, the constraint is unbounded in the specified
+    // direction.
+    if (!pivotRow)
+      return {};
+    pivot(*pivotRow, column);
+  }
+
+  unsigned row = u.pos;
+  Optional<Fraction> optimum = computeRowOptimum(direction, row);
+  if (u.restricted && direction == Direction::Down &&
+      (!optimum || *optimum < Fraction(0, 1)))
+    (void)restoreRow(u);
+  return optimum;
+}
+
+bool Simplex::isBoundedAlongConstraint(unsigned constraintIndex) {
+  assert(!empty && "It is not meaningful to ask whether a direction is bounded "
+                   "in an empty set.");
+  // The constraint's perpendicular is already bounded below, since it is a
+  // constraint. If it is also bounded above, we can return true.
+  return computeOptimum(Direction::Up, con[constraintIndex]).hasValue();
 }
 
 /// Redundant constraints are those that are in row orientation and lie in
@@ -543,7 +572,7 @@ void Simplex::detectRedundant() {
     if (!minimum || *minimum < Fraction(0, 1)) {
       // Constraint is unbounded below or can attain negative sample values and
       // hence is not redundant.
-      restoreRow(u);
+      (void)restoreRow(u);
       continue;
     }
 
@@ -653,28 +682,40 @@ Simplex Simplex::makeProduct(const Simplex &a, const Simplex &b) {
   return result;
 }
 
-Optional<SmallVector<int64_t, 8>> Simplex::getSamplePointIfIntegral() const {
-  // The tableau is empty, so no sample point exists.
-  if (empty)
-    return {};
+SmallVector<Fraction, 8> Simplex::getRationalSample() const {
+  assert(!empty && "This should not be called when Simplex is empty.");
 
-  SmallVector<int64_t, 8> sample;
+  SmallVector<Fraction, 8> sample;
+  sample.reserve(var.size());
   // Push the sample value for each variable into the vector.
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Column) {
       // If the variable is in column position, its sample value is zero.
-      sample.push_back(0);
+      sample.emplace_back(0, 1);
     } else {
       // If the variable is in row position, its sample value is the entry in
       // the constant column divided by the entry in the common denominator
-      // column. If this is not an integer, then the sample point is not
-      // integral so we return None.
-      if (tableau(u.pos, 1) % tableau(u.pos, 0) != 0)
-        return {};
-      sample.push_back(tableau(u.pos, 1) / tableau(u.pos, 0));
+      // column.
+      sample.emplace_back(tableau(u.pos, 1), tableau(u.pos, 0));
     }
   }
   return sample;
+}
+
+Optional<SmallVector<int64_t, 8>> Simplex::getSamplePointIfIntegral() const {
+  // If the tableau is empty, no sample point exists.
+  if (empty)
+    return {};
+  SmallVector<Fraction, 8> rationalSample = getRationalSample();
+  SmallVector<int64_t, 8> integerSample;
+  integerSample.reserve(var.size());
+  for (const Fraction &coord : rationalSample) {
+    // If the sample is non-integral, return None.
+    if (coord.num % coord.den != 0)
+      return {};
+    integerSample.push_back(coord.num / coord.den);
+  }
+  return integerSample;
 }
 
 /// Given a simplex for a polytope, construct a new simplex whose variables are

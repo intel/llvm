@@ -664,32 +664,6 @@ public:
       MDNode *TBAAStructTag = nullptr, MDNode *ScopeTag = nullptr,
       MDNode *NoAliasTag = nullptr);
 
-  LLVM_ATTRIBUTE_DEPRECATED(CallInst *CreateElementUnorderedAtomicMemCpy(
-                                Value *Dst, unsigned DstAlign, Value *Src,
-                                unsigned SrcAlign, uint64_t Size,
-                                uint32_t ElementSize, MDNode *TBAATag = nullptr,
-                                MDNode *TBAAStructTag = nullptr,
-                                MDNode *ScopeTag = nullptr,
-                                MDNode *NoAliasTag = nullptr),
-                            "Use the version that takes Align instead") {
-    return CreateElementUnorderedAtomicMemCpy(
-        Dst, Align(DstAlign), Src, Align(SrcAlign), getInt64(Size), ElementSize,
-        TBAATag, TBAAStructTag, ScopeTag, NoAliasTag);
-  }
-
-  LLVM_ATTRIBUTE_DEPRECATED(CallInst *CreateElementUnorderedAtomicMemCpy(
-                                Value *Dst, unsigned DstAlign, Value *Src,
-                                unsigned SrcAlign, Value *Size,
-                                uint32_t ElementSize, MDNode *TBAATag = nullptr,
-                                MDNode *TBAAStructTag = nullptr,
-                                MDNode *ScopeTag = nullptr,
-                                MDNode *NoAliasTag = nullptr),
-                            "Use the version that takes Align instead") {
-    return CreateElementUnorderedAtomicMemCpy(
-        Dst, Align(DstAlign), Src, Align(SrcAlign), Size, ElementSize, TBAATag,
-        TBAAStructTag, ScopeTag, NoAliasTag);
-  }
-
   CallInst *CreateMemMove(Value *Dst, MaybeAlign DstAlign, Value *Src,
                           MaybeAlign SrcAlign, uint64_t Size,
                           bool isVolatile = false, MDNode *TBAATag = nullptr,
@@ -719,32 +693,6 @@ public:
       uint32_t ElementSize, MDNode *TBAATag = nullptr,
       MDNode *TBAAStructTag = nullptr, MDNode *ScopeTag = nullptr,
       MDNode *NoAliasTag = nullptr);
-
-  LLVM_ATTRIBUTE_DEPRECATED(CallInst *CreateElementUnorderedAtomicMemMove(
-                                Value *Dst, unsigned DstAlign, Value *Src,
-                                unsigned SrcAlign, uint64_t Size,
-                                uint32_t ElementSize, MDNode *TBAATag = nullptr,
-                                MDNode *TBAAStructTag = nullptr,
-                                MDNode *ScopeTag = nullptr,
-                                MDNode *NoAliasTag = nullptr),
-                            "Use the version that takes Align instead") {
-    return CreateElementUnorderedAtomicMemMove(
-        Dst, Align(DstAlign), Src, Align(SrcAlign), getInt64(Size), ElementSize,
-        TBAATag, TBAAStructTag, ScopeTag, NoAliasTag);
-  }
-
-  LLVM_ATTRIBUTE_DEPRECATED(CallInst *CreateElementUnorderedAtomicMemMove(
-                                Value *Dst, unsigned DstAlign, Value *Src,
-                                unsigned SrcAlign, Value *Size,
-                                uint32_t ElementSize, MDNode *TBAATag = nullptr,
-                                MDNode *TBAAStructTag = nullptr,
-                                MDNode *ScopeTag = nullptr,
-                                MDNode *NoAliasTag = nullptr),
-                            "Use the version that takes Align instead") {
-    return CreateElementUnorderedAtomicMemMove(
-        Dst, Align(DstAlign), Src, Align(SrcAlign), Size, ElementSize, TBAATag,
-        TBAAStructTag, ScopeTag, NoAliasTag);
-  }
 
   /// Create a vector fadd reduction intrinsic of the source vector.
   /// The first parameter is a scalar accumulator value for ordered reductions.
@@ -779,11 +727,11 @@ public:
 
   /// Create a vector float max reduction intrinsic of the source
   /// vector.
-  CallInst *CreateFPMaxReduce(Value *Src, bool NoNaN = false);
+  CallInst *CreateFPMaxReduce(Value *Src);
 
   /// Create a vector float min reduction intrinsic of the source
   /// vector.
-  CallInst *CreateFPMinReduce(Value *Src, bool NoNaN = false);
+  CallInst *CreateFPMinReduce(Value *Src);
 
   /// Create a lifetime.start intrinsic.
   ///
@@ -801,50 +749,17 @@ public:
   CallInst *CreateInvariantStart(Value *Ptr, ConstantInt *Size = nullptr);
 
   /// Create a call to Masked Load intrinsic
-  LLVM_ATTRIBUTE_DEPRECATED(
-      CallInst *CreateMaskedLoad(Value *Ptr, unsigned Alignment, Value *Mask,
-                                 Value *PassThru = nullptr,
-                                 const Twine &Name = ""),
-      "Use the version that takes Align instead") {
-    return CreateMaskedLoad(Ptr, assumeAligned(Alignment), Mask, PassThru,
-                            Name);
-  }
   CallInst *CreateMaskedLoad(Value *Ptr, Align Alignment, Value *Mask,
                              Value *PassThru = nullptr, const Twine &Name = "");
 
   /// Create a call to Masked Store intrinsic
-  LLVM_ATTRIBUTE_DEPRECATED(CallInst *CreateMaskedStore(Value *Val, Value *Ptr,
-                                                        unsigned Alignment,
-                                                        Value *Mask),
-                            "Use the version that takes Align instead") {
-    return CreateMaskedStore(Val, Ptr, assumeAligned(Alignment), Mask);
-  }
-
   CallInst *CreateMaskedStore(Value *Val, Value *Ptr, Align Alignment,
                               Value *Mask);
-
-  /// Create a call to Masked Gather intrinsic
-  LLVM_ATTRIBUTE_DEPRECATED(
-      CallInst *CreateMaskedGather(Value *Ptrs, unsigned Alignment,
-                                   Value *Mask = nullptr,
-                                   Value *PassThru = nullptr,
-                                   const Twine &Name = ""),
-      "Use the version that takes Align instead") {
-    return CreateMaskedGather(Ptrs, Align(Alignment), Mask, PassThru, Name);
-  }
 
   /// Create a call to Masked Gather intrinsic
   CallInst *CreateMaskedGather(Value *Ptrs, Align Alignment,
                                Value *Mask = nullptr, Value *PassThru = nullptr,
                                const Twine &Name = "");
-
-  /// Create a call to Masked Scatter intrinsic
-  LLVM_ATTRIBUTE_DEPRECATED(
-      CallInst *CreateMaskedScatter(Value *Val, Value *Ptrs, unsigned Alignment,
-                                    Value *Mask = nullptr),
-      "Use the version that takes Align instead") {
-    return CreateMaskedScatter(Val, Ptrs, Align(Alignment), Mask);
-  }
 
   /// Create a call to Masked Scatter intrinsic
   CallInst *CreateMaskedScatter(Value *Val, Value *Ptrs, Align Alignment,
@@ -857,6 +772,13 @@ public:
   /// added to the call instruction.
   CallInst *CreateAssumption(Value *Cond,
                              ArrayRef<OperandBundleDef> OpBundles = llvm::None);
+
+  /// Create a llvm.experimental.noalias.scope.decl intrinsic call.
+  Instruction *CreateNoAliasScopeDeclaration(Value *Scope);
+  Instruction *CreateNoAliasScopeDeclaration(MDNode *ScopeTag) {
+    return CreateNoAliasScopeDeclaration(
+        MetadataAsValue::get(Context, ScopeTag));
+  }
 
   /// Create a call to the experimental.gc.statepoint intrinsic to
   /// start a new statepoint sequence.
@@ -1731,35 +1653,16 @@ public:
     return CreateAlignedStore(Val, Ptr, MaybeAlign(), isVolatile);
   }
 
-  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr,
-                                                        unsigned Align,
-                                                        const char *Name),
-                            "Use the version that takes NaybeAlign instead") {
-    return CreateAlignedLoad(Ty, Ptr, MaybeAlign(Align), Name);
-  }
   LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, MaybeAlign Align,
                               const char *Name) {
     return CreateAlignedLoad(Ty, Ptr, Align, /*isVolatile*/false, Name);
   }
 
-  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr,
-                                                        unsigned Align,
-                                                        const Twine &Name = ""),
-                            "Use the version that takes MaybeAlign instead") {
-    return CreateAlignedLoad(Ty, Ptr, MaybeAlign(Align), Name);
-  }
   LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, MaybeAlign Align,
                               const Twine &Name = "") {
     return CreateAlignedLoad(Ty, Ptr, Align, /*isVolatile*/false, Name);
   }
 
-  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr,
-                                                        unsigned Align,
-                                                        bool isVolatile,
-                                                        const Twine &Name = ""),
-                            "Use the version that takes MaybeAlign instead") {
-    return CreateAlignedLoad(Ty, Ptr, MaybeAlign(Align), isVolatile, Name);
-  }
   LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, MaybeAlign Align,
                               bool isVolatile, const Twine &Name = "") {
     if (!Align) {
@@ -1769,31 +1672,6 @@ public:
     return Insert(new LoadInst(Ty, Ptr, Twine(), isVolatile, *Align), Name);
   }
 
-  // Deprecated [opaque pointer types]
-  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Value *Ptr,
-                                                        unsigned Align,
-                                                        const char *Name),
-                            "Use the version that takes MaybeAlign instead") {
-    return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
-                             MaybeAlign(Align), Name);
-  }
-  // Deprecated [opaque pointer types]
-  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Value *Ptr,
-                                                        unsigned Align,
-                                                        const Twine &Name = ""),
-                            "Use the version that takes MaybeAlign instead") {
-    return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
-                             MaybeAlign(Align), Name);
-  }
-  // Deprecated [opaque pointer types]
-  LLVM_ATTRIBUTE_DEPRECATED(LoadInst *CreateAlignedLoad(Value *Ptr,
-                                                        unsigned Align,
-                                                        bool isVolatile,
-                                                        const Twine &Name = ""),
-                            "Use the version that takes MaybeAlign instead") {
-    return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
-                             MaybeAlign(Align), isVolatile, Name);
-  }
   // Deprecated [opaque pointer types]
   LoadInst *CreateAlignedLoad(Value *Ptr, MaybeAlign Align, const char *Name) {
     return CreateAlignedLoad(Ptr->getType()->getPointerElementType(), Ptr,
@@ -1812,12 +1690,6 @@ public:
                              Align, isVolatile, Name);
   }
 
-  LLVM_ATTRIBUTE_DEPRECATED(
-      StoreInst *CreateAlignedStore(Value *Val, Value *Ptr, unsigned Align,
-                                    bool isVolatile = false),
-      "Use the version that takes MaybeAlign instead") {
-    return CreateAlignedStore(Val, Ptr, MaybeAlign(Align), isVolatile);
-  }
   StoreInst *CreateAlignedStore(Value *Val, Value *Ptr, MaybeAlign Align,
                                 bool isVolatile = false) {
     if (!Align) {
@@ -2524,10 +2396,10 @@ public:
   }
 
   /// Create a unary shuffle. The second vector operand of the IR instruction
-  /// is undefined.
+  /// is poison.
   Value *CreateShuffleVector(Value *V, ArrayRef<int> Mask,
                              const Twine &Name = "") {
-    return CreateShuffleVector(V, UndefValue::get(V->getType()), Mask, Name);
+    return CreateShuffleVector(V, PoisonValue::get(V->getType()), Mask, Name);
   }
 
   Value *CreateExtractValue(Value *Agg,

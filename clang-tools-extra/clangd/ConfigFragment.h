@@ -151,6 +151,13 @@ struct Fragment {
     ///
     /// Flags added by the same CompileFlags entry will not be removed.
     std::vector<Located<std::string>> Remove;
+
+    /// Directory to search for compilation database (compile_comands.json etc).
+    /// Valid values are:
+    /// - A single path to a directory (absolute, or relative to the fragment)
+    /// - Ancestors: search all parent directories (the default)
+    /// - None: do not use a compilation database, just default flags.
+    llvm::Optional<Located<std::string>> CompilationDatabase;
   };
   CompileFlagsBlock CompileFlags;
 
@@ -181,6 +188,47 @@ struct Fragment {
   };
   IndexBlock Index;
 
+  /// Controls behavior of diagnostics (errors and warnings).
+  struct DiagnosticsBlock {
+    /// Diagnostic codes that should be suppressed.
+    ///
+    /// Valid values are:
+    /// - *, to disable all diagnostics
+    /// - diagnostic codes exposed by clangd (e.g unknown_type, -Wunused-result)
+    /// - clang internal diagnostic codes (e.g. err_unknown_type)
+    /// - warning categories (e.g. unused-result)
+    /// - clang-tidy check names (e.g. bugprone-narrowing-conversions)
+    ///
+    /// This is a simple filter. Diagnostics can be controlled in other ways
+    /// (e.g. by disabling a clang-tidy check, or the -Wunused compile flag).
+    /// This often has other advantages, such as skipping some analysis.
+    std::vector<Located<std::string>> Suppress;
+
+    /// Controls how clang-tidy will run over the code base.
+    ///
+    /// The settings are merged with any settings found in .clang-tidy
+    /// configiration files with these ones taking precedence.
+    struct ClangTidyBlock {
+      std::vector<Located<std::string>> Add;
+      /// List of checks to disable.
+      /// Takes precedence over Add. To enable all llvm checks except include
+      /// order:
+      ///   Add: llvm-*
+      ///   Remove: llvm-include-onder
+      std::vector<Located<std::string>> Remove;
+
+      /// A Key-Value pair list of options to pass to clang-tidy checks
+      /// These take precedence over options specified in clang-tidy
+      /// configuration files. Example:
+      ///   CheckOptions:
+      ///     readability-braces-around-statements.ShortStatementLines: 2
+      std::vector<std::pair<Located<std::string>, Located<std::string>>>
+          CheckOptions;
+    };
+    ClangTidyBlock ClangTidy;
+  };
+  DiagnosticsBlock Diagnostics;
+
   // Describes the style of the codebase, beyond formatting.
   struct StyleBlock {
     // Namespaces that should always be fully qualified, meaning no "using"
@@ -190,29 +238,6 @@ struct Fragment {
     std::vector<Located<std::string>> FullyQualifiedNamespaces;
   };
   StyleBlock Style;
-
-  /// Controls how clang-tidy will run over the code base.
-  ///
-  /// The settings are merged with any settings found in .clang-tidy
-  /// configiration files with these ones taking precedence.
-  struct ClangTidyBlock {
-    std::vector<Located<std::string>> Add;
-    /// List of checks to disable.
-    /// Takes precedence over Add. To enable all llvm checks except include
-    /// order:
-    ///   Add: llvm-*
-    ///   Remove: llvm-include-onder
-    std::vector<Located<std::string>> Remove;
-
-    /// A Key-Value pair list of options to pass to clang-tidy checks
-    /// These take precedence over options specified in clang-tidy configuration
-    /// files. Example:
-    ///   CheckOptions:
-    ///     readability-braces-around-statements.ShortStatementLines: 2
-    std::vector<std::pair<Located<std::string>, Located<std::string>>>
-        CheckOptions;
-  };
-  ClangTidyBlock ClangTidy;
 };
 
 } // namespace config

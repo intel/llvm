@@ -15,41 +15,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPUTargetTransformInfo.h"
-#include "AMDGPUSubtarget.h"
-#include "Utils/AMDGPUBaseInfo.h"
-#include "llvm/ADT/STLExtras.h"
+#include "AMDGPUTargetMachine.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/CodeGen/ISDOpcodes.h"
-#include "llvm/CodeGen/ValueTypes.h"
-#include "llvm/IR/Argument.h"
-#include "llvm/IR/Attributes.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallingConv.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Instruction.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Module.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Value.h"
-#include "llvm/MC/SubtargetFeature.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Support/MachineValueType.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetMachine.h"
-#include <algorithm>
-#include <cassert>
-#include <limits>
-#include <utility>
 
 using namespace llvm;
 
@@ -85,6 +56,24 @@ static cl::opt<unsigned> UnrollMaxBlockToAnalyze(
     cl::desc("Inner loop block size threshold to analyze in unroll for AMDGPU"),
     cl::init(32), cl::Hidden);
 
+static cl::opt<unsigned> ArgAllocaCost("amdgpu-inline-arg-alloca-cost",
+                                       cl::Hidden, cl::init(4000),
+                                       cl::desc("Cost of alloca argument"));
+
+// If the amount of scratch memory to eliminate exceeds our ability to allocate
+// it into registers we gain nothing by aggressively inlining functions for that
+// heuristic.
+static cl::opt<unsigned>
+    ArgAllocaCutoff("amdgpu-inline-arg-alloca-cutoff", cl::Hidden,
+                    cl::init(256),
+                    cl::desc("Maximum alloca size to use for inline cost"));
+
+// Inliner constraint to achieve reasonable compilation time.
+static cl::opt<size_t> InlineMaxBB(
+    "amdgpu-inline-max-bb", cl::Hidden, cl::init(1100),
+    cl::desc("Maximum number of BBs allowed in a function after inlining"
+             " (compile time constraint)"));
+
 static bool dependsOnLocalPhi(const Loop *L, const Value *Cond,
                               unsigned Depth = 0) {
   const Instruction *I = dyn_cast<Instruction>(Cond);
@@ -103,6 +92,12 @@ static bool dependsOnLocalPhi(const Loop *L, const Value *Cond,
   }
   return false;
 }
+
+AMDGPUTTIImpl::AMDGPUTTIImpl(const AMDGPUTargetMachine *TM, const Function &F)
+    : BaseT(TM, F.getParent()->getDataLayout()),
+      TargetTriple(TM->getTargetTriple()),
+      ST(static_cast<const GCNSubtarget *>(TM->getSubtargetImpl(F))),
+      TLI(ST->getTargetLowering()) {}
 
 void AMDGPUTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                             TTI::UnrollingPreferences &UP) {
@@ -261,6 +256,41 @@ void AMDGPUTTIImpl::getPeelingPreferences(Loop *L, ScalarEvolution &SE,
                                           TTI::PeelingPreferences &PP) {
   BaseT::getPeelingPreferences(L, SE, PP);
 }
+
+const FeatureBitset GCNTTIImpl::InlineFeatureIgnoreList = {
+    // Codegen control options which don't matter.
+    AMDGPU::FeatureEnableLoadStoreOpt, AMDGPU::FeatureEnableSIScheduler,
+    AMDGPU::FeatureEnableUnsafeDSOffsetFolding, AMDGPU::FeatureFlatForGlobal,
+    AMDGPU::FeaturePromoteAlloca, AMDGPU::FeatureUnalignedScratchAccess,
+    AMDGPU::FeatureUnalignedAccessMode,
+
+    AMDGPU::FeatureAutoWaitcntBeforeBarrier,
+
+    // Property of the kernel/environment which can't actually differ.
+    AMDGPU::FeatureSGPRInitBug, AMDGPU::FeatureXNACK,
+    AMDGPU::FeatureTrapHandler,
+
+    // The default assumption needs to be ecc is enabled, but no directly
+    // exposed operations depend on it, so it can be safely inlined.
+    AMDGPU::FeatureSRAMECC,
+
+    // Perf-tuning features
+    AMDGPU::FeatureFastFMAF32, AMDGPU::HalfRate64Ops};
+
+GCNTTIImpl::GCNTTIImpl(const AMDGPUTargetMachine *TM, const Function &F)
+    : BaseT(TM, F.getParent()->getDataLayout()),
+      ST(static_cast<const GCNSubtarget *>(TM->getSubtargetImpl(F))),
+      TLI(ST->getTargetLowering()), CommonTTI(TM, F),
+      IsGraphics(AMDGPU::isGraphics(F.getCallingConv())),
+      MaxVGPRs(ST->getMaxNumVGPRs(
+          std::max(ST->getWavesPerEU(F).first,
+                   ST->getWavesPerEUForWorkGroup(
+                       ST->getFlatWorkGroupSizes(F).second)))) {
+  AMDGPU::SIModeRegisterDefaults Mode(F);
+  HasFP32Denormals = Mode.allFP32Denormals();
+  HasFP64FP16Denormals = Mode.allFP64FP16Denormals();
+}
+
 unsigned GCNTTIImpl::getHardwareNumberOfRegisters(bool Vec) const {
   // The concept of vector registers doesn't really exist. Some packed vector
   // operations operate on the normal 32-bit registers.
@@ -1108,7 +1138,47 @@ bool GCNTTIImpl::areInlineCompatible(const Function *Caller,
   // no way to support merge for backend defined attributes.
   AMDGPU::SIModeRegisterDefaults CallerMode(*Caller);
   AMDGPU::SIModeRegisterDefaults CalleeMode(*Callee);
-  return CallerMode.isInlineCompatible(CalleeMode);
+  if (!CallerMode.isInlineCompatible(CalleeMode))
+    return false;
+
+  // Hack to make compile times reasonable.
+  if (InlineMaxBB && !Callee->hasFnAttribute(Attribute::InlineHint)) {
+    // Single BB does not increase total BB amount, thus subtract 1.
+    size_t BBSize = Caller->size() + Callee->size() - 1;
+    return BBSize <= InlineMaxBB;
+  }
+
+  return true;
+}
+
+unsigned GCNTTIImpl::adjustInliningThreshold(const CallBase *CB) const {
+  // If we have a pointer to private array passed into a function
+  // it will not be optimized out, leaving scratch usage.
+  // Increase the inline threshold to allow inlining in this case.
+  uint64_t AllocaSize = 0;
+  SmallPtrSet<const AllocaInst *, 8> AIVisited;
+  for (Value *PtrArg : CB->args()) {
+    PointerType *Ty = dyn_cast<PointerType>(PtrArg->getType());
+    if (!Ty || (Ty->getAddressSpace() != AMDGPUAS::PRIVATE_ADDRESS &&
+                Ty->getAddressSpace() != AMDGPUAS::FLAT_ADDRESS))
+      continue;
+
+    PtrArg = getUnderlyingObject(PtrArg);
+    if (const AllocaInst *AI = dyn_cast<AllocaInst>(PtrArg)) {
+      if (!AI->isStaticAlloca() || !AIVisited.insert(AI).second)
+        continue;
+      AllocaSize += DL.getTypeAllocSize(AI->getAllocatedType());
+      // If the amount of stack memory is excessive we will not be able
+      // to get rid of the scratch anyway, bail out.
+      if (AllocaSize > ArgAllocaCutoff) {
+        AllocaSize = 0;
+        break;
+      }
+    }
+  }
+  if (AllocaSize)
+    return ArgAllocaCost;
+  return 0;
 }
 
 void GCNTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
@@ -1120,6 +1190,16 @@ void GCNTTIImpl::getPeelingPreferences(Loop *L, ScalarEvolution &SE,
                                        TTI::PeelingPreferences &PP) {
   CommonTTI.getPeelingPreferences(L, SE, PP);
 }
+
+int GCNTTIImpl::get64BitInstrCost(TTI::TargetCostKind CostKind) const {
+  return ST->hasHalfRate64Ops() ? getHalfRateInstrCost(CostKind)
+                                : getQuarterRateInstrCost(CostKind);
+}
+
+R600TTIImpl::R600TTIImpl(const AMDGPUTargetMachine *TM, const Function &F)
+    : BaseT(TM, F.getParent()->getDataLayout()),
+      ST(static_cast<const R600Subtarget *>(TM->getSubtargetImpl(F))),
+      TLI(ST->getTargetLowering()), CommonTTI(TM, F) {}
 
 unsigned R600TTIImpl::getHardwareNumberOfRegisters(bool Vec) const {
   return 4 * 128; // XXX - 4 channels. Should these count as vector instead?

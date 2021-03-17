@@ -1128,8 +1128,7 @@ class MDTuple : public MDNode {
                           StorageType Storage, bool ShouldCreate = true);
 
   TempMDTuple cloneImpl() const {
-    return getTemporary(getContext(),
-                        SmallVector<Metadata *, 4>(op_begin(), op_end()));
+    return getTemporary(getContext(), SmallVector<Metadata *, 4>(operands()));
   }
 
 public:
@@ -1208,6 +1207,12 @@ public:
     if (Node->getNumOperands() < 2)
       return nullptr;
     return dyn_cast_or_null<MDNode>(Node->getOperand(1));
+  }
+  StringRef getName() const {
+    if (Node->getNumOperands() > 2)
+      if (MDString *N = dyn_cast_or_null<MDString>(Node->getOperand(2)))
+        return N->getString();
+    return StringRef();
   }
 };
 

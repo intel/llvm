@@ -24,6 +24,7 @@
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/NoFolder.h"
@@ -1252,6 +1253,17 @@ ChangeStatus Attributor::cleanupIR() {
           isInstructionTriviallyDead(I))
         DeadInsts.push_back(I);
     }
+    if (isa<UndefValue>(NewV) && isa<CallBase>(U->getUser())) {
+      auto *CB = cast<CallBase>(U->getUser());
+      if (CB->isArgOperand(U)) {
+        unsigned Idx = CB->getArgOperandNo(U);
+        CB->removeParamAttr(Idx, Attribute::NoUndef);
+        Function *Fn = CB->getCalledFunction();
+        assert(Fn && "Expected callee when call argument is replaced!");
+        if (Fn->arg_size() > Idx)
+          Fn->removeParamAttr(Idx, Attribute::NoUndef);
+      }
+    }
     if (isa<Constant>(NewV) && isa<BranchInst>(U->getUser())) {
       Instruction *UserI = cast<Instruction>(U->getUser());
       if (isa<UndefValue>(NewV)) {
@@ -2459,7 +2471,7 @@ template <> struct DOTGraphTraits<AADepGraph *> : public DefaultDOTGraphTraits {
 
   static std::string getNodeLabel(const AADepGraphNode *Node,
                                   const AADepGraph *DG) {
-    std::string AAString = "";
+    std::string AAString;
     raw_string_ostream O(AAString);
     Node->print(O);
     return AAString;

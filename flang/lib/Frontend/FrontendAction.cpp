@@ -9,7 +9,11 @@
 #include "flang/Frontend/FrontendAction.h"
 #include "flang/Frontend/CompilerInstance.h"
 #include "flang/Frontend/FrontendActions.h"
+#include "flang/Frontend/FrontendOptions.h"
+#include "flang/FrontendTool/Utils.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/VirtualFileSystem.h"
 
 using namespace Fortran::frontend;
 
@@ -29,14 +33,45 @@ bool FrontendAction::BeginSourceFile(
     CompilerInstance &ci, const FrontendInputFile &realInput) {
 
   FrontendInputFile input(realInput);
+
+  // Return immediately if the input file does not exist or is not a file. Note
+  // that we cannot check this for input from stdin.
+  if (input.file() != "-") {
+    if (!llvm::sys::fs::is_regular_file(input.file())) {
+      // Create an diagnostic ID to report
+      unsigned diagID;
+      if (llvm::vfs::getRealFileSystem()->exists(input.file())) {
+        ci.diagnostics().Report(clang::diag::err_fe_error_reading)
+            << input.file();
+        diagID = ci.diagnostics().getCustomDiagID(
+            clang::DiagnosticsEngine::Error, "%0 is not a regular file");
+      } else {
+        diagID = ci.diagnostics().getCustomDiagID(
+            clang::DiagnosticsEngine::Error, "%0 does not exist");
+      }
+
+      // Report the diagnostic and return
+      ci.diagnostics().Report(diagID) << input.file();
+      BeginSourceFileCleanUp(*this, ci);
+      return false;
+    }
+  }
+
   assert(!instance_ && "Already processing a source file!");
   assert(!realInput.IsEmpty() && "Unexpected empty filename!");
   set_currentInput(realInput);
   set_instance(&ci);
+
   if (!ci.HasAllSources()) {
     BeginSourceFileCleanUp(*this, ci);
     return false;
   }
+
+  if (!BeginSourceFileAction(ci)) {
+    BeginSourceFileCleanUp(*this, ci);
+    return false;
+  }
+
   return true;
 }
 
@@ -45,13 +80,6 @@ bool FrontendAction::ShouldEraseOutputFiles() {
 }
 
 llvm::Error FrontendAction::Execute() {
-  std::string currentInputPath{GetCurrentFileOrBufferName()};
-
-  Fortran::parser::Options parserOptions =
-      this->instance().invocation().fortranOpts();
-
-  this->instance().parsing().Prescan(currentInputPath, parserOptions);
-
   ExecuteAction();
 
   return llvm::Error::success();

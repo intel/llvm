@@ -2664,7 +2664,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       auto BI = static_cast<SPIRVInstruction *>(BV);
       Value *Inst = nullptr;
       if (BI->hasFPRoundingMode() || BI->isSaturatedConversion())
-        Inst = transOCLBuiltinFromInst(BI, BB);
+        Inst = transSPIRVBuiltinFromInst(BI, BB);
       else
         Inst = transConvertInst(BV, F, BB);
       return mapValue(BV, Inst);
@@ -3246,10 +3246,16 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
       HasFuncPtrArg = true;
     }
   }
-  if (!HasFuncPtrArg)
-    mangleOpenClBuiltin(FuncName, ArgTys, MangledName);
-  else
+  if (!HasFuncPtrArg) {
+    if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR)
+      mangleOpenClBuiltin(FuncName, ArgTys, MangledName);
+    else
+      MangledName =
+          getSPIRVFriendlyIRFunctionName(FuncName, BI->getOpCode(), ArgTys);
+
+  } else {
     MangledName = decorateSPIRVFunction(FuncName);
+  }
   Function *Func = M->getFunction(MangledName);
   FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
   // ToDo: Some intermediate functions have duplicate names with
@@ -3373,9 +3379,7 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromInst(SPIRVInstruction *BI,
   return transBuiltinFromInst(FuncName, BI, BB);
 }
 
-Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
-                                                    BasicBlock *BB) {
-  assert(BB && "Invalid BB");
+std::string getSPIRVFuncSuffix(SPIRVInstruction *BI) {
   string Suffix = "";
   if (BI->getOpCode() == OpCreatePipeFromPipeStorage) {
     auto CPFPS = static_cast<SPIRVCreatePipeFromPipeStorage *>(BI);
@@ -3395,8 +3399,41 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
       break;
     }
   }
+  if (BI->hasDecorate(DecorationSaturatedConversion)) {
+    Suffix += kSPIRVPostfix::Divider;
+    Suffix += kSPIRVPostfix::Sat;
+  }
+  SPIRVFPRoundingModeKind Kind;
+  if (BI->hasFPRoundingMode(&Kind)) {
+    Suffix += kSPIRVPostfix::Divider;
+    Suffix += SPIRSPIRVFPRoundingModeMap::rmap(Kind);
+  }
+  return Suffix;
+}
 
-  return transBuiltinFromInst(getSPIRVFuncName(BI->getOpCode(), Suffix), BI,
+Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
+                                                    BasicBlock *BB) {
+  assert(BB && "Invalid BB");
+  const auto OC = BI->getOpCode();
+  bool AddRetTypePostfix = false;
+  if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize)
+    AddRetTypePostfix = true;
+
+  bool IsRetSigned = false;
+  if (isCvtOpCode(OC)) {
+    AddRetTypePostfix = true;
+    if (OC == OpConvertUToF || OC == OpSatConvertUToS)
+      IsRetSigned = true;
+  }
+
+  if (AddRetTypePostfix) {
+    const Type *RetTy =
+        BI->hasType() ? transType(BI->getType()) : Type::getVoidTy(*Context);
+    return transBuiltinFromInst(getSPIRVFuncName(OC, RetTy, IsRetSigned) +
+                                    getSPIRVFuncSuffix(BI),
+                                BI, BB);
+  }
+  return transBuiltinFromInst(getSPIRVFuncName(OC, getSPIRVFuncSuffix(BI)), BI,
                               BB);
 }
 
@@ -3888,6 +3925,12 @@ bool SPIRVToLLVM::transMetadata() {
     transVectorComputeMetadata(BF);
     transFPGAFunctionMetadata(BF, F);
 
+    if (BF->hasDecorate(DecorationCallableFunctionINTEL))
+      F->addFnAttr(kVCMetadata::VCCallable);
+    if (isKernel(BF) &&
+        BF->getExecutionMode(ExecutionModeFastCompositeKernelINTEL))
+      F->addFnAttr(kVCMetadata::VCFCEntry);
+
     if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
 
@@ -4066,11 +4109,6 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   SPIRVWord SIMTMode = 0;
   if (BF->hasDecorate(DecorationSIMTCallINTEL, 0, &SIMTMode))
     F->addFnAttr(kVCMetadata::VCSIMTCall, std::to_string(SIMTMode));
-  if (BF->hasDecorate(DecorationVectorComputeCallableFunctionINTEL))
-    F->addFnAttr(kVCMetadata::VCCallable);
-  if (isKernel(BF) &&
-      BF->getExecutionMode(ExecutionModeVectorComputeFastCompositeKernelINTEL))
-    F->addFnAttr(kVCMetadata::VCFCEntry);
 
   auto SEVAttr = Attribute::get(*Context, kVCMetadata::VCSingleElementVector);
   if (BF->hasDecorate(DecorationSingleElementVectorINTEL))
@@ -4475,13 +4513,13 @@ Instruction *SPIRVToLLVM::transOCLAllAny(SPIRVInstruction *I, BasicBlock *BB) {
                    CastInst::CreateSExtOrBitCast(OldArg, NewArgTy, "", CI);
                Args[0] = NewArg;
                RetTy = Int32Ty;
-               return CI->getCalledFunction()->getName().str();
+               return getSPIRVFuncName(I->getOpCode(), getSPIRVFuncSuffix(I));
              },
              [=](CallInst *NewCI) -> Instruction * {
                return CastInst::CreateTruncOrBitCast(
                    NewCI, Type::getInt1Ty(*Context), "", NewCI->getNextNode());
              },
-             &Attrs)));
+             &Attrs, /*TakeFuncName=*/true)));
 }
 
 Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
@@ -4508,7 +4546,7 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                      IntTy,
                      cast<FixedVectorType>(CI->getType())->getNumElements());
                }
-               return CI->getCalledFunction()->getName().str();
+               return getSPIRVFuncName(I->getOpCode(), getSPIRVFuncSuffix(I));
              },
              [=](CallInst *NewCI) -> Instruction * {
                Type *RetTy = Type::getInt1Ty(*Context);
@@ -4519,7 +4557,7 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                return CastInst::CreateTruncOrBitCast(NewCI, RetTy, "",
                                                      NewCI->getNextNode());
              },
-             &Attrs)));
+             &Attrs, /*TakeFuncName=*/true)));
 }
 
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,

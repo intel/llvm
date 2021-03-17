@@ -28,7 +28,7 @@ namespace detail {
 class program_impl;
 }
 
-enum class program_state { none, compiled, linked };
+enum class program_state { none = 0, compiled = 1, linked = 2 };
 
 /// Provides an abstraction of a SYCL program.
 ///
@@ -355,6 +355,11 @@ public:
     return ONEAPI::experimental::spec_constant<T, ID>(Cst);
 #endif // __SYCL_DEVICE_ONLY__
   }
+
+  /// Returns the backend associated with this program.
+  ///
+  /// \return the backend associated with this program.
+  backend get_backend() const noexcept;
 
   /// Gets the native handle of the SYCL platform.
   ///

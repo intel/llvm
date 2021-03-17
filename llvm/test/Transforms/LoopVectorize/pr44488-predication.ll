@@ -18,13 +18,13 @@ define i16 @test_true_and_false_branch_equal() {
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i32 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[PRED_SREM_CONTINUE4:%.*]] ]
 ; CHECK-NEXT:    [[TMP0:%.*]] = trunc i32 [[INDEX]] to i16
 ; CHECK-NEXT:    [[OFFSET_IDX:%.*]] = add i16 99, [[TMP0]]
-; CHECK-NEXT:    [[BROADCAST_SPLATINSERT:%.*]] = insertelement <2 x i16> undef, i16 [[OFFSET_IDX]], i32 0
-; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <2 x i16> [[BROADCAST_SPLATINSERT]], <2 x i16> undef, <2 x i32> zeroinitializer
+; CHECK-NEXT:    [[BROADCAST_SPLATINSERT:%.*]] = insertelement <2 x i16> poison, i16 [[OFFSET_IDX]], i32 0
+; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <2 x i16> [[BROADCAST_SPLATINSERT]], <2 x i16> poison, <2 x i32> zeroinitializer
 ; CHECK-NEXT:    [[INDUCTION:%.*]] = add <2 x i16> [[BROADCAST_SPLAT]], <i16 0, i16 1>
 ; CHECK-NEXT:    [[TMP1:%.*]] = add i16 [[OFFSET_IDX]], 0
 ; CHECK-NEXT:    [[TMP2:%.*]] = load i16, i16* @v_38, align 1
-; CHECK-NEXT:    [[BROADCAST_SPLATINSERT1:%.*]] = insertelement <2 x i16> undef, i16 [[TMP2]], i32 0
-; CHECK-NEXT:    [[BROADCAST_SPLAT2:%.*]] = shufflevector <2 x i16> [[BROADCAST_SPLATINSERT1]], <2 x i16> undef, <2 x i32> zeroinitializer
+; CHECK-NEXT:    [[BROADCAST_SPLATINSERT1:%.*]] = insertelement <2 x i16> poison, i16 [[TMP2]], i32 0
+; CHECK-NEXT:    [[BROADCAST_SPLAT2:%.*]] = shufflevector <2 x i16> [[BROADCAST_SPLATINSERT1]], <2 x i16> poison, <2 x i32> zeroinitializer
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp eq <2 x i16> [[BROADCAST_SPLAT2]], <i16 32767, i16 32767>
 ; CHECK-NEXT:    [[TMP4:%.*]] = icmp eq <2 x i16> [[BROADCAST_SPLAT2]], zeroinitializer
 ; CHECK-NEXT:    [[TMP5:%.*]] = xor <2 x i1> [[TMP4]], <i1 true, i1 true>
@@ -32,10 +32,10 @@ define i16 @test_true_and_false_branch_equal() {
 ; CHECK-NEXT:    br i1 [[TMP6]], label [[PRED_SREM_IF:%.*]], label [[PRED_SREM_CONTINUE:%.*]]
 ; CHECK:       pred.srem.if:
 ; CHECK-NEXT:    [[TMP7:%.*]] = srem i16 5786, [[TMP2]]
-; CHECK-NEXT:    [[TMP8:%.*]] = insertelement <2 x i16> undef, i16 [[TMP7]], i32 0
+; CHECK-NEXT:    [[TMP8:%.*]] = insertelement <2 x i16> poison, i16 [[TMP7]], i32 0
 ; CHECK-NEXT:    br label [[PRED_SREM_CONTINUE]]
 ; CHECK:       pred.srem.continue:
-; CHECK-NEXT:    [[TMP9:%.*]] = phi <2 x i16> [ undef, [[VECTOR_BODY]] ], [ [[TMP8]], [[PRED_SREM_IF]] ]
+; CHECK-NEXT:    [[TMP9:%.*]] = phi <2 x i16> [ poison, [[VECTOR_BODY]] ], [ [[TMP8]], [[PRED_SREM_IF]] ]
 ; CHECK-NEXT:    [[TMP10:%.*]] = extractelement <2 x i1> [[TMP5]], i32 1
 ; CHECK-NEXT:    br i1 [[TMP10]], label [[PRED_SREM_IF3:%.*]], label [[PRED_SREM_CONTINUE4]]
 ; CHECK:       pred.srem.if3:

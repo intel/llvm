@@ -69,6 +69,7 @@ void InputChunk::verifyRelocTargets() const {
     case R_WASM_GLOBAL_INDEX_LEB:
     case R_WASM_EVENT_INDEX_LEB:
     case R_WASM_MEMORY_ADDR_LEB:
+    case R_WASM_TABLE_NUMBER_LEB:
       existingValue = decodeULEB128(loc, &bytesRead);
       break;
     case R_WASM_MEMORY_ADDR_LEB64:
@@ -152,6 +153,7 @@ void InputChunk::writeTo(uint8_t *buf) const {
     case R_WASM_GLOBAL_INDEX_LEB:
     case R_WASM_EVENT_INDEX_LEB:
     case R_WASM_MEMORY_ADDR_LEB:
+    case R_WASM_TABLE_NUMBER_LEB:
       encodeULEB128(value, loc, 5);
       break;
     case R_WASM_MEMORY_ADDR_LEB64:
@@ -233,6 +235,7 @@ static unsigned writeCompressedReloc(uint8_t *buf, const WasmRelocation &rel,
   case R_WASM_EVENT_INDEX_LEB:
   case R_WASM_MEMORY_ADDR_LEB:
   case R_WASM_MEMORY_ADDR_LEB64:
+  case R_WASM_TABLE_NUMBER_LEB:
     return encodeULEB128(value, buf);
   case R_WASM_TABLE_INDEX_SLEB:
   case R_WASM_TABLE_INDEX_SLEB64:
@@ -251,6 +254,7 @@ static unsigned getRelocWidthPadded(const WasmRelocation &rel) {
   case R_WASM_GLOBAL_INDEX_LEB:
   case R_WASM_EVENT_INDEX_LEB:
   case R_WASM_MEMORY_ADDR_LEB:
+  case R_WASM_TABLE_NUMBER_LEB:
   case R_WASM_TABLE_INDEX_SLEB:
   case R_WASM_MEMORY_ADDR_SLEB:
     return 5;
@@ -349,6 +353,10 @@ void InputFunction::writeTo(uint8_t *buf) const {
   LLVM_DEBUG(dbgs() << "  total: " << (buf + chunkSize - orig) << "\n");
 }
 
+uint64_t InputSegment::getVA() const {
+  return outputSeg->startVA + outputSegmentOffset;
+}
+
 // Generate code to apply relocations to the data section at runtime.
 // This is only called when generating shared libaries (PIC) where address are
 // not known at static link time.
@@ -366,10 +374,9 @@ void InputSegment::generateRelocationCode(raw_ostream &os) const {
   auto tombstone = getTombstone();
   // TODO(sbc): Encode the relocations in the data section and write a loop
   // here to apply them.
-  uint64_t segmentVA = outputSeg->startVA + outputSegmentOffset;
   for (const WasmRelocation &rel : relocations) {
     uint64_t offset = rel.Offset - getInputSectionOffset();
-    uint64_t outputOffset = segmentVA + offset;
+    uint64_t outputOffset = getVA() + offset;
 
     LLVM_DEBUG(dbgs() << "gen reloc: type=" << relocTypeToString(rel.Type)
                       << " addend=" << rel.Addend << " index=" << rel.Index

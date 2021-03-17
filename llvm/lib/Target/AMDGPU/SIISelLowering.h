@@ -16,9 +16,16 @@
 
 #include "AMDGPUISelLowering.h"
 #include "AMDGPUArgumentUsageInfo.h"
-#include "SIInstrInfo.h"
 
 namespace llvm {
+
+class GCNSubtarget;
+class SIMachineFunctionInfo;
+class SIRegisterInfo;
+
+namespace AMDGPU {
+struct ImageDimIntrinsicInfo;
+}
 
 class SITargetLowering final : public AMDGPUTargetLowering {
 private:
@@ -85,6 +92,7 @@ private:
   SDValue LowerLOAD(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFastUnsafeFDIV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFastUnsafeFDIV64(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFDIV_FAST(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV16(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV32(SDValue Op, SelectionDAG &DAG) const;
@@ -275,7 +283,7 @@ public:
   }
 
   bool allowsMisalignedMemoryAccesses(
-      EVT VT, unsigned AS, unsigned Alignment,
+      EVT VT, unsigned AS, Align Alignment,
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool *IsFast = nullptr) const override;
 
@@ -285,10 +293,7 @@ public:
   bool isMemOpUniform(const SDNode *N) const;
   bool isMemOpHasNoClobberedMemOperand(const SDNode *N) const;
 
-  static bool isNonGlobalAddrSpace(unsigned AS) {
-    return AS == AMDGPUAS::LOCAL_ADDRESS || AS == AMDGPUAS::REGION_ADDRESS ||
-           AS == AMDGPUAS::PRIVATE_ADDRESS;
-  }
+  static bool isNonGlobalAddrSpace(unsigned AS);
 
   bool isFreeAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
 

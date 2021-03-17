@@ -154,6 +154,15 @@ the configuration (without a prefix: ``Auto``).
   * ``GNU``
     A style complying with the `GNU coding standards
     <https://www.gnu.org/prep/standards/standards.html>`_
+  * ``InheritParentConfig``
+    Not a real style, but allows to use the ``.clang-format`` file from the
+    parent directory (or its parent if there is none). If there is no parent
+    file found it falls back to the ``fallback`` style, and applies the changes
+    to that.
+
+    With this option you can overwrite some parts of your main style for your
+    subdirectories. This is also possible through the command line, e.g.:
+    ``--style={BasedOnStyle: InheritParentConfig, ColumnLimit: 20}``
 
 .. START_FORMAT_STYLE_OPTIONS
 
@@ -195,23 +204,84 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AlignConsecutiveAssignments** (``bool``)
-  If ``true``, aligns consecutive assignments.
+**AlignConsecutiveAssignments** (``AlignConsecutiveStyle``)
+  Style of aligning consecutive assignments.
 
-  This will align the assignment operators of consecutive lines. This
-  will result in formattings like
+  ``Consecutive`` will result in formattings like:
 
   .. code-block:: c++
 
-    int aaaa = 12;
-    int b    = 23;
-    int ccc  = 23;
+    int a            = 1;
+    int somelongname = 2;
+    double c         = 3;
 
-**AlignConsecutiveBitFields** (``bool``)
-  If ``true``, aligns consecutive bitfield members.
+  Possible values:
 
-  This will align the bitfield separators of consecutive lines. This
-  will result in formattings like
+  * ``ACS_None`` (in configuration: ``None``)
+     Do not align assignments on consecutive lines.
+
+  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
+     Align assignments on consecutive lines. This will result in
+     formattings like:
+
+     .. code-block:: c++
+
+       int a            = 1;
+       int somelongname = 2;
+       double c         = 3;
+
+       int d = 3;
+       /* A comment. */
+       double e = 4;
+
+  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
+     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+
+     .. code-block:: c++
+
+       int a            = 1;
+       int somelongname = 2;
+       double c         = 3;
+
+       int d            = 3;
+       /* A comment. */
+       double e = 4;
+
+  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments, e.g.
+
+     .. code-block:: c++
+
+       int a            = 1;
+       int somelongname = 2;
+       double c         = 3;
+
+       int d    = 3;
+       /* A comment. */
+       double e = 4;
+
+  * ``ACS_AcrossEmptyLinesAndComments``
+    (in configuration: ``AcrossEmptyLinesAndComments``)
+
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments and empty lines, e.g.
+
+     .. code-block:: c++
+
+       int a            = 1;
+       int somelongname = 2;
+       double c         = 3;
+
+       int d            = 3;
+       /* A comment. */
+       double e         = 4;
+
+**AlignConsecutiveBitFields** (``AlignConsecutiveStyle``)
+  Style of aligning consecutive bit field.
+
+  ``Consecutive`` will align the bitfield separators of consecutive lines.
+  This will result in formattings like:
 
   .. code-block:: c++
 
@@ -219,23 +289,146 @@ the configuration (without a prefix: ``Auto``).
     int b    : 12;
     int ccc  : 8;
 
-**AlignConsecutiveDeclarations** (``bool``)
-  If ``true``, aligns consecutive declarations.
+  Possible values:
 
-  This will align the declaration names of consecutive lines. This
-  will result in formattings like
+  * ``ACS_None`` (in configuration: ``None``)
+     Do not align bit fields on consecutive lines.
+
+  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
+     Align bit fields on consecutive lines. This will result in
+     formattings like:
+
+     .. code-block:: c++
+
+       int aaaa : 1;
+       int b    : 12;
+       int ccc  : 8;
+
+       int d : 2;
+       /* A comment. */
+       int ee : 3;
+
+  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
+     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+
+     .. code-block:: c++
+
+       int aaaa : 1;
+       int b    : 12;
+       int ccc  : 8;
+
+       int d    : 2;
+       /* A comment. */
+       int ee : 3;
+
+  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments, e.g.
+
+     .. code-block:: c++
+
+       int aaaa : 1;
+       int b    : 12;
+       int ccc  : 8;
+
+       int d  : 2;
+       /* A comment. */
+       int ee : 3;
+
+  * ``ACS_AcrossEmptyLinesAndComments``
+    (in configuration: ``AcrossEmptyLinesAndComments``)
+
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments and empty lines, e.g.
+
+     .. code-block:: c++
+
+       int aaaa : 1;
+       int b    : 12;
+       int ccc  : 8;
+
+       int d    : 2;
+       /* A comment. */
+       int ee   : 3;
+
+**AlignConsecutiveDeclarations** (``AlignConsecutiveStyle``)
+  Style of aligning consecutive declarations.
+
+  ``Consecutive`` will align the declaration names of consecutive lines.
+  This will result in formattings like:
 
   .. code-block:: c++
 
     int         aaaa = 12;
     float       b = 23;
-    std::string ccc = 23;
+    std::string ccc;
 
-**AlignConsecutiveMacros** (``bool``)
-  If ``true``, aligns consecutive C/C++ preprocessor macros.
+  Possible values:
 
-  This will align C/C++ preprocessor macros of consecutive lines.
-  Will result in formattings like
+  * ``ACS_None`` (in configuration: ``None``)
+     Do not align bit declarations on consecutive lines.
+
+  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
+     Align declarations on consecutive lines. This will result in
+     formattings like:
+
+     .. code-block:: c++
+
+       int         aaaa = 12;
+       float       b = 23;
+       std::string ccc;
+
+       int a = 42;
+       /* A comment. */
+       bool c = false;
+
+  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
+     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+
+     .. code-block:: c++
+
+       int         aaaa = 12;
+       float       b = 23;
+       std::string ccc;
+
+       int         a = 42;
+       /* A comment. */
+       bool c = false;
+
+  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments, e.g.
+
+     .. code-block:: c++
+
+       int         aaaa = 12;
+       float       b = 23;
+       std::string ccc;
+
+       int  a = 42;
+       /* A comment. */
+       bool c = false;
+
+  * ``ACS_AcrossEmptyLinesAndComments``
+    (in configuration: ``AcrossEmptyLinesAndComments``)
+
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments and empty lines, e.g.
+
+     .. code-block:: c++
+
+       int         aaaa = 12;
+       float       b = 23;
+       std::string ccc;
+
+       int         a = 42;
+       /* A comment. */
+       bool        c = false;
+
+**AlignConsecutiveMacros** (``AlignConsecutiveStyle``)
+  Style of aligning consecutive macro definitions.
+
+  ``Consecutive`` will result in formattings like:
 
   .. code-block:: c++
 
@@ -244,6 +437,68 @@ the configuration (without a prefix: ``Auto``).
     #define EVEN_LONGER_NAME (2)
     #define foo(x)           (x * x)
     #define bar(y, z)        (y + z)
+
+  Possible values:
+
+  * ``ACS_None`` (in configuration: ``None``)
+     Do not align macro definitions on consecutive lines.
+
+  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
+     Align macro definitions on consecutive lines. This will result in
+     formattings like:
+
+     .. code-block:: c++
+
+       #define SHORT_NAME       42
+       #define LONGER_NAME      0x007f
+       #define EVEN_LONGER_NAME (2)
+
+       #define foo(x) (x * x)
+       /* some comment */
+       #define bar(y, z) (y + z)
+
+  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
+     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+
+     .. code-block:: c++
+
+       #define SHORT_NAME       42
+       #define LONGER_NAME      0x007f
+       #define EVEN_LONGER_NAME (2)
+
+       #define foo(x)           (x * x)
+       /* some comment */
+       #define bar(y, z) (y + z)
+
+  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments, e.g.
+
+     .. code-block:: c++
+
+       #define SHORT_NAME       42
+       #define LONGER_NAME      0x007f
+       #define EVEN_LONGER_NAME (2)
+
+       #define foo(x)    (x * x)
+       /* some comment */
+       #define bar(y, z) (y + z)
+
+  * ``ACS_AcrossEmptyLinesAndComments``
+    (in configuration: ``AcrossEmptyLinesAndComments``)
+
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments and empty lines, e.g.
+
+     .. code-block:: c++
+
+       #define SHORT_NAME       42
+       #define LONGER_NAME      0x007f
+       #define EVEN_LONGER_NAME (2)
+
+       #define foo(x)           (x * x)
+       /* some comment */
+       #define bar(y, z)        (y + z)
 
 **AlignEscapedNewlines** (``EscapedNewlineAlignmentStyle``)
   Options for aligning backslashes in escaped newlines.
@@ -1873,6 +2128,75 @@ the configuration (without a prefix: ``Auto``).
 **DisableFormat** (``bool``)
   Disables formatting completely.
 
+**EmptyLineBeforeAccessModifier** (``EmptyLineBeforeAccessModifierStyle``)
+  Defines in which cases to put empty line before access modifiers.
+
+  Possible values:
+
+  * ``ELBAMS_Never`` (in configuration: ``Never``)
+    Remove all empty lines before access modifiers.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+      protected:
+        int j;
+        /* comment */
+      public:
+        foo() {}
+      private:
+      protected:
+      };
+
+  * ``ELBAMS_Leave`` (in configuration: ``Leave``)
+    Keep existing empty lines before access modifiers.
+
+  * ``ELBAMS_LogicalBlock`` (in configuration: ``LogicalBlock``)
+    Add empty line only when access modifier starts a new logical block.
+    Logical block is a group of one or more member fields or functions.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+
+      protected:
+        int j;
+        /* comment */
+      public:
+        foo() {}
+
+      private:
+      protected:
+      };
+
+  * ``ELBAMS_Always`` (in configuration: ``Always``)
+    Always add empty line before access modifiers unless access modifier
+    is at the start of struct or class definition.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+
+      protected:
+        int j;
+        /* comment */
+
+      public:
+        foo() {}
+
+      private:
+
+      protected:
+      };
+
+
+
 **ExperimentalAutoDetectBinPacking** (``bool``)
   If ``true``, clang-format detects whether function calls and
   definitions are formatted with one parameter per line.
@@ -2180,30 +2504,6 @@ the configuration (without a prefix: ``Auto``).
        #endif
 
 
-
-**IndentPragmas** (``bool``)
-  Indent pragmas
-
-  When ``false``, pragmas are flushed left or follow IndentPPDirectives.
-  When ``true``, pragmas are indented to the current scope level.
-
-  .. code-block:: c++
-
-    false:                                  true:
-    #pragma once                   vs       #pragma once
-    void foo() {                            void foo() {
-    #pragma omp simd                          #pragma omp simd
-      for (int i=0;i<10;i++) {                for (int i=0;i<10;i++) {
-    #pragma omp simd                            #pragma omp simd
-        for (int i=0;i<10;i++) {                for (int i=0;i<10;i++) {
-        }                                       }
-    #if 1                                   #if 1
-    #pragma omp simd                            #pragma omp simd
-        for (int i=0;i<10;i++) {                for (int i=0;i<10;i++) {
-        }                                       }
-    #endif                                  #endif
-      }                                       }
-    }                                       }
 
 **IndentRequires** (``bool``)
   Indent the requires clause in a template
@@ -2713,14 +3013,43 @@ the configuration (without a prefix: ``Auto``).
      /* second veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongComment with plenty of
       * information */
 
-**SortIncludes** (``bool``)
-  If ``true``, clang-format will sort ``#includes``.
+**SortIncludes** (``SortIncludesOptions``)
+  Controls if and how clang-format will sort ``#includes``.
 
-  .. code-block:: c++
+  Possible Values:
 
-     false:                                 true:
-     #include "b.h"                 vs.     #include "a.h"
-     #include "a.h"                         #include "b.h"
+  * ``SI_Never`` (in configuration ``Never``)
+    Includes are never sorted.
+
+    .. code-block:: c++
+
+      #include "B/A.h"
+      #include "A/B.h"
+      #include "a/b.h"
+      #include "A/b.h"
+      #include "B/a.h"
+
+  * ``SI_CaseInsensitive`` (in configuration ``CaseInsensitive``)
+    Includes are sorted in an ASCIIbetical or case insensitive fashion.
+
+    .. code-block:: c++
+
+      #include "A/B.h"
+      #include "A/b.h"
+      #include "B/A.h"
+      #include "B/a.h"
+      #include "a/b.h"
+
+  * ``SI_CaseSensitive`` (in configuration ``CaseSensitive``)
+    Includes are sorted in an alphabetical or case sensitive fashion.
+
+    .. code-block:: c++
+
+      #include "A/B.h"
+      #include "A/b.h"
+      #include "a/b.h"
+      #include "B/A.h"
+      #include "B/a.h"
 
 **SortJavaStaticImport** (``SortJavaStaticImportOptions``)
   When sorting Java imports, by default static imports are placed before
@@ -3044,6 +3373,43 @@ the configuration (without a prefix: ``Auto``).
      var arr = [ 1, 2, 3 ];         vs.     var arr = [1, 2, 3];
      f({a : 1, b : 2, c : 3});              f({a: 1, b: 2, c: 3});
 
+**SpacesInLineCommentPrefix** (``SpacesInLineComment``)
+  How many spaces are allowed at the start of a line comment. To disable the
+  maximum set it to ``-1``, apart from that the maximum takes precedence
+  over the minimum.
+  Minimum = 1 Maximum = -1
+  // One space is forced
+
+  //  but more spaces are possible
+
+  Minimum = 0
+  Maximum = 0
+  //Forces to start every comment directly after the slashes
+
+  Note that in line comment sections the relative indent of the subsequent
+  lines is kept, that means the following:
+
+  .. code-block:: c++
+
+  before:                                   after:
+  Minimum: 1
+  //if (b) {                                // if (b) {
+  //  return true;                          //   return true;
+  //}                                       // }
+
+  Maximum: 0
+  /// List:                                 ///List:
+  ///  - Foo                                /// - Foo
+  ///    - Bar                              ///   - Bar
+
+  Nested configuration flags:
+
+
+  * ``unsigned Minimum`` The minimum number of spaces at the start of the comment.
+
+  * ``unsigned Maximum`` The maximum number of spaces at the start of the comment.
+
+
 **SpacesInParentheses** (``bool``)
   If ``true``, spaces will be inserted after ``(`` and before ``)``.
 
@@ -3097,6 +3463,23 @@ the configuration (without a prefix: ``Auto``).
     Automatic detection based on the input.
 
 
+
+**StatementAttributeLikeMacros** (``std::vector<std::string>``)
+  Macros which are ignored in front of a statement, as if they were an
+  attribute. So that they are not parsed as identifier, for example for Qts
+  emit.
+
+  .. code-block:: c++
+
+    AlignConsecutiveDeclarations: true
+    StatementAttributeLikeMacros: []
+    unsigned char data = 'x';
+    emit          signal(data); // This is parsed as variable declaration.
+
+    AlignConsecutiveDeclarations: true
+    StatementAttributeLikeMacros: [emit]
+    unsigned char data = 'x';
+    emit signal(data); // Now it's fine again.
 
 **StatementMacros** (``std::vector<std::string>``)
   A vector of macros that should be interpreted as complete

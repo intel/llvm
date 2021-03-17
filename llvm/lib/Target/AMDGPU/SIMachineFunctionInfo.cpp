@@ -7,21 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SIMachineFunctionInfo.h"
-#include "AMDGPUArgumentUsageInfo.h"
 #include "AMDGPUTargetMachine.h"
-#include "AMDGPUSubtarget.h"
-#include "SIRegisterInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "Utils/AMDGPUBaseInfo.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFrameInfo.h"
-#include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/IR/CallingConv.h"
-#include "llvm/IR/Function.h"
-#include <cassert>
-#include <vector>
 
 #define MAX_LANES 64
 
@@ -63,6 +49,7 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   // Enable all kernel inputs if we have the fixed ABI. Don't bother if we don't
   // have any calls.
   const bool UseFixedABI = AMDGPUTargetMachine::EnableFixedFunctionABI &&
+                           CC != CallingConv::AMDGPU_Gfx &&
                            (!isEntryFunction() || HasCalls);
 
   if (CC == CallingConv::AMDGPU_KERNEL || CC == CallingConv::SPIR_KERNEL) {
@@ -75,6 +62,9 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   }
 
   if (!isEntryFunction()) {
+    if (UseFixedABI)
+      ArgInfo = AMDGPUArgumentUsageInfo::FixedABIFunctionInfo;
+
     // TODO: Pick a high register, and shift down, similar to a kernel.
     FrameOffsetReg = AMDGPU::SGPR33;
     StackPtrOffsetReg = AMDGPU::SGPR32;
@@ -299,8 +289,6 @@ bool SIMachineFunctionInfo::allocateSGPRSpillToVGPR(MachineFunction &MF,
   assert(Size >= 4 && "invalid sgpr spill size");
   assert(TRI->spillSGPRToVGPR() && "not spilling SGPRs to VGPRs");
 
-  const MCPhysReg *CSRegs = MRI.getCalleeSavedRegs();
-
   // Make sure to handle the case where a wide SGPR spill may span between two
   // VGPRs.
   for (unsigned I = 0; I < NumLanes; ++I, ++NumVGPRSpillLanes) {
@@ -326,13 +314,14 @@ bool SIMachineFunctionInfo::allocateSGPRSpillToVGPR(MachineFunction &MF,
         return false;
       }
 
-      Optional<int> CSRSpillFI;
-      if ((FrameInfo.hasCalls() || !isEntryFunction()) && CSRegs &&
-          isCalleeSavedReg(CSRegs, LaneVGPR)) {
-        CSRSpillFI = FrameInfo.CreateSpillStackObject(4, Align(4));
+      Optional<int> SpillFI;
+      // We need to preserve inactive lanes, so always save, even caller-save
+      // registers.
+      if (!isEntryFunction()) {
+        SpillFI = FrameInfo.CreateSpillStackObject(4, Align(4));
       }
 
-      SpillVGPRs.push_back(SGPRSpillVGPRCSR(LaneVGPR, CSRSpillFI));
+      SpillVGPRs.push_back(SGPRSpillVGPRCSR(LaneVGPR, SpillFI));
 
       // Add this register as live-in to all blocks to avoid machine verifer
       // complaining about use of an undefined physical register.
@@ -552,6 +541,7 @@ yaml::SIMachineFunctionInfo::SIMachineFunctionInfo(
       HasSpilledSGPRs(MFI.hasSpilledSGPRs()),
       HasSpilledVGPRs(MFI.hasSpilledVGPRs()),
       HighBitsOf32BitAddress(MFI.get32BitAddressHighBits()),
+      Occupancy(MFI.getOccupancy()),
       ScratchRSrcReg(regToString(MFI.getScratchRSrcReg(), TRI)),
       FrameOffsetReg(regToString(MFI.getFrameOffsetReg(), TRI)),
       StackPtrOffsetReg(regToString(MFI.getStackPtrOffsetReg(), TRI)),
@@ -569,6 +559,7 @@ bool SIMachineFunctionInfo::initializeBaseYamlFields(
   LDSSize = YamlMFI.LDSSize;
   DynLDSAlign = YamlMFI.DynLDSAlign;
   HighBitsOf32BitAddress = YamlMFI.HighBitsOf32BitAddress;
+  Occupancy = YamlMFI.Occupancy;
   IsEntryFunction = YamlMFI.IsEntryFunction;
   NoSignedZerosFPMath = YamlMFI.NoSignedZerosFPMath;
   MemoryBound = YamlMFI.MemoryBound;

@@ -24,6 +24,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
@@ -530,10 +531,10 @@ bool AArch64RegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
 
 /// Insert defining instruction(s) for BaseReg to be a pointer to FrameIdx
 /// at the beginning of the basic block.
-void AArch64RegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
-                                                       Register BaseReg,
-                                                       int FrameIdx,
-                                                       int64_t Offset) const {
+Register
+AArch64RegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
+                                                  int FrameIdx,
+                                                  int64_t Offset) const {
   MachineBasicBlock::iterator Ins = MBB->begin();
   DebugLoc DL; // Defaults to "unknown"
   if (Ins != MBB->end())
@@ -543,6 +544,7 @@ void AArch64RegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
       MF.getSubtarget<AArch64Subtarget>().getInstrInfo();
   const MCInstrDesc &MCID = TII->get(AArch64::ADDXri);
   MachineRegisterInfo &MRI = MBB->getParent()->getRegInfo();
+  Register BaseReg = MRI.createVirtualRegister(&AArch64::GPR64spRegClass);
   MRI.constrainRegClass(BaseReg, TII->getRegClass(MCID, 0, this, MF));
   unsigned Shifter = AArch64_AM::getShifterImm(AArch64_AM::LSL, 0);
 
@@ -550,6 +552,8 @@ void AArch64RegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
       .addFrameIndex(FrameIdx)
       .addImm(Offset)
       .addImm(Shifter);
+
+  return BaseReg;
 }
 
 void AArch64RegisterInfo::resolveFrameIndex(MachineInstr &MI, Register BaseReg,
@@ -592,6 +596,33 @@ createScratchRegisterForInstruction(MachineInstr &MI,
   }
 }
 
+void AArch64RegisterInfo::getOffsetOpcodes(
+    const StackOffset &Offset, SmallVectorImpl<uint64_t> &Ops) const {
+  // The smallest scalable element supported by scaled SVE addressing
+  // modes are predicates, which are 2 scalable bytes in size. So the scalable
+  // byte offset must always be a multiple of 2.
+  assert(Offset.getScalable() % 2 == 0 && "Invalid frame offset");
+
+  // Add fixed-sized offset using existing DIExpression interface.
+  DIExpression::appendOffset(Ops, Offset.getFixed());
+
+  unsigned VG = getDwarfRegNum(AArch64::VG, true);
+  int64_t VGSized = Offset.getScalable() / 2;
+  if (VGSized > 0) {
+    Ops.push_back(dwarf::DW_OP_constu);
+    Ops.push_back(VGSized);
+    Ops.append({dwarf::DW_OP_bregx, VG, 0ULL});
+    Ops.push_back(dwarf::DW_OP_mul);
+    Ops.push_back(dwarf::DW_OP_plus);
+  } else if (VGSized < 0) {
+    Ops.push_back(dwarf::DW_OP_constu);
+    Ops.push_back(-VGSized);
+    Ops.append({dwarf::DW_OP_bregx, VG, 0ULL});
+    Ops.push_back(dwarf::DW_OP_mul);
+    Ops.push_back(dwarf::DW_OP_minus);
+  }
+}
+
 void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                               int SPAdj, unsigned FIOperandNum,
                                               RegScavenger *RS) const {
@@ -610,7 +641,7 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   Register FrameReg;
 
   // Special handling of dbg_value, stackmap patchpoint statepoint instructions.
-  if (MI.isDebugValue() || MI.getOpcode() == TargetOpcode::STACKMAP ||
+  if (MI.getOpcode() == TargetOpcode::STACKMAP ||
       MI.getOpcode() == TargetOpcode::PATCHPOINT ||
       MI.getOpcode() == TargetOpcode::STATEPOINT) {
     StackOffset Offset =

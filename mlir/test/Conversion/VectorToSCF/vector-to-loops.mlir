@@ -1,5 +1,5 @@
-// RUN: mlir-opt %s -convert-vector-to-scf -split-input-file | FileCheck %s
-// RUN: mlir-opt %s -convert-vector-to-scf=full-unroll=true -split-input-file | FileCheck %s --check-prefix=FULL-UNROLL
+// RUN: mlir-opt %s -convert-vector-to-scf -split-input-file -allow-unregistered-dialect | FileCheck %s
+// RUN: mlir-opt %s -convert-vector-to-scf=full-unroll=true -split-input-file -allow-unregistered-dialect | FileCheck %s --check-prefix=FULL-UNROLL
 
 // CHECK-LABEL: func @materialize_read_1d() {
 func @materialize_read_1d() {
@@ -22,6 +22,9 @@ func @materialize_read_1d() {
       // CHECK-NEXT: else
       // CHECK-NEXT: vector.insertelement
       // CHECK-NEXT: store
+      // Add a dummy use to prevent dead code elimination from removing transfer
+      // read ops.
+      "dummy_use"(%f1, %f2, %f3, %f4) : (vector<4xf32>, vector<4xf32>, vector<4xf32>, vector<4xf32>) -> ()
     }
   }
   return
@@ -41,6 +44,9 @@ func @materialize_read_1d_partially_specialized(%dyn1 : index, %dyn2 : index, %d
             %f1 = vector.transfer_read %A[%i0, %i1, %i2, %i3, %i4], %f0 {permutation_map = affine_map<(d0, d1, d2, d3, d4) -> (d3)>} : memref<7x?x?x42x?xf32>, vector<4xf32>
             %i3p1 = affine.apply affine_map<(d0) -> (d0 + 1)> (%i3)
             %f2 = vector.transfer_read %A[%i0, %i1, %i2, %i3p1, %i4], %f0 {permutation_map = affine_map<(d0, d1, d2, d3, d4) -> (d3)>} : memref<7x?x?x42x?xf32>, vector<4xf32>
+            // Add a dummy use to prevent dead code elimination from removing
+            // transfer read ops.
+            "dummy_use"(%f1, %f2) : (vector<4xf32>, vector<4xf32>) -> ()
           }
         }
       }
@@ -88,6 +94,9 @@ func @materialize_read(%M: index, %N: index, %O: index, %P: index) {
   // CHECK-NEXT:              }
   // CHECK-NEXT:            }
   // CHECK-NEXT:          }
+  // CHECK-NEXT:          %[[ALLOC_CAST:.*]] = vector.type_cast %[[ALLOC]] : memref<5x4xvector<3xf32>> to memref<vector<5x4x3xf32>>
+  // CHECK-NEXT:          %[[LD:.*]] = load %[[ALLOC_CAST]][] : memref<vector<5x4x3xf32>>
+  // CHECK-NEXT:          "dummy_use"(%[[LD]]) : (vector<5x4x3xf32>) -> ()
   // CHECK-NEXT:        }
   // CHECK-NEXT:      }
   // CHECK-NEXT:    }
@@ -104,6 +113,9 @@ func @materialize_read(%M: index, %N: index, %O: index, %P: index) {
       affine.for %i2 = 0 to %O {
         affine.for %i3 = 0 to %P step 5 {
           %f = vector.transfer_read %A[%i0, %i1, %i2, %i3], %f0 {permutation_map = affine_map<(d0, d1, d2, d3) -> (d3, 0, d0)>} : memref<?x?x?x?xf32>, vector<5x4x3xf32>
+          // Add a dummy use to prevent dead code elimination from removing
+          // transfer read ops.
+          "dummy_use"(%f) : (vector<5x4x3xf32>) -> ()
         }
       }
     }
@@ -197,7 +209,7 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
   // CHECK-DAG: %[[dim:.*]] = dim %[[A]], %[[C0]] : memref<?x?xf32>
   // CHECK: affine.for %[[I:.*]] = 0 to 3 {
   // CHECK:   %[[add:.*]] = affine.apply #[[$MAP0]](%[[I]])[%[[base]]]
-  // CHECK:   %[[cond1:.*]] = cmpi "slt", %[[add]], %[[dim]] : index
+  // CHECK:   %[[cond1:.*]] = cmpi slt, %[[add]], %[[dim]] : index
   // CHECK:   scf.if %[[cond1]] {
   // CHECK:     %[[vec_1d:.*]] = vector.transfer_read %[[A]][%[[add]], %[[base]]], %[[cst]] : memref<?x?xf32>, vector<15xf32>
   // CHECK:     store %[[vec_1d]], %[[alloc]][%[[I]]] : memref<3xvector<15xf32>>
@@ -212,7 +224,7 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
   // FULL-UNROLL: %[[C0:.*]] = constant 0 : index
   // FULL-UNROLL: %[[SPLAT:.*]] = constant dense<7.000000e+00> : vector<15xf32>
   // FULL-UNROLL: %[[DIM:.*]] = dim %[[A]], %[[C0]] : memref<?x?xf32>
-  // FULL-UNROLL: cmpi "slt", %[[base]], %[[DIM]] : index
+  // FULL-UNROLL: cmpi slt, %[[base]], %[[DIM]] : index
   // FULL-UNROLL: %[[VEC1:.*]] = scf.if %{{.*}} -> (vector<3x15xf32>) {
   // FULL-UNROLL:   vector.transfer_read %[[A]][%[[base]], %[[base]]], %[[pad]] : memref<?x?xf32>, vector<15xf32>
   // FULL-UNROLL:   vector.insert %{{.*}}, %[[VEC0]] [0] : vector<15xf32> into vector<3x15xf32>
@@ -222,7 +234,7 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
   // FULL-UNROLL:   scf.yield %{{.*}} : vector<3x15xf32>
   // FULL-UNROLL: }
   // FULL-UNROLL: affine.apply #[[$MAP1]]()[%[[base]]]
-  // FULL-UNROLL: cmpi "slt", %{{.*}}, %[[DIM]] : index
+  // FULL-UNROLL: cmpi slt, %{{.*}}, %[[DIM]] : index
   // FULL-UNROLL: %[[VEC2:.*]] = scf.if %{{.*}} -> (vector<3x15xf32>) {
   // FULL-UNROLL:   vector.transfer_read %[[A]][%{{.*}}, %[[base]]], %[[pad]] : memref<?x?xf32>, vector<15xf32>
   // FULL-UNROLL:   vector.insert %{{.*}}, %[[VEC1]] [1] : vector<15xf32> into vector<3x15xf32>
@@ -232,7 +244,7 @@ func @transfer_read_progressive(%A : memref<?x?xf32>, %base: index) -> vector<3x
   // FULL-UNROLL:   scf.yield %{{.*}} : vector<3x15xf32>
   // FULL-UNROLL: }
   // FULL-UNROLL: affine.apply #[[$MAP2]]()[%[[base]]]
-  // FULL-UNROLL: cmpi "slt", %{{.*}}, %[[DIM]] : index
+  // FULL-UNROLL: cmpi slt, %{{.*}}, %[[DIM]] : index
   // FULL-UNROLL: %[[VEC3:.*]] = scf.if %{{.*}} -> (vector<3x15xf32>) {
   // FULL-UNROLL:   vector.transfer_read %[[A]][%{{.*}}, %[[base]]], %[[pad]] : memref<?x?xf32>, vector<15xf32>
   // FULL-UNROLL:   vector.insert %{{.*}}, %[[VEC2]] [2] : vector<15xf32> into vector<3x15xf32>
@@ -271,7 +283,7 @@ func @transfer_write_progressive(%A : memref<?x?xf32>, %base: index, %vec: vecto
   // CHECK: %[[dim:.*]] = dim %[[A]], %[[C0]] : memref<?x?xf32>
   // CHECK: affine.for %[[I:.*]] = 0 to 3 {
   // CHECK:   %[[add:.*]] = affine.apply #[[$MAP0]](%[[I]])[%[[base]]]
-  // CHECK:   %[[cmp:.*]] = cmpi "slt", %[[add]], %[[dim]] : index
+  // CHECK:   %[[cmp:.*]] = cmpi slt, %[[add]], %[[dim]] : index
   // CHECK:   scf.if %[[cmp]] {
   // CHECK:     %[[vec_1d:.*]] = load %0[%[[I]]] : memref<3xvector<15xf32>>
   // CHECK:     vector.transfer_write %[[vec_1d]], %[[A]][%[[add]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
@@ -279,19 +291,19 @@ func @transfer_write_progressive(%A : memref<?x?xf32>, %base: index, %vec: vecto
 
   // FULL-UNROLL: %[[C0:.*]] = constant 0 : index
   // FULL-UNROLL: %[[DIM:.*]] = dim %[[A]], %[[C0]] : memref<?x?xf32>
-  // FULL-UNROLL: %[[CMP0:.*]] = cmpi "slt", %[[base]], %[[DIM]] : index
+  // FULL-UNROLL: %[[CMP0:.*]] = cmpi slt, %[[base]], %[[DIM]] : index
   // FULL-UNROLL: scf.if %[[CMP0]] {
   // FULL-UNROLL:   %[[V0:.*]] = vector.extract %[[vec]][0] : vector<3x15xf32>
   // FULL-UNROLL:   vector.transfer_write %[[V0]], %[[A]][%[[base]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
   // FULL-UNROLL: }
   // FULL-UNROLL: %[[I1:.*]] = affine.apply #[[$MAP1]]()[%[[base]]]
-  // FULL-UNROLL: %[[CMP1:.*]] = cmpi "slt", %[[I1]], %[[DIM]] : index
+  // FULL-UNROLL: %[[CMP1:.*]] = cmpi slt, %[[I1]], %[[DIM]] : index
   // FULL-UNROLL: scf.if %[[CMP1]] {
   // FULL-UNROLL:   %[[V1:.*]] = vector.extract %[[vec]][1] : vector<3x15xf32>
   // FULL-UNROLL:   vector.transfer_write %[[V1]], %[[A]][%[[I1]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
   // FULL-UNROLL: }
   // FULL-UNROLL: %[[I2:.*]] = affine.apply #[[$MAP2]]()[%[[base]]]
-  // FULL-UNROLL: %[[CMP2:.*]] = cmpi "slt", %[[I2]], %[[DIM]] : index
+  // FULL-UNROLL: %[[CMP2:.*]] = cmpi slt, %[[I2]], %[[DIM]] : index
   // FULL-UNROLL: scf.if %[[CMP2]] {
   // FULL-UNROLL:   %[[V2:.*]] = vector.extract %[[vec]][2] : vector<3x15xf32>
   // FULL-UNROLL:   vector.transfer_write %[[V2]], %[[A]][%[[I2]], %[[base]]] : vector<15xf32>, memref<?x?xf32>
@@ -375,7 +387,7 @@ func @transfer_read_minor_identity(%A : memref<?x?x?x?xf32>) -> vector<3x3xf32> 
 //       CHECK:   %[[m:.*]] = alloca() : memref<3xvector<3xf32>>
 //       CHECK:   %[[d:.*]] = dim %[[A]], %[[c2]] : memref<?x?x?x?xf32>
 //       CHECK:   affine.for %[[arg1:.*]] = 0 to 3 {
-//       CHECK:      %[[cmp:.*]] = cmpi "slt", %[[arg1]], %[[d]] : index
+//       CHECK:      %[[cmp:.*]] = cmpi slt, %[[arg1]], %[[d]] : index
 //       CHECK:      scf.if %[[cmp]] {
 //       CHECK:        %[[tr:.*]] = vector.transfer_read %[[A]][%[[c0]], %[[c0]], %[[arg1]], %[[c0]]], %[[cst]] : memref<?x?x?x?xf32>, vector<3xf32>
 //       CHECK:        store %[[tr]], %[[m]][%[[arg1]]] : memref<3xvector<3xf32>>
@@ -406,7 +418,7 @@ func @transfer_write_minor_identity(%A : vector<3x3xf32>, %B : memref<?x?x?x?xf3
 //       CHECK:   store %[[A]], %[[cast]][] : memref<vector<3x3xf32>>
 //       CHECK:   %[[d:.*]] = dim %[[B]], %[[c2]] : memref<?x?x?x?xf32>
 //       CHECK:   affine.for %[[arg2:.*]] = 0 to 3 {
-//       CHECK:      %[[cmp:.*]] = cmpi "slt", %[[arg2]], %[[d]] : index
+//       CHECK:      %[[cmp:.*]] = cmpi slt, %[[arg2]], %[[d]] : index
 //       CHECK:      scf.if %[[cmp]] {
 //       CHECK:        %[[tmp:.*]] = load %[[m]][%[[arg2]]] : memref<3xvector<3xf32>>
 //       CHECK:        vector.transfer_write %[[tmp]], %[[B]][%[[c0]], %[[c0]], %[[arg2]], %[[c0]]] : vector<3xf32>, memref<?x?x?x?xf32>

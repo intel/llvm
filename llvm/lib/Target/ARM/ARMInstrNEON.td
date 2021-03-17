@@ -3018,7 +3018,7 @@ class N3VLSL16<bit op24, bits<2> op21_20, bits<4> op11_8,
 // Long 3-register operations with explicitly extended operands.
 class N3VLExt<bit op24, bit op23, bits<2> op21_20, bits<4> op11_8, bit op4,
               InstrItinClass itin, string OpcodeStr, string Dt,
-              ValueType TyQ, ValueType TyD, SDNode OpNode, SDNode ExtOp,
+              ValueType TyQ, ValueType TyD, SDNode OpNode, SDPatternOperator ExtOp,
               bit Commutable>
   : N3V<op24, op23, op21_20, op11_8, 0, op4,
         (outs QPR:$Vd), (ins DPR:$Vn, DPR:$Vm), N3RegFrm, itin,
@@ -3085,7 +3085,7 @@ class N3VLIntSL16<bit op24, bits<2> op21_20, bits<4> op11_8,
 // Wide 3-register operations.
 class N3VW<bit op24, bit op23, bits<2> op21_20, bits<4> op11_8, bit op4,
            string OpcodeStr, string Dt, ValueType TyQ, ValueType TyD,
-           SDNode OpNode, SDNode ExtOp, bit Commutable>
+           SDNode OpNode, SDPatternOperator ExtOp, bit Commutable>
   : N3V<op24, op23, op21_20, op11_8, 0, op4,
         (outs QPR:$Vd), (ins QPR:$Vn, DPR:$Vm), N3RegFrm, IIC_VSUBiD,
         OpcodeStr, Dt, "$Vd, $Vn, $Vm", "",
@@ -3649,7 +3649,7 @@ multiclass N3VLSL_HS<bit op24, bits<4> op11_8,
 multiclass N3VLExt_QHS<bit op24, bit op23, bits<4> op11_8, bit op4,
                        InstrItinClass itin16, InstrItinClass itin32,
                        string OpcodeStr, string Dt,
-                       SDNode OpNode, SDNode ExtOp, bit Commutable = 0> {
+                       SDNode OpNode, SDPatternOperator ExtOp, bit Commutable = 0> {
   def v8i16 : N3VLExt<op24, op23, 0b00, op11_8, op4, itin16,
                       OpcodeStr, !strconcat(Dt, "8"),
                       v8i16, v8i8, OpNode, ExtOp, Commutable>;
@@ -3717,7 +3717,7 @@ multiclass N3VLIntExt_QHS<bit op24, bit op23, bits<4> op11_8, bit op4,
 //   source operand element sizes of 8, 16 and 32 bits:
 multiclass N3VW_QHS<bit op24, bit op23, bits<4> op11_8, bit op4,
                     string OpcodeStr, string Dt,
-                    SDNode OpNode, SDNode ExtOp, bit Commutable = 0> {
+                    SDNode OpNode, SDPatternOperator ExtOp, bit Commutable = 0> {
   def v8i16 : N3VW<op24, op23, 0b00, op11_8, op4,
                    OpcodeStr, !strconcat(Dt, "8"),
                    v8i16, v8i8, OpNode, ExtOp, Commutable>;
@@ -4197,10 +4197,10 @@ def  VADDhq   : N3VQ<0, 0, 0b01, 0b1101, 0, IIC_VBINQ, "vadd", "f16",
 defm VADDLs   : N3VLExt_QHS<0,1,0b0000,0, IIC_VSHLiD, IIC_VSHLiD,
                             "vaddl", "s", add, sext, 1>;
 defm VADDLu   : N3VLExt_QHS<1,1,0b0000,0, IIC_VSHLiD, IIC_VSHLiD,
-                            "vaddl", "u", add, zext, 1>;
+                            "vaddl", "u", add, zanyext, 1>;
 //   VADDW    : Vector Add Wide (Q = Q + D)
 defm VADDWs   : N3VW_QHS<0,1,0b0001,0, "vaddw", "s", add, sext, 0>;
-defm VADDWu   : N3VW_QHS<1,1,0b0001,0, "vaddw", "u", add, zext, 0>;
+defm VADDWu   : N3VW_QHS<1,1,0b0001,0, "vaddw", "u", add, zanyext, 0>;
 //   VHADD    : Vector Halving Add
 defm VHADDs   : N3VInt_QHS<0, 0, 0b0000, 0, N3RegFrm,
                            IIC_VBINi4D, IIC_VBINi4D, IIC_VBINi4Q, IIC_VBINi4Q,
@@ -5045,10 +5045,10 @@ def  VSUBhq   : N3VQ<0, 0, 0b11, 0b1101, 0, IIC_VBINQ, "vsub", "f16",
 defm VSUBLs   : N3VLExt_QHS<0,1,0b0010,0, IIC_VSHLiD, IIC_VSHLiD,
                             "vsubl", "s", sub, sext, 0>;
 defm VSUBLu   : N3VLExt_QHS<1,1,0b0010,0, IIC_VSHLiD, IIC_VSHLiD,
-                            "vsubl", "u", sub, zext, 0>;
+                            "vsubl", "u", sub, zanyext, 0>;
 //   VSUBW    : Vector Subtract Wide (Q = Q - D)
 defm VSUBWs   : N3VW_QHS<0,1,0b0011,0, "vsubw", "s", sub, sext, 0>;
-defm VSUBWu   : N3VW_QHS<1,1,0b0011,0, "vsubw", "u", sub, zext, 0>;
+defm VSUBWu   : N3VW_QHS<1,1,0b0011,0, "vsubw", "u", sub, zanyext, 0>;
 //   VHSUB    : Vector Halving Subtract
 defm VHSUBs   : N3VInt_QHS<0, 0, 0b0010, 0, N3RegFrm,
                            IIC_VSUBi4D, IIC_VSUBi4D, IIC_VSUBi4Q, IIC_VSUBi4Q,
@@ -6482,8 +6482,6 @@ def : Pat<(v4f32 (insertelt QPR:$src1, SPR:$src2, imm:$src3)),
 
 defm : InsertEltF16<f16, v4f16, v8f16>;
 
-//def : Pat<(v2i64 (insertelt QPR:$src1, DPR:$src2, imm:$src3)),
-//          (INSERT_SUBREG QPR:$src1, DPR:$src2, (DSubReg_f64_reg imm:$src3))>;
 def : Pat<(v2f64 (insertelt QPR:$src1, DPR:$src2, imm:$src3)),
           (INSERT_SUBREG QPR:$src1, DPR:$src2, (DSubReg_f64_reg imm:$src3))>;
 
@@ -6493,6 +6491,11 @@ def : Pat<(v2f64 (scalar_to_vector (f64 DPR:$src))),
           (INSERT_SUBREG (v2f64 (IMPLICIT_DEF)), DPR:$src, dsub_0)>;
 def : Pat<(v4f32 (scalar_to_vector SPR:$src)),
           (INSERT_SUBREG (v4f32 (IMPLICIT_DEF)), SPR:$src, ssub_0)>;
+
+def : Pat<(v4f16 (scalar_to_vector (f16 HPR:$src))),
+          (INSERT_SUBREG (v4f16 (IMPLICIT_DEF)), HPR:$src, ssub_0)>;
+def : Pat<(v8f16 (scalar_to_vector (f16 HPR:$src))),
+          (INSERT_SUBREG (v8f16 (IMPLICIT_DEF)), HPR:$src, ssub_0)>;
 
 def : Pat<(v8i8 (scalar_to_vector GPR:$src)),
           (VSETLNi8  (v8i8  (IMPLICIT_DEF)), GPR:$src, (i32 0))>;

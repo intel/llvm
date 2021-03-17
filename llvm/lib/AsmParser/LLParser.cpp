@@ -1368,6 +1368,7 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_noreturn: B.addAttribute(Attribute::NoReturn); break;
     case lltok::kw_nosync: B.addAttribute(Attribute::NoSync); break;
     case lltok::kw_nocf_check: B.addAttribute(Attribute::NoCfCheck); break;
+    case lltok::kw_noprofile: B.addAttribute(Attribute::NoProfile); break;
     case lltok::kw_norecurse: B.addAttribute(Attribute::NoRecurse); break;
     case lltok::kw_nounwind: B.addAttribute(Attribute::NoUnwind); break;
     case lltok::kw_null_pointer_is_valid:
@@ -1778,6 +1779,7 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_noinline:
     case lltok::kw_nonlazybind:
     case lltok::kw_nomerge:
+    case lltok::kw_noprofile:
     case lltok::kw_noredzone:
     case lltok::kw_noreturn:
     case lltok::kw_nocf_check:
@@ -1886,6 +1888,7 @@ bool LLParser::parseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_noinline:
     case lltok::kw_nonlazybind:
     case lltok::kw_nomerge:
+    case lltok::kw_noprofile:
     case lltok::kw_noredzone:
     case lltok::kw_noreturn:
     case lltok::kw_nocf_check:
@@ -7429,7 +7432,8 @@ int LLParser::parseStore(Instruction *&Inst, PerFunctionState &PFS) {
 
 /// parseCmpXchg
 ///   ::= 'cmpxchg' 'weak'? 'volatile'? TypeAndValue ',' TypeAndValue ','
-///       TypeAndValue 'singlethread'? AtomicOrdering AtomicOrdering
+///       TypeAndValue 'singlethread'? AtomicOrdering AtomicOrdering ','
+///       'Align'?
 int LLParser::parseCmpXchg(Instruction *&Inst, PerFunctionState &PFS) {
   Value *Ptr, *Cmp, *New; LocTy PtrLoc, CmpLoc, NewLoc;
   bool AteExtraComma = false;
@@ -7438,6 +7442,7 @@ int LLParser::parseCmpXchg(Instruction *&Inst, PerFunctionState &PFS) {
   SyncScope::ID SSID = SyncScope::System;
   bool isVolatile = false;
   bool isWeak = false;
+  MaybeAlign Alignment;
 
   if (EatIfPresent(lltok::kw_weak))
     isWeak = true;
@@ -7451,7 +7456,8 @@ int LLParser::parseCmpXchg(Instruction *&Inst, PerFunctionState &PFS) {
       parseToken(lltok::comma, "expected ',' after cmpxchg cmp operand") ||
       parseTypeAndValue(New, NewLoc, PFS) ||
       parseScopeAndOrdering(true /*Always atomic*/, SSID, SuccessOrdering) ||
-      parseOrdering(FailureOrdering))
+      parseOrdering(FailureOrdering) ||
+      parseOptionalCommaAlign(Alignment, AteExtraComma))
     return true;
 
   if (SuccessOrdering == AtomicOrdering::Unordered ||
@@ -7473,14 +7479,16 @@ int LLParser::parseCmpXchg(Instruction *&Inst, PerFunctionState &PFS) {
   if (!New->getType()->isFirstClassType())
     return error(NewLoc, "cmpxchg operand must be a first class value");
 
-  Align Alignment(
+  const Align DefaultAlignment(
       PFS.getFunction().getParent()->getDataLayout().getTypeStoreSize(
           Cmp->getType()));
 
   AtomicCmpXchgInst *CXI = new AtomicCmpXchgInst(
-      Ptr, Cmp, New, Alignment, SuccessOrdering, FailureOrdering, SSID);
+      Ptr, Cmp, New, Alignment.getValueOr(DefaultAlignment), SuccessOrdering,
+      FailureOrdering, SSID);
   CXI->setVolatile(isVolatile);
   CXI->setWeak(isWeak);
+
   Inst = CXI;
   return AteExtraComma ? InstExtraComma : InstNormal;
 }
@@ -7496,6 +7504,7 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
   bool isVolatile = false;
   bool IsFP = false;
   AtomicRMWInst::BinOp Operation;
+  MaybeAlign Alignment;
 
   if (EatIfPresent(lltok::kw_volatile))
     isVolatile = true;
@@ -7528,7 +7537,8 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
   if (parseTypeAndValue(Ptr, PtrLoc, PFS) ||
       parseToken(lltok::comma, "expected ',' after atomicrmw address") ||
       parseTypeAndValue(Val, ValLoc, PFS) ||
-      parseScopeAndOrdering(true /*Always atomic*/, SSID, Ordering))
+      parseScopeAndOrdering(true /*Always atomic*/, SSID, Ordering) ||
+      parseOptionalCommaAlign(Alignment, AteExtraComma))
     return true;
 
   if (Ordering == AtomicOrdering::Unordered)
@@ -7563,11 +7573,12 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
   if (Size < 8 || (Size & (Size - 1)))
     return error(ValLoc, "atomicrmw operand must be power-of-two byte-sized"
                          " integer");
-  Align Alignment(
+  const Align DefaultAlignment(
       PFS.getFunction().getParent()->getDataLayout().getTypeStoreSize(
           Val->getType()));
   AtomicRMWInst *RMWI =
-      new AtomicRMWInst(Operation, Ptr, Val, Alignment, Ordering, SSID);
+      new AtomicRMWInst(Operation, Ptr, Val,
+                        Alignment.getValueOr(DefaultAlignment), Ordering, SSID);
   RMWI->setVolatile(isVolatile);
   Inst = RMWI;
   return AteExtraComma ? InstExtraComma : InstNormal;
@@ -8514,7 +8525,8 @@ bool LLParser::parseFunctionSummary(std::string Name, GlobalValue::GUID GUID,
 
   StringRef ModulePath;
   GlobalValueSummary::GVFlags GVFlags = GlobalValueSummary::GVFlags(
-      /*Linkage=*/GlobalValue::ExternalLinkage, /*NotEligibleToImport=*/false,
+      GlobalValue::ExternalLinkage, GlobalValue::DefaultVisibility,
+      /*NotEligibleToImport=*/false,
       /*Live=*/false, /*IsLocal=*/false, /*CanAutoHide=*/false);
   unsigned InstCount;
   std::vector<FunctionSummary::EdgeTy> Calls;
@@ -8590,7 +8602,8 @@ bool LLParser::parseVariableSummary(std::string Name, GlobalValue::GUID GUID,
 
   StringRef ModulePath;
   GlobalValueSummary::GVFlags GVFlags = GlobalValueSummary::GVFlags(
-      /*Linkage=*/GlobalValue::ExternalLinkage, /*NotEligibleToImport=*/false,
+      GlobalValue::ExternalLinkage, GlobalValue::DefaultVisibility,
+      /*NotEligibleToImport=*/false,
       /*Live=*/false, /*IsLocal=*/false, /*CanAutoHide=*/false);
   GlobalVarSummary::GVarFlags GVarFlags(/*ReadOnly*/ false,
                                         /* WriteOnly */ false,
@@ -8648,7 +8661,8 @@ bool LLParser::parseAliasSummary(std::string Name, GlobalValue::GUID GUID,
 
   StringRef ModulePath;
   GlobalValueSummary::GVFlags GVFlags = GlobalValueSummary::GVFlags(
-      /*Linkage=*/GlobalValue::ExternalLinkage, /*NotEligibleToImport=*/false,
+      GlobalValue::ExternalLinkage, GlobalValue::DefaultVisibility,
+      /*NotEligibleToImport=*/false,
       /*Live=*/false, /*IsLocal=*/false, /*CanAutoHide=*/false);
   if (parseToken(lltok::colon, "expected ':' here") ||
       parseToken(lltok::lparen, "expected '(' here") ||
@@ -9336,8 +9350,9 @@ bool LLParser::parseVFuncId(FunctionSummary::VFuncId &VFuncId,
 
 /// GVFlags
 ///   ::= 'flags' ':' '(' 'linkage' ':' OptionalLinkageAux ','
-///         'notEligibleToImport' ':' Flag ',' 'live' ':' Flag ','
-///         'dsoLocal' ':' Flag ',' 'canAutoHide' ':' Flag ')'
+///         'visibility' ':' Flag 'notEligibleToImport' ':' Flag ','
+///         'live' ':' Flag ',' 'dsoLocal' ':' Flag ','
+///         'canAutoHide' ':' Flag ',' ')'
 bool LLParser::parseGVFlags(GlobalValueSummary::GVFlags &GVFlags) {
   assert(Lex.getKind() == lltok::kw_flags);
   Lex.Lex();
@@ -9357,6 +9372,13 @@ bool LLParser::parseGVFlags(GlobalValueSummary::GVFlags &GVFlags) {
       GVFlags.Linkage = parseOptionalLinkageAux(Lex.getKind(), HasLinkage);
       assert(HasLinkage && "Linkage not optional in summary entry");
       Lex.Lex();
+      break;
+    case lltok::kw_visibility:
+      Lex.Lex();
+      if (parseToken(lltok::colon, "expected ':'"))
+        return true;
+      parseOptionalVisibility(Flag);
+      GVFlags.Visibility = Flag;
       break;
     case lltok::kw_notEligibleToImport:
       Lex.Lex();

@@ -27,8 +27,8 @@ add_llvm_component_library(LLVMTransformUtils
   FunctionImportUtils.cpp
   GlobalStatus.cpp
   GuardUtils.cpp
+  HelloWorld.cpp
   InlineFunction.cpp
-  ImportedFunctionsInliningStatistics.cpp
   InjectTLIMappings.cpp
   InstructionNamer.cpp
   IntegerDivision.cpp

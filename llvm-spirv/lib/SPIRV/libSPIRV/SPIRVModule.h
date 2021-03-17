@@ -504,10 +504,9 @@ public:
       return SPIRVEIS_Debug;
     case DebugInfoEIS::OpenCL_DebugInfo_100:
       return SPIRVEIS_OpenCL_DebugInfo_100;
-    default:
-      assert(false && "Unexpected debug info EIS!");
-      return SPIRVEIS_Debug;
     }
+    assert(false && "Unexpected debug info EIS!");
+    return SPIRVEIS_Debug;
   }
 
   BIsRepresentation getDesiredBIsRepresentation() const {

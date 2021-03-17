@@ -115,7 +115,18 @@ public:
     return ST->getMinVectorRegisterBitWidth();
   }
 
+  Optional<unsigned> getMaxVScale() const {
+    if (ST->hasSVE())
+      return AArch64::SVEMaxBitsPerVector / AArch64::SVEBitsPerBlock;
+    return BaseT::getMaxVScale();
+  }
+
   unsigned getMaxInterleaveFactor(unsigned VF);
+
+  unsigned getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
+                                  const Value *Ptr, bool VariableMask,
+                                  Align Alignment, TTI::TargetCostKind CostKind,
+                                  const Instruction *I = nullptr);
 
   int getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                        TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
@@ -127,6 +138,14 @@ public:
   unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
 
   int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
+
+  int getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
+                             bool IsPairwise, bool IsUnsigned,
+                             TTI::TargetCostKind CostKind);
+
+  int getArithmeticReductionCostSVE(unsigned Opcode, VectorType *ValTy,
+                                    bool IsPairwiseForm,
+                                    TTI::TargetCostKind CostKind);
 
   int getArithmeticInstrCost(
       unsigned Opcode, Type *Ty,
@@ -167,11 +186,7 @@ public:
 
   bool getTgtMemIntrinsic(IntrinsicInst *Inst, MemIntrinsicInfo &Info);
 
-  bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
-    if (!isa<ScalableVectorType>(DataType) || !ST->hasSVE())
-      return false;
-
-    Type *Ty = cast<ScalableVectorType>(DataType)->getElementType();
+  bool isLegalScalarTypeForSVEMaskedMemOp(Type *Ty) const {
     if (Ty->isPointerTy())
       return true;
 
@@ -186,12 +201,33 @@ public:
     return false;
   }
 
+  bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
+    if (isa<FixedVectorType>(DataType) || !ST->hasSVE())
+      return false;
+
+    return isLegalScalarTypeForSVEMaskedMemOp(DataType->getScalarType());
+  }
+
   bool isLegalMaskedLoad(Type *DataType, Align Alignment) {
     return isLegalMaskedLoadStore(DataType, Alignment);
   }
 
   bool isLegalMaskedStore(Type *DataType, Align Alignment) {
     return isLegalMaskedLoadStore(DataType, Alignment);
+  }
+
+  bool isLegalMaskedGatherScatter(Type *DataType) const {
+    if (isa<FixedVectorType>(DataType) || !ST->hasSVE())
+      return false;
+
+    return isLegalScalarTypeForSVEMaskedMemOp(DataType->getScalarType());
+  }
+
+  bool isLegalMaskedGather(Type *DataType, Align Alignment) const {
+    return isLegalMaskedGatherScatter(DataType);
+  }
+  bool isLegalMaskedScatter(Type *DataType, Align Alignment) const {
+    return isLegalMaskedGatherScatter(DataType);
   }
 
   bool isLegalNTStore(Type *DataType, Align Alignment) {
@@ -229,9 +265,6 @@ public:
   }
 
   bool supportsScalableVectors() const { return ST->hasSVE(); }
-
-  bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
-                             TTI::ReductionFlags Flags) const;
 
   int getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
                                  bool IsPairwiseForm,

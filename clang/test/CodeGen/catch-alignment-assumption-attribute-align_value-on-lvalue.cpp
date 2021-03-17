@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefixes=CHECK,CHECK-NOSANITIZE
+// RUN: %clang_cc1 -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s
 // RUN: %clang_cc1 -fsanitize=alignment -fno-sanitize-recover=alignment -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_alignment_assumption" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-NORECOVER,CHECK-SANITIZE-UNREACHABLE
 // RUN: %clang_cc1 -fsanitize=alignment -fsanitize-recover=alignment -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_alignment_assumption" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-RECOVER
 // RUN: %clang_cc1 -fsanitize=alignment -fsanitize-trap=alignment -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_alignment_assumption" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-TRAP,CHECK-SANITIZE-UNREACHABLE
@@ -14,7 +14,7 @@ struct ac_struct {
 // CHECK-SANITIZE-ANYRECOVER: @[[LINE_100_ALIGNMENT_ASSUMPTION:.*]] = {{.*}}, i32 100, i32 13 }, {{.*}}* @[[ALIGNED_CHAR]] }
 
 char **load_from_ac_struct(struct ac_struct *x) {
-  // CHECK:                           define i8** @{{.*}}(%[[STRUCT_AC_STRUCT]]* %[[X:.*]])
+  // CHECK:                           define{{.*}} i8** @{{.*}}(%[[STRUCT_AC_STRUCT]]* %[[X:.*]])
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-NEXT:                        %[[STRUCT_AC_STRUCT_ADDR:.*]] = alloca %[[STRUCT_AC_STRUCT]]*, align 8
   // CHECK-NEXT:                        store %[[STRUCT_AC_STRUCT]]* %[[X]], %[[STRUCT_AC_STRUCT]]** %[[STRUCT_AC_STRUCT_ADDR]], align 8

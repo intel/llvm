@@ -398,6 +398,14 @@ def getFPAs32BitInt : SDNodeXForm<fpimm, [{
                                    SDLoc(N), MVT::i32);
 }]>;
 
+def imm34 : PatLeaf<(imm), [{
+  return isInt<34>(N->getSExtValue());
+}]>;
+
+def getImmAs64BitInt : SDNodeXForm<imm, [{
+  return getI64Imm(N->getSExtValue(), SDLoc(N));
+}]>;
+
 def SHL32 : SDNodeXForm<imm, [{
   // Transformation function: 31 - imm
   return getI32Imm(31 - N->getZExtValue(), SDLoc(N));
@@ -1119,6 +1127,10 @@ def IsISA3_0 : Predicate<"Subtarget->isISA3_0()">;
 def HasFPU : Predicate<"Subtarget->hasFPU()">;
 def PCRelativeMemops : Predicate<"Subtarget->hasPCRelativeMemops()">;
 def IsNotISA3_1 : Predicate<"!Subtarget->isISA3_1()">;
+
+// AIX assembler may not be modern enough to support some extended mne.
+def ModernAs: Predicate<"!Subtarget->isAIXABI() || Subtarget->HasModernAIXAs">, 
+                 AssemblerPredicate<(any_of (not AIXOS), FeatureModernAIXAs)>;
 
 //===----------------------------------------------------------------------===//
 // PowerPC Multiclass Definitions.
@@ -3991,7 +4003,7 @@ defm : CRNotPat<(i1 (setcc i64:$s1, i64:$s2, SETNE)),
                 (EXTRACT_SUBREG (CMPD $s1, $s2), sub_eq)>;
 }
 
-multiclass FSetCCPat<SDNode SetCC, ValueType Ty, PatLeaf FCmp> {
+multiclass FSetCCPat<SDPatternOperator SetCC, ValueType Ty, I FCmp> {
   defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETUGE)),
                   (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
   defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETGE)),
@@ -4649,8 +4661,11 @@ def : InstAlias<"mtmsr $RS", (MTMSR gprc:$RS, 0)>;
 def : InstAlias<"mtxer $Rx", (MTSPR 1, gprc:$Rx)>;
 def : InstAlias<"mfxer $Rx", (MFSPR gprc:$Rx, 1)>;
 
+//Disable this alias on AIX for now because as does not support them.
+let Predicates = [ModernAs] in {
 def : InstAlias<"mtudscr $Rx", (MTSPR 3, gprc:$Rx)>;
 def : InstAlias<"mfudscr $Rx", (MFSPR gprc:$Rx, 3)>;
+}
 
 def : InstAlias<"mfrtcu $Rx", (MFSPR gprc:$Rx, 4)>;
 def : InstAlias<"mfrtcl $Rx", (MFSPR gprc:$Rx, 5)>;

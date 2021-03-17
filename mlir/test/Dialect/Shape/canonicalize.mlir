@@ -14,9 +14,9 @@ func @f(%arg0: tensor<2x3x4xf32>) -> tensor<?xindex> {
 func @f() -> (!shape.shape, !shape.shape) {
   // CHECK: shape.const_shape [2, 3] : !shape.shape
   // CHECK: shape.const_shape [4, 5] : !shape.shape
-  %c2 = constant 2 : i32
+  %c2 = constant 2 : index
   %0 = shape.const_shape [2, 3, 4, 5] : !shape.shape
-  %head, %tail = "shape.split_at"(%0, %c2) : (!shape.shape, i32) -> (!shape.shape, !shape.shape)
+  %head, %tail = "shape.split_at"(%0, %c2) : (!shape.shape, index) -> (!shape.shape, !shape.shape)
   return %head, %tail : !shape.shape, !shape.shape
 
 }
@@ -28,9 +28,9 @@ func @f() -> (!shape.shape, !shape.shape) {
 func @f() -> (!shape.shape, !shape.shape) {
   // CHECK: shape.const_shape [2, 3, 4] : !shape.shape
   // CHECK: shape.const_shape [5] : !shape.shape
-  %c-1 = constant -1 : i32
+  %c-1 = constant -1 : index
   %0 = shape.const_shape [2, 3, 4, 5] : !shape.shape
-  %head, %tail = "shape.split_at"(%0, %c-1) : (!shape.shape, i32) -> (!shape.shape, !shape.shape)
+  %head, %tail = "shape.split_at"(%0, %c-1) : (!shape.shape, index) -> (!shape.shape, !shape.shape)
   return %head, %tail : !shape.shape, !shape.shape
 }
 
@@ -40,9 +40,9 @@ func @f() -> (!shape.shape, !shape.shape) {
 // CHECK-LABEL: func @f
 func @f() -> (!shape.shape, !shape.shape) {
   // CHECK: shape.split_at
-  %c5 = constant 5 : i32
+  %c5 = constant 5 : index
   %0 = shape.const_shape [2, 3, 4, 5] : !shape.shape
-  %head, %tail = "shape.split_at"(%0, %c5) : (!shape.shape, i32) -> (!shape.shape, !shape.shape)
+  %head, %tail = "shape.split_at"(%0, %c5) : (!shape.shape, index) -> (!shape.shape, !shape.shape)
   return %head, %tail : !shape.shape, !shape.shape
 }
 
@@ -787,7 +787,7 @@ func @shape_eq_fold_0() -> i1 {
 
 // -----
 
-// Do not fold `shape_eq` for non-constant shapes.
+// Do not fold `shape_eq` for non-constant different shapes.
 // CHECK-LABEL: @shape_eq_do_not_fold
 // CHECK-SAME: (%[[A:.*]]: !shape.shape) -> i1
 func @shape_eq_do_not_fold(%a : !shape.shape) -> i1 {
@@ -796,6 +796,19 @@ func @shape_eq_do_not_fold(%a : !shape.shape) -> i1 {
   // CHECK: return %[[RESULT]] : i1
   %b = shape.const_shape [4, 5, 6] : !shape.shape
   %result = shape.shape_eq %a, %b : !shape.shape, !shape.shape
+  return %result : i1
+}
+
+
+// -----
+
+// Fold `shape_eq` for non-constant but same shapes.
+// CHECK-LABEL: @shape_eq_do_fold
+// CHECK-SAME: (%[[A:.*]]: !shape.shape) -> i1
+func @shape_eq_do_fold(%a : !shape.shape) -> i1 {
+  // CHECK: %[[RESULT:.*]] = constant true
+  // CHECK: return %[[RESULT]] : i1
+  %result = shape.shape_eq %a, %a : !shape.shape, !shape.shape
   return %result : i1
 }
 

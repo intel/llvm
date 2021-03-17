@@ -46,7 +46,7 @@ foreach(filename ${MODULES})
     set(depends ${include}/__fortran_builtins.mod)
   endif()
   add_custom_command(OUTPUT ${include}/${filename}.mod
-    COMMAND f18 -fparse-only -I${include}
+    COMMAND f18 -fsyntax-only -I${include}
       ${FLANG_SOURCE_DIR}/module/${filename}.f90
     WORKING_DIRECTORY ${include}
     DEPENDS f18 ${FLANG_SOURCE_DIR}/module/${filename}.f90 ${depends}
@@ -72,5 +72,3 @@ if (NOT WIN32)
     FILE_PERMISSIONS OWNER_EXECUTE OWNER_READ OWNER_WRITE)
   install(PROGRAMS ${CMAKE_BINARY_DIR}/bin/flang DESTINATION bin)
 endif()
-
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/f18_version.h.in ${CMAKE_CURRENT_BINARY_DIR}/f18_version.h @ONLY)

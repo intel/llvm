@@ -111,6 +111,17 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::Linux, T.getOS());
   EXPECT_EQ(Triple::Musl, T.getEnvironment());
 
+  // PS4 has two spellings for the vendor.
+  T = Triple("x86_64-scei-ps4");
+  EXPECT_EQ(Triple::x86_64, T.getArch());
+  EXPECT_EQ(Triple::SCEI, T.getVendor());
+  EXPECT_EQ(Triple::PS4, T.getOS());
+
+  T = Triple("x86_64-sie-ps4");
+  EXPECT_EQ(Triple::x86_64, T.getArch());
+  EXPECT_EQ(Triple::SCEI, T.getVendor());
+  EXPECT_EQ(Triple::PS4, T.getOS());
+
   T = Triple("powerpc-ibm-aix");
   EXPECT_EQ(Triple::ppc, T.getArch());
   EXPECT_EQ(Triple::IBM, T.getVendor());
@@ -1111,7 +1122,7 @@ TEST(TripleTest, EndianArchVariants) {
 
   T.setArch(Triple::ppc);
   EXPECT_EQ(Triple::ppc, T.getBigEndianArchVariant().getArch());
-  EXPECT_EQ(Triple::UnknownArch, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::ppcle, T.getLittleEndianArchVariant().getArch());
 
   T.setArch(Triple::ppc64);
   EXPECT_EQ(Triple::ppc64, T.getBigEndianArchVariant().getArch());
@@ -1258,6 +1269,14 @@ TEST(TripleTest, getOSVersion) {
   EXPECT_EQ((unsigned)0, Micro);
 
   T = Triple("x86_64-apple-darwin20");
+  EXPECT_TRUE(T.isMacOSX());
+  T.getMacOSXVersion(Major, Minor, Micro);
+  EXPECT_EQ((unsigned)11, Major);
+  EXPECT_EQ((unsigned)0, Minor);
+  EXPECT_EQ((unsigned)0, Micro);
+
+  // For darwin triples on macOS 11, only compare the major version.
+  T = Triple("x86_64-apple-darwin20.2");
   EXPECT_TRUE(T.isMacOSX());
   T.getMacOSXVersion(Major, Minor, Micro);
   EXPECT_EQ((unsigned)11, Major);

@@ -784,10 +784,10 @@ template <> struct MDNodeSubsetEqualImpl<DISubprogram> {
 
     // Compare to the RHS.
     // FIXME: We need to compare template parameters here to avoid incorrect
-    // collisions in mapMetadata when RF_MoveDistinctMDs and a ODR-DISubprogram
-    // has a non-ODR template parameter (i.e., a DICompositeType that does not
-    // have an identifier). Eventually we should decouple ODR logic from
-    // uniquing logic.
+    // collisions in mapMetadata when RF_ReuseAndMutateDistinctMDs and a
+    // ODR-DISubprogram has a non-ODR template parameter (i.e., a
+    // DICompositeType that does not have an identifier). Eventually we should
+    // decouple ODR logic from uniquing logic.
     return IsDefinition == RHS->isDefinition() && Scope == RHS->getRawScope() &&
            LinkageName == RHS->getRawLinkageName() &&
            TemplateParams == RHS->getRawTemplateParams();
@@ -1418,7 +1418,7 @@ public:
   // Basic type instances.
   Type VoidTy, LabelTy, HalfTy, BFloatTy, FloatTy, DoubleTy, MetadataTy,
       TokenTy;
-  Type X86_FP80Ty, FP128Ty, PPC_FP128Ty, X86_MMXTy;
+  Type X86_FP80Ty, FP128Ty, PPC_FP128Ty, X86_MMXTy, X86_AMXTy;
   IntegerType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty, Int128Ty;
 
   BumpPtrAllocator Alloc;

@@ -107,10 +107,10 @@ public:
 
     if (auto TrueCmd = CDB->getCompileCommand(File)) {
       Cmd = std::move(*TrueCmd);
-      log("Compile command from CDB is: {0}", llvm::join(Cmd.CommandLine, " "));
+      log("Compile command from CDB is: {0}", printArgv(Cmd.CommandLine));
     } else {
       Cmd = CDB->getFallbackCommand(File);
-      log("Generic fallback command is: {0}", llvm::join(Cmd.CommandLine, " "));
+      log("Generic fallback command is: {0}", printArgv(Cmd.CommandLine));
     }
 
     return true;
@@ -123,6 +123,7 @@ public:
     std::vector<std::string> CC1Args;
     Inputs.CompileCommand = Cmd;
     Inputs.TFS = &TFS;
+    Inputs.ClangTidyProvider = Opts.ClangTidyProvider;
     if (Contents.hasValue()) {
       Inputs.Contents = *Contents;
       log("Imaginary source file contents:\n{0}", Inputs.Contents);
@@ -139,7 +140,7 @@ public:
         buildCompilerInvocation(Inputs, CaptureInvocationDiags, &CC1Args);
     auto InvocationDiags = CaptureInvocationDiags.take();
     ErrCount += showErrors(InvocationDiags);
-    log("internal (cc1) args are: {0}", llvm::join(CC1Args, " "));
+    log("internal (cc1) args are: {0}", printArgv(CC1Args));
     if (!Invocation) {
       elog("Failed to parse command line");
       return false;

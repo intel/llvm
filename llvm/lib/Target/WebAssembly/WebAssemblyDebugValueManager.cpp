@@ -20,7 +20,19 @@ using namespace llvm;
 
 WebAssemblyDebugValueManager::WebAssemblyDebugValueManager(
     MachineInstr *Instr) {
-  Instr->collectDebugValues(DbgValues);
+  // This code differs from MachineInstr::collectDebugValues in that it scans
+  // the whole BB, not just contiguous DBG_VALUEs.
+  if (!Instr->getOperand(0).isReg())
+    return;
+
+  MachineBasicBlock::iterator DI = *Instr;
+  ++DI;
+  for (MachineBasicBlock::iterator DE = Instr->getParent()->end(); DI != DE;
+       ++DI) {
+    if (DI->isDebugValue() &&
+        DI->getDebugOperandForReg(Instr->getOperand(0).getReg()))
+      DbgValues.push_back(&*DI);
+  }
 }
 
 void WebAssemblyDebugValueManager::move(MachineInstr *Insert) {
@@ -47,7 +59,11 @@ void WebAssemblyDebugValueManager::clone(MachineInstr *Insert,
 
 void WebAssemblyDebugValueManager::replaceWithLocal(unsigned LocalId) {
   for (auto *DBI : DbgValues) {
-    MachineOperand &Op = DBI->getDebugOperand(0);
-    Op.ChangeToTargetIndex(llvm::WebAssembly::TI_LOCAL, LocalId);
+    MachineOperand &Op0 = DBI->getDebugOperand(0);
+    MachineOperand &Op1 = DBI->getOperand(1);
+    bool Indirect = Op1.isImm() && Op1.getImm() == 0;
+    Op0.ChangeToTargetIndex(Indirect ? llvm::WebAssembly::TI_LOCAL_INDIRECT
+                                     : llvm::WebAssembly::TI_LOCAL,
+                            LocalId);
   }
 }

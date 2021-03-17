@@ -106,7 +106,7 @@ public:
     llvm::SmallVector<DotClangTidyCache *> Caches;
     {
       std::lock_guard<std::mutex> Lock(Mu);
-      for (auto I = path::begin(Parent), E = path::end(Parent); I != E; ++I) {
+      for (auto I = path::rbegin(Parent), E = path::rend(Parent); I != E; ++I) {
         assert(I->end() >= Parent.begin() && I->end() <= Parent.end() &&
                "Canonical path components should be substrings");
         llvm::StringRef Ancestor(Parent.begin(), I->end() - Parent.begin());
@@ -255,7 +255,7 @@ TidyProvider disableUnusableChecks(llvm::ArrayRef<std::string> ExtraBadChecks) {
 
 TidyProviderRef provideClangdConfig() {
   return [](tidy::ClangTidyOptions &Opts, llvm::StringRef) {
-    const auto &CurTidyConfig = Config::current().ClangTidy;
+    const auto &CurTidyConfig = Config::current().Diagnostics.ClangTidy;
     if (!CurTidyConfig.Checks.empty())
       mergeCheckList(Opts.Checks, CurTidyConfig.Checks);
 

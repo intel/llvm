@@ -221,7 +221,7 @@ bool BPFAdjustOptImpl::avoidSpeculation(Instruction &I) {
     }
   }
 
-  if (!dyn_cast<LoadInst>(&I) && !dyn_cast<CallInst>(&I))
+  if (!isa<LoadInst>(&I) && !isa<CallInst>(&I))
     return false;
 
   // For:
@@ -268,9 +268,9 @@ bool BPFAdjustOptImpl::avoidSpeculation(Instruction &I) {
     // load/store insn before this instruction in this basic
     // block. Most likely it cannot be hoisted out. Skip it.
     for (auto &I2 : *Inst->getParent()) {
-      if (dyn_cast<CallInst>(&I2))
+      if (isa<CallInst>(&I2))
         return false;
-      if (dyn_cast<LoadInst>(&I2) || dyn_cast<StoreInst>(&I2))
+      if (isa<LoadInst>(&I2) || isa<StoreInst>(&I2))
         return false;
       if (&I2 == Inst)
         break;
@@ -301,7 +301,7 @@ bool BPFAdjustOptImpl::avoidSpeculation(Instruction &I) {
   if (!isCandidate || Candidates.empty())
     return false;
 
-  PassThroughs.insert(PassThroughs.end(), Candidates.begin(), Candidates.end());
+  llvm::append_range(PassThroughs, Candidates);
   return true;
 }
 

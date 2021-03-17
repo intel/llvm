@@ -178,10 +178,10 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
   for (const auto &OldNew : Config.RPathsToUpdate) {
     StringRef Old = OldNew.getFirst();
     StringRef New = OldNew.getSecond();
-    if (RPaths.count(Old) == 0)
+    if (!RPaths.contains(Old))
       return createStringError(errc::invalid_argument,
                                "no LC_RPATH load command with path: " + Old);
-    if (RPaths.count(New) != 0)
+    if (RPaths.contains(New))
       return createStringError(errc::invalid_argument,
                                "rpath '" + New +
                                    "' would create a duplicate load command");
@@ -220,7 +220,7 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
 
   // Add new RPaths.
   for (StringRef RPath : Config.RPathToAdd) {
-    if (RPaths.count(RPath) != 0)
+    if (RPaths.contains(RPath))
       return createStringError(errc::invalid_argument,
                                "rpath '" + RPath +
                                    "' would create a duplicate load command");
@@ -229,7 +229,7 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
   }
 
   for (StringRef RPath : Config.RPathToPrepend) {
-    if (RPaths.count(RPath) != 0)
+    if (RPaths.contains(RPath))
       return createStringError(errc::invalid_argument,
                                "rpath '" + RPath +
                                    "' would create a duplicate load command");
@@ -327,14 +327,12 @@ static Error isValidMachOCannonicalName(StringRef Name) {
 }
 
 static Error handleArgs(const CopyConfig &Config, Object &Obj) {
-  if (Config.AllowBrokenLinks || !Config.BuildIdLinkDir.empty() ||
-      Config.BuildIdLinkInput || Config.BuildIdLinkOutput ||
-      !Config.SplitDWO.empty() || !Config.SymbolsPrefix.empty() ||
-      !Config.AllocSectionsPrefix.empty() || !Config.KeepSection.empty() ||
-      Config.NewSymbolVisibility || !Config.SymbolsToGlobalize.empty() ||
-      !Config.SymbolsToKeep.empty() || !Config.SymbolsToLocalize.empty() ||
-      !Config.SymbolsToWeaken.empty() || !Config.SymbolsToKeepGlobal.empty() ||
-      !Config.SectionsToRename.empty() ||
+  if (Config.AllowBrokenLinks || !Config.SplitDWO.empty() ||
+      !Config.SymbolsPrefix.empty() || !Config.AllocSectionsPrefix.empty() ||
+      !Config.KeepSection.empty() || Config.NewSymbolVisibility ||
+      !Config.SymbolsToGlobalize.empty() || !Config.SymbolsToKeep.empty() ||
+      !Config.SymbolsToLocalize.empty() || !Config.SymbolsToWeaken.empty() ||
+      !Config.SymbolsToKeepGlobal.empty() || !Config.SectionsToRename.empty() ||
       !Config.UnneededSymbolsToRemove.empty() ||
       !Config.SetSectionAlignment.empty() || !Config.SetSectionFlags.empty() ||
       Config.ExtractDWO || Config.LocalizeHidden || Config.PreserveDates ||

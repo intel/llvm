@@ -76,7 +76,7 @@ Operation *Operation::create(Location location, OperationName name,
                              ArrayRef<NamedAttribute> attributes,
                              BlockRange successors, unsigned numRegions) {
   return create(location, name, resultTypes, operands,
-                DictionaryAttr::get(attributes, location.getContext()),
+                DictionaryAttr::get(location.getContext(), attributes),
                 successors, numRegions);
 }
 
@@ -139,7 +139,7 @@ Operation *Operation::create(Location location, OperationName name,
       ::new (rawMem) Operation(location, name, resultTypes, numSuccessors,
                                numRegions, attributes, needsOperandStorage);
 
-  assert((numSuccessors == 0 || !op->isKnownNonTerminator()) &&
+  assert((numSuccessors == 0 || op->mightHaveTrait<OpTrait::IsTerminator>()) &&
          "unexpected successors in a non-terminator operation");
 
   // Initialize the results.
@@ -1184,6 +1184,48 @@ void impl::printOneResultOp(Operation *op, OpAsmPrinter &p) {
 // CastOp implementation
 //===----------------------------------------------------------------------===//
 
+/// Attempt to fold the given cast operation.
+LogicalResult
+impl::foldCastInterfaceOp(Operation *op, ArrayRef<Attribute> attrOperands,
+                          SmallVectorImpl<OpFoldResult> &foldResults) {
+  OperandRange operands = op->getOperands();
+  if (operands.empty())
+    return failure();
+  ResultRange results = op->getResults();
+
+  // Check for the case where the input and output types match 1-1.
+  if (operands.getTypes() == results.getTypes()) {
+    foldResults.append(operands.begin(), operands.end());
+    return success();
+  }
+
+  return failure();
+}
+
+/// Attempt to verify the given cast operation.
+LogicalResult impl::verifyCastInterfaceOp(
+    Operation *op, function_ref<bool(TypeRange, TypeRange)> areCastCompatible) {
+  auto resultTypes = op->getResultTypes();
+  if (llvm::empty(resultTypes))
+    return op->emitOpError()
+           << "expected at least one result for cast operation";
+
+  auto operandTypes = op->getOperandTypes();
+  if (!areCastCompatible(operandTypes, resultTypes)) {
+    InFlightDiagnostic diag = op->emitOpError("operand type");
+    if (llvm::empty(operandTypes))
+      diag << "s []";
+    else if (llvm::size(operandTypes) == 1)
+      diag << " " << *operandTypes.begin();
+    else
+      diag << "s " << operandTypes;
+    return diag << " and result type" << (resultTypes.size() == 1 ? " " : "s ")
+                << resultTypes << " are cast incompatible";
+  }
+
+  return success();
+}
+
 void impl::buildCastOp(OpBuilder &builder, OperationState &result, Value source,
                        Type destType) {
   result.addOperands(source);
@@ -1244,7 +1286,7 @@ void impl::ensureRegionTerminator(
     builder.createBlock(&region);
 
   Block &block = region.back();
-  if (!block.empty() && block.back().isKnownTerminator())
+  if (!block.empty() && block.back().hasTrait<OpTrait::IsTerminator>())
     return;
 
   builder.setInsertionPointToEnd(&block);

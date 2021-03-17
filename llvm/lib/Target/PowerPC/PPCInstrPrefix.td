@@ -2417,9 +2417,9 @@ multiclass P10ReverseSetBool<dag pattern, dag result> {
             (SETBCR8 result)>;
 }
 
-multiclass IntSetP10RevSetBool<SDNode SetCC, ValueType Ty, ImmLeaf ZExtTy,
-                               ImmLeaf SExtTy, PatLeaf Cmpi, PatLeaf Cmpli,
-                               PatLeaf Cmp, PatLeaf Cmpl> {
+multiclass IntSetP10RevSetBool<SDNode SetCC, ValueType Ty, PatLeaf ZExtTy,
+                               ImmLeaf SExtTy, I Cmpi, I Cmpli,
+                               I Cmp, I Cmpl> {
   defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETUGE)),
                            (EXTRACT_SUBREG (Cmpl $s1, $s2), sub_lt)>;
   defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETGE)),
@@ -2445,7 +2445,7 @@ multiclass IntSetP10RevSetBool<SDNode SetCC, ValueType Ty, ImmLeaf ZExtTy,
                            (EXTRACT_SUBREG (Cmpli $s1, imm:$imm), sub_eq)>;
 }
 
-multiclass FSetP10RevSetBool<SDNode SetCC, ValueType Ty, PatLeaf FCmp> {
+multiclass FSetP10RevSetBool<SDNode SetCC, ValueType Ty, I FCmp> {
   defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETUGE)),
                            (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
   defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETGE)),
@@ -2521,18 +2521,6 @@ let Predicates = [IsISA3_1] in {
             (EXTRACT_SUBREG (XVTLSBB (COPY_TO_REGCLASS $XB, VSRC)), sub_lt)>;
   def : Pat<(i32 (int_ppc_vsx_xvtlsbb v16i8:$XB, 0)),
             (EXTRACT_SUBREG (XVTLSBB (COPY_TO_REGCLASS $XB, VSRC)), sub_eq)>;
-  def : Pat<(v1i128 (shl v1i128:$VRA, v1i128:$VRB)),
-            (v1i128 (VSLQ v1i128:$VRA, v1i128:$VRB))>;
-  def : Pat<(v1i128 (PPCshl v1i128:$VRA, v1i128:$VRB)),
-            (v1i128 (VSLQ v1i128:$VRA, v1i128:$VRB))>;
-  def : Pat<(v1i128 (srl v1i128:$VRA, v1i128:$VRB)),
-            (v1i128 (VSRQ v1i128:$VRA, v1i128:$VRB))>;
-  def : Pat<(v1i128 (PPCsrl v1i128:$VRA, v1i128:$VRB)),
-            (v1i128 (VSRQ v1i128:$VRA, v1i128:$VRB))>;
-  def : Pat<(v1i128 (sra v1i128:$VRA, v1i128:$VRB)),
-            (v1i128 (VSRAQ v1i128:$VRA, v1i128:$VRB))>;
-  def : Pat<(v1i128 (PPCsra v1i128:$VRA, v1i128:$VRB)),
-            (v1i128 (VSRAQ v1i128:$VRA, v1i128:$VRB))>;
 
   def : Pat <(v1i128 (PPClxvrzx xoaddr:$src, 8)),
              (v1i128 (COPY_TO_REGCLASS (LXVRBX xoaddr:$src), VRRC))>;
@@ -2545,6 +2533,9 @@ let Predicates = [IsISA3_1] in {
 
   def : Pat<(v1i128 (rotl v1i128:$vA, v1i128:$vB)),
             (v1i128 (VRLQ v1i128:$vA, v1i128:$vB))>;
+
+  def : Pat <(v2i64 (PPCxxsplti32dx v2i64:$XT, i32:$XI, i32:$IMM32)),
+             (v2i64 (XXSPLTI32DX v2i64:$XT, i32:$XI, i32:$IMM32))>;
 }
 
 let Predicates = [IsISA3_1, HasVSX] in {
@@ -2569,6 +2560,35 @@ let AddedComplexity = 400, Predicates = [IsISA3_1, IsLittleEndian] in {
   def : Pat<(store (f64 (extractelt v2f64:$src, 0)), xoaddr:$dst),
             (STXVRDX $src, xoaddr:$dst)>;
  }
+
+// FIXME: The swap is overkill when the shift amount is a constant.
+// We should just fix the constant in the DAG.
+let AddedComplexity = 400, Predicates = [IsISA3_1, HasVSX] in {
+  def : Pat<(v1i128 (shl v1i128:$VRA, v1i128:$VRB)),
+            (v1i128 (VSLQ v1i128:$VRA,
+                     (XXPERMDI (COPY_TO_REGCLASS $VRB, VSRC),
+                               (COPY_TO_REGCLASS $VRB, VSRC), 2)))>;
+  def : Pat<(v1i128 (PPCshl v1i128:$VRA, v1i128:$VRB)),
+            (v1i128 (VSLQ v1i128:$VRA,
+                     (XXPERMDI (COPY_TO_REGCLASS $VRB, VSRC),
+                               (COPY_TO_REGCLASS $VRB, VSRC), 2)))>;
+  def : Pat<(v1i128 (srl v1i128:$VRA, v1i128:$VRB)),
+            (v1i128 (VSRQ v1i128:$VRA,
+                     (XXPERMDI (COPY_TO_REGCLASS $VRB, VSRC),
+                               (COPY_TO_REGCLASS $VRB, VSRC), 2)))>;
+  def : Pat<(v1i128 (PPCsrl v1i128:$VRA, v1i128:$VRB)),
+            (v1i128 (VSRQ v1i128:$VRA,
+                     (XXPERMDI (COPY_TO_REGCLASS $VRB, VSRC),
+                               (COPY_TO_REGCLASS $VRB, VSRC), 2)))>;
+  def : Pat<(v1i128 (sra v1i128:$VRA, v1i128:$VRB)),
+            (v1i128 (VSRAQ v1i128:$VRA,
+                     (XXPERMDI (COPY_TO_REGCLASS $VRB, VSRC),
+                               (COPY_TO_REGCLASS $VRB, VSRC), 2)))>;
+  def : Pat<(v1i128 (PPCsra v1i128:$VRA, v1i128:$VRB)),
+            (v1i128 (VSRAQ v1i128:$VRA,
+                     (XXPERMDI (COPY_TO_REGCLASS $VRB, VSRC),
+                               (COPY_TO_REGCLASS $VRB, VSRC), 2)))>;
+}
 
 class xxevalPattern <dag pattern, bits<8> imm> :
   Pat<(v4i32 pattern), (XXEVAL $vA, $vB, $vC, imm)> {}
@@ -2595,37 +2615,36 @@ let AddedComplexity = 400, Predicates = [PrefixInstrs] in {
   // and(A, or(B, C))
   def : xxevalPattern<(and v4i32:$vA, (or v4i32:$vB, v4i32:$vC)), 7>;
   // and(A, nor(B, C))
-  def : xxevalPattern<(and v4i32:$vA, (vnot_ppc (or v4i32:$vB, v4i32:$vC))),
-                       8>;
+  def : xxevalPattern<(and v4i32:$vA, (vnot (or v4i32:$vB, v4i32:$vC))), 8>;
   // and(A, eqv(B, C))
-  def : xxevalPattern<(and v4i32:$vA, (vnot_ppc (xor v4i32:$vB, v4i32:$vC))),
-                       9>;
+  def : xxevalPattern<(and v4i32:$vA, (vnot (xor v4i32:$vB, v4i32:$vC))), 9>;
   // and(A, nand(B, C))
-  def : xxevalPattern<(and v4i32:$vA, (vnot_ppc (and v4i32:$vB, v4i32:$vC))),
-                       14>;
+  def : xxevalPattern<(and v4i32:$vA, (vnot (and v4i32:$vB, v4i32:$vC))), 14>;
 
   // NAND
   // nand(A, B, C)
-  def : xxevalPattern<(vnot_ppc (and v4i32:$vA, (and v4i32:$vB, v4i32:$vC))),
+  def : xxevalPattern<(vnot (and v4i32:$vA, (and v4i32:$vB, v4i32:$vC))),
                        !sub(255, 1)>;
   // nand(A, xor(B, C))
-  def : xxevalPattern<(vnot_ppc (and v4i32:$vA, (xor v4i32:$vB, v4i32:$vC))),
+  def : xxevalPattern<(vnot (and v4i32:$vA, (xor v4i32:$vB, v4i32:$vC))),
                        !sub(255, 6)>;
   // nand(A, or(B, C))
-  def : xxevalPattern<(vnot_ppc (and v4i32:$vA, (or v4i32:$vB, v4i32:$vC))),
+  def : xxevalPattern<(vnot (and v4i32:$vA, (or v4i32:$vB, v4i32:$vC))),
                        !sub(255, 7)>;
   // nand(A, nor(B, C))
-  def : xxevalPattern<(or (vnot_ppc v4i32:$vA), (or v4i32:$vB, v4i32:$vC)),
+  def : xxevalPattern<(or (vnot v4i32:$vA), (or v4i32:$vB, v4i32:$vC)),
                        !sub(255, 8)>;
   // nand(A, eqv(B, C))
-  def : xxevalPattern<(or (vnot_ppc v4i32:$vA), (xor v4i32:$vB, v4i32:$vC)),
+  def : xxevalPattern<(or (vnot v4i32:$vA), (xor v4i32:$vB, v4i32:$vC)),
                        !sub(255, 9)>;
   // nand(A, nand(B, C))
-  def : xxevalPattern<(or (vnot_ppc v4i32:$vA), (and v4i32:$vB, v4i32:$vC)),
+  def : xxevalPattern<(or (vnot v4i32:$vA), (and v4i32:$vB, v4i32:$vC)),
                        !sub(255, 14)>;
 }
 
 let Predicates = [PrefixInstrs] in {
+  def : Pat<(i32 imm34:$imm), (PLI (getImmAs64BitInt imm:$imm))>;
+  def : Pat<(i64 imm34:$imm), (PLI8 (getImmAs64BitInt imm:$imm))>;
   def : Pat<(v16i8 (int_ppc_vsx_xxpermx v16i8:$A, v16i8:$B, v16i8:$C, timm:$D)),
             (COPY_TO_REGCLASS (XXPERMX (COPY_TO_REGCLASS $A, VSRC),
                                        (COPY_TO_REGCLASS $B, VSRC),

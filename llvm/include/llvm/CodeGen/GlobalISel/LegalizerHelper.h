@@ -17,8 +17,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CODEGEN_GLOBALISEL_MACHINELEGALIZEHELPER_H
-#define LLVM_CODEGEN_GLOBALISEL_MACHINELEGALIZEHELPER_H
+#ifndef LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
+#define LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
 
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -170,8 +170,10 @@ private:
   widenScalarExtract(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
   LegalizeResult
   widenScalarInsert(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
-  LegalizeResult
-  widenScalarAddSubShlSat(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
+  LegalizeResult widenScalarAddSubOverflow(MachineInstr &MI, unsigned TypeIdx,
+                                           LLT WideTy);
+  LegalizeResult widenScalarAddSubShlSat(MachineInstr &MI, unsigned TypeIdx,
+                                         LLT WideTy);
 
   /// Helper function to split a wide generic register into bitwise blocks with
   /// the given Type (which implies the number of blocks needed). The generic
@@ -313,6 +315,8 @@ public:
                                              LLT HalfTy, LLT ShiftAmtTy);
 
   LegalizeResult narrowScalarShift(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult narrowScalarAddSub(MachineInstr &MI, unsigned TypeIdx,
+                                    LLT NarrowTy);
   LegalizeResult narrowScalarMul(MachineInstr &MI, LLT Ty);
   LegalizeResult narrowScalarExtract(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult narrowScalarInsert(MachineInstr &MI, unsigned TypeIdx, LLT Ty);

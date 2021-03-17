@@ -51,8 +51,6 @@ void writeLimits(raw_ostream &os, const llvm::wasm::WasmLimits &limits);
 
 void writeGlobalType(raw_ostream &os, const llvm::wasm::WasmGlobalType &type);
 
-void writeGlobal(raw_ostream &os, const llvm::wasm::WasmGlobal &global);
-
 void writeEventType(raw_ostream &os, const llvm::wasm::WasmEventType &type);
 
 void writeEvent(raw_ostream &os, const llvm::wasm::WasmEvent &event);
@@ -69,6 +67,7 @@ std::string toString(llvm::wasm::ValType type);
 std::string toString(const llvm::wasm::WasmSignature &sig);
 std::string toString(const llvm::wasm::WasmGlobalType &type);
 std::string toString(const llvm::wasm::WasmEventType &type);
+std::string toString(const llvm::wasm::WasmTableType &type);
 
 } // namespace lld
 

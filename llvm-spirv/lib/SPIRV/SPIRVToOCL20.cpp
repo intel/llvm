@@ -43,49 +43,6 @@
 
 namespace SPIRV {
 
-class SPIRVToOCL20 : public SPIRVToOCL {
-public:
-  SPIRVToOCL20() : SPIRVToOCL(ID) {
-    initializeSPIRVToOCL20Pass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
-
-  /// Transform __spirv_MemoryBarrier to atomic_work_item_fence.
-  ///   __spirv_MemoryBarrier(scope, sema) =>
-  ///       atomic_work_item_fence(flag(sema), order(sema), map(scope))
-  void visitCallSPIRVMemoryBarrier(CallInst *CI) override;
-
-  /// Transform __spirv_ControlBarrier to work_group_barrier/sub_group_barrier.
-  /// If execution scope is ScopeWorkgroup:
-  ///    __spirv_ControlBarrier(execScope, memScope, sema) =>
-  ///         work_group_barrier(flag(sema), map(memScope))
-  /// Otherwise:
-  ///    __spirv_ControlBarrier(execScope, memScope, sema) =>
-  ///         sub_group_barrier(flag(sema), map(memScope))
-  void visitCallSPIRVControlBarrier(CallInst *CI) override;
-
-  /// Transform __spirv_Atomic* to atomic_*.
-  ///   __spirv_Atomic*(atomic_op, scope, sema, ops, ...) =>
-  ///      atomic_*(generic atomic_op, ops, ..., order(sema), map(scope))
-  Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) override;
-
-  /// Transform __spirv_OpAtomicIIncrement / OpAtomicIDecrement to
-  /// atomic_fetch_add_explicit / atomic_fetch_sub_explicit
-  Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
-
-  /// Conduct generic mutations for all atomic builtins
-  CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
-
-  /// Transform atomic builtin name into correct ocl-dependent name
-  Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
-
-  /// Transform __spirv_OpAtomicCompareExchange/Weak into
-  /// compare_exchange_strong/weak_explicit
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
-
-  static char ID;
-};
-
 char SPIRVToOCL20::ID = 0;
 
 bool SPIRVToOCL20::runOnModule(Module &Module) {
@@ -111,8 +68,7 @@ void SPIRVToOCL20::visitCallSPIRVMemoryBarrier(CallInst *CI) {
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
         Value *MemScope =
-            getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(
-                            cast<ConstantInt>(Args[0])->getZExtValue())));
+            SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Args[0], CI);
         Value *MemFenceFlags =
             SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[1], CI);
         Value *MemOrder =

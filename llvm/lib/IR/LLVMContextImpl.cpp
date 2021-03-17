@@ -35,6 +35,7 @@ LLVMContextImpl::LLVMContextImpl(LLVMContext &C)
     FP128Ty(C, Type::FP128TyID),
     PPC_FP128Ty(C, Type::PPC_FP128TyID),
     X86_MMXTy(C, Type::X86_MMXTyID),
+    X86_AMXTy(C, Type::X86_AMXTyID),
     Int1Ty(C, 1),
     Int8Ty(C, 8),
     Int16Ty(C, 16),
@@ -175,7 +176,7 @@ unsigned MDNodeOpsKey::calculateHash(MDNode *N, unsigned Offset) {
   unsigned Hash = hash_combine_range(N->op_begin() + Offset, N->op_end());
 #ifndef NDEBUG
   {
-    SmallVector<Metadata *, 8> MDs(N->op_begin() + Offset, N->op_end());
+    SmallVector<Metadata *, 8> MDs(drop_begin(N->operands(), Offset));
     unsigned RawHash = calculateHash(MDs);
     assert(Hash == RawHash &&
            "Expected hash of MDOperand to equal hash of Metadata*");

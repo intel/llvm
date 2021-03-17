@@ -183,8 +183,7 @@ __attribute__((unused)) static bool GetLibcVersion(int *major, int *minor,
 #endif
 }
 
-#if !SANITIZER_FREEBSD && !SANITIZER_ANDROID && !SANITIZER_GO && \
-    !SANITIZER_NETBSD && !SANITIZER_SOLARIS
+#if SANITIZER_GLIBC && !SANITIZER_GO
 static uptr g_tls_size;
 
 #ifdef __i386__
@@ -256,7 +255,7 @@ void InitTlsSize() {
 }
 #else
 void InitTlsSize() { }
-#endif
+#endif  // SANITIZER_GLIBC && !SANITIZER_GO
 
 #if (defined(__x86_64__) || defined(__i386__) || defined(__mips__) ||       \
      defined(__aarch64__) || defined(__powerpc64__) || defined(__s390__) || \
@@ -294,8 +293,10 @@ uptr ThreadDescriptorSize() {
       val = FIRST_32_SECOND_64(1168, 2288);
     else if (minor <= 14)
       val = FIRST_32_SECOND_64(1168, 2304);
-    else
+    else if (minor < 32)  // Unknown version
       val = FIRST_32_SECOND_64(1216, 2304);
+    else  // minor == 32
+      val = FIRST_32_SECOND_64(1344, 2496);
   }
 #elif defined(__mips__)
   // TODO(sagarthakur): add more values as per different glibc versions.
@@ -523,10 +524,14 @@ uptr GetTlsSize() {
   uptr addr, size;
   GetTls(&addr, &size);
   return size;
-#elif defined(__mips__) || defined(__powerpc64__) || SANITIZER_RISCV64
+#elif SANITIZER_GLIBC
+#if defined(__mips__) || defined(__powerpc64__) || SANITIZER_RISCV64
   return RoundUpTo(g_tls_size + TlsPreTcbSize(), 16);
 #else
   return g_tls_size;
+#endif
+#else
+  return 0;
 #endif
 }
 #endif

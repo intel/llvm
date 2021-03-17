@@ -131,6 +131,25 @@ end, a pass that may create an entity from a dialect that isn't guaranteed to
 already ne loaded must express this by overriding the `getDependentDialects()`
 method and declare this list of Dialects explicitly.
 
+### Initialization
+
+In certain situations, a Pass may contain state that is constructed dynamically,
+but is potentially expensive to recompute in successive runs of the Pass. One
+such example is when using [`PDL`-based](Dialects/PDLOps.md)
+[patterns](PatternRewriter.md), which are compiled into a bytecode during
+runtime. In these situations, a pass may override the following hook to
+initialize this heavy state:
+
+*   `LogicalResult initialize(MLIRContext *context)`
+
+This hook is executed once per run of a full pass pipeline, meaning that it does
+not have access to the state available during a `runOnOperation` call. More
+concretely, all necessary accesses to an `MLIRContext` should be driven via the
+provided `context` parameter, and methods that utilize "per-run" state such as
+`getContext`/`getOperation`/`getAnalysis`/etc. must not be used.
+In case of an error during initialization, the pass is expected to emit an error
+diagnostic and return a `failure()` which will abort the pass pipeline execution.
+
 ## Analysis Management
 
 An important concept, along with transformation passes, are analyses. These are
@@ -271,7 +290,7 @@ Passes can be added to a pass manager via `addPass`. The pass must either be an
 `op-specific` pass operating on the same operation type as `OpPassManager`, or
 an `op-agnostic` pass.
 
-An `OpPassManager` is generally creted by explicitly nesting a pipeline within
+An `OpPassManager` is generally created by explicitly nesting a pipeline within
 another existing `OpPassManager` via the `nest<>` method. This method takes the
 operation type that the nested pass manager will operate on. At the top-level, a
 `PassManager` acts as an `OpPassManager`. Nesting in this sense, corresponds to
@@ -1118,7 +1137,7 @@ func @simple_constant() -> (i32, i32) {
 ## Crash and Failure Reproduction
 
 The [pass manager](#pass-manager) in MLIR contains a builtin mechanism to
-generate reproducibles in the even of a crash, or a
+generate reproducibles in the event of a crash, or a
 [pass failure](#pass-failure). This functionality can be enabled via
 `PassManager::enableCrashReproducerGeneration` or via the command line flag
 `pass-pipeline-crash-reproducer`. In either case, an argument is provided that
@@ -1128,8 +1147,7 @@ was executing, as well as the initial IR before any passes were run. A potential
 reproducible may have the form:
 
 ```mlir
-// configuration: -pass-pipeline='func(cse,canonicalize),inline'
-// note: verifyPasses=false
+// configuration: -pass-pipeline='func(cse,canonicalize),inline' -verify-each
 
 module {
   func @foo() {
@@ -1137,6 +1155,14 @@ module {
   }
 }
 ```
+
+The configuration dumped can be passed to `mlir-opt` by specifying
+`-run-reproducer` flag. This will result in parsing the first line configuration
+of the reproducer and adding those to the command line options.
+
+Beyond specifying a filename, one can also register a `ReproducerStreamFactory`
+function that would be invoked in the case of a crash and the reproducer written
+to its stream.
 
 ### Local Reproducer Generation
 

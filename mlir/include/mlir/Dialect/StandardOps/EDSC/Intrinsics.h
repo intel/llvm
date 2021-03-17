@@ -20,7 +20,6 @@ using std_addf = ValueBuilder<AddFOp>;
 using std_alloc = ValueBuilder<AllocOp>;
 using std_alloca = ValueBuilder<AllocaOp>;
 using std_call = OperationBuilder<CallOp>;
-using std_create_complex = ValueBuilder<CreateComplexOp>;
 using std_constant = ValueBuilder<ConstantOp>;
 using std_constant_float = ValueBuilder<ConstantFloatOp>;
 using std_constant_index = ValueBuilder<ConstantIndexOp>;
@@ -31,28 +30,35 @@ using std_diviu = ValueBuilder<UnsignedDivIOp>;
 using std_dim = ValueBuilder<DimOp>;
 using std_fpext = ValueBuilder<FPExtOp>;
 using std_fptrunc = ValueBuilder<FPTruncOp>;
-using std_im = ValueBuilder<ImOp>;
 using std_index_cast = ValueBuilder<IndexCastOp>;
 using std_muli = ValueBuilder<MulIOp>;
 using std_mulf = ValueBuilder<MulFOp>;
 using std_memref_cast = ValueBuilder<MemRefCastOp>;
-using std_re = ValueBuilder<ReOp>;
 using std_ret = OperationBuilder<ReturnOp>;
-using std_rsqrt = ValueBuilder<RsqrtOp>;
 using std_select = ValueBuilder<SelectOp>;
 using std_load = ValueBuilder<LoadOp>;
+using std_sign_extendi = ValueBuilder<SignExtendIOp>;
 using std_splat = ValueBuilder<SplatOp>;
 using std_store = OperationBuilder<StoreOp>;
 using std_subf = ValueBuilder<SubFOp>;
 using std_subi = ValueBuilder<SubIOp>;
 using std_sub_view = ValueBuilder<SubViewOp>;
-using std_tanh = ValueBuilder<TanhOp>;
 using std_tensor_load = ValueBuilder<TensorLoadOp>;
 using std_tensor_store = OperationBuilder<TensorStoreOp>;
 using std_view = ValueBuilder<ViewOp>;
 using std_zero_extendi = ValueBuilder<ZeroExtendIOp>;
-using std_sign_extendi = ValueBuilder<SignExtendIOp>;
 using tensor_extract = ValueBuilder<tensor::ExtractOp>;
+
+template <int N>
+struct SExtiValueBuilder : public ValueBuilder<SignExtendIOp> {
+  using ValueBuilder<SignExtendIOp>::ValueBuilder;
+  template <typename... Args>
+  SExtiValueBuilder(Args... args)
+      : ValueBuilder<SignExtendIOp>(ScopedContext::getBuilderRef().getI32Type(),
+                                    args...) {}
+};
+
+using std_sexti32 = SExtiValueBuilder<32>;
 
 /// Branches into `block` with `operands`.
 BranchOp std_br(Block *block, ValueRange operands);

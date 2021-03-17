@@ -283,7 +283,7 @@ Syntax:
 operation         ::= op-result-list? (generic-operation | custom-operation)
                       trailing-location?
 generic-operation ::= string-literal `(` value-use-list? `)`  successor-list?
-                      (`(` region-list `)`)? attribute-dict? `:` function-type
+                      (`(` region-list `)`)? dictionary-attribute? `:` function-type
 custom-operation  ::= bare-id custom-operation-format
 op-result-list    ::= op-result (`,` op-result)* `=`
 op-result         ::= value-id (`:` integer-literal)
@@ -304,9 +304,9 @@ operations](#target-specific-operations).
 The internal representation of an operation is simple: an operation is
 identified by a unique string (e.g. `dim`, `tf.Conv2d`, `x86.repmovsb`,
 `ppc.eieio`, etc), can return zero or more results, take zero or more
-operands, may have zero or more attributes, may have zero or more successors,
-and zero or more enclosed [regions](#regions). The generic printing form
-includes all these elements literally, with a function type to indicate the
+operands, has a dictionary of [attributes](#attributes), has zero or more
+successors, and zero or more enclosed [regions](#regions). The generic printing
+form includes all these elements literally, with a function type to indicate the
 types of the results and operands.
 
 Example:
@@ -321,7 +321,7 @@ Example:
 
 // Invoke a TensorFlow function called tf.scramble with two inputs
 // and an attribute "fruit".
-%2 = "tf.scramble"(%result#0, %bar) {fruit: "banana"} : (f32, i32) -> f32
+%2 = "tf.scramble"(%result#0, %bar) {fruit = "banana"} : (f32, i32) -> f32
 ```
 
 In addition to the basic syntax above, dialects may register known operations.
@@ -345,7 +345,7 @@ Example:
 ### Module
 
 ```
-module ::= `module` symbol-ref-id? (`attributes` attribute-dict)? region
+module ::= `module` symbol-ref-id? (`attributes` dictionary-attribute)? region
 ```
 
 An MLIR Module represents a top-level container operation. It contains a single
@@ -373,17 +373,18 @@ function-signature ::= symbol-ref-id `(` argument-list `)`
                        (`->` function-result-list)?
 
 argument-list ::= (named-argument (`,` named-argument)*) | /*empty*/
-argument-list ::= (type attribute-dict? (`,` type attribute-dict?)*) | /*empty*/
-named-argument ::= value-id `:` type attribute-dict?
+argument-list ::= (type dictionary-attribute? (`,` type dictionary-attribute?)*)
+                | /*empty*/
+named-argument ::= value-id `:` type dictionary-attribute?
 
 function-result-list ::= function-result-list-parens
                        | non-function-type
 function-result-list-parens ::= `(` `)`
                               | `(` function-result-list-no-parens `)`
 function-result-list-no-parens ::= function-result (`,` function-result)*
-function-result ::= type attribute-dict?
+function-result ::= type dictionary-attribute?
 
-function-attributes ::= `attributes` attribute-dict
+function-attributes ::= `attributes` dictionary-attribute
 function-body ::= region
 ```
 
@@ -850,7 +851,7 @@ Syntax:
 
 ```
 // Floating point.
-float-type ::= `f16` | `bf16` | `f32` | `f64`
+float-type ::= `f16` | `bf16` | `f32` | `f64` | `f80` | `f128`
 ```
 
 MLIR supports float types of certain widths that are widely used as indicated
@@ -929,15 +930,15 @@ Syntax:
 ```
 memref-type ::= ranked-memref-type | unranked-memref-type
 
-ranked-memref-type ::= `memref` `<` dimension-list-ranked tensor-memref-element-type
+ranked-memref-type ::= `memref` `<` dimension-list-ranked type
                       (`,` layout-specification)? (`,` memory-space)? `>`
 
-unranked-memref-type ::= `memref` `<*x` tensor-memref-element-type
-                         (`,` memory-space)? `>`
+unranked-memref-type ::= `memref` `<*x` type (`,` memory-space)? `>`
 
 stride-list ::= `[` (dimension (`,` dimension)*)? `]`
 strided-layout ::= `offset:` dimension `,` `strides: ` stride-list
-layout-specification ::= semi-affine-map | strided-layout
+semi-affine-map-composition ::= (semi-affine-map `,` )* semi-affine-map
+layout-specification ::= semi-affine-map-composition | strided-layout
 memory-space ::= integer-literal /* | TODO: address-space-id */
 ```
 
@@ -1169,7 +1170,7 @@ that:
     64 = 1066` elements;
 2.  the address calculation for accessing element `(i, j)` computes `33 + i +
     64 * j`
-3.  the distance between two consecutive elements along the outer dimension is
+3.  the distance between two consecutive elements along the inner dimension is
     `1` element and the distance between two consecutive elements along the
     outer dimension is `64` elements.
 
@@ -1201,10 +1202,8 @@ where its value does not have a defined dynamic representation.
 Syntax:
 
 ```
-tensor-type ::= `tensor` `<` dimension-list tensor-memref-element-type `>`
-tensor-memref-element-type ::= vector-element-type | vector-type | complex-type
+tensor-type ::= `tensor` `<` dimension-list type `>`
 
-// memref requires a known rank, but tensor does not.
 dimension-list ::= dimension-list-ranked | (`*` `x`)
 dimension-list-ranked ::= (dimension `x`)*
 dimension ::= `?` | decimal-literal
@@ -1309,41 +1308,42 @@ shape `(0, 42)` and zero shapes are not allowed.
 Syntax:
 
 ```
-attribute-dict ::= `{` `}`
-                 | `{` attribute-entry (`,` attribute-entry)* `}`
-attribute-entry ::= dialect-attribute-entry | dependent-attribute-entry
-dialect-attribute-entry ::= dialect-namespace `.` bare-id `=` attribute-value
-dependent-attribute-entry ::= dependent-attribute-name `=` attribute-value
-dependent-attribute-name ::= ((letter|[_]) (letter|digit|[_$])*)
-                           | string-literal
+attribute-entry ::= (bare-id | string-literal) `=` attribute-value
+attribute-value ::= attribute-alias | dialect-attribute | builtin-attribute
 ```
 
 Attributes are the mechanism for specifying constant data on operations in
-places where a variable is never allowed - e.g. the index of a
-[`dim` operation](Dialects/Standard.md#stddim-dimop), or the stride of a
-convolution. They consist of a name and a concrete attribute value. The set of
-expected attributes, their structure, and their interpretation are all
-contextually dependent on what they are attached to.
+places where a variable is never allowed - e.g. the comparison predicate of a
+[`cmpi` operation](Dialects/Standard.md#stdcmpi-cmpiop). Each operation has an
+attribute dictionary, which associates a set of attribute names to attribute
+values. MLIR's builtin dialect provides a rich set of
+[builtin attribute values](#builtin-attribute-values) out of the box (such as
+arrays, dictionaries, strings, etc.). Additionally, dialects can define their
+own [dialect attribute values](#dialect-attribute-values).
 
-There are two main classes of attributes: dependent and dialect. Dependent
-attributes derive their structure and meaning from what they are attached to;
-e.g., the meaning of the `index` attribute on a `dim` operation is defined by
-the `dim` operation. Dialect attributes, on the other hand, derive their context
-and meaning from a specific dialect. An example of a dialect attribute may be a
-`swift.self` function argument attribute that indicates an argument is the
-self/context parameter. The context of this attribute is defined by the `swift`
-dialect and not the function argument.
+The top-level attribute dictionary attached to an operation has special
+semantics. The attribute entries are considered to be of two different kinds
+based on whether their dictionary key has a dialect prefix:
 
-Attribute values are represented by the following forms:
+- *inherent attributes* are inherent to the definition of an operation's
+  semantics. The operation itself is expected to verify the consistency of these
+  attributes. An example is the `predicate` attribute of the `std.cmpi` op.
+  These attributes must have names that do not start with a dialect prefix.
 
-```
-attribute-value ::= attribute-alias | dialect-attribute | builtin-attribute
-```
+- *discardable attributes* have semantics defined externally to the operation
+  itself, but must be compatible with the operations's semantics. These
+  attributes must have names that start with a dialect prefix. The dialect
+  indicated by the dialect prefix is expected to verify these attributes. An
+  example is the `gpu.container_module` attribute.
+
+Note that attribute values are allowed to themselves be dictionary attributes,
+but only the top-level dictionary attribute attached to the operation is subject
+to the classification above.
 
 ### Attribute Value Aliases
 
 ```
-attribute-alias ::= '#' alias-name '=' attribute-value
+attribute-alias-def ::= '#' alias-name '=' attribute-value
 attribute-alias ::= '#' alias-name
 ```
 
@@ -1407,8 +1407,8 @@ attribute values.
 ### Builtin Attribute Values
 
 Builtin attributes are a core set of
-[dialect attributes](#dialect-attribute-values) that are defined in a builtin
-dialect and thus available to all users of MLIR.
+[dialect attribute values](#dialect-attribute-values) that are defined in a
+builtin dialect and thus available to all users of MLIR.
 
 ```
 builtin-attribute ::=    affine-map-attribute

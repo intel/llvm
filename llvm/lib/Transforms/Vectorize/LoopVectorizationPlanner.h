@@ -142,6 +142,10 @@ public:
     return createInstruction(Instruction::BinaryOps::Or, {LHS, RHS});
   }
 
+  VPValue *createSelect(VPValue *Cond, VPValue *TrueVal, VPValue *FalseVal) {
+    return createNaryOp(Instruction::Select, {Cond, TrueVal, FalseVal});
+  }
+
   //===--------------------------------------------------------------------===//
   // RAII helpers.
   //===--------------------------------------------------------------------===//
@@ -274,9 +278,7 @@ public:
   bool hasPlanWithVFs(const ArrayRef<ElementCount> VFs) const {
     return any_of(VPlans, [&](const VPlanPtr &Plan) {
       return all_of(VFs, [&](const ElementCount &VF) {
-        if (Plan->hasVF(VF))
-          return true;
-        return false;
+        return Plan->hasVF(VF);
       });
     });
   }

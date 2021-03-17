@@ -565,6 +565,22 @@ void DeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,
   End = Begin ? PS->PropertiesEnd : nullptr;
 }
 
+pi_device_binary_property
+DeviceBinaryImage::getProperty(const char *PropName) const {
+  DeviceBinaryImage::PropertyRange BoolProp;
+  BoolProp.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP);
+  if (!BoolProp.isAvailable())
+    return nullptr;
+  auto It = std::find_if(BoolProp.begin(), BoolProp.end(),
+                         [=](pi_device_binary_property Prop) {
+                           return !strcmp(PropName, Prop->Name);
+                         });
+  if (It == BoolProp.end())
+    return nullptr;
+
+  return *It;
+}
+
 RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
                                             size_t ImgSize) {
   struct {

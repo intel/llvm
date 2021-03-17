@@ -106,7 +106,13 @@ enum : uint64_t {
   IsDOT = UINT64_C(1) << 55,
 
   // FLAT instruction accesses FLAT_SCRATCH segment.
-  IsFlatScratch = UINT64_C(1) << 56
+  IsFlatScratch = UINT64_C(1) << 56,
+
+  // Atomic without return.
+  IsAtomicNoRet = UINT64_C(1) << 57,
+
+  // Atomic with return.
+  IsAtomicRet = UINT64_C(1) << 58
 };
 
 // v_cmp_class_* etc. use a 10-bit mask for what operation is checked.
@@ -247,8 +253,8 @@ enum : unsigned {
   SGPR_MAX_GFX10 = 105,
   TTMP_VI_MIN = 112,
   TTMP_VI_MAX = 123,
-  TTMP_GFX9_GFX10_MIN = 108,
-  TTMP_GFX9_GFX10_MAX = 123,
+  TTMP_GFX9PLUS_MIN = 108,
+  TTMP_GFX9PLUS_MAX = 123,
   INLINE_INTEGER_C_MIN = 128,
   INLINE_INTEGER_C_POSITIVE_MAX = 192, // 64
   INLINE_INTEGER_C_MAX = 208,
@@ -692,7 +698,7 @@ enum DppFiMode {
 
 namespace Exp {
 
-enum Target {
+enum Target : unsigned {
   ET_MRT0 = 0,
   ET_MRT7 = 7,
   ET_MRTZ = 8,
@@ -704,6 +710,15 @@ enum Target {
   ET_PRIM = 20,          // GFX10+
   ET_PARAM0 = 32,
   ET_PARAM31 = 63,
+
+  ET_NULL_MAX_IDX = 0,
+  ET_MRTZ_MAX_IDX = 0,
+  ET_PRIM_MAX_IDX = 0,
+  ET_MRT_MAX_IDX = 7,
+  ET_POS_MAX_IDX = 4,
+  ET_PARAM_MAX_IDX = 31,
+
+  ET_INVALID = 255,
 };
 
 } // namespace Exp

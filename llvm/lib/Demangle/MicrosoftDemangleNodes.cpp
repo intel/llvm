@@ -107,6 +107,9 @@ static void outputCallingConvention(OutputStream &OS, CallingConv CC) {
   case CallingConv::Clrcall:
     OS << "__clrcall";
     break;
+  case CallingConv::Swift:
+    OS << "__attribute__((__swiftcall__)) ";
+    break;
   default:
     break;
   }
@@ -649,5 +652,4 @@ void SpecialTableSymbolNode::output(OutputStream &OS, OutputFlags Flags) const {
     TargetName->output(OS, Flags);
     OS << "'}";
   }
-  return;
 }

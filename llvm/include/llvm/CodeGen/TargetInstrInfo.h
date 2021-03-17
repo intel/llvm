@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TARGET_TARGETINSTRINFO_H
-#define LLVM_TARGET_TARGETINSTRINFO_H
+#ifndef LLVM_CODEGEN_TARGETINSTRINFO_H
+#define LLVM_CODEGEN_TARGETINSTRINFO_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -1298,10 +1298,11 @@ public:
                                bool &OffsetIsScalable,
                                const TargetRegisterInfo *TRI) const;
 
-  /// Get the base operands and byte offset of an instruction that reads/writes
-  /// memory.
+  /// Get zero or more base operands and the byte offset of an instruction that
+  /// reads/writes memory. Note that there may be zero base operands if the
+  /// instruction accesses a constant address.
   /// It returns false if MI does not read/write memory.
-  /// It returns false if no base operands and offset was found.
+  /// It returns false if base operands and offset could not be determined.
   /// It is not guaranteed to always recognize base operands and offsets in all
   /// cases.
   virtual bool getMemOperandsWithOffsetWidth(
@@ -1928,12 +1929,27 @@ public:
   virtual Optional<ParamLoadedValue> describeLoadedValue(const MachineInstr &MI,
                                                          Register Reg) const;
 
+  /// Given the generic extension instruction \p ExtMI, returns true if this
+  /// extension is a likely candidate for being folded into an another
+  /// instruction.
+  virtual bool isExtendLikelyToBeFolded(MachineInstr &ExtMI,
+                                        MachineRegisterInfo &MRI) const {
+    return false;
+  }
+
   /// Return MIR formatter to format/parse MIR operands.  Target can override
   /// this virtual function and return target specific MIR formatter.
   virtual const MIRFormatter *getMIRFormatter() const {
     if (!Formatter.get())
       Formatter = std::make_unique<MIRFormatter>();
     return Formatter.get();
+  }
+
+  /// Returns the target-specific default value for tail duplication.
+  /// This value will be used if the tail-dup-placement-threshold argument is
+  /// not provided.
+  virtual unsigned getTailDuplicateSize(CodeGenOpt::Level OptLevel) const {
+    return OptLevel >= CodeGenOpt::Aggressive ? 4 : 2;
   }
 
 private:
@@ -1973,4 +1989,4 @@ template <> struct DenseMapInfo<TargetInstrInfo::RegSubRegPair> {
 
 } // end namespace llvm
 
-#endif // LLVM_TARGET_TARGETINSTRINFO_H
+#endif // LLVM_CODEGEN_TARGETINSTRINFO_H

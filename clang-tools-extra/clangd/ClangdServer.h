@@ -14,6 +14,7 @@
 #include "ConfigProvider.h"
 #include "GlobalCompilationDatabase.h"
 #include "Hover.h"
+#include "Module.h"
 #include "Protocol.h"
 #include "SemanticHighlighting.h"
 #include "TUScheduler.h"
@@ -34,7 +35,6 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include <functional>
-#include <future>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -69,17 +69,17 @@ public:
     /// May be called concurrently for separate files, not for a single file.
     virtual void onFileUpdated(PathRef File, const TUStatus &Status) {}
 
-    /// Called by ClangdServer when some \p Highlightings for \p File are ready.
-    /// May be called concurrently for separate files, not for a single file.
-    virtual void
-    onHighlightingsReady(PathRef File, llvm::StringRef Version,
-                         std::vector<HighlightingToken> Highlightings) {}
-
     /// Called when background indexing tasks are enqueued/started/completed.
     /// Not called concurrently.
     virtual void
     onBackgroundIndexProgress(const BackgroundQueue::Stats &Stats) {}
   };
+  /// Creates a context provider that loads and installs config.
+  /// Errors in loading config are reported as diagnostics via Callbacks.
+  /// (This is typically used as ClangdServer::Options::ContextProvider).
+  static std::function<Context(PathRef)>
+  createConfiguredContextProvider(const config::Provider *Provider,
+                                  ClangdServer::Callbacks *);
 
   struct Options {
     /// To process requests asynchronously, ClangdServer spawns worker threads.
@@ -92,39 +92,31 @@ public:
 
     /// Cached preambles are potentially large. If false, store them on disk.
     bool StorePreamblesInMemory = true;
-    /// Reuse even stale preambles, and rebuild them in the background.
-    /// This improves latency at the cost of accuracy.
-    bool AsyncPreambleBuilds = true;
 
     /// If true, ClangdServer builds a dynamic in-memory index for symbols in
     /// opened files and uses the index to augment code completion results.
     bool BuildDynamicSymbolIndex = false;
-    /// Use a heavier and faster in-memory index implementation.
-    bool HeavyweightDynamicSymbolIndex = true;
     /// If true, ClangdServer automatically indexes files in the current project
     /// on background threads. The index is stored in the project root.
     bool BackgroundIndex = false;
 
-    /// Store refs to main-file symbols in the index.
-    bool CollectMainFileRefs = true;
-
     /// If set, use this index to augment code completion results.
     SymbolIndex *StaticIndex = nullptr;
 
-    /// If set, queried to obtain the configuration to handle each request.
-    config::Provider *ConfigProvider = nullptr;
+    /// If set, queried to derive a processing context for some work.
+    /// Usually used to inject Config (see createConfiguredContextProvider).
+    ///
+    /// When the provider is called, the active context will be that inherited
+    /// from the request (e.g. addDocument()), or from the ClangdServer
+    /// constructor if there is no such request (e.g. background indexing).
+    ///
+    /// The path is an absolute path of the file being processed.
+    /// If there is no particular file (e.g. project loading) then it is empty.
+    std::function<Context(PathRef)> ContextProvider;
 
     /// The Options provider to use when running clang-tidy. If null, clang-tidy
     /// checks will be disabled.
     TidyProviderRef ClangTidyProvider;
-
-    /// If true, force -frecovery-ast flag.
-    /// If false, respect the value in clang.
-    bool BuildRecoveryAST = false;
-
-    /// If true, force -frecovery-ast-type flag.
-    /// If false, respect the value in clang.
-    bool PreserveRecoveryASTType = false;
 
     /// Clangd's workspace root. Relevant for "workspace" operations not bound
     /// to a particular file.
@@ -144,17 +136,14 @@ public:
         /*RebuildRatio=*/1,
     };
 
-    bool SuggestMissingIncludes = false;
-
     /// Clangd will execute compiler drivers matching one of these globs to
     /// fetch system include path.
     std::vector<std::string> QueryDriverGlobs;
 
-    /// Enable notification-based semantic highlighting.
-    bool TheiaSemanticHighlighting = false;
-
     /// Enable preview of FoldingRanges feature.
     bool FoldingRanges = false;
+
+    ModuleSet *Modules = nullptr;
 
     explicit operator TUScheduler::Options() const;
   };
@@ -190,13 +179,8 @@ public:
   void removeDocument(PathRef File);
 
   /// Run code completion for \p File at \p Pos.
-  /// Request is processed asynchronously.
   ///
-  /// This method should only be called for currently tracked files. However, it
-  /// is safe to call removeDocument for \p File after this method returns, even
-  /// while returned future is not yet ready.
-  /// A version of `codeComplete` that runs \p Callback on the processing thread
-  /// when codeComplete results become available.
+  /// This method should only be called for currently tracked files.
   void codeComplete(PathRef File, Position Pos,
                     const clangd::CodeCompleteOptions &Opts,
                     Callback<CodeCompleteResult> CB);
@@ -353,18 +337,8 @@ private:
                   ArrayRef<tooling::Range> Ranges,
                   Callback<tooling::Replacements> CB);
 
-  /// Derives a context for a task processing the specified source file.
-  /// This includes the current configuration (see Options::ConfigProvider).
-  /// The empty string means no particular file is the target.
-  /// Rather than called by each feature, this is exposed to the components
-  /// that control worker threads, like TUScheduler and BackgroundIndex.
-  /// This means it's OK to do some IO here, and it cuts across all features.
-  Context createProcessingContext(PathRef) const;
-  config::Provider *ConfigProvider = nullptr;
-
+  const GlobalCompilationDatabase &CDB;
   const ThreadsafeFS &TFS;
-  Callbacks *ServerCallbacks = nullptr;
-  mutable std::mutex ConfigDiagnosticsMu;
 
   Path ResourceDir;
   // The index used to look up symbols. This could be:
@@ -382,15 +356,6 @@ private:
 
   // When set, provides clang-tidy options for a specific file.
   TidyProviderRef ClangTidyProvider;
-
-  // If this is true, suggest include insertion fixes for diagnostic errors that
-  // can be caused by missing includes (e.g. member access in incomplete type).
-  bool SuggestMissingIncludes = false;
-
-  // If true, preserve expressions in AST for broken code.
-  bool BuildRecoveryAST = true;
-  // If true, preserve the type for recovery AST.
-  bool PreserveRecoveryASTType = false;
 
   // GUARDED_BY(CachedCompletionFuzzyFindRequestMutex)
   llvm::StringMap<llvm::Optional<FuzzyFindRequest>>

@@ -135,8 +135,8 @@ func @test_alloc_memref_map_rank_mismatch() {
 
 func @intlimit2() {
 ^bb:
-  %0 = "std.constant"() {value = 0} : () -> i4096
-  %1 = "std.constant"() {value = 1} : () -> i4097 // expected-error {{integer bitwidth is limited to 4096 bits}}
+  %0 = "std.constant"() {value = 0} : () -> i16777215
+  %1 = "std.constant"() {value = 1} : () -> i16777216 // expected-error {{integer bitwidth is limited to 16777215 bits}}
   return
 }
 
@@ -196,7 +196,7 @@ func @func_with_ops(i32) {
 // Comparison are defined for arguments of the same type.
 func @func_with_ops(i32, i64) {
 ^bb0(%a : i32, %b : i64): // expected-note {{prior use here}}
-  %r = cmpi "eq", %a, %b : i32 // expected-error {{use of value '%b' expects different type than prior uses}}
+  %r = cmpi eq, %a, %b : i32 // expected-error {{use of value '%b' expects different type than prior uses}}
 }
 
 // -----
@@ -204,7 +204,7 @@ func @func_with_ops(i32, i64) {
 // Comparisons must have the "predicate" attribute.
 func @func_with_ops(i32, i32) {
 ^bb0(%a : i32, %b : i32):
-  %r = cmpi %a, %b : i32 // expected-error {{expected non-function type}}
+  %r = cmpi %a, %b : i32 // expected-error {{expected string or keyword containing one of the following enum values}}
 }
 
 // -----
@@ -212,7 +212,7 @@ func @func_with_ops(i32, i32) {
 // Integer comparisons are not recognized for float types.
 func @func_with_ops(f32, f32) {
 ^bb0(%a : f32, %b : f32):
-  %r = cmpi "eq", %a, %b : f32 // expected-error {{'lhs' must be signless-integer-like, but got 'f32'}}
+  %r = cmpi eq, %a, %b : f32 // expected-error {{'lhs' must be signless-integer-like, but got 'f32'}}
 }
 
 // -----
@@ -285,7 +285,7 @@ func @func_with_ops(tensor<12xi1>, tensor<42xi32>, tensor<42xi32>) {
 
 func @invalid_cmp_shape(%idx : () -> ()) {
   // expected-error@+1 {{'lhs' must be signless-integer-like, but got '() -> ()'}}
-  %cmp = cmpi "eq", %idx, %idx : () -> ()
+  %cmp = cmpi eq, %idx, %idx : () -> ()
 
 // -----
 
@@ -446,7 +446,7 @@ func @dma_wait_wrong_num_elements_type(%tag : memref<2xi32>, %idx: index, %flt: 
 // -----
 
 func @invalid_cmp_attr(%idx : i32) {
-  // expected-error@+1 {{invalid kind of attribute specified}}
+  // expected-error@+1 {{expected string or keyword containing one of the following enum values}}
   %cmp = cmpi i1, %idx, %idx : i32
 
 // -----
@@ -459,22 +459,22 @@ func @cmpf_generic_invalid_predicate_value(%a : f32) {
 // -----
 
 func @cmpf_canonical_invalid_predicate_value(%a : f32) {
-  // expected-error@+1 {{invalid predicate attribute specification: "foo"}}
-  %r = cmpf "foo", %a, %a : f32
+  // expected-error@+1 {{expected string or keyword containing one of the following enum values}}
+  %r = cmpf foo, %a, %a : f32
 }
 
 // -----
 
 func @cmpf_canonical_invalid_predicate_value_signed(%a : f32) {
-  // expected-error@+1 {{invalid predicate attribute specification: "sge"}}
-  %r = cmpf "sge", %a, %a : f32
+  // expected-error@+1 {{expected string or keyword containing one of the following enum values}}
+  %r = cmpf sge, %a, %a : f32
 }
 
 // -----
 
 func @cmpf_canonical_invalid_predicate_value_no_order(%a : f32) {
-  // expected-error@+1 {{invalid predicate attribute specification: "eq"}}
-  %r = cmpf "eq", %a, %a : f32
+  // expected-error@+1 {{expected string or keyword containing one of the following enum values}}
+  %r = cmpf eq, %a, %a : f32
 }
 
 // -----
@@ -493,7 +493,7 @@ func @cmpf_generic_no_predicate_attr(%a : f32, %b : f32) {
 // -----
 
 func @cmpf_wrong_type(%a : i32, %b : i32) {
-  %r = cmpf "oeq", %a, %b : i32 // expected-error {{must be floating-point-like}}
+  %r = cmpf oeq, %a, %b : i32 // expected-error {{must be floating-point-like}}
 }
 
 // -----
@@ -506,7 +506,7 @@ func @cmpf_generic_wrong_result_type(%a : f32, %b : f32) {
 // -----
 
 func @cmpf_canonical_wrong_result_type(%a : f32, %b : f32) -> f32 {
-  %r = cmpf "oeq", %a, %b : f32 // expected-note {{prior use here}}
+  %r = cmpf oeq, %a, %b : f32 // expected-note {{prior use here}}
   // expected-error@+1 {{use of value '%r' expects different type than prior uses}}
   return %r : f32
 }
@@ -536,25 +536,7 @@ func @cmpf_generic_operand_type_mismatch(%a : f32, %b : f64) {
 
 func @cmpf_canonical_type_mismatch(%a : f32, %b : f64) { // expected-note {{prior use here}}
   // expected-error@+1 {{use of value '%b' expects different type than prior uses}}
-  %r = cmpf "oeq", %a, %b : f32
-}
-
-// -----
-
-func @tensor_from_elements_wrong_result_type() {
-  // expected-error@+2 {{'result' must be 1D tensor of any type values, but got 'tensor<*xi32>'}}
-  %c0 = constant 0 : i32
-  %0 = tensor_from_elements %c0 : tensor<*xi32>
-  return
-}
-
-// -----
-
-func @tensor_from_elements_wrong_elements_count() {
-  // expected-error@+2 {{1 operands present, but expected 2}}
-  %c0 = constant 0 : index
-  %0 = tensor_from_elements %c0 : tensor<2xindex>
-  return
+  %r = cmpf oeq, %a, %b : f32
 }
 
 // -----
@@ -924,6 +906,36 @@ func @invalid_view(%arg0 : index, %arg1 : index, %arg2 : index) {
 // -----
 
 func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
+  %0 = alloc() : memref<8x16x4xf32>
+  // expected-error@+1 {{expected mixed offsets rank to match mixed sizes rank (2 vs 3) so the rank of the result type is well-formed}}
+  %1 = subview %0[0, 0][2, 2, 2][1, 1, 1]
+    : memref<8x16x4xf32> to memref<8x16x4xf32>
+  return
+}
+
+// -----
+
+func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
+  %0 = alloc() : memref<8x16x4xf32>
+  // expected-error@+1 {{expected mixed sizes rank to match mixed strides rank (3 vs 2) so the rank of the result type is well-formed}}
+  %1 = subview %0[0, 0, 0][2, 2, 2][1, 1]
+    : memref<8x16x4xf32> to memref<8x16x4xf32>
+  return
+}
+
+// -----
+
+func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
+  %0 = alloc() : memref<8x16x4xf32>
+  // expected-error@+1 {{expected mixed sizes rank to match mixed strides rank (3 vs 2) so the rank of the result type is well-formed}}
+  %1 = memref_reinterpret_cast %0 to offset: [0], sizes: [2, 2, 2], strides:[1, 1]
+    : memref<8x16x4xf32> to memref<8x16x4xf32>
+  return
+}
+
+// -----
+
+func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<8x16x4xf32, offset: 0, strides: [64, 4, 1], 2>
   // expected-error@+1 {{different memory spaces}}
   %1 = subview %0[0, 0, 0][%arg2, %arg2, %arg2][1, 1, 1]
@@ -947,8 +959,8 @@ func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<8x16x4xf32>
-  // expected-error@+1 {{expected 3 offset values}}
-  %1 = subview %0[%arg0, %arg1][%arg2][1, 1, 1]
+  // expected-error@+1 {{expected <= 3 offset values}}
+  %1 = subview %0[%arg0, %arg1, 0, 0][%arg2, 0, 0, 0][1, 1, 1, 1]
     : memref<8x16x4xf32> to
       memref<8x?x4xf32, offset: 0, strides:[?, ?, 4]>
   return
@@ -958,7 +970,7 @@ func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<8x16x4xf32>
-  // expected-error@+1 {{expected result type to be 'memref<?x?x?xf32, affine_map<(d0, d1, d2)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3)>>' or a rank-reduced version. (mismatch of result strides)}}
+  // expected-error@+1 {{expected result type to be 'memref<?x?x?xf32, affine_map<(d0, d1, d2)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3)>>' or a rank-reduced version. (mismatch of result affine map)}}
   %1 = subview %0[%arg0, %arg1, %arg2][%arg0, %arg1, %arg2][%arg0, %arg1, %arg2]
     : memref<8x16x4xf32> to
       memref<?x?x?xf32, offset: ?, strides: [64, 4, 1]>
@@ -999,9 +1011,28 @@ func @invalid_rank_reducing_subview(%arg0 : index, %arg1 : index, %arg2 : index)
 
 // -----
 
+func @invalid_rank_reducing_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
+  %0 = alloc() : memref<8x16x4xf32>
+  // expected-error@+1 {{expected result type to be 'memref<8x16x4xf32, affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2 + 8)>>' or a rank-reduced version. (mismatch of result sizes)}}
+  %1 = subview %0[0, 2, 0][8, 16, 4][1, 1, 1]
+    : memref<8x16x4xf32> to memref<16x4xf32>
+  return
+}
+
+// -----
+
 func @invalid_rank_reducing_subview(%arg0 : memref<?x?xf32>, %arg1 : index, %arg2 : index) {
-  // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result strides)}}
+  // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result affine map)}}
   %0 = subview %arg0[0, %arg1][%arg2, 1][1, 1] : memref<?x?xf32> to memref<?xf32>
+  return
+}
+
+// -----
+
+// The affine map affine_map<(d0)[s0, s1, s2] -> (d0 * s1 + s0)> has an extra unused symbol.
+func @invalid_rank_reducing_subview(%arg0 : memref<?x?xf32>, %arg1 : index, %arg2 : index) {
+  // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result affine map) inferred type: (d0)[s0, s1] -> (d0 * s1 + s0)}}
+  %0 = subview %arg0[0, %arg1][%arg2, 1][1, 1] : memref<?x?xf32> to memref<?xf32, affine_map<(d0)[s0, s1, s2] -> (d0 * s1 + s0)>>
   return
 }
 
@@ -1083,7 +1114,7 @@ func @invalid_memref_cast() {
 
 func @atomic_rmw_idxs_rank_mismatch(%I: memref<16x10xf32>, %i : index, %val : f32) {
   // expected-error@+1 {{expects the number of subscripts to be equal to memref rank}}
-  %x = atomic_rmw "addf" %val, %I[%i] : (f32, memref<16x10xf32>) -> f32
+  %x = atomic_rmw addf %val, %I[%i] : (f32, memref<16x10xf32>) -> f32
   return
 }
 
@@ -1091,7 +1122,7 @@ func @atomic_rmw_idxs_rank_mismatch(%I: memref<16x10xf32>, %i : index, %val : f3
 
 func @atomic_rmw_expects_float(%I: memref<16x10xi32>, %i : index, %val : i32) {
   // expected-error@+1 {{expects a floating-point type}}
-  %x = atomic_rmw "addf" %val, %I[%i, %i] : (i32, memref<16x10xi32>) -> i32
+  %x = atomic_rmw addf %val, %I[%i, %i] : (i32, memref<16x10xi32>) -> i32
   return
 }
 
@@ -1099,7 +1130,7 @@ func @atomic_rmw_expects_float(%I: memref<16x10xi32>, %i : index, %val : i32) {
 
 func @atomic_rmw_expects_int(%I: memref<16x10xf32>, %i : index, %val : f32) {
   // expected-error@+1 {{expects an integer type}}
-  %x = atomic_rmw "addi" %val, %I[%i, %i] : (f32, memref<16x10xf32>) -> f32
+  %x = atomic_rmw addi %val, %I[%i, %i] : (f32, memref<16x10xf32>) -> f32
   return
 }
 
@@ -1191,50 +1222,6 @@ func @assume_alignment(%0: memref<4x4xf16>) {
 
 // -----
 
-func @complex_number_from_non_float_operands(%real: i32, %imag: i32) {
-  // expected-error@+1 {{'complex' must be complex type with floating-point elements, but got 'complex<i32>'}}
-  std.create_complex %real, %imag : complex<i32>
-  return
-}
-
-// -----
-
-// expected-note@+1 {{prior use here}}
-func @complex_number_from_different_float_types(%real: f32, %imag: f64) {
-  // expected-error@+1 {{expects different type than prior uses: 'f32' vs 'f64'}}
-  std.create_complex %real, %imag : complex<f32>
-  return
-}
-
-// -----
-
-// expected-note@+1 {{prior use here}}
-func @complex_number_from_incompatible_float_type(%real: f32, %imag: f32) {
-  // expected-error@+1 {{expects different type than prior uses: 'f64' vs 'f32'}}
-  std.create_complex %real, %imag : complex<f64>
-  return
-}
-
-// -----
-
-// expected-note@+1 {{prior use here}}
-func @real_part_from_incompatible_complex_type(%cplx: complex<f32>) {
-  // expected-error@+1 {{expects different type than prior uses: 'complex<f64>' vs 'complex<f32>'}}
-  std.re %cplx : complex<f64>
-  return
-}
-
-// -----
-
-// expected-note@+1 {{prior use here}}
-func @imaginary_part_from_incompatible_complex_type(%cplx: complex<f64>) {
-  // expected-error@+1 {{expects different type than prior uses: 'complex<f32>' vs 'complex<f64>'}}
-  std.re %cplx : complex<f32>
-  return
-}
-
-// -----
-
 func @subtensor_wrong_dynamic_type(%t: tensor<8x16x4xf32>, %idx : index) {
       // expected-error @+1 {{expected result type to be 'tensor<4x4x4xf32>' or a rank-reduced version. (mismatch of result sizes)}}
   %0 = subtensor %t[0, 2, 0][4, 4, 4][1, 1, 1]
@@ -1250,5 +1237,13 @@ func @subtensor_wrong_static_type(%t: tensor<8x16x4xf32>, %idx : index) {
   %0 = subtensor %t[0, 0, 0][%idx, 3, %idx][1, 1, 1]
     : tensor<8x16x4xf32> to tensor<4x4x4xf32>
 
+  return
+}
+
+// -----
+
+func @no_zero_bit_integer_attrs() {
+  // expected-error @+1 {{integer constant out of range for attribute}}
+  %x = "some.op"(){value = 0 : i0} : () -> f32
   return
 }

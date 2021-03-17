@@ -709,13 +709,15 @@ static void emitSerializationFunction(const Record *attrClass,
                             elidedAttrs, os);
 
   if (record->isSubClassOf("SPV_ExtInstOp")) {
-    os << formatv("  encodeExtensionInstruction({0}, \"{1}\", {2}, {3});\n",
-                  opVar, record->getValueAsString("extendedInstSetName"),
-                  record->getValueAsInt("extendedInstOpcode"), operands);
+    os << formatv(
+        "  (void)encodeExtensionInstruction({0}, \"{1}\", {2}, {3});\n", opVar,
+        record->getValueAsString("extendedInstSetName"),
+        record->getValueAsInt("extendedInstOpcode"), operands);
   } else {
     // Emit debug info.
-    os << formatv("  emitDebugLine(functionBody, {0}.getLoc());\n", opVar);
-    os << formatv("  encodeInstructionInto("
+    os << formatv("  (void)emitDebugLine(functionBody, {0}.getLoc());\n",
+                  opVar);
+    os << formatv("  (void)encodeInstructionInto("
                   "functionBody, spirv::Opcode::{1}, {2});\n",
                   op.getQualCppClassName(),
                   record->getValueAsString("spirvOpName"), operands);
@@ -987,7 +989,7 @@ static void emitDeserializationFunction(const Record *attrClass,
   // this instruction, up to the first occurrence of any of the following: the
   // next end of block.
   os << formatv("  if ({0}.hasTrait<OpTrait::IsTerminator>())\n", opVar);
-  os << formatv("    clearDebugLine();\n");
+  os << formatv("    (void)clearDebugLine();\n");
   os << "  return success();\n";
   os << "}\n\n";
 }
@@ -996,11 +998,10 @@ static void emitDeserializationFunction(const Record *attrClass,
 /// based on the `opcode`.
 static void initDispatchDeserializationFn(StringRef opcode, StringRef words,
                                           raw_ostream &os) {
-  os << formatv(
-      "LogicalResult "
-      "Deserializer::dispatchToAutogenDeserialization(spirv::Opcode {0}, "
-      "ArrayRef<uint32_t> {1}) {{\n",
-      opcode, words);
+  os << formatv("LogicalResult spirv::Deserializer::"
+                "dispatchToAutogenDeserialization(spirv::Opcode {0},"
+                " ArrayRef<uint32_t> {1}) {{\n",
+                opcode, words);
   os << formatv("  switch ({0}) {{\n", opcode);
 }
 
@@ -1043,8 +1044,8 @@ static void initExtendedSetDeserializationDispatch(StringRef extensionSetName,
                                                    StringRef instructionID,
                                                    StringRef words,
                                                    raw_ostream &os) {
-  os << formatv("LogicalResult "
-                "Deserializer::dispatchToExtensionSetAutogenDeserialization("
+  os << formatv("LogicalResult spirv::Deserializer::"
+                "dispatchToExtensionSetAutogenDeserialization("
                 "StringRef {0}, uint32_t {1}, ArrayRef<uint32_t> {2}) {{\n",
                 extensionSetName, instructionID, words);
 }

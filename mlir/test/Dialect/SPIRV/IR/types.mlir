@@ -72,8 +72,8 @@ func private @index_type(!spv.array<4xindex>) -> ()
 
 // -----
 
-// expected-error @+1 {{cannot use '!llvm.i32' to compose SPIR-V types}}
-func private @llvm_type(!spv.array<4x!llvm.i32>) -> ()
+// expected-error @+1 {{cannot use '!llvm.struct<()>' to compose SPIR-V types}}
+func private @llvm_type(!spv.array<4x!llvm.struct<()>>) -> ()
 
 // -----
 
@@ -223,6 +223,20 @@ func private @image_parameters_nocomma_4(!spv.image<f32, Dim1D, NoDepth, NonArra
 
 // expected-error @+1 {{expected ','}}
 func private @image_parameters_nocomma_5(!spv.image<f32, Dim1D, NoDepth, NonArrayed, SingleSampled, SamplerUnknown Unknown>) -> ()
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// SampledImageType
+//===----------------------------------------------------------------------===//
+
+// CHECK: func private @sampled_image_type(!spv.sampled_image<!spv.image<f32, Dim1D, NoDepth, NonArrayed, SingleSampled, NoSampler, Unknown>>)
+func private @sampled_image_type(!spv.sampled_image<!spv.image<f32, Dim1D, NoDepth, NonArrayed, SingleSampled, NoSampler, Unknown>>) -> ()
+
+// -----
+
+// expected-error @+1 {{sampled image must be composed using image type, got 'f32'}}
+func private @samped_image_type_invaid_type(!spv.sampled_image<f32>) -> ()
 
 // -----
 

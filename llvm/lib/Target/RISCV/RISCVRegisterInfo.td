@@ -51,12 +51,21 @@ class RISCVRegWithSubRegs<bits<5> Enc, string n, list<Register> subregs,
 
 def ABIRegAltName : RegAltNameIndex;
 
-def sub_vrm2    : SubRegIndex<64, -1>;
-def sub_vrm2_hi : SubRegIndex<64, -1>;
-def sub_vrm4    : SubRegIndex<128, -1>;
-def sub_vrm4_hi : SubRegIndex<128, -1>;
-def sub_vrm8    : SubRegIndex<256, -1>;
-def sub_vrm8_hi : SubRegIndex<256, -1>;
+def sub_vrm1_0 : SubRegIndex<64,  -1>;
+def sub_vrm1_1 : SubRegIndex<64,  -1>;
+def sub_vrm1_2 : SubRegIndex<64,  -1>;
+def sub_vrm1_3 : SubRegIndex<64,  -1>;
+def sub_vrm1_4 : SubRegIndex<64,  -1>;
+def sub_vrm1_5 : SubRegIndex<64,  -1>;
+def sub_vrm1_6 : SubRegIndex<64,  -1>;
+def sub_vrm1_7 : SubRegIndex<64,  -1>;
+def sub_vrm2_0 : SubRegIndex<128, -1>;
+def sub_vrm2_1 : SubRegIndex<128, -1>;
+def sub_vrm2_2 : SubRegIndex<128, -1>;
+def sub_vrm2_3 : SubRegIndex<128, -1>;
+def sub_vrm4_0 : SubRegIndex<256, -1>;
+def sub_vrm4_1 : SubRegIndex<256, -1>;
+
 } // Namespace = "RISCV"
 
 // Integer registers
@@ -69,7 +78,7 @@ def sub_vrm8_hi : SubRegIndex<256, -1>;
 
 let RegAltNameIndices = [ABIRegAltName] in {
   def X0  : RISCVReg<0, "x0", ["zero"]>, DwarfRegNum<[0]>;
-  let CostPerUse = 1 in {
+  let CostPerUse = [1] in {
   def X1  : RISCVReg<1, "x1", ["ra"]>, DwarfRegNum<[1]>;
   def X2  : RISCVReg<2, "x2", ["sp"]>, DwarfRegNum<[2]>;
   def X3  : RISCVReg<3, "x3", ["gp"]>, DwarfRegNum<[3]>;
@@ -86,7 +95,7 @@ let RegAltNameIndices = [ABIRegAltName] in {
   def X13 : RISCVReg<13,"x13", ["a3"]>, DwarfRegNum<[13]>;
   def X14 : RISCVReg<14,"x14", ["a4"]>, DwarfRegNum<[14]>;
   def X15 : RISCVReg<15,"x15", ["a5"]>, DwarfRegNum<[15]>;
-  let CostPerUse = 1 in {
+  let CostPerUse = [1] in {
   def X16 : RISCVReg<16,"x16", ["a6"]>, DwarfRegNum<[16]>;
   def X17 : RISCVReg<17,"x17", ["a7"]>, DwarfRegNum<[17]>;
   def X18 : RISCVReg<18,"x18", ["s2"]>, DwarfRegNum<[18]>;
@@ -340,10 +349,69 @@ defvar vbool16_t = nxv4i1;
 defvar vbool32_t = nxv2i1;
 defvar vbool64_t = nxv1i1;
 
+// There is no need to define register classes for fractional LMUL.
+def LMULList {
+  list<int> m = [1, 2, 4, 8];
+}
+
+//===----------------------------------------------------------------------===//
+// Utility classes for segment load/store.
+//===----------------------------------------------------------------------===//
+// The set of legal NF for LMUL = lmul.
+// LMUL == 1, NF = 2, 3, 4, 5, 6, 7, 8
+// LMUL == 2, NF = 2, 3, 4
+// LMUL == 4, NF = 2
+class NFList<int lmul> {
+  list<int> L = !cond(!eq(lmul, 1): [2, 3, 4, 5, 6, 7, 8],
+                      !eq(lmul, 2): [2, 3, 4],
+                      !eq(lmul, 4): [2],
+                      !eq(lmul, 8): []);
+}
+
+// Generate [start, end) SubRegIndex list.
+class SubRegSet<list<SubRegIndex> LIn, int start, int nf, int lmul> {
+  list<SubRegIndex> L = !foldl([]<SubRegIndex>,
+                               [0, 1, 2, 3, 4, 5, 6, 7],
+                               AccList, i,
+                               !listconcat(AccList,
+                                 !if(!lt(i, nf),
+                                   [!cast<SubRegIndex>("sub_vrm" # lmul # "_" # i)],
+                                   [])));
+}
+
+class IndexSet<int index, int nf, int lmul> {
+  list<int> R =
+    !foldl([]<int>,
+              [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+               13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+               23, 24, 25, 26, 27, 28, 29, 30, 31],
+              L, i,
+              !listconcat(L,
+                          !if(!and(
+                                !le(!mul(index, lmul), !mul(i, lmul)),
+                                !le(!mul(i, lmul),
+                                    !sub(!add(32, !mul(index, lmul)), !mul(nf, lmul)))
+                              ), [!mul(i, lmul)], [])));
+}
+
+class VRegList<list<dag> LIn, int start, int nf, int lmul> {
+  list<dag> L =
+    !if(!ge(start, nf),
+        LIn,
+        !listconcat(
+          [!dag(add,
+                !foreach(i, IndexSet<start, nf, lmul>.R,
+                         !cast<Register>("V" # i # !cond(!eq(lmul, 2): "M2",
+                                                         !eq(lmul, 4): "M4",
+                                                         true: ""))),
+                !listsplat("", !size(IndexSet<start, nf, lmul>.R)))],
+          VRegList<LIn, !add(start, 1), nf, lmul>.L));
+}
+
 // Vector registers
 let RegAltNameIndices = [ABIRegAltName] in {
   foreach Index = 0-31 in {
-    def V#Index : RISCVReg<Index, "v"#Index, ["v"#Index]>, DwarfRegNum<[!add(Index, 64)]>;
+    def V#Index : RISCVReg<Index, "v"#Index, ["v"#Index]>, DwarfRegNum<[!add(Index, 96)]>;
   }
 
   foreach Index = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22,
@@ -353,7 +421,7 @@ let RegAltNameIndices = [ABIRegAltName] in {
                         !cast<Register>("V"#!add(Index, 1))],
                        ["v"#Index]>,
                      DwarfRegAlias<!cast<Register>("V"#Index)> {
-      let SubRegIndices = [sub_vrm2, sub_vrm2_hi];
+      let SubRegIndices = [sub_vrm1_0, sub_vrm1_1];
     }
   }
 
@@ -363,7 +431,7 @@ let RegAltNameIndices = [ABIRegAltName] in {
                         !cast<Register>("V"#!add(Index, 2)#"M2")],
                        ["v"#Index]>,
                      DwarfRegAlias<!cast<Register>("V"#Index)> {
-      let SubRegIndices = [sub_vrm4, sub_vrm4_hi];
+      let SubRegIndices = [sub_vrm2_0, sub_vrm2_1];
     }
   }
 
@@ -373,7 +441,7 @@ let RegAltNameIndices = [ABIRegAltName] in {
                         !cast<Register>("V"#!add(Index, 4)#"M4")],
                        ["v"#Index]>,
                      DwarfRegAlias<!cast<Register>("V"#Index)> {
-      let SubRegIndices = [sub_vrm8, sub_vrm8_hi];
+      let SubRegIndices = [sub_vrm4_0, sub_vrm4_1];
     }
   }
 
@@ -383,18 +451,20 @@ let RegAltNameIndices = [ABIRegAltName] in {
   def VXRM   : RISCVReg<0, "vxrm", ["vxrm"]>;
 }
 
-class RegisterTypes<list<ValueType> reg_types> {
-  list<ValueType> types = reg_types;
+foreach m = [1, 2, 4] in {
+  foreach n = NFList<m>.L in {
+    def "VN" # n # "M" # m: RegisterTuples<SubRegSet<[], 0, n, m>.L,
+                                           VRegList<[], 0, n, m>.L>;
+  }
 }
 
 class VReg<list<ValueType> regTypes, dag regList, int Vlmul>
   : RegisterClass<"RISCV",
                   regTypes,
-                  // FIXME: Spill alignment set to 16 bytes.
-                  128,
+                  64, // The maximum supported ELEN is 64.
                   regList> {
   int VLMul = Vlmul;
-  int Size = !mul(Vlmul, 64); // FIXME: assuming ELEN=64
+  int Size = !mul(Vlmul, 64);
 }
 
 def VR : VReg<[vint8mf2_t, vint8mf4_t, vint8mf8_t,
@@ -450,4 +520,12 @@ defvar VMaskVTs = [vbool64_t, vbool32_t, vbool16_t, vbool8_t,
 
 def VMV0 : RegisterClass<"RISCV", VMaskVTs, 64, (add V0)> {
   let Size = 64;
+}
+
+foreach m = LMULList.m in {
+  foreach nf = NFList<m>.L in {
+    def "VRN" # nf # "M" # m : VReg<[untyped],
+                               (add !cast<RegisterTuples>("VN" # nf # "M" # m)),
+                                    !mul(nf, m)>;
+  }
 }

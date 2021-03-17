@@ -1,5 +1,5 @@
 =========================================
-Libc++ 12.0.0 (In-Progress) Release Notes
+Libc++ 13.0.0 (In-Progress) Release Notes
 =========================================
 
 .. contents::
@@ -10,7 +10,7 @@ Written by the `Libc++ Team <https://libcxx.llvm.org>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming libc++ 12 release.
+   These are in-progress notes for the upcoming libc++ 13 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
@@ -18,7 +18,7 @@ Introduction
 ============
 
 This document contains the release notes for the libc++ C++ Standard Library,
-part of the LLVM Compiler Infrastructure, release 12.0.0. Here we describe the
+part of the LLVM Compiler Infrastructure, release 13.0.0. Here we describe the
 status of libc++ in some detail, including major improvements from the previous
 release and new feature work. For the general LLVM release notes, see `the LLVM
 documentation <https://llvm.org/docs/ReleaseNotes.html>`_. All LLVM releases may
@@ -32,7 +32,7 @@ main Libc++ web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <https://llvm.org/releases/>`_.
 
-What's New in Libc++ 12.0.0?
+What's New in Libc++ 13.0.0?
 ============================
 
 New Features
@@ -42,23 +42,5 @@ New Features
 
 API Changes
 -----------
-- By default, libc++ will _not_ include the definition for new and delete,
-  since those are provided in libc++abi. Vendors wishing to provide new and
-  delete in libc++ can build the library with ``-DLIBCXX_ENABLE_NEW_DELETE_DEFINITIONS=ON``
-  to get back the old behavior. This was done to avoid providing new and delete
-  in both libc++ and libc++abi, which is technically an ODR violation. Also
-  note that we couldn't decide to put the operators in libc++ only, because
-  they are needed from libc++abi (which would create a circular dependency).
-- During the C++20 standardization process some new low-level bit functions
-  have been renamed. Libc++ has renamed these functions to match the C++20
-  Standard.
-  - ``ispow2`` has been renamed to ``has_single_bit``
-  - ``ceil2`` has been renamed to ``bit_ceil``
-  - ``floor2`` has been renamed to ``bit_floor``
-  - ``log2p1`` has been renamed to ``bit_width``
 
-- In C++20 mode, ``std::filesystem::path::u8string()`` and
-  ``generic_u8string()`` now return ``std::u8string`` according to P0428,
-  while they return ``std::string`` in C++17. This can cause source
-  incompatibility, which is discussed and acknowledged in P1423, but that
-  paper doesn't suggest any remediation for this incompatibility.
+- ...

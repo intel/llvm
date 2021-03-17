@@ -41,6 +41,11 @@ class SPV_LogicalUnaryOp<string mnemonic, Type operandType,
                                        SameOperandsAndResultShape])> {
   let parser = [{ return ::parseLogicalUnaryOp(parser, result); }];
   let printer = [{ return ::printLogicalOp(getOperation(), p); }];
+
+  let builders = [
+    OpBuilderDAG<(ins "Value":$value),
+    [{::buildLogicalUnaryOp($_builder, $_state, value);}]>
+  ];
 }
 
 // -----
@@ -441,7 +446,9 @@ def SPV_FUnordNotEqualOp : SPV_LogicalBinaryOp<"FUnordNotEqual", SPV_Float, [Com
 
 // -----
 
-def SPV_IEqualOp : SPV_LogicalBinaryOp<"IEqual", SPV_Integer, [Commutative]> {
+def SPV_IEqualOp : SPV_LogicalBinaryOp<"IEqual",
+                                       SPV_Integer,
+                                       [Commutative, UsableInSpecConstantOp]> {
   let summary = "Integer comparison for equality.";
 
   let description = [{
@@ -472,7 +479,9 @@ def SPV_IEqualOp : SPV_LogicalBinaryOp<"IEqual", SPV_Integer, [Commutative]> {
 
 // -----
 
-def SPV_INotEqualOp : SPV_LogicalBinaryOp<"INotEqual", SPV_Integer, [Commutative]> {
+def SPV_INotEqualOp : SPV_LogicalBinaryOp<"INotEqual",
+                                          SPV_Integer,
+                                          [Commutative, UsableInSpecConstantOp]> {
   let summary = "Integer comparison for inequality.";
 
   let description = [{
@@ -503,7 +512,74 @@ def SPV_INotEqualOp : SPV_LogicalBinaryOp<"INotEqual", SPV_Integer, [Commutative
 
 // -----
 
-def SPV_LogicalAndOp : SPV_LogicalBinaryOp<"LogicalAnd", SPV_Bool, [Commutative]> {
+def SPV_IsInfOp : SPV_LogicalUnaryOp<"IsInf", SPV_Float, []> {
+  let summary = "Result is true if x is an IEEE Inf, otherwise result is false";
+
+  let description = [{
+    Result Type must be a scalar or vector of Boolean type.
+
+    x must be a scalar or vector of floating-point type.  It must have the
+    same number of components as Result Type.
+
+     Results are computed per component.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    float-scalar-vector-type ::= float-type |
+                                 `vector<` integer-literal `x` float-type `>`
+    isinf-op ::= ssa-id `=` `spv.IsInf` ssa-use
+                            `:` float-scalar-vector-type
+    ```
+
+    #### Example:
+
+    ```mlir
+    %2 = spv.IsInf %0: f32
+    %3 = spv.IsInf %1: vector<4xi32>
+    ```
+  }];
+}
+
+// -----
+
+def SPV_IsNanOp : SPV_LogicalUnaryOp<"IsNan", SPV_Float, []> {
+  let summary = [{
+    Result is true if x is an IEEE NaN, otherwise result is false.
+  }];
+
+  let description = [{
+    Result Type must be a scalar or vector of Boolean type.
+
+    x must be a scalar or vector of floating-point type.  It must have the
+    same number of components as Result Type.
+
+     Results are computed per component.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    float-scalar-vector-type ::= float-type |
+                                 `vector<` integer-literal `x` float-type `>`
+    isnan-op ::= ssa-id `=` `spv.IsNan` ssa-use
+                            `:` float-scalar-vector-type
+    ```
+
+    #### Example:
+
+    ```mlir
+    %2 = spv.IsNan %0: f32
+    %3 = spv.IsNan %1: vector<4xi32>
+    ```
+  }];
+}
+
+// -----
+
+def SPV_LogicalAndOp : SPV_LogicalBinaryOp<"LogicalAnd",
+                                           SPV_Bool,
+                                           [Commutative,
+                                            UsableInSpecConstantOp]> {
   let summary = [{
     Result is true if both Operand 1 and Operand 2 are true. Result is false
     if either Operand 1 or Operand 2 are false.
@@ -538,7 +614,10 @@ def SPV_LogicalAndOp : SPV_LogicalBinaryOp<"LogicalAnd", SPV_Bool, [Commutative]
 
 // -----
 
-def SPV_LogicalEqualOp : SPV_LogicalBinaryOp<"LogicalEqual", SPV_Bool, [Commutative]> {
+def SPV_LogicalEqualOp : SPV_LogicalBinaryOp<"LogicalEqual",
+                                             SPV_Bool,
+                                             [Commutative,
+                                              UsableInSpecConstantOp]> {
   let summary = [{
     Result is true if Operand 1 and Operand 2 have the same value. Result is
     false if Operand 1 and Operand 2 have different values.
@@ -571,7 +650,9 @@ def SPV_LogicalEqualOp : SPV_LogicalBinaryOp<"LogicalEqual", SPV_Bool, [Commutat
 
 // -----
 
-def SPV_LogicalNotOp : SPV_LogicalUnaryOp<"LogicalNot", SPV_Bool, []> {
+def SPV_LogicalNotOp : SPV_LogicalUnaryOp<"LogicalNot",
+                                          SPV_Bool,
+                                          [UsableInSpecConstantOp]> {
   let summary = [{
     Result is true if Operand is false.  Result is false if Operand is true.
   }];
@@ -602,7 +683,10 @@ def SPV_LogicalNotOp : SPV_LogicalUnaryOp<"LogicalNot", SPV_Bool, []> {
 
 // -----
 
-def SPV_LogicalNotEqualOp : SPV_LogicalBinaryOp<"LogicalNotEqual", SPV_Bool, [Commutative]> {
+def SPV_LogicalNotEqualOp : SPV_LogicalBinaryOp<"LogicalNotEqual",
+                                                SPV_Bool,
+                                                [Commutative,
+                                                 UsableInSpecConstantOp]> {
   let summary = [{
     Result is true if Operand 1 and Operand 2 have different values. Result
     is false if Operand 1 and Operand 2 have the same value.
@@ -635,7 +719,10 @@ def SPV_LogicalNotEqualOp : SPV_LogicalBinaryOp<"LogicalNotEqual", SPV_Bool, [Co
 
 // -----
 
-def SPV_LogicalOrOp : SPV_LogicalBinaryOp<"LogicalOr", SPV_Bool, [Commutative]> {
+def SPV_LogicalOrOp : SPV_LogicalBinaryOp<"LogicalOr",
+                                          SPV_Bool,
+                                          [Commutative,
+                                           UsableInSpecConstantOp]> {
   let summary = [{
     Result is true if either Operand 1 or Operand 2 is true. Result is false
     if both Operand 1 and Operand 2 are false.
@@ -670,7 +757,51 @@ def SPV_LogicalOrOp : SPV_LogicalBinaryOp<"LogicalOr", SPV_Bool, [Commutative]> 
 
 // -----
 
-def SPV_SGreaterThanOp : SPV_LogicalBinaryOp<"SGreaterThan", SPV_Integer, []> {
+def SPV_OrderedOp : SPV_LogicalBinaryOp<"Ordered", SPV_Float, [Commutative]> {
+  let summary = [{
+    Result is true if both x == x and y == y are true, where IEEE comparison
+    is used, otherwise result is false.
+  }];
+
+  let description = [{
+    Result Type must be a scalar or vector of Boolean type.
+
+    x must be a scalar or vector of floating-point type.  It must have the
+    same number of components as Result Type.
+
+    y must have the same type as x.
+
+     Results are computed per component.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    float-scalar-vector-type ::= float-type |
+                                 `vector<` integer-literal `x` float-type `>`
+    ordered-op ::= ssa-id `=` `spv.Ordered` ssa-use, ssa-use
+    ```mlir
+
+    #### Example:
+
+    ```
+    %4 = spv.Ordered %0, %1 : f32
+    %5 = spv.Ordered %2, %3 : vector<4xf32>
+    ```
+  }];
+
+  let availability = [
+    MinVersion<SPV_V_1_0>,
+    MaxVersion<SPV_V_1_5>,
+    Extension<[]>,
+    Capability<[SPV_C_Kernel]>
+  ];
+}
+
+// -----
+
+def SPV_SGreaterThanOp : SPV_LogicalBinaryOp<"SGreaterThan",
+                                             SPV_Integer,
+                                             [UsableInSpecConstantOp, SignedOp]> {
   let summary = [{
     Signed-integer comparison if Operand 1 is greater than  Operand 2.
   }];
@@ -703,7 +834,10 @@ def SPV_SGreaterThanOp : SPV_LogicalBinaryOp<"SGreaterThan", SPV_Integer, []> {
 
 // -----
 
-def SPV_SGreaterThanEqualOp : SPV_LogicalBinaryOp<"SGreaterThanEqual", SPV_Integer, []> {
+def SPV_SGreaterThanEqualOp : SPV_LogicalBinaryOp<"SGreaterThanEqual",
+                                                  SPV_Integer,
+                                                  [UsableInSpecConstantOp,
+                                                   SignedOp]> {
   let summary = [{
     Signed-integer comparison if Operand 1 is greater than or equal to
     Operand 2.
@@ -737,7 +871,9 @@ def SPV_SGreaterThanEqualOp : SPV_LogicalBinaryOp<"SGreaterThanEqual", SPV_Integ
 
 // -----
 
-def SPV_SLessThanOp : SPV_LogicalBinaryOp<"SLessThan", SPV_Integer, []> {
+def SPV_SLessThanOp : SPV_LogicalBinaryOp<"SLessThan",
+                                          SPV_Integer,
+                                          [UsableInSpecConstantOp, SignedOp]> {
   let summary = [{
     Signed-integer comparison if Operand 1 is less than Operand 2.
   }];
@@ -770,7 +906,10 @@ def SPV_SLessThanOp : SPV_LogicalBinaryOp<"SLessThan", SPV_Integer, []> {
 
 // -----
 
-def SPV_SLessThanEqualOp : SPV_LogicalBinaryOp<"SLessThanEqual", SPV_Integer, []> {
+def SPV_SLessThanEqualOp : SPV_LogicalBinaryOp<"SLessThanEqual",
+                                               SPV_Integer,
+                                               [UsableInSpecConstantOp,
+                                                SignedOp]> {
   let summary = [{
     Signed-integer comparison if Operand 1 is less than or equal to Operand
     2.
@@ -805,7 +944,9 @@ def SPV_SLessThanEqualOp : SPV_LogicalBinaryOp<"SLessThanEqual", SPV_Integer, []
 // -----
 
 def SPV_SelectOp : SPV_Op<"Select",
-    [NoSideEffect, AllTypesMatch<["true_value", "false_value", "result"]>]> {
+    [NoSideEffect,
+     AllTypesMatch<["true_value", "false_value", "result"]>,
+     UsableInSpecConstantOp]> {
   let summary = [{
     Select between two objects. Before version 1.4, results are only
     computed per component.
@@ -869,7 +1010,10 @@ def SPV_SelectOp : SPV_Op<"Select",
 
 // -----
 
-def SPV_UGreaterThanOp : SPV_LogicalBinaryOp<"UGreaterThan", SPV_Integer, []> {
+def SPV_UGreaterThanOp : SPV_LogicalBinaryOp<"UGreaterThan",
+                                             SPV_Integer,
+                                             [UnsignedOp,
+                                              UsableInSpecConstantOp]> {
   let summary = [{
     Unsigned-integer comparison if Operand 1 is greater than  Operand 2.
   }];
@@ -902,7 +1046,10 @@ def SPV_UGreaterThanOp : SPV_LogicalBinaryOp<"UGreaterThan", SPV_Integer, []> {
 
 // -----
 
-def SPV_UGreaterThanEqualOp : SPV_LogicalBinaryOp<"UGreaterThanEqual", SPV_Integer, []> {
+def SPV_UGreaterThanEqualOp : SPV_LogicalBinaryOp<"UGreaterThanEqual",
+                                                  SPV_Integer,
+                                                  [UnsignedOp,
+                                                   UsableInSpecConstantOp]> {
   let summary = [{
     Unsigned-integer comparison if Operand 1 is greater than or equal to
     Operand 2.
@@ -936,7 +1083,9 @@ def SPV_UGreaterThanEqualOp : SPV_LogicalBinaryOp<"UGreaterThanEqual", SPV_Integ
 
 // -----
 
-def SPV_ULessThanOp : SPV_LogicalBinaryOp<"ULessThan", SPV_Integer, []> {
+def SPV_ULessThanOp : SPV_LogicalBinaryOp<"ULessThan",
+                                          SPV_Integer,
+                                          [UnsignedOp, UsableInSpecConstantOp]> {
   let summary = [{
     Unsigned-integer comparison if Operand 1 is less than Operand 2.
   }];
@@ -969,8 +1118,52 @@ def SPV_ULessThanOp : SPV_LogicalBinaryOp<"ULessThan", SPV_Integer, []> {
 
 // -----
 
-def SPV_ULessThanEqualOp :
-  SPV_LogicalBinaryOp<"ULessThanEqual", SPV_Integer, []> {
+def SPV_UnorderedOp : SPV_LogicalBinaryOp<"Unordered", SPV_Float, [Commutative]> {
+  let summary = [{
+    Result is true if either x or y is an IEEE NaN, otherwise result is
+    false.
+  }];
+
+  let description = [{
+    Result Type must be a scalar or vector of Boolean type.
+
+    x must be a scalar or vector of floating-point type.  It must have the
+    same number of components as Result Type.
+
+    y must have the same type as x.
+
+     Results are computed per component.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    float-scalar-vector-type ::= float-type |
+                                 `vector<` integer-literal `x` float-type `>`
+    unordered-op ::= ssa-id `=` `spv.Unordered` ssa-use, ssa-use
+    ```mlir
+
+    #### Example:
+
+    ```
+    %4 = spv.Unordered %0, %1 : f32
+    %5 = spv.Unordered %2, %3 : vector<4xf32>
+    ```
+  }];
+
+  let availability = [
+    MinVersion<SPV_V_1_0>,
+    MaxVersion<SPV_V_1_5>,
+    Extension<[]>,
+    Capability<[SPV_C_Kernel]>
+  ];
+}
+
+// -----
+
+def SPV_ULessThanEqualOp : SPV_LogicalBinaryOp<"ULessThanEqual",
+                                               SPV_Integer,
+                                               [UnsignedOp,
+                                                UsableInSpecConstantOp]> {
   let summary = [{
     Unsigned-integer comparison if Operand 1 is less than or equal to
     Operand 2.

@@ -182,6 +182,8 @@ def int_amdgcn_init_exec : Intrinsic<[],
 // Set EXEC according to a thread count packed in an SGPR input:
 //    thread_count = (input >> bitoffset) & 0x7f;
 // This is always moved to the beginning of the basic block.
+// Note: only inreg arguments to the parent function are valid as
+// inputs to this intrinsic, computed values cannot be used.
 def int_amdgcn_init_exec_from_input : Intrinsic<[],
   [llvm_i32_ty,       // 32-bit SGPR input
    llvm_i32_ty],      // bit offset of the thread count
@@ -1202,7 +1204,7 @@ class AMDGPUBufferAtomicFP : Intrinsic <
    llvm_i32_ty,      // vindex(VGPR)
    llvm_i32_ty,      // offset(SGPR/VGPR/imm)
    llvm_i1_ty],      // slc(imm)
-  [ImmArg<ArgIndex<4>>], "", [SDNPMemOperand]>,
+  [ImmArg<ArgIndex<4>>, IntrWillReturn], "", [SDNPMemOperand]>,
   AMDGPURsrcIntrinsic<1, 0>;
 
 // Legacy form of the intrinsic. raw and struct forms should be preferred.
@@ -1287,7 +1289,7 @@ def int_amdgcn_s_getreg :
 def int_amdgcn_s_setreg :
   GCCBuiltin<"__builtin_amdgcn_s_setreg">,
   Intrinsic<[], [llvm_i32_ty, llvm_i32_ty],
-  [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]
+  [IntrNoMem, IntrHasSideEffects, IntrWillReturn, ImmArg<ArgIndex<0>>]
 >;
 
 // int_amdgcn_s_getpc is provided to allow a specific style of position
@@ -1347,12 +1349,17 @@ def int_amdgcn_interp_p2_f16 :
             [IntrNoMem, IntrSpeculatable, IntrWillReturn,
              ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>]>;
 
-// Pixel shaders only: whether the current pixel is live (i.e. not a helper
-// invocation for derivative computation).
+// Deprecated: use llvm.amdgcn.live.mask instead.
 def int_amdgcn_ps_live : Intrinsic <
   [llvm_i1_ty],
   [],
   [IntrNoMem, IntrWillReturn]>;
+
+// Query currently live lanes.
+// Returns true if lane is live (and not a helper lane).
+def int_amdgcn_live_mask : Intrinsic <[llvm_i1_ty],
+  [], [IntrReadMem, IntrInaccessibleMemOnly]
+>;
 
 def int_amdgcn_mbcnt_lo :
   GCCBuiltin<"__builtin_amdgcn_mbcnt_lo">,
@@ -1583,6 +1590,11 @@ def int_amdgcn_endpgm : GCCBuiltin<"__builtin_amdgcn_endpgm">,
   Intrinsic<[], [], [IntrNoReturn, IntrCold, IntrNoMem, IntrHasSideEffects]
 >;
 
+// If false, mark all active lanes as helper lanes until the end of program.
+def int_amdgcn_wqm_demote : Intrinsic<[],
+  [llvm_i1_ty], [IntrWriteMem, IntrInaccessibleMemOnly]
+>;
+
 // Copies the active channels of the source value to the destination value,
 // with the guarantee that the source value is computed as if the entire
 // program were executed in Whole Wavefront Mode, i.e. with all channels
@@ -1723,7 +1735,7 @@ def int_amdgcn_image_bvh_intersect_ray :
   Intrinsic<[llvm_v4i32_ty],
             [llvm_anyint_ty, llvm_float_ty, llvm_v4f32_ty, llvm_anyvector_ty,
              LLVMMatchType<1>, llvm_v4i32_ty],
-            [IntrReadMem]>;
+            [IntrReadMem, IntrWillReturn]>;
 
 //===----------------------------------------------------------------------===//
 // Deep learning intrinsics.

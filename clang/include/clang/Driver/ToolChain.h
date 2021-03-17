@@ -148,7 +148,6 @@ private:
   mutable std::unique_ptr<Tool> SPIRVTranslator;
   mutable std::unique_ptr<Tool> SPIRCheck;
   mutable std::unique_ptr<Tool> SYCLPostLink;
-  mutable std::unique_ptr<Tool> PartialLink;
   mutable std::unique_ptr<Tool> BackendCompiler;
   mutable std::unique_ptr<Tool> FileTableTform;
 
@@ -165,7 +164,6 @@ private:
   Tool *getSPIRVTranslator() const;
   Tool *getSPIRCheck() const;
   Tool *getSYCLPostLink() const;
-  Tool *getPartialLink() const;
   Tool *getBackendCompiler() const;
   Tool *getTableTform() const;
 
@@ -179,6 +177,10 @@ private:
   void setEffectiveTriple(llvm::Triple ET) const {
     EffectiveTriple = std::move(ET);
   }
+
+  mutable llvm::Optional<CXXStdlibType> cxxStdlibType;
+  mutable llvm::Optional<RuntimeLibType> runtimeLibType;
+  mutable llvm::Optional<UnwindLibType> unwindLibType;
 
 protected:
   MultilibSet Multilibs;
@@ -472,6 +474,12 @@ public:
   /// IsUnwindTablesDefault - Does this tool chain use -funwind-tables
   /// by default.
   virtual bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args) const;
+
+  /// Test whether this toolchain supports outline atomics by default.
+  virtual bool
+  IsAArch64OutlineAtomicsDefault(const llvm::opt::ArgList &Args) const {
+    return false;
+  }
 
   /// Test whether this toolchain defaults to PIC.
   virtual bool isPICDefault() const = 0;

@@ -67,6 +67,7 @@ public:
   }
 
   unsigned getInliningThresholdMultiplier() const { return 1; }
+  unsigned adjustInliningThreshold(const CallBase *CB) const { return 0; }
 
   int getInlinerVectorBonusPercent() const { return 150; }
 
@@ -208,9 +209,10 @@ public:
     return false;
   }
 
-  bool shouldFavorPostInc() const { return false; }
-
-  bool shouldFavorBackedgeIndex(const Loop *L) const { return false; }
+  TTI::AddressingModeKind
+    getPreferredAddressingMode(const Loop *L, ScalarEvolution *SE) const {
+    return TTI::AMK_None;
+  }
 
   bool isLegalMaskedStore(Type *DataType, Align Alignment) const {
     return false;
@@ -309,7 +311,7 @@ public:
   bool isFPVectorizationPotentiallyUnsafe() const { return false; }
 
   bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
-                                      unsigned AddressSpace, unsigned Alignment,
+                                      unsigned AddressSpace, Align Alignment,
                                       bool *Fast) const {
     return false;
   }
@@ -369,9 +371,13 @@ public:
 
   unsigned getMinVectorRegisterBitWidth() const { return 128; }
 
+  Optional<unsigned> getMaxVScale() const { return None; }
+
   bool shouldMaximizeVectorBandwidth(bool OptSize) const { return false; }
 
-  unsigned getMinimumVF(unsigned ElemWidth) const { return 0; }
+  ElementCount getMinimumVF(unsigned ElemWidth, bool IsScalable) const {
+    return ElementCount::get(0, IsScalable);
+  }
 
   unsigned getMaximumVF(unsigned ElemWidth, unsigned Opcode) const { return 0; }
 
@@ -555,6 +561,7 @@ public:
     case Intrinsic::is_constant:
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end:
+    case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::objectsize:
     case Intrinsic::ptr_annotation:
     case Intrinsic::var_annotation:
@@ -594,6 +601,12 @@ public:
 
   unsigned getMinMaxReductionCost(VectorType *, VectorType *, bool, bool,
                                   TTI::TargetCostKind) const {
+    return 1;
+  }
+
+  InstructionCost getExtendedAddReductionCost(
+      bool IsMLA, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const {
     return 1;
   }
 
@@ -686,11 +699,6 @@ public:
                                 unsigned ChainSizeInBytes,
                                 VectorType *VecTy) const {
     return VF;
-  }
-
-  bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
-                             TTI::ReductionFlags Flags) const {
-    return false;
   }
 
   bool preferInLoopReduction(unsigned Opcode, Type *Ty,
@@ -1069,8 +1077,7 @@ public:
   }
 
   int getInstructionLatency(const Instruction *I) {
-    SmallVector<const Value *, 4> Operands(I->value_op_begin(),
-                                           I->value_op_end());
+    SmallVector<const Value *, 4> Operands(I->operand_values());
     if (getUserCost(I, Operands, TTI::TCK_Latency) == TTI::TCC_Free)
       return 0;
 

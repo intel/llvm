@@ -10,6 +10,8 @@
 #define LLVM_TOOLS_LLVM_PROFGEN_PROFILEDBINARY_H
 
 #include "CallContext.h"
+#include "PseudoProbe.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -128,7 +130,15 @@ class ProfiledBinary {
 
   // The symbolizer used to get inline context for an instruction.
   std::unique_ptr<symbolize::LLVMSymbolizer> Symbolizer;
+
+  // Pseudo probe decoder
+  PseudoProbeDecoder ProbeDecoder;
+
+  bool UsePseudoProbes = false;
+
   void setPreferredBaseAddress(const ELFObjectFileBase *O);
+
+  void decodePseudoProbe(const ELFObjectFileBase *Obj);
 
   // Set up disassembler and related components.
   void setUpDisassembler(const ELFObjectFileBase *Obj);
@@ -170,8 +180,8 @@ public:
   uint64_t offsetToVirtualAddr(uint64_t Offset) const {
     return Offset + BaseAddress;
   }
-  const StringRef getPath() const { return Path; }
-  const StringRef getName() const { return llvm::sys::path::filename(Path); }
+  StringRef getPath() const { return Path; }
+  StringRef getName() const { return llvm::sys::path::filename(Path); }
   uint64_t getBaseAddress() const { return BaseAddress; }
   void setBaseAddress(uint64_t Address) { BaseAddress = Address; }
   uint64_t getPreferredBaseAddress() const { return PreferredBaseAddress; }
@@ -197,13 +207,14 @@ public:
     return offsetToVirtualAddr(CodeAddrs[Index]);
   }
 
+  bool usePseudoProbes() const { return UsePseudoProbes; }
   // Get the index in CodeAddrs for the address
   // As we might get an address which is not the code
   // here it would round to the next valid code address by
   // using lower bound operation
   uint32_t getIndexForAddr(uint64_t Address) const {
     uint64_t Offset = virtualAddrToOffset(Address);
-    auto Low = std::lower_bound(CodeAddrs.begin(), CodeAddrs.end(), Offset);
+    auto Low = llvm::lower_bound(CodeAddrs, Offset);
     return Low - CodeAddrs.begin();
   }
 
@@ -215,9 +226,11 @@ public:
     return FuncStartAddrMap[Offset];
   }
 
-  const FrameLocation &getInlineLeafFrameLoc(uint64_t Offset,
-                                             bool NameOnly = false) {
-    return getFrameLocationStack(Offset).back();
+  Optional<const FrameLocation> getInlineLeafFrameLoc(uint64_t Offset) {
+    const auto &Stack = getFrameLocationStack(Offset);
+    if (Stack.empty())
+      return {};
+    return Stack.back();
   }
 
   // Compare two addresses' inline context
@@ -226,7 +239,28 @@ public:
   // Get the context string of the current stack with inline context filled in.
   // It will search the disassembling info stored in Offset2LocStackMap. This is
   // used as the key of function sample map
-  std::string getExpandedContextStr(const std::list<uint64_t> &stack) const;
+  std::string
+  getExpandedContextStr(const SmallVectorImpl<uint64_t> &Stack) const;
+
+  const PseudoProbe *getCallProbeForAddr(uint64_t Address) const {
+    return ProbeDecoder.getCallProbeForAddr(Address);
+  }
+  void
+  getInlineContextForProbe(const PseudoProbe *Probe,
+                           SmallVectorImpl<std::string> &InlineContextStack,
+                           bool IncludeLeaf = false) const {
+    return ProbeDecoder.getInlineContextForProbe(Probe, InlineContextStack,
+                                                 IncludeLeaf);
+  }
+  const AddressProbesMap &getAddress2ProbesMap() const {
+    return ProbeDecoder.getAddress2ProbesMap();
+  }
+  const PseudoProbeFuncDesc *getFuncDescForGUID(uint64_t GUID) {
+    return ProbeDecoder.getFuncDescForGUID(GUID);
+  }
+  const PseudoProbeFuncDesc *getInlinerDescForProbe(const PseudoProbe *Probe) {
+    return ProbeDecoder.getInlinerDescForProbe(Probe);
+  }
 };
 
 } // end namespace sampleprof

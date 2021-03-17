@@ -1,7 +1,6 @@
 add_subdirectory(Bindings)
 add_subdirectory(CAPI)
 add_subdirectory(EDSC)
-add_subdirectory(mlir-cpu-runner)
 add_subdirectory(SDBM)
 add_subdirectory(lib)
 
@@ -12,6 +11,7 @@ llvm_canonicalize_cmake_booleans(
   MLIR_CUDA_RUNNER_ENABLED
   MLIR_ROCM_CONVERSIONS_ENABLED
   MLIR_ROCM_RUNNER_ENABLED
+  MLIR_SPIRV_CPU_RUNNER_ENABLED
   MLIR_VULKAN_RUNNER_ENABLED
   )
 
@@ -42,7 +42,6 @@ configure_lit_site_cfg(
 
 set(MLIR_TEST_DEPENDS
   FileCheck count not
-  MLIRUnitTests
   mlir-capi-ir-test
   mlir-capi-pass-test
   mlir-cpu-runner
@@ -53,12 +52,12 @@ set(MLIR_TEST_DEPENDS
   mlir-sdbm-api-test
   mlir-tblgen
   mlir-translate
-  mlir_test_cblas
-  mlir_test_cblas_interface
   mlir_runner_utils
   mlir_c_runner_utils
   mlir_async_runtime
   )
+
+list(APPEND MLIR_TEST_DEPENDS MLIRUnitTests)
 
 if(LLVM_BUILD_EXAMPLES)
   list(APPEND MLIR_TEST_DEPENDS

@@ -145,6 +145,56 @@ void ShapeDialect::printType(Type type, DialectAsmPrinter &os) const {
       .Default([](Type) { llvm_unreachable("unexpected 'shape' type kind"); });
 }
 
+LogicalResult ShapeDialect::verifyOperationAttribute(Operation *op,
+                                                     NamedAttribute attribute) {
+  // Verify shape.lib attribute.
+  if (attribute.first == "shape.lib") {
+    if (!op->hasTrait<OpTrait::SymbolTable>())
+      return op->emitError(
+          "shape.lib attribute may only be on op implementing SymbolTable");
+
+    if (auto symbolRef = attribute.second.dyn_cast<SymbolRefAttr>()) {
+      auto *symbol = SymbolTable::lookupSymbolIn(op, symbolRef);
+      if (!symbol)
+        return op->emitError("shape function library ")
+               << symbolRef << " not found";
+      return isa<shape::FunctionLibraryOp>(symbol)
+                 ? success()
+                 : op->emitError()
+                       << symbolRef << " required to be shape function library";
+    }
+
+    if (auto arr = attribute.second.dyn_cast<ArrayAttr>()) {
+      // Verify all entries are function libraries and mappings in libraries
+      // refer to unique ops.
+      DenseSet<Identifier> key;
+      for (auto it : arr) {
+        if (!it.isa<SymbolRefAttr>())
+          return op->emitError(
+              "only SymbolRefAttr allowed in shape.lib attribute array");
+
+        auto shapeFnLib = dyn_cast<shape::FunctionLibraryOp>(
+            SymbolTable::lookupSymbolIn(op, it.cast<SymbolRefAttr>()));
+        if (!shapeFnLib)
+          return op->emitError()
+                 << it << " does not refer to FunctionLibraryOp";
+        for (auto mapping : shapeFnLib.mapping()) {
+          if (!key.insert(mapping.first).second) {
+            return op->emitError("only one op to shape mapping allowed, found "
+                                 "multiple for `")
+                   << mapping.first << "`";
+          }
+        }
+      }
+      return success();
+    }
+
+    return op->emitError("only SymbolRefAttr or array of SymbolRefAttrs "
+                         "allowed as shape.lib attribute");
+  }
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // AnyOp
 //===----------------------------------------------------------------------===//
@@ -288,7 +338,7 @@ OpFoldResult AssumingAllOp::fold(ArrayRef<Attribute> operands) {
       return a;
   }
   // If this is reached, all inputs were statically known passing.
-  return BoolAttr::get(true, getContext());
+  return BoolAttr::get(getContext(), true);
 }
 
 static LogicalResult verify(AssumingAllOp op) {
@@ -307,10 +357,14 @@ OpFoldResult BroadcastOp::fold(ArrayRef<Attribute> operands) {
   if (!operands[1])
     return nullptr;
 
+  // TODO: Support folding with more than 2 input shapes
+  if (operands.size() > 2 && !operands[2].isa<StringAttr>())
+    return nullptr;
+
   auto rhsShape = llvm::to_vector<6>(
       operands[1].cast<DenseIntElementsAttr>().getValues<int64_t>());
   if (rhsShape.empty())
-    return lhs();
+    return shapes()[0];
 
   if (!operands[0])
     return nullptr;
@@ -318,7 +372,7 @@ OpFoldResult BroadcastOp::fold(ArrayRef<Attribute> operands) {
   auto lhsShape = llvm::to_vector<6>(
       operands[0].cast<DenseIntElementsAttr>().getValues<int64_t>());
   if (lhsShape.empty())
-    return rhs();
+    return shapes()[1];
 
   SmallVector<int64_t, 6> resultShape;
   // If the shapes are not compatible, we can't fold it.
@@ -327,6 +381,14 @@ OpFoldResult BroadcastOp::fold(ArrayRef<Attribute> operands) {
     return nullptr;
   Builder builder(getContext());
   return builder.getIndexTensorAttr(resultShape);
+}
+
+static LogicalResult verify(BroadcastOp op) {
+  // Ensure that AssumingAllOp contains at least one operand
+  if (op.getNumOperands() < 2)
+    return op.emitOpError("required at least 2 input shapes");
+
+  return verifyShapeOrExtentTensorOp(op);
 }
 
 //===----------------------------------------------------------------------===//
@@ -429,13 +491,17 @@ void CstrBroadcastableOp::getCanonicalizationPatterns(
 }
 
 OpFoldResult CstrBroadcastableOp::fold(ArrayRef<Attribute> operands) {
+  // TODO: Add folding for the nary case
+  if (operands.size() != 2)
+    return nullptr;
+
   // Both operands are not needed if one is a scalar.
   if (operands[0] &&
       operands[0].cast<DenseIntElementsAttr>().getNumElements() == 0)
-    return BoolAttr::get(true, getContext());
+    return BoolAttr::get(getContext(), true);
   if (operands[1] &&
       operands[1].cast<DenseIntElementsAttr>().getNumElements() == 0)
-    return BoolAttr::get(true, getContext());
+    return BoolAttr::get(getContext(), true);
 
   if (operands[0] && operands[1]) {
     auto lhsShape = llvm::to_vector<6>(
@@ -444,23 +510,30 @@ OpFoldResult CstrBroadcastableOp::fold(ArrayRef<Attribute> operands) {
         operands[1].cast<DenseIntElementsAttr>().getValues<int64_t>());
     SmallVector<int64_t, 6> resultShape;
     if (OpTrait::util::staticallyKnownBroadcastable(lhsShape, rhsShape))
-      return BoolAttr::get(true, getContext());
+      return BoolAttr::get(getContext(), true);
   }
 
   // Lastly, see if folding can be completed based on what constraints are known
   // on the input shapes.
   SmallVector<int64_t, 6> lhsShape, rhsShape;
-  if (failed(getShapeVec(lhs(), lhsShape)))
+  if (failed(getShapeVec(shapes()[0], lhsShape)))
     return nullptr;
-  if (failed(getShapeVec(rhs(), rhsShape)))
+  if (failed(getShapeVec(shapes()[1], rhsShape)))
     return nullptr;
 
   if (OpTrait::util::staticallyKnownBroadcastable(lhsShape, rhsShape))
-    return BoolAttr::get(true, getContext());
+    return BoolAttr::get(getContext(), true);
 
   // Because a failing witness result here represents an eventual assertion
   // failure, we do not replace it with a constant witness.
   return nullptr;
+}
+
+static LogicalResult verify(CstrBroadcastableOp op) {
+  // Ensure that AssumingAllOp contains at least one operand
+  if (op.getNumOperands() < 2)
+    return op.emitOpError("required at least 2 input shapes");
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -476,7 +549,7 @@ void CstrEqOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
 OpFoldResult CstrEqOp::fold(ArrayRef<Attribute> operands) {
   if (llvm::all_of(operands,
                    [&](Attribute a) { return a && a == operands[0]; }))
-    return BoolAttr::get(true, getContext());
+    return BoolAttr::get(getContext(), true);
 
   // Because a failing witness result here represents an eventual assertion
   // failure, we do not try to replace it with a constant witness. Similarly, we
@@ -522,13 +595,15 @@ OpFoldResult CstrRequireOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ShapeEqOp::fold(ArrayRef<Attribute> operands) {
+  if (lhs() == rhs())
+    return BoolAttr::get(getContext(), true);
   auto lhs = operands[0].dyn_cast_or_null<DenseIntElementsAttr>();
   if (lhs == nullptr)
     return {};
   auto rhs = operands[1].dyn_cast_or_null<DenseIntElementsAttr>();
   if (rhs == nullptr)
     return {};
-  return BoolAttr::get(lhs == rhs, getContext());
+  return BoolAttr::get(getContext(), lhs == rhs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -657,6 +732,17 @@ void GetExtentOp::build(OpBuilder &builder, OperationState &result, Value shape,
         builder.create<ConstantOp>(loc, builder.getIndexType(), dimAttr);
     build(builder, result, builder.getIndexType(), shape, dim);
   }
+}
+
+//===----------------------------------------------------------------------===//
+// IsBroadcastableOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(IsBroadcastableOp op) {
+  // Ensure that AssumingAllOp contains at least one operand
+  if (op.getNumOperands() < 2)
+    return op.emitOpError("required at least 2 input shapes");
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

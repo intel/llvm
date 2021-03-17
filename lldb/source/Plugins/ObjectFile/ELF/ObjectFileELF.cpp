@@ -296,9 +296,23 @@ static uint32_t mipsVariantFromElfFlags (const elf::ELFHeader &header) {
   return arch_variant;
 }
 
+static uint32_t riscvVariantFromElfFlags(const elf::ELFHeader &header) {
+  uint32_t fileclass = header.e_ident[EI_CLASS];
+  switch (fileclass) {
+  case llvm::ELF::ELFCLASS32:
+    return ArchSpec::eRISCVSubType_riscv32;
+  case llvm::ELF::ELFCLASS64:
+    return ArchSpec::eRISCVSubType_riscv64;
+  default:
+    return ArchSpec::eRISCVSubType_unknown;
+  }
+}
+
 static uint32_t subTypeFromElfHeader(const elf::ELFHeader &header) {
   if (header.e_machine == llvm::ELF::EM_MIPS)
     return mipsVariantFromElfFlags(header);
+  else if (header.e_machine == llvm::ELF::EM_RISCV)
+    return riscvVariantFromElfFlags(header);
 
   return LLDB_INVALID_CPUTYPE;
 }
@@ -2756,14 +2770,14 @@ Symtab *ObjectFileELF::GetSymtab() {
         user_id_t reloc_id = reloc_section->GetID();
         const ELFSectionHeaderInfo *reloc_header =
             GetSectionHeaderByIndex(reloc_id);
-        assert(reloc_header);
+        if (reloc_header) {
+          if (m_symtab_up == nullptr)
+            m_symtab_up =
+                std::make_unique<Symtab>(reloc_section->GetObjectFile());
 
-        if (m_symtab_up == nullptr)
-          m_symtab_up =
-              std::make_unique<Symtab>(reloc_section->GetObjectFile());
-
-        ParseTrampolineSymbols(m_symtab_up.get(), symbol_id, reloc_header,
-                               reloc_id);
+          ParseTrampolineSymbols(m_symtab_up.get(), symbol_id, reloc_header,
+                                 reloc_id);
+        }
       }
     }
 

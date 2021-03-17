@@ -705,6 +705,8 @@ uint64_t InputSectionBase::getRelocTargetVA(const InputFile *file, RelType type,
   case R_AARCH64_GOT_PAGE_PC:
   case R_AARCH64_RELAX_TLS_GD_TO_IE_PAGE_PC:
     return getAArch64Page(sym.getGotVA() + a) - getAArch64Page(p);
+  case R_AARCH64_GOT_PAGE:
+    return sym.getGotVA() + a - getAArch64Page(in.got->getVA());
   case R_GOT_PC:
   case R_RELAX_TLS_GD_TO_IE:
     return sym.getGotVA() + a - p;
@@ -899,7 +901,10 @@ void InputSection::relocateNonAlloc(uint8_t *buf, ArrayRef<RelTy> rels) {
       continue;
     }
 
-    if (expr != R_ABS && expr != R_DTPREL && expr != R_RISCV_ADD) {
+    // R_ABS/R_DTPREL and some other relocations can be used from non-SHF_ALLOC
+    // sections.
+    if (expr != R_ABS && expr != R_DTPREL && expr != R_GOTPLTREL &&
+        expr != R_RISCV_ADD) {
       std::string msg = getLocation<ELFT>(offset) +
                         ": has non-ABS relocation " + toString(type) +
                         " against symbol '" + toString(sym) + "'";

@@ -47,7 +47,7 @@ template <> struct MappingTraits<FileFilter> {
     IO.mapRequired("name", File.Name);
     IO.mapOptional("lines", File.LineRanges);
   }
-  static std::string validate(IO &io, FileFilter &File) {
+  static std::string validate(IO &Io, FileFilter &File) {
     if (File.Name.empty())
       return "No file name specified";
     for (const FileFilter::LineRange &Range : File.LineRanges) {
@@ -392,7 +392,7 @@ parseConfiguration(llvm::MemoryBufferRef Config) {
 
 static void diagHandlerImpl(const llvm::SMDiagnostic &Diag, void *Ctx) {
   (*reinterpret_cast<DiagCallback *>(Ctx))(Diag);
-};
+}
 
 llvm::ErrorOr<ClangTidyOptions>
 parseConfigurationWithDiags(llvm::MemoryBufferRef Config,

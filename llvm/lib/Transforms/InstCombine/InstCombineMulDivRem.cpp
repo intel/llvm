@@ -153,8 +153,10 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
   if (Value *V = SimplifyUsingDistributiveLaws(I))
     return replaceInstUsesWith(I, V);
 
-  // X * -1 == 0 - X
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
+  unsigned BitWidth = I.getType()->getScalarSizeInBits();
+
+  // X * -1 == 0 - X
   if (match(Op1, m_AllOnes())) {
     BinaryOperator *BO = BinaryOperator::CreateNeg(Op0, I.getName());
     if (I.hasNoSignedWrap())
@@ -359,6 +361,19 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
     return BinaryOperator::CreateAnd(Builder.CreateAShr(X, *C), Op1);
   if (match(Op1, m_LShr(m_Value(X), m_APInt(C))) && *C == C->getBitWidth() - 1)
     return BinaryOperator::CreateAnd(Builder.CreateAShr(X, *C), Op0);
+
+  // ((ashr X, 31) | 1) * X --> abs(X)
+  // X * ((ashr X, 31) | 1) --> abs(X)
+  if (match(&I, m_c_BinOp(m_Or(m_AShr(m_Value(X),
+                                    m_SpecificIntAllowUndef(BitWidth - 1)),
+                             m_One()),
+                        m_Deferred(X)))) {
+    Value *Abs = Builder.CreateBinaryIntrinsic(
+        Intrinsic::abs, X,
+        ConstantInt::getBool(I.getContext(), I.hasNoSignedWrap()));
+    Abs->takeName(&I);
+    return replaceInstUsesWith(I, Abs);
+  }
 
   if (Instruction *Ext = narrowMathIfNoOverflow(I))
     return Ext;
@@ -646,13 +661,12 @@ bool InstCombinerImpl::simplifyDivRemOfSelectWithZeroOp(BinaryOperator &I) {
       break;
 
     // Replace uses of the select or its condition with the known values.
-    for (Instruction::op_iterator I = BBI->op_begin(), E = BBI->op_end();
-         I != E; ++I) {
-      if (*I == SI) {
-        replaceUse(*I, SI->getOperand(NonNullOperand));
+    for (Use &Op : BBI->operands()) {
+      if (Op == SI) {
+        replaceUse(Op, SI->getOperand(NonNullOperand));
         Worklist.push(&*BBI);
-      } else if (*I == SelectCond) {
-        replaceUse(*I, NonNullOperand == 1 ? ConstantInt::getTrue(CondTy)
+      } else if (Op == SelectCond) {
+        replaceUse(Op, NonNullOperand == 1 ? ConstantInt::getTrue(CondTy)
                                            : ConstantInt::getFalse(CondTy));
         Worklist.push(&*BBI);
       }
@@ -1311,6 +1325,17 @@ Instruction *InstCombinerImpl::visitFDiv(BinaryOperator &I) {
     // replaced by a multiplication.
     if (match(Op1, m_FDiv(m_SpecificFP(1.0), m_Value(Y))))
       return BinaryOperator::CreateFMulFMF(Y, Op0, &I);
+
+    // Negate the exponent of pow to fold division-by-pow() into multiply:
+    // Z / pow(X, Y) --> Z * pow(X, -Y)
+    // In the general case, this creates an extra instruction, but fmul allows
+    // for better canonicalization and optimization than fdiv.
+    if (match(Op1,
+              m_OneUse(m_Intrinsic<Intrinsic::pow>(m_Value(X), m_Value(Y))))) {
+      Value *NegY = Builder.CreateFNegFMF(Y, &I);
+      Value *Pow = Builder.CreateBinaryIntrinsic(Intrinsic::pow, X, NegY, &I);
+      return BinaryOperator::CreateFMulFMF(Op0, Pow, &I);
+    }
   }
 
   if (I.hasAllowReassoc() && Op0->hasOneUse() && Op1->hasOneUse()) {

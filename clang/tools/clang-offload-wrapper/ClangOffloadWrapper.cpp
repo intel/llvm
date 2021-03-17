@@ -218,9 +218,9 @@ static StringRef offloadKindToString(OffloadKind Kind) {
     return "hip";
   case OffloadKind::SYCL:
     return "sycl";
-  default:
-    llvm_unreachable("bad offload kind");
   }
+  llvm_unreachable("bad offload kind");
+
   return "<ERROR>";
 }
 
@@ -234,9 +234,9 @@ static StringRef formatToString(BinaryImageFormat Fmt) {
     return "llvmbc";
   case BinaryImageFormat::native:
     return "native";
-  default:
-    llvm_unreachable("bad format");
   }
+  llvm_unreachable("bad format");
+
   return "<ERROR>";
 }
 

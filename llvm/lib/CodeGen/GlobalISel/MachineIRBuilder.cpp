@@ -240,6 +240,12 @@ MachineInstrBuilder MachineIRBuilder::buildCopy(const DstOp &Res,
   return buildInstr(TargetOpcode::COPY, Res, Op);
 }
 
+MachineInstrBuilder MachineIRBuilder::buildAssertZExt(const DstOp &Res,
+                                                      const SrcOp &Op,
+                                                      unsigned Size) {
+  return buildInstr(TargetOpcode::G_ASSERT_ZEXT, Res, Op).addImm(Size);
+}
+
 MachineInstrBuilder MachineIRBuilder::buildConstant(const DstOp &Res,
                                                     const ConstantInt &Val) {
   LLT Ty = Res.getLLTTy(*getMRI());
@@ -1089,11 +1095,11 @@ MachineInstrBuilder MachineIRBuilder::buildInstr(unsigned Opc,
   case TargetOpcode::G_UNMERGE_VALUES: {
     assert(!DstOps.empty() && "Invalid trivial sequence");
     assert(SrcOps.size() == 1 && "Invalid src for Unmerge");
-    assert(std::all_of(DstOps.begin(), DstOps.end(),
-                       [&, this](const DstOp &Op) {
-                         return Op.getLLTTy(*getMRI()) ==
-                                DstOps[0].getLLTTy(*getMRI());
-                       }) &&
+    assert(llvm::all_of(DstOps,
+                        [&, this](const DstOp &Op) {
+                          return Op.getLLTTy(*getMRI()) ==
+                                 DstOps[0].getLLTTy(*getMRI());
+                        }) &&
            "type mismatch in output list");
     assert(DstOps.size() * DstOps[0].getLLTTy(*getMRI()).getSizeInBits() ==
                SrcOps[0].getLLTTy(*getMRI()).getSizeInBits() &&
@@ -1103,11 +1109,11 @@ MachineInstrBuilder MachineIRBuilder::buildInstr(unsigned Opc,
   case TargetOpcode::G_MERGE_VALUES: {
     assert(!SrcOps.empty() && "invalid trivial sequence");
     assert(DstOps.size() == 1 && "Invalid Dst");
-    assert(std::all_of(SrcOps.begin(), SrcOps.end(),
-                       [&, this](const SrcOp &Op) {
-                         return Op.getLLTTy(*getMRI()) ==
-                                SrcOps[0].getLLTTy(*getMRI());
-                       }) &&
+    assert(llvm::all_of(SrcOps,
+                        [&, this](const SrcOp &Op) {
+                          return Op.getLLTTy(*getMRI()) ==
+                                 SrcOps[0].getLLTTy(*getMRI());
+                        }) &&
            "type mismatch in input list");
     assert(SrcOps.size() * SrcOps[0].getLLTTy(*getMRI()).getSizeInBits() ==
                DstOps[0].getLLTTy(*getMRI()).getSizeInBits() &&
@@ -1154,11 +1160,11 @@ MachineInstrBuilder MachineIRBuilder::buildInstr(unsigned Opc,
     assert(DstOps.size() == 1 && "Invalid DstOps");
     assert(DstOps[0].getLLTTy(*getMRI()).isVector() &&
            "Res type must be a vector");
-    assert(std::all_of(SrcOps.begin(), SrcOps.end(),
-                       [&, this](const SrcOp &Op) {
-                         return Op.getLLTTy(*getMRI()) ==
-                                SrcOps[0].getLLTTy(*getMRI());
-                       }) &&
+    assert(llvm::all_of(SrcOps,
+                        [&, this](const SrcOp &Op) {
+                          return Op.getLLTTy(*getMRI()) ==
+                                 SrcOps[0].getLLTTy(*getMRI());
+                        }) &&
            "type mismatch in input list");
     assert(SrcOps.size() * SrcOps[0].getLLTTy(*getMRI()).getSizeInBits() ==
                DstOps[0].getLLTTy(*getMRI()).getSizeInBits() &&
@@ -1171,11 +1177,11 @@ MachineInstrBuilder MachineIRBuilder::buildInstr(unsigned Opc,
     assert(DstOps.size() == 1 && "Invalid DstOps");
     assert(DstOps[0].getLLTTy(*getMRI()).isVector() &&
            "Res type must be a vector");
-    assert(std::all_of(SrcOps.begin(), SrcOps.end(),
-                       [&, this](const SrcOp &Op) {
-                         return Op.getLLTTy(*getMRI()) ==
-                                SrcOps[0].getLLTTy(*getMRI());
-                       }) &&
+    assert(llvm::all_of(SrcOps,
+                        [&, this](const SrcOp &Op) {
+                          return Op.getLLTTy(*getMRI()) ==
+                                 SrcOps[0].getLLTTy(*getMRI());
+                        }) &&
            "type mismatch in input list");
     if (SrcOps[0].getLLTTy(*getMRI()).getSizeInBits() ==
         DstOps[0].getLLTTy(*getMRI()).getElementType().getSizeInBits())
@@ -1186,12 +1192,12 @@ MachineInstrBuilder MachineIRBuilder::buildInstr(unsigned Opc,
     assert(DstOps.size() == 1 && "Invalid DstOps");
     assert((!SrcOps.empty() || SrcOps.size() < 2) &&
            "Must have at least 2 operands");
-    assert(std::all_of(SrcOps.begin(), SrcOps.end(),
-                       [&, this](const SrcOp &Op) {
-                         return (Op.getLLTTy(*getMRI()).isVector() &&
-                                 Op.getLLTTy(*getMRI()) ==
-                                     SrcOps[0].getLLTTy(*getMRI()));
-                       }) &&
+    assert(llvm::all_of(SrcOps,
+                        [&, this](const SrcOp &Op) {
+                          return (Op.getLLTTy(*getMRI()).isVector() &&
+                                  Op.getLLTTy(*getMRI()) ==
+                                      SrcOps[0].getLLTTy(*getMRI()));
+                        }) &&
            "type mismatch in input list");
     assert(SrcOps.size() * SrcOps[0].getLLTTy(*getMRI()).getSizeInBits() ==
                DstOps[0].getLLTTy(*getMRI()).getSizeInBits() &&

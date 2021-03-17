@@ -85,36 +85,18 @@ KnownBits KnownBits::computeForAddSub(bool Add, bool NSW,
 
 KnownBits KnownBits::sextInReg(unsigned SrcBitWidth) const {
   unsigned BitWidth = getBitWidth();
-  assert(BitWidth >= SrcBitWidth && "Illegal sext-in-register");
+  assert(0 < SrcBitWidth && SrcBitWidth <= BitWidth &&
+         "Illegal sext-in-register");
 
-  // Sign extension.  Compute the demanded bits in the result that are not
-  // present in the input.
-  APInt NewBits = APInt::getHighBitsSet(BitWidth, BitWidth - SrcBitWidth);
+  if (SrcBitWidth == BitWidth)
+    return *this;
 
-  // If the sign extended bits are demanded, we know that the sign
-  // bit is demanded.
-  APInt InSignMask = APInt::getSignMask(SrcBitWidth).zext(BitWidth);
-  APInt InDemandedBits = APInt::getLowBitsSet(BitWidth, SrcBitWidth);
-  if (NewBits.getBoolValue())
-    InDemandedBits |= InSignMask;
-
+  unsigned ExtBits = BitWidth - SrcBitWidth;
   KnownBits Result;
-  Result.One = One & InDemandedBits;
-  Result.Zero = Zero & InDemandedBits;
-
-  // If the sign bit of the input is known set or clear, then we know the
-  // top bits of the result.
-  if (Result.Zero.intersects(InSignMask)) { // Input sign bit known clear
-    Result.Zero |= NewBits;
-    Result.One &= ~NewBits;
-  } else if (Result.One.intersects(InSignMask)) { // Input sign bit known set
-    Result.One |= NewBits;
-    Result.Zero &= ~NewBits;
-  } else { // Input sign bit unknown
-    Result.Zero &= ~NewBits;
-    Result.One &= ~NewBits;
-  }
-
+  Result.One = One << ExtBits;
+  Result.Zero = Zero << ExtBits;
+  Result.One.ashrInPlace(ExtBits);
+  Result.Zero.ashrInPlace(ExtBits);
   return Result;
 }
 
@@ -266,6 +248,68 @@ KnownBits KnownBits::ashr(const KnownBits &LHS, const KnownBits &RHS) {
   Known.Zero.setHighBits(MinLeadingZeros);
   Known.One.setHighBits(MinLeadingOnes);
   return Known;
+}
+
+Optional<bool> KnownBits::eq(const KnownBits &LHS, const KnownBits &RHS) {
+  if (LHS.isConstant() && RHS.isConstant())
+    return Optional<bool>(LHS.getConstant() == RHS.getConstant());
+  if (LHS.One.intersects(RHS.Zero) || RHS.One.intersects(LHS.Zero))
+    return Optional<bool>(false);
+  return None;
+}
+
+Optional<bool> KnownBits::ne(const KnownBits &LHS, const KnownBits &RHS) {
+  if (Optional<bool> KnownEQ = eq(LHS, RHS))
+    return Optional<bool>(!KnownEQ.getValue());
+  return None;
+}
+
+Optional<bool> KnownBits::ugt(const KnownBits &LHS, const KnownBits &RHS) {
+  // LHS >u RHS -> false if umax(LHS) <= umax(RHS)
+  if (LHS.getMaxValue().ule(RHS.getMinValue()))
+    return Optional<bool>(false);
+  // LHS >u RHS -> true if umin(LHS) > umax(RHS)
+  if (LHS.getMinValue().ugt(RHS.getMaxValue()))
+    return Optional<bool>(true);
+  return None;
+}
+
+Optional<bool> KnownBits::uge(const KnownBits &LHS, const KnownBits &RHS) {
+  if (Optional<bool> IsUGT = ugt(RHS, LHS))
+    return Optional<bool>(!IsUGT.getValue());
+  return None;
+}
+
+Optional<bool> KnownBits::ult(const KnownBits &LHS, const KnownBits &RHS) {
+  return ugt(RHS, LHS);
+}
+
+Optional<bool> KnownBits::ule(const KnownBits &LHS, const KnownBits &RHS) {
+  return uge(RHS, LHS);
+}
+
+Optional<bool> KnownBits::sgt(const KnownBits &LHS, const KnownBits &RHS) {
+  // LHS >s RHS -> false if smax(LHS) <= smax(RHS)
+  if (LHS.getSignedMaxValue().sle(RHS.getSignedMinValue()))
+    return Optional<bool>(false);
+  // LHS >s RHS -> true if smin(LHS) > smax(RHS)
+  if (LHS.getSignedMinValue().sgt(RHS.getSignedMaxValue()))
+    return Optional<bool>(true);
+  return None;
+}
+
+Optional<bool> KnownBits::sge(const KnownBits &LHS, const KnownBits &RHS) {
+  if (Optional<bool> KnownSGT = sgt(RHS, LHS))
+    return Optional<bool>(!KnownSGT.getValue());
+  return None;
+}
+
+Optional<bool> KnownBits::slt(const KnownBits &LHS, const KnownBits &RHS) {
+  return sgt(RHS, LHS);
+}
+
+Optional<bool> KnownBits::sle(const KnownBits &LHS, const KnownBits &RHS) {
+  return sge(RHS, LHS);
 }
 
 KnownBits KnownBits::abs(bool IntMinIsPoison) const {

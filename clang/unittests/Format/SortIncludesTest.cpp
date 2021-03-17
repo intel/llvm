@@ -207,6 +207,27 @@ TEST_F(SortIncludesTest, SupportClangFormatOff) {
                  "#include <a>\n"
                  "#include <c>\n"
                  "// clang-format on\n"));
+
+  Style.IncludeBlocks = Style.IBS_Merge;
+  std::string Code = "// clang-format off\r\n"
+                     "#include \"d.h\"\r\n"
+                     "#include \"b.h\"\r\n"
+                     "// clang-format on\r\n"
+                     "\r\n"
+                     "#include \"c.h\"\r\n"
+                     "#include \"a.h\"\r\n"
+                     "#include \"e.h\"\r\n";
+
+  std::string Expected = "// clang-format off\r\n"
+                         "#include \"d.h\"\r\n"
+                         "#include \"b.h\"\r\n"
+                         "// clang-format on\r\n"
+                         "\r\n"
+                         "#include \"e.h\"\r\n"
+                         "#include \"a.h\"\r\n"
+                         "#include \"c.h\"\r\n";
+
+  EXPECT_EQ(Expected, sort(Code, "e.cpp", 1));
 }
 
 TEST_F(SortIncludesTest, SupportClangFormatOffCStyle) {
@@ -248,7 +269,7 @@ TEST_F(SortIncludesTest, SupportClangFormatOffCStyle) {
 }
 
 TEST_F(SortIncludesTest, IncludeSortingCanBeDisabled) {
-  FmtStyle.SortIncludes = false;
+  FmtStyle.SortIncludes = FormatStyle::SI_Never;
   EXPECT_EQ("#include \"a.h\"\n"
             "#include \"c.h\"\n"
             "#include \"b.h\"\n",
@@ -577,6 +598,49 @@ TEST_F(SortIncludesTest, MainHeaderIsSeparatedWhenRegroupping) {
                  "a.cc"));
 }
 
+TEST_F(SortIncludesTest, SupportOptionalCaseSensitiveSorting) {
+  EXPECT_FALSE(FmtStyle.SortIncludes == FormatStyle::SI_CaseSensitive);
+
+  FmtStyle.SortIncludes = FormatStyle::SI_CaseSensitive;
+
+  EXPECT_EQ("#include \"A/B.h\"\n"
+            "#include \"A/b.h\"\n"
+            "#include \"a/b.h\"\n"
+            "#include \"B/A.h\"\n"
+            "#include \"B/a.h\"\n",
+            sort("#include \"B/a.h\"\n"
+                 "#include \"B/A.h\"\n"
+                 "#include \"A/B.h\"\n"
+                 "#include \"a/b.h\"\n"
+                 "#include \"A/b.h\"\n",
+                 "a.h"));
+
+  Style.IncludeBlocks = clang::tooling::IncludeStyle::IBS_Regroup;
+  Style.IncludeCategories = {
+      {"^\"", 1, 0, false}, {"^<.*\\.h>$", 2, 0, false}, {"^<", 3, 0, false}};
+
+  StringRef UnsortedCode = "#include \"qt.h\"\n"
+                           "#include <algorithm>\n"
+                           "#include <qtwhatever.h>\n"
+                           "#include <Qtwhatever.h>\n"
+                           "#include <Algorithm>\n"
+                           "#include \"vlib.h\"\n"
+                           "#include \"Vlib.h\"\n"
+                           "#include \"AST.h\"\n";
+
+  EXPECT_EQ("#include \"AST.h\"\n"
+            "#include \"qt.h\"\n"
+            "#include \"Vlib.h\"\n"
+            "#include \"vlib.h\"\n"
+            "\n"
+            "#include <Qtwhatever.h>\n"
+            "#include <qtwhatever.h>\n"
+            "\n"
+            "#include <Algorithm>\n"
+            "#include <algorithm>\n",
+            sort(UnsortedCode));
+}
+
 TEST_F(SortIncludesTest, SupportCaseInsensitiveMatching) {
   // Setup an regex for main includes so we can cover those as well.
   Style.IncludeIsMainRegex = "([-_](test|unittest))?$";
@@ -877,6 +941,97 @@ TEST_F(SortIncludesTest, DoNotRegroupGroupsInGoogleObjCStyle) {
             sort("#include <b.h>\n"
                  "#include <a.h>\n"
                  "#include \"a.h\""));
+}
+
+TEST_F(SortIncludesTest, DoNotTreatPrecompiledHeadersAsFirstBlock) {
+  Style.IncludeBlocks = Style.IBS_Merge;
+  std::string Code = "#include \"d.h\"\r\n"
+                     "#include \"b.h\"\r\n"
+                     "#pragma hdrstop\r\n"
+                     "\r\n"
+                     "#include \"c.h\"\r\n"
+                     "#include \"a.h\"\r\n"
+                     "#include \"e.h\"\r\n";
+
+  std::string Expected = "#include \"b.h\"\r\n"
+                         "#include \"d.h\"\r\n"
+                         "#pragma hdrstop\r\n"
+                         "\r\n"
+                         "#include \"e.h\"\r\n"
+                         "#include \"a.h\"\r\n"
+                         "#include \"c.h\"\r\n";
+
+  EXPECT_EQ(Expected, sort(Code, "e.cpp", 2));
+
+  Code = "#include \"d.h\"\n"
+         "#include \"b.h\"\n"
+         "#pragma hdrstop( \"c:\\projects\\include\\myinc.pch\" )\n"
+         "\n"
+         "#include \"c.h\"\n"
+         "#include \"a.h\"\n"
+         "#include \"e.h\"\n";
+
+  Expected = "#include \"b.h\"\n"
+             "#include \"d.h\"\n"
+             "#pragma hdrstop(\"c:\\projects\\include\\myinc.pch\")\n"
+             "\n"
+             "#include \"e.h\"\n"
+             "#include \"a.h\"\n"
+             "#include \"c.h\"\n";
+
+  EXPECT_EQ(Expected, sort(Code, "e.cpp", 2));
+}
+
+TEST_F(SortIncludesTest, skipUTF8ByteOrderMarkMerge) {
+  Style.IncludeBlocks = Style.IBS_Merge;
+  std::string Code = "\xEF\xBB\xBF#include \"d.h\"\r\n"
+                     "#include \"b.h\"\r\n"
+                     "\r\n"
+                     "#include \"c.h\"\r\n"
+                     "#include \"a.h\"\r\n"
+                     "#include \"e.h\"\r\n";
+
+  std::string Expected = "\xEF\xBB\xBF#include \"e.h\"\r\n"
+                         "#include \"a.h\"\r\n"
+                         "#include \"b.h\"\r\n"
+                         "#include \"c.h\"\r\n"
+                         "#include \"d.h\"\r\n";
+
+  EXPECT_EQ(Expected, sort(Code, "e.cpp", 1));
+}
+
+TEST_F(SortIncludesTest, skipUTF8ByteOrderMarkPreserve) {
+  Style.IncludeBlocks = Style.IBS_Preserve;
+  std::string Code = "\xEF\xBB\xBF#include \"d.h\"\r\n"
+                     "#include \"b.h\"\r\n"
+                     "\r\n"
+                     "#include \"c.h\"\r\n"
+                     "#include \"a.h\"\r\n"
+                     "#include \"e.h\"\r\n";
+
+  std::string Expected = "\xEF\xBB\xBF#include \"b.h\"\r\n"
+                         "#include \"d.h\"\r\n"
+                         "\r\n"
+                         "#include \"a.h\"\r\n"
+                         "#include \"c.h\"\r\n"
+                         "#include \"e.h\"\r\n";
+
+  EXPECT_EQ(Expected, sort(Code, "e.cpp", 2));
+}
+
+TEST_F(SortIncludesTest, MergeLines) {
+  Style.IncludeBlocks = Style.IBS_Merge;
+  std::string Code = "#include \"c.h\"\r\n"
+                     "#include \"b\\\r\n"
+                     ".h\"\r\n"
+                     "#include \"a.h\"\r\n";
+
+  std::string Expected = "#include \"a.h\"\r\n"
+                         "#include \"b\\\r\n"
+                         ".h\"\r\n"
+                         "#include \"c.h\"\r\n";
+
+  EXPECT_EQ(Expected, sort(Code, "a.cpp", 1));
 }
 
 } // end namespace

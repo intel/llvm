@@ -32,6 +32,8 @@ ENUM_CODEGENOPT(CompressDebugSections, llvm::DebugCompressionType, 2,
                 llvm::DebugCompressionType::None)
 CODEGENOPT(RelaxELFRelocations, 1, 0) ///< -Wa,--mrelax-relocations
 CODEGENOPT(AsmVerbose        , 1, 0) ///< -dA, -fverbose-asm.
+CODEGENOPT(Dwarf64           , 1, 0) ///< -gdwarf64.
+CODEGENOPT(Dwarf32           , 1, 1) ///< -gdwarf32.
 CODEGENOPT(PreserveAsmComments, 1, 1) ///< -dA, -fno-preserve-as-comments.
 CODEGENOPT(AssumeSaneOperatorNew , 1, 1) ///< implicit __attribute__((malloc)) operator new
 CODEGENOPT(Autolink          , 1, 1) ///< -fno-autolink
@@ -264,6 +266,9 @@ CODEGENOPT(VectorizeLoop     , 1, 0) ///< Run loop vectorizer.
 CODEGENOPT(VectorizeSLP      , 1, 0) ///< Run SLP vectorizer.
 CODEGENOPT(ProfileSampleAccurate, 1, 0) ///< Sample profile is accurate.
 
+/// Treat loops as finite: language, always, never.
+ENUM_CODEGENOPT(FiniteLoops, FiniteLoopsKind, 2, FiniteLoopsKind::Language)
+
   /// Attempt to use register sized accesses to bit-fields in structures, when
   /// possible.
 CODEGENOPT(UseRegisterSizedBitfieldAccess , 1, 0)
@@ -366,8 +371,8 @@ VALUE_CODEGENOPT(EmitCheckPathComponentsToStrip, 32, 0)
 /// Whether to report the hotness of the code region for optimization remarks.
 CODEGENOPT(DiagnosticsWithHotness, 1, 0)
 
-/// Whether copy relocations support is available when building as PIE.
-CODEGENOPT(PIECopyRelocations, 1, 0)
+/// Whether to use direct access relocations (instead of GOT) to reference external data symbols.
+CODEGENOPT(DirectAccessExternalData, 1, 0)
 
 /// Whether we should use the undefined behaviour optimization for control flow
 /// paths that reach the end of a function without executing a required return.
@@ -411,6 +416,9 @@ CODEGENOPT(PassByValueIsNoAlias, 1, 0)
 /// Whether to not follow the AAPCS that enforces volatile bit-field access width to be
 /// according to the field declaring type width.
 CODEGENOPT(AAPCSBitfieldWidth, 1, 1)
+
+// Whether to instrument SPIR device code with ITT annotations
+CODEGENOPT(SPIRITTAnnotations, 1, 0)
 
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT

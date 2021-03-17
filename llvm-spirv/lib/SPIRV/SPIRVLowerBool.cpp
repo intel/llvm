@@ -77,32 +77,26 @@ public:
       replace(&I, Cmp);
     }
   }
-  virtual void visitZExtInst(ZExtInst &I) {
+  void handleExtInstructions(Instruction &I) {
     auto Op = I.getOperand(0);
     if (isBoolType(Op->getType())) {
+      auto Opcode = I.getOpcode();
       auto Ty = I.getType();
       auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-      auto One = getScalarOrVectorConstantInt(Ty, 1, false);
+      auto One = getScalarOrVectorConstantInt(
+          Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
       assert(Zero && One && "Couldn't create constant int");
       auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
       replace(&I, Sel);
     }
   }
-  virtual void visitSExtInst(SExtInst &I) {
+  void handleCastInstructions(Instruction &I) {
     auto Op = I.getOperand(0);
-    if (isBoolType(Op->getType())) {
-      auto Ty = I.getType();
-      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-      auto One = getScalarOrVectorConstantInt(Ty, ~0, false);
-      assert(Zero && One && "Couldn't create constant int");
-      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      replace(&I, Sel);
-    }
-  }
-  virtual void visitUIToFPInst(UIToFPInst &I) {
-    auto Op = I.getOperand(0);
-    if (isBoolType(Op->getType())) {
-      auto Ty = Type::getInt32Ty(*Context);
+    auto *OpTy = Op->getType();
+    if (isBoolType(OpTy)) {
+      Type *Ty = Type::getInt32Ty(*Context);
+      if (auto VT = dyn_cast<FixedVectorType>(OpTy))
+        Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
       auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
       auto One = getScalarOrVectorConstantInt(Ty, 1, false);
       assert(Zero && One && "Couldn't create constant int");
@@ -110,6 +104,10 @@ public:
       I.setOperand(0, Sel);
     }
   }
+  virtual void visitZExtInst(ZExtInst &I) { handleExtInstructions(I); }
+  virtual void visitSExtInst(SExtInst &I) { handleExtInstructions(I); }
+  virtual void visitUIToFPInst(UIToFPInst &I) { handleCastInstructions(I); }
+  virtual void visitSIToFPInst(SIToFPInst &I) { handleCastInstructions(I); }
   bool runOnModule(Module &M) override {
     Context = &M.getContext();
     visit(M);

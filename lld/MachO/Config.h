@@ -47,6 +47,7 @@ struct Configuration {
   bool implicitDylibs = false;
   bool isPic = false;
   bool headerPadMaxInstallNames = false;
+  bool ltoNewPassManager = LLVM_ENABLE_NEW_PASS_MANAGER;
   bool printEachFile = false;
   bool printWhyLoad = false;
   bool searchDylibsFirst = false;
@@ -67,6 +68,7 @@ struct Configuration {
   std::vector<llvm::StringRef> librarySearchPaths;
   std::vector<llvm::StringRef> frameworkSearchPaths;
   std::vector<llvm::StringRef> runtimePaths;
+  std::vector<Symbol *> explicitUndefineds;
   llvm::DenseMap<llvm::StringRef, SymbolPriorityEntry> priorities;
 };
 

@@ -9,12 +9,12 @@
 #include "Symbols.h"
 #include "Config.h"
 #include "InputChunks.h"
-#include "InputEvent.h"
+#include "InputElement.h"
 #include "InputFiles.h"
-#include "InputGlobal.h"
 #include "OutputSections.h"
 #include "OutputSegment.h"
 #include "lld/Common/ErrorHandler.h"
+#include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
 
 #define DEBUG_TYPE "lld"
@@ -46,6 +46,8 @@ std::string toString(wasm::Symbol::Kind kind) {
     return "DefinedData";
   case wasm::Symbol::DefinedGlobalKind:
     return "DefinedGlobal";
+  case wasm::Symbol::DefinedTableKind:
+    return "DefinedTable";
   case wasm::Symbol::DefinedEventKind:
     return "DefinedEvent";
   case wasm::Symbol::UndefinedFunctionKind:
@@ -54,6 +56,8 @@ std::string toString(wasm::Symbol::Kind kind) {
     return "UndefinedData";
   case wasm::Symbol::UndefinedGlobalKind:
     return "UndefinedGlobal";
+  case wasm::Symbol::UndefinedTableKind:
+    return "UndefinedTable";
   case wasm::Symbol::LazyKind:
     return "LazyKind";
   case wasm::Symbol::SectionKind:
@@ -85,6 +89,7 @@ UndefinedGlobal *WasmSym::tableBase;
 DefinedData *WasmSym::definedTableBase;
 UndefinedGlobal *WasmSym::memoryBase;
 DefinedData *WasmSym::definedMemoryBase;
+TableSymbol *WasmSym::indirectFunctionTable;
 
 WasmSymbolType Symbol::getWasmType() const {
   if (isa<FunctionSymbol>(this))
@@ -95,6 +100,8 @@ WasmSymbolType Symbol::getWasmType() const {
     return WASM_SYMBOL_TYPE_GLOBAL;
   if (isa<EventSymbol>(this))
     return WASM_SYMBOL_TYPE_EVENT;
+  if (isa<TableSymbol>(this))
+    return WASM_SYMBOL_TYPE_TABLE;
   if (isa<SectionSymbol>(this) || isa<OutputSectionSymbol>(this))
     return WASM_SYMBOL_TYPE_SECTION;
   llvm_unreachable("invalid symbol kind");
@@ -130,6 +137,8 @@ bool Symbol::isLive() const {
     return g->global->live;
   if (auto *e = dyn_cast<DefinedEvent>(this))
     return e->event->live;
+  if (auto *t = dyn_cast<DefinedTable>(this))
+    return t->table->live;
   if (InputChunk *c = getChunk())
     return c->live;
   return referenced;
@@ -143,6 +152,8 @@ void Symbol::markLive() {
     g->global->live = true;
   if (auto *e = dyn_cast<DefinedEvent>(this))
     e->event->live = true;
+  if (auto *t = dyn_cast<DefinedTable>(this))
+    t->table->live = true;
   if (InputChunk *c = getChunk())
     c->live = true;
   referenced = true;
@@ -268,7 +279,7 @@ DefinedFunction::DefinedFunction(StringRef name, uint32_t flags, InputFile *f,
 uint64_t DefinedData::getVirtualAddress() const {
   LLVM_DEBUG(dbgs() << "getVirtualAddress: " << getName() << "\n");
   if (segment)
-    return segment->outputSeg->startVA + segment->outputSegmentOffset + offset;
+    return segment->getVA() + offset;
   return offset;
 }
 
@@ -290,7 +301,7 @@ uint64_t DefinedData::getOutputSegmentIndex() const {
 
 uint32_t GlobalSymbol::getGlobalIndex() const {
   if (auto *f = dyn_cast<DefinedGlobal>(this))
-    return f->global->getGlobalIndex();
+    return f->global->getAssignedIndex();
   assert(globalIndex != INVALID_INDEX);
   return globalIndex;
 }
@@ -303,7 +314,7 @@ void GlobalSymbol::setGlobalIndex(uint32_t index) {
 
 bool GlobalSymbol::hasGlobalIndex() const {
   if (auto *f = dyn_cast<DefinedGlobal>(this))
-    return f->global->hasGlobalIndex();
+    return f->global->hasAssignedIndex();
   return globalIndex != INVALID_INDEX;
 }
 
@@ -315,7 +326,7 @@ DefinedGlobal::DefinedGlobal(StringRef name, uint32_t flags, InputFile *file,
 
 uint32_t EventSymbol::getEventIndex() const {
   if (auto *f = dyn_cast<DefinedEvent>(this))
-    return f->event->getEventIndex();
+    return f->event->getAssignedIndex();
   assert(eventIndex != INVALID_INDEX);
   return eventIndex;
 }
@@ -328,7 +339,7 @@ void EventSymbol::setEventIndex(uint32_t index) {
 
 bool EventSymbol::hasEventIndex() const {
   if (auto *f = dyn_cast<DefinedEvent>(this))
-    return f->event->hasEventIndex();
+    return f->event->hasAssignedIndex();
   return eventIndex != INVALID_INDEX;
 }
 
@@ -338,6 +349,41 @@ DefinedEvent::DefinedEvent(StringRef name, uint32_t flags, InputFile *file,
                   event ? &event->getType() : nullptr,
                   event ? &event->signature : nullptr),
       event(event) {}
+
+void TableSymbol::setLimits(const WasmLimits &limits) {
+  if (auto *t = dyn_cast<DefinedTable>(this))
+    t->table->setLimits(limits);
+  auto *newType = make<WasmTableType>(*tableType);
+  newType->Limits = limits;
+  tableType = newType;
+}
+
+uint32_t TableSymbol::getTableNumber() const {
+  if (const auto *t = dyn_cast<DefinedTable>(this))
+    return t->table->getAssignedIndex();
+  assert(tableNumber != INVALID_INDEX);
+  return tableNumber;
+}
+
+void TableSymbol::setTableNumber(uint32_t number) {
+  if (const auto *t = dyn_cast<DefinedTable>(this))
+    return t->table->assignIndex(number);
+  LLVM_DEBUG(dbgs() << "setTableNumber " << name << " -> " << number << "\n");
+  assert(tableNumber == INVALID_INDEX);
+  tableNumber = number;
+}
+
+bool TableSymbol::hasTableNumber() const {
+  if (const auto *t = dyn_cast<DefinedTable>(this))
+    return t->table->hasAssignedIndex();
+  return tableNumber != INVALID_INDEX;
+}
+
+DefinedTable::DefinedTable(StringRef name, uint32_t flags, InputFile *file,
+                           InputTable *table)
+    : TableSymbol(name, DefinedTableKind, flags, file,
+                  table ? &table->getType() : nullptr),
+      table(table) {}
 
 const OutputSectionSymbol *SectionSymbol::getOutputSectionSymbol() const {
   assert(section->outputSec && section->outputSec->sectionSym);

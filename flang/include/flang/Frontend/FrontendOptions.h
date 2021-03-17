@@ -8,6 +8,7 @@
 #ifndef LLVM_FLANG_FRONTEND_FRONTENDOPTIONS_H
 #define LLVM_FLANG_FRONTEND_FRONTENDOPTIONS_H
 
+#include "flang/Common/Fortran-features.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 
@@ -28,9 +29,20 @@ enum ActionKind {
   /// -fsyntax-only
   ParseSyntaxOnly,
 
+  /// Emit a .o file.
+  EmitObj,
+
   /// TODO: RunPreprocessor, EmitLLVM, EmitLLVMOnly,
   /// EmitCodeGenOnly, EmitAssembly, (...)
 };
+
+/// \param suffix The file extension
+/// \return True if the file extension should be processed as fixed form
+bool isFixedFormSuffix(llvm::StringRef suffix);
+
+/// \param suffix The file extension
+/// \return True if the file extension should be processed as free form
+bool isFreeFormSuffix(llvm::StringRef suffix);
 
 inline const char *GetActionKindName(const ActionKind ak) {
   switch (ak) {
@@ -63,6 +75,18 @@ enum class Language : uint8_t {
   Fortran,
 };
 
+// Source file layout
+enum class FortranForm {
+  /// The user has not specified a form. Base the form off the file extension.
+  Unknown,
+
+  /// -ffree-form
+  FixedForm,
+
+  /// -ffixed-form
+  FreeForm
+};
+
 /// The kind of a file that we've been handed as an input.
 class InputKind {
 private:
@@ -93,10 +117,22 @@ class FrontendInputFile {
   /// The kind of input, atm it contains language
   InputKind kind_;
 
+  /// Is this input file in fixed-form format? This is simply derived from the
+  /// file extension and should not be altered by consumers. For input from
+  /// stdin this is never modified.
+  bool isFixedForm_ = false;
+
 public:
   FrontendInputFile() = default;
   FrontendInputFile(llvm::StringRef file, InputKind kind)
-      : file_(file.str()), kind_(kind) {}
+      : file_(file.str()), kind_(kind) {
+
+    // Based on the extension, decide whether this is a fixed or free form
+    // file.
+    auto pathDotIndex{file.rfind(".")};
+    std::string pathSuffix{file.substr(pathDotIndex + 1)};
+    isFixedForm_ = isFixedFormSuffix(pathSuffix);
+  }
   FrontendInputFile(const llvm::MemoryBuffer *buffer, InputKind kind)
       : buffer_(buffer), kind_(kind) {}
 
@@ -105,6 +141,7 @@ public:
   bool IsEmpty() const { return file_.empty() && buffer_ == nullptr; }
   bool IsFile() const { return !IsBuffer(); }
   bool IsBuffer() const { return buffer_ != nullptr; }
+  bool IsFixedForm() const { return isFixedForm_; }
 
   llvm::StringRef file() const {
     assert(IsFile());
@@ -134,6 +171,16 @@ public:
 
   /// The frontend action to perform.
   frontend::ActionKind programAction_;
+
+  // The form to process files in, if specified.
+  FortranForm fortranForm_ = FortranForm::Unknown;
+
+  // The column after which characters are ignored in fixed form lines in the
+  // source file.
+  int fixedFormColumns_ = 72;
+
+  // Language features
+  common::LanguageFeatureControl features_;
 
 public:
   FrontendOptions() : showHelp_(false), showVersion_(false) {}

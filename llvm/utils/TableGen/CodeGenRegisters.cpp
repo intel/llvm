@@ -154,14 +154,11 @@ void CodeGenSubRegIndex::computeConcatTransitiveClosure() {
 //===----------------------------------------------------------------------===//
 
 CodeGenRegister::CodeGenRegister(Record *R, unsigned Enum)
-  : TheDef(R),
-    EnumValue(Enum),
-    CostPerUse(R->getValueAsInt("CostPerUse")),
-    CoveredBySubRegs(R->getValueAsBit("CoveredBySubRegs")),
-    HasDisjunctSubRegs(false),
-    SubRegsComplete(false),
-    SuperRegsComplete(false),
-    TopoSig(~0u) {
+    : TheDef(R), EnumValue(Enum),
+      CostPerUse(R->getValueAsListOfInts("CostPerUse")),
+      CoveredBySubRegs(R->getValueAsBit("CoveredBySubRegs")),
+      HasDisjunctSubRegs(false), SubRegsComplete(false),
+      SuperRegsComplete(false), TopoSig(~0u) {
   Artificial = R->getValueAsBit("isArtificial");
 }
 
@@ -196,7 +193,7 @@ void CodeGenRegister::buildObjectGraph(CodeGenRegBank &RegBank) {
   }
 }
 
-const StringRef CodeGenRegister::getName() const {
+StringRef CodeGenRegister::getName() const {
   assert(TheDef && "no def");
   return TheDef->getName();
 }
@@ -496,11 +493,10 @@ void CodeGenRegister::computeSecondarySubRegs(CodeGenRegBank &RegBank) {
       assert(getSubRegIndex(SubReg) == SubRegIdx && "LeadingSuperRegs correct");
       for (CodeGenRegister *SubReg : Cand->ExplicitSubRegs) {
         if (CodeGenSubRegIndex *SubRegIdx = getSubRegIndex(SubReg)) {
-          if (SubRegIdx->ConcatenationOf.empty()) {
+          if (SubRegIdx->ConcatenationOf.empty())
             Parts.push_back(SubRegIdx);
-          } else
-            for (CodeGenSubRegIndex *SubIdx : SubRegIdx->ConcatenationOf)
-              Parts.push_back(SubIdx);
+          else
+            append_range(Parts, SubRegIdx->ConcatenationOf);
         } else {
           // Sub-register doesn't exist.
           Parts.clear();
@@ -647,15 +643,17 @@ struct TupleExpander : SetTheory::Expander {
       std::string Name;
       Record *Proto = Lists[0][n];
       std::vector<Init*> Tuple;
-      unsigned CostPerUse = 0;
       for (unsigned i = 0; i != Dim; ++i) {
         Record *Reg = Lists[i][n];
         if (i) Name += '_';
         Name += Reg->getName();
         Tuple.push_back(DefInit::get(Reg));
-        CostPerUse = std::max(CostPerUse,
-                              unsigned(Reg->getValueAsInt("CostPerUse")));
       }
+
+      // Take the cost list of the first register in the tuple.
+      ListInit *CostList = Proto->getValueAsListInit("CostPerUse");
+      SmallVector<Init *, 2> CostPerUse;
+      CostPerUse.insert(CostPerUse.end(), CostList->begin(), CostList->end());
 
       StringInit *AsmName = StringInit::get("");
       if (!RegNames.empty()) {
@@ -698,7 +696,7 @@ struct TupleExpander : SetTheory::Expander {
 
         // CostPerUse is aggregated from all Tuple members.
         if (Field == "CostPerUse")
-          RV.setValue(IntInit::get(CostPerUse));
+          RV.setValue(ListInit::get(CostPerUse, CostList->getElementType()));
 
         // Composite registers are always covered by sub-registers.
         if (Field == "CoveredBySubRegs")
@@ -798,7 +796,7 @@ CodeGenRegisterClass::CodeGenRegisterClass(CodeGenRegBank &RegBank, Record *R)
     RI.RegSize = RI.SpillSize = Size ? Size
                                      : VTs[0].getSimple().getSizeInBits();
     RI.SpillAlignment = R->getValueAsInt("Alignment");
-    RSI.Map.insert({DefaultMode, RI});
+    RSI.insertRegSizeForMode(DefaultMode, RI);
   }
 
   CopyCost = R->getValueAsInt("CopyCost");
@@ -1238,8 +1236,7 @@ CodeGenSubRegIndex *CodeGenRegBank::getSubRegIdx(Record *Def) {
 
 const CodeGenSubRegIndex *
 CodeGenRegBank::findSubRegIdx(const Record* Def) const {
-  auto I = Def2SubRegIdx.find(Def);
-  return (I == Def2SubRegIdx.end()) ? nullptr : I->second;
+  return Def2SubRegIdx.lookup(Def);
 }
 
 CodeGenRegister *CodeGenRegBank::getReg(Record *Def) {

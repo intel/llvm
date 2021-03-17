@@ -334,9 +334,8 @@ class LowerMatrixIntrinsics {
     Value *extractVector(unsigned I, unsigned J, unsigned NumElts,
                          IRBuilder<> &Builder) const {
       Value *Vec = isColumnMajor() ? getColumn(J) : getRow(I);
-      Value *Undef = UndefValue::get(Vec->getType());
       return Builder.CreateShuffleVector(
-          Vec, Undef, createSequentialMask(isColumnMajor() ? I : J, NumElts, 0),
+          Vec, createSequentialMask(isColumnMajor() ? I : J, NumElts, 0),
           "block");
     }
   };
@@ -447,12 +446,11 @@ public:
 
     // Otherwise split MatrixVal.
     SmallVector<Value *, 16> SplitVecs;
-    Value *Undef = UndefValue::get(VType);
     for (unsigned MaskStart = 0;
          MaskStart < cast<FixedVectorType>(VType)->getNumElements();
          MaskStart += SI.getStride()) {
       Value *V = Builder.CreateShuffleVector(
-          MatrixVal, Undef, createSequentialMask(MaskStart, SI.getStride(), 0),
+          MatrixVal, createSequentialMask(MaskStart, SI.getStride(), 0),
           "split");
       SplitVecs.push_back(V);
     }
@@ -490,6 +488,7 @@ public:
     case Instruction::FAdd:
     case Instruction::FSub:
     case Instruction::FMul: // Scalar multiply.
+    case Instruction::FNeg:
     case Instruction::Add:
     case Instruction::Mul:
     case Instruction::Sub:
@@ -532,8 +531,7 @@ public:
     // list.
     LLVM_DEBUG(dbgs() << "Forward-propagate shapes:\n");
     while (!WorkList.empty()) {
-      Instruction *Inst = WorkList.back();
-      WorkList.pop_back();
+      Instruction *Inst = WorkList.pop_back_val();
 
       // New entry, set the value and insert operands
       bool Propagate = false;
@@ -603,8 +601,7 @@ public:
     // worklist.
     LLVM_DEBUG(dbgs() << "Backward-propagate shapes:\n");
     while (!WorkList.empty()) {
-      Value *V = WorkList.back();
-      WorkList.pop_back();
+      Value *V = WorkList.pop_back_val();
 
       size_t BeforeProcessingV = WorkList.size();
       if (!isa<Instruction>(V))
@@ -726,6 +723,8 @@ public:
       Value *Op2;
       if (auto *BinOp = dyn_cast<BinaryOperator>(Inst))
         Changed |= VisitBinaryOperator(BinOp);
+      if (auto *UnOp = dyn_cast<UnaryOperator>(Inst))
+        Changed |= VisitUnaryOperator(UnOp);
       if (match(Inst, m_Load(m_Value(Op1))))
         Changed |= VisitLoad(cast<LoadInst>(Inst), Op1, Builder);
       else if (match(Inst, m_Store(m_Value(Op1), m_Value(Op2))))
@@ -941,10 +940,8 @@ public:
     unsigned NumElts = cast<FixedVectorType>(Col->getType())->getNumElements();
     assert(NumElts >= BlockNumElts && "Too few elements for current block");
 
-    Value *Undef = UndefValue::get(Block->getType());
     Block = Builder.CreateShuffleVector(
-        Block, Undef,
-        createSequentialMask(0, BlockNumElts, NumElts - BlockNumElts));
+        Block, createSequentialMask(0, BlockNumElts, NumElts - BlockNumElts));
 
     // If Col is 7 long and I is 2 and BlockNumElts is 2 the mask is: 0, 1, 7,
     // 8, 4, 5, 6
@@ -1110,12 +1107,15 @@ public:
     for (BasicBlock *Succ : successors(Check0))
       DTUpdates.push_back({DT->Delete, Check0, Succ});
 
-    BasicBlock *Check1 = SplitBlock(MatMul->getParent(), MatMul, nullptr, LI,
-                                    nullptr, "alias_cont");
+    BasicBlock *Check1 =
+        SplitBlock(MatMul->getParent(), MatMul, (DomTreeUpdater *)nullptr, LI,
+                   nullptr, "alias_cont");
     BasicBlock *Copy =
-        SplitBlock(MatMul->getParent(), MatMul, nullptr, LI, nullptr, "copy");
-    BasicBlock *Fusion = SplitBlock(MatMul->getParent(), MatMul, nullptr, LI,
-                                    nullptr, "no_alias");
+        SplitBlock(MatMul->getParent(), MatMul, (DomTreeUpdater *)nullptr, LI,
+                   nullptr, "copy");
+    BasicBlock *Fusion =
+        SplitBlock(MatMul->getParent(), MatMul, (DomTreeUpdater *)nullptr, LI,
+                   nullptr, "no_alias");
 
     // Check if the loaded memory location begins before the end of the store
     // location. If the condition holds, they might overlap, otherwise they are
@@ -1500,6 +1500,40 @@ public:
     return true;
   }
 
+  /// Lower unary operators, if shape information is available.
+  bool VisitUnaryOperator(UnaryOperator *Inst) {
+    auto I = ShapeMap.find(Inst);
+    if (I == ShapeMap.end())
+      return false;
+
+    Value *Op = Inst->getOperand(0);
+
+    IRBuilder<> Builder(Inst);
+    ShapeInfo &Shape = I->second;
+
+    MatrixTy Result;
+    MatrixTy M = getMatrix(Op, Shape, Builder);
+
+    // Helper to perform unary op on vectors.
+    auto BuildVectorOp = [&Builder, Inst](Value *Op) {
+      switch (Inst->getOpcode()) {
+      case Instruction::FNeg:
+        return Builder.CreateFNeg(Op);
+      default:
+        llvm_unreachable("Unsupported unary operator for matrix");
+      }
+    };
+
+    for (unsigned I = 0; I < Shape.getNumVectors(); ++I)
+      Result.addVector(BuildVectorOp(M.getVector(I)));
+
+    finalizeLowering(Inst,
+                     Result.addNumComputeOps(getNumOps(Result.getVectorTy()) *
+                                             Result.getNumVectors()),
+                     Builder);
+    return true;
+  }
+
   /// Helper to linearize a matrix expression tree into a string. Currently
   /// matrix expressions are linarized by starting at an expression leaf and
   /// linearizing bottom up.
@@ -1600,7 +1634,7 @@ public:
         write(StringRef(Intrinsic::getName(II->getIntrinsicID(), {}))
                   .drop_front(StringRef("llvm.matrix.").size()));
         write(".");
-        std::string Tmp = "";
+        std::string Tmp;
         raw_string_ostream SS(Tmp);
 
         switch (II->getIntrinsicID()) {
@@ -1813,7 +1847,6 @@ public:
 
       for (Value *Op : cast<Instruction>(V)->operand_values())
         collectSharedInfo(Leaf, Op, ExprsInSubprogram, Shared);
-      return;
     }
 
     /// Calculate the number of exclusive and shared op counts for expression

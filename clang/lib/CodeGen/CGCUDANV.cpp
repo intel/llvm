@@ -21,6 +21,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/ReplaceConstant.h"
 #include "llvm/Support/Format.h"
 
 using namespace clang;
@@ -119,36 +120,44 @@ private:
   void emitDeviceStubBodyNew(CodeGenFunction &CGF, FunctionArgList &Args);
   std::string getDeviceSideName(const NamedDecl *ND) override;
 
+  void registerDeviceVar(const VarDecl *VD, llvm::GlobalVariable &Var,
+                         bool Extern, bool Constant) {
+    DeviceVars.push_back({&Var,
+                          VD,
+                          {DeviceVarFlags::Variable, Extern, Constant,
+                           VD->hasAttr<HIPManagedAttr>(),
+                           /*Normalized*/ false, 0}});
+  }
+  void registerDeviceSurf(const VarDecl *VD, llvm::GlobalVariable &Var,
+                          bool Extern, int Type) {
+    DeviceVars.push_back({&Var,
+                          VD,
+                          {DeviceVarFlags::Surface, Extern, /*Constant*/ false,
+                           /*Managed*/ false,
+                           /*Normalized*/ false, Type}});
+  }
+  void registerDeviceTex(const VarDecl *VD, llvm::GlobalVariable &Var,
+                         bool Extern, int Type, bool Normalized) {
+    DeviceVars.push_back({&Var,
+                          VD,
+                          {DeviceVarFlags::Texture, Extern, /*Constant*/ false,
+                           /*Managed*/ false, Normalized, Type}});
+  }
+
 public:
   CGNVCUDARuntime(CodeGenModule &CGM);
 
   void emitDeviceStub(CodeGenFunction &CGF, FunctionArgList &Args) override;
-  void registerDeviceVar(const VarDecl *VD, llvm::GlobalVariable &Var,
-                         bool Extern, bool Constant) override {
-    DeviceVars.push_back({&Var,
-                          VD,
-                          {DeviceVarFlags::Variable, Extern, Constant,
-                           /*Normalized*/ false, /*Type*/ 0}});
-  }
-  void registerDeviceSurf(const VarDecl *VD, llvm::GlobalVariable &Var,
-                          bool Extern, int Type) override {
-    DeviceVars.push_back({&Var,
-                          VD,
-                          {DeviceVarFlags::Surface, Extern, /*Constant*/ false,
-                           /*Normalized*/ false, Type}});
-  }
-  void registerDeviceTex(const VarDecl *VD, llvm::GlobalVariable &Var,
-                         bool Extern, int Type, bool Normalized) override {
-    DeviceVars.push_back({&Var,
-                          VD,
-                          {DeviceVarFlags::Texture, Extern, /*Constant*/ false,
-                           Normalized, Type}});
-  }
+  void handleVarRegistration(const VarDecl *VD,
+                             llvm::GlobalVariable &Var) override;
 
   /// Creates module constructor function
   llvm::Function *makeModuleCtorFunction() override;
   /// Creates module destructor function
   llvm::Function *makeModuleDtorFunction() override;
+  void
+  internalizeDeviceSideVar(const VarDecl *D,
+                           llvm::GlobalValue::LinkageTypes &Linkage) override;
 };
 
 }
@@ -181,6 +190,14 @@ CGNVCUDARuntime::CGNVCUDARuntime(CodeGenModule &CGM)
   CharPtrTy = llvm::PointerType::getUnqual(Types.ConvertType(Ctx.CharTy));
   VoidPtrTy = cast<llvm::PointerType>(Types.ConvertType(Ctx.VoidPtrTy));
   VoidPtrPtrTy = VoidPtrTy->getPointerTo();
+  if (CGM.getContext().getAuxTargetInfo()) {
+    // If the host and device have different C++ ABIs, mark it as the device
+    // mangle context so that the mangling needs to retrieve the additonal
+    // device lambda mangling number instead of the regular host one.
+    DeviceMC->setDeviceMangleContext(
+        CGM.getContext().getTargetInfo().getCXXABI().isMicrosoft() &&
+        CGM.getContext().getAuxTargetInfo()->getCXXABI().isItaniumFamily());
+  }
 }
 
 llvm::FunctionCallee CGNVCUDARuntime::getSetupArgumentFn() const {
@@ -380,6 +397,47 @@ void CGNVCUDARuntime::emitDeviceStubBodyLegacy(CodeGenFunction &CGF,
   CGF.EmitBlock(EndBlock);
 }
 
+// Replace the original variable Var with the address loaded from variable
+// ManagedVar populated by HIP runtime.
+static void replaceManagedVar(llvm::GlobalVariable *Var,
+                              llvm::GlobalVariable *ManagedVar) {
+  SmallVector<SmallVector<llvm::User *, 8>, 8> WorkList;
+  for (auto &&VarUse : Var->uses()) {
+    WorkList.push_back({VarUse.getUser()});
+  }
+  while (!WorkList.empty()) {
+    auto &&WorkItem = WorkList.pop_back_val();
+    auto *U = WorkItem.back();
+    if (isa<llvm::ConstantExpr>(U)) {
+      for (auto &&UU : U->uses()) {
+        WorkItem.push_back(UU.getUser());
+        WorkList.push_back(WorkItem);
+        WorkItem.pop_back();
+      }
+      continue;
+    }
+    if (auto *I = dyn_cast<llvm::Instruction>(U)) {
+      llvm::Value *OldV = Var;
+      llvm::Instruction *NewV =
+          new llvm::LoadInst(Var->getType(), ManagedVar, "ld.managed", false,
+                             llvm::Align(Var->getAlignment()), I);
+      WorkItem.pop_back();
+      // Replace constant expressions directly or indirectly using the managed
+      // variable with instructions.
+      for (auto &&Op : WorkItem) {
+        auto *CE = cast<llvm::ConstantExpr>(Op);
+        auto *NewInst = llvm::createReplacementInstr(CE, I);
+        NewInst->replaceUsesOfWith(OldV, NewV);
+        OldV = CE;
+        NewV = NewInst;
+      }
+      I->replaceUsesOfWith(OldV, NewV);
+    } else {
+      llvm_unreachable("Invalid use of managed variable");
+    }
+  }
+}
+
 /// Creates a function that sets up state on the host side for CUDA objects that
 /// have a presence on both the host and device sides. Specifically, registers
 /// the host side of kernel functions and device global variables with the CUDA
@@ -452,6 +510,13 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
   llvm::FunctionCallee RegisterVar = CGM.CreateRuntimeFunction(
       llvm::FunctionType::get(VoidTy, RegisterVarParams, false),
       addUnderscoredPrefixToName("RegisterVar"));
+  // void __hipRegisterManagedVar(void **, char *, char *, const char *,
+  //                              size_t, unsigned)
+  llvm::Type *RegisterManagedVarParams[] = {VoidPtrPtrTy, CharPtrTy, CharPtrTy,
+                                            CharPtrTy,    VarSizeTy, IntTy};
+  llvm::FunctionCallee RegisterManagedVar = CGM.CreateRuntimeFunction(
+      llvm::FunctionType::get(VoidTy, RegisterManagedVarParams, false),
+      addUnderscoredPrefixToName("RegisterManagedVar"));
   // void __cudaRegisterSurface(void **, const struct surfaceReference *,
   //                            const void **, const char *, int, int);
   llvm::FunctionCallee RegisterSurf = CGM.CreateRuntimeFunction(
@@ -474,16 +539,36 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
     case DeviceVarFlags::Variable: {
       uint64_t VarSize =
           CGM.getDataLayout().getTypeAllocSize(Var->getValueType());
-      llvm::Value *Args[] = {
-          &GpuBinaryHandlePtr,
-          Builder.CreateBitCast(Var, VoidPtrTy),
-          VarName,
-          VarName,
-          llvm::ConstantInt::get(IntTy, Info.Flags.isExtern()),
-          llvm::ConstantInt::get(VarSizeTy, VarSize),
-          llvm::ConstantInt::get(IntTy, Info.Flags.isConstant()),
-          llvm::ConstantInt::get(IntTy, 0)};
-      Builder.CreateCall(RegisterVar, Args);
+      if (Info.Flags.isManaged()) {
+        auto ManagedVar = new llvm::GlobalVariable(
+            CGM.getModule(), Var->getType(),
+            /*isConstant=*/false, Var->getLinkage(),
+            /*Init=*/llvm::ConstantPointerNull::get(Var->getType()),
+            Twine(Var->getName() + ".managed"), /*InsertBefore=*/nullptr,
+            llvm::GlobalVariable::NotThreadLocal);
+        ManagedVar->setDSOLocal(Var->isDSOLocal());
+        ManagedVar->setVisibility(Var->getVisibility());
+        replaceManagedVar(Var, ManagedVar);
+        llvm::Value *Args[] = {
+            &GpuBinaryHandlePtr,
+            Builder.CreateBitCast(ManagedVar, VoidPtrTy),
+            Builder.CreateBitCast(Var, VoidPtrTy),
+            VarName,
+            llvm::ConstantInt::get(VarSizeTy, VarSize),
+            llvm::ConstantInt::get(IntTy, Var->getAlignment())};
+        Builder.CreateCall(RegisterManagedVar, Args);
+      } else {
+        llvm::Value *Args[] = {
+            &GpuBinaryHandlePtr,
+            Builder.CreateBitCast(Var, VoidPtrTy),
+            VarName,
+            VarName,
+            llvm::ConstantInt::get(IntTy, Info.Flags.isExtern()),
+            llvm::ConstantInt::get(VarSizeTy, VarSize),
+            llvm::ConstantInt::get(IntTy, Info.Flags.isConstant()),
+            llvm::ConstantInt::get(IntTy, 0)};
+        Builder.CreateCall(RegisterVar, Args);
+      }
       break;
     }
     case DeviceVarFlags::Surface:
@@ -845,4 +930,71 @@ llvm::Function *CGNVCUDARuntime::makeModuleDtorFunction() {
 
 CGCUDARuntime *CodeGen::CreateNVCUDARuntime(CodeGenModule &CGM) {
   return new CGNVCUDARuntime(CGM);
+}
+
+void CGNVCUDARuntime::internalizeDeviceSideVar(
+    const VarDecl *D, llvm::GlobalValue::LinkageTypes &Linkage) {
+  // For -fno-gpu-rdc, host-side shadows of external declarations of device-side
+  // global variables become internal definitions. These have to be internal in
+  // order to prevent name conflicts with global host variables with the same
+  // name in a different TUs.
+  //
+  // For -fgpu-rdc, the shadow variables should not be internalized because
+  // they may be accessed by different TU.
+  if (CGM.getLangOpts().GPURelocatableDeviceCode)
+    return;
+
+  // __shared__ variables are odd. Shadows do get created, but
+  // they are not registered with the CUDA runtime, so they
+  // can't really be used to access their device-side
+  // counterparts. It's not clear yet whether it's nvcc's bug or
+  // a feature, but we've got to do the same for compatibility.
+  if (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>() ||
+      D->hasAttr<CUDASharedAttr>() ||
+      D->getType()->isCUDADeviceBuiltinSurfaceType() ||
+      D->getType()->isCUDADeviceBuiltinTextureType()) {
+    Linkage = llvm::GlobalValue::InternalLinkage;
+  }
+}
+
+void CGNVCUDARuntime::handleVarRegistration(const VarDecl *D,
+                                            llvm::GlobalVariable &GV) {
+  if (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>()) {
+    // Shadow variables and their properties must be registered with CUDA
+    // runtime. Skip Extern global variables, which will be registered in
+    // the TU where they are defined.
+    //
+    // Don't register a C++17 inline variable. The local symbol can be
+    // discarded and referencing a discarded local symbol from outside the
+    // comdat (__cuda_register_globals) is disallowed by the ELF spec.
+    // TODO: Reject __device__ constexpr and __device__ inline in Sema.
+    if (!D->hasExternalStorage() && !D->isInline())
+      registerDeviceVar(D, GV, !D->hasDefinition(),
+                        D->hasAttr<CUDAConstantAttr>());
+  } else if (D->getType()->isCUDADeviceBuiltinSurfaceType() ||
+             D->getType()->isCUDADeviceBuiltinTextureType()) {
+    // Builtin surfaces and textures and their template arguments are
+    // also registered with CUDA runtime.
+    const ClassTemplateSpecializationDecl *TD =
+        cast<ClassTemplateSpecializationDecl>(
+            D->getType()->getAs<RecordType>()->getDecl());
+    const TemplateArgumentList &Args = TD->getTemplateArgs();
+    if (TD->hasAttr<CUDADeviceBuiltinSurfaceTypeAttr>()) {
+      assert(Args.size() == 2 &&
+             "Unexpected number of template arguments of CUDA device "
+             "builtin surface type.");
+      auto SurfType = Args[1].getAsIntegral();
+      if (!D->hasExternalStorage())
+        registerDeviceSurf(D, GV, !D->hasDefinition(), SurfType.getSExtValue());
+    } else {
+      assert(Args.size() == 3 &&
+             "Unexpected number of template arguments of CUDA device "
+             "builtin texture type.");
+      auto TexType = Args[1].getAsIntegral();
+      auto Normalized = Args[2].getAsIntegral();
+      if (!D->hasExternalStorage())
+        registerDeviceTex(D, GV, !D->hasDefinition(), TexType.getSExtValue(),
+                          Normalized.getZExtValue());
+    }
+  }
 }

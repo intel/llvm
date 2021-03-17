@@ -19,6 +19,7 @@
 
 #include "llvm/ProfileData/SampleProfWriter.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/ProfileData/SampleProf.h"
 #include "llvm/Support/Compression.h"
@@ -146,7 +147,7 @@ std::error_code SampleProfileWriterExtBinaryBase::write(
 std::error_code
 SampleProfileWriterExtBinaryBase::writeSample(const FunctionSamples &S) {
   uint64_t Offset = OutputStream->tell();
-  StringRef Name = S.getName();
+  StringRef Name = S.getNameWithContext(true);
   FuncOffsetTable[Name] = Offset - SecLBRProfileStart;
   encodeULEB128(S.getHeadSamples(), *OutputStream);
   return writeBody(S);
@@ -264,7 +265,7 @@ std::error_code SampleProfileWriterExtBinaryBase::writeOneSection(
   return sampleprof_error::success;
 }
 
-std::error_code SampleProfileWriterExtBinary::writeSections(
+std::error_code SampleProfileWriterExtBinary::writeDefaultLayout(
     const StringMap<FunctionSamples> &ProfileMap) {
   // The const indices passed to writeOneSection below are specifying the
   // positions of the sections in SectionHdrLayout. Look at
@@ -283,6 +284,61 @@ std::error_code SampleProfileWriterExtBinary::writeSections(
   if (auto EC = writeOneSection(SecFuncMetadata, 5, ProfileMap))
     return EC;
   return sampleprof_error::success;
+}
+
+static void
+splitProfileMapToTwo(const StringMap<FunctionSamples> &ProfileMap,
+                     StringMap<FunctionSamples> &ContextProfileMap,
+                     StringMap<FunctionSamples> &NoContextProfileMap) {
+  for (const auto &I : ProfileMap) {
+    if (I.second.getCallsiteSamples().size())
+      ContextProfileMap.insert({I.first(), I.second});
+    else
+      NoContextProfileMap.insert({I.first(), I.second});
+  }
+}
+
+std::error_code SampleProfileWriterExtBinary::writeCtxSplitLayout(
+    const StringMap<FunctionSamples> &ProfileMap) {
+  StringMap<FunctionSamples> ContextProfileMap, NoContextProfileMap;
+  splitProfileMapToTwo(ProfileMap, ContextProfileMap, NoContextProfileMap);
+
+  if (auto EC = writeOneSection(SecProfSummary, 0, ProfileMap))
+    return EC;
+  if (auto EC = writeOneSection(SecNameTable, 1, ProfileMap))
+    return EC;
+  if (auto EC = writeOneSection(SecLBRProfile, 3, ContextProfileMap))
+    return EC;
+  if (auto EC = writeOneSection(SecFuncOffsetTable, 2, ContextProfileMap))
+    return EC;
+  // Mark the section to have no context. Note section flag needs to be set
+  // before writing the section.
+  addSectionFlag(5, SecCommonFlags::SecFlagFlat);
+  if (auto EC = writeOneSection(SecLBRProfile, 5, NoContextProfileMap))
+    return EC;
+  // Mark the section to have no context. Note section flag needs to be set
+  // before writing the section.
+  addSectionFlag(4, SecCommonFlags::SecFlagFlat);
+  if (auto EC = writeOneSection(SecFuncOffsetTable, 4, NoContextProfileMap))
+    return EC;
+  if (auto EC = writeOneSection(SecProfileSymbolList, 6, ProfileMap))
+    return EC;
+  if (auto EC = writeOneSection(SecFuncMetadata, 7, ProfileMap))
+    return EC;
+
+  return sampleprof_error::success;
+}
+
+std::error_code SampleProfileWriterExtBinary::writeSections(
+    const StringMap<FunctionSamples> &ProfileMap) {
+  std::error_code EC;
+  if (SecLayout == DefaultLayout)
+    EC = writeDefaultLayout(ProfileMap);
+  else if (SecLayout == CtxSplitLayout)
+    EC = writeCtxSplitLayout(ProfileMap);
+  else
+    llvm_unreachable("Unsupported layout");
+  return EC;
 }
 
 std::error_code SampleProfileWriterCompactBinary::write(
@@ -304,10 +360,7 @@ std::error_code SampleProfileWriterCompactBinary::write(
 /// it needs to be parsed by the SampleProfileReaderText class.
 std::error_code SampleProfileWriterText::writeSample(const FunctionSamples &S) {
   auto &OS = *OutputStream;
-  if (FunctionSamples::ProfileIsCS)
-    OS << "[" << S.getNameWithContext() << "]:" << S.getTotalSamples();
-  else
-    OS << S.getName() << ":" << S.getTotalSamples();
+  OS << S.getNameWithContext(true) << ":" << S.getTotalSamples();
   if (Indent == 0)
     OS << ":" << S.getHeadSamples();
   OS << "\n";
@@ -579,7 +632,7 @@ std::error_code SampleProfileWriterBinary::writeSummary() {
 std::error_code SampleProfileWriterBinary::writeBody(const FunctionSamples &S) {
   auto &OS = *OutputStream;
 
-  if (std::error_code EC = writeNameIdx(S.getName()))
+  if (std::error_code EC = writeNameIdx(S.getNameWithContext(true)))
     return EC;
 
   encodeULEB128(S.getTotalSamples(), OS);
@@ -696,9 +749,5 @@ SampleProfileWriter::create(std::unique_ptr<raw_ostream> &OS,
 void SampleProfileWriter::computeSummary(
     const StringMap<FunctionSamples> &ProfileMap) {
   SampleProfileSummaryBuilder Builder(ProfileSummaryBuilder::DefaultCutoffs);
-  for (const auto &I : ProfileMap) {
-    const FunctionSamples &Profile = I.second;
-    Builder.addRecord(Profile);
-  }
-  Summary = Builder.getSummary();
+  Summary = Builder.computeSummaryForProfiles(ProfileMap);
 }

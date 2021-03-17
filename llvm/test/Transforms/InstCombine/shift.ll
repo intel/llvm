@@ -662,7 +662,7 @@ define <3 x i32> @test38_nonuniform(<3 x i32> %x) nounwind readnone {
 
 define <2 x i32> @test38_undef(<2 x i32> %x) nounwind readnone {
 ; CHECK-LABEL: @test38_undef(
-; CHECK-NEXT:    ret <2 x i32> undef
+; CHECK-NEXT:    ret <2 x i32> poison
 ;
   %rem = srem <2 x i32> %x, <i32 32, i32 undef>
   %shl = shl <2 x i32> <i32 1, i32 1>, %rem
@@ -1209,7 +1209,7 @@ bb12:                                             ; preds = %bb11, %bb8, %bb
 
 define i32 @test62(i32 %a) {
 ; CHECK-LABEL: @test62(
-; CHECK-NEXT:    ret i32 undef
+; CHECK-NEXT:    ret i32 poison
 ;
   %b = ashr i32 %a, 32  ; shift all bits out
   ret i32 %b
@@ -1217,7 +1217,7 @@ define i32 @test62(i32 %a) {
 
 define <4 x i32> @test62_splat_vector(<4 x i32> %a) {
 ; CHECK-LABEL: @test62_splat_vector(
-; CHECK-NEXT:    ret <4 x i32> undef
+; CHECK-NEXT:    ret <4 x i32> poison
 ;
   %b = ashr <4 x i32> %a, <i32 32, i32 32, i32 32, i32 32>  ; shift all bits out
   ret <4 x i32> %b
@@ -1720,7 +1720,6 @@ define i177 @lshr_out_of_range(i177 %Y, i177** %A2) {
 ; https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=26716
 define i177 @lshr_out_of_range2(i177 %Y, i177** %A2) {
 ; CHECK-LABEL: @lshr_out_of_range2(
-; CHECK-NEXT:    store i177** [[A2:%.*]], i177*** undef, align 8
 ; CHECK-NEXT:    ret i177 0
 ;
   %B5 = udiv i177 %Y, -1
@@ -1795,4 +1794,26 @@ define void @ashr_out_of_range_1(i177* %A) {
   %B28 = urem i177 %B24, %B6
   store i177 %B28, i177* %G62, align 4
   ret void
+}
+
+define i8 @lshr_mask_demand(i8 %x) {
+; CHECK-LABEL: @lshr_mask_demand(
+; CHECK-NEXT:    [[S:%.*]] = lshr i8 63, [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = and i8 [[S]], 32
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %s = lshr i8 63, %x ; 0b00111111
+  %r = and i8 %s, 224 ; 0b11100000
+  ret i8 %r
+}
+
+define i8 @shl_mask_demand(i8 %x) {
+; CHECK-LABEL: @shl_mask_demand(
+; CHECK-NEXT:    [[S:%.*]] = shl i8 12, [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = and i8 [[S]], 4
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %s = shl i8 12, %x ; 0b00001100
+  %r = and i8 %s, 7  ; 0b00000111
+  ret i8 %r
 }

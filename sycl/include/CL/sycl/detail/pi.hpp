@@ -290,6 +290,9 @@ public:
     return Format;
   }
 
+  /// Returns a single property from SYCL_MISC_PROP category.
+  pi_device_binary_property getProperty(const char *PropName) const;
+
   /// Gets the iterator range over scalar specialization constants in this
   /// binary image. For each property pointed to by an iterator within the
   /// range, the name of the property is the specialization constant symbolic ID

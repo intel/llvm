@@ -289,6 +289,9 @@ public:
   /// individual classes of instructions would be better.
   unsigned getInliningThresholdMultiplier() const;
 
+  /// \returns A value to be added to the inlining threshold.
+  unsigned adjustInliningThreshold(const CallBase *CB) const;
+
   /// \returns Vector bonus in percent.
   ///
   /// Vector bonuses: We want to more aggressively inline vector-dense kernels
@@ -332,8 +335,7 @@ public:
   /// This is a helper function which calls the two-argument getUserCost
   /// with \p Operands which are the current operands U has.
   int getUserCost(const User *U, TargetCostKind CostKind) const {
-    SmallVector<const Value *, 4> Operands(U->value_op_begin(),
-                                           U->value_op_end());
+    SmallVector<const Value *, 4> Operands(U->operand_values());
     return getUserCost(U, Operands, CostKind);
   }
 
@@ -636,13 +638,15 @@ public:
                   DominatorTree *DT, AssumptionCache *AC,
                   TargetLibraryInfo *LibInfo) const;
 
-  /// \return True is LSR should make efforts to create/preserve post-inc
-  /// addressing mode expressions.
-  bool shouldFavorPostInc() const;
+  enum AddressingModeKind {
+    AMK_PreIndexed,
+    AMK_PostIndexed,
+    AMK_None
+  };
 
-  /// Return true if LSR should make efforts to generate indexed addressing
-  /// modes that operate across loop iterations.
-  bool shouldFavorBackedgeIndex(const Loop *L) const;
+  /// Return the preferred addressing mode LSR should make efforts to generate.
+  AddressingModeKind getPreferredAddressingMode(const Loop *L,
+                                                ScalarEvolution *SE) const;
 
   /// Return true if the target supports masked store.
   bool isLegalMaskedStore(Type *DataType, Align Alignment) const;
@@ -796,7 +800,7 @@ public:
   /// Determine if the target supports unaligned memory accesses.
   bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
                                       unsigned AddressSpace = 0,
-                                      unsigned Alignment = 1,
+                                      Align Alignment = Align(1),
                                       bool *Fast = nullptr) const;
 
   /// Return hardware support for population count.
@@ -928,6 +932,10 @@ public:
   /// \return The width of the smallest vector register type.
   unsigned getMinVectorRegisterBitWidth() const;
 
+  /// \return The maximum value of vscale if the target specifies an
+  ///  architectural maximum vector length, and None otherwise.
+  Optional<unsigned> getMaxVScale() const;
+
   /// \return True if the vectorization factor should be chosen to
   /// make the vector of the smallest element type match the size of a
   /// vector register. For wider element types, this could result in
@@ -939,7 +947,8 @@ public:
   /// \return The minimum vectorization factor for types of given element
   /// bit width, or 0 if there is no minimum VF. The returned value only
   /// applies when shouldMaximizeVectorBandwidth returns true.
-  unsigned getMinimumVF(unsigned ElemWidth) const;
+  /// If IsScalable is true, the returned ElementCount must be a scalable VF.
+  ElementCount getMinimumVF(unsigned ElemWidth, bool IsScalable) const;
 
   /// \return The maximum vectorization factor for types of given element
   /// bit width and opcode, or 0 if there is no maximum VF.
@@ -1179,6 +1188,16 @@ public:
     VectorType *Ty, VectorType *CondTy, bool IsPairwiseForm, bool IsUnsigned,
     TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const;
 
+  /// Calculate the cost of an extended reduction pattern, similar to
+  /// getArithmeticReductionCost of an Add reduction with an extension and
+  /// optional multiply. This is the cost of as:
+  /// ResTy vecreduce.add(ext(Ty A)), or if IsMLA flag is set then:
+  /// ResTy vecreduce.add(mul(ext(Ty A), ext(Ty B)). The reduction happens
+  /// on a VectorType with ResTy elements and Ty lanes.
+  InstructionCost getExtendedAddReductionCost(
+      bool IsMLA, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const;
+
   /// \returns The cost of Intrinsic instructions. Analyses the real arguments.
   /// Three cases are handled: 1. scalar instruction 2. vector instruction
   /// 3. scalar instruction which is to be vectorized.
@@ -1309,11 +1328,6 @@ public:
     bool NoNaN;    ///< If op is an fp min/max, whether NaNs may be present.
   };
 
-  /// \returns True if the target wants to handle the given reduction idiom in
-  /// the intrinsics form instead of the shuffle form.
-  bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
-                             ReductionFlags Flags) const;
-
   /// \returns True if the target prefers reductions in loop.
   bool preferInLoopReduction(unsigned Opcode, Type *Ty,
                              ReductionFlags Flags) const;
@@ -1382,6 +1396,7 @@ public:
                          ArrayRef<const Value *> Operands,
                          TTI::TargetCostKind CostKind) = 0;
   virtual unsigned getInliningThresholdMultiplier() = 0;
+  virtual unsigned adjustInliningThreshold(const CallBase *CB) = 0;
   virtual int getInlinerVectorBonusPercent() = 0;
   virtual int getMemcpyCost(const Instruction *I) = 0;
   virtual unsigned
@@ -1441,8 +1456,8 @@ public:
   virtual bool canSaveCmp(Loop *L, BranchInst **BI, ScalarEvolution *SE,
                           LoopInfo *LI, DominatorTree *DT, AssumptionCache *AC,
                           TargetLibraryInfo *LibInfo) = 0;
-  virtual bool shouldFavorPostInc() const = 0;
-  virtual bool shouldFavorBackedgeIndex(const Loop *L) const = 0;
+  virtual AddressingModeKind
+    getPreferredAddressingMode(const Loop *L, ScalarEvolution *SE) const = 0;
   virtual bool isLegalMaskedStore(Type *DataType, Align Alignment) = 0;
   virtual bool isLegalMaskedLoad(Type *DataType, Align Alignment) = 0;
   virtual bool isLegalNTStore(Type *DataType, Align Alignment) = 0;
@@ -1482,7 +1497,7 @@ public:
   virtual bool allowsMisalignedMemoryAccesses(LLVMContext &Context,
                                               unsigned BitWidth,
                                               unsigned AddressSpace,
-                                              unsigned Alignment,
+                                              Align Alignment,
                                               bool *Fast) = 0;
   virtual PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit) = 0;
   virtual bool haveFastSqrt(Type *Ty) = 0;
@@ -1504,8 +1519,10 @@ public:
   virtual const char *getRegisterClassName(unsigned ClassID) const = 0;
   virtual unsigned getRegisterBitWidth(bool Vector) const = 0;
   virtual unsigned getMinVectorRegisterBitWidth() = 0;
+  virtual Optional<unsigned> getMaxVScale() const = 0;
   virtual bool shouldMaximizeVectorBandwidth(bool OptSize) const = 0;
-  virtual unsigned getMinimumVF(unsigned ElemWidth) const = 0;
+  virtual ElementCount getMinimumVF(unsigned ElemWidth,
+                                    bool IsScalable) const = 0;
   virtual unsigned getMaximumVF(unsigned ElemWidth, unsigned Opcode) const = 0;
   virtual bool shouldConsiderAddressTypePromotion(
       const Instruction &I, bool &AllowPromotionWithoutCommonHeader) = 0;
@@ -1584,6 +1601,9 @@ public:
   virtual int getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
                                      bool IsPairwiseForm, bool IsUnsigned,
                                      TTI::TargetCostKind CostKind) = 0;
+  virtual InstructionCost getExtendedAddReductionCost(
+      bool IsMLA, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) = 0;
   virtual int getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                     TTI::TargetCostKind CostKind) = 0;
   virtual int getCallInstrCost(Function *F, Type *RetTy,
@@ -1629,8 +1649,6 @@ public:
   virtual unsigned getStoreVectorFactor(unsigned VF, unsigned StoreSize,
                                         unsigned ChainSizeInBytes,
                                         VectorType *VecTy) const = 0;
-  virtual bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
-                                     ReductionFlags) const = 0;
   virtual bool preferInLoopReduction(unsigned Opcode, Type *Ty,
                                      ReductionFlags) const = 0;
   virtual bool preferPredicatedReductionSelect(unsigned Opcode, Type *Ty,
@@ -1661,6 +1679,9 @@ public:
   }
   unsigned getInliningThresholdMultiplier() override {
     return Impl.getInliningThresholdMultiplier();
+  }
+  unsigned adjustInliningThreshold(const CallBase *CB) override {
+    return Impl.adjustInliningThreshold(CB);
   }
   int getInlinerVectorBonusPercent() override {
     return Impl.getInlinerVectorBonusPercent();
@@ -1777,9 +1798,10 @@ public:
                   TargetLibraryInfo *LibInfo) override {
     return Impl.canSaveCmp(L, BI, SE, LI, DT, AC, LibInfo);
   }
-  bool shouldFavorPostInc() const override { return Impl.shouldFavorPostInc(); }
-  bool shouldFavorBackedgeIndex(const Loop *L) const override {
-    return Impl.shouldFavorBackedgeIndex(L);
+  AddressingModeKind
+    getPreferredAddressingMode(const Loop *L,
+                               ScalarEvolution *SE) const override {
+    return Impl.getPreferredAddressingMode(L, SE);
   }
   bool isLegalMaskedStore(Type *DataType, Align Alignment) override {
     return Impl.isLegalMaskedStore(DataType, Alignment);
@@ -1872,7 +1894,7 @@ public:
     return Impl.isFPVectorizationPotentiallyUnsafe();
   }
   bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
-                                      unsigned AddressSpace, unsigned Alignment,
+                                      unsigned AddressSpace, Align Alignment,
                                       bool *Fast) override {
     return Impl.allowsMisalignedMemoryAccesses(Context, BitWidth, AddressSpace,
                                                Alignment, Fast);
@@ -1921,11 +1943,15 @@ public:
   unsigned getMinVectorRegisterBitWidth() override {
     return Impl.getMinVectorRegisterBitWidth();
   }
+  Optional<unsigned> getMaxVScale() const override {
+    return Impl.getMaxVScale();
+  }
   bool shouldMaximizeVectorBandwidth(bool OptSize) const override {
     return Impl.shouldMaximizeVectorBandwidth(OptSize);
   }
-  unsigned getMinimumVF(unsigned ElemWidth) const override {
-    return Impl.getMinimumVF(ElemWidth);
+  ElementCount getMinimumVF(unsigned ElemWidth,
+                            bool IsScalable) const override {
+    return Impl.getMinimumVF(ElemWidth, IsScalable);
   }
   unsigned getMaximumVF(unsigned ElemWidth, unsigned Opcode) const override {
     return Impl.getMaximumVF(ElemWidth, Opcode);
@@ -2058,6 +2084,12 @@ public:
     return Impl.getMinMaxReductionCost(Ty, CondTy, IsPairwiseForm, IsUnsigned,
                                        CostKind);
   }
+  InstructionCost getExtendedAddReductionCost(
+      bool IsMLA, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) override {
+    return Impl.getExtendedAddReductionCost(IsMLA, IsUnsigned, ResTy, Ty,
+                                            CostKind);
+  }
   int getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                             TTI::TargetCostKind CostKind) override {
     return Impl.getIntrinsicInstrCost(ICA, CostKind);
@@ -2146,10 +2178,6 @@ public:
                                 unsigned ChainSizeInBytes,
                                 VectorType *VecTy) const override {
     return Impl.getStoreVectorFactor(VF, StoreSize, ChainSizeInBytes, VecTy);
-  }
-  bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
-                             ReductionFlags Flags) const override {
-    return Impl.useReductionIntrinsic(Opcode, Ty, Flags);
   }
   bool preferInLoopReduction(unsigned Opcode, Type *Ty,
                              ReductionFlags Flags) const override {

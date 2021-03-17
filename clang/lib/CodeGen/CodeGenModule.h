@@ -211,6 +211,9 @@ struct ObjCEntrypoints {
 
   /// void clang.arc.use(...);
   llvm::Function *clang_arc_use;
+
+  /// void clang.arc.noop.use(...);
+  llvm::Function *clang_arc_noop_use;
 };
 
 /// This class records statistics on instrumentation based profiling.
@@ -1294,6 +1297,10 @@ public:
   /// false otherwise.
   bool imbueXRayAttrs(llvm::Function *Fn, SourceLocation Loc,
                       StringRef Category = StringRef()) const;
+
+  /// Returns true if function at the given location should be excluded from
+  /// profile instrumentation.
+  bool isProfileInstrExcluded(llvm::Function *Fn, SourceLocation Loc) const;
 
   SanitizerMetadata *getSanitizerMetadata() {
     return SanitizerMD.get();

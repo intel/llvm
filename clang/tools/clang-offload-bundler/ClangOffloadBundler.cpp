@@ -70,11 +70,11 @@ static cl::list<std::string>
                    cl::desc("[<input file>,...]"),
                    cl::cat(ClangOffloadBundlerCategory));
 static cl::list<std::string>
-    OutputFileNames("outputs", cl::CommaSeparated, cl::ZeroOrMore,
+    OutputFileNames("outputs", cl::CommaSeparated,
                     cl::desc("[<output file>,...]"),
                     cl::cat(ClangOffloadBundlerCategory));
 static cl::list<std::string>
-    TargetNames("targets", cl::CommaSeparated, cl::OneOrMore,
+    TargetNames("targets", cl::CommaSeparated,
                 cl::desc("[<offload kind>-<target triple>,...]"),
                 cl::cat(ClangOffloadBundlerCategory));
 
@@ -110,6 +110,10 @@ static cl::opt<bool> CheckSection("check-section",
                                   cl::desc("Check if the section exists.\n"),
                                   cl::init(false),
                                   cl::cat(ClangOffloadBundlerCategory));
+
+static cl::opt<bool>
+    ListBundleIDs("list", cl::desc("List bundle IDs in the bundled file.\n"),
+                  cl::init(false), cl::cat(ClangOffloadBundlerCategory));
 
 static cl::opt<bool> PrintExternalCommands(
     "###",
@@ -165,6 +169,10 @@ static Triple getTargetTriple(StringRef Target) {
 /// Generic file handler interface.
 class FileHandler {
 public:
+  struct BundleInfo {
+    StringRef BundleID;
+  };
+
   FileHandler() {}
 
   virtual ~FileHandler() {}
@@ -207,9 +215,50 @@ public:
     TempFileNameBase = std::string(Base);
   }
 
+  /// List bundle IDs in \a Input.
+  virtual Error listBundleIDs(MemoryBuffer &Input) {
+    if (Error Err = ReadHeader(Input))
+      return Err;
+
+    return forEachBundle(Input, [&](const BundleInfo &Info) -> Error {
+      llvm::outs() << Info.BundleID << '\n';
+      Error Err = listBundleIDsCallback(Input, Info);
+      if (Err)
+        return Err;
+      return Error::success();
+    });
+  }
+
+  /// For each bundle in \a Input, do \a Func.
+  Error forEachBundle(MemoryBuffer &Input,
+                      std::function<Error(const BundleInfo &)> Func) {
+    while (true) {
+      Expected<Optional<StringRef>> CurTripleOrErr = ReadBundleStart(Input);
+      if (!CurTripleOrErr)
+        return CurTripleOrErr.takeError();
+
+      // No more bundles.
+      if (!*CurTripleOrErr)
+        break;
+
+      StringRef CurTriple = **CurTripleOrErr;
+      assert(!CurTriple.empty());
+
+      BundleInfo Info{CurTriple};
+      if (Error Err = Func(Info))
+        return Err;
+    }
+    return Error::success();
+  }
+
 protected:
   /// Serves as a base name for temporary filename generation.
   std::string TempFileNameBase;
+
+  virtual Error listBundleIDsCallback(MemoryBuffer &Input,
+                                      const BundleInfo &Info) {
+    return Error::success();
+  }
 };
 
 /// Handler for binary files. The bundled file will have the following format
@@ -259,22 +308,23 @@ static void Write8byteIntegerToBuffer(raw_fd_ostream &OS, uint64_t Val) {
 
 class BinaryFileHandler final : public FileHandler {
   /// Information about the bundles extracted from the header.
-  struct BundleInfo final {
+  struct BinaryBundleInfo final : public BundleInfo {
     /// Size of the bundle.
     uint64_t Size = 0u;
     /// Offset at which the bundle starts in the bundled file.
     uint64_t Offset = 0u;
 
-    BundleInfo() {}
-    BundleInfo(uint64_t Size, uint64_t Offset) : Size(Size), Offset(Offset) {}
+    BinaryBundleInfo() {}
+    BinaryBundleInfo(uint64_t Size, uint64_t Offset)
+        : Size(Size), Offset(Offset) {}
   };
 
   /// Map between a triple and the corresponding bundle information.
-  StringMap<BundleInfo> BundlesInfo;
+  StringMap<BinaryBundleInfo> BundlesInfo;
 
   /// Iterator for the bundle information that is being read.
-  StringMap<BundleInfo>::iterator CurBundleInfo;
-  StringMap<BundleInfo>::iterator NextBundleInfo;
+  StringMap<BinaryBundleInfo>::iterator CurBundleInfo;
+  StringMap<BinaryBundleInfo>::iterator NextBundleInfo;
 
   /// Current bundle target to be written.
   std::string CurWriteBundleTarget;
@@ -344,7 +394,7 @@ public:
 
       assert(BundlesInfo.find(Triple) == BundlesInfo.end() &&
              "Triple is duplicated??");
-      BundlesInfo[Triple] = BundleInfo(Size, Offset);
+      BundlesInfo[Triple] = BinaryBundleInfo(Size, Offset);
     }
     // Set the iterator to where we will start to read.
     CurBundleInfo = BundlesInfo.end();
@@ -398,7 +448,7 @@ public:
       Write8byteIntegerToBuffer(OS, HeaderSize);
       // Size of the bundle (adds to the next bundle's offset)
       Write8byteIntegerToBuffer(OS, MB.getBufferSize());
-      BundlesInfo[T] = BundleInfo(MB.getBufferSize(), HeaderSize);
+      BundlesInfo[T] = BinaryBundleInfo(MB.getBufferSize(), HeaderSize);
       HeaderSize += MB.getBufferSize();
       // Size of the triple
       Write8byteIntegerToBuffer(OS, T.size());
@@ -886,6 +936,18 @@ public:
     BundleEndString =
         "\n" + Comment.str() + " " OFFLOAD_BUNDLER_MAGIC_STR "__END__ ";
   }
+
+  Error listBundleIDsCallback(MemoryBuffer &Input,
+                              const BundleInfo &Info) final {
+    // TODO: To list bundle IDs in a bundled text file we need to go through
+    // all bundles. The format of bundled text file may need to include a
+    // header if the performance of listing bundle IDs of bundled text file is
+    // important.
+    ReadChars = Input.getBuffer().find(BundleEndString, ReadChars);
+    if (Error Err = ReadBundleEnd(Input))
+      return Err;
+    return Error::success();
+  }
 };
 
 /// Archive file handler. Only unbundling is supported so far.
@@ -1226,6 +1288,27 @@ static Error BundleFiles() {
   return Error::success();
 }
 
+// List bundle IDs. Return true if an error was found.
+static Error ListBundleIDsInFile(StringRef InputFileName) {
+  // Open Input file.
+  ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
+      MemoryBuffer::getFileOrSTDIN(InputFileName);
+  if (std::error_code EC = CodeOrErr.getError())
+    return createFileError(InputFileName, EC);
+
+  MemoryBuffer &Input = **CodeOrErr;
+
+  // Select the right files handler.
+  Expected<std::unique_ptr<FileHandler>> FileHandlerOrErr =
+      CreateFileHandler(Input);
+  if (!FileHandlerOrErr)
+    return FileHandlerOrErr.takeError();
+
+  std::unique_ptr<FileHandler> &FH = *FileHandlerOrErr;
+  assert(FH);
+  return FH->listBundleIDs(Input);
+}
+
 // Unbundle the files. Return true if an error was found.
 static Error UnbundleFiles() {
   // Open Input file.
@@ -1427,7 +1510,55 @@ int main(int argc, const char **argv) {
 
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
+    exit(1);
   };
+
+  auto doWork = [&](std::function<llvm::Error()> Work) {
+    // Save the current executable directory as it will be useful to find other
+    // tools.
+    BundlerExecutable = argv[0];
+    if (!llvm::sys::fs::exists(BundlerExecutable))
+      BundlerExecutable =
+          sys::fs::getMainExecutable(argv[0], &BundlerExecutable);
+
+    if (llvm::Error Err = Work()) {
+      reportError(std::move(Err));
+    }
+  };
+
+  if (ListBundleIDs) {
+    if (Unbundle) {
+      reportError(
+          createStringError(errc::invalid_argument,
+                            "-unbundle and -list cannot be used together"));
+    }
+    if (InputFileNames.size() != 1) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "only one input file supported for -list"));
+    }
+    if (OutputFileNames.size()) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "-outputs option is invalid for -list"));
+    }
+    if (TargetNames.size()) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "-targets option is invalid for -list"));
+    }
+
+    doWork([]() { return ListBundleIDsInFile(InputFileNames.front()); });
+    return 0;
+  }
+
+  if (OutputFileNames.getNumOccurrences() == 0 && !CheckSection) {
+    reportError(createStringError(
+        errc::invalid_argument,
+        "for the --outputs option: must be specified at least once!"));
+  }
+  if (TargetNames.getNumOccurrences() == 0) {
+    reportError(createStringError(
+        errc::invalid_argument,
+        "for the --targets option: must be specified at least once!"));
+  }
 
   if (Unbundle && CheckSection) {
     reportError(createStringError(
@@ -1436,24 +1567,19 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  bool Error = false;
-
   // -check-section
   if (CheckSection) {
     if (InputFileNames.size() != 1) {
-      Error = true;
       reportError(
           createStringError(errc::invalid_argument,
                             "only one input file supported in checking mode"));
     }
     if (TargetNames.size() != 1) {
-      Error = true;
       reportError(
           createStringError(errc::invalid_argument,
                             "only one target supported in checking mode"));
     }
     if (OutputFileNames.size() != 0) {
-      Error = true;
       reportError(createStringError(
           errc::invalid_argument, "no output file supported in checking mode"));
     }
@@ -1461,13 +1587,11 @@ int main(int argc, const char **argv) {
   // -unbundle
   else if (Unbundle) {
     if (InputFileNames.size() != 1) {
-      Error = true;
       reportError(createStringError(
           errc::invalid_argument,
           "only one input file supported in unbundling mode"));
     }
     if (OutputFileNames.size() != TargetNames.size()) {
-      Error = true;
       reportError(createStringError(errc::invalid_argument,
                                     "number of output files and targets should "
                                     "match in unbundling mode"));
@@ -1476,13 +1600,11 @@ int main(int argc, const char **argv) {
   // no explicit option: bundle
   else {
     if (OutputFileNames.size() != 1) {
-      Error = true;
-      reportError(
-          createStringError(errc::invalid_argument,
-                            "only one output file supported in bundling mode"));
+      reportError(createStringError(
+          errc::invalid_argument,
+          "only one output file supported in bundling mode"));
     }
     if (InputFileNames.size() != TargetNames.size()) {
-      Error = true;
       reportError(createStringError(
           errc::invalid_argument,
           "number of input files and targets should match in bundling mode"));
@@ -1498,7 +1620,6 @@ int main(int argc, const char **argv) {
     if (ParsedTargets.contains(Target)) {
       reportError(createStringError(errc::invalid_argument,
                                     "Duplicate targets are not allowed"));
-      return 1;
     }
     ParsedTargets.insert(Target);
 
@@ -1520,8 +1641,6 @@ int main(int argc, const char **argv) {
     TripleIsValid &= T.getArch() != Triple::UnknownArch;
 
     if (!KindIsValid || !TripleIsValid) {
-      Error = true;
-
       SmallVector<char, 128u> Buf;
       raw_svector_ostream Msg(Buf);
       Msg << "invalid target '" << Target << "'";
@@ -1541,25 +1660,6 @@ int main(int argc, const char **argv) {
     ++Index;
   }
 
-  // Host triple is not really needed for unbundling operation, so do not
-  // treat missing host triple as error if we do unbundling.
-  if (!CheckSection &&
-      ((Unbundle && HostTargetNum > 1) || (!Unbundle && HostTargetNum != 1))) {
-    Error = true;
-    reportError(createStringError(errc::invalid_argument,
-                                  "expecting exactly one host target but got " +
-                                      Twine(HostTargetNum)));
-  }
-
-  if (Error)
-    return 1;
-
-  // Save the current executable directory as it will be useful to find other
-  // tools.
-  BundlerExecutable = argv[0];
-  if (!llvm::sys::fs::exists(BundlerExecutable))
-    BundlerExecutable = sys::fs::getMainExecutable(argv[0], &BundlerExecutable);
-
   if (CheckSection) {
     Expected<bool> Res = CheckBundledSection();
     if (!Res) {
@@ -1568,9 +1668,15 @@ int main(int argc, const char **argv) {
     }
     return !*Res;
   }
-  if (llvm::Error Err = Unbundle ? UnbundleFiles() : BundleFiles()) {
-    reportError(std::move(Err));
-    return 1;
+
+  // Host triple is not really needed for unbundling operation, so do not
+  // treat missing host triple as error if we do unbundling.
+  if ((Unbundle && HostTargetNum > 1) || (!Unbundle && HostTargetNum != 1)) {
+    reportError(createStringError(errc::invalid_argument,
+                                  "expecting exactly one host target but got " +
+                                      Twine(HostTargetNum)));
   }
+
+  doWork([]() { return Unbundle ? UnbundleFiles() : BundleFiles(); });
   return 0;
 }

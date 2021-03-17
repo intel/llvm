@@ -30,6 +30,8 @@ namespace clang {
 /// Bitfields of CodeGenOptions, split out from CodeGenOptions to ensure
 /// that this large collection of bitfields is a trivial class type.
 class CodeGenOptionsBase {
+  friend class CompilerInvocation;
+
 public:
 #define CODEGENOPT(Name, Bits, Default) unsigned Name : Bits;
 #define ENUM_CODEGENOPT(Name, Type, Bits, Default)
@@ -126,10 +128,22 @@ public:
   // "none":        Disable sections/labels for basic blocks.
   std::string BBSections;
 
+  // If set, override the default value of MCAsmInfo::BinutilsVersion. If
+  // DisableIntegratedAS is specified, the assembly output will consider GNU as
+  // support. "none" means that all ELF features can be used, regardless of
+  // binutils support.
+  std::string BinutilsVersion;
+
   enum class FramePointerKind {
     None,        // Omit all frame pointers.
     NonLeaf,     // Keep non-leaf frame pointers.
     All,         // Keep all frame pointers.
+  };
+
+  enum FiniteLoopsKind {
+    Language, // Not specified, use language standard.
+    Always,   // All loops are assumed to be finite.
+    Never,    // No loop is assumed to be finite.
   };
 
   /// The code model to use (-mcmodel).
@@ -167,6 +181,7 @@ public:
   std::string RecordCommandLine;
 
   std::map<std::string, std::string> DebugPrefixMap;
+  std::map<std::string, std::string> ProfilePrefixMap;
 
   /// The ABI to use for passing floating point arguments.
   std::string FloatABI;
@@ -269,19 +284,29 @@ public:
   /// -fsymbol-partition (see https://lld.llvm.org/Partitions.html).
   std::string SymbolPartition;
 
+  /// Regular expression and the string it was created from.
+  struct RemarkPattern {
+    std::string Pattern;
+    std::shared_ptr<llvm::Regex> Regex;
+
+    explicit operator bool() const { return Regex != nullptr; }
+
+    llvm::Regex *operator->() const { return Regex.get(); }
+  };
+
   /// Regular expression to select optimizations for which we should enable
   /// optimization remarks. Transformation passes whose name matches this
   /// expression (and support this feature), will emit a diagnostic
   /// whenever they perform a transformation. This is enabled by the
   /// -Rpass=regexp flag.
-  std::shared_ptr<llvm::Regex> OptimizationRemarkPattern;
+  RemarkPattern OptimizationRemarkPattern;
 
   /// Regular expression to select optimizations for which we should enable
   /// missed optimization remarks. Transformation passes whose name matches this
   /// expression (and support this feature), will emit a diagnostic
   /// whenever they tried but failed to perform a transformation. This is
   /// enabled by the -Rpass-missed=regexp flag.
-  std::shared_ptr<llvm::Regex> OptimizationRemarkMissedPattern;
+  RemarkPattern OptimizationRemarkMissedPattern;
 
   /// Regular expression to select optimizations for which we should enable
   /// optimization analyses. Transformation passes whose name matches this
@@ -289,7 +314,7 @@ public:
   /// whenever they want to explain why they decided to apply or not apply
   /// a given transformation. This is enabled by the -Rpass-analysis=regexp
   /// flag.
-  std::shared_ptr<llvm::Regex> OptimizationRemarkAnalysisPattern;
+  RemarkPattern OptimizationRemarkAnalysisPattern;
 
   /// Set of files defining the rules for the symbol rewriting.
   std::vector<std::string> RewriteMapFiles;

@@ -76,6 +76,8 @@ public:
     llvm::ThreadPriority ThreadPri = llvm::ThreadPriority::Background;
     unsigned QueuePri = 0; // Higher-priority tasks will run first.
     std::string Tag;       // Allows priority to be boosted later.
+    uint64_t Key = 0;      // If the key matches a previous task, drop this one.
+                           // (in practice this means we never reindex a file).
 
     bool operator<(const Task &O) const { return QueuePri < O.QueuePri; }
   };
@@ -114,6 +116,7 @@ public:
 
 private:
   void notifyProgress() const; // Requires lock Mu
+  bool adjust(Task &T);
 
   std::mutex Mu;
   Stats Stat;
@@ -122,6 +125,7 @@ private:
   std::vector<Task> Queue; // max-heap
   llvm::StringMap<unsigned> Boosts;
   std::function<void(Stats)> OnProgress;
+  llvm::DenseSet<uint64_t> SeenKeys;
 };
 
 // Builds an in-memory index by by running the static indexer action over
@@ -139,8 +143,6 @@ public:
     // file. Called with the empty string for other tasks.
     // (When called, the context from BackgroundIndex construction is active).
     std::function<Context(PathRef)> ContextProvider = nullptr;
-    // Whether to collect references to main-file-only symbols.
-    bool CollectMainFileRefs = false;
   };
 
   /// Creates a new background index and starts its threads.
@@ -194,7 +196,6 @@ private:
   const ThreadsafeFS &TFS;
   const GlobalCompilationDatabase &CDB;
   std::function<Context(PathRef)> ContextProvider;
-  bool CollectMainFileRefs;
 
   llvm::Error index(tooling::CompileCommand);
 

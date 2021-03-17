@@ -1,6 +1,8 @@
 // RUN:   mlir-opt %s -async-ref-counting                                      \
+// RUN:               -async-to-async-runtime                                  \
 // RUN:               -convert-async-to-llvm                                   \
 // RUN:               -convert-linalg-to-loops                                 \
+// RUN:               -convert-scf-to-std                                      \
 // RUN:               -convert-linalg-to-llvm                                  \
 // RUN:               -convert-std-to-llvm                                     \
 // RUN: | mlir-cpu-runner                                                      \

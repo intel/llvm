@@ -50,7 +50,7 @@ Thread &ThreadPlan::GetThread() {
 bool ThreadPlan::PlanExplainsStop(Event *event_ptr) {
   if (m_cached_plan_explains_stop == eLazyBoolCalculate) {
     bool actual_value = DoPlanExplainsStop(event_ptr);
-    m_cached_plan_explains_stop = actual_value ? eLazyBoolYes : eLazyBoolNo;
+    CachePlanExplainsStop(actual_value);
     return actual_value;
   } else {
     return m_cached_plan_explains_stop == eLazyBoolYes;
@@ -99,6 +99,8 @@ Vote ThreadPlan::ShouldReportRun(Event *event_ptr) {
   return m_run_vote;
 }
 
+void ThreadPlan::ClearThreadCache() { m_thread = nullptr; }
+
 bool ThreadPlan::StopOthers() {
   ThreadPlan *prev_plan;
   prev_plan = GetPreviousPlan();
@@ -134,7 +136,7 @@ bool ThreadPlan::WillResume(StateType resume_state, bool current_plan) {
     }
   }
   bool success = DoWillResume(resume_state, current_plan);
-  m_thread = nullptr; // We don't cache the thread pointer over resumes.  This
+  ClearThreadCache(); // We don't cache the thread pointer over resumes.  This
                       // Thread might go away, and another Thread represent
                       // the same underlying object on a later stop.
   return success;

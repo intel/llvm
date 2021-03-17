@@ -57,7 +57,7 @@ linked and unlinked allocations is summarized in the table below.
 
 |   | Unlinked | Linked |
 | - | -------- | ------ |
-| Native memory object creation | Created with COPY_HOST_PTR if a host pointer is available and the first access mode does not discard the data. | Created with USE_HOST_PTR if a suitable host pointer is available, regardless of the first access mode. |
+| Native memory object creation | Created without a host pointer, then initialized as a separate memory transfer operation if a host pointer is available and the first access mode does not discard the data. | Created with USE_HOST_PTR if a suitable host pointer is available, regardless of the first access mode. |
 | Host allocation command behaviour | Skipped if a suitable user host pointer is available. | In addition to skipping the allocation if a suitable user pointer is provided, the allocation is also skipped if the host command is created after its linked counterpart (it's retrieved via map operation instead). |
 | Memory transfer | Performed with read/write operations, device-to-device transfer is done with a host allocation as an intermediary (direct transfer is not supported by PI). | Only one allocation from the pair can be active at a time, the switch is done with map/unmap operations. Device-to-device transfer where one of the device allocations is linked is done with the host allocation from the pair as an intermediary (e.g. for transfer from unlinked device allocation A to linked device allocation B: map B -> read A to the host allocation -> unmap B). |
 

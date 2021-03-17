@@ -223,15 +223,26 @@ std::optional<DataRef> ExtractDataRef(
     return std::nullopt;
   }
 }
+template <typename A>
+std::optional<DataRef> ExtractDataRef(const A *p, bool intoSubstring = false) {
+  if (p) {
+    return ExtractDataRef(*p, intoSubstring);
+  } else {
+    return std::nullopt;
+  }
+}
 std::optional<DataRef> ExtractSubstringBase(const Substring &);
 
 // Predicate: is an expression is an array element reference?
 template <typename T>
-bool IsArrayElement(const Expr<T> &expr, bool intoSubstring = false) {
+bool IsArrayElement(const Expr<T> &expr, bool intoSubstring = true,
+    bool skipComponents = false) {
   if (auto dataRef{ExtractDataRef(expr, intoSubstring)}) {
     const DataRef *ref{&*dataRef};
-    while (const Component * component{std::get_if<Component>(&ref->u)}) {
-      ref = &component->base();
+    if (skipComponents) {
+      while (const Component * component{std::get_if<Component>(&ref->u)}) {
+        ref = &component->base();
+      }
     }
     if (const auto *coarrayRef{std::get_if<CoarrayRef>(&ref->u)}) {
       return !coarrayRef->subscript().empty();
@@ -319,6 +330,22 @@ template <typename A> const Symbol *UnwrapWholeSymbolDataRef(const A &x) {
   return nullptr;
 }
 
+// If an expression is a whole symbol or a whole component desginator,
+// extract and return that symbol, else null.
+template <typename A>
+const Symbol *UnwrapWholeSymbolOrComponentDataRef(const A &x) {
+  if (auto dataRef{ExtractDataRef(x)}) {
+    if (const SymbolRef * p{std::get_if<SymbolRef>(&dataRef->u)}) {
+      return &p->get();
+    } else if (const Component * c{std::get_if<Component>(&dataRef->u)}) {
+      if (c->base().Rank() == 0) {
+        return &c->GetLastSymbol();
+      }
+    }
+  }
+  return nullptr;
+}
+
 // GetFirstSymbol(A%B%C[I]%D) -> A
 template <typename A> const Symbol *GetFirstSymbol(const A &x) {
   if (auto dataRef{ExtractDataRef(x, true)}) {
@@ -327,6 +354,9 @@ template <typename A> const Symbol *GetFirstSymbol(const A &x) {
     return nullptr;
   }
 }
+
+// GetLastPointerSymbol(A%PTR1%B%PTR2%C) -> PTR2
+const Symbol *GetLastPointerSymbol(const evaluate::DataRef &);
 
 // Creation of conversion expressions can be done to either a known
 // specific intrinsic type with ConvertToType<T>(x) or by converting
@@ -778,6 +808,7 @@ bool IsProcedure(const Expr<SomeType> &);
 bool IsFunction(const Expr<SomeType> &);
 bool IsProcedurePointer(const Expr<SomeType> &);
 bool IsNullPointer(const Expr<SomeType> &);
+bool IsObjectPointer(const Expr<SomeType> &, FoldingContext &);
 
 // Extracts the chain of symbols from a designator, which has perhaps been
 // wrapped in an Expr<>, removing all of the (co)subscripts.  The
@@ -806,9 +837,6 @@ template <typename A> SymbolVector GetSymbolVector(const A &x) {
 // SymbolVector that has the POINTER or TARGET attribute, or a null pointer
 // when none is found.
 const Symbol *GetLastTarget(const SymbolVector &);
-
-// Resolves any whole ASSOCIATE(B=>A) associations, then returns GetUltimate()
-const Symbol &ResolveAssociations(const Symbol &);
 
 // Collects all of the Symbols in an expression
 template <typename A> semantics::SymbolSet CollectSymbols(const A &);
@@ -883,8 +911,8 @@ public:
     }
     return expanded;
   }
-  template <typename T> Constant<T> Expand(Parentheses<T> &&x) {
-    return Expand(std::move(x)); // Constant<> can be parenthesized
+  template <typename T> Expr<T> Expand(Parentheses<T> &&x) {
+    return Expand(std::move(x.left())); // Constant<> can be parenthesized
   }
   template <typename T> Expr<T> Expand(Expr<T> &&x) {
     return std::visit([&](auto &&x) { return Expr<T>{Expand(std::move(x))}; },
@@ -904,12 +932,14 @@ class Scope;
 
 // These functions are used in Evaluate so they are defined here rather than in
 // Semantics to avoid a link-time dependency on Semantics.
-
+// All of these apply GetUltimate() or ResolveAssociations() to their arguments.
 bool IsVariableName(const Symbol &);
 bool IsPureProcedure(const Symbol &);
 bool IsPureProcedure(const Scope &);
 bool IsFunction(const Symbol &);
+bool IsFunction(const Scope &);
 bool IsProcedure(const Symbol &);
+bool IsProcedure(const Scope &);
 bool IsProcedurePointer(const Symbol &);
 bool IsSaved(const Symbol &); // saved implicitly or explicitly
 bool IsDummy(const Symbol &);
@@ -917,9 +947,18 @@ bool IsFunctionResult(const Symbol &);
 bool IsKindTypeParameter(const Symbol &);
 bool IsLenTypeParameter(const Symbol &);
 
-// Follow use, host, and construct assocations to a variable, if any.
-const Symbol *GetAssociationRoot(const Symbol &);
-Symbol *GetAssociationRoot(Symbol &);
+// ResolveAssociations() traverses use associations and host associations
+// like GetUltimate(), but also resolves through whole variable associations
+// with ASSOCIATE(x => y) and related constructs.  GetAssociationRoot()
+// applies ResolveAssociations() and then, in the case of resolution to
+// a construct association with part of a variable that does not involve a
+// vector subscript, returns the first symbol of that variable instead
+// of the construct entity.
+// (E.g., for ASSOCIATE(x => y%z), ResolveAssociations(x) returns x,
+// while GetAssociationRoot(x) returns y.)
+const Symbol &ResolveAssociations(const Symbol &);
+const Symbol &GetAssociationRoot(const Symbol &);
+
 const Symbol *FindCommonBlockContaining(const Symbol &);
 int CountLenParameters(const DerivedTypeSpec &);
 int CountNonConstantLenParameters(const DerivedTypeSpec &);

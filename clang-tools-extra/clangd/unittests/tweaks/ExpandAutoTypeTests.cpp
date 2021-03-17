@@ -65,16 +65,21 @@ TEST_F(ExpandAutoTypeTest, Test) {
   EXPECT_EQ(apply(R"cpp(au^to x = "test";)cpp"),
             R"cpp(const char * x = "test";)cpp");
 
+  EXPECT_EQ(apply("ns::Class * foo() { au^to c = foo(); }"),
+            "ns::Class * foo() { ns::Class * c = foo(); }");
+  EXPECT_EQ(apply("void ns::Func() { au^to x = new ns::Class::Nested{}; }"),
+            "void ns::Func() { Class::Nested * x = new ns::Class::Nested{}; }");
+
   EXPECT_UNAVAILABLE("dec^ltype(au^to) x = 10;");
   // expanding types in structured bindings is syntactically invalid.
   EXPECT_UNAVAILABLE("const ^auto &[x,y] = (int[]){1,2};");
 
-  // FIXME: Auto-completion in a template requires disabling delayed template
-  // parsing.
-  ExtraArgs.push_back("-fno-delayed-template-parsing");
   // unknown types in a template should not be replaced
   EXPECT_THAT(apply("template <typename T> void x() { ^auto y = T::z(); }"),
               StartsWith("fail: Could not deduce type for 'auto' type"));
+
+  ExtraArgs.push_back("-std=c++17");
+  EXPECT_UNAVAILABLE("template <au^to X> class Y;");
 }
 
 } // namespace

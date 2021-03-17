@@ -50,9 +50,10 @@ def int_wasm_trunc_saturate_unsigned : Intrinsic<[llvm_anyint_ty],
 //===----------------------------------------------------------------------===//
 
 // throw / rethrow
+// The immediate argument is an index to a tag, which is 0 for C++.
 def int_wasm_throw : Intrinsic<[], [llvm_i32_ty, llvm_ptr_ty],
                                [Throws, IntrNoReturn, ImmArg<ArgIndex<0>>]>;
-def int_wasm_rethrow_in_catch : Intrinsic<[], [], [Throws, IntrNoReturn]>;
+def int_wasm_rethrow : Intrinsic<[], [], [Throws, IntrNoReturn]>;
 
 // Since wasm does not use landingpad instructions, these instructions return
 // exception pointer and selector values until we lower them in WasmEHPrepare.
@@ -60,10 +61,12 @@ def int_wasm_get_exception : Intrinsic<[llvm_ptr_ty], [llvm_token_ty],
                                        [IntrHasSideEffects]>;
 def int_wasm_get_ehselector : Intrinsic<[llvm_i32_ty], [llvm_token_ty],
                                         [IntrHasSideEffects]>;
-// This is the same as llvm.wasm.get.exception except that it does not take a
-// token operand. This is only for instruction selection purpose.
-def int_wasm_extract_exception : Intrinsic<[llvm_ptr_ty], [],
-                                           [IntrHasSideEffects]>;
+
+// wasm.catch returns the pointer to the exception object caught by wasm 'catch'
+// instruction. This returns a single pointer, which is sufficient for C++
+// support. The immediate argument is an index to for a tag, which is 0 for C++.
+def int_wasm_catch : Intrinsic<[llvm_ptr_ty], [llvm_i32_ty],
+                               [IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
 
 // WebAssembly EH must maintain the landingpads in the order assigned to them
 // by WasmEHPrepare pass to generate landingpad table in EHStreamer. This is
@@ -290,6 +293,15 @@ def int_wasm_extmul_high_unsigned :
             [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
             [IntrNoMem, IntrSpeculatable]>;
 
+def int_wasm_extadd_pairwise_signed :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMSubdivide2VectorType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_extadd_pairwise_unsigned :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMSubdivide2VectorType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+
 def int_wasm_signselect :
   Intrinsic<[llvm_anyvector_ty],
             [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
@@ -301,6 +313,48 @@ def int_wasm_eq :
   Intrinsic<[llvm_v2i64_ty],
             [llvm_v2i64_ty, llvm_v2i64_ty],
             [IntrNoMem, IntrSpeculatable]>;
+
+// TODO: Remove this after experiments have been run. Use the target-agnostic
+// int_prefetch if this becomes specified at some point.
+def int_wasm_prefetch_t :
+  Intrinsic<[], [llvm_ptr_ty],
+            [IntrInaccessibleMemOrArgMemOnly, IntrWillReturn,
+             ReadOnly<ArgIndex<0>>, NoCapture<ArgIndex<0>>],
+            "", [SDNPMemOperand]>;
+
+def int_wasm_prefetch_nt :
+  Intrinsic<[], [llvm_ptr_ty],
+            [IntrInaccessibleMemOrArgMemOnly, IntrWillReturn,
+             ReadOnly<ArgIndex<0>>, NoCapture<ArgIndex<0>>],
+            "", [SDNPMemOperand]>;
+
+// TODO: Remove these if possible if they are merged to the spec.
+def int_wasm_convert_low_signed :
+  Intrinsic<[llvm_v2f64_ty], [llvm_v4i32_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_convert_low_unsigned :
+  Intrinsic<[llvm_v2f64_ty], [llvm_v4i32_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_trunc_saturate_zero_signed :
+  Intrinsic<[llvm_v4i32_ty], [llvm_v2f64_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_trunc_saturate_zero_unsigned :
+  Intrinsic<[llvm_v4i32_ty], [llvm_v2f64_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_demote_zero :
+  Intrinsic<[llvm_v4f32_ty], [llvm_v2f64_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_promote_low :
+  Intrinsic<[llvm_v2f64_ty], [llvm_v4f32_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+
+// TODO: Remove these if possible if they are merged to the spec.
+def int_wasm_widen_signed :
+  Intrinsic<[llvm_v4i32_ty], [llvm_v16i8_ty, llvm_i32_ty],
+            [IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<1>>]>;
+def int_wasm_widen_unsigned :
+  Intrinsic<[llvm_v4i32_ty], [llvm_v16i8_ty, llvm_i32_ty],
+            [IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<1>>]>;
 
 //===----------------------------------------------------------------------===//
 // Thread-local storage intrinsics

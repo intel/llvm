@@ -17,21 +17,15 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_GCNREGPRESSURE_H
 #define LLVM_LIB_TARGET_AMDGPU_GCNREGPRESSURE_H
 
-#include "AMDGPUSubtarget.h"
-#include "llvm/ADT/DenseMap.h"
+#include "GCNSubtarget.h"
 #include "llvm/CodeGen/LiveIntervals.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/SlotIndexes.h"
-#include "llvm/MC/LaneBitmask.h"
-#include "llvm/Support/Debug.h"
 #include <algorithm>
-#include <limits>
 
 namespace llvm {
 
 class MachineRegisterInfo;
 class raw_ostream;
+class SlotIndex;
 
 struct GCNRegPressure {
   enum RegKind {
@@ -166,7 +160,7 @@ class GCNDownwardRPTracker : public GCNRPTracker {
 public:
   GCNDownwardRPTracker(const LiveIntervals &LIS_) : GCNRPTracker(LIS_) {}
 
-  const MachineBasicBlock::const_iterator getNext() const { return NextMI; }
+  MachineBasicBlock::const_iterator getNext() const { return NextMI; }
 
   // Reset tracker to the point before the MI
   // filling live regs upon this point using LIS.

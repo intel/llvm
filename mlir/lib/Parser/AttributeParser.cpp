@@ -148,7 +148,7 @@ Attribute Parser::parseAttribute(Type type) {
       return Attribute();
 
     return type ? StringAttr::get(val, type)
-                : StringAttr::get(val, getContext());
+                : StringAttr::get(getContext(), val);
   }
 
   // Parse a symbol reference attribute.
@@ -176,7 +176,7 @@ Attribute Parser::parseAttribute(Type type) {
 
       std::string nameStr = getToken().getSymbolReference();
       consumeToken(Token::at_identifier);
-      nestedRefs.push_back(SymbolRefAttr::get(nameStr, getContext()));
+      nestedRefs.push_back(SymbolRefAttr::get(getContext(), nameStr));
     }
 
     return builder.getSymbolRefAttr(nameStr, nestedRefs);
@@ -334,6 +334,11 @@ static Optional<APInt> buildAttributeAPInt(Type type, bool isNegative,
   // Extend or truncate the bitwidth to the right size.
   unsigned width = type.isIndex() ? IndexType::kInternalStorageBitWidth
                                   : type.getIntOrFloatBitWidth();
+
+  // APInt cannot hold a zero bit value.
+  if (width == 0)
+    return llvm::None;
+
   if (width > result.getBitWidth()) {
     result = result.zext(width);
   } else if (width < result.getBitWidth()) {

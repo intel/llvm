@@ -15,14 +15,19 @@
 #include "mlir/Dialect/SPIRV/IR/ParserUtils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOpTraits.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
 #include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/FunctionImplementation.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/CallInterfaces.h"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/bit.h"
 
@@ -896,6 +901,16 @@ static void buildLogicalBinaryOp(OpBuilder &builder, OperationState &state,
   state.addOperands({lhs, rhs});
 }
 
+static void buildLogicalUnaryOp(OpBuilder &builder, OperationState &state,
+                                Value value) {
+  Type boolType = builder.getI1Type();
+  if (auto vecType = value.getType().dyn_cast<VectorType>())
+    boolType = VectorType::get(vecType.getShape(), boolType);
+  state.addTypes(boolType);
+
+  state.addOperands(value);
+}
+
 //===----------------------------------------------------------------------===//
 // spv.AccessChainOp
 //===----------------------------------------------------------------------===//
@@ -1579,6 +1594,25 @@ spirv::ConstantOp spirv::ConstantOp::getZero(Type type, Location loc,
     return builder.create<spirv::ConstantOp>(
         loc, type, builder.getIntegerAttr(type, APInt(width, 0)));
   }
+  if (auto floatType = type.dyn_cast<FloatType>()) {
+    return builder.create<spirv::ConstantOp>(
+        loc, type, builder.getFloatAttr(floatType, 0.0));
+  }
+  if (auto vectorType = type.dyn_cast<VectorType>()) {
+    Type elemType = vectorType.getElementType();
+    if (elemType.isa<IntegerType>()) {
+      return builder.create<spirv::ConstantOp>(
+          loc, type,
+          DenseElementsAttr::get(vectorType,
+                                 IntegerAttr::get(elemType, 0.0).getValue()));
+    }
+    if (elemType.isa<FloatType>()) {
+      return builder.create<spirv::ConstantOp>(
+          loc, type,
+          DenseFPElementsAttr::get(vectorType,
+                                   FloatAttr::get(elemType, 0.0).getValue()));
+    }
+  }
 
   llvm_unreachable("unimplemented types for ConstantOp::getZero()");
 }
@@ -1592,6 +1626,25 @@ spirv::ConstantOp spirv::ConstantOp::getOne(Type type, Location loc,
                                                builder.getBoolAttr(true));
     return builder.create<spirv::ConstantOp>(
         loc, type, builder.getIntegerAttr(type, APInt(width, 1)));
+  }
+  if (auto floatType = type.dyn_cast<FloatType>()) {
+    return builder.create<spirv::ConstantOp>(
+        loc, type, builder.getFloatAttr(floatType, 1.0));
+  }
+  if (auto vectorType = type.dyn_cast<VectorType>()) {
+    Type elemType = vectorType.getElementType();
+    if (elemType.isa<IntegerType>()) {
+      return builder.create<spirv::ConstantOp>(
+          loc, type,
+          DenseElementsAttr::get(vectorType,
+                                 IntegerAttr::get(elemType, 1.0).getValue()));
+    }
+    if (elemType.isa<FloatType>()) {
+      return builder.create<spirv::ConstantOp>(
+          loc, type,
+          DenseFPElementsAttr::get(vectorType,
+                                   FloatAttr::get(elemType, 1.0).getValue()));
+    }
   }
 
   llvm_unreachable("unimplemented types for ConstantOp::getOne()");
@@ -2985,6 +3038,36 @@ static LogicalResult verify(spirv::VariableOp varOp) {
 }
 
 //===----------------------------------------------------------------------===//
+// spv.VectorShuffle
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(spirv::VectorShuffleOp shuffleOp) {
+  VectorType resultType = shuffleOp.getType().cast<VectorType>();
+
+  size_t numResultElements = resultType.getNumElements();
+  if (numResultElements != shuffleOp.components().size())
+    return shuffleOp.emitOpError("result type element count (")
+           << numResultElements
+           << ") mismatch with the number of component selectors ("
+           << shuffleOp.components().size() << ")";
+
+  size_t totalSrcElements =
+      shuffleOp.vector1().getType().cast<VectorType>().getNumElements() +
+      shuffleOp.vector2().getType().cast<VectorType>().getNumElements();
+
+  for (const auto &selector :
+       shuffleOp.components().getAsValueRange<IntegerAttr>()) {
+    uint32_t index = selector.getZExtValue();
+    if (index >= totalSrcElements &&
+        index != std::numeric_limits<uint32_t>().max())
+      return shuffleOp.emitOpError("component selector ")
+             << index << " out of range: expected to be in [0, "
+             << totalSrcElements << ") or 0xffffffff";
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // spv.CooperativeMatrixLoadNV
 //===----------------------------------------------------------------------===//
 
@@ -3439,27 +3522,12 @@ static LogicalResult verify(spirv::SpecConstantOperationOp constOp) {
 
   Operation &enclosedOp = block.getOperations().front();
 
-  // TODO Add a `UsableInSpecConstantOp` trait and mark ops from the list below
-  // with it instead.
-  if (!isa<spirv::SConvertOp, spirv::UConvertOp, spirv::FConvertOp,
-           spirv::SNegateOp, spirv::NotOp, spirv::IAddOp, spirv::ISubOp,
-           spirv::IMulOp, spirv::UDivOp, spirv::SDivOp, spirv::UModOp,
-           spirv::SRemOp, spirv::SModOp, spirv::ShiftRightLogicalOp,
-           spirv::ShiftRightArithmeticOp, spirv::ShiftLeftLogicalOp,
-           spirv::BitwiseOrOp, spirv::BitwiseXorOp, spirv::BitwiseAndOp,
-           spirv::CompositeExtractOp, spirv::CompositeInsertOp,
-           spirv::LogicalOrOp, spirv::LogicalAndOp, spirv::LogicalNotOp,
-           spirv::LogicalEqualOp, spirv::LogicalNotEqualOp, spirv::SelectOp,
-           spirv::IEqualOp, spirv::INotEqualOp, spirv::ULessThanOp,
-           spirv::SLessThanOp, spirv::UGreaterThanOp, spirv::SGreaterThanOp,
-           spirv::ULessThanEqualOp, spirv::SLessThanEqualOp,
-           spirv::UGreaterThanEqualOp, spirv::SGreaterThanEqualOp>(enclosedOp))
+  if (!enclosedOp.hasTrait<OpTrait::spirv::UsableInSpecConstantOp>())
     return constOp.emitOpError("invalid enclosed op");
 
   for (auto operand : enclosedOp.getOperands())
-    if (!isa<spirv::ConstantOp, spirv::SpecConstantOp,
-             spirv::SpecConstantCompositeOp, spirv::SpecConstantOperationOp>(
-            operand.getDefiningOp()))
+    if (!isa<spirv::ConstantOp, spirv::ReferenceOfOp,
+             spirv::SpecConstantOperationOp>(operand.getDefiningOp()))
       return constOp.emitOpError(
           "invalid operand, must be defined by a constant operation");
 

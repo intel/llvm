@@ -230,9 +230,9 @@ private:
       return false;
 
     if (NRegs < MRegs)
-      return D.count(IKey(NRegs, MRegs)) > 0;
+      return D.contains(IKey(NRegs, MRegs));
 
-    return D.count(IKey(MRegs, NRegs)) > 0;
+    return D.contains(IKey(MRegs, NRegs));
   }
 
   void setDisjointAllowedRegs(const PBQPRAGraph &G, PBQPRAGraph::NodeId NId,
@@ -652,7 +652,7 @@ void RegAllocPBQP::initializeGraph(PBQPRAGraph &G, VirtRegMap &VRM,
     if (VRegAllowed.empty()) {
       SmallVector<Register, 8> NewVRegs;
       spillVReg(VReg, NewVRegs, MF, LIS, VRM, VRegSpiller);
-      Worklist.insert(Worklist.end(), NewVRegs.begin(), NewVRegs.end());
+      llvm::append_range(Worklist, NewVRegs);
       continue;
     }
 

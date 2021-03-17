@@ -20,6 +20,7 @@
 #include "ARMISelLowering.h"
 #include "ARMSelectionDAGInfo.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
@@ -63,6 +64,7 @@ protected:
     CortexA76,
     CortexA77,
     CortexA78,
+    CortexA78C,
     CortexA8,
     CortexA9,
     CortexM3,
@@ -116,6 +118,7 @@ protected:
     ARMv84a,
     ARMv85a,
     ARMv86a,
+    ARMv87a,
     ARMv8a,
     ARMv8mBaseline,
     ARMv8mMainline,
@@ -909,7 +912,12 @@ public:
 
   unsigned getPrefLoopLogAlignment() const { return PrefLoopLogAlignment; }
 
-  unsigned getMVEVectorCostFactor() const { return MVEVectorCostFactor; }
+  unsigned
+  getMVEVectorCostFactor(TargetTransformInfo::TargetCostKind CostKind) const {
+    if (CostKind == TargetTransformInfo::TCK_CodeSize)
+      return 1;
+    return MVEVectorCostFactor;
+  }
 
   bool ignoreCSRForAllocationOrder(const MachineFunction &MF,
                                    unsigned PhysReg) const override;

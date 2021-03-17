@@ -378,6 +378,19 @@ class DwarfDebug : public DebugHandlerBase {
   /// Avoid using DW_OP_convert due to consumer incompatibilities.
   bool EnableOpConvert;
 
+public:
+  enum class MinimizeAddrInV5 {
+    Default,
+    Disabled,
+    Ranges,
+    Expressions,
+    Form,
+  };
+
+private:
+  /// Force the use of DW_AT_ranges even for single-entry range lists.
+  MinimizeAddrInV5 MinimizeAddr = MinimizeAddrInV5::Disabled;
+
   /// DWARF5 Experimental Options
   /// @{
   AccelTableKind TheAccelTableKind;
@@ -688,6 +701,24 @@ public:
 
   /// Returns whether ranges section should be emitted.
   bool useRangesSection() const { return UseRangesSection; }
+
+  /// Returns whether range encodings should be used for single entry range
+  /// lists.
+  bool alwaysUseRanges() const {
+    return MinimizeAddr == MinimizeAddrInV5::Ranges;
+  }
+
+  // Returns whether novel exprloc addrx+offset encodings should be used to
+  // reduce debug_addr size.
+  bool useAddrOffsetExpressions() const {
+    return MinimizeAddr == MinimizeAddrInV5::Expressions;
+  }
+
+  // Returns whether addrx+offset LLVM extension form should be used to reduce
+  // debug_addr size.
+  bool useAddrOffsetForm() const {
+    return MinimizeAddr == MinimizeAddrInV5::Form;
+  }
 
   /// Returns whether to use sections as labels rather than temp symbols.
   bool useSectionsAsReferences() const {

@@ -1,4 +1,4 @@
-// RUN: mlir-opt -buffer-deallocation -split-input-file %s | FileCheck %s
+// RUN: mlir-opt -verify-diagnostics -buffer-deallocation -split-input-file %s | FileCheck %s
 
 // This file checks the behaviour of BufferDeallocation pass for moving and
 // inserting missing DeallocOps in their correct positions. Furthermore,
@@ -535,7 +535,7 @@ func @nested_regions_and_cond_branch(
   ^bb0(%gen1_arg0: f32, %gen1_arg1: f32):
     %1 = alloc() : memref<2xf32>
     test.buffer_based in(%arg1: memref<2xf32>) out(%1: memref<2xf32>)
-    %tmp1 = exp %gen1_arg0 : f32
+    %tmp1 = math.exp %gen1_arg0 : f32
     test.region_yield %tmp1 : f32
   }
   br ^bb3(%0 : memref<2xf32>)
@@ -553,7 +553,7 @@ func @nested_regions_and_cond_branch(
 //      CHECK:     %[[ALLOC2:.*]] = alloc()
 // CHECK-NEXT:     test.buffer_based in(%[[ARG1]]{{.*}}out(%[[ALLOC2]]
 //      CHECK:     dealloc %[[ALLOC2]]
-// CHECK-NEXT:     %{{.*}} = exp
+// CHECK-NEXT:     %{{.*}} = math.exp
 //      CHECK:   %[[ALLOC3:.*]] = alloc()
 // CHECK-NEXT:   linalg.copy(%[[ALLOC1]], %[[ALLOC3]])
 // CHECK-NEXT:   dealloc %[[ALLOC1]]
@@ -598,7 +598,7 @@ func @memref_in_function_results(
 func @nested_region_control_flow(
   %arg0 : index,
   %arg1 : index) -> memref<?x?xf32> {
-  %0 = cmpi "eq", %arg0, %arg1 : index
+  %0 = cmpi eq, %arg0, %arg1 : index
   %1 = alloc(%arg0, %arg0) : memref<?x?xf32>
   %2 = scf.if %0 -> (memref<?x?xf32>) {
     scf.yield %1 : memref<?x?xf32>
@@ -628,7 +628,7 @@ func @nested_region_control_flow(
 func @nested_region_control_flow_div(
   %arg0 : index,
   %arg1 : index) -> memref<?x?xf32> {
-  %0 = cmpi "eq", %arg0, %arg1 : index
+  %0 = cmpi eq, %arg0, %arg1 : index
   %1 = alloc(%arg0, %arg0) : memref<?x?xf32>
   %2 = scf.if %0 -> (memref<?x?xf32>) {
     scf.yield %1 : memref<?x?xf32>
@@ -812,7 +812,7 @@ func @nestedRegionsAndCondBranchAlloca(
   ^bb0(%gen1_arg0: f32, %gen1_arg1: f32):
     %1 = alloca() : memref<2xf32>
     test.buffer_based in(%arg1: memref<2xf32>) out(%1: memref<2xf32>)
-    %tmp1 = exp %gen1_arg0 : f32
+    %tmp1 = math.exp %gen1_arg0 : f32
     test.region_yield %tmp1 : f32
   }
   br ^bb3(%0 : memref<2xf32>)
@@ -830,7 +830,7 @@ func @nestedRegionsAndCondBranchAlloca(
 // CHECK-NEXT:   test.region_buffer_based in(%[[ARG1]]{{.*}}out(%[[ALLOC1]]
 //      CHECK:     %[[ALLOCA:.*]] = alloca()
 // CHECK-NEXT:     test.buffer_based in(%[[ARG1]]{{.*}}out(%[[ALLOCA]]
-//      CHECK:     %{{.*}} = exp
+//      CHECK:     %{{.*}} = math.exp
 //      CHECK:  %[[ALLOC2:.*]] = alloc()
 // CHECK-NEXT:  linalg.copy
 // CHECK-NEXT:  dealloc %[[ALLOC1]]
@@ -844,7 +844,7 @@ func @nestedRegionsAndCondBranchAlloca(
 func @nestedRegionControlFlowAlloca(
   %arg0 : index,
   %arg1 : index) -> memref<?x?xf32> {
-  %0 = cmpi "eq", %arg0, %arg1 : index
+  %0 = cmpi eq, %arg0, %arg1 : index
   %1 = alloc(%arg0, %arg0) : memref<?x?xf32>
   %2 = scf.if %0 -> (memref<?x?xf32>) {
     scf.yield %1 : memref<?x?xf32>
@@ -878,7 +878,7 @@ func @loop_alloc(
   %0 = alloc() : memref<2xf32>
   %1 = scf.for %i = %lb to %ub step %step
     iter_args(%iterBuf = %buf) -> memref<2xf32> {
-    %2 = cmpi "eq", %i, %ub : index
+    %2 = cmpi eq, %i, %ub : index
     %3 = alloc() : memref<2xf32>
     scf.yield %3 : memref<2xf32>
   }
@@ -907,7 +907,7 @@ func @loop_alloc(
 
 // Test Case: structured control-flow loop with a nested if operation.
 // The loop yields buffers that have been defined outside of the loop and the
-// backeges only use the iteration arguments (or one of its aliases).
+// backedges only use the iteration arguments (or one of its aliases).
 // Therefore, we do not have to (and are not allowed to) free any buffers
 // that are passed via the backedges.
 
@@ -921,7 +921,7 @@ func @loop_nested_if_no_alloc(
   %0 = alloc() : memref<2xf32>
   %1 = scf.for %i = %lb to %ub step %step
     iter_args(%iterBuf = %buf) -> memref<2xf32> {
-    %2 = cmpi "eq", %i, %ub : index
+    %2 = cmpi eq, %i, %ub : index
     %3 = scf.if %2 -> (memref<2xf32>) {
       scf.yield %0 : memref<2xf32>
     } else {
@@ -961,7 +961,7 @@ func @loop_nested_if_alloc(
   %0 = alloc() : memref<2xf32>
   %1 = scf.for %i = %lb to %ub step %step
     iter_args(%iterBuf = %buf) -> memref<2xf32> {
-    %2 = cmpi "eq", %i, %ub : index
+    %2 = cmpi eq, %i, %ub : index
     %3 = scf.if %2 -> (memref<2xf32>) {
       %4 = alloc() : memref<2xf32>
       scf.yield %4 : memref<2xf32>
@@ -1021,7 +1021,7 @@ func @loop_nested_alloc(
       %3 = scf.for %i3 = %lb to %ub step %step
         iter_args(%iterBuf3 = %iterBuf2) -> memref<2xf32> {
         %4 = alloc() : memref<2xf32>
-        %5 = cmpi "eq", %i, %ub : index
+        %5 = cmpi eq, %i, %ub : index
         %6 = scf.if %5 -> (memref<2xf32>) {
           %7 = alloc() : memref<2xf32>
           scf.yield %7 : memref<2xf32>
@@ -1094,7 +1094,7 @@ func @loop_nested_alloc(
 // The BufferDeallocation transformation should fail on this explicit
 // control-flow loop since they are not supported.
 
-// CHECK-LABEL: func @loop_dynalloc
+// expected-error@+1 {{Structured control-flow loops are supported only}}
 func @loop_dynalloc(
   %arg0 : i32,
   %arg1 : i32,
@@ -1104,7 +1104,7 @@ func @loop_dynalloc(
   br ^loopHeader(%const0, %arg2 : i32, memref<?xf32>)
 
 ^loopHeader(%i : i32, %buff : memref<?xf32>):
-  %lessThan = cmpi "slt", %i, %arg1 : i32
+  %lessThan = cmpi slt, %i, %arg1 : i32
   cond_br %lessThan,
     ^loopBody(%i, %buff : i32, memref<?xf32>),
     ^exit(%buff : memref<?xf32>)
@@ -1121,15 +1121,13 @@ func @loop_dynalloc(
   return
 }
 
-// expected-error@+1 {{Structured control-flow loops are supported only}}
-
 // -----
 
 // Test Case: explicit control-flow loop with a dynamically allocated buffer.
 // The BufferDeallocation transformation should fail on this explicit
 // control-flow loop since they are not supported.
 
-// CHECK-LABEL: func @do_loop_alloc
+// expected-error@+1 {{Structured control-flow loops are supported only}}
 func @do_loop_alloc(
   %arg0 : i32,
   %arg1 : i32,
@@ -1145,7 +1143,7 @@ func @do_loop_alloc(
   br ^loopHeader(%inc, %alloc1 : i32, memref<2xf32>)
 
 ^loopHeader(%i : i32, %buff : memref<2xf32>):
-  %lessThan = cmpi "slt", %i, %arg1 : i32
+  %lessThan = cmpi slt, %i, %arg1 : i32
   cond_br %lessThan,
     ^loopBody(%i, %buff : i32, memref<2xf32>),
     ^exit(%buff : memref<2xf32>)
@@ -1154,8 +1152,6 @@ func @do_loop_alloc(
   test.copy(%buff3, %arg3) : (memref<2xf32>, memref<2xf32>)
   return
 }
-
-// expected-error@+1 {{Structured control-flow loops are supported only}}
 
 // -----
 
@@ -1193,3 +1189,20 @@ func @assumingOp(
 // CHECK-NEXT:    shape.assuming_yield %[[RETURNING_ALLOC]]
 //      CHECK: test.copy(%[[ASSUMING_RESULT:.*]], %[[ARG2]])
 // CHECK-NEXT: dealloc %[[ASSUMING_RESULT]]
+
+// -----
+
+// Test Case: The op "test.bar" does not implement the RegionBranchOpInterface.
+// This is not allowed in buffer deallocation.
+
+func @noRegionBranchOpInterface() {
+// expected-error@+1 {{All operations with attached regions need to implement the RegionBranchOpInterface.}}
+  %0 = "test.bar"() ( {
+// expected-error@+1 {{All operations with attached regions need to implement the RegionBranchOpInterface.}}
+    %1 = "test.bar"() ( {
+      "test.yield"() : () -> ()
+    }) : () -> (i32)
+    "test.yield"() : () -> ()
+  }) : () -> (i32)
+  "test.terminator"() : () -> ()
+}

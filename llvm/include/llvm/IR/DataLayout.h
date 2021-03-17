@@ -260,10 +260,7 @@ public:
   ///
   /// The width is specified in bits.
   bool isLegalInteger(uint64_t Width) const {
-    for (unsigned LegalIntWidth : LegalIntWidths)
-      if (LegalIntWidth == Width)
-        return true;
-    return false;
+    return llvm::is_contained(LegalIntWidths, Width);
   }
 
   bool isIllegalInteger(uint64_t Width) const { return !isLegalInteger(Width); }
@@ -690,6 +687,8 @@ inline TypeSize DataLayout::getTypeSizeInBits(Type *Ty) const {
   case Type::PPC_FP128TyID:
   case Type::FP128TyID:
     return TypeSize::Fixed(128);
+  case Type::X86_AMXTyID:
+    return TypeSize::Fixed(8192);
   // In memory objects this is always aligned to a higher boundary, but
   // only 80 bits contain information.
   case Type::X86_FP80TyID:

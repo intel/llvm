@@ -83,7 +83,7 @@ void AliasSet::mergeSetIn(AliasSet &AS, AliasSetTracker &AST) {
       addRef();
     }
   } else if (ASHadUnknownInsts) {
-    UnknownInsts.insert(UnknownInsts.end(), AS.UnknownInsts.begin(), AS.UnknownInsts.end());
+    llvm::append_range(UnknownInsts, AS.UnknownInsts);
     AS.UnknownInsts.clear();
   }
 
@@ -438,6 +438,7 @@ void AliasSetTracker::addUnknown(Instruction *Inst) {
       break;
       // FIXME: Add lifetime/invariant intrinsics (See: PR30807).
     case Intrinsic::assume:
+    case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::sideeffect:
     case Intrinsic::pseudoprobe:
       return;
@@ -607,8 +608,8 @@ AliasSet &AliasSetTracker::mergeAllAliasSets() {
   // without worrying about iterator invalidation.
   std::vector<AliasSet *> ASVector;
   ASVector.reserve(SaturationThreshold);
-  for (iterator I = begin(), E = end(); I != E; I++)
-    ASVector.push_back(&*I);
+  for (AliasSet &AS : *this)
+    ASVector.push_back(&AS);
 
   // Copy all instructions and pointers into a new set, and forward all other
   // sets to it.
@@ -754,8 +755,8 @@ namespace {
       auto &AAWP = getAnalysis<AAResultsWrapperPass>();
       AliasSetTracker Tracker(AAWP.getAAResults());
       errs() << "Alias sets for function '" << F.getName() << "':\n";
-      for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I)
-        Tracker.add(&*I);
+      for (Instruction &I : instructions(F))
+        Tracker.add(&I);
       Tracker.print(errs());
       return false;
     }
@@ -778,8 +779,8 @@ PreservedAnalyses AliasSetsPrinterPass::run(Function &F,
   auto &AA = AM.getResult<AAManager>(F);
   AliasSetTracker Tracker(AA);
   OS << "Alias sets for function '" << F.getName() << "':\n";
-  for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I)
-    Tracker.add(&*I);
+  for (Instruction &I : instructions(F))
+    Tracker.add(&I);
   Tracker.print(OS);
   return PreservedAnalyses::all();
 }

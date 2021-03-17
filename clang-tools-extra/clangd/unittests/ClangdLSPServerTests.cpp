@@ -194,6 +194,56 @@ TEST_F(LSPTest, IncomingCalls) {
   EXPECT_EQ(From["name"], "caller1");
 }
 
+TEST_F(LSPTest, CDBConfigIntegration) {
+  auto CfgProvider =
+      config::Provider::fromAncestorRelativeYAMLFiles(".clangd", FS);
+  Opts.ConfigProvider = CfgProvider.get();
+
+  // Map bar.cpp to a different compilation database which defines FOO->BAR.
+  FS.Files[".clangd"] = R"yaml(
+If:
+  PathMatch: bar.cpp
+CompileFlags:
+  CompilationDatabase: bar
+)yaml";
+  FS.Files["bar/compile_flags.txt"] = "-DFOO=BAR";
+
+  auto &Client = start();
+  // foo.cpp gets parsed as normal.
+  Client.didOpen("foo.cpp", "int x = FOO;");
+  EXPECT_THAT(Client.diagnostics("foo.cpp"),
+              llvm::ValueIs(testing::ElementsAre(
+                  DiagMessage("Use of undeclared identifier 'FOO'"))));
+  // bar.cpp shows the configured compile command.
+  Client.didOpen("bar.cpp", "int x = FOO;");
+  EXPECT_THAT(Client.diagnostics("bar.cpp"),
+              llvm::ValueIs(testing::ElementsAre(
+                  DiagMessage("Use of undeclared identifier 'BAR'"))));
+}
+
+TEST_F(LSPTest, ModulesTest) {
+  class MathModule : public Module {
+    void initializeLSP(LSPBinder &Bind, const ClientCapabilities &ClientCaps,
+                       llvm::json::Object &ServerCaps) override {
+      Bind.notification("add", this, &MathModule::add);
+      Bind.method("get", this, &MathModule::get);
+    }
+
+    void add(const int &X) { Value += X; }
+    void get(const std::nullptr_t &, Callback<int> Reply) { Reply(Value); }
+    int Value = 0;
+  };
+  std::vector<std::unique_ptr<Module>> Mods;
+  Mods.push_back(std::make_unique<MathModule>());
+  ModuleSet ModSet(std::move(Mods));
+  Opts.Modules = &ModSet;
+
+  auto &Client = start();
+  Client.notify("add", 2);
+  Client.notify("add", 8);
+  EXPECT_EQ(10, Client.call("get", nullptr).takeValue());
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

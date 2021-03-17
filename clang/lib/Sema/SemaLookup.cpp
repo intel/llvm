@@ -754,19 +754,6 @@ static void GetProgModelBuiltinFctOverloads(
   }
 }
 
-/// Add extensions to the function declaration.
-/// \param S (in/out) The Sema instance.
-/// \param BIDecl (in) Description of the builtin.
-/// \param FDecl (in/out) FunctionDecl instance.
-static void AddOpenCLExtensions(Sema &S,
-                                const OpenCLBuiltin::BuiltinStruct &BIDecl,
-                                FunctionDecl *FDecl) {
-  // Fetch extension associated with a function prototype.
-  StringRef E = OpenCLBuiltin::FunctionExtensionTable[BIDecl.Extension];
-  if (E != "")
-    S.setOpenCLExtensionForDecl(FDecl, E);
-}
-
 /// When trying to resolve a function name, if ProgModel::isBuiltin() returns a
 /// non-null <Index, Len> pair, then the name is referencing a
 /// builtin function.  Add all candidate signatures to the LookUpResult.
@@ -803,6 +790,13 @@ static void InsertBuiltinDeclarationsFromTable(
           (BuiltinSetVersion >= Builtin.MaxVersion))
         continue;
     }
+
+    // Ignore this builtin function if it carries an extension macro that is
+    // not defined. This indicates that the extension is not supported by the
+    // target, so the builtin function should not be available.
+    StringRef Ext = ProgModel::FunctionExtensionTable[Builtin.Extension];
+    if (!Ext.empty() && !S.getPreprocessor().isMacroDefined(Ext))
+      continue;
 
     SmallVector<QualType, 1> RetTypes;
     SmallVector<SmallVector<QualType, 1>, 5> ArgTypes;
@@ -853,6 +847,8 @@ static void InsertBuiltinDeclarationsFromTable(
         NewBuiltin->addAttr(ConstAttr::CreateImplicit(Context));
       if (Builtin.IsConv)
         NewBuiltin->addAttr(ConvergentAttr::CreateImplicit(Context));
+      if (!S.getLangOpts().OpenCLCPlusPlus)
+        NewBuiltin->addAttr(OverloadableAttr::CreateImplicit(Context));
 
       ProgModelFinalizer(Builtin, *NewBuiltin);
       LR.addDecl(NewBuiltin);
@@ -900,7 +896,6 @@ bool Sema::LookupBuiltin(LookupResult &R) {
                 if (!this->getLangOpts().OpenCLCPlusPlus)
                   NewOpenCLBuiltin.addAttr(
                       OverloadableAttr::CreateImplicit(Context));
-                AddOpenCLExtensions(*this, OpenCLBuiltin, &NewOpenCLBuiltin);
               });
           return true;
         }
@@ -3422,6 +3417,13 @@ Sema::LookupLiteralOperator(Scope *S, LookupResult &R,
       TemplateParameterList *Params = FD->getTemplateParameters();
       if (Params->size() == 1) {
         IsTemplate = true;
+        if (!Params->getParam(0)->isTemplateParameterPack() && !StringLit) {
+          // Implied but not stated: user-defined integer and floating literals
+          // only ever use numeric literal operator templates, not templates
+          // taking a parameter of class type.
+          F.erase();
+          continue;
+        }
 
         // A string literal template is only considered if the string literal
         // is a well-formed template argument for the template parameter.

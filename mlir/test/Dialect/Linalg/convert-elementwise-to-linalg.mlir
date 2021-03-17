@@ -44,9 +44,9 @@ func @exp(%arg0: tensor<f32>) -> tensor<f32> {
   // CHECK-SAME:  ins(%[[ARG0]]
   // CHECK-SAME: outs(%[[ARG0]]
   // CHECK: ^bb0(%[[SCALAR:.*]]: f32, %{{.*}}: f32):
-  // CHECK:   %[[YIELD:.*]] = exp %[[SCALAR]] : f32
+  // CHECK:   %[[YIELD:.*]] = math.exp %[[SCALAR]] : f32
   // CHECK:   linalg.yield %[[YIELD]] : f32
-  %0 = exp %arg0 : tensor<f32>
+  %0 = math.exp %arg0 : tensor<f32>
   return %0 : tensor<f32>
 }
 
@@ -80,8 +80,8 @@ func @cmpf(%arg0: tensor<f32>, %arg1: tensor<f32>) -> tensor<i1> {
   // CHECK-SAME:  ins(%[[ARG0]], %[[ARG1]]
   // CHECK-SAME: outs(%[[INIT]]
   // CHECK: ^bb0(%{{.*}}: f32, %{{.*}}: f32, %{{.*}}: i1):
-  // CHECK: cmpf "olt", %{{.*}}, %{{.*}} : f32
-  %0 = cmpf "olt", %arg0, %arg1 : tensor<f32>
+  // CHECK: cmpf olt, %{{.*}}, %{{.*}} : f32
+  %0 = cmpf olt, %arg0, %arg1 : tensor<f32>
   return %0 : tensor<i1>
 }
 
@@ -103,8 +103,8 @@ func @cmpf(%arg0: tensor<4x?x?x8x2x?xf32>, %arg1: tensor<4x?x?x8x2x?xf32>) -> te
   // CHECK-SAME:  ins(%[[ARG0]], %[[ARG1]]
   // CHECK-SAME: outs(%[[INIT]]
   // CHECK: ^bb0(%{{.*}}: f32, %{{.*}}: f32, %{{.*}}: i1):
-  // CHECK: cmpf "olt", %{{.*}}, %{{.*}} : f32
-  %0 = cmpf "olt", %arg0, %arg1 : tensor<4x?x?x8x2x?xf32>
+  // CHECK: cmpf olt, %{{.*}}, %{{.*}} : f32
+  %0 = cmpf olt, %arg0, %arg1 : tensor<4x?x?x8x2x?xf32>
   return %0 : tensor<4x?x?x8x2x?xi1>
 }
 

@@ -3160,8 +3160,8 @@ void MachineBlockPlacement::findDuplicateCandidates(
   MachineBasicBlock *Fallthrough = nullptr;
   BranchProbability DefaultBranchProb = BranchProbability::getZero();
   BlockFrequency BBDupThreshold(scaleThreshold(BB));
-  SmallVector<MachineBasicBlock *, 8> Preds(BB->pred_begin(), BB->pred_end());
-  SmallVector<MachineBasicBlock *, 8> Succs(BB->succ_begin(), BB->succ_end());
+  SmallVector<MachineBasicBlock *, 8> Preds(BB->predecessors());
+  SmallVector<MachineBasicBlock *, 8> Succs(BB->successors());
 
   // Sort for highest frequency.
   auto CmpSucc = [&](MachineBasicBlock *A, MachineBasicBlock *B) {
@@ -3336,6 +3336,13 @@ bool MachineBlockPlacement::runOnMachineFunction(MachineFunction &MF) {
         TailDupPlacementAggressiveThreshold.getNumOccurrences() != 0)
       TailDupSize = TailDupPlacementAggressiveThreshold;
   }
+
+  // If there's no threshold provided through options, query the target
+  // information for a threshold instead.
+  if (TailDupPlacementThreshold.getNumOccurrences() == 0 &&
+      (PassConfig->getOptLevel() < CodeGenOpt::Aggressive ||
+       TailDupPlacementAggressiveThreshold.getNumOccurrences() == 0))
+    TailDupSize = TII->getTailDuplicateSize(PassConfig->getOptLevel());
 
   if (allowTailDupPlacement()) {
     MPDT = &getAnalysis<MachinePostDominatorTree>();

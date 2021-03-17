@@ -900,6 +900,13 @@ def TestOpInPlaceFold : TEST_Op<"op_in_place_fold"> {
   let hasFolder = 1;
 }
 
+// An op that always fold itself.
+def TestPassthroughFold : TEST_Op<"passthrough_fold"> {
+  let arguments = (ins AnyType:$op);
+  let results = (outs AnyType);
+  let hasFolder = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // Test Patterns (Symbol Binding)
 
@@ -1274,6 +1281,8 @@ def TestInvalidOp : TEST_Op<"invalid", [Terminator]>,
   Arguments<(ins Variadic<AnyType>)>;
 def TestTypeProducerOp : TEST_Op<"type_producer">,
   Results<(outs AnyType)>;
+def TestAnotherTypeProducerOp : TEST_Op<"another_type_producer">,
+  Results<(outs AnyType)>;
 def TestTypeConsumerOp : TEST_Op<"type_consumer">,
   Arguments<(ins AnyType)>;
 def TestValidOp : TEST_Op<"valid", [Terminator]>,
@@ -1287,6 +1296,10 @@ def TestMergeBlocksOp : TEST_Op<"merge_blocks"> {
 
   let regions = (region AnyRegion:$body);
   let results = (outs Variadic<AnyType>:$result);
+}
+
+def TestSignatureConversionUndoOp : TEST_Op<"signature_conversion_undo"> {
+  let regions = (region AnyRegion);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1571,6 +1584,25 @@ def FormatOptionalOperandResultBOp : FormatOptionalOperandResultOpBase<"b", [{
   (`[` $variadic^ `]`)? attr-dict
 }]>;
 
+// Test optional result type formatting.
+class FormatOptionalResultOpBase<string suffix, string fmt>
+    : TEST_Op<"format_optional_result_" # suffix # "_op",
+              [AttrSizedResultSegments]> {
+  let results = (outs Optional<I64>:$optional, Variadic<I64>:$variadic);
+  let assemblyFormat = fmt;
+}
+def FormatOptionalResultAOp : FormatOptionalResultOpBase<"a", [{
+  (`:` type($optional)^ `->` type($variadic))? attr-dict
+}]>;
+
+def FormatOptionalResultBOp : FormatOptionalResultOpBase<"b", [{
+  (`:` type($optional) `->` type($variadic)^)? attr-dict
+}]>;
+
+def FormatOptionalResultCOp : FormatOptionalResultOpBase<"c", [{
+  (`:` functional-type($optional, $variadic)^)? attr-dict
+}]>;
+
 def FormatTwoVariadicOperandsNoBuildableTypeOp
     : TEST_Op<"format_two_variadic_operands_no_buildable_type_op",
               [AttrSizedOperandSegments]> {
@@ -1666,8 +1698,18 @@ def FormatCustomDirectiveResultsWithTypeRefs
       type($result), type($optResult), type($varResults)
     )
     custom<CustomDirectiveWithTypeRefs>(
-      type_ref($result), type_ref($optResult), type_ref($varResults)
+      ref(type($result)), ref(type($optResult)), ref(type($varResults))
     )
+    attr-dict
+  }];
+}
+
+def FormatCustomDirectiveWithOptionalOperandRef
+    : TEST_Op<"format_custom_directive_with_optional_operand_ref"> {
+  let arguments = (ins Optional<I64>:$optOperand);
+  let assemblyFormat = [{
+    ($optOperand^)? `:`
+    custom<CustomDirectiveOptionalOperandRef>(ref($optOperand))
     attr-dict
   }];
 }
@@ -1730,6 +1772,15 @@ def FormatTypesMatchVarOp : TEST_Op<"format_types_match_var", [
   ]> {
   let arguments = (ins AnyType:$value);
   let results = (outs AnyType:$result);
+  let assemblyFormat = "attr-dict $value `:` type($value)";
+}
+
+def FormatTypesMatchVariadicOp : TEST_Op<"format_types_match_variadic", [
+    RangedTypesMatchWith<"result type matches operand", "value", "result",
+                         "llvm::make_range($_self.begin(), $_self.end())">
+  ]> {
+  let arguments = (ins Variadic<AnyType>:$value);
+  let results = (outs Variadic<AnyType>:$result);
   let assemblyFormat = "attr-dict $value `:` type($value)";
 }
 

@@ -397,6 +397,7 @@ std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
     return "";
 
   case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le: {
     std::string TargetCPUName = ppc::getPPCTargetCPU(Args);
@@ -612,6 +613,11 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
       CmdArgs.push_back("-plugin-opt=new-pass-manager");
   }
 
+  // Pass an option to enable pseudo probe emission.
+  if (Args.hasFlag(options::OPT_fpseudo_probe_for_profiling,
+                   options::OPT_fno_pseudo_probe_for_profiling, false))
+    CmdArgs.push_back("-plugin-opt=pseudo-probe-for-profiling");
+
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
   if (!StatsFile.empty())
@@ -631,6 +637,9 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
 
   // Handle remarks hotness/threshold related options.
   renderRemarksHotnessOptions(Args, CmdArgs);
+
+  addMachineOutlinerArgs(D, Args, CmdArgs, ToolChain.getEffectiveTriple(),
+                         /*IsLTO=*/true);
 }
 
 void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
@@ -1592,4 +1601,97 @@ unsigned tools::getOrCheckAMDGPUCodeObjectVersion(
     }
   }
   return CodeObjVer;
+}
+
+void tools::addMachineOutlinerArgs(const Driver &D,
+                                   const llvm::opt::ArgList &Args,
+                                   llvm::opt::ArgStringList &CmdArgs,
+                                   const llvm::Triple &Triple, bool IsLTO) {
+  auto addArg = [&, IsLTO](const Twine &Arg) {
+    if (IsLTO) {
+      CmdArgs.push_back(Args.MakeArgString("-plugin-opt=" + Arg));
+    } else {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back(Args.MakeArgString(Arg));
+    }
+  };
+
+  if (Arg *A = Args.getLastArg(options::OPT_moutline,
+                               options::OPT_mno_outline)) {
+    if (A->getOption().matches(options::OPT_moutline)) {
+      // We only support -moutline in AArch64 and ARM targets right now. If
+      // we're not compiling for these, emit a warning and ignore the flag.
+      // Otherwise, add the proper mllvm flags.
+      if (!(Triple.isARM() || Triple.isThumb() ||
+            Triple.getArch() == llvm::Triple::aarch64 ||
+            Triple.getArch() == llvm::Triple::aarch64_32)) {
+        D.Diag(diag::warn_drv_moutline_unsupported_opt) << Triple.getArchName();
+      } else {
+        addArg(Twine("-enable-machine-outliner"));
+      }
+    } else {
+      // Disable all outlining behaviour.
+      addArg(Twine("-enable-machine-outliner=never"));
+    }
+  }
+}
+
+void tools::addOpenMPDeviceRTL(const Driver &D,
+                               const llvm::opt::ArgList &DriverArgs,
+                               llvm::opt::ArgStringList &CC1Args,
+                               StringRef BitcodeSuffix,
+                               const llvm::Triple &Triple) {
+  SmallVector<StringRef, 8> LibraryPaths;
+  // Add user defined library paths from LIBRARY_PATH.
+  llvm::Optional<std::string> LibPath =
+      llvm::sys::Process::GetEnv("LIBRARY_PATH");
+  if (LibPath) {
+    SmallVector<StringRef, 8> Frags;
+    const char EnvPathSeparatorStr[] = {llvm::sys::EnvPathSeparator, '\0'};
+    llvm::SplitString(*LibPath, Frags, EnvPathSeparatorStr);
+    for (StringRef Path : Frags)
+      LibraryPaths.emplace_back(Path.trim());
+  }
+
+  // Add path to lib / lib64 folder.
+  SmallString<256> DefaultLibPath = llvm::sys::path::parent_path(D.Dir);
+  llvm::sys::path::append(DefaultLibPath, Twine("lib") + CLANG_LIBDIR_SUFFIX);
+  LibraryPaths.emplace_back(DefaultLibPath.c_str());
+
+  OptSpecifier LibomptargetBCPathOpt =
+      Triple.isAMDGCN() ? options::OPT_libomptarget_amdgcn_bc_path_EQ
+                        : options::OPT_libomptarget_nvptx_bc_path_EQ;
+
+  StringRef ArchPrefix = Triple.isAMDGCN() ? "amdgcn" : "nvptx";
+  // First check whether user specifies bc library
+  if (const Arg *A = DriverArgs.getLastArg(LibomptargetBCPathOpt)) {
+    std::string LibOmpTargetName(A->getValue());
+    if (llvm::sys::fs::exists(LibOmpTargetName)) {
+      CC1Args.push_back("-mlink-builtin-bitcode");
+      CC1Args.push_back(DriverArgs.MakeArgString(LibOmpTargetName));
+    } else {
+      D.Diag(diag::err_drv_omp_offload_target_bcruntime_not_found)
+          << LibOmpTargetName;
+    }
+  } else {
+    bool FoundBCLibrary = false;
+
+    std::string LibOmpTargetName =
+        "libomptarget-" + BitcodeSuffix.str() + ".bc";
+
+    for (StringRef LibraryPath : LibraryPaths) {
+      SmallString<128> LibOmpTargetFile(LibraryPath);
+      llvm::sys::path::append(LibOmpTargetFile, LibOmpTargetName);
+      if (llvm::sys::fs::exists(LibOmpTargetFile)) {
+        CC1Args.push_back("-mlink-builtin-bitcode");
+        CC1Args.push_back(DriverArgs.MakeArgString(LibOmpTargetFile));
+        FoundBCLibrary = true;
+        break;
+      }
+    }
+
+    if (!FoundBCLibrary)
+      D.Diag(diag::err_drv_omp_offload_target_missingbcruntime)
+          << LibOmpTargetName << ArchPrefix;
+  }
 }

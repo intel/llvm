@@ -12,6 +12,7 @@
 
 #include "BPFTargetMachine.h"
 #include "BPF.h"
+#include "BPFTargetTransformInfo.h"
 #include "MCTargetDesc/BPFMCAsmInfo.h"
 #include "TargetInfo/BPFTargetInfo.h"
 #include "llvm/CodeGen/Passes.h"
@@ -57,9 +58,7 @@ static std::string computeDataLayout(const Triple &TT) {
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
-    return Reloc::PIC_;
-  return *RM;
+  return RM.getValueOr(Reloc::PIC_);
 }
 
 BPFTargetMachine::BPFTargetMachine(const Target &T, const Triple &TT,
@@ -145,6 +144,11 @@ void BPFTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
 void BPFPassConfig::addIRPasses() {
   addPass(createBPFCheckAndAdjustIR());
   TargetPassConfig::addIRPasses();
+}
+
+TargetTransformInfo
+BPFTargetMachine::getTargetTransformInfo(const Function &F) {
+  return TargetTransformInfo(BPFTTIImpl(this, F));
 }
 
 // Install an instruction selector pass using

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CommandObjectProcess.h"
+#include "CommandOptionsProcessLaunch.h"
 #include "lldb/Breakpoint/Breakpoint.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Breakpoint/BreakpointSite.h"
@@ -251,7 +252,7 @@ protected:
     return result.Succeeded();
   }
 
-  ProcessLaunchCommandOptions m_options;
+  CommandOptionsProcessLaunch m_options;
 };
 
 #define LLDB_OPTIONS_process_attach
@@ -380,7 +381,6 @@ protected:
       return false;
     }
 
-    m_interpreter.UpdateExecutionContext(nullptr);
     StreamString stream;
     const auto error = target->Attach(m_options.attach_info, &stream);
     if (error.Success()) {

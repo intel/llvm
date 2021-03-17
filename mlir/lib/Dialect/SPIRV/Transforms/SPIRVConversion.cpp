@@ -13,6 +13,7 @@
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Debug.h"
@@ -268,12 +269,13 @@ convertScalarType(const spirv::TargetEnv &targetEnv, spirv::ScalarType type,
 static Optional<Type>
 convertVectorType(const spirv::TargetEnv &targetEnv, VectorType type,
                   Optional<spirv::StorageClass> storageClass = {}) {
+  if (type.getRank() == 1 && type.getNumElements() == 1)
+    return type.getElementType();
+
   if (!spirv::CompositeType::isValid(type)) {
-    // TODO: One-element vector types can be translated into scalar
-    // types. Vector types with more than four elements can be translated into
+    // TODO: Vector types with more than four elements can be translated into
     // array types.
-    LLVM_DEBUG(llvm::dbgs()
-               << type << " illegal: 1- and > 4-element unimplemented\n");
+    LLVM_DEBUG(llvm::dbgs() << type << " illegal: > 4-element unimplemented\n");
     return llvm::None;
   }
 
@@ -459,9 +461,9 @@ SPIRVTypeConverter::SPIRVTypeConverter(spirv::TargetEnvAttr targetAttr)
 namespace {
 /// A pattern for rewriting function signature to convert arguments of functions
 /// to be of valid SPIR-V types.
-class FuncOpConversion final : public SPIRVOpLowering<FuncOp> {
+class FuncOpConversion final : public OpConversionPattern<FuncOp> {
 public:
-  using SPIRVOpLowering<FuncOp>::SPIRVOpLowering;
+  using OpConversionPattern<FuncOp>::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
@@ -478,7 +480,7 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
 
   TypeConverter::SignatureConversion signatureConverter(fnType.getNumInputs());
   for (auto argType : enumerate(fnType.getInputs())) {
-    auto convertedType = typeConverter.convertType(argType.value());
+    auto convertedType = getTypeConverter()->convertType(argType.value());
     if (!convertedType)
       return failure();
     signatureConverter.addInputs(argType.index(), convertedType);
@@ -486,7 +488,7 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
 
   Type resultType;
   if (fnType.getNumResults() == 1)
-    resultType = typeConverter.convertType(fnType.getResult(0));
+    resultType = getTypeConverter()->convertType(fnType.getResult(0));
 
   // Create the converted spv.func op.
   auto newFuncOp = rewriter.create<spirv::FuncOp>(
@@ -504,8 +506,8 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
 
   rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
                               newFuncOp.end());
-  if (failed(rewriter.convertRegionTypes(&newFuncOp.getBody(), typeConverter,
-                                         &signatureConverter)))
+  if (failed(rewriter.convertRegionTypes(
+          &newFuncOp.getBody(), *getTypeConverter(), &signatureConverter)))
     return failure();
   rewriter.eraseOp(funcOp);
   return success();
@@ -514,7 +516,7 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
 void mlir::populateBuiltinFuncToSPIRVPatterns(
     MLIRContext *context, SPIRVTypeConverter &typeConverter,
     OwningRewritePatternList &patterns) {
-  patterns.insert<FuncOpConversion>(context, typeConverter);
+  patterns.insert<FuncOpConversion>(typeConverter, context);
 }
 
 //===----------------------------------------------------------------------===//

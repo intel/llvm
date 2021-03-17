@@ -55,5 +55,5 @@ endif()
 add_common_options(pi_opencl)
 
 install(TARGETS pi_opencl
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_opencl
-    RUNTIME DESTINATION "bin" COMPONENT pi_opencl)
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_opencl
+  RUNTIME DESTINATION "bin" COMPONENT pi_opencl)

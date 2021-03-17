@@ -247,7 +247,7 @@ mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
   // prevent performing canonicalizations on operations defined at or above
   // the region containing 'op'.
   auto regionIsIsolated = [](Region &region) {
-    return region.getParentOp()->isKnownIsolatedFromAbove();
+    return region.getParentOp()->hasTrait<OpTrait::IsIsolatedFromAbove>();
   };
   (void)regionIsIsolated;
   assert(llvm::all_of(regions, regionIsIsolated) &&
@@ -258,7 +258,7 @@ mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
   bool converged = driver.simplify(regions, maxIterations);
   LLVM_DEBUG(if (!converged) {
     llvm::dbgs() << "The pattern rewrite doesn't converge after scanning "
-                 << maxIterations << " times";
+                 << maxIterations << " times\n";
   });
   return success(converged);
 }

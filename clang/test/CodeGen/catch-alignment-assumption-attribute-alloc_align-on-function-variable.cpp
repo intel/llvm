@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefixes=CHECK,CHECK-NOSANITIZE
+// RUN: %clang_cc1 -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s
 // RUN: %clang_cc1 -fsanitize=alignment -fno-sanitize-recover=alignment -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_alignment_assumption" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-NORECOVER,CHECK-SANITIZE-UNREACHABLE
 // RUN: %clang_cc1 -fsanitize=alignment -fsanitize-recover=alignment -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_alignment_assumption" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-RECOVER
 // RUN: %clang_cc1 -fsanitize=alignment -fsanitize-trap=alignment -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_alignment_assumption" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-TRAP,CHECK-SANITIZE-UNREACHABLE
@@ -8,7 +8,7 @@
 
 char **__attribute__((alloc_align(2)))
 passthrough(char **x, unsigned long alignment) {
-  // CHECK:      define i8** @[[PASSTHROUGH:.*]](i8** %[[X:.*]], i64 %[[ALIGNMENT:.*]])
+  // CHECK:      define{{.*}} i8** @[[PASSTHROUGH:.*]](i8** %[[X:.*]], i64 %[[ALIGNMENT:.*]])
   // CHECK-NEXT: entry:
   // CHECK-NEXT:   %[[X_ADDR:.*]] = alloca i8**, align 8
   // CHECK-NEXT:   %[[ALIGNMENT_ADDR:.*]] = alloca i64, align 8
@@ -21,7 +21,7 @@ passthrough(char **x, unsigned long alignment) {
 }
 
 char **caller(char **x, unsigned long alignment) {
-  // CHECK:                           define i8** @{{.*}}(i8** %[[X:.*]], i64 %[[ALIGNMENT:.*]])
+  // CHECK:                           define{{.*}} i8** @{{.*}}(i8** %[[X:.*]], i64 %[[ALIGNMENT:.*]])
   // CHECK-NEXT:                      entry:
   // CHECK-NEXT:                        %[[X_ADDR:.*]] = alloca i8**, align 8
   // CHECK-NEXT:                        %[[ALIGNMENT_ADDR:.*]] = alloca i64, align 8

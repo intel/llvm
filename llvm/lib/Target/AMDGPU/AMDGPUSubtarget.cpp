@@ -13,18 +13,21 @@
 
 #include "AMDGPUSubtarget.h"
 #include "AMDGPU.h"
-#include "AMDGPUTargetMachine.h"
 #include "AMDGPUCallLowering.h"
 #include "AMDGPUInstructionSelector.h"
 #include "AMDGPULegalizerInfo.h"
 #include "AMDGPURegisterBankInfo.h"
+#include "AMDGPUTargetMachine.h"
 #include "SIMachineFunctionInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
+#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/CodeGen/GlobalISel/InlineAsmLowering.h"
 #include "llvm/CodeGen/MachineScheduler.h"
-#include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/IR/MDBuilder.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsR600.h"
+#include "llvm/IR/MDBuilder.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include <algorithm>
 
 using namespace llvm;
@@ -86,8 +89,7 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   // Similarly we want enable-prt-strict-null to be on by default and not to
   // unset everything else if it is disabled
 
-  // Assuming ECC is enabled is the conservative default.
-  SmallString<256> FullFS("+promote-alloca,+load-store-opt,+enable-ds128,+sram-ecc,+xnack,");
+  SmallString<256> FullFS("+promote-alloca,+load-store-opt,+enable-ds128,");
 
   // Turn on features that HSA ABI requires. Also turn on FlatForGlobal by default
   if (isAmdHsaOS())
@@ -162,20 +164,12 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
 
   HasFminFmaxLegacy = getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS;
 
-  // Disable XNACK on targets where it is not enabled by default unless it is
-  // explicitly requested.
-  if (!FS.contains("+xnack") && DoesNotSupportXNACK && EnableXNACK) {
-    ToggleFeature(AMDGPU::FeatureXNACK);
-    EnableXNACK = false;
-  }
+  TargetID.setTargetIDFromFeaturesString(FS);
 
-  // ECC is on by default, but turn it off if the hardware doesn't support it
-  // anyway. This matters for the gfx9 targets with d16 loads, but don't support
-  // ECC.
-  if (DoesNotSupportSRAMECC && EnableSRAMECC) {
-    ToggleFeature(AMDGPU::FeatureSRAMECC);
-    EnableSRAMECC = false;
-  }
+  LLVM_DEBUG(dbgs() << "xnack setting for subtarget: "
+                    << TargetID.getXnackSetting() << '\n');
+  LLVM_DEBUG(dbgs() << "sramecc setting for subtarget: "
+                    << TargetID.getSramEccSetting() << '\n');
 
   return *this;
 }
@@ -204,6 +198,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     AMDGPUGenSubtargetInfo(TT, GPU, /*TuneCPU*/ GPU, FS),
     AMDGPUSubtarget(TT),
     TargetTriple(TT),
+    TargetID(*this),
     Gen(INVALID),
     InstrItins(getInstrItineraryForCPU(GPU)),
     LDSBankCount(0),
@@ -219,8 +214,8 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     UnalignedAccessMode(false),
 
     HasApertureRegs(false),
+    SupportsXNACK(false),
     EnableXNACK(false),
-    DoesNotSupportXNACK(false),
     EnableCuMode(false),
     TrapHandler(false),
 
@@ -269,8 +264,8 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasMAIInsts(false),
     HasPkFmacF16Inst(false),
     HasAtomicFaddInsts(false),
+    SupportsSRAMECC(false),
     EnableSRAMECC(false),
-    DoesNotSupportSRAMECC(false),
     HasNoSdstCMPX(false),
     HasVscnt(false),
     HasGetWaveIdInst(false),
@@ -326,15 +321,15 @@ unsigned GCNSubtarget::getConstantBusLimit(unsigned Opcode) const {
     return 1;
 
   switch (Opcode) {
-  case AMDGPU::V_LSHLREV_B64:
+  case AMDGPU::V_LSHLREV_B64_e64:
   case AMDGPU::V_LSHLREV_B64_gfx10:
-  case AMDGPU::V_LSHL_B64:
-  case AMDGPU::V_LSHRREV_B64:
+  case AMDGPU::V_LSHL_B64_e64:
+  case AMDGPU::V_LSHRREV_B64_e64:
   case AMDGPU::V_LSHRREV_B64_gfx10:
-  case AMDGPU::V_LSHR_B64:
-  case AMDGPU::V_ASHRREV_I64:
+  case AMDGPU::V_LSHR_B64_e64:
+  case AMDGPU::V_ASHRREV_I64_e64:
   case AMDGPU::V_ASHRREV_I64_gfx10:
-  case AMDGPU::V_ASHR_I64:
+  case AMDGPU::V_ASHR_I64_e64:
     return 1;
   }
 
@@ -481,6 +476,10 @@ static unsigned getReqdWorkGroupSize(const Function &Kernel, unsigned Dim) {
   return std::numeric_limits<unsigned>::max();
 }
 
+bool AMDGPUSubtarget::isMesaKernel(const Function &F) const {
+  return isMesa3DOS() && !AMDGPU::isShader(F.getCallingConv());
+}
+
 unsigned AMDGPUSubtarget::getMaxWorkitemID(const Function &Kernel,
                                            unsigned Dimension) const {
   unsigned ReqdSize = getReqdWorkGroupSize(Kernel, Dimension);
@@ -551,6 +550,12 @@ bool AMDGPUSubtarget::makeLIDRangeMetadata(Instruction *I) const {
   return true;
 }
 
+unsigned AMDGPUSubtarget::getImplicitArgNumBytes(const Function &F) const {
+  if (isMesaKernel(F))
+    return 16;
+  return AMDGPU::getIntegerAttribute(F, "amdgpu-implicitarg-num-bytes", 0);
+}
+
 uint64_t AMDGPUSubtarget::getExplicitKernArgSize(const Function &F,
                                                  Align &MaxAlign) const {
   assert(F.getCallingConv() == CallingConv::AMDGPU_KERNEL ||
@@ -592,6 +597,11 @@ unsigned AMDGPUSubtarget::getKernArgSegmentSize(const Function &F,
   return alignTo(TotalSize, 4);
 }
 
+AMDGPUDwarfFlavour AMDGPUSubtarget::getAMDGPUDwarfFlavour() const {
+  return getWavefrontSize() == 32 ? AMDGPUDwarfFlavour::Wave32
+                                  : AMDGPUDwarfFlavour::Wave64;
+}
+
 R600Subtarget::R600Subtarget(const Triple &TT, StringRef GPU, StringRef FS,
                              const TargetMachine &TM) :
   R600GenSubtargetInfo(TT, GPU, /*TuneCPU*/GPU, FS),
@@ -627,7 +637,7 @@ void GCNSubtarget::overrideSchedPolicy(MachineSchedPolicy &Policy,
 }
 
 bool GCNSubtarget::hasMadF16() const {
-  return InstrInfo.pseudoToMCOpcode(AMDGPU::V_MAD_F16) != -1;
+  return InstrInfo.pseudoToMCOpcode(AMDGPU::V_MAD_F16_e64) != -1;
 }
 
 bool GCNSubtarget::useVGPRIndexMode() const {
@@ -917,8 +927,8 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
     for (SUnit &SU : DAG->SUnits) {
       MachineInstr &MAI = *SU.getInstr();
       if (!TII->isMAI(MAI) ||
-           MAI.getOpcode() == AMDGPU::V_ACCVGPR_WRITE_B32 ||
-           MAI.getOpcode() == AMDGPU::V_ACCVGPR_READ_B32)
+           MAI.getOpcode() == AMDGPU::V_ACCVGPR_WRITE_B32_e64 ||
+           MAI.getOpcode() == AMDGPU::V_ACCVGPR_READ_B32_e64)
         continue;
 
       unsigned Lat = TSchedModel->computeInstrLatency(&MAI) - 1;

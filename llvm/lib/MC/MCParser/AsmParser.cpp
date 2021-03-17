@@ -3016,7 +3016,7 @@ bool AsmParser::parseDirectiveAscii(StringRef IDVal, bool ZeroTerminated) {
     if (checkForValidSection())
       return true;
     // Only support spaces as separators for .ascii directive for now. See the
-    // discusssion at https://reviews.llvm.org/D91460 for more details
+    // discusssion at https://reviews.llvm.org/D91460 for more details.
     do {
       if (parseEscapedString(Data))
         return true;
@@ -3485,8 +3485,9 @@ bool AsmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
       Source = StringRef(SourceBuf, SourceString.size());
     }
     if (FileNumber == 0) {
+      // Upgrade to Version 5 for assembly actions like clang -c a.s.
       if (Ctx.getDwarfVersion() < 5)
-        return Warning(DirectiveLoc, "file 0 not supported prior to DWARF-5");
+        Ctx.setDwarfVersion(5);
       getStreamer().emitDwarfFile0Directive(Directory, Filename, CKMem, Source);
     } else {
       Expected<unsigned> FileNumOrErr = getStreamer().tryEmitDwarfFileDirective(
@@ -5975,7 +5976,7 @@ bool AsmParser::parseMSInlineAsm(
     // Consider implicit defs to be clobbers.  Think of cpuid and push.
     ArrayRef<MCPhysReg> ImpDefs(Desc.getImplicitDefs(),
                                 Desc.getNumImplicitDefs());
-    ClobberRegs.insert(ClobberRegs.end(), ImpDefs.begin(), ImpDefs.end());
+    llvm::append_range(ClobberRegs, ImpDefs);
   }
 
   // Set the number of Outputs and Inputs.

@@ -351,7 +351,7 @@ public:
     FlagInserter &operator=(const FlagInserter &) = delete;
     ~FlagInserter() { DAG.setFlagInserter(LastInserter); }
 
-    const SDNodeFlags getFlags() const { return Flags; }
+    SDNodeFlags getFlags() const { return Flags; }
   };
 
   /// When true, additional steps are taken to
@@ -487,7 +487,7 @@ public:
 
   /// Get graph attributes for a node. (eg. "color=red".)
   /// Used from getNodeAttributes.
-  const std::string getGraphAttrs(const SDNode *N) const;
+  std::string getGraphAttrs(const SDNode *N) const;
 
   /// Convenience for setting node color attribute.
   void setGraphColor(const SDNode *N, const char *Color);
@@ -1959,14 +1959,14 @@ public:
   }
 
   /// Test whether the given value is a constant int or similar node.
-  SDNode *isConstantIntBuildVectorOrConstantInt(SDValue N);
+  SDNode *isConstantIntBuildVectorOrConstantInt(SDValue N) const;
 
   /// Test whether the given value is a constant FP or similar node.
-  SDNode *isConstantFPBuildVectorOrConstantFP(SDValue N);
+  SDNode *isConstantFPBuildVectorOrConstantFP(SDValue N) const ;
 
   /// \returns true if \p N is any kind of constant or build_vector of
   /// constants, int or float. If a vector, it may not necessarily be a splat.
-  inline bool isConstantValueOfAnyType(SDValue N) {
+  inline bool isConstantValueOfAnyType(SDValue N) const {
     return isConstantIntBuildVectorOrConstantInt(N) ||
            isConstantFPBuildVectorOrConstantFP(N);
   }

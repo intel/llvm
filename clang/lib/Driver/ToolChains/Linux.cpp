@@ -142,6 +142,10 @@ std::string Linux::getMultiarchTriple(const Driver &D,
     if (D.getVFS().exists(SysRoot + "/lib/powerpc-linux-gnu"))
       return "powerpc-linux-gnu";
     break;
+  case llvm::Triple::ppcle:
+    if (D.getVFS().exists(SysRoot + "/lib/powerpcle-linux-gnu"))
+      return "powerpcle-linux-gnu";
+    break;
   case llvm::Triple::ppc64:
     if (D.getVFS().exists(SysRoot + "/lib/powerpc64-linux-gnu"))
       return "powerpc64-linux-gnu";
@@ -194,8 +198,7 @@ static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
   // FIXME: This is a bit of a hack. We should really unify this code for
   // reasoning about oslibdir spellings with the lib dir spellings in the
   // GCCInstallationDetector, but that is a more significant refactoring.
-  if (Triple.getArch() == llvm::Triple::x86 ||
-      Triple.getArch() == llvm::Triple::ppc ||
+  if (Triple.getArch() == llvm::Triple::x86 || Triple.isPPC32() ||
       Triple.getArch() == llvm::Triple::sparc)
     return "lib32";
 
@@ -501,6 +504,10 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
     LibDir = "lib";
     Loader = "ld.so.1";
     break;
+  case llvm::Triple::ppcle:
+    LibDir = "lib";
+    Loader = "ld.so.1";
+    break;
   case llvm::Triple::ppc64:
     LibDir = "lib64";
     Loader =
@@ -648,6 +655,8 @@ void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   const StringRef PPCMultiarchIncludeDirs[] = {
       "/usr/include/powerpc-linux-gnu",
       "/usr/include/powerpc-linux-gnuspe"};
+  const StringRef PPCLEMultiarchIncludeDirs[] = {
+      "/usr/include/powerpcle-linux-gnu"};
   const StringRef PPC64MultiarchIncludeDirs[] = {
       "/usr/include/powerpc64-linux-gnu"};
   const StringRef PPC64LEMultiarchIncludeDirs[] = {
@@ -720,6 +729,9 @@ void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     break;
   case llvm::Triple::ppc:
     MultiarchIncludeDirs = PPCMultiarchIncludeDirs;
+    break;
+  case llvm::Triple::ppcle:
+    MultiarchIncludeDirs = PPCLEMultiarchIncludeDirs;
     break;
   case llvm::Triple::ppc64:
     MultiarchIncludeDirs = PPC64MultiarchIncludeDirs;
@@ -836,6 +848,19 @@ bool Linux::isPIEDefault() const {
           getTriple().isMusl() || getSanitizerArgs().requiresPIE();
 }
 
+bool Linux::IsAArch64OutlineAtomicsDefault(const ArgList &Args) const {
+  // Outline atomics for AArch64 are supported by compiler-rt
+  // and libgcc since 9.3.1
+  assert(getTriple().isAArch64() && "expected AArch64 target!");
+  ToolChain::RuntimeLibType RtLib = GetRuntimeLibType(Args);
+  if (RtLib == ToolChain::RLT_CompilerRT)
+    return true;
+  assert(RtLib == ToolChain::RLT_Libgcc && "unexpected runtime library type!");
+  if (GCCInstallation.getVersion().isOlderThan(9, 3, 1))
+    return false;
+  return true;
+}
+
 bool Linux::isNoExecStackDefault() const {
     return getTriple().isAndroid();
 }
@@ -859,6 +884,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
                          getTriple().getArch() == llvm::Triple::thumb ||
                          getTriple().getArch() == llvm::Triple::armeb ||
                          getTriple().getArch() == llvm::Triple::thumbeb;
+  const bool IsRISCV64 = getTriple().getArch() == llvm::Triple::riscv64;
   const bool IsSystemZ = getTriple().getArch() == llvm::Triple::systemz;
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   Res |= SanitizerKind::Address;
@@ -873,7 +899,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   if (IsX86_64 || IsMIPS64 || IsAArch64)
     Res |= SanitizerKind::DataFlow;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsArmArch || IsPowerPC64 ||
-      IsSystemZ)
+      IsRISCV64 || IsSystemZ)
     Res |= SanitizerKind::Leak;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsPowerPC64)
     Res |= SanitizerKind::Thread;

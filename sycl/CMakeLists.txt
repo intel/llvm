@@ -100,7 +100,7 @@ if( NOT OpenCL_INCLUDE_DIRS )
   endif()
   ExternalProject_Add(ocl-headers
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-Headers.git
-    GIT_TAG           origin/master
+    GIT_TAG           23710f1b99186065c1768fc3098ba681adc0f253
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_INCLUDE_DIRS}
     CONFIGURE_COMMAND ""
@@ -132,10 +132,10 @@ if( NOT OpenCL_LIBRARIES )
         "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}OpenCL${CMAKE_SHARED_LIBRARY_SUFFIX}")
   endif()
   if (CMAKE_C_COMPILER)
-      list(APPEND AUX_CMAKE_FLAGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER})
+    list(APPEND AUX_CMAKE_FLAGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER})
   endif()
   if (CMAKE_CXX_COMPILER)
-      list(APPEND AUX_CMAKE_FLAGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
+    list(APPEND AUX_CMAKE_FLAGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
   endif()
   file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/icd_build)
   set(OpenCL_ICD_LOADER_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/icd")
@@ -144,7 +144,7 @@ if( NOT OpenCL_LIBRARIES )
   endif()
   ExternalProject_Add(ocl-icd
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-    GIT_TAG           v2020.06.16
+    GIT_TAG           5f8249691ec8c25775789498951f8e9eb62c201d
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_ICD_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
@@ -209,7 +209,7 @@ configure_file("${version_header}.in" "${version_header}")
 
 # Copy SYCL headers
 add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
+COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir} ${SYCL_INCLUDE_BUILD_DIR}
 COMMENT "Copying SYCL headers ...")
 
 # Configure SYCL headers
@@ -225,30 +225,31 @@ endif()
 # Currently handles linking with libcxx support and gcc workaround
 function( add_common_options LIB_NAME)
   if (SYCL_USE_LIBCXX)
-      if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-          (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-          target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
-          if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-              message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                                  "SYCL_LIBCXX_LIBRARY_PATH should be set")
-          endif()
-          target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-          target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-      else()
-          message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
+    if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+      if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
+        message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
+                            "SYCL_LIBCXX_LIBRARY_PATH should be set")
       endif()
+      target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
+      target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
+      target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
+      if (ARGC EQUAL 2)
+        target_compile_options(${ARGV1} PRIVATE -nostdinc++)
+        target_include_directories(${ARGV1} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
+      endif()
+    else()
+      message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
+    endif()
   else()
-
-# Workaround for bug in GCC version 5 and higher.
-# More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
+    # Workaround for bug in GCC version 5 and higher.
+    # More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
         CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
-    target_link_libraries(${LIB_NAME} PRIVATE gcc_s gcc)
+      target_link_libraries(${ARGV0} PRIVATE gcc_s gcc)
     endif()
-
   endif()
 endfunction(add_common_options)
-
 
 if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS)
   if(SYCL_USE_LIBCXX)
@@ -268,10 +269,14 @@ add_subdirectory( source )
 # Auxilliary extras for SYCL headers/library
 if (NOT WIN32)
   install(FILES
-      "${CMAKE_CURRENT_SOURCE_DIR}/gdb/libsycl.so-gdb.py"
-      RENAME "libsycl.so.${SYCL_VERSION_STRING}-gdb.py"
-      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
-      COMPONENT sycl-headers-extras)
+    "${CMAKE_CURRENT_SOURCE_DIR}/gdb/libsycl.so-gdb.py"
+    RENAME "libsycl.so.${SYCL_VERSION_STRING}-gdb.py"
+    DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
+    COMPONENT sycl-headers-extras)
+endif()
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  set(XPTIFW_LIBS xptifw)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -291,6 +296,7 @@ add_custom_target( sycl-toolchain
           llvm-objcopy
           sycl-post-link
           sycl-ls
+          ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -352,7 +358,9 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      pi_opencl
      pi_level_zero
      libsycldevice
+     ${XPTIFW_LIBS}
 )
+
 if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET ocl-icd)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-icd)
 endif()
@@ -362,7 +370,7 @@ if(SYCL_BUILD_PI_CUDA)
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
-        "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+      "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_cuda)

@@ -478,7 +478,8 @@ bool AArch64RegisterBankInfo::hasFPConstraints(const MachineInstr &MI,
 
   // No. Check if we have a copy-like instruction. If we do, then we could
   // still be fed by floating point instructions.
-  if (Op != TargetOpcode::COPY && !MI.isPHI())
+  if (Op != TargetOpcode::COPY && !MI.isPHI() &&
+      !isPreISelGenericOptimizationHint(Op))
     return false;
 
   // Check if we already know the register bank.
@@ -680,11 +681,18 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     break;
   }
   case TargetOpcode::G_SITOFP:
-  case TargetOpcode::G_UITOFP:
+  case TargetOpcode::G_UITOFP: {
     if (MRI.getType(MI.getOperand(0).getReg()).isVector())
       break;
-    OpRegBankIdx = {PMI_FirstFPR, PMI_FirstGPR};
+    // Integer to FP conversions don't necessarily happen between GPR -> FPR
+    // regbanks. They can also be done within an FPR register.
+    Register SrcReg = MI.getOperand(1).getReg();
+    if (getRegBank(SrcReg, MRI, TRI) == &AArch64::FPRRegBank)
+      OpRegBankIdx = {PMI_FirstFPR, PMI_FirstFPR};
+    else
+      OpRegBankIdx = {PMI_FirstFPR, PMI_FirstGPR};
     break;
+  }
   case TargetOpcode::G_FPTOSI:
   case TargetOpcode::G_FPTOUI:
     if (MRI.getType(MI.getOperand(0).getReg()).isVector())
@@ -722,7 +730,8 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
         // assume this was a floating point load in the IR.
         // If it was not, we would have had a bitcast before
         // reaching that instruction.
-        if (onlyUsesFP(UseMI, MRI, TRI)) {
+        // Int->FP conversion operations are also captured in onlyDefinesFP().
+        if (onlyUsesFP(UseMI, MRI, TRI) || onlyDefinesFP(UseMI, MRI, TRI)) {
           OpRegBankIdx[0] = PMI_FirstFPR;
           break;
         }

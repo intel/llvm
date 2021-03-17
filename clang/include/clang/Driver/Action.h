@@ -78,7 +78,6 @@ public:
     SPIRVTranslatorJobClass,
     SPIRCheckJobClass,
     SYCLPostLinkJobClass,
-    PartialLinkJobClass,
     BackendCompileJobClass,
     FileTableTformJobClass,
     StaticLibJobClass,
@@ -223,13 +222,17 @@ public:
 
 class InputAction : public Action {
   const llvm::opt::Arg &Input;
-
+  std::string Id;
   virtual void anchor();
 
 public:
-  InputAction(const llvm::opt::Arg &Input, types::ID Type);
+  InputAction(const llvm::opt::Arg &Input, types::ID Type,
+              StringRef Id = StringRef());
 
   const llvm::opt::Arg &getInputArg() const { return Input; }
+
+  void setId(StringRef _Id) { Id = _Id.str(); }
+  StringRef getId() const { return Id; }
 
   static bool classof(const Action *A) {
     return A->getKind() == InputClass;
@@ -745,18 +748,6 @@ public:
 
 private:
   bool RTSetsSpecConsts = true;
-};
-
-class PartialLinkJobAction : public JobAction {
-  void anchor() override;
-
-public:
-  PartialLinkJobAction(Action *Input, types::ID OutputType);
-  PartialLinkJobAction(ActionList &Input, types::ID OutputType);
-
-  static bool classof(const Action *A) {
-    return A->getKind() == PartialLinkJobClass;
-  }
 };
 
 class BackendCompileJobAction : public JobAction {

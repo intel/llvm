@@ -690,12 +690,7 @@ void ClangASTSource::FillNamespaceMap(
     return;
   }
 
-  const ModuleList &target_images = m_target->GetImages();
-  std::lock_guard<std::recursive_mutex> guard(target_images.GetMutex());
-
-  for (size_t i = 0, e = target_images.GetSize(); i < e; ++i) {
-    lldb::ModuleSP image = target_images.GetModuleAtIndexUnlocked(i);
-
+  for (lldb::ModuleSP image : m_target->GetImages().Modules()) {
     if (!image)
       continue;
 
@@ -1575,10 +1570,10 @@ bool ClangASTSource::layoutRecordType(const RecordDecl *record, uint64_t &size,
 
   if (log) {
     LLDB_LOG(log, "LRT returned:");
-    LLDB_LOG(log, "LRT   Original = (RecordDecl*)%p",
+    LLDB_LOG(log, "LRT   Original = (RecordDecl*){0}",
              static_cast<const void *>(origin_record.decl));
-    LLDB_LOG(log, "LRT   Size = %" PRId64, size);
-    LLDB_LOG(log, "LRT   Alignment = %" PRId64, alignment);
+    LLDB_LOG(log, "LRT   Size = {0}", size);
+    LLDB_LOG(log, "LRT   Alignment = {0}", alignment);
     LLDB_LOG(log, "LRT   Fields:");
     for (RecordDecl::field_iterator fi = record->field_begin(),
                                     fe = record->field_end();
@@ -1667,14 +1662,8 @@ void ClangASTSource::CompleteNamespaceMap(
                module_sp->GetFileSpec().GetFilename());
     }
   } else {
-    const ModuleList &target_images = m_target->GetImages();
-    std::lock_guard<std::recursive_mutex> guard(target_images.GetMutex());
-
     CompilerDeclContext null_namespace_decl;
-
-    for (size_t i = 0, e = target_images.GetSize(); i < e; ++i) {
-      lldb::ModuleSP image = target_images.GetModuleAtIndexUnlocked(i);
-
+    for (lldb::ModuleSP image : m_target->GetImages().Modules()) {
       if (!image)
         continue;
 

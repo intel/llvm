@@ -9,8 +9,7 @@
 #include "SymbolTable.h"
 #include "Config.h"
 #include "InputChunks.h"
-#include "InputEvent.h"
-#include "InputGlobal.h"
+#include "InputElement.h"
 #include "WriterUtils.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
@@ -191,6 +190,22 @@ static void checkEventType(const Symbol *existing, const InputFile *file,
          toString(*newSig) + " in " + toString(file));
 }
 
+static void checkTableType(const Symbol *existing, const InputFile *file,
+                           const WasmTableType *newType) {
+  if (!isa<TableSymbol>(existing)) {
+    reportTypeError(existing, file, WASM_SYMBOL_TYPE_TABLE);
+    return;
+  }
+
+  const WasmTableType *oldType = cast<TableSymbol>(existing)->getTableType();
+  if (newType->ElemType != oldType->ElemType) {
+    error("Table type mismatch: " + existing->getName() + "\n>>> defined as " +
+          toString(*oldType) + " in " + toString(existing->getFile()) +
+          "\n>>> defined as " + toString(*newType) + " in " + toString(file));
+  }
+  // FIXME: No assertions currently on the limits.
+}
+
 static void checkDataType(const Symbol *existing, const InputFile *file) {
   if (!isa<DataSymbol>(existing))
     reportTypeError(existing, file, WASM_SYMBOL_TYPE_DATA);
@@ -241,16 +256,28 @@ DefinedGlobal *SymbolTable::addSyntheticGlobal(StringRef name, uint32_t flags,
                                       nullptr, global);
 }
 
-DefinedGlobal *SymbolTable::addOptionalGlobalSymbols(StringRef name,
-                                                     uint32_t flags,
-                                                     InputGlobal *global) {
-  LLVM_DEBUG(dbgs() << "addOptionalGlobalSymbols: " << name << " -> " << global
+DefinedGlobal *SymbolTable::addOptionalGlobalSymbol(StringRef name,
+                                                    InputGlobal *global) {
+  LLVM_DEBUG(dbgs() << "addOptionalGlobalSymbol: " << name << " -> " << global
                     << "\n");
   Symbol *s = find(name);
   if (!s || s->isDefined())
     return nullptr;
   syntheticGlobals.emplace_back(global);
-  return replaceSymbol<DefinedGlobal>(s, name, flags, nullptr, global);
+  return replaceSymbol<DefinedGlobal>(s, name, WASM_SYMBOL_VISIBILITY_HIDDEN,
+                                      nullptr, global);
+}
+
+DefinedTable *SymbolTable::addSyntheticTable(StringRef name, uint32_t flags,
+                                             InputTable *table) {
+  LLVM_DEBUG(dbgs() << "addSyntheticTable: " << name << " -> " << table
+                    << "\n");
+  Symbol *s = find(name);
+  assert(!s || s->isUndefined());
+  if (!s)
+    s = insertName(name).first;
+  syntheticTables.emplace_back(table);
+  return replaceSymbol<DefinedTable>(s, name, flags, nullptr, table);
 }
 
 static bool shouldReplace(const Symbol *existing, InputFile *newFile,
@@ -410,6 +437,30 @@ Symbol *SymbolTable::addDefinedEvent(StringRef name, uint32_t flags,
   return s;
 }
 
+Symbol *SymbolTable::addDefinedTable(StringRef name, uint32_t flags,
+                                     InputFile *file, InputTable *table) {
+  LLVM_DEBUG(dbgs() << "addDefinedTable:" << name << "\n");
+
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(name, file);
+
+  auto replaceSym = [&]() {
+    replaceSymbol<DefinedTable>(s, name, flags, file, table);
+  };
+
+  if (wasInserted || s->isLazy()) {
+    replaceSym();
+    return s;
+  }
+
+  checkTableType(s, file, &table->getType());
+
+  if (shouldReplace(s, file, flags))
+    replaceSym();
+  return s;
+}
+
 // This function get called when an undefined symbol is added, and there is
 // already an existing one in the symbols table.  In this case we check that
 // custom 'import-module' and 'import-field' symbol attributes agree.
@@ -550,6 +601,30 @@ Symbol *SymbolTable::addUndefinedGlobal(StringRef name,
     lazy->fetch();
   else if (s->isDefined())
     checkGlobalType(s, file, type);
+  return s;
+}
+
+Symbol *SymbolTable::addUndefinedTable(StringRef name,
+                                       Optional<StringRef> importName,
+                                       Optional<StringRef> importModule,
+                                       uint32_t flags, InputFile *file,
+                                       const WasmTableType *type) {
+  LLVM_DEBUG(dbgs() << "addUndefinedTable: " << name << "\n");
+  assert(flags & WASM_SYMBOL_UNDEFINED);
+
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(name, file);
+  if (s->traced)
+    printTraceSymbolUndefined(name, file);
+
+  if (wasInserted)
+    replaceSymbol<UndefinedTable>(s, name, importName, importModule, flags,
+                                  file, type);
+  else if (auto *lazy = dyn_cast<LazySymbol>(s))
+    lazy->fetch();
+  else if (s->isDefined())
+    checkTableType(s, file, type);
   return s;
 }
 

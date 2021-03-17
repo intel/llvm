@@ -30,7 +30,7 @@ struct S {
 // CHECK-DAG: [[S_INT_TY:%.+]] = type { i{{[0-9]+}} }
 // CHECK-DAG: [[ATOMIC_REDUCE_BARRIER_LOC:@.+]] = private unnamed_addr constant %{{.+}} { i32 0, i32 18, i32 0, i32 0, i8*
 // CHECK-DAG: [[REDUCTION_LOC:@.+]] = private unnamed_addr constant %{{.+}} { i32 0, i32 18, i32 0, i32 0, i8*
-// CHECK-DAG: [[REDUCTION_LOCK:@.+]] = common global [8 x i32] zeroinitializer
+// CHECK-DAG: [[REDUCTION_LOCK:@.+]] = common{{.*}} global [8 x i32] zeroinitializer
 
 template <typename T>
 T tmain() {
@@ -52,7 +52,7 @@ T tmain() {
 
 int main() {
 #ifdef LAMBDA
-  // LAMBDA: [[G:@.+]] = global double
+  // LAMBDA: [[G:@.+]] ={{.*}} global double
   // LAMBDA-LABEL: @main
   // LAMBDA: call void [[OUTER_LAMBDA:@.+]](
   [&]() {
@@ -93,7 +93,7 @@ int main() {
     // LAMBDA: [[CASE2]]
     // LAMBDA: [[G_PRIV_VAL:%.+]] = load double, double* [[G_PRIVATE_ADDR]]
     // LAMBDA: fadd double
-    // LAMBDA: cmpxchg i64*
+    // LAMBDA: cmpxchg i64* {{.*}}, align 8
     // LAMBDA: call void @__kmpc_end_reduce(
     // LAMBDA: br label %[[REDUCTION_DONE]]
     // LAMBDA: [[REDUCTION_DONE]]
@@ -112,7 +112,7 @@ int main() {
   }();
   return 0;
 #elif defined(BLOCKS)
-  // BLOCKS: [[G:@.+]] = global double
+  // BLOCKS: [[G:@.+]] ={{.*}} global double
   // BLOCKS-LABEL: @main
   // BLOCKS: call void {{%.+}}(i8
   ^{
@@ -154,7 +154,7 @@ int main() {
     // BLOCKS: [[CASE2]]
     // BLOCKS: [[G_PRIV_VAL:%.+]] = load double, double* [[G_PRIVATE_ADDR]]
     // BLOCKS: fadd double
-    // BLOCKS: cmpxchg i64*
+    // BLOCKS: cmpxchg i64* {{.*}}, align 8
     // BLOCKS: call void @__kmpc_end_reduce(
     // BLOCKS: br label %[[REDUCTION_DONE]]
     // BLOCKS: [[REDUCTION_DONE]]
@@ -338,7 +338,7 @@ int main() {
 // case 2:
 // t_var += t_var_reduction;
 // CHECK: [[T_VAR_PRIV_VAL:%.+]] = load i{{[0-9]+}}, i{{[0-9]+}}* [[T_VAR_PRIV]]
-// CHECK: atomicrmw add i32* [[T_VAR_REF]], i32 [[T_VAR_PRIV_VAL]] monotonic
+// CHECK: atomicrmw add i32* [[T_VAR_REF]], i32 [[T_VAR_PRIV_VAL]] monotonic, align 4
 
 // var = var.operator &(var_reduction);
 // CHECK: call void @__kmpc_critical(
@@ -368,7 +368,7 @@ int main() {
 
 // t_var1 = min(t_var1, t_var1_reduction);
 // CHECK: [[T_VAR1_PRIV_VAL:%.+]] = load i{{[0-9]+}}, i{{[0-9]+}}* [[T_VAR1_PRIV]]
-// CHECK: atomicrmw min i32* [[T_VAR1_REF]], i32 [[T_VAR1_PRIV_VAL]] monotonic
+// CHECK: atomicrmw min i32* [[T_VAR1_REF]], i32 [[T_VAR1_PRIV_VAL]] monotonic, align 4
 
 // break;
 // CHECK: br label %[[RED_DONE]]
@@ -458,4 +458,3 @@ int main() {
 // CHECK: ret void
 
 #endif
-

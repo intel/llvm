@@ -8,6 +8,7 @@
 #===----------------------------------------------------------------------===##
 
 set -ex
+set -o pipefail
 
 PROGNAME="$(basename "${0}")"
 
@@ -58,7 +59,7 @@ done
 
 MONOREPO_ROOT="${MONOREPO_ROOT:="$(git rev-parse --show-toplevel)"}"
 BUILD_DIR="${BUILD_DIR:=${MONOREPO_ROOT}/build/${BUILDER}}"
-INSTALL_DIR="${BUILD_DIR}/install}"
+INSTALL_DIR="${BUILD_DIR}/install"
 
 function clean() {
     rm -rf "${BUILD_DIR}"
@@ -105,6 +106,21 @@ function check-cxx-benchmarks() {
 }
 
 case "${BUILDER}" in
+check-format)
+    clean
+    echo "+++ Checking formatting"
+    # We need to set --extensions so that clang-format checks extensionless files.
+    mkdir -p ${BUILD_DIR}
+    git-clang-format \
+        --binary /usr/bin/clang-format --diff \
+        --extensions ',h,hh,hpp,hxx,c,cc,cxx,cpp' HEAD~1 \
+        -- \
+            libcxx/{benchmarks,include,src,test} \
+            libcxxabi/{fuzz,include,src,test} \
+        | tee ${BUILD_DIR}/clang-format.patch
+    # Check if the diff is empty, fail otherwise.
+    ! grep -q '^--- a' ${BUILD_DIR}/clang-format.patch
+;;
 generic-cxx03)
     export CC=clang
     export CXX=clang++
@@ -137,11 +153,19 @@ generic-cxx17)
     check-cxx-cxxabi
     check-abi-list
 ;;
-generic-cxx2a)
+generic-cxx20)
     export CC=clang
     export CXX=clang++
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx2a.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx20.cmake"
+    check-cxx-cxxabi
+    check-abi-list
+;;
+generic-cxx2b)
+    export CC=clang-tot
+    export CXX=clang++-tot
+    clean
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx2b.cmake"
     check-cxx-cxxabi
     check-abi-list
 ;;
@@ -217,6 +241,13 @@ generic-nodebug)
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-nodebug.cmake"
     check-cxx-cxxabi
 ;;
+generic-no-filesystem)
+    export CC=clang
+    export CXX=clang++
+    clean
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-no-filesystem.cmake"
+    check-cxx-cxxabi
+;;
 generic-no-random_device)
     export CC=clang
     export CXX=clang++
@@ -263,10 +294,6 @@ x86_64-apple-system-backdeployment-*)
     PARAMS+=";cxx_runtime_root=${OSX_ROOTS}/macOS/libc++/${DEPLOYMENT_TARGET}"
     PARAMS+=";abi_library_path=${OSX_ROOTS}/macOS/libc++abi/${DEPLOYMENT_TARGET}"
     PARAMS+=";use_system_cxx_lib=True"
-    # Filesystem is supported on Apple platforms starting with macosx10.15.
-    if [[ ${DEPLOYMENT_TARGET} =~ ^10.9|10.10|10.11|10.12|10.13|10.14$ ]]; then
-        PARAMS+=";enable_filesystem=False"
-    fi
 
     export CC=clang
     export CXX=clang++

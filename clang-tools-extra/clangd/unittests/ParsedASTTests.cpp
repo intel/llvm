@@ -184,9 +184,6 @@ TEST(ParsedASTTest,
     template <>
     int foo<bool> = 0;
   )cpp";
-  // FIXME: Auto-completion in a template requires disabling delayed template
-  // parsing.
-  TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
 
   auto AST = TU.build();
   EXPECT_THAT(
@@ -341,10 +338,10 @@ TEST(ParsedASTTest, CollectsMainFileMacroExpansions) {
   std::vector<Position> MacroExpansionPositions;
   for (const auto &SIDToRefs : AST.getMacros().MacroRefs) {
     for (const auto &R : SIDToRefs.second)
-      MacroExpansionPositions.push_back(R.start);
+      MacroExpansionPositions.push_back(R.Rng.start);
   }
   for (const auto &R : AST.getMacros().UnknownMacros)
-    MacroExpansionPositions.push_back(R.start);
+    MacroExpansionPositions.push_back(R.Rng.start);
   EXPECT_THAT(MacroExpansionPositions,
               testing::UnorderedElementsAreArray(TestCase.points()));
 }
@@ -376,7 +373,7 @@ TEST(ParsedASTTest, ReplayPreambleForTidyCheckers) {
     void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                             StringRef FileName, bool IsAngled,
                             CharSourceRange FilenameRange, const FileEntry *,
-                            StringRef, StringRef, const Module *,
+                            StringRef, StringRef, const clang::Module *,
                             SrcMgr::CharacteristicKind) override {
       Includes.emplace_back(SM, HashLoc, IncludeTok, FileName, IsAngled,
                             FilenameRange);

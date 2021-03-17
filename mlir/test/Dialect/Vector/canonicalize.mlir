@@ -556,6 +556,20 @@ func @bitcast_folding(%I1: vector<4x8xf32>, %I2: vector<2xi32>) -> (vector<4x8xf
   return %0, %2 : vector<4x8xf32>, vector<2xi32>
 }
 
+// CHECK-LABEL: func @bitcast_f16_to_f32
+//              bit pattern: 0x00000000
+//       CHECK: %[[CST0:.+]] = constant dense<0.000000e+00> : vector<4xf32>
+//              bit pattern: 0x40004000
+//       CHECK: %[[CST1:.+]] = constant dense<2.00390625> : vector<4xf32>
+//       CHECK: return %[[CST0]], %[[CST1]]
+func @bitcast_f16_to_f32() -> (vector<4xf32>, vector<4xf32>) {
+  %cst0 = constant dense<0.0> : vector<8xf16> // bit pattern: 0x0000
+  %cst1 = constant dense<2.0> : vector<8xf16> // bit pattern: 0x4000
+  %cast0 = vector.bitcast %cst0: vector<8xf16> to vector<4xf32>
+  %cast1 = vector.bitcast %cst1: vector<8xf16> to vector<4xf32>
+  return %cast0, %cast1: vector<4xf32>, vector<4xf32>
+}
+
 // -----
 
 // CHECK-LABEL: broadcast_folding1
@@ -661,3 +675,38 @@ func @broadcast_to_shapecast(%arg0: vector<4x4xf16>) -> vector<1x4x4xf16> {
   return %0 : vector<1x4x4xf16>
 }
 
+// -----
+
+// CHECK-LABEL: func @dead_transfer_op
+//   CHECK-NOT:   vector.transfer_read
+//   CHECK-NOT:   vector.transfer_write
+//       CHECK:   return
+func @dead_transfer_op(%arg0 : tensor<4x4xf32>, %arg1 : memref<4x4xf32>,
+                       %v0 : vector<1x4xf32>) {
+  %c0 = constant 0 : index
+  %cf0 = constant 0.0 : f32
+  %r = vector.transfer_read %arg1[%c0, %c0], %cf0 :
+    memref<4x4xf32>, vector<1x4xf32>
+  %w = vector.transfer_write %v0, %arg0[%c0, %c0] :
+    vector<1x4xf32>, tensor<4x4xf32>
+  return
+}
+
+// -----
+
+// CHECK-LABEL: func @dead_load
+//   CHECK-NOT:   vector.maskedload
+//   CHECK-NOT:   vector.gather
+//   CHECK-NOT:   vector.expandload
+//       CHECK:   return
+func @dead_load(%base: memref<?xf32>, %indices: vector<16xi32>,
+                          %mask: vector<16xi1>, %passthru: vector<16xf32>) {
+  %c0 = constant 0 : index
+  %0 = vector.maskedload %base[%c0], %mask, %passthru :
+    memref<?xf32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+  %1 = vector.gather %base[%indices], %mask, %passthru :
+    memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+  %2 = vector.expandload %base[%c0], %mask, %passthru :
+    memref<?xf32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+  return
+}

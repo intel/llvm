@@ -60,6 +60,8 @@ private:
                               MachineBasicBlock::iterator MBBI,
                               MachineBasicBlock::iterator &NextMBBI);
   bool expandVSetVL(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI);
+  bool expandVMSET_VMCLR(MachineBasicBlock &MBB,
+                         MachineBasicBlock::iterator MBBI, unsigned Opcode);
 };
 
 char RISCVExpandPseudo::ID = 0;
@@ -101,7 +103,26 @@ bool RISCVExpandPseudo::expandMI(MachineBasicBlock &MBB,
   case RISCV::PseudoLA_TLS_GD:
     return expandLoadTLSGDAddress(MBB, MBBI, NextMBBI);
   case RISCV::PseudoVSETVLI:
+  case RISCV::PseudoVSETIVLI:
     return expandVSetVL(MBB, MBBI);
+  case RISCV::PseudoVMCLR_M_B1:
+  case RISCV::PseudoVMCLR_M_B2:
+  case RISCV::PseudoVMCLR_M_B4:
+  case RISCV::PseudoVMCLR_M_B8:
+  case RISCV::PseudoVMCLR_M_B16:
+  case RISCV::PseudoVMCLR_M_B32:
+  case RISCV::PseudoVMCLR_M_B64:
+    // vmclr.m vd => vmxor.mm vd, vd, vd
+    return expandVMSET_VMCLR(MBB, MBBI, RISCV::VMXOR_MM);
+  case RISCV::PseudoVMSET_M_B1:
+  case RISCV::PseudoVMSET_M_B2:
+  case RISCV::PseudoVMSET_M_B4:
+  case RISCV::PseudoVMSET_M_B8:
+  case RISCV::PseudoVMSET_M_B16:
+  case RISCV::PseudoVMSET_M_B32:
+  case RISCV::PseudoVMSET_M_B64:
+    // vmset.m vd => vmxnor.mm vd, vd, vd
+    return expandVMSET_VMCLR(MBB, MBBI, RISCV::VMXNOR_MM);
   }
 
   return false;
@@ -197,9 +218,15 @@ bool RISCVExpandPseudo::expandVSetVL(MachineBasicBlock &MBB,
 
   DebugLoc DL = MBBI->getDebugLoc();
 
-  assert(MBBI->getOpcode() == RISCV::PseudoVSETVLI &&
+  assert((MBBI->getOpcode() == RISCV::PseudoVSETVLI ||
+          MBBI->getOpcode() == RISCV::PseudoVSETIVLI) &&
          "Unexpected pseudo instruction");
-  const MCInstrDesc &Desc = TII->get(RISCV::VSETVLI);
+  unsigned Opcode;
+  if (MBBI->getOpcode() == RISCV::PseudoVSETVLI)
+    Opcode = RISCV::VSETVLI;
+  else
+    Opcode = RISCV::VSETIVLI;
+  const MCInstrDesc &Desc = TII->get(Opcode);
   assert(Desc.getNumOperands() == 3 && "Unexpected instruction format");
 
   Register DstReg = MBBI->getOperand(0).getReg();
@@ -209,6 +236,19 @@ bool RISCVExpandPseudo::expandVSetVL(MachineBasicBlock &MBB,
       .add(MBBI->getOperand(1))  // VL
       .add(MBBI->getOperand(2)); // VType
 
+  MBBI->eraseFromParent(); // The pseudo instruction is gone now.
+  return true;
+}
+
+bool RISCVExpandPseudo::expandVMSET_VMCLR(MachineBasicBlock &MBB,
+                                          MachineBasicBlock::iterator MBBI,
+                                          unsigned Opcode) {
+  DebugLoc DL = MBBI->getDebugLoc();
+  Register DstReg = MBBI->getOperand(0).getReg();
+  const MCInstrDesc &Desc = TII->get(Opcode);
+  BuildMI(MBB, MBBI, DL, Desc, DstReg)
+      .addReg(DstReg, RegState::Undef)
+      .addReg(DstReg, RegState::Undef);
   MBBI->eraseFromParent(); // The pseudo instruction is gone now.
   return true;
 }

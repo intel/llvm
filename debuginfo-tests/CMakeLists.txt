@@ -26,7 +26,9 @@ if ("mlir" IN_LIST LLVM_ENABLE_PROJECTS)
   add_llvm_executable(check-gdb-mlir-support
         llvm-prettyprinters/gdb/mlir-support.cpp
   )
-  target_include_directories(check-gdb-mlir-support PRIVATE ${LLVM_EXTERNAL_MLIR_SOURCE_DIR}/include)
+  target_include_directories(check-gdb-mlir-support PRIVATE
+                               ${LLVM_EXTERNAL_MLIR_SOURCE_DIR}/include
+                               ${LLVM_BINARY_DIR}/tools/mlir/include)
   target_link_libraries(check-gdb-mlir-support PRIVATE MLIRIR)
   list(APPEND DEBUGINFO_TEST_DEPS check-gdb-mlir-support)
   set(MLIR_SOURCE_DIR  ${LLVM_EXTERNAL_MLIR_SOURCE_DIR})
@@ -50,10 +52,6 @@ endif()
 # The Windows builder scripts pass -fuse-ld=lld.
 if (WIN32)
   set(DEBUGINFO_TEST_DEPS ${DEBUGINFO_TEST_DEPS} lld)
-endif()
-
-if (NOT DEFINED Python3_EXECUTABLE)
-  message(FATAL_ERROR "Cannot run debuginfo-tests without python 3")
 endif()
 
 configure_lit_site_cfg(

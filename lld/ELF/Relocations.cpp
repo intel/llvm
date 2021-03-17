@@ -74,12 +74,12 @@ static Optional<std::string> getLinkerScriptLocation(const Symbol &sym) {
 }
 
 static std::string getDefinedLocation(const Symbol &sym) {
-  std::string msg = "\n>>> defined in ";
+  const char msg[] = "\n>>> defined in ";
   if (sym.file)
-    msg += toString(sym.file);
-  else if (Optional<std::string> loc = getLinkerScriptLocation(sym))
-    msg += *loc;
-  return msg;
+    return msg + toString(sym.file);
+  if (Optional<std::string> loc = getLinkerScriptLocation(sym))
+    return msg + *loc;
+  return "";
 }
 
 // Construct a message in the following format.
@@ -381,8 +381,8 @@ static bool needsPlt(RelExpr expr) {
 // TLS variables uses GOT differently than the regular variables.
 static bool needsGot(RelExpr expr) {
   return oneof<R_GOT, R_GOT_OFF, R_MIPS_GOT_LOCAL_PAGE, R_MIPS_GOT_OFF,
-               R_MIPS_GOT_OFF32, R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTPLT>(
-      expr);
+               R_MIPS_GOT_OFF32, R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTPLT,
+               R_AARCH64_GOT_PAGE>(expr);
 }
 
 // True if this expression is of the form Sym - X, where X is a position in the
@@ -411,7 +411,8 @@ static bool isStaticLinkTimeConstant(RelExpr e, RelType type, const Symbol &sym,
             R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTONLY_PC, R_GOTPLTONLY_PC,
             R_PLT_PC, R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC, R_PPC32_PLTREL,
             R_PPC64_CALL_PLT, R_PPC64_RELAX_TOC, R_RISCV_ADD, R_TLSDESC_CALL,
-            R_TLSDESC_PC, R_AARCH64_TLSDESC_PAGE, R_TLSLD_HINT, R_TLSIE_HINT>(
+            R_TLSDESC_PC, R_AARCH64_TLSDESC_PAGE, R_TLSLD_HINT, R_TLSIE_HINT,
+            R_AARCH64_GOT_PAGE>(
           e))
     return true;
 
@@ -1315,16 +1316,6 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
   // Ignore R_*_NONE and other marker relocations.
   if (expr == R_NONE)
     return;
-
-  if (sym.isGnuIFunc() && !config->zText && config->warnIfuncTextrel) {
-    warn("using ifunc symbols when text relocations are allowed may produce "
-         "a binary that will segfault, if the object file is linked with "
-         "old version of glibc (glibc 2.28 and earlier). If this applies to "
-         "you, consider recompiling the object files without -fPIC and "
-         "without -Wl,-z,notext option. Use -no-warn-ifunc-textrel to "
-         "turn off this warning." +
-         getLocation(sec, sym, offset));
-  }
 
   // Read an addend.
   int64_t addend = computeAddend<ELFT>(rel, end, sec, expr, sym.isLocal());

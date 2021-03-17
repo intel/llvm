@@ -410,7 +410,7 @@ TargetPassConfig *X86TargetMachine::createPassConfig(PassManagerBase &PM) {
 
 void X86PassConfig::addIRPasses() {
   addPass(createAtomicExpandPass());
-  // addPass(createX86LowerAMXTypePass());
+  addPass(createX86LowerAMXTypePass());
 
   TargetPassConfig::addIRPasses();
 
@@ -568,9 +568,13 @@ void X86PassConfig::addPreEmitPass2() {
       (!TT.isOSWindows() ||
        MAI->getExceptionHandlingType() == ExceptionHandling::DwarfCFI))
     addPass(createCFIInstrInserter());
-  // Identify valid longjmp targets for Windows Control Flow Guard.
-  if (TT.isOSWindows())
+
+  if (TT.isOSWindows()) {
+    // Identify valid longjmp targets for Windows Control Flow Guard.
     addPass(createCFGuardLongjmpPass());
+    // Identify valid eh continuation targets for Windows EHCont Guard.
+    addPass(createEHContGuardCatchretPass());
+  }
   addPass(createX86LoadValueInjectionRetHardeningPass());
 }
 

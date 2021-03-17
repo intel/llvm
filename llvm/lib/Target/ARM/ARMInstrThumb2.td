@@ -1724,7 +1724,7 @@ def t2STRH_preidx: t2PseudoInst<(outs GPRnopc:$Rn_wb),
 // only.
 // Ref: A8.6.193 STR (immediate, Thumb) Encoding T4
 class T2IstT<bits<2> type, string opc, InstrItinClass ii>
-  : T2Ii8<(outs rGPR:$Rt), (ins t2addrmode_imm8:$addr), ii, opc,
+  : T2Ii8<(outs), (ins rGPR:$Rt, t2addrmode_imm8:$addr), ii, opc,
           "\t$Rt, $addr", []>, Sched<[WriteST]> {
   let Inst{31-27} = 0b11111;
   let Inst{26-25} = 0b00;
@@ -4145,6 +4145,18 @@ def t2SUBS_PC_LR : T2I <(outs), (ins imm0_255:$imm), NoItinerary,
   let Inst{7-0} = imm;
 }
 
+// B9.3.19 SUBS PC, LR (Thumb)
+// In the Thumb instruction set, MOVS{<c>}{<q>} PC, LR is a pseudo-instruction
+// for SUBS{<c>}{<q>} PC, LR, #0.
+def : t2InstAlias<"movs${p}\tpc, lr", (t2SUBS_PC_LR 0, pred:$p)>;
+def : t2InstAlias<"movs${p}.w\tpc, lr", (t2SUBS_PC_LR 0, pred:$p)>;
+
+// ERET - Return from exception in Hypervisor mode.
+// B9.3.3, B9.3.20: ERET is an alias for "SUBS PC, LR, #0" in an implementation that
+// includes virtualization extensions.
+def t2ERET : InstAlias<"eret${p}", (t2SUBS_PC_LR 0, pred:$p), 1>,
+             Requires<[IsThumb2, HasVirtualization]>;
+
 // Hypervisor Call is a system instruction.
 let isCall = 1 in {
 def t2HVC : T2XI <(outs), (ins imm0_65535:$imm16), IIC_Br, "hvc.w\t$imm16", []>,
@@ -4159,12 +4171,6 @@ def t2HVC : T2XI <(outs), (ins imm0_65535:$imm16), IIC_Br, "hvc.w\t$imm16", []>,
 
 // Alias for HVC without the ".w" optional width specifier
 def : t2InstAlias<"hvc\t$imm16", (t2HVC imm0_65535:$imm16)>;
-
-// ERET - Return from exception in Hypervisor mode.
-// B9.3.3, B9.3.20: ERET is an alias for "SUBS PC, LR, #0" in an implementation that
-// includes virtualization extensions.
-def t2ERET : InstAlias<"eret${p}", (t2SUBS_PC_LR 0, pred:$p), 1>,
-             Requires<[IsThumb2, HasVirtualization]>;
 
 //===----------------------------------------------------------------------===//
 // Non-Instruction Patterns

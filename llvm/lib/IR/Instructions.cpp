@@ -400,7 +400,7 @@ CallBase::BundleOpInfo &CallBase::getBundleOpInfoForOperand(unsigned OpIdx) {
 
   bundle_op_iterator Begin = bundle_op_info_begin();
   bundle_op_iterator End = bundle_op_info_end();
-  bundle_op_iterator Current;
+  bundle_op_iterator Current = Begin;
 
   while (Begin != End) {
     unsigned ScaledOperandPerBundle =
@@ -422,6 +422,35 @@ CallBase::BundleOpInfo &CallBase::getBundleOpInfoForOperand(unsigned OpIdx) {
   assert(OpIdx >= Current->Begin && OpIdx < Current->End &&
          "the operand bundle doesn't cover every value in the range");
   return *Current;
+}
+
+CallBase *CallBase::addOperandBundle(CallBase *CB, uint32_t ID,
+                                     OperandBundleDef OB,
+                                     Instruction *InsertPt) {
+  if (CB->getOperandBundle(ID))
+    return CB;
+
+  SmallVector<OperandBundleDef, 1> Bundles;
+  CB->getOperandBundlesAsDefs(Bundles);
+  Bundles.push_back(OB);
+  return Create(CB, Bundles, InsertPt);
+}
+
+CallBase *CallBase::removeOperandBundle(CallBase *CB, uint32_t ID,
+                                        Instruction *InsertPt) {
+  SmallVector<OperandBundleDef, 1> Bundles;
+  bool CreateNew = false;
+
+  for (unsigned I = 0, E = CB->getNumOperandBundles(); I != E; ++I) {
+    auto Bundle = CB->getOperandBundleAt(I);
+    if (Bundle.getTagID() == ID) {
+      CreateNew = true;
+      continue;
+    }
+    Bundles.emplace_back(Bundle);
+  }
+
+  return CreateNew ? Create(CB, Bundles, InsertPt) : CB;
 }
 
 //===----------------------------------------------------------------------===//

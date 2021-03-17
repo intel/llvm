@@ -41,7 +41,7 @@ public:
   ParseResult(const Diagnostic &) : LogicalResult(failure()) {}
 
   /// Failure is true in a boolean context.
-  explicit operator bool() const { return failed(*this); }
+  explicit operator bool() const { return failed(); }
 };
 /// This class implements `Optional` functionality for ParseResult. We don't
 /// directly use Optional here, because it provides an implicit conversion
@@ -104,28 +104,6 @@ public:
   /// Return the operation that this refers to.
   Operation *getOperation() { return state; }
 
-  /// Return the dialect that this refers to.
-  Dialect *getDialect() { return getOperation()->getDialect(); }
-
-  /// Return the parent Region of this operation.
-  Region *getParentRegion() { return getOperation()->getParentRegion(); }
-
-  /// Returns the closest surrounding operation that contains this operation
-  /// or nullptr if this is a top-level operation.
-  Operation *getParentOp() { return getOperation()->getParentOp(); }
-
-  /// Return the closest surrounding parent operation that is of type 'OpTy'.
-  template <typename OpTy>
-  OpTy getParentOfType() {
-    return getOperation()->getParentOfType<OpTy>();
-  }
-
-  /// Returns the closest surrounding parent operation with trait `Trait`.
-  template <template <typename T> class Trait>
-  Operation *getParentWithTrait() {
-    return getOperation()->getParentWithTrait<Trait>();
-  }
-
   /// Return the context this operation belongs to.
   MLIRContext *getContext() { return getOperation()->getContext(); }
 
@@ -151,37 +129,6 @@ public:
   /// A utility iterator that filters out non-dialect attributes.
   using dialect_attr_iterator = Operation::dialect_attr_iterator;
   using dialect_attr_range = Operation::dialect_attr_range;
-
-  /// Return a range corresponding to the dialect attributes for this operation.
-  dialect_attr_range getDialectAttrs() { return state->getDialectAttrs(); }
-  dialect_attr_iterator dialect_attr_begin() {
-    return state->dialect_attr_begin();
-  }
-  dialect_attr_iterator dialect_attr_end() { return state->dialect_attr_end(); }
-
-  /// Return an attribute with the specified name.
-  Attribute getAttr(StringRef name) { return state->getAttr(name); }
-
-  /// If the operation has an attribute of the specified type, return it.
-  template <typename AttrClass>
-  AttrClass getAttrOfType(StringRef name) {
-    return getAttr(name).dyn_cast_or_null<AttrClass>();
-  }
-
-  /// If the an attribute exists with the specified name, change it to the new
-  /// value.  Otherwise, add a new attribute with the specified name/value.
-  void setAttr(Identifier name, Attribute value) {
-    state->setAttr(name, value);
-  }
-  void setAttr(StringRef name, Attribute value) {
-    setAttr(Identifier::get(name, getContext()), value);
-  }
-
-  /// Set the attributes held by this operation.
-  void setAttrs(ArrayRef<NamedAttribute> attributes) {
-    state->setAttrs(DictionaryAttr::get(attributes, getContext()));
-  }
-  void setAttrs(DictionaryAttr newAttrs) { state->setAttrs(newAttrs); }
 
   /// Set the dialect attributes for this operation, and preserve all dependent.
   template <typename DialectAttrs>
@@ -266,10 +213,24 @@ inline bool operator!=(OpState lhs, OpState rhs) {
   return lhs.getOperation() != rhs.getOperation();
 }
 
+raw_ostream &operator<<(raw_ostream &os, OpFoldResult ofr);
+
 /// This class represents a single result from folding an operation.
 class OpFoldResult : public PointerUnion<Attribute, Value> {
   using PointerUnion<Attribute, Value>::PointerUnion;
+
+public:
+  void dump() { llvm::errs() << *this << "\n"; }
 };
+
+/// Allow printing to a stream.
+inline raw_ostream &operator<<(raw_ostream &os, OpFoldResult ofr) {
+  if (Value value = ofr.dyn_cast<Value>())
+    value.print(os);
+  else
+    ofr.dyn_cast<Attribute>().print(os);
+  return os;
+}
 
 /// Allow printing to a stream.
 inline raw_ostream &operator<<(raw_ostream &os, OpState &op) {
@@ -710,10 +671,6 @@ class VariadicResults
 template <typename ConcreteType>
 class IsTerminator : public TraitBase<ConcreteType, IsTerminator> {
 public:
-  static AbstractOperation::OperationProperties getTraitProperties() {
-    return static_cast<AbstractOperation::OperationProperties>(
-        OperationProperty::Terminator);
-  }
   static LogicalResult verifyTrait(Operation *op) {
     return impl::verifyIsTerminator(op);
   }
@@ -870,7 +827,7 @@ struct SingleBlockImplicitTerminator {
 
     /// Ensure that the given region has the terminator required by this trait.
     /// If OpBuilder is provided, use it to build the terminator and notify the
-    /// OpBuilder litsteners accordingly. If only a Builder is provided, locally
+    /// OpBuilder listeners accordingly. If only a Builder is provided, locally
     /// construct an OpBuilder with no listeners; this should only be used if no
     /// OpBuilder is available at the call site, e.g., in the parser.
     static void ensureTerminator(Region &region, Builder &builder,
@@ -1040,13 +997,7 @@ public:
 
 /// This class adds property that the operation is commutative.
 template <typename ConcreteType>
-class IsCommutative : public TraitBase<ConcreteType, IsCommutative> {
-public:
-  static AbstractOperation::OperationProperties getTraitProperties() {
-    return static_cast<AbstractOperation::OperationProperties>(
-        OperationProperty::Commutative);
-  }
-};
+class IsCommutative : public TraitBase<ConcreteType, IsCommutative> {};
 
 /// This class adds property that the operation is an involution.
 /// This means a unary to unary operation "f" that satisfies f(f(x)) = x
@@ -1149,10 +1100,6 @@ template <typename ConcreteType>
 class IsIsolatedFromAbove
     : public TraitBase<ConcreteType, IsIsolatedFromAbove> {
 public:
-  static AbstractOperation::OperationProperties getTraitProperties() {
-    return static_cast<AbstractOperation::OperationProperties>(
-        OperationProperty::IsolatedFromAbove);
-  }
   static LogicalResult verifyTrait(Operation *op) {
     for (auto &region : op->getRegions())
       if (!region.isIsolatedFromAbove(op->getLoc()))
@@ -1186,8 +1133,8 @@ class AutomaticAllocationScope
     : public TraitBase<ConcreteType, AutomaticAllocationScope> {
 public:
   static LogicalResult verifyTrait(Operation *op) {
-    if (op->hasTrait<ZeroRegion>())
-      return op->emitOpError("is expected to have regions");
+    static_assert(!ConcreteType::template hasTrait<ZeroRegion>(),
+                  "expected operation to have one or more regions");
     return success();
   }
 };
@@ -1465,34 +1412,6 @@ foldTraits(Operation *op, ArrayRef<Attribute> operands,
 }
 
 //===----------------------------------------------------------------------===//
-// Trait Properties
-
-/// Trait to check if T provides a `getTraitProperties` method.
-template <typename T, typename... Args>
-using has_get_trait_properties = decltype(T::getTraitProperties());
-template <typename T>
-using detect_has_get_trait_properties =
-    llvm::is_detected<has_get_trait_properties, T>;
-
-/// The internal implementation of `getTraitProperties` below that returns the
-/// OR of invoking `getTraitProperties` on all of the provided trait types `Ts`.
-template <typename... Ts>
-static AbstractOperation::OperationProperties
-getTraitPropertiesImpl(std::tuple<Ts...> *) {
-  AbstractOperation::OperationProperties result = 0;
-  (void)std::initializer_list<int>{(result |= Ts::getTraitProperties(), 0)...};
-  return result;
-}
-
-/// Given a tuple type containing a set of traits that contain a
-/// `getTraitProperties` method, return the OR of all of the results of invoking
-/// those methods.
-template <typename TraitTupleT>
-static AbstractOperation::OperationProperties getTraitProperties() {
-  return getTraitPropertiesImpl((TraitTupleT *)nullptr);
-}
-
-//===----------------------------------------------------------------------===//
 // Trait Verification
 
 /// Trait to check if T provides a `verifyTrait` method.
@@ -1612,14 +1531,6 @@ private:
   using VerifiableTraitsTupleT =
       typename detail::FilterTypes<op_definition_impl::detect_has_verify_trait,
                                    Traits<ConcreteType>...>::type;
-
-  /// Returns the properties of this operation by combining the properties
-  /// defined by the traits.
-  static AbstractOperation::OperationProperties getOperationProperties() {
-    return op_definition_impl::getTraitProperties<typename detail::FilterTypes<
-        op_definition_impl::detect_has_get_trait_properties,
-        Traits<ConcreteType>...>::type>();
-  }
 
   /// Returns an interface map containing the interfaces registered to this
   /// operation.
@@ -1795,18 +1706,27 @@ ParseResult parseOneResultSameOperandTypeOp(OpAsmParser &parser,
 void printOneResultOp(Operation *op, OpAsmPrinter &p);
 } // namespace impl
 
-// These functions are out-of-line implementations of the methods in CastOp,
-// which avoids them being template instantiated/duplicated.
+// These functions are out-of-line implementations of the methods in
+// CastOpInterface, which avoids them being template instantiated/duplicated.
 namespace impl {
+/// Attempt to fold the given cast operation.
+LogicalResult foldCastInterfaceOp(Operation *op,
+                                  ArrayRef<Attribute> attrOperands,
+                                  SmallVectorImpl<OpFoldResult> &foldResults);
+/// Attempt to verify the given cast operation.
+LogicalResult verifyCastInterfaceOp(
+    Operation *op, function_ref<bool(TypeRange, TypeRange)> areCastCompatible);
+
 // TODO: Remove the parse/print/build here (new ODS functionality obsoletes the
 // need for them, but some older ODS code in `std` still depends on them).
 void buildCastOp(OpBuilder &builder, OperationState &result, Value source,
                  Type destType);
 ParseResult parseCastOp(OpAsmParser &parser, OperationState &result);
 void printCastOp(Operation *op, OpAsmPrinter &p);
-// TODO: Create a CastOpInterface with a method areCastCompatible.
-// Also, consider adding functionality to CastOpInterface to be able to perform
-// the ChainedTensorCast canonicalization generically.
+// TODO: These methods are deprecated in favor of CastOpInterface. Remove them
+// when all uses have been updated. Also, consider adding functionality to
+// CastOpInterface to be able to perform the ChainedTensorCast canonicalization
+// generically.
 Value foldCastOp(Operation *op);
 LogicalResult verifyCastOp(Operation *op,
                            function_ref<bool(Type, Type)> areCastCompatible);

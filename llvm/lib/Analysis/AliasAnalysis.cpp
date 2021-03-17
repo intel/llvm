@@ -67,6 +67,13 @@ STATISTIC(NumMustAlias, "Number of MustAlias results");
 /// when testing to isolate a single AA implementation.
 cl::opt<bool> DisableBasicAA("disable-basic-aa", cl::Hidden, cl::init(false));
 
+#ifndef NDEBUG
+/// Print a trace of alias analysis queries and their results.
+static cl::opt<bool> EnableAATrace("aa-trace", cl::Hidden, cl::init(false));
+#else
+static const bool EnableAATrace = false;
+#endif
+
 AAResults::AAResults(AAResults &&Arg)
     : TLI(Arg.TLI), AAs(std::move(Arg.AAs)), AADeps(std::move(Arg.AADeps)) {
   for (auto &AA : AAs)
@@ -118,15 +125,29 @@ AliasResult AAResults::alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI) {
   AliasResult Result = MayAlias;
 
-  Depth++;
+  if (EnableAATrace) {
+    for (unsigned I = 0; I < AAQI.Depth; ++I)
+      dbgs() << "  ";
+    dbgs() << "Start " << *LocA.Ptr << " @ " << LocA.Size << ", "
+           << *LocB.Ptr << " @ " << LocB.Size << "\n";
+  }
+
+  AAQI.Depth++;
   for (const auto &AA : AAs) {
     Result = AA->alias(LocA, LocB, AAQI);
     if (Result != MayAlias)
       break;
   }
-  Depth--;
+  AAQI.Depth--;
 
-  if (Depth == 0) {
+  if (EnableAATrace) {
+    for (unsigned I = 0; I < AAQI.Depth; ++I)
+      dbgs() << "  ";
+    dbgs() << "End " << *LocA.Ptr << " @ " << LocA.Size << ", "
+           << *LocB.Ptr << " @ " << LocB.Size << " = " << Result << "\n";
+  }
+
+  if (AAQI.Depth == 0) {
     if (Result == NoAlias)
       ++NumNoAlias;
     else if (Result == MustAlias)
@@ -883,8 +904,8 @@ bool AAResultsWrapperPass::runOnFunction(Function &F) {
 
 void AAResultsWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<BasicAAWrapperPass>();
-  AU.addRequired<TargetLibraryInfoWrapperPass>();
+  AU.addRequiredTransitive<BasicAAWrapperPass>();
+  AU.addRequiredTransitive<TargetLibraryInfoWrapperPass>();
 
   // We also need to mark all the alias analysis passes we will potentially
   // probe in runOnFunction as used here to ensure the legacy pass manager

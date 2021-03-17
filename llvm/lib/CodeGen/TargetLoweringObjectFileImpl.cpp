@@ -128,6 +128,7 @@ void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
     // Fallthrough if not using EHABI
     LLVM_FALLTHROUGH;
   case Triple::ppc:
+  case Triple::ppcle:
   case Triple::x86:
     PersonalityEncoding = isPositionIndependent()
                               ? dwarf::DW_EH_PE_indirect |
@@ -180,11 +181,20 @@ void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
     // will be in memory. Most of these could end up >2GB away so even a signed
     // pc-relative 32-bit address is insufficient, theoretically.
     if (isPositionIndependent()) {
-      PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-        dwarf::DW_EH_PE_sdata8;
-      LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata8;
-      TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-        dwarf::DW_EH_PE_sdata8;
+      // ILP32 uses sdata4 instead of sdata8
+      if (TgtM.getTargetTriple().getEnvironment() == Triple::GNUILP32) {
+        PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                              dwarf::DW_EH_PE_sdata4;
+        LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
+        TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                        dwarf::DW_EH_PE_sdata4;
+      } else {
+        PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                              dwarf::DW_EH_PE_sdata8;
+        LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata8;
+        TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                        dwarf::DW_EH_PE_sdata8;
+      }
     } else {
       PersonalityEncoding = dwarf::DW_EH_PE_absptr;
       LSDAEncoding = dwarf::DW_EH_PE_absptr;
@@ -675,7 +685,8 @@ MCSection *TargetLoweringObjectFileELF::getExplicitSectionGlobal(
     UniqueID = NextUniqueID++;
     Flags |= ELF::SHF_LINK_ORDER;
   } else {
-    if (getContext().getAsmInfo()->useIntegratedAssembler()) {
+    if (getContext().getAsmInfo()->useIntegratedAssembler() ||
+        getContext().getAsmInfo()->binutilsIsAtLeast(2, 35)) {
       // Symbols must be placed into sections with compatible entry
       // sizes. Generate unique sections for symbols that have not
       // been assigned to compatible sections.
@@ -726,8 +737,9 @@ MCSection *TargetLoweringObjectFileELF::getExplicitSectionGlobal(
   assert(Section->getLinkedToSymbol() == LinkedToSym &&
          "Associated symbol mismatch between sections");
 
-  if (!getContext().getAsmInfo()->useIntegratedAssembler()) {
-    // If we are not using the integrated assembler then this symbol might have
+  if (!(getContext().getAsmInfo()->useIntegratedAssembler() ||
+        getContext().getAsmInfo()->binutilsIsAtLeast(2, 35))) {
+    // If we are using GNU as before 2.35, then this symbol might have
     // been placed in an incompatible mergeable section. Emit an error if this
     // is the case to avoid creating broken output.
     if ((Section->getFlags() & ELF::SHF_MERGE) &&
@@ -822,9 +834,8 @@ MCSection *TargetLoweringObjectFileELF::getSectionForJumpTable(
                                    /* AssociatedSymbol */ nullptr);
 }
 
-MCSection *
-TargetLoweringObjectFileELF::getSectionForLSDA(const Function &F,
-                                               const TargetMachine &TM) const {
+MCSection *TargetLoweringObjectFileELF::getSectionForLSDA(
+    const Function &F, const MCSymbol &FnSym, const TargetMachine &TM) const {
   // If neither COMDAT nor function sections, use the monolithic LSDA section.
   // Re-use this path if LSDASection is null as in the Arm EHABI.
   if (!LSDASection || (!F.hasComdat() && !TM.getFunctionSections()))
@@ -833,30 +844,26 @@ TargetLoweringObjectFileELF::getSectionForLSDA(const Function &F,
   const auto *LSDA = cast<MCSectionELF>(LSDASection);
   unsigned Flags = LSDA->getFlags();
   StringRef Group;
+  const MCSymbolELF *LinkedToSym = nullptr;
   if (F.hasComdat()) {
     Group = F.getComdat()->getName();
     Flags |= ELF::SHF_GROUP;
   }
+  // Use SHF_LINK_ORDER to facilitate --gc-sections if we can use GNU ld>=2.36
+  // or LLD, which support mixed SHF_LINK_ORDER & non-SHF_LINK_ORDER.
+  if (TM.getFunctionSections() &&
+      (getContext().getAsmInfo()->useIntegratedAssembler() &&
+       getContext().getAsmInfo()->binutilsIsAtLeast(2, 36))) {
+    Flags |= ELF::SHF_LINK_ORDER;
+    LinkedToSym = cast<MCSymbolELF>(&FnSym);
+  }
 
   // Append the function name as the suffix like GCC, assuming
   // -funique-section-names applies to .gcc_except_table sections.
-  if (TM.getUniqueSectionNames())
-    return getContext().getELFSection(LSDA->getName() + "." + F.getName(),
-                                      LSDA->getType(), Flags, 0, Group,
-                                      MCSection::NonUniqueID, nullptr);
-
-  // Allocate a unique ID if function sections && (integrated assembler or GNU
-  // as>=2.35). Note we could use SHF_LINK_ORDER to facilitate --gc-sections but
-  // that would require that we know the linker is a modern LLD (12.0 or later).
-  // GNU ld as of 2.35 does not support mixed SHF_LINK_ORDER &
-  // non-SHF_LINK_ORDER components in an output section
-  // https://sourceware.org/bugzilla/show_bug.cgi?id=26256
-  unsigned ID = TM.getFunctionSections() &&
-                        getContext().getAsmInfo()->useIntegratedAssembler()
-                    ? NextUniqueID++
-                    : MCSection::NonUniqueID;
-  return getContext().getELFSection(LSDA->getName(), LSDA->getType(), Flags, 0,
-                                    Group, ID, nullptr);
+  return getContext().getELFSection(
+      (TM.getUniqueSectionNames() ? LSDA->getName() + "." + F.getName()
+                                  : LSDA->getName()),
+      LSDA->getType(), Flags, 0, Group, MCSection::NonUniqueID, LinkedToSym);
 }
 
 bool TargetLoweringObjectFileELF::shouldPutJumpTableInFunctionSection(
@@ -916,7 +923,7 @@ MCSection *TargetLoweringObjectFileELF::getSectionForMachineBasicBlock(
   }
 
   unsigned Flags = ELF::SHF_ALLOC | ELF::SHF_EXECINSTR;
-  std::string GroupName = "";
+  std::string GroupName;
   if (F.hasComdat()) {
     Flags |= ELF::SHF_GROUP;
     GroupName = F.getComdat()->getName().str();

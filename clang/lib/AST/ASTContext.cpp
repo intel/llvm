@@ -965,6 +965,7 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       XRayFilter(new XRayFunctionFilter(LangOpts.XRayAlwaysInstrumentFiles,
                                         LangOpts.XRayNeverInstrumentFiles,
                                         LangOpts.XRayAttrListFiles, SM)),
+      ProfList(new ProfileList(LangOpts.ProfileListFiles, SM)),
       PrintingPolicy(LOpts), Idents(idents), Selectors(sels),
       BuiltinInfo(builtins), DeclarationNames(*this), Comments(SM),
       CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
@@ -2097,7 +2098,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       Align = Target->getDoubleAlign();
       break;
     case BuiltinType::LongDouble:
-      if (((getLangOpts().SYCL && getLangOpts().SYCLIsDevice) ||
+      if ((getLangOpts().SYCLIsDevice ||
            (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)) &&
           AuxTarget != nullptr &&
           (Target->getLongDoubleWidth() != AuxTarget->getLongDoubleWidth() ||
@@ -5851,9 +5852,8 @@ ASTContext::getNameForTemplate(TemplateName Name,
     } else {
       DName = DeclarationNames.getCXXOperatorName(DTN->getOperator());
       // DNInfo work in progress: FIXME: source locations?
-      DeclarationNameLoc DNLoc;
-      DNLoc.CXXOperatorName.BeginOpNameLoc = SourceLocation().getRawEncoding();
-      DNLoc.CXXOperatorName.EndOpNameLoc = SourceLocation().getRawEncoding();
+      DeclarationNameLoc DNLoc =
+          DeclarationNameLoc::makeCXXOperatorNameLoc(SourceRange());
       return DeclarationNameInfo(DName, NameLoc, DNLoc);
     }
   }
@@ -11476,16 +11476,22 @@ operator<<(const StreamingDiagnostic &DB,
 }
 
 bool ASTContext::mayExternalizeStaticVar(const Decl *D) const {
-  return !getLangOpts().GPURelocatableDeviceCode &&
-         ((D->hasAttr<CUDADeviceAttr>() &&
-           !D->getAttr<CUDADeviceAttr>()->isImplicit()) ||
-          (D->hasAttr<CUDAConstantAttr>() &&
-           !D->getAttr<CUDAConstantAttr>()->isImplicit())) &&
-         isa<VarDecl>(D) && cast<VarDecl>(D)->isFileVarDecl() &&
-         cast<VarDecl>(D)->getStorageClass() == SC_Static;
+  bool IsStaticVar =
+      isa<VarDecl>(D) && cast<VarDecl>(D)->getStorageClass() == SC_Static;
+  bool IsExplicitDeviceVar = (D->hasAttr<CUDADeviceAttr>() &&
+                              !D->getAttr<CUDADeviceAttr>()->isImplicit()) ||
+                             (D->hasAttr<CUDAConstantAttr>() &&
+                              !D->getAttr<CUDAConstantAttr>()->isImplicit());
+  // CUDA/HIP: static managed variables need to be externalized since it is
+  // a declaration in IR, therefore cannot have internal linkage.
+  // ToDo: externalize static variables for -fgpu-rdc.
+  return IsStaticVar &&
+         (D->hasAttr<HIPManagedAttr>() ||
+          (!getLangOpts().GPURelocatableDeviceCode && IsExplicitDeviceVar));
 }
 
 bool ASTContext::shouldExternalizeStaticVar(const Decl *D) const {
   return mayExternalizeStaticVar(D) &&
-         CUDAStaticDeviceVarReferencedByHost.count(cast<VarDecl>(D));
+         (D->hasAttr<HIPManagedAttr>() ||
+          CUDAStaticDeviceVarReferencedByHost.count(cast<VarDecl>(D)));
 }

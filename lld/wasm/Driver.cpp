@@ -9,7 +9,7 @@
 #include "lld/Common/Driver.h"
 #include "Config.h"
 #include "InputChunks.h"
-#include "InputGlobal.h"
+#include "InputElement.h"
 #include "MarkLive.h"
 #include "SymbolTable.h"
 #include "Writer.h"
@@ -381,7 +381,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
   config->ltoNewPassManager =
-      args.hasFlag(OPT_lto_new_pass_manager, OPT_no_lto_new_pass_manager,
+      args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
                    LLVM_ENABLE_NEW_PASS_MANAGER);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
   config->mapFile = args.getLastArgValue(OPT_Map);
@@ -595,8 +595,7 @@ static GlobalSymbol *createGlobalVariable(StringRef name, bool isMutable) {
 
 static GlobalSymbol *createOptionalGlobal(StringRef name, bool isMutable) {
   InputGlobal *g = createGlobal(name, isMutable);
-  return symtab->addOptionalGlobalSymbols(name, WASM_SYMBOL_VISIBILITY_HIDDEN,
-                                          g);
+  return symtab->addOptionalGlobalSymbol(name, g);
 }
 
 // Create ABI-defined synthetic symbols
@@ -639,7 +638,7 @@ static void createSyntheticSymbols() {
     WasmSym::stackPointer->markLive();
   }
 
-  if (config->sharedMemory) {
+  if (config->sharedMemory && !config->relocatable) {
     WasmSym::tlsBase = createGlobalVariable("__tls_base", true);
     WasmSym::tlsSize = createGlobalVariable("__tls_size", false);
     WasmSym::tlsAlign = createGlobalVariable("__tls_align", false);
@@ -785,6 +784,66 @@ static void wrapSymbols(ArrayRef<WrappedSymbol> wrapped) {
   // Update pointers in the symbol table.
   for (const WrappedSymbol &w : wrapped)
     symtab->wrap(w.sym, w.real, w.wrap);
+}
+
+static TableSymbol *createDefinedIndirectFunctionTable(StringRef name) {
+  const uint32_t invalidIndex = -1;
+  WasmLimits limits{0, 0, 0}; // Set by the writer.
+  WasmTableType type{uint8_t(ValType::FUNCREF), limits};
+  WasmTable desc{invalidIndex, type, name};
+  InputTable *table = make<InputTable>(desc, nullptr);
+  uint32_t flags = config->exportTable ? 0 : WASM_SYMBOL_VISIBILITY_HIDDEN;
+  TableSymbol *sym = symtab->addSyntheticTable(name, flags, table);
+  sym->markLive();
+  sym->forceExport = config->exportTable;
+  return sym;
+}
+
+static TableSymbol *createUndefinedIndirectFunctionTable(StringRef name) {
+  WasmLimits limits{0, 0, 0}; // Set by the writer.
+  WasmTableType *type = make<WasmTableType>();
+  type->ElemType = uint8_t(ValType::FUNCREF);
+  type->Limits = limits;
+  StringRef module(defaultModule);
+  uint32_t flags = config->exportTable ? 0 : WASM_SYMBOL_VISIBILITY_HIDDEN;
+  flags |= WASM_SYMBOL_UNDEFINED;
+  Symbol *sym =
+      symtab->addUndefinedTable(name, name, module, flags, nullptr, type);
+  sym->markLive();
+  sym->forceExport = config->exportTable;
+  return cast<TableSymbol>(sym);
+}
+
+static TableSymbol *resolveIndirectFunctionTable() {
+  Symbol *existing = symtab->find(functionTableName);
+  if (existing) {
+    if (!isa<TableSymbol>(existing)) {
+      error(Twine("reserved symbol must be of type table: `") +
+            functionTableName + "`");
+      return nullptr;
+    }
+    if (existing->isDefined()) {
+      error(Twine("reserved symbol must not be defined in input files: `") +
+            functionTableName + "`");
+      return nullptr;
+    }
+  }
+
+  if (config->importTable) {
+    if (existing)
+      return cast<TableSymbol>(existing);
+    else
+      return createUndefinedIndirectFunctionTable(functionTableName);
+  } else if ((existing && existing->isLive()) || config->exportTable) {
+    // A defined table is required.  Either because the user request an exported
+    // table or because the table symbol is already live.  The existing table is
+    // guaranteed to be undefined due to the check above.
+    return createDefinedIndirectFunctionTable(functionTableName);
+  }
+
+  // An indirect function table will only be present in the symbol table if
+  // needed by a reloc; if we get here, we don't need one.
+  return nullptr;
 }
 
 void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
@@ -954,11 +1013,6 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     Symbol *sym = symtab->find(arg->getValue());
     if (sym && sym->isDefined())
       sym->forceExport = true;
-    else if (config->unresolvedSymbols == UnresolvedPolicy::ReportError)
-      error(Twine("symbol exported via --export not found: ") +
-            arg->getValue());
-    else if (config->unresolvedSymbols == UnresolvedPolicy::Warn)
-      warn(Twine("symbol exported via --export not found: ") + arg->getValue());
   }
 
   if (!config->relocatable && !config->isPic) {
@@ -975,6 +1029,14 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
 
   // Do size optimizations: garbage collection
   markLive();
+
+  if (!config->relocatable) {
+    // Provide the indirect funciton table if needed.
+    WasmSym::indirectFunctionTable = resolveIndirectFunctionTable();
+
+    if (errorCount())
+      return;
+  }
 
   // Write the result to the file.
   writeResult();

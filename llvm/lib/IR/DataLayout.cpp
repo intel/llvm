@@ -65,7 +65,8 @@ StructLayout::StructLayout(StructType *ST, const DataLayout &DL) {
     StructAlignment = std::max(TyAlign, StructAlignment);
 
     MemberOffsets[i] = StructSize;
-    StructSize += DL.getTypeAllocSize(Ty); // Consume space for this data item
+    // Consume space for this data item
+    StructSize += DL.getTypeAllocSize(Ty).getFixedValue();
   }
 
   // Add padding to the end of the struct so that it could be put in an array
@@ -810,6 +811,8 @@ Align DataLayout::getAlignment(Type *Ty, bool abi_or_pref) const {
     Alignment = PowerOf2Ceil(Alignment);
     return Align(Alignment);
   }
+  case Type::X86_AMXTyID:
+    return Align(64);
   default:
     llvm_unreachable("Bad type for getAlignment!!!");
   }

@@ -732,7 +732,7 @@ static inline kmp_cmplx128_a16_t operator/(kmp_cmplx128_a16_t &lhs,
 
 #define OP_UPDATE_CRITICAL(TYPE, OP, LCK_ID)                                   \
   __kmp_acquire_atomic_lock(&ATOMIC_LOCK##LCK_ID, gtid);                       \
-  (*lhs) = (TYPE)((*lhs)OP(rhs));                                              \
+  (*lhs) = (TYPE)((*lhs)OP((TYPE)rhs));                                        \
   __kmp_release_atomic_lock(&ATOMIC_LOCK##LCK_ID, gtid);
 
 // ------------------------------------------------------------------------
@@ -791,14 +791,14 @@ static inline kmp_cmplx128_a16_t operator/(kmp_cmplx128_a16_t &lhs,
   {                                                                            \
     TYPE old_value, new_value;                                                 \
     old_value = *(TYPE volatile *)lhs;                                         \
-    new_value = (TYPE)(old_value OP rhs);                                      \
+    new_value = (TYPE)(old_value OP((TYPE)rhs));                               \
     while (!KMP_COMPARE_AND_STORE_ACQ##BITS(                                   \
         (kmp_int##BITS *)lhs, *VOLATILE_CAST(kmp_int##BITS *) & old_value,     \
         *VOLATILE_CAST(kmp_int##BITS *) & new_value)) {                        \
       KMP_DO_PAUSE;                                                            \
                                                                                \
       old_value = *(TYPE volatile *)lhs;                                       \
-      new_value = (TYPE)(old_value OP rhs);                                    \
+      new_value = (TYPE)(old_value OP((TYPE)rhs));                             \
     }                                                                          \
   }
 
@@ -2253,6 +2253,7 @@ ATOMIC_CRITICAL_WR(cmplx16, a16_wr, kmp_cmplx128_a16_t, =, 32c,
 #define ATOMIC_CMPXCHG_CPT(TYPE_ID, OP_ID, TYPE, BITS, OP, GOMP_FLAG)          \
   ATOMIC_BEGIN_CPT(TYPE_ID, OP_ID, TYPE, TYPE)                                 \
   TYPE new_value;                                                              \
+  (void)new_value;                                                             \
   OP_GOMP_CRITICAL_CPT(TYPE, OP, GOMP_FLAG)                                    \
   OP_CMPXCHG_CPT(TYPE, BITS, OP)                                               \
   }
@@ -2261,6 +2262,7 @@ ATOMIC_CRITICAL_WR(cmplx16, a16_wr, kmp_cmplx128_a16_t, =, 32c,
 #define ATOMIC_FIXED_ADD_CPT(TYPE_ID, OP_ID, TYPE, BITS, OP, GOMP_FLAG)        \
   ATOMIC_BEGIN_CPT(TYPE_ID, OP_ID, TYPE, TYPE)                                 \
   TYPE old_value, new_value;                                                   \
+  (void)new_value;                                                             \
   OP_GOMP_CRITICAL_CPT(TYPE, OP, GOMP_FLAG)                                    \
   /* OP used as a sign for subtraction: (lhs-rhs) --> (lhs+-rhs) */            \
   old_value = KMP_TEST_THEN_ADD##BITS(lhs, OP rhs);                            \
@@ -2536,8 +2538,11 @@ ATOMIC_CRITICAL_CPT_MIX(float10, long double, div_cpt, /, fp, _Quad, 10r,
                                                                                \
   if (flag) {                                                                  \
     new_value OP rhs;                                                          \
-  } else                                                                       \
+    (*lhs) = new_value;                                                        \
+  } else {                                                                     \
     new_value = (*lhs);                                                        \
+    (*lhs) OP rhs;                                                             \
+  }                                                                            \
                                                                                \
   __kmp_release_atomic_lock(&ATOMIC_LOCK##LCK_ID, gtid);
 
@@ -2558,6 +2563,7 @@ ATOMIC_CRITICAL_CPT_MIX(float10, long double, div_cpt, /, fp, _Quad, 10r,
 #define ATOMIC_CMPX_L_CPT(TYPE_ID, OP_ID, TYPE, BITS, OP, GOMP_FLAG)           \
   ATOMIC_BEGIN_CPT(TYPE_ID, OP_ID, TYPE, TYPE)                                 \
   TYPE new_value;                                                              \
+  (void)new_value;                                                             \
   OP_GOMP_CRITICAL_L_CPT(= *lhs OP, GOMP_FLAG)                                 \
   OP_CMPXCHG_CPT(TYPE, BITS, OP)                                               \
   }
@@ -2652,6 +2658,7 @@ ATOMIC_CMPX_L_CPT(fixed8, orl_cpt, kmp_int64, 64, ||,
 #define MIN_MAX_COMPXCHG_CPT(TYPE_ID, OP_ID, TYPE, BITS, OP, GOMP_FLAG)        \
   ATOMIC_BEGIN_CPT(TYPE_ID, OP_ID, TYPE, TYPE)                                 \
   TYPE new_value, old_value;                                                   \
+  (void)new_value;                                                             \
   if (*lhs OP rhs) {                                                           \
     GOMP_MIN_MAX_CRITSECT_CPT(OP, GOMP_FLAG)                                   \
     MIN_MAX_CMPXCHG_CPT(TYPE, BITS, OP)                                        \
@@ -2710,6 +2717,7 @@ MIN_MAX_CRITICAL_CPT(float16, min_a16_cpt, Quad_a16_t, >, 16r,
 #define ATOMIC_CMPX_EQV_CPT(TYPE_ID, OP_ID, TYPE, BITS, OP, GOMP_FLAG)         \
   ATOMIC_BEGIN_CPT(TYPE_ID, OP_ID, TYPE, TYPE)                                 \
   TYPE new_value;                                                              \
+  (void)new_value;                                                             \
   OP_GOMP_CRITICAL_EQV_CPT(^= (TYPE) ~, GOMP_FLAG) /* send assignment */       \
   OP_CMPXCHG_CPT(TYPE, BITS, OP)                                               \
   }
@@ -2938,6 +2946,7 @@ ATOMIC_CRITICAL_CPT(cmplx16, div_a16_cpt, kmp_cmplx128_a16_t, /, 32c,
 #define ATOMIC_CMPXCHG_CPT_REV(TYPE_ID, OP_ID, TYPE, BITS, OP, GOMP_FLAG)      \
   ATOMIC_BEGIN_CPT(TYPE_ID, OP_ID, TYPE, TYPE)                                 \
   TYPE new_value;                                                              \
+  (void)new_value;                                                             \
   OP_GOMP_CRITICAL_CPT_REV(TYPE, OP, GOMP_FLAG)                                \
   OP_CMPXCHG_CPT_REV(TYPE, BITS, OP)                                           \
   }
@@ -3258,6 +3267,7 @@ ATOMIC_CRITICAL_CPT_REV_MIX(float10, long double, div_cpt_rev, /, fp, _Quad,
 #define ATOMIC_CMPXCHG_SWP(TYPE_ID, TYPE, BITS, GOMP_FLAG)                     \
   ATOMIC_BEGIN_SWP(TYPE_ID, TYPE)                                              \
   TYPE old_value;                                                              \
+  (void)old_value;                                                             \
   GOMP_CRITICAL_SWP(GOMP_FLAG)                                                 \
   CMPXCHG_SWP(TYPE, BITS)                                                      \
   }

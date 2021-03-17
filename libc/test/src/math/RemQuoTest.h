@@ -123,7 +123,7 @@ public:
       // In normal range on x86 platforms, the long double implicit 1 bit can be
       // zero making the numbers NaN. Hence we test for them separately.
       if (isnan(x) || isnan(y)) {
-        ASSERT_NE(isnan(result.f), 0);
+        ASSERT_FP_EQ(result.f, nan);
         continue;
       }
 
@@ -133,12 +133,12 @@ public:
 };
 
 #define LIST_REMQUO_TESTS(T, func)                                             \
-  using RemQuoTest = RemQuoTestTemplate<T>;                                    \
-  TEST_F(RemQuoTest, SpecialNumbers) { testSpecialNumbers(&func); }            \
-  TEST_F(RemQuoTest, EqualNumeratorAndDenominator) {                           \
+  using LlvmLibcRemQuoTest = RemQuoTestTemplate<T>;                            \
+  TEST_F(LlvmLibcRemQuoTest, SpecialNumbers) { testSpecialNumbers(&func); }    \
+  TEST_F(LlvmLibcRemQuoTest, EqualNumeratorAndDenominator) {                   \
     testEqualNumeratorAndDenominator(&func);                                   \
   }                                                                            \
-  TEST_F(RemQuoTest, SubnormalRange) { testSubnormalRange(&func); }            \
-  TEST_F(RemQuoTest, NormalRange) { testNormalRange(&func); }
+  TEST_F(LlvmLibcRemQuoTest, SubnormalRange) { testSubnormalRange(&func); }    \
+  TEST_F(LlvmLibcRemQuoTest, NormalRange) { testNormalRange(&func); }
 
 #endif // LLVM_LIBC_TEST_SRC_MATH_REMQUOTEST_H

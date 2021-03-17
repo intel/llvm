@@ -148,17 +148,51 @@ void PDLPatternModule::registerRewriteFunction(StringRef name,
 }
 
 //===----------------------------------------------------------------------===//
-// PatternRewriter
+// RewriterBase
 //===----------------------------------------------------------------------===//
 
-PatternRewriter::~PatternRewriter() {
+RewriterBase::~RewriterBase() {
   // Out of line to provide a vtable anchor for the class.
 }
 
-/// This method performs the final replacement for a pattern, where the
-/// results of the operation are updated to use the specified list of SSA
-/// values.
-void PatternRewriter::replaceOp(Operation *op, ValueRange newValues) {
+/// This method replaces the uses of the results of `op` with the values in
+/// `newValues` when the provided `functor` returns true for a specific use.
+/// The number of values in `newValues` is required to match the number of
+/// results of `op`.
+void RewriterBase::replaceOpWithIf(
+    Operation *op, ValueRange newValues, bool *allUsesReplaced,
+    llvm::unique_function<bool(OpOperand &) const> functor) {
+  assert(op->getNumResults() == newValues.size() &&
+         "incorrect number of values to replace operation");
+
+  // Notify the rewriter subclass that we're about to replace this root.
+  notifyRootReplaced(op);
+
+  // Replace each use of the results when the functor is true.
+  bool replacedAllUses = true;
+  for (auto it : llvm::zip(op->getResults(), newValues)) {
+    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), functor);
+    replacedAllUses &= std::get<0>(it).use_empty();
+  }
+  if (allUsesReplaced)
+    *allUsesReplaced = replacedAllUses;
+}
+
+/// This method replaces the uses of the results of `op` with the values in
+/// `newValues` when a use is nested within the given `block`. The number of
+/// values in `newValues` is required to match the number of results of `op`.
+/// If all uses of this operation are replaced, the operation is erased.
+void RewriterBase::replaceOpWithinBlock(Operation *op, ValueRange newValues,
+                                        Block *block, bool *allUsesReplaced) {
+  replaceOpWithIf(op, newValues, allUsesReplaced, [block](OpOperand &use) {
+    return block->getParentOp()->isProperAncestor(use.getOwner());
+  });
+}
+
+/// This method replaces the results of the operation with the specified list of
+/// values. The number of provided values must match the number of results of
+/// the operation.
+void RewriterBase::replaceOp(Operation *op, ValueRange newValues) {
   // Notify the rewriter subclass that we're about to replace this root.
   notifyRootReplaced(op);
 
@@ -172,13 +206,13 @@ void PatternRewriter::replaceOp(Operation *op, ValueRange newValues) {
 
 /// This method erases an operation that is known to have no uses. The uses of
 /// the given operation *must* be known to be dead.
-void PatternRewriter::eraseOp(Operation *op) {
+void RewriterBase::eraseOp(Operation *op) {
   assert(op->use_empty() && "expected 'op' to have no uses");
   notifyOperationRemoved(op);
   op->erase();
 }
 
-void PatternRewriter::eraseBlock(Block *block) {
+void RewriterBase::eraseBlock(Block *block) {
   for (auto &op : llvm::make_early_inc_range(llvm::reverse(*block))) {
     assert(op.use_empty() && "expected 'op' to have no uses");
     eraseOp(&op);
@@ -190,8 +224,8 @@ void PatternRewriter::eraseBlock(Block *block) {
 /// 'source's predecessors must be empty or only contain 'dest`.
 /// 'argValues' is used to replace the block arguments of 'source' after
 /// merging.
-void PatternRewriter::mergeBlocks(Block *source, Block *dest,
-                                  ValueRange argValues) {
+void RewriterBase::mergeBlocks(Block *source, Block *dest,
+                               ValueRange argValues) {
   assert(llvm::all_of(source->getPredecessors(),
                       [dest](Block *succ) { return succ == dest; }) &&
          "expected 'source' to have no predecessors or only 'dest'");
@@ -211,8 +245,8 @@ void PatternRewriter::mergeBlocks(Block *source, Block *dest,
 
 // Merge the operations of block 'source' before the operation 'op'. Source
 // block should not have existing predecessors or successors.
-void PatternRewriter::mergeBlockBefore(Block *source, Operation *op,
-                                       ValueRange argValues) {
+void RewriterBase::mergeBlockBefore(Block *source, Operation *op,
+                                    ValueRange argValues) {
   assert(source->hasNoPredecessors() &&
          "expected 'source' to have no predecessors");
   assert(source->hasNoSuccessors() &&
@@ -233,14 +267,14 @@ void PatternRewriter::mergeBlockBefore(Block *source, Operation *op,
 
 /// Split the operations starting at "before" (inclusive) out of the given
 /// block into a new block, and return it.
-Block *PatternRewriter::splitBlock(Block *block, Block::iterator before) {
+Block *RewriterBase::splitBlock(Block *block, Block::iterator before) {
   return block->splitBlock(before);
 }
 
 /// 'op' and 'newOp' are known to have the same number of results, replace the
 /// uses of op with uses of newOp
-void PatternRewriter::replaceOpWithResultsOfAnotherOp(Operation *op,
-                                                      Operation *newOp) {
+void RewriterBase::replaceOpWithResultsOfAnotherOp(Operation *op,
+                                                   Operation *newOp) {
   assert(op->getNumResults() == newOp->getNumResults() &&
          "replacement op doesn't match results of original op");
   if (op->getNumResults() == 1)
@@ -252,11 +286,11 @@ void PatternRewriter::replaceOpWithResultsOfAnotherOp(Operation *op,
 /// another region.  The two regions must be different.  The caller is in
 /// charge to update create the operation transferring the control flow to the
 /// region and pass it the correct block arguments.
-void PatternRewriter::inlineRegionBefore(Region &region, Region &parent,
-                                         Region::iterator before) {
+void RewriterBase::inlineRegionBefore(Region &region, Region &parent,
+                                      Region::iterator before) {
   parent.getBlocks().splice(before, region.getBlocks());
 }
-void PatternRewriter::inlineRegionBefore(Region &region, Block *before) {
+void RewriterBase::inlineRegionBefore(Region &region, Block *before) {
   inlineRegionBefore(region, *before->getParent(), before->getIterator());
 }
 
@@ -264,17 +298,16 @@ void PatternRewriter::inlineRegionBefore(Region &region, Block *before) {
 /// another region "parent". The two regions must be different. The caller is
 /// responsible for creating or updating the operation transferring flow of
 /// control to the region and passing it the correct block arguments.
-void PatternRewriter::cloneRegionBefore(Region &region, Region &parent,
-                                        Region::iterator before,
-                                        BlockAndValueMapping &mapping) {
+void RewriterBase::cloneRegionBefore(Region &region, Region &parent,
+                                     Region::iterator before,
+                                     BlockAndValueMapping &mapping) {
   region.cloneInto(&parent, before, mapping);
 }
-void PatternRewriter::cloneRegionBefore(Region &region, Region &parent,
-                                        Region::iterator before) {
+void RewriterBase::cloneRegionBefore(Region &region, Region &parent,
+                                     Region::iterator before) {
   BlockAndValueMapping mapping;
   cloneRegionBefore(region, parent, before, mapping);
 }
-void PatternRewriter::cloneRegionBefore(Region &region, Block *before) {
+void RewriterBase::cloneRegionBefore(Region &region, Block *before) {
   cloneRegionBefore(region, *before->getParent(), before->getIterator());
 }
-

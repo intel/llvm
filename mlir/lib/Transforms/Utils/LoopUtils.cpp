@@ -147,6 +147,26 @@ static Value ceilDivPositive(OpBuilder &builder, Location loc, Value dividend,
   return builder.create<SignedDivIOp>(loc, sum, divisor);
 }
 
+/// Helper to replace uses of loop carried values (iter_args) and loop
+/// yield values while promoting single iteration affine.for and scf.for ops.
+template <typename AffineOrSCFForOp>
+static void replaceIterArgsAndYieldResults(AffineOrSCFForOp forOp) {
+  static_assert(
+      llvm::is_one_of<AffineOrSCFForOp, AffineForOp, scf::ForOp>::value,
+      "only for affine.for and scf.for ops");
+  // Replace uses of iter arguments with iter operands (initial values).
+  auto iterOperands = forOp.getIterOperands();
+  auto iterArgs = forOp.getRegionIterArgs();
+  for (auto e : llvm::zip(iterOperands, iterArgs))
+    std::get<1>(e).replaceAllUsesWith(std::get<0>(e));
+
+  // Replace uses of loop results with the values yielded by the loop.
+  auto outerResults = forOp.getResults();
+  auto innerResults = forOp.getBody()->getTerminator()->getOperands();
+  for (auto e : llvm::zip(outerResults, innerResults))
+    std::get<0>(e).replaceAllUsesWith(std::get<1>(e));
+}
+
 /// Promotes the loop body of a forOp to its containing block if the forOp
 /// was known to have a single iteration.
 // TODO: extend this for arbitrary affine bounds.
@@ -181,6 +201,9 @@ LogicalResult mlir::promoteIfSingleIteration(AffineForOp forOp) {
       }
     }
   }
+
+  replaceIterArgsAndYieldResults(forOp);
+
   // Move the loop body operations, except for its terminator, to the loop's
   // containing block.
   forOp.getBody()->back().erase();
@@ -206,17 +229,7 @@ LogicalResult mlir::promoteIfSingleIteration(scf::ForOp forOp) {
   auto iv = forOp.getInductionVar();
   iv.replaceAllUsesWith(lbCstOp);
 
-  // Replace uses of iterArgs with iterOperands.
-  auto iterOperands = forOp.getIterOperands();
-  auto iterArgs = forOp.getRegionIterArgs();
-  for (auto e : llvm::zip(iterOperands, iterArgs))
-    std::get<1>(e).replaceAllUsesWith(std::get<0>(e));
-
-  // Replace uses of loop results with the values yielded by the loop.
-  auto outerResults = forOp.getResults();
-  auto innerResults = forOp.getBody()->getTerminator()->getOperands();
-  for (auto e : llvm::zip(outerResults, innerResults))
-    std::get<0>(e).replaceAllUsesWith(std::get<1>(e));
+  replaceIterArgsAndYieldResults(forOp);
 
   // Move the loop body operations, except for its terminator, to the loop's
   // containing block.
@@ -234,9 +247,9 @@ void mlir::promoteSingleIterationLoops(FuncOp f) {
   // Gathers all innermost loops through a post order pruned walk.
   f.walk([](Operation *op) {
     if (auto forOp = dyn_cast<AffineForOp>(op))
-      promoteIfSingleIteration(forOp);
+      (void)promoteIfSingleIteration(forOp);
     else if (auto forOp = dyn_cast<scf::ForOp>(op))
-      promoteIfSingleIteration(forOp);
+      (void)promoteIfSingleIteration(forOp);
   });
 }
 
@@ -392,7 +405,7 @@ LogicalResult mlir::affineForOpBodySkew(AffineForOp forOp,
         OwningRewritePatternList patterns;
         AffineForOp::getCanonicalizationPatterns(patterns, res.getContext());
         bool erased;
-        applyOpPatternsAndFold(res, std::move(patterns), &erased);
+        (void)applyOpPatternsAndFold(res, std::move(patterns), &erased);
 
         if (!erased && !prologue)
           prologue = res;
@@ -423,9 +436,9 @@ LogicalResult mlir::affineForOpBodySkew(AffineForOp forOp,
   forOp.erase();
 
   if (unrollPrologueEpilogue && prologue)
-    loopUnrollFull(prologue);
+    (void)loopUnrollFull(prologue);
   if (unrollPrologueEpilogue && !epilogue && epilogue != prologue)
-    loopUnrollFull(epilogue);
+    (void)loopUnrollFull(epilogue);
 
   return success();
 }
@@ -507,7 +520,8 @@ checkTilingLegality(MutableArrayRef<mlir::AffineForOp> origLoops) {
   return success(checkTilingLegalityImpl(origLoops));
 }
 
-/// Check if the input data is valid and wheter tiled code will be legal or not.
+/// Check if the input data is valid and whether tiled code will be legal or
+/// not.
 template <typename t>
 void performPreTilingChecks(MutableArrayRef<AffineForOp> input,
                             ArrayRef<t> tileSizes) {
@@ -584,7 +598,7 @@ LogicalResult checkIfHyperRectangular(MutableArrayRef<AffineForOp> input,
                                       unsigned width) {
   FlatAffineConstraints cst;
   SmallVector<Operation *, 8> ops(input.begin(), input.end());
-  getIndexSet(ops, &cst);
+  (void)getIndexSet(ops, &cst);
   if (!cst.isHyperRectangular(0, width)) {
     rootAffineForOp.emitError("tiled code generation unimplemented for the "
                               "non-hyperrectangular case");
@@ -1126,6 +1140,17 @@ LogicalResult mlir::loopUnrollByFactor(AffineForOp forOp,
   if (getLargestDivisorOfTripCount(forOp) % unrollFactor != 0) {
     OpBuilder builder(forOp->getBlock(), std::next(Block::iterator(forOp)));
     auto cleanupForOp = cast<AffineForOp>(builder.clone(*forOp));
+
+    // Update users of loop results.
+    auto results = forOp.getResults();
+    auto cleanupResults = cleanupForOp.getResults();
+    auto cleanupIterOperands = cleanupForOp.getIterOperands();
+
+    for (auto e : llvm::zip(results, cleanupResults, cleanupIterOperands)) {
+      std::get<0>(e).replaceAllUsesWith(std::get<1>(e));
+      cleanupForOp->replaceUsesOfWith(std::get<2>(e), std::get<0>(e));
+    }
+
     AffineMap cleanupMap;
     SmallVector<Value, 4> cleanupOperands;
     getCleanupLoopLowerBound(forOp, unrollFactor, cleanupMap, cleanupOperands);
@@ -1134,28 +1159,31 @@ LogicalResult mlir::loopUnrollByFactor(AffineForOp forOp,
            "can always be determined");
     cleanupForOp.setLowerBound(cleanupOperands, cleanupMap);
     // Promote the loop body up if this has turned into a single iteration loop.
-    promoteIfSingleIteration(cleanupForOp);
+    (void)promoteIfSingleIteration(cleanupForOp);
 
     // Adjust upper bound of the original loop; this is the same as the lower
     // bound of the cleanup loop.
     forOp.setUpperBound(cleanupOperands, cleanupMap);
   }
 
+  ValueRange iterArgs(forOp.getRegionIterArgs());
+  auto yieldedValues = forOp.getBody()->getTerminator()->getOperands();
+
   // Scale the step of loop being unrolled by unroll factor.
   int64_t step = forOp.getStep();
   forOp.setStep(step * unrollFactor);
-  generateUnrolledLoop(forOp.getBody(), forOp.getInductionVar(), unrollFactor,
-                       [&](unsigned i, Value iv, OpBuilder b) {
-                         // iv' = iv + i * step
-                         auto d0 = b.getAffineDimExpr(0);
-                         auto bumpMap = AffineMap::get(1, 0, d0 + i * step);
-                         return b.create<AffineApplyOp>(forOp.getLoc(), bumpMap,
-                                                        iv);
-                       },
-                       /*iterArgs=*/{}, /*yieldedValues=*/{});
+  generateUnrolledLoop(
+      forOp.getBody(), forOp.getInductionVar(), unrollFactor,
+      [&](unsigned i, Value iv, OpBuilder b) {
+        // iv' = iv + i * step
+        auto d0 = b.getAffineDimExpr(0);
+        auto bumpMap = AffineMap::get(1, 0, d0 + i * step);
+        return b.create<AffineApplyOp>(forOp.getLoc(), bumpMap, iv);
+      },
+      /*iterArgs=*/iterArgs, /*yieldedValues=*/yieldedValues);
 
   // Promote the loop body up if this has turned into a single iteration loop.
-  promoteIfSingleIteration(forOp);
+  (void)promoteIfSingleIteration(forOp);
   return success();
 }
 
@@ -1247,7 +1275,7 @@ LogicalResult mlir::loopUnrollByFactor(scf::ForOp forOp,
       std::get<0>(e).replaceAllUsesWith(std::get<1>(e));
       epilogueForOp->replaceUsesOfWith(std::get<2>(e), std::get<0>(e));
     }
-    promoteIfSingleIteration(epilogueForOp);
+    (void)promoteIfSingleIteration(epilogueForOp);
   }
 
   // Create unrolled loop.
@@ -1267,7 +1295,7 @@ LogicalResult mlir::loopUnrollByFactor(scf::ForOp forOp,
       },
       iterArgs, yieldedValues);
   // Promote the loop body up if this has turned into a single iteration loop.
-  promoteIfSingleIteration(forOp);
+  (void)promoteIfSingleIteration(forOp);
   return success();
 }
 
@@ -1357,7 +1385,7 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
     cleanupAffineForOp.setLowerBound(cleanupOperands, cleanupMap);
 
     // Promote the cleanup loop if it has turned into a single iteration loop.
-    promoteIfSingleIteration(cleanupAffineForOp);
+    (void)promoteIfSingleIteration(cleanupAffineForOp);
 
     // Adjust the upper bound of the original loop - it will be the same as the
     // cleanup loop's lower bound. Its lower bound remains unchanged.
@@ -1395,7 +1423,7 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
   }
 
   // Promote the loop body up if this has turned into a single iteration loop.
-  promoteIfSingleIteration(forOp);
+  (void)promoteIfSingleIteration(forOp);
   return success();
 }
 
@@ -1896,7 +1924,7 @@ TileLoops mlir::extractFixedOuterLoops(scf::ForOp rootForOp,
   // TODO: for now we just ignore the result of band isolation.
   // In the future, mapping decisions may be impacted by the ability to
   // isolate perfectly nested bands.
-  tryIsolateBands(tileLoops);
+  (void)tryIsolateBands(tileLoops);
 
   return tileLoops;
 }
@@ -2032,10 +2060,14 @@ void mlir::collapseParallelLoops(
   OpBuilder outsideBuilder(loops);
   Location loc = loops.getLoc();
 
+  // Presort combined dimensions.
+  auto sortedDimensions = llvm::to_vector<3>(combinedDimensions);
+  for (auto &dims : sortedDimensions)
+    std::sort(dims.begin(), dims.end());
+
   // Normalize ParallelOp's iteration pattern.
-  SmallVector<Value, 3> normalizedLowerBounds;
-  SmallVector<Value, 3> normalizedSteps;
-  SmallVector<Value, 3> normalizedUpperBounds;
+  SmallVector<Value, 3> normalizedLowerBounds, normalizedSteps,
+      normalizedUpperBounds;
   for (unsigned i = 0, e = loops.getNumLoops(); i < e; ++i) {
     OpBuilder insideLoopBuilder = OpBuilder::atBlockBegin(loops.getBody());
     auto resultBounds =
@@ -2049,14 +2081,12 @@ void mlir::collapseParallelLoops(
   }
 
   // Combine iteration spaces.
-  SmallVector<Value, 3> lowerBounds;
-  SmallVector<Value, 3> steps;
-  SmallVector<Value, 3> upperBounds;
+  SmallVector<Value, 3> lowerBounds, upperBounds, steps;
   auto cst0 = outsideBuilder.create<ConstantIndexOp>(loc, 0);
   auto cst1 = outsideBuilder.create<ConstantIndexOp>(loc, 1);
-  for (unsigned i = 0, e = combinedDimensions.size(); i < e; ++i) {
+  for (unsigned i = 0, e = sortedDimensions.size(); i < e; ++i) {
     Value newUpperBound = outsideBuilder.create<ConstantIndexOp>(loc, 1);
-    for (auto idx : combinedDimensions[i]) {
+    for (auto idx : sortedDimensions[i]) {
       newUpperBound = outsideBuilder.create<MulIOp>(loc, newUpperBound,
                                                     normalizedUpperBounds[idx]);
     }
@@ -2078,7 +2108,7 @@ void mlir::collapseParallelLoops(
           Value previous = ploopIVs[i];
           unsigned numberCombinedDimensions = combinedDimensions[i].size();
           // Iterate over all except the last induction value.
-          for (unsigned j = 0, e = numberCombinedDimensions - 1; j < e; ++j) {
+          for (unsigned j = numberCombinedDimensions - 1; j > 0; --j) {
             unsigned idx = combinedDimensions[i][j];
 
             // Determine the current induction value's current loop iteration
@@ -2094,7 +2124,7 @@ void mlir::collapseParallelLoops(
           }
 
           // The final induction value is just the remaining value.
-          unsigned idx = combinedDimensions[i][numberCombinedDimensions - 1];
+          unsigned idx = combinedDimensions[i][0];
           replaceAllUsesInRegionWith(loops.getBody()->getArgument(idx),
                                      previous, loops.region());
         }
@@ -2580,12 +2610,12 @@ static LogicalResult generateCopy(
     prevOfBegin = std::prev(begin);
 
   // *Only* those uses within the range [begin, end) of 'block' are replaced.
-  replaceAllMemRefUsesWith(memref, fastMemRef,
-                           /*extraIndices=*/{}, indexRemap,
-                           /*extraOperands=*/regionSymbols,
-                           /*symbolOperands=*/{},
-                           /*domInstFilter=*/&*begin,
-                           /*postDomInstFilter=*/&*postDomFilter);
+  (void)replaceAllMemRefUsesWith(memref, fastMemRef,
+                                 /*extraIndices=*/{}, indexRemap,
+                                 /*extraOperands=*/regionSymbols,
+                                 /*symbolOperands=*/{},
+                                 /*domInstFilter=*/&*begin,
+                                 /*postDomInstFilter=*/&*postDomFilter);
 
   *nBegin = isBeginAtStartOfBlock ? block->begin() : std::next(prevOfBegin);
 
@@ -2938,7 +2968,7 @@ static AffineIfOp createSeparationCondition(MutableArrayRef<AffineForOp> loops,
   ops.reserve(loops.size());
   for (AffineForOp forOp : loops)
     ops.push_back(forOp);
-  getIndexSet(ops, &cst);
+  (void)getIndexSet(ops, &cst);
 
   // Remove constraints that are independent of these loop IVs.
   cst.removeIndependentConstraints(/*pos=*/0, /*num=*/loops.size());
@@ -3023,7 +3053,7 @@ createFullTiles(MutableArrayRef<AffineForOp> inputNest,
       return failure();
     }
     SmallVector<Operation *, 1> loopOp{loop.getOperation()};
-    getIndexSet(loopOp, &cst);
+    (void)getIndexSet(loopOp, &cst);
     // We will mark everything other than this loop IV as symbol for getting a
     // pair of <lb, ub> with a constant difference.
     cst.setDimSymbolSeparation(cst.getNumDimAndSymbolIds() - 1);

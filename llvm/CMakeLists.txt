@@ -2,21 +2,10 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-if(POLICY CMP0068)
-  cmake_policy(SET CMP0068 NEW)
-  set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
-endif()
-
-if(POLICY CMP0075)
-  cmake_policy(SET CMP0075 NEW)
-endif()
-
-if(POLICY CMP0077)
-  cmake_policy(SET CMP0077 NEW)
-endif()
+set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 if(NOT DEFINED LLVM_VERSION_MAJOR)
-  set(LLVM_VERSION_MAJOR 12)
+  set(LLVM_VERSION_MAJOR 13)
 endif()
 if(NOT DEFINED LLVM_VERSION_MINOR)
   set(LLVM_VERSION_MINOR 0)
@@ -660,6 +649,12 @@ if (LLVM_BUILD_STATIC)
   endforeach()
 endif()
 
+include(CheckSymbolExists)
+check_symbol_exists(proc_pid_rusage "libproc.h" HAVE_PROC_PID_RUSAGE)
+if(HAVE_PROC_PID_RUSAGE)
+  list(APPEND CMAKE_REQUIRED_LIBRARIES proc)
+endif()
+
 # Use libtool instead of ar if you are both on an Apple host, and targeting Apple.
 if(CMAKE_HOST_APPLE AND APPLE)
   include(UseLibtool)
@@ -679,10 +674,6 @@ set(LLVM_PROFDATA_FILE "" CACHE FILEPATH
 # BEFORE this include, otherwise options will not be correctly set on
 # first cmake run
 include(config-ix)
-
-string(REPLACE "Native" ${LLVM_NATIVE_ARCH}
-  LLVM_TARGETS_TO_BUILD "${LLVM_TARGETS_TO_BUILD}")
-list(REMOVE_DUPLICATES LLVM_TARGETS_TO_BUILD)
 
 # By default, we target the host, but this can be overridden at CMake
 # invocation time.
@@ -704,7 +695,7 @@ endif()
 option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default})
 
 set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
-  "Enable the experimental new pass manager by default.")
+  "Enable the new pass manager by default.")
 
 include(HandleLLVMOptions)
 
@@ -910,13 +901,6 @@ if(LLVM_TARGET_IS_CROSSCOMPILE_HOST)
 # Dummy use to avoid CMake Warning: Manually-specified variables were not used
 # (this is a variable that CrossCompile sets on recursive invocations)
 endif()
-
-if(${CMAKE_SYSTEM_NAME} MATCHES "(FreeBSD|DragonFly)")
-  # On FreeBSD, /usr/local/* is not used by default. In order to build LLVM
-  # with libxml2, iconv.h, etc., we must add /usr/local paths.
-  include_directories(SYSTEM "/usr/local/include")
-  link_directories("/usr/local/lib")
-endif(${CMAKE_SYSTEM_NAME} MATCHES "(FreeBSD|DragonFly)")
 
 if( ${CMAKE_SYSTEM_NAME} MATCHES SunOS )
    # special hack for Solaris to handle crazy system sys/regset.h

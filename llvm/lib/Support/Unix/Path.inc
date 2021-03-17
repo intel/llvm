@@ -685,8 +685,6 @@ void expand_tilde(const Twine &path, SmallVectorImpl<char> &dest) {
 
   path.toVector(dest);
   expandTildeExpr(dest);
-
-  return;
 }
 
 static file_type typeForMode(mode_t Mode) {
@@ -1210,6 +1208,14 @@ std::error_code real_path(const Twine &path, SmallVectorImpl<char> &dest,
   if (::realpath(P.begin(), Buffer) == nullptr)
     return std::error_code(errno, std::generic_category());
   dest.append(Buffer, Buffer + strlen(Buffer));
+  return std::error_code();
+}
+
+std::error_code changeFileOwnership(int FD, uint32_t Owner, uint32_t Group) {
+  auto FChown = [&]() { return ::fchown(FD, Owner, Group); };
+  // Retry if fchown call fails due to interruption.
+  if ((sys::RetryAfterSignal(-1, FChown)) < 0)
+    return std::error_code(errno, std::generic_category());
   return std::error_code();
 }
 

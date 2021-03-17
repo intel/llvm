@@ -32,26 +32,15 @@ func @assert(%arg : i1) {
   return
 }
 
-// CHECK-LABEL: @dynamic_tensor_from_elements
-func @dynamic_tensor_from_elements(%m : index, %n : index)
-    -> tensor<?x3x?xf32> {
-  %tnsr = dynamic_tensor_from_elements %m, %n {
-    ^bb0(%i : index, %j : index, %k : index):
-      %elem = constant 8.0 : f32
-      yield %elem : f32
-  } : tensor<?x3x?xf32>
-  return %tnsr : tensor<?x3x?xf32>
-}
-
 // CHECK-LABEL: @atan
 func @atan(%arg : f32) -> f32 {
-  %result = atan %arg : f32
+  %result = math.atan %arg : f32
   return %result : f32
 }
 
 // CHECK-LABEL: @atan2
 func @atan2(%arg0 : f32, %arg1 : f32) -> f32 {
-  %result = atan2 %arg0, %arg1 : f32
+  %result = math.atan2 %arg0, %arg1 : f32
   return %result : f32
 }
 
@@ -107,4 +96,3 @@ func @read_global_memref() {
   %1 = tensor_load %0 : memref<2xf32>
   return
 }
-

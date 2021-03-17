@@ -78,7 +78,7 @@ static void emitStructDecl(const Record &structDef, raw_ostream &os) {
   StructAttr structAttr(&structDef);
   StringRef structName = structAttr.getStructClassName();
   StringRef cppNamespace = structAttr.getCppNamespace();
-  StringRef description = structAttr.getDescription();
+  StringRef description = structAttr.getSummary();
   auto fields = structAttr.getAllFields();
 
   // Wrap in the appropriate namespace.
@@ -150,7 +150,7 @@ static void emitFactoryDef(llvm::StringRef structName,
   }
 
   const char *getEndInfo = R"(
-  ::mlir::Attribute dict = ::mlir::DictionaryAttr::get(fields, context);
+  ::mlir::Attribute dict = ::mlir::DictionaryAttr::get(context, fields);
   return dict.dyn_cast<{0}>();
 }
 )";

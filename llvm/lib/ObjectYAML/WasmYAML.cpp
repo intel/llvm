@@ -448,12 +448,12 @@ void MappingTraits<WasmYAML::DataSegment>::mapping(
     IO &IO, WasmYAML::DataSegment &Segment) {
   IO.mapOptional("SectionOffset", Segment.SectionOffset);
   IO.mapRequired("InitFlags", Segment.InitFlags);
-  if (Segment.InitFlags & wasm::WASM_SEGMENT_HAS_MEMINDEX) {
+  if (Segment.InitFlags & wasm::WASM_DATA_SEGMENT_HAS_MEMINDEX) {
     IO.mapRequired("MemoryIndex", Segment.MemoryIndex);
   } else {
     Segment.MemoryIndex = 0;
   }
-  if ((Segment.InitFlags & wasm::WASM_SEGMENT_IS_PASSIVE) == 0) {
+  if ((Segment.InitFlags & wasm::WASM_DATA_SEGMENT_IS_PASSIVE) == 0) {
     IO.mapRequired("Offset", Segment.Offset);
   } else {
     Segment.Offset.Opcode = wasm::WASM_OPCODE_I32_CONST;
@@ -572,7 +572,6 @@ void ScalarEnumerationTraits<WasmYAML::ValueType>::enumeration(
   ECase(F64);
   ECase(V128);
   ECase(FUNCREF);
-  ECase(EXNREF);
   ECase(EXTERNREF);
   ECase(FUNC);
 #undef ECase
@@ -615,6 +614,7 @@ void ScalarEnumerationTraits<WasmYAML::RelocType>::enumeration(
 #define WASM_RELOC(name, value) IO.enumCase(Type, #name, wasm::name);
 #include "llvm/BinaryFormat/WasmRelocs.def"
 #undef WASM_RELOC
+  IO.enumFallback<Hex32>(Type);
 }
 
 } // end namespace yaml

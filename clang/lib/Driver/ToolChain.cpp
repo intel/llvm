@@ -241,6 +241,8 @@ StringRef ToolChain::getDefaultUniversalArchName() const {
     return "arm64_32";
   case llvm::Triple::ppc:
     return "ppc";
+  case llvm::Triple::ppcle:
+    return "ppcle";
   case llvm::Triple::ppc64:
     return "ppc64";
   case llvm::Triple::ppc64le:
@@ -352,12 +354,6 @@ Tool *ToolChain::getSYCLPostLink() const {
   return SYCLPostLink.get();
 }
 
-Tool *ToolChain::getPartialLink() const {
-  if (!PartialLink)
-    PartialLink.reset(new tools::PartialLink(*this));
-  return PartialLink.get();
-}
-
 Tool *ToolChain::getBackendCompiler() const {
   if (!BackendCompiler)
     BackendCompiler.reset(buildBackendCompiler());
@@ -420,9 +416,6 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::SYCLPostLinkJobClass:
     return getSYCLPostLink();
-
-  case Action::PartialLinkJobClass:
-    return getPartialLink();
 
   case Action::BackendCompileJobClass:
     return getBackendCompiler();
@@ -851,14 +844,25 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
     else {
       // Ideally we would check for these flags in
       // CollectArgsForIntegratedAssembler but we can't change the ArchName at
-      // that point. There is no assembler equivalent of -mno-thumb, -marm, or
-      // -mno-arm.
+      // that point.
+      llvm::StringRef WaMArch, WaMCPU;
       for (const auto *A :
            Args.filtered(options::OPT_Wa_COMMA, options::OPT_Xassembler)) {
         for (StringRef Value : A->getValues()) {
+          // There is no assembler equivalent of -mno-thumb, -marm, or -mno-arm.
           if (Value == "-mthumb")
             IsThumb = true;
+          else if (Value.startswith("-march="))
+            WaMArch = Value.substr(7);
+          else if (Value.startswith("-mcpu="))
+            WaMCPU = Value.substr(6);
         }
+      }
+
+      if (WaMCPU.size() || WaMArch.size()) {
+        // The way this works means that we prefer -Wa,-mcpu's architecture
+        // over -Wa,-march. Which matches the compiler behaviour.
+        Suffix = tools::arm::getLLVMArchSuffixForARM(WaMCPU, WaMArch, Triple);
       }
     }
     // Assembly files should start in ARM mode, unless arch is M-profile, or
@@ -938,66 +942,86 @@ void ToolChain::addProfileRTLibs(const llvm::opt::ArgList &Args,
 
 ToolChain::RuntimeLibType ToolChain::GetRuntimeLibType(
     const ArgList &Args) const {
+  if (runtimeLibType)
+    return *runtimeLibType;
+
   const Arg* A = Args.getLastArg(options::OPT_rtlib_EQ);
   StringRef LibName = A ? A->getValue() : CLANG_DEFAULT_RTLIB;
 
   // Only use "platform" in tests to override CLANG_DEFAULT_RTLIB!
   if (LibName == "compiler-rt")
-    return ToolChain::RLT_CompilerRT;
+    runtimeLibType = ToolChain::RLT_CompilerRT;
   else if (LibName == "libgcc")
-    return ToolChain::RLT_Libgcc;
+    runtimeLibType = ToolChain::RLT_Libgcc;
   else if (LibName == "platform")
-    return GetDefaultRuntimeLibType();
+    runtimeLibType = GetDefaultRuntimeLibType();
+  else {
+    if (A)
+      getDriver().Diag(diag::err_drv_invalid_rtlib_name)
+          << A->getAsString(Args);
 
-  if (A)
-    getDriver().Diag(diag::err_drv_invalid_rtlib_name) << A->getAsString(Args);
+    runtimeLibType = GetDefaultRuntimeLibType();
+  }
 
-  return GetDefaultRuntimeLibType();
+  return *runtimeLibType;
 }
 
 ToolChain::UnwindLibType ToolChain::GetUnwindLibType(
     const ArgList &Args) const {
+  if (unwindLibType)
+    return *unwindLibType;
+
   const Arg *A = Args.getLastArg(options::OPT_unwindlib_EQ);
   StringRef LibName = A ? A->getValue() : CLANG_DEFAULT_UNWINDLIB;
 
   if (LibName == "none")
-    return ToolChain::UNW_None;
+    unwindLibType = ToolChain::UNW_None;
   else if (LibName == "platform" || LibName == "") {
     ToolChain::RuntimeLibType RtLibType = GetRuntimeLibType(Args);
     if (RtLibType == ToolChain::RLT_CompilerRT)
-      return ToolChain::UNW_None;
+      unwindLibType = ToolChain::UNW_None;
     else if (RtLibType == ToolChain::RLT_Libgcc)
-      return ToolChain::UNW_Libgcc;
+      unwindLibType = ToolChain::UNW_Libgcc;
   } else if (LibName == "libunwind") {
     if (GetRuntimeLibType(Args) == RLT_Libgcc)
       getDriver().Diag(diag::err_drv_incompatible_unwindlib);
-    return ToolChain::UNW_CompilerRT;
+    unwindLibType = ToolChain::UNW_CompilerRT;
   } else if (LibName == "libgcc")
-    return ToolChain::UNW_Libgcc;
+    unwindLibType = ToolChain::UNW_Libgcc;
+  else {
+    if (A)
+      getDriver().Diag(diag::err_drv_invalid_unwindlib_name)
+          << A->getAsString(Args);
 
-  if (A)
-    getDriver().Diag(diag::err_drv_invalid_unwindlib_name)
-        << A->getAsString(Args);
+    unwindLibType = GetDefaultUnwindLibType();
+  }
 
-  return GetDefaultUnwindLibType();
+  return *unwindLibType;
 }
 
 ToolChain::CXXStdlibType ToolChain::GetCXXStdlibType(const ArgList &Args) const{
+  if (cxxStdlibType)
+    return *cxxStdlibType;
+
   const Arg *A = Args.getLastArg(options::OPT_stdlib_EQ);
   StringRef LibName = A ? A->getValue() : CLANG_DEFAULT_CXX_STDLIB;
 
   // Only use "platform" in tests to override CLANG_DEFAULT_CXX_STDLIB!
   if (LibName == "libc++")
-    return ToolChain::CST_Libcxx;
+    cxxStdlibType = ToolChain::CST_Libcxx;
   else if (LibName == "libstdc++")
-    return ToolChain::CST_Libstdcxx;
+    cxxStdlibType = ToolChain::CST_Libstdcxx;
   else if (LibName == "platform")
-    return GetDefaultCXXStdlibType();
+    cxxStdlibType = GetDefaultCXXStdlibType();
+  else {
+    if (A)
+      getDriver().Diag(diag::err_drv_invalid_stdlib_name)
+          << A->getAsString(Args);
 
-  if (A)
-    getDriver().Diag(diag::err_drv_invalid_stdlib_name) << A->getAsString(Args);
+    cxxStdlibType = GetDefaultCXXStdlibType();
+  }
 
-  return GetDefaultCXXStdlibType();
+  return *cxxStdlibType;
 }
 
 /// Utility function to add a system include directory to CC1 arguments.

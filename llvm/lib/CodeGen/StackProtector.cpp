@@ -70,6 +70,7 @@ StackProtector::StackProtector() : FunctionPass(ID), SSPBufferSize(8) {
 INITIALIZE_PASS_BEGIN(StackProtector, DEBUG_TYPE,
                       "Insert stack protectors", false, true)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(StackProtector, DEBUG_TYPE,
                     "Insert stack protectors", false, true)
 
@@ -192,7 +193,7 @@ bool StackProtector::HasAddressTaken(const Instruction *AI,
       // Ignore intrinsics that do not become real instructions.
       // TODO: Narrow this to intrinsics that have store-like effects.
       const auto *CI = cast<CallInst>(I);
-      if (!isa<DbgInfoIntrinsic>(CI) && !CI->isLifetimeStartOrEnd())
+      if (!CI->isDebugOrPseudoInst() && !CI->isLifetimeStartOrEnd())
         return true;
       break;
     }

@@ -400,6 +400,17 @@ TEST(STLExtrasTest, DropBeginTest) {
   }
 }
 
+TEST(STLExtrasTest, DropBeginDefaultTest) {
+  SmallVector<int, 5> vec{0, 1, 2, 3, 4};
+
+  int i = 1;
+  for (auto &v : drop_begin(vec)) {
+    EXPECT_EQ(v, i);
+    i += 1;
+  }
+  EXPECT_EQ(i, 5);
+}
+
 TEST(STLExtrasTest, EarlyIncrementTest) {
   std::list<int> L = {1, 2, 3, 4};
 
@@ -447,6 +458,79 @@ TEST(STLExtrasTest, EarlyIncrementTest) {
   L.erase(L.begin(), std::prev(L.end()));
   ++I;
   EXPECT_EQ(4, *I);
+  ++I;
+  EXPECT_EQ(EIR.end(), I);
+}
+
+// A custom iterator that returns a pointer when dereferenced. This is used to
+// test make_early_inc_range with iterators that do not return a reference on
+// dereferencing.
+struct CustomPointerIterator
+    : public iterator_adaptor_base<CustomPointerIterator,
+                                   std::list<int>::iterator,
+                                   std::forward_iterator_tag> {
+  using base_type =
+      iterator_adaptor_base<CustomPointerIterator, std::list<int>::iterator,
+                            std::forward_iterator_tag>;
+
+  explicit CustomPointerIterator(std::list<int>::iterator I) : base_type(I) {}
+
+  // Retrieve a pointer to the current int.
+  int *operator*() const { return &*base_type::wrapped(); }
+};
+
+// Make sure make_early_inc_range works with iterators that do not return a
+// reference on dereferencing. The test is similar to EarlyIncrementTest, but
+// uses CustomPointerIterator.
+TEST(STLExtrasTest, EarlyIncrementTestCustomPointerIterator) {
+  std::list<int> L = {1, 2, 3, 4};
+
+  auto CustomRange = make_range(CustomPointerIterator(L.begin()),
+                                CustomPointerIterator(L.end()));
+  auto EIR = make_early_inc_range(CustomRange);
+
+  auto I = EIR.begin();
+  auto EI = EIR.end();
+  EXPECT_NE(I, EI);
+
+  EXPECT_EQ(&*L.begin(), *I);
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+#ifndef NDEBUG
+  // Repeated dereferences are not allowed.
+  EXPECT_DEATH(*I, "Cannot dereference");
+  // Comparison after dereference is not allowed.
+  EXPECT_DEATH((void)(I == EI), "Cannot compare");
+  EXPECT_DEATH((void)(I != EI), "Cannot compare");
+#endif
+#endif
+
+  ++I;
+  EXPECT_NE(I, EI);
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+#ifndef NDEBUG
+  // You cannot increment prior to dereference.
+  EXPECT_DEATH(++I, "Cannot increment");
+#endif
+#endif
+  EXPECT_EQ(&*std::next(L.begin()), *I);
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+#ifndef NDEBUG
+  // Repeated dereferences are not allowed.
+  EXPECT_DEATH(*I, "Cannot dereference");
+#endif
+#endif
+
+  // Inserting shouldn't break anything. We should be able to keep dereferencing
+  // the currrent iterator and increment. The increment to go to the "next"
+  // iterator from before we inserted.
+  L.insert(std::next(L.begin(), 2), -1);
+  ++I;
+  EXPECT_EQ(&*std::next(L.begin(), 3), *I);
+
+  // Erasing the front including the current doesn't break incrementing.
+  L.erase(L.begin(), std::prev(L.end()));
+  ++I;
+  EXPECT_EQ(&*L.begin(), *I);
   ++I;
   EXPECT_EQ(EIR.end(), I);
 }

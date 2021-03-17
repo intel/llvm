@@ -10,6 +10,7 @@
 #include "check-call.h"
 #include "pointer-assignment.h"
 #include "resolve-names.h"
+#include "flang/Common/Fortran.h"
 #include "flang/Common/idioms.h"
 #include "flang/Evaluate/common.h"
 #include "flang/Evaluate/fold.h"
@@ -164,7 +165,7 @@ private:
   }
   void SayNoMatch(const std::string &, bool isAssignment = false);
   std::string TypeAsFortran(std::size_t);
-  bool AnyUntypedOperand();
+  bool AnyUntypedOrMissingOperand();
 
   ExpressionAnalyzer &context_;
   ActualArguments actuals_;
@@ -1846,11 +1847,12 @@ static bool CheckCompatibleArgument(bool isElemental,
   return std::visit(
       common::visitors{
           [&](const characteristics::DummyDataObject &x) {
-            characteristics::TypeAndShape dummyTypeAndShape{x.type};
-            if (!isElemental && actual.Rank() != dummyTypeAndShape.Rank()) {
+            if (!isElemental && actual.Rank() != x.type.Rank() &&
+                !x.type.attrs().test(
+                    characteristics::TypeAndShape::Attr::AssumedRank)) {
               return false;
             } else if (auto actualType{actual.GetType()}) {
-              return dummyTypeAndShape.type().IsTkCompatibleWith(*actualType);
+              return x.type.type().IsTkCompatibleWith(*actualType);
             } else {
               return false;
             }
@@ -1942,7 +1944,8 @@ const Symbol *ExpressionAnalyzer::ResolveGeneric(const Symbol &symbol,
               *procedure, localActuals, GetFoldingContext())) {
         if (CheckCompatibleArguments(*procedure, localActuals)) {
           if (!procedure->IsElemental()) {
-            return &specific; // takes priority over elemental match
+            // takes priority over elemental match
+            return &AccessSpecific(symbol, specific);
           }
           elemental = &specific;
         }
@@ -1950,7 +1953,7 @@ const Symbol *ExpressionAnalyzer::ResolveGeneric(const Symbol &symbol,
     }
   }
   if (elemental) {
-    return elemental;
+    return &AccessSpecific(symbol, *elemental);
   }
   // Check parent derived type
   if (const auto *parentScope{symbol.owner().GetDerivedTypeParent()}) {
@@ -1967,6 +1970,39 @@ const Symbol *ExpressionAnalyzer::ResolveGeneric(const Symbol &symbol,
     return details.derivedType();
   }
   return nullptr;
+}
+
+const Symbol &ExpressionAnalyzer::AccessSpecific(
+    const Symbol &originalGeneric, const Symbol &specific) {
+  if (const auto *hosted{
+          originalGeneric.detailsIf<semantics::HostAssocDetails>()}) {
+    return AccessSpecific(hosted->symbol(), specific);
+  } else if (const auto *used{
+                 originalGeneric.detailsIf<semantics::UseDetails>()}) {
+    const auto &scope{originalGeneric.owner()};
+    if (auto iter{scope.find(specific.name())}; iter != scope.end()) {
+      if (const auto *useDetails{
+              iter->second->detailsIf<semantics::UseDetails>()}) {
+        const Symbol &usedSymbol{useDetails->symbol()};
+        const auto *usedGeneric{
+            usedSymbol.detailsIf<semantics::GenericDetails>()};
+        if (&usedSymbol == &specific ||
+            (usedGeneric && usedGeneric->specific() == &specific)) {
+          return specific;
+        }
+      }
+    }
+    // Create a renaming USE of the specific procedure.
+    auto rename{context_.SaveTempName(
+        used->symbol().owner().GetName().value().ToString() + "$" +
+        specific.name().ToString())};
+    return *const_cast<semantics::Scope &>(scope)
+                .try_emplace(rename, specific.attrs(),
+                    semantics::UseDetails{rename, specific})
+                .first->second;
+  } else {
+    return specific;
+  }
 }
 
 void ExpressionAnalyzer::EmitGenericResolutionError(const Symbol &symbol) {
@@ -2129,6 +2165,15 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::FunctionReference &funcRef,
   return std::nullopt;
 }
 
+static bool HasAlternateReturns(const evaluate::ActualArguments &args) {
+  for (const auto &arg : args) {
+    if (arg && arg->isAlternateReturn()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void ExpressionAnalyzer::Analyze(const parser::CallStmt &callStmt) {
   const parser::Call &call{callStmt.v};
   auto restorer{GetContextualMessages().SetLocation(call.source)};
@@ -2144,8 +2189,7 @@ void ExpressionAnalyzer::Analyze(const parser::CallStmt &callStmt) {
       ProcedureDesignator *proc{std::get_if<ProcedureDesignator>(&callee->u)};
       CHECK(proc);
       if (CheckCall(call.source, *proc, callee->arguments)) {
-        bool hasAlternateReturns{
-            callee->arguments.size() < actualArgList.size()};
+        bool hasAlternateReturns{HasAlternateReturns(callee->arguments)};
         callStmt.typedCall.Reset(
             new ProcedureRef{std::move(*proc), std::move(callee->arguments),
                 hasAlternateReturns},
@@ -2851,20 +2895,19 @@ void ArgumentAnalyzer::Analyze(
   // be detected and represented (they're not expressions).
   // TODO: C1534: Don't allow a "restricted" specific intrinsic to be passed.
   std::optional<ActualArgument> actual;
-  bool isAltReturn{false};
   std::visit(common::visitors{
                  [&](const common::Indirection<parser::Expr> &x) {
                    // TODO: Distinguish & handle procedure name and
                    // proc-component-ref
                    actual = AnalyzeExpr(x.value());
                  },
-                 [&](const parser::AltReturnSpec &) {
+                 [&](const parser::AltReturnSpec &label) {
                    if (!isSubroutine) {
                      context_.Say(
                          "alternate return specification may not appear on"
                          " function reference"_err_en_US);
                    }
-                   isAltReturn = true;
+                   actual = ActualArgument(label.v);
                  },
                  [&](const parser::ActualArg::PercentRef &) {
                    context_.Say("TODO: %REF() argument"_err_en_US);
@@ -2879,7 +2922,7 @@ void ArgumentAnalyzer::Analyze(
       actual->set_keyword(argKW->v.source);
     }
     actuals_.emplace_back(std::move(*actual));
-  } else if (!isAltReturn) {
+  } else {
     fatalErrors_ = true;
   }
 }
@@ -2948,7 +2991,7 @@ bool ArgumentAnalyzer::CheckConformance() const {
 
 MaybeExpr ArgumentAnalyzer::TryDefinedOp(
     const char *opr, parser::MessageFixedText &&error, bool isUserOp) {
-  if (AnyUntypedOperand()) {
+  if (AnyUntypedOrMissingOperand()) {
     context_.Say(
         std::move(error), ToUpperCase(opr), TypeAsFortran(0), TypeAsFortran(1));
     return std::nullopt;
@@ -3263,7 +3306,9 @@ void ArgumentAnalyzer::SayNoMatch(const std::string &opr, bool isAssignment) {
 }
 
 std::string ArgumentAnalyzer::TypeAsFortran(std::size_t i) {
-  if (std::optional<DynamicType> type{GetType(i)}) {
+  if (i >= actuals_.size() || !actuals_[i]) {
+    return "missing argument";
+  } else if (std::optional<DynamicType> type{GetType(i)}) {
     return type->category() == TypeCategory::Derived
         ? "TYPE("s + type->AsFortran() + ')'
         : type->category() == TypeCategory::Character
@@ -3274,9 +3319,9 @@ std::string ArgumentAnalyzer::TypeAsFortran(std::size_t i) {
   }
 }
 
-bool ArgumentAnalyzer::AnyUntypedOperand() {
+bool ArgumentAnalyzer::AnyUntypedOrMissingOperand() {
   for (const auto &actual : actuals_) {
-    if (!actual.value().GetType()) {
+    if (!actual || !actual->GetType()) {
       return true;
     }
   }

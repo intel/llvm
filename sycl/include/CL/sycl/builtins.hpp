@@ -950,8 +950,8 @@ mul24(T x, T y) __NOEXC {
 // half3 cross (half3 p0, half3 p1)
 // half4 cross (half4 p0, half4 p1)
 template <typename T>
-detail::enable_if_t<detail::is_gencrossfloat<T>::value, T> cross(T p0,
-                                                                 T p1) __NOEXC {
+detail::enable_if_t<detail::is_gencross<T>::value, T> cross(T p0,
+                                                            T p1) __NOEXC {
   return __sycl_std::__invoke_cross<T>(p0, p1);
 }
 
@@ -1544,6 +1544,11 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifdef __SYCL_DEVICE_ONLY__
+extern "C" {
+extern SYCL_EXTERNAL div_t div(int x, int y);
+extern SYCL_EXTERNAL ldiv_t ldiv(long int x, long int y);
+extern SYCL_EXTERNAL lldiv_t lldiv(long long int x, long long int y);
+}
 #ifdef __GLIBC__
 extern "C" {
 extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,

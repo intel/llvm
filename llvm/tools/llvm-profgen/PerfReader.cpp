@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "PerfReader.h"
+#include "ProfileGenerator.h"
 
 static cl::opt<bool> ShowMmapEvents("show-mmap-events", cl::ReallyHidden,
                                     cl::init(false), cl::ZeroOrMore,
@@ -15,6 +16,9 @@ static cl::opt<bool> ShowUnwinderOutput("show-unwinder-output",
                                         cl::ReallyHidden, cl::init(false),
                                         cl::ZeroOrMore,
                                         cl::desc("Print unwinder output"));
+
+extern cl::opt<bool> ShowDisassemblyOnly;
+extern cl::opt<bool> ShowSourceLocations;
 
 namespace llvm {
 namespace sampleprof {
@@ -27,11 +31,12 @@ void VirtualUnwinder::unwindCall(UnwindState &State) {
   // 2nd frame is in prolog/epilog. In the future, we will switch to
   // pro/epi tracker(Dwarf CFI) for the precise check.
   uint64_t Source = State.getCurrentLBRSource();
-  auto Iter = State.CallStack.begin();
-  if (State.CallStack.size() == 1 || *(++Iter) != Source) {
-    State.CallStack.front() = Source;
+  auto *ParentFrame = State.getParentFrame();
+  if (ParentFrame == State.getDummyRootPtr() ||
+      ParentFrame->Address != Source) {
+    State.switchToFrame(Source);
   } else {
-    State.CallStack.pop_front();
+    State.popFrame();
   }
   State.InstPtr.update(Source);
 }
@@ -40,27 +45,39 @@ void VirtualUnwinder::unwindLinear(UnwindState &State, uint64_t Repeat) {
   InstructionPointer &IP = State.InstPtr;
   uint64_t Target = State.getCurrentLBRTarget();
   uint64_t End = IP.Address;
-  // Unwind linear execution part
-  while (IP.Address >= Target) {
-    uint64_t PrevIP = IP.Address;
-    IP.backward();
-    // Break into segments for implicit call/return due to inlining
-    bool SameInlinee =
-        State.getBinary()->inlineContextEqual(PrevIP, IP.Address);
-    if (!SameInlinee || PrevIP == Target) {
-      recordRangeCount(PrevIP, End, State, Repeat);
-      End = IP.Address;
+  if (Binary->usePseudoProbes()) {
+    // We don't need to top frame probe since it should be extracted
+    // from the range.
+    // The outcome of the virtual unwinding with pseudo probes is a
+    // map from a context key to the address range being unwound.
+    // This means basically linear unwinding is not needed for pseudo
+    // probes. The range will be simply recorded here and will be
+    // converted to a list of pseudo probes to report in ProfileGenerator.
+    State.getParentFrame()->recordRangeCount(Target, End, Repeat);
+  } else {
+    // Unwind linear execution part
+    uint64_t LeafAddr = State.CurrentLeafFrame->Address;
+    while (IP.Address >= Target) {
+      uint64_t PrevIP = IP.Address;
+      IP.backward();
+      // Break into segments for implicit call/return due to inlining
+      bool SameInlinee = Binary->inlineContextEqual(PrevIP, IP.Address);
+      if (!SameInlinee || PrevIP == Target) {
+        State.switchToFrame(LeafAddr);
+        State.CurrentLeafFrame->recordRangeCount(PrevIP, End, Repeat);
+        End = IP.Address;
+      }
+      LeafAddr = IP.Address;
     }
-    State.CallStack.front() = IP.Address;
   }
 }
 
 void VirtualUnwinder::unwindReturn(UnwindState &State) {
   // Add extra frame as we unwind through the return
   const LBREntry &LBR = State.getCurrentLBR();
-  uint64_t CallAddr = State.getBinary()->getCallAddrFromFrameAddr(LBR.Target);
-  State.CallStack.front() = CallAddr;
-  State.CallStack.push_front(LBR.Source);
+  uint64_t CallAddr = Binary->getCallAddrFromFrameAddr(LBR.Target);
+  State.switchToFrame(CallAddr);
+  State.pushFrame(LBR.Source);
   State.InstPtr.update(LBR.Source);
 }
 
@@ -68,30 +85,107 @@ void VirtualUnwinder::unwindBranchWithinFrame(UnwindState &State) {
   // TODO: Tolerate tail call for now, as we may see tail call from libraries.
   // This is only for intra function branches, excluding tail calls.
   uint64_t Source = State.getCurrentLBRSource();
-  State.CallStack.front() = Source;
+  State.switchToFrame(Source);
   State.InstPtr.update(Source);
 }
 
-void VirtualUnwinder::recordRangeCount(uint64_t Start, uint64_t End,
-                                       UnwindState &State, uint64_t Repeat) {
-  std::string &&ContextId = State.getExpandedContextStr();
-  uint64_t StartOffset = State.getBinary()->virtualAddrToOffset(Start);
-  uint64_t EndOffset = State.getBinary()->virtualAddrToOffset(End);
-  SampleCounters->recordRangeCount(ContextId, StartOffset, EndOffset, Repeat);
+std::shared_ptr<StringBasedCtxKey> FrameStack::getContextKey() {
+  std::shared_ptr<StringBasedCtxKey> KeyStr =
+      std::make_shared<StringBasedCtxKey>();
+  KeyStr->Context = Binary->getExpandedContextStr(Stack);
+  if (KeyStr->Context.empty())
+    return nullptr;
+  KeyStr->genHashCode();
+  return KeyStr;
+}
+
+std::shared_ptr<ProbeBasedCtxKey> ProbeStack::getContextKey() {
+  std::shared_ptr<ProbeBasedCtxKey> ProbeBasedKey =
+      std::make_shared<ProbeBasedCtxKey>();
+  for (auto CallProbe : Stack) {
+    ProbeBasedKey->Probes.emplace_back(CallProbe);
+  }
+  CSProfileGenerator::compressRecursionContext<const PseudoProbe *>(
+      ProbeBasedKey->Probes);
+  ProbeBasedKey->genHashCode();
+  return ProbeBasedKey;
+}
+
+template <typename T>
+void VirtualUnwinder::collectSamplesFromFrame(UnwindState::ProfiledFrame *Cur,
+                                              T &Stack) {
+  if (Cur->RangeSamples.empty() && Cur->BranchSamples.empty())
+    return;
+
+  std::shared_ptr<ContextKey> Key = Stack.getContextKey();
+  if (Key == nullptr)
+    return;
+  auto Ret = CtxCounterMap->emplace(Hashable<ContextKey>(Key), SampleCounter());
+  SampleCounter &SCounter = Ret.first->second;
+  for (auto &Item : Cur->RangeSamples) {
+    uint64_t StartOffset = Binary->virtualAddrToOffset(std::get<0>(Item));
+    uint64_t EndOffset = Binary->virtualAddrToOffset(std::get<1>(Item));
+    SCounter.recordRangeCount(StartOffset, EndOffset, std::get<2>(Item));
+  }
+
+  for (auto &Item : Cur->BranchSamples) {
+    uint64_t SourceOffset = Binary->virtualAddrToOffset(std::get<0>(Item));
+    uint64_t TargetOffset = Binary->virtualAddrToOffset(std::get<1>(Item));
+    SCounter.recordBranchCount(SourceOffset, TargetOffset, std::get<2>(Item));
+  }
+}
+
+template <typename T>
+void VirtualUnwinder::collectSamplesFromFrameTrie(
+    UnwindState::ProfiledFrame *Cur, T &Stack) {
+  if (!Cur->isDummyRoot()) {
+    if (!Stack.pushFrame(Cur)) {
+      // Process truncated context
+      for (const auto &Item : Cur->Children) {
+        // Start a new traversal ignoring its bottom context
+        collectSamplesFromFrameTrie(Item.second.get());
+      }
+      return;
+    }
+  }
+
+  collectSamplesFromFrame(Cur, Stack);
+  // Process children frame
+  for (const auto &Item : Cur->Children) {
+    collectSamplesFromFrameTrie(Item.second.get(), Stack);
+  }
+  // Recover the call stack
+  Stack.popFrame();
+}
+
+void VirtualUnwinder::collectSamplesFromFrameTrie(
+    UnwindState::ProfiledFrame *Cur) {
+  if (Binary->usePseudoProbes()) {
+    ProbeStack Stack(Binary);
+    collectSamplesFromFrameTrie<ProbeStack>(Cur, Stack);
+  } else {
+    FrameStack Stack(Binary);
+    collectSamplesFromFrameTrie<FrameStack>(Cur, Stack);
+  }
 }
 
 void VirtualUnwinder::recordBranchCount(const LBREntry &Branch,
                                         UnwindState &State, uint64_t Repeat) {
   if (Branch.IsArtificial)
     return;
-  std::string &&ContextId = State.getExpandedContextStr();
-  uint64_t SourceOffset = State.getBinary()->virtualAddrToOffset(Branch.Source);
-  uint64_t TargetOffset = State.getBinary()->virtualAddrToOffset(Branch.Target);
-  SampleCounters->recordBranchCount(ContextId, SourceOffset, TargetOffset,
-                                    Repeat);
+
+  if (Binary->usePseudoProbes()) {
+    // Same as recordRangeCount, We don't need to top frame probe since we will
+    // extract it from branch's source address
+    State.getParentFrame()->recordBranchCount(Branch.Source, Branch.Target,
+                                              Repeat);
+  } else {
+    State.CurrentLeafFrame->recordBranchCount(Branch.Source, Branch.Target,
+                                              Repeat);
+  }
 }
 
-bool VirtualUnwinder::unwind(const HybridSample &Sample, uint64_t Repeat) {
+bool VirtualUnwinder::unwind(const HybridSample *Sample, uint64_t Repeat) {
   // Capture initial state as starting point for unwinding.
   UnwindState State(Sample);
 
@@ -137,11 +231,50 @@ bool VirtualUnwinder::unwind(const HybridSample &Sample, uint64_t Repeat) {
     // Record `branch` with calling context after unwinding.
     recordBranchCount(Branch, State, Repeat);
   }
+  // As samples are aggregated on trie, record them into counter map
+  collectSamplesFromFrameTrie(State.getDummyRootPtr());
 
   return true;
 }
 
-PerfReader::PerfReader(cl::list<std::string> &BinaryFilenames) {
+void PerfReader::validateCommandLine(
+    cl::list<std::string> &BinaryFilenames,
+    cl::list<std::string> &PerfTraceFilenames) {
+  // Allow the invalid perfscript if we only use to show binary disassembly
+  if (!ShowDisassemblyOnly) {
+    for (auto &File : PerfTraceFilenames) {
+      if (!llvm::sys::fs::exists(File)) {
+        std::string Msg = "Input perf script(" + File + ") doesn't exist!";
+        exitWithError(Msg);
+      }
+    }
+  }
+  if (BinaryFilenames.size() > 1) {
+    // TODO: remove this if everything is ready to support multiple binaries.
+    exitWithError(
+        "Currently only support one input binary, multiple binaries' "
+        "profile will be merged in one profile and make profile "
+        "summary info inaccurate. Please use `llvm-perfdata` to merge "
+        "profiles from multiple binaries.");
+  }
+  for (auto &Binary : BinaryFilenames) {
+    if (!llvm::sys::fs::exists(Binary)) {
+      std::string Msg = "Input binary(" + Binary + ") doesn't exist!";
+      exitWithError(Msg);
+    }
+  }
+  if (CSProfileGenerator::MaxCompressionSize < -1) {
+    exitWithError("Value of --compress-recursion should >= -1");
+  }
+  if (ShowSourceLocations && !ShowDisassemblyOnly) {
+    exitWithError("--show-source-locations should work together with "
+                  "--show-disassembly-only!");
+  }
+}
+
+PerfReader::PerfReader(cl::list<std::string> &BinaryFilenames,
+                       cl::list<std::string> &PerfTraceFilenames) {
+  validateCommandLine(BinaryFilenames, PerfTraceFilenames);
   // Load the binaries.
   for (auto Filename : BinaryFilenames)
     loadBinary(Filename, /*AllowNameConflict*/ false);
@@ -198,10 +331,10 @@ ProfiledBinary *PerfReader::getBinary(uint64_t Address) {
   return Iter->second;
 }
 
-static void printSampleCounter(ContextRangeCounter &Counter) {
-  // Use ordered map to make the output deterministic
-  std::map<std::string, RangeSample> OrderedCounter(Counter.begin(),
-                                                    Counter.end());
+// Use ordered map to make the output deterministic
+using OrderedCounterForPrint = std::map<std::string, RangeSample>;
+
+static void printSampleCounter(OrderedCounterForPrint &OrderedCounter) {
   for (auto Range : OrderedCounter) {
     outs() << Range.first << "\n";
     for (auto I : Range.second) {
@@ -211,20 +344,60 @@ static void printSampleCounter(ContextRangeCounter &Counter) {
   }
 }
 
+static std::string getContextKeyStr(ContextKey *K,
+                                    const ProfiledBinary *Binary) {
+  std::string ContextStr;
+  if (const auto *CtxKey = dyn_cast<StringBasedCtxKey>(K)) {
+    return CtxKey->Context;
+  } else if (const auto *CtxKey = dyn_cast<ProbeBasedCtxKey>(K)) {
+    SmallVector<std::string, 16> ContextStack;
+    for (const auto *Probe : CtxKey->Probes) {
+      Binary->getInlineContextForProbe(Probe, ContextStack, true);
+    }
+    for (const auto &Context : ContextStack) {
+      if (ContextStr.size())
+        ContextStr += " @ ";
+      ContextStr += Context;
+    }
+  }
+  return ContextStr;
+}
+
+static void printRangeCounter(ContextSampleCounterMap &Counter,
+                              const ProfiledBinary *Binary) {
+  OrderedCounterForPrint OrderedCounter;
+  for (auto &CI : Counter) {
+    OrderedCounter[getContextKeyStr(CI.first.getPtr(), Binary)] =
+        CI.second.RangeCounter;
+  }
+  printSampleCounter(OrderedCounter);
+}
+
+static void printBranchCounter(ContextSampleCounterMap &Counter,
+                               const ProfiledBinary *Binary) {
+  OrderedCounterForPrint OrderedCounter;
+  for (auto &CI : Counter) {
+    OrderedCounter[getContextKeyStr(CI.first.getPtr(), Binary)] =
+        CI.second.BranchCounter;
+  }
+  printSampleCounter(OrderedCounter);
+}
+
 void PerfReader::printUnwinderOutput() {
   for (auto I : BinarySampleCounters) {
     const ProfiledBinary *Binary = I.first;
     outs() << "Binary(" << Binary->getName().str() << ")'s Range Counter:\n";
-    printSampleCounter(I.second.RangeCounter);
+    printRangeCounter(I.second, Binary);
     outs() << "\nBinary(" << Binary->getName().str() << ")'s Branch Counter:\n";
-    printSampleCounter(I.second.BranchCounter);
+    printBranchCounter(I.second, Binary);
   }
 }
 
 void PerfReader::unwindSamples() {
   for (const auto &Item : AggregatedSamples) {
-    const HybridSample &Sample = Item.first;
-    VirtualUnwinder Unwinder(&BinarySampleCounters[Sample.Binary]);
+    const HybridSample *Sample = dyn_cast<HybridSample>(Item.first.getPtr());
+    VirtualUnwinder Unwinder(&BinarySampleCounters[Sample->Binary],
+                             Sample->Binary);
     Unwinder.unwind(Sample, Item.second);
   }
 
@@ -233,7 +406,7 @@ void PerfReader::unwindSamples() {
 }
 
 bool PerfReader::extractLBRStack(TraceStream &TraceIt,
-                                 SmallVector<LBREntry, 16> &LBRStack,
+                                 SmallVectorImpl<LBREntry> &LBRStack,
                                  ProfiledBinary *Binary) {
   // The raw format of LBR stack is like:
   // 0x4005c8/0x4005dc/P/-/-/0 0x40062f/0x4005b0/P/-/-/0 ...
@@ -297,7 +470,7 @@ bool PerfReader::extractLBRStack(TraceStream &TraceIt,
 }
 
 bool PerfReader::extractCallstack(TraceStream &TraceIt,
-                                  std::list<uint64_t> &CallStack) {
+                                  SmallVectorImpl<uint64_t> &CallStack) {
   // The raw format of call stack is like:
   //            4005dc      # leaf frame
   //	          400634
@@ -308,11 +481,12 @@ bool PerfReader::extractCallstack(TraceStream &TraceIt,
   ProfiledBinary *Binary = nullptr;
   while (!TraceIt.isAtEoF() && !TraceIt.getCurrentLine().startswith(" 0x")) {
     StringRef FrameStr = TraceIt.getCurrentLine().ltrim();
-    // We might get an empty line at the beginning or comments, skip it
     uint64_t FrameAddr = 0;
     if (FrameStr.getAsInteger(16, FrameAddr)) {
+      // We might parse a non-perf sample line like empty line and comments,
+      // skip it
       TraceIt.advance();
-      break;
+      return false;
     }
     TraceIt.advance();
     if (!Binary) {
@@ -339,9 +513,9 @@ bool PerfReader::extractCallstack(TraceStream &TraceIt,
     CallStack.emplace_back(FrameAddr);
   }
 
-  if (CallStack.empty())
-    return false;
   // Skip other unrelated line, find the next valid LBR line
+  // Note that even for empty call stack, we should skip the address at the
+  // bottom, otherwise the following pass may generate a truncated callstack
   while (!TraceIt.isAtEoF() && !TraceIt.getCurrentLine().startswith(" 0x")) {
     TraceIt.advance();
   }
@@ -353,7 +527,8 @@ bool PerfReader::extractCallstack(TraceStream &TraceIt,
   // of such case - when sample landed in prolog/epilog, somehow stack
   // walking will be broken in an unexpected way that higher frames will be
   // missing.
-  return !Binary->addressInPrologEpilog(CallStack.front());
+  return !CallStack.empty() &&
+         !Binary->addressInPrologEpilog(CallStack.front());
 }
 
 void PerfReader::parseHybridSample(TraceStream &TraceIt) {
@@ -366,26 +541,27 @@ void PerfReader::parseHybridSample(TraceStream &TraceIt) {
   // 0x4005c8/0x4005dc/P/-/-/0   0x40062f/0x4005b0/P/-/-/0 ...
   //          ... 0x4005c8/0x4005dc/P/-/-/0    # LBR Entries
   //
-  HybridSample Sample;
+  std::shared_ptr<HybridSample> Sample = std::make_shared<HybridSample>();
 
   // Parsing call stack and populate into HybridSample.CallStack
-  if (!extractCallstack(TraceIt, Sample.CallStack)) {
+  if (!extractCallstack(TraceIt, Sample->CallStack)) {
     // Skip the next LBR line matched current call stack
     if (!TraceIt.isAtEoF() && TraceIt.getCurrentLine().startswith(" 0x"))
       TraceIt.advance();
     return;
   }
   // Set the binary current sample belongs to
-  Sample.Binary = getBinary(Sample.CallStack.front());
+  Sample->Binary = getBinary(Sample->CallStack.front());
 
   if (!TraceIt.isAtEoF() && TraceIt.getCurrentLine().startswith(" 0x")) {
     // Parsing LBR stack and populate into HybridSample.LBRStack
-    if (extractLBRStack(TraceIt, Sample.LBRStack, Sample.Binary)) {
+    if (extractLBRStack(TraceIt, Sample->LBRStack, Sample->Binary)) {
       // Canonicalize stack leaf to avoid 'random' IP from leaf frame skew LBR
       // ranges
-      Sample.CallStack.front() = Sample.LBRStack[0].Target;
+      Sample->CallStack.front() = Sample->LBRStack[0].Target;
       // Record samples by aggregation
-      AggregatedSamples[Sample]++;
+      Sample->genHashCode();
+      AggregatedSamples[Hashable<PerfSample>(Sample)]++;
     }
   } else {
     // LBR sample is encoded in single line after stack sample
@@ -459,31 +635,13 @@ void PerfReader::parseAndAggregateTrace(StringRef Filename) {
 
 void PerfReader::checkAndSetPerfType(
     cl::list<std::string> &PerfTraceFilenames) {
-  bool HasHybridPerf = true;
   for (auto FileName : PerfTraceFilenames) {
-    if (!isHybridPerfScript(FileName)) {
-      HasHybridPerf = false;
-      break;
-    }
-  }
-
-  if (HasHybridPerf) {
-    // Set up ProfileIsCS to enable context-sensitive functionalities
-    // in SampleProf
-    FunctionSamples::ProfileIsCS = true;
-    PerfType = PERF_LBR_STACK;
-
-  } else {
-    // TODO: Support other type of perf script
-    PerfType = PERF_INVILID;
-  }
-
-  if (BinaryTable.size() > 1) {
-    // TODO: remove this if everything is ready to support multiple binaries.
-    exitWithError("Currently only support one input binary, multiple binaries' "
-                  "profile will be merged in one profile and make profile "
-                  "summary info inaccurate. Please use `perfdata` to merge "
-                  "profiles from multiple binaries.");
+    PerfScriptType Type = checkPerfScriptType(FileName);
+    if (Type == PERF_INVALID)
+      exitWithError("Invalid perf script input!");
+    if (PerfType != PERF_UNKNOWN && PerfType != Type)
+      exitWithError("Inconsistent sample among different perf scripts");
+    PerfType = Type;
   }
 }
 

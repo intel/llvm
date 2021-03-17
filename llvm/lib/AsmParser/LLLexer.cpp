@@ -663,6 +663,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(nonlazybind);
   KEYWORD(nomerge);
   KEYWORD(nonnull);
+  KEYWORD(noprofile);
   KEYWORD(noredzone);
   KEYWORD(noreturn);
   KEYWORD(nosync);
@@ -750,6 +751,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(flags);
   KEYWORD(blockcount);
   KEYWORD(linkage);
+  KEYWORD(visibility);
   KEYWORD(notEligibleToImport);
   KEYWORD(live);
   KEYWORD(dsoLocal);
@@ -840,6 +842,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   TYPEKEYWORD("label",     Type::getLabelTy(Context));
   TYPEKEYWORD("metadata",  Type::getMetadataTy(Context));
   TYPEKEYWORD("x86_mmx",   Type::getX86_MMXTy(Context));
+  TYPEKEYWORD("x86_amx",   Type::getX86_AMXTy(Context));
   TYPEKEYWORD("token",     Type::getTokenTy(Context));
 
 #undef TYPEKEYWORD

@@ -41,7 +41,7 @@ static cl::opt<std::string>
                    cl::desc("Record GlobalISel rule coverage files of this "
                             "prefix if instrumentation was generated"));
 #else
-static const std::string CoveragePrefix = "";
+static const std::string CoveragePrefix;
 #endif
 
 char InstructionSelect::ID = 0;
@@ -130,6 +130,25 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
       if (isTriviallyDead(MI, MRI)) {
         LLVM_DEBUG(dbgs() << "Is dead; erasing.\n");
         MI.eraseFromParentAndMarkDBGValuesForRemoval();
+        continue;
+      }
+
+      // Eliminate hints.
+      if (isPreISelGenericOptimizationHint(MI.getOpcode())) {
+        Register DstReg = MI.getOperand(0).getReg();
+        Register SrcReg = MI.getOperand(1).getReg();
+
+        // At this point, the destination register class of the hint may have
+        // been decided.
+        //
+        // Propagate that through to the source register.
+        const TargetRegisterClass *DstRC = MRI.getRegClassOrNull(DstReg);
+        if (DstRC)
+          MRI.setRegClass(SrcReg, DstRC);
+        assert(canReplaceReg(DstReg, SrcReg, MRI) &&
+               "Must be able to replace dst with src!");
+        MI.eraseFromParent();
+        MRI.replaceRegWith(DstReg, SrcReg);
         continue;
       }
 

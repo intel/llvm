@@ -2201,7 +2201,7 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
       // the sinit and sterm function names.
       if (FormatIndicatorAndUniqueModId.empty()) {
         std::string UniqueModuleId = getUniqueModuleId(&M);
-        if (UniqueModuleId.compare("") != 0)
+        if (UniqueModuleId != "")
           // TODO: Use source file full path to generate the unique module id
           // and add a format indicator as a part of function name in case we
           // will support more than one format.
@@ -2372,6 +2372,8 @@ createPPCAsmPrinterPass(TargetMachine &tm,
 // Force static initialization.
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCAsmPrinter() {
   TargetRegistry::RegisterAsmPrinter(getThePPC32Target(),
+                                     createPPCAsmPrinterPass);
+  TargetRegistry::RegisterAsmPrinter(getThePPC32LETarget(),
                                      createPPCAsmPrinterPass);
   TargetRegistry::RegisterAsmPrinter(getThePPC64Target(),
                                      createPPCAsmPrinterPass);

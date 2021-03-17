@@ -103,6 +103,24 @@ static bool FindLocsWithCommonFileID(Preprocessor &PP, SourceLocation StartLoc,
   return AttrStartIsInMacro && AttrEndIsInMacro;
 }
 
+void Parser::ParseAttributes(unsigned WhichAttrKinds,
+                             ParsedAttributesWithRange &Attrs,
+                             SourceLocation *End,
+                             LateParsedAttrList *LateAttrs) {
+  bool MoreToParse;
+  do {
+    // Assume there's nothing left to parse, but if any attributes are in fact
+    // parsed, loop to ensure all specified attribute combinations are parsed.
+    MoreToParse = false;
+    if (WhichAttrKinds & PAKM_CXX11)
+      MoreToParse |= MaybeParseCXX11Attributes(Attrs, End);
+    if (WhichAttrKinds & PAKM_GNU)
+      MoreToParse |= MaybeParseGNUAttributes(Attrs, End, LateAttrs);
+    if (WhichAttrKinds & PAKM_Declspec)
+      MoreToParse |= MaybeParseMicrosoftDeclSpecs(Attrs, End);
+  } while (MoreToParse);
+}
+
 /// ParseGNUAttributes - Parse a non-empty attributes list.
 ///
 /// [GNU] attributes:
@@ -3486,14 +3504,11 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       continue;
     }
 
-    // GNU attributes support.
+    // Attributes support.
     case tok::kw___attribute:
-      ParseGNUAttributes(DS.getAttributes(), nullptr, LateAttrs);
-      continue;
-
-    // Microsoft declspec support.
     case tok::kw___declspec:
-      ParseMicrosoftDeclSpecs(DS.getAttributes());
+      ParseAttributes(PAKM_GNU | PAKM_Declspec, DS.getAttributes(), nullptr,
+                      LateAttrs);
       continue;
 
     // Microsoft single token adornments.
@@ -3631,12 +3646,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw_virtual:
       // C++ for OpenCL does not allow virtual function qualifier, to avoid
       // function pointers restricted in OpenCL v2.0 s6.9.a.
-      if (getLangOpts().OpenCLCPlusPlus) {
+      if (getLangOpts().OpenCLCPlusPlus &&
+          !getActions().getOpenCLOptions().isEnabled(
+              "__cl_clang_function_pointers")) {
         DiagID = diag::err_openclcxx_virtual_function;
         PrevSpec = Tok.getIdentifierInfo()->getNameStart();
         isInvalid = true;
-      }
-      else {
+      } else {
         isInvalid = DS.setFunctionSpecVirtual(Loc, PrevSpec, DiagID);
       }
       break;
@@ -3881,8 +3897,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw_pipe:
       if (!getLangOpts().OpenCL || (getLangOpts().OpenCLVersion < 200 &&
                                     !getLangOpts().OpenCLCPlusPlus)) {
-        // OpenCL 2.0 defined this keyword. OpenCL 1.2 and earlier should
-        // support the "pipe" word as identifier.
+        // OpenCL 2.0 and later define this keyword. OpenCL 1.2 and earlier
+        // should support the "pipe" word as identifier.
         Tok.getIdentifierInfo()->revertTokenIDToIdentifier();
         goto DoneWithDeclSpec;
       }
@@ -4002,8 +4018,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw___generic:
       // generic address space is introduced only in OpenCL v2.0
       // see OpenCL C Spec v2.0 s6.5.5
-      if (Actions.getLangOpts().OpenCLVersion < 200 &&
-          !Actions.getLangOpts().OpenCLCPlusPlus) {
+      if (!Actions.getLangOpts().OpenCLGenericAddressSpace) {
         DiagID = diag::err_opencl_unknown_type_specifier;
         PrevSpec = Tok.getIdentifierInfo()->getNameStart();
         isInvalid = true;
@@ -4216,7 +4231,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
 
     // Parse _Static_assert declaration.
-    if (Tok.is(tok::kw__Static_assert)) {
+    if (Tok.isOneOf(tok::kw__Static_assert, tok::kw_static_assert)) {
       SourceLocation DeclEnd;
       ParseStaticAssertDeclaration(DeclEnd);
       continue;
@@ -4354,9 +4369,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
 
   // If attributes exist after tag, parse them.
   ParsedAttributesWithRange attrs(AttrFactory);
-  MaybeParseGNUAttributes(attrs);
-  MaybeParseCXX11Attributes(attrs);
-  MaybeParseMicrosoftDeclSpecs(attrs);
+  MaybeParseAttributes(PAKM_GNU | PAKM_Declspec | PAKM_CXX11, attrs);
 
   SourceLocation ScopedEnumKWLoc;
   bool IsScopedUsingClassTag = false;
@@ -4373,9 +4386,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
     ProhibitAttributes(attrs);
 
     // They are allowed afterwards, though.
-    MaybeParseGNUAttributes(attrs);
-    MaybeParseCXX11Attributes(attrs);
-    MaybeParseMicrosoftDeclSpecs(attrs);
+    MaybeParseAttributes(PAKM_GNU | PAKM_Declspec | PAKM_CXX11, attrs);
   }
 
   // C++11 [temp.explicit]p12:
@@ -5059,8 +5070,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   default: return false;
 
   case tok::kw_pipe:
-    return (getLangOpts().OpenCL && getLangOpts().OpenCLVersion >= 200) ||
-           getLangOpts().OpenCLCPlusPlus;
+    return getLangOpts().OpenCLPipe;
 
   case tok::identifier:   // foo::bar
     // Unfortunate hack to support "Class.factoryMethod" notation.
@@ -5180,6 +5190,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw_friend:
 
     // static_assert-declaration
+  case tok::kw_static_assert:
   case tok::kw__Static_assert:
 
     // GNU typeof support.
@@ -5587,8 +5598,7 @@ static bool isPtrOperatorToken(tok::TokenKind Kind, const LangOptions &Lang,
   if (Kind == tok::star || Kind == tok::caret)
     return true;
 
-  if ((Kind == tok::kw_pipe) &&
-      ((Lang.OpenCL && Lang.OpenCLVersion >= 200) || Lang.OpenCLCPlusPlus))
+  if (Kind == tok::kw_pipe && Lang.OpenCLPipe)
     return true;
 
   if (!Lang.CPlusPlus)

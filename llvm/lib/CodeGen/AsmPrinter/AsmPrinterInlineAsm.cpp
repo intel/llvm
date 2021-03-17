@@ -234,7 +234,8 @@ static void EmitMSInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
 
       const char *IDStart = LastEmitted;
       const char *IDEnd = IDStart;
-      while (*IDEnd >= '0' && *IDEnd <= '9') ++IDEnd;
+      while (isDigit(*IDEnd))
+        ++IDEnd;
 
       unsigned Val;
       if (StringRef(IDStart, IDEnd-IDStart).getAsInteger(10, Val))
@@ -399,7 +400,8 @@ static void EmitGCCInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
 
       const char *IDStart = LastEmitted;
       const char *IDEnd = IDStart;
-      while (*IDEnd >= '0' && *IDEnd <= '9') ++IDEnd;
+      while (isDigit(*IDEnd))
+        ++IDEnd;
 
       unsigned Val;
       if (StringRef(IDStart, IDEnd-IDStart).getAsInteger(10, Val))
@@ -575,10 +577,10 @@ void AsmPrinter::emitInlineAsm(const MachineInstr *MI) const {
         SrcMgr.getMemoryBuffer(BufNum)->getBuffer().begin());
 
     std::string Msg = "inline asm clobber list contains reserved registers: ";
-    for (auto I = RestrRegs.begin(), E = RestrRegs.end(); I != E; ++I) {
-      if(I != RestrRegs.begin())
-        Msg += ", ";
-      Msg += TRI->getName(*I);
+    ListSeparator LS;
+    for (const Register &RR : RestrRegs) {
+      Msg += LS;
+      Msg += TRI->getName(RR);
     }
     const char *Note =
         "Reserved registers on the clobber list may not be "

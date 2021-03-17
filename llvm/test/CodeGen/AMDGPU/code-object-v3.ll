@@ -1,5 +1,5 @@
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 < %s | FileCheck --check-prefixes=ALL-ASM,OSABI-AMDHSA-ASM %s
-; RUN: llc -filetype=obj -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 < %s | llvm-readelf --notes -relocations -sections -symbols - | FileCheck --check-prefixes=ALL-ELF,OSABI-AMDHSA-ELF %s
+; RUN: llc -filetype=obj -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 < %s | llvm-readelf --notes -relocations -sections -symbols - | FileCheck --check-prefix=OSABI-AMDHSA-ELF %s
 
 ; ALL-ASM-LABEL: {{^}}fadd:
 
@@ -50,9 +50,9 @@
 ; OSABI-AMDHSA-ELF: .rodata PROGBITS {{[0-9]+}} {{[0-9]+}} {{[0-9a-f]+}} {{[0-9]+}}  A {{[0-9]+}} {{[0-9]+}} 64
 
 ; OSABI-AMDHSA-ELF: Relocation section '.rela.rodata' at offset
-; OSABI-AMDHSA-ELF: 0000000000000010 0000000300000005 R_AMDGPU_REL64 0000000000000000 fadd + 10
-; OSABI-AMDHSA-ELF: 0000000000000050 0000000500000005 R_AMDGPU_REL64 0000000000000100 fsub + 10
-; OSABI-AMDHSA-ELF: 0000000000000090 0000000100000005 R_AMDGPU_REL64 0000000000000200 empty + 10
+; OSABI-AMDHSA-ELF: R_AMDGPU_REL64 0000000000000000 fadd + 10
+; OSABI-AMDHSA-ELF: R_AMDGPU_REL64 0000000000000100 fsub + 10
+; OSABI-AMDHSA-ELF: R_AMDGPU_REL64 0000000000000200 empty + 10
 
 ; OSABI-AMDHSA-ELF: Symbol table '.symtab' contains {{[0-9]+}} entries
 ; OSABI-AMDHSA-ELF: {{[0-9]+}}: 0000000000000000 {{[0-9]+}} FUNC   GLOBAL PROTECTED {{[0-9]+}} fadd

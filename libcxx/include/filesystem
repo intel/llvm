@@ -251,6 +251,10 @@
 
 #include <__debug>
 
+#if defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
+# error "The Filesystem library is not supported by this configuration of libc++"
+#endif
+
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
@@ -969,8 +973,8 @@ public:
     return *this;
   }
 
-  template <class = void>
-  _LIBCPP_INLINE_VISIBILITY path& operator=(string_type&& __s) noexcept {
+  _LIBCPP_INLINE_VISIBILITY
+  path& operator=(string_type&& __s) noexcept {
     __pn_ = _VSTD::move(__s);
     return *this;
   }
@@ -1116,7 +1120,12 @@ public:
   _LIBCPP_INLINE_VISIBILITY
   void clear() noexcept { __pn_.clear(); }
 
-  path& make_preferred() { return *this; }
+  path& make_preferred() {
+#if defined(_LIBCPP_WIN32API)
+    _VSTD::replace(__pn_.begin(), __pn_.end(), L'/', L'\\');
+#endif
+    return *this;
+  }
 
   _LIBCPP_INLINE_VISIBILITY
   path& remove_filename() {
@@ -1486,7 +1495,7 @@ _LIBCPP_INLINE_VISIBILITY _LIBCPP_DEPRECATED_WITH_CHAR8_T
       "'char' or 'char8_t'");
 #if defined(_LIBCPP_WIN32API)
   using _Traits = __is_pathable<_Source>;
-  return u8path(__unwrap_iter(_Traits::__range_begin(__s)), __unwrap_iter(_Traits::__range_end(__s)));
+  return u8path(_VSTD::__unwrap_iter(_Traits::__range_begin(__s)), _VSTD::__unwrap_iter(_Traits::__range_end(__s)));
 #else
   return path(__s);
 #endif

@@ -79,37 +79,35 @@ public:
   static std::optional<TypeAndShape> Characterize(
       const semantics::Symbol &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
-      const semantics::ObjectEntityDetails &, FoldingContext &);
+      const semantics::ProcInterface &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
-      const semantics::ProcInterface &);
-  static std::optional<TypeAndShape> Characterize(
-      const semantics::DeclTypeSpec &);
+      const semantics::DeclTypeSpec &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
       const ActualArgument &, FoldingContext &);
 
+  // Handle Expr<T> & Designator<T>
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
       const A &x, FoldingContext &context) {
-    if (const auto *symbol{UnwrapWholeSymbolDataRef(x)}) {
+    if (const auto *symbol{UnwrapWholeSymbolOrComponentDataRef(x)}) {
       if (auto result{Characterize(*symbol, context)}) {
         return result;
       }
     }
     if (auto type{x.GetType()}) {
-      if (auto shape{GetShape(context, x)}) {
-        TypeAndShape result{*type, std::move(*shape)};
-        if (type->category() == TypeCategory::Character) {
-          if (const auto *chExpr{UnwrapExpr<Expr<SomeCharacter>>(x)}) {
-            if (auto length{chExpr->LEN()}) {
-              result.set_LEN(Fold(context, std::move(*length)));
-            }
+      TypeAndShape result{*type, GetShape(context, x)};
+      if (type->category() == TypeCategory::Character) {
+        if (const auto *chExpr{UnwrapExpr<Expr<SomeCharacter>>(x)}) {
+          if (auto length{chExpr->LEN()}) {
+            result.set_LEN(std::move(*length));
           }
         }
-        return result;
       }
+      return std::move(result.Rewrite(context));
     }
     return std::nullopt;
   }
+
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
       const std::optional<A> &x, FoldingContext &context) {
@@ -121,9 +119,9 @@ public:
   }
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
-      const A *x, FoldingContext &context) {
-    if (x) {
-      return Characterize(*x, context);
+      const A *p, FoldingContext &context) {
+    if (p) {
+      return Characterize(*p, context);
     } else {
       return std::nullopt;
     }
@@ -148,8 +146,13 @@ public:
       const char *thisIs = "pointer", const char *thatIs = "target",
       bool isElemental = false, bool thisIsDeferredShape = false,
       bool thatIsDeferredShape = false) const;
+  std::optional<Expr<SubscriptInteger>> MeasureElementSizeInBytes(
+      FoldingContext &, bool align) const;
   std::optional<Expr<SubscriptInteger>> MeasureSizeInBytes(
       FoldingContext &) const;
+
+  // called by Fold() to rewrite in place
+  TypeAndShape &Rewrite(FoldingContext &);
 
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
 
@@ -157,9 +160,10 @@ private:
   static std::optional<TypeAndShape> Characterize(
       const semantics::AssocEntityDetails &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
-      const semantics::ProcEntityDetails &);
-  void AcquireShape(const semantics::ObjectEntityDetails &, FoldingContext &);
+      const semantics::ProcEntityDetails &, FoldingContext &);
+  void AcquireAttrs(const semantics::Symbol &);
   void AcquireLEN();
+  void AcquireLEN(const semantics::Symbol &);
 
 protected:
   DynamicType type_;
@@ -325,6 +329,5 @@ struct Procedure {
 private:
   Procedure() {}
 };
-
 } // namespace Fortran::evaluate::characteristics
 #endif // FORTRAN_EVALUATE_CHARACTERISTICS_H_

@@ -13,8 +13,8 @@
 #ifndef LLVM_EXECUTIONENGINE_ORC_ORCRPCTARGETPROCESSCONTROL_H
 #define LLVM_EXECUTIONENGINE_ORC_ORCRPCTARGETPROCESSCONTROL_H
 
-#include "llvm/ExecutionEngine/Orc/RPC/RPCUtils.h"
-#include "llvm/ExecutionEngine/Orc/RPC/RawByteChannel.h"
+#include "llvm/ExecutionEngine/Orc/Shared/RPCUtils.h"
+#include "llvm/ExecutionEngine/Orc/Shared/RawByteChannel.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/OrcRPCTPCServer.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcessControl.h"
 #include "llvm/Support/MSVCErrorWorkarounds.h"
@@ -309,7 +309,7 @@ public:
   }
 
   Expected<std::vector<tpctypes::LookupResult>>
-  lookupSymbols(ArrayRef<tpctypes::LookupRequest> Request) override {
+  lookupSymbols(ArrayRef<LookupRequest> Request) override {
     std::vector<orcrpctpc::RemoteLookupRequest> RR;
     for (auto &E : Request) {
       RR.push_back({});

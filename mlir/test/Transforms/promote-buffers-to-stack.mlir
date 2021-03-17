@@ -367,7 +367,7 @@ func @nested_regions_and_cond_branch(
   ^bb0(%gen1_arg0: f32, %gen1_arg1: f32):
     %1 = alloc() : memref<2xf32>
     test.buffer_based in(%arg1: memref<2xf32>) out(%1: memref<2xf32>)
-    %tmp1 = exp %gen1_arg0 : f32
+    %tmp1 = math.exp %gen1_arg0 : f32
     test.region_yield %tmp1 : f32
   }
   br ^bb3(%0 : memref<2xf32>)
@@ -417,7 +417,7 @@ func @memref_in_function_results(
 func @nested_region_control_flow(
   %arg0 : index,
   %arg1 : index) -> memref<?x?xf32> {
-  %0 = cmpi "eq", %arg0, %arg1 : index
+  %0 = cmpi eq, %arg0, %arg1 : index
   %1 = alloc(%arg0, %arg0) : memref<?x?xf32>
   %2 = scf.if %0 -> (memref<?x?xf32>) {
     scf.yield %1 : memref<?x?xf32>
@@ -482,7 +482,7 @@ func @loop_alloc(
   %0 = alloc() : memref<2xf32>
   %1 = scf.for %i = %lb to %ub step %step
     iter_args(%iterBuf = %buf) -> memref<2xf32> {
-    %2 = cmpi "eq", %i, %ub : index
+    %2 = cmpi eq, %i, %ub : index
     %3 = alloc() : memref<2xf32>
     scf.yield %3 : memref<2xf32>
   }
@@ -498,7 +498,7 @@ func @loop_alloc(
 
 // Test Case: structured control-flow loop with a nested if operation.
 // The loop yields buffers that have been defined outside of the loop and the
-// backeges only use the iteration arguments (or one of its aliases).
+// backedges only use the iteration arguments (or one of its aliases).
 // Therefore, we do not have to (and are not allowed to) free any buffers
 // that are passed via the backedges. The alloc is converted to an AllocaOp.
 
@@ -512,7 +512,7 @@ func @loop_nested_if_no_alloc(
   %0 = alloc() : memref<2xf32>
   %1 = scf.for %i = %lb to %ub step %step
     iter_args(%iterBuf = %buf) -> memref<2xf32> {
-    %2 = cmpi "eq", %i, %ub : index
+    %2 = cmpi eq, %i, %ub : index
     %3 = scf.if %2 -> (memref<2xf32>) {
       scf.yield %0 : memref<2xf32>
     } else {
@@ -547,7 +547,7 @@ func @loop_nested_if_alloc(
   %0 = alloc() : memref<2xf32>
   %1 = scf.for %i = %lb to %ub step %step
     iter_args(%iterBuf = %buf) -> memref<2xf32> {
-    %2 = cmpi "eq", %i, %ub : index
+    %2 = cmpi eq, %i, %ub : index
     %3 = scf.if %2 -> (memref<2xf32>) {
       %4 = alloc() : memref<2xf32>
       scf.yield %4 : memref<2xf32>

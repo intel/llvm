@@ -498,13 +498,7 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
       elementType.isTriviallyCopyableType(CGF.getContext())) {
     CodeGen::CodeGenModule &CGM = CGF.CGM;
     ConstantEmitter Emitter(CGF);
-    LangAS AS = ArrayQTy.getAddressSpace();
-    if (CGM.getLangOpts().SYCLIsDevice && AS == LangAS::Default) {
-      // SYCL's default AS is 'generic', which can't be used to define constant
-      // initializer data in. It is reasonable to keep it in the same AS
-      // as string literals.
-      AS = CGM.getStringLiteralAddressSpace();
-    }
+    LangAS AS = CGM.GetGlobalVarAddressSpace(/*VarDecl= */ nullptr);
     if (llvm::Constant *C = Emitter.tryEmitForInitializer(E, AS, ArrayQTy)) {
       auto GV = new llvm::GlobalVariable(
           CGM.getModule(), C->getType(),

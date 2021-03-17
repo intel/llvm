@@ -18,7 +18,7 @@ using namespace lld;
 using namespace lld::macho;
 
 Symbol *SymbolTable::find(StringRef name) {
-  auto it = symMap.find(llvm::CachedHashStringRef(name));
+  auto it = symMap.find(CachedHashStringRef(name));
   if (it == symMap.end())
     return nullptr;
   return symVector[it->second];
@@ -37,9 +37,9 @@ std::pair<Symbol *, bool> SymbolTable::insert(StringRef name) {
   return {sym, true};
 }
 
-Symbol *SymbolTable::addDefined(StringRef name, InputSection *isec,
-                                uint32_t value, bool isWeakDef,
-                                bool isPrivateExtern) {
+Symbol *SymbolTable::addDefined(StringRef name, InputFile *file,
+                                InputSection *isec, uint32_t value,
+                                bool isWeakDef, bool isPrivateExtern) {
   Symbol *s;
   bool wasInserted;
   bool overridesWeakDef = false;
@@ -54,8 +54,11 @@ Symbol *SymbolTable::addDefined(StringRef name, InputSection *isec,
           defined->privateExtern &= isPrivateExtern;
         return s;
       }
-      if (!defined->isWeakDef())
-        error("duplicate symbol: " + name);
+      if (!defined->isWeakDef()) {
+        error("duplicate symbol: " + name + "\n>>> defined in " +
+              toString(defined->getFile()) + "\n>>> defined in " +
+              toString(file));
+      }
     } else if (auto *dysym = dyn_cast<DylibSymbol>(s)) {
       overridesWeakDef = !isWeakDef && dysym->isWeakDef();
     }
@@ -64,13 +67,14 @@ Symbol *SymbolTable::addDefined(StringRef name, InputSection *isec,
   }
 
   Defined *defined =
-      replaceSymbol<Defined>(s, name, isec, value, isWeakDef,
+      replaceSymbol<Defined>(s, name, file, isec, value, isWeakDef,
                              /*isExternal=*/true, isPrivateExtern);
   defined->overridesWeakDef = overridesWeakDef;
   return s;
 }
 
-Symbol *SymbolTable::addUndefined(StringRef name, bool isWeakRef) {
+Symbol *SymbolTable::addUndefined(StringRef name, InputFile *file,
+                                  bool isWeakRef) {
   Symbol *s;
   bool wasInserted;
   std::tie(s, wasInserted) = insert(name);
@@ -78,7 +82,7 @@ Symbol *SymbolTable::addUndefined(StringRef name, bool isWeakRef) {
   auto refState = isWeakRef ? RefState::Weak : RefState::Strong;
 
   if (wasInserted)
-    replaceSymbol<Undefined>(s, name, refState);
+    replaceSymbol<Undefined>(s, name, file, refState);
   else if (auto *lazy = dyn_cast<LazySymbol>(s))
     lazy->fetchArchiveMember();
   else if (auto *dynsym = dyn_cast<DylibSymbol>(s))
@@ -135,7 +139,7 @@ Symbol *SymbolTable::addDylib(StringRef name, DylibFile *file, bool isWeakDef,
 }
 
 Symbol *SymbolTable::addLazy(StringRef name, ArchiveFile *file,
-                             const llvm::object::Archive::Symbol &sym) {
+                             const object::Archive::Symbol &sym) {
   Symbol *s;
   bool wasInserted;
   std::tie(s, wasInserted) = insert(name);
@@ -162,11 +166,12 @@ Symbol *SymbolTable::addDSOHandle(const MachHeaderSection *header) {
   return s;
 }
 
-void lld::macho::treatUndefinedSymbol(StringRef symbolName,
-                                      StringRef fileName) {
-  std::string message = ("undefined symbol: " + symbolName).str();
+void lld::macho::treatUndefinedSymbol(const Undefined &sym) {
+  std::string message = "undefined symbol: " + toString(sym);
+  std::string fileName = toString(sym.getFile());
+
   if (!fileName.empty())
-    message += ("\n>>> referenced by " + fileName).str();
+    message += "\n>>> referenced by " + fileName;
   switch (config->undefinedSymbolTreatment) {
   case UndefinedSymbolTreatment::suppress:
     break;

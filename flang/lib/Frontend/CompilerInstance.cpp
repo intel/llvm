@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Frontend/CompilerInstance.h"
+#include "flang/Common/Fortran-features.h"
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Frontend/TextDiagnosticPrinter.h"
 #include "flang/Parser/parsing.h"
@@ -25,7 +26,6 @@ CompilerInstance::CompilerInstance()
       allSources_(new Fortran::parser::AllSources()),
       allCookedSources_(new Fortran::parser::AllCookedSources(*allSources_)),
       parsing_(new Fortran::parser::Parsing(*allCookedSources_)) {
-
   // TODO: This is a good default during development, but ultimately we should
   // give the user the opportunity to specify this.
   allSources_->set_encoding(Fortran::parser::Encoding::UTF_8);
@@ -138,12 +138,17 @@ void CompilerInstance::ClearOutputFiles(bool eraseFiles) {
 }
 
 bool CompilerInstance::ExecuteAction(FrontendAction &act) {
-  // Set some sane defaults for the frontend.
-  // TODO: Instead of defaults we should be setting these options based on the
-  // user input.
-  this->invocation().SetDefaultFortranOpts();
+  auto &invoc = this->invocation();
 
-  // Connect Input to a CompileInstance
+  // Set some sane defaults for the frontend.
+  invoc.SetDefaultFortranOpts();
+  invoc.setDefaultPredefinitions();
+  // Update the fortran options based on user-based input.
+  invoc.setFortranOpts();
+  // Create the semantics context and set semantic options.
+  invoc.setSemanticsOpts(*this->allCookedSources_);
+
+  // Run the frontend action `act` for every input file.
   for (const FrontendInputFile &fif : frontendOpts().inputs_) {
     if (act.BeginSourceFile(*this, fif)) {
       if (llvm::Error err = act.Execute()) {

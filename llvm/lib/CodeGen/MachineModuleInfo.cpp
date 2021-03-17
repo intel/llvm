@@ -144,8 +144,7 @@ void MMIAddrLabelMap::UpdateForRAUWBlock(BasicBlock *Old, BasicBlock *New) {
   BBCallbacks[OldEntry.Index] = nullptr;    // Update the callback.
 
   // Otherwise, we need to add the old symbols to the new block's set.
-  NewEntry.Symbols.insert(NewEntry.Symbols.end(), OldEntry.Symbols.begin(),
-                          OldEntry.Symbols.end());
+  llvm::append_range(NewEntry.Symbols, OldEntry.Symbols);
 }
 
 void MMIAddrLabelMapCallbackPtr::deleted() {
@@ -223,10 +222,8 @@ MachineModuleInfo::getAddrLabelSymbolToEmit(const BasicBlock *BB) {
 /// \{
 
 void MachineModuleInfo::addPersonality(const Function *Personality) {
-  for (unsigned i = 0; i < Personalities.size(); ++i)
-    if (Personalities[i] == Personality)
-      return;
-  Personalities.push_back(Personality);
+  if (!llvm::is_contained(Personalities, Personality))
+    Personalities.push_back(Personality);
 }
 
 /// \}

@@ -171,18 +171,15 @@ public:
   IntrusiveRefCntPtr(const IntrusiveRefCntPtr &S) : Obj(S.Obj) { retain(); }
   IntrusiveRefCntPtr(IntrusiveRefCntPtr &&S) : Obj(S.Obj) { S.Obj = nullptr; }
 
-  template <class X>
-  IntrusiveRefCntPtr(IntrusiveRefCntPtr<X> &&S) : Obj(S.get()) {
+  template <class X,
+            std::enable_if_t<std::is_convertible<X *, T *>::value, bool> = true>
+  IntrusiveRefCntPtr(IntrusiveRefCntPtr<X> S) : Obj(S.get()) {
     S.Obj = nullptr;
   }
 
-  template <class X>
+  template <class X,
+            std::enable_if_t<std::is_convertible<X *, T *>::value, bool> = true>
   IntrusiveRefCntPtr(std::unique_ptr<X> S) : Obj(S.release()) {
-    retain();
-  }
-
-  template <class X>
-  IntrusiveRefCntPtr(const IntrusiveRefCntPtr<X> &S) : Obj(S.get()) {
     retain();
   }
 
@@ -296,6 +293,12 @@ template <class T> struct simplify_type<const IntrusiveRefCntPtr<T>> {
     return Val.get();
   }
 };
+
+/// Factory function for creating intrusive ref counted pointers.
+template <typename T, typename... Args>
+IntrusiveRefCntPtr<T> makeIntrusiveRefCnt(Args &&...A) {
+  return IntrusiveRefCntPtr<T>(new T(std::forward<Args>(A)...));
+}
 
 } // end namespace llvm
 

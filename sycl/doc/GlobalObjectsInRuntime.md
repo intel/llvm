@@ -57,10 +57,13 @@ destruction of nested `std::unique_ptr`s.
 
 ### Linux
 
-On Linux DPC++ runtime uses `__attribute__((destructor))` property with maximum
-possible priority value 65535. This approach does not guarantee, that
-`GlobalHandler` destructor is the last thing to run, as user code may contain
-a similar function with the same priority value.
+On Linux DPC++ runtime uses `__attribute__((destructor))` property with low
+priority value 110. This approach does not guarantee, that `GlobalHandler`
+destructor is the last thing to run, as user code may contain a similar function
+with the same priority value. At the same time, users may specify priorities
+within [101, 109] range in order to run destructor after SYCL runtime has been
+de-initialized. A destructor without specific priority value is going to be
+executed before runtime shutdown mechanisms.
 
 Another approach would be to leak global objects. This would guarantee user,
 that global objects live long enough. But some global objects allocate heap

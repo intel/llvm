@@ -156,24 +156,6 @@ bool TargetMachine::shouldAssumeDSOLocal(const Module &M,
 
   assert(TT.isOSBinFormatELF() || TT.isOSBinFormatWasm());
   assert(RM != Reloc::DynamicNoPIC);
-
-  bool IsExecutable =
-      RM == Reloc::Static || M.getPIELevel() != PIELevel::Default;
-  if (IsExecutable) {
-    // If the symbol is defined, it cannot be preempted.
-    if (!GV->isDeclarationForLinker())
-      return true;
-  } else if (TT.isOSBinFormatELF()) {
-    // If dso_local allows AsmPrinter::getSymbolPreferLocal to use a local
-    // alias, set the flag. We cannot set dso_local for other global values,
-    // because otherwise direct accesses to a probably interposable symbol (even
-    // if the codegen assumes not) will be rejected by the linker.
-    if (!GV->canBenefitFromLocalAlias())
-      return false;
-    return TT.isX86() && M.noSemanticInterposition();
-  }
-
-  // ELF & wasm support preemption of other symbols.
   return false;
 }
 
@@ -250,4 +232,13 @@ TargetIRAnalysis TargetMachine::getTargetIRAnalysis() {
   // dependency.
   return TargetIRAnalysis(
       [this](const Function &F) { return this->getTargetTransformInfo(F); });
+}
+
+std::pair<int, int> TargetMachine::parseBinutilsVersion(StringRef Version) {
+  if (Version == "none")
+    return {INT_MAX, INT_MAX}; // Make binutilsIsAtLeast() return true.
+  std::pair<int, int> Ret;
+  if (!Version.consumeInteger(10, Ret.first) && Version.consume_front("."))
+    Version.consumeInteger(10, Ret.second);
+  return Ret;
 }

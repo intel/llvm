@@ -8,7 +8,7 @@ add_sycl_unittest(SchedulerTests OBJECT
     WaitAfterCleanup.cpp
     LinkedAllocaDependencies.cpp
     LeavesCollection.cpp
-    NoUnifiedHostMemory.cpp
+    NoHostUnifiedMemory.cpp
     StreamInitDependencyOnHost.cpp
     InOrderQueueDeps.cpp
     utils.cpp

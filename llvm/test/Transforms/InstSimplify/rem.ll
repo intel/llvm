@@ -25,11 +25,11 @@ define <2 x i32> @zero_dividend_vector_undef_elt(<2 x i32> %A) {
   ret <2 x i32> %B
 }
 
-; Division-by-zero is poison. UB in any vector lane means the whole op is poison.
+; Division-by-zero is undef. UB in any vector lane means the whole op is undef.
 
 define <2 x i8> @srem_zero_elt_vec_constfold(<2 x i8> %x) {
 ; CHECK-LABEL: @srem_zero_elt_vec_constfold(
-; CHECK-NEXT:    ret <2 x i8> poison
+; CHECK-NEXT:    ret <2 x i8> undef
 ;
   %rem = srem <2 x i8> <i8 1, i8 2>, <i8 0, i8 -42>
   ret <2 x i8> %rem
@@ -37,16 +37,15 @@ define <2 x i8> @srem_zero_elt_vec_constfold(<2 x i8> %x) {
 
 define <2 x i8> @urem_zero_elt_vec_constfold(<2 x i8> %x) {
 ; CHECK-LABEL: @urem_zero_elt_vec_constfold(
-; CHECK-NEXT:    ret <2 x i8> poison
+; CHECK-NEXT:    ret <2 x i8> undef
 ;
   %rem = urem <2 x i8> <i8 1, i8 2>, <i8 42, i8 0>
   ret <2 x i8> %rem
 }
 
-; TODO: instsimplify should fold these to poison
 define <2 x i8> @srem_zero_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @srem_zero_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %rem = srem <2 x i8> %x, <i8 -42, i8 0>
   ret <2 x i8> %rem
@@ -54,7 +53,7 @@ define <2 x i8> @srem_zero_elt_vec(<2 x i8> %x) {
 
 define <2 x i8> @urem_zero_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @urem_zero_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %rem = urem <2 x i8> %x, <i8 0, i8 42>
   ret <2 x i8> %rem
@@ -62,7 +61,7 @@ define <2 x i8> @urem_zero_elt_vec(<2 x i8> %x) {
 
 define <2 x i8> @srem_undef_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @srem_undef_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %rem = srem <2 x i8> %x, <i8 -42, i8 undef>
   ret <2 x i8> %rem
@@ -70,7 +69,7 @@ define <2 x i8> @srem_undef_elt_vec(<2 x i8> %x) {
 
 define <2 x i8> @urem_undef_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @urem_undef_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %rem = urem <2 x i8> %x, <i8 undef, i8 42>
   ret <2 x i8> %rem
@@ -326,28 +325,3 @@ define <2 x i32> @srem_with_sext_bool_divisor_vec(<2 x i1> %x, <2 x i32> %y) {
   ret <2 x i32> %r
 }
 
-define i8 @srem_minusone_divisor() {
-; CHECK-LABEL: @srem_minusone_divisor(
-; CHECK-NEXT:    ret i8 poison
-;
-  %v = srem i8 -128, -1
-  ret i8 %v
-}
-
-define i32 @poison(i32 %x) {
-; CHECK-LABEL: @poison(
-; CHECK-NEXT:    ret i32 poison
-;
-  %v = urem i32 %x, poison
-  ret i32 %v
-}
-
-; TODO: this should be poison
-
-define i32 @poison2(i32 %x) {
-; CHECK-LABEL: @poison2(
-; CHECK-NEXT:    ret i32 0
-;
-  %v = urem i32 poison, %x
-  ret i32 %v
-}

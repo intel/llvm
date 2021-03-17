@@ -120,15 +120,6 @@ private:
     // Context instruction to use when querying information about this index.
     const Instruction *CxtI;
 
-    bool operator==(const VariableGEPIndex &Other) const {
-      return V == Other.V && ZExtBits == Other.ZExtBits &&
-             SExtBits == Other.SExtBits && Scale == Other.Scale;
-    }
-
-    bool operator!=(const VariableGEPIndex &Other) const {
-      return !operator==(Other);
-    }
-
     void dump() const {
       print(dbgs());
       dbgs() << "\n";
@@ -232,18 +223,23 @@ private:
   AliasResult aliasPHI(const PHINode *PN, LocationSize PNSize,
                        const AAMDNodes &PNAAInfo, const Value *V2,
                        LocationSize V2Size, const AAMDNodes &V2AAInfo,
-                       const Value *UnderV2, AAQueryInfo &AAQI);
+                       AAQueryInfo &AAQI);
 
   AliasResult aliasSelect(const SelectInst *SI, LocationSize SISize,
                           const AAMDNodes &SIAAInfo, const Value *V2,
                           LocationSize V2Size, const AAMDNodes &V2AAInfo,
-                          const Value *UnderV2, AAQueryInfo &AAQI);
+                          AAQueryInfo &AAQI);
 
   AliasResult aliasCheck(const Value *V1, LocationSize V1Size,
                          const AAMDNodes &V1AATag, const Value *V2,
                          LocationSize V2Size, const AAMDNodes &V2AATag,
-                         AAQueryInfo &AAQI, const Value *O1 = nullptr,
-                         const Value *O2 = nullptr);
+                         AAQueryInfo &AAQI);
+
+  AliasResult aliasCheckRecursive(const Value *V1, LocationSize V1Size,
+                                  const AAMDNodes &V1AATag, const Value *V2,
+                                  LocationSize V2Size, const AAMDNodes &V2AATag,
+                                  AAQueryInfo &AAQI, const Value *O1,
+                                  const Value *O2);
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.

@@ -50,6 +50,10 @@ FloatType Builder::getF32Type() { return FloatType::getF32(context); }
 
 FloatType Builder::getF64Type() { return FloatType::getF64(context); }
 
+FloatType Builder::getF80Type() { return FloatType::getF80(context); }
+
+FloatType Builder::getF128Type() { return FloatType::getF128(context); }
+
 IndexType Builder::getIndexType() { return IndexType::get(context); }
 
 IntegerType Builder::getI1Type() { return IntegerType::get(context, 1); }
@@ -88,11 +92,11 @@ NamedAttribute Builder::getNamedAttr(StringRef name, Attribute val) {
 UnitAttr Builder::getUnitAttr() { return UnitAttr::get(context); }
 
 BoolAttr Builder::getBoolAttr(bool value) {
-  return BoolAttr::get(value, context);
+  return BoolAttr::get(context, value);
 }
 
 DictionaryAttr Builder::getDictionaryAttr(ArrayRef<NamedAttribute> value) {
-  return DictionaryAttr::get(value, context);
+  return DictionaryAttr::get(context, value);
 }
 
 IntegerAttr Builder::getIndexAttr(int64_t value) {
@@ -196,11 +200,11 @@ FloatAttr Builder::getFloatAttr(Type type, const APFloat &value) {
 }
 
 StringAttr Builder::getStringAttr(StringRef bytes) {
-  return StringAttr::get(bytes, context);
+  return StringAttr::get(context, bytes);
 }
 
 ArrayAttr Builder::getArrayAttr(ArrayRef<Attribute> value) {
-  return ArrayAttr::get(value, context);
+  return ArrayAttr::get(context, value);
 }
 
 FlatSymbolRefAttr Builder::getSymbolRefAttr(Operation *value) {
@@ -210,12 +214,12 @@ FlatSymbolRefAttr Builder::getSymbolRefAttr(Operation *value) {
   return getSymbolRefAttr(symName.getValue());
 }
 FlatSymbolRefAttr Builder::getSymbolRefAttr(StringRef value) {
-  return SymbolRefAttr::get(value, getContext());
+  return SymbolRefAttr::get(getContext(), value);
 }
 SymbolRefAttr
 Builder::getSymbolRefAttr(StringRef value,
                           ArrayRef<FlatSymbolRefAttr> nestedReferences) {
-  return SymbolRefAttr::get(value, nestedReferences, getContext());
+  return SymbolRefAttr::get(getContext(), value, nestedReferences);
 }
 
 ArrayAttr Builder::getBoolArrayAttr(ArrayRef<bool> values) {

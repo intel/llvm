@@ -1104,10 +1104,8 @@ InterleavedLoadCombineImpl::findFirstLoad(const std::set<LoadInst *> &LIs) {
 
   // All LIs are within the same BB. Select the first for a reference.
   BasicBlock *BB = (*LIs.begin())->getParent();
-  BasicBlock::iterator FLI =
-      std::find_if(BB->begin(), BB->end(), [&LIs](Instruction &I) -> bool {
-        return is_contained(LIs, &I);
-      });
+  BasicBlock::iterator FLI = llvm::find_if(
+      *BB, [&LIs](Instruction &I) -> bool { return is_contained(LIs, &I); });
   assert(FLI != BB->end());
 
   return cast<LoadInst>(FLI);
@@ -1240,8 +1238,7 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
       Mask.push_back(i + j * Factor);
 
     Builder.SetInsertPoint(VI.SVI);
-    auto SVI = Builder.CreateShuffleVector(LI, UndefValue::get(LI->getType()),
-                                           Mask, "interleaved.shuffle");
+    auto SVI = Builder.CreateShuffleVector(LI, Mask, "interleaved.shuffle");
     VI.SVI->replaceAllUsesWith(SVI);
     i++;
   }

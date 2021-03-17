@@ -7,11 +7,7 @@
 //==-----------------------------------------------------------------------===//
 
 #include "R600FrameLowering.h"
-#include "AMDGPUSubtarget.h"
-#include "R600RegisterInfo.h"
-#include "llvm/CodeGen/MachineFrameInfo.h"
-#include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/Support/MathExtras.h"
+#include "R600Subtarget.h"
 
 using namespace llvm;
 

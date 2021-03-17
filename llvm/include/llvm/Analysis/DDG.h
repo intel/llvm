@@ -152,7 +152,7 @@ private:
     setKind((InstList.size() == 0 && Input.size() == 1)
                 ? NodeKind::SingleInstruction
                 : NodeKind::MultiInstruction);
-    InstList.insert(InstList.end(), Input.begin(), Input.end());
+    llvm::append_range(InstList, Input);
   }
   void appendInstructions(const SimpleDDGNode &Input) {
     appendInstructions(Input.getInstructions());
@@ -275,7 +275,7 @@ public:
   virtual ~DependenceGraphInfo() {}
 
   /// Return the label that is used to name this graph.
-  const StringRef getName() const { return Name; }
+  StringRef getName() const { return Name; }
 
   /// Return the root node of the graph.
   NodeType &getRoot() const {
@@ -293,8 +293,8 @@ public:
   /// Return a string representing the type of dependence that the dependence
   /// analysis identified between the two given nodes. This function assumes
   /// that there is a memory dependence between the given two nodes.
-  const std::string getDependenceString(const NodeType &Src,
-                                        const NodeType &Dst) const;
+  std::string getDependenceString(const NodeType &Src,
+                                  const NodeType &Dst) const;
 
 protected:
   // Name of the graph.
@@ -470,7 +470,7 @@ bool DependenceGraphInfo<NodeType>::getDependencies(
 }
 
 template <typename NodeType>
-const std::string
+std::string
 DependenceGraphInfo<NodeType>::getDependenceString(const NodeType &Src,
                                                    const NodeType &Dst) const {
   std::string Str;

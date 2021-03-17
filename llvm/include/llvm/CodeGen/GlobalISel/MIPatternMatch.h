@@ -9,8 +9,8 @@
 /// Contains matchers for matching SSA Machine Instructions.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_GMIR_PATTERNMATCH_H
-#define LLVM_GMIR_PATTERNMATCH_H
+#ifndef LLVM_CODEGEN_GLOBALISEL_MIPATTERNMATCH_H
+#define LLVM_CODEGEN_GLOBALISEL_MIPATTERNMATCH_H
 
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -36,6 +36,20 @@ template <typename SubPatternT> struct OneUse_match {
 
 template <typename SubPat>
 inline OneUse_match<SubPat> m_OneUse(const SubPat &SP) {
+  return SP;
+}
+
+template <typename SubPatternT> struct OneNonDBGUse_match {
+  SubPatternT SubPat;
+  OneNonDBGUse_match(const SubPatternT &SP) : SubPat(SP) {}
+
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    return MRI.hasOneNonDBGUse(Reg) && SubPat.match(MRI, Reg);
+  }
+};
+
+template <typename SubPat>
+inline OneNonDBGUse_match<SubPat> m_OneNonDBGUse(const SubPat &SP) {
   return SP;
 }
 
@@ -221,6 +235,12 @@ m_GAdd(const LHS &L, const RHS &R) {
 }
 
 template <typename LHS, typename RHS>
+inline BinaryOp_match<LHS, RHS, TargetOpcode::G_PTR_ADD, true>
+m_GPtrAdd(const LHS &L, const RHS &R) {
+  return BinaryOp_match<LHS, RHS, TargetOpcode::G_PTR_ADD, true>(L, R);
+}
+
+template <typename LHS, typename RHS>
 inline BinaryOp_match<LHS, RHS, TargetOpcode::G_SUB> m_GSub(const LHS &L,
                                                             const RHS &R) {
   return BinaryOp_match<LHS, RHS, TargetOpcode::G_SUB>(L, R);
@@ -284,6 +304,18 @@ template <typename LHS, typename RHS>
 inline BinaryOp_match<LHS, RHS, TargetOpcode::G_ASHR, false>
 m_GAShr(const LHS &L, const RHS &R) {
   return BinaryOp_match<LHS, RHS, TargetOpcode::G_ASHR, false>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline BinaryOp_match<LHS, RHS, TargetOpcode::G_SMAX, false>
+m_GSMax(const LHS &L, const RHS &R) {
+  return BinaryOp_match<LHS, RHS, TargetOpcode::G_SMAX, false>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline BinaryOp_match<LHS, RHS, TargetOpcode::G_SMIN, false>
+m_GSMin(const LHS &L, const RHS &R) {
+  return BinaryOp_match<LHS, RHS, TargetOpcode::G_SMIN, false>(L, R);
 }
 
 // Helper for unary instructions (G_[ZSA]EXT/G_TRUNC) etc
@@ -448,6 +480,13 @@ m_GInsertVecElt(const Src0Ty &Src0, const Src1Ty &Src1, const Src2Ty &Src2) {
                          TargetOpcode::G_INSERT_VECTOR_ELT>(Src0, Src1, Src2);
 }
 
+template <typename Src0Ty, typename Src1Ty, typename Src2Ty>
+inline TernaryOp_match<Src0Ty, Src1Ty, Src2Ty, TargetOpcode::G_SELECT>
+m_GISelect(const Src0Ty &Src0, const Src1Ty &Src1, const Src2Ty &Src2) {
+  return TernaryOp_match<Src0Ty, Src1Ty, Src2Ty, TargetOpcode::G_SELECT>(
+      Src0, Src1, Src2);
+}
+
 /// Matches a register negated by a G_SUB.
 /// G_SUB 0, %negated_reg
 template <typename SrcTy>
@@ -464,7 +503,7 @@ m_Not(const SrcTy &&Src) {
   return m_GXor(Src, m_AllOnesInt());
 }
 
-} // namespace GMIPatternMatch
+} // namespace MIPatternMatch
 } // namespace llvm
 
 #endif

@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_ANALYSIS_DIVERGENCE_ANALYSIS_H
-#define LLVM_ANALYSIS_DIVERGENCE_ANALYSIS_H
+#ifndef LLVM_ANALYSIS_DIVERGENCEANALYSIS_H
+#define LLVM_ANALYSIS_DIVERGENCEANALYSIS_H
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Analysis/SyncDependenceAnalysis.h"
@@ -118,7 +118,7 @@ private:
   ///
   /// (see markBlockJoinDivergent).
   bool isJoinDivergent(const BasicBlock &Block) const {
-    return DivergentJoinBlocks.find(&Block) != DivergentJoinBlocks.end();
+    return DivergentJoinBlocks.contains(&Block);
   }
 
 private:
@@ -188,4 +188,4 @@ public:
 
 } // namespace llvm
 
-#endif // LLVM_ANALYSIS_DIVERGENCE_ANALYSIS_H
+#endif // LLVM_ANALYSIS_DIVERGENCEANALYSIS_H

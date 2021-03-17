@@ -68,7 +68,7 @@ public:
   ~CodeGenTarget();
 
   Record *getTargetRecord() const { return TargetRec; }
-  const StringRef getName() const;
+  StringRef getName() const;
 
   /// getInstNamespace - Return the target-specific instruction namespace.
   ///
@@ -111,7 +111,8 @@ public:
   /// covers \p SubIdx if it exists.
   Optional<CodeGenRegisterClass *>
   getSuperRegForSubReg(const ValueTypeByHwMode &Ty, CodeGenRegBank &RegBank,
-                       const CodeGenSubRegIndex *SubIdx) const;
+                       const CodeGenSubRegIndex *SubIdx,
+                       bool MustBeAllocatable = false) const;
 
   /// getRegisterByName - If there is a register with the specific AsmName,
   /// return it.

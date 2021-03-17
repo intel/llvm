@@ -405,6 +405,13 @@ void WasmObjectWriter::writeHeader(const MCAssembler &Asm) {
 
 void WasmObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
                                                 const MCAsmLayout &Layout) {
+  // As a stopgap measure until call_indirect instructions start explicitly
+  // referencing the indirect function table via TABLE_NUMBER relocs, ensure
+  // that the indirect function table import makes it to the output if anything
+  // in the compilation unit has caused it to be present.
+  if (auto *Sym = Asm.getContext().lookupSymbol("__indirect_function_table"))
+    Asm.registerSymbol(*Sym);
+
   // Build a map of sections to the function that defines them, for use
   // in recordRelocation.
   for (const MCSymbol &S : Asm.symbols()) {
@@ -481,10 +488,14 @@ void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
 
     const MCSymbol *SectionSymbol = nullptr;
     const MCSection &SecA = SymA->getSection();
-    if (SecA.getKind().isText())
-      SectionSymbol = SectionFunctions.find(&SecA)->second;
-    else
+    if (SecA.getKind().isText()) {
+      auto SecSymIt = SectionFunctions.find(&SecA);
+      if (SecSymIt == SectionFunctions.end())
+        report_fatal_error("section doesn\'t have defining symbol");
+      SectionSymbol = SecSymIt->second;
+    } else {
       SectionSymbol = SecA.getBeginSymbol();
+    }
     if (!SectionSymbol)
       report_fatal_error("section symbol is required for relocation");
 
@@ -599,16 +610,13 @@ WasmObjectWriter::getProvisionalValue(const WasmRelocationEntry &RelEntry,
   case wasm::R_WASM_MEMORY_ADDR_I64:
   case wasm::R_WASM_MEMORY_ADDR_TLS_SLEB: {
     // Provisional value is address of the global plus the offset
-    const MCSymbolWasm *Base =
-        cast<MCSymbolWasm>(Layout.getBaseSymbol(*RelEntry.Symbol));
     // For undefined symbols, use zero
-    if (!Base->isDefined())
+    if (!RelEntry.Symbol->isDefined())
       return 0;
-    const wasm::WasmDataReference &BaseRef = DataLocations[Base],
-                                  &SymRef = DataLocations[RelEntry.Symbol];
-    const WasmDataSegment &Segment = DataSegments[BaseRef.Segment];
+    const wasm::WasmDataReference &SymRef = DataLocations[RelEntry.Symbol];
+    const WasmDataSegment &Segment = DataSegments[SymRef.Segment];
     // Ignore overflow. LLVM allows address arithmetic to silently wrap.
-    return Segment.Offset + BaseRef.Offset + SymRef.Offset + RelEntry.Addend;
+    return Segment.Offset + SymRef.Offset + RelEntry.Addend;
   }
   default:
     llvm_unreachable("invalid relocation type");
@@ -642,11 +650,11 @@ static void addData(SmallVectorImpl<char> &DataBytes,
                        Fill->getValue());
     } else if (auto *LEB = dyn_cast<MCLEBFragment>(&Frag)) {
       const SmallVectorImpl<char> &Contents = LEB->getContents();
-      DataBytes.insert(DataBytes.end(), Contents.begin(), Contents.end());
+      llvm::append_range(DataBytes, Contents);
     } else {
       const auto &DataFrag = cast<MCDataFragment>(Frag);
       const SmallVectorImpl<char> &Contents = DataFrag.getContents();
-      DataBytes.insert(DataBytes.end(), Contents.begin(), Contents.end());
+      llvm::append_range(DataBytes, Contents);
     }
   }
 
@@ -965,11 +973,11 @@ uint32_t WasmObjectWriter::writeDataSection(const MCAsmLayout &Layout) {
 
   for (const WasmDataSegment &Segment : DataSegments) {
     encodeULEB128(Segment.InitFlags, W->OS); // flags
-    if (Segment.InitFlags & wasm::WASM_SEGMENT_HAS_MEMINDEX)
+    if (Segment.InitFlags & wasm::WASM_DATA_SEGMENT_HAS_MEMINDEX)
       encodeULEB128(0, W->OS); // memory index
-    if ((Segment.InitFlags & wasm::WASM_SEGMENT_IS_PASSIVE) == 0) {
-      W->OS << char(Segment.Offset > INT32_MAX ? wasm::WASM_OPCODE_I64_CONST
-                                               : wasm::WASM_OPCODE_I32_CONST);
+    if ((Segment.InitFlags & wasm::WASM_DATA_SEGMENT_IS_PASSIVE) == 0) {
+      W->OS << char(is64Bit() ? wasm::WASM_OPCODE_I64_CONST
+                              : wasm::WASM_OPCODE_I32_CONST);
       encodeSLEB128(Segment.Offset, W->OS); // offset
       W->OS << char(wasm::WASM_OPCODE_END);
     }
@@ -1205,6 +1213,7 @@ static bool isInSymtab(const MCSymbolWasm &Sym) {
 
   return true;
 }
+
 void WasmObjectWriter::prepareImports(
     SmallVectorImpl<wasm::WasmImport> &Imports, MCAssembler &Asm,
     const MCAsmLayout &Layout) {
@@ -1356,6 +1365,7 @@ uint64_t WasmObjectWriter::writeOneObject(MCAssembler &Asm,
   if (Mode != DwoMode::DwoOnly) {
     prepareImports(Imports, Asm, Layout);
   }
+
   // Populate DataSegments and CustomSections, which must be done before
   // populating DataLocations.
   for (MCSection &Sec : Asm) {
@@ -1384,8 +1394,9 @@ uint64_t WasmObjectWriter::writeOneObject(MCAssembler &Asm,
       DataSegments.emplace_back();
       WasmDataSegment &Segment = DataSegments.back();
       Segment.Name = SectionName;
-      Segment.InitFlags =
-          Section.getPassive() ? (uint32_t)wasm::WASM_SEGMENT_IS_PASSIVE : 0;
+      Segment.InitFlags = Section.getPassive()
+                              ? (uint32_t)wasm::WASM_DATA_SEGMENT_IS_PASSIVE
+                              : 0;
       Segment.Offset = DataSize;
       Segment.Section = &Section;
       addData(Segment.Data, Section);
@@ -1410,6 +1421,7 @@ uint64_t WasmObjectWriter::writeOneObject(MCAssembler &Asm,
 
       MCSymbol *Begin = Sec.getBeginSymbol();
       if (Begin) {
+        assert(WasmIndices.count(cast<MCSymbolWasm>(Begin)) == 0);
         WasmIndices[cast<MCSymbolWasm>(Begin)] = CustomSections.size();
       }
 
@@ -1438,214 +1450,220 @@ uint64_t WasmObjectWriter::writeOneObject(MCAssembler &Asm,
     }
   }
 
-  // Populate WasmIndices and DataLocations for defined symbols.
-  for (const MCSymbol &S : Asm.symbols()) {
-    // Ignore unnamed temporary symbols, which aren't ever exported, imported,
-    // or used in relocations.
-    if (S.isTemporary() && S.getName().empty())
-      continue;
-
-    const auto &WS = static_cast<const MCSymbolWasm &>(S);
-    LLVM_DEBUG(
-        dbgs() << "MCSymbol: " << toString(WS.getType()) << " '" << S << "'"
-               << " isDefined=" << S.isDefined() << " isExternal="
-               << S.isExternal() << " isTemporary=" << S.isTemporary()
-               << " isWeak=" << WS.isWeak() << " isHidden=" << WS.isHidden()
-               << " isVariable=" << WS.isVariable() << "\n");
-
-    if (WS.isVariable())
-      continue;
-    if (WS.isComdat() && !WS.isDefined())
-      continue;
-
-    if (WS.isFunction()) {
-      unsigned Index;
-      if (WS.isDefined()) {
-        if (WS.getOffset() != 0)
-          report_fatal_error(
-              "function sections must contain one function each");
-
-        if (WS.getSize() == nullptr)
-          report_fatal_error(
-              "function symbols must have a size set with .size");
-
-        // A definition. Write out the function body.
-        Index = NumFunctionImports + Functions.size();
-        WasmFunction Func;
-        Func.SigIndex = getFunctionType(WS);
-        Func.Sym = &WS;
-        WasmIndices[&WS] = Index;
-        Functions.push_back(Func);
-
-        auto &Section = static_cast<MCSectionWasm &>(WS.getSection());
-        if (const MCSymbolWasm *C = Section.getGroup()) {
-          Comdats[C->getName()].emplace_back(
-              WasmComdatEntry{wasm::WASM_COMDAT_FUNCTION, Index});
-        }
-
-        if (WS.hasExportName()) {
-          wasm::WasmExport Export;
-          Export.Name = WS.getExportName();
-          Export.Kind = wasm::WASM_EXTERNAL_FUNCTION;
-          Export.Index = Index;
-          Exports.push_back(Export);
-        }
-      } else {
-        // An import; the index was assigned above.
-        Index = WasmIndices.find(&WS)->second;
-      }
-
-      LLVM_DEBUG(dbgs() << "  -> function index: " << Index << "\n");
-
-    } else if (WS.isData()) {
-      if (!isInSymtab(WS))
+  if (Mode != DwoMode::DwoOnly) {
+    // Populate WasmIndices and DataLocations for defined symbols.
+    for (const MCSymbol &S : Asm.symbols()) {
+      // Ignore unnamed temporary symbols, which aren't ever exported, imported,
+      // or used in relocations.
+      if (S.isTemporary() && S.getName().empty())
         continue;
 
-      if (!WS.isDefined()) {
-        LLVM_DEBUG(dbgs() << "  -> segment index: -1"
-                          << "\n");
+      const auto &WS = static_cast<const MCSymbolWasm &>(S);
+      LLVM_DEBUG(dbgs()
+                 << "MCSymbol: "
+                 << toString(WS.getType().getValueOr(wasm::WASM_SYMBOL_TYPE_DATA))
+                 << " '" << S << "'"
+                 << " isDefined=" << S.isDefined() << " isExternal="
+                 << S.isExternal() << " isTemporary=" << S.isTemporary()
+                 << " isWeak=" << WS.isWeak() << " isHidden=" << WS.isHidden()
+                 << " isVariable=" << WS.isVariable() << "\n");
+
+      if (WS.isVariable())
         continue;
-      }
+      if (WS.isComdat() && !WS.isDefined())
+        continue;
 
-      if (!WS.getSize())
-        report_fatal_error("data symbols must have a size set with .size: " +
-                           WS.getName());
+      if (WS.isFunction()) {
+        unsigned Index;
+        if (WS.isDefined()) {
+          if (WS.getOffset() != 0)
+            report_fatal_error(
+                "function sections must contain one function each");
 
-      int64_t Size = 0;
-      if (!WS.getSize()->evaluateAsAbsolute(Size, Layout))
-        report_fatal_error(".size expression must be evaluatable");
+          if (WS.getSize() == nullptr)
+            report_fatal_error(
+                "function symbols must have a size set with .size");
 
-      auto &DataSection = static_cast<MCSectionWasm &>(WS.getSection());
-      if (!DataSection.isWasmData())
-        report_fatal_error("data symbols must live in a data section: " +
-                           WS.getName());
+          // A definition. Write out the function body.
+          Index = NumFunctionImports + Functions.size();
+          WasmFunction Func;
+          Func.SigIndex = getFunctionType(WS);
+          Func.Sym = &WS;
+          assert(WasmIndices.count(&WS) == 0);
+          WasmIndices[&WS] = Index;
+          Functions.push_back(Func);
 
-      // For each data symbol, export it in the symtab as a reference to the
-      // corresponding Wasm data segment.
-      wasm::WasmDataReference Ref = wasm::WasmDataReference{
-          DataSection.getSegmentIndex(), Layout.getSymbolOffset(WS),
-          static_cast<uint64_t>(Size)};
-      DataLocations[&WS] = Ref;
-      LLVM_DEBUG(dbgs() << "  -> segment index: " << Ref.Segment << "\n");
+          auto &Section = static_cast<MCSectionWasm &>(WS.getSection());
+          if (const MCSymbolWasm *C = Section.getGroup()) {
+            Comdats[C->getName()].emplace_back(
+                WasmComdatEntry{wasm::WASM_COMDAT_FUNCTION, Index});
+          }
 
-    } else if (WS.isGlobal()) {
-      // A "true" Wasm global (currently just __stack_pointer)
-      if (WS.isDefined()) {
-        assert(WasmIndices.count(&WS) == 0);
-        wasm::WasmGlobal Global;
-        Global.Type = WS.getGlobalType();
-        Global.Index = NumGlobalImports + Globals.size();
-        switch (Global.Type.Type) {
-        case wasm::WASM_TYPE_I32:
-          Global.InitExpr.Opcode = wasm::WASM_OPCODE_I32_CONST;
-          break;
-        case wasm::WASM_TYPE_I64:
-          Global.InitExpr.Opcode = wasm::WASM_OPCODE_I64_CONST;
-          break;
-        case wasm::WASM_TYPE_F32:
-          Global.InitExpr.Opcode = wasm::WASM_OPCODE_F32_CONST;
-          break;
-        case wasm::WASM_TYPE_F64:
-          Global.InitExpr.Opcode = wasm::WASM_OPCODE_F64_CONST;
-          break;
-        case wasm::WASM_TYPE_EXTERNREF:
-          Global.InitExpr.Opcode = wasm::WASM_OPCODE_REF_NULL;
-          break;
-        default:
-          llvm_unreachable("unexpected type");
+          if (WS.hasExportName()) {
+            wasm::WasmExport Export;
+            Export.Name = WS.getExportName();
+            Export.Kind = wasm::WASM_EXTERNAL_FUNCTION;
+            Export.Index = Index;
+            Exports.push_back(Export);
+          }
+        } else {
+          // An import; the index was assigned above.
+          Index = WasmIndices.find(&WS)->second;
         }
-        WasmIndices[&WS] = Global.Index;
-        Globals.push_back(Global);
-      } else {
-        // An import; the index was assigned above
-        LLVM_DEBUG(dbgs() << "  -> global index: "
+
+        LLVM_DEBUG(dbgs() << "  -> function index: " << Index << "\n");
+
+      } else if (WS.isData()) {
+        if (!isInSymtab(WS))
+          continue;
+
+        if (!WS.isDefined()) {
+          LLVM_DEBUG(dbgs() << "  -> segment index: -1"
+                            << "\n");
+          continue;
+        }
+
+        if (!WS.getSize())
+          report_fatal_error("data symbols must have a size set with .size: " +
+                             WS.getName());
+
+        int64_t Size = 0;
+        if (!WS.getSize()->evaluateAsAbsolute(Size, Layout))
+          report_fatal_error(".size expression must be evaluatable");
+
+        auto &DataSection = static_cast<MCSectionWasm &>(WS.getSection());
+        if (!DataSection.isWasmData())
+          report_fatal_error("data symbols must live in a data section: " +
+                             WS.getName());
+
+        // For each data symbol, export it in the symtab as a reference to the
+        // corresponding Wasm data segment.
+        wasm::WasmDataReference Ref = wasm::WasmDataReference{
+            DataSection.getSegmentIndex(), Layout.getSymbolOffset(WS),
+            static_cast<uint64_t>(Size)};
+        assert(DataLocations.count(&WS) == 0);
+        DataLocations[&WS] = Ref;
+        LLVM_DEBUG(dbgs() << "  -> segment index: " << Ref.Segment << "\n");
+
+      } else if (WS.isGlobal()) {
+        // A "true" Wasm global (currently just __stack_pointer)
+        if (WS.isDefined()) {
+          wasm::WasmGlobal Global;
+          Global.Type = WS.getGlobalType();
+          Global.Index = NumGlobalImports + Globals.size();
+          switch (Global.Type.Type) {
+          case wasm::WASM_TYPE_I32:
+            Global.InitExpr.Opcode = wasm::WASM_OPCODE_I32_CONST;
+            break;
+          case wasm::WASM_TYPE_I64:
+            Global.InitExpr.Opcode = wasm::WASM_OPCODE_I64_CONST;
+            break;
+          case wasm::WASM_TYPE_F32:
+            Global.InitExpr.Opcode = wasm::WASM_OPCODE_F32_CONST;
+            break;
+          case wasm::WASM_TYPE_F64:
+            Global.InitExpr.Opcode = wasm::WASM_OPCODE_F64_CONST;
+            break;
+          case wasm::WASM_TYPE_EXTERNREF:
+            Global.InitExpr.Opcode = wasm::WASM_OPCODE_REF_NULL;
+            break;
+          default:
+            llvm_unreachable("unexpected type");
+          }
+          assert(WasmIndices.count(&WS) == 0);
+          WasmIndices[&WS] = Global.Index;
+          Globals.push_back(Global);
+        } else {
+          // An import; the index was assigned above
+          LLVM_DEBUG(dbgs() << "  -> global index: "
+                            << WasmIndices.find(&WS)->second << "\n");
+        }
+      } else if (WS.isTable()) {
+        if (WS.isDefined()) {
+          wasm::WasmTable Table;
+          Table.Index = NumTableImports + Tables.size();
+          Table.Type.ElemType = static_cast<uint8_t>(WS.getTableType());
+          // FIXME: Work on custom limits is ongoing
+          Table.Type.Limits = {wasm::WASM_LIMITS_FLAG_NONE, 0, 0};
+          assert(WasmIndices.count(&WS) == 0);
+          WasmIndices[&WS] = Table.Index;
+          Tables.push_back(Table);
+        }
+        LLVM_DEBUG(dbgs() << " -> table index: "
                           << WasmIndices.find(&WS)->second << "\n");
-      }
-    } else if (WS.isTable()) {
-      if (WS.isDefined()) {
-        assert(WasmIndices.count(&WS) == 0);
-        wasm::WasmTable Table;
-        Table.Index = NumTableImports + Tables.size();
-        Table.Type.ElemType = static_cast<uint8_t>(WS.getTableType());
-        // FIXME: Work on custom limits is ongoing
-        Table.Type.Limits = {wasm::WASM_LIMITS_FLAG_NONE, 0, 0};
+      } else if (WS.isEvent()) {
+        // C++ exception symbol (__cpp_exception)
+        unsigned Index;
+        if (WS.isDefined()) {
+          Index = NumEventImports + Events.size();
+          wasm::WasmEventType Event;
+          Event.SigIndex = getEventType(WS);
+          Event.Attribute = wasm::WASM_EVENT_ATTRIBUTE_EXCEPTION;
+          assert(WasmIndices.count(&WS) == 0);
+          WasmIndices[&WS] = Index;
+          Events.push_back(Event);
+        } else {
+          // An import; the index was assigned above.
+          assert(WasmIndices.count(&WS) > 0);
+        }
+        LLVM_DEBUG(dbgs() << "  -> event index: "
+                          << WasmIndices.find(&WS)->second << "\n");
 
-        WasmIndices[&WS] = Table.Index;
-        Tables.push_back(Table);
-      }
-      LLVM_DEBUG(dbgs() << " -> table index: " << WasmIndices.find(&WS)->second
-                        << "\n");
-    } else if (WS.isEvent()) {
-      // C++ exception symbol (__cpp_exception)
-      unsigned Index;
-      if (WS.isDefined()) {
-        assert(WasmIndices.count(&WS) == 0);
-        Index = NumEventImports + Events.size();
-        wasm::WasmEventType Event;
-        Event.SigIndex = getEventType(WS);
-        Event.Attribute = wasm::WASM_EVENT_ATTRIBUTE_EXCEPTION;
-        WasmIndices[&WS] = Index;
-        Events.push_back(Event);
       } else {
-        // An import; the index was assigned above.
-        assert(WasmIndices.count(&WS) > 0);
+        assert(WS.isSection());
       }
-      LLVM_DEBUG(dbgs() << "  -> event index: " << WasmIndices.find(&WS)->second
-                        << "\n");
-
-    } else {
-      assert(WS.isSection());
     }
-  }
 
-  // Populate WasmIndices and DataLocations for aliased symbols.  We need to
-  // process these in a separate pass because we need to have processed the
-  // target of the alias before the alias itself and the symbols are not
-  // necessarily ordered in this way.
-  for (const MCSymbol &S : Asm.symbols()) {
-    if (!S.isVariable())
-      continue;
+    // Populate WasmIndices and DataLocations for aliased symbols.  We need to
+    // process these in a separate pass because we need to have processed the
+    // target of the alias before the alias itself and the symbols are not
+    // necessarily ordered in this way.
+    for (const MCSymbol &S : Asm.symbols()) {
+      if (!S.isVariable())
+        continue;
 
-    assert(S.isDefined());
+      assert(S.isDefined());
 
-    const auto *BS = Layout.getBaseSymbol(S);
-    if (!BS)
-      report_fatal_error(Twine(S.getName()) +
-                         ": absolute addressing not supported!");
-    const MCSymbolWasm *Base = cast<MCSymbolWasm>(BS);
+      const auto *BS = Layout.getBaseSymbol(S);
+      if (!BS)
+        report_fatal_error(Twine(S.getName()) +
+                           ": absolute addressing not supported!");
+      const MCSymbolWasm *Base = cast<MCSymbolWasm>(BS);
 
-    // Find the target symbol of this weak alias and export that index
-    const auto &WS = static_cast<const MCSymbolWasm &>(S);
-    LLVM_DEBUG(dbgs() << WS.getName() << ": weak alias of '" << *Base << "'\n");
+      // Find the target symbol of this weak alias and export that index
+      const auto &WS = static_cast<const MCSymbolWasm &>(S);
+      LLVM_DEBUG(dbgs() << WS.getName() << ": weak alias of '" << *Base
+                        << "'\n");
 
-    if (Base->isFunction()) {
-      assert(WasmIndices.count(Base) > 0);
-      uint32_t WasmIndex = WasmIndices.find(Base)->second;
-      assert(WasmIndices.count(&WS) == 0);
-      WasmIndices[&WS] = WasmIndex;
-      LLVM_DEBUG(dbgs() << "  -> index:" << WasmIndex << "\n");
-    } else if (Base->isData()) {
-      auto &DataSection = static_cast<MCSectionWasm &>(WS.getSection());
-      uint64_t Offset = Layout.getSymbolOffset(S);
-      int64_t Size = 0;
-      // For data symbol alias we use the size of the base symbol as the
-      // size of the alias.  When an offset from the base is involved this
-      // can result in a offset + size goes past the end of the data section
-      // which out object format doesn't support.  So we must clamp it.
-      if (!Base->getSize()->evaluateAsAbsolute(Size, Layout))
-        report_fatal_error(".size expression must be evaluatable");
-      const WasmDataSegment &Segment =
-          DataSegments[DataSection.getSegmentIndex()];
-      Size =
-          std::min(static_cast<uint64_t>(Size), Segment.Data.size() - Offset);
-      wasm::WasmDataReference Ref = wasm::WasmDataReference{
-          DataSection.getSegmentIndex(),
-          static_cast<uint32_t>(Layout.getSymbolOffset(S)),
-          static_cast<uint32_t>(Size)};
-      DataLocations[&WS] = Ref;
-      LLVM_DEBUG(dbgs() << "  -> index:" << Ref.Segment << "\n");
-    } else {
-      report_fatal_error("don't yet support global/event aliases");
+      if (Base->isFunction()) {
+        assert(WasmIndices.count(Base) > 0);
+        uint32_t WasmIndex = WasmIndices.find(Base)->second;
+        assert(WasmIndices.count(&WS) == 0);
+        WasmIndices[&WS] = WasmIndex;
+        LLVM_DEBUG(dbgs() << "  -> index:" << WasmIndex << "\n");
+      } else if (Base->isData()) {
+        auto &DataSection = static_cast<MCSectionWasm &>(WS.getSection());
+        uint64_t Offset = Layout.getSymbolOffset(S);
+        int64_t Size = 0;
+        // For data symbol alias we use the size of the base symbol as the
+        // size of the alias.  When an offset from the base is involved this
+        // can result in a offset + size goes past the end of the data section
+        // which out object format doesn't support.  So we must clamp it.
+        if (!Base->getSize()->evaluateAsAbsolute(Size, Layout))
+          report_fatal_error(".size expression must be evaluatable");
+        const WasmDataSegment &Segment =
+            DataSegments[DataSection.getSegmentIndex()];
+        Size =
+            std::min(static_cast<uint64_t>(Size), Segment.Data.size() - Offset);
+        wasm::WasmDataReference Ref = wasm::WasmDataReference{
+            DataSection.getSegmentIndex(),
+            static_cast<uint32_t>(Layout.getSymbolOffset(S)),
+            static_cast<uint32_t>(Size)};
+        DataLocations[&WS] = Ref;
+        LLVM_DEBUG(dbgs() << "  -> index:" << Ref.Segment << "\n");
+      } else {
+        report_fatal_error("don't yet support global/event aliases");
+      }
     }
   }
 
@@ -1684,7 +1702,7 @@ uint64_t WasmObjectWriter::writeOneObject(MCAssembler &Asm,
 
     wasm::WasmSymbolInfo Info;
     Info.Name = WS.getName();
-    Info.Kind = WS.getType();
+    Info.Kind = WS.getType().getValueOr(wasm::WASM_SYMBOL_TYPE_DATA);
     Info.Flags = Flags;
     if (!WS.isData()) {
       assert(WasmIndices.count(&WS) > 0);

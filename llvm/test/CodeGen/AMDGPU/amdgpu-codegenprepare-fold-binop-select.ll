@@ -42,7 +42,7 @@ define i32 @select_sdiv_rhs_const_i32(i1 %cond) {
 
 define <2 x i32> @select_sdiv_lhs_const_v2i32(i1 %cond) {
 ; IR-LABEL: @select_sdiv_lhs_const_v2i32(
-; IR-NEXT:    [[OP:%.*]] = select i1 [[COND:%.*]], <2 x i32> <i32 666, i32 poison>, <2 x i32> <i32 555, i32 1428>
+; IR-NEXT:    [[OP:%.*]] = select i1 [[COND:%.*]], <2 x i32> <i32 666, i32 undef>, <2 x i32> <i32 555, i32 1428>
 ; IR-NEXT:    ret <2 x i32> [[OP]]
 ;
 ; GCN-LABEL: select_sdiv_lhs_const_v2i32:
@@ -360,7 +360,6 @@ define i32 @select_mul_lhs_const_i32(i1 %cond) {
 ; IR-LABEL: @select_mul_lhs_const_i32(
 ; IR-NEXT:    [[OP:%.*]] = select i1 [[COND:%.*]], i32 5000, i32 8000
 ; IR-NEXT:    ret i32 [[OP]]
-;
   %select = select i1 %cond, i32 5, i32 8
   %op = mul i32 1000, %select
   ret i32 %op
@@ -380,7 +379,6 @@ define i32 @select_mul_rhs_const_i32(i1 %cond) {
 ; IR-LABEL: @select_mul_rhs_const_i32(
 ; IR-NEXT:    [[OP:%.*]] = select i1 [[COND:%.*]], i32 5000, i32 8000
 ; IR-NEXT:    ret i32 [[OP]]
-;
   %select = select i1 %cond, i32 5, i32 8
   %op = mul i32 %select, 1000
   ret i32 %op
@@ -420,7 +418,6 @@ define i16 @select_add_trunc_select(i1 %cond) {
 ; IR-LABEL: @select_add_trunc_select(
 ; IR-NEXT:    [[OP:%.*]] = select i1 [[COND:%.*]], i16 47, i16 50
 ; IR-NEXT:    ret i16 [[OP]]
-;
   %select = select i1 %cond, i32 5, i32 8
   %trunc = trunc i32 %select to i16
   %op = add i16 %trunc, 42

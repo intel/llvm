@@ -61,7 +61,7 @@ public:
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    // Exercice OperationFolder API for a single-result operation that is folded
+    // Exercise OperationFolder API for a single-result operation that is folded
     // upon construction. The operation being created through the folder has an
     // in-place folder, and it should be still present in the output.
     // Furthermore, the folder should not crash when attempting to recover the
@@ -84,7 +84,7 @@ struct TestPatternDriver : public PassWrapper<TestPatternDriver, FunctionPass> {
     // Verify named pattern is generated with expected name.
     patterns.insert<FoldingPattern, TestNamedPatternRule>(&getContext());
 
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 } // end anonymous namespace
@@ -492,8 +492,17 @@ struct TestTypeConverter : public TypeConverter {
   TestTypeConverter() {
     addConversion(convertType);
     addArgumentMaterialization(materializeCast);
-    addArgumentMaterialization(materializeOneToOneCast);
     addSourceMaterialization(materializeCast);
+
+    /// Materialize the cast for one-to-one conversion from i64 to f64.
+    const auto materializeOneToOneCast =
+        [](OpBuilder &builder, IntegerType resultType, ValueRange inputs,
+           Location loc) -> Optional<Value> {
+      if (resultType.getWidth() == 42 && inputs.size() == 1)
+        return builder.create<TestCastOp>(loc, resultType, inputs).getResult();
+      return llvm::None;
+    };
+    addArgumentMaterialization(materializeOneToOneCast);
   }
 
   static LogicalResult convertType(Type t, SmallVectorImpl<Type> &results) {
@@ -531,16 +540,6 @@ struct TestTypeConverter : public TypeConverter {
     if (inputs.size() == 1)
       return inputs[0];
     return builder.create<TestCastOp>(loc, resultType, inputs).getResult();
-  }
-
-  /// Materialize the cast for one-to-one conversion from i64 to f64.
-  static Optional<Value> materializeOneToOneCast(OpBuilder &builder,
-                                                 IntegerType resultType,
-                                                 ValueRange inputs,
-                                                 Location loc) {
-    if (resultType.getWidth() == 42 && inputs.size() == 1)
-      return builder.create<TestCastOp>(loc, resultType, inputs).getResult();
-    return llvm::None;
   }
 };
 
@@ -774,6 +773,45 @@ struct TestTypeConversionProducer
   }
 };
 
+/// Call signature conversion and then fail the rewrite to trigger the undo
+/// mechanism.
+struct TestSignatureConversionUndo
+    : public OpConversionPattern<TestSignatureConversionUndoOp> {
+  using OpConversionPattern<TestSignatureConversionUndoOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(TestSignatureConversionUndoOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    (void)rewriter.convertRegionTypes(&op->getRegion(0), *getTypeConverter());
+    return failure();
+  }
+};
+
+/// Just forward the operands to the root op. This is essentially a no-op
+/// pattern that is used to trigger target materialization.
+struct TestTypeConsumerForward
+    : public OpConversionPattern<TestTypeConsumerOp> {
+  using OpConversionPattern<TestTypeConsumerOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(TestTypeConsumerOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    rewriter.updateRootInPlace(op, [&] { op->setOperands(operands); });
+    return success();
+  }
+};
+
+struct TestTypeConversionAnotherProducer
+    : public OpRewritePattern<TestAnotherTypeProducerOp> {
+  using OpRewritePattern<TestAnotherTypeProducerOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TestAnotherTypeProducerOp op,
+                                PatternRewriter &rewriter) const final {
+    rewriter.replaceOpWithNewOp<TestTypeProducerOp>(op, op.getType());
+    return success();
+  }
+};
+
 struct TestTypeConversionDriver
     : public PassWrapper<TestTypeConversionDriver, OperationPass<ModuleOp>> {
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -836,7 +874,9 @@ struct TestTypeConversionDriver
 
     // Initialize the set of rewrite patterns.
     OwningRewritePatternList patterns;
-    patterns.insert<TestTypeConversionProducer>(converter, &getContext());
+    patterns.insert<TestTypeConsumerForward, TestTypeConversionProducer,
+                    TestSignatureConversionUndo>(converter, &getContext());
+    patterns.insert<TestTypeConversionAnotherProducer>(&getContext());
     mlir::populateFuncOpTypeConversionPattern(patterns, &getContext(),
                                               converter);
 
@@ -846,6 +886,10 @@ struct TestTypeConversionDriver
   }
 };
 } // end anonymous namespace
+
+//===----------------------------------------------------------------------===//
+// Test Block Merging
+//===----------------------------------------------------------------------===//
 
 namespace {
 /// A rewriter pattern that tests that blocks can be merged.
@@ -956,6 +1000,46 @@ struct TestMergeBlocksPatternDriver
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// Test Selective Replacement
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// A rewrite mechanism to inline the body of the op into its parent, when both
+/// ops can have a single block.
+struct TestSelectiveOpReplacementPattern : public OpRewritePattern<TestCastOp> {
+  using OpRewritePattern<TestCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TestCastOp op,
+                                PatternRewriter &rewriter) const final {
+    if (op.getNumOperands() != 2)
+      return failure();
+    OperandRange operands = op.getOperands();
+
+    // Replace non-terminator uses with the first operand.
+    rewriter.replaceOpWithIf(op, operands[0], [](OpOperand &operand) {
+      return operand.getOwner()->hasTrait<OpTrait::IsTerminator>();
+    });
+    // Replace everything else with the second operand if the operation isn't
+    // dead.
+    rewriter.replaceOp(op, op.getOperand(1));
+    return success();
+  }
+};
+
+struct TestSelectiveReplacementPatternDriver
+    : public PassWrapper<TestSelectiveReplacementPatternDriver,
+                         OperationPass<>> {
+  void runOnOperation() override {
+    mlir::OwningRewritePatternList patterns;
+    MLIRContext *context = &getContext();
+    patterns.insert<TestSelectiveOpReplacementPattern>(context);
+    (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(),
+                                       std::move(patterns));
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
 // PassRegistration
 //===----------------------------------------------------------------------===//
 
@@ -992,6 +1076,9 @@ void registerPatternsTestPass() {
   PassRegistration<TestMergeBlocksPatternDriver>{
       "test-merge-blocks",
       "Test Merging operation in ConversionPatternRewriter"};
+  PassRegistration<TestSelectiveReplacementPatternDriver>{
+      "test-pattern-selective-replacement",
+      "Test selective replacement in the PatternRewriter"};
 }
 } // namespace test
 } // namespace mlir

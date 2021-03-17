@@ -11,17 +11,19 @@ function(add_linalg_ods_gen tc_filename output_file)
     PROPERTIES GENERATED TRUE)
   add_custom_command(
     OUTPUT ${GEN_ODS_FILE} ${GEN_CPP_FILE}
-    COMMAND mlir-linalg-ods-gen -gen-ods-decl ${TC_SOURCE} > ${GEN_ODS_FILE}
-    COMMAND mlir-linalg-ods-gen -gen-impl ${TC_SOURCE} > ${GEN_CPP_FILE}
+    COMMAND ${MLIR_LINALG_ODS_GEN_EXE} -gen-ods-decl ${TC_SOURCE} > ${GEN_ODS_FILE}
+    COMMAND ${MLIR_LINALG_ODS_GEN_EXE} -gen-impl ${TC_SOURCE} > ${GEN_CPP_FILE}
     MAIN_DEPENDENCY
     ${TC_SOURCE}
     DEPENDS
-    mlir-linalg-ods-gen
+    ${MLIR_LINALG_ODS_GEN_EXE}
+    ${MLIR_LINALG_ODS_GEN_TARGET}
     VERBATIM)
   add_custom_target(
     MLIR${output_file}IncGen
     DEPENDS
-    mlir-linalg-ods-gen
+    ${MLIR_LINALG_ODS_GEN_EXE}
+    ${MLIR_LINALG_ODS_GEN_TARGET}
     ${GEN_ODS_FILE} ${GEN_CPP_FILE})
 endfunction()
 
@@ -43,8 +45,14 @@ add_public_tablegen_target(MLIRLinalgStructuredOpsIncGen)
 add_dependencies(MLIRLinalgStructuredOpsIncGen LinalgOdsGen)
 add_dependencies(mlir-headers MLIRLinalgStructuredOpsIncGen)
 
-set(LLVM_TARGET_DEFINITIONS LinalgStructuredOpsInterface.td)
-mlir_tablegen(LinalgStructuredOpsInterfaces.h.inc -gen-op-interface-decls)
-mlir_tablegen(LinalgStructuredOpsInterfaces.cpp.inc -gen-op-interface-defs)
-add_public_tablegen_target(MLIRLinalgStructuredOpsInterfaceIncGen)
-add_dependencies(mlir-headers MLIRLinalgStructuredOpsInterfaceIncGen)
+set(LLVM_TARGET_DEFINITIONS LinalgSparseOps.td)
+mlir_tablegen(LinalgSparseOps.h.inc -gen-op-decls)
+mlir_tablegen(LinalgSparseOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(MLIRLinalgSparseOpsIncGen)
+add_dependencies(mlir-headers MLIRLinalgSparseOpsIncGen)
+
+set(LLVM_TARGET_DEFINITIONS LinalgInterfaces.td)
+mlir_tablegen(LinalgInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(LinalgInterfaces.cpp.inc -gen-op-interface-defs)
+add_public_tablegen_target(MLIRLinalgInterfacesIncGen)
+add_dependencies(mlir-headers MLIRLinalgInterfacesIncGen)

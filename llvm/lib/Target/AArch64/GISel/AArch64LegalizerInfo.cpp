@@ -165,7 +165,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder({G_SMULH, G_UMULH}).legalFor({s32, s64});
 
-  getActionDefinitionsBuilder({G_UADDE, G_USUBE, G_SADDO, G_SSUBO, G_UADDO})
+  getActionDefinitionsBuilder(
+      {G_SADDE, G_SSUBE, G_UADDE, G_USUBE, G_SADDO, G_SSUBO, G_UADDO, G_USUBO})
       .legalFor({{s32, s1}, {s64, s1}})
       .minScalar(0, s32);
 
@@ -292,8 +293,10 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
         return Query.Types[0].getSizeInBits() != Query.MMODescrs[0].SizeInBits;
       })
       .widenScalarToNextPow2(0)
-      .clampMaxNumElements(0, s32, 2)
-      .clampMaxNumElements(0, s64, 1)
+      .clampMaxNumElements(0, s8, 16)
+      .clampMaxNumElements(0, s16, 8)
+      .clampMaxNumElements(0, s32, 4)
+      .clampMaxNumElements(0, s64, 2)
       .customIf(IsPtrVecPred);
 
   getActionDefinitionsBuilder(G_STORE)
@@ -318,8 +321,11 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
         return Query.Types[0].isScalar() &&
                Query.Types[0].getSizeInBits() != Query.MMODescrs[0].SizeInBits;
       })
-      .clampMaxNumElements(0, s32, 2)
-      .clampMaxNumElements(0, s64, 1)
+      // Maximum: sN * k = 128
+      .clampMaxNumElements(0, s8, 16)
+      .clampMaxNumElements(0, s16, 8)
+      .clampMaxNumElements(0, s32, 4)
+      .clampMaxNumElements(0, s64, 2)
       .customIf(IsPtrVecPred);
 
   // Constants
@@ -332,9 +338,9 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
         const auto &Ty = Query.Types[0];
         if (HasFP16 && Ty == s16)
           return true;
-        return Ty == s32 || Ty == s64;
+        return Ty == s32 || Ty == s64 || Ty == s128;
       })
-      .clampScalar(0, MinFPScalar, s64);
+      .clampScalar(0, MinFPScalar, s128);
 
   getActionDefinitionsBuilder({G_ICMP, G_FCMP})
       .legalFor({{s32, s32},
@@ -775,7 +781,8 @@ bool AArch64LegalizerInfo::legalizeSmallCMGlobalValue(
   // G_ADD_LOW instructions.
   // By splitting this here, we can optimize accesses in the small code model by
   // folding in the G_ADD_LOW into the load/store offset.
-  auto GV = MI.getOperand(1).getGlobal();
+  auto &GlobalOp = MI.getOperand(1);
+  const auto* GV = GlobalOp.getGlobal();
   if (GV->isThreadLocal())
     return true; // Don't want to modify TLS vars.
 
@@ -785,9 +792,10 @@ bool AArch64LegalizerInfo::legalizeSmallCMGlobalValue(
   if (OpFlags & AArch64II::MO_GOT)
     return true;
 
+  auto Offset = GlobalOp.getOffset();
   Register DstReg = MI.getOperand(0).getReg();
   auto ADRP = MIRBuilder.buildInstr(AArch64::ADRP, {LLT::pointer(0, 64)}, {})
-                  .addGlobalAddress(GV, 0, OpFlags | AArch64II::MO_PAGE);
+                  .addGlobalAddress(GV, Offset, OpFlags | AArch64II::MO_PAGE);
   // Set the regclass on the dest reg too.
   MRI.setRegClass(ADRP.getReg(0), &AArch64::GPR64RegClass);
 
@@ -805,6 +813,8 @@ bool AArch64LegalizerInfo::legalizeSmallCMGlobalValue(
   // binary must also be loaded into address range [0, 2^48). Both of these
   // properties need to be ensured at runtime when using tagged addresses.
   if (OpFlags & AArch64II::MO_TAGGED) {
+    assert(!Offset &&
+           "Should not have folded in an offset for a tagged global!");
     ADRP = MIRBuilder.buildInstr(AArch64::MOVKXi, {LLT::pointer(0, 64)}, {ADRP})
                .addGlobalAddress(GV, 0x100000000,
                                  AArch64II::MO_PREL | AArch64II::MO_G3)
@@ -813,7 +823,7 @@ bool AArch64LegalizerInfo::legalizeSmallCMGlobalValue(
   }
 
   MIRBuilder.buildInstr(AArch64::G_ADD_LOW, {DstReg}, {ADRP})
-      .addGlobalAddress(GV, 0,
+      .addGlobalAddress(GV, Offset,
                         OpFlags | AArch64II::MO_PAGEOFF | AArch64II::MO_NC);
   MI.eraseFromParent();
   return true;

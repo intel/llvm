@@ -526,9 +526,9 @@ void WasmWriter::writeSectionContent(raw_ostream &OS,
   encodeULEB128(Section.Segments.size(), OS);
   for (auto &Segment : Section.Segments) {
     encodeULEB128(Segment.InitFlags, OS);
-    if (Segment.InitFlags & wasm::WASM_SEGMENT_HAS_MEMINDEX)
+    if (Segment.InitFlags & wasm::WASM_DATA_SEGMENT_HAS_MEMINDEX)
       encodeULEB128(Segment.MemoryIndex, OS);
-    if ((Segment.InitFlags & wasm::WASM_SEGMENT_IS_PASSIVE) == 0)
+    if ((Segment.InitFlags & wasm::WASM_DATA_SEGMENT_IS_PASSIVE) == 0)
       writeInitExpr(OS, Segment.Offset);
     encodeULEB128(Segment.Content.binary_size(), OS);
     Segment.Content.writeAsBinary(OS);
@@ -575,7 +575,8 @@ void WasmWriter::writeRelocSection(raw_ostream &OS, WasmYAML::Section &Sec,
     case wasm::R_WASM_FUNCTION_OFFSET_I32:
     case wasm::R_WASM_FUNCTION_OFFSET_I64:
     case wasm::R_WASM_SECTION_OFFSET_I32:
-      encodeULEB128(Reloc.Addend, OS);
+      encodeSLEB128(Reloc.Addend, OS);
+      break;
     }
   }
 }

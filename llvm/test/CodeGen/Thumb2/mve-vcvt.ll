@@ -91,55 +91,35 @@ entry:
 define arm_aapcs_vfpcc <8 x half> @foo_half_int16(<8 x i16> %src) {
 ; CHECK-MVE-LABEL: foo_half_int16:
 ; CHECK-MVE:       @ %bb.0: @ %entry
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[0]
-; CHECK-MVE-NEXT:    vmov.u16 r1, q0[1]
-; CHECK-MVE-NEXT:    sxth r0, r0
-; CHECK-MVE-NEXT:    sxth r1, r1
-; CHECK-MVE-NEXT:    vmov s4, r0
-; CHECK-MVE-NEXT:    vcvt.f16.s32 s4, s4
-; CHECK-MVE-NEXT:    vmov r0, s4
-; CHECK-MVE-NEXT:    vmov s4, r1
-; CHECK-MVE-NEXT:    vcvt.f16.s32 s4, s4
-; CHECK-MVE-NEXT:    vmov r1, s4
-; CHECK-MVE-NEXT:    vmov.16 q1[0], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[2]
-; CHECK-MVE-NEXT:    vmov.16 q1[1], r1
-; CHECK-MVE-NEXT:    sxth r0, r0
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[2], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[3]
-; CHECK-MVE-NEXT:    sxth r0, r0
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[3], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[4]
-; CHECK-MVE-NEXT:    sxth r0, r0
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[4], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[5]
-; CHECK-MVE-NEXT:    sxth r0, r0
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[5], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[6]
-; CHECK-MVE-NEXT:    sxth r0, r0
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[6], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[7]
-; CHECK-MVE-NEXT:    sxth r0, r0
+; CHECK-MVE-NEXT:    vmov q1, q0
+; CHECK-MVE-NEXT:    vmov.s16 r0, q0[1]
+; CHECK-MVE-NEXT:    vmov s0, r0
+; CHECK-MVE-NEXT:    vmov.s16 r0, q1[0]
+; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s0
 ; CHECK-MVE-NEXT:    vmov s0, r0
 ; CHECK-MVE-NEXT:    vcvt.f16.s32 s0, s0
-; CHECK-MVE-NEXT:    vmov r0, s0
-; CHECK-MVE-NEXT:    vmov.16 q1[7], r0
-; CHECK-MVE-NEXT:    vmov q0, q1
+; CHECK-MVE-NEXT:    vmov.s16 r0, q1[3]
+; CHECK-MVE-NEXT:    vins.f16 s0, s8
+; CHECK-MVE-NEXT:    vmov s8, r0
+; CHECK-MVE-NEXT:    vmov.s16 r0, q1[2]
+; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s8
+; CHECK-MVE-NEXT:    vmov s10, r0
+; CHECK-MVE-NEXT:    vmov.s16 r0, q1[5]
+; CHECK-MVE-NEXT:    vcvt.f16.s32 s1, s10
+; CHECK-MVE-NEXT:    vins.f16 s1, s8
+; CHECK-MVE-NEXT:    vmov s8, r0
+; CHECK-MVE-NEXT:    vmov.s16 r0, q1[4]
+; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s8
+; CHECK-MVE-NEXT:    vmov s10, r0
+; CHECK-MVE-NEXT:    vmov.s16 r0, q1[7]
+; CHECK-MVE-NEXT:    vcvt.f16.s32 s2, s10
+; CHECK-MVE-NEXT:    vins.f16 s2, s8
+; CHECK-MVE-NEXT:    vmov s8, r0
+; CHECK-MVE-NEXT:    vmov.s16 r0, q1[6]
+; CHECK-MVE-NEXT:    vcvt.f16.s32 s8, s8
+; CHECK-MVE-NEXT:    vmov s4, r0
+; CHECK-MVE-NEXT:    vcvt.f16.s32 s3, s4
+; CHECK-MVE-NEXT:    vins.f16 s3, s8
 ; CHECK-MVE-NEXT:    bx lr
 ;
 ; CHECK-MVEFP-LABEL: foo_half_int16:
@@ -154,47 +134,35 @@ entry:
 define arm_aapcs_vfpcc <8 x half> @foo_half_uint16(<8 x i16> %src) {
 ; CHECK-MVE-LABEL: foo_half_uint16:
 ; CHECK-MVE:       @ %bb.0: @ %entry
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[0]
-; CHECK-MVE-NEXT:    vmov.u16 r1, q0[1]
-; CHECK-MVE-NEXT:    vmov s4, r0
-; CHECK-MVE-NEXT:    vcvt.f16.u32 s4, s4
-; CHECK-MVE-NEXT:    vmov r0, s4
-; CHECK-MVE-NEXT:    vmov s4, r1
-; CHECK-MVE-NEXT:    vcvt.f16.u32 s4, s4
-; CHECK-MVE-NEXT:    vmov r1, s4
-; CHECK-MVE-NEXT:    vmov.16 q1[0], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[2]
-; CHECK-MVE-NEXT:    vmov.16 q1[1], r1
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[2], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[3]
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[3], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[4]
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[4], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[5]
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[5], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[6]
-; CHECK-MVE-NEXT:    vmov s8, r0
-; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s8
-; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.16 q1[6], r0
-; CHECK-MVE-NEXT:    vmov.u16 r0, q0[7]
+; CHECK-MVE-NEXT:    vmov q1, q0
+; CHECK-MVE-NEXT:    vmov.u16 r0, q0[1]
+; CHECK-MVE-NEXT:    vmov s0, r0
+; CHECK-MVE-NEXT:    vmov.u16 r0, q1[0]
+; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s0
 ; CHECK-MVE-NEXT:    vmov s0, r0
 ; CHECK-MVE-NEXT:    vcvt.f16.u32 s0, s0
-; CHECK-MVE-NEXT:    vmov r0, s0
-; CHECK-MVE-NEXT:    vmov.16 q1[7], r0
-; CHECK-MVE-NEXT:    vmov q0, q1
+; CHECK-MVE-NEXT:    vmov.u16 r0, q1[3]
+; CHECK-MVE-NEXT:    vins.f16 s0, s8
+; CHECK-MVE-NEXT:    vmov s8, r0
+; CHECK-MVE-NEXT:    vmov.u16 r0, q1[2]
+; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s8
+; CHECK-MVE-NEXT:    vmov s10, r0
+; CHECK-MVE-NEXT:    vmov.u16 r0, q1[5]
+; CHECK-MVE-NEXT:    vcvt.f16.u32 s1, s10
+; CHECK-MVE-NEXT:    vins.f16 s1, s8
+; CHECK-MVE-NEXT:    vmov s8, r0
+; CHECK-MVE-NEXT:    vmov.u16 r0, q1[4]
+; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s8
+; CHECK-MVE-NEXT:    vmov s10, r0
+; CHECK-MVE-NEXT:    vmov.u16 r0, q1[7]
+; CHECK-MVE-NEXT:    vcvt.f16.u32 s2, s10
+; CHECK-MVE-NEXT:    vins.f16 s2, s8
+; CHECK-MVE-NEXT:    vmov s8, r0
+; CHECK-MVE-NEXT:    vmov.u16 r0, q1[6]
+; CHECK-MVE-NEXT:    vcvt.f16.u32 s8, s8
+; CHECK-MVE-NEXT:    vmov s4, r0
+; CHECK-MVE-NEXT:    vcvt.f16.u32 s3, s4
+; CHECK-MVE-NEXT:    vins.f16 s3, s8
 ; CHECK-MVE-NEXT:    bx lr
 ;
 ; CHECK-MVEFP-LABEL: foo_half_uint16:
@@ -386,4 +354,55 @@ define arm_aapcs_vfpcc <2 x i64> @foo_uint64_float(<2 x double> %src) {
 entry:
   %out = fptoui <2 x double> %src to <2 x i64>
   ret <2 x i64> %out
+}
+
+define arm_aapcs_vfpcc <8 x half> @vmovn32_trunc1(<4 x float> %src1, <4 x float> %src2) {
+; CHECK-MVE-LABEL: vmovn32_trunc1:
+; CHECK-MVE:       @ %bb.0: @ %entry
+; CHECK-MVE-NEXT:    vmov q2, q0
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s0, s8
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s0, s4
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s1, s9
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s1, s5
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s2, s10
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s2, s6
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s3, s11
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s3, s7
+; CHECK-MVE-NEXT:    bx lr
+;
+; CHECK-MVEFP-LABEL: vmovn32_trunc1:
+; CHECK-MVEFP:       @ %bb.0: @ %entry
+; CHECK-MVEFP-NEXT:    vcvtb.f16.f32 q0, q0
+; CHECK-MVEFP-NEXT:    vcvtt.f16.f32 q0, q1
+; CHECK-MVEFP-NEXT:    bx lr
+entry:
+  %strided.vec = shufflevector <4 x float> %src1, <4 x float> %src2, <8 x i32> <i32 0, i32 4, i32 1, i32 5, i32 2, i32 6, i32 3, i32 7>
+  %out = fptrunc <8 x float> %strided.vec to <8 x half>
+  ret <8 x half> %out
+}
+
+define arm_aapcs_vfpcc <8 x half> @vmovn32_trunc2(<4 x float> %src1, <4 x float> %src2) {
+; CHECK-MVE-LABEL: vmovn32_trunc2:
+; CHECK-MVE:       @ %bb.0: @ %entry
+; CHECK-MVE-NEXT:    vmov q2, q0
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s0, s4
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s0, s8
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s1, s5
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s1, s9
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s2, s6
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s2, s10
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s3, s7
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s3, s11
+; CHECK-MVE-NEXT:    bx lr
+;
+; CHECK-MVEFP-LABEL: vmovn32_trunc2:
+; CHECK-MVEFP:       @ %bb.0: @ %entry
+; CHECK-MVEFP-NEXT:    vcvtb.f16.f32 q1, q1
+; CHECK-MVEFP-NEXT:    vcvtt.f16.f32 q1, q0
+; CHECK-MVEFP-NEXT:    vmov q0, q1
+; CHECK-MVEFP-NEXT:    bx lr
+entry:
+  %strided.vec = shufflevector <4 x float> %src1, <4 x float> %src2, <8 x i32> <i32 4, i32 0, i32 5, i32 1, i32 6, i32 2, i32 7, i32 3>
+  %out = fptrunc <8 x float> %strided.vec to <8 x half>
+  ret <8 x half> %out
 }

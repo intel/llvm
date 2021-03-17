@@ -29,6 +29,7 @@ static const char *RTLNames[] = {
     /* AArch64 target       */ "libomptarget.rtl.aarch64.so",
     /* SX-Aurora VE target  */ "libomptarget.rtl.ve.so",
     /* AMDGPU target        */ "libomptarget.rtl.amdgpu.so",
+    /* Remote target        */ "libomptarget.rtl.rpc.so",
 };
 
 PluginManager *PM;
@@ -88,46 +89,67 @@ void RTLsTy::LoadRTLs() {
 
     DP("Successfully loaded library '%s'!\n", Name);
 
+    AllRTLs.emplace_back();
+
     // Retrieve the RTL information from the runtime library.
-    RTLInfoTy R;
+    RTLInfoTy &R = AllRTLs.back();
+
+    bool ValidPlugin = true;
+
+    if (!(*((void **)&R.is_valid_binary) =
+              dlsym(dynlib_handle, "__tgt_rtl_is_valid_binary")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.number_of_devices) =
+              dlsym(dynlib_handle, "__tgt_rtl_number_of_devices")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.init_device) =
+              dlsym(dynlib_handle, "__tgt_rtl_init_device")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.load_binary) =
+              dlsym(dynlib_handle, "__tgt_rtl_load_binary")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.data_alloc) =
+              dlsym(dynlib_handle, "__tgt_rtl_data_alloc")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.data_submit) =
+              dlsym(dynlib_handle, "__tgt_rtl_data_submit")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.data_retrieve) =
+              dlsym(dynlib_handle, "__tgt_rtl_data_retrieve")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.data_delete) =
+              dlsym(dynlib_handle, "__tgt_rtl_data_delete")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.run_region) =
+              dlsym(dynlib_handle, "__tgt_rtl_run_target_region")))
+      ValidPlugin = false;
+    if (!(*((void **)&R.run_team_region) =
+              dlsym(dynlib_handle, "__tgt_rtl_run_target_team_region")))
+      ValidPlugin = false;
+
+    // Invalid plugin
+    if (!ValidPlugin) {
+      DP("Invalid plugin as necessary interface is not found.\n");
+      AllRTLs.pop_back();
+      continue;
+    }
+
+    // No devices are supported by this RTL?
+    if (!(R.NumberOfDevices = R.number_of_devices())) {
+      // The RTL is invalid! Will pop the object from the RTLs list.
+      DP("No devices supported in this RTL\n");
+      AllRTLs.pop_back();
+      continue;
+    }
 
     R.LibraryHandler = dynlib_handle;
-    R.isUsed = false;
 
 #ifdef OMPTARGET_DEBUG
     R.RTLName = Name;
 #endif
 
-    if (!(*((void **)&R.is_valid_binary) =
-              dlsym(dynlib_handle, "__tgt_rtl_is_valid_binary")))
-      continue;
-    if (!(*((void **)&R.number_of_devices) =
-              dlsym(dynlib_handle, "__tgt_rtl_number_of_devices")))
-      continue;
-    if (!(*((void **)&R.init_device) =
-              dlsym(dynlib_handle, "__tgt_rtl_init_device")))
-      continue;
-    if (!(*((void **)&R.load_binary) =
-              dlsym(dynlib_handle, "__tgt_rtl_load_binary")))
-      continue;
-    if (!(*((void **)&R.data_alloc) =
-              dlsym(dynlib_handle, "__tgt_rtl_data_alloc")))
-      continue;
-    if (!(*((void **)&R.data_submit) =
-              dlsym(dynlib_handle, "__tgt_rtl_data_submit")))
-      continue;
-    if (!(*((void **)&R.data_retrieve) =
-              dlsym(dynlib_handle, "__tgt_rtl_data_retrieve")))
-      continue;
-    if (!(*((void **)&R.data_delete) =
-              dlsym(dynlib_handle, "__tgt_rtl_data_delete")))
-      continue;
-    if (!(*((void **)&R.run_region) =
-              dlsym(dynlib_handle, "__tgt_rtl_run_target_region")))
-      continue;
-    if (!(*((void **)&R.run_team_region) =
-              dlsym(dynlib_handle, "__tgt_rtl_run_target_team_region")))
-      continue;
+    DP("Registering RTL %s supporting %d devices!\n", R.RTLName.c_str(),
+       R.NumberOfDevices);
 
     // Optional functions
     *((void **)&R.init_requires) =
@@ -147,18 +169,10 @@ void RTLsTy::LoadRTLs() {
         dlsym(dynlib_handle, "__tgt_rtl_data_exchange_async");
     *((void **)&R.is_data_exchangable) =
         dlsym(dynlib_handle, "__tgt_rtl_is_data_exchangable");
-
-    // No devices are supported by this RTL?
-    if (!(R.NumberOfDevices = R.number_of_devices())) {
-      DP("No devices supported in this RTL\n");
-      continue;
-    }
-
-    DP("Registering RTL %s supporting %d devices!\n", R.RTLName.c_str(),
-       R.NumberOfDevices);
-
-    // The RTL is valid! Will save the information in the RTLs list.
-    AllRTLs.push_back(R);
+    *((void **)&R.register_lib) =
+        dlsym(dynlib_handle, "__tgt_rtl_register_lib");
+    *((void **)&R.unregister_lib) =
+        dlsym(dynlib_handle, "__tgt_rtl_unregister_lib");
   }
 
   DP("RTLs loaded!\n");
@@ -268,9 +282,6 @@ void RTLsTy::RegisterRequires(int64_t flags) {
 }
 
 void RTLsTy::RegisterLib(__tgt_bin_desc *desc) {
-  // Attempt to load all plugins available in the system.
-  std::call_once(initFlag, &RTLsTy::LoadRTLs, this);
-
   PM->RTLsMtx.lock();
   // Register the images with the RTLs that understand them, if any.
   for (int32_t i = 0; i < desc->NumDeviceImages; ++i) {
@@ -387,8 +398,9 @@ void RTLsTy::UnregisterLib(__tgt_bin_desc *desc) {
         Device.PendingGlobalsMtx.lock();
         if (Device.PendingCtorsDtors[desc].PendingCtors.empty()) {
           for (auto &dtor : Device.PendingCtorsDtors[desc].PendingDtors) {
-            int rc = target(Device.DeviceID, dtor, 0, nullptr, nullptr, nullptr,
-                            nullptr, nullptr, nullptr, 1, 1, true /*team*/);
+            int rc =
+                target(nullptr, Device.DeviceID, dtor, 0, nullptr, nullptr,
+                       nullptr, nullptr, nullptr, nullptr, 1, 1, true /*team*/);
             if (rc != OFFLOAD_SUCCESS) {
               DP("Running destructor " DPxMOD " failed.\n", DPxPTR(dtor));
             }

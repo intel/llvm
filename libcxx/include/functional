@@ -42,8 +42,8 @@ public:
     typedef see below result_type; // Not always defined
 
     // construct/copy/destroy
-    reference_wrapper(T&) noexcept;
-    reference_wrapper(T&&) = delete; // do not bind to temps
+    template<class U>
+      reference_wrapper(U&&);
     reference_wrapper(const reference_wrapper<T>& x) noexcept;
 
     // assignment
@@ -58,6 +58,9 @@ public:
       typename result_of<T&(ArgTypes&&...)>::type
           operator() (ArgTypes&&...) const;
 };
+
+template <class T>
+  reference_wrapper(T&) -> reference_wrapper<T>;
 
 template <class T> reference_wrapper<T> ref(T& t) noexcept;
 template <class T> void ref(const T&& t) = delete;
@@ -2348,9 +2351,9 @@ class _LIBCPP_TEMPLATE_VIS function<_Rp(_ArgTypes...)>
     template <class _Fp>
         struct __callable<_Fp, true>
         {
-            static const bool value = is_same<void, _Rp>::value ||
-                is_convertible<typename __invoke_of<_Fp, _ArgTypes...>::type,
-                               _Rp>::value;
+            static const bool value = is_void<_Rp>::value ||
+                __is_core_convertible<typename __invoke_of<_Fp, _ArgTypes...>::type,
+                                      _Rp>::value;
         };
     template <class _Fp>
         struct __callable<_Fp, false>
@@ -2705,7 +2708,7 @@ typename _EnableIf
 __mu(_Ti& __ti, tuple<_Uj...>& __uj)
 {
     typedef typename __make_tuple_indices<sizeof...(_Uj)>::type __indices;
-    return  __mu_expand(__ti, __uj, __indices());
+    return _VSTD::__mu_expand(__ti, __uj, __indices());
 }
 
 template <bool IsPh, class _Ti, class _Uj>

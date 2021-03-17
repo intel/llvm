@@ -7,7 +7,7 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown-sycldevice"
 
 ; Function Attrs: convergent norecurse
-define dso_local spir_func i32 @foo(float %x) !sycl_explicit_simd !1 {
+define dso_local spir_func i32 @foo(float %x) {
   %y = fptoui float %x to i32
 ; check that the scalar float to unsigned int conversion is left intact
 ; CHECK: %y = fptoui float %x to i32

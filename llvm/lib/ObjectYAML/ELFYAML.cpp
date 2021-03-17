@@ -33,6 +33,8 @@ unsigned Object::getMachine() const {
     return *Header.Machine;
   return llvm::ELF::EM_NONE;
 }
+
+constexpr StringRef SectionHeaderTable::TypeStr;
 } // namespace ELFYAML
 
 namespace yaml {
@@ -64,6 +66,100 @@ void ScalarEnumerationTraits<ELFYAML::ELF_PT>::enumeration(
   ECase(PT_GNU_STACK);
   ECase(PT_GNU_RELRO);
   ECase(PT_GNU_PROPERTY);
+#undef ECase
+  IO.enumFallback<Hex32>(Value);
+}
+
+void ScalarEnumerationTraits<ELFYAML::ELF_NT>::enumeration(
+    IO &IO, ELFYAML::ELF_NT &Value) {
+#define ECase(X) IO.enumCase(Value, #X, ELF::X)
+  // Generic note types.
+  ECase(NT_VERSION);
+  ECase(NT_ARCH);
+  ECase(NT_GNU_BUILD_ATTRIBUTE_OPEN);
+  ECase(NT_GNU_BUILD_ATTRIBUTE_FUNC);
+  // Core note types.
+  ECase(NT_PRSTATUS);
+  ECase(NT_FPREGSET);
+  ECase(NT_PRPSINFO);
+  ECase(NT_TASKSTRUCT);
+  ECase(NT_AUXV);
+  ECase(NT_PSTATUS);
+  ECase(NT_FPREGS);
+  ECase(NT_PSINFO);
+  ECase(NT_LWPSTATUS);
+  ECase(NT_LWPSINFO);
+  ECase(NT_WIN32PSTATUS);
+  ECase(NT_PPC_VMX);
+  ECase(NT_PPC_VSX);
+  ECase(NT_PPC_TAR);
+  ECase(NT_PPC_PPR);
+  ECase(NT_PPC_DSCR);
+  ECase(NT_PPC_EBB);
+  ECase(NT_PPC_PMU);
+  ECase(NT_PPC_TM_CGPR);
+  ECase(NT_PPC_TM_CFPR);
+  ECase(NT_PPC_TM_CVMX);
+  ECase(NT_PPC_TM_CVSX);
+  ECase(NT_PPC_TM_SPR);
+  ECase(NT_PPC_TM_CTAR);
+  ECase(NT_PPC_TM_CPPR);
+  ECase(NT_PPC_TM_CDSCR);
+  ECase(NT_386_TLS);
+  ECase(NT_386_IOPERM);
+  ECase(NT_X86_XSTATE);
+  ECase(NT_S390_HIGH_GPRS);
+  ECase(NT_S390_TIMER);
+  ECase(NT_S390_TODCMP);
+  ECase(NT_S390_TODPREG);
+  ECase(NT_S390_CTRS);
+  ECase(NT_S390_PREFIX);
+  ECase(NT_S390_LAST_BREAK);
+  ECase(NT_S390_SYSTEM_CALL);
+  ECase(NT_S390_TDB);
+  ECase(NT_S390_VXRS_LOW);
+  ECase(NT_S390_VXRS_HIGH);
+  ECase(NT_S390_GS_CB);
+  ECase(NT_S390_GS_BC);
+  ECase(NT_ARM_VFP);
+  ECase(NT_ARM_TLS);
+  ECase(NT_ARM_HW_BREAK);
+  ECase(NT_ARM_HW_WATCH);
+  ECase(NT_ARM_SVE);
+  ECase(NT_ARM_PAC_MASK);
+  ECase(NT_FILE);
+  ECase(NT_PRXFPREG);
+  ECase(NT_SIGINFO);
+  // LLVM-specific notes.
+  ECase(NT_LLVM_HWASAN_GLOBALS);
+  // GNU note types
+  ECase(NT_GNU_ABI_TAG);
+  ECase(NT_GNU_HWCAP);
+  ECase(NT_GNU_BUILD_ID);
+  ECase(NT_GNU_GOLD_VERSION);
+  ECase(NT_GNU_PROPERTY_TYPE_0);
+  // FreeBSD note types.
+  ECase(NT_FREEBSD_ABI_TAG);
+  ECase(NT_FREEBSD_NOINIT_TAG);
+  ECase(NT_FREEBSD_ARCH_TAG);
+  ECase(NT_FREEBSD_FEATURE_CTL);
+  // FreeBSD core note types.
+  ECase(NT_FREEBSD_THRMISC);
+  ECase(NT_FREEBSD_PROCSTAT_PROC);
+  ECase(NT_FREEBSD_PROCSTAT_FILES);
+  ECase(NT_FREEBSD_PROCSTAT_VMMAP);
+  ECase(NT_FREEBSD_PROCSTAT_GROUPS);
+  ECase(NT_FREEBSD_PROCSTAT_UMASK);
+  ECase(NT_FREEBSD_PROCSTAT_RLIMIT);
+  ECase(NT_FREEBSD_PROCSTAT_OSREL);
+  ECase(NT_FREEBSD_PROCSTAT_PSSTRINGS);
+  ECase(NT_FREEBSD_PROCSTAT_AUXV);
+  // AMD specific notes. (Code Object V2)
+  ECase(NT_AMD_AMDGPU_HSA_METADATA);
+  ECase(NT_AMD_AMDGPU_ISA);
+  ECase(NT_AMD_AMDGPU_PAL_METADATA);
+  // AMDGPU specific notes. (Code Object V3)
+  ECase(NT_AMDGPU_METADATA);
 #undef ECase
   IO.enumFallback<Hex32>(Value);
 }
@@ -553,6 +649,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_SHF>::bitset(IO &IO,
   BCase(SHF_GROUP);
   BCase(SHF_TLS);
   BCase(SHF_COMPRESSED);
+  BCase(SHF_GNU_RETAIN);
   switch (Object->getMachine()) {
   case ELF::EM_ARM:
     BCase(SHF_ARM_PURECODE);
@@ -858,23 +955,6 @@ void ScalarBitSetTraits<ELFYAML::MIPS_AFL_FLAGS1>::bitset(
 void MappingTraits<ELFYAML::SectionHeader>::mapping(
     IO &IO, ELFYAML::SectionHeader &SHdr) {
   IO.mapRequired("Name", SHdr.Name);
-}
-
-void MappingTraits<ELFYAML::SectionHeaderTable>::mapping(
-    IO &IO, ELFYAML::SectionHeaderTable &SectionHeader) {
-  IO.mapOptional("Sections", SectionHeader.Sections);
-  IO.mapOptional("Excluded", SectionHeader.Excluded);
-  IO.mapOptional("NoHeaders", SectionHeader.NoHeaders);
-}
-
-std::string MappingTraits<ELFYAML::SectionHeaderTable>::validate(
-    IO &IO, ELFYAML::SectionHeaderTable &SecHdrTable) {
-  if (SecHdrTable.NoHeaders && (SecHdrTable.Sections || SecHdrTable.Excluded))
-    return "NoHeaders can't be used together with Sections/Excluded";
-  if (!SecHdrTable.NoHeaders && !SecHdrTable.Sections && !SecHdrTable.Excluded)
-    return "SectionHeaderTable can't be empty. Use 'NoHeaders' key to drop the "
-           "section header table";
-  return "";
 }
 
 void MappingTraits<ELFYAML::FileHeader>::mapping(IO &IO,
@@ -1203,7 +1283,7 @@ static void sectionMapping(IO &IO, ELFYAML::NoBitsSection &Section) {
 
 static void sectionMapping(IO &IO, ELFYAML::VerdefSection &Section) {
   commonSectionMapping(IO, Section);
-  IO.mapRequired("Info", Section.Info);
+  IO.mapOptional("Info", Section.Info);
   IO.mapOptional("Entries", Section.Entries);
 }
 
@@ -1214,7 +1294,7 @@ static void sectionMapping(IO &IO, ELFYAML::SymverSection &Section) {
 
 static void sectionMapping(IO &IO, ELFYAML::VerneedSection &Section) {
   commonSectionMapping(IO, Section);
-  IO.mapRequired("Info", Section.Info);
+  IO.mapOptional("Info", Section.Info);
   IO.mapOptional("Dependencies", Section.VerneedV);
 }
 
@@ -1250,6 +1330,14 @@ static void fillMapping(IO &IO, ELFYAML::Fill &Fill) {
   IO.mapOptional("Pattern", Fill.Pattern);
   IO.mapOptional("Offset", Fill.Offset);
   IO.mapRequired("Size", Fill.Size);
+}
+
+static void sectionHeaderTableMapping(IO &IO,
+                                      ELFYAML::SectionHeaderTable &SHT) {
+  IO.mapOptional("Offset", SHT.Offset);
+  IO.mapOptional("Sections", SHT.Sections);
+  IO.mapOptional("Excluded", SHT.Excluded);
+  IO.mapOptional("NoHeaders", SHT.NoHeaders);
 }
 
 static void sectionMapping(IO &IO, ELFYAML::LinkerOptionsSection &Section) {
@@ -1304,22 +1392,48 @@ static StringRef getStringValue(IO &IO, const char *Key) {
   return Val;
 }
 
+static void setStringValue(IO &IO, const char *Key, StringRef Val) {
+  IO.mapRequired(Key, Val);
+}
+
+static bool isInteger(StringRef Val) {
+  APInt Tmp;
+  return !Val.getAsInteger(0, Tmp);
+}
+
 void MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::mapping(
     IO &IO, std::unique_ptr<ELFYAML::Chunk> &Section) {
   ELFYAML::ELF_SHT Type;
+  StringRef TypeStr;
   if (IO.outputting()) {
-    Type = cast<ELFYAML::Section>(Section.get())->Type;
+    if (auto *S = dyn_cast<ELFYAML::Section>(Section.get()))
+      Type = S->Type;
+    else if (auto *SHT = dyn_cast<ELFYAML::SectionHeaderTable>(Section.get()))
+      TypeStr = SHT->TypeStr;
   } else {
     // When the Type string does not have a "SHT_" prefix, we know it is not a
-    // description of a regular ELF output section. Currently, we have one
-    // special type named "Fill". See comments for Fill.
-    if (getStringValue(IO, "Type") == "Fill") {
-      Section.reset(new ELFYAML::Fill());
-      fillMapping(IO, *cast<ELFYAML::Fill>(Section.get()));
-      return;
-    }
+    // description of a regular ELF output section.
+    TypeStr = getStringValue(IO, "Type");
+    if (TypeStr.startswith("SHT_") || isInteger(TypeStr))
+      IO.mapRequired("Type", Type);
+  }
 
-    IO.mapRequired("Type", Type);
+  if (TypeStr == "Fill") {
+    assert(!IO.outputting()); // We don't dump fills currently.
+    Section.reset(new ELFYAML::Fill());
+    fillMapping(IO, *cast<ELFYAML::Fill>(Section.get()));
+    return;
+  }
+
+  if (TypeStr == ELFYAML::SectionHeaderTable::TypeStr) {
+    if (IO.outputting())
+      setStringValue(IO, "Type", TypeStr);
+    else
+      Section.reset(new ELFYAML::SectionHeaderTable(/*IsImplicit=*/false));
+
+    sectionHeaderTableMapping(
+        IO, *cast<ELFYAML::SectionHeaderTable>(Section.get()));
+    return;
   }
 
   const auto &Obj = *static_cast<ELFYAML::Object *>(IO.getContext());
@@ -1449,6 +1563,12 @@ std::string MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::validate(
   if (const auto *F = dyn_cast<ELFYAML::Fill>(C.get())) {
     if (F->Pattern && F->Pattern->binary_size() != 0 && !F->Size)
       return "\"Size\" can't be 0 when \"Pattern\" is not empty";
+    return "";
+  }
+
+  if (const auto *SHT = dyn_cast<ELFYAML::SectionHeaderTable>(C.get())) {
+    if (SHT->NoHeaders && (SHT->Sections || SHT->Excluded || SHT->Offset))
+      return "NoHeaders can't be used together with Offset/Sections/Excluded";
     return "";
   }
 
@@ -1584,10 +1704,10 @@ void MappingTraits<ELFYAML::VerdefEntry>::mapping(IO &IO,
                                                   ELFYAML::VerdefEntry &E) {
   assert(IO.getContext() && "The IO context is not initialized");
 
-  IO.mapRequired("Version", E.Version);
-  IO.mapRequired("Flags", E.Flags);
-  IO.mapRequired("VersionNdx", E.VersionNdx);
-  IO.mapRequired("Hash", E.Hash);
+  IO.mapOptional("Version", E.Version);
+  IO.mapOptional("Flags", E.Flags);
+  IO.mapOptional("VersionNdx", E.VersionNdx);
+  IO.mapOptional("Hash", E.Hash);
   IO.mapRequired("Names", E.VerNames);
 }
 
@@ -1656,7 +1776,6 @@ void MappingTraits<ELFYAML::Object>::mapping(IO &IO, ELFYAML::Object &Object) {
   IO.mapOptional("Symbols", Object.Symbols);
   IO.mapOptional("DynamicSymbols", Object.DynamicSymbols);
   IO.mapOptional("DWARF", Object.DWARF);
-  IO.mapOptional("SectionHeaderTable", Object.SectionHeaders);
   if (Object.DWARF) {
     Object.DWARF->IsLittleEndian =
         Object.Header.Data == ELFYAML::ELF_ELFDATA(ELF::ELFDATA2LSB);

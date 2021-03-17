@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18 -fopenmp
+! RUN: %S/test_errors.sh %s %t %flang -fopenmp
 ! Check OpenMP clause validity for the following directives:
 !     2.10 Device constructs
 program main
@@ -122,7 +122,7 @@ program main
   enddo
   !$omp end target data
 
-  !ERROR: At least one MAP clause must appear on the TARGET DATA directive
+  !ERROR: At least one of MAP clause must appear on the TARGET DATA directive
   !$omp target data device(0)
   do i = 1, N
      a = 3.14

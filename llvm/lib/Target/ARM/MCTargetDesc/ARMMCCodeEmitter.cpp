@@ -576,9 +576,11 @@ getMachineOpValue(const MCInst &MI, const MCOperand &MO,
     }
   } else if (MO.isImm()) {
     return static_cast<unsigned>(MO.getImm());
-  } else if (MO.isFPImm()) {
-    return static_cast<unsigned>(APFloat(MO.getFPImm())
-                     .bitcastToAPInt().getHiBits(32).getLimitedValue());
+  } else if (MO.isDFPImm()) {
+    return static_cast<unsigned>(APFloat(bit_cast<double>(MO.getDFPImm()))
+                                     .bitcastToAPInt()
+                                     .getHiBits(32)
+                                     .getLimitedValue());
   }
 
   llvm_unreachable("Unable to encode MCOperand!");
@@ -1730,11 +1732,11 @@ getRegisterListOpValue(const MCInst &MI, unsigned Op,
       Binary |= NumRegs * 2;
   } else {
     const MCRegisterInfo &MRI = *CTX.getRegisterInfo();
-    assert(std::is_sorted(MI.begin() + Op, MI.end(),
-                          [&](const MCOperand &LHS, const MCOperand &RHS) {
-                            return MRI.getEncodingValue(LHS.getReg()) <
+    assert(is_sorted(drop_begin(MI, Op),
+                     [&](const MCOperand &LHS, const MCOperand &RHS) {
+                       return MRI.getEncodingValue(LHS.getReg()) <
                               MRI.getEncodingValue(RHS.getReg());
-                          }));
+                     }));
     for (unsigned I = Op, E = MI.getNumOperands(); I < E; ++I) {
       unsigned RegNo = MRI.getEncodingValue(MI.getOperand(I).getReg());
       Binary |= 1 << RegNo;

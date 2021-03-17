@@ -82,6 +82,29 @@ public:
     }
   }
 
+  // Checks if the intrinsic is an annotation.
+  bool isAssumeLikeIntrinsic() const {
+    switch (getIntrinsicID()) {
+    default: break;
+    case Intrinsic::assume:
+    case Intrinsic::sideeffect:
+    case Intrinsic::pseudoprobe:
+    case Intrinsic::dbg_declare:
+    case Intrinsic::dbg_value:
+    case Intrinsic::dbg_label:
+    case Intrinsic::invariant_start:
+    case Intrinsic::invariant_end:
+    case Intrinsic::lifetime_start:
+    case Intrinsic::lifetime_end:
+    case Intrinsic::experimental_noalias_scope_decl:
+    case Intrinsic::objectsize:
+    case Intrinsic::ptr_annotation:
+    case Intrinsic::var_annotation:
+      return true;
+    }
+    return false;
+  }
+
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const CallInst *I) {
     if (const Function *CF = I->getCalledFunction())
@@ -981,14 +1004,41 @@ public:
     return cast<ConstantInt>(const_cast<Value *>(getArgOperand(0)));
   }
 
+  ConstantInt *getIndex() const {
+    return cast<ConstantInt>(const_cast<Value *>(getArgOperand(1)));
+  }
+
   ConstantInt *getAttributes() const {
     return cast<ConstantInt>(const_cast<Value *>(getArgOperand(2)));
   }
 
-  ConstantInt *getIndex() const {
-    return cast<ConstantInt>(const_cast<Value *>(getArgOperand(1)));
+  ConstantInt *getFactor() const {
+    return cast<ConstantInt>(const_cast<Value *>(getArgOperand(3)));
   }
 };
+
+class NoAliasScopeDeclInst : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::experimental_noalias_scope_decl;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+
+  MDNode *getScopeList() const {
+    auto *MV =
+        cast<MetadataAsValue>(getOperand(Intrinsic::NoAliasScopeDeclScopeArg));
+    return cast<MDNode>(MV->getMetadata());
+  }
+
+  void setScopeList(MDNode *ScopeList) {
+    setOperand(Intrinsic::NoAliasScopeDeclScopeArg,
+               MetadataAsValue::get(getContext(), ScopeList));
+  }
+};
+
 } // end namespace llvm
 
 #endif // LLVM_IR_INTRINSICINST_H

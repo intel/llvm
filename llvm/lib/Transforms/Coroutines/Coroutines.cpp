@@ -399,11 +399,7 @@ void coro::Shape::buildFrom(Function &F) {
     this->AsyncLowering.ContextAlignment =
         AsyncId->getStorageAlignment().value();
     this->AsyncLowering.AsyncFuncPointer = AsyncId->getAsyncFunctionPointer();
-    auto &Context = F.getContext();
-    auto *Int8PtrTy = Type::getInt8PtrTy(Context);
-    auto *VoidTy = Type::getVoidTy(Context);
-    this->AsyncLowering.AsyncFuncTy =
-        FunctionType::get(VoidTy, {Int8PtrTy, Int8PtrTy, Int8PtrTy}, false);
+    this->AsyncLowering.AsyncCC = F.getCallingConv();
     break;
   };
   case Intrinsic::coro_id_retcon:
@@ -676,8 +672,8 @@ static void checkAsyncFuncPointer(const Instruction *I, Value *V) {
   if (!AsyncFuncPtrAddr)
     fail(I, "llvm.coro.id.async async function pointer not a global", V);
 
-  auto *StructTy = dyn_cast<StructType>(
-      AsyncFuncPtrAddr->getType()->getPointerElementType());
+  auto *StructTy =
+      cast<StructType>(AsyncFuncPtrAddr->getType()->getPointerElementType());
   if (StructTy->isOpaque() || !StructTy->isPacked() ||
       StructTy->getNumElements() != 2 ||
       !StructTy->getElementType(0)->isIntegerTy(32) ||

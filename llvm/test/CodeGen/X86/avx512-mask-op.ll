@@ -2148,18 +2148,15 @@ define void @ktest_2(<32 x float> %in, float * %base) {
 ;
 ; KNL-LABEL: ktest_2:
 ; KNL:       ## %bb.0:
-; KNL-NEXT:    vcmpgtps 64(%rdi), %zmm1, %k1
-; KNL-NEXT:    vcmpgtps (%rdi), %zmm0, %k2
-; KNL-NEXT:    vmovups 4(%rdi), %zmm2 {%k2} {z}
-; KNL-NEXT:    vmovups 68(%rdi), %zmm3 {%k1} {z}
-; KNL-NEXT:    vcmpltps %zmm3, %zmm1, %k0
-; KNL-NEXT:    vcmpltps %zmm2, %zmm0, %k3
+; KNL-NEXT:    vcmpgtps (%rdi), %zmm0, %k1
+; KNL-NEXT:    vcmpgtps 64(%rdi), %zmm1, %k2
+; KNL-NEXT:    vmovups 68(%rdi), %zmm2 {%k2} {z}
+; KNL-NEXT:    vmovups 4(%rdi), %zmm3 {%k1} {z}
+; KNL-NEXT:    vcmpltps %zmm3, %zmm0, %k0
+; KNL-NEXT:    vcmpltps %zmm2, %zmm1, %k3
 ; KNL-NEXT:    korw %k3, %k2, %k2
-; KNL-NEXT:    kmovw %k2, %eax
 ; KNL-NEXT:    korw %k0, %k1, %k0
-; KNL-NEXT:    kmovw %k0, %ecx
-; KNL-NEXT:    shll $16, %ecx
-; KNL-NEXT:    orl %eax, %ecx
+; KNL-NEXT:    kortestw %k2, %k0
 ; KNL-NEXT:    je LBB45_2
 ; KNL-NEXT:  ## %bb.1: ## %L1
 ; KNL-NEXT:    vmovaps %zmm0, (%rdi)
@@ -2220,18 +2217,15 @@ define void @ktest_2(<32 x float> %in, float * %base) {
 ;
 ; AVX512DQ-LABEL: ktest_2:
 ; AVX512DQ:       ## %bb.0:
-; AVX512DQ-NEXT:    vcmpgtps 64(%rdi), %zmm1, %k1
-; AVX512DQ-NEXT:    vcmpgtps (%rdi), %zmm0, %k2
-; AVX512DQ-NEXT:    vmovups 4(%rdi), %zmm2 {%k2} {z}
-; AVX512DQ-NEXT:    vmovups 68(%rdi), %zmm3 {%k1} {z}
-; AVX512DQ-NEXT:    vcmpltps %zmm3, %zmm1, %k0
-; AVX512DQ-NEXT:    vcmpltps %zmm2, %zmm0, %k3
+; AVX512DQ-NEXT:    vcmpgtps (%rdi), %zmm0, %k1
+; AVX512DQ-NEXT:    vcmpgtps 64(%rdi), %zmm1, %k2
+; AVX512DQ-NEXT:    vmovups 68(%rdi), %zmm2 {%k2} {z}
+; AVX512DQ-NEXT:    vmovups 4(%rdi), %zmm3 {%k1} {z}
+; AVX512DQ-NEXT:    vcmpltps %zmm3, %zmm0, %k0
+; AVX512DQ-NEXT:    vcmpltps %zmm2, %zmm1, %k3
 ; AVX512DQ-NEXT:    korw %k3, %k2, %k2
-; AVX512DQ-NEXT:    kmovw %k2, %eax
 ; AVX512DQ-NEXT:    korw %k0, %k1, %k0
-; AVX512DQ-NEXT:    kmovw %k0, %ecx
-; AVX512DQ-NEXT:    shll $16, %ecx
-; AVX512DQ-NEXT:    orl %eax, %ecx
+; AVX512DQ-NEXT:    kortestw %k2, %k0
 ; AVX512DQ-NEXT:    je LBB45_2
 ; AVX512DQ-NEXT:  ## %bb.1: ## %L1
 ; AVX512DQ-NEXT:    vmovaps %zmm0, (%rdi)
@@ -4861,15 +4855,12 @@ define void @ktest_6(<32 x i16> %w, <32 x i16> %x, <32 x i16> %y, <32 x i16> %z)
 ; KNL-NEXT:    vpcmpeqw %ymm5, %ymm3, %ymm3
 ; KNL-NEXT:    vinserti64x4 $1, %ymm2, %zmm3, %zmm2
 ; KNL-NEXT:    vpternlogq $200, %zmm1, %zmm0, %zmm2
-; KNL-NEXT:    vpmovsxwd %ymm2, %zmm0
-; KNL-NEXT:    vptestmd %zmm0, %zmm0, %k0
-; KNL-NEXT:    kmovw %k0, %eax
 ; KNL-NEXT:    vextracti64x4 $1, %zmm2, %ymm0
+; KNL-NEXT:    vpor %ymm0, %ymm2, %ymm0
 ; KNL-NEXT:    vpmovsxwd %ymm0, %zmm0
+; KNL-NEXT:    vpslld $31, %zmm0, %zmm0
 ; KNL-NEXT:    vptestmd %zmm0, %zmm0, %k0
-; KNL-NEXT:    kmovw %k0, %ecx
-; KNL-NEXT:    shll $16, %ecx
-; KNL-NEXT:    orl %eax, %ecx
+; KNL-NEXT:    kortestw %k0, %k0
 ; KNL-NEXT:    je LBB77_1
 ; KNL-NEXT:  ## %bb.2: ## %exit
 ; KNL-NEXT:    vzeroupper
@@ -4945,15 +4936,12 @@ define void @ktest_6(<32 x i16> %w, <32 x i16> %x, <32 x i16> %y, <32 x i16> %z)
 ; AVX512DQ-NEXT:    vpcmpeqw %ymm5, %ymm3, %ymm3
 ; AVX512DQ-NEXT:    vinserti64x4 $1, %ymm2, %zmm3, %zmm2
 ; AVX512DQ-NEXT:    vpternlogq $200, %zmm1, %zmm0, %zmm2
-; AVX512DQ-NEXT:    vpmovsxwd %ymm2, %zmm0
-; AVX512DQ-NEXT:    vpmovd2m %zmm0, %k0
-; AVX512DQ-NEXT:    kmovw %k0, %eax
 ; AVX512DQ-NEXT:    vextracti64x4 $1, %zmm2, %ymm0
+; AVX512DQ-NEXT:    vpor %ymm0, %ymm2, %ymm0
 ; AVX512DQ-NEXT:    vpmovsxwd %ymm0, %zmm0
+; AVX512DQ-NEXT:    vpslld $31, %zmm0, %zmm0
 ; AVX512DQ-NEXT:    vpmovd2m %zmm0, %k0
-; AVX512DQ-NEXT:    kmovw %k0, %ecx
-; AVX512DQ-NEXT:    shll $16, %ecx
-; AVX512DQ-NEXT:    orl %eax, %ecx
+; AVX512DQ-NEXT:    kortestw %k0, %k0
 ; AVX512DQ-NEXT:    je LBB77_1
 ; AVX512DQ-NEXT:  ## %bb.2: ## %exit
 ; AVX512DQ-NEXT:    vzeroupper
@@ -5027,11 +5015,10 @@ define void @ktest_7(<64 x i8> %w, <64 x i8> %x, <64 x i8> %y, <64 x i8> %z) {
 ; KNL-NEXT:    vpcmpeqb %ymm5, %ymm3, %ymm3
 ; KNL-NEXT:    vinserti64x4 $1, %ymm2, %zmm3, %zmm2
 ; KNL-NEXT:    vpternlogq $200, %zmm1, %zmm0, %zmm2
-; KNL-NEXT:    vpmovmskb %ymm2, %eax
 ; KNL-NEXT:    vextracti64x4 $1, %zmm2, %ymm0
-; KNL-NEXT:    vpmovmskb %ymm0, %ecx
-; KNL-NEXT:    shlq $32, %rcx
-; KNL-NEXT:    orq %rax, %rcx
+; KNL-NEXT:    vpor %ymm0, %ymm2, %ymm0
+; KNL-NEXT:    vpmovmskb %ymm0, %eax
+; KNL-NEXT:    testl %eax, %eax
 ; KNL-NEXT:    je LBB78_1
 ; KNL-NEXT:  ## %bb.2: ## %exit
 ; KNL-NEXT:    vzeroupper
@@ -5107,11 +5094,10 @@ define void @ktest_7(<64 x i8> %w, <64 x i8> %x, <64 x i8> %y, <64 x i8> %z) {
 ; AVX512DQ-NEXT:    vpcmpeqb %ymm5, %ymm3, %ymm3
 ; AVX512DQ-NEXT:    vinserti64x4 $1, %ymm2, %zmm3, %zmm2
 ; AVX512DQ-NEXT:    vpternlogq $200, %zmm1, %zmm0, %zmm2
-; AVX512DQ-NEXT:    vpmovmskb %ymm2, %eax
 ; AVX512DQ-NEXT:    vextracti64x4 $1, %zmm2, %ymm0
-; AVX512DQ-NEXT:    vpmovmskb %ymm0, %ecx
-; AVX512DQ-NEXT:    shlq $32, %rcx
-; AVX512DQ-NEXT:    orq %rax, %rcx
+; AVX512DQ-NEXT:    vpor %ymm0, %ymm2, %ymm0
+; AVX512DQ-NEXT:    vpmovmskb %ymm0, %eax
+; AVX512DQ-NEXT:    testl %eax, %eax
 ; AVX512DQ-NEXT:    je LBB78_1
 ; AVX512DQ-NEXT:  ## %bb.2: ## %exit
 ; AVX512DQ-NEXT:    vzeroupper
@@ -5486,48 +5472,17 @@ define i1 @test_v1i1_mul(i1 %x, i1 %y) {
 }
 
 define <1 x i1> @uadd_sat_v1i1(<1 x i1> %x, <1 x i1> %y) nounwind {
-; KNL-LABEL: uadd_sat_v1i1:
-; KNL:       ## %bb.0:
-; KNL-NEXT:    kmovw %edi, %k0
-; KNL-NEXT:    kmovw %esi, %k1
-; KNL-NEXT:    korw %k1, %k0, %k0
-; KNL-NEXT:    kmovw %k0, %eax
-; KNL-NEXT:    ## kill: def $al killed $al killed $eax
-; KNL-NEXT:    retq
-;
-; SKX-LABEL: uadd_sat_v1i1:
-; SKX:       ## %bb.0:
-; SKX-NEXT:    kmovd %edi, %k0
-; SKX-NEXT:    kmovd %esi, %k1
-; SKX-NEXT:    korw %k1, %k0, %k0
-; SKX-NEXT:    kmovd %k0, %eax
-; SKX-NEXT:    ## kill: def $al killed $al killed $eax
-; SKX-NEXT:    retq
-;
-; AVX512BW-LABEL: uadd_sat_v1i1:
-; AVX512BW:       ## %bb.0:
-; AVX512BW-NEXT:    kmovd %edi, %k0
-; AVX512BW-NEXT:    kmovd %esi, %k1
-; AVX512BW-NEXT:    korw %k1, %k0, %k0
-; AVX512BW-NEXT:    kmovd %k0, %eax
-; AVX512BW-NEXT:    ## kill: def $al killed $al killed $eax
-; AVX512BW-NEXT:    retq
-;
-; AVX512DQ-LABEL: uadd_sat_v1i1:
-; AVX512DQ:       ## %bb.0:
-; AVX512DQ-NEXT:    kmovw %edi, %k0
-; AVX512DQ-NEXT:    kmovw %esi, %k1
-; AVX512DQ-NEXT:    korw %k1, %k0, %k0
-; AVX512DQ-NEXT:    kmovw %k0, %eax
-; AVX512DQ-NEXT:    ## kill: def $al killed $al killed $eax
-; AVX512DQ-NEXT:    retq
+; CHECK-LABEL: uadd_sat_v1i1:
+; CHECK:       ## %bb.0:
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    orl %esi, %eax
+; CHECK-NEXT:    ## kill: def $al killed $al killed $eax
+; CHECK-NEXT:    retq
 ;
 ; X86-LABEL: uadd_sat_v1i1:
 ; X86:       ## %bb.0:
-; X86-NEXT:    kmovd {{[0-9]+}}(%esp), %k0
-; X86-NEXT:    kmovd {{[0-9]+}}(%esp), %k1
-; X86-NEXT:    korw %k1, %k0, %k0
-; X86-NEXT:    kmovd %k0, %eax
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    orl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    ## kill: def $al killed $al killed $eax
 ; X86-NEXT:    retl
   %z = call <1 x i1> @llvm.uadd.sat.v1i1(<1 x i1> %x, <1 x i1> %y)
@@ -5586,48 +5541,17 @@ define <1 x i1> @usub_sat_v1i1(<1 x i1> %x, <1 x i1> %y) nounwind {
 declare <1 x i1> @llvm.usub.sat.v1i1(<1 x i1> %x, <1 x i1> %y)
 
 define <1 x i1> @sadd_sat_v1i1(<1 x i1> %x, <1 x i1> %y) nounwind {
-; KNL-LABEL: sadd_sat_v1i1:
-; KNL:       ## %bb.0:
-; KNL-NEXT:    kmovw %edi, %k0
-; KNL-NEXT:    kmovw %esi, %k1
-; KNL-NEXT:    korw %k1, %k0, %k0
-; KNL-NEXT:    kmovw %k0, %eax
-; KNL-NEXT:    ## kill: def $al killed $al killed $eax
-; KNL-NEXT:    retq
-;
-; SKX-LABEL: sadd_sat_v1i1:
-; SKX:       ## %bb.0:
-; SKX-NEXT:    kmovd %edi, %k0
-; SKX-NEXT:    kmovd %esi, %k1
-; SKX-NEXT:    korw %k1, %k0, %k0
-; SKX-NEXT:    kmovd %k0, %eax
-; SKX-NEXT:    ## kill: def $al killed $al killed $eax
-; SKX-NEXT:    retq
-;
-; AVX512BW-LABEL: sadd_sat_v1i1:
-; AVX512BW:       ## %bb.0:
-; AVX512BW-NEXT:    kmovd %edi, %k0
-; AVX512BW-NEXT:    kmovd %esi, %k1
-; AVX512BW-NEXT:    korw %k1, %k0, %k0
-; AVX512BW-NEXT:    kmovd %k0, %eax
-; AVX512BW-NEXT:    ## kill: def $al killed $al killed $eax
-; AVX512BW-NEXT:    retq
-;
-; AVX512DQ-LABEL: sadd_sat_v1i1:
-; AVX512DQ:       ## %bb.0:
-; AVX512DQ-NEXT:    kmovw %edi, %k0
-; AVX512DQ-NEXT:    kmovw %esi, %k1
-; AVX512DQ-NEXT:    korw %k1, %k0, %k0
-; AVX512DQ-NEXT:    kmovw %k0, %eax
-; AVX512DQ-NEXT:    ## kill: def $al killed $al killed $eax
-; AVX512DQ-NEXT:    retq
+; CHECK-LABEL: sadd_sat_v1i1:
+; CHECK:       ## %bb.0:
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    orl %esi, %eax
+; CHECK-NEXT:    ## kill: def $al killed $al killed $eax
+; CHECK-NEXT:    retq
 ;
 ; X86-LABEL: sadd_sat_v1i1:
 ; X86:       ## %bb.0:
-; X86-NEXT:    kmovd {{[0-9]+}}(%esp), %k0
-; X86-NEXT:    kmovd {{[0-9]+}}(%esp), %k1
-; X86-NEXT:    korw %k1, %k0, %k0
-; X86-NEXT:    kmovd %k0, %eax
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    orl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    ## kill: def $al killed $al killed $eax
 ; X86-NEXT:    retl
   %z = call <1 x i1> @llvm.sadd.sat.v1i1(<1 x i1> %x, <1 x i1> %y)

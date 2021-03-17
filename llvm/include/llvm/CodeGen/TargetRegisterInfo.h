@@ -34,6 +34,7 @@
 namespace llvm {
 
 class BitVector;
+class DIExpression;
 class LiveRegMatrix;
 class MachineFunction;
 class MachineInstr;
@@ -208,8 +209,10 @@ public:
 /// Extra information, not in MCRegisterDesc, about registers.
 /// These are used by codegen, not by MC.
 struct TargetRegisterInfoDesc {
-  unsigned CostPerUse;          // Extra cost of instructions using register.
-  bool inAllocatableClass;      // Register belongs to an allocatable regclass.
+  const uint8_t *CostPerUse; // Extra cost of instructions using register.
+  unsigned NumCosts; // Number of cost values associated with each register.
+  const bool
+      *InAllocatableClass; // Register belongs to an allocatable regclass.
 };
 
 /// Each TargetRegisterClass has a per register weight, and weight
@@ -328,15 +331,19 @@ public:
   BitVector getAllocatableSet(const MachineFunction &MF,
                               const TargetRegisterClass *RC = nullptr) const;
 
-  /// Return the additional cost of using this register instead
-  /// of other registers in its class.
-  unsigned getCostPerUse(MCRegister RegNo) const {
-    return InfoDesc[RegNo].CostPerUse;
+  /// Get a list of cost values for all registers that correspond to the index
+  /// returned by RegisterCostTableIndex.
+  ArrayRef<uint8_t> getRegisterCosts(const MachineFunction &MF) const {
+    unsigned Idx = getRegisterCostTableIndex(MF);
+    unsigned NumRegs = getNumRegs();
+    assert(Idx < InfoDesc->NumCosts && "CostPerUse index out of bounds");
+
+    return makeArrayRef(&InfoDesc->CostPerUse[Idx * NumRegs], NumRegs);
   }
 
   /// Return true if the register is in the allocation of any register class.
   bool isInAllocatableClass(MCRegister RegNo) const {
-    return InfoDesc[RegNo].inAllocatableClass;
+    return InfoDesc->InAllocatableClass[RegNo];
   }
 
   /// Return the human-readable symbolic target-specific
@@ -413,6 +420,16 @@ public:
   /// we stop the search.
   virtual Register lookThruCopyLike(Register SrcReg,
                                     const MachineRegisterInfo *MRI) const;
+
+  /// Find the original SrcReg unless it is the target of a copy-like operation,
+  /// in which case we chain backwards through all such operations to the
+  /// ultimate source register. If a physical register is encountered, we stop
+  /// the search.
+  /// Return the original SrcReg if all the definitions in the chain only have
+  /// one user and not a physical register.
+  virtual Register
+  lookThruSingleUseCopyChain(Register SrcReg,
+                             const MachineRegisterInfo *MRI) const;
 
   /// Return a null-terminated list of all of the callee-saved registers on
   /// this target. The register should be in the order of desired callee-save
@@ -635,6 +652,13 @@ protected:
   virtual LaneBitmask reverseComposeSubRegIndexLaneMaskImpl(unsigned,
                                                             LaneBitmask) const {
     llvm_unreachable("Target has no sub-registers");
+  }
+
+  /// Return the register cost table index. This implementation is sufficient
+  /// for most architectures and can be overriden by targets in case there are
+  /// multiple cost values associated with each register.
+  virtual unsigned getRegisterCostTableIndex(const MachineFunction &MF) const {
+    return 0;
   }
 
 public:
@@ -900,11 +924,11 @@ public:
     return false;
   }
 
-  /// Insert defining instruction(s) for BaseReg to be a pointer to FrameIdx
-  /// before insertion point I.
-  virtual void materializeFrameBaseRegister(MachineBasicBlock *MBB,
-                                            Register BaseReg, int FrameIdx,
-                                            int64_t Offset) const {
+  /// Insert defining instruction(s) for a pointer to FrameIdx before
+  /// insertion point I. Return materialized frame pointer.
+  virtual Register materializeFrameBaseRegister(MachineBasicBlock *MBB,
+                                                int FrameIdx,
+                                                int64_t Offset) const {
     llvm_unreachable("materializeFrameBaseRegister does not exist on this "
                      "target");
   }
@@ -922,6 +946,15 @@ public:
                                   int64_t Offset) const {
     llvm_unreachable("isFrameOffsetLegal does not exist on this target");
   }
+
+  /// Gets the DWARF expression opcodes for \p Offset.
+  virtual void getOffsetOpcodes(const StackOffset &Offset,
+                                SmallVectorImpl<uint64_t> &Ops) const;
+
+  /// Prepends a DWARF expression for \p Offset to DIExpression \p Expr.
+  DIExpression *
+  prependOffsetExpression(const DIExpression *Expr, unsigned PrependFlags,
+                          const StackOffset &Offset) const;
 
   /// Spill the register so it can be used by the register scavenger.
   /// Return true if the register was spilled, false otherwise.

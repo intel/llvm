@@ -12,42 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "R600ISelLowering.h"
-#include "AMDGPUFrameLowering.h"
-#include "AMDGPUSubtarget.h"
+#include "AMDGPU.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "R600Defines.h"
-#include "R600FrameLowering.h"
 #include "R600InstrInfo.h"
 #include "R600MachineFunctionInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "Utils/AMDGPUBaseInfo.h"
-#include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/CodeGen/CallingConvLower.h"
-#include "llvm/CodeGen/DAGCombine.h"
-#include "llvm/CodeGen/ISDOpcodes.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineMemOperand.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/SelectionDAG.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
+#include "R600Subtarget.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsR600.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
-#include "llvm/Support/MathExtras.h"
-#include <cassert>
-#include <cstdint>
-#include <iterator>
-#include <utility>
-#include <vector>
 
 using namespace llvm;
 
@@ -1267,7 +1239,7 @@ SDValue R600TargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
 
   Align Alignment = StoreNode->getAlign();
   if (Alignment < MemVT.getStoreSize() &&
-      !allowsMisalignedMemoryAccesses(MemVT, AS, Alignment.value(),
+      !allowsMisalignedMemoryAccesses(MemVT, AS, Alignment,
                                       StoreNode->getMemOperand()->getFlags(),
                                       nullptr)) {
     return expandUnalignedStore(StoreNode, DAG);
@@ -1668,7 +1640,7 @@ bool R600TargetLowering::canMergeStoresTo(unsigned AS, EVT MemVT,
 }
 
 bool R600TargetLowering::allowsMisalignedMemoryAccesses(
-    EVT VT, unsigned AddrSpace, unsigned Align, MachineMemOperand::Flags Flags,
+    EVT VT, unsigned AddrSpace, Align Alignment, MachineMemOperand::Flags Flags,
     bool *IsFast) const {
   if (IsFast)
     *IsFast = false;
@@ -1683,7 +1655,7 @@ bool R600TargetLowering::allowsMisalignedMemoryAccesses(
   if (IsFast)
     *IsFast = true;
 
-  return VT.bitsGT(MVT::i32) && Align % 4 == 0;
+  return VT.bitsGT(MVT::i32) && Alignment >= Align(4);
 }
 
 static SDValue CompactSwizzlableVector(

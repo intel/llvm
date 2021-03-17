@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Annotations.h"
+#include "Config.h"
 #include "Diagnostics.h"
 #include "ParsedAST.h"
 #include "Protocol.h"
@@ -16,6 +17,7 @@
 #include "TestTU.h"
 #include "TidyProvider.h"
 #include "index/MemIndex.h"
+#include "support/Context.h"
 #include "support/Path.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
@@ -36,8 +38,9 @@ using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::Pair;
-using testing::SizeIs;
+using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
+using testing::UnorderedElementsAreArray;
 
 ::testing::Matcher<const Diag &> WithFix(::testing::Matcher<Fix> FixMatcher) {
   return Field(&Diag::Fixes, ElementsAre(FixMatcher));
@@ -369,6 +372,28 @@ TEST(DiagnosticTest, NoMultipleDiagnosticInFlight) {
       UnorderedElementsAre(::testing::AllOf(
           Diag(Main.range(), "use range-based for loop instead"),
           DiagSource(Diag::ClangTidy), DiagName("modernize-loop-convert"))));
+}
+
+TEST(DiagnosticTest, RespectsDiagnosticConfig) {
+  Annotations Main(R"cpp(
+    // error-ok
+    void x() {
+      [[unknown]]();
+      $ret[[return]] 42;
+    }
+  )cpp");
+  auto TU = TestTU::withCode(Main.code());
+  EXPECT_THAT(
+      TU.build().getDiagnostics(),
+      ElementsAre(Diag(Main.range(), "use of undeclared identifier 'unknown'"),
+                  Diag(Main.range("ret"),
+                       "void function 'x' should not return a value")));
+  Config Cfg;
+  Cfg.Diagnostics.Suppress.insert("return-type");
+  WithContextValue WithCfg(Config::Key, std::move(Cfg));
+  EXPECT_THAT(TU.build().getDiagnostics(),
+              ElementsAre(Diag(Main.range(),
+                               "use of undeclared identifier 'unknown'")));
 }
 
 TEST(DiagnosticTest, ClangTidySuppressionComment) {
@@ -746,6 +771,10 @@ void test(ns::X *x, ns::X& ref_x) {
 }
 
 ns::X $return[[func]]() {}
+
+class T {
+  ns::X $field[[x]];
+};
   )cpp");
   auto TU = TestTU::withCode(Test.code());
   TU.ExtraArgs.push_back("-std=c++17");
@@ -755,57 +784,64 @@ ns::X $return[[func]]() {}
 
   EXPECT_THAT(
       TU.build().getDiagnostics(),
-      UnorderedElementsAre(
-          AllOf(Diag(Test.range("nested"),
-                     "incomplete type 'ns::X' named in nested name specifier"),
-                DiagName("incomplete_nested_name_spec"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("base"), "base class has incomplete type"),
-                DiagName("incomplete_base_class"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("access"),
-                     "member access into incomplete type 'ns::X'"),
-                DiagName("incomplete_member_access"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(
-              Diag(Test.range("type"),
+      UnorderedElementsAreArray(
+          {AllOf(Diag(Test.range("nested"),
+                      "incomplete type 'ns::X' named in nested name specifier"),
+                 DiagName("incomplete_nested_name_spec"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("base"), "base class has incomplete type"),
+                 DiagName("incomplete_base_class"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("access"),
+                      "member access into incomplete type 'ns::X'"),
+                 DiagName("incomplete_member_access"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(
+               Diag(
+                   Test.range("type"),
                    "incomplete type 'ns::X' where a complete type is required"),
-              DiagName("incomplete_type"),
-              WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                          "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("incomplete"),
-                     "variable has incomplete type 'ns::X'"),
-                DiagName("typecheck_decl_incomplete_type"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(
-              Diag(Test.range("tag"), "incomplete definition of type 'ns::X'"),
-              DiagName("typecheck_incomplete_tag"),
-              WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                          "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(
-              Diag(Test.range("use"), "invalid use of incomplete type 'ns::X'"),
-              DiagName("invalid_incomplete_type_use"),
-              WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                          "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("sizeof"), "invalid application of 'sizeof' to "
-                                           "an incomplete type 'ns::X'"),
-                DiagName("sizeof_alignof_incomplete_or_sizeless_type"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("for"),
-                     "cannot use incomplete type 'ns::X' as a range"),
-                DiagName("for_range_incomplete_type"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("return"),
-                     "incomplete result type 'ns::X' in function definition"),
-                DiagName("func_def_incomplete_result"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X")))));
+               DiagName("incomplete_type"),
+               WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                           "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("incomplete"),
+                      "variable has incomplete type 'ns::X'"),
+                 DiagName("typecheck_decl_incomplete_type"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(
+               Diag(Test.range("tag"), "incomplete definition of type 'ns::X'"),
+               DiagName("typecheck_incomplete_tag"),
+               WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                           "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("use"),
+                      "invalid use of incomplete type 'ns::X'"),
+                 DiagName("invalid_incomplete_type_use"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("sizeof"),
+                      "invalid application of 'sizeof' to "
+                      "an incomplete type 'ns::X'"),
+                 DiagName("sizeof_alignof_incomplete_or_sizeless_type"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("for"),
+                      "cannot use incomplete type 'ns::X' as a range"),
+                 DiagName("for_range_incomplete_type"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("return"),
+                      "incomplete result type 'ns::X' in function definition"),
+                 DiagName("func_def_incomplete_result"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("field"), "field has incomplete type 'ns::X'"),
+                 DiagName("field_incomplete_or_sizeless"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X")))}))
+      << Test.code();
 }
 
 TEST(IncludeFixerTest, NoSuggestIncludeWhenNoDefinitionInHeader) {
@@ -855,11 +891,13 @@ void bar() {
 
   ::$global[[Global]] glob;
 }
+using Type = ns::$template[[Foo]]<int>;
   )cpp");
   auto TU = TestTU::withCode(Test.code());
   auto Index = buildIndexWithSymbol(
       {SymbolWithHeader{"ns::X", "unittest:///x.h", "\"x.h\""},
-       SymbolWithHeader{"Global", "unittest:///global.h", "\"global.h\""}});
+       SymbolWithHeader{"Global", "unittest:///global.h", "\"global.h\""},
+       SymbolWithHeader{"ns::Foo", "unittest:///foo.h", "\"foo.h\""}});
   TU.ExternalIndex = Index.get();
 
   EXPECT_THAT(
@@ -884,7 +922,12 @@ void bar() {
                      "no type named 'Global' in the global namespace"),
                 DiagName("typename_nested_not_found"),
                 WithFix(Fix(Test.range("insert"), "#include \"global.h\"\n",
-                            "Add include \"global.h\" for symbol Global")))));
+                            "Add include \"global.h\" for symbol Global"))),
+          AllOf(Diag(Test.range("template"),
+                     "no template named 'Foo' in namespace 'ns'"),
+                DiagName("no_member_template"),
+                WithFix(Fix(Test.range("insert"), "#include \"foo.h\"\n",
+                            "Add include \"foo.h\" for symbol ns::Foo")))));
 }
 
 TEST(IncludeFixerTest, MultipleMatchedSymbols) {

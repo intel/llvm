@@ -73,14 +73,12 @@ set(cuda_sources
 
 set(h_files
   ${CMAKE_CURRENT_SOURCE_DIR}/src/amdgcn_interface.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/hip_atomics.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/target_impl.h
   ${devicertl_base_directory}/common/debug.h
   ${devicertl_base_directory}/common/device_environment.h
   ${devicertl_base_directory}/common/omptarget.h
   ${devicertl_base_directory}/common/omptargeti.h
   ${devicertl_base_directory}/common/state-queue.h
-  ${devicertl_base_directory}/common/target_atomic.h
   ${devicertl_base_directory}/common/state-queuei.h
   ${devicertl_base_directory}/common/support.h)
 
@@ -92,22 +90,26 @@ else()
 endif()
 
 # create libraries
-set(mcpus gfx700 gfx701 gfx801 gfx803 gfx900)
+set(mcpus gfx700 gfx701 gfx801 gfx803 gfx900 gfx906)
 if (DEFINED LIBOMPTARGET_AMDGCN_GFXLIST)
   set(mcpus ${LIBOMPTARGET_AMDGCN_GFXLIST})
 endif()
 
 macro(add_cuda_bc_library)
   set(cu_cmd ${AOMP_BINDIR}/clang++
+    -xc++
+    -c
     -std=c++14
-    -fcuda-rdc
+    -target amdgcn
+    -emit-llvm
+    -Xclang -aux-triple -Xclang x86_64-unknown-linux-gnu # see nvptx
+    -fopenmp -fopenmp-cuda-mode -Xclang -fopenmp-is-device
+    -D__AMDGCN__
+    -Xclang -target-cpu -Xclang ${mcpu}
     -fvisibility=default
-    --cuda-device-only
     -Wno-unused-value
-    -x hip
-    -nogpulib -nogpuinc
+    -nogpulib
     -O${optimization_level}
-    --cuda-gpu-arch=${mcpu}
     ${CUDA_DEBUG}
     -I${CMAKE_CURRENT_SOURCE_DIR}/src
     -I${devicertl_base_directory})

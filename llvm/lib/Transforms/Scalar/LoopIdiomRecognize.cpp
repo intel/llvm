@@ -90,6 +90,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/InstructionCost.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BuildLibCalls.h"
@@ -1597,7 +1598,7 @@ bool LoopIdiomRecognize::recognizeAndInsertFFS() {
       std::distance(InstWithoutDebugIt.begin(), InstWithoutDebugIt.end());
 
   IntrinsicCostAttributes Attrs(IntrinID, InitX->getType(), Args);
-  int Cost =
+  InstructionCost Cost =
     TTI->getIntrinsicInstrCost(Attrs, TargetTransformInfo::TCK_SizeAndLatency);
   if (HeaderSize != IdiomCanonicalSize &&
       Cost > TargetTransformInfo::TCC_Basic)
@@ -2024,8 +2025,8 @@ static bool detectShiftUntilBitTestIdiom(Loop *CurLoop, Value *&BaseX,
 
   // Step 3: Check if the recurrence is in desirable form.
   auto *CurrXPN = dyn_cast<PHINode>(CurrX);
-  if (!CurrXPN) {
-    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Not a PHI node.\n");
+  if (!CurrXPN || CurrXPN->getParent() != LoopHeaderBB) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE " Not an expected PHI node.\n");
     return false;
   }
 
@@ -2148,7 +2149,7 @@ bool LoopIdiomRecognize::recognizeShiftUntilBitTest() {
   // making the loop countable, even if nothing else changes.
   IntrinsicCostAttributes Attrs(
       IntrID, Ty, {UndefValue::get(Ty), /*is_zero_undef=*/Builder.getTrue()});
-  int Cost = TTI->getIntrinsicInstrCost(Attrs, CostKind);
+  InstructionCost Cost = TTI->getIntrinsicInstrCost(Attrs, CostKind);
   if (Cost > TargetTransformInfo::TCC_Basic) {
     LLVM_DEBUG(dbgs() << DEBUG_TYPE
                " Intrinsic is too costly, not beneficial\n");

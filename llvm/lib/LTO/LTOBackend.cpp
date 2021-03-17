@@ -176,9 +176,7 @@ static void RegisterPassPlugins(ArrayRef<std::string> PassPlugins,
   }
 }
 
-namespace {
-
-std::unique_ptr<TargetMachine>
+static std::unique_ptr<TargetMachine>
 createTargetMachine(const Config &Conf, const Target *TheTarget, Module &M) {
   StringRef TheTriple = M.getTargetTriple();
   SubtargetFeatures Features;
@@ -226,11 +224,6 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   StandardInstrumentations SI(Conf.DebugPassManager);
   SI.registerCallbacks(PIC);
   PassBuilder PB(Conf.DebugPassManager, TM, Conf.PTO, PGOOpt, &PIC);
-  AAManager AA;
-
-  // Parse a custom AA pipeline if asked to.
-  if (auto Err = PB.parseAAPipeline(AA, "default"))
-    report_fatal_error("Error parsing default AA pipeline");
 
   RegisterPassPlugins(Conf.PassPlugins, PB);
 
@@ -239,6 +232,22 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   CGSCCAnalysisManager CGAM(Conf.DebugPassManager);
   ModuleAnalysisManager MAM(Conf.DebugPassManager);
 
+  std::unique_ptr<TargetLibraryInfoImpl> TLII(
+      new TargetLibraryInfoImpl(Triple(TM->getTargetTriple())));
+  if (Conf.Freestanding)
+    TLII->disableAllFunctions();
+  FAM.registerPass([&] { return TargetLibraryAnalysis(*TLII); });
+
+  AAManager AA;
+  // Parse a custom AA pipeline if asked to.
+  if (!Conf.AAPipeline.empty()) {
+    if (auto Err = PB.parseAAPipeline(AA, Conf.AAPipeline)) {
+      report_fatal_error("unable to parse AA pipeline description '" +
+                         Conf.AAPipeline + "': " + toString(std::move(Err)));
+    }
+  } else {
+    AA = PB.buildDefaultAAPipeline();
+  }
   // Register the AA manager first so that our version is the one used.
   FAM.registerPass([&] { return std::move(AA); });
 
@@ -273,59 +282,21 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
     break;
   }
 
-  if (IsThinLTO)
+  // Parse a custom pipeline if asked to.
+  if (!Conf.OptPipeline.empty()) {
+    if (auto Err = PB.parsePassPipeline(MPM, Conf.OptPipeline)) {
+      report_fatal_error("unable to parse pass pipeline description '" +
+                         Conf.OptPipeline + "': " + toString(std::move(Err)));
+    }
+  } else if (IsThinLTO) {
     MPM.addPass(PB.buildThinLTODefaultPipeline(OL, ImportSummary));
-  else
+  } else {
     MPM.addPass(PB.buildLTODefaultPipeline(OL, ExportSummary));
+  }
 
   if (!Conf.DisableVerify)
     MPM.addPass(VerifierPass());
 
-  MPM.run(Mod, MAM);
-}
-
-static void runNewPMCustomPasses(const Config &Conf, Module &Mod,
-                                 TargetMachine *TM, std::string PipelineDesc,
-                                 std::string AAPipelineDesc,
-                                 bool DisableVerify) {
-  PassBuilder PB(Conf.DebugPassManager, TM);
-  AAManager AA;
-
-  // Parse a custom AA pipeline if asked to.
-  if (!AAPipelineDesc.empty())
-    if (auto Err = PB.parseAAPipeline(AA, AAPipelineDesc))
-      report_fatal_error("unable to parse AA pipeline description '" +
-                         AAPipelineDesc + "': " + toString(std::move(Err)));
-
-  RegisterPassPlugins(Conf.PassPlugins, PB);
-
-  LoopAnalysisManager LAM;
-  FunctionAnalysisManager FAM;
-  CGSCCAnalysisManager CGAM;
-  ModuleAnalysisManager MAM;
-
-  // Register the AA manager first so that our version is the one used.
-  FAM.registerPass([&] { return std::move(AA); });
-
-  // Register all the basic analyses with the managers.
-  PB.registerModuleAnalyses(MAM);
-  PB.registerCGSCCAnalyses(CGAM);
-  PB.registerFunctionAnalyses(FAM);
-  PB.registerLoopAnalyses(LAM);
-  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-
-  ModulePassManager MPM;
-
-  // Always verify the input.
-  MPM.addPass(VerifierPass());
-
-  // Now, add all the passes we've been requested to.
-  if (auto Err = PB.parsePassPipeline(MPM, PipelineDesc))
-    report_fatal_error("unable to parse pass pipeline description '" +
-                       PipelineDesc + "': " + toString(std::move(Err)));
-
-  if (!DisableVerify)
-    MPM.addPass(VerifierPass());
   MPM.run(Mod, MAM);
 }
 
@@ -337,6 +308,8 @@ static void runOldPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
 
   PassManagerBuilder PMB;
   PMB.LibraryInfo = new TargetLibraryInfoImpl(Triple(TM->getTargetTriple()));
+  if (Conf.Freestanding)
+    PMB.LibraryInfo->disableAllFunctions();
   PMB.Inliner = createFunctionInliningPass();
   PMB.ExportSummary = ExportSummary;
   PMB.ImportSummary = ImportSummary;
@@ -360,10 +333,10 @@ static void runOldPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   passes.run(Mod);
 }
 
-bool opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
-         bool IsThinLTO, ModuleSummaryIndex *ExportSummary,
-         const ModuleSummaryIndex *ImportSummary,
-         const std::vector<uint8_t> &CmdArgs) {
+bool lto::opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
+              bool IsThinLTO, ModuleSummaryIndex *ExportSummary,
+              const ModuleSummaryIndex *ImportSummary,
+              const std::vector<uint8_t> &CmdArgs) {
   if (EmbedBitcode == LTOBitcodeEmbedding::EmbedPostMergePreOptimized) {
     // FIXME: the motivation for capturing post-merge bitcode and command line
     // is replicating the compilation environment from bitcode, without needing
@@ -382,20 +355,18 @@ bool opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
                                /*Cmdline*/ CmdArgs);
   }
   // FIXME: Plumb the combined index into the new pass manager.
-  if (!Conf.OptPipeline.empty())
-    runNewPMCustomPasses(Conf, Mod, TM, Conf.OptPipeline, Conf.AAPipeline,
-                         Conf.DisableVerify);
-  else if (Conf.UseNewPM)
+  if (Conf.UseNewPM || !Conf.OptPipeline.empty()) {
     runNewPMPasses(Conf, Mod, TM, Conf.OptLevel, IsThinLTO, ExportSummary,
                    ImportSummary);
-  else
+  } else {
     runOldPMPasses(Conf, Mod, TM, IsThinLTO, ExportSummary, ImportSummary);
+  }
   return !Conf.PostOptModuleHook || Conf.PostOptModuleHook(Task, Mod);
 }
 
-void codegen(const Config &Conf, TargetMachine *TM, AddStreamFn AddStream,
-             unsigned Task, Module &Mod,
-             const ModuleSummaryIndex &CombinedIndex) {
+static void codegen(const Config &Conf, TargetMachine *TM,
+                    AddStreamFn AddStream, unsigned Task, Module &Mod,
+                    const ModuleSummaryIndex &CombinedIndex) {
   if (Conf.PreCodeGenModuleHook && !Conf.PreCodeGenModuleHook(Task, Mod))
     return;
 
@@ -430,6 +401,8 @@ void codegen(const Config &Conf, TargetMachine *TM, AddStreamFn AddStream,
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
       createImmutableModuleSummaryIndexWrapperPass(&CombinedIndex));
+  if (Conf.PreCodeGenPassesHook)
+    Conf.PreCodeGenPassesHook(CodeGenPasses);
   if (TM->addPassesToEmitFile(CodeGenPasses, *Stream->OS,
                               DwoOut ? &DwoOut->os() : nullptr,
                               Conf.CGFileType))
@@ -440,17 +413,17 @@ void codegen(const Config &Conf, TargetMachine *TM, AddStreamFn AddStream,
     DwoOut->keep();
 }
 
-void splitCodeGen(const Config &C, TargetMachine *TM, AddStreamFn AddStream,
-                  unsigned ParallelCodeGenParallelismLevel,
-                  std::unique_ptr<Module> Mod,
-                  const ModuleSummaryIndex &CombinedIndex) {
+static void splitCodeGen(const Config &C, TargetMachine *TM,
+                         AddStreamFn AddStream,
+                         unsigned ParallelCodeGenParallelismLevel, Module &Mod,
+                         const ModuleSummaryIndex &CombinedIndex) {
   ThreadPool CodegenThreadPool(
       heavyweight_hardware_concurrency(ParallelCodeGenParallelismLevel));
   unsigned ThreadCount = 0;
   const Target *T = &TM->getTarget();
 
   SplitModule(
-      std::move(Mod), ParallelCodeGenParallelismLevel,
+      Mod, ParallelCodeGenParallelismLevel,
       [&](std::unique_ptr<Module> MPart) {
         // We want to clone the module in a new context to multi-thread the
         // codegen. We do it by serializing partition modules to bitcode
@@ -491,7 +464,8 @@ void splitCodeGen(const Config &C, TargetMachine *TM, AddStreamFn AddStream,
   CodegenThreadPool.wait();
 }
 
-Expected<const Target *> initAndLookupTarget(const Config &C, Module &Mod) {
+static Expected<const Target *> initAndLookupTarget(const Config &C,
+                                                    Module &Mod) {
   if (!C.OverrideTriple.empty())
     Mod.setTargetTriple(C.OverrideTriple);
   else if (Mod.getTargetTriple().empty())
@@ -502,7 +476,6 @@ Expected<const Target *> initAndLookupTarget(const Config &C, Module &Mod) {
   if (!T)
     return make_error<StringError>(Msg, inconvertibleErrorCode());
   return T;
-}
 }
 
 Error lto::finalizeOptimizationRemarks(
@@ -517,27 +490,26 @@ Error lto::finalizeOptimizationRemarks(
 }
 
 Error lto::backend(const Config &C, AddStreamFn AddStream,
-                   unsigned ParallelCodeGenParallelismLevel,
-                   std::unique_ptr<Module> Mod,
+                   unsigned ParallelCodeGenParallelismLevel, Module &Mod,
                    ModuleSummaryIndex &CombinedIndex) {
-  Expected<const Target *> TOrErr = initAndLookupTarget(C, *Mod);
+  Expected<const Target *> TOrErr = initAndLookupTarget(C, Mod);
   if (!TOrErr)
     return TOrErr.takeError();
 
-  std::unique_ptr<TargetMachine> TM = createTargetMachine(C, *TOrErr, *Mod);
+  std::unique_ptr<TargetMachine> TM = createTargetMachine(C, *TOrErr, Mod);
 
   if (!C.CodeGenOnly) {
-    if (!opt(C, TM.get(), 0, *Mod, /*IsThinLTO=*/false,
+    if (!opt(C, TM.get(), 0, Mod, /*IsThinLTO=*/false,
              /*ExportSummary=*/&CombinedIndex, /*ImportSummary=*/nullptr,
              /*CmdArgs*/ std::vector<uint8_t>()))
       return Error::success();
   }
 
   if (ParallelCodeGenParallelismLevel == 1) {
-    codegen(C, TM.get(), AddStream, 0, *Mod, CombinedIndex);
+    codegen(C, TM.get(), AddStream, 0, Mod, CombinedIndex);
   } else {
-    splitCodeGen(C, TM.get(), AddStream, ParallelCodeGenParallelismLevel,
-                 std::move(Mod), CombinedIndex);
+    splitCodeGen(C, TM.get(), AddStream, ParallelCodeGenParallelismLevel, Mod,
+                 CombinedIndex);
   }
   return Error::success();
 }

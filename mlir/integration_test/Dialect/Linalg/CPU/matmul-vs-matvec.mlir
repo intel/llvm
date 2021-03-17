@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -convert-linalg-to-loops -convert-linalg-to-llvm | \
+// RUN: mlir-opt %s -convert-linalg-to-loops -convert-scf-to-std -convert-linalg-to-llvm -convert-std-to-llvm | \
 // RUN: mlir-cpu-runner -O3 -e main -entry-point-result=void \
 // RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -55,7 +55,7 @@ func @main() {
     scf.for %j = %c0 to %n step %c1 {
       %e1 = load %C1[%i, %j] : memref<?x?xf32>
       %e2 = load %C2[%i, %j] : memref<?x?xf32>
-      %c = cmpf "oeq", %e1, %e2 : f32
+      %c = cmpf oeq, %e1, %e2 : f32
       assert %c, "Matmul does not produce same output as matvec"
     }
   }

@@ -8,6 +8,7 @@
 
 #include "GlobalCompilationDatabase.h"
 
+#include "Config.h"
 #include "Matchers.h"
 #include "TestFS.h"
 #include "support/Path.h"
@@ -169,48 +170,6 @@ TEST_F(OverlayCDBTest, Adjustments) {
                                            "-DFallback", "-DAdjust_baz.cc"));
 }
 
-// Allows placement of files for tests and cleans them up after.
-// FIXME: GlobalCompilationDatabase is mostly VFS-clean now, switch to MockFS?
-class ScratchFS {
-  llvm::SmallString<128> Root;
-
-public:
-  ScratchFS() {
-    EXPECT_FALSE(llvm::sys::fs::createUniqueDirectory("clangd-cdb-test", Root))
-        << "Failed to create unique directory";
-  }
-
-  ~ScratchFS() {
-    EXPECT_FALSE(llvm::sys::fs::remove_directories(Root))
-        << "Failed to cleanup " << Root;
-  }
-
-  llvm::StringRef root() const { return Root; }
-
-  void write(PathRef RelativePath, llvm::StringRef Contents) {
-    std::string AbsPath = path(RelativePath);
-    EXPECT_FALSE(llvm::sys::fs::create_directories(
-        llvm::sys::path::parent_path(AbsPath)))
-        << "Failed to create directories for: " << AbsPath;
-
-    std::error_code EC;
-    llvm::raw_fd_ostream OS(AbsPath, EC);
-    EXPECT_FALSE(EC) << "Failed to open " << AbsPath << " for writing";
-    OS << llvm::formatv(Contents.data(),
-                        llvm::sys::path::convert_to_slash(Root));
-    OS.close();
-
-    EXPECT_FALSE(OS.has_error());
-  }
-
-  std::string path(PathRef RelativePath) const {
-    llvm::SmallString<128> AbsPath(Root);
-    llvm::sys::path::append(AbsPath, RelativePath);
-    llvm::sys::path::native(AbsPath);
-    return AbsPath.str().str();
-  }
-};
-
 TEST(GlobalCompilationDatabaseTest, DiscoveryWithNestedCDBs) {
   const char *const CDBOuter =
       R"cdb(
@@ -242,34 +201,54 @@ TEST(GlobalCompilationDatabaseTest, DiscoveryWithNestedCDBs) {
         }
       ]
       )cdb";
-  ScratchFS FS;
-  RealThreadsafeFS TFS;
-  FS.write("compile_commands.json", CDBOuter);
-  FS.write("build/compile_commands.json", CDBInner);
+  MockFS FS;
+  FS.Files[testPath("compile_commands.json")] =
+      llvm::formatv(CDBOuter, llvm::sys::path::convert_to_slash(testRoot()));
+  FS.Files[testPath("build/compile_commands.json")] =
+      llvm::formatv(CDBInner, llvm::sys::path::convert_to_slash(testRoot()));
+  FS.Files[testPath("foo/compile_flags.txt")] = "-DFOO";
 
   // Note that gen2.cc goes missing with our following model, not sure this
   // happens in practice though.
   {
-    DirectoryBasedGlobalCompilationDatabase DB(TFS);
+    SCOPED_TRACE("Default ancestor scanning");
+    DirectoryBasedGlobalCompilationDatabase DB(FS);
     std::vector<std::string> DiscoveredFiles;
     auto Sub =
         DB.watch([&DiscoveredFiles](const std::vector<std::string> Changes) {
           DiscoveredFiles = Changes;
         });
 
-    DB.getCompileCommand(FS.path("build/../a.cc"));
+    DB.getCompileCommand(testPath("build/../a.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
     EXPECT_THAT(DiscoveredFiles, UnorderedElementsAre(AllOf(
                                      EndsWith("a.cc"), Not(HasSubstr("..")))));
     DiscoveredFiles.clear();
 
-    DB.getCompileCommand(FS.path("build/gen.cc"));
+    DB.getCompileCommand(testPath("build/gen.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
     EXPECT_THAT(DiscoveredFiles, UnorderedElementsAre(EndsWith("gen.cc")));
   }
 
-  // With a custom compile commands dir.
   {
-    DirectoryBasedGlobalCompilationDatabase::Options Opts(TFS);
-    Opts.CompileCommandsDir = FS.root().str();
+    SCOPED_TRACE("With config");
+    DirectoryBasedGlobalCompilationDatabase::Options Opts(FS);
+    Opts.ContextProvider = [&](llvm::StringRef Path) {
+      Config Cfg;
+      if (Path.endswith("a.cc")) {
+        // a.cc uses another directory's CDB, so it won't be discovered.
+        Cfg.CompileFlags.CDBSearch.Policy = Config::CDBSearchSpec::FixedDir;
+        Cfg.CompileFlags.CDBSearch.FixedCDBPath = testPath("foo");
+      } else if (Path.endswith("gen.cc")) {
+        // gen.cc has CDB search disabled, so it won't be discovered.
+        Cfg.CompileFlags.CDBSearch.Policy = Config::CDBSearchSpec::NoCDBSearch;
+      } else if (Path.endswith("gen2.cc")) {
+        // gen2.cc explicitly lists this directory, so it will be discovered.
+        Cfg.CompileFlags.CDBSearch.Policy = Config::CDBSearchSpec::FixedDir;
+        Cfg.CompileFlags.CDBSearch.FixedCDBPath = testRoot();
+      }
+      return Context::current().derive(Config::Key, std::move(Cfg));
+    };
     DirectoryBasedGlobalCompilationDatabase DB(Opts);
     std::vector<std::string> DiscoveredFiles;
     auto Sub =
@@ -277,24 +256,55 @@ TEST(GlobalCompilationDatabaseTest, DiscoveryWithNestedCDBs) {
           DiscoveredFiles = Changes;
         });
 
-    DB.getCompileCommand(FS.path("a.cc"));
+    // Does not use the root CDB, so no broadcast.
+    auto Cmd = DB.getCompileCommand(testPath("build/../a.cc"));
+    ASSERT_TRUE(Cmd.hasValue());
+    EXPECT_THAT(Cmd->CommandLine, Contains("-DFOO")) << "a.cc uses foo/ CDB";
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
+    EXPECT_THAT(DiscoveredFiles, IsEmpty()) << "Root CDB not discovered yet";
+
+    // No special config for b.cc, so we trigger broadcast of the root CDB.
+    DB.getCompileCommand(testPath("b.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
+    EXPECT_THAT(DiscoveredFiles, ElementsAre(testPath("build/gen2.cc")));
+    DiscoveredFiles.clear();
+
+    // No CDB search so no discovery/broadcast triggered for build/ CDB.
+    DB.getCompileCommand(testPath("build/gen.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
+    EXPECT_THAT(DiscoveredFiles, IsEmpty());
+  }
+
+  {
+    SCOPED_TRACE("With custom compile commands dir");
+    DirectoryBasedGlobalCompilationDatabase::Options Opts(FS);
+    Opts.CompileCommandsDir = testRoot();
+    DirectoryBasedGlobalCompilationDatabase DB(Opts);
+    std::vector<std::string> DiscoveredFiles;
+    auto Sub =
+        DB.watch([&DiscoveredFiles](const std::vector<std::string> Changes) {
+          DiscoveredFiles = Changes;
+        });
+
+    DB.getCompileCommand(testPath("a.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
     EXPECT_THAT(DiscoveredFiles,
                 UnorderedElementsAre(EndsWith("a.cc"), EndsWith("gen.cc"),
                                      EndsWith("gen2.cc")));
     DiscoveredFiles.clear();
 
-    DB.getCompileCommand(FS.path("build/gen.cc"));
+    DB.getCompileCommand(testPath("build/gen.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
     EXPECT_THAT(DiscoveredFiles, IsEmpty());
   }
 }
 
 TEST(GlobalCompilationDatabaseTest, BuildDir) {
-  ScratchFS FS;
-  RealThreadsafeFS TFS;
+  MockFS FS;
   auto Command = [&](llvm::StringRef Relative) {
-    DirectoryBasedGlobalCompilationDatabase::Options Opts(TFS);
+    DirectoryBasedGlobalCompilationDatabase::Options Opts(FS);
     return DirectoryBasedGlobalCompilationDatabase(Opts)
-        .getCompileCommand(FS.path(Relative))
+        .getCompileCommand(testPath(Relative))
         .getValueOr(tooling::CompileCommand())
         .CommandLine;
   };
@@ -314,10 +324,74 @@ TEST(GlobalCompilationDatabaseTest, BuildDir) {
         }
       ]
       )cdb";
-  FS.write("x/build/compile_commands.json", CDB);
+  FS.Files[testPath("x/build/compile_commands.json")] =
+      llvm::formatv(CDB, llvm::sys::path::convert_to_slash(testRoot()));
   EXPECT_THAT(Command("x/foo.cc"), Contains("-DXYZZY"));
   EXPECT_THAT(Command("bar.cc"), IsEmpty())
       << "x/build/compile_flags.json only applicable to x/";
+}
+
+TEST(GlobalCompilationDatabaseTest, CompileFlagsDirectory) {
+  MockFS FS;
+  FS.Files[testPath("x/compile_flags.txt")] = "-DFOO";
+  DirectoryBasedGlobalCompilationDatabase CDB(FS);
+  auto Commands = CDB.getCompileCommand(testPath("x/y.cpp"));
+  ASSERT_TRUE(Commands.hasValue());
+  EXPECT_THAT(Commands.getValue().CommandLine, Contains("-DFOO"));
+  // Make sure we pick the right working directory.
+  EXPECT_EQ(testPath("x"), Commands.getValue().Directory);
+}
+
+MATCHER_P(hasArg, Flag, "") {
+  if (!arg.hasValue()) {
+    *result_listener << "command is null";
+    return false;
+  }
+  if (!llvm::is_contained(arg->CommandLine, Flag)) {
+    *result_listener << "flags are " << printArgv(arg->CommandLine);
+    return false;
+  }
+  return true;
+}
+
+TEST(GlobalCompilationDatabaseTest, Config) {
+  MockFS FS;
+  FS.Files[testPath("x/compile_flags.txt")] = "-DX";
+  FS.Files[testPath("x/y/z/compile_flags.txt")] = "-DZ";
+
+  Config::CDBSearchSpec Spec;
+  DirectoryBasedGlobalCompilationDatabase::Options Opts(FS);
+  Opts.ContextProvider = [&](llvm::StringRef Path) {
+    Config C;
+    C.CompileFlags.CDBSearch = Spec;
+    return Context::current().derive(Config::Key, std::move(C));
+  };
+  DirectoryBasedGlobalCompilationDatabase CDB(Opts);
+
+  // Default ancestor behavior.
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("foo.cc")));
+  EXPECT_THAT(CDB.getCompileCommand(testPath("x/foo.cc")), hasArg("-DX"));
+  EXPECT_THAT(CDB.getCompileCommand(testPath("x/y/foo.cc")), hasArg("-DX"));
+  EXPECT_THAT(CDB.getCompileCommand(testPath("x/y/z/foo.cc")), hasArg("-DZ"));
+
+  Spec.Policy = Config::CDBSearchSpec::NoCDBSearch;
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("foo.cc")));
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("x/foo.cc")));
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("x/y/foo.cc")));
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("x/y/z/foo.cc")));
+
+  Spec.Policy = Config::CDBSearchSpec::FixedDir;
+  Spec.FixedCDBPath = testPath("w"); // doesn't exist
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("foo.cc")));
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("x/foo.cc")));
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("x/y/foo.cc")));
+  EXPECT_FALSE(CDB.getCompileCommand(testPath("x/y/z/foo.cc")));
+
+  Spec.FixedCDBPath = testPath("x/y/z");
+  EXPECT_THAT(CDB.getCompileCommand(testPath("foo.cc")), hasArg("-DZ"));
+  EXPECT_THAT(CDB.getCompileCommand(testPath("x/foo.cc")), hasArg("-DZ"));
+  EXPECT_THAT(CDB.getCompileCommand(testPath("x/y/foo.cc")), hasArg("-DZ"));
+  EXPECT_THAT(CDB.getCompileCommand(testPath("x/y/z/foo.cc")), hasArg("-DZ"));
 }
 
 TEST(GlobalCompilationDatabaseTest, NonCanonicalFilenames) {
@@ -383,8 +457,7 @@ MATCHER_P2(hasFlag, Flag, Path, "") {
     return false;
   }
   if (!llvm::is_contained(Cmds.front().CommandLine, Flag)) {
-    *result_listener << "flags are: "
-                     << llvm::join(Cmds.front().CommandLine, " ");
+    *result_listener << "flags are: " << printArgv(Cmds.front().CommandLine);
     return false;
   }
   return true;

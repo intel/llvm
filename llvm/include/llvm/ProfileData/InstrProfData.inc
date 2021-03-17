@@ -6,15 +6,15 @@
 |*
 \*===----------------------------------------------------------------------===*/
 /*
- * This is the master file that defines all the data structure, signature,
+ * This is the main file that defines all the data structure, signature,
  * constant literals that are shared across profiling runtime library,
  * compiler (instrumentation), and host tools (reader/writer). The entities
  * defined in this file affect the profile runtime ABI, the raw profile format,
  * or both.
  *
- * The file has two identical copies. The master copy lives in LLVM and
+ * The file has two identical copies. The primary copy lives in LLVM and
  * the other one  sits in compiler-rt/lib/profile directory. To make changes
- * in this file, first modify the master copy and copy it over to compiler-rt.
+ * in this file, first modify the primary copy and copy it over to compiler-rt.
  * Testing of any change in this file can start only after the two copies are
  * synced up.
  *
@@ -647,9 +647,9 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 /* Raw profile format version (start from 1). */
 #define INSTR_PROF_RAW_VERSION 5
 /* Indexed profile format version (start from 1). */
-#define INSTR_PROF_INDEX_VERSION 6
+#define INSTR_PROF_INDEX_VERSION 7
 /* Coverage mapping format version (start from 0). */
-#define INSTR_PROF_COVMAP_VERSION 3
+#define INSTR_PROF_COVMAP_VERSION 4
 
 /* Profile version is always of type uint64_t. Reserve the upper 8 bits in the
  * version for other variants of profile. We set the lowest bit of the upper 8

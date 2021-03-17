@@ -589,12 +589,6 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
        State.Line->Type == LT_ImportStatement)) {
     Spaces += State.FirstIndent;
 
-    bool isPragmaLine =
-        State.Line->First->startsSequence(tok::hash, tok::pp_pragma);
-    // If indenting pragmas remove the extra space for the #.
-    if (Style.IndentPragmas && isPragmaLine)
-      Spaces--;
-
     // For preprocessor indent with tabs, State.Column will be 1 because of the
     // hash. This causes second-level indents onward to have an extra space
     // after the tabs. We avoid this misalignment by subtracting 1 from the
@@ -1980,8 +1974,7 @@ ContinuationIndenter::createBreakableToken(const FormatToken &Current,
         switchesFormatting(Current))
       return nullptr;
     return std::make_unique<BreakableLineCommentSection>(
-        Current, StartColumn, Current.OriginalColumn, !Current.Previous,
-        /*InPPDirective=*/false, Encoding, Style);
+        Current, StartColumn, /*InPPDirective=*/false, Encoding, Style);
   }
   return nullptr;
 }

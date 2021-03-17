@@ -31,6 +31,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/EHPersonalities.h"
+#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -483,10 +484,8 @@ MCSymbol *AsmPrinter::getSymbolPreferLocal(const GlobalValue &GV) const {
   if (TM.getTargetTriple().isOSBinFormatELF() && GV.canBenefitFromLocalAlias()) {
     const Module &M = *GV.getParent();
     if (TM.getRelocationModel() != Reloc::Static &&
-        M.getPIELevel() == PIELevel::Default)
-      if (GV.isDSOLocal() || (TM.getTargetTriple().isX86() &&
-                              GV.getParent()->noSemanticInterposition()))
-        return getSymbolWithGlobalValueBase(&GV, "$local");
+        M.getPIELevel() == PIELevel::Default && GV.isDSOLocal())
+      return getSymbolWithGlobalValueBase(&GV, "$local");
   }
   return TM.getSymbol(&GV);
 }
@@ -846,13 +845,21 @@ static void emitComments(const MachineInstr &MI, raw_ostream &CommentOS) {
   if ((Size = MI.getRestoreSize(TII))) {
     CommentOS << *Size << "-byte Reload\n";
   } else if ((Size = MI.getFoldedRestoreSize(TII))) {
-    if (*Size)
-      CommentOS << *Size << "-byte Folded Reload\n";
+    if (*Size) {
+      if (*Size == unsigned(MemoryLocation::UnknownSize))
+        CommentOS << "Unknown-size Folded Reload\n";
+      else
+        CommentOS << *Size << "-byte Folded Reload\n";
+    }
   } else if ((Size = MI.getSpillSize(TII))) {
     CommentOS << *Size << "-byte Spill\n";
   } else if ((Size = MI.getFoldedSpillSize(TII))) {
-    if (*Size)
-      CommentOS << *Size << "-byte Folded Spill\n";
+    if (*Size) {
+      if (*Size == unsigned(MemoryLocation::UnknownSize))
+        CommentOS << "Unknown-size Folded Spill\n";
+      else
+        CommentOS << *Size << "-byte Folded Spill\n";
+    }
   }
 
   // Check for spill-induced copies
@@ -915,13 +922,9 @@ static bool emitDebugValueComment(const MachineInstr *MI, AsmPrinter &AP) {
   const DIExpression *Expr = MI->getDebugExpression();
   if (Expr->getNumElements()) {
     OS << '[';
-    bool NeedSep = false;
+    ListSeparator LS;
     for (auto Op : Expr->expr_ops()) {
-      if (NeedSep)
-        OS << ", ";
-      else
-        NeedSep = true;
-      OS << dwarf::OperationEncodingString(Op.getOp());
+      OS << LS << dwarf::OperationEncodingString(Op.getOp());
       for (unsigned I = 0; I < Op.getNumArgs(); ++I)
         OS << ' ' << Op.getArg(I);
     }
@@ -950,6 +953,8 @@ static bool emitDebugValueComment(const MachineInstr *MI, AsmPrinter &AP) {
   } else if (MI->getDebugOperand(0).isTargetIndex()) {
     auto Op = MI->getDebugOperand(0);
     OS << "!target-index(" << Op.getIndex() << "," << Op.getOffset() << ")";
+    // NOTE: Want this comment at start of line, don't emit with AddComment.
+    AP.OutStreamer->emitRawComment(OS.str());
     return true;
   } else {
     Register Reg;
@@ -1972,8 +1977,7 @@ void AsmPrinter::emitConstantPool() {
       unsigned NewOffset = alignTo(Offset, CPE.getAlign());
       OutStreamer->emitZeros(NewOffset - Offset);
 
-      Type *Ty = CPE.getType();
-      Offset = NewOffset + getDataLayout().getTypeAllocSize(Ty);
+      Offset = NewOffset + CPE.getSizeInBytes(getDataLayout());
 
       OutStreamer->emitLabel(Sym);
       if (CPE.isMachineConstantPoolEntry())
@@ -3193,6 +3197,10 @@ void AsmPrinter::emitBasicBlockStart(const MachineBasicBlock &MBB) {
     }
   }
 
+  if (MBB.isEHCatchretTarget()) {
+    OutStreamer->emitLabel(MBB.getEHCatchretSymbol());
+  }
+
   // With BB sections, each basic block must handle CFI information on its own
   // if it begins a section (Entry block is handled separately by
   // AsmPrinterHandler::beginFunction).
@@ -3460,9 +3468,9 @@ void AsmPrinter::emitPatchableFunctionEntries() {
     const MCSymbolELF *LinkedToSym = nullptr;
     StringRef GroupName;
 
-    // GNU as < 2.35 did not support section flag 'o'. Use SHF_LINK_ORDER only
-    // if we are using the integrated assembler.
-    if (MAI->useIntegratedAssembler()) {
+    // GNU as < 2.35 did not support section flag 'o'. GNU ld < 2.36 did not
+    // support mixed SHF_LINK_ORDER and non-SHF_LINK_ORDER sections.
+    if (MAI->useIntegratedAssembler() || MAI->binutilsIsAtLeast(2, 36)) {
       Flags |= ELF::SHF_LINK_ORDER;
       if (F.hasComdat()) {
         Flags |= ELF::SHF_GROUP;

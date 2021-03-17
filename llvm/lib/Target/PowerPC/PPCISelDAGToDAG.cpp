@@ -139,7 +139,6 @@ namespace {
   ///
   class PPCDAGToDAGISel : public SelectionDAGISel {
     const PPCTargetMachine &TM;
-    const PPCSubtarget *PPCSubTarget = nullptr;
     const PPCSubtarget *Subtarget = nullptr;
     const PPCTargetLowering *PPCLowering = nullptr;
     unsigned GlobalBaseReg = 0;
@@ -151,7 +150,6 @@ namespace {
     bool runOnMachineFunction(MachineFunction &MF) override {
       // Make sure we re-emit a set of the global base reg if necessary
       GlobalBaseReg = 0;
-      PPCSubTarget = &MF.getSubtarget<PPCSubtarget>();
       Subtarget = &MF.getSubtarget<PPCSubtarget>();
       PPCLowering = Subtarget->getTargetLowering();
       SelectionDAGISel::runOnMachineFunction(MF);
@@ -354,6 +352,7 @@ namespace {
 
 private:
     bool trySETCC(SDNode *N);
+    bool tryFoldSWTestBRCC(SDNode *N);
     bool tryAsSingleRLDICL(SDNode *N);
     bool tryAsSingleRLDICR(SDNode *N);
     bool tryAsSingleRLWINM(SDNode *N);
@@ -1034,12 +1033,50 @@ static SDNode *selectI64ImmDirect(SelectionDAG *CurDAG, const SDLoc &dl,
   return nullptr;
 }
 
+// Try to select instructions to generate a 64 bit immediate using prefix as
+// well as non prefix instructions. The function will return the SDNode
+// to materialize that constant or it will return nullptr if it does not
+// find one. The variable InstCnt is set to the number of instructions that
+// were selected.
+static SDNode *selectI64ImmDirectPrefix(SelectionDAG *CurDAG, const SDLoc &dl,
+                                        uint64_t Imm, unsigned &InstCnt) {
+  // Following patterns use 1 instruction to materialize Imm.
+  InstCnt = 1;
+
+  // The pli instruction can materialize up to 34 bits directly.
+  // It is defined in the TD file and so we just return the constant.
+  if (isInt<34>(Imm))
+    return cast<ConstantSDNode>(CurDAG->getConstant(Imm, dl, MVT::i64));
+
+  InstCnt = 0;
+  return nullptr;
+}
+
 static SDNode *selectI64Imm(SelectionDAG *CurDAG, const SDLoc &dl, uint64_t Imm,
                             unsigned *InstCnt = nullptr) {
   unsigned InstCntDirect = 0;
   // No more than 3 instructions is used if we can select the i64 immediate
   // directly.
   SDNode *Result = selectI64ImmDirect(CurDAG, dl, Imm, InstCntDirect);
+
+  const PPCSubtarget &Subtarget =
+      CurDAG->getMachineFunction().getSubtarget<PPCSubtarget>();
+
+  if (Subtarget.hasPrefixInstrs()) {
+    unsigned InstCntDirectP = 0;
+    SDNode *ResultP = selectI64ImmDirectPrefix(CurDAG, dl, Imm, InstCntDirectP);
+    // Use the prefix case in either of two cases:
+    // 1) We have no result from the non-prefix case to use.
+    // 2) The non-prefix case uses more instructions than the prefix case.
+    // If the prefix and non-prefix cases use the same number of instructions
+    // we will prefer the non-prefix case.
+    if (ResultP && (!Result || InstCntDirectP < InstCntDirect)) {
+      if (InstCnt)
+        *InstCnt = InstCntDirectP;
+      return ResultP;
+    }
+  }
+
   if (Result) {
     if (InstCnt)
       *InstCnt = InstCntDirect;
@@ -4380,6 +4417,81 @@ static bool mayUseP9Setb(SDNode *N, const ISD::CondCode &CC, SelectionDAG *DAG,
   return true;
 }
 
+// Return true if it's a software square-root/divide operand.
+static bool isSWTestOp(SDValue N) {
+  if (N.getOpcode() == PPCISD::FTSQRT)
+    return true;
+  if (N.getNumOperands() < 1 || !isa<ConstantSDNode>(N.getOperand(0)))
+    return false;
+  switch (N.getConstantOperandVal(0)) {
+  case Intrinsic::ppc_vsx_xvtdivdp:
+  case Intrinsic::ppc_vsx_xvtdivsp:
+  case Intrinsic::ppc_vsx_xvtsqrtdp:
+  case Intrinsic::ppc_vsx_xvtsqrtsp:
+    return true;
+  }
+  return false;
+}
+
+bool PPCDAGToDAGISel::tryFoldSWTestBRCC(SDNode *N) {
+  assert(N->getOpcode() == ISD::BR_CC && "ISD::BR_CC is expected.");
+  // We are looking for following patterns, where `truncate to i1` actually has
+  // the same semantic with `and 1`.
+  // (br_cc seteq, (truncateToi1 SWTestOp), 0) -> (BCC PRED_NU, SWTestOp)
+  // (br_cc seteq, (and SWTestOp, 2), 0) -> (BCC PRED_NE, SWTestOp)
+  // (br_cc seteq, (and SWTestOp, 4), 0) -> (BCC PRED_LE, SWTestOp)
+  // (br_cc seteq, (and SWTestOp, 8), 0) -> (BCC PRED_GE, SWTestOp)
+  // (br_cc setne, (truncateToi1 SWTestOp), 0) -> (BCC PRED_UN, SWTestOp)
+  // (br_cc setne, (and SWTestOp, 2), 0) -> (BCC PRED_EQ, SWTestOp)
+  // (br_cc setne, (and SWTestOp, 4), 0) -> (BCC PRED_GT, SWTestOp)
+  // (br_cc setne, (and SWTestOp, 8), 0) -> (BCC PRED_LT, SWTestOp)
+  ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(1))->get();
+  if (CC != ISD::SETEQ && CC != ISD::SETNE)
+    return false;
+
+  SDValue CmpRHS = N->getOperand(3);
+  if (!isa<ConstantSDNode>(CmpRHS) ||
+      cast<ConstantSDNode>(CmpRHS)->getSExtValue() != 0)
+    return false;
+
+  SDValue CmpLHS = N->getOperand(2);
+  if (CmpLHS.getNumOperands() < 1 || !isSWTestOp(CmpLHS.getOperand(0)))
+    return false;
+
+  unsigned PCC = 0;
+  bool IsCCNE = CC == ISD::SETNE;
+  if (CmpLHS.getOpcode() == ISD::AND &&
+      isa<ConstantSDNode>(CmpLHS.getOperand(1)))
+    switch (CmpLHS.getConstantOperandVal(1)) {
+    case 1:
+      PCC = IsCCNE ? PPC::PRED_UN : PPC::PRED_NU;
+      break;
+    case 2:
+      PCC = IsCCNE ? PPC::PRED_EQ : PPC::PRED_NE;
+      break;
+    case 4:
+      PCC = IsCCNE ? PPC::PRED_GT : PPC::PRED_LE;
+      break;
+    case 8:
+      PCC = IsCCNE ? PPC::PRED_LT : PPC::PRED_GE;
+      break;
+    default:
+      return false;
+    }
+  else if (CmpLHS.getOpcode() == ISD::TRUNCATE &&
+           CmpLHS.getValueType() == MVT::i1)
+    PCC = IsCCNE ? PPC::PRED_UN : PPC::PRED_NU;
+
+  if (PCC) {
+    SDLoc dl(N);
+    SDValue Ops[] = {getI32Imm(PCC, dl), CmpLHS.getOperand(0), N->getOperand(4),
+                     N->getOperand(0)};
+    CurDAG->SelectNodeTo(N, PPC::BCC, MVT::Other, Ops);
+    return true;
+  }
+  return false;
+}
+
 bool PPCDAGToDAGISel::tryAsSingleRLWINM(SDNode *N) {
   assert(N->getOpcode() == ISD::AND && "ISD::AND SDNode expected");
   unsigned Imm;
@@ -4654,8 +4766,11 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
 
   case ISD::Constant:
     if (N->getValueType(0) == MVT::i64) {
-      ReplaceNode(N, selectI64Imm(CurDAG, N));
-      return;
+      SDNode *ResNode = selectI64Imm(CurDAG, N);
+      if (!isa<ConstantSDNode>(ResNode)) {
+        ReplaceNode(N, ResNode);
+        return;
+      }
     }
     break;
 
@@ -5249,6 +5364,8 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
     return;
   }
   case ISD::BR_CC: {
+    if (tryFoldSWTestBRCC(N))
+      return;
     ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(1))->get();
     unsigned PCC =
         getPredicateForSetCC(CC, N->getOperand(2).getValueType(), Subtarget);

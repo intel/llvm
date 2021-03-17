@@ -402,7 +402,7 @@ __OMP_RTL(__tgt_target_data_update_nowait_mapper, false, Void, IdentPtr, Int64, 
           VoidPtrPtr, VoidPtrPtr, Int64Ptr, Int64Ptr, VoidPtrPtr, VoidPtrPtr)
 __OMP_RTL(__tgt_mapper_num_components, false, Int64, VoidPtr)
 __OMP_RTL(__tgt_push_mapper_component, false, Void, VoidPtr, VoidPtr, VoidPtr,
-          Int64, Int64)
+          Int64, Int64, VoidPtr)
 __OMP_RTL(__kmpc_task_allow_completion_event, false, VoidPtr, IdentPtr,
           /* Int */ Int32, /* kmp_task_t */ VoidPtr)
 
@@ -1017,14 +1017,6 @@ __OMP_TRAIT_PROPERTY(device, kind, gpu)
 __OMP_TRAIT_PROPERTY(device, kind, fpga)
 __OMP_TRAIT_PROPERTY(device, kind, any)
 
-__OMP_TRAIT_SELECTOR(device, isa, true)
-
-// We use "__ANY" as a placeholder in the isa property to denote the
-// conceptual "any", not the literal `any` used in kind. The string we
-// we use is not important except that it will show up in diagnostics.
-OMP_TRAIT_PROPERTY(device_isa___ANY, device, device_isa,
-                   "<any, entirely target dependent>")
-
 __OMP_TRAIT_SELECTOR(device, arch, true)
 
 __OMP_TRAIT_PROPERTY(device, arch, arm)
@@ -1033,6 +1025,7 @@ __OMP_TRAIT_PROPERTY(device, arch, aarch64)
 __OMP_TRAIT_PROPERTY(device, arch, aarch64_be)
 __OMP_TRAIT_PROPERTY(device, arch, aarch64_32)
 __OMP_TRAIT_PROPERTY(device, arch, ppc)
+__OMP_TRAIT_PROPERTY(device, arch, ppcle)
 __OMP_TRAIT_PROPERTY(device, arch, ppc64)
 __OMP_TRAIT_PROPERTY(device, arch, ppc64le)
 __OMP_TRAIT_PROPERTY(device, arch, x86)
@@ -1072,6 +1065,18 @@ __OMP_TRAIT_SELECTOR(user, condition, true)
 __OMP_TRAIT_PROPERTY(user, condition, true)
 __OMP_TRAIT_PROPERTY(user, condition, false)
 __OMP_TRAIT_PROPERTY(user, condition, unknown)
+
+
+// Note that we put isa last so that the other conditions are checked first.
+// This allows us to issue warnings wrt. isa only if we match otherwise.
+__OMP_TRAIT_SELECTOR(device, isa, true)
+
+// We use "__ANY" as a placeholder in the isa property to denote the
+// conceptual "any", not the literal `any` used in kind. The string we
+// we use is not important except that it will show up in diagnostics.
+OMP_TRAIT_PROPERTY(device_isa___ANY, device, device_isa,
+                   "<any, entirely target dependent>")
+
 
 #undef OMP_TRAIT_SET
 #undef __OMP_TRAIT_SET

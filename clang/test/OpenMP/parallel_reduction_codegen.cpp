@@ -85,7 +85,7 @@ struct SST {
 // CHECK-DAG: [[S_FLOAT_TY:%.+]] = type { float }
 // CHECK-DAG: [[S_INT_TY:%.+]] = type { i{{[0-9]+}} }
 // CHECK-DAG: [[REDUCTION_LOC:@.+]] = private unnamed_addr constant %{{.+}} { i32 0, i32 18, i32 0, i32 0, i8*
-// CHECK-DAG: [[REDUCTION_LOCK:@.+]] = common global [8 x i32] zeroinitializer
+// CHECK-DAG: [[REDUCTION_LOCK:@.+]] = common{{.*}} global [8 x i32] zeroinitializer
 
 //CHECK: foo_array_sect
 //CHECK: call void {{.+}}@__kmpc_fork_call(
@@ -116,7 +116,7 @@ int sivar;
 int main() {
   SS ss(sivar);
 #ifdef LAMBDA
-  // LAMBDA: [[G:@.+]] = global i{{[0-9]+}} 1212,
+  // LAMBDA: [[G:@.+]] ={{.*}} global i{{[0-9]+}} 1212,
   // LAMBDA-LABEL: @main
   // LAMBDA: alloca [[SS_TY]],
   // LAMBDA: alloca [[CAP_TY:%.+]],
@@ -198,7 +198,7 @@ int main() {
     // LAMBDA: br label %[[REDUCTION_DONE]]
     // LAMBDA: [[CASE2]]
     // LAMBDA: [[G_PRIV_VAL:%.+]] = load i32, i32* [[G_PRIVATE_ADDR]]
-    // LAMBDA: atomicrmw add i32* [[G_REF]], i32 [[G_PRIV_VAL]] monotonic
+    // LAMBDA: atomicrmw add i32* [[G_REF]], i32 [[G_PRIV_VAL]] monotonic, align 4
     // LAMBDA: br label %[[REDUCTION_DONE]]
     // LAMBDA: [[REDUCTION_DONE]]
     // LAMBDA: ret void
@@ -215,7 +215,7 @@ int main() {
   }();
   return 0;
 #elif defined(BLOCKS)
-  // BLOCKS: [[G:@.+]] = global i{{[0-9]+}} 1212,
+  // BLOCKS: [[G:@.+]] ={{.*}} global i{{[0-9]+}} 1212,
   // BLOCKS-LABEL: @main
   // BLOCKS: call
   // BLOCKS: call void {{%.+}}(i8
@@ -255,7 +255,7 @@ int main() {
     // BLOCKS: br label %[[REDUCTION_DONE]]
     // BLOCKS: [[CASE2]]
     // BLOCKS: [[G_PRIV_VAL:%.+]] = load i32, i32* [[G_PRIVATE_ADDR]]
-    // BLOCKS: atomicrmw add i32* [[G_REF]], i32 [[G_PRIV_VAL]] monotonic
+    // BLOCKS: atomicrmw add i32* [[G_REF]], i32 [[G_PRIV_VAL]] monotonic, align 4
     // BLOCKS: br label %[[REDUCTION_DONE]]
     // BLOCKS: [[REDUCTION_DONE]]
     // BLOCKS: ret void
@@ -450,14 +450,14 @@ int main() {
 // t_var += t_var_reduction;
 // CHECK: load float, float* [[T_VAR_PRIV]]
 // CHECK: [[T_VAR_REF_INT:%.+]] = bitcast float* [[T_VAR_REF]] to i32*
-// CHECK: [[OLD1:%.+]] = load atomic i32, i32* [[T_VAR_REF_INT]] monotonic,
+// CHECK: [[OLD1:%.+]] = load atomic i32, i32* [[T_VAR_REF_INT]] monotonic, align 4
 // CHECK: br label %[[CONT:.+]]
 // CHECK: [[CONT]]
 // CHECK: [[ORIG_OLD_INT:%.+]] = phi i32 [ [[OLD1]], %{{.+}} ], [ [[OLD2:%.+]], %[[CONT]] ]
 // CHECK: fadd float
 // CHECK: [[UP_INT:%.+]] = load i32
 // CHECK: [[T_VAR_REF_INT:%.+]] = bitcast float* [[T_VAR_REF]] to i32*
-// CHECK: [[RES:%.+]] = cmpxchg i32* [[T_VAR_REF_INT]], i32 [[ORIG_OLD_INT]], i32 [[UP_INT]] monotonic monotonic
+// CHECK: [[RES:%.+]] = cmpxchg i32* [[T_VAR_REF_INT]], i32 [[ORIG_OLD_INT]], i32 [[UP_INT]] monotonic monotonic, align 4
 // CHECK: [[OLD2:%.+]] = extractvalue { i32, i1 } [[RES]], 0
 // CHECK: [[SUCCESS_FAIL:%.+]] = extractvalue { i32, i1 } [[RES]], 1
 // CHECK: br i1 [[SUCCESS_FAIL]], label %[[ATOMIC_DONE:.+]], label %[[CONT]]
@@ -492,7 +492,7 @@ int main() {
 // t_var1 = min(t_var1, t_var1_reduction);
 // CHECK: load float, float* [[T_VAR1_PRIV]]
 // CHECK: [[T_VAR1_REF_INT:%.+]] = bitcast float* [[T_VAR1_REF]] to i32*
-// CHECK: [[OLD1:%.+]] = load atomic i32, i32* [[T_VAR1_REF_INT]] monotonic,
+// CHECK: [[OLD1:%.+]] = load atomic i32, i32* [[T_VAR1_REF_INT]] monotonic, align 4
 // CHECK: br label %[[CONT:.+]]
 // CHECK: [[CONT]]
 // CHECK: [[ORIG_OLD_INT:%.+]] = phi i32 [ [[OLD1]], %{{.+}} ], [ [[OLD2:%.+]], %{{.+}} ]
@@ -501,7 +501,7 @@ int main() {
 // CHECK: [[UP:%.+]] = phi float
 // CHECK: [[UP_INT:%.+]] = load i32
 // CHECK: [[T_VAR1_REF_INT:%.+]] = bitcast float* [[T_VAR1_REF]] to i32*
-// CHECK: [[RES:%.+]] = cmpxchg i32* [[T_VAR1_REF_INT]], i32 [[ORIG_OLD_INT]], i32 [[UP_INT]] monotonic monotonic
+// CHECK: [[RES:%.+]] = cmpxchg i32* [[T_VAR1_REF_INT]], i32 [[ORIG_OLD_INT]], i32 [[UP_INT]] monotonic monotonic, align 4
 // CHECK: [[OLD2:%.+]] = extractvalue { i32, i1 } [[RES]], 0
 // CHECK: [[SUCCESS_FAIL:%.+]] = extractvalue { i32, i1 } [[RES]], 1
 // CHECK: br i1 [[SUCCESS_FAIL]], label %[[ATOMIC_DONE:.+]], label %[[CONT]]
@@ -771,7 +771,7 @@ int main() {
 // case 2:
 // t_var += t_var_reduction;
 // CHECK: [[T_VAR_PRIV_VAL:%.+]] = load i{{[0-9]+}}, i{{[0-9]+}}* [[T_VAR_PRIV]]
-// CHECK: atomicrmw add i32* [[T_VAR_REF]], i32 [[T_VAR_PRIV_VAL]] monotonic
+// CHECK: atomicrmw add i32* [[T_VAR_REF]], i32 [[T_VAR_PRIV_VAL]] monotonic, align 4
 
 // var = var.operator &(var_reduction);
 // CHECK: call void @__kmpc_critical(
@@ -801,7 +801,7 @@ int main() {
 
 // t_var1 = min(t_var1, t_var1_reduction);
 // CHECK: [[T_VAR1_PRIV_VAL:%.+]] = load i{{[0-9]+}}, i{{[0-9]+}}* [[T_VAR1_PRIV]]
-// CHECK: atomicrmw min i32* [[T_VAR1_REF]], i32 [[T_VAR1_PRIV_VAL]] monotonic
+// CHECK: atomicrmw min i32* [[T_VAR1_REF]], i32 [[T_VAR1_PRIV_VAL]] monotonic, align 4
 
 // break;
 // CHECK: br label %[[RED_DONE]]
@@ -892,4 +892,3 @@ int main() {
 // CHECK: ret void
 
 #endif
-

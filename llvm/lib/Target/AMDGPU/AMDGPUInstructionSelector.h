@@ -13,13 +13,11 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUINSTRUCTIONSELECTOR_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUINSTRUCTIONSELECTOR_H
 
-#include "AMDGPU.h"
-#include "AMDGPUArgumentUsageInfo.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 
 namespace {
 #define GET_GLOBALISEL_PREDICATE_BITSET
@@ -37,6 +35,7 @@ struct ImageDimIntrinsicInfo;
 
 class AMDGPUInstrInfo;
 class AMDGPURegisterBankInfo;
+class AMDGPUTargetMachine;
 class GCNSubtarget;
 class MachineInstr;
 class MachineIRBuilder;
@@ -46,6 +45,7 @@ class RegisterBank;
 class SIInstrInfo;
 class SIMachineFunctionInfo;
 class SIRegisterInfo;
+class TargetRegisterClass;
 
 class AMDGPUInstructionSelector final : public InstructionSelector {
 private:
@@ -274,26 +274,6 @@ private:
 
   void renderTruncTImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
                        int OpIdx) const;
-
-  void renderTruncTImm1(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                        int OpIdx) const {
-    renderTruncTImm(MIB, MI, OpIdx);
-  }
-
-  void renderTruncTImm8(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                        int OpIdx) const {
-    renderTruncTImm(MIB, MI, OpIdx);
-  }
-
-  void renderTruncTImm16(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                        int OpIdx) const {
-    renderTruncTImm(MIB, MI, OpIdx);
-  }
-
-  void renderTruncTImm32(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                        int OpIdx) const {
-    renderTruncTImm(MIB, MI, OpIdx);
-  }
 
   void renderNegateImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
                        int OpIdx) const;

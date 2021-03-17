@@ -210,8 +210,8 @@ bool SpeculativeExecutionPass::runOnBasicBlock(BasicBlock &B) {
   return false;
 }
 
-static unsigned ComputeSpeculationCost(const Instruction *I,
-                                       const TargetTransformInfo &TTI) {
+static InstructionCost ComputeSpeculationCost(const Instruction *I,
+                                              const TargetTransformInfo &TTI) {
   switch (Operator::getOpcode(I)) {
     case Instruction::GetElementPtr:
     case Instruction::Add:
@@ -255,7 +255,8 @@ static unsigned ComputeSpeculationCost(const Instruction *I,
       return TTI.getUserCost(I, TargetTransformInfo::TCK_SizeAndLatency);
 
     default:
-      return UINT_MAX; // Disallow anything not explicitly listed.
+      return InstructionCost::getInvalid(); // Disallow anything not explicitly
+                                            // listed.
   }
 }
 
@@ -281,18 +282,18 @@ bool SpeculativeExecutionPass::considerHoistingFromTo(
 
     for (const Value *V : U->operand_values()) {
       if (const Instruction *I = dyn_cast<Instruction>(V)) {
-        if (NotHoisted.count(I) > 0)
+        if (NotHoisted.contains(I))
           return false;
       }
     }
     return true;
   };
 
-  unsigned TotalSpeculationCost = 0;
+  InstructionCost TotalSpeculationCost = 0;
   unsigned NotHoistedInstCount = 0;
   for (const auto &I : FromBlock) {
-    const unsigned Cost = ComputeSpeculationCost(&I, *TTI);
-    if (Cost != UINT_MAX && isSafeToSpeculativelyExecute(&I) &&
+    const InstructionCost Cost = ComputeSpeculationCost(&I, *TTI);
+    if (Cost.isValid() && isSafeToSpeculativelyExecute(&I) &&
         AllPrecedingUsesFromBlockHoisted(&I)) {
       TotalSpeculationCost += Cost;
       if (TotalSpeculationCost > SpecExecMaxSpeculationCost)

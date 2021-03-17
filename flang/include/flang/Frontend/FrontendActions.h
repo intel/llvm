@@ -21,11 +21,23 @@ class InputOutputTestAction : public FrontendAction {
   void ExecuteAction() override;
 };
 
-class PrintPreprocessedAction : public FrontendAction {
+class EmitObjAction : public FrontendAction {
   void ExecuteAction() override;
 };
 
-class ParseSyntaxOnlyAction : public FrontendAction {
+//===----------------------------------------------------------------------===//
+// Prescan Actions
+//===----------------------------------------------------------------------===//
+class PrescanAction : public FrontendAction {
+  void ExecuteAction() override = 0;
+  bool BeginSourceFileAction(CompilerInstance &ci) override;
+};
+
+class PrintPreprocessedAction : public PrescanAction {
+  void ExecuteAction() override;
+};
+
+class ParseSyntaxOnlyAction : public PrescanAction {
   void ExecuteAction() override;
 };
 

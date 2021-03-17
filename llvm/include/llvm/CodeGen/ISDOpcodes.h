@@ -540,6 +540,11 @@ enum NodeType {
   /// vector, but not the other way around.
   EXTRACT_SUBVECTOR,
 
+  /// VECTOR_REVERSE(VECTOR) - Returns a vector, of the same type as VECTOR,
+  /// whose elements are shuffled using the following algorithm:
+  ///   RESULT[i] = VECTOR[VECTOR.ElementCount - 1 - i]
+  VECTOR_REVERSE,
+
   /// VECTOR_SHUFFLE(VEC1, VEC2) - Returns a vector, of the same type as
   /// VEC1/VEC2.  A VECTOR_SHUFFLE node also contains an array of constant int
   /// values that indicate which value (or undef) each result element will
@@ -762,14 +767,21 @@ enum NodeType {
   /// FP_EXTEND(FP_ROUND(X,0)) because the extra bits aren't removed.
   FP_ROUND,
 
-  /// FLT_ROUNDS_ - Returns current rounding mode:
+  /// Returns current rounding mode:
   /// -1 Undefined
   ///  0 Round to 0
-  ///  1 Round to nearest
+  ///  1 Round to nearest, ties to even
   ///  2 Round to +inf
   ///  3 Round to -inf
+  ///  4 Round to nearest, ties to zero
   /// Result is rounding mode and chain. Input is a chain.
+  /// TODO: Rename this node to GET_ROUNDING.
   FLT_ROUNDS_,
+
+  /// Set rounding mode.
+  /// The first operand is a chain pointer. The second specifies the required
+  /// rounding mode, encoded in the same way as used in '``FLT_ROUNDS_``'.
+  SET_ROUNDING,
 
   /// X = FP_EXTEND(Y) - Extend a smaller FP type into a larger FP type.
   FP_EXTEND,
@@ -890,13 +902,18 @@ enum NodeType {
   /// BRCOND - Conditional branch.  The first operand is the chain, the
   /// second is the condition, the third is the block to branch to if the
   /// condition is true.  If the type of the condition is not i1, then the
-  /// high bits must conform to getBooleanContents.
+  /// high bits must conform to getBooleanContents. If the condition is undef,
+  /// it nondeterministically jumps to the block.
+  /// TODO: Its semantics w.r.t undef requires further discussion; we need to
+  /// make it sure that it is consistent with optimizations in MIR & the
+  /// meaning of IMPLICIT_DEF. See https://reviews.llvm.org/D92015
   BRCOND,
 
   /// BR_CC - Conditional branch.  The behavior is like that of SELECT_CC, in
   /// that the condition is represented as condition code, and two nodes to
   /// compare, rather than as a combined SetCC node.  The operands in order
-  /// are chain, cc, lhs, rhs, block to branch to if condition is true.
+  /// are chain, cc, lhs, rhs, block to branch to if condition is true. If
+  /// condition is undef, it nondeterministically jumps to the block.
   BR_CC,
 
   /// INLINEASM - Represents an inline asm block.  This node always has two
@@ -1196,6 +1213,15 @@ static const int FIRST_TARGET_MEMORY_OPCODE = BUILTIN_OP_END + 500;
 /// For example ISD::AND for ISD::VECREDUCE_AND.
 NodeType getVecReduceBaseOpcode(unsigned VecReduceOpcode);
 
+/// Whether this is a vector-predicated Opcode.
+bool isVPOpcode(unsigned Opcode);
+
+/// The operand position of the vector mask.
+Optional<unsigned> getVPMaskIdx(unsigned Opcode);
+
+/// The operand position of the explicit vector length parameter.
+Optional<unsigned> getVPExplicitVectorLengthIdx(unsigned Opcode);
+
 //===--------------------------------------------------------------------===//
 /// MemIndexedMode enum - This enum defines the load / store indexed
 /// addressing modes.
@@ -1316,6 +1342,12 @@ inline bool isSignedIntSetCC(CondCode Code) {
 /// comparison when used with integer operands.
 inline bool isUnsignedIntSetCC(CondCode Code) {
   return Code == SETUGT || Code == SETUGE || Code == SETULT || Code == SETULE;
+}
+
+/// Return true if this is a setcc instruction that performs an equality
+/// comparison when used with integer operands.
+inline bool isIntEqualitySetCC(CondCode Code) {
+  return Code == SETEQ || Code == SETNE;
 }
 
 /// Return true if the specified condition returns true if the two operands to

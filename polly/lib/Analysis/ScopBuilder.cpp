@@ -25,6 +25,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -201,8 +202,8 @@ static bool containsErrorBlock(RegionNode *RN, const Region &R, LoopInfo &LI,
 static isl::map createNextIterationMap(isl::space SetSpace, unsigned Dim) {
   isl::space MapSpace = SetSpace.map_from_set();
   isl::map NextIterationMap = isl::map::universe(MapSpace);
-  for (unsigned u = 0; u < NextIterationMap.dim(isl::dim::in); u++)
-    if (u != Dim)
+  for (auto u : seq<isl_size>(0, NextIterationMap.dim(isl::dim::in)))
+    if (u != (isl_size)Dim)
       NextIterationMap =
           NextIterationMap.equate(isl::dim::in, u, isl::dim::out, u);
   isl::constraint C =
@@ -794,15 +795,15 @@ bool ScopBuilder::addLoopBoundsToHeaderDomain(
   auto Parts = partitionSetParts(HeaderBBDom, LoopDepth);
   HeaderBBDom = Parts.second;
 
-  // Check if there is a <nsw> tagged AddRec for this loop and if so do not add
-  // the bounded assumptions to the context as they are already implied by the
-  // <nsw> tag.
-  if (scop->hasNSWAddRecForLoop(L))
-    return true;
+  // Check if there is a <nsw> tagged AddRec for this loop and if so do not
+  // require a runtime check. The assumption is already implied by the <nsw>
+  // tag.
+  bool RequiresRTC = !scop->hasNSWAddRecForLoop(L);
 
   isl::set UnboundedCtx = Parts.first.params();
   recordAssumption(&RecordedAssumptions, INFINITELOOP, UnboundedCtx,
-                   HeaderBB->getTerminator()->getDebugLoc(), AS_RESTRICTION);
+                   HeaderBB->getTerminator()->getDebugLoc(), AS_RESTRICTION,
+                   nullptr, RequiresRTC);
   return true;
 }
 
@@ -1495,7 +1496,7 @@ void ScopBuilder::addRecordedAssumptions() {
 
     if (!AS.BB) {
       scop->addAssumption(AS.Kind, AS.Set, AS.Loc, AS.Sign,
-                          nullptr /* BasicBlock */);
+                          nullptr /* BasicBlock */, AS.RequiresRTC);
       continue;
     }
 
@@ -1519,7 +1520,8 @@ void ScopBuilder::addRecordedAssumptions() {
     else /* (AS.Sign == AS_ASSUMPTION) */
       S = isl_set_params(isl_set_subtract(Dom, S));
 
-    scop->addAssumption(AS.Kind, isl::manage(S), AS.Loc, AS_RESTRICTION, AS.BB);
+    scop->addAssumption(AS.Kind, isl::manage(S), AS.Loc, AS_RESTRICTION, AS.BB,
+                        AS.RequiresRTC);
   }
 }
 
@@ -2842,7 +2844,7 @@ void ScopBuilder::addUserContext() {
     return;
   }
 
-  for (unsigned i = 0; i < Space.dim(isl::dim::param); i++) {
+  for (auto i : seq<isl_size>(0, Space.dim(isl::dim::param))) {
     std::string NameContext =
         scop->getContext().get_dim_name(isl::dim::param, i);
     std::string NameUserContext = UserContext.get_dim_name(isl::dim::param, i);

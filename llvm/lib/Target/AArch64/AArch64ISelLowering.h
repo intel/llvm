@@ -114,6 +114,8 @@ enum NodeType : unsigned {
   FCVTZS_MERGE_PASSTHRU,
   SIGN_EXTEND_INREG_MERGE_PASSTHRU,
   ZERO_EXTEND_INREG_MERGE_PASSTHRU,
+  ABS_MERGE_PASSTHRU,
+  NEG_MERGE_PASSTHRU,
 
   SETCC_MERGE_ZERO,
 
@@ -290,7 +292,6 @@ enum NodeType : unsigned {
   CLASTB_N,
   LASTA,
   LASTB,
-  REV,
   TBL,
 
   // Floating-point reductions.
@@ -307,9 +308,12 @@ enum NodeType : unsigned {
 
   BITREVERSE_MERGE_PASSTHRU,
   BSWAP_MERGE_PASSTHRU,
+  CTLZ_MERGE_PASSTHRU,
+  CTPOP_MERGE_PASSTHRU,
   DUP_MERGE_PASSTHRU,
   INDEX_VECTOR,
 
+  // Cast between vectors of the same element type but differ in length.
   REINTERPRET_CAST,
 
   LD1_MERGE_ZERO,
@@ -483,7 +487,7 @@ public:
   /// Returns true if the target allows unaligned memory accesses of the
   /// specified type.
   bool allowsMisalignedMemoryAccesses(
-      EVT VT, unsigned AddrSpace = 0, unsigned Align = 1,
+      EVT VT, unsigned AddrSpace = 0, Align Alignment = Align(1),
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool *Fast = nullptr) const override;
   /// LLT variant.
@@ -810,6 +814,7 @@ private:
                           SDValue ThisVal) const;
 
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerABS(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerMGATHER(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMSCATTER(SDValue Op, SelectionDAG &DAG) const;
@@ -909,6 +914,7 @@ private:
   SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCTPOP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerCTTZ(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFCOPYSIGN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
@@ -954,6 +960,10 @@ private:
                           bool Reciprocal) const override;
   SDValue getRecipEstimate(SDValue Operand, SelectionDAG &DAG, int Enabled,
                            int &ExtraSteps) const override;
+  SDValue getSqrtInputTest(SDValue Operand, SelectionDAG &DAG,
+                           const DenormalMode &Mode) const override;
+  SDValue getSqrtResultForDenormInput(SDValue Operand,
+                                      SelectionDAG &DAG) const override;
   unsigned combineRepeatedFPDivisors() const override;
 
   ConstraintType getConstraintType(StringRef Constraint) const override;
@@ -985,6 +995,7 @@ private:
     return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
   }
 
+  bool shouldExtendGSIndex(EVT VT, EVT &EltTy) const override;
   bool shouldRemoveExtendFromGSIndex(EVT VT) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
   bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
@@ -1016,6 +1027,17 @@ private:
   // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
   // used for 64bit and 128bit vectors as well.
   bool useSVEForFixedLengthVectorVT(EVT VT, bool OverrideNEON = false) const;
+
+  // With the exception of data-predicate transitions, no instructions are
+  // required to cast between legal scalable vector types. However:
+  //  1. Packed and unpacked types have different bit lengths, meaning BITCAST
+  //     is not universally useable.
+  //  2. Most unpacked integer types are not legal and thus integer extends
+  //     cannot be used to convert between unpacked and packed types.
+  // These can make "bitcasting" a multiphase process. REINTERPRET_CAST is used
+  // to transition between unpacked and packed types of the same element type,
+  // with BITCAST used otherwise.
+  SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
 };
 
 namespace AArch64 {

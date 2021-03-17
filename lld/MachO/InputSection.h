@@ -21,18 +21,19 @@ class InputFile;
 class InputSection;
 class OutputSection;
 class Symbol;
+class Defined;
 
 struct Reloc {
-  uint8_t type;
-  bool pcrel;
-  uint8_t length;
+  uint8_t type = llvm::MachO::GENERIC_RELOC_INVALID;
+  bool pcrel = false;
+  uint8_t length = 0;
   // The offset from the start of the subsection that this relocation belongs
   // to.
-  uint32_t offset;
+  uint32_t offset = 0;
   // Adding this offset to the address of the referent symbol or subsection
   // gives the destination that this relocation refers to.
-  uint64_t addend;
-  llvm::PointerUnion<Symbol *, InputSection *> referent;
+  uint64_t addend = 0;
+  llvm::PointerUnion<Symbol *, InputSection *> referent = nullptr;
 };
 
 class InputSection {
@@ -60,13 +61,22 @@ public:
   std::vector<Reloc> relocs;
 };
 
+inline uint8_t sectionType(uint32_t flags) {
+  return flags & llvm::MachO::SECTION_TYPE;
+}
+
 inline bool isZeroFill(uint32_t flags) {
-  return llvm::MachO::isVirtualSection(flags & llvm::MachO::SECTION_TYPE);
+  return llvm::MachO::isVirtualSection(sectionType(flags));
 }
 
 inline bool isThreadLocalVariables(uint32_t flags) {
-  return (flags & llvm::MachO::SECTION_TYPE) ==
-         llvm::MachO::S_THREAD_LOCAL_VARIABLES;
+  return sectionType(flags) == llvm::MachO::S_THREAD_LOCAL_VARIABLES;
+}
+
+// These sections contain the data for initializing thread-local variables.
+inline bool isThreadLocalData(uint32_t flags) {
+  return sectionType(flags) == llvm::MachO::S_THREAD_LOCAL_REGULAR ||
+         sectionType(flags) == llvm::MachO::S_THREAD_LOCAL_ZEROFILL;
 }
 
 inline bool isDebugSection(uint32_t flags) {

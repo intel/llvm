@@ -452,8 +452,8 @@ define double @test_constpool() {
 define i8* @test_blockaddress() {
 ; CHECK-LABEL: test_blockaddress:
 ; CHECK: [[BLOCK:Ltmp[0-9]+]]:
-; CHECK: adrp [[PAGE:x[0-9]+]], [[BLOCK]]@PAGE
-; CHECK: add x0, [[PAGE]], [[BLOCK]]@PAGEOFF
+; CHECK: adrp x[[PAGE:[0-9]+]], lCPI{{[0-9]+_[0-9]+}}@PAGE
+; CHECK: ldr x0, [x[[PAGE]], lCPI{{[0-9]+_[0-9]+}}@PAGEOFF]
   br label %dest
 dest:
   ret i8* blockaddress(@test_blockaddress, %dest)
@@ -691,6 +691,23 @@ define void @test_multiple_icmp_ptr(i8* %l, i8* %r) {
   %tst1 = icmp sgt i8* %l, inttoptr (i32 -1 to i8*)
   %tst2 = icmp sgt i8* %r, inttoptr (i32 -1 to i8*)
   %tst = and i1 %tst1, %tst2
+  br i1 %tst, label %true, label %false
+
+true:
+  call void(...) @bar()
+  ret void
+
+false:
+  ret void
+}
+
+define void @test_multiple_icmp_ptr_select(i8* %l, i8* %r) {
+; CHECK-LABEL: test_multiple_icmp_ptr_select:
+; CHECK: tbnz w0, #31, [[FALSEBB:LBB[0-9]+_[0-9]+]]
+; CHECK: tbnz w1, #31, [[FALSEBB]]
+  %tst1 = icmp sgt i8* %l, inttoptr (i32 -1 to i8*)
+  %tst2 = icmp sgt i8* %r, inttoptr (i32 -1 to i8*)
+  %tst = select i1 %tst1, i1 %tst2, i1 false
   br i1 %tst, label %true, label %false
 
 true:

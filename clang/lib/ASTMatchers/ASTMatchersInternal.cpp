@@ -293,6 +293,10 @@ bool DynTypedMatcher::matches(const DynTypedNode &DynNode,
       Finder->IsMatchingInASTNodeNotSpelledInSource())
     return false;
 
+  if (!Finder->isTraversalIgnoringImplicitNodes() &&
+      Finder->IsMatchingInASTNodeNotAsIs())
+    return false;
+
   auto N =
       Finder->getASTContext().getParentMapContext().traverseIgnored(DynNode);
 
@@ -315,6 +319,10 @@ bool DynTypedMatcher::matchesNoKindCheck(const DynTypedNode &DynNode,
 
   if (Finder->isTraversalIgnoringImplicitNodes() &&
       Finder->IsMatchingInASTNodeNotSpelledInSource())
+    return false;
+
+  if (!Finder->isTraversalIgnoringImplicitNodes() &&
+      Finder->IsMatchingInASTNodeNotAsIs())
     return false;
 
   auto N =
@@ -724,7 +732,8 @@ const internal::VariadicDynCastAllOfMatcher<Decl, TypeAliasDecl> typeAliasDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, TypeAliasTemplateDecl>
     typeAliasTemplateDecl;
 const internal::VariadicAllOfMatcher<Decl> decl;
-const internal::VariadicAllOfMatcher<DecompositionDecl> decompositionDecl;
+const internal::VariadicDynCastAllOfMatcher<Decl, DecompositionDecl> decompositionDecl;
+const internal::VariadicDynCastAllOfMatcher<Decl, BindingDecl> bindingDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, LinkageSpecDecl>
     linkageSpecDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, NamedDecl> namedDecl;
@@ -860,6 +869,8 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, CXXDefaultArgExpr>
     cxxDefaultArgExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXOperatorCallExpr>
     cxxOperatorCallExpr;
+const internal::VariadicDynCastAllOfMatcher<Stmt, CXXRewrittenBinaryOperator>
+    cxxRewrittenBinaryOperator;
 const internal::VariadicDynCastAllOfMatcher<Stmt, Expr> expr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, DeclRefExpr> declRefExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, ObjCIvarRefExpr> objcIvarRefExpr;
@@ -911,6 +922,10 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, AtomicExpr> atomicExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, StmtExpr> stmtExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, BinaryOperator>
     binaryOperator;
+const internal::MapAnyOfMatcher<BinaryOperator, CXXOperatorCallExpr,
+                                CXXRewrittenBinaryOperator>
+    binaryOperation;
+const internal::MapAnyOfMatcher<CallExpr, CXXConstructExpr> invocation;
 const internal::VariadicDynCastAllOfMatcher<Stmt, UnaryOperator> unaryOperator;
 const internal::VariadicDynCastAllOfMatcher<Stmt, ConditionalOperator>
     conditionalOperator;

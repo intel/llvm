@@ -42,6 +42,7 @@ unittest("ClangdTests") {
     target_gen_dir,
   ]
   sources = [
+    "ASTSignalsTests.cpp",
     "ASTTests.cpp",
     "Annotations.cpp",
     "BackgroundIndexTests.cpp",
@@ -77,6 +78,7 @@ unittest("ClangdTests") {
     "IndexActionTests.cpp",
     "IndexTests.cpp",
     "JSONTransportTests.cpp",
+    "LSPBinderTests.cpp",
     "LSPClient.cpp",
     "LoggerTests.cpp",
     "ModulesTests.cpp",
@@ -101,6 +103,7 @@ unittest("ClangdTests") {
     "TestIndex.cpp",
     "TestTU.cpp",
     "TestWorkspace.cpp",
+    "TidyProviderTests.cpp",
     "TypeHierarchyTests.cpp",
     "URITests.cpp",
     "XRefsTests.cpp",

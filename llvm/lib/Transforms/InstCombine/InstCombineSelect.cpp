@@ -47,6 +47,11 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
+/// FIXME: Enabled by default until the pattern is supported well.
+static cl::opt<bool> EnableUnsafeSelectTransform(
+    "instcombine-unsafe-select-transform", cl::init(true),
+    cl::desc("Enable poison-unsafe select to and/or transform"));
+
 static Value *createMinMax(InstCombiner::BuilderTy &Builder,
                            SelectPatternFlavor SPF, Value *A, Value *B) {
   CmpInst::Predicate Pred = getMinMaxPred(SPF);
@@ -1108,10 +1113,27 @@ Instruction *InstCombinerImpl::foldSelectValueEquivalence(SelectInst &Sel,
   // replacement cycle.
   Value *CmpLHS = Cmp.getOperand(0), *CmpRHS = Cmp.getOperand(1);
   if (TrueVal != CmpLHS &&
-      isGuaranteedNotToBeUndefOrPoison(CmpRHS, SQ.AC, &Sel, &DT))
+      isGuaranteedNotToBeUndefOrPoison(CmpRHS, SQ.AC, &Sel, &DT)) {
     if (Value *V = SimplifyWithOpReplaced(TrueVal, CmpLHS, CmpRHS, SQ,
                                           /* AllowRefinement */ true))
       return replaceOperand(Sel, Swapped ? 2 : 1, V);
+
+    // Even if TrueVal does not simplify, we can directly replace a use of
+    // CmpLHS with CmpRHS, as long as the instruction is not used anywhere
+    // else and is safe to speculatively execute (we may end up executing it
+    // with different operands, which should not cause side-effects or trigger
+    // undefined behavior). Only do this if CmpRHS is a constant, as
+    // profitability is not clear for other cases.
+    // FIXME: The replacement could be performed recursively.
+    if (match(CmpRHS, m_ImmConstant()) && !match(CmpLHS, m_ImmConstant()))
+      if (auto *I = dyn_cast<Instruction>(TrueVal))
+        if (I->hasOneUse() && isSafeToSpeculativelyExecute(I))
+          for (Use &U : I->operands())
+            if (U == CmpLHS) {
+              replaceUse(U, CmpRHS);
+              return &Sel;
+            }
+  }
   if (TrueVal != CmpRHS &&
       isGuaranteedNotToBeUndefOrPoison(CmpLHS, SQ.AC, &Sel, &DT))
     if (Value *V = SimplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, SQ,
@@ -2567,38 +2589,45 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
 
   if (SelType->isIntOrIntVectorTy(1) &&
       TrueVal->getType() == CondVal->getType()) {
-    if (match(TrueVal, m_One())) {
+    if (match(TrueVal, m_One()) &&
+        (EnableUnsafeSelectTransform || impliesPoison(FalseVal, CondVal))) {
       // Change: A = select B, true, C --> A = or B, C
       return BinaryOperator::CreateOr(CondVal, FalseVal);
     }
-    if (match(TrueVal, m_Zero())) {
-      // Change: A = select B, false, C --> A = and !B, C
-      Value *NotCond = Builder.CreateNot(CondVal, "not." + CondVal->getName());
-      return BinaryOperator::CreateAnd(NotCond, FalseVal);
-    }
-    if (match(FalseVal, m_Zero())) {
+    if (match(FalseVal, m_Zero()) &&
+        (EnableUnsafeSelectTransform || impliesPoison(TrueVal, CondVal))) {
       // Change: A = select B, C, false --> A = and B, C
       return BinaryOperator::CreateAnd(CondVal, TrueVal);
     }
-    if (match(FalseVal, m_One())) {
-      // Change: A = select B, C, true --> A = or !B, C
+
+    // select a, false, b -> select !a, b, false
+    if (match(TrueVal, m_Zero())) {
       Value *NotCond = Builder.CreateNot(CondVal, "not." + CondVal->getName());
-      return BinaryOperator::CreateOr(NotCond, TrueVal);
+      return SelectInst::Create(NotCond, FalseVal,
+                                ConstantInt::getFalse(SelType));
+    }
+    // select a, b, true -> select !a, true, b
+    if (match(FalseVal, m_One())) {
+      Value *NotCond = Builder.CreateNot(CondVal, "not." + CondVal->getName());
+      return SelectInst::Create(NotCond, ConstantInt::getTrue(SelType),
+                                TrueVal);
     }
 
-    // select a, a, b  -> a | b
-    // select a, b, a  -> a & b
+    // select a, a, b -> select a, true, b
     if (CondVal == TrueVal)
-      return BinaryOperator::CreateOr(CondVal, FalseVal);
+      return replaceOperand(SI, 1, ConstantInt::getTrue(SelType));
+    // select a, b, a -> select a, b, false
     if (CondVal == FalseVal)
-      return BinaryOperator::CreateAnd(CondVal, TrueVal);
+      return replaceOperand(SI, 2, ConstantInt::getFalse(SelType));
 
-    // select a, ~a, b -> (~a) & b
-    // select a, b, ~a -> (~a) | b
+    // select a, !a, b -> select !a, b, false
     if (match(TrueVal, m_Not(m_Specific(CondVal))))
-      return BinaryOperator::CreateAnd(TrueVal, FalseVal);
+      return SelectInst::Create(TrueVal, FalseVal,
+                                ConstantInt::getFalse(SelType));
+    // select a, b, !a -> select !a, true, b
     if (match(FalseVal, m_Not(m_Specific(CondVal))))
-      return BinaryOperator::CreateOr(TrueVal, FalseVal);
+      return SelectInst::Create(FalseVal, ConstantInt::getTrue(SelType),
+                                TrueVal);
   }
 
   // Selecting between two integer or vector splat integer constants?
@@ -2942,7 +2971,8 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   }
 
   Value *NotCond;
-  if (match(CondVal, m_Not(m_Value(NotCond)))) {
+  if (match(CondVal, m_Not(m_Value(NotCond))) &&
+      !InstCombiner::shouldAvoidAbsorbingNotIntoSelect(SI)) {
     replaceOperand(SI, 0, NotCond);
     SI.swapValues();
     SI.swapProfMetadata();

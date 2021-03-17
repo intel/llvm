@@ -86,7 +86,7 @@ struct InstRegexOp : public SetTheory::Operator {
     auto Pseudos = Instructions.slice(NumGeneric, NumPseudos);
     auto NonPseudos = Instructions.slice(NumGeneric + NumPseudos);
 
-    for (Init *Arg : make_range(Expr->arg_begin(), Expr->arg_end())) {
+    for (Init *Arg : Expr->getArgs()) {
       StringInit *SI = dyn_cast<StringInit>(Arg);
       if (!SI)
         PrintFatalError(Loc, "instregex requires pattern string: " +
@@ -708,10 +708,10 @@ void CodeGenSchedModels::collectSchedRW() {
 /// Compute a SchedWrite name from a sequence of writes.
 std::string CodeGenSchedModels::genRWName(ArrayRef<unsigned> Seq, bool IsRead) {
   std::string Name("(");
-  for (auto I = Seq.begin(), E = Seq.end(); I != E; ++I) {
-    if (I != Seq.begin())
-      Name += '_';
-    Name += getSchedRW(*I, IsRead).Name;
+  ListSeparator LS("_");
+  for (unsigned I : Seq) {
+    Name += LS;
+    Name += getSchedRW(I, IsRead).Name;
   }
   Name += ')';
   return Name;
@@ -990,10 +990,10 @@ CodeGenSchedModels::createSchedClassName(Record *ItinClassDef,
 std::string CodeGenSchedModels::createSchedClassName(const RecVec &InstDefs) {
 
   std::string Name;
-  for (RecIter I = InstDefs.begin(), E = InstDefs.end(); I != E; ++I) {
-    if (I != InstDefs.begin())
-      Name += '_';
-    Name += (*I)->getName();
+  ListSeparator LS("_");
+  for (const Record *InstDef : InstDefs) {
+    Name += LS;
+    Name += InstDef->getName();
   }
   return Name;
 }
@@ -1208,11 +1208,10 @@ void CodeGenSchedModels::collectProcItinRW() {
 
 // Gather the unsupported features for processor models.
 void CodeGenSchedModels::collectProcUnsupportedFeatures() {
-  for (CodeGenProcModel &ProcModel : ProcModels) {
-    for (Record *Pred : ProcModel.ModelDef->getValueAsListOfDefs("UnsupportedFeatures")) {
-       ProcModel.UnsupportedFeaturesDefs.push_back(Pred);
-    }
-  }
+  for (CodeGenProcModel &ProcModel : ProcModels)
+    append_range(
+        ProcModel.UnsupportedFeaturesDefs,
+        ProcModel.ModelDef->getValueAsListOfDefs("UnsupportedFeatures"));
 }
 
 /// Infer new classes from existing classes. In the process, this may create new
@@ -1549,8 +1548,7 @@ pushVariant(const TransVariant &VInfo, bool IsRead) {
         ExpandedRWs.push_back(*RWI);
       else
         SchedModels.expandRWSequence(*RWI, ExpandedRWs, IsRead);
-      RWSequences[OperIdx].insert(RWSequences[OperIdx].end(),
-                                  ExpandedRWs.begin(), ExpandedRWs.end());
+      llvm::append_range(RWSequences[OperIdx], ExpandedRWs);
     }
     assert(OperIdx == RWSequences.size() && "missed a sequence");
   }
@@ -1566,7 +1564,7 @@ pushVariant(const TransVariant &VInfo, bool IsRead) {
       else
         SchedModels.expandRWSequence(*RWI, ExpandedRWs, IsRead);
     }
-    Seq.insert(Seq.end(), ExpandedRWs.begin(), ExpandedRWs.end());
+    llvm::append_range(Seq, ExpandedRWs);
   }
 }
 
@@ -1826,8 +1824,7 @@ void CodeGenSchedModels::verifyProcResourceGroups(CodeGenProcModel &PM) {
                              OtherUnits.begin(), OtherUnits.end())
           != CheckUnits.end()) {
         // CheckUnits and OtherUnits overlap
-        OtherUnits.insert(OtherUnits.end(), CheckUnits.begin(),
-                          CheckUnits.end());
+        llvm::append_range(OtherUnits, CheckUnits);
         if (!hasSuperGroup(OtherUnits, PM)) {
           PrintFatalError((PM.ProcResourceDefs[i])->getLoc(),
                           "proc resource group overlaps with "
@@ -2265,25 +2262,18 @@ void PredTransitions::dump() const {
   for (std::vector<PredTransition>::const_iterator
          TI = TransVec.begin(), TE = TransVec.end(); TI != TE; ++TI) {
     dbgs() << "{";
-    for (SmallVectorImpl<PredCheck>::const_iterator
-           PCI = TI->PredTerm.begin(), PCE = TI->PredTerm.end();
-         PCI != PCE; ++PCI) {
-      if (PCI != TI->PredTerm.begin())
-        dbgs() << ", ";
-      dbgs() << SchedModels.getSchedRW(PCI->RWIdx, PCI->IsRead).Name
-             << ":" << PCI->Predicate->getName();
-    }
+    ListSeparator LS;
+    for (const PredCheck &PC : TI->PredTerm)
+      dbgs() << LS << SchedModels.getSchedRW(PC.RWIdx, PC.IsRead).Name << ":"
+             << PC.Predicate->getName();
     dbgs() << "},\n  => {";
     for (SmallVectorImpl<SmallVector<unsigned,4>>::const_iterator
            WSI = TI->WriteSequences.begin(), WSE = TI->WriteSequences.end();
          WSI != WSE; ++WSI) {
       dbgs() << "(";
-      for (SmallVectorImpl<unsigned>::const_iterator
-             WI = WSI->begin(), WE = WSI->end(); WI != WE; ++WI) {
-        if (WI != WSI->begin())
-          dbgs() << ", ";
-        dbgs() << SchedModels.getSchedWrite(*WI).Name;
-      }
+      ListSeparator LS;
+      for (unsigned N : *WSI)
+        dbgs() << LS << SchedModels.getSchedWrite(N).Name;
       dbgs() << "),";
     }
     dbgs() << "}\n";

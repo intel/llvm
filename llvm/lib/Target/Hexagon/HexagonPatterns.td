@@ -232,8 +232,8 @@ def NegImm32: SDNodeXForm<imm, [{
 def SplatB: SDNodeXForm<imm, [{
   uint32_t V = N->getZExtValue();
   assert(isUInt<8>(V) || V >> 8 == 0xFFFFFF);
-  uint32_t S = V << 24 | V << 16 | V << 8 | V;
   V &= 0xFF;
+  uint32_t S = V << 24 | V << 16 | V << 8 | V;
   return CurDAG->getTargetConstant(S, SDLoc(N), MVT::i32);
 }]>;
 
@@ -349,7 +349,7 @@ multiclass SelMinMax_pats<PatFrag CmpOp, PatFrag Val,
 }
 
 multiclass MinMax_pats<InstHexagon PickT, InstHexagon PickS,
-                       PatFrag Sel, PatFrag CmpOp,
+                       SDPatternOperator Sel, SDPatternOperator CmpOp,
                        ValueType CmpType, PatFrag CmpPred> {
   def: Pat<(Sel (CmpType (CmpOp CmpPred:$Vs, CmpPred:$Vt)),
                 CmpPred:$Vt, CmpPred:$Vs),

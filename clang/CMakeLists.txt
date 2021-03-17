@@ -1,9 +1,5 @@
 cmake_minimum_required(VERSION 3.13.4)
 
-if(POLICY CMP0075)
-  cmake_policy(SET CMP0075 NEW)
-endif()
-
 # If we are not building as a part of LLVM, build Clang as an
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
@@ -472,12 +468,18 @@ option(CLANG_ENABLE_STATIC_ANALYZER
 
 option(CLANG_ENABLE_PROTO_FUZZER "Build Clang protobuf fuzzer." OFF)
 
+option(CLANG_ROUND_TRIP_CC1_ARGS "Round-trip command line arguments in -cc1." OFF)
+
 if(NOT CLANG_ENABLE_STATIC_ANALYZER AND CLANG_ENABLE_ARCMT)
   message(FATAL_ERROR "Cannot disable static analyzer while enabling ARCMT or Z3")
 endif()
 
 if(CLANG_ENABLE_ARCMT)
   set(CLANG_ENABLE_OBJC_REWRITER ON)
+endif()
+
+if (CLANG_ROUND_TRIP_CC1_ARGS)
+  add_definitions(-DCLANG_ROUND_TRIP_CC1_ARGS=ON)
 endif()
 
 # Clang version information

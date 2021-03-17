@@ -325,6 +325,10 @@ public:
 
   const LoopAccessInfo *getLAI() const { return LAI; }
 
+  bool isSafeForAnyVectorWidth() const {
+    return LAI->getDepChecker().isSafeForAnyVectorWidth();
+  }
+
   unsigned getMaxSafeDepDistBytes() { return LAI->getMaxSafeDepDistBytes(); }
 
   uint64_t getMaxSafeVectorWidthInBits() const {
@@ -335,13 +339,10 @@ public:
 
   /// Returns true if vector representation of the instruction \p I
   /// requires mask.
-  bool isMaskRequired(const Instruction *I) { return (MaskedOp.count(I) != 0); }
+  bool isMaskRequired(const Instruction *I) { return MaskedOp.contains(I); }
 
   unsigned getNumStores() const { return LAI->getNumStores(); }
   unsigned getNumLoads() const { return LAI->getNumLoads(); }
-
-  // Returns true if the NoNaN attribute is set on the function.
-  bool hasFunNoNaNAttr() const { return HasFunNoNaNAttr; }
 
   /// Returns all assume calls in predicated blocks. They need to be dropped
   /// when flattening the CFG.
@@ -490,9 +491,6 @@ private:
   /// Allowed outside users. This holds the variables that can be accessed from
   /// outside the loop.
   SmallPtrSet<Value *, 4> AllowedExit;
-
-  /// Can we assume the absence of NaNs.
-  bool HasFunNoNaNAttr = false;
 
   /// Vectorization requirements that will go through late-evaluation.
   LoopVectorizationRequirements *Requirements;

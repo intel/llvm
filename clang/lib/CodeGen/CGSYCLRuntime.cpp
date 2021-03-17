@@ -70,18 +70,16 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
   switch (Scope->getLevel()) {
   case SYCLScopeAttr::Level::WorkGroup:
     F.setMetadata(WG_SCOPE_MD_ID, llvm::MDNode::get(F.getContext(), {}));
-    break;
+    return true;
   case SYCLScopeAttr::Level::WorkItem:
     F.setMetadata(WI_SCOPE_MD_ID, llvm::MDNode::get(F.getContext(), {}));
     if (isPFWI(FD))
       // also emit specific marker for parallel_for_work_item, as it needs to
       // be handled specially in the SYCL lowering pass
       F.setMetadata(PFWI_MD_ID, llvm::MDNode::get(F.getContext(), {}));
-    break;
-  default:
-    llvm_unreachable("unknown sycl scope");
+    return true;
   }
-  return true;
+  llvm_unreachable("unknown sycl scope");
 }
 
 void CGSYCLRuntime::emitWorkGroupLocalVarDecl(CodeGenFunction &CGF,

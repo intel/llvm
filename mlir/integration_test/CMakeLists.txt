@@ -3,6 +3,7 @@ set(MLIR_INTEGRATION_TEST_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 
 set(MLIR_INTEGRATION_TEST_DEPENDS
   FileCheck count not
+  lli
   mlir-cpu-runner
   mlir-opt
   mlir_runner_utils
@@ -31,4 +32,5 @@ add_lit_testsuites(MLIR_INTEGRATION ${CMAKE_CURRENT_SOURCE_DIR}
 
 # Copy test data over.
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/test.mtx
+          ${CMAKE_CURRENT_SOURCE_DIR}/data/test.tns
         DESTINATION ${MLIR_INTEGRATION_TEST_DIR}/data/)

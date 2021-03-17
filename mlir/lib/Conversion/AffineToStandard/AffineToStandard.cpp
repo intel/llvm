@@ -334,7 +334,7 @@ public:
 
   LogicalResult matchAndRewrite(AffineYieldOp op,
                                 PatternRewriter &rewriter) const override {
-    if (isa<scf::ParallelOp>(op.getParentOp())) {
+    if (isa<scf::ParallelOp>(op->getParentOp())) {
       // scf.parallel does not yield any values via its terminator scf.yield but
       // models reductions differently using additional ops in its region.
       rewriter.replaceOpWithNewOp<scf::YieldOp>(op);
@@ -379,7 +379,8 @@ static Value getIdentityValue(AtomicRMWKind op, OpBuilder &builder,
     return builder.create<ConstantOp>(loc, builder.getI32IntegerAttr(1));
   // TODO: Add remaining reduction operations.
   default:
-    emitOptionalError(loc, "Reduction operation type not supported");
+    (void)emitOptionalError(loc, "Reduction operation type not supported");
+    break;
   }
   return nullptr;
 }
@@ -399,7 +400,8 @@ static Value getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
     return builder.create<MulIOp>(loc, lhs, rhs);
   // TODO: Add remaining reduction operations.
   default:
-    emitOptionalError(loc, "Reduction operation type not supported");
+    (void)emitOptionalError(loc, "Reduction operation type not supported");
+    break;
   }
   return nullptr;
 }
@@ -576,8 +578,9 @@ public:
     if (!resultOperands)
       return failure();
 
-    // Build std.load memref[expandedMap.results].
-    rewriter.replaceOpWithNewOp<LoadOp>(op, op.getMemRef(), *resultOperands);
+    // Build vector.load memref[expandedMap.results].
+    rewriter.replaceOpWithNewOp<mlir::LoadOp>(op, op.getMemRef(),
+                                              *resultOperands);
     return success();
   }
 };
@@ -623,8 +626,8 @@ public:
       return failure();
 
     // Build std.store valueToStore, memref[expandedMap.results].
-    rewriter.replaceOpWithNewOp<StoreOp>(op, op.getValueToStore(),
-                                         op.getMemRef(), *maybeExpandedMap);
+    rewriter.replaceOpWithNewOp<mlir::StoreOp>(
+        op, op.getValueToStore(), op.getMemRef(), *maybeExpandedMap);
     return success();
   }
 };
@@ -693,8 +696,8 @@ public:
 };
 
 /// Apply the affine map from an 'affine.vector_load' operation to its operands,
-/// and feed the results to a newly created 'vector.transfer_read' operation
-/// (which replaces the original 'affine.vector_load').
+/// and feed the results to a newly created 'vector.load' operation (which
+/// replaces the original 'affine.vector_load').
 class AffineVectorLoadLowering : public OpRewritePattern<AffineVectorLoadOp> {
 public:
   using OpRewritePattern<AffineVectorLoadOp>::OpRewritePattern;
@@ -708,16 +711,16 @@ public:
     if (!resultOperands)
       return failure();
 
-    // Build vector.transfer_read memref[expandedMap.results].
-    rewriter.replaceOpWithNewOp<TransferReadOp>(
+    // Build vector.load memref[expandedMap.results].
+    rewriter.replaceOpWithNewOp<vector::LoadOp>(
         op, op.getVectorType(), op.getMemRef(), *resultOperands);
     return success();
   }
 };
 
 /// Apply the affine map from an 'affine.vector_store' operation to its
-/// operands, and feed the results to a newly created 'vector.transfer_write'
-/// operation (which replaces the original 'affine.vector_store').
+/// operands, and feed the results to a newly created 'vector.store' operation
+/// (which replaces the original 'affine.vector_store').
 class AffineVectorStoreLowering : public OpRewritePattern<AffineVectorStoreOp> {
 public:
   using OpRewritePattern<AffineVectorStoreOp>::OpRewritePattern;
@@ -731,7 +734,7 @@ public:
     if (!maybeExpandedMap)
       return failure();
 
-    rewriter.replaceOpWithNewOp<TransferWriteOp>(
+    rewriter.replaceOpWithNewOp<vector::StoreOp>(
         op, op.getValueToStore(), op.getMemRef(), *maybeExpandedMap);
     return success();
   }

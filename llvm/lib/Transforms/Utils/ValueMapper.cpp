@@ -547,7 +547,7 @@ MDNode *MDNodeMapper::mapDistinctNode(const MDNode &N) {
   assert(N.isDistinct() && "Expected a distinct node");
   assert(!M.getVM().getMappedMD(&N) && "Expected an unmapped node");
   DistinctWorklist.push_back(
-      cast<MDNode>((M.Flags & RF_MoveDistinctMDs)
+      cast<MDNode>((M.Flags & RF_ReuseAndMutateDistinctMDs)
                        ? M.mapToSelf(&N)
                        : M.mapToMetadata(&N, cloneOrBuildODR(N))));
   return DistinctWorklist.back();
@@ -819,11 +819,15 @@ void Mapper::flush() {
       break;
     case WorklistEntry::MapAppendingVar: {
       unsigned PrefixSize = AppendingInits.size() - E.AppendingGVNumNewMembers;
+      // mapAppendingVariable call can change AppendingInits if initalizer for
+      // the variable depends on another appending global, because of that inits
+      // need to be extracted and updated before the call.
+      SmallVector<Constant *, 8> NewInits(
+          drop_begin(AppendingInits, PrefixSize));
+      AppendingInits.resize(PrefixSize);
       mapAppendingVariable(*E.Data.AppendingGV.GV,
                            E.Data.AppendingGV.InitPrefix,
-                           E.AppendingGVIsOldCtorDtor,
-                           makeArrayRef(AppendingInits).slice(PrefixSize));
-      AppendingInits.resize(PrefixSize);
+                           E.AppendingGVIsOldCtorDtor, makeArrayRef(NewInits));
       break;
     }
     case WorklistEntry::MapGlobalIndirectSymbol:

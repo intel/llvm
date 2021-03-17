@@ -159,6 +159,7 @@ private:
   bool parseSymbolicImmVal(const MCExpr *&ImmVal);
   bool parseNeonVectorList(OperandVector &Operands);
   bool parseOptionalMulOperand(OperandVector &Operands);
+  bool parseKeywordOperand(OperandVector &Operands);
   bool parseOperand(OperandVector &Operands, bool isCondCode,
                     bool invertCondCode);
   bool parseImmExpr(int64_t &Out);
@@ -270,7 +271,7 @@ public:
   AArch64AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
                    const MCInstrInfo &MII, const MCTargetOptions &Options)
     : MCTargetAsmParser(Options, STI, MII) {
-    IsILP32 = Options.getABIName() == "ilp32";
+    IsILP32 = STI.getTargetTriple().getEnvironment() == Triple::GNUILP32;
     MCAsmParserExtension::Initialize(Parser);
     MCStreamer &S = getParser().getStreamer();
     if (S.getTargetStreamer() == nullptr)
@@ -378,7 +379,7 @@ private:
   };
 
   struct VectorIndexOp {
-    unsigned Val;
+    int Val;
   };
 
   struct ImmOp {
@@ -598,7 +599,7 @@ public:
     return VectorList.Count;
   }
 
-  unsigned getVectorIndex() const {
+  int getVectorIndex() const {
     assert(Kind == k_VectorIndex && "Invalid access!");
     return VectorIndex.Val;
   }
@@ -749,7 +750,8 @@ public:
         ELFRefKind == AArch64MCExpr::VK_GOTTPREL_LO12_NC ||
         ELFRefKind == AArch64MCExpr::VK_TLSDESC_LO12 ||
         ELFRefKind == AArch64MCExpr::VK_SECREL_LO12 ||
-        ELFRefKind == AArch64MCExpr::VK_SECREL_HI12) {
+        ELFRefKind == AArch64MCExpr::VK_SECREL_HI12 ||
+        ELFRefKind == AArch64MCExpr::VK_GOT_PAGE_LO15) {
       // Note that we don't range-check the addend. It's adjusted modulo page
       // size when converted, so there is no "out of range" condition when using
       // @pageoff.
@@ -1929,7 +1931,7 @@ public:
   }
 
   static std::unique_ptr<AArch64Operand>
-  CreateVectorIndex(unsigned Idx, SMLoc S, SMLoc E, MCContext &Ctx) {
+  CreateVectorIndex(int Idx, SMLoc S, SMLoc E, MCContext &Ctx) {
     auto Op = std::make_unique<AArch64Operand>(k_VectorIndex, Ctx);
     Op->VectorIndex.Val = Idx;
     Op->StartLoc = S;
@@ -2568,6 +2570,7 @@ AArch64AsmParser::tryParseAdrpLabel(OperandVector &Operands) {
                DarwinRefKind != MCSymbolRefExpr::VK_TLVPPAGE &&
                ELFRefKind != AArch64MCExpr::VK_ABS_PAGE_NC &&
                ELFRefKind != AArch64MCExpr::VK_GOT_PAGE &&
+               ELFRefKind != AArch64MCExpr::VK_GOT_PAGE_LO15 &&
                ELFRefKind != AArch64MCExpr::VK_GOTTPREL_PAGE &&
                ELFRefKind != AArch64MCExpr::VK_TLSDESC_PAGE) {
       // The operand must be an @page or @gotpage qualified symbolref.
@@ -2914,6 +2917,8 @@ static const struct Extension {
     {"sve2-bitperm", {AArch64::FeatureSVE2BitPerm}},
     {"ls64", {AArch64::FeatureLS64}},
     {"xs", {AArch64::FeatureXS}},
+    {"pauth", {AArch64::FeaturePAuth}},
+    {"flagm", {AArch64::FeatureFlagM}},
     // FIXME: Unsupported extensions
     {"pan", {}},
     {"lor", {}},
@@ -3433,6 +3438,7 @@ bool AArch64AsmParser::parseSymbolicImmVal(const MCExpr *&ImmVal) {
                   .Case("tprel_lo12_nc", AArch64MCExpr::VK_TPREL_LO12_NC)
                   .Case("tlsdesc_lo12", AArch64MCExpr::VK_TLSDESC_LO12)
                   .Case("got", AArch64MCExpr::VK_GOT_PAGE)
+                  .Case("gotpage_lo15", AArch64MCExpr::VK_GOT_PAGE_LO15)
                   .Case("got_lo12", AArch64MCExpr::VK_GOT_LO12)
                   .Case("gottprel", AArch64MCExpr::VK_GOTTPREL_PAGE)
                   .Case("gottprel_lo12", AArch64MCExpr::VK_GOTTPREL_LO12_NC)
@@ -3701,6 +3707,17 @@ bool AArch64AsmParser::parseOptionalMulOperand(OperandVector &Operands) {
   return Error(getLoc(), "expected 'vl' or '#<imm>'");
 }
 
+bool AArch64AsmParser::parseKeywordOperand(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  auto Tok = Parser.getTok();
+  if (Tok.isNot(AsmToken::Identifier))
+    return true;
+  Operands.push_back(AArch64Operand::CreateToken(Tok.getString(), false,
+                                                 Tok.getLoc(), getContext()));
+  Parser.Lex();
+  return false;
+}
+
 /// parseOperand - Parse a arm instruction operand.  For now this parses the
 /// operand regardless of the mnemonic.
 bool AArch64AsmParser::parseOperand(OperandVector &Operands, bool isCondCode,
@@ -3764,6 +3781,11 @@ bool AArch64AsmParser::parseOperand(OperandVector &Operands, bool isCondCode,
     // We can only continue if no tokens were eaten.
     if (GotShift != MatchOperand_NoMatch)
       return GotShift;
+
+    // If this is a two-word mnemonic, parse its special keyword
+    // operand as an identifier.
+    if (Mnemonic == "brb")
+      return parseKeywordOperand(Operands);
 
     // This was not a register so parse other operands that start with an
     // identifier (like labels) as expressions and create them as immediates.

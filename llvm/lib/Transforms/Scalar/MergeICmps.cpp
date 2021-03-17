@@ -440,8 +440,7 @@ BCECmpChain::BCECmpChain(const std::vector<BasicBlock *> &Blocks, PHINode &Phi,
   // Now look inside blocks to check for BCE comparisons.
   std::vector<BCECmpBlock> Comparisons;
   BaseIdentifier BaseId;
-  for (size_t BlockIdx = 0; BlockIdx < Blocks.size(); ++BlockIdx) {
-    BasicBlock *const Block = Blocks[BlockIdx];
+  for (BasicBlock *const Block : Blocks) {
     assert(Block && "invalid block");
     BCECmpBlock Comparison = visitCmpBlock(Phi.getIncomingValueForBlock(Block),
                                            Block, Phi.getParent(), BaseId);
@@ -628,9 +627,8 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
   // If there is one block that requires splitting, we do it now, i.e.
   // just before we know we will collapse the chain. The instructions
   // can be executed before any of the instructions in the chain.
-  const auto ToSplit =
-      std::find_if(Comparisons.begin(), Comparisons.end(),
-                   [](const BCECmpBlock &B) { return B.RequireSplit; });
+  const auto ToSplit = llvm::find_if(
+      Comparisons, [](const BCECmpBlock &B) { return B.RequireSplit; });
   if (ToSplit != Comparisons.end()) {
     LLVM_DEBUG(dbgs() << "Splitting non_BCE work to header\n");
     ToSplit->split(BB, AA);

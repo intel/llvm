@@ -45,10 +45,9 @@ namespace {
 // The writer writes a SymbolTable result to a file.
 template <class ELFT> class Writer {
 public:
+  LLVM_ELF_IMPORT_TYPES_ELFT(ELFT)
+
   Writer() : buffer(errorHandler().outputBuffer) {}
-  using Elf_Shdr = typename ELFT::Shdr;
-  using Elf_Ehdr = typename ELFT::Ehdr;
-  using Elf_Phdr = typename ELFT::Phdr;
 
   void run();
 
@@ -2873,7 +2872,13 @@ template <class ELFT> void Writer<ELFT>::writeHeader() {
 template <class ELFT> void Writer<ELFT>::openFile() {
   uint64_t maxSize = config->is64 ? INT64_MAX : UINT32_MAX;
   if (fileSize != size_t(fileSize) || maxSize < fileSize) {
-    error("output file too large: " + Twine(fileSize) + " bytes");
+    std::string msg;
+    raw_string_ostream s(msg);
+    s << "output file too large: " << Twine(fileSize) << " bytes\n"
+      << "section sizes:\n";
+    for (OutputSection *os : outputSections)
+      s << os->name << ' ' << os->size << "\n";
+    error(s.str());
     return;
   }
 

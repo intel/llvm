@@ -26,7 +26,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-enum class memory_order : int { relaxed };
+enum class memory_order : int { relaxed = 0 };
 
 // Forward declaration
 template <typename pointerT, access::address_space addressSpace>
@@ -318,7 +318,7 @@ public:
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
-  typename detail::PtrValueType<T, addressSpace>::type *Ptr;
+  typename detail::DecoratedType<T, addressSpace>::type *Ptr;
 #else
   std::atomic<T> *Ptr;
 #endif

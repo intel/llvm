@@ -11,7 +11,6 @@
 #include "PPCTargetStreamer.h"
 #include "TargetInfo/PowerPCTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -1716,8 +1715,9 @@ bool PPCAsmParser::ParseDirectiveLocalEntry(SMLoc L) {
 /// Force static initialization.
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCAsmParser() {
   RegisterMCAsmParser<PPCAsmParser> A(getThePPC32Target());
-  RegisterMCAsmParser<PPCAsmParser> B(getThePPC64Target());
-  RegisterMCAsmParser<PPCAsmParser> C(getThePPC64LETarget());
+  RegisterMCAsmParser<PPCAsmParser> B(getThePPC32LETarget());
+  RegisterMCAsmParser<PPCAsmParser> C(getThePPC64Target());
+  RegisterMCAsmParser<PPCAsmParser> D(getThePPC64LETarget());
 }
 
 #define GET_REGISTER_MATCHER

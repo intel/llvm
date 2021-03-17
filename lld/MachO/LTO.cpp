@@ -18,6 +18,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/ObjCARC.h"
 
 using namespace lld;
 using namespace lld::macho;
@@ -30,12 +31,16 @@ static lto::Config createConfig() {
   c.CodeModel = getCodeModelFromCMModel();
   c.CPU = getCPUStr();
   c.MAttrs = getMAttrs();
+  c.UseNewPM = config->ltoNewPassManager;
+  c.PreCodeGenPassesHook = [](legacy::PassManager &pm) {
+    pm.add(createObjCARCContractPass());
+  };
   return c;
 }
 
 BitcodeCompiler::BitcodeCompiler() {
   auto backend =
-      lto::createInProcessThinBackend(llvm::heavyweight_hardware_concurrency());
+      lto::createInProcessThinBackend(heavyweight_hardware_concurrency());
   ltoObj = std::make_unique<lto::LTO>(createConfig(), backend);
 }
 

@@ -182,6 +182,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/TypeSize.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -221,14 +222,16 @@ namespace {
 // an offset.
 struct SpillLoc {
   unsigned SpillBase;
-  int SpillOffset;
+  StackOffset SpillOffset;
   bool operator==(const SpillLoc &Other) const {
-    return std::tie(SpillBase, SpillOffset) ==
-           std::tie(Other.SpillBase, Other.SpillOffset);
+    return std::make_pair(SpillBase, SpillOffset) ==
+           std::make_pair(Other.SpillBase, Other.SpillOffset);
   }
   bool operator<(const SpillLoc &Other) const {
-    return std::tie(SpillBase, SpillOffset) <
-           std::tie(Other.SpillBase, Other.SpillOffset);
+    return std::make_tuple(SpillBase, SpillOffset.getFixed(),
+                    SpillOffset.getScalable()) <
+           std::make_tuple(Other.SpillBase, Other.SpillOffset.getFixed(),
+                    Other.SpillOffset.getScalable());
   }
 };
 
@@ -769,8 +772,10 @@ public:
     } else if (LocIdxToLocID[*MLoc] >= NumRegs) {
       unsigned LocID = LocIdxToLocID[*MLoc];
       const SpillLoc &Spill = SpillLocs[LocID - NumRegs + 1];
-      Expr = DIExpression::prepend(Expr, DIExpression::ApplyOffset,
-                                   Spill.SpillOffset);
+
+      auto *TRI = MF.getSubtarget().getRegisterInfo();
+      Expr = TRI->prependOffsetExpression(Expr, DIExpression::ApplyOffset,
+                                          Spill.SpillOffset);
       unsigned Base = Spill.SpillBase;
       MIB.addReg(Base, RegState::Debug);
       MIB.addImm(0);
@@ -1579,9 +1584,7 @@ InstrRefBasedLDV::extractSpillBaseRegAndOffset(const MachineInstr &MI) {
   const MachineBasicBlock *MBB = MI.getParent();
   Register Reg;
   StackOffset Offset = TFI->getFrameIndexReference(*MBB->getParent(), FI, Reg);
-  assert(!Offset.getScalable() &&
-         "Frame offsets with a scalable component are not supported");
-  return {Reg, static_cast<int>(Offset.getFixed())};
+  return {Reg, Offset};
 }
 
 /// End all previous ranges related to @MI and start a new range from @MI
@@ -2279,7 +2282,7 @@ InstrRefBasedLDV::mlocJoin(MachineBasicBlock &MBB,
   auto Cmp = [&](const MachineBasicBlock *A, const MachineBasicBlock *B) {
     return BBToOrder.find(A)->second < BBToOrder.find(B)->second;
   };
-  llvm::sort(BlockOrders.begin(), BlockOrders.end(), Cmp);
+  llvm::sort(BlockOrders, Cmp);
 
   // Skip entry block.
   if (BlockOrders.size() == 0)
@@ -2638,15 +2641,13 @@ std::tuple<bool, bool> InstrRefBasedLDV::vlocJoin(
   auto &ILS = *ILSIt->second;
 
   // Order predecessors by RPOT order, for exploring them in that order.
-  SmallVector<MachineBasicBlock *, 8> BlockOrders;
-  for (auto p : MBB.predecessors())
-    BlockOrders.push_back(p);
+  SmallVector<MachineBasicBlock *, 8> BlockOrders(MBB.predecessors());
 
   auto Cmp = [&](MachineBasicBlock *A, MachineBasicBlock *B) {
     return BBToOrder[A] < BBToOrder[B];
   };
 
-  llvm::sort(BlockOrders.begin(), BlockOrders.end(), Cmp);
+  llvm::sort(BlockOrders, Cmp);
 
   unsigned CurBlockRPONum = BBToOrder[&MBB];
 
@@ -2988,7 +2989,7 @@ void InstrRefBasedLDV::vlocDataflow(
   for (auto *MBB : BlocksToExplore)
     BlockOrders.push_back(const_cast<MachineBasicBlock *>(MBB));
 
-  llvm::sort(BlockOrders.begin(), BlockOrders.end(), Cmp);
+  llvm::sort(BlockOrders, Cmp);
   unsigned NumBlocks = BlockOrders.size();
 
   // Allocate some vectors for storing the live ins and live outs. Large.
@@ -3167,7 +3168,7 @@ void InstrRefBasedLDV::emitLocations(
   // in the middle.
   for (auto &P : TTracker->Transfers) {
     // Sort them according to appearance order.
-    llvm::sort(P.Insts.begin(), P.Insts.end(), OrderDbgValues);
+    llvm::sort(P.Insts, OrderDbgValues);
     // Insert either before or after the designated point...
     if (P.MBB) {
       MachineBasicBlock &MBB = *P.MBB;
@@ -3198,10 +3199,10 @@ void InstrRefBasedLDV::initialSetup(MachineFunction &MF) {
   // Compute mappings of block <=> RPO order.
   ReversePostOrderTraversal<MachineFunction *> RPOT(&MF);
   unsigned int RPONumber = 0;
-  for (auto RI = RPOT.begin(), RE = RPOT.end(); RI != RE; ++RI) {
-    OrderToBB[RPONumber] = *RI;
-    BBToOrder[*RI] = RPONumber;
-    BBNumToRPO[(*RI)->getNumber()] = RPONumber;
+  for (MachineBasicBlock *MBB : RPOT) {
+    OrderToBB[RPONumber] = MBB;
+    BBToOrder[MBB] = RPONumber;
+    BBNumToRPO[MBB->getNumber()] = RPONumber;
     ++RPONumber;
   }
 }

@@ -4,9 +4,9 @@
   target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
   target triple = "aarch64"
 
-  @x = global i32 -32768, align 4
+  @x = dso_local global i32 -32768, align 4
 
-  define i32 @check_sext_not_lost(i32* %ptr) {
+  define dso_local i32 @check_sext_not_lost(i32* %ptr) {
   entry:
     %ptr.addr = alloca i32*, align 8
     store i32* %ptr, i32** %ptr.addr, align 8
@@ -59,8 +59,9 @@ body:             |
 
     ; CHECK-LABEL: name: check_sext_not_lost
     ; CHECK: liveins: $x0
-    ; CHECK: [[COPY:%[0-9]+]]:gpr64 = COPY $x0
-    ; CHECK: STRXui [[COPY]], %stack.0.ptr.addr, 0 :: (store 8 into %ir.ptr.addr)
+    ; CHECK: [[COPY:%[0-9]+]]:gpr64all = COPY $x0
+    ; CHECK: [[COPY1:%[0-9]+]]:gpr64 = COPY [[COPY]]
+    ; CHECK: STRXui [[COPY1]], %stack.0.ptr.addr, 0 :: (store 8 into %ir.ptr.addr)
     ; CHECK: [[LDRXui:%[0-9]+]]:gpr64common = LDRXui %stack.0.ptr.addr, 0 :: (dereferenceable load 8 from %ir.ptr.addr)
     ; CHECK: [[ADRP:%[0-9]+]]:gpr64common = ADRP target-flags(aarch64-page) @x
     ; CHECK: [[LDRWui:%[0-9]+]]:gpr32common = LDRWui [[ADRP]], target-flags(aarch64-pageoff, aarch64-nc) @x :: (dereferenceable load 4 from @x)

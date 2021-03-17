@@ -89,14 +89,13 @@ bool device_impl::is_affinity_supported(
 }
 
 cl_device_id device_impl::get() const {
-  if (MIsHostDevice)
-    throw invalid_object_error("This instance of device is a host instance",
-                               PI_INVALID_DEVICE);
-
-  const detail::plugin &Plugin = getPlugin();
-
+  if (MIsHostDevice) {
+    throw invalid_object_error(
+        "This instance of device doesn't support OpenCL interoperability.",
+        PI_INVALID_DEVICE);
+  }
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
+  getPlugin().call<PiApiKind::piDeviceRetain>(MDevice);
   return pi::cast<cl_device_id>(getNative());
 }
 
@@ -210,6 +209,8 @@ vector_class<device> device_impl::create_sub_devices(
 
 pi_native_handle device_impl::getNative() const {
   auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piDeviceRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

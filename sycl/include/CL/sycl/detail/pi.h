@@ -34,9 +34,10 @@
 //   pi_device_binary_property_set PropertySetsBegin;
 //   pi_device_binary_property_set PropertySetsEnd;
 // 2. A number of types needed to define pi_device_binary_property_set added.
+// 3. Added new ownership argument to piextContextCreateWithNativeHandle.
 //
-#define _PI_H_VERSION_MAJOR 2
-#define _PI_H_VERSION_MINOR 3
+#define _PI_H_VERSION_MAJOR 3
+#define _PI_H_VERSION_MINOR 4
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -670,6 +671,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
+/// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
@@ -981,6 +984,8 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 /// \param devices is the list of devices in the context. Parameter is ignored
 ///        if devices can be queried from the context native handle for a
 ///        backend.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 /// \param context is the PI context created from the native handle.
 /// \return PI_SUCCESS if successfully created pi_context from the handle.
 ///         PI_OUT_OF_HOST_MEMORY if can't allocate memory for the pi_context
@@ -989,7 +994,7 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 ///         native handle. PI_UNKNOWN_ERROR in case of another error.
 __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_uint32 numDevices,
-    const pi_device *devices, pi_context *context);
+    const pi_device *devices, bool ownNativeHandle, pi_context *context);
 
 //
 // Queue

@@ -179,8 +179,8 @@ void SubtargetEmitter::Enumeration(raw_ostream &OS,
 static void printFeatureMask(raw_ostream &OS, RecVec &FeatureList,
                              const DenseMap<Record *, unsigned> &FeatureMap) {
   std::array<uint64_t, MAX_SUBTARGET_WORDS> Mask = {};
-  for (unsigned j = 0, M = FeatureList.size(); j < M; ++j) {
-    unsigned Bit = FeatureMap.lookup(FeatureList[j]);
+  for (const Record *Feature : FeatureList) {
+    unsigned Bit = FeatureMap.lookup(Feature);
     Mask[Bit / 64] |= 1ULL << (Bit % 64);
   }
 
@@ -215,10 +215,8 @@ unsigned SubtargetEmitter::FeatureKeyValues(
 
   // For each feature
   unsigned NumFeatures = 0;
-  for (unsigned i = 0, N = FeatureList.size(); i < N; ++i) {
+  for (const Record *Feature : FeatureList) {
     // Next feature
-    Record *Feature = FeatureList[i];
-
     StringRef Name = Feature->getName();
     StringRef CommandLineName = Feature->getValueAsString("Name");
     StringRef Desc = Feature->getValueAsString("Desc");
@@ -730,10 +728,8 @@ void SubtargetEmitter::EmitLoadStoreQueueInfo(const CodeGenProcModel &ProcModel,
   unsigned QueueID = 0;
   if (ProcModel.LoadQueue) {
     const Record *Queue = ProcModel.LoadQueue->getValueAsDef("QueueDescriptor");
-    QueueID =
-        1 + std::distance(ProcModel.ProcResourceDefs.begin(),
-                          std::find(ProcModel.ProcResourceDefs.begin(),
-                                    ProcModel.ProcResourceDefs.end(), Queue));
+    QueueID = 1 + std::distance(ProcModel.ProcResourceDefs.begin(),
+                                find(ProcModel.ProcResourceDefs, Queue));
   }
   OS << "  " << QueueID << ", // Resource Descriptor for the Load Queue\n";
 
@@ -741,10 +737,8 @@ void SubtargetEmitter::EmitLoadStoreQueueInfo(const CodeGenProcModel &ProcModel,
   if (ProcModel.StoreQueue) {
     const Record *Queue =
         ProcModel.StoreQueue->getValueAsDef("QueueDescriptor");
-    QueueID =
-        1 + std::distance(ProcModel.ProcResourceDefs.begin(),
-                          std::find(ProcModel.ProcResourceDefs.begin(),
-                                    ProcModel.ProcResourceDefs.end(), Queue));
+    QueueID = 1 + std::distance(ProcModel.ProcResourceDefs.begin(),
+                                find(ProcModel.ProcResourceDefs, Queue));
   }
   OS << "  " << QueueID << ", // Resource Descriptor for the Store Queue\n";
 }
@@ -1220,11 +1214,8 @@ void SubtargetEmitter::GenSchedClassTables(const CodeGenProcModel &ProcModel,
     }
     else {
       SCDesc.WriteLatencyIdx = SchedTables.WriteLatencies.size();
-      SchedTables.WriteLatencies.insert(SchedTables.WriteLatencies.end(),
-                                        WriteLatencies.begin(),
-                                        WriteLatencies.end());
-      SchedTables.WriterNames.insert(SchedTables.WriterNames.end(),
-                                     WriterNames.begin(), WriterNames.end());
+      llvm::append_range(SchedTables.WriteLatencies, WriteLatencies);
+      llvm::append_range(SchedTables.WriterNames, WriterNames);
     }
     // ReadAdvanceEntries must remain in operand order.
     SCDesc.NumReadAdvanceEntries = ReadAdvanceEntries.size();
@@ -1236,8 +1227,7 @@ void SubtargetEmitter::GenSchedClassTables(const CodeGenProcModel &ProcModel,
       SCDesc.ReadAdvanceIdx = RAPos - SchedTables.ReadAdvanceEntries.begin();
     else {
       SCDesc.ReadAdvanceIdx = SchedTables.ReadAdvanceEntries.size();
-      SchedTables.ReadAdvanceEntries.insert(RAPos, ReadAdvanceEntries.begin(),
-                                            ReadAdvanceEntries.end());
+      llvm::append_range(SchedTables.ReadAdvanceEntries, ReadAdvanceEntries);
     }
   }
 }

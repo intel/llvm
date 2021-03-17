@@ -41,18 +41,6 @@ OptLevel("O",
          cl::ZeroOrMore,
          cl::init('2'));
 
-static cl::opt<bool>
-DisableInline("disable-inlining", cl::init(false),
-  cl::desc("Do not run the inliner pass"));
-
-static cl::opt<bool>
-DisableGVNLoadPRE("disable-gvn-loadpre", cl::init(false),
-  cl::desc("Do not run the GVN load PRE pass"));
-
-static cl::opt<bool> DisableLTOVectorization(
-    "disable-lto-vectorization", cl::init(false),
-    cl::desc("Do not run loop or slp vectorization during LTO"));
-
 static cl::opt<bool> EnableFreestanding(
     "lto-freestanding", cl::init(false),
     cl::desc("Enable Freestanding (disable builtins / TLI) during LTO"));
@@ -158,16 +146,13 @@ DEFINE_SIMPLE_CONVERSION_FUNCTIONS(LTOModule, lto_module_t)
 // Convert the subtarget features into a string to pass to LTOCodeGenerator.
 static void lto_add_attrs(lto_code_gen_t cg) {
   LTOCodeGenerator *CG = unwrap(cg);
-  auto MAttrs = codegen::getMAttrs();
-  if (!MAttrs.empty()) {
-    std::string attrs = join(MAttrs, ",");
-    CG->setAttr(attrs);
-  }
+  CG->setAttrs(codegen::getMAttrs());
 
   if (OptLevel < '0' || OptLevel > '3')
     report_fatal_error("Optimization level must be between 0 and 3");
   CG->setOptLevel(OptLevel - '0');
   CG->setFreestanding(EnableFreestanding);
+  CG->setDisableVerify(DisableVerify);
 }
 
 extern const char* lto_get_version() {
@@ -448,9 +433,7 @@ bool lto_codegen_write_merged_modules(lto_code_gen_t cg, const char *path) {
 const void *lto_codegen_compile(lto_code_gen_t cg, size_t *length) {
   maybeParseOptions(cg);
   LibLTOCodeGenerator *CG = unwrap(cg);
-  CG->NativeObjectFile =
-      CG->compile(DisableVerify, DisableInline, DisableGVNLoadPRE,
-                  DisableLTOVectorization);
+  CG->NativeObjectFile = CG->compile();
   if (!CG->NativeObjectFile)
     return nullptr;
   *length = CG->NativeObjectFile->getBufferSize();
@@ -459,8 +442,7 @@ const void *lto_codegen_compile(lto_code_gen_t cg, size_t *length) {
 
 bool lto_codegen_optimize(lto_code_gen_t cg) {
   maybeParseOptions(cg);
-  return !unwrap(cg)->optimize(DisableVerify, DisableInline, DisableGVNLoadPRE,
-                               DisableLTOVectorization);
+  return !unwrap(cg)->optimize();
 }
 
 const void *lto_codegen_compile_optimized(lto_code_gen_t cg, size_t *length) {
@@ -475,9 +457,7 @@ const void *lto_codegen_compile_optimized(lto_code_gen_t cg, size_t *length) {
 
 bool lto_codegen_compile_to_file(lto_code_gen_t cg, const char **name) {
   maybeParseOptions(cg);
-  return !unwrap(cg)->compile_to_file(
-      name, DisableVerify, DisableInline, DisableGVNLoadPRE,
-      DisableLTOVectorization);
+  return !unwrap(cg)->compile_to_file(name);
 }
 
 void lto_codegen_debug_options(lto_code_gen_t cg, const char *opt) {
@@ -584,8 +564,7 @@ void thinlto_debug_options(const char *const *options, int number) {
   // if options were requested, set them
   if (number && options) {
     std::vector<const char *> CodegenArgv(1, "libLTO");
-    for (auto Arg : ArrayRef<const char *>(options, number))
-      CodegenArgv.push_back(Arg);
+    append_range(CodegenArgv, ArrayRef<const char *>(options, number));
     cl::ParseCommandLineOptions(CodegenArgv.size(), CodegenArgv.data());
   }
 }

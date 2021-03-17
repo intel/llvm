@@ -308,6 +308,13 @@ INSTANTIATE_TEST_CASE_P(
                              ARM::AEK_HWDIVTHUMB | ARM::AEK_DSP |
                              ARM::AEK_FP16 | ARM::AEK_RAS | ARM::AEK_DOTPROD,
                          "8.2-A"),
+        ARMCPUTestParams("cortex-a78c", "armv8.2-a", "crypto-neon-fp-armv8",
+                         ARM::AEK_SEC | ARM::AEK_MP |
+                             ARM::AEK_VIRT | ARM::AEK_HWDIVARM |
+                             ARM::AEK_HWDIVTHUMB | ARM::AEK_DSP |
+                             ARM::AEK_CRC | ARM::AEK_RAS |
+                             ARM::AEK_FP16 | ARM::AEK_DOTPROD,
+                         "8.2-A"),
         ARMCPUTestParams("cortex-a77", "armv8.2-a", "crypto-neon-fp-armv8",
                          ARM::AEK_CRC | ARM::AEK_SEC | ARM::AEK_MP |
                              ARM::AEK_VIRT | ARM::AEK_HWDIVARM |
@@ -385,7 +392,7 @@ INSTANTIATE_TEST_CASE_P(
                          ARM::AEK_HWDIVARM | ARM::AEK_HWDIVTHUMB | ARM::AEK_DSP,
                          "7-S")), );
 
-static constexpr unsigned NumARMCPUArchs = 91;
+static constexpr unsigned NumARMCPUArchs = 92;
 
 TEST(TargetParserTest, testARMCPUArchList) {
   SmallVector<StringRef, NumARMCPUArchs> List;
@@ -962,6 +969,14 @@ INSTANTIATE_TEST_CASE_P(
                              AArch64::AEK_DOTPROD | AArch64::AEK_RCPC |
                              AArch64::AEK_SSBS,
                          "8.2-A"),
+        ARMCPUTestParams("cortex-a78c", "armv8.2-a", "crypto-neon-fp-armv8",
+                         AArch64::AEK_RAS | AArch64::AEK_CRC |
+                             AArch64::AEK_CRYPTO | AArch64::AEK_FP |
+                             AArch64::AEK_SIMD | AArch64::AEK_RAS |
+                             AArch64::AEK_LSE | AArch64::AEK_RDM |
+                             AArch64::AEK_FP16 | AArch64::AEK_DOTPROD |
+                             AArch64::AEK_RCPC | AArch64::AEK_SSBS,
+                         "8.2-A"),
         ARMCPUTestParams(
             "neoverse-v1", "armv8.4-a", "crypto-neon-fp-armv8",
             AArch64::AEK_RAS | AArch64::AEK_SVE | AArch64::AEK_SSBS |
@@ -1028,6 +1043,14 @@ INSTANTIATE_TEST_CASE_P(
                              AArch64::AEK_DOTPROD | AArch64::AEK_FP16 |
                              AArch64::AEK_FP16FML,
                          "8.4-A"),
+        ARMCPUTestParams("apple-a14", "armv8.5-a", "crypto-neon-fp-armv8",
+                         AArch64::AEK_CRC | AArch64::AEK_CRYPTO |
+                             AArch64::AEK_FP | AArch64::AEK_SIMD |
+                             AArch64::AEK_LSE | AArch64::AEK_RAS |
+                             AArch64::AEK_RDM | AArch64::AEK_RCPC |
+                             AArch64::AEK_DOTPROD | AArch64::AEK_FP16 |
+                             AArch64::AEK_FP16FML,
+                         "8.5-A"),
         ARMCPUTestParams("apple-s4", "armv8.3-a", "crypto-neon-fp-armv8",
                          AArch64::AEK_CRC | AArch64::AEK_CRYPTO |
                              AArch64::AEK_FP | AArch64::AEK_SIMD |
@@ -1151,7 +1174,7 @@ INSTANTIATE_TEST_CASE_P(
                              AArch64::AEK_LSE | AArch64::AEK_RDM,
                          "8.2-A")), );
 
-static constexpr unsigned NumAArch64CPUArchs = 45;
+static constexpr unsigned NumAArch64CPUArchs = 47;
 
 TEST(TargetParserTest, testAArch64CPUArchList) {
   SmallVector<StringRef, NumAArch64CPUArchs> List;
@@ -1393,6 +1416,7 @@ TEST(TargetParserTest, AArch64ArchFeatures) {
 TEST(TargetParserTest, AArch64ArchExtFeature) {
   const char *ArchExt[][4] = {{"crc", "nocrc", "+crc", "-crc"},
                               {"crypto", "nocrypto", "+crypto", "-crypto"},
+                              {"flagm", "noflagm", "+flagm", "-flagm"},
                               {"fp", "nofp", "+fp-armv8", "-fp-armv8"},
                               {"simd", "nosimd", "+neon", "-neon"},
                               {"fp16", "nofp16", "+fullfp16", "-fullfp16"},
@@ -1416,6 +1440,7 @@ TEST(TargetParserTest, AArch64ArchExtFeature) {
                               {"rng", "norng", "+rand", "-rand"},
                               {"memtag", "nomemtag", "+mte", "-mte"},
                               {"tme", "notme", "+tme", "-tme"},
+                              {"pauth", "nopauth", "+pauth", "-pauth"},
                               {"ssbs", "nossbs", "+ssbs", "-ssbs"},
                               {"sb", "nosb", "+sb", "-sb"},
                               {"predres", "nopredres", "+predres", "-predres"},

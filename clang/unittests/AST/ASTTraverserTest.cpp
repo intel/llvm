@@ -1148,6 +1148,15 @@ void callDefaultArg()
 {
   hasDefaultArg(42);
 }
+
+void decomposition()
+{
+    int arr[3];
+    auto &[f, s, t] = arr;
+
+    f = 42;
+}
+
 )cpp",
                                        {"-std=c++20"});
 
@@ -1445,6 +1454,46 @@ CallExpr
 `-IntegerLiteral
 )cpp");
   }
+
+  {
+    auto FN = ast_matchers::match(
+        functionDecl(hasName("decomposition"),
+                     hasDescendant(decompositionDecl().bind("decomp"))),
+        AST2->getASTContext());
+    EXPECT_EQ(FN.size(), 1u);
+
+    EXPECT_EQ(
+        dumpASTString(TK_AsIs, FN[0].getNodeAs<DecompositionDecl>("decomp")),
+        R"cpp(
+DecompositionDecl ''
+|-DeclRefExpr 'arr'
+|-BindingDecl 'f'
+| `-ArraySubscriptExpr
+|   |-ImplicitCastExpr
+|   | `-DeclRefExpr ''
+|   `-IntegerLiteral
+|-BindingDecl 's'
+| `-ArraySubscriptExpr
+|   |-ImplicitCastExpr
+|   | `-DeclRefExpr ''
+|   `-IntegerLiteral
+`-BindingDecl 't'
+  `-ArraySubscriptExpr
+    |-ImplicitCastExpr
+    | `-DeclRefExpr ''
+    `-IntegerLiteral
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            FN[0].getNodeAs<DecompositionDecl>("decomp")),
+              R"cpp(
+DecompositionDecl ''
+|-DeclRefExpr 'arr'
+|-BindingDecl 'f'
+|-BindingDecl 's'
+`-BindingDecl 't'
+)cpp");
+  }
 }
 
 TEST(Traverse, IgnoreUnlessSpelledInSourceTemplateInstantiations) {
@@ -1729,6 +1778,66 @@ ClassTemplateSpecializationDecl 'TemplStruct'
 | `-CompoundStmt
 |-AccessSpecDecl
 `-FieldDecl 'm_t'
+)cpp");
+  }
+}
+
+TEST(Traverse, CXXRewrittenBinaryOperator) {
+
+  auto AST = buildASTFromCodeWithArgs(R"cpp(
+namespace std {
+struct strong_ordering {
+  int n;
+  constexpr operator int() const { return n; }
+  static const strong_ordering equal, greater, less;
+};
+constexpr strong_ordering strong_ordering::equal = {0};
+constexpr strong_ordering strong_ordering::greater = {1};
+constexpr strong_ordering strong_ordering::less = {-1};
+}
+
+struct HasSpaceshipMem {
+  int a;
+  constexpr auto operator<=>(const HasSpaceshipMem&) const = default;
+};
+
+void binop()
+{
+    HasSpaceshipMem hs1, hs2;
+    if (hs1 < hs2)
+        return;
+}
+)cpp",
+                                      {"-std=c++20"});
+  {
+    auto BN = ast_matchers::match(cxxRewrittenBinaryOperator().bind("binop"),
+                                  AST->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<Stmt>("binop")),
+              R"cpp(
+CXXRewrittenBinaryOperator
+`-BinaryOperator
+  |-ImplicitCastExpr
+  | `-CXXMemberCallExpr
+  |   `-MemberExpr
+  |     `-ImplicitCastExpr
+  |       `-MaterializeTemporaryExpr
+  |         `-CXXOperatorCallExpr
+  |           |-ImplicitCastExpr
+  |           | `-DeclRefExpr 'operator<=>'
+  |           |-ImplicitCastExpr
+  |           | `-DeclRefExpr 'hs1'
+  |           `-ImplicitCastExpr
+  |             `-DeclRefExpr 'hs2'
+  `-IntegerLiteral
+)cpp");
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<Stmt>("binop")),
+              R"cpp(
+CXXRewrittenBinaryOperator
+|-DeclRefExpr 'hs1'
+`-DeclRefExpr 'hs2'
 )cpp");
   }
 }

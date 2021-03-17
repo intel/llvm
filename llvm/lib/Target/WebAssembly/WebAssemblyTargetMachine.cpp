@@ -82,6 +82,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyExceptionInfoPass(PR);
   initializeWebAssemblyCFGSortPass(PR);
   initializeWebAssemblyCFGStackifyPass(PR);
+  initializeWebAssemblyHandleEHTerminatePadsPass(PR);
   initializeWebAssemblyExplicitLocalsPass(PR);
   initializeWebAssemblyLowerBrUnlessPass(PR);
   initializeWebAssemblyRegNumberingPass(PR);
@@ -326,10 +327,10 @@ public:
   void addPreEmitPass() override;
 
   // No reg alloc
-  bool addRegAssignmentFast() override { return false; }
+  bool addRegAssignAndRewriteFast() override { return false; }
 
   // No reg alloc
-  bool addRegAssignmentOptimized() override { return false; }
+  bool addRegAssignAndRewriteOptimized() override { return false; }
 };
 } // end anonymous namespace
 
@@ -446,7 +447,8 @@ void WebAssemblyPassConfig::addPreEmitPass() {
 
   // Do various transformations for exception handling.
   // Every CFG-changing optimizations should come before this.
-  addPass(createWebAssemblyLateEHPrepare());
+  if (TM->Options.ExceptionModel == ExceptionHandling::Wasm)
+    addPass(createWebAssemblyLateEHPrepare());
 
   // Now that we have a prologue and epilogue and all frame indices are
   // rewritten, eliminate SP and FP. This allows them to be stackified,
@@ -483,6 +485,10 @@ void WebAssemblyPassConfig::addPreEmitPass() {
 
   // Insert BLOCK and LOOP markers.
   addPass(createWebAssemblyCFGStackify());
+
+  // Handle terminate pads for cleanups
+  if (TM->Options.ExceptionModel == ExceptionHandling::Wasm)
+    addPass(createWebAssemblyHandleEHTerminatePads());
 
   // Insert explicit local.get and local.set operators.
   if (!WasmDisableExplicitLocals)
