@@ -21,6 +21,7 @@
 #include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/property_list.hpp>
@@ -903,11 +904,87 @@ private:
 
 #endif
 
+  std::shared_ptr<detail::kernel_bundle_impl> getHandlerKernelBundle() {
+    assert(!MSharedPtrStorage.empty());
+
+    // TODO: Add mutex
+    std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+        detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
+    for (const detail::ExtendedMember &EMember : *ExendedMembersVec)
+      if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+        KernelBundleImpPtr =
+            std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
+        break;
+      }
+
+    // No kernel bundle yet, create one
+    if (!KernelBundleImpPtr) {
+      KernelBundleImpPtr = detail::getSyclObjImpl(
+          get_kernel_bundle<bundle_state::input>(getContext()));
+
+      detail::ExtendedMember EMember = {
+          detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
+          KernelBundleImpPtr};
+
+      ExendedMembersVec->push_back(EMember);
+    }
+
+    return KernelBundleImpPtr;
+  }
+
+  void setHandlerKernelBundle(const std::shared_ptr<detail::kernel_bundle_impl>
+                                  &NewKernelBundleImpPtr) {
+    assert(!MSharedPtrStorage.empty());
+
+    // TODO: Add mutex
+
+    std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+        detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+#ifndef NDEBUG
+
+    for (detail::ExtendedMember &EMember : *ExendedMembersVec)
+      assert(detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE !=
+                 EMember.MType &&
+             "Expected no kernel_bundle set yet");
+#endif
+
+    detail::ExtendedMember EMember = {
+        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
+        NewKernelBundleImpPtr};
+
+    ExendedMembersVec->push_back(EMember);
+  }
+
+  context getContext();
+
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
+
+#if __cplusplus > 201402L
+  template <auto &SpecName>
+  void set_specialization_constant(
+      typename std::remove_reference_t<decltype(SpecName)>::type Value) {
+
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
+        getHandlerKernelBundle();
+
+    detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+        KernelBundleImpPtr)
+        .set_specialization_constant<SpecName>(Value);
+  }
+
+#endif
+
+  void
+  use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle) {
+    setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+  }
 
   /// Requires access to the memory object associated with the placeholder
   /// accessor.

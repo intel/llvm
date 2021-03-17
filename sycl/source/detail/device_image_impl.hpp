@@ -98,27 +98,30 @@ public:
 
   // The struct maps specialization ID to offset in the binary blob where value
   // for this spec const should be.
-  struct SpecConstIDOffset {
+  struct SpecConstDescT {
     unsigned int ID = 0;
     unsigned int Offset = 0;
+    bool IsSet = false;
   };
 
   bool has_specialization_constant(unsigned int SpecID) const noexcept {
-    return std::any_of(
-        MSpecConstOffsets.begin(), MSpecConstOffsets.end(),
-        [SpecID](const SpecConstIDOffset &Pair) { return Pair.ID == SpecID; });
+    return std::any_of(MSpecConstDescs.begin(), MSpecConstDescs.end(),
+                       [SpecID](const SpecConstDescT &SpecConstDesc) {
+                         return SpecConstDesc.ID == SpecID;
+                       });
   }
 
   void set_specialization_constant_raw_value(unsigned int SpecID,
                                              const void *Value,
                                              size_t ValueSize) noexcept {
-    for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
-      if (Pair.ID == SpecID) {
+    for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
+      if (SpecConstDesc.ID == SpecID) {
         // Lock the mutex to prevent when one thread in the middle of writing a
         // new value while another thread is reading the value to pass it to
         // JIT compiler.
         const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-        std::memcpy(MSpecConstsBlob.data() + Pair.Offset, Value, ValueSize);
+        std::memcpy(MSpecConstsBlob.data() + SpecConstDesc.Offset, Value,
+                    ValueSize);
         return;
       }
   }
@@ -126,13 +129,14 @@ public:
   void get_specialization_constant_raw_value(unsigned int SpecID,
                                              void *ValueRet,
                                              size_t ValueSize) const noexcept {
-    for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
-      if (Pair.ID == SpecID) {
+    for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
+      if (SpecConstDesc.ID == SpecID) {
         // Lock the mutex to prevent when one thread in the middle of writing a
         // new value while another thread is reading the value to pass it to
         // JIT compiler.
         const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-        std::memcpy(ValueRet, MSpecConstsBlob.data() + Pair.Offset, ValueSize);
+        std::memcpy(ValueRet, MSpecConstsBlob.data() + SpecConstDesc.Offset,
+                    ValueSize);
         return;
       }
   }
@@ -151,17 +155,29 @@ public:
         [&Dev](const device &DevCand) { return Dev == DevCand; });
   }
 
-  // TODO: snake_case:
-  RT::PiProgram &get_program_ref() { return MProgram; }
+  RT::PiProgram &get_program_ref() noexcept { return MProgram; }
 
-  RTDeviceBinaryImage *&get_bin_image_ref() { return MBinImage; }
+  RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
 
-  const context &get_context() { return MContext; }
+  const context &get_context() noexcept { return MContext; }
 
-  std::vector<kernel_id> &get_kernel_ids_ref() { return MKernelIDs; }
+  std::vector<kernel_id> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
+
+  std::vector<unsigned char> &get_spec_const_blob() noexcept {
+    return MSpecConstsBlob;
+  }
+
+  std::vector<SpecConstDescT> &get_spec_const_offsets() noexcept {
+    return MSpecConstDescs;
+  }
+
+  OSModuleHandle get_OS_module_handle() const noexcept {
+    return MOSModuleHandle;
+  }
 
 private:
   RTDeviceBinaryImage *MBinImage = nullptr;
+  OSModuleHandle MOSModuleHandle = 0;
   context MContext;
   std::vector<device> MDevices;
   bundle_state MState;
@@ -177,7 +193,7 @@ private:
   // image
   std::vector<unsigned char> MSpecConstsBlob;
   // Contains list of spec ID + their offsets in the MSpecConstsBlob
-  std::vector<SpecConstIDOffset> MSpecConstOffsets;
+  std::vector<SpecConstDescT> MSpecConstDescs;
 };
 
 } // namespace detail

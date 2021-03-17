@@ -21,6 +21,8 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+context handler::getContext() { return MQueue->get_context(); }
+
 event handler::finalize() {
   // This block of code is needed only for reduction implementation.
   // It is harmless (does nothing) for everything else.

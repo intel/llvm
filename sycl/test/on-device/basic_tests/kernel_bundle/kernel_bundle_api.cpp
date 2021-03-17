@@ -11,6 +11,7 @@
 
 class Kernel1Name;
 class Kernel2Name;
+class Kernel3Name;
 
 int main() {
   sycl::queue Q;
@@ -22,7 +23,7 @@ int main() {
   const sycl::context Ctx = Q.get_context();
   const sycl::device Dev = Q.get_device();
 
-  if (1) {
+  if (0) {
     Q.submit([](sycl::handler &CGH) { CGH.single_task<Kernel1Name>([]() {}); });
     Q.submit([](sycl::handler &CGH) { CGH.single_task<Kernel2Name>([]() {}); });
   }
@@ -167,50 +168,15 @@ int main() {
       auto Impl = sycl::detail::getSyclObjImpl(DevImage);
       std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
     }
+
+    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle6Built2 =
+        sycl::build(KernelBundle6, KernelBundle6.get_devices());
+
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.use_kernel_bundle(KernelBundle6Built2);
+      CGH.single_task<Kernel3Name>([]() {});
+    });
   }
-
-  std::cout << sizeof(sycl::detail::CG::CGTYPE) << std::endl;
-
-  enum CG_VERSION_: unsigned char {
-    V0 = 0,
-    V1 = 8,
-  };
-
-  /// Type of the command group.
-  enum CGTYPE_: unsigned int {
-    NONE = 0,
-    KERNEL = 1,
-    COPY_ACC_TO_PTR = 2,
-    COPY_PTR_TO_ACC = 3,
-    COPY_ACC_TO_ACC = 4,
-    BARRIER = 5,
-    BARRIER_WAITLIST = 6,
-    FILL = 7,
-    UPDATE_HOST = 8,
-    RUN_ON_HOST_INTEL = 9,
-    COPY_USM = 10,
-    FILL_USM = 11,
-    PREFETCH_USM = 12,
-    CODEPLAY_INTEROP_TASK = 13,
-    CODEPLAY_HOST_TASK = 14,
-    KERNEL_V2 = KERNEL | ((int)CG_VERSION_::V1 << 24),
-
-  };
-
-  std::cout << std::hex << "KERNEL = " << CGTYPE_::KERNEL << std::endl;
-  std::cout << std::hex << "KERNEL_V2 = " << CGTYPE_::KERNEL_V2 << std::endl;
-
-  int Neg = -1;
-  unsigned int UNeg = - 1;
-
-  std::cout << "Neg = " << Neg << std::endl;
-  std::cout << "Neg >> 30 = " << (Neg >> 30) << std::endl;
-  std::cout << "UNeg = " << UNeg << std::endl;
-  std::cout << "UNeg >> 30 = " << (UNeg >> 30) << std::endl;
-
-    //KERNEL_V2 = KERNEL | ((int)CG_VERSION::V1 << 24);
-
-  //assert(sycl::has_kernel_bundle<sycl::bundle_state::object>(Ctx, {Dev}));
 
   return 0;
 }
