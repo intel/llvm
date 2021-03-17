@@ -27,9 +27,13 @@
 #include <numeric>
 #include <string>
 
-template <typename... Ts> class KernelNameGroup;
-
 using namespace cl::sycl;
+
+template <typename... Ts> class KNameGroup;
+template <typename T, bool B> class KName;
+
+constexpr access::mode RW = access::mode::read_write;
+constexpr access::mode DW = access::mode::discard_write;
 
 template <typename T>
 bool cherkResultIsExpected(int TestCaseNum, T Expected, T Computed) {
@@ -46,11 +50,12 @@ bool cherkResultIsExpected(int TestCaseNum, T Expected, T Computed) {
   return Success;
 }
 
-template <class ReductionExample, typename T1, access::mode Mode1, typename T2,
-          access::mode Mode2, typename T3, access::mode Mode3, typename T4,
-          class BinaryOperation1, class BinaryOperation2,
+// Returns 0 if the test case passed. Otherwise, some non-zero value.
+template <class Name, bool IsSYCL2020Mode, typename T1, access::mode Mode1,
+          typename T2, access::mode Mode2, typename T3, access::mode Mode3,
+          typename T4, class BinaryOperation1, class BinaryOperation2,
           class BinaryOperation3, class BinaryOperation4>
-int runTest(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
+int testOne(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
             T2 IdentityVal2, T2 InitVal2, BinaryOperation2 BOp2,
             T3 IdentityVal3, T3 InitVal3, BinaryOperation3 BOp3,
             T4 IdentityVal4, T3 InitVal4, BinaryOperation4 BOp4,
@@ -67,16 +72,16 @@ int runTest(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
   auto Dev = Q.get_device();
   if (AllocType4 == usm::alloc::shared &&
       !Dev.get_info<info::device::usm_shared_allocations>())
-    return 4;
+    return 0;
   if (AllocType4 == usm::alloc::host &&
       !Dev.get_info<info::device::usm_host_allocations>())
-    return 4;
+    return 0;
   if (AllocType4 == usm::alloc::device &&
       !Dev.get_info<info::device::usm_device_allocations>())
-    return 4;
+    return 0;
   T4 *Out4 = (T4 *)malloc(sizeof(T4), Dev, Q.get_context(), AllocType4);
   if (Out4 == nullptr)
-    return 4;
+    return 1;
 
   // Initialize the arrays with sentinel values
   // and pre-compute the expected result 'CorrectOut'.
@@ -109,8 +114,7 @@ int runTest(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
 
     if (AllocType4 == usm::alloc::device) {
       Q.submit([&](handler &CGH) {
-         CGH.single_task<
-             KernelNameGroup<ReductionExample, class KernelNameUSM4>>(
+         CGH.single_task<KNameGroup<Name, class KernelNameUSM4>>(
              [=]() { *Out4 = InitVal4; });
        }).wait();
     } else {
@@ -118,39 +122,57 @@ int runTest(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
     }
   }
 
-  // The main code to be tested.
-  Q.submit([&](handler &CGH) {
-     auto In1 = InBuf1.template get_access<access::mode::read>(CGH);
-     auto In2 = InBuf2.template get_access<access::mode::read>(CGH);
-     auto In3 = InBuf3.template get_access<access::mode::read>(CGH);
-     auto In4 = InBuf4.template get_access<access::mode::read>(CGH);
+  auto NDR = nd_range<1>{range<1>(NWorkItems), range<1>{WGSize}};
+  if constexpr (IsSYCL2020Mode) {
+    Q.submit([&](handler &CGH) {
+       auto In1 = InBuf1.template get_access<access::mode::read>(CGH);
+       auto In2 = InBuf2.template get_access<access::mode::read>(CGH);
+       auto In3 = InBuf3.template get_access<access::mode::read>(CGH);
+       auto In4 = InBuf4.template get_access<access::mode::read>(CGH);
 
-     auto Out1 = OutBuf1.template get_access<Mode1>(CGH);
-     auto Out2 = OutBuf2.template get_access<Mode2>(CGH);
-     accessor<T3, 0, Mode3, access::target::global_buffer> Out3(OutBuf3, CGH);
+       auto Redu1 = sycl::reduction(OutBuf1, CGH, IdentityVal1, BOp1);
+       auto Redu2 = sycl::reduction(OutBuf2, CGH, IdentityVal2, BOp2);
+       auto Redu3 = sycl::reduction(OutBuf3, CGH, IdentityVal3, BOp3);
+       auto Redu4 = sycl::reduction(Out4, IdentityVal4, BOp4);
 
-     auto Lambda = [=](nd_item<1> NDIt, auto &Sum1, auto &Sum2, auto &Sum3,
-                       auto &Sum4) {
-       size_t I = NDIt.get_global_id(0);
-       Sum1.combine(In1[I]);
-       Sum2.combine(In2[I]);
-       Sum3.combine(In3[I]);
-       Sum4.combine(In4[I]);
-     };
+       auto Lambda = [=](nd_item<1> NDIt, auto &Sum1, auto &Sum2, auto &Sum3,
+                         auto &Sum4) {
+         size_t I = NDIt.get_global_id(0);
+         Sum1.combine(In1[I]);
+         Sum2.combine(In2[I]);
+         Sum3.combine(In3[I]);
+         Sum4.combine(In4[I]);
+       };
+       CGH.parallel_for<Name>(NDR, Redu1, Redu2, Redu3, Redu4, Lambda);
+     }).wait();
+  } else {
+    // Test ONEAPI reductions
+    Q.submit([&](handler &CGH) {
+       auto In1 = InBuf1.template get_access<access::mode::read>(CGH);
+       auto In2 = InBuf2.template get_access<access::mode::read>(CGH);
+       auto In3 = InBuf3.template get_access<access::mode::read>(CGH);
+       auto In4 = InBuf4.template get_access<access::mode::read>(CGH);
 
-     auto Redu1 =
-         ONEAPI::reduction<T1, BinaryOperation1>(Out1, IdentityVal1, BOp1);
-     auto Redu2 =
-         ONEAPI::reduction<T2, BinaryOperation2>(Out2, IdentityVal2, BOp2);
-     auto Redu3 =
-         ONEAPI::reduction<T3, BinaryOperation3>(Out3, IdentityVal3, BOp3);
-     auto Redu4 =
-         ONEAPI::reduction<T4, BinaryOperation4>(Out4, IdentityVal4, BOp4);
+       auto Out1 = OutBuf1.template get_access<Mode1>(CGH);
+       auto Out2 = OutBuf2.template get_access<Mode2>(CGH);
+       accessor<T3, 0, Mode3, access::target::global_buffer> Out3(OutBuf3, CGH);
 
-     auto NDR = nd_range<1>{range<1>(NWorkItems), range<1>{WGSize}};
-     CGH.parallel_for<ReductionExample>(NDR, Redu1, Redu2, Redu3, Redu4,
-                                        Lambda);
-   }).wait();
+       auto Redu1 = ONEAPI::reduction(Out1, IdentityVal1, BOp1);
+       auto Redu2 = ONEAPI::reduction(Out2, IdentityVal2, BOp2);
+       auto Redu3 = ONEAPI::reduction(Out3, IdentityVal3, BOp3);
+       auto Redu4 = ONEAPI::reduction(Out4, IdentityVal4, BOp4);
+
+       auto Lambda = [=](nd_item<1> NDIt, auto &Sum1, auto &Sum2, auto &Sum3,
+                         auto &Sum4) {
+         size_t I = NDIt.get_global_id(0);
+         Sum1.combine(In1[I]);
+         Sum2.combine(In2[I]);
+         Sum3.combine(In3[I]);
+         Sum4.combine(In4[I]);
+       };
+       CGH.parallel_for<Name>(NDR, Redu1, Redu2, Redu3, Redu4, Lambda);
+     }).wait();
+  }
 
   // Check the results and free memory.
   int Error = 0;
@@ -185,18 +207,43 @@ int runTest(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
   return Error;
 }
 
-int main() {
+// Tests both implementations of reduction:
+// sycl::reduction and sycl::ONEAPI::reduction
+template <class Name, typename T1, access::mode Mode1, typename T2,
+          access::mode Mode2, typename T3, access::mode Mode3, typename T4,
+          class BinaryOperation1, class BinaryOperation2,
+          class BinaryOperation3, class BinaryOperation4>
+int testBoth(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
+             T2 IdentityVal2, T2 InitVal2, BinaryOperation2 BOp2,
+             T3 IdentityVal3, T3 InitVal3, BinaryOperation3 BOp3,
+             T4 IdentityVal4, T3 InitVal4, BinaryOperation4 BOp4,
+             usm::alloc AllocType4, size_t NWorkItems, size_t WGSize) {
   int Error =
-      runTest<class ReduFloatPlus16x1, float, access::mode::discard_write, int,
-              access::mode::read_write, short, access::mode::read_write, int>(
-          0, 1000, std::plus<float>{}, 0, 2000, std::plus<>{}, 0, 4000,
-          std::bit_or<>{}, 0, 8000, std::bit_xor<>{}, usm::alloc::shared, 16,
-          16);
+      testOne<KName<Name, false>, false, T1, Mode1, T2, Mode2, T3, Mode3, T4>(
+          IdentityVal1, InitVal1, BOp1, IdentityVal2, InitVal2, BOp2,
+          IdentityVal3, InitVal3, BOp3, IdentityVal4, InitVal4, BOp4,
+          AllocType4, NWorkItems, WGSize);
+
+  // TODO: property::reduction::initialize_to_identity is not supported yet.
+  // Thus only read_write mode is tested now.
+  constexpr access::mode _Mode1 = (Mode1 == DW) ? RW : Mode1;
+  constexpr access::mode _Mode2 = (Mode2 == DW) ? RW : Mode2;
+  constexpr access::mode _Mode3 = (Mode3 == DW) ? RW : Mode3;
+  Error +=
+      testOne<KName<Name, true>, true, T1, _Mode1, T2, _Mode2, T3, _Mode3, T4>(
+          IdentityVal1, InitVal1, BOp1, IdentityVal2, InitVal2, BOp2,
+          IdentityVal3, InitVal3, BOp3, IdentityVal4, InitVal4, BOp4,
+          AllocType4, NWorkItems, WGSize);
+  return Error;
+}
+
+int main() {
+  int Error = testBoth<class FP32Plus16x16, float, DW, int, RW, short, RW, int>(
+      0, 1000, std::plus<float>{}, 0, 2000, std::plus<>{}, 0, 4000,
+      std::bit_or<>{}, 0, 8000, std::bit_xor<>{}, usm::alloc::shared, 16, 16);
 
   auto Add = [](auto x, auto y) { return (x + y); };
-  Error += runTest<class ReduFloatPlus5x257, float, access::mode::read_write,
-                   int, access::mode::read_write, short,
-                   access::mode::discard_write, int>(
+  Error += testBoth<class FP32Plus5x257, float, RW, int, RW, short, DW, int>(
       0, 1000, std::plus<float>{}, 0, 2000, std::plus<>{}, 0, 4000, Add, 0,
       8000, std::bit_xor<int>{}, usm::alloc::device, 5 * (256 + 1), 5);
 
