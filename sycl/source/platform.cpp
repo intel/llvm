@@ -69,11 +69,5 @@ context platform::get_default_context() const {
   return impl->getDefaultContext();
 }
 
-void platform::push_default_context(const context &Context) {
-  impl->pushDefaultContext(Context);
-}
-
-void platform::pop_default_context() { impl->popDefaultContext(); }
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

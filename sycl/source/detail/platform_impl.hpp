@@ -184,9 +184,6 @@ public:
 
   context getDefaultContext();
 
-  void pushDefaultContext(const context &Context);
-  void popDefaultContext();
-
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;

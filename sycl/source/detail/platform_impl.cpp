@@ -397,28 +397,10 @@ context platform_impl::getDefaultContext() {
     return MDefaultContexts.back();
   else {
     auto Devices = get_devices();
-    context DefaultContext(Devices);
-    MDefaultContexts.push_back(DefaultContext);
+    MDefaultContexts.emplace_back(Devices);
 
-    return DefaultContext;
+    return MDefaultContexts.back();
   }
-}
-
-void platform_impl::pushDefaultContext(const context &Context) {
-  const std::lock_guard<std::mutex> Guard(MContextMutex);
-
-  MDefaultContexts.push_back(Context);
-}
-
-void platform_impl::popDefaultContext() {
-  const std::lock_guard<std::mutex> Guard(MContextMutex);
-
-  if (MDefaultContexts.size() == 1) {
-    throw runtime_error("Popping the platform default context would result in "
-                        "no default context",
-                        PI_INVALID_OPERATION);
-  }
-  MDefaultContexts.pop_back();
 }
 
 } // namespace detail
