@@ -1,13 +1,12 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -Wno-sycl-2017-compat -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_MC:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MC_1:[0-9]+]]
 
-// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name1"() #0 {{.*}} !max_concurrency !16
-// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name2"() #0 {{.*}} !max_concurrency ![[NUM2:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name3"() #0 {{.*}} !max_concurrency ![[NUM3:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name1"() #0 {{.*}} !max_concurrency ![[NUM1:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name3"() #0 {{.*}} !max_concurrency ![[NUM2:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name4"() #0 {{.*}} !max_concurrency ![[NUM1:[0-9]+]]
 
 template <int A>
@@ -24,9 +23,8 @@ void max_concurrency() {
       a[i] = 0;
 }
 
-// CHECK: !16 = !{i32 4}
-// CHECK: !17 = !{i32 2}
-// CHECK: !18 = !{i32 3}
+// CHECK: ![[NUM1]] = !{i32 4}
+// CHECK: ![[NUM2]] = !{i32 3}
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task_1(const Func &kernelFunc) {
@@ -34,7 +32,6 @@ __attribute__((sycl_kernel)) void kernel_single_task_1(const Func &kernelFunc) {
 }
 
 using namespace cl::sycl;
-queue q;
 
 class Functor1 {
 public:
@@ -57,9 +54,11 @@ public:
 };
 
 template <int NT>
-[[intel::reqd_sub_group_size(NT)]] void func() {}
+[[intel::max_concurrency(NT)]] void func() {}
 
 int main() {
+  queue q;
+
   kernel_single_task_1<class kernel_function>([]() {
      max_concurrency<5>();
    });
@@ -70,7 +69,6 @@ int main() {
 
     Functor2 f2;
     h.single_task<class kernel_name2>(f2);
-
 
     h.single_task<class kernel_name3>(
         []() [[intel::max_concurrency(3)]]{});

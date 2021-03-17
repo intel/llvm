@@ -953,8 +953,9 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelMaxConcurrency =
             dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(TmplAttr)) {
-      instantiateSYCLIntelFPGAMaxConcurrencyAttr<SYCLIntelFPGAMaxConcurrencyAttr>(
-          *this, TemplateArgs, SYCLIntelMaxConcurrency, New);
+      instantiateSYCLIntelFPGAMaxConcurrencyAttr<
+          SYCLIntelFPGAMaxConcurrencyAttr>(*this, TemplateArgs,
+                                           SYCLIntelMaxConcurrency, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.

@@ -2811,13 +2811,13 @@ unbounded. Cannot be applied multiple times to the same loop.
     [[intel::max_concurrency(2)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
-  [[intel::component_max_concurrency(2)]] void foo1 { }
+  [[intel::max_concurrency(2)]] void foo1 { }
 
   template<int N>
   void bar() {
     [[intel::max_concurrency(N)]] for(;;) { }
   }
-  [[intel::component_max_concurrency(N)]] void bar1() { }
+  [[intel::max_concurrency(N)]] void bar1() { }
 
   }];
 }

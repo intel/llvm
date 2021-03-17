@@ -10295,7 +10295,7 @@ public:
   /// declaration.
   void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
 
-  /// AddSYCLIntelFPGAMaxConcurrencyAttr - Adds a max_component attribute to a
+  /// AddSYCLIntelFPGAMaxConcurrencyAttr - Adds a max_concurrency attribute to a
   /// particular declaration.
   void AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
                                           const AttributeCommonInfo &CI,
