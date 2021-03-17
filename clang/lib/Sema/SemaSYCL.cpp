@@ -459,11 +459,11 @@ private:
   // diagnostic notes on each function as the callstack is unwound.
   void collectCallGraphNodes(FunctionDecl *CalleeNode, FunctionDecl *FD,
                              llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet,
-                             llvm::SmallPtrSet<FunctionDecl *, 10> &KernelSet) {
+                             llvm::SmallPtrSet<FunctionDecl *, 10> &CFGNodes) {
     // We're currently checking CalleeNode on a different
     // trace through the CallGraph, we avoid infinite recursion
-    // by using KernelSet to keep track of this.
-    if (!KernelSet.insert(CalleeNode).second)
+    // by using CFGNodes to keep track of this.
+    if (!CFGNodes.insert(CalleeNode).second)
       // Previously seen, stop recursion.
       return;
     if (CallGraphNode *N = SYCLCG.getNode(CalleeNode)) {
@@ -477,7 +477,7 @@ private:
             RecursiveSet.insert(CalleeNode);
           } else {
             VisitedSet.insert(Callee);
-            collectCallGraphNodes(Callee, FD, VisitedSet, KernelSet);
+            collectCallGraphNodes(Callee, FD, VisitedSet, CFGNodes);
             VisitedSet.erase(Callee);
           }
         }
