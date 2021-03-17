@@ -1914,15 +1914,6 @@ cl_int ExecCGCommand::enqueueImp() {
         ExecKernel->getKernelBundle();
     (void)KernelBundleImplPtr;
 
-    //std::shared_ptr<kernel_id_impl> KernelIDImpl =
-        //std::make_shared<kernel_id_impl>(ExecKernel->MKernelName);
-
-    //sycl::kernel = KernelBundleImplPtr->get_kernel(
-        //detail::createSyclObjFromImpl(KernelIDImpl));
-
-    auto KernelIDs = KernelBundleImplPtr->get_kernel_ids();
-    assert(!KernelIDs.empty());
-    std::cout << "KernelIDs = " << KernelIDs[0].get_name() << std::endl;
 
     // Run OpenCL kernel
     sycl::context Context = MQueue->get_context();
@@ -1930,6 +1921,19 @@ cl_int ExecCGCommand::enqueueImp() {
     std::mutex *KernelMutex = nullptr;
     RT::PiProgram Program = nullptr;
     bool KnownProgram = true;
+
+    if (KernelBundleImplPtr) {
+
+      std::shared_ptr<kernel_id_impl> KernelIDImpl =
+          std::make_shared<kernel_id_impl>(ExecKernel->MKernelName);
+
+      kernel SyclKernel = KernelBundleImplPtr->get_kernel(
+          detail::createSyclObjFromImpl<kernel_id>(KernelIDImpl));
+
+      auto KernelIDs = KernelBundleImplPtr->get_kernel_ids();
+      assert(!KernelIDs.empty());
+      std::cout << "KernelIDs = " << KernelIDs[0].get_name() << std::endl;
+    }
 
     if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==

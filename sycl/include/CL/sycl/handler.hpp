@@ -904,7 +904,23 @@ private:
 
 #endif
 
-  std::shared_ptr<detail::kernel_bundle_impl> getHandlerKernelBundle() {
+  //bool hasHandlerKernelBundle() {
+    //assert(!MSharedPtrStorage.empty());
+
+    //// TODO: Add mutex
+    //std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+        //detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+    //std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
+    //for (const detail::ExtendedMember &EMember : *ExendedMembersVec)
+      //if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType)
+        //return true;
+
+    //return false;
+  //}
+
+  std::shared_ptr<detail::kernel_bundle_impl>
+  getOrInsertHandlerKernelBundle(bool Insert) {
     assert(!MSharedPtrStorage.empty());
 
     // TODO: Add mutex
@@ -920,7 +936,7 @@ private:
       }
 
     // No kernel bundle yet, create one
-    if (!KernelBundleImpPtr) {
+    if (!KernelBundleImpPtr && Insert) {
       KernelBundleImpPtr = detail::getSyclObjImpl(
           get_kernel_bundle<bundle_state::input>(getContext()));
 
@@ -943,13 +959,14 @@ private:
     std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
         detail::convertToExtendedMembers(MSharedPtrStorage[0]);
 
-#ifndef NDEBUG
 
     for (detail::ExtendedMember &EMember : *ExendedMembersVec)
-      assert(detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE !=
-                 EMember.MType &&
-             "Expected no kernel_bundle set yet");
-#endif
+      if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+        EMember.MData = NewKernelBundleImpPtr;
+        return;
+        //KernelBundleImpPtr =
+            //std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
+      }
 
     detail::ExtendedMember EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
@@ -972,7 +989,7 @@ public:
       typename std::remove_reference_t<decltype(SpecName)>::type Value) {
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
-        getHandlerKernelBundle();
+        getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
     detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
         KernelBundleImpPtr)

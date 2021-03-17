@@ -125,49 +125,49 @@ int main() {
     sycl::kernel_bundle KernelBundle6 =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
 
-    std::cout << "KernelBundle6 programs before compile:" << std::endl;
-    for (const sycl::device_image<sycl::bundle_state::input> &DevImage :
-         KernelBundle6) {
-      auto Impl = sycl::detail::getSyclObjImpl(DevImage);
-      std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
-    }
+    //std::cout << "KernelBundle6 programs before compile:" << std::endl;
+    //for (const sycl::device_image<sycl::bundle_state::input> &DevImage :
+         //KernelBundle6) {
+      //auto Impl = sycl::detail::getSyclObjImpl(DevImage);
+      //std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
+    //}
 
-    sycl::kernel_bundle<sycl::bundle_state::object> KernelBundle6Compiled =
-        sycl::compile(KernelBundle6, KernelBundle6.get_devices());
+    //sycl::kernel_bundle<sycl::bundle_state::object> KernelBundle6Compiled =
+        //sycl::compile(KernelBundle6, KernelBundle6.get_devices());
 
-    std::cout << "KernelBundle6 programs after compile:" << std::endl;
-    for (const sycl::device_image<sycl::bundle_state::input> &DevImage :
-         KernelBundle6) {
-      auto Impl = sycl::detail::getSyclObjImpl(DevImage);
-      std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
-    }
+    //std::cout << "KernelBundle6 programs after compile:" << std::endl;
+    //for (const sycl::device_image<sycl::bundle_state::input> &DevImage :
+         //KernelBundle6) {
+      //auto Impl = sycl::detail::getSyclObjImpl(DevImage);
+      //std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
+    //}
 
 
-    std::cout << "KernelBundle6Compiled programs after compile:" << std::endl;
-    for (const sycl::device_image<sycl::bundle_state::object> &DevImage :
-         KernelBundle6Compiled) {
-      auto Impl = sycl::detail::getSyclObjImpl(DevImage);
-      std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
-    }
+    //std::cout << "KernelBundle6Compiled programs after compile:" << std::endl;
+    //for (const sycl::device_image<sycl::bundle_state::object> &DevImage :
+         //KernelBundle6Compiled) {
+      //auto Impl = sycl::detail::getSyclObjImpl(DevImage);
+      //std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
+    //}
 
-    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle7Linked =
-        sycl::link({KernelBundle6Compiled}, KernelBundle6.get_devices());
+    //sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle7Linked =
+        //sycl::link({KernelBundle6Compiled}, KernelBundle6.get_devices());
 
-    std::cout << "KernelBundle7Linked programs after link:" << std::endl;
-    for (const sycl::device_image<sycl::bundle_state::executable> &DevImage :
-         KernelBundle7Linked) {
-      auto Impl = sycl::detail::getSyclObjImpl(DevImage);
-      std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
-    }
+    //std::cout << "KernelBundle7Linked programs after link:" << std::endl;
+    //for (const sycl::device_image<sycl::bundle_state::executable> &DevImage :
+         //KernelBundle7Linked) {
+      //auto Impl = sycl::detail::getSyclObjImpl(DevImage);
+      //std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
+    //}
 
-    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle6Built =
-        sycl::build(KernelBundle6, KernelBundle6.get_devices());
-    std::cout << "KernelBundle7Linked programs after build:" << std::endl;
-    for (const sycl::device_image<sycl::bundle_state::executable> &DevImage :
-         KernelBundle6Built) {
-      auto Impl = sycl::detail::getSyclObjImpl(DevImage);
-      std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
-    }
+    //sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle6Built =
+        //sycl::build(KernelBundle6, KernelBundle6.get_devices());
+    //std::cout << "KernelBundle7Linked programs after build:" << std::endl;
+    //for (const sycl::device_image<sycl::bundle_state::executable> &DevImage :
+         //KernelBundle6Built) {
+      //auto Impl = sycl::detail::getSyclObjImpl(DevImage);
+      //std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
+    //}
 
     sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle6Built2 =
         sycl::build(KernelBundle6, KernelBundle6.get_devices());

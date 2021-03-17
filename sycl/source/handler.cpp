@@ -14,6 +14,7 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -31,19 +32,28 @@ event handler::finalize() {
   MIsFinalized = true;
 
   if (getCGTypeVersion(MCGType) > detail::CG::CG_VERSION::V0) {
-    assert(!MSharedPtrStorage.empty());
-    std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
-        detail::convertToExtendedMembers(MSharedPtrStorage[0]);
-
-    kernel_bundle<bundle_state::executable> KernelBundle =
-        sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-            MQueue->get_context());
-
-    detail::ExtendedMember EMember = {
-        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
-        detail::getSyclObjImpl(KernelBundle)};
-
-    ExendedMembersVec->push_back(EMember);
+    // If there were uses of set_specialization_constant build the kernel_bundle
+    // if (hasHandlerKernelBundle()) {
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
+        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    if (KernelBundleImpPtr) {
+      switch (KernelBundleImpPtr->getBundleState()) {
+      case bundle_state::input: {
+        kernel_bundle<bundle_state::executable> ExecBundle = build(
+            detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+                KernelBundleImpPtr));
+        setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+        break;
+      }
+      case bundle_state::executable:
+        // Nothing to do
+        break;
+      case bundle_state::object:
+        assert(0 && "Expected that the bundle is either in input or executable "
+                    "states.");
+        break;
+      }
+    }
   }
 
   unique_ptr_class<detail::CG> CommandGroup;

@@ -289,6 +289,12 @@ public:
 
   size_t size() const { return MDeviceImages.size(); }
 
+  bundle_state getBundleState() const {
+    return MDeviceImages.empty()
+               ? bundle_state::input
+               : detail::getSyclObjImpl(MDeviceImages[0])->get_state();
+  }
+
 private:
   context MContext;
   std::vector<device> MDevices;
