@@ -21,6 +21,16 @@ SYCL_EXTERNAL T __sycl_getSpecConstantValue(const char *ID);
 template <typename T>
 SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
 
+// The intrinsics below are used to enable support of specialization constants
+// 2020. This feature required post-link to handle more parameters.
+
+// Get the value of the specialization constant with given symbolic ID.
+// `SymbolicID` is a unique string ID of a specialization constant.
+// `DefaultValue` contains a pointer to a global variable with the initializer,
+// which should be used as the default value of the specialization constants.
+// `RTBuffer` is a pointer to a runtime buffer, which holds values of all
+// specialization constant and should be used if native specialization constants
+// are not available.
 template <typename T>
 SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(const char *SymbolicID,
                                                       void *DefaultValue,

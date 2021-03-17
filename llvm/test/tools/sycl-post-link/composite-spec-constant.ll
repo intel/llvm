@@ -22,18 +22,6 @@
 ;
 ; CHECK: %[[#POD:]] = call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"([2 x %struct._ZTS1A.A] %[[#NA]], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" %[[#B]]), !SYCL_SPEC_CONST_SYM_ID ![[#MD:]]
 ; CHECK: store %struct._ZTS3POD.POD %[[#POD]]
-;
-; Test checks related to 2020 API for composite specialization constants.
-;
-; CHECK: %[[#N0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 6]], i32
-; CHECK: %[[#N1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 7]], float
-; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#N0]], float %[[#N1]]), !SYCL_SPEC_CONST_SYM_ID ![[#MD1:]]
-; CHECK: %struct._ZTS1A.A %[[#CONST]]
-;
-; Common metadata checks
-;
-; CHECK: ![[#MD]] = !{!"_ZTS3POD", i32 [[#ID]], i32 [[#ID + 1]], i32 [[#ID + 2]], i32 [[#ID + 3]], i32 [[#ID + 4]], i32 [[#ID + 5]]}
-; CHECK: ![[#MD1]] = !{!"_ZTS13MyComposConst", i32 [[#ID + 6]], i32 [[#ID + 7]]}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown-sycldevice"
@@ -68,6 +56,11 @@ entry:
   call void @llvm.lifetime.end.p0i8(i64 24, i8* nonnull %2) #3
   ret void
 }
+
+; CHECK: %[[#N0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 6]], i32
+; CHECK: %[[#N1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 7]], float
+; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#N0]], float %[[#N1]]), !SYCL_SPEC_CONST_SYM_ID ![[#MD1:]]
+; CHECK: %struct._ZTS1A.A %[[#CONST]]
 
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel(float addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !4 {
@@ -119,6 +112,8 @@ attributes #4 = { convergent }
 !spirv.Source = !{!2}
 !llvm.ident = !{!3}
 
+; CHECK: ![[#MD]] = !{!"_ZTS3POD", i32 [[#ID]], i32 [[#ID + 1]], i32 [[#ID + 2]], i32 [[#ID + 3]], i32 [[#ID + 4]], i32 [[#ID + 5]]}
+; CHECK: ![[#MD1]] = !{!"_ZTS13MyComposConst", i32 [[#ID + 6]], i32 [[#ID + 7]]}
 !0 = !{i32 1, !"wchar_size", i32 4}
 !1 = !{i32 1, i32 2}
 !2 = !{i32 4, i32 100000}

@@ -180,3 +180,4 @@ attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-
 ; CHECK-RT: ![[ID8]] = !{!"_ZTS13MyUInt64Const", i32 8}
 ; CHECK-RT: ![[ID9]] = !{!"_ZTS12MyFloatConst", i32 9}
 ; CHECK-RT: ![[ID10]] = !{!"_ZTS13MyDoubleConst", i32 10}
+; CHECK-RT: ![[ID11]] = !{!"_ZTS14MyDoubleConst2", i32 11}
