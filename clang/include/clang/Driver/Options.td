@@ -5516,15 +5516,6 @@ def fsycl_is_device : Flag<["-"], "fsycl-is-device">,
 def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
   HelpText<"SYCL host compilation">,
   MarshallingInfoFlag<LangOpts<"SYCLIsHost">>;
-def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
-  Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
-  HelpText<"SYCL language standard to compile for.">,
-  Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
-  NormalizedValues<["SYCL_2020", "SYCL_2017", "SYCL_2017", "SYCL_2017", "SYCL_2017"]>,
-  NormalizedValuesScope<"LangOptions">,
-  MarshallingInfoString<LangOpts<"SYCLVersion">, "SYCL_None">,
-  AutoNormalizeEnum,
-  ShouldParseIf<!strconcat(fsycl_is_device.KeyPath, "||", fsycl_is_host.KeyPath)>;
 def fsycl_int_header : Separate<["-"], "fsycl-int-header">,
   HelpText<"Generate SYCL integration header into this file.">,
   MarshallingInfoString<LangOpts<"SYCLIntHeader">>;
@@ -5539,6 +5530,16 @@ def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
+
+def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
+  Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
+  HelpText<"SYCL language standard to compile for.">,
+  Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
+  NormalizedValues<["SYCL_2020", "SYCL_2017", "SYCL_2017", "SYCL_2017", "SYCL_2017"]>,
+  NormalizedValuesScope<"LangOptions">,
+  MarshallingInfoString<LangOpts<"SYCLVersion">, "SYCL_None">,
+  AutoNormalizeEnum,
+  ShouldParseIf<!strconcat(fsycl_is_device.KeyPath, "||", fsycl_is_host.KeyPath)>;
 
 defm cuda_approx_transcendentals : BoolFOption<"cuda-approx-transcendentals",
   LangOpts<"CUDADeviceApproxTranscendentals">, DefaultFalse,
