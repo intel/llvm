@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -verify -pedantic %s
 
+// This test checks specifics of semantic analysis of ESIMD private globals
+
 // No error expected. SYCL private globals are allowed to have initializers
 __attribute__((opencl_private)) int syclPrivGlob;
 __attribute__((opencl_private)) int syclPrivGlobInit = 10;

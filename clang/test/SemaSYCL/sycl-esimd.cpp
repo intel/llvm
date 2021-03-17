@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
+// This test checks specifics of semantic analysis of ESIMD kernels.
+
 // ----------- Negative tests
 
 void foo(
@@ -104,7 +106,3 @@ template <typename ID, typename F>
 void test5() {
   kernel5<class Kernel5>([=]() [[intel::sycl_explicit_simd]] { g5(); });
 }
-
-// -- Globals.
-
-__attribute__((sycl_explicit_simd)) int N;
