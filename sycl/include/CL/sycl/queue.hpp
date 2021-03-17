@@ -236,7 +236,11 @@ public:
 #ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
     const detail::code_location &CodeLoc = {};
 #endif
-    return submit([=](handler &CGH) { CGH.barrier(); }, CodeLoc);
+    return submit([=](handler &CGH) { CGH.barrier(); }
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+                  , CodeLoc
+#endif
+           );
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -258,7 +262,11 @@ public:
 #ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
     const detail::code_location &CodeLoc = {};
 #endif
-    return submit([=](handler &CGH) { CGH.barrier(WaitList); }, CodeLoc);
+    return submit([=](handler &CGH) { CGH.barrier(WaitList); }
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+                  , CodeLoc
+#endif
+           );
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
