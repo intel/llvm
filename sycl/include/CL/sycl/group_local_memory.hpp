@@ -54,6 +54,8 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
   detail::workGroupBarrier();
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
+  // Silence unused variable warning
+  [&args...]{}();
   throw feature_not_supported(
       "SYCL_INTEL_local_memory extension is not supported on host device",
       PI_INVALID_OPERATION);
