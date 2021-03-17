@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/exception.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 
@@ -55,7 +56,7 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
   // Silence unused variable warning
-  [&args...]{}();
+  [&args...] {}();
   throw feature_not_supported(
       "SYCL_INTEL_local_memory extension is not supported on host device",
       PI_INVALID_OPERATION);
