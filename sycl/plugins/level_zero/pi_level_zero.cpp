@@ -4302,7 +4302,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence, true))
+                                                         &ZeFence))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4327,8 +4327,8 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence,
-                                           BlockingWrite, true))
+  if (auto Res =
+          Queue->executeCommandList(ZeCommandList, ZeFence, BlockingWrite))
     return Res;
 
   return PI_SUCCESS;
