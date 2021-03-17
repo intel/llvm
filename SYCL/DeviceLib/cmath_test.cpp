@@ -95,7 +95,6 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         res_access[i++] = !(std::isunordered(minus_infinity, infinity) == 0);
         res_access[i++] = !(std::isgreater(minus_infinity, infinity) == 0);
         res_access[i++] = !(std::isgreater(0.0f, minus_nan) == 0);
-#ifdef _WIN32
         res_access[i++] = !(std::isfinite(0.0f) != 0);
         res_access[i++] = !(std::isfinite(nan) == 0);
         res_access[i++] = !(std::isfinite(infinity) == 0);
@@ -105,35 +104,14 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         res_access[i++] = !(std::isinf(nan) == 0);
         res_access[i++] = !(std::isinf(infinity) != 0);
         res_access[i++] = !(std::isinf(minus_infinity) != 0);
-#else  // !_WIN32
-       // __builtin_isfinite is unsupported.
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-
-        // __builtin_isinf is unsupported.
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-#endif // !_WIN32
         res_access[i++] = !(std::isnan(0.0f) == 0);
         res_access[i++] = !(std::isnan(nan) != 0);
         res_access[i++] = !(std::isnan(infinity) == 0);
         res_access[i++] = !(std::isnan(minus_infinity) == 0);
-#ifdef _WIN32
         res_access[i++] = !(std::isnormal(nan) == 0);
         res_access[i++] = !(std::isnormal(minus_infinity) == 0);
         res_access[i++] = !(std::isnormal(subnormal) == 0);
         res_access[i++] = !(std::isnormal(1.0f) != 0);
-#else  // !_WIN32
-       // __builtin_isnormal() is unsupported.
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-        res_access[i++] = 0;
-#endif // !_WIN32
       });
     });
   }
