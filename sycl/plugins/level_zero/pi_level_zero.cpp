@@ -353,7 +353,8 @@ static pi_result
 enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
                      pi_bool BlockingWrite, size_t Size, const void *Src,
                      pi_uint32 NumEventsInWaitList,
-                     const pi_event *EventWaitList, pi_event *Event);
+                     const pi_event *EventWaitList, pi_event *Event,
+                     bool IsDeviceLocalCopy = false);
 
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, void *SrcBuffer,
@@ -361,7 +362,8 @@ static pi_result enqueueMemCopyRectHelper(
     pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
     size_t SrcRowPitch, size_t SrcSlicePitch, size_t DstRowPitch,
     size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event);
+    const pi_event *EventWaitList, pi_event *Event,
+    bool IsDeviceLocalCopy = false);
 
 inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   switch (ZeError) {
@@ -4361,21 +4363,14 @@ pi_result piEnqueueMemBufferReadRect(
 
 } // extern "C"
 
-static bool isDeviceLocalCopy(const void *Src, void *Dst) {
-  pi_mem SrcMem = pi_cast<pi_mem>(const_cast<void *>(Src));
-  pi_mem DstMem = pi_cast<pi_mem>(Dst);
-  if (!SrcMem || !DstMem)
-    return false;
-  return (!(SrcMem->OnHost) && !(DstMem->OnHost));
-}
-
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must not have queue's mutex locked on entry.
 static pi_result
 enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
                      pi_bool BlockingWrite, size_t Size, const void *Src,
                      pi_uint32 NumEventsInWaitList,
-                     const pi_event *EventWaitList, pi_event *Event) {
+                     const pi_event *EventWaitList, pi_event *Event,
+                     bool IsDeviceLocalCopy) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
@@ -4392,7 +4387,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, &ZeCommandList, &ZeFence,
-          !isDeviceLocalCopy(Src, Dst) /* IsCopyCommand */))
+          !IsDeviceLocalCopy /* IsCopyCommand */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4432,7 +4427,8 @@ static pi_result enqueueMemCopyRectHelper(
     pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
     size_t SrcRowPitch, size_t DstRowPitch, size_t SrcSlicePitch,
     size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
+    const pi_event *EventWaitList, pi_event *Event,
+    bool IsDeviceLocalCopy) {
 
   PI_ASSERT(Region && SrcOrigin && DstOrigin && Queue, PI_INVALID_VALUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
@@ -4449,7 +4445,7 @@ static pi_result enqueueMemCopyRectHelper(
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, &ZeCommandList, &ZeFence,
-          !isDeviceLocalCopy(SrcBuffer, DstBuffer) /* IsCopyCommand */))
+          !IsDeviceLocalCopy /* IsCopyCommand */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4566,13 +4562,13 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
                                  pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-
+  bool IsDeviceLocalCopy = (!(SrcBuffer->OnHost) && !(DstBuffer->OnHost));
   return enqueueMemCopyHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue,
       pi_cast<char *>(DstBuffer->getZeHandle()) + DstOffset,
       false, // blocking
       Size, pi_cast<char *>(SrcBuffer->getZeHandle()) + SrcOffset,
-      NumEventsInWaitList, EventWaitList, Event);
+      NumEventsInWaitList, EventWaitList, Event, IsDeviceLocalCopy);
 }
 
 pi_result piEnqueueMemBufferCopyRect(
@@ -4583,13 +4579,13 @@ pi_result piEnqueueMemBufferCopyRect(
     const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-
+  bool IsDeviceLocalCopy = (!(SrcBuffer->OnHost) && !(DstBuffer->OnHost));
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, Queue, SrcBuffer->getZeHandle(),
       DstBuffer->getZeHandle(), SrcOrigin, DstOrigin, Region, SrcRowPitch,
       DstRowPitch, SrcSlicePitch, DstSlicePitch,
       false, // blocking
-      NumEventsInWaitList, EventWaitList, Event);
+      NumEventsInWaitList, EventWaitList, Event, IsDeviceLocalCopy);
 }
 
 } // extern "C"
@@ -4940,7 +4936,8 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
                              pi_image_offset DstOrigin, pi_image_region Region,
                              size_t RowPitch, size_t SlicePitch,
                              pi_uint32 NumEventsInWaitList,
-                             const pi_event *EventWaitList, pi_event *Event) {
+                             const pi_event *EventWaitList, pi_event *Event,
+                             bool IsDeviceLocalCopy = false) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
@@ -4957,7 +4954,7 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, &ZeCommandList, &ZeFence,
-          !isDeviceLocalCopy(Src, Dst) /* IsCopyCommand */))
+          !IsDeviceLocalCopy /* IsCopyCommand */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5117,14 +5114,15 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
                       const pi_event *EventWaitList, pi_event *Event) {
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-
+  bool IsDeviceLocalCopy = (!(SrcImage->OnHost) && !(DstImage->OnHost));
   return enqueueMemImageCommandHelper(
       PI_COMMAND_TYPE_IMAGE_COPY, Queue, SrcImage, DstImage,
       false, // is_blocking
       SrcOrigin, DstOrigin, Region,
       0, // row pitch
       0, // slice pitch
-      NumEventsInWaitList, EventWaitList, Event);
+      NumEventsInWaitList, EventWaitList, Event,
+      IsDeviceLocalCopy);
 }
 
 pi_result piEnqueueMemImageFill(pi_queue Queue, pi_mem Image,
