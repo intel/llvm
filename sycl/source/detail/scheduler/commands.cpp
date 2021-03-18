@@ -1932,10 +1932,6 @@ cl_int ExecCGCommand::enqueueImp() {
           detail::createSyclObjFromImpl<kernel_id>(KernelIDImpl),
           KernelBundleImplPtr);
 
-      auto KernelIDs = KernelBundleImplPtr->get_kernel_ids();
-      assert(!KernelIDs.empty());
-      std::cout << "KernelIDs = " << KernelIDs[0].get_name() << std::endl;
-
       SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
 
       Kernel = SyclKernelImpl->getHandleRef();
@@ -1949,9 +1945,7 @@ cl_int ExecCGCommand::enqueueImp() {
           detail::ProgramManager::getInstance().getOrCreateKernel(
               KernelBundleImplPtr->get_context(), ExecKernel->MKernelName,
               /*PropList=*/{}, Program);
-    } else
-
-    if (nullptr != ExecKernel->MSyclKernel) {
+    } else if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
              Context);
       Kernel = ExecKernel->MSyclKernel->getHandleRef();

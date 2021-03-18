@@ -85,17 +85,17 @@ public:
       std::vector<device> Devs, const property_list &PropList)
       : MContext(ObjectBundles[0].get_context()), MDevices(std::move(Devs)) {
 
-    for(const device &Dev: Devs) {
-      for(const kernel_bundle<bundle_state::object> &ObjectBundle: ObjectBundles) {
-        const std::vector<device> &BundleDevices =
-            getSyclObjImpl(ObjectBundle)->MDevices;
+    //for(const device &Dev: Devs) {
+      //for(const kernel_bundle<bundle_state::object> &ObjectBundle: ObjectBundles) {
+        //const std::vector<device> &BundleDevices =
+            //getSyclObjImpl(ObjectBundle)->MDevices;
 
-        if (std::none_of(
-                BundleDevices.begin(), BundleDevices.end(),
-                [&Dev](const device &DevCand) { return Dev == DevCand; }))
-          throw "laga";
-      }
-    }
+        //if (std::none_of(
+                //BundleDevices.begin(), BundleDevices.end(),
+                //[&Dev](const device &DevCand) { return Dev == DevCand; }))
+          //throw "laga";
+      //}
+    //}
 
     std::vector<device_image_plain> DeviceImages;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
@@ -197,7 +197,6 @@ public:
 
         );
 
-    //std::sort(Result.begin(), Result.end(), LessByHash<kernel_id>{});
     Result.erase(NewIt, Result.end());
 
     return Result;

@@ -24,6 +24,58 @@ namespace sycl {
 
 context handler::getContext() { return MQueue->get_context(); }
 
+std::shared_ptr<detail::kernel_bundle_impl>
+handler::getOrInsertHandlerKernelBundle(bool Insert) {
+  assert(!MSharedPtrStorage.empty());
+
+  // TODO: Add mutex
+  std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
+  for (const detail::ExtendedMember &EMember : *ExendedMembersVec)
+    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+      KernelBundleImpPtr =
+          std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
+      break;
+    }
+
+  // No kernel bundle yet, create one
+  if (!KernelBundleImpPtr && Insert) {
+    KernelBundleImpPtr = detail::getSyclObjImpl(
+        get_kernel_bundle<bundle_state::input>(getContext()));
+
+    detail::ExtendedMember EMember = {
+        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
+
+    ExendedMembersVec->push_back(EMember);
+  }
+
+  return KernelBundleImpPtr;
+}
+
+void handler::setHandlerKernelBundle(
+    const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
+  assert(!MSharedPtrStorage.empty());
+
+  // TODO: Add mutex
+
+  std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  for (detail::ExtendedMember &EMember : *ExendedMembersVec)
+    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+      EMember.MData = NewKernelBundleImpPtr;
+      return;
+    }
+
+  detail::ExtendedMember EMember = {
+      detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
+      NewKernelBundleImpPtr};
+
+  ExendedMembersVec->push_back(EMember);
+}
+
 event handler::finalize() {
   // This block of code is needed only for reduction implementation.
   // It is harmless (does nothing) for everything else.
@@ -33,7 +85,6 @@ event handler::finalize() {
 
   if (getCGTypeVersion(MCGType) > detail::CG::CG_VERSION::V0) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    // if (hasHandlerKernelBundle()) {
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
