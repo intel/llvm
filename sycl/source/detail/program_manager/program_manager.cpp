@@ -18,6 +18,7 @@
 #include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/program_impl.hpp>
@@ -352,6 +353,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
                                                 const string_class &KernelName,
                                                 const program_impl *Prg,
                                                 bool JITCompilationIsRequired) {
+  // TODO: Make sure that KSIds will be different for the case when the same
+  // kernel built with different options is present in the fat binary.
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -367,11 +370,50 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
     return LockedCache.get();
   };
-  auto BuildF = [this, &M, &KSId, &Context, &Device, Prg,
-                 &JITCompilationIsRequired] {
+
+  std::string CompileOpts;
+  std::string LinkOpts;
+  // Build options are overridden if environment variables are present.
+  // Environment variables are not changed during program lifecycle so it
+  // is reasonable to use static here to read them only once.
+  static const char *CompileOptsEnv =
+      SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  if (CompileOptsEnv) {
+    CompileOpts = CompileOptsEnv;
+  } else { // Use build options only when the environment variable is missed
+    if (Prg) {
+      std::string BuildOptions = Prg->get_build_options();
+      if (!BuildOptions.empty()) {
+        CompileOpts += " ";
+        CompileOpts += BuildOptions;
+      }
+    }
+  }
+  static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  if (LinkOptsEnv) {
+    LinkOpts = LinkOptsEnv;
+  }
+
+  auto BuildF = [this, &M, &KSId, &Context, &Device, Prg, &CompileOpts,
+                 &LinkOpts, &JITCompilationIsRequired] {
     const RTDeviceBinaryImage &Img =
         getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
+    // Update only if compile options are not overwritten by environment
+    // variable
+    if (!CompileOptsEnv) {
+      CompileOpts += Img.getCompileOptions();
+      pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
 
+      if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+        if (!CompileOpts.empty())
+          CompileOpts += " ";
+        CompileOpts += "-vc-codegen";
+      }
+    }
+
+    // Update only if link options are not overwritten by environment variable
+    if (!LinkOptsEnv)
+      LinkOpts += Img.getLinkOptions();
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
@@ -390,17 +432,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
-    std::string CompileOpts = Img.getCompileOptions();
-    pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
-    if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
-      if (!CompileOpts.empty())
-        CompileOpts += " ";
-      CompileOpts += "-vc-codegen";
-    }
-
     ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), ContextImpl, CompileOpts,
-              Img.getLinkOptions(), getRawSyclObjImpl(Device)->getHandleRef(),
+        build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
+              getRawSyclObjImpl(Device)->getHandleRef(),
               ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
 
     {
@@ -417,7 +451,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Device)->getHandleRef();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
-      std::make_pair(std::make_pair(std::move(SpecConsts), KSId), PiDevice),
+      std::make_pair(std::make_pair(std::move(SpecConsts), KSId),
+                     std::make_pair(PiDevice, CompileOpts + LinkOpts)),
       AcquireF, GetF, BuildF);
   return BuildResult->Ptr.load();
 }
@@ -465,9 +500,8 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
     return Result;
   };
 
-  const RT::PiDevice PiDevice = getRawSyclObjImpl(Device)->getHandleRef();
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
-      Cache, std::make_pair(KernelName, PiDevice), AcquireF, GetF, BuildF);
+      Cache, KernelName, AcquireF, GetF, BuildF);
   return std::make_pair(BuildResult->Ptr.load(),
                         &(BuildResult->MBuildResultMutex));
 }
@@ -804,14 +838,6 @@ ProgramManager::ProgramPtr ProgramManager::build(
   }
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
-  const char *CompileOpts = std::getenv("SYCL_PROGRAM_COMPILE_OPTIONS");
-  if (!CompileOpts) {
-    CompileOpts = CompileOptions.c_str();
-  }
-  const char *LinkOpts = std::getenv("SYCL_PROGRAM_LINK_OPTIONS");
-  if (!LinkOpts) {
-    LinkOpts = LinkOptions.c_str();
-  }
 
   // TODO: Currently, online linking isn't implemented yet on Level Zero.
   // To enable device libraries and unify the behaviors on all backends,
@@ -823,9 +849,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
   // due to unrecognized SPIR-V format of those libraries.
-  if (std::string(CompileOpts).find(std::string("-cmc")) != std::string::npos ||
-      std::string(CompileOpts).find(std::string("-vc-codegen")) !=
-          std::string::npos)
+  if (CompileOptions.find(std::string("-cmc")) != std::string::npos ||
+      CompileOptions.find(std::string("-vc-codegen")) != std::string::npos)
     LinkDeviceLibs = false;
 
   std::vector<RT::PiProgram> LinkPrograms;
@@ -836,11 +861,9 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty()) {
-    std::string Opts(CompileOpts);
-
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
-        Program.get(), /*num devices =*/1, &Device, Opts.c_str(), nullptr,
-        nullptr);
+        Program.get(), /*num devices =*/1, &Device, CompileOptions.c_str(),
+        nullptr, nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context),
                                   Error);
@@ -849,13 +872,13 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   // Include the main program and compile/link everything together
   Plugin.call<PiApiKind::piProgramCompile>(Program.get(), /*num devices =*/1,
-                                           &Device, CompileOpts, 0, nullptr,
-                                           nullptr, nullptr, nullptr);
+                                           &Device, CompileOptions.c_str(), 0,
+                                           nullptr, nullptr, nullptr, nullptr);
   LinkPrograms.push_back(Program.get());
 
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-      Context->getHandleRef(), /*num devices =*/1, &Device, LinkOpts,
+      Context->getHandleRef(), /*num devices =*/1, &Device, LinkOptions.c_str(),
       LinkPrograms.size(), LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
 
   // Link program call returns a new program object if all parameters are valid,
@@ -1116,6 +1139,104 @@ ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
   if (MapIt != m_EliminatedKernelArgMasks.end())
     return MapIt->second[KernelName];
   return {};
+}
+
+static bundle_state getBinImageState(RTDeviceBinaryImage *BinImage) {
+  auto IsAOTBinary = [](const char *Format) {
+    return (
+        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
+  };
+
+  // There are only two initial states so far - SPIRV which needs to be compiled
+  // and linked and fully compiled(AOTed) binary
+
+  const bool IsAOT = IsAOTBinary(BinImage->getRawData().DeviceTargetSpec);
+
+  return IsAOT ? sycl::bundle_state::executable : sycl::bundle_state::input;
+}
+
+static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
+                                 const device &Dev) {
+  const std::shared_ptr<detail::device_impl> &DeviceImpl =
+      detail::getSyclObjImpl(Dev);
+  auto &Plugin = DeviceImpl->getPlugin();
+
+  const RT::PiDevice &PIDeviceHandle = DeviceImpl->getHandleRef();
+
+  // Call piextDeviceSelectBinary with only one image to check if an image is
+  // compatible with implementation. The function returns invalid index if no
+  // device images are compatible.
+  pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
+  pi_device_binary DevBin =
+      const_cast<pi_device_binary>(&BinImage->getRawData());
+  Plugin.call<PiApiKind::piextDeviceSelectBinary>(
+      PIDeviceHandle, &DevBin,
+      /*num bin images = */ (cl_uint)1, &SuitableImageID);
+  return (0 == SuitableImageID);
+}
+
+std::vector<device_image_plain>
+ProgramManager::getSYCLDeviceImages(const context &Ctx,
+                                    const std::vector<device> &Devs,
+                                    bundle_state TargetState) {
+
+  // Collect raw device images
+  std::vector<RTDeviceBinaryImage *> BinImages;
+  {
+    std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+    for (auto &ImagesSets : m_DeviceImages) {
+      auto &ImagesUPtrs = *ImagesSets.second.get();
+      for (auto &ImageUPtr : ImagesUPtrs)
+        BinImages.push_back(ImageUPtr.get());
+    }
+  }
+
+  // Create SYCL device image from those that have compatible state and at least
+  // one device
+  std::vector<device_image_plain> SYCLDeviceImages;
+  for (RTDeviceBinaryImage *BinImage : BinImages) {
+    const bundle_state ImgState = getBinImageState(BinImage);
+    // Ignore images with incompatible state. Image is considered compatible
+    // with a target state if an image is already in the target state or can be
+    // brought to target state by compiling/linking/building.
+    //
+    // Example: an image in "executable" state is not compatbile with "input"
+    // target state - there is no operation to convert the image it to "input"
+    // state.
+    // An image in "input" state is compatible with "executable" target state
+    // because it can be built to get into "executable" state.
+    if (ImgState > TargetState)
+      continue;
+
+    for (const sycl::device &Dev : Devs)
+      if (compatibleWithDevice(BinImage, Dev)) {
+        DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
+            BinImage, Ctx, Devs, ImgState);
+
+        SYCLDeviceImages.push_back(
+            createSyclObjFromImpl<device_image_plain>(Impl));
+        break;
+      }
+  }
+
+  // Make it so that SYCL device images have required state by compiling or
+  // linking them if needed
+  switch (TargetState) {
+  case bundle_state::input:
+    // Do nothing as the check above should make sure that resulting images are
+    // in input state already
+    break;
+  case bundle_state::object:
+    assert(false && "Not implemented yet");
+    break;
+  case bundle_state::executable:
+    assert(false && "Not implemented yet");
+    break;
+  }
+
+  return SYCLDeviceImages;
 }
 
 } // namespace detail

@@ -941,6 +941,39 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
 
   // Verify properties of various specific instruction types
   switch (MI->getOpcode()) {
+  case TargetOpcode::G_ASSERT_ZEXT: {
+    if (!MI->getOperand(2).isImm()) {
+      report("G_ASSERT_ZEXT expects an immediate operand #2", MI);
+      break;
+    }
+
+    Register Dst = MI->getOperand(0).getReg();
+    Register Src = MI->getOperand(1).getReg();
+    LLT SrcTy = MRI->getType(Src);
+    int64_t Imm = MI->getOperand(2).getImm();
+    if (Imm <= 0) {
+      report("G_ASSERT_ZEXT size must be >= 1", MI);
+      break;
+    }
+
+    if (Imm >= SrcTy.getScalarSizeInBits()) {
+      report("G_ASSERT_ZEXT size must be less than source bit width", MI);
+      break;
+    }
+
+    if (MRI->getRegBankOrNull(Src) != MRI->getRegBankOrNull(Dst)) {
+      report("G_ASSERT_ZEXT source and destination register banks must match",
+             MI);
+      break;
+    }
+
+    if (MRI->getRegClassOrNull(Src) != MRI->getRegClassOrNull(Dst))
+      report("G_ASSERT_ZEXT source and destination register classes must match",
+             MI);
+
+    break;
+  }
+
   case TargetOpcode::G_CONSTANT:
   case TargetOpcode::G_FCONSTANT: {
     LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
@@ -1363,10 +1396,7 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
       break;
     }
 
-    LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
     LLT SrcTy = MRI->getType(MI->getOperand(1).getReg());
-    verifyVectorElementMatch(DstTy, SrcTy, MI);
-
     int64_t Imm = MI->getOperand(2).getImm();
     if (Imm <= 0)
       report("G_SEXT_INREG size must be >= 1", MI);
@@ -1594,7 +1624,8 @@ void MachineVerifier::visitMachineInstrBefore(const MachineInstr *MI) {
     }
   }
 
-  if (isPreISelGenericOpcode(MCID.getOpcode())) {
+  unsigned Opc = MCID.getOpcode();
+  if (isPreISelGenericOpcode(Opc) || isPreISelGenericOptimizationHint(Opc)) {
     verifyPreISelGenericInstruction(MI);
     return;
   }
@@ -2150,12 +2181,8 @@ void MachineVerifier::checkLiveness(const MachineOperand *MO, unsigned MONum) {
             if (!Register::isPhysicalRegister(MOP.getReg()))
               continue;
 
-            for (const MCPhysReg &SubReg : TRI->subregs(MOP.getReg())) {
-              if (SubReg == Reg) {
-                Bad = false;
-                break;
-              }
-            }
+            if (llvm::is_contained(TRI->subregs(MOP.getReg()), Reg))
+              Bad = false;
           }
         }
         if (Bad)

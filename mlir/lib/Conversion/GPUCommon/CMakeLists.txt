@@ -17,6 +17,7 @@ endif()
 add_mlir_conversion_library(MLIRGPUToGPURuntimeTransforms
   ConvertLaunchFuncToRuntimeCalls.cpp
   ConvertKernelFuncToBlob.cpp
+  GPUOpsLowering.cpp
 
   DEPENDS
   MLIRConversionPassIncGen
@@ -29,6 +30,7 @@ add_mlir_conversion_library(MLIRGPUToGPURuntimeTransforms
   ${NVPTX_LIBS}
 
   LINK_LIBS PUBLIC
+  MLIRAsyncToLLVM
   MLIRGPU
   MLIRIR
   MLIRLLVMIR

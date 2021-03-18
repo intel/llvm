@@ -36,6 +36,8 @@ template <> struct interop<backend::opencl, program> {
   using type = cl_program;
 };
 
+template <> struct interop<backend::opencl, event> { using type = cl_event; };
+
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
                                          access::target::global_buffer,

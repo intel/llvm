@@ -115,28 +115,31 @@ std::unique_ptr<Module> llvm::CloneModule(
   // have been created, loop through and copy the global variable referrers
   // over...  We also set the attributes on the global now.
   //
-  for (Module::const_global_iterator I = M.global_begin(), E = M.global_end();
-       I != E; ++I) {
-    GlobalVariable *GV = cast<GlobalVariable>(VMap[&*I]);
+  for (const GlobalVariable &G : M.globals()) {
+    GlobalVariable *GV = cast<GlobalVariable>(VMap[&G]);
 
     SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
-    I->getAllMetadata(MDs);
-    for (auto MD : MDs)
-      GV->addMetadata(MD.first,
-                      *MapMetadata(MD.second, VMap, RF_MoveDistinctMDs));
+    G.getAllMetadata(MDs);
 
-    if (I->isDeclaration())
+    // FIXME: Stop using RF_ReuseAndMutateDistinctMDs here, since it's unsound
+    // to mutate metadata that is still referenced by the source module unless
+    // the source is about to be discarded (see IRMover for a valid use).
+    for (auto MD : MDs)
+      GV->addMetadata(MD.first, *MapMetadata(MD.second, VMap,
+                                             RF_ReuseAndMutateDistinctMDs));
+
+    if (G.isDeclaration())
       continue;
 
-    if (!ShouldCloneDefinition(&*I)) {
+    if (!ShouldCloneDefinition(&G)) {
       // Skip after setting the correct linkage for an external reference.
       GV->setLinkage(GlobalValue::ExternalLinkage);
       continue;
     }
-    if (I->hasInitializer())
-      GV->setInitializer(MapValue(I->getInitializer(), VMap));
+    if (G.hasInitializer())
+      GV->setInitializer(MapValue(G.getInitializer(), VMap));
 
-    copyComdat(GV, &*I);
+    copyComdat(GV, &G);
   }
 
   // Similarly, copy over function bodies now...

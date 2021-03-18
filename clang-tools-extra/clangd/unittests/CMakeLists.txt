@@ -70,6 +70,7 @@ add_unittest(ClangdUnitTests ClangdTests
   IndexTests.cpp
   JSONTransportTests.cpp
   LoggerTests.cpp
+  LSPBinderTests.cpp
   LSPClient.cpp
   ModulesTests.cpp
   ParsedASTTests.cpp
@@ -93,6 +94,7 @@ add_unittest(ClangdUnitTests ClangdTests
   TestIndex.cpp
   TestTU.cpp
   TestWorkspace.cpp
+  TidyProviderTests.cpp
   TypeHierarchyTests.cpp
   URITests.cpp
   XRefsTests.cpp

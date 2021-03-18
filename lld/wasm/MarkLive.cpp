@@ -21,9 +21,7 @@
 #include "MarkLive.h"
 #include "Config.h"
 #include "InputChunks.h"
-#include "InputEvent.h"
-#include "InputGlobal.h"
-#include "InputTable.h"
+#include "InputElement.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
 
@@ -189,7 +187,7 @@ bool MarkLive::isCallCtorsLive() {
     return false;
 
   // In Emscripten-style PIC, we call `__wasm_call_ctors` which calls
-  // `__wasm_apply_relocs`.
+  // `__wasm_apply_data_relocs`.
   if (config->isPic)
     return true;
 

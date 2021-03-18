@@ -11,6 +11,7 @@ set(LLVM_LINK_COMPONENTS
   MC
   Object
   Passes
+  SYCLLowerIR
   Support
   Target
   )

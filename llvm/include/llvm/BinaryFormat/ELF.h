@@ -598,6 +598,7 @@ enum {
   EF_HEXAGON_MACH_V66 = 0x00000066,  // Hexagon V66
   EF_HEXAGON_MACH_V67 = 0x00000067,  // Hexagon V67
   EF_HEXAGON_MACH_V67T = 0x00008067, // Hexagon V67T
+  EF_HEXAGON_MACH_V68 = 0x00000068,  // Hexagon V68
 
   // Highest ISA version flags
   EF_HEXAGON_ISA_MACH = 0x00000000, // Same as specified in bits[11:0]
@@ -612,6 +613,7 @@ enum {
   EF_HEXAGON_ISA_V65 = 0x00000065,  // Hexagon V65 ISA
   EF_HEXAGON_ISA_V66 = 0x00000066,  // Hexagon V66 ISA
   EF_HEXAGON_ISA_V67 = 0x00000067,  // Hexagon V67 ISA
+  EF_HEXAGON_ISA_V68 = 0x00000068,  // Hexagon V68 ISA
 };
 
 // Hexagon-specific section indexes for common small data
@@ -948,6 +950,9 @@ enum : unsigned {
 
   // Identifies a section containing compressed data.
   SHF_COMPRESSED = 0x800U,
+
+  // This section should not be garbage collected by the linker.
+  SHF_GNU_RETAIN = 0x200000,
 
   // This section is excluded from the final executable or shared library.
   SHF_EXCLUDE = 0x80000000U,
@@ -1367,21 +1372,9 @@ enum {
 // ElfXX_VerNeed structure version (GNU versioning)
 enum { VER_NEED_NONE = 0, VER_NEED_CURRENT = 1 };
 
-// SHT_NOTE section types
-enum {
-  NT_FREEBSD_THRMISC = 7,
-  NT_FREEBSD_PROCSTAT_PROC = 8,
-  NT_FREEBSD_PROCSTAT_FILES = 9,
-  NT_FREEBSD_PROCSTAT_VMMAP = 10,
-  NT_FREEBSD_PROCSTAT_GROUPS = 11,
-  NT_FREEBSD_PROCSTAT_UMASK = 12,
-  NT_FREEBSD_PROCSTAT_RLIMIT = 13,
-  NT_FREEBSD_PROCSTAT_OSREL = 14,
-  NT_FREEBSD_PROCSTAT_PSSTRINGS = 15,
-  NT_FREEBSD_PROCSTAT_AUXV = 16,
-};
+// SHT_NOTE section types.
 
-// Generic note types
+// Generic note types.
 enum : unsigned {
   NT_VERSION = 1,
   NT_ARCH = 2,
@@ -1389,7 +1382,7 @@ enum : unsigned {
   NT_GNU_BUILD_ATTRIBUTE_FUNC = 0x101,
 };
 
-// Core note types
+// Core note types.
 enum : unsigned {
   NT_PRSTATUS = 1,
   NT_FPREGSET = 2,
@@ -1454,7 +1447,7 @@ enum {
   NT_LLVM_HWASAN_GLOBALS = 3,
 };
 
-// GNU note types
+// GNU note types.
 enum {
   NT_GNU_ABI_TAG = 1,
   NT_GNU_HWCAP = 2,
@@ -1521,6 +1514,38 @@ enum : unsigned {
   GNU_PROPERTY_X86_FEATURE_2_XSAVE = 1 << 7,
   GNU_PROPERTY_X86_FEATURE_2_XSAVEOPT = 1 << 8,
   GNU_PROPERTY_X86_FEATURE_2_XSAVEC = 1 << 9,
+};
+
+// FreeBSD note types.
+enum {
+  NT_FREEBSD_ABI_TAG = 1,
+  NT_FREEBSD_NOINIT_TAG = 2,
+  NT_FREEBSD_ARCH_TAG = 3,
+  NT_FREEBSD_FEATURE_CTL = 4,
+};
+
+// NT_FREEBSD_FEATURE_CTL values (see FreeBSD's sys/sys/elf_common.h).
+enum {
+  NT_FREEBSD_FCTL_ASLR_DISABLE = 0x00000001,
+  NT_FREEBSD_FCTL_PROTMAX_DISABLE = 0x00000002,
+  NT_FREEBSD_FCTL_STKGAP_DISABLE = 0x00000004,
+  NT_FREEBSD_FCTL_WXNEEDED = 0x00000008,
+  NT_FREEBSD_FCTL_LA48 = 0x00000010,
+  NT_FREEBSD_FCTL_ASG_DISABLE = 0x00000020,
+};
+
+// FreeBSD core note types.
+enum {
+  NT_FREEBSD_THRMISC = 7,
+  NT_FREEBSD_PROCSTAT_PROC = 8,
+  NT_FREEBSD_PROCSTAT_FILES = 9,
+  NT_FREEBSD_PROCSTAT_VMMAP = 10,
+  NT_FREEBSD_PROCSTAT_GROUPS = 11,
+  NT_FREEBSD_PROCSTAT_UMASK = 12,
+  NT_FREEBSD_PROCSTAT_RLIMIT = 13,
+  NT_FREEBSD_PROCSTAT_OSREL = 14,
+  NT_FREEBSD_PROCSTAT_PSSTRINGS = 15,
+  NT_FREEBSD_PROCSTAT_AUXV = 16,
 };
 
 // AMDGPU-specific section indices.

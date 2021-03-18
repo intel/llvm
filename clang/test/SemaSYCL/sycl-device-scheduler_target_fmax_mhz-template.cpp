@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 // Test that checkes template parameter support for 'scheduler_target_fmax_mhz' attribute on sycl device.
 
@@ -63,7 +63,7 @@ template <int N>
 [[intel::scheduler_target_fmax_mhz(4)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int N>
-[[intel::scheduler_target_fmax_mhz(N)]] void func4() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different parameters}}
+[[intel::scheduler_target_fmax_mhz(N)]] void func4() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 
 int check() {
   // no error expected

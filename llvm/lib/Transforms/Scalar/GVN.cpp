@@ -289,9 +289,8 @@ GVN::Expression GVN::ValueTable::createExpr(Instruction *I) {
   Expression e;
   e.type = I->getType();
   e.opcode = I->getOpcode();
-  for (Instruction::op_iterator OI = I->op_begin(), OE = I->op_end();
-       OI != OE; ++OI)
-    e.varargs.push_back(lookupOrAdd(*OI));
+  for (Use &Op : I->operands())
+    e.varargs.push_back(lookupOrAdd(Op));
   if (I->isCommutative()) {
     // Ensure that commutative instructions that only differ by a permutation
     // of their operands get the same value number by sorting the operand value
@@ -362,9 +361,8 @@ GVN::Expression GVN::ValueTable::createExtractvalueExpr(ExtractValueInst *EI) {
   // Not a recognised intrinsic. Fall back to producing an extract value
   // expression.
   e.opcode = EI->getOpcode();
-  for (Instruction::op_iterator OI = EI->op_begin(), OE = EI->op_end();
-       OI != OE; ++OI)
-    e.varargs.push_back(lookupOrAdd(*OI));
+  for (Use &Op : EI->operands())
+    e.varargs.push_back(lookupOrAdd(Op));
 
   append_range(e.varargs, EI->indices());
 
@@ -2795,9 +2793,7 @@ void GVN::addDeadBlock(BasicBlock *BB) {
 
   // For the dead blocks' live successors, update their phi nodes by replacing
   // the operands corresponding to dead blocks with UndefVal.
-  for(SmallSetVector<BasicBlock *, 4>::iterator I = DF.begin(), E = DF.end();
-        I != E; I++) {
-    BasicBlock *B = *I;
+  for (BasicBlock *B : DF) {
     if (DeadBlocks.count(B))
       continue;
 
