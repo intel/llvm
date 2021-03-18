@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -S -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -S -emit-llvm %s -o - | FileCheck --check-prefixes=CHECK,CHECK-CALL %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -S -emit-llvm %s -o - | FileCheck --check-prefixes=CHECK,CHECK-CALL %s
+
+// CHECK-CALL-NOT: __sycl_allocateLocalMemory
 
 // CHECK: [[WGLOCALMEM_1:@WGLocalMem.*]] = internal addrspace(3) global [8 x i8] undef, align 8
 // CHECK: [[WGLOCALMEM_2:@WGLocalMem.*]] = internal addrspace(3) global [4 x i8] undef, align 4

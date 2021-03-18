@@ -60,19 +60,20 @@ ModulePass *llvm::createSYCLLowerWGLocalMemoryPass() {
 static bool lowerAllocaLocalMem(Module &M) {
   SmallVector<CallInst *, 8> ToReplace;
   for (Function &F : M) {
-    CallingConv::ID CC = F.getCallingConv();
+    if (F.isDeclaration())
+      continue;
 
     for (auto &I : instructions(F)) {
       auto *CI = dyn_cast<CallInst>(&I);
       Function *Callee = nullptr;
       if (!CI || !(Callee = CI->getCalledFunction()))
         continue;
-      StringRef Name = Callee->getName();
-      if (Name != SYCL_ALLOCLOCALMEM_CALL)
+      if (Callee->getName() != SYCL_ALLOCLOCALMEM_CALL)
         continue;
 
       // TODO: Static local memory allocation should be requested only in
       // spir kernel scope.
+      CallingConv::ID CC = F.getCallingConv();
       assert((CC == llvm::CallingConv::SPIR_FUNC ||
               CC == llvm::CallingConv::SPIR_KERNEL) &&
              "WG static local memery can be allocated only in kernel scope");
