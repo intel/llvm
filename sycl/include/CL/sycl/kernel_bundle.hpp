@@ -158,22 +158,6 @@ public:
   bool native_specialization_constant() const noexcept;
 
 protected:
-  // \returns true if the kernel_bundle has the specialization constant with
-  // specified ID
-  bool has_specialization_constant(unsigned int SpecID) const noexcept;
-
-  // Sets the specialization constant with specified ID to the value pointed by
-  // Value + ValueSize
-  void set_specialization_constant_raw_value(unsigned int SpecID,
-                                             const void *Value,
-                                             size_t ValueSize);
-
-  // \returns pointer to the value of the specialization constant with specified
-  // ID
-  void get_specialization_constant_raw_value(unsigned int SpecID,
-                                             void *ValueRet,
-                                             size_t ValueSize) const;
-
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
   kernel get_kernel(const kernel_id &KernelID) const;
@@ -263,9 +247,9 @@ public:
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
-    assert(false && "has_specialization_constant is not implemented yet");
-    unsigned int SpecID = 0; // TODO: Convert SpecName to a numeric ID
-    return kernel_bundle_plain::has_specialization_constant(SpecID);
+    throw sycl::runtime_error(
+        "kernel_bundle::has_specialization_constant is not implemented yet",
+        PI_INVALID_OPERATION);
   }
 
   /// Sets the value of the specialization constant whose address is SpecName
@@ -275,10 +259,10 @@ public:
             typename = detail::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::type Value) {
-    assert(false && "set_specialization_constant is not implemented yet");
-    unsigned int SpecID = 0; // TODO: Convert SpecName to a numeric ID
-    return kernel_bundle_plain::set_specialization_constant_raw_value(
-        SpecID, &Value, sizeof(Value));
+    (void)Value;
+    throw sycl::runtime_error(
+        "kernel_bundle::set_specialization_constant is not implemented yet",
+        PI_INVALID_OPERATION);
   }
 
   /// The value of the specialization constant whose address is SpecName for
@@ -286,12 +270,9 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::type
   get_specialization_constant() const {
-    assert(false && "get_specialization_constant is not implemented yet");
-    unsigned int SpecID = 0; // TODO: Convert SpecName to a numeric ID
-    typename std::remove_reference_t<decltype(SpecName)>::type Value;
-    kernel_bundle_plain::get_specialization_constant_raw_value(
-        SpecID, (void *)&Value, sizeof(Value));
-    return Value;
+    throw sycl::runtime_error(
+        "kernel_bundle::get_specialization_constant is not implemented yet",
+        PI_INVALID_OPERATION);
   }
 #endif
 
