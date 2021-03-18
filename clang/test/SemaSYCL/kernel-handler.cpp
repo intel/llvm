@@ -25,7 +25,7 @@ int main() {
 // Check test_kernel_handler parameters
 // NONATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, char *)'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  specialization_constants_buffer 'char *'
+// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer 'char *'
 
 // Check declaration and initialization of kernel object local clone
 // NONATIVESUPPORT-NEXT: CompoundStmt
@@ -45,7 +45,7 @@ int main() {
 // NONATIVESUPPORT-NEXT: MemberExpr {{.*}} 'void (char *)' lvalue .__init_specialization_constants_buffer
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'sycl::kernel_handler' lvalue Var {{.*}} 'kh'
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'char *' lvalue ParmVar {{.*}} 'specialization_constants_buffer' 'char *'
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' 'char *'
 // NONATIVESUPPORT-NEXT: CompoundStmt
 // NONATIVESUPPORT-NEXT: CXXOperatorCallExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::kernel_handler) const' <FunctionToPointerDecay>

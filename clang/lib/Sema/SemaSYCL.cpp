@@ -738,18 +738,6 @@ static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
-static ParamDesc makeParamDesc(ASTContext &Ctx, const CXXBaseSpecifier &Src,
-                               QualType Ty) {
-  // TODO: There is no name for the base available, but duplicate names are
-  // seemingly already possible, so we'll give them all the same name for now.
-  // This only happens with the accessor types.
-  std::string Name = "_arg__base";
-  return std::make_tuple(Ty, &Ctx.Idents.get(Name),
-                         Ctx.getTrivialTypeSourceInfo(Ty));
-}
-
-// FIXME: Should we refactor makeParamDesc to just accept Name in all cases
-// i.e. remove overloads.
 static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
                          Ctx.getTrivialTypeSourceInfo(Ty));
@@ -1667,8 +1655,12 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
   void addParam(const CXXBaseSpecifier &BS, QualType FieldTy) {
+    // TODO: There is no name for the base available, but duplicate names are
+    // seemingly already possible, so we'll give them all the same name for now.
+    // This only happens with the accessor types.
+    StringRef Name = "_arg__base";
     ParamDesc newParamDesc =
-        makeParamDesc(SemaRef.getASTContext(), BS, FieldTy);
+        makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
     addParam(newParamDesc, FieldTy);
   }
   // Add a parameter with specified name and type
@@ -1987,7 +1979,7 @@ public:
     if (T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch)
       return;
 
-    StringRef Name = "specialization_constants_buffer";
+    StringRef Name = "_arg__specialization_constants_buffer";
     addParam(Name, Context.getPointerType(Context.CharTy));
   }
 
