@@ -1,6 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple x86_64-pc-linux-gnu -ast-dump %s | FileCheck %s --check-prefix=NONATIVESUPPORT
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple nvptx64-unknown-unknown -ast-dump %s | FileCheck %s --check-prefix=NONATIVESUPPORT
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -ast-dump %s | FileCheck %s --check-prefix=NATIVESUPPORT
+// RUN: %clang_cc1 -fsycl-is-device -triple nvptx64-unknown-unknown -ast-dump %s | FileCheck %s --check-prefix=NONATIVESUPPORT
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -ast-dump %s | FileCheck %s --check-prefix=NATIVESUPPORT
 
 // This test checks that the compiler handles kernel_handler type (for
 // SYCL 2020 specialization constants) correctly.
