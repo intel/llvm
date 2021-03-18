@@ -791,17 +791,16 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
                                       KernelNameType)};
 }
 
-static bool hasSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
+static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   // Specialization constants in SYCL 2020 are not captured by lambda and
   // accessed through new optional lambda argument kernel_handler
-  if (KernelCallerFunc->getNumParams() > 1)
-    return true;
-  // FIXME: Remember to correct this. Why does check not work?
-  // Are we replacing this using a special attribute?
-  // return
-  // Util::isSyclKernelHandlerType(KernelCallerFunc->getParamDecl(1)->getType());
-
-  return false;
+  ParmVarDecl *PVD;
+  auto It = std::find_if(KernelCallerFunc->param_begin(),
+                         KernelCallerFunc->param_end(), [](ParmVarDecl *PVD) {
+                           return Util::isSyclKernelHandlerType(PVD->getType());
+                         });
+  PVD = (It != KernelCallerFunc->param_end()) ? *It : nullptr;
+  return PVD;
 }
 
 // anonymous namespace so these don't get linkage.
@@ -1979,9 +1978,16 @@ public:
     return true;
   }
 
+  // Generate kernel argument to intialize specialization constants. This
+  // argument is only generated when the target has no native support for
+  // specialization constants
   void handleSyclKernelHandlerType() {
-    // Create parameters used to initialize spec constant
+
     ASTContext &Context = SemaRef.getASTContext();
+    llvm::Triple T = Context.getTargetInfo().getTriple();
+    if (T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch)
+      return;
+
     StringRef Name = "specialization_constants_buffer";
     addParam(Name, Context.getPointerType(Context.CharTy));
   }
@@ -2131,40 +2137,46 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // pointer-struct-wrapping code to ensure that we don't try to wrap
   // non-top-level pointers.
   uint64_t StructDepth = 0;
-  VarDecl *KernelHandlerClone;
+  VarDecl *KernelHandlerClone = nullptr;
+
+  Stmt *replaceWithLocalClone(ParmVarDecl *OriginalParam, VarDecl *LocalClone,
+                              Stmt *FunctionBody) {
+    // DeclRefExpr with valid source location but with decl which is not marked
+    // as used is invalid.
+    LocalClone->setIsUsed();
+    std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair =
+        std::make_pair(OriginalParam, LocalClone);
+    KernelBodyTransform KBT(MappingPair, SemaRef);
+    return KBT.TransformStmt(FunctionBody).get();
+  }
 
   // Using the statements/init expressions that we've created, this generates
   // the kernel body compound stmt. CompoundStmt needs to know its number of
   // statements in advance to allocate it, so we cannot do this as we go along.
   CompoundStmt *createKernelBody() {
+    // Push the Kernel function scope to ensure the scope isn't empty
+    SemaRef.PushFunctionScope();
+
+    // Initialize kernel object local clone
     assert(CollectionInitExprs.size() == 1 &&
            "Should have been popped down to just the first one");
     KernelObjClone->setInit(CollectionInitExprs.back());
-    Stmt *FunctionBody = KernelCallerFunc->getBody();
 
-    ParmVarDecl *KernelObjParam = *(KernelCallerFunc->param_begin());
+    // Replace references to the kernel object in kernel body, to use the
+    // compiler generated local clone
+    Stmt *NewBody =
+        replaceWithLocalClone(KernelCallerFunc->getParamDecl(0), KernelObjClone,
+                              KernelCallerFunc->getBody());
 
-    // DeclRefExpr with valid source location but with decl which is not marked
-    // as used is invalid.
-    KernelObjClone->setIsUsed();
-    std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair =
-        std::make_pair(KernelObjParam, KernelObjClone);
+    // If kernel_handler argument is passed by SYCL kernel, replace references
+    // to this argument in kernel body, to use the compiler generated local
+    // clone
+    ParmVarDecl *KernelHandlerParam = getSyclKernelHandlerArg(KernelCallerFunc);
+    if (KernelHandlerParam)
+      NewBody = replaceWithLocalClone(KernelHandlerParam, KernelHandlerClone,
+                                      NewBody);
 
-    // Push the Kernel function scope to ensure the scope isn't empty
-    SemaRef.PushFunctionScope();
-    KernelBodyTransform KBT(MappingPair, SemaRef);
-    Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
-
-    if (hasSyclKernelHandlerArg(KernelCallerFunc)) {
-      // Factor this out. Repetitive code.
-      ParmVarDecl *KernelHandlerParam = KernelCallerFunc->getParamDecl(1);
-      KernelHandlerClone->setIsUsed();
-      std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPairKernelHandler =
-          std::make_pair(KernelHandlerParam, KernelHandlerClone);
-      KernelBodyTransform KBT(MappingPairKernelHandler, SemaRef);
-      NewBody = KBT.TransformStmt(NewBody).get();
-    }
-
+    // Use transformed body (with clones) as kernel body
     BodyStmts.push_back(NewBody);
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
@@ -2464,15 +2476,37 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return true;
   }
 
-  VarDecl *createKernelHandlerClone(ASTContext &Ctx, DeclContext *DC,
-                                    ParmVarDecl *KernelHandlerArg) {
+  // Generate __init call for kernel handler argument
+  void handleSpecialType(QualType KernelHandlerTy) {
+    DeclRefExpr *KernelHandlerCloneRef =
+        DeclRefExpr::Create(SemaRef.Context, NestedNameSpecifierLoc(),
+                            KernelCallerSrcLoc, KernelHandlerClone, false,
+                            DeclarationNameInfo(), KernelHandlerTy, VK_LValue);
+    const auto *RecordDecl =
+        KernelHandlerClone->getType()->getAsCXXRecordDecl();
+    MemberExprBases.push_back(KernelHandlerCloneRef);
+    createSpecialMethodCall(RecordDecl, InitSpecConstantsBuffer, BodyStmts);
+    MemberExprBases.pop_back();
+  }
+
+  void createKernelHandlerClone(ASTContext &Ctx, DeclContext *DC,
+                                ParmVarDecl *KernelHandlerArg) {
     QualType Ty = KernelHandlerArg->getType();
     TypeSourceInfo *TSInfo = Ctx.getTrivialTypeSourceInfo(Ty);
-    VarDecl *VD =
+    KernelHandlerClone =
         VarDecl::Create(Ctx, DC, KernelCallerSrcLoc, KernelCallerSrcLoc,
                         KernelHandlerArg->getIdentifier(), Ty, TSInfo, SC_None);
 
-    return VD;
+    // Default initialize clone
+    InitializedEntity VarEntity =
+        InitializedEntity::InitializeVariable(KernelHandlerClone);
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(KernelCallerSrcLoc);
+    InitializationSequence InitSeq(SemaRef, VarEntity, InitKind, None);
+    ExprResult Init = InitSeq.Perform(SemaRef, VarEntity, InitKind, None);
+    KernelHandlerClone->setInit(
+        SemaRef.MaybeCreateExprWithCleanups(Init.get()));
+    KernelHandlerClone->setInitStyle(VarDecl::CallInit);
   }
 
 public:
@@ -2485,8 +2519,7 @@ public:
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
-        KernelCallerSrcLoc(KernelCallerFunc->getLocation()),
-        KernelHandlerClone(nullptr) {
+        KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     markParallelWorkItemCalls();
 
@@ -2583,20 +2616,9 @@ public:
   // Default inits the type, then calls the init-method in the body
   void handleSyclKernelHandlerType(ParmVarDecl *KernelHandlerArg) {
 
-    // Create local clone of kernel handler
-    KernelHandlerClone = createKernelHandlerClone(
-        SemaRef.getASTContext(), DeclCreator.getKernelDecl(), KernelHandlerArg);
-
-    // Default initialize clone
-    InitializedEntity VarEntity =
-        InitializedEntity::InitializeVariable(KernelHandlerClone);
-    InitializationKind InitKind =
-        InitializationKind::CreateDefault(KernelCallerSrcLoc);
-    InitializationSequence InitSeq(SemaRef, VarEntity, InitKind, None);
-    ExprResult Init = InitSeq.Perform(SemaRef, VarEntity, InitKind, None);
-    KernelHandlerClone->setInit(
-        SemaRef.MaybeCreateExprWithCleanups(Init.get()));
-    KernelHandlerClone->setInitStyle(VarDecl::CallInit);
+    // Create and default initialize local clone of kernel handler
+    createKernelHandlerClone(SemaRef.getASTContext(),
+                             DeclCreator.getKernelDecl(), KernelHandlerArg);
 
     // Add declaration statement to openCL kernel body
     Stmt *DS =
@@ -2604,14 +2626,14 @@ public:
                                        KernelCallerSrcLoc, KernelCallerSrcLoc);
     BodyStmts.push_back(DS);
 
-    // Generate init call
-    // FIXME: Should this be restricted to targets which do not have native
-    // support for specialization constants?
-    const auto *RecordDecl =
-        KernelHandlerClone->getType()->getAsCXXRecordDecl();
-    // FIXME: This call generates __init function bound to kernel object clone.
-    // Fix this.
-    createSpecialMethodCall(RecordDecl, InitSpecConstantsBuffer, BodyStmts);
+    // Generate
+    // KernelHandlerClone.__init_specialization_constants_buffer(specialization_constants_buffer)
+    // call if target does not have native support for specialization constants.
+    // Here, specialization_constants_buffer is the compiler generated kernel
+    // argument of type char*.
+    llvm::Triple T = SemaRef.Context.getTargetInfo().getTriple();
+    if (!(T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch))
+      handleSpecialType(KernelHandlerArg->getType());
   }
 
   bool enterStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
@@ -2971,10 +2993,20 @@ public:
   }
 
   void handleSyclKernelHandlerType(QualType Ty) {
-    // Add corresponding entry in integration header.
+    // The compiler generated kernel argument used to initialize SYCL 2020
+    // specialization constants, `specialization_constants_buffer`, should
+    // have corresponding entry in integration header. This argument is
+    // only generated when target has no native support for specialization
+    // constants.
+    ASTContext &Context = SemaRef.getASTContext();
+    llvm::Triple T = Context.getTargetInfo().getTriple();
+    if (T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch)
+      return;
+
     // Offset is zero since kernel_handler argument is not part of
     // kernel object (i.e. it is not captured)
-    addParam(Ty, SYCLIntegrationHeader::kind_specialization_constants_buffer, 0,
+    addParam(Context.getPointerType(Context.CharTy),
+             SYCLIntegrationHeader::kind_specialization_constants_buffer, 0,
              /*IsZeroOffset*/ true);
   }
 
@@ -3310,8 +3342,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header);
   Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header);
 
-  if (hasSyclKernelHandlerArg(KernelCallerFunc)) {
-    ParmVarDecl *KernelHandlerArg = KernelCallerFunc->getParamDecl(1);
+  ParmVarDecl *KernelHandlerArg = getSyclKernelHandlerArg(KernelCallerFunc);
+  if (KernelHandlerArg) {
     kernel_decl.handleSyclKernelHandlerType();
     kernel_body.handleSyclKernelHandlerType(KernelHandlerArg);
     int_header.handleSyclKernelHandlerType(KernelHandlerArg->getType());
@@ -3563,6 +3595,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(accessor);
     CASE(std_layout);
     CASE(sampler);
+    CASE(specialization_constants_buffer);
     CASE(pointer);
   }
   return "<ERROR>";
@@ -4153,7 +4186,7 @@ bool Util::isSyclKernelHandlerType(const QualType &Ty) {
   std::array<DeclContextDesc, 3> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+      Util::DeclContextDesc{Decl::Kind::CXXRecord, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
