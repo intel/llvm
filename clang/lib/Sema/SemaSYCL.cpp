@@ -778,16 +778,21 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
                                       KernelNameType)};
 }
 
+static bool hasNativeSycl2020SpecConstantSupport(ASTContext &Context) {
+  llvm::Triple T = Context.getTargetInfo().getTriple();
+  if (T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch)
+    return true;
+  return false;
+}
+
 static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   // Specialization constants in SYCL 2020 are not captured by lambda and
   // accessed through new optional lambda argument kernel_handler
-  ParmVarDecl *PVD;
   auto It = std::find_if(KernelCallerFunc->param_begin(),
                          KernelCallerFunc->param_end(), [](ParmVarDecl *PVD) {
                            return Util::isSyclKernelHandlerType(PVD->getType());
                          });
-  PVD = (It != KernelCallerFunc->param_end()) ? *It : nullptr;
-  return PVD;
+  return ((It != KernelCallerFunc->param_end()) ? *It : nullptr);
 }
 
 // anonymous namespace so these don't get linkage.
@@ -1973,10 +1978,8 @@ public:
   // argument is only generated when the target has no native support for
   // specialization constants
   void handleSyclKernelHandlerType() {
-
     ASTContext &Context = SemaRef.getASTContext();
-    llvm::Triple T = Context.getTargetInfo().getTriple();
-    if (T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch)
+    if (hasNativeSycl2020SpecConstantSupport(Context))
       return;
 
     StringRef Name = "_arg__specialization_constants_buffer";
@@ -2162,8 +2165,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // If kernel_handler argument is passed by SYCL kernel, replace references
     // to this argument in kernel body, to use the compiler generated local
     // clone
-    ParmVarDecl *KernelHandlerParam = getSyclKernelHandlerArg(KernelCallerFunc);
-    if (KernelHandlerParam)
+    if (ParmVarDecl *KernelHandlerParam =
+            getSyclKernelHandlerArg(KernelCallerFunc))
       NewBody = replaceWithLocalClone(KernelHandlerParam, KernelHandlerClone,
                                       NewBody);
 
@@ -2622,8 +2625,7 @@ public:
     // call if target does not have native support for specialization constants.
     // Here, specialization_constants_buffer is the compiler generated kernel
     // argument of type char*.
-    llvm::Triple T = SemaRef.Context.getTargetInfo().getTriple();
-    if (!(T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch))
+    if (!hasNativeSycl2020SpecConstantSupport(SemaRef.Context))
       handleSpecialType(KernelHandlerArg->getType());
   }
 
@@ -2990,8 +2992,7 @@ public:
     // only generated when target has no native support for specialization
     // constants.
     ASTContext &Context = SemaRef.getASTContext();
-    llvm::Triple T = Context.getTargetInfo().getTriple();
-    if (T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch)
+    if (hasNativeSycl2020SpecConstantSupport(Context))
       return;
 
     // Offset is zero since kernel_handler argument is not part of
@@ -3389,8 +3390,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header);
   Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header);
 
-  ParmVarDecl *KernelHandlerArg = getSyclKernelHandlerArg(KernelCallerFunc);
-  if (KernelHandlerArg) {
+  if (ParmVarDecl *KernelHandlerArg =
+          getSyclKernelHandlerArg(KernelCallerFunc)) {
     kernel_decl.handleSyclKernelHandlerType();
     kernel_body.handleSyclKernelHandlerType(KernelHandlerArg);
     int_header.handleSyclKernelHandlerType(KernelHandlerArg->getType());
