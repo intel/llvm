@@ -13,7 +13,7 @@ TODO: feature overview? code example?
 
 [SYCL 2020][sycl-2020-spec] defines specialization constant as:
 
-> A constant variable where the value is not known until compilation of the
+> A constant variable where the value is not known until invocation of the
 > SYCL kernel function.
 >
 > Glossary
@@ -45,15 +45,15 @@ constants, which should be reflected in generated SPIR-V. This part is
 especially tricky, because this happens in host part of the SYCL program, which
 means that without special handling it won't even be visible to device compiler.
 
-3. We need to ensure that DPC++ RT properly set specialization constants used in
-the program: SYCL uses non-type template parameters to identify specialization
-constants in the program, while at SPIR-V and OpenCL level, each specialization
-constant is defined by its numerical ID, which means that we need to maintain
-some mapping from SYCL identifiers to a numeric identifiers to be able to set
-specialization constats. Moreover, at SPIR-V level composite specialization
-constants do not have separate ID and can only be set by setting value to each
-member of a composite, which means that we have 1:n mapping between SYCL
-identifiers and numeric IDs of specialization constants.
+3. We need to ensure that DPC++ RT properly sets specialization constants used
+in the program: SYCL uses non-type template parameters to identify
+specialization constants in the program, while at SPIR-V and OpenCL level, each
+specialization constant is defined by its numerical ID, which means that we
+need to maintain some mapping from SYCL identifiers to a numeric identifiers to
+be able to set specialization constants. Moreover, at SPIR-V level composite
+specialization constants do not have separate ID and can only be set by setting
+value to each member of a composite, which means that we have 1:n mapping
+between SYCL identifiers and numeric IDs of specialization constants.
 
 4. When AOT compilation is used or target is a CUDA device (where NVPTX
 intermediate representation is used), we need to somehow emulate support for
@@ -184,10 +184,13 @@ different translation units, so it happens in `sycl-post-link` tool.
 
 There is a `SpecConstantsPass` LLVM IR pass which:
 1. Assigns numeric IDs to specialization constants found in the linked module.
-2. Brings IR to the form expected by the SPIR-V translator.
+2. Brings IR to the form expected by the SPIR-V translator (format of the
+   expected IR is covered in "Transformation of LLVM IR to SPIR-V friendly IR
+   form" section)
 3. Collects and provides \<Symbolic ID\> =\> \<numeric IDs + additional info\>
    mapping, which is later being used by DPC++ RT to set specialization constant
-   values provided by user.
+   values provided by user(section "Collecting spec constants info and
+   communicating it to DPC++ RT" provides more info on that)
 
 ##### Assignment of numeric IDs to specialization constants
 
@@ -195,10 +198,10 @@ This task is achieved by maintaining a map, which holds a list of numeric IDs
 for each encountered symbolic ID of a specialization constant. Those IDs are
 used to identify the specialization constants at SPIR-V level.
 
-As noted above one symbolic ID can several numeric IDs assigned to it - such 1:N
-mapping comes from the fact that at SPIR-V level, composite specialization
-constants don't have dedicated IDs and they are being identified and specialized
-through their scalar leafs and corresponding numeric IDs.
+As noted above one symbolic ID can have several numeric IDs assigned to it -
+such 1:N mapping comes from the fact that at SPIR-V level, composite
+specialization constants don't have dedicated IDs and they are being identified
+and specialized through their scalar leafs and corresponding numeric IDs.
 
 For example, the following code:
 ```
@@ -716,12 +719,12 @@ As in the processing of native specialization constants, `sycl-post-link` emits
 some information in device image properties, which is required by DPC++ runtime
 to properly handle emulation of specialization constants.
 
-`sycl-post-link` provides two property sets when specializtion constants are
+`sycl-post-link` provides two property sets when specialization constants are
 emulated:
 1. Mapping from Symbolic ID to offset
 2. Mapping from Symbolic ID to the default value
 
-The first mapping can be subsituted with the property set generated for native
+The first mapping can be substituted with the property set generated for native
 specialization constants, but it is still provided in order to simplify the
 runtime part, i.e. it allows to avoid calculating those offsets at runtime by
 re-using ones calculated by the compiler.
