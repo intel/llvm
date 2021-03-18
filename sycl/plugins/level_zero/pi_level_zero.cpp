@@ -4365,12 +4365,13 @@ pi_result piEnqueueMemBufferReadRect(
 
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must not have queue's mutex locked on entry.
-static pi_result
-enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
-                     pi_bool BlockingWrite, size_t Size, const void *Src,
-                     pi_uint32 NumEventsInWaitList,
-                     const pi_event *EventWaitList, pi_event *Event,
-                     bool IsDeviceLocalCopy) {
+static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
+                                      pi_queue Queue, void *Dst,
+                                      pi_bool BlockingWrite, size_t Size,
+                                      const void *Src,
+                                      pi_uint32 NumEventsInWaitList,
+                                      const pi_event *EventWaitList,
+                                      pi_event *Event, bool IsDeviceLocalCopy) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
@@ -4427,8 +4428,7 @@ static pi_result enqueueMemCopyRectHelper(
     pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
     size_t SrcRowPitch, size_t DstRowPitch, size_t SrcSlicePitch,
     size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event,
-    bool IsDeviceLocalCopy) {
+    const pi_event *EventWaitList, pi_event *Event, bool IsDeviceLocalCopy) {
 
   PI_ASSERT(Region && SrcOrigin && DstOrigin && Queue, PI_INVALID_VALUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
@@ -4928,16 +4928,14 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
 
 // Helper function to implement image read/write/copy.
 // Caller must not hold a lock on the Queue passed in.
-static pi_result
-enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
-                             const void *Src, // image or ptr
-                             void *Dst,       // image or ptr
-                             pi_bool IsBlocking, pi_image_offset SrcOrigin,
-                             pi_image_offset DstOrigin, pi_image_region Region,
-                             size_t RowPitch, size_t SlicePitch,
-                             pi_uint32 NumEventsInWaitList,
-                             const pi_event *EventWaitList, pi_event *Event,
-                             bool IsDeviceLocalCopy = false) {
+static pi_result enqueueMemImageCommandHelper(
+    pi_command_type CommandType, pi_queue Queue,
+    const void *Src, // image or ptr
+    void *Dst,       // image or ptr
+    pi_bool IsBlocking, pi_image_offset SrcOrigin, pi_image_offset DstOrigin,
+    pi_image_region Region, size_t RowPitch, size_t SlicePitch,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event, bool IsDeviceLocalCopy = false) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
@@ -5121,8 +5119,7 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
       SrcOrigin, DstOrigin, Region,
       0, // row pitch
       0, // slice pitch
-      NumEventsInWaitList, EventWaitList, Event,
-      IsDeviceLocalCopy);
+      NumEventsInWaitList, EventWaitList, Event, IsDeviceLocalCopy);
 }
 
 pi_result piEnqueueMemImageFill(pi_queue Queue, pi_mem Image,
