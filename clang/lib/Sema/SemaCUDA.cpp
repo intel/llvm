@@ -669,7 +669,8 @@ Sema::SemaDiagnosticBuilder Sema::CUDADiagIfDeviceCode(SourceLocation Loc,
     }
   }();
   return SemaDiagnosticBuilder(DiagKind, Loc, DiagID,
-                               dyn_cast<FunctionDecl>(CurContext), *this);
+                               dyn_cast<FunctionDecl>(CurContext), *this,
+                               DDR_CUDA_DEVICE);
 }
 
 Sema::SemaDiagnosticBuilder Sema::CUDADiagIfHostCode(SourceLocation Loc,
@@ -698,7 +699,8 @@ Sema::SemaDiagnosticBuilder Sema::CUDADiagIfHostCode(SourceLocation Loc,
     }
   }();
   return SemaDiagnosticBuilder(DiagKind, Loc, DiagID,
-                               dyn_cast<FunctionDecl>(CurContext), *this);
+                               dyn_cast<FunctionDecl>(CurContext), *this,
+                               DDR_CUDA_HOST);
 }
 
 bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
@@ -746,12 +748,13 @@ bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
   if (!LocsWithCUDACallDiags.insert({Caller, Loc}).second)
     return true;
 
-  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_ref_bad_target, Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_ref_bad_target, Caller, *this,
+                        DDR_CUDA_ALL)
       << IdentifyCUDATarget(Callee) << /*function*/ 0 << Callee
       << IdentifyCUDATarget(Caller);
   if (!Callee->getBuiltinID())
     SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
-                          diag::note_previous_decl, Caller, *this)
+                          diag::note_previous_decl, Caller, *this, DDR_CUDA_ALL)
         << Callee;
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
          DiagKind != SemaDiagnosticBuilder::K_ImmediateWithCallStack;
@@ -794,11 +797,13 @@ void Sema::CUDACheckLambdaCapture(CXXMethodDecl *Callee,
   auto DiagKind = SemaDiagnosticBuilder::K_Deferred;
   if (Capture.isVariableCapture()) {
     SemaDiagnosticBuilder(DiagKind, Capture.getLocation(),
-                          diag::err_capture_bad_target, Callee, *this)
+                          diag::err_capture_bad_target, Callee, *this,
+                          DDR_CUDA_ALL)
         << Capture.getVariable();
   } else if (Capture.isThisCapture()) {
     SemaDiagnosticBuilder(DiagKind, Capture.getLocation(),
-                          diag::err_capture_bad_target_this_ptr, Callee, *this);
+                          diag::err_capture_bad_target_this_ptr, Callee, *this,
+                          DDR_CUDA_ALL);
   }
   return;
 }
