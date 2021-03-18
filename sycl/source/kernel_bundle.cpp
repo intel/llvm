@@ -78,7 +78,7 @@ void kernel_bundle_plain::get_specialization_constant_raw_value(
 }
 
 kernel kernel_bundle_plain::get_kernel(const kernel_id &KernelID) const {
-  return impl->get_kernel(KernelID);
+  return impl->get_kernel(KernelID, impl);
 }
 
 const device_image_plain *kernel_bundle_plain::begin() const {

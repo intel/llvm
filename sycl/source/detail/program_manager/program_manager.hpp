@@ -104,10 +104,6 @@ public:
                     const device &Device, const string_class &KernelName,
                     const program_impl *Prg);
 
-  std::pair<RT::PiKernel, std::mutex *>
-  getOrCreateKernel(OSModuleHandle M, const context &Context,
-                    const device &Device, const string_class &KernelName,
-                    const property_list &PropList);//const program_impl *Prg);
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
 
@@ -165,6 +161,10 @@ public:
   device_image_plain build(const device_image_plain &DeviceImage,
                            const std::vector<device> &Devs,
                            const property_list &PropList);
+
+  std::pair<RT::PiKernel, std::mutex *>
+  getOrCreateKernel(const context &Context, const string_class &KernelName,
+                    const property_list &PropList, RT::PiProgram Program);
 
   ProgramManager();
   ~ProgramManager() = default;

@@ -169,13 +169,21 @@ int main() {
       //std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
     //}
 
+    //static constexpr inline int SpecConstEmulationVar = 0;
     sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle6Built2 =
         sycl::build(KernelBundle6, KernelBundle6.get_devices());
 
+    cl::sycl::buffer<int, 1> Buf(sycl::range<1>{16});
+
     Q.submit([&](sycl::handler &CGH) {
+      auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
       CGH.use_kernel_bundle(KernelBundle6Built2);
-      CGH.single_task<Kernel3Name>([]() {});
+      CGH.single_task<Kernel3Name>([=]() { 
+          Acc[0] = 42;
+          });
     });
+    auto HostAcc = Buf.get_access<sycl::access::mode::write>();
+    std::cout << "HostAcc[0] = " << HostAcc[0] << std::endl;
   }
 
   return 0;

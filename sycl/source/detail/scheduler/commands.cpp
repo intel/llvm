@@ -1922,18 +1922,34 @@ cl_int ExecCGCommand::enqueueImp() {
     RT::PiProgram Program = nullptr;
     bool KnownProgram = true;
 
+    std::shared_ptr<kernel_impl> SyclKernelImpl;
     if (KernelBundleImplPtr) {
 
       std::shared_ptr<kernel_id_impl> KernelIDImpl =
           std::make_shared<kernel_id_impl>(ExecKernel->MKernelName);
 
       kernel SyclKernel = KernelBundleImplPtr->get_kernel(
-          detail::createSyclObjFromImpl<kernel_id>(KernelIDImpl));
+          detail::createSyclObjFromImpl<kernel_id>(KernelIDImpl),
+          KernelBundleImplPtr);
 
       auto KernelIDs = KernelBundleImplPtr->get_kernel_ids();
       assert(!KernelIDs.empty());
       std::cout << "KernelIDs = " << KernelIDs[0].get_name() << std::endl;
-    }
+
+      SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+
+      Kernel = SyclKernelImpl->getHandleRef();
+
+      std::shared_ptr<device_image_impl> DeviceImageImpl =
+          SyclKernelImpl->getDeviceImage();
+
+      Program = DeviceImageImpl->get_program_ref();
+
+      std::tie(Kernel, KernelMutex) =
+          detail::ProgramManager::getInstance().getOrCreateKernel(
+              KernelBundleImplPtr->get_context(), ExecKernel->MKernelName,
+              /*PropList=*/{}, Program);
+    } else
 
     if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==

@@ -478,176 +478,6 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   return BuildResult->Ptr.load();
 }
 
-//RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
-                                                //const context &Context,
-                                                //const device &Device,
-                                                //const string_class &KernelName,
-                                                //const property_list &PropList, //program_impl *Prg,
-                                                //bool JITCompilationIsRequired) {
-  //(void)PropList;
-  //// TODO: Make sure that KSIds will be different for the case when the same
-  //// kernel built with different options is present in the fat binary.
-  //KernelSetId KSId = getKernelSetId(M, KernelName);
-
-  //const ContextImplPtr Ctx = getSyclObjImpl(Context);
-
-  //using PiProgramT = KernelProgramCache::PiProgramT;
-  //using ProgramCacheT = KernelProgramCache::ProgramCacheT;
-
-  //KernelProgramCache &Cache = Ctx->getKernelProgramCache();
-
-  //auto AcquireF = [](KernelProgramCache &Cache) {
-    //return Cache.acquireCachedPrograms();
-  //};
-  //auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
-    //return LockedCache.get();
-  //};
-
-  //std::string CompileOpts;
-  //std::string LinkOpts;
-  //// Build options are overridden if environment variables are present.
-  //// Environment variables are not changed during program lifecycle so it
-  //// is reasonable to use static here to read them only once.
-  //static const char *CompileOptsEnv =
-      //SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
-  //if (CompileOptsEnv) {
-    //CompileOpts = CompileOptsEnv;
-  //} else { // Use build options only when the environment variable is missed
-    ////if (Prg) {
-      ////std::string BuildOptions = Prg->get_build_options();
-      ////if (!BuildOptions.empty()) {
-        ////CompileOpts += " ";
-        ////CompileOpts += BuildOptions;
-      ////}
-    ////}
-  //}
-  //static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
-  //if (LinkOptsEnv) {
-    //LinkOpts = LinkOptsEnv;
-  //}
-
-  //auto BuildF = [this, &M, &KSId, &Context, &Device, [>Prg, <]&CompileOpts,
-                 //&LinkOpts, &JITCompilationIsRequired] {
-    //const RTDeviceBinaryImage &Img =
-        //getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
-    //// Update only if compile options are not overwritten by environment
-    //// variable
-    //if (!CompileOptsEnv) {
-      //CompileOpts += Img.getCompileOptions();
-      //pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
-
-      //if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
-        //if (!CompileOpts.empty())
-          //CompileOpts += " ";
-        //CompileOpts += "-vc-codegen";
-      //}
-    //}
-
-    //// Update only if link options are not overwritten by environment variable
-    //if (!LinkOptsEnv)
-      //LinkOpts += Img.getLinkOptions();
-    //ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-    //const detail::plugin &Plugin = ContextImpl->getPlugin();
-    //RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
-    //// TODO: Flush spec consts here
-    ////if (Prg)
-      ////flushSpecConstants(*Prg, NativePrg, &Img);
-    //ProgramPtr ProgramManaged(
-        //NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
-
-    //// Link a fallback implementation of device libraries if they are not
-    //// supported by a device compiler.
-    //// Pre-compiled programs are supposed to be already linked.
-    //// If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
-    //// no fallback device library will be linked.
-    //uint32_t DeviceLibReqMask = 0;
-    //if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
-        //!SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
-      //DeviceLibReqMask = getDeviceLibReqMask(Img);
-
-    //ProgramPtr BuiltProgram =
-        //build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              //getRawSyclObjImpl(Device)->getHandleRef(),
-              //ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
-
-    //{
-      //std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      //NativePrograms[BuiltProgram.get()] = &Img;
-    //}
-    //return BuiltProgram.release();
-  //};
-
-  //// TODO: Serialize spec constants values to sycl::vector_class<unsigned char>
-  //SerializedObj SpecConsts;
-  ////if (Prg)
-    ////Prg->stableSerializeSpecConstRegistry(SpecConsts);
-
-  //const RT::PiDevice PiDevice = getRawSyclObjImpl(Device)->getHandleRef();
-  //auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
-      //Cache,
-      //std::make_pair(std::make_pair(std::move(SpecConsts), KSId),
-                     //std::make_pair(PiDevice, CompileOpts + LinkOpts)),
-      //AcquireF, GetF, BuildF);
-  //return BuildResult->Ptr.load();
-//}
-
-//std::pair<RT::PiKernel, std::mutex *>
-//ProgramManager::getOrCreateKernel(const context &Context, const device &Device,
-                                  //const device_image_plain DeviceImage,
-                                  //const kernel_id &KernelID) {
-
-
-//}
-
-//std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
-    //OSModuleHandle M, const context &Context, const device &Device,
-    //const string_class &KernelName, const property_list &PropList) {//, const program_impl *Prg) {
-  //if (DbgProgMgr > 0) {
-    //std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
-              //<< getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              //<< ", " << KernelName << ")\n";
-  //}
-
-  //RT::PiProgram Program =
-      //getBuiltPIProgram(M, Context, Device, KernelName, PropList);
-  //const ContextImplPtr Ctx = getSyclObjImpl(Context);
-
-  //using PiKernelT = KernelProgramCache::PiKernelT;
-  //using KernelCacheT = KernelProgramCache::KernelCacheT;
-  //using KernelByNameT = KernelProgramCache::KernelByNameT;
-
-  //KernelProgramCache &Cache = Ctx->getKernelProgramCache();
-
-  //auto AcquireF = [](KernelProgramCache &Cache) {
-    //return Cache.acquireKernelsPerProgramCache();
-  //};
-  //auto GetF =
-      //[&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
-    //return LockedCache.get()[Program];
-  //};
-  //auto BuildF = [&Program, &KernelName, &Ctx] {
-    //PiKernelT *Result = nullptr;
-
-    //// TODO need some user-friendly error/exception
-    //// instead of currently obscure one
-    //const detail::plugin &Plugin = Ctx->getPlugin();
-    //Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
-                                           //&Result);
-
-    //// Some PI Plugins (like OpenCL) require this call to enable USM
-    //// For others, PI will turn this into a NOP.
-    //Plugin.call<PiApiKind::piKernelSetExecInfo>(Result, PI_USM_INDIRECT_ACCESS,
-                                                //sizeof(pi_bool), &PI_TRUE);
-
-    //return Result;
-  //};
-
-  //auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
-      //Cache, KernelName, AcquireF, GetF, BuildF);
-  //return std::make_pair(BuildResult->Ptr.load(),
-                        //&(BuildResult->MBuildResultMutex));
-//}
-
 std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
     OSModuleHandle M, const context &Context, const device &Device,
     const string_class &KernelName, const program_impl *Prg) {
@@ -1685,6 +1515,48 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   }
 
   return createSyclObjFromImpl<device_image_plain>(ExecImpl);
+}
+
+std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
+    const context &Context, const string_class &KernelName,
+    const property_list &PropList, RT::PiProgram Program) {
+
+  (void)PropList;
+
+  //RT::PiProgram Program =
+      //getBuiltPIProgram(M, Context, Device, KernelName, Prg);
+  const ContextImplPtr Ctx = getSyclObjImpl(Context);
+
+  using PiKernelT = KernelProgramCache::PiKernelT;
+  using KernelCacheT = KernelProgramCache::KernelCacheT;
+  using KernelByNameT = KernelProgramCache::KernelByNameT;
+
+  KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+
+  auto AcquireF = [](KernelProgramCache &Cache) {
+    return Cache.acquireKernelsPerProgramCache();
+  };
+  auto GetF =
+      [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
+    return LockedCache.get()[Program];
+  };
+  auto BuildF = [&Program, &KernelName, &Ctx] {
+    PiKernelT *Result = nullptr;
+
+    const detail::plugin &Plugin = Ctx->getPlugin();
+    Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
+                                           &Result);
+
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(Result, PI_USM_INDIRECT_ACCESS,
+                                                sizeof(pi_bool), &PI_TRUE);
+
+    return Result;
+  };
+
+  auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
+      Cache, KernelName, AcquireF, GetF, BuildF);
+  return std::make_pair(BuildResult->Ptr.load(),
+                        &(BuildResult->MBuildResultMutex));
 }
 
 } // namespace detail

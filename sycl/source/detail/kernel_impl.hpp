@@ -58,7 +58,9 @@ public:
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource);
 
   // TODO: Add desc
-  kernel_impl(RT::PiKernel Kernel, const KernelBundleImplPtr &KernelBundleImpl);
+  kernel_impl(RT::PiKernel Kernel, const ContextImplPtr &ContextImpl,
+              const DeviceImageImplPtr &DeviceImageImpl,
+              const KernelBundleImplPtr &KernelBundleImpl);
 
   /// Constructs a SYCL kernel for host device
   ///
@@ -176,12 +178,15 @@ public:
   /// \return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
+  const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
   const ProgramImplPtr MProgramImpl;
-  const KernelBundleImplPtr MKernelBundleImpl;
   bool MCreatedFromSource = true;
+  const DeviceImageImplPtr MDeviceImageImpl;
+  const KernelBundleImplPtr MKernelBundleImpl;
 };
 
 template <info::kernel param>

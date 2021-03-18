@@ -49,11 +49,12 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
         PI_INVALID_CONTEXT);
 }
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel,
+kernel_impl::kernel_impl(RT::PiKernel Kernel, const ContextImplPtr &ContextImpl,
+                         const DeviceImageImplPtr &DeviceImageImpl,
                          const KernelBundleImplPtr &KernelBundleImpl)
-    : MKernel(Kernel),
-      MContext(detail::getSyclObjImpl(KernelBundleImpl->get_context())),
-      MProgramImpl(nullptr), MCreatedFromSource(false) {}
+    : MKernel(Kernel), MContext(ContextImpl), MProgramImpl(nullptr),
+      MCreatedFromSource(false), MDeviceImageImpl(DeviceImageImpl),
+      MKernelBundleImpl(KernelBundleImpl) {}
 
 kernel_impl::kernel_impl(ContextImplPtr Context,
                          ProgramImplPtr ProgramImpl)

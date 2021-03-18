@@ -14,6 +14,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <detail/device_image_impl.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 #include <algorithm>
@@ -202,25 +203,27 @@ public:
     return Result;
   }
 
-  kernel get_kernel(const kernel_id &KernelID) const {
-    (void)KernelID;
-    //auto It = std::find_if(MDeviceImages.begin(), MDeviceImages.end(),
-                           //[&KernelID](const device_image_plain &DeviceImage) {
-                             //return DeviceImage.has_kernel(KernelID);
-                           //});
-    //const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
-        //detail::getSyclObjImpl(*It);
-    //const device &Dev = DeviceImageImpl->get_devices()[0];
-    //RT::PiKernel Kernel =
-        //detail::ProgramManager::getInstance().getOrCreateKernel(
-            //(-1), MContext, Dev, KernelID.get_name(), {});
+  kernel
+  get_kernel(const kernel_id &KernelID,
+             const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
 
-    //std::shared_ptr<kernel_impl> KernelImpl =
-        //std::make_shared<kernel_impl>(Kernel, Self);
+    auto It = std::find_if(MDeviceImages.begin(), MDeviceImages.end(),
+                           [&KernelID](const device_image_plain &DeviceImage) {
+                             return DeviceImage.has_kernel(KernelID);
+                           });
+    const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
+        detail::getSyclObjImpl(*It);
 
-    //return detail::createSyclObjFromImpl(KernelImpl);
+    RT::PiKernel Kernel = nullptr;
+    std::tie(Kernel, std::ignore) =
+        detail::ProgramManager::getInstance().getOrCreateKernel(
+            MContext, KernelID.get_name(), /*PropList=*/{},
+            DeviceImageImpl->get_program_ref());
 
-    throw sycl::runtime_error("Not implemented", PI_INVALID_OPERATION);
+    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
+        Kernel, detail::getSyclObjImpl(MContext), DeviceImageImpl, Self);
+
+    return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
 
   bool has_kernel(const kernel_id &KernelID) const noexcept {
