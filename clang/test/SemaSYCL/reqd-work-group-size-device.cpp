@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -25,7 +25,7 @@ public:
 class Functor32 {
 public:
   // expected-note@+3{{conflicting attribute is here}}
-  // expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different parameters}}
+  // expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different arguments}}
   // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
   [[cl::reqd_work_group_size(32, 1, 1)]] [[cl::reqd_work_group_size(1, 1, 32)]] void operator()() const {}
 };
@@ -106,26 +106,56 @@ int main() {
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 1
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 1
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 1
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 1
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 128
 // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 128
 // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 128
 // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 32
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 32
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 32
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}

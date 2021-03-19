@@ -76,7 +76,7 @@ public:
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
-    if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    if (is_host()) {
       throw invalid_object_error(
           "This instance of platform doesn't support OpenCL interoperability.",
           PI_INVALID_PLATFORM);
@@ -107,18 +107,6 @@ public:
   ///
   /// \return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
-
-  // \return the Backend associated with this platform.
-  backend get_backend() const noexcept {
-    backend Result;
-    if (is_host())
-      Result = backend::host;
-    else {
-      Result = getPlugin().getBackend();
-    }
-
-    return Result;
-  }
 
   // \return the Plugin associated with this platform.
   const plugin &getPlugin() const {

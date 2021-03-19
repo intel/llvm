@@ -36,12 +36,13 @@ public:
 
   // Implementation defined pointer and reference types that correspond to
   // SYCL/OpenCL interoperability types for OpenCL C functions
-  using pointer_t = typename detail::PtrValueType<ElementType, Space>::type *;
+  using pointer_t = typename detail::DecoratedType<ElementType, Space>::type *;
   using const_pointer_t =
-      typename detail::PtrValueType<ElementType, Space>::type const *;
-  using reference_t = typename detail::PtrValueType<ElementType, Space>::type &;
+      typename detail::DecoratedType<ElementType, Space>::type const *;
+  using reference_t =
+      typename detail::DecoratedType<ElementType, Space>::type &;
   using const_reference_t =
-      typename detail::PtrValueType<ElementType, Space>::type &;
+      typename detail::DecoratedType<ElementType, Space>::type &;
 
   static constexpr access::address_space address_space = Space;
 
@@ -224,7 +225,7 @@ public:
                                        !std::is_const<ET>::value,
                                    void>::type,
       Space>() const {
-    using ptr_t = typename detail::PtrValueType<void, Space> *;
+    using ptr_t = typename detail::DecoratedType<void, Space> *;
     return multi_ptr<void, Space>(reinterpret_cast<ptr_t>(m_Pointer));
   }
 
@@ -236,14 +237,14 @@ public:
                                        std::is_const<ET>::value,
                                    const void>::type,
       Space>() const {
-    using ptr_t = typename detail::PtrValueType<const void, Space> *;
+    using ptr_t = typename detail::DecoratedType<const void, Space> *;
     return multi_ptr<const void, Space>(reinterpret_cast<ptr_t>(m_Pointer));
   }
 
   // Implicit conversion to multi_ptr<const ElementType, Space>
   operator multi_ptr<const ElementType, Space>() const {
     using ptr_t =
-        typename detail::PtrValueType<const ElementType, Space>::type *;
+        typename detail::DecoratedType<const ElementType, Space>::type *;
     return multi_ptr<const ElementType, Space>(
         reinterpret_cast<ptr_t>(m_Pointer));
   }
@@ -293,7 +294,7 @@ public:
                  Space == access::address_space::global_host_space)>>
   explicit
   operator multi_ptr<ElementType, access::address_space::global_space>() const {
-    using global_pointer_t = typename detail::PtrValueType<
+    using global_pointer_t = typename detail::DecoratedType<
         ElementType, access::address_space::global_space>::type *;
     return multi_ptr<ElementType, access::address_space::global_space>(
         reinterpret_cast<global_pointer_t>(m_Pointer));
@@ -307,7 +308,7 @@ public:
           _Space == Space && Space == access::address_space::global_space>>
   void prefetch(size_t NumElements) const {
     size_t NumBytes = NumElements * sizeof(ElementType);
-    using ptr_t = typename detail::PtrValueType<char, Space>::type const *;
+    using ptr_t = typename detail::DecoratedType<char, Space>::type const *;
     __spirv_ocl_prefetch(reinterpret_cast<ptr_t>(m_Pointer), NumBytes);
   }
 
@@ -323,9 +324,9 @@ public:
 
   // Implementation defined pointer types that correspond to
   // SYCL/OpenCL interoperability types for OpenCL C functions
-  using pointer_t = typename detail::PtrValueType<void, Space>::type *;
+  using pointer_t = typename detail::DecoratedType<void, Space>::type *;
   using const_pointer_t =
-      typename detail::PtrValueType<void, Space>::type const *;
+      typename detail::DecoratedType<void, Space>::type const *;
 
   static constexpr access::address_space address_space = Space;
 
@@ -420,14 +421,14 @@ public:
   template <typename ElementType>
   explicit operator multi_ptr<ElementType, Space>() const {
     using elem_pointer_t =
-        typename detail::PtrValueType<ElementType, Space>::type *;
+        typename detail::DecoratedType<ElementType, Space>::type *;
     return multi_ptr<ElementType, Space>(
         static_cast<elem_pointer_t>(m_Pointer));
   }
 
   // Implicit conversion to multi_ptr<const void, Space>
   operator multi_ptr<const void, Space>() const {
-    using ptr_t = typename detail::PtrValueType<const void, Space>::type *;
+    using ptr_t = typename detail::DecoratedType<const void, Space>::type *;
     return multi_ptr<const void, Space>(reinterpret_cast<ptr_t>(m_Pointer));
   }
 
@@ -444,9 +445,9 @@ public:
 
   // Implementation defined pointer types that correspond to
   // SYCL/OpenCL interoperability types for OpenCL C functions
-  using pointer_t = typename detail::PtrValueType<const void, Space>::type *;
+  using pointer_t = typename detail::DecoratedType<const void, Space>::type *;
   using const_pointer_t =
-      typename detail::PtrValueType<const void, Space>::type const *;
+      typename detail::DecoratedType<const void, Space>::type const *;
 
   static constexpr access::address_space address_space = Space;
 
@@ -544,7 +545,7 @@ public:
   template <typename ElementType>
   explicit operator multi_ptr<const ElementType, Space>() const {
     using elem_pointer_t =
-        typename detail::PtrValueType<const ElementType, Space>::type *;
+        typename detail::DecoratedType<const ElementType, Space>::type *;
     return multi_ptr<const ElementType, Space>(
         static_cast<elem_pointer_t>(m_Pointer));
   }

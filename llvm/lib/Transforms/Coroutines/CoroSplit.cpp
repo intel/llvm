@@ -454,11 +454,23 @@ void CoroCloner::handleFinalSuspend() {
   }
 }
 
+static FunctionType *
+getFunctionTypeFromAsyncSuspend(AnyCoroSuspendInst *Suspend) {
+  auto *AsyncSuspend = cast<CoroSuspendAsyncInst>(Suspend);
+  auto *StructTy = cast<StructType>(AsyncSuspend->getType());
+  auto &Context = Suspend->getParent()->getParent()->getContext();
+  auto *VoidTy = Type::getVoidTy(Context);
+  return FunctionType::get(VoidTy, StructTy->elements(), false);
+}
+
 static Function *createCloneDeclaration(Function &OrigF, coro::Shape &Shape,
                                         const Twine &Suffix,
-                                        Module::iterator InsertBefore) {
+                                        Module::iterator InsertBefore,
+                                        AnyCoroSuspendInst *ActiveSuspend) {
   Module *M = OrigF.getParent();
-  auto *FnTy = Shape.getResumeFunctionType();
+  auto *FnTy = (Shape.ABI != coro::ABI::Async)
+                   ? Shape.getResumeFunctionType()
+                   : getFunctionTypeFromAsyncSuspend(ActiveSuspend);
 
   Function *NewF =
       Function::Create(FnTy, GlobalValue::LinkageTypes::InternalLinkage,
@@ -639,11 +651,9 @@ void CoroCloner::salvageDebugInfo() {
     for (auto &I : BB)
       if (auto *DDI = dyn_cast<DbgDeclareInst>(&I))
         Worklist.push_back(DDI);
-  for (DbgDeclareInst *DDI : Worklist) {
-    // This is a heuristic that detects declares left by CoroFrame.
-    bool LoadFromFramePtr = !isa<AllocaInst>(DDI->getAddress());
-    coro::salvageDebugInfo(DbgPtrAllocaCache, DDI, LoadFromFramePtr);
-  }
+  for (DbgDeclareInst *DDI : Worklist)
+    coro::salvageDebugInfo(DbgPtrAllocaCache, DDI);
+
   // Remove all salvaged dbg.declare intrinsics that became
   // either unreachable or stale due to the CoroSplit transformation.
   auto IsUnreachableBlock = [&](BasicBlock *BB) {
@@ -717,15 +727,17 @@ void CoroCloner::replaceEntryBlock() {
   }
   }
 
-  // Any alloca that's still being used but not reachable from the new entry
-  // needs to be moved to the new entry.
+  // Any static alloca that's still being used but not reachable from the new
+  // entry needs to be moved to the new entry.
   Function *F = OldEntry->getParent();
   DominatorTree DT{*F};
   for (auto IT = inst_begin(F), End = inst_end(F); IT != End;) {
     Instruction &I = *IT++;
-    if (!isa<AllocaInst>(&I) || I.use_empty())
+    auto *Alloca = dyn_cast<AllocaInst>(&I);
+    if (!Alloca || I.use_empty())
       continue;
-    if (DT.isReachableFromEntry(I.getParent()))
+    if (DT.isReachableFromEntry(I.getParent()) ||
+        !isa<ConstantInt>(Alloca->getArraySize()))
       continue;
     I.moveBefore(*Entry, Entry->getFirstInsertionPt());
   }
@@ -805,7 +817,7 @@ void CoroCloner::create() {
   // Create the new function if we don't already have one.
   if (!NewF) {
     NewF = createCloneDeclaration(OrigF, Shape, Suffix,
-                                  OrigF.getParent()->end());
+                                  OrigF.getParent()->end(), ActiveSuspend);
   }
 
   // Replace all args with undefs. The buildCoroutineFrame algorithm already
@@ -1528,8 +1540,8 @@ static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
     auto *Suspend = cast<CoroSuspendAsyncInst>(Shape.CoroSuspends[Idx]);
 
     // Create the clone declaration.
-    auto *Continuation =
-        createCloneDeclaration(F, Shape, ".resume." + Twine(Idx), NextF);
+    auto *Continuation = createCloneDeclaration(
+        F, Shape, ".resume." + Twine(Idx), NextF, Suspend);
     Clones.push_back(Continuation);
 
     // Insert a branch to a new return block immediately before the suspend
@@ -1629,7 +1641,7 @@ static void splitRetconCoroutine(Function &F, coro::Shape &Shape,
 
     // Create the clone declaration.
     auto Continuation =
-      createCloneDeclaration(F, Shape, ".resume." + Twine(i), NextF);
+        createCloneDeclaration(F, Shape, ".resume." + Twine(i), NextF, nullptr);
     Clones.push_back(Continuation);
 
     // Insert a branch to the unified return block immediately before

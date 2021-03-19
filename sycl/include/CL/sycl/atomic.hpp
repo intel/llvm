@@ -318,7 +318,7 @@ public:
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
-  typename detail::PtrValueType<T, addressSpace>::type *Ptr;
+  typename detail::DecoratedType<T, addressSpace>::type *Ptr;
 #else
   std::atomic<T> *Ptr;
 #endif

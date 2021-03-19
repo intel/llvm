@@ -142,7 +142,6 @@ struct _pi_device : _pi_object {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
-  ~_pi_device();
 
   // Keep the ordinal of a "compute" commands group, where we send all
   // commands currently.
@@ -157,35 +156,19 @@ struct _pi_device : _pi_object {
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;
 
+  // Keep the subdevices that are partitioned from this pi_device for reuse
+  // The order of sub-devices in this vector is repeated from the
+  // ze_device_handle_t array that are returned from zeDeviceGetSubDevices()
+  // call, which will always return sub-devices in the fixed same order.
+  std::vector<pi_device> SubDevices;
+
   // PI platform to which this device belongs.
   pi_platform Platform;
-
-  // Mutex Lock for the Command List Cache
-  std::mutex ZeCommandListCacheMutex;
-  // Cache of all currently Available Command Lists for use by PI APIs
-  std::list<ze_command_list_handle_t> ZeCommandListCache;
 
   // Indicates if this is a root-device or a sub-device.
   // Technically this information can be queried from a device handle, but it
   // seems better to just keep it here.
   bool IsSubDevice;
-
-  // Retrieves a command list for executing on this device along with
-  // a fence to be used in tracking the execution of this command list.
-  // If a command list has been created on this device which has
-  // completed its commands, then that command list and its associated fence
-  // will be reused. Otherwise, a new command list and fence will be created for
-  // running on this device. L0 fences are created on a L0 command queue so the
-  // caller must pass a command queue to create a new fence for the new command
-  // list if a command list/fence pair is not available. All Command Lists &
-  // associated fences are destroyed at Device Release.
-  // If AllowBatching is true, then the command list returned may already have
-  // command in it, if AllowBatching is false, any open command lists that
-  // already exist in Queue will be closed and executed.
-  pi_result getAvailableCommandList(pi_queue Queue,
-                                    ze_command_list_handle_t *ZeCommandList,
-                                    ze_fence_handle_t *ZeFence,
-                                    bool AllowBatching = false);
 
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
@@ -194,8 +177,9 @@ struct _pi_device : _pi_object {
 
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
-              const pi_device *Devs)
-      : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
+              const pi_device *Devs, bool OwnZeContext)
+      : ZeContext{ZeContext},
+        OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
         ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
         NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
     // Create USM allocator context for each pair (device, context).
@@ -224,6 +208,10 @@ struct _pi_context : _pi_object {
   // resources that may be used by multiple devices.
   ze_context_handle_t ZeContext;
 
+  // Indicates if we own the ZeContext or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeContext;
+
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;
 
@@ -236,6 +224,29 @@ struct _pi_context : _pi_object {
   // There will be a list of immediate command lists (for each device) when
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
+
+  // Mutex Lock for the Command List Cache
+  std::mutex ZeCommandListCacheMutex;
+
+  // Cache of all currently Available Command Lists for use by PI APIs
+  std::list<ze_command_list_handle_t> ZeCommandListCache;
+
+  // Retrieves a command list for executing on this device along with
+  // a fence to be used in tracking the execution of this command list.
+  // If a command list has been created on this device which has
+  // completed its commands, then that command list and its associated fence
+  // will be reused. Otherwise, a new command list and fence will be created for
+  // running on this device. L0 fences are created on a L0 command queue so the
+  // caller must pass a command queue to create a new fence for the new command
+  // list if a command list/fence pair is not available. All Command Lists &
+  // associated fences are destroyed at Device Release.
+  // If AllowBatching is true, then the command list returned may already have
+  // command in it, if AllowBatching is false, any open command lists that
+  // already exist in Queue will be closed and executed.
+  pi_result getAvailableCommandList(pi_queue Queue,
+                                    ze_command_list_handle_t *ZeCommandList,
+                                    ze_fence_handle_t *ZeFence,
+                                    bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no avialble
   // pool then create new one.
@@ -335,9 +346,24 @@ struct _pi_queue : _pi_object {
   pi_uint32 NumTimesClosedEarly = {0};
   pi_uint32 NumTimesClosedFull = {0};
 
+  // Structure describing the fence used to track command-list completion.
+  typedef struct {
+    // The Level-Zero fence that will be signalled at completion.
+    ze_fence_handle_t ZeFence;
+    // Record if the fence is in use by any command-list.
+    // This is needed to avoid leak of the tracked command-list if the fence
+    // was not yet signaled at the time all events in that list were already
+    // completed (we are polling the fence at events completion). The fence
+    // may be still "in-use" due to sporadic delay in HW.
+    //
+    bool InUse;
+  } command_list_fence_t;
+
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
-  std::map<ze_command_list_handle_t, ze_fence_handle_t> ZeCommandListFenceMap;
+  typedef std::map<ze_command_list_handle_t, command_list_fence_t>
+      command_list_fence_map_t;
+  command_list_fence_map_t ZeCommandListFenceMap;
 
   // Returns true if any commands for this queue are allowed to
   // be batched together.
@@ -356,8 +382,8 @@ struct _pi_queue : _pi_object {
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
   // fence have been signalled.
-  pi_result resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
-                                       bool MakeAvailable);
+  pi_result resetCommandListFenceEntry(
+      command_list_fence_map_t::value_type &ZeCommandList, bool MakeAvailable);
 
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
@@ -558,6 +584,12 @@ struct _pi_event : _pi_object {
   // enqueued, and must then be released when this event has signalled.
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
+
+  // Tracks if the needed cleanupAfterEvent was already performed for
+  // a completed event. This allows to control that some cleanup
+  // actions are performed only once.
+  //
+  bool CleanedUp = {false};
 };
 
 struct _pi_program : _pi_object {

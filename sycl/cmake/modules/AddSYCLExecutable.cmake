@@ -7,10 +7,10 @@ macro(add_sycl_executable ARG_TARGET_NAME)
 
   set(CXX_COMPILER clang++)
   if(MSVC)
-      set(CXX_COMPILER clang-cl.exe)
-      set(LIB_POSTFIX ".lib")
+    set(CXX_COMPILER clang-cl.exe)
+    set(LIB_POSTFIX ".lib")
   else()
-      set(LIB_PREFIX "-l")
+    set(LIB_PREFIX "-l")
   endif()
   set(DEVICE_COMPILER_EXECUTABLE ${LLVM_RUNTIME_OUTPUT_INTDIR}/${CXX_COMPILER})
 
@@ -27,7 +27,7 @@ macro(add_sycl_executable ARG_TARGET_NAME)
     endif()
   endif()
 
-  add_custom_target(${ARG_TARGET_NAME}_exec ALL
+  add_custom_target(${ARG_TARGET_NAME}_exec
     COMMAND ${DEVICE_COMPILER_EXECUTABLE} -fsycl ${ARG_SOURCES}
       -o ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET_NAME}
       ${LINKED_LIBS} ${ARG_OPTIONS} ${_SYCL_EXTRA_FLAGS}

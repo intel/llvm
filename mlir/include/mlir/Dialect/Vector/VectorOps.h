@@ -21,11 +21,21 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/VectorInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
+#include "llvm/ADT/StringExtras.h"
+
+// Pull in all enum type definitions and utility function declarations.
+#include "mlir/Dialect/Vector/VectorOpsEnums.h.inc"
 
 namespace mlir {
 class MLIRContext;
 class OwningRewritePatternList;
+
 namespace vector {
+class VectorDialect;
+
+namespace detail {
+struct BitmaskEnumStorage;
+} // namespace detail
 
 /// Collect a set of vector-to-vector canonicalization patterns.
 void populateVectorToVectorCanonicalizationPatterns(
@@ -34,6 +44,23 @@ void populateVectorToVectorCanonicalizationPatterns(
 /// Collect a set of vector-to-vector transformation patterns.
 void populateVectorToVectorTransformationPatterns(
     OwningRewritePatternList &patterns, MLIRContext *context);
+
+/// Collect a set of leading one dimension removal patterns.
+///
+/// These patterns insert vector.shape_cast to remove leading one dimensions
+/// to expose more canonical forms of read/write/insert/extract operations.
+/// With them, there are more chances that we can cancel out extract-insert
+/// pairs or forward write-read pairs.
+void populateCastAwayVectorLeadingOneDimPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *context);
+
+/// Collect a set of patterns that bubble up/down bitcast ops.
+///
+/// These patterns move vector.bitcast ops to be before insert ops or after
+/// extract ops where suitable. With them, bitcast will happen on smaller
+/// vectors and there are more chances to share extract/insert ops.
+void populateBubbleVectorBitCastOpPatterns(OwningRewritePatternList &patterns,
+                                           MLIRContext *context);
 
 /// Collect a set of vector slices transformation patterns:
 ///    ExtractSlicesOpLowering, InsertSlicesOpLowering
@@ -45,6 +72,22 @@ void populateVectorToVectorTransformationPatterns(
 /// "leak" coming in, however, some tuple related ops will remain.
 void populateVectorSlicesLoweringPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context);
+
+/// An attribute that specifies the combining function for `vector.contract`,
+/// and `vector.reduction`.
+class CombiningKindAttr
+    : public Attribute::AttrBase<CombiningKindAttr, Attribute,
+                                 detail::BitmaskEnumStorage> {
+public:
+  using Base::Base;
+
+  static CombiningKindAttr get(CombiningKind kind, MLIRContext *context);
+
+  CombiningKind getKind() const;
+
+  void print(DialectAsmPrinter &p) const;
+  static Attribute parse(DialectAsmParser &parser);
+};
 
 /// Enum to control the lowering of `vector.contract` operations.
 enum class VectorContractLowering {

@@ -28,3 +28,9 @@ SYCL 2020.
 
 Disables all deprecation warnings in SYCL runtime headers, including deprecation
 of OpenCL interop APIs.
+
+### Version macros
+
+- `__LIBSYCL_MAJOR_VERSION` is set to SYCL runtime library major version.
+- `__LIBSYCL_MINOR_VERSION` is set to SYCL runtime library minor version.
+- `__LIBSYCL_PATCH_VERSION` is set to SYCL runtime library patch version.

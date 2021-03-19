@@ -88,10 +88,6 @@ private:
                       codegenoptions::DebugInfoKind *DebugInfoKind,
                       bool *EmitCodeView) const;
 
-  visualstudio::Compiler *getCLFallback() const;
-
-  mutable std::unique_ptr<visualstudio::Compiler> CLFallback;
-
   mutable std::unique_ptr<llvm::raw_fd_ostream> CompilationDatabase = nullptr;
   void DumpCompilationDatabase(Compilation &C, StringRef Filename,
                                StringRef Target,
@@ -237,19 +233,6 @@ class LLVM_LIBRARY_VISIBILITY FileTableTform final : public Tool {
 public:
   FileTableTform(const ToolChain &TC)
       : Tool("File table transformation", "file-table-tform", TC) {}
-
-  bool hasIntegratedCPP() const override { return false; }
-  bool hasGoodDiagnostics() const override { return true; }
-  void ConstructJob(Compilation &C, const JobAction &JA,
-                    const InputInfo &Output, const InputInfoList &Inputs,
-                    const llvm::opt::ArgList &TCArgs,
-                    const char *LinkingOutput) const override;
-};
-
-/// Partially link objects and archives.
-class LLVM_LIBRARY_VISIBILITY PartialLink final : public Tool {
-public:
-  PartialLink(const ToolChain &TC) : Tool("partial link", "partial-link", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool hasGoodDiagnostics() const override { return true; }

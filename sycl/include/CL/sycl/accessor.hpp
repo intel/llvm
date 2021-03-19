@@ -798,7 +798,7 @@ protected:
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
+  using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
@@ -1792,7 +1792,7 @@ protected:
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
+  using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;

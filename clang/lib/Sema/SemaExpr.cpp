@@ -215,17 +215,21 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
   if (getLangOpts().SYCLIsDevice) {
     if (auto VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().isConstant(Context);
-      if (!IsConst && VD->getStorageClass() == SC_Static)
+      bool IsRuntimeEvaluated =
+          ExprEvalContexts.empty() ||
+          (!isUnevaluatedContext() && !isConstantEvaluated());
+      if (IsRuntimeEvaluated && !IsConst && VD->getStorageClass() == SC_Static)
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
       // Non-const globals are allowed for SYCL explicit SIMD.
-      else if (!isSYCLEsimdPrivateGlobal(VD) && !IsConst &&
-               VD->hasGlobalStorage() && !isa<ParmVarDecl>(VD))
+      else if (IsRuntimeEvaluated && !isSYCLEsimdPrivateGlobal(VD) &&
+               !IsConst && VD->hasGlobalStorage() && !isa<ParmVarDecl>(VD))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelGlobalVariable;
       // Disallow const statics and globals that are not zero-initialized
       // or constant-initialized.
-      else if (IsConst && VD->hasGlobalStorage() && !VD->isConstexpr() &&
+      else if (IsRuntimeEvaluated && IsConst && VD->hasGlobalStorage() &&
+               !VD->isConstexpr() &&
                !checkAllowedSYCLInitializer(VD, /*CheckValueDependent =*/true))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelConstStaticVariable;
@@ -393,7 +397,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
   }
 
   if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice)) {
-    if (const auto *VD = dyn_cast<ValueDecl>(D))
+    if (auto *VD = dyn_cast<ValueDecl>(D))
       checkDeviceDecl(VD, Loc);
 
     if (!Context.getTargetInfo().isTLSSupported())
@@ -16227,7 +16231,8 @@ Sema::VerifyIntegerConstantExpression(Expr *E, llvm::APSInt *Result,
     if (Result)
       *Result = E->EvaluateKnownConstIntCheckOverflow(Context);
     if (!isa<ConstantExpr>(E))
-      E = ConstantExpr::Create(Context, E);
+      E = Result ? ConstantExpr::Create(Context, E, APValue(*Result))
+                 : ConstantExpr::Create(Context, E);
     return E;
   }
 

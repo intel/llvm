@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
 
 // no error expected
 using type1 = __attribute__((pipe("read_only"))) const int;
@@ -32,11 +32,6 @@ int Storage4 __attribute__((io_pipe_id(5)));
 // expected-error@+2{{'io_pipe_id' attribute requires a non-negative integral compile time constant expression}}
 template <int N>
 pipe_storage Storage5 __attribute__((io_pipe_id(N)));
-
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
-}
 
 void foo(pipe_storage PS) {}
 

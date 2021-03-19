@@ -1,12 +1,13 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 // Test that checkes template parameter support for 'reqd_sub_group_size' attribute on sycl device.
 
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+2{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
-// expected-error@+1 2{{'reqd_sub_group_size' attribute requires an integer constant}}
+// expected-error@+3{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+// expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+// expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 [[intel::reqd_sub_group_size(Ty{})]] void func() {}
 
 struct S {};
@@ -20,8 +21,10 @@ void test() {
 }
 
 // Test that checks expression is not a constant expression.
+// expected-note@+1{{declared here}}
 int foo();
-// expected-error@+1{{'reqd_sub_group_size' attribute requires an integer constant}}
+// expected-error@+2{{expression is not an integral constant expression}}
+// expected-note@+1{{non-constexpr function 'foo' cannot be used in a constant expression}}
 [[intel::reqd_sub_group_size(foo() + 12)]] void func1();
 
 // Test that checks expression is a constant expression.
@@ -57,11 +60,20 @@ template <int N>
 // expected-error@+1{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
 [[intel::reqd_sub_group_size(N)]] void func3() {}
 
+template <int N>
+[[intel::reqd_sub_group_size(4)]] void func4(); // expected-note {{previous attribute is here}}
+
+template <int N>
+[[intel::reqd_sub_group_size(N)]] void func4() {} // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
+
 int check() {
   // no error expected
   func3<12>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
+
+  func4<6>(); //expected-note {{in instantiation of function template specialization 'func4<6>' requested here}}
+
   return 0;
 }
 

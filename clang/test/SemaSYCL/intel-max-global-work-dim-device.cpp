@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -61,11 +61,15 @@ int main() {
   q.submit([&](handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     h.single_task<class test_kernel1>(FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     // expected-warning@+3 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
     // expected-note@+2 {{did you mean to use 'intel::max_global_work_dim' instead?}}
@@ -74,35 +78,65 @@ int main() {
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
 
     h.single_task<class test_kernel4>(TRIFuncObjGood1());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 0
     // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 
     h.single_task<class test_kernel5>(TRIFuncObjGood2());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 8
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 #ifdef TRIGGER_ERROR
     [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
 
@@ -111,7 +145,7 @@ int main() {
 
     h.single_task<class test_kernel7>(
         []() [[intel::max_global_work_dim(3),
-               intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different parameters}}
+               intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different arguments}}
 
     h.single_task<class test_kernel8>(TRIFuncObjBad());
 
