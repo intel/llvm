@@ -243,7 +243,7 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
     if (F.isDeclaration())
       continue;
 
-      // Work item start/finish annotations are only for SPIR kernels
+    // Work item start/finish annotations are only for SPIR kernels
     bool IsSPIRKernel = isSPIRKernel(F);
 
     // At the beggining of a kernel insert work item start annotation
