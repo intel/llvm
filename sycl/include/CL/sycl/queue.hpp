@@ -233,9 +233,6 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()
 #endif
   ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
     return submit([=](handler &CGH) { CGH.barrier(); }
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
                   , CodeLoc
@@ -259,9 +256,6 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()
 #endif
   ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
     return submit([=](handler &CGH) { CGH.barrier(WaitList); }
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
                   , CodeLoc
