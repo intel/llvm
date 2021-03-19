@@ -2942,7 +2942,6 @@ class SYCLKernelNameTypeVisitor
   using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
-  bool isTagNested = false;
 
   void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
     for (auto &A : Args)
@@ -2982,7 +2981,8 @@ public:
 
   void VisitBuiltinType(const BuiltinType *TT) {
     if (TT->isNullPtrType()) {
-      S.Diag(KernelInvocationFuncLoc, diag::err_nullptr_t_type_in_sycl_kernel);
+      S.Diag(KernelInvocationFuncLoc, diag::err_nullptr_t_type_in_sycl_kernel)
+          << KernelNameType;
 
       IsInvalid = true;
     }
@@ -2995,7 +2995,7 @@ public:
 
   void DiagnoseKernelNameType(const NamedDecl *DeclNamed) {
     /*
-    This is a helper function which helps diagnose if the given 'declaration'
+    This is a helper function which throws an error if the given 'declaration'
     is:
       * declared within namespace 'std' (at any level)
         e.g., namespace std { namespace literals { class Whatever; } }
@@ -3009,10 +3009,6 @@ public:
       * declared within another tag
         e.g., struct S { struct T { int i } t; };
         h.single_task<S::T>([]() {});
-      * declared within template specialization
-        template<typename T >
-        struct SomethingElse{};
-        void bar() {Kernel<SomethingElse<struct Foo>>}
     */
 
     if (const auto *ED = dyn_cast<EnumDecl>(DeclNamed)) {
@@ -3059,12 +3055,11 @@ public:
           IsInvalid = true;
           return;
         }
-        // Check if the declartion is completely defined inside a function or
-        // a method or within a struct/union/class.
+        // Check if the declaration is completely defined at NameSpace or
+        // TranslationUnit scope and throw an error if not.
         const auto *Tag = dyn_cast<TagDecl>(DeclNamed);
-        if ((isTagNested && !Tag->isCompleteDefinition()) ||
-            (Tag->isCompleteDefinition() &&
-             (isa<FunctionDecl>(DeclCtx) || isa<CXXRecordDecl>(DeclCtx)))) {
+        if (Tag->isCompleteDefinition() &&
+            (!isa<NamespaceDecl, TranslationUnitDecl>(DeclCtx))) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << 0 << KernelNameType;
@@ -3081,7 +3076,6 @@ public:
   }
 
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
-    isTagNested = true;
     QualType T = TA.getAsType();
     if (const auto *ET = T->getAs<EnumType>())
       VisitEnumType(ET);

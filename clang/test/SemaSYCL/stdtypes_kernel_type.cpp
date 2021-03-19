@@ -25,7 +25,7 @@ queue q;
 int main() {
 #ifdef CHECK_ERROR
   q.submit([&](handler &h) {
-    // expected-error@Inputs/sycl.hpp:220 {{'std::nullptr_t' is an invalid kernel name }}
+    // expected-error@Inputs/sycl.hpp:220 {{'nullptr_t' is an invalid kernel name, ‘std::nullptr_t’ is declared in std namespace }}
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<std::nullptr_t>([=] {});
   });
@@ -35,7 +35,7 @@ int main() {
     h.single_task<std::T>([=] {});
   });
   q.submit([&](handler &h) {
-    // expected-error@Inputs/sycl.hpp:220 {{'std::nullptr_t' is an invalid kernel name }}
+    // expected-error@Inputs/sycl.hpp:220 {{'Templated_kernel_name<nullptr_t>' is an invalid kernel name, ‘std::nullptr_t’ is declared in std namespace }}
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<Templated_kernel_name<std::nullptr_t>>([=] {});
   });
@@ -50,7 +50,7 @@ int main() {
     cgh.single_task<Templated_kernel_name2<Templated_kernel_name<std::Foo>>>([]() {});
   });
   q.submit([&](handler &cgh) {
-    // expected-error@Inputs/sycl.hpp:220 {{'std::nullptr_t' is an invalid kernel name }}
+    // expected-error@Inputs/sycl.hpp:220 {{'TemplParamPack<int, float, nullptr_t, double>' is an invalid kernel name, ‘std::nullptr_t’ is declared in std namespace }}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task<TemplParamPack<int, float, std::nullptr_t, double>>([]() {});
   });

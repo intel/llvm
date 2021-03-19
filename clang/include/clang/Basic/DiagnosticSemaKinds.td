@@ -11164,11 +11164,11 @@ def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
 def err_esimd_glob_cant_init : Error<
   "SYCL explicit SIMD does not permit private global variable to have an initializer">;
 
-def err_nullptr_t_type_in_sycl_kernel : Error<"'std::nullptr_t' is an invalid kernel name ">;
-def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, %q1 is declared in the \'std\' namespace ">;
+def err_nullptr_t_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, ‘std::nullptr_t’ is declared in std namespace ">;
+def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, %q1 is declared in the 'std' namespace ">;
 
 def err_sycl_kernel_incorrectly_named : Error<
-  "%select{%1 should be globally-visible"
+  "%select{%1 should be globally visible"
   "|unscoped enum %1 requires fixed underlying type"
   "|type cannot be unnamed"
   "}0">;

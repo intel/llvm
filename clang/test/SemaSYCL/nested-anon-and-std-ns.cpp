@@ -26,6 +26,12 @@ namespace ValidNS {
 struct StructinValidNS {};
 } // namespace ValidNS
 
+struct ParentStruct {
+  struct ChildStruct {
+    int i;
+  };
+};
+
 struct MyWrapper {
 
 public:
@@ -38,13 +44,13 @@ public:
       h.single_task<std::NestedInStd::NestedStruct>([] {});
     });
 
-    // expected-error@Inputs/sycl.hpp:220 {{'Named::(anonymous namespace)::IsThisValid' should be globally-visibl}}
+    // expected-error@Inputs/sycl.hpp:220 {{'Named::(anonymous namespace)::IsThisValid' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<Named::IsThisValid>([] {});
     });
 
-    // expected-error@Inputs/sycl.hpp:220 {{'(anonymous namespace)::NestedInAnon::StructInAnonymousNS' should be globally-visible}}
+    // expected-error@Inputs/sycl.hpp:220 {{'(anonymous namespace)::NestedInAnon::StructInAnonymousNS' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<NestedInAnon::StructInAnonymousNS>([] {});
@@ -53,6 +59,12 @@ public:
     // no error for valid ns
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<ValidNS::StructinValidNS>([] {});
+    });
+
+    // expected-error@Inputs/sycl.hpp:220 {{'ParentStruct::ChildStruct' should be globally visible}}
+    // expected-note@+2{{in instantiation of function template specialization}}
+    q.submit([&](cl::sycl::handler &h) {
+      h.single_task<ParentStruct::ChildStruct>([] {});
     });
   }
 };
