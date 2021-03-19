@@ -622,10 +622,14 @@ public:
     auto *M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
     if (!M || (M->getOverloadedOperator() != OO_Call))
       return true;
-    const int NumPFWGLambdaArgs = 2; // group and lambda obj
+
+    unsigned int NumPFWGLambdaArgs =
+        M->getNumParams() + 1; // group, optional kernel_handler and lambda obj
     if (Call->getNumArgs() != NumPFWGLambdaArgs)
       return true;
     if (!Util::isSyclType(Call->getArg(1)->getType(), "group", true /*Tmpl*/))
+      return true;
+    if (!Util::isSyclKernelHandlerType(Call->getArg(2)->getType()))
       return true;
     if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
       return true;
