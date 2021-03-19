@@ -33,20 +33,11 @@ int main() {
   sycl::image<1> Img{Mem, Ctx};
   (void)Img;
 
-  cl_kernel ClKernel;
-  // expected-warning@+1 {{'kernel' is deprecated: OpenCL interop APIs are deprecated}}
-  sycl::kernel Kernel{ClKernel, Ctx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
-  (void)Kernel.get();
-
   cl_platform_id ClPlatform;
   // expected-warning@+1 {{'platform' is deprecated: OpenCL interop APIs are deprecated}}
   sycl::platform Platform{ClPlatform};
   // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
   (void)Platform.get();
-
-  // expected-warning@+1 {{'program' is deprecated: program class is deprecated}}
-  sycl::program Prog{Ctx};
 
   cl_command_queue ClQueue;
   // expected-warning@+1 {{'queue' is deprecated: OpenCL interop APIs are deprecated}}
