@@ -1594,12 +1594,6 @@ public:
       kernel_single_task<NameT>(KernelFunc);
     }
 #else
-    // if (detail::kernelHandlerIsLastElementTypeOfKernel<KernelType>() &&
-    //     MQueue->get_device().is_host()) {
-    //   throw cl::sycl::feature_not_supported(
-    //       "kernel_handler is not supported by host device.",
-    //       PI_INVALID_OPERATION);
-    // }
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
@@ -1732,12 +1726,6 @@ public:
       kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
     }
 #else
-    // if (detail::kernelHandlerIsLastElementTypeOfKernel<KernelType>() &&
-    //     MQueue->get_device().is_host()) {
-    //   throw cl::sycl::feature_not_supported(
-    //       "kernel_handler is not supported by host device.",
-    //       PI_INVALID_OPERATION);
-    // }
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));

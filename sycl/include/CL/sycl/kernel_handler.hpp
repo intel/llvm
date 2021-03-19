@@ -32,10 +32,10 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return getSpecializationConstantOnDevice<S>();
 #else
-    // throw cl::sycl::feature_not_supported(
-    //     "kernel_handler::get_specialization_constant() is not supported by "
-    //     "host device.",
-    //     PI_INVALID_OPERATION);
+    throw cl::sycl::feature_not_supported(
+        "kernel_handler::get_specialization_constant() is not supported by "
+        "host device.",
+        PI_INVALID_OPERATION);
 #endif // __SYCL_DEVICE_ONLY__
   }
 #endif // __cplusplus > 201402L
