@@ -143,12 +143,6 @@ inline bool isSPIRKernel(Function &F) {
   return F.getCallingConv() == CallingConv::SPIR_KERNEL;
 }
 
-// Check for calling convention of a function. Return true if it's SPIR
-// function.
-inline bool isSPIRFunction(Function &F) {
-  return F.getCallingConv() == CallingConv::SPIR_FUNC;
-}
-
 Instruction *emitCall(Module &M, Type *RetTy, StringRef FunctionName,
                       ArrayRef<Value *> Args, Instruction *InsertBefore) {
   SmallVector<Type *, 8> ArgTys(Args.size());
@@ -246,11 +240,11 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
       SPIRV_GROUP_FMAX,      SPIRV_GROUP_UMAX, SPIRV_GROUP_SMAX};
 
   for (Function &F : M) {
-    // Annotate only SPIR kernels and functions
-    bool IsSPIRKernel = isSPIRKernel(F);
-    bool IsSPIRFunction = isSPIRFunction(F);
-    if (F.isDeclaration() || !(isSPIRKernel || isSPIRFunction))
+    if (F.isDeclaration())
       continue;
+
+      // Work item start/finish annotations are only for SPIR kernels
+    bool IsSPIRKernel = isSPIRKernel(F);
 
     // At the beggining of a kernel insert work item start annotation
     // instruction.
