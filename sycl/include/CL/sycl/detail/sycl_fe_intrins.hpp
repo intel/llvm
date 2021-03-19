@@ -21,8 +21,9 @@ SYCL_EXTERNAL T __sycl_getSpecConstantValue(const char *ID);
 template <typename T>
 SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
 
-// The intrinsics below are used to enable support of specialization constants
-// 2020. This feature required post-link to handle more parameters.
+// The intrinsics below are used to implement support SYCL2020 specialization
+// constants. SYCL2020 version requires more parameters compared to the initial
+// version.
 
 // Get the value of the specialization constant with given symbolic ID.
 // `SymbolicID` is a unique string ID of a specialization constant.

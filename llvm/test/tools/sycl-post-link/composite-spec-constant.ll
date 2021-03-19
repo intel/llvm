@@ -57,11 +57,6 @@ entry:
   ret void
 }
 
-; CHECK: %[[#N0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 6]], i32
-; CHECK: %[[#N1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 7]], float
-; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#N0]], float %[[#N1]]), !SYCL_SPEC_CONST_SYM_ID ![[#MD1:]]
-; CHECK: %struct._ZTS1A.A %[[#CONST]]
-
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel(float addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !4 {
 entry:
@@ -74,6 +69,10 @@ entry:
   %3 = bitcast %struct._ZTS1A.A* %c.i to i8*
   call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %3) #3
   call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI13MyComposConstET_PKcPvS4_(%struct._ZTS1A.A addrspace(4)* sret(%struct._ZTS1A.A) align 4 %c.ascast.i, i8 addrspace(4)* getelementptr inbounds ([20 x i8], [20 x i8] addrspace(4)* addrspacecast ([20 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI13MyComposConstE3getIS4_EENSt9enable_ifIXaasr3std8is_classIT_EE5valuesr3std6is_podIS9_EE5valueES9_E4typeEv to [20 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* null, i8 addrspace(4)* null) #4
+; CHECK: %[[#N0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 6]], i32
+; CHECK: %[[#N1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 7]], float
+; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#N0]], float %[[#N1]]), !SYCL_SPEC_CONST_SYM_ID ![[#MD1:]]
+; CHECK: %struct._ZTS1A.A %[[#CONST]]
   %a.i = getelementptr inbounds %struct._ZTS1A.A, %struct._ZTS1A.A addrspace(4)* %c.ascast.i, i64 0, i32 0
   %4 = load i32, i32 addrspace(4)* %a.i, align 4
   %conv.i = sitofp i32 %4 to float
