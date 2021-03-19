@@ -80,6 +80,9 @@ public:
 
   /// Deallocates the memory referenced by \p Ptr.
   static void alignedFree(void *Ptr);
+
+  /// Returns the path to directory storing on-disk SYCL program cache.
+  static std::string getCacheRoot();
 };
 
 } // namespace detail

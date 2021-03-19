@@ -30,10 +30,18 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <functional>
+#include <libgen.h>
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -41,7 +49,7 @@ namespace detail {
 
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 
-static constexpr int DbgProgMgr = 1;
+static constexpr int DbgProgMgr = 2;
 
 enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 
@@ -182,6 +190,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
   // only the building thread will run this
   try {
+
     RetT *Desired = Build();
 
 #ifndef NDEBUG
@@ -346,6 +355,204 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   return Res;
 }
 
+long GetFileSize(const char *FileName) {
+  struct stat Stat;
+  if (!stat(FileName, &Stat))
+    return Stat.st_size;
+  return -1;
+}
+
+inline bool IsFSEntryPresent(const char *Path) {
+  struct stat Stat;
+  return !stat(Path, &Stat);
+}
+
+int MakePathRecur(const char *Dir, mode_t Mode) {
+  assert((Dir != nullptr) && "Passed null-pointer as directory name.");
+
+  // Directory is present - do nothing
+  if (IsFSEntryPresent(Dir))
+    return 0;
+
+  char *CurDir = strdup(Dir);
+  MakePathRecur(dirname(CurDir), Mode);
+  if (DbgProgMgr > 1)
+    std::cerr << "Created directory: " << CurDir << std::endl;
+
+  free(CurDir);
+  return mkdir(Dir, Mode);
+}
+
+void WriteCacheItem(const std::string &FileName,
+                    const std::vector<std::vector<char>> &Data) {
+  std::ofstream FileStream{FileName, std::ios::binary};
+  if (DbgProgMgr > 1) {
+    std::cerr << "####Writing programs built for " << std::dec << Data.size()
+              << " devices:\n";
+  }
+
+  size_t Size = Data.size();
+  FileStream.write((char *)&Size, sizeof(Size));
+  for (size_t i = 0; i < Data.size(); ++i) {
+    if (DbgProgMgr > 1) {
+      std::cerr << "\tWrite " << i << "-th image of size " << std::dec
+                << Data[i].size() << "\n";
+    }
+    Size = Data[i].size();
+    FileStream.write((char *)&Size, sizeof(Size));
+    FileStream.write(Data[i].data(), Size);
+  }
+  FileStream.close();
+}
+
+std::vector<std::vector<char>> ReadCacheItem(const std::string &FileName) {
+  std::vector<std::vector<char>> Res;
+  std::ifstream FileStream{FileName, std::ios::binary};
+  size_t ImgNum, ImgSize;
+  FileStream.read((char *)&ImgNum, sizeof(ImgNum));
+  if (DbgProgMgr > 1) {
+    std::cerr << "####Reading programs built for " << std::dec << ImgNum
+              << " devices:\n";
+  }
+
+  Res.resize(ImgNum);
+
+  for (size_t i = 0; i < ImgNum; ++i) {
+    FileStream.read((char *)&ImgSize, sizeof(ImgSize));
+    if (DbgProgMgr > 1) {
+      std::cerr << "\tRead " << i << "-th image of size " << std::dec << ImgSize
+                << "\n";
+    }
+
+    Res[i].resize(ImgSize);
+    FileStream.read(Res[i].data(), ImgSize);
+  }
+
+  return Res;
+}
+
+std::string getDeviceString(const device &Device) {
+  return {Device.get_platform().get_info<sycl::info::platform::name>() +
+          Device.get_info<sycl::info::device::name>() +
+          Device.get_info<sycl::info::device::version>() +
+          Device.get_info<sycl::info::device::driver_version>()};
+}
+
+std::string DumpBinData(const unsigned char *Data, size_t Size) {
+  if (!Size)
+    return "NONE";
+  std::stringstream ss;
+  for (size_t i = 0; i < Size; i++) {
+    ss << std::hex << (int)Data[i];
+  }
+  return ss.str();
+}
+
+std::string GetCacheItemDirName(const device &Device,
+                                const RTDeviceBinaryImage &Img,
+                                const SerializedObj SpecConsts,
+                                const std::string &BuildOptionsString) {
+  static std::string cache_root{detail::OSUtil::getCacheRoot()};
+
+  std::string ImgString{
+      DumpBinData(Img.getRawData().BinaryStart, Img.getSize())};
+  std::string DeviceString{getDeviceString(Device)};
+  std::string SpecConstsString{
+      DumpBinData(SpecConsts.data(), SpecConsts.size())};
+  std::hash<std::string> StringHasher{};
+  return {cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
+          std::to_string(StringHasher(ImgString)) + "/" +
+          std::to_string(StringHasher(SpecConstsString)) + "/" +
+          std::to_string(StringHasher(BuildOptionsString))};
+}
+
+bool IsPersistentCacheEnabled() {
+  static const char *PersistenCacheDisabled =
+      SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get();
+
+  if (DbgProgMgr > 0)
+    std::cerr << "Persistent cache "
+              << (PersistenCacheDisabled ? "disabled." : "enabled.")
+              << std::endl;
+  return !PersistenCacheDisabled;
+}
+
+void ProgramManager::putPIProgramToDisc(const detail::plugin &Plugin,
+                                        const device &Device,
+                                        const RTDeviceBinaryImage &Img,
+                                        const SerializedObj SpecConsts,
+                                        const std::string &BuildOptionsString,
+                                        const RT::PiProgram &Program) {
+  if (!IsPersistentCacheEnabled()) {
+    return;
+  }
+
+  static std::string DirName =
+      GetCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString);
+
+  size_t i = 0;
+  std::string FileName;
+  do {
+    FileName = DirName + "/" + std::to_string(i++) + ".bin";
+  } while (IsFSEntryPresent(FileName.c_str()));
+
+  size_t DeviceNum;
+  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_NUM_DEVICES,
+                                           sizeof(DeviceNum), &DeviceNum,
+                                           nullptr);
+  std::vector<size_t> BinarySizes(DeviceNum);
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      Program, PI_PROGRAM_INFO_BINARY_SIZES,
+      sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+
+  std::vector<std::vector<char>> Result;
+  std::vector<char *> Pointers;
+  for (size_t I = 0; I < BinarySizes.size(); ++I) {
+    Result.emplace_back(BinarySizes[I]);
+    Pointers.push_back(Result[I].data());
+  }
+
+  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_BINARIES,
+                                           sizeof(char *) * Pointers.size(),
+                                           Pointers.data(), nullptr);
+
+  MakePathRecur(DirName.c_str(), 0777);
+  WriteCacheItem(FileName, Result);
+}
+
+bool ProgramManager::getPIProgramFromDisc(ContextImplPtr ContextImpl,
+                                          const device &Device,
+                                          const RTDeviceBinaryImage &Img,
+                                          const SerializedObj SpecConsts,
+                                          const std::string &BuildOptionsString,
+                                          RT::PiProgram &NativePrg) {
+
+  if (!IsPersistentCacheEnabled())
+    return false;
+
+  std::string Path{
+      GetCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString)};
+
+  if (!IsFSEntryPresent(Path.c_str()))
+    return false;
+
+  int i = 0;
+  std::string BinFileName{Path + "/" + std::to_string(i) + ".bin"};
+  while (IsFSEntryPresent(BinFileName.c_str())) {
+    auto BinDataItem = ReadCacheItem(BinFileName);
+    if (BinDataItem.size()) {
+      // TODO: Build for multiple devices once supported by program manager
+      NativePrg = createBinaryProgram(
+          ContextImpl, Device, (const unsigned char *)BinDataItem[0].data(),
+          BinDataItem[0].size());
+      return true;
+    }
+    BinFileName = Path + "/" + std::to_string(++i) + ".bin";
+  }
+
+  return false;
+}
+
 RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
                                                 const context &Context,
                                                 const device &Device,
@@ -390,9 +597,12 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   if (LinkOptsEnv) {
     LinkOpts = LinkOptsEnv;
   }
+  SerializedObj SpecConsts;
+  if (Prg)
+    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   auto BuildF = [this, &M, &KSId, &Context, &Device, Prg, &CompileOpts,
-                 &LinkOpts, &JITCompilationIsRequired] {
+                 &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     const RTDeviceBinaryImage &Img =
         getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
     // Update only if compile options are not overwritten by environment
@@ -413,19 +623,28 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       LinkOpts += Img.getLinkOptions();
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
-    if (Prg)
-      flushSpecConstants(*Prg, NativePrg, &Img);
+    RT::PiProgram NativePrg;
+    bool LoadedFromDiskCache =
+        getPIProgramFromDisc(ContextImpl, Device, Img, SpecConsts,
+                             CompileOpts + LinkOpts, NativePrg);
+    if (!LoadedFromDiskCache) {
+      NativePrg = createPIProgram(Img, Context, Device);
+      if (Prg)
+        flushSpecConstants(*Prg, NativePrg, &Img);
+    }
+
     ProgramPtr ProgramManaged(
         NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
-    // Pre-compiled programs are supposed to be already linked.
+    // Pre-compiled programs (after AOT compilation or read from persitent
+    // cache) are supposed to be already linked.
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+    if (!LoadedFromDiskCache &&
+        Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
@@ -438,12 +657,11 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
     }
+    if (!LoadedFromDiskCache)
+      putPIProgramToDisc(Plugin, Device, Img, SpecConsts,
+                         CompileOpts + LinkOpts, BuiltProgram.get());
     return BuiltProgram.release();
   };
-
-  SerializedObj SpecConsts;
-  if (Prg)
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Device)->getHandleRef();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(

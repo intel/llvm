@@ -8,6 +8,7 @@
 
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/exception.hpp>
+#include <detail/config.hpp>
 
 #include <cassert>
 
@@ -121,7 +122,7 @@ std::string OSUtil::getCurrentDSODir() {
   //
   //  4) Extract an absolute path to a filename and get a dirname from it.
   //
-  uintptr_t CurrentFunc = (uintptr_t) &getCurrentDSODir;
+  uintptr_t CurrentFunc = (uintptr_t)&getCurrentDSODir;
   std::ifstream Stream("/proc/self/maps");
   Stream >> std::hex;
   while (!Stream.eof()) {
@@ -166,7 +167,7 @@ std::string OSUtil::getCurrentDSODir() {
   return "";
 }
 
-std::string OSUtil::getDirName(const char* Path) {
+std::string OSUtil::getDirName(const char *Path) {
   std::string Tmp(Path);
   // dirname(3) needs a writable C string: a null-terminator is written where a
   // path should split.
@@ -256,6 +257,22 @@ void OSUtil::alignedFree(void *Ptr) {
 #elif defined(__SYCL_RT_OS_WINDOWS)
   _aligned_free(Ptr);
 #endif
+}
+
+std::string OSUtil::getCacheRoot() {
+  static const char *PersistenCacheRoot = SYCLConfig<SYCL_CACHE_DIR>::get();
+  if (PersistenCacheRoot)
+    return PersistenCacheRoot;
+
+#if defined(__SYCL_RT_OS_LINUX)
+  static const char *RootDir = std::getenv("HOME");
+#else
+  static const char *RootDir = std::getenv("AppData");
+#endif
+  std::string Root{RootDir ? RootDir : "."};
+
+  Root += "/intel/sycl_cache";
+  return Root;
 }
 
 } // namespace detail
