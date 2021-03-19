@@ -301,7 +301,8 @@ static bool checkPositiveIntArgument(Sema &S, const AttrInfo &AI, const Expr *Ex
 /// Diagnose mutually exclusive attributes when present on a given
 /// declaration. Returns true if diagnosed.
 template <typename AttrTy>
-static bool checkAttrMutualExclusion(Sema &S, Decl *D, const ParsedAttr &AL) {
+static bool checkAttrMutualExclusion(Sema &S, Decl *D,
+                                     const AttributeCommonInfo &AL) {
   if (const auto *A = D->getAttr<AttrTy>()) {
     S.Diag(AL.getLoc(), diag::err_attributes_are_not_compatible) << AL << A;
     S.Diag(A->getLocation(), diag::note_conflicting_attribute);
@@ -5960,16 +5961,73 @@ static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
                  IntelFPGASimpleDualPortAttr(S.Context, AL));
 }
 
+void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLocation(), diag::note_previous_attribute);
+        return;
+      }
+    }
+    // [[intel::fpga_register]] and [[intel::max_replicates()]]
+    // attributes are incompatible.
+    if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
+      return;
+  }
+
+  D->addAttr(::new (Context) IntelFPGAMaxReplicatesAttr(Context, CI, E));
+}
+
+IntelFPGAMaxReplicatesAttr *
+Sema::MergeIntelFPGAMaxReplicatesAttr(Decl *D,
+                                      const IntelFPGAMaxReplicatesAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+  // [[intel::fpga_register]] and [[intel::max_replicates()]]
+  // attributes are incompatible.
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, A))
+    return nullptr;
+
+  return ::new (Context) IntelFPGAMaxReplicatesAttr(Context, A, A.getValue());
+}
+
 static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
                                              const ParsedAttr &A) {
-  checkForDuplicateAttribute<IntelFPGAMaxReplicatesAttr>(S, D, A);
-
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
-    return;
-
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.addIntelSingleArgAttr<IntelFPGAMaxReplicatesAttr>(D, A, A.getArgAsExpr(0));
+  S.AddIntelFPGAMaxReplicatesAttr(D, A, A.getArgAsExpr(0));
 }
 
 /// Handle the merge attribute.
@@ -6095,15 +6153,55 @@ void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                  IntelFPGABankBitsAttr(Context, CI, Args.data(), Args.size()));
 }
 
+void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+    // This attribute requires a non-negative value.
+    if (ArgVal < 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*non-negative*/ 1;
+      return;
+    }
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<IntelFPGAPrivateCopiesAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        return;
+      }
+    }
+    // [[intel::fpga_register]] and [[intel::private_copies()]]
+    // attributes are incompatible.
+    if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
+      return;
+    // If the declaration does not have [[intel::memory]]
+    // attribute, this creates default implicit memory.
+    if (!D->hasAttr<IntelFPGAMemoryAttr>())
+      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+          Context, IntelFPGAMemoryAttr::Default));
+  }
+
+  D->addAttr(::new (Context) IntelFPGAPrivateCopiesAttr(Context, CI, E));
+}
+
 static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
                                              const ParsedAttr &A) {
-  checkForDuplicateAttribute<IntelFPGAPrivateCopiesAttr>(S, D, A);
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
-    return;
-
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.addIntelSingleArgAttr<IntelFPGAPrivateCopiesAttr>(D, A, A.getArgAsExpr(0));
+  S.AddIntelFPGAPrivateCopiesAttr(D, A, A.getArgAsExpr(0));
 }
 
 static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
