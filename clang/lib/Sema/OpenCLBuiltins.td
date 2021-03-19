@@ -1102,7 +1102,6 @@ let MinVersion = CL20 in {
 
   foreach TypePair = [[AtomicInt, Int, Int], [AtomicUInt, UInt, UInt],
                       [AtomicLong, Long, Long], [AtomicULong, ULong, ULong],
-                      [AtomicIntPtr, IntPtr, PtrDiff],
                       [AtomicUIntPtr, UIntPtr, PtrDiff]] in {
     foreach ModOp = ["add", "sub"] in {
       def : Builtin<"atomic_fetch_" # ModOp,
@@ -1114,9 +1113,7 @@ let MinVersion = CL20 in {
     }
   }
   foreach TypePair = [[AtomicInt, Int, Int], [AtomicUInt, UInt, UInt],
-                      [AtomicLong, Long, Long], [AtomicULong, ULong, ULong],
-                      [AtomicIntPtr, IntPtr, IntPtr],
-                      [AtomicUIntPtr, UIntPtr, UIntPtr]] in {
+                      [AtomicLong, Long, Long], [AtomicULong, ULong, ULong]] in {
     foreach ModOp = ["or", "xor", "and", "min", "max"] in {
       def : Builtin<"atomic_fetch_" # ModOp,
           [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[2]]>;

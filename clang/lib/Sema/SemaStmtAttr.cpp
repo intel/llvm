@@ -26,14 +26,12 @@ using namespace sema;
 static Attr *handleFallThroughAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                    SourceRange Range) {
   FallThroughAttr Attr(S.Context, A);
-  if (!isa<NullStmt>(St)) {
+  if (isa<SwitchCase>(St)) {
     S.Diag(A.getRange().getBegin(), diag::err_fallthrough_attr_wrong_target)
-        << Attr.getSpelling() << St->getBeginLoc();
-    if (isa<SwitchCase>(St)) {
-      SourceLocation L = S.getLocForEndOfToken(Range.getEnd());
-      S.Diag(L, diag::note_fallthrough_insert_semi_fixit)
-          << FixItHint::CreateInsertion(L, ";");
-    }
+        << A << St->getBeginLoc();
+    SourceLocation L = S.getLocForEndOfToken(Range.getEnd());
+    S.Diag(L, diag::note_fallthrough_insert_semi_fixit)
+        << FixItHint::CreateInsertion(L, ";");
     return nullptr;
   }
   auto *FnScope = S.getCurFunction();
@@ -54,11 +52,6 @@ static Attr *handleFallThroughAttr(Sema &S, Stmt *St, const ParsedAttr &A,
 
 static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                 SourceRange Range) {
-  if (A.getNumArgs() < 1) {
-    S.Diag(A.getLoc(), diag::err_attribute_too_few_arguments) << A << 1;
-    return nullptr;
-  }
-
   std::vector<StringRef> DiagnosticIdentifiers;
   for (unsigned I = 0, E = A.getNumArgs(); I != E; ++I) {
     StringRef RuleName;
@@ -335,10 +328,10 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                  PragmaNameLoc->Ident->getName())
           .Default("clang loop");
 
-  if (St->getStmtClass() != Stmt::DoStmtClass &&
-      St->getStmtClass() != Stmt::ForStmtClass &&
-      St->getStmtClass() != Stmt::CXXForRangeStmtClass &&
-      St->getStmtClass() != Stmt::WhileStmtClass) {
+  // This could be handled automatically by adding a Subjects definition in
+  // Attr.td, but that would make the diagnostic behavior worse in this case
+  // because the user spells this attribute as a pragma.
+  if (!isa<DoStmt, ForStmt, CXXForRangeStmt, WhileStmt>(St)) {
     std::string Pragma = "#pragma " + std::string(PragmaName);
     S.Diag(St->getBeginLoc(), diag::err_pragma_loop_precedes_nonloop) << Pragma;
     return nullptr;
@@ -452,9 +445,6 @@ public:
 static Attr *handleNoMergeAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                SourceRange Range) {
   NoMergeAttr NMA(S.Context, A);
-  if (S.CheckAttrNoArgs(A))
-    return nullptr;
-
   CallExprFinder CEF(S, St);
 
   if (!CEF.foundCallExpr()) {
@@ -799,13 +789,28 @@ static Attr *handleLoopUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
 
 static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
                                   SourceRange Range) {
-  switch (A.getKind()) {
-  case ParsedAttr::UnknownAttribute:
+  if (A.isInvalid() || A.getKind() == ParsedAttr::IgnoredAttribute)
+    return nullptr;
+
+  // Unknown attributes are automatically warned on. Target-specific attributes
+  // which do not apply to the current target architecture are treated as
+  // though they were unknown attributes.
+  const TargetInfo *Aux = S.Context.getAuxTargetInfo();
+  if (A.getKind() == ParsedAttr::UnknownAttribute ||
+      !(A.existsInTarget(S.Context.getTargetInfo()) ||
+        (S.Context.getLangOpts().SYCLIsDevice && Aux &&
+         A.existsInTarget(*Aux)))) {
     S.Diag(A.getLoc(), A.isDeclspecAttribute()
                            ? (unsigned)diag::warn_unhandled_ms_attribute_ignored
                            : (unsigned)diag::warn_unknown_attribute_ignored)
         << A << A.getRange();
     return nullptr;
+  }
+
+  if (S.checkCommonAttributeFeatures(St, A))
+    return nullptr;
+
+  switch (A.getKind()) {
   case ParsedAttr::AT_FallThrough:
     return handleFallThroughAttr(S, St, A, Range);
   case ParsedAttr::AT_LoopHint:
@@ -841,8 +846,9 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
   case ParsedAttr::AT_SYCLIntelFPGANofusion:
     return handleIntelFPGANofusionAttr(S, St, A);
   default:
-    // if we're here, then we parsed a known attribute, but didn't recognize
-    // it as a statement attribute => it is declaration attribute
+    // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
+    // declaration attribute is not written on a statement, but this code is
+    // needed for attributes in Attr.td that do not list any subjects.
     S.Diag(A.getRange().getBegin(), diag::err_decl_attribute_invalid_on_stmt)
         << A << St->getBeginLoc();
     return nullptr;

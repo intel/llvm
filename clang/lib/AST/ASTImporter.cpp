@@ -4024,6 +4024,7 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
                               D->getStorageClass()))
     return ToVar;
 
+  ToVar->setTSCSpec(D->getTSCSpec());
   ToVar->setQualifierInfo(ToQualifierLoc);
   ToVar->setAccess(D->getAccess());
   ToVar->setLexicalDeclContext(LexicalDC);

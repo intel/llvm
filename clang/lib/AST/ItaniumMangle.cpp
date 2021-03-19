@@ -641,7 +641,7 @@ bool ItaniumMangleContextImpl::isUniqueInternalLinkageDecl(
 
   // For C functions without prototypes, return false as their
   // names should not be mangled.
-  if (!FD->getType()->getAs<FunctionProtoType>())
+  if (!FD->hasPrototype())
     return false;
 
   if (isInternalLinkageDecl(ND))
