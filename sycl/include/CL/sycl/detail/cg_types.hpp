@@ -15,6 +15,7 @@
 #include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/interop_handler.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/kernel_handler.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
@@ -122,6 +123,32 @@ public:
   size_t Dims;
 };
 
+template <typename Func>
+struct KernelArgsInfo : KernelArgsInfo<decltype(&Func::operator())> {};
+
+template <typename RetType, typename Func, class... Args>
+struct KernelArgsInfo<RetType (Func::*)(Args...) const> {
+  constexpr static size_t argsCount() { return sizeof...(Args); };
+  constexpr static bool hasArgs() { return sizeof...(Args) > 0; };
+  template <std::size_t ArgNum> struct ArgType {
+    typedef typename std::tuple_element<ArgNum, std::tuple<Args...>>::type type;
+  };
+};
+
+template <typename Func>
+std::enable_if_t<KernelArgsInfo<Func>::hasArgs(),
+                 bool> constexpr kernelHandlerIsLastElementTypeOfKernel() {
+  return std::is_same<typename KernelArgsInfo<Func>::template ArgType<
+                          KernelArgsInfo<Func>::argsCount() - 1>::type,
+                      kernel_handler>::value;
+}
+
+template <typename Func>
+std::enable_if_t<!KernelArgsInfo<Func>::hasArgs(),
+                 bool> constexpr kernelHandlerIsLastElementTypeOfKernel() {
+  return false;
+}
+
 // The pure virtual class aimed to store lambda/functors of any type.
 class HostKernelBase {
 public:
@@ -197,7 +224,7 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, void>::value>
   runOnHost(const NDRDescT &) {
-    MKernel();
+    runKernelWithoutArg<decltype(MKernel)>();
   }
 
   template <class ArgT = KernelArgType>
@@ -228,7 +255,8 @@ public:
                                       store_id(&ID);
                                       store_item(&Item);
                                     }
-                                    MKernel(ID);
+                                    runKernelWithArg<const sycl::id<Dims> &,
+                                                     decltype(MKernel)>(ID); 
                                   });
   }
 
@@ -253,7 +281,8 @@ public:
         store_id(&ID);
         store_item(&ItemWithOffset);
       }
-      MKernel(Item);
+      runKernelWithArg<sycl::item<Dims, /*Offset=*/false>, decltype(MKernel)>(
+          Item);
     });
   }
 
@@ -286,7 +315,9 @@ public:
                                       store_id(&ID);
                                       store_item(&Item);
                                     }
-                                    MKernel(Item);
+                                    runKernelWithArg<
+                                        sycl::item<Dims, /*Offset=*/true>,
+                                        decltype(MKernel)>(Item);
                                   });
   }
 
@@ -336,7 +367,7 @@ public:
           auto g = NDItem.get_group();
           store_group(&g);
         }
-        MKernel(NDItem);
+        runKernelWithArg<const sycl::nd_item<Dims>, decltype(MKernel)>(NDItem);
       });
     });
   }
@@ -364,11 +395,42 @@ public:
     detail::NDLoop<Dims>::iterate(NGroups, [&](const id<Dims> &GroupID) {
       sycl::group<Dims> Group =
           IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, NGroups, GroupID);
-      MKernel(Group);
+      runKernelWithArg<sycl::group<Dims>, decltype(MKernel)>(Group);
     });
   }
 
   ~HostKernel() = default;
+
+private:
+  template <class KernelT>
+  std::enable_if_t<detail::kernelHandlerIsLastElementTypeOfKernel<KernelT>(),
+                   void>
+  runKernelWithoutArg() {
+    kernel_handler KH;
+    MKernel(KH);
+  }
+
+  template <class KernelT>
+  std::enable_if_t<!detail::kernelHandlerIsLastElementTypeOfKernel<KernelT>(),
+                   void>
+  runKernelWithoutArg() {
+    MKernel();
+  }
+
+  template <typename ArgType, class KernelT>
+  std::enable_if_t<detail::kernelHandlerIsLastElementTypeOfKernel<KernelT>(),
+                   void>
+  runKernelWithArg(ArgType Arg) {
+    kernel_handler KH;
+    MKernel(Arg, KH);
+  }
+
+  template <typename ArgType, class KernelT>
+  std::enable_if_t<!detail::kernelHandlerIsLastElementTypeOfKernel<KernelT>(),
+                   void>
+  runKernelWithArg(ArgType Arg) {
+    MKernel(Arg);
+  }
 };
 
 } // namespace detail

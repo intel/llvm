@@ -21,6 +21,7 @@
 #include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/kernel_handler.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/property_list.hpp>
@@ -514,6 +515,12 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
+    if (detail::kernelHandlerIsLastElementTypeOfKernel<KernelType>() &&
+        MIsHost) {
+      throw cl::sycl::feature_not_supported(
+          "kernel_handler is not supported by host device.",
+          PI_INVALID_OPERATION);
+    }
     MHostKernel.reset(
         new detail::HostKernel<KernelType, LambdaArgType, Dims, KernelName>(
             KernelFunc));
@@ -810,7 +817,13 @@ private:
         if (Arg[0] >= NumWorkItems[0])
           return;
         Arg.set_allowed_range(NumWorkItems);
-        KernelFunc(Arg);
+        if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                          KernelType>()) {
+          kernel_handler KH;
+          KernelFunc(Arg, KH);
+        } else {
+          KernelFunc(Arg);
+        }
       };
 
       range<Dims> AdjustedRange = NumWorkItems;
@@ -830,7 +843,13 @@ private:
     {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
-      kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
+      if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                        KernelType>()) {
+        kernel_handler KH;
+        kernel_parallel_for<NameT, TransformedArgType>(KernelFunc, KH);
+      } else {
+        kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
+      }
 #else
       detail::checkValueRange<Dims>(NumWorkItems);
       MNDRDesc.set(std::move(NumWorkItems));
@@ -874,6 +893,18 @@ private:
     KernelFunc();
   }
 
+  // NOTE: the name of this function - "kernel_single_task" - is used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename KernelType>
+  __attribute__((sycl_kernel)) void
+#ifdef __SYCL_NONCONST_FUNCTOR__
+  kernel_single_task(KernelType KernelFunc, kernel_handler KH) {
+#else
+  kernel_single_task(const KernelType &KernelFunc, kernel_handler KH) {
+#endif
+    KernelFunc(KH);
+  }
+
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
@@ -884,6 +915,18 @@ private:
   kernel_parallel_for(const KernelType &KernelFunc) {
 #endif
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+  }
+
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType>
+  __attribute__((sycl_kernel)) void
+#ifdef __SYCL_NONCONST_FUNCTOR__
+  kernel_parallel_for(KernelType KernelFunc, kernel_handler KH) {
+#else
+  kernel_parallel_for(const KernelType &KernelFunc, kernel_handler KH) {
+#endif
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
   }
 
   // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
@@ -898,6 +941,18 @@ private:
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
   }
 
+  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
+  // used by the Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType>
+  __attribute__((sycl_kernel)) void
+#ifdef __SYCL_NONCONST_FUNCTOR__
+  kernel_parallel_for_work_group(KernelType KernelFunc, kernel_handler KH) {
+#else
+  kernel_parallel_for_work_group(const KernelType &KernelFunc,
+                                 kernel_handler KH) {
+#endif
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+  }
 #endif
 
 public:
@@ -1006,7 +1061,13 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_single_task<NameT>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_single_task<NameT>(KernelFunc, KH);
+    } else {
+      kernel_single_task<NameT>(KernelFunc);
+    }
 #else
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
@@ -1120,7 +1181,13 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkItems;
     (void)WorkItemOffset;
-    kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
@@ -1152,7 +1219,13 @@ public:
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)ExecutionRange;
-    kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
@@ -1373,7 +1446,13 @@ public:
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
-    kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
@@ -1407,7 +1486,13 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
     (void)WorkGroupSize;
-    kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
@@ -1501,8 +1586,20 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
-    kernel_single_task<NameT>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_single_task<NameT>(KernelFunc, KH);
+    } else {
+      kernel_single_task<NameT>(KernelFunc);
+    }
 #else
+    // if (detail::kernelHandlerIsLastElementTypeOfKernel<KernelType>() &&
+    //     MQueue->get_device().is_host()) {
+    //   throw cl::sycl::feature_not_supported(
+    //       "kernel_handler is not supported by host device.",
+    //       PI_INVALID_OPERATION);
+    // }
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
@@ -1543,7 +1640,13 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkItems;
-    kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
@@ -1579,7 +1682,13 @@ public:
     (void)Kernel;
     (void)NumWorkItems;
     (void)WorkItemOffset;
-    kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
@@ -1615,8 +1724,20 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NDRange;
-    kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
+    // if (detail::kernelHandlerIsLastElementTypeOfKernel<KernelType>() &&
+    //     MQueue->get_device().is_host()) {
+    //   throw cl::sycl::feature_not_supported(
+    //       "kernel_handler is not supported by host device.",
+    //       PI_INVALID_OPERATION);
+    // }
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1655,7 +1776,13 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkGroups;
-    kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
@@ -1694,7 +1821,13 @@ public:
     (void)Kernel;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
-    kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
+    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
+    }
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
