@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/spec_constant_impl.hpp>
 
@@ -133,6 +134,21 @@ public:
   getEliminatedKernelArgMask(OSModuleHandle M, const context &Context,
                              const device &Device, pi::PiProgram NativePrg,
                              const string_class &KernelName, bool KnownProgram);
+
+  // The function returns a vector of SYCL device images in required state,
+  // which are compatible with at least one of the device from Devs.
+  std::vector<device_image_plain>
+  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
+                      bundle_state State);
+
+  device_image_plain compile(const device_image_plain &DeviceImage,
+                             property_list PropList);
+
+  device_image_plain link(const std::vector<device_image_plain> &DeviceImage,
+                          property_list PropList);
+
+  device_image_plain build(const device_image_plain &DeviceImage,
+                           property_list PropList);
 
   ProgramManager();
   ~ProgramManager() = default;

@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -Wno-sycl-2017-compat -verify
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -DTRIGGER_ERROR -Wno-sycl-2017-compat -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -Wno-sycl-2017-compat | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -Wno-sycl-2017-compat -verify
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -DTRIGGER_ERROR -Wno-sycl-2017-compat -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -Wno-sycl-2017-compat | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -53,6 +53,10 @@ int main() {
 #ifndef TRIGGER_ERROR
     // CHECK-LABEL:  FunctionDecl {{.*}} main 'int ()'
     // CHECK:  `-FunctionDecl {{.*}}test_kernel1 'void ()'
+    // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
@@ -63,10 +67,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 2

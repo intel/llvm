@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2017 -DSYCL2017 %s
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -DSYCL2020 %s
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -Wno-sycl-strict -DNODIAG %s
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -Wno-sycl-strict -DNODIAG %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2017 -DSYCL2017 %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -DSYCL2020 %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -Wno-sycl-strict -DNODIAG %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -Wno-sycl-strict -DNODIAG %s
 
 #include "sycl.hpp"
 
