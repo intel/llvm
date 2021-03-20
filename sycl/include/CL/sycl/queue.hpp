@@ -237,7 +237,7 @@ public:
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
                   , CodeLoc
 #endif
-           );
+    );
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -260,7 +260,7 @@ public:
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
                   , CodeLoc
 #endif
-           );
+    );
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
