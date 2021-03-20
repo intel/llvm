@@ -351,21 +351,21 @@ int main() {
 
     // Diagnostic is thrown since arguments mismatch.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel11 'void ()'
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
+    // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
-    h.single_task<class test_kernel1>(
+    h.single_task<class test_kernel11>(
         []() [[intel::max_global_work_dim(3),      // expected-note {{previous attribute is here}}
                intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different arguments}}
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel12 'void ()'
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     // No diagnostic is thrown since arguments match. Duplicate attribute is silently ignored.
-    h.single_task<class test_kernel2>(
+    h.single_task<class test_kernel12>(
         []() [[intel::max_global_work_dim(2),
                intel::max_global_work_dim(2)]]{}); // OK
 
@@ -375,27 +375,27 @@ int main() {
     h.single_task<class test_kernel13>(
         []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
 
-    h.single_task<class test_kernel4>(
+    h.single_task<class test_kernell4>(
         []() [[intel::max_global_work_dim(3),      // expected-note {{previous attribute is here}}
                intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different arguments}}
 
-    h.single_task<class test_kernel5>(TRIFuncObjBad());
+    h.single_task<class test_kernel15>(TRIFuncObjBad());
 
-    h.single_task<class test_kernel6>(TRIFuncObjBad1());
+    h.single_task<class test_kernel16>(TRIFuncObjBad1());
 
-    h.single_task<class test_kernel7>(TRIFuncObjBad2());
+    h.single_task<class test_kernel17>(TRIFuncObjBad2());
 
-    h.single_task<class test_kernel8>(TRIFuncObjBad3());
+    h.single_task<class test_kernel18>(TRIFuncObjBad3());
 
-    h.single_task<class test_kernel9>(TRIFuncObjBad4());
+    h.single_task<class test_kernel19>(TRIFuncObjBad4());
 
     h.single_task<class test_kernel20>(TRIFuncObjBad5());
 
     h.single_task<class test_kernel21>(TRIFuncObjBad6());
 
-    h.single_task<class test_kerne22>(TRIFuncObjBad7());
+    h.single_task<class test_kernel22>(TRIFuncObjBad7());
 
-    h.single_task<class test_kerne23>(TRIFuncObjBad8());
+    h.single_task<class test_kernel23>(TRIFuncObjBad8());
 
     h.single_task<class test_kernel24>(
         []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
