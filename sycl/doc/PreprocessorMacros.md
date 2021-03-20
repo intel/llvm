@@ -26,8 +26,7 @@ SYCL 2020.
 
 ### SYCL_DISABLE_DEPRECATION_WARNINGS
 
-Disables all deprecation warnings in SYCL runtime headers, including deprecation
-of OpenCL interop APIs.
+Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1 deprecations.
 
 ### Version macros
 
