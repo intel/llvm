@@ -531,8 +531,17 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 
   if (!DAL) {
     DAL = new DerivedArgList(Args.getBaseArgs());
-    for (Arg *A : Args)
-      DAL->append(A);
+    for (Arg *A : Args) {
+      // Filter out any options we do not want to pass along to the device
+      // compilation.
+      switch ((options::ID)A->getOption().getID()) {
+      default:
+        DAL->append(A);
+        break;
+      case options::OPT_fcoverage_mapping:
+        break;
+      }
+    }
   }
 
   const OptTable &Opts = getDriver().getOpts();
