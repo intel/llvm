@@ -210,7 +210,7 @@ program_impl::~program_impl() {
 
 cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
-  if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+  if (is_host()) {
     throw invalid_object_error(
         "This instance of program doesn't support OpenCL interoperability.",
         PI_INVALID_PROGRAM);
@@ -583,6 +583,8 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
 
 pi_native_handle program_impl::getNative() const {
   const auto &Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
   return Handle;

@@ -194,6 +194,11 @@ public:
   /// \return true if this context is a SYCL host context.
   bool is_host() const;
 
+  /// Returns the backend associated with this context.
+  ///
+  /// \return the backend associated with this context.
+  backend get_backend() const noexcept;
+
   /// Gets platform associated with this SYCL context.
   ///
   /// \return a valid instance of SYCL platform.
