@@ -172,6 +172,16 @@ void check_ast()
   //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
   [[intel::private_copies(12)]]
   [[intel::private_copies(12)]] int var_private_copies; // OK
+
+  // Checking of duplicate argument values.
+  //CHECK: VarDecl{{.*}}var_forcep2d
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: value:{{.*}}1
+  //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+  [[intel::force_pow2_depth(1)]]
+  [[intel::force_pow2_depth(1)]] int var_forcep2d; // OK
 }
 
 //CHECK: FunctionDecl{{.*}}diagnostics
@@ -598,7 +608,7 @@ void diagnostics()
   //expected-note@+1 {{did you mean to use 'intel::force_pow2_depth' instead?}}
   [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
 
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires a non-negative integral compile time constant expression}}
   [[intel::force_pow2_depth(-1)]] unsigned int force_p2d_below_min[64];
   //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
   [[intel::force_pow2_depth(2)]] unsigned int force_p2d_above_max[64];
@@ -608,17 +618,15 @@ void diagnostics()
   //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
   [[intel::force_pow2_depth(0, 1)]] unsigned int force_p2d_2_args[64];
 
+  // Checking of different argument values.
   //CHECK: VarDecl{{.*}}force_p2d_dup
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAForcePow2DepthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-  //CHECK: IntelFPGAForcePow2DepthAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}0
-  //CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
-  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied}}
+  //expected-note@+2{{previous attribute is here}}
+  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied with different arguments}}
   [[intel::force_pow2_depth(1), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
 
@@ -857,6 +865,7 @@ void check_template_parameters() {
   //expected-note@-1{{conflicting attribute is here}}
   [[intel::force_pow2_depth(E)]] unsigned int reg_force_p2d[64];
 
+  // Test that checks template instantiations for different arg values.
   //CHECK: VarDecl{{.*}}force_p2d_dup
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAForcePow2DepthAttr
@@ -865,11 +874,8 @@ void check_template_parameters() {
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
   //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-  //CHECK: IntelFPGAForcePow2DepthAttr
-  //CHECK: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}0
-  //CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
-  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied}}
+  //expected-note@+2{{previous attribute is here}}
+  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied with different arguments}}
   [[intel::force_pow2_depth(E), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
 
