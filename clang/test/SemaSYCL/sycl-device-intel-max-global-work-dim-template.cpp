@@ -68,6 +68,14 @@ template <int size>
 template <int size>
 [[intel::max_global_work_dim(size)]] void func4() {} // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
 
+// Test that checks template instantiations for same argument values. We don't duplicate the attribute with the same arguments.
+template <int size>
+[[intel::max_global_work_dim(2)]] void func5();
+
+template <int size>
+[[intel::max_global_work_dim(size)]] void func5() {}
+
+
 int check() {
   // no error expected
   func3<3>();
@@ -75,6 +83,8 @@ int check() {
   func3<-1>();
   //expected-note@+1 {{in instantiation of function template specialization 'func4<2>' requested here}}
   func4<2>();
+  // no error expected
+  func5<2>();
   return 0;
 }
 
@@ -86,3 +96,9 @@ int check() {
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+
+// CHECK: FunctionDecl {{.*}} {{.*}} func5 'void ()'
+// CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 2
+// CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}

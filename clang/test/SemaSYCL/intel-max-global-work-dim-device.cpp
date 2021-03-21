@@ -33,9 +33,12 @@ struct Func {
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
-// No diagnostic is thrown since arguments match.
-[[intel::max_global_work_dim(2)]] void bar();
-[[intel::max_global_work_dim(2)]] void bar() {}
+// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
+[[intel::max_global_work_dim(1)]] void bar();
+[[intel::max_global_work_dim(1)]] void bar() {}
+
+[[intel::max_global_work_dim(2)]] void func_ignore();
+[[intel::max_global_work_dim(2)]] void func_ignore();
 
 // Checking of different argument values.
 [[intel::max_global_work_dim(2)]] void baz();  // expected-note {{previous attribute is here}}
@@ -349,45 +352,35 @@ int main() {
     // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
 
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel11 'void ()'
-    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // No diagnostic is thrown since arguments match. Duplicate attribute is silently ignored.
-    h.single_task<class test_kernel11>(
-        []() [[intel::max_global_work_dim(2),
-               intel::max_global_work_dim(2)]]{}); // OK
-
 #ifdef TRIGGER_ERROR
     [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
 
-    h.single_task<class test_kernel12>(
+    h.single_task<class test_kernel11>(
         []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
 
-    h.single_task<class test_kernell3>(
+    h.single_task<class test_kernell2>(
         []() [[intel::max_global_work_dim(3),      // expected-note {{previous attribute is here}}
                intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different arguments}}
 
-    h.single_task<class test_kernel14>(TRIFuncObjBad());
+    h.single_task<class test_kernel13>(TRIFuncObjBad());
 
-    h.single_task<class test_kernel15>(TRIFuncObjBad1());
+    h.single_task<class test_kernel14>(TRIFuncObjBad1());
 
-    h.single_task<class test_kernel16>(TRIFuncObjBad2());
+    h.single_task<class test_kernel15>(TRIFuncObjBad2());
 
-    h.single_task<class test_kernel17>(TRIFuncObjBad3());
+    h.single_task<class test_kernel16>(TRIFuncObjBad3());
 
-    h.single_task<class test_kernel18>(TRIFuncObjBad4());
+    h.single_task<class test_kernel17>(TRIFuncObjBad4());
 
-    h.single_task<class test_kernel19>(TRIFuncObjBad5());
+    h.single_task<class test_kernel18>(TRIFuncObjBad5());
 
-    h.single_task<class test_kernel20>(TRIFuncObjBad6());
+    h.single_task<class test_kernel19>(TRIFuncObjBad6());
 
-    h.single_task<class test_kernel21>(TRIFuncObjBad7());
+    h.single_task<class test_kernel20>(TRIFuncObjBad7());
 
-    h.single_task<class test_kernel22>(TRIFuncObjBad8());
+    h.single_task<class test_kernel21>(TRIFuncObjBad8());
 
-    h.single_task<class test_kernel23>(
+    h.single_task<class test_kernel22>(
         []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 #endif // TRIGGER_ERROR
   });
