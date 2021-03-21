@@ -6274,7 +6274,7 @@ Sema::MergeIntelFPGAForcePow2DepthAttr(Decl *D,
           return nullptr;
         }
         // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<IntelFPGAForcePow2DepthAttr>()
+        D->dropAttr<IntelFPGAForcePow2DepthAttr>();
       }
     }
   }
