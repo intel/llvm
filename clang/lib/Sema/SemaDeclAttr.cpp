@@ -3451,10 +3451,10 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+          return;
         }
         // If there is no mismatch, drop any duplicate attributes.
         D->dropAttr<SYCLIntelMaxGlobalWorkDimAttr>();
-        return;
       }
     }
     // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
@@ -3494,10 +3494,10 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
+          return nullptr;
         }
         // If there is no mismatch, drop any duplicate attributes.
         D->dropAttr<SYCLIntelMaxGlobalWorkDimAttr>();
-        return nullptr;
       }
     }
   }
