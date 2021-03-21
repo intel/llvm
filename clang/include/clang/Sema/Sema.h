@@ -10240,8 +10240,9 @@ public:
   MergeIntelFPGAMaxReplicatesAttr(Decl *D, const IntelFPGAMaxReplicatesAttr &A);
   void AddIntelFPGAForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
                                       Expr *E);
-  IntelFPGAForcePow2DepthAttr *MergeIntelFPGAForcePow2DepthAttr(
-       Decl *D, const IntelFPGAForcePow2DepthAttr &A);
+  IntelFPGAForcePow2DepthAttr *
+  MergeIntelFPGAForcePow2DepthAttr(Decl *D,
+                                   const IntelFPGAForcePow2DepthAttr &A);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,

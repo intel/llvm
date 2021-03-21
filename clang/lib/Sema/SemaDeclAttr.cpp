@@ -6205,7 +6205,8 @@ static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
   S.AddIntelFPGAPrivateCopiesAttr(D, A, A.getArgAsExpr(0));
 }
 
-void Sema::AddIntelFPGAForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
+void Sema::AddIntelFPGAForcePow2DepthAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
                                           Expr *E) {
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
@@ -6235,12 +6236,12 @@ void Sema::AddIntelFPGAForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
       if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-        if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-	  return;
-	}
-	// If there is no mismatch, drop any duplicate attributes.
+          return;
+        }
+        // If there is no mismatch, drop any duplicate attributes.
         D->dropAttr<IntelFPGAForcePow2DepthAttr>();
       }
     }
@@ -6270,10 +6271,10 @@ Sema::MergeIntelFPGAForcePow2DepthAttr(Decl *D,
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
-	  return nullptr;
-	}
-	// If there is no mismatch, drop any duplicate attributes.
-	D->dropAttr<IntelFPGAForcePow2DepthAttr>();
+          return nullptr;
+        }
+        // If there is no mismatch, drop any duplicate attributes.
+        D->dropAttr<IntelFPGAForcePow2DepthAttr>()
       }
     }
   }
