@@ -10300,9 +10300,9 @@ public:
 
   /// AddSYCLIntelFPGAMaxConcurrencyAttr - Adds a max_concurrency attribute to a
   /// particular declaration.
-  void AddSYCLIntelFPGAMaxConcurrencyAttr(Decl* D,
-                                          const AttributeCommonInfo& CI,
-                                          Expr* E);
+  void AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
 
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD,
