@@ -3591,13 +3591,10 @@ static void GenerateAppertainsTo(const Record &Attr, raw_ostream &OS) {
       // because it requires the subject to be of a specific type, and were that
       // information inlined here, it would not support an attribute with
       // multiple custom subjects.
-      if ((*I)->isSubClassOf("StmtNode")) {
-        OS << "true";
-      } else if ((*I)->isSubClassOf("SubsetSubject")) {
+      if ((*I)->isSubClassOf("SubsetSubject"))
         OS << "!" << functionNameForCustomAppertainsTo(**I) << "(D)";
-      } else {
+      else
         OS << "!isa<" << GetSubjectWithSuffix(*I) << ">(D)";
-      }
 
       if (I + 1 != E)
         OS << " && ";
