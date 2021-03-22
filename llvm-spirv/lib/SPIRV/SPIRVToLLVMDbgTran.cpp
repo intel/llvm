@@ -46,6 +46,7 @@
 
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/ADT/StringExtras.h"
 
 using namespace std;
 using namespace SPIRVDebug::Operand;
@@ -65,11 +66,13 @@ void SPIRVToLLVMDbgTran::addDbgInfoVersion() {
                    DEBUG_METADATA_VERSION);
 }
 
-DIFile *SPIRVToLLVMDbgTran::getDIFile(const string &FileName) {
+DIFile *
+SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
+                              Optional<DIFile::ChecksumInfo<StringRef>> CS) {
   return getOrInsert(FileMap, FileName, [=]() {
     SplitFileName Split(FileName);
     if (!Split.BaseName.empty())
-      return Builder.createFile(Split.BaseName, Split.Path);
+      return Builder.createFile(Split.BaseName, Split.Path, CS);
     return static_cast<DIFile *>(nullptr);
   });
 }
@@ -987,7 +990,8 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
          "DebugSource instruction is expected");
   SPIRVWordVec SourceArgs = Source->getArguments();
   assert(SourceArgs.size() == OperandCount && "Invalid number of operands");
-  return getDIFile(getString(SourceArgs[FileIdx]));
+  StringRef Checksum(getString(SourceArgs[TextIdx]));
+  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(Checksum));
 }
 
 SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
@@ -1009,6 +1013,25 @@ std::string SPIRVToLLVMDbgTran::findModuleProducer() {
     }
   }
   return "spirv";
+}
+
+Optional<DIFile::ChecksumInfo<StringRef>>
+SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
+  // Example of "Text" variable:
+  // "SomeInfo//__CSK_MD5:7bb56387968a9caa6e9e35fff94eaf7b:OtherInfo"
+  Optional<DIFile::ChecksumInfo<StringRef>> CS;
+  auto KindPos = Text.find(SPIRVDebug::ChecksumKindPrefx);
+  if (KindPos != StringRef::npos) {
+    auto ColonPos = Text.find(":", KindPos);
+    KindPos += string("//__").size();
+    auto KindStr = Text.substr(KindPos, ColonPos - KindPos);
+    auto Checksum = Text.substr(ColonPos).ltrim(':');
+    if (auto Kind = DIFile::getChecksumKind(KindStr)) {
+      size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
+      CS.emplace(Kind.getValue(), Checksum.substr(0, ChecksumEndPos));
+    }
+  }
+  return CS;
 }
 
 } // namespace SPIRV

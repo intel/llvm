@@ -939,7 +939,15 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
   using namespace SPIRVDebug::Operand::Source;
   SPIRVWordVec Ops(OperandCount);
   Ops[FileIdx] = BM->getString(FileName)->getId();
-  Ops[TextIdx] = getDebugInfoNone()->getId();
+  DIFile *F = DIEntry ? DIEntry->getFile() : nullptr;
+  if (F && F->getRawChecksum()) {
+    const auto &CheckSum = F->getChecksum().getValue();
+    Ops[TextIdx] = BM->getString("//__" + CheckSum.getKindAsString().str() +
+                                 ":" + CheckSum.Value.str())
+                       ->getId();
+  } else {
+    Ops[TextIdx] = getDebugInfoNone()->getId();
+  }
   SPIRVExtInst *Source = static_cast<SPIRVExtInst *>(
       BM->addDebugInfo(SPIRVDebug::Source, getVoidTy(), Ops));
   FileMap[FileName] = Source;
