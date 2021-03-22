@@ -27,10 +27,10 @@ int main() {
   queue q;
 
 #if defined(WARN)
-  // expected-error@Inputs/sycl.hpp:220 {{'InvalidKernelName1' should be globally visible}}
+  // expected-error@Inputs/sycl.hpp:233 {{'InvalidKernelName1' should be globally visible}}
   // expected-note@+7 {{in instantiation of function template specialization}}
 #elif defined(ERROR)
-  // expected-error@Inputs/sycl.hpp:220 {{'InvalidKernelName1' should be globally visible}}
+  // expected-error@Inputs/sycl.hpp:233 {{'InvalidKernelName1' should be globally visible}}
   // expected-note@+4 {{in instantiation of function template specialization}}
 #endif
   class InvalidKernelName1 {};
