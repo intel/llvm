@@ -14,6 +14,7 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -22,16 +23,26 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+handler::handler(const shared_ptr_class<detail::queue_impl> &Queue, bool IsHost)
+    : MQueue(std::move(Queue)), MIsHost(IsHost) {
+  MSharedPtrStorage.emplace_back(
+      std::make_shared<std::vector<detail::ExtendedMemberT>>());
+}
+
 context handler::getContext() { return MQueue->get_context(); }
 
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) {
+
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
   assert(!MSharedPtrStorage.empty());
 
-  // TODO: Add mutex
   std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
       detail::convertToExtendedMembers(MSharedPtrStorage[0]);
 
+  // Look for the kernel bundle in extended members
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
   for (const detail::ExtendedMemberT &EMember : *ExendedMembersVec)
     if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
@@ -58,7 +69,8 @@ void handler::setHandlerKernelBundle(
     const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
   assert(!MSharedPtrStorage.empty());
 
-  // TODO: Add mutex
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
 
   std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
       detail::convertToExtendedMembers(MSharedPtrStorage[0]);

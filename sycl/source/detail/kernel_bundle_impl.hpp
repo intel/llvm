@@ -39,11 +39,12 @@ template <class T> struct LessByHash {
 class kernel_bundle_impl {
 
 public:
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State)
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State,
+                     OSModuleHandle &M)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
-        MContext, MDevices, State);
+        MContext, MDevices, State, M);
   }
 
   // Matches sycl::build
@@ -110,8 +111,8 @@ public:
 
   kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                      const std::vector<kernel_id> &KernelIDs,
-                     bundle_state State)
-      : kernel_bundle_impl(Ctx, Devs, State) {
+                     bundle_state State, OSModuleHandle &M)
+      : kernel_bundle_impl(Ctx, Devs, State, M) {
 
     // Filter out images that have no kernel_ids specified
     auto It = std::remove_if(MDeviceImages.begin(), MDeviceImages.end(),
@@ -126,8 +127,9 @@ public:
   }
 
   kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                     const DevImgSelectorImpl &Selector, bundle_state State)
-      : kernel_bundle_impl(Ctx, Devs, State) {
+                     const DevImgSelectorImpl &Selector, bundle_state State,
+                     OSModuleHandle &M)
+      : kernel_bundle_impl(Ctx, Devs, State, M) {
 
     // Filter out images that are rejected by Selector
     auto It = std::remove_if(MDeviceImages.begin(), MDeviceImages.end(),

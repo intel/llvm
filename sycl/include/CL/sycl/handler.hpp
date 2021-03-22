@@ -314,11 +314,7 @@ private:
   ///
   /// \param Queue is a SYCL queue.
   /// \param IsHost indicates if this handler is created for SYCL host device.
-  handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
-      : MQueue(std::move(Queue)), MIsHost(IsHost) {
-    MSharedPtrStorage.emplace_back(
-        std::make_shared<std::vector<detail::ExtendedMemberT>>());
-  }
+  handler(const shared_ptr_class<detail::queue_impl> &Queue, bool IsHost);
 
   /// Stores copy of Arg passed to the MArgsStorage.
   template <typename T, typename F = typename detail::remove_const_t<

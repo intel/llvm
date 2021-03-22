@@ -114,6 +114,17 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return *MDeviceFilterList;
 }
 
+std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
+  if (MHandlerExtendedMembersMutex)
+    return *MHandlerExtendedMembersMutex;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MHandlerExtendedMembersMutex)
+    MHandlerExtendedMembersMutex = std::make_unique<std::mutex>();
+
+  return *MHandlerExtendedMembersMutex;
+}
+
 void shutdown() {
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MScheduler.reset(nullptr);

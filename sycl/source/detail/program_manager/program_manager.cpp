@@ -1196,10 +1196,9 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
-std::vector<device_image_plain>
-ProgramManager::getSYCLDeviceImages(const context &Ctx,
-                                    const std::vector<device> &Devs,
-                                    bundle_state TargetState) {
+std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
+    const context &Ctx, const std::vector<device> &Devs,
+    bundle_state TargetState, OSModuleHandle &M) {
 
   // Collect raw device images
   std::vector<RTDeviceBinaryImage *> BinImages;
@@ -1212,27 +1211,37 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
     }
   }
 
+  // TODO: Cache device_image objects
   // Create SYCL device image from those that have compatible state and at least
   // one device
   std::vector<device_image_plain> SYCLDeviceImages;
   for (RTDeviceBinaryImage *BinImage : BinImages) {
     const bundle_state ImgState = getBinImageState(BinImage);
-    // Ignore images with incompatible state. Image is considered compatible
-    // with a target state if an image is already in the target state or can be
-    // brought to target state by compiling/linking/building.
-    //
-    // Example: an image in "executable" state is not compatbile with "input"
-    // target state - there is no operation to convert the image it to "input"
-    // state.
-    // An image in "input" state is compatible with "executable" target state
-    // because it can be built to get into "executable" state.
-    if (ImgState > TargetState)
+    if (ImgState != TargetState)
       continue;
 
     for (const sycl::device &Dev : Devs)
       if (compatibleWithDevice(BinImage, Dev)) {
+
+        // TODO: Cache kernel_ids
+        std::vector<sycl::kernel_id> KernelIDs;
+        // Collect kernel names for the image
+        pi_device_binary DevBin =
+            const_cast<pi_device_binary>(&BinImage->getRawData());
+        for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
+             EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
+
+          std::shared_ptr<detail::kernel_id_impl> KernleIDImpl =
+              std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+
+          KernelIDs.push_back(
+              detail::createSyclObjFromImpl<sycl::kernel_id>(KernleIDImpl));
+        }
+        // device_image_impl expects kernel ids to be sorted for fast search
+        std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
+
         DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
-            BinImage, Ctx, Devs, ImgState);
+            BinImage, Ctx, Devs, ImgState, KernelIDs, M);
 
         SYCLDeviceImages.push_back(
             createSyclObjFromImpl<device_image_plain>(Impl));
@@ -1240,45 +1249,26 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
       }
   }
 
-  // Make it so that SYCL device images have required state by compiling or
-  // linking them if needed
-  switch (TargetState) {
-  case bundle_state::input:
-    // Do nothing as the check above should make sure that resulting images are
-    // in input state already
-    break;
-  case bundle_state::object:
-    assert(false && "Not implemented yet");
-    break;
-  case bundle_state::executable:
-    assert(false && "Not implemented yet");
-    break;
-  }
-
   return SYCLDeviceImages;
 }
 
-device_image_plain ProgramManager::compile(
-    const device_image_plain &DeviceImage,
-    const std::vector<device> &Devs, const property_list &PropList) {
-  (void)PropList;
+device_image_plain
+ProgramManager::compile(const device_image_plain &DeviceImage,
+                        const std::vector<device> &Devs,
+                        const property_list &) {
 
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
 
-  
-  // TODO: Devs should be compatible with device image
-  // TODO: DeviceImage state should be input
-
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
-      bundle_state::object);
+      bundle_state::object, InputImpl->get_kernel_ids_ref(),
+      InputImpl->get_OS_module_handle_ref());
 
   const detail::plugin &Plugin =
       getSyclObjImpl(InputImpl->get_context())->getPlugin();
-  (void)Plugin; (void)ObjectImpl;
 
-  // TODO: Get rid of one device limitation
+  // TODO: Retain ref counter
   ObjectImpl->get_program_ref() = createPIProgram(
       *InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs);
 
@@ -1333,12 +1323,6 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   if(PI_SUCCESS != Error)
     throw "Build fail";
 
-  DeviceImageImplPtr ExecutableImpl =
-      std::make_shared<detail::device_image_impl>(Context, Devs,
-                                                  bundle_state::object);
-
-  ExecutableImpl->get_program_ref() = LinkedProg;
-
   std::vector<kernel_id> KernelIDs;
   for (const device_image_plain &DeviceImage : DeviceImages) {
     // Duplicates are not expected here, otherwise piProgramLink should fail
@@ -1346,6 +1330,14 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
                      getSyclObjImpl(DeviceImage)->get_kernel_ids().begin(),
                      getSyclObjImpl(DeviceImage)->get_kernel_ids().end());
   }
+
+  DeviceImageImplPtr ExecutableImpl =
+      std::make_shared<detail::device_image_impl>(
+          /*BinImage=*/nullptr, Context, Devs, bundle_state::object,
+          std::move(KernelIDs), /*OSModule=*/0);
+
+  ExecutableImpl->get_program_ref() = LinkedProg;
+
 
   ExecutableImpl->get_kernel_ids_ref() = KernelIDs;
 
@@ -1362,18 +1354,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   const context Context = InputImpl->get_context();
 
-  // TODO: assert state
-  // TODO: Devs should be compatible with device image
-  // TODO: DeviceImage state should be input
-
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
-      InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable);
-
-  //void *M = (void*)(-1);
-  // TODO: Make sure that KSIds will be different for the case when the same
-  // kernel built with different options is present in the fat binary.
-  //KernelSetId KSId = getKernelSetId(M, KernelName);
-  //
+      InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
+      InputImpl->get_kernel_ids_ref(), InputImpl->get_OS_module_handle_ref());
 
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
@@ -1497,20 +1480,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         AcquireF, GetF, CacheOtherDevices);
   }
 
+  // TODO: Retain ref counter
   ExecImpl->get_program_ref() = ResProgram;
-
-  auto Pair = Cache.acquireCachedPrograms();
-  for (auto &Smt : Pair.get()) {
-    //std::cout << Smt.first.first.first << std::endl;
-    std::cout << "Spec consts values:" << std::endl;
-    for(auto &El: Smt.first.first.first) {
-      std::cout << 3 + El << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "Kernel SID =" << Smt.first.first.second << std::endl;
-    std::cout << "Device handle = " << Smt.first.second.first << std::endl;
-    std::cout << "Options = " << Smt.first.second.second << std::endl;
-  }
 
   return createSyclObjFromImpl<device_image_plain>(ExecImpl);
 }

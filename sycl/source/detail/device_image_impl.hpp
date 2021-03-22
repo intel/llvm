@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -28,46 +29,18 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// Used for sorting vector of kernel_id's
-struct LessByNameComp {
-  bool operator()(const sycl::kernel_id &LHS, const sycl::kernel_id &RHS) {
-    return std::strcmp(LHS.get_name(), RHS.get_name()) < 0;
-  }
-};
-
 // The class is impl counterpart for sycl::device_image
 // It can represent a program in different states, kernel_id's it has and state
 // of specialization constants for it
 class device_image_impl {
 public:
-  device_image_impl(context Context, std::vector<device> Devices,
-                    bundle_state State)
-      : MBinImage(nullptr), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State) {}
 
   device_image_impl(RTDeviceBinaryImage *BinImage, context Context,
-                    std::vector<device> Devices, bundle_state State)
-      : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State) {
-
-    // Collect kernel names for the image
-    pi_device_binary DevBin =
-        const_cast<pi_device_binary>(&MBinImage->getRawData());
-    for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
-         EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
-
-      std::shared_ptr<detail::kernel_id_impl> KernleIDImpl =
-          std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-
-      sycl::kernel_id KernelID =
-          detail::createSyclObjFromImpl<sycl::kernel_id>(KernleIDImpl);
-
-      // Insert new element keeping MKernelIDs sorted.
-      auto It = std::lower_bound(MKernelIDs.begin(), MKernelIDs.end(), KernelID,
-                                 LessByNameComp{});
-      MKernelIDs.insert(It, std::move(KernelID));
-    }
-  }
+                    std::vector<device> Devices, bundle_state State,
+                    std::vector<kernel_id> KernelIDs, OSModuleHandle M)
+      : MBinImage(BinImage), MOSModuleHandle(std::move(M)),
+        MContext(std::move(Context)), MDevices(std::move(Devices)),
+        MState(State), MKernelIDs(std::move(KernelIDs)) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
@@ -171,8 +144,16 @@ public:
     return MSpecConstDescs;
   }
 
-  OSModuleHandle get_OS_module_handle() const noexcept {
+  OSModuleHandle &get_OS_module_handle_ref() noexcept {
     return MOSModuleHandle;
+  }
+
+  ~device_image_impl() {
+
+    if (MProgram) {
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      Plugin.call<PiApiKind::piProgramRelease>(MProgram);
+    }
   }
 
 private:
