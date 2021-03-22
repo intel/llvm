@@ -3078,7 +3078,7 @@ public:
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getAsType();
     if (const auto *ET = T->getAs<EnumType>())
-      VisitEnumType(ET);
+      VisitTagType(ET);
     else
       Visit(T);
   }
@@ -3086,7 +3086,7 @@ public:
   void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>())
-      VisitEnumType(ET);
+      VisitTagType(ET);
   }
 
   void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
@@ -3097,7 +3097,7 @@ public:
       if (NonTypeTemplateParmDecl *TemplateParam =
               dyn_cast<NonTypeTemplateParmDecl>(P))
         if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
-          VisitEnumType(ET);
+          VisitTagType(ET);
     }
   }
 
