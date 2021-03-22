@@ -1661,8 +1661,6 @@ public:
     if (auto *FD = dyn_cast<FunctionDecl>(D)) {
       ShouldEmitRootNode = S.getEmissionStatus(FD, /*Final=*/true) ==
                            Sema::FunctionEmissionStatus::Emitted;
-      // TODO ERICH: Something similiar to emission status should tell us why
-      // the function is emitted?  Set RootReason to 'not all'.
       RootReason = S.getEmissionReason(FD);
       checkFunc(SourceLocation(), FD);
     } else {
@@ -1810,7 +1808,6 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD) {
   if (getLangOpts().SYCLIsDevice)
     return SYCLDiagIfDeviceCode(Loc, DiagID);
 
-  // TODO: ERICH: Figure out what goes through here for the reason?
   return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc, DiagID,
                                FD, *this, DDR_ALL);
 }
@@ -1827,7 +1824,6 @@ Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
   };
   if (!ShouldDefer) {
     SetIsLastErrorImmediate(true);
-    // TODO: ERICH: What should we do here for reason? Looks like CUDA specific?
     return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc,
                                  DiagID, getCurFunctionDecl(), *this, DDR_ALL);
   }

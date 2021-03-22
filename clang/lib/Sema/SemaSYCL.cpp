@@ -3411,7 +3411,6 @@ Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
   SemaDiagnosticBuilder::Kind DiagKind = [this, FD, Reason] {
-    // TODO: ERICH: Does this flag need to be split? to account for the reason?
     if (DiagnosingSYCLKernel)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
@@ -3442,8 +3441,6 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   SemaDiagnosticBuilder::Kind DiagKind = SemaDiagnosticBuilder::K_Nop;
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
-  // TODO make sure when these get enabled that the diagnostic reason gets
-  // properly set.
   SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this,
                         DDR_SYCL)
       << Sema::KernelCallUndefinedFunction;
