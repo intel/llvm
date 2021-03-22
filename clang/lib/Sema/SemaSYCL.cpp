@@ -564,7 +564,7 @@ public:
       if (auto* A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>())
         if (ParentFD == SYCLKernel) {
           Attrs.push_back(A);
-	}
+        }
 
       // TODO: vec_len_hint should be handled here
 
