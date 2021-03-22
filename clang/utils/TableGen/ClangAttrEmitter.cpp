@@ -3867,6 +3867,8 @@ void EmitClangAttrParsedAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
     OS << IsKnownToGCC(Attr) << ";\n";
     OS << "    IsSupportedByPragmaAttribute = ";
     OS << PragmaAttributeSupport.isAttributedSupported(*I->second) << ";\n";
+    OS << "    SupportsNonconformingLambdaSyntax = ";
+    OS << Attr.getValueAsBit("SupportsNonconformingLambdaSyntax") << ";\n";
     if (!Spellings.empty())
       OS << "    Spellings = " << I->first << "Spellings;\n";
     OS << "  }\n";
