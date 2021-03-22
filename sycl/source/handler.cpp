@@ -29,11 +29,11 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) {
   assert(!MSharedPtrStorage.empty());
 
   // TODO: Add mutex
-  std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
       detail::convertToExtendedMembers(MSharedPtrStorage[0]);
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
-  for (const detail::ExtendedMember &EMember : *ExendedMembersVec)
+  for (const detail::ExtendedMemberT &EMember : *ExendedMembersVec)
     if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
       KernelBundleImpPtr =
           std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
@@ -45,7 +45,7 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) {
     KernelBundleImpPtr = detail::getSyclObjImpl(
         get_kernel_bundle<bundle_state::input>(getContext()));
 
-    detail::ExtendedMember EMember = {
+    detail::ExtendedMemberT EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
 
     ExendedMembersVec->push_back(EMember);
@@ -60,16 +60,16 @@ void handler::setHandlerKernelBundle(
 
   // TODO: Add mutex
 
-  std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
       detail::convertToExtendedMembers(MSharedPtrStorage[0]);
 
-  for (detail::ExtendedMember &EMember : *ExendedMembersVec)
+  for (detail::ExtendedMemberT &EMember : *ExendedMembersVec)
     if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
       EMember.MData = NewKernelBundleImpPtr;
       return;
     }
 
-  detail::ExtendedMember EMember = {
+  detail::ExtendedMemberT EMember = {
       detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
       NewKernelBundleImpPtr};
 

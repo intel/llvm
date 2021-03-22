@@ -5,7 +5,6 @@
 // UNSUPPORTED: cuda
 
 #include <CL/sycl.hpp>
-#include <detail/device_image_impl.hpp>
 
 #include <vector>
 

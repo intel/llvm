@@ -39,32 +39,50 @@ class queue;
 
 namespace detail {
 
+// Used to represent a type of an extended member
 enum class ExtendedMembersType: unsigned int {
   HANDLER_KERNEL_BUNDLE = 0,
 };
 
-struct ExtendedMember {
+// Holds a pointer to an object of an arbitrary type and an ID value which
+// should be used to understand what type pointer points to.
+// Used as to extend handler class without introducing new class members which
+// would change handler layout.
+struct ExtendedMemberT {
   ExtendedMembersType MType;
   std::shared_ptr<void> MData;
 };
 
-static std::shared_ptr<std::vector<ExtendedMember>>
+static std::shared_ptr<std::vector<ExtendedMemberT>>
 convertToExtendedMembers(const std::shared_ptr<const void> &SPtr) {
-  return std::const_pointer_cast<std::vector<ExtendedMember>>(
-      std::static_pointer_cast<const std::vector<ExtendedMember>>(SPtr));
+  return std::const_pointer_cast<std::vector<ExtendedMemberT>>(
+      std::static_pointer_cast<const std::vector<ExtendedMemberT>>(SPtr));
 }
 
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
 
+// The version of CG type is encoded in the higher byte of the value:
+//
+// 0x00000001 - CG type KERNEL version 0
+// 0x01000001 - CG type KERNEL version 1
+//   /\
+//   ||
+// The byte describes the version
+//
+// The constant is used to shift left CG type value to access it's version
+constexpr unsigned int ShiftBitsForVersion = 24;
+
+// Constructs versioned type
 constexpr static unsigned int getVersionedCGType(unsigned int Type,
                                                  unsigned char Version) {
-  return Type | ((unsigned int)Version << 24);
+  return Type | ((unsigned int)Version << ShiftBitsForVersion);
 }
 
+// Returns the version encoded to the type
 constexpr static unsigned char getCGTypeVersion(unsigned int Type) {
-  return Type >> 24;
+  return Type >> ShiftBitsForVersion;
 }
 
 /// Base class for all types of command groups.
@@ -120,7 +138,7 @@ public:
 
   CGTYPE getType() { return MType; }
 
-  std::shared_ptr<std::vector<ExtendedMember>> getExtendedMembers() {
+  std::shared_ptr<std::vector<ExtendedMemberT>> getExtendedMembers() {
     if (getCGTypeVersion(MType) == CG_VERSION::V0 || MSharedPtrStorage.empty())
       return nullptr;
 
@@ -195,11 +213,11 @@ public:
   }
 
   std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
-    const std::shared_ptr<std::vector<ExtendedMember>> &ExtendedMembers =
+    const std::shared_ptr<std::vector<ExtendedMemberT>> &ExtendedMembers =
         getExtendedMembers();
     if (!ExtendedMembers)
       return nullptr;
-    for (const ExtendedMember &EMember : *ExtendedMembers)
+    for (const ExtendedMemberT &EMember : *ExtendedMembers)
       if (ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType)
         return std::static_pointer_cast<detail::kernel_bundle_impl>(
             EMember.MData);

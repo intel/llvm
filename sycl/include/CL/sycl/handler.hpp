@@ -317,7 +317,7 @@ private:
   handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
       : MQueue(std::move(Queue)), MIsHost(IsHost) {
     MSharedPtrStorage.emplace_back(
-        std::make_shared<std::vector<detail::ExtendedMember>>());
+        std::make_shared<std::vector<detail::ExtendedMemberT>>());
   }
 
   /// Stores copy of Arg passed to the MArgsStorage.
