@@ -5660,7 +5660,11 @@ def fsycl_int_header_EQ : Joined<["-"], "fsycl-int-header=">,
 def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params">,
   HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,
   MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;
-defm sycl_allow_func_ptr: OptInFFlag<"sycl-allow-func-ptr", "Allow", "Disallow", " function pointers in SYCL device.", [CC1Option,CoreOption]>;
+defm sycl_allow_func_ptr: BoolFOption<"sycl-allow-func-ptr",
+  LangOpts<"SYCLAllowFuncPtr">, DefaultFalse,
+  PosFlag<SetTrue, [], "Allow">,
+  NegFlag<SetFalse, [], "Disallow">,
+  BothFlags<[CC1Option, CoreOption], " function pointers in SYCL device.">>;
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
