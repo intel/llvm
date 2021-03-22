@@ -67,8 +67,6 @@ static RT::PiProgram createBinaryProgram(
 #endif
 
   assert(!Devices.empty() && "Device list should not be empty");
-  assert(Devices.size() == Data.size() &&
-         "Number of binaries should match number of devices");
 
   std::vector<pi_device> PIDevices;
   PIDevices.reserve(Devices.size());
