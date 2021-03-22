@@ -629,7 +629,8 @@ public:
       return true;
     if (!Util::isSyclType(Call->getArg(1)->getType(), "group", true /*Tmpl*/))
       return true;
-    if (!Util::isSyclKernelHandlerType(Call->getArg(2)->getType()))
+    if ((Call->getNumArgs() > 2) &&
+        !Util::isSyclKernelHandlerType(Call->getArg(2)->getType()))
       return true;
     if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
       return true;
