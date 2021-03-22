@@ -1872,7 +1872,7 @@ def SYCLIntelFPGAInitiationInterval : StmtAttr {
   let Documentation = [SYCLIntelFPGAInitiationIntervalAttrDocs];
 }
 
-def SYCLIntelFPGAMaxConcurrency : StmtAttr {
+def SYCLIntelFPGAMaxConcurrency : DeclOrStmtAttr {
   let Spellings = [CXX11<"intelfpga","max_concurrency">,
                    CXX11<"intel","max_concurrency">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
