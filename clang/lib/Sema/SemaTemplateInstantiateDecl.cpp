@@ -698,11 +698,11 @@ template <typename AttrName>
 static void instantiateSYCLIntelFPGAMaxConcurrencyAttr(
     Sema& S, const MultiLevelTemplateArgumentList& TemplateArgs,
     const SYCLIntelFPGAMaxConcurrencyAttr* A, Decl* New) {
-    EnterExpressionEvaluationContext Unevaluated(
-        S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-    ExprResult Result = S.SubstExpr(A->getNThreadsExpr(), TemplateArgs);
-    if (!Result.isInvalid())
-        S.AddSYCLIntelFPGAMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getNThreadsExpr(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelFPGAMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateIntelFPGAPrivateCopiesAttr(
@@ -952,11 +952,11 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
       continue;
     }
     if (const auto* SYCLIntelMaxConcurrency =
-        dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(TmplAttr)) {
-        instantiateSYCLIntelFPGAMaxConcurrencyAttr<
-            SYCLIntelFPGAMaxConcurrencyAttr>(*this, TemplateArgs,
-                SYCLIntelMaxConcurrency, New);
-        continue;
+            dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(TmplAttr)) {
+      instantiateSYCLIntelFPGAMaxConcurrencyAttr<
+          SYCLIntelFPGAMaxConcurrencyAttr>(*this, TemplateArgs,
+                                           SYCLIntelMaxConcurrency, New);
+      continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.
     if (TmplAttr->getKind() == attr::DLLExport ||

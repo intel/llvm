@@ -562,9 +562,9 @@ public:
       // Attribute "max_concurrency" is applied to device functions only. The
       // attribute is not propagated to the caller.
       if (auto* A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>())
-          if (ParentFD == SYCLKernel) {
-            Attrs.push_back(A);
-          }
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+	}
 
       // TODO: vec_len_hint should be handled here
 
