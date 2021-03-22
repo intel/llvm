@@ -356,16 +356,26 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   return Res;
 }
 
-long GetFileSize(const char *FileName) {
-  struct stat Stat;
-  if (!stat(FileName, &Stat))
-    return Stat.st_size;
-  return -1;
+std::string getDeviceString(const device &Device) {
+  return {Device.get_platform().get_info<sycl::info::platform::name>() +"/"+
+          Device.get_info<sycl::info::device::name>() + "/"+
+          Device.get_info<sycl::info::device::version>() + "/"+
+          Device.get_info<sycl::info::device::driver_version>()};
 }
 
-inline bool IsFSEntryPresent(const char *Path) {
+std::string DumpBinData(const unsigned char *Data, size_t Size) {
+  if (!Size)
+    return "NONE";
+  std::stringstream ss;
+  for (size_t i = 0; i < Size; i++) {
+    ss << std::hex << (int)Data[i];
+  }
+  return ss.str();
+}
+
+inline bool IsFSEntryPresent(std::string Path) {
   struct stat Stat;
-  return !stat(Path, &Stat);
+  return !stat(Path.c_str(), &Stat);
 }
 
 int MakePathRecur(const char *Dir, mode_t Mode) {
@@ -378,14 +388,14 @@ int MakePathRecur(const char *Dir, mode_t Mode) {
   char *CurDir = strdup(Dir);
   MakePathRecur(dirname(CurDir), Mode);
   if (DbgProgMgr > 1)
-    std::cerr << "Created directory: " << CurDir << std::endl;
+    std::cerr << "####Created directory: " << CurDir << std::endl;
 
   free(CurDir);
   return mkdir(Dir, Mode);
 }
 
-void WriteCacheItem(const std::string &FileName,
-                    const std::vector<std::vector<char>> &Data) {
+void WriteCacheItemBin(const std::string &FileName,
+                       const std::vector<std::vector<char>> &Data) {
   std::ofstream FileStream{FileName, std::ios::binary};
   if (DbgProgMgr > 1) {
     std::cerr << "####Writing programs built for " << std::dec << Data.size()
@@ -396,13 +406,43 @@ void WriteCacheItem(const std::string &FileName,
   FileStream.write((char *)&Size, sizeof(Size));
   for (size_t i = 0; i < Data.size(); ++i) {
     if (DbgProgMgr > 1) {
-      std::cerr << "\tWrite " << i << "-th image of size " << std::dec
+      std::cerr << "####\tWrite " << i << "-th image of size " << std::dec
                 << Data[i].size() << "\n";
     }
     Size = Data[i].size();
     FileStream.write((char *)&Size, sizeof(Size));
     FileStream.write(Data[i].data(), Size);
   }
+  FileStream.close();
+}
+
+void WriteCacheItemSrc(const std::string &FileName, const device &Device,
+                       const RTDeviceBinaryImage &Img,
+                       const SerializedObj &SpecConsts,
+                       const std::string &BuildOptionsString) {
+  std::ofstream FileStream{FileName, std::ios::binary};
+  std::string ImgString{
+      DumpBinData(Img.getRawData().BinaryStart, Img.getSize())};
+  std::string DeviceString{getDeviceString(Device)};
+  std::string SpecConstsString{
+      DumpBinData(SpecConsts.data(), SpecConsts.size())};
+  if (DbgProgMgr > 1) {
+    std::cerr << "####Writing source for cache item.\n";
+    std::cerr << "####'"<<DeviceString<<"'"<<std::endl;
+  }
+
+  size_t Size = DeviceString.size();
+  FileStream.write((char *)&Size, sizeof(Size));
+  FileStream.write(DeviceString.data(), Size);
+  Size = BuildOptionsString.size();
+  FileStream.write((char *)&Size, sizeof(Size));
+  FileStream.write(BuildOptionsString.data(), Size);
+  Size = SpecConstsString.size();
+  FileStream.write((char *)&Size, sizeof(Size));
+  FileStream.write(SpecConstsString.data(), Size);
+  Size = ImgString.size();
+  FileStream.write((char *)&Size, sizeof(Size));
+  FileStream.write(ImgString.data(), Size);
   FileStream.close();
 }
 
@@ -421,8 +461,8 @@ std::vector<std::vector<char>> ReadCacheItem(const std::string &FileName) {
   for (size_t i = 0; i < ImgNum; ++i) {
     FileStream.read((char *)&ImgSize, sizeof(ImgSize));
     if (DbgProgMgr > 1) {
-      std::cerr << "\tRead " << i << "-th image of size " << std::dec << ImgSize
-                << "\n";
+      std::cerr << "####\tRead " << i << "-th image of size " << std::dec
+                << ImgSize << "\n";
     }
 
     Res[i].resize(ImgSize);
@@ -432,26 +472,88 @@ std::vector<std::vector<char>> ReadCacheItem(const std::string &FileName) {
   return Res;
 }
 
-std::string getDeviceString(const device &Device) {
-  return {Device.get_platform().get_info<sycl::info::platform::name>() +
-          Device.get_info<sycl::info::device::name>() +
-          Device.get_info<sycl::info::device::version>() +
-          Device.get_info<sycl::info::device::driver_version>()};
-}
+bool IsCacheItemSrcEqual(const std::string &FileName, const device &Device,
+                         const RTDeviceBinaryImage &Img,
+                         const SerializedObj &SpecConsts,
+                         const std::string &BuildOptionsString) {
+  std::ifstream FileStream{FileName, std::ios::binary};
+  std::string ImgString{
+      DumpBinData(Img.getRawData().BinaryStart, Img.getSize())};
+  std::string DeviceString{getDeviceString(Device)};
+  std::string SpecConstsString{
+      DumpBinData(SpecConsts.data(), SpecConsts.size())};
 
-std::string DumpBinData(const unsigned char *Data, size_t Size) {
-  if (!Size)
-    return "NONE";
-  std::stringstream ss;
-  for (size_t i = 0; i < Size; i++) {
-    ss << std::hex << (int)Data[i];
+  size_t Size;
+  std::string res;
+
+  FileStream.read((char *)&Size, sizeof(Size));
+  res.resize(Size);
+  FileStream.read(&res[0], Size);
+  if (DeviceString.compare(res)) {
+    if (DbgProgMgr > 1) {
+      std::cerr << "####Devices differ:"<<DeviceString.compare(0, Size-1, res.data())<<"\n";
+      std::cerr << "####'" <<DeviceString<<"'\n";
+      std::cerr << "####\t vs\n";
+      std::cerr << "####'" <<std::string(res.data(),Size)<<"'\n";
+      std::cerr << "####Cached size "<< std::dec << Size << " vs current size " << DeviceString.size() << std::endl;
+      for(unsigned int i=0; i< Size;i++){
+	      if(res[i]!=DeviceString[i])
+		      std::cerr << "####First diff on " << i<<std::endl;
+      }
+    }
+
+    return false;
   }
-  return ss.str();
+
+  FileStream.read((char *)&Size, sizeof(Size));
+  res.resize(Size);
+  FileStream.read(&res[0], Size);
+  if (BuildOptionsString.compare(0, Size, res.data())) {
+    if (DbgProgMgr > 1) {
+      std::cerr << "####Build options differ:\n";
+      std::cerr << "####'" <<BuildOptionsString<<"'\n";
+      std::cerr << "####\t vs\n";
+      std::cerr << "####'" <<std::string(res.data(), Size)<<"'\n";
+    }
+    return false;
+  }
+
+  FileStream.read((char *)&Size, sizeof(Size));
+  res.resize(Size);
+  FileStream.read(&res[0], Size);
+  if (SpecConstsString.compare(0, Size, res.data())) {
+    if (DbgProgMgr > 1) {
+      std::cerr << "####Specialization constants differ\n";
+      std::cerr << "####'" <<SpecConstsString<<"'\n";
+      std::cerr << "####\t vs\n";
+      std::cerr << "####'" <<std::string(res.data(), Size)<<"'\n";
+    }
+    return false;
+  }
+
+  FileStream.read((char *)&Size, sizeof(Size));
+  res.resize(Size);
+  FileStream.read(&res[0], Size);
+  if (ImgString.compare(0, Size, res.data())) {
+    if (DbgProgMgr > 1) {
+      std::cerr << "####Images differ\n";
+      std::cerr << "####'" <<ImgString<<"'\n";
+      std::cerr << "####\t vs\n";
+      std::cerr << "####'" <<std::string(res.data(), Size)<<"'\n";
+
+    }
+    return false;
+  }
+
+  FileStream.close();
+  if (DbgProgMgr > 1)
+    std::cerr << "####Cache item sources are equal\n";
+  return true;
 }
 
 std::string GetCacheItemDirName(const device &Device,
                                 const RTDeviceBinaryImage &Img,
-                                const SerializedObj SpecConsts,
+                                const SerializedObj &SpecConsts,
                                 const std::string &BuildOptionsString) {
   static std::string cache_root{detail::OSUtil::getCacheRoot()};
 
@@ -461,6 +563,7 @@ std::string GetCacheItemDirName(const device &Device,
   std::string SpecConstsString{
       DumpBinData(SpecConsts.data(), SpecConsts.size())};
   std::hash<std::string> StringHasher{};
+
   return {cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
           std::to_string(StringHasher(ImgString)) + "/" +
           std::to_string(StringHasher(SpecConstsString)) + "/" +
@@ -472,7 +575,7 @@ bool IsPersistentCacheEnabled() {
       SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get();
 
   if (DbgProgMgr > 0)
-    std::cerr << "Persistent cache "
+    std::cerr << "####Persistent cache "
               << (PersistenCacheDisabled ? "disabled." : "enabled.")
               << std::endl;
   return !PersistenCacheDisabled;
@@ -481,26 +584,28 @@ bool IsPersistentCacheEnabled() {
 void ProgramManager::putPIProgramToDisc(const detail::plugin &Plugin,
                                         const device &Device,
                                         const RTDeviceBinaryImage &Img,
-                                        const SerializedObj SpecConsts,
+                                        const SerializedObj &SpecConsts,
                                         const std::string &BuildOptionsString,
                                         const RT::PiProgram &Program) {
   if (!IsPersistentCacheEnabled()) {
     return;
   }
 
-  static std::string DirName =
+  std::string DirName =
       GetCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString);
 
   size_t i = 0;
   std::string FileName;
   do {
-    FileName = DirName + "/" + std::to_string(i++) + ".bin";
-  } while (IsFSEntryPresent(FileName.c_str()));
+    FileName = DirName + "/" + std::to_string(i++);
+  } while (IsFSEntryPresent(FileName + ".bin"));
 
-  size_t DeviceNum;
+  unsigned int DeviceNum=0;
+
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_NUM_DEVICES,
                                            sizeof(DeviceNum), &DeviceNum,
-                                           nullptr);
+					   nullptr);
+
   std::vector<size_t> BinarySizes(DeviceNum);
   Plugin.call<PiApiKind::piProgramGetInfo>(
       Program, PI_PROGRAM_INFO_BINARY_SIZES,
@@ -518,13 +623,15 @@ void ProgramManager::putPIProgramToDisc(const detail::plugin &Plugin,
                                            Pointers.data(), nullptr);
 
   MakePathRecur(DirName.c_str(), 0777);
-  WriteCacheItem(FileName, Result);
+  WriteCacheItemBin(FileName + ".bin", Result);
+  WriteCacheItemSrc(FileName + ".src", Device, Img, SpecConsts,
+                    BuildOptionsString);
 }
 
 bool ProgramManager::getPIProgramFromDisc(ContextImplPtr ContextImpl,
                                           const device &Device,
                                           const RTDeviceBinaryImage &Img,
-                                          const SerializedObj SpecConsts,
+                                          const SerializedObj &SpecConsts,
                                           const std::string &BuildOptionsString,
                                           RT::PiProgram &NativePrg) {
 
@@ -538,17 +645,20 @@ bool ProgramManager::getPIProgramFromDisc(ContextImplPtr ContextImpl,
     return false;
 
   int i = 0;
-  std::string BinFileName{Path + "/" + std::to_string(i) + ".bin"};
-  while (IsFSEntryPresent(BinFileName.c_str())) {
-    auto BinDataItem = ReadCacheItem(BinFileName);
-    if (BinDataItem.size()) {
+  std::string FileName{Path + "/" + std::to_string(i)};
+  while (IsFSEntryPresent(FileName + ".bin") &&
+         IsFSEntryPresent(FileName + ".src")) {
+    auto BinDataItem = ReadCacheItem(FileName + ".bin");
+    if (BinDataItem.size() &&
+        IsCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
+                            BuildOptionsString)) {
       // TODO: Build for multiple devices once supported by program manager
       NativePrg = createBinaryProgram(
           ContextImpl, Device, (const unsigned char *)BinDataItem[0].data(),
           BinDataItem[0].size());
       return true;
     }
-    BinFileName = Path + "/" + std::to_string(++i) + ".bin";
+    FileName = Path + "/" + std::to_string(++i);
   }
 
   return false;
