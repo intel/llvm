@@ -66,14 +66,21 @@ template <int N>
 template <int N>
 [[intel::reqd_sub_group_size(N)]] void func4() {} // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
 
+// Test that checks template instantiations for same argument values. Duplicate attribute is silently ignored.
+template <int size>
+[[intel::reqd_sub_group_size(8)]] void func5();
+
+template <int size>
+[[intel::reqd_sub_group_size(size)]] void func5() {}
+
 int check() {
   // no error expected
   func3<12>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
-
   func4<6>(); //expected-note {{in instantiation of function template specialization 'func4<6>' requested here}}
-
+  // no error expected
+  func5<8>();
   return 0;
 }
 
@@ -84,3 +91,9 @@ int check() {
 // CHECK: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
+
+// CHECK: FunctionDecl {{.*}} {{.*}} func5 'void ()'
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 8
+// CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}

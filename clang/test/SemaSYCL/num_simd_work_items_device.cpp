@@ -26,6 +26,7 @@ void foo() {
   });
 }
 
+// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
 [[intel::num_simd_work_items(12)]] void bar();
 [[intel::num_simd_work_items(12)]] void bar() {} // OK
 

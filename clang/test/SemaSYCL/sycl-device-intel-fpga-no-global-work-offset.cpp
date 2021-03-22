@@ -36,12 +36,14 @@ int main() {
   KernelFunctor<1>();
 }
 
+// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
 [[intel::no_global_work_offset]] void func3 ();
 [[intel::no_global_work_offset(1)]] void func3() {} // OK
 
 [[intel::no_global_work_offset(0)]] void func4(); // expected-note {{previous attribute is here}}
 [[intel::no_global_work_offset]] void func4();    // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
 
+// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
 [[intel::no_global_work_offset(1)]] void func5();
 [[intel::no_global_work_offset(1)]] void func5() {} // OK
 
@@ -67,9 +69,17 @@ template <int N>
 template <int N>
 [[intel::no_global_work_offset(N)]] void func7() {} // expected-warning {{attribute 'no_global_work_offset' is already applied with different arguments}}
 
+// Test that checks template instantiations for same argument values. Duplicate attribute is silently ignored.
+template <int size>
+[[intel::no_global_work_offset(1)]] void func8();
+
+template <int size>
+[[intel::no_global_work_offset(size)]] void func8() {}
+
 int check() {
   func6<1>();
   func7<1>(); //expected-note {{in instantiation of function template specialization 'func7<1>' requested here}}
+  func8<1>();
   return 0;
 }
 
@@ -80,4 +90,10 @@ int check() {
 // CHECK-NEXT: value: Int 1
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
+// CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+
+// CHECK: FunctionDecl {{.*}} {{.*}} func8 'void ()'
+// CHECK: SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 1
 // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}

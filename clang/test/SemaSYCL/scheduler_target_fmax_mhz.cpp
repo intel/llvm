@@ -6,6 +6,7 @@
 [[intelfpga::scheduler_target_fmax_mhz(2)]] void
 func() {}
 
+// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
 [[intel::scheduler_target_fmax_mhz(12)]] void bar();
 [[intel::scheduler_target_fmax_mhz(12)]] void bar() {} // OK
 

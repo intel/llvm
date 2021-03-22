@@ -10,6 +10,7 @@ queue q;
 // expected-note@-1 {{conflicting attribute is here}}
 [[intel::reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
 
+// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
 [[intel::reqd_sub_group_size(12)]] void bar();
 [[intel::reqd_sub_group_size(12)]] void bar() {} // OK
 

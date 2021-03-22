@@ -146,12 +146,8 @@ void check_ast()
   [[intel::force_pow2_depth(1)]] int var_force_p2d;
   [[intel::force_pow2_depth(1)]] const int const_force_p2d[64] = {0, 1};
 
-  // Checking of duplicate argument values.
+  // Checking of duplicate argument values. Duplicate attribute is silently ignored.
   //CHECK: VarDecl{{.*}}var_max_replicates
-  //CHECK: IntelFPGAMaxReplicatesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}12
-  //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
@@ -159,13 +155,9 @@ void check_ast()
   [[intel::max_replicates(12)]]
   [[intel::max_replicates(12)]] int var_max_replicates; // OK
 
-  // Checking of duplicate argument values.
+  // Checking of duplicate argument values. Duplicate attribute is silently ignored.
   //CHECK: VarDecl{{.*}}var_private_copies
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}12
-  //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
   //CHECK: IntelFPGAPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
