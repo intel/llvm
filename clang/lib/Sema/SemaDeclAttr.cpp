@@ -6294,13 +6294,13 @@ static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D,
   S.addSYCLIntelPipeIOAttr(D, Attr, E);
 }
 
-SYCLIntelFPGAMaxConcurrencyAttr* Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
-    Decl* D, const SYCLIntelFPGAMaxConcurrencyAttr& A) {
+SYCLIntelFPGAMaxConcurrencyAttr *Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
+    Decl *D, const SYCLIntelFPGAMaxConcurrencyAttr &A) {
    // Check to see if there's a duplicate attribute with different values
    // already applied to the declaration.
-   if (const auto* DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
-     const auto* DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr());
-     const auto* MergeExpr = dyn_cast<ConstantExpr>(A.getNThreadsExpr());
+   if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+     const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr());
+     const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNThreadsExpr());
      if (DeclExpr && MergeExpr &&
          DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
        Diag(DeclAttr->getLocation(), diag::err_sycl_loop_attr_duplication)
@@ -6318,9 +6318,9 @@ SYCLIntelFPGAMaxConcurrencyAttr* Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
        SYCLIntelFPGAMaxConcurrencyAttr(Context, A, A.getNThreadsExpr());
 }
 
-void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl* D,
-                                              const AttributeCommonInfo& CI,
-                                              Expr* E) {
+void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              Expr *E) {
    if (!E->isValueDependent()) {
      llvm::APSInt ArgVal;
      ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
@@ -6335,8 +6335,8 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl* D,
        return;
      }
 
-     if (const auto* DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
-       const auto* DeclExpr =
+     if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+       const auto *DeclExpr =
            dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr());
            if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
              Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
@@ -6349,8 +6349,8 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl* D,
    D->addAttr(::new (Context) SYCLIntelFPGAMaxConcurrencyAttr(Context, CI, E));
 }
 
-static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema& S, Decl* D,
-                                                  const ParsedAttr& A) {
+static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
+                                                  const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
   // TODO
   // max_concurrency and disable_component_pipelining attributes can't be
@@ -6358,7 +6358,7 @@ static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema& S, Decl* D,
   // (checkAttrMutualExclusion<IntelDisableComponentPipeline>(S, D, AL))
   //  return;
 
-  Expr* E = A.getArgAsExpr(0);
+  Expr *E = A.getArgAsExpr(0);
   S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
 }
 

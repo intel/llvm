@@ -696,8 +696,8 @@ static void instantiateIntelSYCLFunctionAttr(
 
 template <typename AttrName>
 static void instantiateSYCLIntelFPGAMaxConcurrencyAttr(
-    Sema& S, const MultiLevelTemplateArgumentList& TemplateArgs,
-    const SYCLIntelFPGAMaxConcurrencyAttr * A, Decl* New) {
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelFPGAMaxConcurrencyAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getNThreadsExpr(), TemplateArgs);
@@ -951,7 +951,7 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
       continue;
     }
-    if (const auto* SYCLIntelMaxConcurrency =
+    if (const auto *SYCLIntelMaxConcurrency =
             dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(TmplAttr)) {
       instantiateSYCLIntelFPGAMaxConcurrencyAttr<
           SYCLIntelFPGAMaxConcurrencyAttr>(*this, TemplateArgs,
