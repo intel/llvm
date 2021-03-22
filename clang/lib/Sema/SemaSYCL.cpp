@@ -3046,7 +3046,8 @@ public:
       }
 
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
-        bool UnnamedTypeUsed = DeclNamed->getName().empty();
+        bool UnnamedTypeUsed = DeclNamed->getNameAsString().empty();
+        
         if (UnnamedTypeUsed) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
