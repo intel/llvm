@@ -336,6 +336,17 @@ struct _pi_queue : _pi_object {
   ze_fence_handle_t ZeOpenCommandListFence = {nullptr};
   pi_uint32 ZeOpenCommandListSize = {0};
 
+  // specifies whether this queue is in-order or not.
+  const bool InorderQueue;
+
+  // keeps track of the event associated with the last enqueued command into
+  // this queue. this is used to add dependency with the last command and
+  // updated with the latest event each time a new command is enqueued.
+  pi_event *PreviousEvent;
+
+  // keeps track of the command list for which PreviousEvent was associated.
+  ze_command_list_handle_t ZeInOrderCommandList;
+
   // Approximate number of commands that are allowed to be batched for
   // this queue.
   // Added this member to the queue rather than using a global variable
@@ -552,6 +563,7 @@ struct _pi_ze_event_list_t {
   // batches for wait events that are in other queues.
   pi_result createAndRetainPiZeEventList(pi_uint32 EventListLength,
                                          const pi_event *EventList,
+                                         ze_command_list_handle_t ZeCommandList,
                                          pi_queue CurQueue);
 
   // Add all the events in this object's PiEventList to the end
@@ -559,6 +571,10 @@ struct _pi_ze_event_list_t {
   // structure fields making it look empty.
   pi_result collectEventsForReleaseAndDestroyPiZeEventList(
       std::list<pi_event> &EventsToBeReleased);
+
+  pi_result addNewEventsToList(pi_uint32 CurListLength,
+                               pi_uint32 NumOfNewElements,
+                               pi_event *EventList);
 
   // Had to create custom assignment operator because the mutex is
   // not assignment copyable. Just field by field copy of the other
