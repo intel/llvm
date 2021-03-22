@@ -146,9 +146,12 @@ struct _pi_device : _pi_object {
   // Keep the ordinal of a "compute" commands group, where we send all
   // compute commands and some copy commands, and the ordinal of the
   // "copy" commands group, where we can send only copy commands.
+  // A value of "-1" means that there is no such queue group available
+  // in the level zero backend.
   int32_t ZeComputeQueueGroupIndex;
   int32_t ZeCopyQueueGroupIndex;
 
+  // This returns "true" if a copy engine is available for use.
   bool HasCopyEngine() { return (ZeCopyQueueGroupIndex >= 0); }
 
   // Initialize the entire PI device.
@@ -226,7 +229,8 @@ struct _pi_context : _pi_object {
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
 
-  // Mutex Lock for the Command List Cache
+  // Mutex Lock for the Command List Cache. This lock is used to control both
+  // compute and copy command list caches.
   std::mutex ZeCommandListCacheMutex;
   // Cache of all currently Available Command Lists for use by PI APIs
   std::list<ze_command_list_handle_t> ZeComputeCommandListCache;
@@ -248,7 +252,7 @@ struct _pi_context : _pi_object {
   pi_result getAvailableCommandList(pi_queue Queue,
                                     ze_command_list_handle_t *ZeCommandList,
                                     ze_fence_handle_t *ZeFence,
-                                    bool IsCopyCommand = false,
+                                    bool PreferCopyCommandList = false,
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no avialble
@@ -306,9 +310,12 @@ struct _pi_queue : _pi_object {
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
         UseDynamicBatching{BatchSize == 0} {}
 
-  // Level Zero command queue handle.
+  // Level Zero compute command queue handle.
   ze_command_queue_handle_t ZeComputeCommandQueue;
+  // Level Zero copy command command queue handle. This might not be available
+  // depending on user preference and/or target device.
   ze_command_queue_handle_t ZeCopyCommandQueue;
+
   // Keeps the PI context to which this queue belongs.
   // This field is only set at _pi_queue creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_queue.
@@ -360,8 +367,8 @@ struct _pi_queue : _pi_object {
     // was not yet signaled at the time all events in that list were already
     // completed (we are polling the fence at events completion). The fence
     // may be still "in-use" due to sporadic delay in HW.
-    //
     bool InUse;
+    // Record if the associated command list (if any) is a "copy" command list.
     bool IsCopyCommandList;
   } command_list_fence_t;
 

@@ -354,7 +354,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
                      pi_bool BlockingWrite, size_t Size, const void *Src,
                      pi_uint32 NumEventsInWaitList,
                      const pi_event *EventWaitList, pi_event *Event,
-                     bool IsDeviceLocalCopy = false);
+                     bool PreferCopyEngine = false);
 
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, void *SrcBuffer,
@@ -363,7 +363,7 @@ static pi_result enqueueMemCopyRectHelper(
     size_t SrcRowPitch, size_t SrcSlicePitch, size_t DstRowPitch,
     size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event,
-    bool IsDeviceLocalCopy = false);
+    bool PreferCopyEngine = false);
 
 inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   switch (ZeError) {
@@ -515,9 +515,12 @@ pi_result _pi_device::initialize() {
         break;
       }
     }
+    if (CopyGroupIndex < 0)
+      zePrint("NOTE: blitter/copy engine is not available though it was "
+              "requested\n");
+    else
+      zePrint("NOTE: blitter/copy engine is available\n");
   }
-  if (CopyGroupIndex >= 0)
-    zePrint("NOTE: blitter/copy engine is available\n");
   this->ZeCopyQueueGroupIndex = CopyGroupIndex;
 
   // Cache device properties
@@ -618,11 +621,13 @@ bool _pi_queue::getZeCommandListIsCopyList(
 // Caller must hold a lock on the Queue passed in.
 pi_result _pi_context::getAvailableCommandList(
     pi_queue Queue, ze_command_list_handle_t *ZeCommandList,
-    ze_fence_handle_t *ZeFence, bool IsCopyCommand, bool AllowBatching) {
+    ze_fence_handle_t *ZeFence, bool PreferCopyCommandList,
+    bool AllowBatching) {
   // First see if there is an command-list open for batching commands
   // for this queue.
   if (Queue->ZeOpenCommandList) {
-    if (AllowBatching && !IsCopyCommand) {
+    // TODO: Batching of copy commands will be supported.
+    if (AllowBatching && !PreferCopyCommandList) {
       *ZeCommandList = Queue->ZeOpenCommandList;
       *ZeFence = Queue->ZeOpenCommandListFence;
       return PI_SUCCESS;
@@ -636,7 +641,7 @@ pi_result _pi_context::getAvailableCommandList(
       return Res;
   }
 
-  bool UseCopyEngine = IsCopyCommand && Queue->Device->HasCopyEngine();
+  bool UseCopyEngine = PreferCopyCommandList && Queue->Device->HasCopyEngine();
 
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
@@ -3724,7 +3729,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, false /* IsCopyCommand */,
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyCommandList */,
           true /* AllowBatching */))
     return Res;
 
@@ -4371,7 +4376,7 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
                                       const void *Src,
                                       pi_uint32 NumEventsInWaitList,
                                       const pi_event *EventWaitList,
-                                      pi_event *Event, bool IsDeviceLocalCopy) {
+                                      pi_event *Event, bool PreferCopyEngine) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
@@ -4387,8 +4392,7 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence,
-          !IsDeviceLocalCopy /* IsCopyCommand */))
+          Queue, &ZeCommandList, &ZeFence, !PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4428,7 +4432,7 @@ static pi_result enqueueMemCopyRectHelper(
     pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
     size_t SrcRowPitch, size_t DstRowPitch, size_t SrcSlicePitch,
     size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event, bool IsDeviceLocalCopy) {
+    const pi_event *EventWaitList, pi_event *Event, bool PreferCopyEngine) {
 
   PI_ASSERT(Region && SrcOrigin && DstOrigin && Queue, PI_INVALID_VALUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
@@ -4444,8 +4448,7 @@ static pi_result enqueueMemCopyRectHelper(
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence,
-          !IsDeviceLocalCopy /* IsCopyCommand */))
+          Queue, &ZeCommandList, &ZeFence, !PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4562,13 +4565,13 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
                                  pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  bool IsDeviceLocalCopy = (!(SrcBuffer->OnHost) && !(DstBuffer->OnHost));
+  bool PreferCopyEngine = (!(SrcBuffer->OnHost) && !(DstBuffer->OnHost));
   return enqueueMemCopyHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue,
       pi_cast<char *>(DstBuffer->getZeHandle()) + DstOffset,
       false, // blocking
       Size, pi_cast<char *>(SrcBuffer->getZeHandle()) + SrcOffset,
-      NumEventsInWaitList, EventWaitList, Event, IsDeviceLocalCopy);
+      NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 pi_result piEnqueueMemBufferCopyRect(
@@ -4579,13 +4582,13 @@ pi_result piEnqueueMemBufferCopyRect(
     const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  bool IsDeviceLocalCopy = (!(SrcBuffer->OnHost) && !(DstBuffer->OnHost));
+  bool PreferCopyEngine = (!(SrcBuffer->OnHost) && !(DstBuffer->OnHost));
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, Queue, SrcBuffer->getZeHandle(),
       DstBuffer->getZeHandle(), SrcOrigin, DstOrigin, Region, SrcRowPitch,
       DstRowPitch, SrcSlicePitch, DstSlicePitch,
       false, // blocking
-      NumEventsInWaitList, EventWaitList, Event, IsDeviceLocalCopy);
+      NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 } // extern "C"
@@ -4612,8 +4615,10 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
+  // Performance analysis on a simple SYCL data "fill" test shows copy engine
+  // is faster than compute engine for such operations.
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, true /* IsCopyCommand */))
+          Queue, &ZeCommandList, &ZeFence, true /* PreferCopyCommandList */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4935,7 +4940,7 @@ static pi_result enqueueMemImageCommandHelper(
     pi_bool IsBlocking, pi_image_offset SrcOrigin, pi_image_offset DstOrigin,
     pi_image_region Region, size_t RowPitch, size_t SlicePitch,
     pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event, bool IsDeviceLocalCopy = false) {
+    pi_event *Event, bool PreferCopyEngine = false) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
@@ -4951,8 +4956,7 @@ static pi_result enqueueMemImageCommandHelper(
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence,
-          !IsDeviceLocalCopy /* IsCopyCommand */))
+          Queue, &ZeCommandList, &ZeFence, !PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5112,14 +5116,14 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
                       const pi_event *EventWaitList, pi_event *Event) {
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  bool IsDeviceLocalCopy = (!(SrcImage->OnHost) && !(DstImage->OnHost));
+  bool PreferCopyEngine = (!(SrcImage->OnHost) && !(DstImage->OnHost));
   return enqueueMemImageCommandHelper(
       PI_COMMAND_TYPE_IMAGE_COPY, Queue, SrcImage, DstImage,
       false, // is_blocking
       SrcOrigin, DstOrigin, Region,
       0, // row pitch
       0, // slice pitch
-      NumEventsInWaitList, EventWaitList, Event, IsDeviceLocalCopy);
+      NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 pi_result piEnqueueMemImageFill(pi_queue Queue, pi_mem Image,
@@ -5563,10 +5567,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  // TODO: Change IsCopyCommand argument to 'true' once L0 backend support is
-  // added
+  // TODO: Change PreferCopyCommandList argument to 'true' once L0 backend
+  // support is added
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, false /* IsCopyCommand */))
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyCommandList */))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
@@ -5622,7 +5626,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, false /* IsCopyCommand */))
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyCommandList */))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
