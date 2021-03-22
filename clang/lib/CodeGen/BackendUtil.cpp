@@ -960,7 +960,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     PerModulePasses.add(createSPIRITTAnnotationsPass());
   }
 
-  // This pass should be always called for SYCL device code.
+  // Allocate static local memory in SYCL kernel scope for each allocation call.
   if (LangOpts.SYCLIsDevice)
     PerModulePasses.add(createSYCLLowerWGLocalMemoryPass());
 

@@ -5,10 +5,26 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// This pass does the following for each allocate call to
+// __sycl_allocateLocalMemory(Size, Alignment) function at the kernel scope:
+// - inserts a global byte array of Size bytes with specified alignment
+//   in work group local address space.
+// - replaces allocate call with access to this memory.
 //
-// Replaces calls to __sycl_allocateLocalMemory(Size, Alignment) function with
-// allocation of memory in local address space at the kernel scope.
+// For example, the following IR code in a kernel function:
+//   define spir_kernel void @KernelA() {
+//     %0 = call spir_func i8 addrspace(3)* @__sycl_allocateLocalMemory(
+//         i64 128, i64 4)
+//     %1 = bitcast i8 addrspace(3)* %0 to i32 addrspace(3)*
+//   }
 //
+// is translated to the following:
+//   @WGLocalMem = internal addrspace(3) global [128 x i8] undef, align 4
+//   define spir_kernel void @KernelA() {
+//     %0 = bitcast i8 addrspace(3)* getelementptr inbounds (
+//         [128 x i8], [128 x i8] addrspace(3)* @WGLocalMem, i32 0, i32 0)
+//         to i32 addrspace(3)*
+//   }
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_SYCLLOWERIR_LOWERWGLOCALMEMORY_H
