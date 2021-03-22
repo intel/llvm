@@ -614,13 +614,24 @@ link(const kernel_bundle<bundle_state::object> &ObjectBundle,
 // build API
 /////////////////////////
 
+namespace detail {
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
+           const std::vector<device> &Devs, const property_list &PropList);
+}
+
 /// \returns a new kernel_bundle which contains device images that are
 /// translated into one ore more new device images of state
 /// bundle_state::executable. The new bundle represents all of the kernels in
 /// InputBundle that are compatible with at least one of the devices in Devs.
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+inline kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
-      const std::vector<device> &Devs, const property_list &PropList = {});
+      const std::vector<device> &Devs, const property_list &PropList = {}) {
+  detail::KernelBundleImplPtr Impl =
+      detail::build_impl(InputBundle, Devs, PropList);
+  return detail::createSyclObjFromImpl<
+      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+}
 
 inline kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,

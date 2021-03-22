@@ -124,7 +124,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                             const std::vector<kernel_id> &KernelIds,
-                            bundle_state State, OSModuleHandle &M) {
+                            bundle_state State, OSModuleHandle M) {
   // Just create a kernel_bundle and check if it has any device_images inside.
   detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, KernelIds, State, M);
   return KernelBundleImpl.size();
@@ -134,7 +134,7 @@ std::shared_ptr<detail::kernel_bundle_impl>
 compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
              const std::vector<device> &Devs, const property_list &PropList) {
   return std::make_shared<detail::kernel_bundle_impl>(
-      detail::getSyclObjImpl(InputBundle), Devs, PropList);
+      InputBundle, Devs, PropList, bundle_state::object);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
@@ -144,17 +144,14 @@ link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
                                                       PropList);
 }
 
-} // namespace detail
-
-kernel_bundle<bundle_state::executable>
-build(const kernel_bundle<bundle_state::input> &InputBundle,
-      const std::vector<device> &Devs, const property_list &PropList) {
-  auto Impl =
-      std::make_shared<detail::kernel_bundle_impl>(InputBundle, Devs, PropList);
-
-  return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+std::shared_ptr<detail::kernel_bundle_impl>
+build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
+           const std::vector<device> &Devs, const property_list &PropList) {
+  return std::make_shared<detail::kernel_bundle_impl>(
+      InputBundle, Devs, PropList, bundle_state::executable);
 }
+
+} // namespace detail
 
 __SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
                                  const device &Dev) {
@@ -174,7 +171,7 @@ __SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
   //                      return !Dev.has(Aspect);
   //                    });
   //
-  assert(!"Not supported");
+  assert(!"Not implemented");
   return false;
 }
 

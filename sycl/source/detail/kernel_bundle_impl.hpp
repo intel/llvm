@@ -47,27 +47,13 @@ public:
         MContext, MDevices, State, M);
   }
 
-  // Matches sycl::build
+  // Matches sycl::build and sycl::compile
   kernel_bundle_impl(const kernel_bundle<bundle_state::input> &InputBundle,
-                     const std::vector<device> &Devs,
-                     const property_list &PropList) {
-
-    // TODO: Add checks here
+                     std::vector<device> Devs, const property_list &PropList,
+                     bundle_state TargetState)
+      : MContext(InputBundle.get_context()), MDevices(std::move(Devs)) {
 
     for (const device_image_plain &DeviceImage : InputBundle) {
-      MDeviceImages.push_back(detail::ProgramManager::getInstance().build(
-          DeviceImage, Devs, PropList));
-    }
-  }
-
-  // Matches sycl::compile
-  // TODO: Replace kernel_bunlde_impl with kernel_bundle_plain
-  kernel_bundle_impl(const std::shared_ptr<kernel_bundle_impl> &InputBundleImpl,
-                     const std::vector<device> Devs,
-                     const property_list &PropList)
-      : MContext(InputBundleImpl->MContext), MDevices(std::move(Devs)) {
-
-    for (const device_image_plain &DeviceImage : *InputBundleImpl) {
       if (std::none_of(
               MDevices.begin(), MDevices.end(),
               [&DeviceImage](const device &Dev) {
@@ -75,8 +61,21 @@ public:
               }))
         continue;
 
-      MDeviceImages.push_back(detail::ProgramManager::getInstance().compile(
-          DeviceImage, Devs, PropList));
+      switch (TargetState) {
+      case bundle_state::object:
+        MDeviceImages.push_back(detail::ProgramManager::getInstance().compile(
+            DeviceImage, Devs, PropList));
+        break;
+      case bundle_state::executable:
+        MDeviceImages.push_back(detail::ProgramManager::getInstance().build(
+            DeviceImage, MDevices, PropList));
+        break;
+      case bundle_state::input:
+        throw sycl::runtime_error(
+            "Internal error. The target state should not be input",
+            PI_INVALID_OPERATION);
+        break;
+      }
     }
   }
 
@@ -86,18 +85,6 @@ public:
       std::vector<device> Devs, const property_list &PropList)
       : MContext(ObjectBundles[0].get_context()), MDevices(std::move(Devs)) {
 
-    //for(const device &Dev: Devs) {
-      //for(const kernel_bundle<bundle_state::object> &ObjectBundle: ObjectBundles) {
-        //const std::vector<device> &BundleDevices =
-            //getSyclObjImpl(ObjectBundle)->MDevices;
-
-        //if (std::none_of(
-                //BundleDevices.begin(), BundleDevices.end(),
-                //[&Dev](const device &DevCand) { return Dev == DevCand; }))
-          //throw "laga";
-      //}
-    //}
-
     std::vector<device_image_plain> DeviceImages;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
@@ -105,8 +92,8 @@ public:
                           ObjectBundle.end());
     }
 
-    MDeviceImages = detail::ProgramManager::getInstance().link(DeviceImages,
-                                                               Devs, PropList);
+    MDeviceImages = detail::ProgramManager::getInstance().link(
+        std::move(DeviceImages), Devs, PropList);
   }
 
   kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,

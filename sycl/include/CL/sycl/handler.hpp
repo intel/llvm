@@ -906,8 +906,6 @@ private:
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
 
-  context getContext();
-
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;

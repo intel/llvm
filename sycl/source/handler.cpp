@@ -29,8 +29,6 @@ handler::handler(const shared_ptr_class<detail::queue_impl> &Queue, bool IsHost)
       std::make_shared<std::vector<detail::ExtendedMemberT>>());
 }
 
-context handler::getContext() { return MQueue->get_context(); }
-
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) {
 
@@ -54,7 +52,7 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) {
   // No kernel bundle yet, create one
   if (!KernelBundleImpPtr && Insert) {
     KernelBundleImpPtr = detail::getSyclObjImpl(
-        get_kernel_bundle<bundle_state::input>(getContext()));
+        get_kernel_bundle<bundle_state::input>(MQueue->get_context()));
 
     detail::ExtendedMemberT EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
@@ -95,7 +93,8 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
-  if (getCGTypeVersion(MCGType) > detail::CG::CG_VERSION::V0) {
+  if (getCGTypeVersion(MCGType) >
+      static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
     // If there were uses of set_specialization_constant build the kernel_bundle
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/false);

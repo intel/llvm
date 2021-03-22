@@ -75,13 +75,13 @@ class kernel_bundle_impl;
 constexpr unsigned int ShiftBitsForVersion = 24;
 
 // Constructs versioned type
-constexpr static unsigned int getVersionedCGType(unsigned int Type,
-                                                 unsigned char Version) {
+constexpr unsigned int getVersionedCGType(unsigned int Type,
+                                          unsigned char Version) {
   return Type | ((unsigned int)Version << ShiftBitsForVersion);
 }
 
 // Returns the version encoded to the type
-constexpr static unsigned char getCGTypeVersion(unsigned int Type) {
+constexpr unsigned char getCGTypeVersion(unsigned int Type) {
   return Type >> ShiftBitsForVersion;
 }
 
@@ -89,7 +89,7 @@ constexpr static unsigned char getCGTypeVersion(unsigned int Type) {
 class CG {
 public:
 
-  enum CG_VERSION: unsigned char {
+  enum class CG_VERSION: unsigned char {
     V0 = 0,
     V1 = 1,
   };
@@ -111,7 +111,8 @@ public:
     PREFETCH_USM = 12,
     CODEPLAY_INTEROP_TASK = 13,
     CODEPLAY_HOST_TASK = 14,
-    KERNEL_V2 = getVersionedCGType(KERNEL, CG_VERSION::V1),
+    KERNEL_V2 =
+        getVersionedCGType(KERNEL, static_cast<unsigned int>(CG_VERSION::V1)),
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -139,7 +140,8 @@ public:
   CGTYPE getType() { return MType; }
 
   std::shared_ptr<std::vector<ExtendedMemberT>> getExtendedMembers() {
-    if (getCGTypeVersion(MType) == CG_VERSION::V0 || MSharedPtrStorage.empty())
+    if (getCGTypeVersion(MType) == static_cast<unsigned int>(CG_VERSION::V0) ||
+        MSharedPtrStorage.empty())
       return nullptr;
 
     return convertToExtendedMembers(MSharedPtrStorage[0]);
