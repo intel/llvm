@@ -22,7 +22,7 @@
 // test 8x16 block size
 //
 #define DIM_SIZE (1 << 13)
-#define SQUARE_SZ (DIM_SIZE * DIM_SIZE + 1)
+#define SQUARE_SZ (DIM_SIZE * DIM_SIZE + 16)
 
 #define WIDTH 16
 #define HEIGHT 16
