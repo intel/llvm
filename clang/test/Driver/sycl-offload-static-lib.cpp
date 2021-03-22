@@ -150,3 +150,15 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib= -c %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=FOFFLOAD_STATIC_LIB_NOVALUE
 // FOFFLOAD_STATIC_LIB_NOVALUE: warning: argument unused during compilation: '-foffload-static-lib='
+
+/// Use of a static archive with various targets should compile and unbundle
+// RUN: touch %t.a
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t.a -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
+// STATIC_ARCHIVE_UNBUNDLE: clang-offload-bundler{{.*}}

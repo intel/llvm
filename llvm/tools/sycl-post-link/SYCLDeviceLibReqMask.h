@@ -14,7 +14,7 @@
 // SYCL runtime later.
 //===----------------------------------------------------------------------===//
 
-#pragma onece
+#pragma once
 
 #include "llvm/Pass.h"
 #include <unordered_map>

@@ -243,6 +243,10 @@ int main() {
 
     h.single_task<class test_kernel4>(TRIFuncObjGood1());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 64
@@ -253,10 +257,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
-    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel5>(TRIFuncObjGood2());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
@@ -277,6 +277,10 @@ int main() {
 
     h.single_task<class test_kernel6>(TRIFuncObjGood3());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel6
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 64
@@ -287,10 +291,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
-    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel7>(TRIFuncObjGood4());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel7
@@ -311,6 +311,10 @@ int main() {
 
     h.single_task<class test_kernel8>(TRIFuncObjGood5());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel8
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 64
@@ -321,10 +325,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel9>(TRIFuncObjGood6());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel9
@@ -345,6 +345,10 @@ int main() {
 
     h.single_task<class test_kernel10>(TRIFuncObjGood7());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel10
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 64
@@ -355,10 +359,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel11>(TRIFuncObjGood8());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel11

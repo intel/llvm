@@ -233,10 +233,11 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()
 #endif
   ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
+    return submit([=](handler &CGH) { CGH.barrier(); }
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+                  , CodeLoc
 #endif
-    return submit([=](handler &CGH) { CGH.barrier(); }, CodeLoc);
+    );
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -255,10 +256,11 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()
 #endif
   ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
+    return submit([=](handler &CGH) { CGH.barrier(WaitList); }
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+                  , CodeLoc
 #endif
-    return submit([=](handler &CGH) { CGH.barrier(WaitList); }, CodeLoc);
+    );
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -749,6 +751,11 @@ public:
   ///
   /// Equivalent to has_property<property::queue::in_order>()
   bool is_in_order() const;
+
+  /// Returns the backend associated with this queue.
+  ///
+  /// \return the backend associated with this queue.
+  backend get_backend() const noexcept;
 
   /// Gets the native handle of the SYCL queue.
   ///

@@ -47,7 +47,7 @@ public:
 
     // Collect kernel names for the image
     pi_device_binary DevBin =
-        const_cast<pi_device_binary>(&BinImage->getRawData());
+        const_cast<pi_device_binary>(&MBinImage->getRawData());
     for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
          EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
 
