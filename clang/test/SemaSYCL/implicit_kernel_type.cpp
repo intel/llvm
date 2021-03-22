@@ -39,9 +39,9 @@ int main() {
   });
 
 #if defined(WARN)
-  // expected-warning@Inputs/sycl.hpp:220 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-warning@Inputs/sycl.hpp:233 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
 #elif defined(ERROR)
-  // expected-error@Inputs/sycl.hpp:220 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-error@Inputs/sycl.hpp:233 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
 #endif
 
   q.submit([&](handler &h) {
@@ -53,9 +53,9 @@ int main() {
   });
 
 #if defined(WARN)
-  // expected-warning@Inputs/sycl.hpp:220 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-warning@Inputs/sycl.hpp:233 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
 #elif defined(ERROR)
-  // expected-error@Inputs/sycl.hpp:220 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-error@Inputs/sycl.hpp:233 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
 #endif
 
   q.submit([&](handler &h) {
