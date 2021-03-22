@@ -193,6 +193,10 @@ bool ParsedAttr::isSupportedByPragmaAttribute() const {
   return getInfo().IsSupportedByPragmaAttribute;
 }
 
+bool ParsedAttr::supportsNonconformingLambdaSyntax() const {
+  return getInfo().SupportsNonconformingLambdaSyntax && isCXX11Attribute();
+}
+
 unsigned ParsedAttr::getSemanticSpelling() const {
   return getInfo().spellingIndexToSemanticSpelling(*this);
 }

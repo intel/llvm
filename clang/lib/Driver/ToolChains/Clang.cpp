@@ -5881,6 +5881,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
     Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);
 
+  // Forward -fsycl-instrument-device-code option to cc1. This option can only
+  // be used with spir triple.
+  if (Arg *A = Args.getLastArg(options::OPT_fsycl_instrument_device_code)) {
+    if (!Triple.isSPIR())
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getAsString(Args) << TripleStr;
+    CmdArgs.push_back("-fsycl-instrument-device-code");
+  }
+
   if (IsHIP) {
     if (Args.hasFlag(options::OPT_fhip_new_launch_api,
                      options::OPT_fno_hip_new_launch_api, true))
