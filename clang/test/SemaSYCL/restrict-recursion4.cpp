@@ -10,7 +10,7 @@ int fib(int n) {
 
 // expected-note@+1 2{{function implemented using recursion declared here}}
 void kernel2(void) {
-  // expected-warning@+1 {{SYCL kernel cannot call a recursive function}}
+  // expected-error@+1 {{SYCL kernel cannot call a recursive function}}
   kernel2();
 }
 
@@ -24,7 +24,7 @@ void *operator new(size_t);
 void usage2(myFuncDef functionPtr) {
   // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ip = new int;
-  // expected-warning@+1 {{SYCL kernel cannot call a recursive function}}
+  // expected-error@+1 {{SYCL kernel cannot call a recursive function}}
   kernel2();
 }
 
