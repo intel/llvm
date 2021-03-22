@@ -3045,8 +3045,9 @@ public:
       }
 
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
-        bool UnnamedTypeUsed = DeclNamed->getNameAsString().empty();
-        
+        const auto *Tag = dyn_cast<TagDecl>(DeclNamed);
+        bool UnnamedTypeUsed = Tag->getNameAsString().empty();
+
         if (UnnamedTypeUsed) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
@@ -3055,11 +3056,10 @@ public:
           IsInvalid = true;
           return;
         }
-        // Check if the declaration is completely defined at NameSpace or
-        // TranslationUnit scope and throw an error if not.
-        const auto *Tag = dyn_cast<TagDecl>(DeclNamed);
-        if (Tag->isCompleteDefinition() &&
-            (!isa<NamespaceDecl, TranslationUnitDecl>(DeclCtx))) {
+        // Check if the declaration is completely defined within a
+        // function or class/struct.
+
+        if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << 0 << KernelNameType;
