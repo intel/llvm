@@ -11166,6 +11166,8 @@ def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
                                  "sizes greater than %1 not supported">;
 def err_esimd_glob_cant_init : Error<
   "SYCL explicit SIMD does not permit private global variable to have an initializer">;
+def err_esimd_global_in_sycl_context : Error<
+  "Using ESIMD globals in SYCL context is not allowed">;
 
 def err_sycl_kernel_incorrectly_named : Error<"%0 is an invalid kernel name type">;
 def note_invalid_type_in_sycl_kernel : Note<

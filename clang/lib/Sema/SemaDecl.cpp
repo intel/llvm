@@ -18378,8 +18378,11 @@ Decl *Sema::getObjCDeclContext() const {
 }
 
 Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
-  // TODO: Will be defined in later patches.
-  // For now, all diagnostics apply to every context
+  if (FD->hasAttr<SYCLSimdAttr>())
+    return Sema::DeviceDiagnosticReason::Esimd;
+  else if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
+    return Sema::DeviceDiagnosticReason::Sycl;
+  // TODO: Figure out the logic for OMP and CUDA.
   return Sema::DeviceDiagnosticReason::All;
 }
 

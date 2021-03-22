@@ -1603,10 +1603,20 @@ public:
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (isa<VarDecl>(D))
       return;
-    if (auto *FD = dyn_cast<FunctionDecl>(D))
+    if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+      Sema::DeviceDiagnosticReason SaveReason = RootReason;
+      // Allow switching context from SYCL to ESIMD. Switching back is not
+      // allowed. I.e., once we entered ESIMD code we stay there until we exit
+      // the subgraph.
+      if ((RootReason == Sema::DeviceDiagnosticReason::Sycl) &&
+          (S.getEmissionReason(FD) == Sema::DeviceDiagnosticReason::Esimd))
+        RootReason = Sema::DeviceDiagnosticReason::Esimd;
       checkFunc(Loc, FD);
-    else
+      // Restore the context
+      RootReason = SaveReason;
+    } else {
       Inherited::visitUsedDecl(Loc, D);
+    }
   }
 
   void checkVar(VarDecl *VD) {
