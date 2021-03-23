@@ -1767,23 +1767,24 @@ public:
     /// should make this a no-op.
     DDR_None = 0,
     /// OpenMP specific diagnostic.
-    DDR_OMP_DEVICE = 1 << 0,
-    DDR_OMP_HOST = 1 << 1,
-    DDR_OMP_ALL = DDR_OMP_DEVICE | DDR_OMP_HOST,
+    DDR_OmpDevice = 1 << 0,
+    DDR_OmpHost = 1 << 1,
+    DDR_OmpAll = DDR_OmpDevice | DDR_OmpHost,
     /// CUDA specific diagnostics.
-    DDR_CUDA_DEVICE = 1 << 2,
-    DDR_CUDA_HOST = 1 << 3,
-    DDR_CUDA_ALL = DDR_CUDA_DEVICE | DDR_CUDA_HOST,
+    DDR_CudaDevice = 1 << 2,
+    DDR_CudaHost = 1 << 3,
+    DDR_CudaAll = DDR_CudaDevice | DDR_CudaHost,
     /// SYCL specific diagnostic.
-    DDR_SYCL = 1 << 4,
+    DDR_Sycl = 1 << 4,
     /// ESIMD specific diagnostic.
-    DDR_ESIMD = 1 << 5,
-
+    DDR_Esimd = 1 << 5,
     /// A flag representing 'all'.  This can be used to avoid the check
     /// all-together and make this behave as it did before the
     /// DiagnosticReason was added (that is, unconditionally emit).
     /// Note: This needs to be updated if any flags above are added.
-    DDR_ALL = 0x3F
+    DDR_All = 0x3F,
+
+    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/DDR_All)
   };
 
   /// A generic diagnostic builder for errors which may or may not be deferred.
@@ -4303,7 +4304,7 @@ public:
   };
   FunctionEmissionStatus getEmissionStatus(FunctionDecl *Decl,
                                            bool Final = false);
-  DeviceDiagnosticReason getEmissionReason(FunctionDecl *Decl);
+  DeviceDiagnosticReason getEmissionReason(const FunctionDecl *Decl);
 
   // Whether the callee should be ignored in CUDA/HIP/OpenMP host/device check.
   bool shouldIgnoreInHostDeviceCheck(FunctionDecl *Callee);
@@ -12139,7 +12140,7 @@ public:
         : Diagnostic(SL, PD), Reason(R) {}
 
     PartialDiagnosticAt &getDiag() { return Diagnostic; }
-    DeviceDiagnosticReason getReason() { return Reason; }
+    DeviceDiagnosticReason getReason() const { return Reason; }
 
   private:
     PartialDiagnosticAt Diagnostic;
@@ -13103,10 +13104,9 @@ public:
   /// if (!S.Context.getTargetInfo().hasFloat128Type() &&
   ///     S.getLangOpts().SYCLIsDevice)
   ///   SYCLDiagIfDeviceCode(Loc, diag::err_type_unsupported) << "__float128";
-  SemaDiagnosticBuilder SYCLDiagIfDeviceCode(
-      SourceLocation Loc, unsigned DiagID,
-      DeviceDiagnosticReason Reason =
-          static_cast<DeviceDiagnosticReason>(DDR_SYCL | DDR_ESIMD));
+  SemaDiagnosticBuilder
+  SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
+                       DeviceDiagnosticReason Reason = DDR_Sycl | DDR_Esimd);
 
   /// Check whether we're allowed to call Callee from the current context.
   ///

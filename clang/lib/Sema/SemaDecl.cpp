@@ -18377,10 +18377,10 @@ Decl *Sema::getObjCDeclContext() const {
   return (dyn_cast_or_null<ObjCContainerDecl>(CurContext));
 }
 
-Sema::DeviceDiagnosticReason Sema::getEmissionReason(FunctionDecl *FD) {
+Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   // TODO: Will be defined in later patches.
   // For now, all diagnostics apply to every context
-  return Sema::DDR_ALL;
+  return Sema::DDR_All;
 }
 
 Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,

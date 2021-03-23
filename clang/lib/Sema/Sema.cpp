@@ -1584,7 +1584,7 @@ public:
   // Emission state of the root node of the current use graph.
   bool ShouldEmitRootNode;
 
-  Sema::DeviceDiagnosticReason RootReason = Sema::DDR_ALL;
+  Sema::DeviceDiagnosticReason RootReason = Sema::DDR_All;
 
   // Current OpenMP device context level. It is initialized to 0 and each
   // entering of device context increases it by 1 and each exit decreases
@@ -1665,7 +1665,7 @@ public:
       checkFunc(SourceLocation(), FD);
     } else {
       // Global VarDecls don't really have a reason, so set this to 'ALL'.
-      RootReason = Sema::DDR_ALL;
+      RootReason = Sema::DDR_All;
       checkVar(cast<VarDecl>(D));
     }
   }
@@ -1809,7 +1809,7 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD) {
     return SYCLDiagIfDeviceCode(Loc, DiagID);
 
   return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc, DiagID,
-                               FD, *this, DDR_ALL);
+                               FD, *this, DDR_All);
 }
 
 Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
@@ -1825,7 +1825,7 @@ Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
   if (!ShouldDefer) {
     SetIsLastErrorImmediate(true);
     return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc,
-                                 DiagID, getCurFunctionDecl(), *this, DDR_ALL);
+                                 DiagID, getCurFunctionDecl(), *this, DDR_All);
   }
 
   SemaDiagnosticBuilder DB = getLangOpts().CUDAIsDevice
