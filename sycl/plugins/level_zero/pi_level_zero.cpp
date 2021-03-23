@@ -23,7 +23,6 @@
 #include <string>
 #include <thread>
 #include <utility>
-#include <iostream>
 
 #include <level_zero/zes_api.h>
 #include <level_zero/zet_api.h>
@@ -919,42 +918,6 @@ static const bool FilterEventWaitList = [] {
   return RetVal;
 }();
 
-/*pi_result _pi_ze_event_list_t::addNewEventsToList(pi_uint32 CurListLength,
-                                                  pi_uint32 NumOfNewElements,
-                                                  pi_event *PrevEventList) {
-  auto NewLength = CurListLength + 1;
-  _pi_ze_event_list_t tempWaitList; 
-
-  try {
-    tempWaitList.ZeEventList = new ze_event_handle_t[NewLength];
-    tempWaitList.PiEventList = new pi_event[NewLength];
-
-    for (pi_uint32 I = 0; I < CurListLength; I++) {
-      tempWaitList.ZeEventList[I] = this->ZeEventList[I];
-      tempWaitList.PiEventList[I] = this->PiEventList[I];
-    }
-
-    tempWaitList.ZeEventList[CurListLength] = PrevEventList->ZeEvent;
-    tempWaitList.PiEventList[CurListLength] = *PrevEventList;
-
-    tempWaitList.Length = NewLength;
-
-    delete[] this->ZeEventList;
-    delete[] this->PiEventList;
-    *this = tempWaitList;
-    this->Length = NewLength;
-
-    for (pi_uint32 I = 0; I < this->Length; I++) {
-      PI_CALL(piEventRetain(this->PiEventList[I]));
-    }
-
-  } catch (...) {
-    return PI_OUT_OF_HOST_MEMORY;
-  }
-
-  return PI_SUCCESS;
-}*/
-
 pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     pi_uint32 EventListLength, const pi_event *EventList,
     ze_command_list_handle_t ZeCommandList, pi_queue CurQueue) {
@@ -1009,7 +972,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         }
     }
 
-    if (CurQueue->InorderQueue) {
+    if (CurQueue->InorderQueue &&
+        ZeCommandList == (*CurQueue->PreviousEvent)->ZeCommandList) {
       this->ZeEventList[TmpListLength] = (*CurQueue->PreviousEvent)->ZeEvent;
       this->PiEventList[TmpListLength] = *CurQueue->PreviousEvent;
       TmpListLength += 1;

@@ -572,10 +572,6 @@ struct _pi_ze_event_list_t {
   pi_result collectEventsForReleaseAndDestroyPiZeEventList(
       std::list<pi_event> &EventsToBeReleased);
 
-  pi_result addNewEventsToList(pi_uint32 CurListLength,
-                               pi_uint32 NumOfNewElements,
-                               pi_event *EventList);
-
   // Had to create custom assignment operator because the mutex is
   // not assignment copyable. Just field by field copy of the other
   // fields.
