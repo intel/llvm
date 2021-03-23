@@ -53,6 +53,14 @@ using namespace SPIRVDebug::Operand;
 
 namespace SPIRV {
 
+static uint64_t getDerivedSizeInBits(const DIType *Ty) {
+  if (auto Size = Ty->getSizeInBits())
+    return Size;
+  if (auto *DT = llvm::dyn_cast<const llvm::DIDerivedType>(Ty))
+    if (auto *BT = llvm::dyn_cast<const llvm::DIType>(DT->getRawBaseType()))
+      return getDerivedSizeInBits(BT);
+  return 0;
+}
 SPIRVToLLVMDbgTran::SPIRVToLLVMDbgTran(SPIRVModule *TBM, Module *TM,
                                        SPIRVToLLVM *Reader)
     : BM(TBM), M(TM), Builder(*M), SPIRVReader(Reader) {
@@ -201,7 +209,7 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
     TotalCount *= static_cast<uint64_t>(Count);
   }
   DINodeArray SubscriptArray = Builder.getOrCreateArray(Subscripts);
-  size_t Size = BaseTy->getSizeInBits() * TotalCount;
+  size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
   return Builder.createArrayType(Size, 0 /*align*/, BaseTy, SubscriptArray);
 }
 
@@ -213,7 +221,7 @@ SPIRVToLLVMDbgTran::transTypeVector(const SPIRVExtInst *DebugInst) {
   DIType *BaseTy =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
   SPIRVWord Count = Ops[ComponentCountIdx];
-  uint64_t Size = BaseTy->getSizeInBits() * Count;
+  uint64_t Size = getDerivedSizeInBits(BaseTy) * Count;
 
   SmallVector<llvm::Metadata *, 8> Subscripts;
   Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
