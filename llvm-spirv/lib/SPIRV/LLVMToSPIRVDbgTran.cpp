@@ -940,7 +940,7 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
   Ops[FileIdx] = BM->getString(FileName)->getId();
   DIFile *F = DIEntry ? DIEntry->getFile() : nullptr;
   if (F && F->getRawChecksum()) {
-    const auto &CheckSum = F->getChecksum().getValue();
+    auto CheckSum = F->getChecksum().getValue();
     Ops[TextIdx] = BM->getString("//__" + CheckSum.getKindAsString().str() +
                                  ":" + CheckSum.Value.str())
                        ->getId();
