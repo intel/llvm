@@ -3416,7 +3416,7 @@ Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
     if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted &&
-        (getEmissionReason(FD) & Reason) != 0)
+        static_cast<int>(getEmissionReason(FD) & Reason) != 0)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     return SemaDiagnosticBuilder::K_Deferred;
   }();
@@ -3442,10 +3442,11 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
   SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this,
-                        DDR_Sycl)
+                        DeviceDiagnosticReason::Sycl)
       << Sema::KernelCallUndefinedFunction;
   SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
-                        diag::note_previous_decl, Caller, *this, DDR_Sycl)
+                        diag::note_previous_decl, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Callee;
 
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&

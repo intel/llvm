@@ -1762,29 +1762,29 @@ public:
   /// Bitmask to contain the list of reasons a single diagnostic should be
   /// emitted, based on its language.  This permits multiple offload systems
   /// to coexist in the same translation unit.
-  enum DeviceDiagnosticReason {
+  enum class DeviceDiagnosticReason : unsigned char {
     /// Diagnostic doesn't apply to anything. Included for completeness, but
     /// should make this a no-op.
-    DDR_None = 0,
+    None = 0,
     /// OpenMP specific diagnostic.
-    DDR_OmpDevice = 1 << 0,
-    DDR_OmpHost = 1 << 1,
-    DDR_OmpAll = DDR_OmpDevice | DDR_OmpHost,
+    OmpDevice = 1 << 0,
+    OmpHost = 1 << 1,
+    OmpAll = OmpDevice | OmpHost,
     /// CUDA specific diagnostics.
-    DDR_CudaDevice = 1 << 2,
-    DDR_CudaHost = 1 << 3,
-    DDR_CudaAll = DDR_CudaDevice | DDR_CudaHost,
+    CudaDevice = 1 << 2,
+    CudaHost = 1 << 3,
+    CudaAll = CudaDevice | CudaHost,
     /// SYCL specific diagnostic.
-    DDR_Sycl = 1 << 4,
+    Sycl = 1 << 4,
     /// ESIMD specific diagnostic.
-    DDR_Esimd = 1 << 5,
+    Esimd = 1 << 5,
     /// A flag representing 'all'.  This can be used to avoid the check
     /// all-together and make this behave as it did before the
     /// DiagnosticReason was added (that is, unconditionally emit).
     /// Note: This needs to be updated if any flags above are added.
-    DDR_All = 0x3F,
+    All = 0x3F,
 
-    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/DDR_All)
+    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/All)
   };
 
   /// A generic diagnostic builder for errors which may or may not be deferred.
@@ -13104,9 +13104,10 @@ public:
   /// if (!S.Context.getTargetInfo().hasFloat128Type() &&
   ///     S.getLangOpts().SYCLIsDevice)
   ///   SYCLDiagIfDeviceCode(Loc, diag::err_type_unsupported) << "__float128";
-  SemaDiagnosticBuilder
-  SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
-                       DeviceDiagnosticReason Reason = DDR_Sycl | DDR_Esimd);
+  SemaDiagnosticBuilder SYCLDiagIfDeviceCode(
+      SourceLocation Loc, unsigned DiagID,
+      DeviceDiagnosticReason Reason = DeviceDiagnosticReason::Sycl |
+                                      DeviceDiagnosticReason::Esimd);
 
   /// Check whether we're allowed to call Callee from the current context.
   ///
