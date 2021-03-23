@@ -9,20 +9,16 @@
 #pragma once
 
 #include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/common.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace detail {
-template <backend Backend> struct InteropFeatureSupportMap {
-  static constexpr bool MakePlatform = false;
-  static constexpr bool MakeDevice = false;
-  static constexpr bool MakeContext = false;
-  static constexpr bool MakeQueue = false;
-  static constexpr bool MakeEvent = false;
-  static constexpr bool MakeBuffer = false;
-  static constexpr bool MakeKernel = false;
+template <backend Backend> class backend_traits {
+public:
+  template <class T> using input_type = typename interop<Backend, T>::type;
+
+  template <class T> using return_type = typename interop<Backend, T>::type;
+
+  // TODO define errc once SYCL2020-style exceptions are supported.
 };
-} // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
