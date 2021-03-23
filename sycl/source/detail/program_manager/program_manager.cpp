@@ -357,9 +357,9 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 }
 
 std::string getDeviceString(const device &Device) {
-  return {Device.get_platform().get_info<sycl::info::platform::name>() +"/"+
-          Device.get_info<sycl::info::device::name>() + "/"+
-          Device.get_info<sycl::info::device::version>() + "/"+
+  return {Device.get_platform().get_info<sycl::info::platform::name>() + "/" +
+          Device.get_info<sycl::info::device::name>() + "/" +
+          Device.get_info<sycl::info::device::version>() + "/" +
           Device.get_info<sycl::info::device::driver_version>()};
 }
 
@@ -428,7 +428,7 @@ void WriteCacheItemSrc(const std::string &FileName, const device &Device,
       DumpBinData(SpecConsts.data(), SpecConsts.size())};
   if (DbgProgMgr > 1) {
     std::cerr << "####Writing source for cache item.\n";
-    std::cerr << "####'"<<DeviceString<<"'"<<std::endl;
+    std::cerr << "####'" << DeviceString << "'" << std::endl;
   }
 
   size_t Size = DeviceString.size();
@@ -491,14 +491,16 @@ bool IsCacheItemSrcEqual(const std::string &FileName, const device &Device,
   FileStream.read(&res[0], Size);
   if (DeviceString.compare(res)) {
     if (DbgProgMgr > 1) {
-      std::cerr << "####Devices differ:"<<DeviceString.compare(0, Size-1, res.data())<<"\n";
-      std::cerr << "####'" <<DeviceString<<"'\n";
+      std::cerr << "####Devices differ:"
+                << DeviceString.compare(0, Size - 1, res.data()) << "\n";
+      std::cerr << "####'" << DeviceString << "'\n";
       std::cerr << "####\t vs\n";
-      std::cerr << "####'" <<std::string(res.data(),Size)<<"'\n";
-      std::cerr << "####Cached size "<< std::dec << Size << " vs current size " << DeviceString.size() << std::endl;
-      for(unsigned int i=0; i< Size;i++){
-	      if(res[i]!=DeviceString[i])
-		      std::cerr << "####First diff on " << i<<std::endl;
+      std::cerr << "####'" << std::string(res.data(), Size) << "'\n";
+      std::cerr << "####Cached size " << std::dec << Size << " vs current size "
+                << DeviceString.size() << std::endl;
+      for (unsigned int i = 0; i < Size; i++) {
+        if (res[i] != DeviceString[i])
+          std::cerr << "####First diff on " << i << std::endl;
       }
     }
 
@@ -511,9 +513,9 @@ bool IsCacheItemSrcEqual(const std::string &FileName, const device &Device,
   if (BuildOptionsString.compare(0, Size, res.data())) {
     if (DbgProgMgr > 1) {
       std::cerr << "####Build options differ:\n";
-      std::cerr << "####'" <<BuildOptionsString<<"'\n";
+      std::cerr << "####'" << BuildOptionsString << "'\n";
       std::cerr << "####\t vs\n";
-      std::cerr << "####'" <<std::string(res.data(), Size)<<"'\n";
+      std::cerr << "####'" << std::string(res.data(), Size) << "'\n";
     }
     return false;
   }
@@ -524,9 +526,9 @@ bool IsCacheItemSrcEqual(const std::string &FileName, const device &Device,
   if (SpecConstsString.compare(0, Size, res.data())) {
     if (DbgProgMgr > 1) {
       std::cerr << "####Specialization constants differ\n";
-      std::cerr << "####'" <<SpecConstsString<<"'\n";
+      std::cerr << "####'" << SpecConstsString << "'\n";
       std::cerr << "####\t vs\n";
-      std::cerr << "####'" <<std::string(res.data(), Size)<<"'\n";
+      std::cerr << "####'" << std::string(res.data(), Size) << "'\n";
     }
     return false;
   }
@@ -537,10 +539,9 @@ bool IsCacheItemSrcEqual(const std::string &FileName, const device &Device,
   if (ImgString.compare(0, Size, res.data())) {
     if (DbgProgMgr > 1) {
       std::cerr << "####Images differ\n";
-      std::cerr << "####'" <<ImgString<<"'\n";
+      std::cerr << "####'" << ImgString << "'\n";
       std::cerr << "####\t vs\n";
-      std::cerr << "####'" <<std::string(res.data(), Size)<<"'\n";
-
+      std::cerr << "####'" << std::string(res.data(), Size) << "'\n";
     }
     return false;
   }
@@ -600,11 +601,11 @@ void ProgramManager::putPIProgramToDisc(const detail::plugin &Plugin,
     FileName = DirName + "/" + std::to_string(i++);
   } while (IsFSEntryPresent(FileName + ".bin"));
 
-  unsigned int DeviceNum=0;
+  unsigned int DeviceNum = 0;
 
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_NUM_DEVICES,
                                            sizeof(DeviceNum), &DeviceNum,
-					   nullptr);
+                                           nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
   Plugin.call<PiApiKind::piProgramGetInfo>(

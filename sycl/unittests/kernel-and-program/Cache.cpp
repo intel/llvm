@@ -100,9 +100,13 @@ static pi_result redefinedProgramGetInfo(pi_program program,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedProgramRetain(pi_program program) { return PI_SUCCESS; }
+static pi_result redefinedProgramRetain(pi_program program) {
+  return PI_SUCCESS;
+}
 
-static pi_result redefinedProgramRelease(pi_program program) { return PI_SUCCESS; }
+static pi_result redefinedProgramRelease(pi_program program) {
+  return PI_SUCCESS;
+}
 
 static pi_result redefinedKernelCreate(pi_program program,
                                        const char *kernel_name,
@@ -160,7 +164,8 @@ protected:
     Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
         redefinedProgramGetInfo);
     Mock->redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
-    Mock->redefine<detail::PiApiKind::piProgramRelease>(redefinedProgramRelease);
+    Mock->redefine<detail::PiApiKind::piProgramRelease>(
+        redefinedProgramRelease);
     Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
     Mock->redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
     Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
