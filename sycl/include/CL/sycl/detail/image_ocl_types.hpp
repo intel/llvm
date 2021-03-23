@@ -192,7 +192,6 @@ inline int getSPIRVElementSize(int ImageChannelType, int ImageChannelOrder) {
   }
 }
 
-#ifdef __SYCL_EXPLICIT_SIMD__
 // TODO all the opencl_image1d_buffer* stuff below is not used anymore and is
 // left temporarily to avoid ABI breaking changes - field of this type is
 // temporarily present in the accessor class.
@@ -217,7 +216,6 @@ template <> struct opencl_image1d_buffer_type<access::mode::atomic> {
   // definition for now.
   using type = unsigned int;
 };
-#endif // __SYCL_EXPLICIT_SIMD__
 
 template <int Dimensions, access::mode AccessMode, access::target AccessTarget>
 struct opencl_image_type;
