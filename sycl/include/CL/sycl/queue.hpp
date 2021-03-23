@@ -262,9 +262,8 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit_barrier(
-      const vector_class<event> &WaitList
-      _CODELOCPARAM(&CodeLoc)) {
+  event
+  submit_barrier(const vector_class<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
     return submit([=](handler &CGH) { CGH.barrier(WaitList); }
                   _CODELOCFW(CodeLoc));
   }
