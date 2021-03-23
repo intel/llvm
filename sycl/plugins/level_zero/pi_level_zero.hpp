@@ -552,7 +552,6 @@ struct _pi_ze_event_list_t {
   // batches for wait events that are in other queues.
   pi_result createAndRetainPiZeEventList(pi_uint32 EventListLength,
                                          const pi_event *EventList,
-                                         ze_command_list_handle_t ZeCommandList,
                                          pi_queue CurQueue);
 
   // Add all the events in this object's PiEventList to the end
