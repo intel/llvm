@@ -930,8 +930,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         ZeCommandList == (*CurQueue->PreviousEvent)->ZeCommandList) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
-    }
-    else if (EventListLength > 0) {
+    } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
       this->PiEventList = new pi_event[EventListLength];
     }

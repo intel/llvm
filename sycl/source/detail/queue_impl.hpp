@@ -244,10 +244,10 @@ public:
 
     if (Order == QueueOrder::OOO) {
       CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    } else if (Order == QueueOrder::Ordered) {
+      CreationFlags = PI_QUEUE_IN_ORDER_EXEC_MODE_ENABLE;
     }
-    if (Order == QueueOrder::Ordered) {
-      CreationFlags |= PI_QUEUE_IN_ORDER_EXEC_MODE_ENABLE;
-    }
+
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
