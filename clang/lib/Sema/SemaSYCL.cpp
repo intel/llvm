@@ -2994,7 +2994,7 @@ public:
 
   void DiagnoseKernelNameType(const NamedDecl *DeclNamed) {
     /*
-    This is a helper function which throws an error if the given 'declaration'
+    This is a helper function which throws an error if the given declaration
     is:
       * declared within namespace 'std' (at any level)
         e.g., namespace std { namespace literals { class Whatever; } }
@@ -3026,15 +3026,15 @@ public:
       // Check if the declaration is declared within namespace
       // "std" or "anonymous" namespace (at any level).
       while (!DeclCtx->isTranslationUnit() && isa<NamespaceDecl>(DeclCtx)) {
-        const auto *NSDecl = dyn_cast<NamespaceDecl>(DeclCtx);
-        if (NSDecl && NSDecl->isStdNamespace()) {
+        const auto *NSDecl = cast<NamespaceDecl>(DeclCtx);
+        if (NSDecl->isStdNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_invalid_std_type_in_sycl_kernel)
               << KernelNameType << DeclNamed;
           IsInvalid = true;
           return;
         }
-        if (NSDecl && NSDecl->isAnonymousNamespace()) {
+        if (NSDecl->isAnonymousNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << 0 << KernelNameType;
@@ -3045,31 +3045,31 @@ public:
       }
 
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
-        const auto *Tag = dyn_cast<TagDecl>(DeclNamed);
-        bool UnnamedTypeUsed = Tag->getNameAsString().empty();
+        if (const auto *Tag = dyn_cast<TagDecl>(DeclNamed)) {
+          bool UnnamedTypeUsed = Tag->getIdentifier() == nullptr;
 
-        if (UnnamedTypeUsed) {
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::err_sycl_kernel_incorrectly_named)
-              << 2;
+          if (UnnamedTypeUsed) {
+            S.Diag(KernelInvocationFuncLoc,
+                   diag::err_sycl_kernel_incorrectly_named)
+                << 2;
 
-          IsInvalid = true;
-          return;
-        }
-        // Check if the declaration is completely defined within a
-        // function or class/struct.
+            IsInvalid = true;
+            return;
+          }
+          // Check if the declaration is completely defined within a
+          // function or class/struct.
 
-        if (Tag->isCompleteDefinition()) {
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::err_sycl_kernel_incorrectly_named)
-              << 0 << KernelNameType;
+          if (Tag->isCompleteDefinition()) {
+            S.Diag(KernelInvocationFuncLoc,
+                   diag::err_sycl_kernel_incorrectly_named)
+                << 0 << KernelNameType;
 
-          IsInvalid = true;
-        } else {
-          S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-          S.Diag(DeclNamed->getSourceRange().getBegin(),
-                 diag::note_previous_decl)
-              << DeclNamed->getName();
+            IsInvalid = true;
+          } else {
+            S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
+            S.Diag(DeclNamed->getLocation(), diag::note_previous_decl)
+                << DeclNamed->getName();
+          }
         }
       }
     }

@@ -11168,7 +11168,7 @@ def err_esimd_glob_cant_init : Error<
   "SYCL explicit SIMD does not permit private global variable to have an initializer">;
 
 def err_nullptr_t_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, "
-                                        "‘std::nullptr_t’ is declared in std namespace ">;
+                                        "'std::nullptr_t' is declared in the 'std' namespace ">;
 def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, " 
                                           "%q1 is declared in the 'std' namespace ">;
 
