@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
@@ -26,12 +26,43 @@ bool check(backend be) {
   return false;
 }
 
+inline void return_fail() {
+  std::cout << "Failed" << std::endl;
+  exit(1);
+}
+
 int main() {
   for (const auto &plt : platform::get_platforms()) {
     if (!plt.is_host()) {
       if (check(plt.get_backend()) == false) {
-        std::cout << "Failed" << std::endl;
-        return 1;
+        return_fail();
+      }
+
+      context c(plt);
+      if (c.get_backend() != plt.get_backend()) {
+        return_fail();
+      }
+
+      program prog(c);
+      if (prog.get_backend() != plt.get_backend()) {
+        return_fail();
+      }
+
+      default_selector sel;
+      queue q(c, sel);
+      if (q.get_backend() != plt.get_backend()) {
+        return_fail();
+      }
+
+      auto device = q.get_device();
+      if (device.get_backend() != plt.get_backend()) {
+        return_fail();
+      }
+
+      unsigned char *HostAlloc = (unsigned char *)malloc_host(1, c);
+      auto e = q.memset(HostAlloc, 42, 1);
+      if (e.get_backend() != plt.get_backend()) {
+        return_fail();
       }
     }
   }
