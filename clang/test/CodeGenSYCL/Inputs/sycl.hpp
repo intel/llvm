@@ -1,17 +1,6 @@
 #pragma once
 
-typedef __UINT8_TYPE__ uint8_t;
-typedef __SIZE_TYPE__ size_t;
-
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
-
-#ifndef __SYCL_ALWAYS_INLINE
-#if __has_attribute(always_inline)
-#define __SYCL_ALWAYS_INLINE __attribute__((always_inline))
-#else
-#define __SYCL_ALWAYS_INLINE
-#endif
-#endif // __SYCL_ALWAYS_INLINE
 
 // Dummy runtime classes to model SYCL API.
 namespace cl {
@@ -504,20 +493,6 @@ public:
     return accessor<dataT, dimensions, accessmode, access::target::host_image, access::placeholder::false_t>{};
   }
 };
-
-extern "C" SYCL_EXTERNAL __attribute__((opencl_local)) uint8_t *
-__sycl_allocateLocalMemory(size_t Size, size_t Alignment);
-
-template <typename T>
-__attribute__((opencl_local)) T *
-    __SYCL_ALWAYS_INLINE
-    group_local_memory() {
-#ifdef __SYCL_DEVICE_ONLY__
-  __attribute__((opencl_local)) uint8_t *AllocatedMem =
-      __sycl_allocateLocalMemory(sizeof(T), alignof(T));
-  return (__attribute__((opencl_local)) T *)AllocatedMem;
-#endif
-}
 
 } // namespace sycl
 } // namespace cl
