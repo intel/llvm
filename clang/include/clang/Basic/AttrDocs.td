@@ -360,12 +360,12 @@ def SYCLSimdDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
     The ``__attribute__((sycl_explicit_simd))`` attribute is used by the device
-    compiler front end to mark kernels and functions to be compiled and executed
-    in the explicit SIMD mode. In this mode subgroup size is always 1 and
-    explicit SIMD extensions - such as manual vectorization using wide vector
-    data types and operations can be used. Compiler may decide to compile such
-    functions using different optimization and code generation
-    pipeline.
+    compiler front end to mark ESIMD kernels and functions. In this mode,
+    subgroup size is always equal to 1 and explicit SIMD extensions, such as
+    manual vectorization using wide vector data types and operations can be used.
+    The compiler may decide to compile such functions using different optimization
+    and code generation pipeline. Also, this attribute is used to distinguish
+    ESIMD private globals from regular SYCL global variables.
   }];
 }
 
@@ -2416,6 +2416,26 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
   class Functor {
   public:
     [[intel::num_simd_work_items(N)]] void operator()() const {}
+  };
+
+If the`` intel::reqd_work_group_size`` or ``cl::reqd_work_group_size``
+attribute is specified on a declaration along with a
+intel::num_simd_work_items attribute, the work group size attribute
+argument (the first argument) must be evenly divisible by the argument specified
+in the ``intel::num_simd_work_items`` attribute.
+
+.. code-block:: c++
+
+  struct func {
+    [[intel::num_simd_work_items(4)]]
+    [[intel::reqd_work_group_size(64, 64, 64)]]
+    void operator()() const {}
+  };
+
+  struct bar {
+    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::num_simd_work_items(4)]]
+    void operator()() const {}
   };
 
   }];
@@ -5499,6 +5519,47 @@ attribute is either ``swift_private`` or ``not_swift_private`` to indicate
 whether the function/method is private to the current framework, and the second
 argument is the index of the completion handler parameter.
   }];
+}
+
+def SwiftAsyncErrorDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_async_error";
+  let Content = [{
+The ``swift_async_error`` attribute specifies how an error state will be
+represented in a swift async method. It's a bit analogous to the ``swift_error``
+attribute for the generated async method. The ``swift_async_error`` attribute
+can indicate a variety of different ways of representing an error.
+
+- ``__attribute__((swift_async_error(zero_argument, N)))``, specifies that the
+  async method is considered to have failed if the Nth argument to the
+  completion handler is zero.
+
+- ``__attribute__((swift_async_error(nonzero_argument, N)))``, specifies that
+  the async method is considered to have failed if the Nth argument to the
+  completion handler is non-zero.
+
+- ``__attribute__((swift_async_error(nonnull_error)))``, specifies that the
+  async method is considered to have failed if the ``NSError *`` argument to the
+  completion handler is non-null.
+
+- ``__attribute__((swift_async_error(none)))``, specifies that the async method
+  cannot fail.
+
+
+For instance:
+
+.. code-block:: objc
+
+  @interface MyClass : NSObject
+  -(void)asyncMethod:(void (^)(char, int, float))handler
+      __attribute__((swift_async(swift_private, 1)))
+      __attribute__((swift_async_error(zero_argument, 2)));
+  @end
+
+Here, the ``swift_async`` attribute specifies that ``handler`` is the completion
+handler for this method, and the ``swift_async_error`` attribute specifies that
+the ``int`` parameter is the one that represents the error.
+}];
 }
 
 def SuppressDocs : Documentation {

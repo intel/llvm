@@ -670,10 +670,10 @@
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
 // CHK-TOOLS-AOT: sycl-post-link{{.*}} "-o" "[[OUTPUT2_1:.+\.bc]]" "[[OUTPUT2]]"
-// CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA-USM-DISABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA-USM-ENABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all" "[[OUTPUT2_1]]"
+// CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes,-SPV_INTEL_optnone" "[[OUTPUT2_1]]"
+// CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes,-SPV_INTEL_optnone" "[[OUTPUT2_1]]"
+// CHK-TOOLS-FPGA-USM-DISABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes,-SPV_INTEL_optnone" "[[OUTPUT2_1]]"
+// CHK-TOOLS-FPGA-USM-ENABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_optnone" "[[OUTPUT2_1]]"
 // CHK-TOOLS-FPGA: aoc{{.*}} "-o" "[[OUTPUT4:.+\.aocx]]" "[[OUTPUT3]]"
 // CHK-TOOLS-GEN: ocloc{{.*}} "-output" "[[OUTPUT4:.+\.out]]" {{.*}} "[[OUTPUT3]]"
 // CHK-TOOLS-CPU: opencl-aot{{.*}} "-o=[[OUTPUT4:.+\.out]]" {{.*}} "[[OUTPUT3]]"
@@ -903,3 +903,33 @@
 // CHECK-STD-OVR: clang{{.*}} "-fsyntax-only" {{.*}} "-std=c++14"
 // CHECK-STD-OVR: clang{{.*}} "-emit-obj" {{.*}} "-std=c++14"
 // CHECK-STD-OVR-NOT: clang{{.*}} "-std=c++17"
+
+// Check sycl-post-link optimization level.
+// Default is O2
+// RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// Common options for %clang and %clang_cl
+// RUN:   %clang    -### -fsycl -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// RUN:   %clang_cl -### -fsycl /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// RUN:   %clang    -### -fsycl -O2 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// RUN:   %clang_cl -### -fsycl /O2 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// RUN:   %clang    -### -fsycl -Os %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// RUN:   %clang_cl -### -fsycl /Os %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// %clang options
+// RUN:   %clang    -### -fsycl -O0 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O0
+// RUN:   %clang    -### -fsycl -Ofast %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang    -### -fsycl -O3 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang    -### -fsycl -Oz %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Oz
+// RUN:   %clang    -### -fsycl -Og %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// %clang_cl options
+// RUN:   %clang_cl -### -fsycl /Od %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O0
+// RUN:   %clang_cl -### -fsycl /Ot %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// only the last option is considered
+// RUN:   %clang    -### -fsycl -O2 -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// RUN:   %clang_cl -### -fsycl /O2 /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// CHK-POST-LINK-OPT-LEVEL-O0: sycl-post-link{{.*}} "-O0"
+// CHK-POST-LINK-OPT-LEVEL-O1: sycl-post-link{{.*}} "-O1"
+// CHK-POST-LINK-OPT-LEVEL-O2: sycl-post-link{{.*}} "-O2"
+// CHK-POST-LINK-OPT-LEVEL-O3: sycl-post-link{{.*}} "-O3"
+// CHK-POST-LINK-OPT-LEVEL-Os: sycl-post-link{{.*}} "-Os"
+// CHK-POST-LINK-OPT-LEVEL-Oz: sycl-post-link{{.*}} "-Oz"

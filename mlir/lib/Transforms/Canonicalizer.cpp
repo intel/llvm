@@ -23,14 +23,15 @@ namespace {
 struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
   /// Initialize the canonicalizer by building the set of patterns used during
   /// execution.
-  void initialize(MLIRContext *context) override {
+  LogicalResult initialize(MLIRContext *context) override {
     OwningRewritePatternList owningPatterns;
     for (auto *op : context->getRegisteredOperations())
       op->getCanonicalizationPatterns(owningPatterns, context);
     patterns = std::move(owningPatterns);
+    return success();
   }
   void runOnOperation() override {
-    applyPatternsAndFoldGreedily(getOperation()->getRegions(), patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(), patterns);
   }
 
   FrozenRewritePatternList patterns;

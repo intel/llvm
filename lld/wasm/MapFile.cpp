@@ -19,6 +19,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MapFile.h"
+#include "InputElement.h"
 #include "InputFiles.h"
 #include "OutputSections.h"
 #include "OutputSegment.h"
@@ -76,8 +77,10 @@ getSymbolStrings(ArrayRef<Symbol *> syms) {
   std::vector<std::string> str(syms.size());
   parallelForEachN(0, syms.size(), [&](size_t i) {
     raw_string_ostream os(str[i]);
-    auto &chunk = *syms[i]->getChunk();
-    uint64_t fileOffset = chunk.outputSec->getOffset() + chunk.outputOffset;
+    auto *chunk = syms[i]->getChunk();
+    if (chunk == nullptr)
+      return;
+    uint64_t fileOffset = chunk->outputSec->getOffset() + chunk->outputOffset;
     uint64_t vma = -1;
     uint64_t size = 0;
     if (auto *DD = dyn_cast<DefinedData>(syms[i])) {
@@ -135,7 +138,7 @@ void lld::wasm::writeMapFile(ArrayRef<OutputSection *> outputSections) {
                     oseg->size);
         os << oseg->name << '\n';
         for (auto *chunk : oseg->inputSegments) {
-          writeHeader(os, oseg->startVA + chunk->outputSegmentOffset,
+          writeHeader(os, chunk->getVA(),
                       chunk->outputSec->getOffset() + chunk->outputOffset,
                       chunk->getSize());
           os.indent(8) << toString(chunk) << '\n';
@@ -143,6 +146,12 @@ void lld::wasm::writeMapFile(ArrayRef<OutputSection *> outputSections) {
             os << symStr[sym] << '\n';
         }
       }
+    } else if (auto *globals = dyn_cast<GlobalSection>(osec)) {
+      for (auto *global : globals->inputGlobals) {
+        writeHeader(os, global->getAssignedIndex(), 0, 0);
+        os.indent(8) << global->getName() << '\n';
+      }
     }
+    // TODO: other section/symbol types
   }
 }

@@ -22,5 +22,5 @@
 // RUN:  %clang -### -fsycl -E %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // RUN:  %clang -### -fsycl -S %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // RUN:  %clang -### -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
-// CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl" "-fsycl-is-device"
-// CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl" "-fsycl-is-host"
+// CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
+// CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-host"

@@ -1590,6 +1590,7 @@ unsigned SIInstrInfo::getNumWaitStates(const MachineInstr &MI) {
 }
 
 bool SIInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
+  const SIRegisterInfo *TRI = ST.getRegisterInfo();
   MachineBasicBlock &MBB = *MI.getParent();
   DebugLoc DL = MBB.findDebugLoc(MI);
   switch (MI.getOpcode()) {
@@ -1640,6 +1641,18 @@ bool SIInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.setDesc(get(AMDGPU::S_ANDN2_B32));
     break;
 
+  case AMDGPU::S_AND_B64_term:
+    // This is only a terminator to get the correct spill code placement during
+    // register allocation.
+    MI.setDesc(get(AMDGPU::S_AND_B64));
+    break;
+
+  case AMDGPU::S_AND_B32_term:
+    // This is only a terminator to get the correct spill code placement during
+    // register allocation.
+    MI.setDesc(get(AMDGPU::S_AND_B32));
+    break;
+
   case AMDGPU::V_MOV_B64_PSEUDO: {
     Register Dst = MI.getOperand(0).getReg();
     Register DstLo = RI.getSubReg(Dst, AMDGPU::sub0);
@@ -1675,8 +1688,8 @@ bool SIInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case AMDGPU::V_SET_INACTIVE_B32: {
     unsigned NotOpc = ST.isWave32() ? AMDGPU::S_NOT_B32 : AMDGPU::S_NOT_B64;
     unsigned Exec = ST.isWave32() ? AMDGPU::EXEC_LO : AMDGPU::EXEC;
-    BuildMI(MBB, MI, DL, get(NotOpc), Exec)
-      .addReg(Exec);
+    auto FirstNot = BuildMI(MBB, MI, DL, get(NotOpc), Exec).addReg(Exec);
+    FirstNot->addRegisterDead(AMDGPU::SCC, TRI); // SCC is overwritten
     BuildMI(MBB, MI, DL, get(AMDGPU::V_MOV_B32_e32), MI.getOperand(0).getReg())
       .add(MI.getOperand(2));
     BuildMI(MBB, MI, DL, get(NotOpc), Exec)
@@ -1687,8 +1700,8 @@ bool SIInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case AMDGPU::V_SET_INACTIVE_B64: {
     unsigned NotOpc = ST.isWave32() ? AMDGPU::S_NOT_B32 : AMDGPU::S_NOT_B64;
     unsigned Exec = ST.isWave32() ? AMDGPU::EXEC_LO : AMDGPU::EXEC;
-    BuildMI(MBB, MI, DL, get(NotOpc), Exec)
-      .addReg(Exec);
+    auto FirstNot = BuildMI(MBB, MI, DL, get(NotOpc), Exec).addReg(Exec);
+    FirstNot->addRegisterDead(AMDGPU::SCC, TRI); // SCC is overwritten
     MachineInstr *Copy = BuildMI(MBB, MI, DL, get(AMDGPU::V_MOV_B64_PSEUDO),
                                  MI.getOperand(0).getReg())
       .add(MI.getOperand(2));
@@ -2271,10 +2284,12 @@ bool SIInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
     case AMDGPU::S_XOR_B64_term:
     case AMDGPU::S_OR_B64_term:
     case AMDGPU::S_ANDN2_B64_term:
+    case AMDGPU::S_AND_B64_term:
     case AMDGPU::S_MOV_B32_term:
     case AMDGPU::S_XOR_B32_term:
     case AMDGPU::S_OR_B32_term:
     case AMDGPU::S_ANDN2_B32_term:
+    case AMDGPU::S_AND_B32_term:
       break;
     case AMDGPU::SI_IF:
     case AMDGPU::SI_ELSE:
@@ -6614,7 +6629,7 @@ MachineOperand *SIInstrInfo::getNamedOperand(MachineInstr &MI,
 
 uint64_t SIInstrInfo::getDefaultRsrcDataFormat() const {
   if (ST.getGeneration() >= AMDGPUSubtarget::GFX10) {
-    return (22ULL << 44) | // IMG_FORMAT_32_FLOAT
+    return (AMDGPU::MTBUFFormat::UFMT_32_FLOAT << 44) |
            (1ULL << 56) | // RESOURCE_LEVEL = 1
            (3ULL << 60); // OOB_SELECT = 3
   }

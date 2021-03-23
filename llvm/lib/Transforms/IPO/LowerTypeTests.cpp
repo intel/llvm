@@ -1791,13 +1791,10 @@ bool LowerTypeTestsModule::lower() {
          UI != UE;) {
       auto *CI = cast<CallInst>((*UI++).getUser());
       // Find and erase llvm.assume intrinsics for this llvm.type.test call.
-      for (auto CIU = CI->use_begin(), CIUE = CI->use_end(); CIU != CIUE;) {
-        if (auto *AssumeCI = dyn_cast<CallInst>((*CIU++).getUser())) {
-          Function *F = AssumeCI->getCalledFunction();
-          if (F && F->getIntrinsicID() == Intrinsic::assume)
-            AssumeCI->eraseFromParent();
-        }
-      }
+      for (auto CIU = CI->use_begin(), CIUE = CI->use_end(); CIU != CIUE;)
+        if (auto *II = dyn_cast<IntrinsicInst>((*CIU++).getUser()))
+          if (II->getIntrinsicID() == Intrinsic::assume)
+            II->eraseFromParent();
       CI->eraseFromParent();
     }
 
@@ -2058,6 +2055,22 @@ bool LowerTypeTestsModule::lower() {
   if (TypeTestFunc) {
     for (const Use &U : TypeTestFunc->uses()) {
       auto CI = cast<CallInst>(U.getUser());
+      // If this type test is only used by llvm.assume instructions, it
+      // was used for whole program devirtualization, and is being kept
+      // for use by other optimization passes. We do not need or want to
+      // lower it here. We also don't want to rewrite any associated globals
+      // unnecessarily. These will be removed by a subsequent LTT invocation
+      // with the DropTypeTests flag set.
+      bool OnlyAssumeUses = !CI->use_empty();
+      for (const Use &CIU : CI->uses()) {
+        if (auto *II = dyn_cast<IntrinsicInst>(CIU.getUser()))
+          if (II->getIntrinsicID() == Intrinsic::assume)
+            continue;
+        OnlyAssumeUses = false;
+        break;
+      }
+      if (OnlyAssumeUses)
+        continue;
 
       auto TypeIdMDVal = dyn_cast<MetadataAsValue>(CI->getArgOperand(1));
       if (!TypeIdMDVal)

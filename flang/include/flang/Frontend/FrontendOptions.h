@@ -8,6 +8,7 @@
 #ifndef LLVM_FLANG_FRONTEND_FRONTENDOPTIONS_H
 #define LLVM_FLANG_FRONTEND_FRONTENDOPTIONS_H
 
+#include "flang/Common/Fortran-features.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 
@@ -72,6 +73,18 @@ enum class Language : uint8_t {
 
   /// @{ Languages that the frontend can parse and compile.
   Fortran,
+};
+
+// Source file layout
+enum class FortranForm {
+  /// The user has not specified a form. Base the form off the file extension.
+  Unknown,
+
+  /// -ffree-form
+  FixedForm,
+
+  /// -ffixed-form
+  FreeForm
 };
 
 /// The kind of a file that we've been handed as an input.
@@ -158,6 +171,16 @@ public:
 
   /// The frontend action to perform.
   frontend::ActionKind programAction_;
+
+  // The form to process files in, if specified.
+  FortranForm fortranForm_ = FortranForm::Unknown;
+
+  // The column after which characters are ignored in fixed form lines in the
+  // source file.
+  int fixedFormColumns_ = 72;
+
+  // Language features
+  common::LanguageFeatureControl features_;
 
 public:
   FrontendOptions() : showHelp_(false), showVersion_(false) {}
