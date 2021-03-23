@@ -215,9 +215,7 @@ public:
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
-  template <typename T>
-  event
-  submit(T CGF _CODELOCPARAM(&CodeLoc)) {
+  template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
     return submit_impl(CGF, CodeLoc);
@@ -235,8 +233,7 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   template <typename T>
-  event
-  submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
+  event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
     return submit_impl(CGF, SecondaryQueue, CodeLoc);
@@ -264,8 +261,8 @@ public:
   /// group is being enqueued on.
   event
   submit_barrier(const vector_class<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
-    return submit([=](handler &CGH) { CGH.barrier(WaitList); }
-                  _CODELOCFW(CodeLoc));
+    return submit(
+        [=](handler &CGH) { CGH.barrier(WaitList); } _CODELOCFW(CodeLoc));
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
