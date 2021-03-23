@@ -34,14 +34,14 @@ int main() {
         std::is_same_v<
             sycl::backend_traits<Backend>::input_type<sycl::buffer<int, 2>>,
             sycl::interop<Backend, sycl::buffer<int, 2>>::type>);
+    static_assert(
+        std::is_same_v<sycl::backend_traits<Backend>::input_type<sycl::event>,
+                       sycl::interop<Backend, sycl::event>::type>);
   }
 
   static_assert(
       std::is_same_v<sycl::backend_traits<Backend>::input_type<sycl::platform>,
                      sycl::interop<Backend, sycl::platform>::type>);
-  static_assert(
-      std::is_same_v<sycl::backend_traits<Backend>::input_type<sycl::event>,
-                     sycl::interop<Backend, sycl::event>::type>);
 
   static_assert(
       std::is_same_v<sycl::backend_traits<Backend>::return_type<sycl::device>,
@@ -55,9 +55,6 @@ int main() {
   static_assert(
       std::is_same_v<sycl::backend_traits<Backend>::input_type<sycl::platform>,
                      sycl::interop<Backend, sycl::platform>::type>);
-  static_assert(
-      std::is_same_v<sycl::backend_traits<Backend>::input_type<sycl::event>,
-                     sycl::interop<Backend, sycl::event>::type>);
 
   return 0;
 }
