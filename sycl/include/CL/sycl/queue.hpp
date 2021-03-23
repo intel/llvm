@@ -35,6 +35,8 @@
 // or :  const detail::code_location &CodeLoc = {}
 
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+#define _CODELOCONLYPARAM(a)                                                   \
+  const detail::code_location a = detail::code_location::current()
 #define _CODELOCPARAM(a)                                                       \
   , const detail::code_location a = detail::code_location::current()
 
@@ -246,7 +248,7 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit_barrier(_CODELOCPARAM(&CodeLoc)) {
+  event submit_barrier(_CODELOCONLYPARAM(&CodeLoc)) {
     return submit([=](handler &CGH) { CGH.barrier(); } _CODELOCFW(CodeLoc));
   }
 
@@ -270,7 +272,7 @@ public:
   ///
   /// Synchronous errors will be reported through SYCL exceptions.
   /// @param CodeLoc is the code location of the submit call (default argument)
-  void wait(_CODELOCPARAM(&CodeLoc)) {
+  void wait(_CODELOCONLYPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc)
 
     wait_proxy(CodeLoc);
@@ -284,7 +286,7 @@ public:
   /// construction. If no async_handler was provided then asynchronous
   /// exceptions will be lost.
   /// @param CodeLoc is the code location of the submit call (default argument)
-  void wait_and_throw(_CODELOCPARAM(&CodeLoc)) {
+  void wait_and_throw(_CODELOCONLYPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
     wait_and_throw_proxy(CodeLoc);
@@ -706,6 +708,7 @@ public:
 
 // Clean up CODELOC and KERNELFUNC macros.
 #undef _CODELOCPARAM
+#undef _CODELOCONLYPARAM
 #undef _CODELOCARG
 #undef _CODELOCFW
 #undef _KERNELFUNCPARAM
