@@ -926,8 +926,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   this->PiEventList = nullptr;
 
   try {
-    if (CurQueue->InorderQueue &&
-        ZeCommandList == (*CurQueue->PreviousEvent)->ZeCommandList) {
+    if (CurQueue->isInOrderQueue()) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
     } else if (EventListLength > 0) {
@@ -971,10 +970,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
       }
     }
 
-    if (CurQueue->InorderQueue &&
-        ZeCommandList == (*CurQueue->PreviousEvent)->ZeCommandList) {
-      this->ZeEventList[TmpListLength] = (*CurQueue->PreviousEvent)->ZeEvent;
-      this->PiEventList[TmpListLength] = *CurQueue->PreviousEvent;
+    if (CurQueue->isInOrderQueue()) {
+      this->ZeEventList[TmpListLength] = (*CurQueue->LastCommandEvent).ZeEvent;
+      this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
       TmpListLength += 1;
     }
 
@@ -2230,8 +2228,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
 
   // Check that unexpected bits are not set.
-  PI_ASSERT(!(Properties & ~(PI_QUEUE_IN_ORDER_EXEC_MODE_ENABLE |
-                             PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+  PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                              PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
                              PI_QUEUE_ON_DEVICE_DEFAULT)),
             PI_INVALID_VALUE);
@@ -2269,9 +2266,6 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
              &ZeCopyCommandQueue));
   }
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-
-  // check if the in-order queue property is set.
-  bool QueueIsInorder = Properties & PI_QUEUE_IN_ORDER_EXEC_MODE_ENABLE;
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
@@ -3829,7 +3823,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -4344,7 +4338,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
     // TODO: check if we need all these for this command.
-    Queue->PreviousEvent = Event;
+    Queue->LastCommandEvent = *Event;
 
     // Execute command list asynchronously as the event will be used
     // to track down its completion.
@@ -4402,7 +4396,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
           (ZeCommandList, ZeEvent, (*Event)->WaitList.Length,
            (*Event)->WaitList.ZeEventList));
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   // Execute command list asynchronously as the event will be used
   // to track down its completion.
@@ -4494,7 +4488,7 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   if (auto Res =
           Queue->executeCommandList(ZeCommandList, ZeFence, BlockingWrite))
@@ -4592,7 +4586,7 @@ static pi_result enqueueMemCopyRectHelper(
   zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, Blocking))
     return Res;
@@ -4734,7 +4728,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
           pi_cast<pi_uint64>(ZeEvent));
   printZeEventList(WaitList);
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -4815,8 +4809,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
 
-    if (Queue->InorderQueue) {
-      PI_CALL(piEventsWait(1, Queue->PreviousEvent));
+    if (Queue->isInOrderQueue()) {
+      PI_CALL(piEventsWait(1, &(Queue->LastCommandEvent)));
     }
 
     if (Buffer->MapHostPtr) {
@@ -4827,8 +4821,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
 
-    // TODO: should we change it for map on integrated/host?
-    // Queue->PreviousEvent = Event;
+    // TODO-in-order: should we change it for map on integrated/host?
+    // Queue->LastCommandEvent = *Event;
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
@@ -4866,9 +4860,9 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
 
-  if (Queue->InorderQueue) {
+  if (Queue->isInOrderQueue()) {
     ZE_CALL(zeCommandListAppendWaitOnEvents,
-            (ZeCommandList, 1, &(*Queue->PreviousEvent)->ZeEvent));
+            (ZeCommandList, 1, &(Queue->LastCommandEvent->ZeEvent)));
   }
 
   ZE_CALL(zeCommandListAppendMemoryCopy,
@@ -4876,7 +4870,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
            pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size, ZeEvent, 0,
            nullptr));
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, BlockingMap))
     return Res;
@@ -4938,16 +4932,16 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
 
-    if (Queue->InorderQueue) {
-      PI_CALL(piEventsWait(1, Queue->PreviousEvent));
+    if (Queue->isInOrderQueue()) {
+      PI_CALL(piEventsWait(1, &(Queue->LastCommandEvent)));
     }
 
     if (MemObj->MapHostPtr)
       memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
              MapInfo.Size);
 
-    // TODO: should we change it for unmap on integrated/host?
-    // Queue->PreviousEvent = Event;
+    // TODO-in-order: should we change it for unmap on integrated/host?
+    // Queue->LastCommandEvent = *Event;
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
@@ -4971,9 +4965,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
              (*Event)->WaitList.ZeEventList));
   }
 
-  if (Queue->InorderQueue) {
+  if (Queue->isInOrderQueue()) {
     ZE_CALL(zeCommandListAppendWaitOnEvents,
-            (ZeCommandList, 1, &(*Queue->PreviousEvent)->ZeEvent));
+            (ZeCommandList, 1, &(Queue->LastCommandEvent->ZeEvent)));
   }
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
@@ -4987,7 +4981,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
            pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
            MapInfo.Size, ZeEvent, 0, nullptr));
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -5185,7 +5179,7 @@ static pi_result enqueueMemImageCommandHelper(
     return PI_INVALID_OPERATION;
   }
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, IsBlocking))
     return Res;
@@ -5726,7 +5720,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, false))
     return Res;
@@ -5772,7 +5766,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   ZeEvent = (*Event)->ZeEvent;
 
   ZE_CALL(zeCommandListAppendWaitOnEvents,
-          (ZeCommandList, 1, &(*Queue->PreviousEvent)->ZeEvent));
+          (ZeCommandList, 1, &(Queue->LastCommandEvent->ZeEvent)));
 
   ZE_CALL(zeCommandListAppendMemAdvise,
           (ZeCommandList, Queue->Device->ZeDevice, Ptr, Length, ZeAdvice));
@@ -5781,7 +5775,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  Queue->PreviousEvent = Event;
+  Queue->LastCommandEvent = *Event;
 
   Queue->executeCommandList(ZeCommandList, ZeFence, false);
   return PI_SUCCESS;
