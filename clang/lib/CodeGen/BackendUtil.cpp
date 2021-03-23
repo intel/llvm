@@ -962,7 +962,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   // Allocate static local memory in SYCL kernel scope for each allocation call.
   if (LangOpts.SYCLIsDevice)
-    PerModulePasses.add(createSYCLLowerWGLocalMemoryPass());
+    PerModulePasses.add(createSYCLLowerWGLocalMemoryLegacyPass());
 
   switch (Action) {
   case Backend_EmitNothing:

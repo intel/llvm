@@ -48,7 +48,7 @@ INITIALIZE_PASS(SYCLLowerWGLocalMemoryLegacy, "sycllowerwglocalmemory",
                 "in local address space",
                 false, false)
 
-ModulePass *llvm::createSYCLLowerWGLocalMemoryPass() {
+ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
   return new SYCLLowerWGLocalMemoryLegacy();
 }
 
@@ -78,53 +78,47 @@ static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   Value *GVPtr =
       Builder.CreatePointerCast(LocalMemArrayGV, Builder.getInt8PtrTy(LocalAS));
   CI->replaceAllUsesWith(GVPtr);
+
+  assert(CI->use_empty() && "removing live instruction");
   CI->eraseFromParent();
 }
 
 static bool allocaWGLocalMemory(Module &M) {
-  SmallVector<CallInst *, 8> ToReplace;
-  Function *allocaLocalMemF = nullptr;
-
   for (Function &F : M) {
-    if (F.isDeclaration())
+    if (!F.isDeclaration() || F.getName() != SYCL_ALLOCLOCALMEM_CALL)
       continue;
 
-    for (auto &I : instructions(F)) {
-      auto *CI = dyn_cast<CallInst>(&I);
-      Function *Callee = nullptr;
-      if (!CI || !(Callee = CI->getCalledFunction()))
-        continue;
-      if (Callee->getName() != SYCL_ALLOCLOCALMEM_CALL)
-        continue;
+    SmallVector<CallInst *, 4> ALMCalls;
+    for (auto *U : F.users()) {
+      if (auto *CI = dyn_cast<CallInst>(U))
+        ALMCalls.push_back(CI);
+    }
 
-      assert(Callee->isDeclaration() &&
-             "__sycl_allocateLocalMemory shouldn't have definition");
-
-      // TODO: Static local memory allocation should be requested only in
-      // spir kernel scope.
-      CallingConv::ID CC = F.getCallingConv();
+    for (auto &CI : ALMCalls) {
+      // Static local memory allocation should be requested only in
+      // spir kernel scope (not a spir function) in accordance to OpenCL
+      // restriction. However, __sycl_allocateLocalMemory is invoced in kernel
+      // lambda call operator's scope, which is technically not SPIR-V kernel
+      // scope.
+      // TODO: Check if restriction may be relaxed for SYCL or imrpove pass
+      // to move allocation of memory up to a spir kernel scope for each nested
+      // device function call.
+      CallingConv::ID CC = CI->getCaller()->getCallingConv();
       assert((CC == llvm::CallingConv::SPIR_FUNC ||
               CC == llvm::CallingConv::SPIR_KERNEL) &&
              "WG static local memory can be allocated only in kernel scope");
 
-      ToReplace.push_back(CI);
-      allocaLocalMemF = Callee;
+      lowerAllocaLocalMemCall(CI, M);
     }
+
+    // Remove __sycl_allocateLocalMemory declaration.
+    assert(F.use_empty() && "__sycl_allocateLocalMemory is still in use");
+    F.eraseFromParent();
+
+    return true;
   }
 
-  if (ToReplace.empty())
-    return false;
-
-  for (auto *CI : ToReplace) {
-    lowerAllocaLocalMemCall(CI, M);
-  }
-
-  // Remove declaration.
-  assert(allocaLocalMemF->use_empty() &&
-         "__sycl_allocateLocalMemory is still in use");
-  allocaLocalMemF->eraseFromParent();
-
-  return true;
+  return false;
 }
 
 PreservedAnalyses SYCLLowerWGLocalMemoryPass::run(Module &M,

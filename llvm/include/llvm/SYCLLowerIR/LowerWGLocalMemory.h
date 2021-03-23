@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 // This pass does the following for each allocate call to
 // __sycl_allocateLocalMemory(Size, Alignment) function at the kernel scope:
-// - inserts a global byte array of Size bytes with specified alignment
-//   in work group local address space.
+// - inserts a global (in scope of a program) byte array of Size bytes with
+//   specified alignment in work group local address space.
 // - replaces allocate call with access to this memory.
 //
 // For example, the following IR code in a kernel function:
@@ -41,7 +41,7 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
-ModulePass *createSYCLLowerWGLocalMemoryPass();
+ModulePass *createSYCLLowerWGLocalMemoryLegacyPass();
 void initializeSYCLLowerWGLocalMemoryLegacyPass(PassRegistry &);
 
 } // namespace llvm
