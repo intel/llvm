@@ -4318,8 +4318,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
       return Res;
 
     _pi_ze_event_list_t TmpWaitList = {};
-    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                            EventWaitList, Queue))
+    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+            NumEventsInWaitList, EventWaitList, Queue))
       return Res;
 
     ze_event_handle_t ZeEvent = nullptr;
@@ -5688,8 +5688,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
     return Res;
   ZeEvent = (*Event)->ZeEvent;
 
-  if (auto Res = (*Event)->WaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                                 EventWaitList, Queue))
+  if (auto Res = (*Event)->WaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue))
     return Res;
 
   const auto &WaitList = (*Event)->WaitList;
