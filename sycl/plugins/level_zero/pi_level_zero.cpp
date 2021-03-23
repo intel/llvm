@@ -939,37 +939,37 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     pi_uint32 TmpListLength = 0;
 
     if (EventListLength > 0) {
-        for (pi_uint32 I = 0; I < EventListLength; I++) {
-          auto ZeEvent = EventList[I]->ZeEvent;
+      for (pi_uint32 I = 0; I < EventListLength; I++) {
+        auto ZeEvent = EventList[I]->ZeEvent;
 
-          if (FilterEventWaitList) {
-            auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeEvent));
-            if (Res == ZE_RESULT_SUCCESS) {
-              // Event has already completed, don't put it into the list
-              continue;
-            }
+        if (FilterEventWaitList) {
+          auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeEvent));
+          if (Res == ZE_RESULT_SUCCESS) {
+            // Event has already completed, don't put it into the list
+            continue;
           }
-
-          auto Queue = EventList[I]->Queue;
-
-          if (Queue != CurQueue) {
-            // If the event that is going to be waited on is in a
-            // different queue, then any open command list in
-            // that queue must be closed and executed because
-            // the event being waited on could be for a command
-            // in the queue's batch.
-
-            // Lock automatically releases when this goes out of scope.
-            std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-            if (auto Res = Queue->executeOpenCommandList())
-              return Res;
-          }
-
-          this->ZeEventList[TmpListLength] = ZeEvent;
-          this->PiEventList[TmpListLength] = EventList[I];
-          TmpListLength += 1;
         }
+
+        auto Queue = EventList[I]->Queue;
+
+        if (Queue != CurQueue) {
+          // If the event that is going to be waited on is in a
+          // different queue, then any open command list in
+          // that queue must be closed and executed because
+          // the event being waited on could be for a command
+          // in the queue's batch.
+
+          // Lock automatically releases when this goes out of scope.
+          std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+          if (auto Res = Queue->executeOpenCommandList())
+            return Res;
+        }
+
+        this->ZeEventList[TmpListLength] = ZeEvent;
+        this->PiEventList[TmpListLength] = EventList[I];
+        TmpListLength += 1;
+      }
     }
 
     if (CurQueue->InorderQueue &&
@@ -3797,9 +3797,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   _pi_ze_event_list_t TmpWaitList;
 
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4345,7 +4344,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-    Queue->PreviousEvent = Event; // TODO: check if we need all these for this command.
+    // TODO: check if we need all these for this command.
+    Queue->PreviousEvent = Event;
 
     // Execute command list asynchronously as the event will be used
     // to track down its completion.
@@ -4387,9 +4387,8 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     return Res;
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4469,9 +4468,8 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
     return Res;
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4529,9 +4527,8 @@ static pi_result enqueueMemCopyRectHelper(
     return Res;
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4707,9 +4704,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     return Res;
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4787,9 +4783,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   ze_event_handle_t ZeEvent = nullptr;
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   {
@@ -4834,10 +4829,10 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     }
 
     // TODO: should we change it for map on integrated/host?
-    //Queue->PreviousEvent = Event;
+    // Queue->PreviousEvent = Event;
 
     // Signal this event
-    ZE_CALL(zeEventHostSignal, (ZeEvent));  // TODO: check for zeEventDeviceSignal
+    ZE_CALL(zeEventHostSignal, (ZeEvent));
 
     return Buffer->addMapping(*RetMap, Offset, Size);
   }
@@ -4909,9 +4904,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
   // TODO: this seems to be possible to rearrange
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   {
@@ -4954,7 +4948,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
              MapInfo.Size);
 
     // TODO: should we change it for unmap on integrated/host?
-    //Queue->PreviousEvent = Event;
+    // Queue->PreviousEvent = Event;
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
@@ -5085,9 +5079,8 @@ static pi_result enqueueMemImageCommandHelper(
     return Res;
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5705,9 +5698,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
     return Res;
 
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList,
-                                                          ZeCommandList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, ZeCommandList, Queue))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
@@ -5780,8 +5772,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
     return Res;
   ZeEvent = (*Event)->ZeEvent;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents, (ZeCommandList, 1,
-                                            &(*Queue->PreviousEvent)->ZeEvent));
+  ZE_CALL(zeCommandListAppendWaitOnEvents,
+          (ZeCommandList, 1, &(*Queue->PreviousEvent)->ZeEvent));
 
   ZE_CALL(zeCommandListAppendMemAdvise,
           (ZeCommandList, Queue->Device->ZeDevice, Ptr, Length, ZeAdvice));
