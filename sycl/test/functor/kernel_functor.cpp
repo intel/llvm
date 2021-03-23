@@ -17,7 +17,7 @@
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 constexpr auto sycl_global_buffer = cl::sycl::access::target::global_buffer;
 
-// Case 2:
+// Case 1:
 // - functor class is defined in a namespace
 // - the '()' operator:
 //   * does not have parameters (to be used in 'single_task').
@@ -39,7 +39,7 @@ private:
 };
 }
 
-// Case 3:
+// Case 2:
 // - functor class is templated and defined in the translation unit scope
 // - the '()' operator:
 //   * has a parameter of type cl::sycl::id<1> (to be used in 'parallel_for').
@@ -57,7 +57,7 @@ private:
   cl::sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> Acc;
 };
 
-// Case 4:
+// Case 3:
 // - functor class is templated and defined in the translation unit scope
 // - the '()' operator:
 //   * has a parameter of type cl::sycl::id<1> (to be used in 'parallel_for').
