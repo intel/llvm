@@ -116,27 +116,6 @@ template <typename Type> struct get_kernel_wrapper_name_t {
       typename get_kernel_name_t<detail::auto_name, Type>::name>;
 };
 
-template <typename, typename T> struct check_fn_signature {
-  static_assert(std::integral_constant<T, false>::value,
-                "Second template parameter is required to be of function type");
-};
-
-template <typename F, typename RetT, typename... Args>
-struct check_fn_signature<F, RetT(Args...)> {
-private:
-  template <typename T>
-  static constexpr auto check(T *) -> typename std::is_same<
-      decltype(std::declval<T>().operator()(std::declval<Args>()...)),
-      RetT>::type;
-
-  template <typename> static constexpr std::false_type check(...);
-
-  using type = decltype(check<F>(0));
-
-public:
-  static constexpr bool value = type::value;
-};
-
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
@@ -166,6 +145,66 @@ checkValueRangeImpl(ValT V) {
     throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
 }
 #endif
+
+template <typename KernelType, typename LambdaArgType>
+std::enable_if_t<std::is_same<LambdaArgType, void>::value, bool>
+checkKernelArgTypesIgnoreFirstVoid() {
+  return detail::check_kernel_arg_types<KernelType, kernel_handler>();
+}
+
+template <typename KernelType, typename LambdaArgType>
+std::enable_if_t<!std::is_same<LambdaArgType, void>::value, bool>
+checkKernelArgTypesIgnoreFirstVoid() {
+  return detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                        kernel_handler>();
+}
+
+template <typename TransformedArgType, typename KernelType, int Dims,
+          typename Enable = void>
+class RangeRoundedLambda;
+
+template <typename TransformedArgType, typename KernelType, int Dims>
+class RangeRoundedLambda<
+    TransformedArgType, KernelType, Dims,
+    typename std::enable_if_t<detail::check_kernel_arg_types<
+        KernelType, TransformedArgType, kernel_handler>()>> {
+public:
+  RangeRoundedLambda(const KernelType &KernelFunc, range<Dims> NumWorkItems)
+      : MKernelFunc(KernelFunc), MNumWorkItems(NumWorkItems) {}
+
+  void operator()(TransformedArgType Arg) const {
+    if (Arg[0] >= MNumWorkItems[0])
+      return;
+    Arg.set_allowed_range(MNumWorkItems);
+    kernel_handler KH;
+    MKernelFunc(Arg, KH);
+  }
+
+private:
+  const KernelType &MKernelFunc;
+  range<Dims> MNumWorkItems;
+};
+
+template <typename TransformedArgType, typename KernelType, int Dims>
+class RangeRoundedLambda<
+    TransformedArgType, KernelType, Dims,
+    typename std::enable_if_t<
+        detail::check_kernel_arg_types<KernelType, TransformedArgType>()>> {
+public:
+  RangeRoundedLambda(const KernelType &KernelFunc, range<Dims> NumWorkItems)
+      : MKernelFunc(KernelFunc), MNumWorkItems(NumWorkItems) {}
+
+  void operator()(TransformedArgType Arg) const {
+    if (Arg[0] >= MNumWorkItems[0])
+      return;
+    Arg.set_allowed_range(MNumWorkItems);
+    MKernelFunc(Arg);
+  }
+
+private:
+  KernelType MKernelFunc;
+  range<Dims> MNumWorkItems;
+};
 
 template <int Dims, typename T>
 typename detail::enable_if_t<std::is_same<T, range<Dims>>::value ||
@@ -515,8 +554,11 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
-    if (detail::kernelHandlerIsLastElementTypeOfKernel<KernelType>() &&
-        MIsHost) {
+    // TODO: replace detail::checkKernelArgTypesIgnoreFirstVoid with
+    // "constexpr if" when DPC++ RT switched to C++17
+    auto ContainsKernelHandler =
+        detail::checkKernelArgTypesIgnoreFirstVoid<KernelType, LambdaArgType>();
+    if (ContainsKernelHandler && MIsHost) {
       throw cl::sycl::feature_not_supported(
           "kernel_handler is not supported by host device.",
           PI_INVALID_OPERATION);
@@ -813,18 +855,11 @@ private:
       if (getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE") != nullptr)
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
-      auto Wrapper = [=](TransformedArgType Arg) {
-        if (Arg[0] >= NumWorkItems[0])
-          return;
-        Arg.set_allowed_range(NumWorkItems);
-        if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                          KernelType>()) {
-          kernel_handler KH;
-          KernelFunc(Arg, KH);
-        } else {
-          KernelFunc(Arg);
-        }
-      };
+
+      // TODO: replace detail::RangeRoundedLambda with
+      // "constexpr if" when DPC++ RT switched to C++17
+      detail::RangeRoundedLambda<TransformedArgType, KernelType, Dims> Wrapper{
+          KernelFunc, NumWorkItems};
 
       range<Dims> AdjustedRange = NumWorkItems;
       AdjustedRange.set_range_dim0(NewValX);
@@ -843,8 +878,8 @@ private:
     {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
-      if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                        KernelType>()) {
+      if constexpr (detail::check_kernel_arg_types<
+                        KernelType, TransformedArgType, kernel_handler>()) {
         kernel_handler KH;
         kernel_parallel_for<NameT, TransformedArgType>(KernelFunc, KH);
       } else {
@@ -1061,8 +1096,8 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_single_task<NameT>(KernelFunc, KH);
     } else {
@@ -1181,8 +1216,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkItems;
     (void)WorkItemOffset;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
     } else {
@@ -1219,8 +1254,8 @@ public:
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)ExecutionRange;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
     } else {
@@ -1446,8 +1481,8 @@ public:
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc, KH);
     } else {
@@ -1486,8 +1521,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
     (void)WorkGroupSize;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc, KH);
     } else {
@@ -1586,8 +1621,8 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_single_task<NameT>(KernelFunc, KH);
     } else {
@@ -1634,8 +1669,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkItems;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
     } else {
@@ -1676,8 +1711,8 @@ public:
     (void)Kernel;
     (void)NumWorkItems;
     (void)WorkItemOffset;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
     } else {
@@ -1718,8 +1753,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NDRange;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for<NameT, LambdaArgType>(KernelFunc, KH);
     } else {
@@ -1764,8 +1799,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkGroups;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc, KH);
     } else {
@@ -1809,8 +1844,8 @@ public:
     (void)Kernel;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
-    if constexpr (detail::kernelHandlerIsLastElementTypeOfKernel<
-                      KernelType>()) {
+    if constexpr (detail::check_kernel_arg_types<KernelType, LambdaArgType,
+                                                 kernel_handler>()) {
       kernel_handler KH;
       kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc, KH);
     } else {

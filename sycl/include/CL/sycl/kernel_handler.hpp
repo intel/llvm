@@ -40,12 +40,12 @@ public:
   }
 #endif // __cplusplus > 201402L
 
+private:
   void __init_specialization_constants_buffer(
-      char *_SpecializationConstantsBuffer = nullptr) {
-    SpecializationConstantsBuffer = _SpecializationConstantsBuffer;
+      char *SpecializationConstantsBuffer = nullptr) {
+    MSpecializationConstantsBuffer = SpecializationConstantsBuffer;
   }
 
-private:
 #ifdef __SYCL_DEVICE_ONLY__
   template <auto &S, typename T = std::remove_reference_t<decltype(S)>,
             std::enable_if_t<std::is_scalar_v<T>>>
@@ -53,7 +53,7 @@ private:
     const char *SymbolicID = __builtin_unique_stable_name(
         detail::specialization_id_name_generator<S>);
     return __sycl_getScalar2020SpecConstantValue<T>(
-        SymbolicID, &S, SpecializationConstantsBuffer);
+        SymbolicID, &S, MSpecializationConstantsBuffer);
   }
   template <auto &S, typename T = std::remove_reference_t<decltype(S)>,
             std::enable_if_t<std::is_compound_v<T>>>
@@ -61,11 +61,11 @@ private:
     const char *SymbolicID = __builtin_unique_stable_name(
         detail::specialization_id_name_generator<S>);
     return __sycl_getComposite2020SpecConstantValue<T>(
-        SymbolicID, &S, SpecializationConstantsBuffer);
+        SymbolicID, &S, MSpecializationConstantsBuffer);
   }
 #endif // __SYCL_DEVICE_ONLY__
 
-  char *SpecializationConstantsBuffer = nullptr;
+  char *MSpecializationConstantsBuffer = nullptr;
 };
 
 } // namespace sycl

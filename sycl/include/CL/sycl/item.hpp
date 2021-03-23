@@ -21,7 +21,11 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 class Builder;
-}
+
+template <typename TransformedArgType, typename KernelType, int Dims,
+          typename Enable>
+class RangeRoundedLambda;
+} // namespace detail
 template <int dimensions> class id;
 template <int dimensions> class range;
 
@@ -118,7 +122,10 @@ protected:
   friend class detail::Builder;
 
 private:
-  friend class handler;
+  template <typename TransformedArgType, typename KernelType, int Dims,
+            typename Enable>
+  friend class detail::RangeRoundedLambda;
+
   void set_allowed_range(const range<dimensions> rnwi) { MImpl.MExtent = rnwi; }
 
   detail::ItemBase<dimensions, with_offset> MImpl;

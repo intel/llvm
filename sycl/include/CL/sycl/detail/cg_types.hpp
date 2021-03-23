@@ -123,30 +123,30 @@ public:
   size_t Dims;
 };
 
-template <typename Func>
-struct KernelArgsInfo : KernelArgsInfo<decltype(&Func::operator())> {};
-
-template <typename RetType, typename Func, class... Args>
-struct KernelArgsInfo<RetType (Func::*)(Args...) const> {
-  constexpr static size_t argsCount() { return sizeof...(Args); };
-  constexpr static bool hasArgs() { return sizeof...(Args) > 0; };
-  template <std::size_t ArgNum> struct ArgType {
-    typedef typename std::tuple_element<ArgNum, std::tuple<Args...>>::type type;
-  };
+template <typename, typename T> struct check_fn_signature {
+  static_assert(std::integral_constant<T, false>::value,
+                "Second template parameter is required to be of function type");
 };
 
-template <typename Func>
-std::enable_if_t<KernelArgsInfo<Func>::hasArgs(),
-                 bool> constexpr kernelHandlerIsLastElementTypeOfKernel() {
-  return std::is_same<typename KernelArgsInfo<Func>::template ArgType<
-                          KernelArgsInfo<Func>::argsCount() - 1>::type,
-                      kernel_handler>::value;
-}
+template <typename F, typename RetT, typename... Args>
+struct check_fn_signature<F, RetT(Args...)> {
+private:
+  template <typename T>
+  static constexpr auto check(T *) -> typename std::is_same<
+      decltype(std::declval<T>().operator()(std::declval<Args>()...)),
+      RetT>::type;
 
-template <typename Func>
-std::enable_if_t<!KernelArgsInfo<Func>::hasArgs(),
-                 bool> constexpr kernelHandlerIsLastElementTypeOfKernel() {
-  return false;
+  template <typename> static constexpr std::false_type check(...);
+
+  using type = decltype(check<F>(0));
+
+public:
+  static constexpr bool value = type::value;
+};
+
+template <typename F, typename... Args>
+static constexpr bool check_kernel_arg_types() {
+  return check_fn_signature<std::remove_reference_t<F>, void(Args...)>::value;
 }
 
 // The pure virtual class aimed to store lambda/functors of any type.
@@ -402,8 +402,10 @@ public:
   ~HostKernel() = default;
 
 private:
+  // TODO: replace run* funcs below with "constexpr if" when DPC++ RT switched
+  // to C++17
   template <class KernelT>
-  std::enable_if_t<detail::kernelHandlerIsLastElementTypeOfKernel<KernelT>(),
+  std::enable_if_t<detail::check_kernel_arg_types<KernelT, kernel_handler>(),
                    void>
   runKernelWithoutArg() {
     kernel_handler KH;
@@ -411,23 +413,21 @@ private:
   }
 
   template <class KernelT>
-  std::enable_if_t<!detail::kernelHandlerIsLastElementTypeOfKernel<KernelT>(),
-                   void>
+  std::enable_if_t<detail::check_kernel_arg_types<KernelT>(), void>
   runKernelWithoutArg() {
     MKernel();
   }
 
   template <typename ArgType, class KernelT>
-  std::enable_if_t<detail::kernelHandlerIsLastElementTypeOfKernel<KernelT>(),
-                   void>
+  std::enable_if_t<
+      detail::check_kernel_arg_types<KernelT, ArgType, kernel_handler>(), void>
   runKernelWithArg(ArgType Arg) {
     kernel_handler KH;
     MKernel(Arg, KH);
   }
 
   template <typename ArgType, class KernelT>
-  std::enable_if_t<!detail::kernelHandlerIsLastElementTypeOfKernel<KernelT>(),
-                   void>
+  std::enable_if_t<detail::check_kernel_arg_types<KernelT, ArgType>(), void>
   runKernelWithArg(ArgType Arg) {
     MKernel(Arg);
   }

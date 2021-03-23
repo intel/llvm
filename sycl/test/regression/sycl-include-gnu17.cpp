@@ -1,4 +1,4 @@
-// RUN: %clangxx -std=gnu++14 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -std=gnu++17 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
 // UNSUPPORTED: system-windows

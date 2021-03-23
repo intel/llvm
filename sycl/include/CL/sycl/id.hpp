@@ -19,6 +19,12 @@ namespace sycl {
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
 
+namespace detail {
+template <typename TransformedArgType, typename KernelType, int Dims,
+          typename Enable>
+class RangeRoundedLambda;
+} // namespace detail
+
 /// A unique identifier of an item in an index space.
 ///
 /// \ingroup sycl_api
@@ -241,7 +247,9 @@ public:
 #undef __SYCL_GEN_OPT
 
 private:
-  friend class handler;
+  template <typename TransformedArgType, typename KernelType, int Dims,
+            typename Enable>
+  friend class detail::RangeRoundedLambda;
   void set_allowed_range(range<dimensions> rnwi) { (void)rnwi[0]; }
 };
 

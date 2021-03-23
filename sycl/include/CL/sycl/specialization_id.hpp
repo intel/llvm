@@ -20,7 +20,7 @@ public:
 
   template <class... Args>
   explicit constexpr specialization_id(Args &&... args)
-      : SpecializationConstantValue(args...) {}
+      : MSpecializationConstantValue(args...) {}
 
   specialization_id(const specialization_id &rhs) = delete;
   specialization_id(specialization_id &&rhs) = delete;
@@ -28,7 +28,7 @@ public:
   specialization_id &operator=(specialization_id &&rhs) = delete;
 
 private:
-  T SpecializationConstantValue;
+  T MSpecializationConstantValue;
 };
 
 } // namespace sycl
