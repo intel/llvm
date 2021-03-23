@@ -212,6 +212,19 @@ std::string OSUtil::getCurrentDSODir() {
   return Path;
 }
 
+std::string OSUtil::getDirName(const char *Path) {
+  std::string Tmp(Path);
+  // Remove trailing directory separators
+  Tmp.erase(str.find_last_not_of("/\\") + 1, std::string::npos);
+
+  int pos = Tmp.find_last_of("/\\");
+  if (pos != std::string::npos)
+    return Tmp.substr(0, pos);
+
+  // If no directory separator is present return initial path like dirname does
+  return Tmp;
+}
+
 #elif defined(__SYCL_RT_OS_DARWIN)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   Dl_info Res;
@@ -273,6 +286,25 @@ std::string OSUtil::getCacheRoot() {
 
   Root += "/intel/sycl_cache";
   return Root;
+}
+
+int OSUtil::makeDir(const char *Dir, mode_t Mode) {
+  assert((Dir != nullptr) && "Passed null-pointer as directory name.");
+
+  // Directory is present - do nothing
+  if (isPathPresent(Dir))
+    return 0;
+
+  char *CurDir = strdup(Dir);
+  makeDir(getDirName(CurDir).c_str(), Mode);
+
+  free(CurDir);
+
+#if defined(__SYCL_RT_OS_WINDOWS)
+  return _mkdir(Dir);
+#else
+  return mkdir(Dir, Mode);
+#endif
 }
 
 } // namespace detail

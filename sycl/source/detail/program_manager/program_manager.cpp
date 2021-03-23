@@ -31,18 +31,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <functional>
-#include <libgen.h>
 #include <memory>
 #include <mutex>
 #include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <string>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -50,7 +42,7 @@ namespace detail {
 
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 
-static constexpr int DbgProgMgr = 2;
+static constexpr int DbgProgMgr = 0;
 
 enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 
@@ -373,27 +365,6 @@ std::string DumpBinData(const unsigned char *Data, size_t Size) {
   return ss.str();
 }
 
-inline bool IsFSEntryPresent(std::string Path) {
-  struct stat Stat;
-  return !stat(Path.c_str(), &Stat);
-}
-
-int MakePathRecur(const char *Dir, mode_t Mode) {
-  assert((Dir != nullptr) && "Passed null-pointer as directory name.");
-
-  // Directory is present - do nothing
-  if (IsFSEntryPresent(Dir))
-    return 0;
-
-  char *CurDir = strdup(Dir);
-  MakePathRecur(dirname(CurDir), Mode);
-  if (DbgProgMgr > 1)
-    std::cerr << "####Created directory: " << CurDir << std::endl;
-
-  free(CurDir);
-  return mkdir(Dir, Mode);
-}
-
 void WriteCacheItemBin(const std::string &FileName,
                        const std::vector<std::vector<char>> &Data) {
   std::ofstream FileStream{FileName, std::ios::binary};
@@ -599,7 +570,7 @@ void ProgramManager::putPIProgramToDisc(const detail::plugin &Plugin,
   std::string FileName;
   do {
     FileName = DirName + "/" + std::to_string(i++);
-  } while (IsFSEntryPresent(FileName + ".bin"));
+  } while (OSUtil::isPathPresent(FileName + ".bin"));
 
   unsigned int DeviceNum = 0;
 
@@ -623,7 +594,7 @@ void ProgramManager::putPIProgramToDisc(const detail::plugin &Plugin,
                                            sizeof(char *) * Pointers.size(),
                                            Pointers.data(), nullptr);
 
-  MakePathRecur(DirName.c_str(), 0777);
+  OSUtil::makeDir(DirName.c_str(), 0777);
   WriteCacheItemBin(FileName + ".bin", Result);
   WriteCacheItemSrc(FileName + ".src", Device, Img, SpecConsts,
                     BuildOptionsString);
@@ -642,13 +613,13 @@ bool ProgramManager::getPIProgramFromDisc(ContextImplPtr ContextImpl,
   std::string Path{
       GetCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString)};
 
-  if (!IsFSEntryPresent(Path.c_str()))
+  if (!OSUtil::isPathPresent(Path))
     return false;
 
   int i = 0;
   std::string FileName{Path + "/" + std::to_string(i)};
-  while (IsFSEntryPresent(FileName + ".bin") &&
-         IsFSEntryPresent(FileName + ".src")) {
+  while (OSUtil::isPathPresent(FileName + ".bin") &&
+         OSUtil::isPathPresent(FileName + ".src")) {
     auto BinDataItem = ReadCacheItem(FileName + ".bin");
     if (BinDataItem.size() &&
         IsCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
