@@ -65,7 +65,7 @@ public:
   }
 
   /// Creates directory recursively
-  static int makeDir(const char *Dir, mode_t Mode);
+  static int makeDir(const char *Dir);
 
   /// Module handle for the executable module - it is assumed there is always
   /// single one at most.

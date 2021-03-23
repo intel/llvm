@@ -594,7 +594,7 @@ void ProgramManager::putPIProgramToDisc(const detail::plugin &Plugin,
                                            sizeof(char *) * Pointers.size(),
                                            Pointers.data(), nullptr);
 
-  OSUtil::makeDir(DirName.c_str(), 0777);
+  OSUtil::makeDir(DirName.c_str());
   WriteCacheItemBin(FileName + ".bin", Result);
   WriteCacheItemSrc(FileName + ".src", Device, Img, SpecConsts,
                     BuildOptionsString);

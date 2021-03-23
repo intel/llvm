@@ -30,6 +30,7 @@
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
 #include <Windows.h>
+#include <direct.h>
 #include <malloc.h>
 #include <shlwapi.h>
 
@@ -215,7 +216,7 @@ std::string OSUtil::getCurrentDSODir() {
 std::string OSUtil::getDirName(const char *Path) {
   std::string Tmp(Path);
   // Remove trailing directory separators
-  Tmp.erase(str.find_last_not_of("/\\") + 1, std::string::npos);
+  Tmp.erase(Tmp.find_last_not_of("/\\") + 1, std::string::npos);
 
   int pos = Tmp.find_last_of("/\\");
   if (pos != std::string::npos)
@@ -288,7 +289,7 @@ std::string OSUtil::getCacheRoot() {
   return Root;
 }
 
-int OSUtil::makeDir(const char *Dir, mode_t Mode) {
+int OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
 
   // Directory is present - do nothing
@@ -296,17 +297,18 @@ int OSUtil::makeDir(const char *Dir, mode_t Mode) {
     return 0;
 
   char *CurDir = strdup(Dir);
-  makeDir(getDirName(CurDir).c_str(), Mode);
+  makeDir(getDirName(CurDir).c_str());
 
   free(CurDir);
 
 #if defined(__SYCL_RT_OS_WINDOWS)
   return _mkdir(Dir);
 #else
-  return mkdir(Dir, Mode);
+  return mkdir(Dir, 0777);
 #endif
 }
 
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
