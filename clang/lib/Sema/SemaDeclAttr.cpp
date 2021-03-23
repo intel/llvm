@@ -6339,9 +6339,9 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
       const auto *DeclExpr =
           dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr());
       if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
-         Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-         Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-         return;
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        return;
       }
     }
   }
