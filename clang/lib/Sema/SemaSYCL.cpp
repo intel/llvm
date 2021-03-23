@@ -783,7 +783,7 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
                                       KernelNameType)};
 }
 
-static bool hasNativeSycl2020SpecConstantSupport(ASTContext &Context) {
+static bool isDefaultSPIRArch(ASTContext &Context) {
   llvm::Triple T = Context.getTargetInfo().getTriple();
   if (T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch)
     return true;
@@ -793,11 +793,26 @@ static bool hasNativeSycl2020SpecConstantSupport(ASTContext &Context) {
 static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   // Specialization constants in SYCL 2020 are not captured by lambda and
   // accessed through new optional lambda argument kernel_handler
-  auto It = std::find_if(KernelCallerFunc->param_begin(),
-                         KernelCallerFunc->param_end(), [](ParmVarDecl *PVD) {
-                           return Util::isSyclKernelHandlerType(PVD->getType());
-                         });
-  return ((It != KernelCallerFunc->param_end()) ? *It : nullptr);
+  auto KHArg =
+      std::find_if(KernelCallerFunc->param_begin(),
+                   KernelCallerFunc->param_end(), [](ParmVarDecl *PVD) {
+                     return Util::isSyclKernelHandlerType(PVD->getType());
+                   });
+
+  ParmVarDecl *KernelHandlerArg =
+      (KHArg != KernelCallerFunc->param_end()) ? *KHArg : nullptr;
+
+  if (KernelHandlerArg) {
+    auto KHArgTooMany = std::find_if(
+        std::next(KHArg), KernelCallerFunc->param_end(), [](ParmVarDecl *PVD) {
+          return Util::isSyclKernelHandlerType(PVD->getType());
+        });
+
+    assert(KHArgTooMany == KernelCallerFunc->param_end() &&
+           "Too many kernel_handler arguments");
+  }
+
+  return KernelHandlerArg;
 }
 
 // anonymous namespace so these don't get linkage.
@@ -1984,7 +1999,7 @@ public:
   // specialization constants
   void handleSyclKernelHandlerType() {
     ASTContext &Context = SemaRef.getASTContext();
-    if (hasNativeSycl2020SpecConstantSupport(Context))
+    if (isDefaultSPIRArch(Context))
       return;
 
     StringRef Name = "_arg__specialization_constants_buffer";
@@ -2630,7 +2645,7 @@ public:
     // call if target does not have native support for specialization constants.
     // Here, specialization_constants_buffer is the compiler generated kernel
     // argument of type char*.
-    if (!hasNativeSycl2020SpecConstantSupport(SemaRef.Context))
+    if (!isDefaultSPIRArch(SemaRef.Context))
       handleSpecialType(KernelHandlerArg->getType());
   }
 
@@ -2787,13 +2802,11 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     addParam(ArgTy, Kind, offsetOf(FD, ArgTy));
   }
   void addParam(QualType ArgTy, SYCLIntegrationHeader::kernel_param_kind_t Kind,
-                uint64_t OffsetAdj, bool IsZeroOffset = false) {
+                uint64_t OffsetAdj) {
     uint64_t Size;
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
-                        ((IsZeroOffset)
-                             ? static_cast<unsigned>(OffsetAdj)
-                             : static_cast<unsigned>(CurOffset + OffsetAdj)));
+                        static_cast<unsigned>(CurOffset + OffsetAdj));
   }
 
   // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
@@ -2997,14 +3010,13 @@ public:
     // only generated when target has no native support for specialization
     // constants.
     ASTContext &Context = SemaRef.getASTContext();
-    if (hasNativeSycl2020SpecConstantSupport(Context))
+    if (isDefaultSPIRArch(Context))
       return;
 
     // Offset is zero since kernel_handler argument is not part of
     // kernel object (i.e. it is not captured)
     addParam(Context.getPointerType(Context.CharTy),
-             SYCLIntegrationHeader::kind_specialization_constants_buffer, 0,
-             /*IsZeroOffset*/ true);
+             SYCLIntegrationHeader::kind_specialization_constants_buffer, 0);
   }
 
   bool enterStream(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
