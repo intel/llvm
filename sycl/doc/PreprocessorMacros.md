@@ -19,6 +19,13 @@ This behavior is not following the SYCL spec since `constant_ptr` conversions to
 the underlying pointer types return pointers without any additional qualifiers
 so it's disabled by default.
 
+
+### `DISABLE_SYCL_INSTRUMENTATION_METADATA`
+
+This macro is used to disable passing of code location metadata to `submit*`
+methods of `cl::sycl::queue` class.
+
+
 ### Version macros
 
 - `__LIBSYCL_MAJOR_VERSION` is set to SYCL runtime library major version.
