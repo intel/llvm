@@ -1634,6 +1634,12 @@ public:
       setArgAttr(0, SPIR::ATTR_CONST);
       addUnsignedArg(0);
       break;
+    case OpAtomicUMax:
+      LLVM_FALLTHROUGH;
+    case OpAtomicUMin:
+      addUnsignedArg(0);
+      addUnsignedArg(3);
+      break;
     default:;
       // No special handling is needed
     }
