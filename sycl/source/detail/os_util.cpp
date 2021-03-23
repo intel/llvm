@@ -311,4 +311,3 @@ int OSUtil::makeDir(const char *Dir) {
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-
