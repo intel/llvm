@@ -710,6 +710,7 @@ public:
 // Clean up CODELOC and KERNELFUNC macros.
 #undef _CODELOCPARAM
 #undef _CODELOCARG
+#undef _CODELOCFW
 #undef _KERNELFUNCPARAM
 
   /// Returns whether the queue is in order or OoO
