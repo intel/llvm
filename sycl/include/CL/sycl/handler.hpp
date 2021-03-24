@@ -169,7 +169,7 @@ class RangeRoundedLambda<
     typename std::enable_if_t<detail::check_kernel_arg_types<
         KernelType, TransformedArgType, kernel_handler>()>> {
 public:
-  RangeRoundedLambda(const KernelType &KernelFunc, range<Dims> NumWorkItems)
+  RangeRoundedLambda(KernelType KernelFunc, range<Dims> NumWorkItems)
       : MKernelFunc(KernelFunc), MNumWorkItems(NumWorkItems) {}
 
   void operator()(TransformedArgType Arg) const {
@@ -181,7 +181,7 @@ public:
   }
 
 private:
-  const KernelType &MKernelFunc;
+  KernelType MKernelFunc;
   range<Dims> MNumWorkItems;
 };
 
@@ -191,7 +191,7 @@ class RangeRoundedLambda<
     typename std::enable_if_t<
         detail::check_kernel_arg_types<KernelType, TransformedArgType>()>> {
 public:
-  RangeRoundedLambda(const KernelType &KernelFunc, range<Dims> NumWorkItems)
+  RangeRoundedLambda(KernelType KernelFunc, range<Dims> NumWorkItems)
       : MKernelFunc(KernelFunc), MNumWorkItems(NumWorkItems) {}
 
   void operator()(TransformedArgType Arg) const {
