@@ -1348,12 +1348,18 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     if (CAT)
       FieldTy = CAT->getElementType();
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
+    SemaRef.getDiagnostics().SyclOptReportHandler.AddKernelArg(
+        KernelDecl, KernelDecl->getName(), FD->getName(), FieldTy.getAsString(),
+        FD->getLocation());
     addParam(newParamDesc, FieldTy);
   }
 
   void addParam(const CXXBaseSpecifier &BS, QualType FieldTy) {
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), BS, FieldTy);
+    SemaRef.getDiagnostics().SyclOptReportHandler.AddKernelArg(
+        KernelDecl, KernelDecl->getName(), "_arg__base", FieldTy.getAsString(),
+        BS.getBaseTypeLoc());
     addParam(newParamDesc, FieldTy);
   }
 

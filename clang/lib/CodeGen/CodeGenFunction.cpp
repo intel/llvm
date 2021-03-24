@@ -33,6 +33,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
@@ -1348,6 +1349,33 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   // Emit the standard function prologue.
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
+
+  if (FD->hasAttr<OpenCLKernelAttr>()) {
+    // Technically, we get most of the information required in the OptReport
+    // here (without the need for SyclOptReport class). The only information
+    // we do not have is source location because by this time we are dealing
+    // with compiler generated OpenCL kernel where there is no source location.
+    // In order to obtain source location for field corresponding to generated
+    // argument, I decided to use SyclOptReport class to collect all information
+    // about the parameter at the time of it's creation, including source
+    // locations. The commented code below was how I first accessed the kernel
+    // arguments need to emit in OptReport
+    /*for (auto KernelArg : Args)
+      QualType KernelArgType = KernelArg->getType();*/
+
+    // llvm::OptimizationRemarkEmitter ORE(Fn);
+    SyclOptReport &OptReportHandler = CGM.getDiags().SyclOptReportHandler;
+    for (auto &ORI : OptReportHandler.getInfo(FD)) {
+      StringRef KernelName = ORI.KernelName;
+      StringRef KernelArg = ORI.KernelArg;
+      StringRef ArgType = ORI.ArgType;
+      SourceLocation KernelArgLoc = ORI.KernelArgLoc;
+      llvm::DiagnosticLocation DL = SourceLocToDebugLoc(KernelArgLoc);
+      // StringRef RemarkName = "testthisstr";
+      // llvm::OptimizationRemark R("SYCL", RemarkName, Fn);
+      // ORE.emit(R);
+    }
+  }
 
   // Generate the body of the function.
   PGO.assignRegionCounters(GD, CurFn);
