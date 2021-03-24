@@ -128,27 +128,17 @@ public:
   kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
     MContext = Bundles[0]->MContext;
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
-
-      // Insert devices from a bundle keeping MDevices sorted.
-      const size_t DevCurSize = MDevices.size();
-      MDevices.insert(MDevices.end(), Bundle->MDevices.begin(),
-                      Bundle->MDevices.end());
-      std::inplace_merge(MDevices.begin(), MDevices.begin() + DevCurSize,
-                         MDevices.end(), LessByHash<device>{});
-
-      // Insert images from a bundle keeping MDeviceImages sorted.
-      const size_t ImgCurSize = MDeviceImages.size();
+      MDevices.insert(MDevices.end(), Bundle->MDevices.begin(), Bundle->MDevices.end());
       MDeviceImages.insert(MDeviceImages.end(), Bundle->MDeviceImages.begin(),
                            Bundle->MDeviceImages.end());
-
-      std::inplace_merge(MDeviceImages.begin(),
-                         MDeviceImages.begin() + ImgCurSize,
-                         MDeviceImages.end(), LessByHash<device_image_plain>{});
     }
 
+    std::sort(MDevices.begin(), MDevices.end(), LessByHash<device>{});
     const auto DevIt = std::unique(MDevices.begin(), MDevices.end());
     MDevices.erase(DevIt, MDevices.end());
 
+    std::sort(MDeviceImages.begin(), MDeviceImages.end(),
+              LessByHash<device_image_plain>{});
     const auto DevImgIt =
         std::unique(MDeviceImages.begin(), MDeviceImages.end());
     MDeviceImages.erase(DevImgIt, MDeviceImages.end());
