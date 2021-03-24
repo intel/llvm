@@ -1,11 +1,12 @@
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %t.out
+// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 //
 // -fsycl-device-code-split is not supported for cuda
 // UNSUPPORTED: cuda
 
 #include <CL/sycl.hpp>
 
+#include <algorithm>
 #include <vector>
 
 class Kernel1Name;
@@ -30,6 +31,7 @@ int main() {
   sycl::kernel_id Kernel1ID = sycl::get_kernel_id<Kernel1Name>();
   sycl::kernel_id Kernel2ID = sycl::get_kernel_id<Kernel2Name>();
 
+#if 0
   {
     sycl::kernel_bundle KernelBundle1 =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
@@ -81,11 +83,12 @@ int main() {
   // of kernel_id's and Selector.
 
   {
-    sycl::kernel_bundle KernelBundle2 =
+    // Test get_kernel_bundle with filters, join and get_kernel_ids API.
+    sycl::kernel_bundle KernelBundleInput1 =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                            {Kernel1ID});
-    assert(KernelBundle2.has_kernel(Kernel1ID));
-    assert(!KernelBundle2.has_kernel(Kernel2ID));
+    assert(KernelBundleInput1.has_kernel(Kernel1ID));
+    assert(!KernelBundleInput1.has_kernel(Kernel2ID));
 
     auto Selector =
         [&Kernel2ID](
@@ -93,55 +96,89 @@ int main() {
           return DevImage.has_kernel(Kernel2ID);
         };
 
-    sycl::kernel_bundle KernelBundle3 =
+    sycl::kernel_bundle KernelBundleInput2 =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                            Selector);
-    assert(!KernelBundle3.has_kernel(Kernel1ID));
-    assert(KernelBundle3.has_kernel(Kernel2ID));
+    assert(!KernelBundleInput2.has_kernel(Kernel1ID));
+    assert(KernelBundleInput2.has_kernel(Kernel2ID));
 
-    sycl::kernel_bundle KernelBundle4 =
+    sycl::kernel_bundle KernelBundleJoint =
         sycl::join(std::vector<sycl::kernel_bundle<sycl::bundle_state::input>>{
-            KernelBundle2, KernelBundle3});
+            KernelBundleInput1, KernelBundleInput2});
 
-    assert(KernelBundle4.has_kernel(Kernel1ID));
-    assert(KernelBundle4.has_kernel(Kernel2ID));
+    assert(KernelBundleJoint.has_kernel(Kernel1ID));
+    assert(KernelBundleJoint.has_kernel(Kernel2ID));
 
-    sycl::kernel_bundle KernelBundle12 =
+    std::vector<sycl::kernel_id> KernelIDs = KernelBundleJoint.get_kernel_ids();
+
+    assert(KernelIDs.size() == 2);
+  }
+
+  {
+    // Test compile, link, build
+    sycl::kernel_bundle KernelBundleInput1 =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                            {Kernel1ID});
 
-    sycl::kernel_bundle KernelBundle5 =
-        sycl::join(std::vector<sycl::kernel_bundle<sycl::bundle_state::input>>{
-            KernelBundle4, KernelBundle12});
+    sycl::kernel_bundle KernelBundleInput2 =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
+                                                           {Kernel2ID});
 
-    std::vector<sycl::kernel_id> KernelBundle5KernelIDs =
-        KernelBundle5.get_kernel_ids();
+    sycl::kernel_bundle<sycl::bundle_state::object> KernelBundleObject1 =
+        sycl::compile(KernelBundleInput1, KernelBundleInput1.get_devices());
 
-    assert(KernelBundle5KernelIDs.size() == 2);
+    sycl::kernel_bundle<sycl::bundle_state::object> KernelBundleObject2 =
+        sycl::compile(KernelBundleInput2, KernelBundleInput2.get_devices());
 
-    sycl::kernel_bundle KernelBundle6 =
-        sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+    // TODO: Pass more kernel bundles
+    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExecutable =
+        sycl::link({KernelBundleObject1, KernelBundleObject2},
+                   KernelBundleObject1.get_devices());
+  }
+#endif
 
-    sycl::kernel_bundle<sycl::bundle_state::object> KernelBundle6Compiled =
-        sycl::compile(KernelBundle6, KernelBundle6.get_devices());
+  {
+    // Test handle::use_kernel_bundle APIs.
+    sycl::kernel_id Kernel3ID = sycl::get_kernel_id<Kernel3Name>();
 
-    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle7Linked =
-        sycl::link({KernelBundle6Compiled}, KernelBundle6.get_devices());
+    sycl::kernel_bundle KernelBundleInput =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
+                                                           {Kernel3ID});
+    // 3 SPIRV images - 3 calls to piextDeviceSelectBinary are expected
+    // CHECK:---> piextDeviceSelectBinary
+    // CHECK:---> piextDeviceSelectBinary
+    // CHECK:---> piextDeviceSelectBinary
+    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExecutable =
+        sycl::build(KernelBundleInput, KernelBundleInput.get_devices());
+    // CHECK:---> piProgramCreate
+    // CHECK-NEXT: <unknown> : 0xda2888
+    // CHECK-NEXT: <unknown> : 0x470840
+    // CHECK-NEXT: <unknown> : 223328
+    // CHECK-NEXT: <unknown> : 0x7ffcd7b7a3e8
+    // CHECK-NEXT: ) ---> ▸pi_result : PI_SUCCESS
+    // CHECK-NEXT: [out]<unknown> ** : 0x7ffcd7b7a3e8[ 0x2227ad8 ... ]
+    //
+    // CHECK:---> piProgramBuild(
+    // CHECK-NEXT: <unknown> : 0x2227ad8
+    //
+    // CHECK:---> piProgramRetain(
+    // <unknown> : 0x2227ad8
+    // ---> ▸pi_result : PI_SUCCESS
 
-    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle6Built2 =
-        sycl::build(KernelBundle6, KernelBundle6.get_devices());
+
 
     cl::sycl::buffer<int, 1> Buf(sycl::range<1>{1});
 
     Q.submit([&](sycl::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
-      CGH.use_kernel_bundle(KernelBundle6Built2);
-      CGH.single_task<Kernel3Name>([=]() { 
-          Acc[0] = 42;
-          });
+      CGH.use_kernel_bundle(KernelBundleExecutable);
+      CGH.single_task<Kernel3Name>([=]() { Acc[0] = 42; });
     });
-    auto HostAcc = Buf.get_access<sycl::access::mode::write>();
-    assert(HostAcc[0] == 42);
+
+    {
+      auto HostAcc = Buf.get_access<sycl::access::mode::write>();
+      assert(HostAcc[0] == 42);
+    }
   }
 
   return 0;

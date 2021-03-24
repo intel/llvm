@@ -54,7 +54,13 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
                          KernelBundleImplPtr KernelBundleImpl)
     : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
-      MKernelBundleImpl(std::move(KernelBundleImpl)) {}
+      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+
+  // kernel_impl shared ownership of kernel handle
+  if (!is_host()) {
+    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+  }
+}
 
 kernel_impl::kernel_impl(ContextImplPtr Context,
                          ProgramImplPtr ProgramImpl)

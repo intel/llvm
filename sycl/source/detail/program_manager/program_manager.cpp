@@ -1231,7 +1231,7 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
         std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
 
         DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
-            BinImage, Ctx, Devs, ImgState, KernelIDs);
+            BinImage, Ctx, Devs, ImgState, KernelIDs, /*PIProgram=*/nullptr);
 
         SYCLDeviceImages.push_back(
             createSyclObjFromImpl<device_image_plain>(Impl));
@@ -1247,19 +1247,19 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
                         const property_list &) {
 
+  // TODO: Probably we could have cached compiled device images.
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
-
-  DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
-      InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
-      bundle_state::object, InputImpl->get_kernel_ids_ref());
 
   const detail::plugin &Plugin =
       getSyclObjImpl(InputImpl->get_context())->getPlugin();
 
-  // TODO: Retain ref counter
-  ObjectImpl->get_program_ref() = createPIProgram(
-      *InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs);
+  RT::PiProgram Prog = createPIProgram(*InputImpl->get_bin_image_ref(),
+                                       InputImpl->get_context(), Devs);
+
+  DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
+      InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
+      bundle_state::object, InputImpl->get_kernel_ids_ref(), Prog);
 
   std::vector<pi_device> PIDevices;
   PIDevices.reserve(Devs.size());
@@ -1287,20 +1287,18 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
 
   std::vector<pi_program> PIPrograms;
   PIPrograms.reserve(DeviceImages.size());
-  for (const device_image_plain &DeviceImage : DeviceImages) {
+  for (const device_image_plain &DeviceImage : DeviceImages)
     PIPrograms.push_back(getSyclObjImpl(DeviceImage)->get_program_ref());
-  }
 
   std::vector<pi_device> PIDevices;
   PIDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
-  // TODO: Check > 0
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
 
   const detail::plugin &Plugin = getSyclObjImpl(Context)->getPlugin();
-  // TODO: Handle zero devices
+
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
       getSyclObjImpl(Context)->getHandleRef(), PIDevices.size(),
@@ -1319,16 +1317,13 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
                      getSyclObjImpl(DeviceImage)->get_kernel_ids().begin(),
                      getSyclObjImpl(DeviceImage)->get_kernel_ids().end());
   }
+  // device_image_impl expects kernel ids to be sorted for fast search
+  std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
 
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
           /*BinImage=*/nullptr, Context, Devs, bundle_state::object,
-          std::move(KernelIDs));
-
-  ExecutableImpl->get_program_ref() = LinkedProg;
-
-
-  ExecutableImpl->get_kernel_ids_ref() = KernelIDs;
+          std::move(KernelIDs), LinkedProg);
 
   return {createSyclObjFromImpl<device_image_plain>(ExecutableImpl)};
 }
@@ -1342,10 +1337,6 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       getSyclObjImpl(DeviceImage);
 
   const context Context = InputImpl->get_context();
-
-  DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
-      InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
-      InputImpl->get_kernel_ids_ref());
 
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
@@ -1381,7 +1372,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   // TODO: Unify this code with getBuiltPIProgram
   auto BuildF = [this, &Context, Img, &Devs, &CompileOpts, &LinkOpts,
-                 &ExecImpl] {
+                 &InputImpl] {
     // Update only if compile options are not overwritten by environment
     // variable
     if (!CompileOptsEnv) {
@@ -1403,10 +1394,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Devs);
 
     const std::vector<unsigned char> &SpecConstsBlob =
-        ExecImpl->get_spec_const_blob();
+        InputImpl->get_spec_const_blob();
 
     std::vector<device_image_impl::SpecConstDescT> &SpecConstOffsets =
-        ExecImpl->get_spec_const_offsets();
+        InputImpl->get_spec_const_offsets();
 
     unsigned int PrevOffset = 0;
     for (const device_image_impl::SpecConstDescT &SpecIDDesc :
@@ -1455,10 +1446,15 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   RT::PiProgram ResProgram = BuildResult->Ptr.load();
 
+  // Cache supports key with once device only, but here we have multiple
+  // devices a program is built for, so add the program to the cache for all
+  // other devices.
   auto CacheOtherDevices = [ResProgram]() {
     return ResProgram;
   };
 
+  // The program for device "0" is already added to the cache during the first
+  // call to getOrBuild, so starting with "1"
   for(size_t Idx = 1; Idx < Devs.size(); ++Idx) {
     const RT::PiDevice PiDeviceAdd =
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
@@ -1470,8 +1466,16 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         AcquireF, GetF, CacheOtherDevices);
   }
 
-  // TODO: Retain ref counter
-  ExecImpl->get_program_ref() = ResProgram;
+
+  // devive_image_impl shares ownership of PIProgram with, at least, program
+  // cache. The ref counter will be descremented in the destructor of
+  // device_image_impl
+  const detail::plugin &Plugin = ContextImpl->getPlugin();
+  Plugin.call<PiApiKind::piProgramRetain>(ResProgram);
+
+  DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
+      InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
+      InputImpl->get_kernel_ids_ref(), ResProgram);
 
   return createSyclObjFromImpl<device_image_plain>(ExecImpl);
 }

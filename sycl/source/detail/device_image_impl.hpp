@@ -36,9 +36,9 @@ class device_image_impl {
 public:
   device_image_impl(RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
-                    std::vector<kernel_id> KernelIDs)
+                    std::vector<kernel_id> KernelIDs, RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State),
+        MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
@@ -127,7 +127,7 @@ public:
         [&Dev](const device &DevCand) { return Dev == DevCand; });
   }
 
-  RT::PiProgram &get_program_ref() noexcept { return MProgram; }
+  const RT::PiProgram &get_program_ref() const noexcept { return MProgram; }
 
   RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
 
