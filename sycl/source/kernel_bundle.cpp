@@ -151,27 +151,5 @@ build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 
 } // namespace detail
 
-__SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
-                                 const device &Dev) {
-  (void)KernelIDs;
-  (void)Dev;
-  // TODO: Something like this should be implemented once aspects are supported.
-  // std::unordered_set<aspect> KernelsRequiredAspects;
-  // for(const kernel_id &KernelID: KernelIDs) {
-  //  const auto &RequiredAspects = KernelID.get_required_aspects();
-  //
-  //  KernelsRequiredAspects.insert(RequiredAspects.begin(),
-  //                                RequiredAspects.end());
-  // }
-  // return std::any_of(KernelsRequiredAspects.begin(),
-  //                    KernelsRequiredAspects.end(),
-  //                    [] (aspect Aspect) {
-  //                      return !Dev.has(Aspect);
-  //                    });
-  //
-  assert(!"Not implemented");
-  return false;
-}
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

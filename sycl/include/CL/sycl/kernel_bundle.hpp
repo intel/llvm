@@ -486,7 +486,7 @@ bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
 
 /// \returns true if all of the kernels identified by KernelIDs are compatible
 /// with the device Dev.
-__SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
+bool is_compatible(const std::vector<kernel_id> &KernelIDs,
                                  const device &Dev);
 
 template <typename KernelName> bool is_compatible(const device &Dev) {

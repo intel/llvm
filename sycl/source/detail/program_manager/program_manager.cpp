@@ -52,9 +52,10 @@ ProgramManager &ProgramManager::getInstance() {
   return GlobalHandler::instance().getProgramManager();
 }
 
-static RT::PiProgram createBinaryProgram(
-    const ContextImplPtr Context, const std::vector<device> &Devices,
-    std::vector<const unsigned char *> &Binaries, size_t DataLen) {
+static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
+                                         const device &Device,
+                                         const unsigned char *Data,
+                                         size_t DataLen) {
   const detail::plugin &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
   pi_uint32 NumDevices = 0;
@@ -66,19 +67,12 @@ static RT::PiProgram createBinaryProgram(
          "Only a single device is supported for AOT compilation");
 #endif
 
-  assert(!Devices.empty() && "Device list should not be empty");
-
-  std::vector<pi_device> PIDevices;
-  PIDevices.reserve(Devices.size());
-  for (const device &Dev : Devices)
-    PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
-
-  RT::PiProgram Program = nullptr;
-  //const RT::PiDevice PiDevice = getSyclObjImpl(Device)->getHandleRef();
+  RT::PiProgram Program;
+  const RT::PiDevice PiDevice = getSyclObjImpl(Device)->getHandleRef();
   pi_int32 BinaryStatus = CL_SUCCESS;
   Plugin.call<PiApiKind::piProgramCreateWithBinary>(
-      Context->getHandleRef(), PIDevices.size(), PIDevices.data(), &DataLen,
-      (const unsigned char **)Binaries.data(), &BinaryStatus, &Program);
+      Context->getHandleRef(), 1 /*one binary*/, &PiDevice, &DataLen, &Data,
+      &BinaryStatus, &Program);
 
   if (BinaryStatus != CL_SUCCESS) {
     throw runtime_error("Creating program with binary failed.", BinaryStatus);
@@ -334,21 +328,18 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context",
         PI_INVALID_OPERATION);
 
-  assert(
-      Devices.size() > 1 && Format == PI_DEVICE_BINARY_TYPE_SPIRV &&
-      "Creating program from AOT binary for multiple device is not supported");
+  assert((Devices.size() > 1 && Format == PI_DEVICE_BINARY_TYPE_SPIRV) ||
+         Format != PI_DEVICE_BINARY_TYPE_SPIRV &&
+             "Creating program from AOT binary for multiple device is not "
+             "supported");
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
-  RT::PiProgram Res = nullptr;
+  RT::PiProgram Res =
+      Format == PI_DEVICE_BINARY_TYPE_SPIRV
+          ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
+          : createBinaryProgram(Ctx, Devices[0], RawImg.BinaryStart, ImgSize);
 
-  if(Format == PI_DEVICE_BINARY_TYPE_SPIRV) {
-    Res = createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize);
-  } else {
-    std::vector<const unsigned char *> Binaries;
-    Binaries.push_back(RawImg.BinaryStart);
-    Res = createBinaryProgram(Ctx, Devices, Binaries, ImgSize);
-  }
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // associate the PI program with the image it was created for
@@ -1388,6 +1379,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
 
+  // TODO: Unify this code with getBuiltPIProgram
   auto BuildF = [this, &Context, Img, &Devs, &CompileOpts, &LinkOpts,
                  &ExecImpl] {
     // Update only if compile options are not overwritten by environment
