@@ -13,9 +13,7 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice'
-    if not args.use_libcxx:
-        llvm_external_projects += ';xpti;xptifw'
+    llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice;xpti;xptifw'
 
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
@@ -34,8 +32,8 @@ def do_configure(args):
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
-    sycl_enable_xpti_tracing = 'OFF' if args.use_libcxx else 'ON'
 
+    sycl_enable_xpti_tracing = 'ON'
     icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so" if platform.system() == 'Linux' else "OpenCL.lib")
 
     # replace not append, so ARM ^ X86
