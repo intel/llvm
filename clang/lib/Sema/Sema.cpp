@@ -1690,7 +1690,7 @@ public:
 
       // If the diagnostic doesn't apply to this call graph, skip this
       // diagnostic.
-      if (static_cast<int>(RootReason & Reason) == 0)
+      if ((RootReason & Reason) == Sema::DeviceDiagnosticReason::None)
         continue;
 
       {

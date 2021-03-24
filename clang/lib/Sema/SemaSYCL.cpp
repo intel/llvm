@@ -3416,7 +3416,7 @@ Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
     if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted &&
-        static_cast<int>(getEmissionReason(FD) & Reason) != 0)
+        (getEmissionReason(FD) & Reason) != Sema::DeviceDiagnosticReason::None)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     return SemaDiagnosticBuilder::K_Deferred;
   }();

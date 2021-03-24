@@ -1762,7 +1762,7 @@ public:
   /// Bitmask to contain the list of reasons a single diagnostic should be
   /// emitted, based on its language.  This permits multiple offload systems
   /// to coexist in the same translation unit.
-  enum class DeviceDiagnosticReason : unsigned char {
+  enum class DeviceDiagnosticReason {
     /// Diagnostic doesn't apply to anything. Included for completeness, but
     /// should make this a no-op.
     None = 0,
@@ -1782,7 +1782,7 @@ public:
     /// all-together and make this behave as it did before the
     /// DiagnosticReason was added (that is, unconditionally emit).
     /// Note: This needs to be updated if any flags above are added.
-    All = 0x3F,
+    All = OmpAll | CudaAll | Sycl | Esimd,
 
     LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/All)
   };
