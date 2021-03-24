@@ -793,26 +793,16 @@ static bool isDefaultSPIRArch(ASTContext &Context) {
 static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   // Specialization constants in SYCL 2020 are not captured by lambda and
   // accessed through new optional lambda argument kernel_handler
-  auto KHArg =
-      std::find_if(KernelCallerFunc->param_begin(),
-                   KernelCallerFunc->param_end(), [](ParmVarDecl *PVD) {
-                     return Util::isSyclKernelHandlerType(PVD->getType());
-                   });
+  auto IsHandlerLambda = [](ParmVarDecl *PVD) {
+    return Util::isSyclKernelHandlerType(PVD->getType());
+  };
 
-  ParmVarDecl *KernelHandlerArg =
-      (KHArg != KernelCallerFunc->param_end()) ? *KHArg : nullptr;
+  assert(llvm::count_if(KernelCallerFunc->parameters(), IsHandlerLambda) <= 1 &&
+         "Multiple kernel_handler parameters");
 
-  if (KernelHandlerArg) {
-    auto KHArgTooMany = std::find_if(
-        std::next(KHArg), KernelCallerFunc->param_end(), [](ParmVarDecl *PVD) {
-          return Util::isSyclKernelHandlerType(PVD->getType());
-        });
+  auto KHArg = llvm::find_if(KernelCallerFunc->parameters(), IsHandlerLambda);
 
-    assert(KHArgTooMany == KernelCallerFunc->param_end() &&
-           "Too many kernel_handler arguments");
-  }
-
-  return KernelHandlerArg;
+  return (KHArg != KernelCallerFunc->param_end()) ? *KHArg : nullptr;
 }
 
 // anonymous namespace so these don't get linkage.
