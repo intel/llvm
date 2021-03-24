@@ -43,7 +43,7 @@ image with definition of `foo` to the fat object via special option.
 The main purpose of this feature is to provide a mechanism which allows to
 link device code dynamically at runtime.
 
-## Requrements:
+## Requirements:
 User's device code that consists of some device API (`SYCL_EXTERNAL` functions),
 is compiled into some form and it is not linked statically with device code of
 application. It can be a shared library that contains some device code or a
@@ -54,7 +54,7 @@ For this combination the following statements must be true:
 
 - `SYCL_EXTERNAL` functions defined in dynamically linked code can be called
   (directly or indirectly) from device code of the application.
-- Function pointers taken in application ashould work inside the dynamically
+- Function pointers taken in application should work inside the dynamically
   linked code.
 - Specific code changes are not required, i.e. the mechanism of linking works
   as close as possible to regular shared libraries.
