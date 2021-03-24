@@ -42,6 +42,10 @@
 //CHECK-NEXT: ConstantExpr
 //CHECK-NEXT: value:{{.*}}1
 //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+//CHECK: IntelFPGAForcePow2DepthAttr
+//CHECK-NEXT: ConstantExpr
+//CHECK-NEXT: value:{{.*}}1
+//CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
 [[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth;
 [[intel::force_pow2_depth(1)]] const int var_force_pow2_depth = 0; // OK
 

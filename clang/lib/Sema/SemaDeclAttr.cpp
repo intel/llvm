@@ -6239,10 +6239,9 @@ void Sema::AddIntelFPGAForcePow2DepthAttr(Decl *D,
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-          return;
         }
         // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<IntelFPGAForcePow2DepthAttr>();
+        return;
       }
     }
     // [[intel::fpga_register]] and [[intel::force_pow2_depth()]]
@@ -6250,8 +6249,8 @@ void Sema::AddIntelFPGAForcePow2DepthAttr(Decl *D,
     if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
       return;
 
-    // If the declaration does not have [[intel::memory]]
-    // attribute, this creates default implicit memory.
+    // If the declaration does not have an [[intel::fpga_memory]]
+    // attribute, this creates one as an implicit attribute.
     if (!D->hasAttr<IntelFPGAMemoryAttr>())
       D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
           Context, IntelFPGAMemoryAttr::Default));
@@ -6271,10 +6270,9 @@ Sema::MergeIntelFPGAForcePow2DepthAttr(Decl *D,
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
-          return nullptr;
         }
         // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<IntelFPGAForcePow2DepthAttr>();
+        return nullptr;
       }
     }
   }
