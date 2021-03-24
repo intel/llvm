@@ -1,8 +1,8 @@
 ; RUN: opt -S -sycllowerwglocalmemory < %s | FileCheck %s
 
-; CHECK: [[WGLOCALMEM_1:@WGLocalMem.*]] = internal addrspace(3) global [128 x i8] undef, align 4
-; CHECK: [[WGLOCALMEM_2:@WGLocalMem.*]] = internal addrspace(3) global [4 x i8] undef, align 4
-; CHECK: [[WGLOCALMEM_3:@WGLocalMem.*]] = internal addrspace(3) global [256 x i8] undef, align 8
+; CHECK-DAG: [[WGLOCALMEM_1:@WGLocalMem.*]] = internal addrspace(3) global [128 x i8] undef, align 4
+; CHECK-DAG: [[WGLOCALMEM_2:@WGLocalMem.*]] = internal addrspace(3) global [4 x i8] undef, align 4
+; CHECK-DAG: [[WGLOCALMEM_3:@WGLocalMem.*]] = internal addrspace(3) global [256 x i8] undef, align 8
 
 ; CHECK-NOT: __sycl_allocateLocalMemory
 
