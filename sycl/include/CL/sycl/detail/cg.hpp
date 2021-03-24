@@ -91,7 +91,7 @@ namespace detail {
 //
 
 // Used to represent a type of an extended member
-enum class ExtendedMembersType: unsigned int {
+enum class ExtendedMembersType : unsigned int {
   HANDLER_KERNEL_BUNDLE = 0,
 };
 
@@ -131,12 +131,11 @@ constexpr unsigned char getCGTypeVersion(unsigned int Type) {
 /// Base class for all types of command groups.
 class CG {
 public:
-
   // Used to version CG and handler classes. Using unsigned char to as the
   // version is encoded in the highest byte of CGType value. So it is not
   // possible to encode a value > 255 anyway which should be big enough room
   // for version bumping.
-  enum class CG_VERSION: unsigned char {
+  enum class CG_VERSION : unsigned char {
     V0 = 0,
     V1 = 1,
   };

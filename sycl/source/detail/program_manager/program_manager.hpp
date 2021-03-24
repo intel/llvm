@@ -96,7 +96,7 @@ public:
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const device &Device,
                                   const string_class &KernelName,
-                                  const property_list &PropList,//const program_impl *Prg = nullptr,
+                                  const property_list &PropList,
                                   bool JITCompilationIsRequired = false);
 
   std::pair<RT::PiKernel, std::mutex *>

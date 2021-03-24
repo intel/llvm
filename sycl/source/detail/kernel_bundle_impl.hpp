@@ -128,7 +128,8 @@ public:
   kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
     MContext = Bundles[0]->MContext;
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
-      MDevices.insert(MDevices.end(), Bundle->MDevices.begin(), Bundle->MDevices.end());
+      MDevices.insert(MDevices.end(), Bundle->MDevices.begin(),
+                      Bundle->MDevices.end());
       MDeviceImages.insert(MDeviceImages.end(), Bundle->MDeviceImages.begin(),
                            Bundle->MDeviceImages.end());
     }

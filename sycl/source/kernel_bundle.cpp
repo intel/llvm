@@ -84,7 +84,7 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
 }
 
 ////////////////////////////
-///// free functions 
+///// free functions
 ///////////////////////////
 
 detail::KernelBundleImplPtr

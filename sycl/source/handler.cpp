@@ -201,7 +201,7 @@ event handler::finalize() {
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
-  }
+}
 
 void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    access::target AccTarget) {

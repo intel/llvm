@@ -1270,7 +1270,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // TODO: Handle zero sized Device list.
   Plugin.call<PiApiKind::piProgramCompile>(
-      ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(), PIDevices.data(),
+      ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
+      PIDevices.data(),
       /*options=*/nullptr,
       /*num_input_headers=*/0, /*input_headers=*/nullptr,
       /*header_include_names=*/nullptr,
@@ -1449,13 +1450,11 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // Cache supports key with once device only, but here we have multiple
   // devices a program is built for, so add the program to the cache for all
   // other devices.
-  auto CacheOtherDevices = [ResProgram]() {
-    return ResProgram;
-  };
+  auto CacheOtherDevices = [ResProgram]() { return ResProgram; };
 
   // The program for device "0" is already added to the cache during the first
   // call to getOrBuild, so starting with "1"
-  for(size_t Idx = 1; Idx < Devs.size(); ++Idx) {
+  for (size_t Idx = 1; Idx < Devs.size(); ++Idx) {
     const RT::PiDevice PiDeviceAdd =
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
@@ -1465,7 +1464,6 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
                        std::make_pair(PiDeviceAdd, CompileOpts + LinkOpts)),
         AcquireF, GetF, CacheOtherDevices);
   }
-
 
   // devive_image_impl shares ownership of PIProgram with, at least, program
   // cache. The ref counter will be descremented in the destructor of
