@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -51,7 +52,7 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
   // TODO switch to using group::get_local_linear_id here once it's implemented
   id<3> Id = __spirv::initLocalInvocationId<3, id<3>>();
   if (Id == id<3>(0, 0, 0))
-    new (AllocatedMem) T(args...);
+    new (AllocatedMem) T(std::forward<Args>(args)...);
   detail::workGroupBarrier();
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
