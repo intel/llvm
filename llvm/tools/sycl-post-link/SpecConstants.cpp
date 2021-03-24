@@ -28,6 +28,10 @@ namespace {
 constexpr char SYCL_GET_SPEC_CONST_VAL[] = "_Z27__sycl_getSpecConstantValue";
 constexpr char SYCL_GET_COMPOSITE_SPEC_CONST_VAL[] =
     "_Z36__sycl_getCompositeSpecConstantValue";
+constexpr char SYCL_GET_SCALAR_2020_SPEC_CONST_VAL[] =
+    "_Z37__sycl_getScalar2020SpecConstantValue";
+constexpr char SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL[] =
+    "_Z40__sycl_getComposite2020SpecConstantValue";
 
 // Unmangled base name of all __spirv_SpecConstant intrinsics which differ by
 // the value type.
@@ -57,6 +61,23 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     // @.str = private unnamed_addr constant[10 x i8] c"SpecConst\00", align 1
     // ...
     // %TName = alloca i8 addrspace(4)*, align 8
+    // %TName.ascast = addrspacecast i8 addrspace(4)** %TName to
+    //                               i8 addrspace(4)* addrspace(4)*
+    // ...
+    // store i8 addrspace(4)* getelementptr inbounds ([19 x i8], [19 x i8]
+    //    addrspace(4)* addrspacecast ([19 x i8] addrspace(1)* @str to [19 x i8]
+    //    addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspace(4)*
+    //    %TName.ascast, align 8
+    // %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %TName.ascast,
+    //    align 8
+    // %call = call spir_func zeroext
+    //   i1 @_Z27__sycl_getSpecConstantValueIbET_PKc(i8 addrspace(4)* %0)
+    // ^^^^^^^^^^^^^^^^^^^^
+    // or (optimized version)
+    // vvvvvvvvvvvvvvvvvvvv
+    // @.str = private unnamed_addr constant[10 x i8] c"SpecConst\00", align 1
+    // ...
+    // %TName = alloca i8 addrspace(4)*, align 8
     // ...
     // store i8 addrspace(4)* addrspacecast(
     //    i8* getelementptr inbounds([10 x i8], [10 x i8] * @.str, i32 0, i32 0)
@@ -68,8 +89,14 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     // sequence, w/o any intervening stores and calls between the store and load
     // so that %1 is trivially known to be the address of the @.str literal.
 
-    AllocaInst *TmpPtr =
-        cast<AllocaInst>(L->getPointerOperand()->stripPointerCasts());
+    Value *TmpPtr = L->getPointerOperand();
+    AssertRelease((isa<AddrSpaceCastInst>(TmpPtr) &&
+                   isa<AllocaInst>(cast<AddrSpaceCastInst>(TmpPtr)
+                                       ->getPointerOperand()
+                                       ->stripPointerCasts())) ||
+                      isa<AllocaInst>(TmpPtr),
+                  "unexpected instruction type");
+
     // find the store of the literal address into TmpPtr
     StoreInst *Store = nullptr;
 
@@ -403,7 +430,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       continue;
 
     if (!F.getName().startswith(SYCL_GET_SPEC_CONST_VAL) &&
-        !F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL))
+        !F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
       continue;
 
     SmallVector<CallInst *, 32> SCIntrCalls;
@@ -420,7 +449,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       // literals are passed to it in the SYCL RT source code, and application
       // code can't use this intrinsic directly.
       bool IsComposite =
-          F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL);
+          F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) ||
+          F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
 
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
