@@ -39,6 +39,58 @@ class queue;
 
 namespace detail {
 
+
+// Periodically there is a need to extend handler and CG classes to hold more
+// data(members) than it has now. But any modification of the layout of those
+// classes is an ABI break. To have an ability to have more data the following
+// approach is implemented:
+//
+// Those classes have a member - MSharedPtrStorage which is an std::vector of
+// std::shared_ptr's and is supposed to hold a reference counters of a user
+// provided shared_ptr's.
+//
+// The first element of this vector is reused to store a vector of additional
+// members handler and CG need to have.
+//
+// This additional arguments are represented using "ExtendedMemberT" structure
+// which has a pointer to an arbitrary value and an integer which is used to
+// understand how the value pointer points to should be interpreted.
+//
+// ========  ========      ========
+// |      |  |      | ...  |      | std::vector<std::shared_ptr<void>>
+// ========  ========      ========
+//    ||        ||            ||
+//    ||        \/            \/
+//    ||       user          user
+//    ||       data          data
+//    \/
+// ========  ========      ========
+// | Type |  | Type | ...  | Type | std::vector<ExtendedMemberT>
+// |      |  |      |      |      |
+// | Ptr  |  | Ptr  | ...  | Ptr  |
+// ========  ========      ========
+//
+// Prior this change this vector is supposed to have user's values only, so it
+// is not legal to expect that the first argument is a special one. Versioning
+// is implemented to overcome this problem - if first element of the
+// MSharedPtrStorage is a pointer to the special vector then CGType value has
+// version "1" encoded.
+//
+// The version of CG type is encoded in the higher byte of the value:
+//
+// 0x00000001 - CG type KERNEL version 0
+// 0x01000001 - CG type KERNEL version 1
+//   /\
+//   ||
+// The byte specifies the version
+//
+// A user of this vector should not expect that a specific data is stored at a
+// specific position, but interator over all looking for a ExtendedMemberT
+// value with desired type.
+// This allows changing/extending the content of this vector without changing
+// the version.
+//
+
 // Used to represent a type of an extended member
 enum class ExtendedMembersType: unsigned int {
   HANDLER_KERNEL_BUNDLE = 0,
@@ -63,14 +115,6 @@ class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
 
-// The version of CG type is encoded in the higher byte of the value:
-//
-// 0x00000001 - CG type KERNEL version 0
-// 0x01000001 - CG type KERNEL version 1
-//   /\
-//   ||
-// The byte describes the version
-//
 // The constant is used to shift left CG type value to access it's version
 constexpr unsigned int ShiftBitsForVersion = 24;
 
