@@ -39,6 +39,8 @@ $_ZTS17SpecializedKernel = comdat any
 ; CHECK-NOT: @__unique_stable_name.SC_If12MyFloatConstE3getEv
 @__unique_stable_name.SC_Id13MyDoubleConstE3getEv = private unnamed_addr constant [20 x i8] c"_ZTS13MyDoubleConst\00", align 1
 ; CHECK-NOT: @__unique_stable_name.SC_Id13MyDoubleConstE3getEv
+@__unique_stable_name.SC_Id14MyDoubleConst2E3getEv = private unnamed_addr constant [21 x i8] c"_ZTS14MyDoubleConst2\00", align 1
+; CHECK-NOT: @__unique_stable_name.SC_Id14MyDoubleConst2E3getEv
 
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel(float addrspace(1)* %0, %"cl::sycl::range"* byval(%"cl::sycl::range") align 8 %1, %"cl::sycl::range"* byval(%"cl::sycl::range") align 8 %2, %"cl::sycl::id"* byval(%"cl::sycl::id") align 8 %3) local_unnamed_addr #0 comdat !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
@@ -111,10 +113,14 @@ define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel(float addrsp
 ; CHECK-RT: %{{[0-9]+}} = call double @_Z20__spirv_SpecConstantid(i32 10, double 0.000000e+00), !SYCL_SPEC_CONST_SYM_ID ![[ID10:[0-9]+]]
   %36 = fadd double %35, %34
 ; CHECK-DEF: %[[SUM9:[0-9]+]] = fadd double 0.000000e+00, %[[VAL7]]
-  %37 = fptrunc double %36 to float
-; CHECK-DEF: %[[VAL8:[0-9]+]] = fptrunc double %[[SUM9]] to float
-  %38 = addrspacecast float addrspace(1)* %7 to float addrspace(4)*
-  store float %37, float addrspace(4)* %38, align 4, !tbaa !8
+  %37 = tail call spir_func double @_Z37__sycl_getScalar2020SpecConstantValueIdET_PKcPvS3_(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([21 x i8], [21 x i8]* @__unique_stable_name.SC_Id14MyDoubleConst2E3getEv, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* null, i8 addrspace(4)* null)
+; CHECK-RT: %{{[0-9]+}} = call double @_Z20__spirv_SpecConstantid(i32 11, double 0.000000e+00), !SYCL_SPEC_CONST_SYM_ID ![[ID11:[0-9]+]]
+  %38 = fadd double %37, %36
+; CHECK-DEF: %[[SUM10:[0-9]+]] = fadd double 0.000000e+00, %[[SUM9]]
+  %39 = fptrunc double %38 to float
+; CHECK-DEF: %[[VAL8:[0-9]+]] = fptrunc double %[[SUM10]] to float
+  %40 = addrspacecast float addrspace(1)* %7 to float addrspace(4)*
+  store float %39, float addrspace(4)* %40, align 4, !tbaa !8
   ret void
 }
 
@@ -139,6 +145,8 @@ declare dso_local spir_func i64 @_Z27__sycl_getSpecConstantValueImET_PKc(i8 addr
 declare dso_local spir_func float @_Z27__sycl_getSpecConstantValueIfET_PKc(i8 addrspace(4)*) local_unnamed_addr #1
 
 declare dso_local spir_func double @_Z27__sycl_getSpecConstantValueIdET_PKc(i8 addrspace(4)*) local_unnamed_addr #1
+
+declare dso_local spir_func double @_Z37__sycl_getScalar2020SpecConstantValueIdET_PKcPvS3_(i8 addrspace(4)*, i8 addrspace(4)*, i8 addrspace(4)*) local_unnamed_addr #1
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "sycl-module-id"="/iusers/kbobrovs/ws/kbobrovs_llvm/sycl/test/spec_const/spec_const_types.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -172,3 +180,4 @@ attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-
 ; CHECK-RT: ![[ID8]] = !{!"_ZTS13MyUInt64Const", i32 8}
 ; CHECK-RT: ![[ID9]] = !{!"_ZTS12MyFloatConst", i32 9}
 ; CHECK-RT: ![[ID10]] = !{!"_ZTS13MyDoubleConst", i32 10}
+; CHECK-RT: ![[ID11]] = !{!"_ZTS14MyDoubleConst2", i32 11}
