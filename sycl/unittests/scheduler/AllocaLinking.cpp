@@ -35,6 +35,7 @@ static pi_result
 redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                          void *host_ptr, pi_mem *ret_mem,
                          const pi_mem_properties *properties = nullptr) {
+  *ret_mem = nullptr;
   return PI_SUCCESS;
 }
 
@@ -70,8 +71,8 @@ TEST_F(SchedulerTest, AllocaLinking) {
     detail::AllocaCommandBase *HostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
 
-    EXPECT_TRUE(!HostAllocaCmd->MLinkedAllocaCmd);
-    EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
+    EXPECT_FALSE(HostAllocaCmd->MLinkedAllocaCmd);
+    EXPECT_FALSE(NonHostAllocaCmd->MLinkedAllocaCmd);
   }
   // Should be linked in case of pinned host memory
   {
