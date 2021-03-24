@@ -92,8 +92,6 @@ elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "SunOS")
     )
 elseif(ZOS)
   list(APPEND LIBCXX_SOURCES
-    support/ibm/mbsnrtowcs.inc
-    support/ibm/wcsnrtombs.inc
     support/ibm/xlocale_zos.cpp
     )
 endif()
@@ -261,12 +259,13 @@ if (LIBCXX_ENABLE_SHARED)
   endif()
 endif()
 
+set(CMAKE_STATIC_LIBRARY_PREFIX "lib")
+
 # Build the static library.
 if (LIBCXX_ENABLE_STATIC)
   add_library(cxx_static STATIC ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
   target_link_libraries(cxx_static PUBLIC cxx-headers
                                    PRIVATE ${LIBCXX_LIBRARIES})
-  set(CMAKE_STATIC_LIBRARY_PREFIX "lib")
   set_target_properties(cxx_static
     PROPERTIES
       COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS}"

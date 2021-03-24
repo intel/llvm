@@ -631,6 +631,15 @@ TEST_P(ImportType, ImportDependentTemplateSpecialization) {
                  fieldDecl(hasType(dependentTemplateSpecializationType())))))));
 }
 
+TEST_P(ImportType, ImportDeducedTemplateSpecialization) {
+  MatchVerifier<Decl> Verifier;
+  testImport("template <typename T>"
+             "class C { public: C(T); };"
+             "C declToImport(123);",
+             Lang_CXX17, "", Lang_CXX17, Verifier,
+             varDecl(hasType(deducedTemplateSpecializationType())));
+}
+
 const internal::VariadicDynCastAllOfMatcher<Stmt, SizeOfPackExpr>
     sizeOfPackExpr;
 
@@ -5615,30 +5624,6 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportDefaultConstructibleLambdas) {
             2u);
 }
 
-TEST_P(ASTImporterOptionSpecificTestBase, ImplicitlyDeclareSelf) {
-  Decl *FromTU = getTuDecl(R"(
-                           __attribute__((objc_root_class))
-                           @interface Root
-                           @end
-                           @interface C : Root
-                             -(void)method;
-                           @end
-                           @implementation C
-                             -(void)method {}
-                           @end
-                           )",
-                           Lang_OBJCXX, "input.mm");
-  auto *FromMethod = LastDeclMatcher<ObjCMethodDecl>().match(
-      FromTU, namedDecl(hasName("method")));
-  ASSERT_TRUE(FromMethod);
-  auto ToMethod = Import(FromMethod, Lang_OBJCXX);
-  ASSERT_TRUE(ToMethod);
-
-  // Both methods should have their implicit parameters.
-  EXPECT_TRUE(FromMethod->getSelfDecl() != nullptr);
-  EXPECT_TRUE(ToMethod->getSelfDecl() != nullptr);
-}
-
 struct ImportAutoFunctions : ASTImporterOptionSpecificTestBase {};
 
 TEST_P(ImportAutoFunctions, ReturnWithTypedefDeclaredInside) {
@@ -6230,6 +6215,25 @@ TEST_P(ASTImporterOptionSpecificTestBase,
       classTemplateDecl(hasName("basic_stringbuf"), unless(isImplicit())));
   auto *To2 = cast_or_null<ClassTemplateDecl>(Import(From2, Lang_CXX11));
   EXPECT_TRUE(To2);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportOfCapturedVLAType) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      void declToImport(int N) {
+        int VLA[N];
+        [&VLA] {}; // FieldDecl inside the lambda.
+      }
+      )",
+      Lang_CXX14);
+  auto *FromFD = FirstDeclMatcher<FieldDecl>().match(FromTU, fieldDecl());
+  ASSERT_TRUE(FromFD);
+  ASSERT_TRUE(FromFD->hasCapturedVLAType());
+
+  auto *ToFD = Import(FromFD, Lang_CXX14);
+  EXPECT_TRUE(ToFD);
+  EXPECT_TRUE(ToFD->hasCapturedVLAType());
+  EXPECT_NE(FromFD->getCapturedVLAType(), ToFD->getCapturedVLAType());
 }
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,

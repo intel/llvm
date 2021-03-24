@@ -19,6 +19,7 @@
 #ifndef MLIR_IR_OPDEFINITION_H
 #define MLIR_IR_OPDEFINITION_H
 
+#include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 
@@ -122,27 +123,6 @@ public:
   /// The source location the operation was defined or derived from.
   Location getLoc() { return state->getLoc(); }
 
-  /// Return all of the attributes on this operation.
-  LLVM_ATTRIBUTE_DEPRECATED(
-      ArrayRef<NamedAttribute> getAttrs(),
-      "Use Operation::getAttrs() instead (replace '.' with '->').") {
-    return state->getAttrs();
-  }
-
-  /// Remove the attribute with the specified name if it exists. Return the
-  /// attribute that was erased, or nullptr if there was no attribute with such
-  /// name.
-  LLVM_ATTRIBUTE_DEPRECATED(
-      Attribute removeAttr(Identifier name),
-      "Use Operation::removeAttr() instead (replace '.' with '->').") {
-    return state->removeAttr(name);
-  }
-  LLVM_ATTRIBUTE_DEPRECATED(
-      Attribute removeAttr(StringRef name),
-      "Use Operation::removeAttr() instead (replace '.' with '->').") {
-    return state->removeAttr(Identifier::get(name, getContext()));
-  }
-
   /// Return true if there are no users of any results of this operation.
   bool use_empty() { return state->use_empty(); }
 
@@ -185,7 +165,7 @@ public:
 public:
   /// This hook returns any canonicalization pattern rewrites that the operation
   /// supports, for use by the canonicalization pass.
-  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
+  static void getCanonicalizationPatterns(RewritePatternSet &results,
                                           MLIRContext *context) {}
 
 protected:
@@ -1537,6 +1517,13 @@ public:
 #endif
     return false;
   }
+  /// Provide `classof` support for other OpBase derived classes, such as
+  /// Interfaces.
+  template <typename T>
+  static std::enable_if_t<std::is_base_of<OpState, T>::value, bool>
+  classof(const T *op) {
+    return classof(const_cast<T *>(op)->getOperation());
+  }
 
   /// Expose the type we are instantiated on to template machinery that may want
   /// to introspect traits on this operation.
@@ -1735,7 +1722,20 @@ protected:
   static typename InterfaceBase::Concept *getInterfaceFor(Operation *op) {
     // Access the raw interface from the abstract operation.
     auto *abstractOp = op->getAbstractOperation();
-    return abstractOp ? abstractOp->getInterface<ConcreteType>() : nullptr;
+    if (abstractOp) {
+      if (auto *opIface = abstractOp->getInterface<ConcreteType>())
+        return opIface;
+      // Fallback to the dialect to provide it with a chance to implement this
+      // interface for this operation.
+      return abstractOp->dialect.getRegisteredInterfaceForOp<ConcreteType>(
+          op->getName());
+    }
+    // Fallback to the dialect to provide it with a chance to implement this
+    // interface for this operation.
+    Dialect *dialect = op->getName().getDialect();
+    return dialect ? dialect->getRegisteredInterfaceForOp<ConcreteType>(
+                         op->getName())
+                   : nullptr;
   }
 
   /// Allow access to `getInterfaceFor`.

@@ -672,11 +672,21 @@ bool BasicAAResult::pointsToConstantMemory(const MemoryLocation &Loc,
   return Worklist.empty();
 }
 
+static bool isIntrinsicCall(const CallBase *Call, Intrinsic::ID IID) {
+  const IntrinsicInst *II = dyn_cast<IntrinsicInst>(Call);
+  return II && II->getIntrinsicID() == IID;
+}
+
 /// Returns the behavior when calling the given call site.
 FunctionModRefBehavior BasicAAResult::getModRefBehavior(const CallBase *Call) {
   if (Call->doesNotAccessMemory())
     // Can't do better than this.
     return FMRB_DoesNotAccessMemory;
+
+  // The assume intrinsic can have operand bundles, but still only accesses
+  // inaccessible memory in that case (to maintain control dependencies).
+  if (isIntrinsicCall(Call, Intrinsic::assume))
+    return FMRB_OnlyAccessesInaccessibleMem;
 
   FunctionModRefBehavior Min = FMRB_UnknownModRefBehavior;
 
@@ -769,11 +779,6 @@ ModRefInfo BasicAAResult::getArgModRefInfo(const CallBase *Call,
     return ModRefInfo::NoModRef;
 
   return AAResultBase::getArgModRefInfo(Call, ArgIdx);
-}
-
-static bool isIntrinsicCall(const CallBase *Call, Intrinsic::ID IID) {
-  const IntrinsicInst *II = dyn_cast<IntrinsicInst>(Call);
-  return II && II->getIntrinsicID() == IID;
 }
 
 #ifndef NDEBUG
@@ -939,15 +944,9 @@ ModRefInfo BasicAAResult::getModRefInfo(const CallBase *Call,
     return rv;
   }
 
-  // While the assume intrinsic is marked as arbitrarily writing so that
-  // proper control dependencies will be maintained, it never aliases any
-  // particular memory location.
-  if (isIntrinsicCall(Call, Intrinsic::assume))
-    return ModRefInfo::NoModRef;
-
-  // Like assumes, guard intrinsics are also marked as arbitrarily writing so
-  // that proper control dependencies are maintained but they never mods any
-  // particular memory location.
+  // Guard intrinsics are marked as arbitrarily writing so that proper control
+  // dependencies are maintained but they never mods any particular memory
+  // location.
   //
   // *Unlike* assumes, guard intrinsics are modeled as reading memory since the
   // heap state at the point the guard is issued needs to be consistent in case
@@ -991,16 +990,9 @@ ModRefInfo BasicAAResult::getModRefInfo(const CallBase *Call,
 ModRefInfo BasicAAResult::getModRefInfo(const CallBase *Call1,
                                         const CallBase *Call2,
                                         AAQueryInfo &AAQI) {
-  // While the assume intrinsic is marked as arbitrarily writing so that
-  // proper control dependencies will be maintained, it never aliases any
-  // particular memory location.
-  if (isIntrinsicCall(Call1, Intrinsic::assume) ||
-      isIntrinsicCall(Call2, Intrinsic::assume))
-    return ModRefInfo::NoModRef;
-
-  // Like assumes, guard intrinsics are also marked as arbitrarily writing so
-  // that proper control dependencies are maintained but they never mod any
-  // particular memory location.
+  // Guard intrinsics are marked as arbitrarily writing so that proper control
+  // dependencies are maintained but they never mods any particular memory
+  // location.
   //
   // *Unlike* assumes, guard intrinsics are modeled as reading memory since the
   // heap state at the point the guard is issued needs to be consistent in case
