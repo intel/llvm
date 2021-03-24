@@ -149,6 +149,37 @@ static constexpr bool check_kernel_arg_types() {
   return check_fn_signature<std::remove_reference_t<F>, void(Args...)>::value;
 }
 
+// TODO: replace run* funcs below with "constexpr if" when DPC++ RT switched
+// to C++17
+template <typename KernelType, typename std::enable_if_t<check_kernel_arg_types<
+                                   KernelType, kernel_handler>()> * = nullptr>
+static constexpr void runKernelWithoutArg(KernelType KernelName) {
+  kernel_handler KH;
+  KernelName(KH);
+}
+
+template <
+    typename KernelType,
+    typename std::enable_if_t<check_kernel_arg_types<KernelType>()> * = nullptr>
+static constexpr void runKernelWithoutArg(KernelType KernelName) {
+  KernelName();
+}
+
+template <typename KernelType, typename ArgType,
+          typename std::enable_if_t<check_kernel_arg_types<
+              KernelType, ArgType, kernel_handler>()> * = nullptr>
+static constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
+  kernel_handler KH;
+  KernelName(Arg, KH);
+}
+
+template <typename KernelType, typename ArgType,
+          typename std::enable_if_t<
+              check_kernel_arg_types<KernelType, ArgType>()> * = nullptr>
+static constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
+  KernelName(Arg);
+}
+
 // The pure virtual class aimed to store lambda/functors of any type.
 class HostKernelBase {
 public:
@@ -224,7 +255,7 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, void>::value>
   runOnHost(const NDRDescT &) {
-    runKernelWithoutArg<decltype(MKernel)>();
+    runKernelWithoutArg<KernelType>(MKernel);
   }
 
   template <class ArgT = KernelArgType>
@@ -245,19 +276,18 @@ public:
       UpperBound[I] = Range[I] + Offset[I];
     }
 
-    detail::NDLoop<Dims>::iterate(/*LowerBound=*/Offset, Stride, UpperBound,
-                                  [&](const sycl::id<Dims> &ID) {
-                                    sycl::item<Dims, /*Offset=*/true> Item =
-                                        IDBuilder::createItem<Dims, true>(
-                                            Range, ID, Offset);
+    detail::NDLoop<Dims>::iterate(
+        /*LowerBound=*/Offset, Stride, UpperBound,
+        [&](const sycl::id<Dims> &ID) {
+          sycl::item<Dims, /*Offset=*/true> Item =
+              IDBuilder::createItem<Dims, true>(Range, ID, Offset);
 
-                                    if (StoreLocation) {
-                                      store_id(&ID);
-                                      store_item(&Item);
-                                    }
-                                    runKernelWithArg<const sycl::id<Dims> &,
-                                                     decltype(MKernel)>(ID); 
-                                  });
+          if (StoreLocation) {
+            store_id(&ID);
+            store_item(&Item);
+          }
+          runKernelWithArg<KernelType, const sycl::id<Dims> &>(MKernel, ID);
+        });
   }
 
   template <class ArgT = KernelArgType>
@@ -281,8 +311,8 @@ public:
         store_id(&ID);
         store_item(&ItemWithOffset);
       }
-      runKernelWithArg<sycl::item<Dims, /*Offset=*/false>, decltype(MKernel)>(
-          Item);
+      runKernelWithArg<KernelType, sycl::item<Dims, /*Offset=*/false>>(MKernel,
+                                                                       Item);
     });
   }
 
@@ -305,20 +335,19 @@ public:
       UpperBound[I] = Range[I] + Offset[I];
     }
 
-    detail::NDLoop<Dims>::iterate(/*LowerBound=*/Offset, Stride, UpperBound,
-                                  [&](const sycl::id<Dims> &ID) {
-                                    sycl::item<Dims, /*Offset=*/true> Item =
-                                        IDBuilder::createItem<Dims, true>(
-                                            Range, ID, Offset);
+    detail::NDLoop<Dims>::iterate(
+        /*LowerBound=*/Offset, Stride, UpperBound,
+        [&](const sycl::id<Dims> &ID) {
+          sycl::item<Dims, /*Offset=*/true> Item =
+              IDBuilder::createItem<Dims, true>(Range, ID, Offset);
 
-                                    if (StoreLocation) {
-                                      store_id(&ID);
-                                      store_item(&Item);
-                                    }
-                                    runKernelWithArg<
-                                        sycl::item<Dims, /*Offset=*/true>,
-                                        decltype(MKernel)>(Item);
-                                  });
+          if (StoreLocation) {
+            store_id(&ID);
+            store_item(&Item);
+          }
+          runKernelWithArg<KernelType, sycl::item<Dims, /*Offset=*/true>>(
+              MKernel, Item);
+        });
   }
 
   template <class ArgT = KernelArgType>
@@ -367,7 +396,8 @@ public:
           auto g = NDItem.get_group();
           store_group(&g);
         }
-        runKernelWithArg<const sycl::nd_item<Dims>, decltype(MKernel)>(NDItem);
+        runKernelWithArg<KernelType, const sycl::nd_item<Dims>>(MKernel,
+                                                                NDItem);
       });
     });
   }
@@ -395,42 +425,11 @@ public:
     detail::NDLoop<Dims>::iterate(NGroups, [&](const id<Dims> &GroupID) {
       sycl::group<Dims> Group =
           IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, NGroups, GroupID);
-      runKernelWithArg<sycl::group<Dims>, decltype(MKernel)>(Group);
+      runKernelWithArg<KernelType, sycl::group<Dims>>(MKernel, Group);
     });
   }
 
   ~HostKernel() = default;
-
-private:
-  // TODO: replace run* funcs below with "constexpr if" when DPC++ RT switched
-  // to C++17
-  template <class KernelT>
-  std::enable_if_t<detail::check_kernel_arg_types<KernelT, kernel_handler>(),
-                   void>
-  runKernelWithoutArg() {
-    kernel_handler KH;
-    MKernel(KH);
-  }
-
-  template <class KernelT>
-  std::enable_if_t<detail::check_kernel_arg_types<KernelT>(), void>
-  runKernelWithoutArg() {
-    MKernel();
-  }
-
-  template <typename ArgType, class KernelT>
-  std::enable_if_t<
-      detail::check_kernel_arg_types<KernelT, ArgType, kernel_handler>(), void>
-  runKernelWithArg(ArgType Arg) {
-    kernel_handler KH;
-    MKernel(Arg, KH);
-  }
-
-  template <typename ArgType, class KernelT>
-  std::enable_if_t<detail::check_kernel_arg_types<KernelT, ArgType>(), void>
-  runKernelWithArg(ArgType Arg) {
-    MKernel(Arg);
-  }
 };
 
 } // namespace detail
