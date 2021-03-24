@@ -4699,8 +4699,13 @@ public:
       for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI)
         HasFPGATarget |= TI->second->getTriple().getSubArch() ==
                          llvm::Triple::SPIRSubArch_fpga;
-      if (HasFPGATarget && !(HostAction->getType() == types::TY_Object &&
-                             isObjectFile(InputName))) {
+      bool isArchive = !(HostAction->getType() == types::TY_Object &&
+                         isObjectFile(InputName));
+      if (!HasFPGATarget && isArchive &&
+          HostAction->getType() == types::TY_FPGA_AOCO)
+        // Archive with Non-FPGA target with AOCO type should not be unbundled.
+        return false;
+      if (HasFPGATarget && isArchive) {
         // Type FPGA aoco is a special case for -foffload-static-lib.
         if (HostAction->getType() == types::TY_FPGA_AOCO) {
           if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
