@@ -163,7 +163,6 @@ private:
                                       bool JITCompilationIsRequired = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
-
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const string_class &CompileOptions,
                    const string_class &LinkOptions, const RT::PiDevice &Device,
