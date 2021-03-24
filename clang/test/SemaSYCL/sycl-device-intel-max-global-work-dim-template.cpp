@@ -68,14 +68,6 @@ template <int size>
 template <int size>
 [[intel::max_global_work_dim(size)]] void func4() {} // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
 
-// Test that checks template instantiations for same argument values. We don't duplicate the attribute with the same arguments.
-template <int size>
-[[intel::max_global_work_dim(2)]] void func5();
-
-template <int size>
-[[intel::max_global_work_dim(size)]] void func5() {}
-
-
 int check() {
   // no error expected
   func3<3>();
@@ -83,10 +75,12 @@ int check() {
   func3<-1>();
   //expected-note@+1 {{in instantiation of function template specialization 'func4<2>' requested here}}
   func4<2>();
-  // no error expected
-  func5<2>();
   return 0;
 }
+
+// No diagnostic is thrown since arguments match. Duplicate attribute is silently ignored.
+[[intel::max_global_work_dim(2)]]
+[[intel::max_global_work_dim(2)]] void func5() {}
 
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
 // CHECK: TemplateArgument integral 3

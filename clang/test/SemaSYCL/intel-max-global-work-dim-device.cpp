@@ -33,7 +33,7 @@ struct Func {
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
-// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
+// No diagnostic is thrown since arguments match.
 [[intel::max_global_work_dim(1)]] void bar();
 [[intel::max_global_work_dim(1)]] void bar() {}
 
