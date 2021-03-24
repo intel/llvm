@@ -31,7 +31,6 @@ int main() {
   sycl::kernel_id Kernel1ID = sycl::get_kernel_id<Kernel1Name>();
   sycl::kernel_id Kernel2ID = sycl::get_kernel_id<Kernel2Name>();
 
-#if 0
   {
     sycl::kernel_bundle KernelBundle1 =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
@@ -126,16 +125,56 @@ int main() {
 
     sycl::kernel_bundle<sycl::bundle_state::object> KernelBundleObject1 =
         sycl::compile(KernelBundleInput1, KernelBundleInput1.get_devices());
+    // CHECK:---> piProgramCreate
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE1:0x[0-9,a,b,c,d,e,f]+]]
+    //
+    // CHECK:---> piProgramCompile(
+    // CHECK-Next: <unknown> : [[PROGRAM_HANDLE1]]
+
+
 
     sycl::kernel_bundle<sycl::bundle_state::object> KernelBundleObject2 =
         sycl::compile(KernelBundleInput2, KernelBundleInput2.get_devices());
+    // CHECK:---> piProgramCreate
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE2:0x[0-9,a,b,c,d,e,f]+]]
+    //
+    // CHECK:---> piProgramCompile(
+    // CHECK-Next: <unknown> : [[PROGRAM_HANDLE2]]
+
 
     // TODO: Pass more kernel bundles
     sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExecutable =
         sycl::link({KernelBundleObject1, KernelBundleObject2},
                    KernelBundleObject1.get_devices());
+    // CHECK:---> piProgramLink(
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <nullptr>
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <nullptr>
+    // CHECK-NEXT: <nullptr>
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT:---> pi_result : PI_SUCCESS
+    // CHECK-NEXT: [out]<unknown> ** : 0[ nullptr ]
+    // PI tracing doesn't allow checking for all input programs so far.
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE1]]
+
+
+    assert(KernelBundleExecutable.has_kernel(Kernel1ID));
+    assert(KernelBundleExecutable.has_kernel(Kernel2ID));
   }
-#endif
 
   {
     // Test handle::use_kernel_bundle APIs.
@@ -151,20 +190,38 @@ int main() {
     sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExecutable =
         sycl::build(KernelBundleInput, KernelBundleInput.get_devices());
     // CHECK:---> piProgramCreate
-    // CHECK-NEXT: <unknown> : 0xda2888
-    // CHECK-NEXT: <unknown> : 0x470840
-    // CHECK-NEXT: <unknown> : 223328
-    // CHECK-NEXT: <unknown> : 0x7ffcd7b7a3e8
-    // CHECK-NEXT: ) ---> ▸pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : 0x7ffcd7b7a3e8[ 0x2227ad8 ... ]
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE3:0x[0-9,a,b,c,d,e,f]+]]
     //
     // CHECK:---> piProgramBuild(
-    // CHECK-NEXT: <unknown> : 0x2227ad8
+    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
     //
     // CHECK:---> piProgramRetain(
-    // <unknown> : 0x2227ad8
-    // ---> ▸pi_result : PI_SUCCESS
-
+    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
+    // CHECK-NEXT:---> pi_result : PI_SUCCESS
+    //
+    // CHECK:---> piKernelCreate(
+    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
+    // CHECK-NEXT:<const char *>: _ZTS11Kernel3Name
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: ---> pi_result : PI_SUCCESS
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[KERNEL_HANDLE:0x[0-9,a,b,c,d,e,f]+]]
+    //
+    // CHECK:---> piKernelRetain(
+    // CHECK-NEXT: <unknown> : [[KERNEL_HANDLE]]
+    // CHECK-NEXT:---> pi_result : PI_SUCCESS
+    //
+    // CHECK:---> piEnqueueKernelLaunch(
+    // CHECK-NEXT:<unknown> : {{.*}}
+    // CHECK-NEXT:<unknown> : [[KERNEL_HANDLE]]
+    //
+    // CHECK:---> piKernelRelease(
+    // CHECK-NEXT: <unknown> : [[KERNEL_HANDLE]]
+    // CHECK-NEXT:---> pi_result : PI_SUCCESS
 
 
     cl::sycl::buffer<int, 1> Buf(sycl::range<1>{1});
