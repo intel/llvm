@@ -301,7 +301,6 @@ ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 
-#define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
   kernelFunc(kh);
