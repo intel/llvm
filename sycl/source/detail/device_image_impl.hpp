@@ -34,13 +34,12 @@ namespace detail {
 // of specialization constants for it
 class device_image_impl {
 public:
-
   device_image_impl(RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
-                    std::vector<kernel_id> KernelIDs, OSModuleHandle M)
-      : MBinImage(BinImage), MOSModuleHandle(std::move(M)),
-        MContext(std::move(Context)), MDevices(std::move(Devices)),
-        MState(State), MKernelIDs(std::move(KernelIDs)) {}
+                    std::vector<kernel_id> KernelIDs)
+      : MBinImage(BinImage), MContext(std::move(Context)),
+        MDevices(std::move(Devices)), MState(State),
+        MKernelIDs(std::move(KernelIDs)) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
@@ -144,10 +143,6 @@ public:
     return MSpecConstDescs;
   }
 
-  OSModuleHandle &get_OS_module_handle_ref() noexcept {
-    return MOSModuleHandle;
-  }
-
   ~device_image_impl() {
 
     if (MProgram) {
@@ -158,7 +153,6 @@ public:
 
 private:
   RTDeviceBinaryImage *MBinImage = nullptr;
-  OSModuleHandle MOSModuleHandle = 0;
   context MContext;
   std::vector<device> MDevices;
   bundle_state MState;

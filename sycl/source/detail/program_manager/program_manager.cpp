@@ -1196,9 +1196,10 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
-std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
-    const context &Ctx, const std::vector<device> &Devs,
-    bundle_state TargetState, OSModuleHandle &M) {
+std::vector<device_image_plain>
+ProgramManager::getSYCLDeviceImages(const context &Ctx,
+                                    const std::vector<device> &Devs,
+                                    bundle_state TargetState) {
 
   // Collect raw device images
   std::vector<RTDeviceBinaryImage *> BinImages;
@@ -1210,6 +1211,8 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
         BinImages.push_back(ImageUPtr.get());
     }
   }
+  // TODO: Add a diagnostic on multiple device images with conflicting kernel
+  // names.
 
   // TODO: Cache device_image objects
   // Create SYCL device image from those that have compatible state and at least
@@ -1241,7 +1244,7 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
         std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
 
         DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
-            BinImage, Ctx, Devs, ImgState, KernelIDs, M);
+            BinImage, Ctx, Devs, ImgState, KernelIDs);
 
         SYCLDeviceImages.push_back(
             createSyclObjFromImpl<device_image_plain>(Impl));
@@ -1262,8 +1265,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
-      bundle_state::object, InputImpl->get_kernel_ids_ref(),
-      InputImpl->get_OS_module_handle_ref());
+      bundle_state::object, InputImpl->get_kernel_ids_ref());
 
   const detail::plugin &Plugin =
       getSyclObjImpl(InputImpl->get_context())->getPlugin();
@@ -1334,7 +1336,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
           /*BinImage=*/nullptr, Context, Devs, bundle_state::object,
-          std::move(KernelIDs), /*OSModule=*/0);
+          std::move(KernelIDs));
 
   ExecutableImpl->get_program_ref() = LinkedProg;
 
@@ -1356,7 +1358,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
-      InputImpl->get_kernel_ids_ref(), InputImpl->get_OS_module_handle_ref());
+      InputImpl->get_kernel_ids_ref());
 
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 

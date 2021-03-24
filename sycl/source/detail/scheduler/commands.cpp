@@ -1882,7 +1882,7 @@ cl_int ExecCGCommand::enqueueImp() {
     }
   }
   case CG::CGTYPE::KERNEL:
-  case CG::CGTYPE::KERNEL_V2: {
+  case CG::CGTYPE::KERNEL_V1: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;

@@ -148,7 +148,7 @@ public:
   // which are compatible with at least one of the device from Devs.
   std::vector<device_image_plain>
   getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
-                      bundle_state State, OSModuleHandle &M);
+                      bundle_state State);
 
   device_image_plain compile(const device_image_plain &DeviceImage,
                              const std::vector<device> &Devs,

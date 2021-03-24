@@ -121,7 +121,7 @@ event handler::finalize() {
   unique_ptr_class<detail::CG> CommandGroup;
   switch (MCGType) {
   case detail::CG::KERNEL:
-  case detail::CG::KERNEL_V2:
+  case detail::CG::KERNEL_V1:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),

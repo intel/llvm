@@ -89,25 +89,23 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
 
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                       bundle_state State, OSModuleHandle M) {
-  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, State, M);
+                       bundle_state State) {
+  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, State);
 }
 
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        const std::vector<kernel_id> &KernelIDs,
-                       bundle_state State, OSModuleHandle M) {
+                       bundle_state State) {
   return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, KernelIDs,
-                                                      State, M);
+                                                      State);
 }
 
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                       bundle_state State, const DevImgSelectorImpl &Selector,
-                       OSModuleHandle M) {
-
+                       bundle_state State, const DevImgSelectorImpl &Selector) {
   return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, Selector,
-                                                      State, M);
+                                                      State);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
@@ -116,17 +114,17 @@ join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                            bundle_state State, OSModuleHandle M) {
+                            bundle_state State) {
   // Just create a kernel_bundle and check if it has any device_images inside.
-  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, State, M);
+  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, State);
   return KernelBundleImpl.size();
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                             const std::vector<kernel_id> &KernelIds,
-                            bundle_state State, OSModuleHandle M) {
+                            bundle_state State) {
   // Just create a kernel_bundle and check if it has any device_images inside.
-  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, KernelIds, State, M);
+  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, KernelIds, State);
   return KernelBundleImpl.size();
 }
 

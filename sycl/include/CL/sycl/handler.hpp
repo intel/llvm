@@ -822,7 +822,7 @@ private:
       MNDRDesc.set(std::move(AdjustedRange));
       StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
-      MCGType = detail::CG::KERNEL_V2;
+      MCGType = detail::CG::KERNEL_V1;
 #endif
     } else
 #endif // !__SYCL_EXPLICIT_SIMD__ && !SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING
@@ -836,7 +836,7 @@ private:
       MNDRDesc.set(std::move(NumWorkItems));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
-      MCGType = detail::CG::KERNEL_V2;
+      MCGType = detail::CG::KERNEL_V1;
 #endif
     }
   }
@@ -855,7 +855,7 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -917,11 +917,11 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::type Value) {
 
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
     detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-        KernelBundleImpPtr)
+        KernelBundleImplPtr)
         .set_specialization_constant<SpecName>(Value);
   }
 
@@ -1039,7 +1039,7 @@ public:
     MNDRDesc.set(range<1>{1});
 
     StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
 #endif
   }
 
@@ -1151,7 +1151,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
 #endif
   }
 
@@ -1183,7 +1183,7 @@ public:
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
 #endif
   }
 
@@ -1404,7 +1404,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1440,7 +1440,7 @@ public:
     detail::checkValueRange<Dims>(ExecRange);
     MNDRDesc.set(std::move(ExecRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1457,7 +1457,7 @@ public:
     // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1490,7 +1490,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1509,7 +1509,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1533,7 +1533,7 @@ public:
     // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1574,7 +1574,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1610,7 +1610,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1646,7 +1646,7 @@ public:
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1687,7 +1687,7 @@ public:
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1728,7 +1728,7 @@ public:
     MNDRDesc.set(std::move(ExecRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL_V2;
+    MCGType = detail::CG::KERNEL_V1;
 #endif // __SYCL_DEVICE_ONLY__
   }
 

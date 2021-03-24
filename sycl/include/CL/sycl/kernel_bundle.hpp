@@ -321,7 +321,7 @@ namespace detail {
 // public onces
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                       bundle_state State, OSModuleHandle M);
+                       bundle_state State);
 } // namespace detail
 
 /// A kernel bundle in state State which contains all of the kernels in the
@@ -331,9 +331,8 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 template <bundle_state State>
 kernel_bundle<State> get_kernel_bundle(const context &Ctx,
                                        const std::vector<device> &Devs) {
-  static const int Anchor = 0;
-  detail::KernelBundleImplPtr Impl = detail::get_kernel_bundle_impl(
-      Ctx, Devs, State, detail::OSUtil::getOSModuleHandle(&Anchor));
+  detail::KernelBundleImplPtr Impl =
+      detail::get_kernel_bundle_impl(Ctx, Devs, State);
 
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
@@ -350,7 +349,7 @@ namespace detail {
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        const std::vector<kernel_id> &KernelIDs,
-                       bundle_state State, OSModuleHandle M);
+                       bundle_state State);
 } // namespace detail
 
 /// \returns a kernel bundle in state State which contains all of the device
@@ -365,9 +364,8 @@ template <bundle_state State>
 kernel_bundle<State>
 get_kernel_bundle(const context &Ctx, const std::vector<device> &Devs,
                   const std::vector<kernel_id> &KernelIDs) {
-  static const int Anchor = 0;
-  detail::KernelBundleImplPtr Impl = detail::get_kernel_bundle_impl(
-      Ctx, Devs, KernelIDs, State, detail::OSUtil::getOSModuleHandle(&Anchor));
+  detail::KernelBundleImplPtr Impl =
+      detail::get_kernel_bundle_impl(Ctx, Devs, KernelIDs, State);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
 
@@ -399,8 +397,7 @@ using DevImgSelectorImpl =
 // public onces
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                       bundle_state State, const DevImgSelectorImpl &Selector,
-                       OSModuleHandle M);
+                       bundle_state State, const DevImgSelectorImpl &Selector);
 } // namespace detail
 
 /// A kernel bundle in state State which contains all of the device images for
@@ -415,11 +412,8 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx,
             detail::createSyclObjFromImpl<sycl::device_image<State>>(DevImg));
       };
 
-  static const int Anchor = 0;
-
-  detail::KernelBundleImplPtr Impl = detail::get_kernel_bundle_impl(
-      Ctx, Devs, State, SelectorWrapper,
-      detail::OSUtil::getOSModuleHandle(&Anchor));
+  detail::KernelBundleImplPtr Impl =
+      detail::get_kernel_bundle_impl(Ctx, Devs, State, SelectorWrapper);
 
   return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
 }
@@ -437,12 +431,12 @@ namespace detail {
 
 __SYCL_EXPORT bool has_kernel_bundle_impl(const context &Ctx,
                                           const std::vector<device> &Devs,
-                                          bundle_state State, OSModuleHandle M);
+                                          bundle_state State);
 
 __SYCL_EXPORT bool
 has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        const std::vector<kernel_id> &kernelIds,
-                       bundle_state State, OSModuleHandle M);
+                       bundle_state State);
 } // namespace detail
 
 /// \returns true if the following is true:
@@ -457,18 +451,13 @@ has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 /// aspect::online_linker.
 template <bundle_state State>
 bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
-
-  static const int Anchor = 0;
-  return detail::has_kernel_bundle_impl(
-      Ctx, Devs, State, detail::OSUtil::getOSModuleHandle(&Anchor));
+  return detail::has_kernel_bundle_impl(Ctx, Devs, State);
 }
 
 template <bundle_state State>
 bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs,
                        const std::vector<kernel_id> &KernelIDs) {
-  static const int Anchor = 0;
-  return detail::has_kernel_bundle_impl(
-      Ctx, Devs, KernelIDs, State, detail::OSUtil::getOSModuleHandle(&Anchor));
+  return detail::has_kernel_bundle_impl(Ctx, Devs, KernelIDs, State);
 }
 
 template <bundle_state State> bool has_kernel_bundle(const context &Ctx) {

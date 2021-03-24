@@ -133,6 +133,10 @@ constexpr unsigned char getCGTypeVersion(unsigned int Type) {
 class CG {
 public:
 
+  // Used to version CG and handler classes. Using unsigned char to as the
+  // version is encoded in the highest byte of CGType value. So it is not
+  // possible to encode a value > 255 anyway which should be big enough room
+  // for version bumping.
   enum class CG_VERSION: unsigned char {
     V0 = 0,
     V1 = 1,
@@ -155,7 +159,7 @@ public:
     PREFETCH_USM = 12,
     CODEPLAY_INTEROP_TASK = 13,
     CODEPLAY_HOST_TASK = 14,
-    KERNEL_V2 =
+    KERNEL_V1 =
         getVersionedCGType(KERNEL, static_cast<unsigned int>(CG_VERSION::V1)),
   };
 
@@ -188,6 +192,8 @@ public:
         MSharedPtrStorage.empty())
       return nullptr;
 
+    // The first value in shared_ptr storage is supposed to store a vector of
+    // extended members.
     return convertToExtendedMembers(MSharedPtrStorage[0]);
   }
 
@@ -249,7 +255,7 @@ public:
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)) {
     assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL ||
-            getType() == KERNEL_V2) &&
+            getType() == KERNEL_V1) &&
            "Wrong type of exec kernel CG.");
   }
 
