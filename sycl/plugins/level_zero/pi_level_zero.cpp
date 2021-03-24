@@ -5750,7 +5750,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
     return Res;
   ZeEvent = (*Event)->ZeEvent;
   
-  if (auto Res = (*Event)->WaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
+  if (auto Res =
+          (*Event)->WaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
     return Res;
 
   const auto &WaitList = (*Event)->WaitList;
@@ -5758,7 +5759,6 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   if (WaitList.Length) {
     ZE_CALL(zeCommandListAppendWaitOnEvents,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
-            //(ZeCommandList, 1, &(Queue->LastCommandEvent->ZeEvent)));
   }
 
   ZE_CALL(zeCommandListAppendMemAdvise,
