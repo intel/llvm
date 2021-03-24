@@ -1716,8 +1716,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
   }
 
   if (Instruction *Inst = dyn_cast<Instruction>(V)) {
-    BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
-                                 toString(Inst) + "\n", "", __FILE__, __LINE__);
+    BM->SPIRVCK(false, InvalidInstruction, toString(Inst));
   }
 
   llvm_unreachable("Not implemented");
@@ -2779,9 +2778,8 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     else
       // Other LLVM intrinsics shouldn't get to SPIRV, because they
       // can't be represented in SPIRV or aren't implemented yet.
-      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                   II->getCalledOperand()->getName().str(), "",
-                                   __FILE__, __LINE__);
+      BM->SPIRVCK(
+          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
   }
   return nullptr;
 }
