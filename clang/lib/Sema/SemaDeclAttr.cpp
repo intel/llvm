@@ -6306,8 +6306,8 @@ SYCLIntelFPGAMaxConcurrencyAttr *Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
       Diag(DeclAttr->getLocation(),
            diag::err_sycl_loop_or_function_attr_duplication)
           << 1 << 1 << DeclAttr;
-      return nullptr;
     }
+    return nullptr;
   }
   // TODO
   // max_concurrency and disable_component_pipelining attributes can't be
@@ -6342,8 +6342,8 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
       if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
         Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
         Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-        return;
       }
+      return;
     }
   }
 
@@ -9307,7 +9307,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLIntelLoopFuse:
     handleSYCLIntelLoopFuseAttr(S, D, AL);
     break;
-
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
     break;
