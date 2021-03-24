@@ -136,7 +136,7 @@ public:
       std::inplace_merge(MDevices.begin(), MDevices.begin() + DevCurSize,
                          MDevices.end(), LessByHash<device>{});
 
-      // Insert devices from a bundle keeping MDeviceImages sorted.
+      // Insert images from a bundle keeping MDeviceImages sorted.
       const size_t ImgCurSize = MDeviceImages.size();
       MDeviceImages.insert(MDeviceImages.end(), Bundle->MDeviceImages.begin(),
                            Bundle->MDeviceImages.end());

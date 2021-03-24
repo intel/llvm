@@ -57,10 +57,15 @@ public:
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource);
 
-  // TODO: Add desc
-  kernel_impl(RT::PiKernel Kernel, const ContextImplPtr &ContextImpl,
-              const DeviceImageImplPtr &DeviceImageImpl,
-              const KernelBundleImplPtr &KernelBundleImpl);
+  /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
+  /// kernel_bundle and / PiKernel.
+  ///
+  /// \param Kernel is a valid PiKernel instance
+  /// \param ContextImpl is a valid SYCL context
+  /// \param ProgramImpl is a valid instance of kernel_bundle_impl
+  kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+              DeviceImageImplPtr DeviceImageImpl,
+              KernelBundleImplPtr KernelBundleImpl);
 
   /// Constructs a SYCL kernel for host device
   ///

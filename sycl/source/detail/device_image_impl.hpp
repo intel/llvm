@@ -131,7 +131,7 @@ public:
 
   RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
 
-  const context &get_context() noexcept { return MContext; }
+  const context &get_context() const noexcept { return MContext; }
 
   std::vector<kernel_id> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
 

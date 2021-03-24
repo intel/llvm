@@ -1905,15 +1905,8 @@ cl_int ExecCGCommand::enqueueImp() {
       return CL_SUCCESS;
     }
 
-    CG::CG_VERSION CGVer =
-        (CG::CG_VERSION)getCGTypeVersion(MCommandGroup->getType());
-
-    std::cout << "CGVer = " << (int)CGVer << std::endl;
-
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr =
         ExecKernel->getKernelBundle();
-    (void)KernelBundleImplPtr;
-
 
     // Run OpenCL kernel
     sycl::context Context = MQueue->get_context();

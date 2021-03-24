@@ -349,10 +349,6 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
     Binaries.push_back(RawImg.BinaryStart);
     Res = createBinaryProgram(Ctx, Devices, Binaries, ImgSize);
   }
-      //Format == PI_DEVICE_BINARY_TYPE_SPIRV
-          //? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
-          //: createBinaryProgram(Ctx, Devices, {RawImg.BinaryStart}, ImgSize);
-
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // associate the PI program with the image it was created for
@@ -1234,11 +1230,11 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
         for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
              EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
 
-          std::shared_ptr<detail::kernel_id_impl> KernleIDImpl =
+          std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
               std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
 
           KernelIDs.push_back(
-              detail::createSyclObjFromImpl<sycl::kernel_id>(KernleIDImpl));
+              detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl));
         }
         // device_image_impl expects kernel ids to be sorted for fast search
         std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
@@ -1322,8 +1318,8 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
       /*pfn_notify=*/nullptr,
       /*user_data=*/nullptr, &LinkedProg);
 
-  if(PI_SUCCESS != Error)
-    throw "Build fail";
+  (void)Error;
+  // TODO: Add error handling
 
   std::vector<kernel_id> KernelIDs;
   for (const device_image_plain &DeviceImage : DeviceImages) {
@@ -1494,8 +1490,6 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 
   (void)PropList;
 
-  //RT::PiProgram Program =
-      //getBuiltPIProgram(M, Context, Device, KernelName, Prg);
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
 
   using PiKernelT = KernelProgramCache::PiKernelT;
