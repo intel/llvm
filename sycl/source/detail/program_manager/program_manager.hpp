@@ -163,17 +163,6 @@ private:
                                       bool JITCompilationIsRequired = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
-  bool getPIProgramFromDisc(ContextImplPtr ContextImpl, const device &Device,
-                            const RTDeviceBinaryImage &Img,
-                            const SerializedObj &SpecConsts,
-                            const std::string &BuildOptions,
-                            RT::PiProgram &NativePrg);
-
-  void putPIProgramToDisc(const detail::plugin &Plugin, const device &Device,
-                          const RTDeviceBinaryImage &Img,
-                          const SerializedObj &SpecConsts,
-                          const std::string &BuildOptionsString,
-                          const RT::PiProgram &Program);
 
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const string_class &CompileOptions,
