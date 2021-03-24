@@ -153,7 +153,6 @@ if sp[0] == 0:
 else:
     config.substitutions.append( ('%level_zero_options', '') )
 
-print(">>>>"+config.opencl_libs_dir)
 if config.opencl_libs_dir:
     if cl_options:
         config.substitutions.append( ('%opencl_lib',  ' '+config.opencl_libs_dir+'/OpenCL.lib') )
