@@ -1,6 +1,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -verify %s
 
+// This test verifies that an error is thrown when kernel names are declared within function/class scope
+// and if kernel names are empty.
+
 #include "sycl.hpp"
 
 #ifdef __SYCL_UNNAMED_LAMBDA__

@@ -2994,8 +2994,8 @@ public:
 
   void DiagnoseKernelNameType(const NamedDecl *DeclNamed) {
     /*
-    This is a helper function which throws an error if the given declaration
-    is:
+    This is a helper function which throws an error if the kernel name
+    declaration is:
       * declared within namespace 'std' (at any level)
         e.g., namespace std { namespace literals { class Whatever; } }
         h.single_task<std::literals::Whatever>([]() {});
@@ -3023,7 +3023,7 @@ public:
     const DeclContext *DeclCtx = DeclNamed->getDeclContext();
     if (DeclCtx && !UnnamedLambdaEnabled) {
 
-      // Check if the declaration is declared within namespace
+      // Check if the kernel name declaration is declared within namespace
       // "std" or "anonymous" namespace (at any level).
       while (!DeclCtx->isTranslationUnit() && isa<NamespaceDecl>(DeclCtx)) {
         const auto *NSDecl = cast<NamespaceDecl>(DeclCtx);
@@ -3044,6 +3044,9 @@ public:
         DeclCtx = DeclCtx->getParent();
       }
 
+      // Check if the kernel name is a Tag declaration
+      // local to a non-namespace scope (i.e. Inside a function or within
+      // another Tag etc).
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
         if (const auto *Tag = dyn_cast<TagDecl>(DeclNamed)) {
           bool UnnamedTypeUsed = Tag->getIdentifier() == nullptr;

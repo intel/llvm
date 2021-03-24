@@ -2,7 +2,8 @@
 // RUN: cd %T
 // RUN: %RUN_ON_HOST %t.out
 
-//==--- kernel_functor.cpp - Functors as SYCL kernel test ------------------==//
+//==--- kernel_functor.cpp -
+// This test illustrates defining kernels as named function objects (functors)
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

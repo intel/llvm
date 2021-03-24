@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -DCHECK_ERROR -verify %s
 
+// This test verifies that an error is thrown if the kernel name declaration
+// is declared within 'std' namespace.
+
 #include "Inputs/sycl.hpp"
 
 namespace std {
