@@ -28,6 +28,10 @@ namespace {
 constexpr char SYCL_GET_SPEC_CONST_VAL[] = "_Z27__sycl_getSpecConstantValue";
 constexpr char SYCL_GET_COMPOSITE_SPEC_CONST_VAL[] =
     "_Z36__sycl_getCompositeSpecConstantValue";
+constexpr char SYCL_GET_SCALAR_2020_SPEC_CONST_VAL[] =
+    "_Z37__sycl_getScalar2020SpecConstantValue";
+constexpr char SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL[] =
+    "_Z40__sycl_getComposite2020SpecConstantValue";
 
 // Unmangled base name of all __spirv_SpecConstant intrinsics which differ by
 // the value type.
@@ -426,7 +430,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       continue;
 
     if (!F.getName().startswith(SYCL_GET_SPEC_CONST_VAL) &&
-        !F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL))
+        !F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
       continue;
 
     SmallVector<CallInst *, 32> SCIntrCalls;
@@ -443,7 +449,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       // literals are passed to it in the SYCL RT source code, and application
       // code can't use this intrinsic directly.
       bool IsComposite =
-          F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL);
+          F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) ||
+          F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
 
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
