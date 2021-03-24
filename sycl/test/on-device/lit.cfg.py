@@ -35,6 +35,8 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
+llvm_config.use_clang()
+
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
 
@@ -77,8 +79,6 @@ if config.level_zero_include_dir:
 else:
     lit_config.warning("Level_Zero headers path is not configured. Dependent tests are skipped.")
 
-
-llvm_config.use_clang()
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 backend=lit_config.params.get('SYCL_PLUGIN', "opencl")
