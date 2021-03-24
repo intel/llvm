@@ -206,6 +206,7 @@ template <access::mode AccessMode> struct opencl_image1d_buffer_type;
 __SYCL_IMAGE_BUFFER_TY_DEFINE(read, ro);
 __SYCL_IMAGE_BUFFER_TY_DEFINE(write, wo);
 __SYCL_IMAGE_BUFFER_TY_DEFINE(discard_write, wo);
+__SYCL_IMAGE_BUFFER_TY_DEFINE(discard_read_write, rw);
 __SYCL_IMAGE_BUFFER_TY_DEFINE(read_write, rw);
 
 template <> struct opencl_image1d_buffer_type<access::mode::atomic> {
