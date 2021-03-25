@@ -328,10 +328,10 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context",
         PI_INVALID_OPERATION);
 
-  assert((Devices.size() > 1 && Format == PI_DEVICE_BINARY_TYPE_SPIRV) ||
-         (Format != PI_DEVICE_BINARY_TYPE_SPIRV) &&
-             "Creating program from AOT binary for multiple device is not "
-             "supported");
+  assert(((Format == PI_DEVICE_BINARY_TYPE_SPIRV) ||
+          (Format != PI_DEVICE_BINARY_TYPE_SPIRV && Devices.size() == 1)) &&
+         "Creating a program from AOT binary for multiple device is not "
+         "supported");
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);

@@ -120,7 +120,7 @@ constexpr unsigned int ShiftBitsForVersion = 24;
 // Constructs versioned type
 constexpr unsigned int getVersionedCGType(unsigned int Type,
                                           unsigned char Version) {
-  return Type | ((unsigned int)Version << ShiftBitsForVersion);
+  return Type | (static_cast<unsigned int>(Version) << ShiftBitsForVersion);
 }
 
 // Returns the version encoded to the type

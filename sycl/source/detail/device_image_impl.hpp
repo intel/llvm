@@ -117,9 +117,9 @@ public:
 
   void set_state(bundle_state NewState) noexcept { MState = NewState; }
 
-  std::vector<device> &get_devices() { return MDevices; }
+  std::vector<device> &get_devices() noexcept { return MDevices; }
 
-  const std::vector<device> &get_devices() const { return MDevices; }
+  const std::vector<device> &get_devices() noexcept const { return MDevices; }
 
   bool compatible_with_device(const device &Dev) const {
     return std::any_of(
