@@ -10,13 +10,16 @@
 
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 #ifdef __SYCL_DEVICE_ONLY__
 
 // Get the value of the specialization constant with given name.
 // Post-link tool traces the ID to a string literal it points to and assigns
 // integer ID.
 template <typename T>
-SYCL_EXTERNAL T __sycl_getSpecConstantValue(const char *ID);
+SYCL_EXTERNAL T __sycl_getScalarSpecConstantValue(const char *ID);
 
 template <typename T>
 SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
@@ -41,5 +44,9 @@ template <typename T>
 SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(const char *SymbolicID,
                                                          void *DefaultValue,
                                                          void *RTBuffer);
+
+// Request a fixed-size allocation in local address space at kernel scope.
+extern "C" SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
+__sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
 
 #endif
