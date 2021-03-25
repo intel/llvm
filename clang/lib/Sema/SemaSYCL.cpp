@@ -3013,7 +3013,8 @@ public:
     if (const auto *ED = dyn_cast<EnumDecl>(DeclNamed)) {
       if (!ED->isScoped() && !ED->isFixed()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << 1 << DeclNamed;
+            << /* unscoped enum requires fixed underlying type */ 1
+            << DeclNamed;
         IsInvalid = true;
       }
     }
@@ -3037,7 +3038,8 @@ public:
         if (NSDecl->isAnonymousNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << 0 << KernelNameType;
+              << /* kernel name should be globally visible */ 0
+              << KernelNameType;
           IsInvalid = true;
           return;
         }
@@ -3049,12 +3051,12 @@ public:
       // another Tag etc).
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
         if (const auto *Tag = dyn_cast<TagDecl>(DeclNamed)) {
-          bool UnnamedTypeUsed = Tag->getIdentifier() == nullptr;
+          bool UnnamedLambdaUsed = Tag->getIdentifier() == nullptr;
 
-          if (UnnamedTypeUsed) {
+          if (UnnamedLambdaUsed) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-                << 2;
+                << /* unnamed lambda used */ 2 << KernelNameType;
 
             IsInvalid = true;
             return;
@@ -3065,7 +3067,8 @@ public:
           if (Tag->isCompleteDefinition()) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-                << 0 << KernelNameType;
+                << /* kernel name should be globally visible */ 0
+                << KernelNameType;
 
             IsInvalid = true;
           } else {
