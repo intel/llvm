@@ -31,7 +31,6 @@ public:
   void *allocate(size_t size);
   void *allocate(size_t size, size_t alignment);
   void deallocate(void *ptr);
-  void printStats();
 
 private:
   std::unique_ptr<USMAllocImpl> pImpl;
