@@ -4266,9 +4266,9 @@ static bool piHostCopyablePtr(pi_queue Queue, const void *Ptr) {
   ze_device_handle_t ZeDeviceHandle;
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
 
-  ZE_CALL(zeMemGetAllocProperties, (Queue->Context->ZeContext, Ptr,
-                                  &ZeMemoryAllocationProperties,
-                                  &ZeDeviceHandle));
+  ZE_CALL(zeMemGetAllocProperties,
+          (Queue->Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
+           &ZeDeviceHandle));
 
   return ZeMemoryAllocationProperties.type != ZE_MEMORY_TYPE_DEVICE;
 }
@@ -4330,7 +4330,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
       (*Event)->DeferredHostCopy = true;
       for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
         zePrint("enqueueMemCopyHelper added ZeWaitEvent = %lx\n",
-          pi_cast<std::uintptr_t>(EventWaitList[i]->ZeEvent));
+                pi_cast<std::uintptr_t>(EventWaitList[i]->ZeEvent));
         (*Event)->waitEvents.push_back(EventWaitList[i]->ZeEvent);
       }
       (*Event)->SrcBuffer = Src;
