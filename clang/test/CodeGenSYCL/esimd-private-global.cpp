@@ -10,7 +10,7 @@
 
 // This test checks that FE allows globals with register_num attribute in ESIMD mode.
 
-__attribute__((opencl_private)) __attribute__((register_num(17))) int vc;
+__attribute__((opencl_private)) __attribute__((sycl_explicit_simd)) __attribute__((register_num(17))) int vc;
 // CHECK: @vc = {{.+}} i32 0, align 4 #0
 
 template <typename name, typename Func>
