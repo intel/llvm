@@ -172,9 +172,8 @@ three sources of build options:
 
 ## Cache configuration
 
-There is set of configuration parameters which can be defined as environment
-variables or parameters in `sycl.conf` and affect cache behavior. They are
-described in [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md).
+The environment variables which affect cache behavior are described in
+[EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md).
 
 ## Implementation details
 
