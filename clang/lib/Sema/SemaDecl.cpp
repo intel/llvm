@@ -18382,7 +18382,7 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
     return Sema::DeviceDiagnosticReason::Esimd;
   else if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
     return Sema::DeviceDiagnosticReason::Sycl;
-  // TODO: Figure out the logic for OMP and CUDA.
+  // FIXME: Figure out the logic for OMP and CUDA.
   return Sema::DeviceDiagnosticReason::All;
 }
 

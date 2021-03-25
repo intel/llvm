@@ -11,7 +11,7 @@ using namespace cl::sycl;
 ESIMD_PRIVATE ESIMD_REGISTER(17) int vc;
 
 void func_that_uses_esimd_glob() {
-  //expected-error@+1 2{{Using ESIMD globals in SYCL context is not allowed}}
+  //expected-error@+1 2{{ESIMD globals cannot be used in a SYCL context}}
   vc = 0;
 }
 
@@ -24,7 +24,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void init_vc_esimd(int x) {
 SYCL_EXTERNAL void init_vc_sycl(int x) {
   //expected-note@+1{{called by}}
   func_that_uses_esimd_glob();
-  // expected-error@+1{{Using ESIMD globals in SYCL context is not allowed}}
+  // expected-error@+1{{ESIMD globals cannot be used in a SYCL context}}
   vc = x;
 }
 
@@ -46,7 +46,7 @@ void kernel_call() {
   q.submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for<class Test>(nd_range<1>(1, 1), [=](nd_item<1> ndi) {
       //expected-note@CL/sycl/handler.hpp:* 2{{called by 'kernel_parallel_for}}
-      //expected-error@+1{{Using ESIMD globals in SYCL context is not allowed}}
+      //expected-error@+1{{ESIMD globals cannot be used in a SYCL context}}
       vc = 0;
       //expected-note@+1{{called by}}
       func_that_uses_esimd_glob();

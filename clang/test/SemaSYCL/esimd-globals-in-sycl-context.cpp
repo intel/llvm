@@ -9,13 +9,13 @@ ESIMD_PRIVATE int esimd_glob;
 
 // Deffered diagnostic
 void foo_sycl(int x) {
-  // expected-error@+1{{Using ESIMD globals in SYCL context is not allowed}}
+  // expected-error@+1{{ESIMD globals cannot be used in a SYCL context}}
   esimd_glob = x;
 }
 
 // Immediate diagnostic
 __attribute__((sycl_device)) void init_glob_sycl1(int x) {
-  // expected-error@+1{{Using ESIMD globals in SYCL context is not allowed}}
+  // expected-error@+1{{ESIMD globals cannot be used in a SYCL context}}
   esimd_glob = x;
   //expected-note@+1{{called by}}
   foo_sycl(x);
@@ -24,7 +24,7 @@ __attribute__((sycl_device)) void init_glob_sycl1(int x) {
 // -- Negative2: usage of ESIMD global reachable from both SYCL and ESIMD code
 
 void foo_sycl_esimd(int x) {
-  // expected-error@+1{{Using ESIMD globals in SYCL context is not allowed}}
+  // expected-error@+1{{ESIMD globals cannot be used in a SYCL context}}
   esimd_glob = x;
 }
 
