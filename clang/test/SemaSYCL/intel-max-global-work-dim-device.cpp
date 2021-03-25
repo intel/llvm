@@ -33,7 +33,7 @@ struct Func {
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
-// No diagnostic is thrown since arguments match.
+// No diagnostic is emitted because the arguments match.
 [[intel::max_global_work_dim(1)]] void bar();
 [[intel::max_global_work_dim(1)]] void bar() {}
 
@@ -45,7 +45,7 @@ struct Func {
 [[intel::max_global_work_dim(1)]] void baz();  // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
 
 // Checks correctness of mutual usage of different work_group_size attributes:
-// reqd_work_group_size, max_work_group_size and max_global_work_dim.
+// reqd_work_group_size, max_work_group_size, and max_global_work_dim.
 // In case the value of 'max_global_work_dim' attribute equals to 0 we shall
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).

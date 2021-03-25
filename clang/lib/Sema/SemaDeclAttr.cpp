@@ -3452,7 +3452,7 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
         }
-        // If there is no mismatch, drop any duplicate attributes.
+        // Drop the duplicate attribute.
         return;
       }
     }
@@ -3494,7 +3494,7 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
         }
-        // If there is no mismatch, drop any duplicate attributes.
+        // Do not add a duplicate attribute.
         return nullptr;
       }
     }
