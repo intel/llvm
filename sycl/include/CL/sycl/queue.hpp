@@ -43,6 +43,7 @@
 #define _CODELOCARG(a)
 #define _CODELOCFW(a) , a
 #else
+#define _CODELOCONLYPARAM(a)
 #define _CODELOCPARAM(a)
 
 #define _CODELOCARG(a) const detail::code_location a = {}
