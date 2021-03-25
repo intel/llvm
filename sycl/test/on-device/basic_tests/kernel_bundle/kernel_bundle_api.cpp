@@ -132,7 +132,7 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE1:0x[0-9,a,b,c,d,e,f]+]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE1:0x[0-9,a-f]+]]
     //
     // CHECK:---> piProgramCompile(
     // CHECK-Next: <unknown> : [[PROGRAM_HANDLE1]]
@@ -147,7 +147,7 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE2:0x[0-9,a,b,c,d,e,f]+]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE2:0x[0-9,a-f]+]]
     //
     // CHECK:---> piProgramCompile(
     // CHECK-Next: <unknown> : [[PROGRAM_HANDLE2]]
@@ -168,10 +168,8 @@ int main() {
     // CHECK-NEXT: <nullptr>
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : 0[ nullptr ]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}
     // PI tracing doesn't allow checking for all input programs so far.
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE1]]
-
 
     assert(KernelBundleExecutable.has_kernel(Kernel1ID));
     assert(KernelBundleExecutable.has_kernel(Kernel2ID));
@@ -196,7 +194,7 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE3:0x[0-9,a,b,c,d,e,f]+]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE3:0x[0-9,a-f]+]]
     //
     // CHECK:---> piProgramBuild(
     // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
@@ -210,7 +208,7 @@ int main() {
     // CHECK-NEXT:<const char *>: _ZTS11Kernel3Name
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[KERNEL_HANDLE:0x[0-9,a,b,c,d,e,f]+]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[KERNEL_HANDLE:0x[0-9,a-f]+]]
     //
     // CHECK:---> piKernelRetain(
     // CHECK-NEXT: <unknown> : [[KERNEL_HANDLE]]
