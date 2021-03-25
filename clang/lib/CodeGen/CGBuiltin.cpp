@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CGCUDARuntime.h"
 #include "CGCXXABI.h"
 #include "CGObjCRuntime.h"
 #include "CGOpenCLRuntime.h"
@@ -5064,6 +5065,17 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     return EmitIntelFPGARegBuiltin(E, ReturnValue);
   case Builtin::BI__builtin_intel_fpga_mem:
     return EmitIntelFPGAMemBuiltin(E);
+
+  case Builtin::BI__builtin_get_device_side_mangled_name: {
+    auto Name = CGM.getCUDARuntime().getDeviceSideName(
+        cast<DeclRefExpr>(E->getArg(0)->IgnoreImpCasts())->getDecl());
+    auto Str = CGM.GetAddrOfConstantCString(Name, "");
+    llvm::Constant *Zeros[] = {llvm::ConstantInt::get(SizeTy, 0),
+                               llvm::ConstantInt::get(SizeTy, 0)};
+    auto *Ptr = llvm::ConstantExpr::getGetElementPtr(Str.getElementType(),
+                                                     Str.getPointer(), Zeros);
+    return RValue::get(Ptr);
+  }
   }
 
   // If this is an alias for a lib function (e.g. __builtin_sin), emit
