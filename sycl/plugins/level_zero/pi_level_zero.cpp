@@ -5674,6 +5674,14 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
   return PI_SUCCESS;
 }
 
+pi_result piextKernelSetCacheConfig(pi_kernel Kernel,
+                                    pi_kernel_cache_config Conf) {
+  PI_ASSERT(Kernel, PI_INVALID_KERNEL);
+  ZE_CALL(zeKernelSetCacheConfig,
+          (Kernel->ZeKernel, pi_cast<ze_cache_config_flags_t>(Conf)));
+  return PI_SUCCESS;
+}
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   PI_ASSERT(PluginInit, PI_INVALID_VALUE);
 

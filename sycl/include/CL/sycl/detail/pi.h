@@ -325,6 +325,8 @@ typedef enum {
   PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = CL_KERNEL_PRIVATE_MEM_SIZE
 } _pi_kernel_group_info;
 
+typedef enum { PI_LARGE_SLM = 0, PI_LARGE_DATA = 1 } _pi_kernel_cache_config;
+
 typedef enum {
   PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT = CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT,
   PI_FP_ROUND_TO_NEAREST = CL_FP_ROUND_TO_NEAREST,
@@ -544,6 +546,7 @@ using pi_queue_info = _pi_queue_info;
 using pi_image_info = _pi_image_info;
 using pi_kernel_info = _pi_kernel_info;
 using pi_kernel_group_info = _pi_kernel_group_info;
+using pi_kernel_cache_config = _pi_kernel_cache_config;
 using pi_kernel_sub_group_info = _pi_kernel_sub_group_info;
 using pi_fp_capabilities = _pi_fp_capabilities;
 using pi_event_info = _pi_event_info;
@@ -1132,6 +1135,13 @@ __SYCL_EXPORT pi_result piProgramRelease(pi_program program);
 __SYCL_EXPORT pi_result
 piextProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
                                       size_t spec_size, const void *spec_value);
+
+/// Sets a cache config for a kernel.
+///
+/// \param kernel the kernel object
+/// \param conf cache config to set
+pi_result piextKernelSetCacheConfig(pi_kernel Kernel,
+                                    pi_kernel_cache_config Conf);
 
 /// Gets the native handle of a PI program object.
 ///

@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/program.hpp>
+#include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -1706,6 +1707,16 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
   ReverseRangeDimensionsForKernel(NDRDesc);
+  if (PropList
+          .has_property<sycl::INTEL::property::kernel::gpu_cache_config>()) {
+    sycl::INTEL::property::kernel::gpu_cache_config Config =
+        PropList
+            .get_property<sycl::INTEL::property::kernel::gpu_cache_config>();
+    Plugin.call<PiApiKind::piextKernelSetCacheConfig>(
+        Kernel,
+        static_cast<pi_kernel_cache_config>(Config.get_gpu_cache_config()));
+  }
+
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
