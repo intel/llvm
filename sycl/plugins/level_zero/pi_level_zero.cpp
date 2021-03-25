@@ -970,6 +970,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     }
 
     if (CurQueue->isInOrderQueue()) {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(CurQueue->PiQueueMutex);
+    
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
       TmpListLength += 1;
@@ -4355,6 +4358,12 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
   if (Queue->ZeCopyCommandQueue)
     ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueue));
+  {
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+    Queue->LastCommandEvent = *Event;
+  }
 
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return PI_SUCCESS;
@@ -4809,6 +4818,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
     if (Queue->isInOrderQueue()) {
       PI_CALL(piEventsWait(1, &(Queue->LastCommandEvent)));
+      //ZE_CALL(zeEventHostSynchronize, (Queue->LastCommandEvent->ZeEvent,
+      //                                 UINT32_MAX));
     }
 
     if (Buffer->MapHostPtr) {
@@ -4819,7 +4830,12 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
 
-    Queue->LastCommandEvent = *Event;
+    {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+      Queue->LastCommandEvent = *Event;
+    }
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
@@ -4925,13 +4941,20 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
     if (Queue->isInOrderQueue()) {
       PI_CALL(piEventsWait(1, &(Queue->LastCommandEvent)));
+      //ZE_CALL(zeEventHostSynchronize, (Queue->LastCommandEvent->ZeEvent,
+      //                                 UINT32_MAX));
     }
 
     if (MemObj->MapHostPtr)
       memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
              MapInfo.Size);
 
-    Queue->LastCommandEvent = *Event;
+    {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+      Queue->LastCommandEvent = *Event;
+    }
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
@@ -5358,12 +5381,32 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   PI_ASSERT(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)),
             PI_INVALID_VALUE);
 
+  //pi_event *Event;
+  //pi_queue Queue;
+  //ze_command_list_handle_t ZeCommandList = nullptr;
+  //ze_fence_handle_t ZeFence = nullptr;
+  //ze_event_handle_t ZeEvent = nullptr;
+  
+  //pi_result Res = piEventCreate(Context, Event);
+  //if (Res != PI_SUCCESS)
+    //return Res;
+
+  //(*Event)->Queue = Queue;
+  //(*Event)->CommandType = CommandType;
+  //(*Event)->ZeCommandList = ZeCommandList;
+
+  //PI_CALL(piEventRetain(*Event));
+  //ZeEvent = (*Event)->ZeEvent;
+
   ze_host_mem_alloc_desc_t ZeDesc = {};
   ZeDesc.flags = 0;
   // TODO: translate PI properties to Level Zero flags
   ZE_CALL(zeMemAllocHost,
           (Context->ZeContext, &ZeDesc, Size, Alignment, ResultPtr));
 
+  // Signal this event
+  //ZE_CALL(zeEventHostSignal, (ZeEvent));
+  
   PI_ASSERT(Alignment == 0 ||
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_INVALID_VALUE);
