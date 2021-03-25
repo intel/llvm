@@ -149,21 +149,37 @@ static constexpr bool check_kernel_lambda_takes_args() {
   return check_fn_signature<std::remove_reference_t<F>, void(Args...)>::value;
 }
 
-// Type traits to find out if kernal lambda has kernel_handler argument
+// isKernelLambdaCallableWithKernelHandlerImpl checks if LambdaArgType is void
+// (e.g., in single_task), and based on that, calls
+// check_kernel_lambda_takes_args with proper set of arguments. Also this type
+// trait workarounds compilation error which happens only with msvc.
 
-template <typename KernelType, typename LambdaArgType = void,
+template <typename KernelType, typename LambdaArgType,
           typename std::enable_if_t<std::is_same<LambdaArgType, void>::value>
               * = nullptr>
-constexpr bool isKernelLambdaCallableWithKernelHandler() {
+constexpr bool isKernelLambdaCallableWithKernelHandlerImpl() {
   return check_kernel_lambda_takes_args<KernelType, kernel_handler>();
 }
 
 template <typename KernelType, typename LambdaArgType,
           typename std::enable_if_t<!std::is_same<LambdaArgType, void>::value>
               * = nullptr>
-constexpr bool isKernelLambdaCallableWithKernelHandler() {
+constexpr bool isKernelLambdaCallableWithKernelHandlerImpl() {
   return check_kernel_lambda_takes_args<KernelType, LambdaArgType,
                                         kernel_handler>();
+}
+
+// Type traits to find out if kernal lambda has kernel_handler argument
+
+template <typename KernelType>
+constexpr bool isKernelLambdaCallableWithKernelHandler() {
+  return check_kernel_lambda_takes_args<KernelType, kernel_handler>();
+}
+
+template <typename KernelType, typename LambdaArgType>
+constexpr bool isKernelLambdaCallableWithKernelHandler() {
+  return isKernelLambdaCallableWithKernelHandlerImpl<KernelType,
+                                                     LambdaArgType>();
 }
 
 // Helpers for running kernel lambda on the host device
