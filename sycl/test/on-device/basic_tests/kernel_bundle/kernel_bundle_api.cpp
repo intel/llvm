@@ -23,6 +23,7 @@ int main() {
   const sycl::context Ctx = Q.get_context();
   const sycl::device Dev = Q.get_device();
 
+  // The code is needed to just have device images in the executable
   if (0) {
     Q.submit([](sycl::handler &CGH) { CGH.single_task<Kernel1Name>([]() {}); });
     Q.submit([](sycl::handler &CGH) { CGH.single_task<Kernel2Name>([]() {}); });

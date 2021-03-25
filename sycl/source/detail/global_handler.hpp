@@ -77,6 +77,7 @@ private:
   std::unique_ptr<std::mutex> MFilterMutex;
   std::unique_ptr<std::vector<plugin>> MPlugins;
   std::unique_ptr<device_filter_list> MDeviceFilterList;
+  // The mutex for synchronizing accesses to handlers extended members
   std::unique_ptr<std::mutex> MHandlerExtendedMembersMutex;
 };
 } // namespace detail

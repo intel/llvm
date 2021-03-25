@@ -47,12 +47,15 @@ public:
   }
 
   // Matches sycl::build and sycl::compile
+  // Have one constructor because sycl::build and sycl::compile have the same
+  // signature
   kernel_bundle_impl(const kernel_bundle<bundle_state::input> &InputBundle,
                      std::vector<device> Devs, const property_list &PropList,
                      bundle_state TargetState)
       : MContext(InputBundle.get_context()), MDevices(std::move(Devs)) {
 
     for (const device_image_plain &DeviceImage : InputBundle) {
+      // Skip images which are not compatible with devices provided
       if (std::none_of(
               MDevices.begin(), MDevices.end(),
               [&DeviceImage](const device &Dev) {
@@ -63,7 +66,7 @@ public:
       switch (TargetState) {
       case bundle_state::object:
         MDeviceImages.push_back(detail::ProgramManager::getInstance().compile(
-            DeviceImage, Devs, PropList));
+            DeviceImage, MDevices, PropList));
         break;
       case bundle_state::executable:
         MDeviceImages.push_back(detail::ProgramManager::getInstance().build(
@@ -84,21 +87,34 @@ public:
       std::vector<device> Devs, const property_list &PropList)
       : MContext(ObjectBundles[0].get_context()), MDevices(std::move(Devs)) {
 
+    // TODO: Unify with c'tor for sycl::comile and sycl::build by calling
+    // sycl::join on vector of kernel_bundles
+
     std::vector<device_image_plain> DeviceImages;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
-      DeviceImages.insert(DeviceImages.end(), ObjectBundle.begin(),
-                          ObjectBundle.end());
+      for (const device_image_plain &DeviceImage : ObjectBundle) {
+
+        // Skip images which are not compatible with devices provided
+        if (std::none_of(MDevices.begin(), MDevices.end(),
+                         [&DeviceImage](const device &Dev) {
+                           return getSyclObjImpl(DeviceImage)
+                               ->compatible_with_device(Dev);
+                         }))
+          continue;
+
+        DeviceImages.insert(DeviceImages.end(), DeviceImage);
+      }
     }
 
     MDeviceImages = detail::ProgramManager::getInstance().link(
-        std::move(DeviceImages), Devs, PropList);
+        std::move(DeviceImages), MDevices, PropList);
   }
 
-  kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
                      bundle_state State)
-      : kernel_bundle_impl(Ctx, Devs, State) {
+      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), State) {
 
     // Filter out images that have no kernel_ids specified
     auto It = std::remove_if(MDeviceImages.begin(), MDeviceImages.end(),
@@ -112,9 +128,9 @@ public:
     MDeviceImages.erase(It, MDeviceImages.end());
   }
 
-  kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const DevImgSelectorImpl &Selector, bundle_state State)
-      : kernel_bundle_impl(Ctx, Devs, State) {
+      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), State) {
 
     // Filter out images that are rejected by Selector
     auto It = std::remove_if(MDeviceImages.begin(), MDeviceImages.end(),
@@ -269,7 +285,8 @@ public:
 
   size_t size() const { return MDeviceImages.size(); }
 
-  bundle_state getBundleState() const {
+  bundle_state get_bundle_state() const {
+    // All device images are expected to have the same state
     return MDeviceImages.empty()
                ? bundle_state::input
                : detail::getSyclObjImpl(MDeviceImages[0])->get_state();

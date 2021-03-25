@@ -498,7 +498,6 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 
 namespace detail {
 
-// TODO: Use impl everywhere in the interfaces.
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 }
@@ -508,6 +507,7 @@ join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 template <sycl::bundle_state State>
 sycl::kernel_bundle<State>
 join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
+  // Convert kernel_bundle<State> to impls to abstract template parameter away
   std::vector<detail::KernelBundleImplPtr> KernelBundleImpls;
   KernelBundleImpls.reserve(Bundles.size());
   for (const sycl::kernel_bundle<State> &Bundle : Bundles)

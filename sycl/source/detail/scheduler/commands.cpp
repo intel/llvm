@@ -1916,6 +1916,7 @@ cl_int ExecCGCommand::enqueueImp() {
     bool KnownProgram = true;
 
     std::shared_ptr<kernel_impl> SyclKernelImpl;
+    // Use kernel_bundle is available
     if (KernelBundleImplPtr) {
 
       std::shared_ptr<kernel_id_impl> KernelIDImpl =

@@ -1266,7 +1266,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
-  // set spec constatns here.
+  // TODO: Set spec constatns here.
 
   // TODO: Handle zero sized Device list.
   Plugin.call<PiApiKind::piProgramCompile>(
@@ -1326,6 +1326,8 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
           /*BinImage=*/nullptr, Context, Devs, bundle_state::object,
           std::move(KernelIDs), LinkedProg);
 
+  // TODO: Make multiple sets of device images organized by devices they are
+  // compiled for.
   return {createSyclObjFromImpl<device_image_plain>(ExecutableImpl)};
 }
 

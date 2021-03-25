@@ -23,12 +23,16 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-handler::handler(const shared_ptr_class<detail::queue_impl> &Queue, bool IsHost)
+handler::handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
     : MQueue(std::move(Queue)), MIsHost(IsHost) {
   MSharedPtrStorage.emplace_back(
       std::make_shared<std::vector<detail::ExtendedMemberT>>());
 }
 
+// Returns a shared_ptr to kernel_bundle stored in the extended members vector.
+// If there is no kernel_bundle created:
+// returns newly created kernel_bundle if Insert is true
+// returns shared_ptr(nullptr) if Insert is false
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) {
 
@@ -63,6 +67,8 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) {
   return KernelBundleImpPtr;
 }
 
+// Sets kernel bundle to the provided one. Either replaces existing one or
+// create a new entry in the extended members vector.
 void handler::setHandlerKernelBundle(
     const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
   assert(!MSharedPtrStorage.empty());
@@ -93,14 +99,16 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  // Kernel_bundles could not be used before CGType version 1
   if (getCGTypeVersion(MCGType) >
       static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
     // If there were uses of set_specialization_constant build the kernel_bundle
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
-      switch (KernelBundleImpPtr->getBundleState()) {
+      switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
+        // Underlying level expects kernel_bundle to be in executable state
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                 KernelBundleImpPtr));
