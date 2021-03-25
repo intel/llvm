@@ -278,15 +278,23 @@ std::string OSUtil::getCacheRoot() {
   if (PersistenCacheRoot)
     return PersistenCacheRoot;
 
-#if defined(__SYCL_RT_OS_LINUX)
-  static const char *RootDir = std::getenv("HOME");
-#else
-  static const char *RootDir = std::getenv("AppData");
-#endif
-  std::string Root{RootDir ? RootDir : "."};
+  constexpr char SYCLCacheDir[] = "/libsycl_cache";
 
-  Root += "/intel/sycl_cache";
-  return Root;
+  // Use static to calculate directory only once per program run
+#if defined(__SYCL_RT_OS_LINUX)
+  static const char *CacheDir = std::getenv("XDG_CACHE_HOME");
+  static const char *HomeDir = std::getenv("HOME");
+  static std::string Res{
+      std::string(CacheDir
+                      ? CacheDir
+                      : (HomeDir ? std::string(HomeDir) + "/.cache" : ".")) +
+      SYCLCacheDir};
+#else
+  static const char *AppDataDir = std::getenv("AppData");
+  static std::string Res{std::string(AppDataDir ? AppDataDir : ".") +
+                         SYCLCacheDir};
+#endif
+  return Res;
 }
 
 int OSUtil::makeDir(const char *Dir) {

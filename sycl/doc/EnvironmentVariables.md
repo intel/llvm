@@ -34,7 +34,7 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING | Any(\*) | Disables automatic rounding-up of parallel_for invocation ranges. |
 | SYCL_ENABLE_PCI | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
 | SYCL_HOST_UNIFIED_MEMORY | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
-| SYCL_CACHE_DIR | Path | Path to persistent cache root directory. Default values are `%AppData%\Intel\sycl_program_cache` for Windows and `$HOME/intel/sycl_program_cache` on Linux. |
+| SYCL_CACHE_DIR | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if XDG_CACHE_HOME is not set then `$HOME/.cache/libsycl_cache`. |
 | SYCL_CACHE_DISABLE_PERSISTENT | Any(\*) | Switches persistent cache switch off. Default value is ON. |
 | SYCL_CACHE_EVICTION_DISABLE | Any(\*) | Switches cache eviction off. Default value is ON. |
 | SYCL_CACHE_MAX_SIZE | Positive integer | Cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |

@@ -19,6 +19,13 @@ void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
                                          const SerializedObj &SpecConsts,
                                          const std::string &BuildOptionsString,
                                          const RT::PiProgram &Program) {
+  // Only SPIRV images are cached
+  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV &&
+      (Img.getFormat() == PI_DEVICE_BINARY_TYPE_NONE &&
+       pi::getBinaryImageFormat(Img.getRawData().BinaryStart, Img.getSize()) !=
+           PI_DEVICE_BINARY_TYPE_SPIRV))
+    return;
+
   if (!isPersistentCacheEnabled()) {
     return;
   }
@@ -64,6 +71,13 @@ std::vector<std::vector<char>> PersistentCache::getPIProgramFromDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     RT::PiProgram &NativePrg) {
+
+  // Only SPIRV images are cached
+  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV &&
+      (Img.getFormat() == PI_DEVICE_BINARY_TYPE_NONE &&
+       pi::getBinaryImageFormat(Img.getRawData().BinaryStart, Img.getSize()) !=
+           PI_DEVICE_BINARY_TYPE_SPIRV))
+    return {};
 
   if (!isPersistentCacheEnabled())
     return {};
