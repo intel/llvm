@@ -608,7 +608,7 @@ void diagnostics()
   //expected-note@+1 {{did you mean to use 'intel::force_pow2_depth' instead?}}
   [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
 
-  //expected-error@+1{{'force_pow2_depth' attribute requires a non-negative integral compile time constant expression}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
   [[intel::force_pow2_depth(-1)]] unsigned int force_p2d_below_min[64];
   //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
   [[intel::force_pow2_depth(2)]] unsigned int force_p2d_above_max[64];

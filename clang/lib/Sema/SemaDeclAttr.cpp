@@ -4452,24 +4452,6 @@ static void handleAlignedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.AddAlignedAttr(D, AL, E, AL.isPackExpansion());
 }
 
-template <typename AttrType>
-bool Sema::checkRangedIntegralArgument(Expr *E, const AttrType *TmpAttr,
-                                       ExprResult &Result) {
-  llvm::APSInt Value;
-  Result = VerifyIntegerConstantExpression(E, &Value);
-  if (Result.isInvalid())
-    return true;
-
-  if (Value < AttrType::getMinValue() || Value > AttrType::getMaxValue()) {
-    Diag(TmpAttr->getRange().getBegin(),
-         diag::err_attribute_argument_out_of_range)
-        << TmpAttr << AttrType::getMinValue() << AttrType::getMaxValue()
-        << E->getSourceRange();
-    return true;
-  }
-  return false;
-}
-
 void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                           bool IsPackExpansion) {
   AlignedAttr TmpAttr(Context, CI, true, E);
@@ -6217,13 +6199,9 @@ void Sema::AddIntelFPGAForcePow2DepthAttr(Decl *D,
     if (Res.isInvalid())
       return;
     E = Res.get();
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return;
-    }
-    if (ArgVal > 1) {
+
+    // This attribute requires a range of values.
+    if (ArgVal < 0 || ArgVal > 1) {
       Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
           << CI << 0 << 1 << E->getSourceRange();
       return;

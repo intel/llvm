@@ -10197,9 +10197,6 @@ public:
   void AddOptnoneAttributeIfNoConflicts(FunctionDecl *FD, SourceLocation Loc);
 
   template <typename AttrType>
-  bool checkRangedIntegralArgument(Expr *E, const AttrType *TmpAttr,
-                                   ExprResult &Result);
-  template <typename AttrType>
   void AddOneConstantPowerTwoValueAttr(Decl *D, const AttributeCommonInfo &CI,
                                        Expr *E);
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
