@@ -1191,7 +1191,7 @@ def SYCLKernel : InheritableAttr {
 def SYCLSimd : InheritableAttr {
   let Spellings = [GNU<"sycl_explicit_simd">,
                    CXX11<"intel", "sycl_explicit_simd">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, GlobalVar]>;
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLSimdDocs];
   let SupportsNonconformingLambdaSyntax = 1;
