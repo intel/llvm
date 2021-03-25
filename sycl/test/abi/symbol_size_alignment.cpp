@@ -62,7 +62,7 @@ int main() {
   check<detail::buffer_impl, 216, 8>();
   check<detail::image_impl<1>, 272, 8>();
 #else
-  check<handler, 560, 8>();
+  check<handler, 592, 8>();
   check<detail::buffer_impl, 184, 8>();
   check<detail::image_impl<1>, 240, 8>();
 #endif

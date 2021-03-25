@@ -121,6 +121,7 @@ class CGExecKernel : public CG {
 public:
   /// Stores ND-range description.
   NDRDescT MNDRDesc;
+  property_list MPropList;
   unique_ptr_class<HostKernelBase> MHostKernel;
   shared_ptr_class<detail::kernel_impl> MSyclKernel;
   vector_class<ArgDesc> MArgs;
@@ -128,7 +129,8 @@ public:
   detail::OSModuleHandle MOSModuleHandle;
   vector_class<shared_ptr_class<detail::stream_impl>> MStreams;
 
-  CGExecKernel(NDRDescT NDRDesc, unique_ptr_class<HostKernelBase> HKernel,
+  CGExecKernel(NDRDescT NDRDesc, const property_list &PropList,
+               unique_ptr_class<HostKernelBase> HKernel,
                shared_ptr_class<detail::kernel_impl> SyclKernel,
                vector_class<vector_class<char>> ArgsStorage,
                vector_class<detail::AccessorImplPtr> AccStorage,
@@ -142,10 +144,10 @@ public:
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
-        MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
-        MStreams(std::move(Streams)) {
+        MNDRDesc(std::move(NDRDesc)), MPropList(PropList),
+        MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
+        MArgs(std::move(Args)), MKernelName(std::move(KernelName)),
+        MOSModuleHandle(OSModuleHandle), MStreams(std::move(Streams)) {
     assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
            "Wrong type of exec kernel CG.");
   }

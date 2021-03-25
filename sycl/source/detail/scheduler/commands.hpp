@@ -520,8 +520,8 @@ private:
 
   pi_result SetKernelParamsAndLaunch(
       CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
-      std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
-      ProgramManager::KernelArgMask EliminatedArgMask);
+      const property_list &, std::vector<RT::PiEvent> &RawEvents,
+      RT::PiEvent &Event, ProgramManager::KernelArgMask EliminatedArgMask);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

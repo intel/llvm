@@ -432,6 +432,29 @@ template <typename T> struct AreAllButLastReductions<T> {
   static constexpr bool value = !std::is_base_of<reduction_impl_base, T>::value;
 };
 
+/// Predicate returning true if all template type parameters except the last two
+/// are reductions.
+template <typename FirstT, typename... RestT>
+struct AreAllButLastTwoReductions {
+  static constexpr bool value =
+      std::is_base_of<reduction_impl_base, FirstT>::value &&
+      AreAllButLastTwoReductions<RestT...>::value;
+};
+
+/// Helper specialization of AreAllButLastTwoReductions for two elements.
+/// Returns true if the template parameters are not a reduction.
+template <typename T1, typename T2> struct AreAllButLastTwoReductions<T1, T2> {
+  static constexpr bool value =
+      !std::is_base_of<reduction_impl_base, T1>::value &&
+      !std::is_base_of<reduction_impl_base, T2>::value;
+};
+
+/// Helper specialization of AreAllButLastTwoReductions for one element only.
+/// Returns true if the template parameter is not a reduction.
+template <typename T> struct AreAllButLastTwoReductions<T> {
+  static constexpr bool value = !std::is_base_of<reduction_impl_base, T>::value;
+};
+
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
 template <typename T, class BinaryOperation, int Dims, bool IsUSM,

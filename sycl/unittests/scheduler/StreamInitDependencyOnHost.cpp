@@ -33,13 +33,13 @@ public:
     case detail::CG::KERNEL:
     case detail::CG::RUN_ON_HOST_INTEL: {
       CommandGroup.reset(new detail::CGExecKernel(
-          std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
-          std::move(CGH->MKernel), std::move(CGH->MArgsStorage),
-          std::move(CGH->MAccStorage), std::move(CGH->MSharedPtrStorage),
-          std::move(CGH->MRequirements), std::move(CGH->MEvents),
-          std::move(CGH->MArgs), std::move(CGH->MKernelName),
-          std::move(CGH->MOSModuleHandle), std::move(CGH->MStreamStorage),
-          CGH->MCGType, CGH->MCodeLoc));
+          std::move(CGH->MNDRDesc), std::move(CGH->MPropList),
+          std::move(CGH->MHostKernel), std::move(CGH->MKernel),
+          std::move(CGH->MArgsStorage), std::move(CGH->MAccStorage),
+          std::move(CGH->MSharedPtrStorage), std::move(CGH->MRequirements),
+          std::move(CGH->MEvents), std::move(CGH->MArgs),
+          std::move(CGH->MKernelName), std::move(CGH->MOSModuleHandle),
+          std::move(CGH->MStreamStorage), CGH->MCGType, CGH->MCodeLoc));
       break;
     }
     default:

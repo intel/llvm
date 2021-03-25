@@ -33,8 +33,8 @@ event handler::finalize() {
   case detail::CG::KERNEL:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
-        std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
-        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MNDRDesc), std::move(MPropList), std::move(MHostKernel),
+        std::move(MKernel), std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
         std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,

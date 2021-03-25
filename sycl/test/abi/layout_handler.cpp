@@ -186,5 +186,19 @@ void foo() {
 // CHECK-NEXT: 544 |         std::__shared_ptr<class sycl::detail::event_impl, __gnu_cxx::_S_atomic>::element_type * _M_ptr
 // CHECK-NEXT: 552 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 552 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:     | [sizeof=560, dsize=560, align=8,
-// CHECK-NEXT:     |  nvsize=560, nvalign=8]
+// CHECK-NEXT: 560 |   class sycl::property_list MPropList
+// CHECK-NEXT: 560 |     class sycl::detail::PropertyListBase (base)
+// CHECK-NEXT: 560 |       class std::bitset<7> MDataLessProps
+// CHECK-NEXT: 560 |         struct std::_Base_bitset<1> (base)
+// CHECK-NEXT: 560 |           std::_Base_bitset<1>::_WordT _M_w
+// CHECK-NEXT: 568 |       class std::vector<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > MPropsWithData
+// CHECK-NEXT: 568 |         struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > > (base)
+// CHECK-NEXT: 568 |           struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::_Vector_impl _M_impl
+// CHECK-NEXT: 568 |             class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > (base) (empty)
+// CHECK-NEXT: 568 |               class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > (base) (empty)
+// CHECK-NEXT: 568 |             struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::_Vector_impl_data (base)
+// CHECK-NEXT: 568 |               std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::pointer _M_start
+// CHECK-NEXT: 576 |               std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::pointer _M_finish
+// CHECK-NEXT: 584 |               std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::pointer _M_end_of_storage
+// CHECK-NEXT:     | [sizeof=592, dsize=592, align=8,
+// CHECK-NEXT:     |  nvsize=592, nvalign=8]

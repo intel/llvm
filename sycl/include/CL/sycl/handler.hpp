@@ -270,6 +270,7 @@ std::tuple<std::tuple_element_t<Is, TupleT>...>
 tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
 
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
+template <typename FirstT, typename... RestT> struct AreAllButLastTwoReductions;
 
 } // namespace detail
 } // namespace ONEAPI
@@ -716,8 +717,8 @@ private:
   /// \param NumWorkItems is a range defining indexing space.
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName, typename KernelType, int Dims>
-  void parallel_for_lambda_impl(range<Dims> NumWorkItems,
-                                KernelType KernelFunc) {
+  void parallel_for_lambda_impl(range<Dims> NumWorkItems, KernelType KernelFunc,
+                                const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
@@ -813,10 +814,12 @@ private:
       range<Dims> AdjustedRange = NumWorkItems;
       AdjustedRange.set_range_dim0(NewValX);
 #ifdef __SYCL_DEVICE_ONLY__
+      (void)PropList;
       kernel_parallel_for<NameWT, TransformedArgType>(Wrapper);
 #else
       detail::checkValueRange<Dims>(AdjustedRange);
       MNDRDesc.set(std::move(AdjustedRange));
+      MPropList = PropList;
       StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       MCGType = detail::CG::KERNEL;
@@ -828,10 +831,12 @@ private:
     {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
+      (void)PropList;
       kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
 #else
       detail::checkValueRange<Dims>(NumWorkItems);
       MNDRDesc.set(std::move(NumWorkItems));
+      MPropList = PropList;
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       MCGType = detail::CG::KERNEL;
@@ -847,12 +852,14 @@ private:
   /// \param NumWorkItems is a range defining indexing space.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
-  void parallel_for_impl(range<Dims> NumWorkItems, kernel Kernel) {
+  void parallel_for_impl(range<Dims> NumWorkItems, kernel Kernel,
+                         const property_list &PropList = {}) {
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
+    MPropList = PropList;
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
     MKernelName = getKernelName();
@@ -996,19 +1003,22 @@ public:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
 #ifdef __SYCL_NONCONST_FUNCTOR__
-  void single_task(KernelType KernelFunc) {
+  void single_task(KernelType KernelFunc, const property_list &PropList = {}) {
 #else
-  void single_task(const KernelType &KernelFunc) {
+  void single_task(const KernelType &KernelFunc,
+                   const property_list &PropList = {}) {
 #endif
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)PropList;
     kernel_single_task<NameT>(KernelFunc);
 #else
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
     MNDRDesc.set(range<1>{1});
+    MPropList = PropList;
 
     StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
     MCGType = detail::CG::KERNEL;
@@ -1017,29 +1027,38 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType>
 #ifdef __SYCL_NONCONST_FUNCTOR__
-  void parallel_for(range<1> NumWorkItems, KernelType KernelFunc) {
+  void parallel_for(range<1> NumWorkItems, KernelType KernelFunc,
+                    const property_list &PropList = {}) {
 #else
-  void parallel_for(range<1> NumWorkItems, const KernelType &KernelFunc) {
+  void parallel_for(range<1> NumWorkItems, const KernelType &KernelFunc,
+                    const property_list &PropList = {}) {
 #endif
-    parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc));
+    parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc),
+                                         PropList);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
 #ifdef __SYCL_NONCONST_FUNCTOR__
-  void parallel_for(range<2> NumWorkItems, KernelType KernelFunc) {
+  void parallel_for(range<2> NumWorkItems, KernelType KernelFunc,
+                    const property_list &PropList = {}) {
 #else
-  void parallel_for(range<2> NumWorkItems, const KernelType &KernelFunc) {
+  void parallel_for(range<2> NumWorkItems, const KernelType &KernelFunc,
+                    const property_list &PropList = {}) {
 #endif
-    parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc));
+    parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc),
+                                         PropList);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
 #ifdef __SYCL_NONCONST_FUNCTOR__
-  void parallel_for(range<3> NumWorkItems, KernelType KernelFunc) {
+  void parallel_for(range<3> NumWorkItems, KernelType KernelFunc,
+                    const property_list &PropList = {}) {
 #else
-  void parallel_for(range<3> NumWorkItems, const KernelType &KernelFunc) {
+  void parallel_for(range<3> NumWorkItems, const KernelType &KernelFunc,
+                    const property_list &PropList = {}) {
 #endif
-    parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc));
+    parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc),
+                                         PropList);
   }
 
   /// Defines and invokes a SYCL kernel on host device.
@@ -1110,7 +1129,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+                    _KERNELFUNCPARAM(KernelFunc),
+                    const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1118,8 +1138,10 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkItems;
     (void)WorkItemOffset;
+    (void)PropList;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
+    MPropList = PropList;
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1141,8 +1163,8 @@ public:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(nd_range<Dims> ExecutionRange,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(nd_range<Dims> ExecutionRange, _KERNELFUNCPARAM(KernelFunc),
+                    const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1150,8 +1172,10 @@ public:
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)ExecutionRange;
+    (void)PropList;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
+    MPropList = PropList;
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1168,7 +1192,9 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && !Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
+               _KERNELFUNCPARAM(KernelFunc),
+               const property_list &PropList = {}) {
+    MPropList = PropList;
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                            Redu.getUserAccessor());
   }
@@ -1182,7 +1208,9 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
+               _KERNELFUNCPARAM(KernelFunc),
+               const property_list &PropList = {}) {
+    MPropList = PropList;
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                            Redu.getUSMPointer());
   }
@@ -1202,7 +1230,9 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::discard_write &&
                       Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
+               _KERNELFUNCPARAM(KernelFunc),
+               const property_list &PropList = {}) {
+    MPropList = PropList;
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
@@ -1238,7 +1268,8 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
+               _KERNELFUNCPARAM(KernelFunc),
+               const property_list &PropList = {}) {
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
@@ -1260,6 +1291,7 @@ public:
     // the main kernel, but simply generate Range.get_global_range.size() number
     // of partial sums, leaving the reduction work to the additional/aux
     // kernels.
+    MPropList = PropList;
     constexpr bool HFR = Reduction::has_fast_reduce;
     size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
     // TODO: currently the maximal work group size is determined for the given
@@ -1302,20 +1334,16 @@ public:
     } // end while (NWorkItems > 1)
   }
 
-  // This version of parallel_for may handle one or more reductions packed in
-  // \p Rest argument. Note thought that the last element in \p Rest pack is
-  // the kernel function.
-  // TODO: this variant is currently enabled for 2+ reductions only as the
-  // versions handling 1 reduction variable are more efficient right now.
-  template <typename KernelName = detail::auto_name, int Dims,
+  // Helper template to handle parallel_for with 2+ reductions which can
+  // optionally have property_list as the last argument.
+  template <typename KernelName = detail::auto_name, int Dims, bool hasPropList,
             typename... RestT>
-  std::enable_if_t<(sizeof...(RestT) >= 3 &&
-                    ONEAPI::detail::AreAllButLastReductions<RestT...>::value)>
-  parallel_for(nd_range<Dims> Range, RestT... Rest) {
+  void parallel_for_impl(nd_range<Dims> Range, RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
-    auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
-    auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
+    constexpr size_t Offset = hasPropList ? 2 : 1;
+    auto KernelFunc = std::get<NumArgs - Offset>(ArgsTuple);
+    auto ReduIndices = std::make_index_sequence<NumArgs - Offset>();
     auto ReduTuple =
         ONEAPI::detail::tuple_select_elements(ArgsTuple, ReduIndices);
 
@@ -1350,6 +1378,36 @@ public:
     } // end while (NWorkItems > 1)
   }
 
+  // This version of parallel_for may handle one or more reductions packed in
+  // \p Rest argument. Note though that the last element in \p Rest pack is
+  // the kernel function.
+  // TODO: this variant is currently enabled for 2+ reductions only as the
+  // versions handling 1 reduction variable are more efficient right now.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<(sizeof...(RestT) >= 3 &&
+                    ONEAPI::detail::AreAllButLastReductions<RestT...>::value)>
+  parallel_for(nd_range<Dims> Range, RestT... Rest) {
+    parallel_for_impl<KernelName, Dims, false, RestT...>(Range, Rest...);
+  }
+
+  // This version of parallel_for may handle one or more reductions packed in
+  // \p Rest argument. Note though that the last two elements in \p Rest pack
+  // are the kernel function and the property list.
+  // TODO: this variant is currently enabled for 2+ reductions only as the
+  // versions handling 1 reduction variable are more efficient right now.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) >= 4 &&
+       ONEAPI::detail::AreAllButLastTwoReductions<RestT...>::value)>
+  parallel_for(nd_range<Dims> Range, RestT... Rest) {
+    std::tuple<RestT...> ArgsTuple(Rest...);
+    constexpr size_t NumArgs = sizeof...(RestT);
+    MPropList = std::get<NumArgs - 1>(ArgsTuple);
+    parallel_for_impl<KernelName, Dims, true, RestT...>(Range, Rest...);
+  }
+
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
   /// encoding the body of each work-group to launch.
   ///
@@ -1363,7 +1421,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               _KERNELFUNCPARAM(KernelFunc),
+                               const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1371,10 +1430,12 @@ public:
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
+    (void)PropList;
     kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
 #else
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
+    MPropList = PropList;
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
@@ -1396,7 +1457,8 @@ public:
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               _KERNELFUNCPARAM(KernelFunc),
+                               const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1405,12 +1467,14 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
     (void)WorkGroupSize;
+    (void)PropList;
     kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
     MNDRDesc.set(std::move(ExecRange));
+    MPropList = PropList;
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
@@ -1422,28 +1486,32 @@ public:
   /// cannot be called on host.
   ///
   /// \param Kernel is a SYCL kernel object.
-  void single_task(kernel Kernel) {
+  void single_task(kernel Kernel, const property_list &PropList = {}) {
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
+    MPropList = PropList;
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
 
-  void parallel_for(range<1> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+  void parallel_for(range<1> NumWorkItems, kernel Kernel,
+                    const property_list &PropList = {}) {
+    parallel_for_impl(NumWorkItems, Kernel, PropList);
   }
 
-  void parallel_for(range<2> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+  void parallel_for(range<2> NumWorkItems, kernel Kernel,
+                    const property_list &PropList = {}) {
+    parallel_for_impl(NumWorkItems, Kernel, PropList);
   }
 
-  void parallel_for(range<3> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+  void parallel_for(range<3> NumWorkItems, kernel Kernel,
+                    const property_list &PropList = {}) {
+    parallel_for_impl(NumWorkItems, Kernel, PropList);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1456,12 +1524,13 @@ public:
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    kernel Kernel) {
+                    kernel Kernel, const property_list &PropList = {}) {
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
+    MPropList = PropList;
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
     MKernelName = getKernelName();
@@ -1475,12 +1544,15 @@ public:
   /// \param NDRange is a ND-range defining global and local sizes as
   /// well as offset.
   /// \param Kernel is a SYCL kernel function.
-  template <int Dims> void parallel_for(nd_range<Dims> NDRange, kernel Kernel) {
+  template <int Dims>
+  void parallel_for(nd_range<Dims> NDRange, kernel Kernel,
+                    const property_list &PropList = {}) {
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
+    MPropList = PropList;
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
     MKernelName = getKernelName();
@@ -1493,17 +1565,20 @@ public:
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
+  void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc),
+                   const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
+    (void)PropList;
     kernel_single_task<NameT>(KernelFunc);
 #else
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
+    MPropList = PropList;
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
@@ -1533,7 +1608,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+                    _KERNELFUNCPARAM(KernelFunc),
+                    const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1541,10 +1617,12 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkItems;
+    (void)PropList;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
+    MPropList = PropList;
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
@@ -1568,7 +1646,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
+                    id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc),
+                    const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1577,10 +1656,12 @@ public:
     (void)Kernel;
     (void)NumWorkItems;
     (void)WorkItemOffset;
+    (void)PropList;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
+    MPropList = PropList;
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
@@ -1604,7 +1685,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+                    _KERNELFUNCPARAM(KernelFunc),
+                    const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1613,10 +1695,12 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NDRange;
+    (void)PropList;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
+    MPropList = PropList;
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
@@ -1644,7 +1728,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               _KERNELFUNCPARAM(KernelFunc),
+                               const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1653,10 +1738,12 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkGroups;
+    (void)PropList;
     kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
 #else
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
+    MPropList = PropList;
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1682,7 +1769,8 @@ public:
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               _KERNELFUNCPARAM(KernelFunc),
+                               const property_list &PropList = {}) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1692,12 +1780,14 @@ public:
     (void)Kernel;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
+    (void)PropList;
     kernel_parallel_for_work_group<NameT, LambdaArgType>(KernelFunc);
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
     MNDRDesc.set(std::move(ExecRange));
+    MPropList = PropList;
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -2066,6 +2156,7 @@ private:
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;
   event MLastEvent;
+  property_list MPropList;
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;

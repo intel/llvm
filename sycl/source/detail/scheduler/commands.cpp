@@ -1641,8 +1641,8 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
 
 pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
-    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
-    ProgramManager::KernelArgMask EliminatedArgMask) {
+    const property_list &PropList, std::vector<RT::PiEvent> &RawEvents,
+    RT::PiEvent &Event, ProgramManager::KernelArgMask EliminatedArgMask) {
   vector_class<ArgDesc> &Args = ExecKernel->MArgs;
   // TODO this is not necessary as long as we can guarantee that the arguments
   // are already sorted (e. g. handle the sorting in handler if necessary due
@@ -1884,6 +1884,7 @@ cl_int ExecCGCommand::enqueueImp() {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
+    const property_list &PropList = ExecKernel->MPropList;
 
     if (MQueue->is_host()) {
       for (ArgDesc &Arg : ExecKernel->MArgs)
@@ -1950,11 +1951,11 @@ cl_int ExecCGCommand::enqueueImp() {
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex
       std::lock_guard<std::mutex> Lock(*KernelMutex);
-      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
-                                       Event, EliminatedArgMask);
+      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, PropList,
+                                       RawEvents, Event, EliminatedArgMask);
     } else {
-      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
-                                       Event, EliminatedArgMask);
+      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, PropList,
+                                       RawEvents, Event, EliminatedArgMask);
     }
 
     if (PI_SUCCESS != Error) {
