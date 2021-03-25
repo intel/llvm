@@ -453,7 +453,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
     Out << "[String] ";
     break;
   default:
-    assert("unsupported property");
+    assert(false && "unsupported property");
     return Out;
   }
   Out << P.Prop->Name << "=";
