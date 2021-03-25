@@ -48,7 +48,7 @@ private:
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <auto &S, typename T = std::remove_reference_t<decltype(S)>,
-            std::enable_if_t<std::is_scalar_v<T>>>
+            std::enable_if_t<std::is_fundamental_v<T>> * = nullptr>
   T getSpecializationConstantOnDevice() {
     const char *SymbolicID = __builtin_unique_stable_name(
         detail::specialization_id_name_generator<S>);
@@ -56,7 +56,7 @@ private:
         SymbolicID, &S, MSpecializationConstantsBuffer);
   }
   template <auto &S, typename T = std::remove_reference_t<decltype(S)>,
-            std::enable_if_t<std::is_compound_v<T>>>
+            std::enable_if_t<std::is_compound_v<T>> * = nullptr>
   T getSpecializationConstantOnDevice() {
     const char *SymbolicID = __builtin_unique_stable_name(
         detail::specialization_id_name_generator<S>);

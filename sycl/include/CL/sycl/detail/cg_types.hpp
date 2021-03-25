@@ -145,38 +145,56 @@ public:
 };
 
 template <typename F, typename... Args>
-static constexpr bool check_kernel_arg_types() {
+static constexpr bool check_kernel_lambda_takes_args() {
   return check_fn_signature<std::remove_reference_t<F>, void(Args...)>::value;
 }
 
-// TODO: replace run* funcs below with "constexpr if" when DPC++ RT switched
-// to C++17
-template <typename KernelType, typename std::enable_if_t<check_kernel_arg_types<
-                                   KernelType, kernel_handler>()> * = nullptr>
-static constexpr void runKernelWithoutArg(KernelType KernelName) {
+// Type traits to find out if kernal lambda has kernel_handler argument
+
+template <typename KernelType, typename LambdaArgType = void,
+          typename std::enable_if_t<std::is_same<LambdaArgType, void>::value>
+              * = nullptr>
+constexpr bool isKernelLambdaCallableWithKernelHandler() {
+  return check_kernel_lambda_takes_args<KernelType, kernel_handler>();
+}
+
+template <typename KernelType, typename LambdaArgType,
+          typename std::enable_if_t<!std::is_same<LambdaArgType, void>::value>
+              * = nullptr>
+constexpr bool isKernelLambdaCallableWithKernelHandler() {
+  return check_kernel_lambda_takes_args<KernelType, LambdaArgType,
+                                        kernel_handler>();
+}
+
+// Helpers for running kernel lambda on the host device
+
+template <typename KernelType,
+          typename std::enable_if_t<isKernelLambdaCallableWithKernelHandler<
+              KernelType>()> * = nullptr>
+constexpr void runKernelWithoutArg(KernelType KernelName) {
   kernel_handler KH;
   KernelName(KH);
 }
 
-template <
-    typename KernelType,
-    typename std::enable_if_t<check_kernel_arg_types<KernelType>()> * = nullptr>
-static constexpr void runKernelWithoutArg(KernelType KernelName) {
+template <typename KernelType,
+          typename std::enable_if_t<!isKernelLambdaCallableWithKernelHandler<
+              KernelType>()> * = nullptr>
+constexpr void runKernelWithoutArg(KernelType KernelName) {
   KernelName();
 }
 
-template <typename KernelType, typename ArgType,
-          typename std::enable_if_t<check_kernel_arg_types<
-              KernelType, ArgType, kernel_handler>()> * = nullptr>
-static constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
+template <typename ArgType, typename KernelType,
+          typename std::enable_if_t<isKernelLambdaCallableWithKernelHandler<
+              KernelType, ArgType>()> * = nullptr>
+constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
   kernel_handler KH;
   KernelName(Arg, KH);
 }
 
-template <typename KernelType, typename ArgType,
-          typename std::enable_if_t<
-              check_kernel_arg_types<KernelType, ArgType>()> * = nullptr>
-static constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
+template <typename ArgType, typename KernelType,
+          typename std::enable_if_t<!isKernelLambdaCallableWithKernelHandler<
+              KernelType, ArgType>()> * = nullptr>
+constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
   KernelName(Arg);
 }
 
@@ -255,7 +273,7 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, void>::value>
   runOnHost(const NDRDescT &) {
-    runKernelWithoutArg<KernelType>(MKernel);
+    runKernelWithoutArg(MKernel);
   }
 
   template <class ArgT = KernelArgType>
@@ -286,7 +304,7 @@ public:
             store_id(&ID);
             store_item(&Item);
           }
-          runKernelWithArg<KernelType, const sycl::id<Dims> &>(MKernel, ID);
+          runKernelWithArg<const sycl::id<Dims> &>(MKernel, ID);
         });
   }
 
@@ -311,8 +329,7 @@ public:
         store_id(&ID);
         store_item(&ItemWithOffset);
       }
-      runKernelWithArg<KernelType, sycl::item<Dims, /*Offset=*/false>>(MKernel,
-                                                                       Item);
+      runKernelWithArg<sycl::item<Dims, /*Offset=*/false>>(MKernel, Item);
     });
   }
 
@@ -345,8 +362,7 @@ public:
             store_id(&ID);
             store_item(&Item);
           }
-          runKernelWithArg<KernelType, sycl::item<Dims, /*Offset=*/true>>(
-              MKernel, Item);
+          runKernelWithArg<sycl::item<Dims, /*Offset=*/true>>(MKernel, Item);
         });
   }
 
@@ -396,8 +412,7 @@ public:
           auto g = NDItem.get_group();
           store_group(&g);
         }
-        runKernelWithArg<KernelType, const sycl::nd_item<Dims>>(MKernel,
-                                                                NDItem);
+        runKernelWithArg<const sycl::nd_item<Dims>>(MKernel, NDItem);
       });
     });
   }
@@ -425,7 +440,7 @@ public:
     detail::NDLoop<Dims>::iterate(NGroups, [&](const id<Dims> &GroupID) {
       sycl::group<Dims> Group =
           IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, NGroups, GroupID);
-      runKernelWithArg<KernelType, sycl::group<Dims>>(MKernel, Group);
+      runKernelWithArg<sycl::group<Dims>>(MKernel, Group);
     });
   }
 
