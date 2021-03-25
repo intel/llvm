@@ -113,7 +113,7 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error@Inputs/sycl.hpp:233 {{unnamed lambda '(lambda at /iusers/sundaram/forked-repo/llvm/clang/test/SemaSYCL/unnamed-kernel.cpp:119:54)' used}}
+  // expected-error-re@Inputs/sycl.hpp:233 {{unnamed lambda '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' used}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
