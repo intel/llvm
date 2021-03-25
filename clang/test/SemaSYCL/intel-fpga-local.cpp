@@ -109,6 +109,7 @@ void check_ast()
   [[intel::doublepump]]
   [[intel::fpga_memory("MLAB")]] unsigned int doublepump_mlab[64];
 
+  // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
@@ -147,7 +148,7 @@ void check_ast()
   [[intel::force_pow2_depth(1)]] int var_force_p2d;
   [[intel::force_pow2_depth(1)]] const int const_force_p2d[64] = {0, 1};
 
-  // Checking of duplicate argument values.
+  // Check duplicate argument values with implicit memory attribute.
   //CHECK: VarDecl{{.*}}var_max_replicates
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
@@ -338,6 +339,7 @@ void diagnostics()
   unsigned int bankwidth_reg[64];
 
   // **max_replicates
+  // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
@@ -816,6 +818,7 @@ void check_template_parameters() {
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intel::bank_bits(A, 3), intel::bankwidth(C)]] unsigned int bank_bits_width;
 
+  // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr

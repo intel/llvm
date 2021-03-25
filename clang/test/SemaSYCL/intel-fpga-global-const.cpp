@@ -3,7 +3,7 @@
 // Test that checks global constant variable (which allows the redeclaration) since
 // IntelFPGAConstVar is one of the subjects listed for [[intel::max_replicates()]] attribute.
 
-// Checking of duplicate argument values.
+// Check duplicate argument values with implicit memory attribute.
 //CHECK: VarDecl{{.*}}var_max_replicates
 //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
 //CHECK: IntelFPGAMaxReplicatesAttr
