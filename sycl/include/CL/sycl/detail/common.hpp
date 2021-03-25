@@ -107,6 +107,7 @@ static inline std::string codeToString(cl_int code) {
 
 #ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
+// TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
 #define __SYCL_REPORT_OCL_ERR_TO_STREAM(expr)                                  \
   {                                                                            \
     auto code = expr;                                                          \
