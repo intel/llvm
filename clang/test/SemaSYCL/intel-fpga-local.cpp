@@ -110,6 +110,7 @@ void check_ast()
   [[intel::fpga_memory("MLAB")]] unsigned int doublepump_mlab[64];
 
   //CHECK: VarDecl{{.*}}max_replicates
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
@@ -148,6 +149,7 @@ void check_ast()
 
   // Checking of duplicate argument values.
   //CHECK: VarDecl{{.*}}var_max_replicates
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
@@ -337,6 +339,7 @@ void diagnostics()
 
   // **max_replicates
   //CHECK: VarDecl{{.*}}max_replicates
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
@@ -814,6 +817,7 @@ void check_template_parameters() {
   [[intel::bank_bits(A, 3), intel::bankwidth(C)]] unsigned int bank_bits_width;
 
   //CHECK: VarDecl{{.*}}max_replicates
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2

@@ -5996,6 +5996,12 @@ void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
     // attributes are incompatible.
     if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
       return;
+
+    // If the declaration does not have an [[intel::fpga_memory]]
+    // attribute, this creates one as an implicit attribute.
+    if (!D->hasAttr<IntelFPGAMemoryAttr>())
+      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+          Context, IntelFPGAMemoryAttr::Default));
   }
 
   D->addAttr(::new (Context) IntelFPGAMaxReplicatesAttr(Context, CI, E));

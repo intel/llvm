@@ -5,6 +5,7 @@
 
 // Checking of duplicate argument values.
 //CHECK: VarDecl{{.*}}var_max_replicates
+//CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
 //CHECK: IntelFPGAMaxReplicatesAttr
 //CHECK-NEXT: ConstantExpr
 //CHECK-NEXT: value:{{.*}}12
