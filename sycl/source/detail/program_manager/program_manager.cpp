@@ -329,7 +329,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
         PI_INVALID_OPERATION);
 
   assert((Devices.size() > 1 && Format == PI_DEVICE_BINARY_TYPE_SPIRV) ||
-         Format != PI_DEVICE_BINARY_TYPE_SPIRV &&
+         (Format != PI_DEVICE_BINARY_TYPE_SPIRV) &&
              "Creating program from AOT binary for multiple device is not "
              "supported");
 
