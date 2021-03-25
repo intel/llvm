@@ -19,7 +19,7 @@
 // Post-link tool traces the ID to a string literal it points to and assigns
 // integer ID.
 template <typename T>
-SYCL_EXTERNAL T __sycl_getSpecConstantValue(const char *ID);
+SYCL_EXTERNAL T __sycl_getScalarSpecConstantValue(const char *ID);
 
 template <typename T>
 SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);

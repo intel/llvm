@@ -293,20 +293,18 @@ public:
   /// Returns a single property from SYCL_MISC_PROP category.
   pi_device_binary_property getProperty(const char *PropName) const;
 
-  /// Gets the iterator range over scalar specialization constants in this
-  /// binary image. For each property pointed to by an iterator within the
+  /// Gets the iterator range over specialization constants in this binary
+  /// image. For each property pointed to by an iterator within the
   /// range, the name of the property is the specialization constant symbolic ID
-  /// and the value is 32-bit unsigned integer ID.
-  const PropertyRange &getScalarSpecConstants() const {
-    return ScalarSpecConstIDMap;
-  }
-  /// Gets the iterator range over composite specialization constants in this
-  /// binary image. For each property pointed to by an iterator within the
-  /// range, the name of the property is the specialization constant symbolic ID
-  /// and the value is a list of tuples of 32-bit unsigned integer values, which
-  /// encode scalar specialization constants, that form the composite one.
+  /// and the value is a list of 3-element tuples of 32-bit unsigned integers,
+  /// describing the specialization constant.
+  /// This is done in order to unify representation of both scalar and composite
+  /// specialization constants: composite specialization constant is represented
+  /// by its leaf elements, so for scalars the list contains only a single
+  /// tuple, while for composite there might be more of them.
   /// Each tuple consists of ID of scalar specialization constant, its location
-  /// within a composite (offset in bytes from the beginning) and its size.
+  /// within a composite (offset in bytes from the beginning or 0 if it is not
+  /// an element of a composite specialization constant) and its size.
   /// For example, for the following structure:
   /// struct A { int a; float b; };
   /// struct POD { A a[2]; int b; };
@@ -316,9 +314,10 @@ public:
   /// { ID2, 8, 4 },  // .a[1].a
   /// { ID3, 12, 4 }, // .a[1].b
   /// { ID4, 16, 4 }, // .b
-  const PropertyRange &getCompositeSpecConstants() const {
-    return CompositeSpecConstIDMap;
-  }
+  /// And for an interger specialization constant, the list of tuples will look
+  /// like:
+  /// { ID5, 0, 4 }
+  const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
@@ -331,8 +330,7 @@ protected:
 
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
-  DeviceBinaryImage::PropertyRange ScalarSpecConstIDMap;
-  DeviceBinaryImage::PropertyRange CompositeSpecConstIDMap;
+  DeviceBinaryImage::PropertyRange SpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
 };
