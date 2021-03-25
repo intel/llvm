@@ -72,5 +72,5 @@ for shlibpath_var in find_shlibpath_var():
 else:
     lit_config.warning("unable to inject shared library path on '{}'"
                        .format(platform.system()))
-config.environment['SYCL_DEVICE_FILTER'] = lit_config.params.get('SYCL_PLUGIN', "opencl,host")
+config.environment['SYCL_DEVICE_FILTER'] = lit_config.params.get('SYCL_PLUGIN', "opencl") + ",host"
 lit_config.note("Backend: {}".format(config.environment['SYCL_DEVICE_FILTER']))
