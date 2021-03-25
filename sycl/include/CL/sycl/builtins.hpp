@@ -1545,6 +1545,10 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
+extern SYCL_EXTERNAL int abs(int x);
+extern SYCL_EXTERNAL long int labs(long int x);
+extern SYCL_EXTERNAL long long int llabs(long long int x);
+
 extern SYCL_EXTERNAL div_t div(int x, int y);
 extern SYCL_EXTERNAL ldiv_t ldiv(long int x, long int y);
 extern SYCL_EXTERNAL lldiv_t lldiv(long long int x, long long int y);
