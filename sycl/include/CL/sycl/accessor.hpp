@@ -858,16 +858,8 @@ protected:
 
   detail::AccessorImplDevice<AdjustedDim> impl;
 
-  // TODO is not used anymore and is left temporarily to avoid ABI breaking
-  // changes.
-  using OCLImage1dBufferTy =
-      typename detail::opencl_image1d_buffer_type<AccessMode>::type;
-
   union {
     ConcreteASPtrType MData;
-    // TODO is not used anymore and is left temporarily to avoid ABI breaking
-    // changes.
-    OCLImage1dBufferTy ImageBuffer;
   };
 
   // TODO replace usages with getQualifiedPtr
