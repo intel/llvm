@@ -52,20 +52,14 @@ ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
   return new SYCLLowerWGLocalMemoryLegacy();
 }
 
+// Static local memory allocation should be allowed only in a scope of a kernel
+// (not a device function) and shouldn't be called inside loop or if statement
+// to make it consistent with OpenCL restriction.
+// TODO: Relax that restriction for SYCL or modify this pass to move allocation
+// of memory up to a kernel scope at the beginning for each nested device
+// function call, loop or if statement.
 static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   assert(CI);
-
-  // Static local memory allocation should be allowed only in a scope of a spir
-  // kernel (not a spir function) to make it consistent with OpenCL restriction.
-  // However, __sycl_allocateLocalMemory is invoked in a scope of kernel lambda
-  // call operator, which is technically not a SPIR-V kernel scope.
-  // TODO: Relax that restriction for SYCL or modify this pass to move
-  // allocation of memory up to a spir kernel scope for each nested device
-  // function call.
-  CallingConv::ID CC = CI->getCaller()->getCallingConv();
-  assert((CC == llvm::CallingConv::SPIR_FUNC ||
-          CC == llvm::CallingConv::SPIR_KERNEL) &&
-         "WG static local memory can be allocated only in kernel scope");
 
   Value *ArgSize = CI->getArgOperand(0);
   uint64_t Size = cast<llvm::ConstantInt>(ArgSize)->getZExtValue();
