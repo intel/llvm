@@ -21,7 +21,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 class Builder;
-} // namespace detail
+}
 template <int dimensions> class id;
 template <int dimensions> class range;
 
@@ -119,7 +119,6 @@ protected:
 
 private:
   friend class handler;
-
   void set_allowed_range(const range<dimensions> rnwi) { MImpl.MExtent = rnwi; }
 
   detail::ItemBase<dimensions, with_offset> MImpl;
