@@ -22713,23 +22713,21 @@ static unsigned translateX86FSETCC(ISD::CondCode SetCCOpcode, SDValue &Op0,
 
 /// Break a VSETCC 256-bit integer VSETCC into two new 128 ones and then
 /// concatenate the result back.
-static SDValue splitIntVSETCC(SDValue Op, SelectionDAG &DAG) {
-  EVT VT = Op.getValueType();
+static SDValue splitIntVSETCC(EVT VT, SDValue LHS, SDValue RHS,
+                              ISD::CondCode Cond, SelectionDAG &DAG,
+                              const SDLoc &dl) {
+  assert(VT.isInteger() && VT == LHS.getValueType() &&
+         VT == RHS.getValueType() && "Unsupported VTs!");
 
-  assert(Op.getOpcode() == ISD::SETCC && "Unsupported operation");
-  assert(Op.getOperand(0).getValueType().isInteger() &&
-         VT == Op.getOperand(0).getValueType() && "Unsupported VTs!");
-
-  SDLoc dl(Op);
-  SDValue CC = Op.getOperand(2);
+  SDValue CC = DAG.getCondCode(Cond);
 
   // Extract the LHS Lo/Hi vectors
   SDValue LHS1, LHS2;
-  std::tie(LHS1, LHS2) = splitVector(Op.getOperand(0), DAG, dl);
+  std::tie(LHS1, LHS2) = splitVector(LHS, DAG, dl);
 
   // Extract the RHS Lo/Hi vectors
   SDValue RHS1, RHS2;
-  std::tie(RHS1, RHS2) = splitVector(Op.getOperand(1), DAG, dl);
+  std::tie(RHS1, RHS2) = splitVector(RHS, DAG, dl);
 
   // Issue the operation on the smaller types and concatenate the result back
   EVT LoVT, HiVT;
@@ -23079,11 +23077,11 @@ static SDValue LowerVSETCC(SDValue Op, const X86Subtarget &Subtarget,
 
   // Break 256-bit integer vector compare into smaller ones.
   if (VT.is256BitVector() && !Subtarget.hasInt256())
-    return splitIntVSETCC(Op, DAG);
+    return splitIntVSETCC(VT, Op0, Op1, Cond, DAG, dl);
 
   if (VT == MVT::v32i16 || VT == MVT::v64i8) {
     assert(!Subtarget.hasBWI() && "Unexpected VT with AVX512BW!");
-    return splitIntVSETCC(Op, DAG);
+    return splitIntVSETCC(VT, Op0, Op1, Cond, DAG, dl);
   }
 
   // If this is a SETNE against the signed minimum value, change it to SETGT.
@@ -39201,17 +39199,22 @@ SDValue X86TargetLowering::SimplifyMultipleUseDemandedBitsForTargetNode(
       Op, DemandedBits, DemandedElts, DAG, Depth);
 }
 
-// Helper to peek through bitops/setcc to determine size of source vector.
+// Helper to peek through bitops/trunc/setcc to determine size of source vector.
 // Allows combineBitcastvxi1 to determine what size vector generated a <X x i1>.
-static bool checkBitcastSrcVectorSize(SDValue Src, unsigned Size) {
+static bool checkBitcastSrcVectorSize(SDValue Src, unsigned Size,
+                                      bool AllowTruncate) {
   switch (Src.getOpcode()) {
+  case ISD::TRUNCATE:
+    if (!AllowTruncate)
+      return false;
+    LLVM_FALLTHROUGH;
   case ISD::SETCC:
     return Src.getOperand(0).getValueSizeInBits() == Size;
   case ISD::AND:
   case ISD::XOR:
   case ISD::OR:
-    return checkBitcastSrcVectorSize(Src.getOperand(0), Size) &&
-           checkBitcastSrcVectorSize(Src.getOperand(1), Size);
+    return checkBitcastSrcVectorSize(Src.getOperand(0), Size, AllowTruncate) &&
+           checkBitcastSrcVectorSize(Src.getOperand(1), Size, AllowTruncate);
   }
   return false;
 }
@@ -39266,6 +39269,7 @@ static SDValue signExtendBitcastSrcVector(SelectionDAG &DAG, EVT SExtVT,
                                           SDValue Src, const SDLoc &DL) {
   switch (Src.getOpcode()) {
   case ISD::SETCC:
+  case ISD::TRUNCATE:
     return DAG.getNode(ISD::SIGN_EXTEND, DL, SExtVT, Src);
   case ISD::AND:
   case ISD::XOR:
@@ -39349,7 +39353,8 @@ static SDValue combineBitcastvxi1(SelectionDAG &DAG, EVT VT, SDValue Src,
     SExtVT = MVT::v4i32;
     // For cases such as (i4 bitcast (v4i1 setcc v4i64 v1, v2))
     // sign-extend to a 256-bit operation to avoid truncation.
-    if (Subtarget.hasAVX() && checkBitcastSrcVectorSize(Src, 256)) {
+    if (Subtarget.hasAVX() &&
+        checkBitcastSrcVectorSize(Src, 256, Subtarget.hasAVX2())) {
       SExtVT = MVT::v4i64;
       PropagateSExt = true;
     }
@@ -39361,8 +39366,8 @@ static SDValue combineBitcastvxi1(SelectionDAG &DAG, EVT VT, SDValue Src,
     // If the setcc operand is 128-bit, prefer sign-extending to 128-bit over
     // 256-bit because the shuffle is cheaper than sign extending the result of
     // the compare.
-    if (Subtarget.hasAVX() && (checkBitcastSrcVectorSize(Src, 256) ||
-                               checkBitcastSrcVectorSize(Src, 512))) {
+    if (Subtarget.hasAVX() && (checkBitcastSrcVectorSize(Src, 256, true) ||
+                               checkBitcastSrcVectorSize(Src, 512, true))) {
       SExtVT = MVT::v8i32;
       PropagateSExt = true;
     }
@@ -39387,7 +39392,7 @@ static SDValue combineBitcastvxi1(SelectionDAG &DAG, EVT VT, SDValue Src,
       break;
     }
     // Split if this is a <64 x i8> comparison result.
-    if (checkBitcastSrcVectorSize(Src, 512)) {
+    if (checkBitcastSrcVectorSize(Src, 512, false)) {
       SExtVT = MVT::v64i8;
       break;
     }
@@ -46140,10 +46145,8 @@ static SDValue combineVectorTruncation(SDNode *N, SelectionDAG &DAG,
   EVT InVT = In.getValueType();
   unsigned NumElems = OutVT.getVectorNumElements();
 
-  // TODO: On AVX2, the behavior of X86ISD::PACKUS is different from that on
-  // SSE2, and we need to take care of it specially.
-  // AVX512 provides vpmovdb.
-  if (!Subtarget.hasSSE2() || Subtarget.hasAVX2())
+  // AVX512 provides fast truncate ops.
+  if (!Subtarget.hasSSE2() || Subtarget.hasAVX512())
     return SDValue();
 
   EVT OutSVT = OutVT.getVectorElementType();
