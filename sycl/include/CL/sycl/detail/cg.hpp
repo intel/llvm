@@ -123,6 +123,13 @@ constexpr unsigned int getVersionedCGType(unsigned int Type,
   return Type | (static_cast<unsigned int>(Version) << ShiftBitsForVersion);
 }
 
+// Returns the type without version encoded
+constexpr unsigned char getUnversionedCGType(unsigned int Type) {
+  unsigned int Mask = -1;
+  Mask >>= (sizeof(Mask) * 8 - ShiftBitsForVersion);
+  return Type & Mask;
+}
+
 // Returns the version encoded to the type
 constexpr unsigned char getCGTypeVersion(unsigned int Type) {
   return Type >> ShiftBitsForVersion;
@@ -183,7 +190,7 @@ public:
 
   CG(CG &&CommandGroup) = default;
 
-  CGTYPE getType() { return MType; }
+  CGTYPE getType() { return static_cast<CGTYPE>(getUnversionedCGType(MType)); }
 
   std::shared_ptr<std::vector<ExtendedMemberT>> getExtendedMembers() {
     if (getCGTypeVersion(MType) == static_cast<unsigned int>(CG_VERSION::V0) ||
