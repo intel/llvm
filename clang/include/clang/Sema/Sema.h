@@ -315,7 +315,8 @@ public:
     kind_std_layout,
     kind_sampler,
     kind_pointer,
-    kind_last = kind_pointer
+    kind_specialization_constants_buffer,
+    kind_last = kind_specialization_constants_buffer
   };
 
 public:
