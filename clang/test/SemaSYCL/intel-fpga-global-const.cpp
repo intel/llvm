@@ -32,3 +32,36 @@
 //expected-note@+2{{conflicting attribute is here}}
 [[intel::max_replicates(12)]] extern const int var_max_replicates_2;
 [[intel::fpga_register]] const int var_max_replicates_2 =0;
+
+// Test that checks global constant variable (which allows the redeclaration) since
+// IntelFPGAConstVar is one of the subjects listed for [[intel::force_pow2_depth()]] attribute.
+
+// Checking of duplicate argument values.
+//CHECK: VarDecl{{.*}}force_pow2_depth
+//CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+//CHECK: IntelFPGAForcePow2DepthAttr
+//CHECK-NEXT: ConstantExpr
+//CHECK-NEXT: value:{{.*}}1
+//CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+//CHECK: IntelFPGAForcePow2DepthAttr
+//CHECK-NEXT: ConstantExpr
+//CHECK-NEXT: value:{{.*}}1
+//CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+[[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth;
+[[intel::force_pow2_depth(1)]] const int var_force_pow2_depth = 0; // OK
+
+// Merging of different arg values.
+//expected-warning@+2{{attribute 'force_pow2_depth' is already applied with different arguments}}
+[[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth_1;
+[[intel::force_pow2_depth(0)]] const int var_force_pow2_depth_1 = 0;
+//expected-note@-2{{previous attribute is here}}
+
+// Merging of incompatible attributes.
+// FIXME: Diagnostic order isn't correct, this isn't what we'd want here but
+// this is an upstream issue. Merge function is calling here
+// checkAttrMutualExclusion() function that has backwards diagnostic behavior.
+// This should be fixed into upstream.
+//expected-error@+2{{'force_pow2_depth' and 'fpga_register' attributes are not compatible}}
+//expected-note@+2{{conflicting attribute is here}}
+[[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth_2;
+[[intel::fpga_register]] const int var_force_pow2_depth_2 =0;
