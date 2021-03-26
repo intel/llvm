@@ -22,6 +22,42 @@
 
 #include <utility>
 
+// having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
+// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
+// _CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
+// _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
+// these macros are #undef immediately.
+
+// replace _CODELOCPARAM(&CodeLoc) with nothing
+// or :   , const detail::code_location &CodeLoc =
+// detail::code_location::current()
+// replace _CODELOCARG(&CodeLoc) with nothing
+// or :  const detail::code_location &CodeLoc = {}
+
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+#define _CODELOCONLYPARAM(a)                                                   \
+  const detail::code_location a = detail::code_location::current()
+#define _CODELOCPARAM(a)                                                       \
+  , const detail::code_location a = detail::code_location::current()
+
+#define _CODELOCARG(a)
+#define _CODELOCFW(a) , a
+#else
+#define _CODELOCONLYPARAM(a)
+#define _CODELOCPARAM(a)
+
+#define _CODELOCARG(a) const detail::code_location a = {}
+#define _CODELOCFW(a)
+#endif
+
+// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
+//                                     or     const KernelType &KernelFunc
+#ifdef __SYCL_NONCONST_FUNCTOR__
+#define _KERNELFUNCPARAM(a) KernelType a
+#else
+#define _KERNELFUNCPARAM(a) const KernelType &a
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -184,17 +220,9 @@ public:
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
-  template <typename T>
-  event
-  submit(T CGF
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-         ,
-         const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+
     return submit_impl(CGF, CodeLoc);
   }
 
@@ -210,16 +238,9 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   template <typename T>
-  event
-  submit(T CGF, queue &SecondaryQueue
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-         ,
-         const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+
     return submit_impl(CGF, SecondaryQueue, CodeLoc);
   }
 
@@ -230,16 +251,8 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit_barrier(
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-    return submit([=](handler &CGH) { CGH.barrier(); }
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-                  , CodeLoc
-#endif
-    );
+  event submit_barrier(_CODELOCONLYPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) { CGH.barrier(); } _CODELOCFW(CodeLoc));
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -251,18 +264,10 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit_barrier(
-      const vector_class<event> &WaitList
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-    return submit([=](handler &CGH) { CGH.barrier(WaitList); }
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-                  , CodeLoc
-#endif
-    );
+  event
+  submit_barrier(const vector_class<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
+    return submit(
+        [=](handler &CGH) { CGH.barrier(WaitList); } _CODELOCFW(CodeLoc));
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -270,14 +275,9 @@ public:
   ///
   /// Synchronous errors will be reported through SYCL exceptions.
   /// @param CodeLoc is the code location of the submit call (default argument)
-  void wait(
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  void wait(_CODELOCONLYPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc)
+
     wait_proxy(CodeLoc);
   }
 
@@ -289,14 +289,9 @@ public:
   /// construction. If no async_handler was provided then asynchronous
   /// exceptions will be lost.
   /// @param CodeLoc is the code location of the submit call (default argument)
-  void wait_and_throw(
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  void wait_and_throw(_CODELOCONLYPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+
     wait_and_throw_proxy(CodeLoc);
   }
 
@@ -374,36 +369,6 @@ public:
   event prefetch(const void *Ptr, size_t Count) {
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
-
-  // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-  // Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
-  // _CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
-  // _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
-  // these macros are #undef immediately.
-
-  // replace _CODELOCPARAM(&CodeLoc) with nothing
-  // or :   , const detail::code_location &CodeLoc =
-  // detail::code_location::current()
-  // replace _CODELOCARG(&CodeLoc) with nothing
-  // or :  const detail::code_location &CodeLoc = {}
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define _CODELOCPARAM(a)                                                       \
-  , const detail::code_location a = detail::code_location::current()
-
-#define _CODELOCARG(a)
-#else
-#define _CODELOCPARAM(a)
-
-#define _CODELOCARG(a) const detail::code_location a = {}
-#endif
-// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
-//                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAM(a) KernelType a
-#else
-#define _KERNELFUNCPARAM(a) const KernelType &a
-#endif
 
   /// single_task version with a kernel represented as a lambda.
   ///
@@ -746,7 +711,9 @@ public:
 
 // Clean up CODELOC and KERNELFUNC macros.
 #undef _CODELOCPARAM
+#undef _CODELOCONLYPARAM
 #undef _CODELOCARG
+#undef _CODELOCFW
 #undef _KERNELFUNCPARAM
 
   /// Returns whether the queue is in order or OoO
