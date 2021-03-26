@@ -32,6 +32,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return getSpecializationConstantOnDevice<S>();
 #else
+    // TODO: add support of host device
     throw cl::sycl::feature_not_supported(
         "kernel_handler::get_specialization_constant() is not yet supported by "
         "host device.",
