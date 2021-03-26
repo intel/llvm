@@ -413,16 +413,12 @@ static string_vector saveDeviceImageProperty(
     if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
       if (ImgPSInfo.SpecConstsMet) {
         // extract spec constant maps per each module
-        ScalarSpecIDMapTy TmpScalarSpecIDMap;
-        CompositeSpecIDMapTy TmpCompositeSpecIDMap;
-        SpecConstantsPass::collectSpecConstantMetadata(
-            *ResultModules[I].get(), TmpScalarSpecIDMap, TmpCompositeSpecIDMap);
+        SpecIDMapTy TmpSpecIDMap;
+        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
+                                                       TmpSpecIDMap);
         PropSet.add(
             llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
-            TmpScalarSpecIDMap);
-        PropSet.add(llvm::util::PropertySetRegistry::
-                        SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS,
-                    TmpCompositeSpecIDMap);
+            TmpSpecIDMap);
       }
     }
     if (ImgPSInfo.EmitKernelParamInfo) {

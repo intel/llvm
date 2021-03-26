@@ -150,6 +150,38 @@ static void zePrint(const char *Format, ...) {
   }
 }
 
+// Helper function to implement zeHostSynchronize.
+// The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
+// This allows for a much more responsive debugging of hangs.
+//
+template <typename T, typename Func>
+ze_result_t zeHostSynchronizeImpl(Func Api, T Handle) {
+  if (!ZeDebug) {
+    return Api(Handle, UINT64_MAX);
+  }
+
+  ze_result_t R;
+  while ((R = Api(Handle, 1000)) == ZE_RESULT_NOT_READY)
+    ;
+  return R;
+}
+
+// Template function to do various types of host synchronizations.
+// This is intended to be used instead of direct calls to specific
+// Level-Zero synchronization APIs.
+//
+template <typename T> ze_result_t zeHostSynchronize(T Handle);
+template <> ze_result_t zeHostSynchronize(ze_event_handle_t Handle) {
+  return zeHostSynchronizeImpl(zeEventHostSynchronize, Handle);
+}
+template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
+  return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
+}
+// template <>
+// ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
+//   return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
+// }
+
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
                       size_t *param_value_size_ret, T value, size_t value_size,
@@ -407,7 +439,7 @@ inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
 
 #undef ZE_ERRCASE
   default:
-    assert("Unexpected Error code");
+    assert(false && "Unexpected Error code");
   } // switch
 }
 
@@ -759,7 +791,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
     // Wait until command lists attached to the command queue are executed.
-    ZE_CALL(zeCommandQueueSynchronize, (ZeCommandQueue, UINT32_MAX));
+    ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
   }
   return PI_SUCCESS;
 }
@@ -2206,7 +2238,7 @@ pi_result piQueueRelease(pi_queue Queue) {
         return Res;
 
       // Make sure all commands get executed.
-      zeCommandQueueSynchronize(Queue->ZeCommandQueue, UINT64_MAX);
+      ZE_CALL(zeHostSynchronize, (Queue->ZeCommandQueue));
 
       // Destroy all the fences created associated with this queue.
       for (auto &MapEntry : Queue->ZeCommandListFenceMap) {
@@ -2242,7 +2274,7 @@ pi_result piQueueFinish(pi_queue Queue) {
   if (auto Res = Queue->executeOpenCommandList())
     return Res;
 
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCommandQueue, UINT32_MAX));
+  ZE_CALL(zeHostSynchronize, (Queue->ZeCommandQueue));
   return PI_SUCCESS;
 }
 
@@ -3909,7 +3941,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     ze_event_handle_t ZeEvent = EventList[I]->ZeEvent;
     zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-    ZE_CALL(zeEventHostSynchronize, (ZeEvent, UINT32_MAX));
+    ZE_CALL(zeHostSynchronize, (ZeEvent));
 
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
@@ -4195,7 +4227,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Res != PI_SUCCESS)
     return Res;
 
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCommandQueue, UINT64_MAX));
+  ZE_CALL(zeHostSynchronize, (Queue->ZeCommandQueue));
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return PI_SUCCESS;
 }

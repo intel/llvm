@@ -109,7 +109,9 @@ void check_ast()
   [[intel::doublepump]]
   [[intel::fpga_memory("MLAB")]] unsigned int doublepump_mlab[64];
 
+  // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
@@ -146,8 +148,9 @@ void check_ast()
   [[intel::force_pow2_depth(1)]] int var_force_p2d;
   [[intel::force_pow2_depth(1)]] const int const_force_p2d[64] = {0, 1};
 
-  // Checking of duplicate argument values.
+  // Check duplicate argument values with implicit memory attribute.
   //CHECK: VarDecl{{.*}}var_max_replicates
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
@@ -172,6 +175,16 @@ void check_ast()
   //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
   [[intel::private_copies(12)]]
   [[intel::private_copies(12)]] int var_private_copies; // OK
+
+  // Checking of duplicate argument values.
+  //CHECK: VarDecl{{.*}}var_forcep2d
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: value:{{.*}}1
+  //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+  [[intel::force_pow2_depth(1)]]
+  [[intel::force_pow2_depth(1)]] int var_forcep2d; // OK
 }
 
 //CHECK: FunctionDecl{{.*}}diagnostics
@@ -336,7 +349,9 @@ void diagnostics()
   unsigned int bankwidth_reg[64];
 
   // **max_replicates
+  // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
@@ -608,17 +623,15 @@ void diagnostics()
   //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
   [[intel::force_pow2_depth(0, 1)]] unsigned int force_p2d_2_args[64];
 
+  // Checking of different argument values.
   //CHECK: VarDecl{{.*}}force_p2d_dup
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAForcePow2DepthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-  //CHECK: IntelFPGAForcePow2DepthAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}0
-  //CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
-  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied}}
+  //expected-note@+2{{previous attribute is here}}
+  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied with different arguments}}
   [[intel::force_pow2_depth(1), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
 
@@ -813,7 +826,9 @@ void check_template_parameters() {
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intel::bank_bits(A, 3), intel::bankwidth(C)]] unsigned int bank_bits_width;
 
+  // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
@@ -857,6 +872,7 @@ void check_template_parameters() {
   //expected-note@-1{{conflicting attribute is here}}
   [[intel::force_pow2_depth(E)]] unsigned int reg_force_p2d[64];
 
+  // Test that checks template instantiations for different arg values.
   //CHECK: VarDecl{{.*}}force_p2d_dup
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAForcePow2DepthAttr
@@ -865,11 +881,8 @@ void check_template_parameters() {
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
   //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-  //CHECK: IntelFPGAForcePow2DepthAttr
-  //CHECK: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}0
-  //CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
-  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied}}
+  //expected-note@+2{{previous attribute is here}}
+  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied with different arguments}}
   [[intel::force_pow2_depth(E), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
 
