@@ -1129,6 +1129,12 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
+    // Enable SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING macro for
+    // all FPGA compilations.
+    if (TI.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+      Builder.defineMacro("__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__", "1");
+    }
+
     if (TI.getTriple().isNVPTX()) {
         Builder.defineMacro("__SYCL_NVPTX__", "1");
     }
@@ -1137,14 +1143,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__SYCL_EXPLICIT_SIMD__", "1");
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
-
-  if (LangOpts.SYCLIsDevice) {
-    // Enable SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING macro for
-    // all FPGA compilations.
-    if (TI.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-      Builder.defineMacro("__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__", "1");
-    }
-  }
 
   // OpenCL definitions.
   if (LangOpts.OpenCL) {
