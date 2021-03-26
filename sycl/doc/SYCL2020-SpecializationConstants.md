@@ -5,26 +5,26 @@ by SYCL 2020 specification: [SYCL registry][sycl-registry],
 [direct link to the specification][sycl-2020-spec].
 
 [sycl-registry]: https://www.khronos.org/registry/SYCL/
-[sycl-2020-spec]: https://www.khronos.org/registry/SYCL/specs/sycl-2020/pdf/sycl-2020.pdf
+[sycl-2020-spec]: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html
 
 TODO: feature overview? code example?
 
-## Design
+## Design objectives
 
-[SYCL 2020][sycl-2020-spec] defines specialization constant as:
+SYCL 2020 [defines specialization constant][sycl-2020-spec-constant-glossary]
+as:
 
-> A constant variable where the value is not known until invocation of the
+> A constant variable where the value is not known until compilation of the
 > SYCL kernel function.
 >
-> Glossary
+> [Glossary][sycl-2020-glossary]
 
-Therefore, implementation is based on [SPIR-V speficiation][spirv-spec] support
-for [Specialization][spirv-specialization].
+[sycl-2020-spec-constant-glossary]: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#specialization-constant
+[sycl-2020-glossary]: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#glossary
 
-[spirv-spec]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html
-[spirv-specialization]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#SpecializationSection
-
-However, the specification also states the following:
+And implementation is based on [SPIR-V speficiation][spirv-spec] support
+for [Specialization][spirv-specialization]. However, the specification also
+states the following:
 
 > It is expected that many implementations will use an intermediate language
 > representation ... such as SPIR-V, and the intermediate language will have
@@ -32,70 +32,149 @@ However, the specification also states the following:
 > not have such native support must still support specialization constants in
 > some other way.
 >
-> Section 4.11.12.2. Specialization constant support
+> [Section 4.11.12.2. Specialization constant support][sycl-2020-4-11-12-2]
+
+[spirv-spec]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html
+[spirv-specialization]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#SpecializationSection
+[sycl-2020-4-11-12-2]: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_specialization_constant_support
 
 Having that said, the following should be implemented:
 
 1. We need to ensure that in generated SPIR-V, calls to
 `get_specialization_constant` are replaced with corresponding instructions for
-referencing specialization constants.
+referencing SPIR-V specialization constants.
 
 2. SYCL provides a mechanism to specify default values of specialization
-constants, which should be reflected in generated SPIR-V. This part is
+constants, which should be reflected in the generated SPIR-V. This part is
 especially tricky, because this happens in host part of the SYCL program, which
-means that without special handling it won't even be visible to device compiler.
+means that without special handling it won't even be visible to the device
+compiler.
 
 3. We need to ensure that DPC++ RT properly sets specialization constants used
-in the program: SYCL uses non-type template parameters to identify
-specialization constants in the program, while at SPIR-V and OpenCL level, each
+in the program: SYCL spec uses non-type template parameters to identify
+specialization constants in the program, while at SPIR-V and OpenCL levels, each
 specialization constant is defined by its numerical ID, which means that we
-need to maintain some mapping from SYCL identifiers to a numeric identifiers to
-be able to set specialization constants. Moreover, at SPIR-V level composite
-specialization constants do not have separate ID and can only be set by setting
-value to each member of a composite, which means that we have 1:n mapping
-between SYCL identifiers and numeric IDs of specialization constants.
+need to maintain some mapping from SYCL identifiers to a numeric identifiers in
+order to be able to set specialization constants. Moreover, at SPIR-V level
+composite specialization constants do not have separate ID and can only be set
+by setting value to each member of a composite, which means that we have `1:n`
+mapping between SYCL identifiers and numeric IDs of specialization constants.
 
 4. When AOT compilation is used or target is a CUDA device (where NVPTX
 intermediate representation is used), we need to somehow emulate support for
 specialization constants.
 
-The following sections describe how each item is implemented and which
-components are responsible for what. The rest of design document is split info
-two parts:
-- Support for native specialization constants: items (1), (2) and (3)
-- Emulation of specialization constants: item (4)
+## Design
 
-Note: emulation part re-uses a lot of things described in native support
-section, so if you want to get familiar with emulation in all details, it is
-recommended to read native support section first.
+As stated above, native specialization constants support is based on
+corresponding SPIR-V functionality, while emulation is supposed to be
+implemented through transforming specialization constants into kernel arguments.
 
-### Support for native specialization constants
+In DPC++ Headers/DPC++ RT we don't know a lot of necessary information about
+specialization constants, like: which numeric ID is used for particular
+specialization constant (since we support `SYCL_EXTERNAL`, those IDs can only
+be allocated by the compiler during link stage) or which kernel argument is used
+to pass particular specialization constant (because they are not explicitly
+captured by SYCL kernel functions and regular mechanism for kernel arguments
+handling can't be used here).
 
-#### DPC++ Headers
+Therefore, we can't have headers-only implementation and the crucial part of
+design is how to organize mapping mechanism between SYCL identifiers for
+specialization constants (`specialization_id`s) and low-level identifiers
+(numeric IDs in SPIR-V or kernel arguments).
+
+That mapping mechanism is particularly tricky, because of some additional
+complexity coming from SYCL 2020 specification:
+- `specialization_id` variables, which are used as specialization constant
+  identifiers (being non-type template parameters of some methods) can't be
+  forward-declared in general case (for example, if defined as `static`), which
+  means that we can't use integration header to attach some information to them
+  through some C++ templates tricks (like it is done for kernel arguments or
+  kernel names, for example).
+- they also can be declared as `static` or just non-`inline` `constexpr`, which
+  means that they have internal linkage and can't be referenced from other
+  translation units, which means that we can't for example create a new
+  translation unit which contains some mapping from `specialization_id` address
+  to some desired info.
+
+Based on those limitations, the following design is proposed:
+- DPC++ RT uses special function:
+  ```
+  namespace detail {
+    template<auto &SpecName>
+    const char *get_spec_constant_symbolic_ID();
+  }
+  ```
+  Which is only declared, but not defined in there and used to retrieve required
+  information like numeric ID of a specialization constant.
+- Definition of that function template are provided by DPC++ FE in form of
+  _integration footer_: the compiler generates a piece of C++ code which is
+  injected at the end of the translation unit:
+  ```
+  namespace detail {
+    // assuming user defined and used the following specialization_id:
+    // constexpr specialiation_id<int> int_const;
+    // class Wrapper {
+    // public:
+    //   static constexpr specialization_id<float> float_const;
+    // };
+
+    template<>
+    const char *get_spec_constant_symbolic_ID<int_const>() {
+      return "unique_name_for_int_const";
+    }
+    template<>
+    const char *get_spec_constant_symbolic_ID<Wrapper::float_const>() {
+      return "unique_name_for_Wrapper_float_const";
+    }
+  }
+  ```
+
+  Those symbolic IDs are used to identify device image properties corresponding
+  to those specialization constants, which store additional information (like
+  numeric SPIR-V ID of a constant) needed for DPC++ RT.
+- That integration footer is automatically embedded by the compiler at the end
+  of user-provided translation unit by driver.
+
+Summarizing, overall design looks like:
+
+DPC++ Headers provide special markup, which used by the compiler to detect
+presence of specialization constants and properly handle them.
+
+DPC++ FE handles `kernel_handler` SYCL kernel function argument, creates
+additional kernel arguments to pass specialization constants through buffer if
+necessary (if native support is not available) and generates integration footer.
+
+`sycl-post-link` transforms device code to either generate proper SPIR-V with
+specialization constants (when native support is available) or to generate
+correct access to corresponding kernel arguments (which are used when native
+support is not available); also the tool generates some device image properties
+with all information needed for DPC++ RT (like which numeric SPIR-V ID was
+assigned to which symbolic ID).
+
+With help of `clang-offload-wrapper` tool, those device image properties are
+embedded into the application together with device code and used by DPC++ RT
+while handling specialization constants during application execution: it either
+calls corresponding PI API to set a value of corresponding specialization
+constant or it fills a special buffer with values of specialization constants
+and passes it as kernel argument to emulate support of specialization constants.
+
+Sections below describe each component in details.
+
+### DPC++ Headers
 
 DPC++ Headers provide required definitions of `specialization_id` and
 `kernel_handler` classes as well as of many other classes and methods.
 
 `kernel_handler::get_specialization_constant` method, which provides an access
-to specialization constants within device code performs the following tasks:
-- It provides a mapping from non-type template parameter, which is used as a
-  specialization constant identifier in SYCL/DPC++ source file to a symbolic ID
-  of the constant, which is used by the compiler.
-- It provides a special markup, which allows the compiler to detect
-  specialization constants in the device code and properly handle them.
-
+to specialization constants within device code implements an interface between
+DPC++ Headers and the compiler (`sycl-post-link` tool): it contains a special
+markup, which allows the compiler to detect specialization constants in the
+device code and properly handle them.
 
 ```
 namespace sycl {
-
-namespace detail {
-
-template<auto& S>
-struct specialization_id_name_generator {};
-
-} // namespace detail
-
-// It is possible that `DefaultValue` will be marked as `const`
+// TODO: Add `const` to `DefaultValue` and `RTBuffer`?
 template<typename T>
 T __sycl_getScalar2020SpecConstantValue<T>(const char *SymbolicID, void *DefaultValue, void *RTBuffer);
 template<typename T>
@@ -103,10 +182,10 @@ T __sycl_getComposite2020SpecConstantValue<T>(const char *SymbolicID, void *Defa
 
 class kernel_handler {
 public:
-  template<auto& S>
-  typename std::remove_reference_t<decltype(S)>::type get_specialization_constant() {
+  template<auto& SpecName>
+  typename std::remove_reference_t<decltype(SpecName)>::type get_specialization_constant() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return get_on_device<S>();
+    return get_on_device<SpecName>();
 #else
     // some fallback implementation in case this code is launched on host
 #endif __SYCL_DEVICE_ONLY__
@@ -114,18 +193,18 @@ public:
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
-  template<auto &S, typename T = std::remove_reference_t<decltype(S)>::type>
+  template<auto &SpecName, typename T = std::remove_reference_t<decltype(SpecName)>::type>
   // enable_if T is a scalar type
   T get_on_device() {
-    const char *SymbolicID = __builtin_unique_stable_name(detail::specialization_id_name_generator<S>);
-    return __sycl_getScalar2020SpecConstantValue<T>(SymbolicID, &S, Ptr);
+    auto ID = __builtin_unqiue_ID(SpecName);
+    return __sycl_getScalar2020SpecConstantValue<T>(ID, &S, Ptr);
   }
 
-  template<auto &S, typename T = std::remove_reference_t<decltype(S)>::type>
+  template<auto &SpecName, typename T = std::remove_reference_t<decltype(SpecName)>::type>
   // enable_if T is a composite type
   T get_on_device() {
-    const char *SymbolicID = __builtin_unique_stable_name(detail::specialization_id_name_generator<S>);
-    return __sycl_getComposite2020SpecConstantValue<T>(SymbolicID, &S, Ptr);
+    auto ID = __builtin_unqiue_ID(SpecName);
+    return __sycl_getComposite2020SpecConstantValue<T>(ID, &S, Ptr);
   }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -135,30 +214,18 @@ private:
 } // namespace sycl
 ```
 
-Here [`__builtin_unique_stable_name`][builtin-unique-stable-name]
-is a compiler built-in used to translate types to unique strings, which are
-used as symbolic IDs of specialization constants.
-
-[builtin-unique-stable-name]: https://github.com/intel/llvm/blob/sycl/clang/docs/LanguageExtensions.rst#__builtin_unique_stable_name
+Here `__builtin_unique_ID` is a new compiler built-in which is supposed to
+generate unique symbolic IDs for specialization constants.
 
 `__sycl_getScalar2020SpecConstantValue<T>` and
 `__sycl_getComposite2020SpecConstant<T>` are functions with special names - they
 are declared in the headers but never defined. Calls to them are recognized by
 a special LLVM pass later and this is aforementioned special markup required for
 the compiler.
-Those functions accept three parameters:
-1. Symbolic ID of a specialization constant. Even though at SPIR-V level
-   specialization constants are identified by numeric IDs, we can't use them
-   here, because:
-   - Those IDs can't be generated by runtime, because they need to be encoded
-     into resulting SPIR-V device image
-   - Those IDs can't be generated by front-end compiler, because it only sees a
-     single translation unit at a time and therefore it can't assign unique IDs
-     to specialization constants from different translation units.
 
-   Therefore, the decision was made to use symbolic IDs as interface between the
-   compiler and runtime to connect SYCL identifiers of specialization constants
-   with SPIR-V identifiers of specialization constants.
+Those functions accept three parameters:
+1. Symbolic ID of specialization constant.
+   TODO: do we need more details here?
 
 2. Default value of the specialization constant.
    It is expected that at LLVM IR level the argument will contain a pointer to
@@ -176,7 +243,7 @@ binary, each linked device code LLVM IR module undergoes processing by
 `sycl-post-link` tool which can run LLVM IR passes before passing the module
 onto the SPIR-V translator.
 
-#### DPC++ Compiler: sycl-post-link tool
+### DPC++ Compiler: sycl-post-link tool
 
 As it is stated above, the only place where we can properly handle
 specialization constants is somewhere during or after linking device code from
@@ -189,10 +256,10 @@ There is a `SpecConstantsPass` LLVM IR pass which:
    form" section)
 3. Collects and provides \<Symbolic ID\> =\> \<numeric IDs + additional info\>
    mapping, which is later being used by DPC++ RT to set specialization constant
-   values provided by user(section "Collecting spec constants info and
+   values provided by user (section "Collecting spec constants info and
    communicating it to DPC++ RT" provides more info on that)
 
-##### Assignment of numeric IDs to specialization constants
+#### Assignment of numeric IDs to specialization constants
 
 This task is achieved by maintaining a map, which holds a list of numeric IDs
 for each encountered symbolic ID of a specialization constant. Those IDs are
