@@ -222,8 +222,8 @@
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-device -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
-// CHECK-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
 
 // RUN: %clang_cc1 %s -E -dM -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
+
 // CHECK-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
