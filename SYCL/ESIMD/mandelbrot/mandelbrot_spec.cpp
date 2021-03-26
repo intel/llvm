@@ -9,7 +9,7 @@
 // REQUIRES: linux && gpu
 // UNSUPPORTED: cuda
 // RUN: %clangxx-esimd -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %T/output.ppm %S/golden_hw.ppm 512 -2.09798 -1.19798 0.004 4.0
+// RUN: %GPU_RUN_PLACEHOLDER %t.out %T/output_spec.ppm %S/golden_hw.ppm 512 -2.09798 -1.19798 0.004 4.0
 
 #include "esimd_test_utils.hpp"
 #include <CL/sycl.hpp>
