@@ -535,35 +535,51 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // specialization constant value.
           // A pointer to a single RT-buffer with all the values of
           // specialization constants is passed as a 3rd argument of intrinsic.
-          if (IsComposite) {
+          Value *RTBuffer =
+              IsComposite ? CI->getArgOperand(3) : CI->getArgOperand(2);
 
-          } else {
-            Type *Int8Ty = Type::getInt8Ty(CI->getContext());
-            Type *Int32Ty = Type::getInt32Ty(CI->getContext());
-            Value *RTBuffer = CI->getArgOperand(2);
-
-            // Add the string literal to a "spec const string literal ID" ->
-            // "offset" map, uniquing the integer offsets if this is new
-            // literal.
-            auto Ins = OffsetMap.insert(std::make_pair(SymID, Offset));
-            bool IsNewSpecConstant = Ins.second;
-            auto CurrentOffset = Ins.first->second;
-            if (IsNewSpecConstant) {
+          // Add the string literal to a "spec const string literal ID" ->
+          // "offset" map, uniquing the integer offsets if this is new
+          // literal.
+          auto Ins = OffsetMap.insert(std::make_pair(SymID, Offset));
+          bool IsNewSpecConstant = Ins.second;
+          auto CurrentOffset = Ins.first->second;
+          if (IsNewSpecConstant) {
+            if (IsComposite) {
+              // When handling elements of a structure, we do not use manually
+              // calculated offsets (which are sum of sizes of all previously
+              // encountered elements), but instead rely on data provided for us
+              // by DataLayout, because the structure can be unpacked, i.e.
+              // padded in order to ensure particular alignment of its elements.
+              auto *StructTy = cast<StructType>(
+                  CI->getArgOperand(0)->getType()->getPointerElementType());
+              const StructLayout *SL =
+                  M.getDataLayout().getStructLayout(StructTy);
+              Offset += SL->getSizeInBytes();
+            } else
               Offset += SCTy->getScalarSizeInBits() / __CHAR_BIT__;
-            }
+          }
 
-            GetElementPtrInst *GEP = GetElementPtrInst::Create(
-                Int8Ty, RTBuffer,
-                {ConstantInt::get(Int32Ty, CurrentOffset, false)}, "gep",
-                CI->getNextNode());
+          Type *Int8Ty = Type::getInt8Ty(CI->getContext());
+          Type *Int32Ty = Type::getInt32Ty(CI->getContext());
+          GetElementPtrInst *GEP = GetElementPtrInst::Create(
+              Int8Ty, RTBuffer,
+              {ConstantInt::get(Int32Ty, CurrentOffset, false)}, "gep",
+              CI->getNextNode());
 
-            BitCastInst *BitCast = new BitCastInst(
-                GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc",
-                GEP->getNextNode());
+          BitCastInst *BitCast = new BitCastInst(
+              GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc",
+              GEP->getNextNode());
 
-            LoadInst *Load =
-                new LoadInst(SCTy, BitCast, "load", BitCast->getNextNode());
+          LoadInst *Load =
+              new LoadInst(SCTy, BitCast, "load", BitCast->getNextNode());
 
+          if (IsComposite) {
+            // __sycl_getCompositeSpecConstant returns through argument, so, the
+            // only thing we need to do here is to store into a memory pointed
+            // by that argument
+            new StoreInst(Load, CI->getArgOperand(0), Load->getNextNode());
+          } else {
             CI->replaceAllUsesWith(Load);
           }
         } else {
