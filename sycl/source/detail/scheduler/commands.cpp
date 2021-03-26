@@ -1697,8 +1697,8 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
       throw cl::sycl::feature_not_supported(
-        "Specialization constants are not yet fully supported",
-        PI_INVALID_OPERATION);
+          "SYCL2020 specialization constants are not yet fully supported",
+          PI_INVALID_OPERATION);
       break;
     }
     }
