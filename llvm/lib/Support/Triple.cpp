@@ -262,6 +262,7 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case Musl: return "musl";
   case MuslEABI: return "musleabi";
   case MuslEABIHF: return "musleabihf";
+  case MuslX32: return "muslx32";
   case SYCLDevice: return "sycldevice";
   case Simulator: return "simulator";
   }
@@ -577,6 +578,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("android", Triple::Android)
       .StartsWith("musleabihf", Triple::MuslEABIHF)
       .StartsWith("musleabi", Triple::MuslEABI)
+      .StartsWith("muslx32", Triple::MuslX32)
       .StartsWith("musl", Triple::Musl)
       .StartsWith("msvc", Triple::MSVC)
       .StartsWith("itanium", Triple::Itanium)
