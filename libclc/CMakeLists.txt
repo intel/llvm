@@ -329,6 +329,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				TRIPLE ${t}
 				COMPILE_OPT ${flags}
 				FILES generic/libspirv/sycldevice-binding.cpp)
+		endif()
 
 		if ( ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
 			if( ${ARCH} STREQUAL "spirv" )
