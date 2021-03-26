@@ -109,17 +109,6 @@ std::string PersistentCache::getDeviceString(const device &Device) {
           Device.get_info<sycl::info::device::driver_version>()};
 }
 
-std::string PersistentCache::dumpBinData(const unsigned char *Data,
-                                         size_t Size) {
-  if (!Size)
-    return "NONE";
-  std::stringstream ss;
-  for (size_t i = 0; i < Size; i++) {
-    ss << std::hex << (int)Data[i];
-  }
-  return ss.str();
-}
-
 /* Write built binary to persistent cache
  * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
  */
@@ -166,11 +155,7 @@ void PersistentCache::writeCacheItemSrc(const std::string &FileName,
                                         const SerializedObj &SpecConsts,
                                         const std::string &BuildOptionsString) {
   std::ofstream FileStream{FileName, std::ios::binary};
-  std::string ImgString{
-      dumpBinData(Img.getRawData().BinaryStart, Img.getSize())};
   std::string DeviceString{getDeviceString(Device)};
-  std::string SpecConstsString{
-      dumpBinData(SpecConsts.data(), SpecConsts.size())};
 
   size_t Size = DeviceString.size();
   FileStream.write((char *)&Size, sizeof(Size));
@@ -178,12 +163,12 @@ void PersistentCache::writeCacheItemSrc(const std::string &FileName,
   Size = BuildOptionsString.size();
   FileStream.write((char *)&Size, sizeof(Size));
   FileStream.write(BuildOptionsString.data(), Size);
-  Size = SpecConstsString.size();
+  Size = SpecConsts.size();
   FileStream.write((char *)&Size, sizeof(Size));
-  FileStream.write(SpecConstsString.data(), Size);
-  Size = ImgString.size();
+  FileStream.write((const char *)SpecConsts.data(), Size);
+  Size = Img.getSize();
   FileStream.write((char *)&Size, sizeof(Size));
-  FileStream.write(ImgString.data(), Size);
+  FileStream.write((const char *)Img.getRawData().BinaryStart, Size);
   FileStream.close();
 }
 
@@ -194,11 +179,11 @@ bool PersistentCache::isCacheItemSrcEqual(
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
   std::ifstream FileStream{FileName, std::ios::binary};
-  std::string ImgString{
-      dumpBinData(Img.getRawData().BinaryStart, Img.getSize())};
+  std::string ImgString{(const char *)Img.getRawData().BinaryStart,
+                        Img.getSize()};
   std::string DeviceString{getDeviceString(Device)};
-  std::string SpecConstsString{
-      dumpBinData(SpecConsts.data(), SpecConsts.size())};
+  std::string SpecConstsString{(const char *)SpecConsts.data(),
+                               SpecConsts.size()};
 
   size_t Size;
   std::string res;
@@ -218,13 +203,13 @@ bool PersistentCache::isCacheItemSrcEqual(
   FileStream.read((char *)&Size, sizeof(Size));
   res.resize(Size);
   FileStream.read(&res[0], Size);
-  if (SpecConstsString.compare(0, Size, res.data()))
+  if (SpecConstsString.compare(res))
     return false;
 
   FileStream.read((char *)&Size, sizeof(Size));
   res.resize(Size);
   FileStream.read(&res[0], Size);
-  if (ImgString.compare(0, Size, res.data()))
+  if (ImgString.compare(res))
     return false;
 
   FileStream.close();
@@ -236,11 +221,11 @@ std::string PersistentCache::getCacheItemDirName(
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
   static std::string cache_root{detail::OSUtil::getCacheRoot()};
 
-  std::string ImgString{
-      dumpBinData(Img.getRawData().BinaryStart, Img.getSize())};
+  std::string ImgString{(const char *)Img.getRawData().BinaryStart,
+                        Img.getSize()};
   std::string DeviceString{getDeviceString(Device)};
-  std::string SpecConstsString{
-      dumpBinData(SpecConsts.data(), SpecConsts.size())};
+  std::string SpecConstsString{(const char *)SpecConsts.data(),
+                               SpecConsts.size()};
   std::hash<std::string> StringHasher{};
 
   return {cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +

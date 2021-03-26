@@ -21,8 +21,6 @@ namespace detail {
 class PersistentCache {
   /* Form string representing device version */
   static std::string getDeviceString(const device &Device);
-  /* Form string containing hex representation of the C-string*/
-  static std::string dumpBinData(const unsigned char *Data, size_t Size);
   /* Write built binary to persistent cache
    * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
    */
