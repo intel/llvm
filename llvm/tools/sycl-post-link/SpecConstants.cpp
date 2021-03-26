@@ -25,9 +25,14 @@ namespace {
 // __sycl* intrinsic names are Itanium ABI-mangled; this is common prefix for
 // all mangled names of __sycl_getSpecConstantValue intrinsics, which differ by
 // the template type parameter and the specialization constant value type.
-constexpr char SYCL_GET_SPEC_CONST_VAL[] = "_Z27__sycl_getSpecConstantValue";
+constexpr char SYCL_GET_SPEC_CONST_VAL[] =
+    "_Z33__sycl_getScalarSpecConstantValue";
 constexpr char SYCL_GET_COMPOSITE_SPEC_CONST_VAL[] =
     "_Z36__sycl_getCompositeSpecConstantValue";
+constexpr char SYCL_GET_SCALAR_2020_SPEC_CONST_VAL[] =
+    "_Z37__sycl_getScalar2020SpecConstantValue";
+constexpr char SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL[] =
+    "_Z40__sycl_getComposite2020SpecConstantValue";
 
 // Unmangled base name of all __spirv_SpecConstant intrinsics which differ by
 // the value type.
@@ -57,19 +62,42 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     // @.str = private unnamed_addr constant[10 x i8] c"SpecConst\00", align 1
     // ...
     // %TName = alloca i8 addrspace(4)*, align 8
+    // %TName.ascast = addrspacecast i8 addrspace(4)** %TName to
+    //                               i8 addrspace(4)* addrspace(4)*
+    // ...
+    // store i8 addrspace(4)* getelementptr inbounds ([19 x i8], [19 x i8]
+    //    addrspace(4)* addrspacecast ([19 x i8] addrspace(1)* @str to [19 x i8]
+    //    addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspace(4)*
+    //    %TName.ascast, align 8
+    // %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %TName.ascast,
+    //    align 8
+    // %call = call spir_func zeroext
+    //   i1 @_Z27__sycl_getSpecConstantValueIbET_PKc(i8 addrspace(4)* %0)
+    // ^^^^^^^^^^^^^^^^^^^^
+    // or (optimized version)
+    // vvvvvvvvvvvvvvvvvvvv
+    // @.str = private unnamed_addr constant[10 x i8] c"SpecConst\00", align 1
+    // ...
+    // %TName = alloca i8 addrspace(4)*, align 8
     // ...
     // store i8 addrspace(4)* addrspacecast(
     //    i8* getelementptr inbounds([10 x i8], [10 x i8] * @.str, i32 0, i32 0)
     //    to i8 addrspace(4)*), i8 addrspace(4)** %TName, align 8, !tbaa !10
     // %1 = load i8 addrspace(4)*, i8 addrspace(4)** %TName, align 8, !tbaa !10
     // %call = call spir_func zeroext
-    //   i1 @_Z27__sycl_getSpecConstantValueIbET_PKc(i8 addrspace(4)* %1)
+    //   i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)* %1)
     // ^^^^^^^^^^^^^^^^^^^^
     // sequence, w/o any intervening stores and calls between the store and load
     // so that %1 is trivially known to be the address of the @.str literal.
 
-    AllocaInst *TmpPtr =
-        cast<AllocaInst>(L->getPointerOperand()->stripPointerCasts());
+    Value *TmpPtr = L->getPointerOperand();
+    AssertRelease((isa<AddrSpaceCastInst>(TmpPtr) &&
+                   isa<AllocaInst>(cast<AddrSpaceCastInst>(TmpPtr)
+                                       ->getPointerOperand()
+                                       ->stripPointerCasts())) ||
+                      isa<AllocaInst>(TmpPtr),
+                  "unexpected instruction type");
+
     // find the store of the literal address into TmpPtr
     StoreInst *Store = nullptr;
 
@@ -198,23 +226,30 @@ void setSpecConstSymIDMetadata(Instruction *I, StringRef SymID,
   I->setMetadata(SPEC_CONST_SYM_ID_MD_STRING, Entry);
 }
 
-std::pair<StringRef, unsigned>
+std::pair<StringRef, std::vector<SpecConstantDescriptor>>
 getScalarSpecConstMetadata(const Instruction *I) {
   const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
   if (!N)
-    return std::make_pair("", 0);
+    return std::make_pair("", std::vector<SpecConstantDescriptor>{});
   const auto *MDSym = cast<MDString>(N->getOperand(0));
   const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(1));
   unsigned ID = static_cast<unsigned>(
       cast<ConstantInt>(MDInt->getValue())->getValue().getZExtValue());
-  return std::make_pair(MDSym->getString(), ID);
+  std::vector<SpecConstantDescriptor> Res(1);
+  Res[0].ID = ID;
+  // We need to add an additional byte if the type size is not evenly
+  // divisible by eight, which might be the case for i1, i.e. booleans
+  Res[0].Size = I->getType()->getPrimitiveSizeInBits() / 8 +
+                (I->getType()->getPrimitiveSizeInBits() % 8 != 0);
+  Res[0].Offset = 0;
+  return std::make_pair(MDSym->getString(), Res);
 }
 
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
     const Module *M, Type *Ty, unsigned &Index, unsigned &Offset,
-    std::vector<CompositeSpecConstElementDescriptor> &Result) {
+    std::vector<SpecConstantDescriptor> &Result) {
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       // TODO: this is a spot for potential optimization: for arrays we could
@@ -248,25 +283,26 @@ void collectCompositeElementsInfoRecursive(
                                             Offset, Result);
     }
   } else { // Assume that we encountered some scalar element
-    CompositeSpecConstElementDescriptor Desc;
+    SpecConstantDescriptor Desc;
     Desc.ID = 0; // To be filled later
     Desc.Offset = Offset;
-    Desc.Size = Ty->getPrimitiveSizeInBits() / 8;
+    // We need to add an additional byte if the type size is not evenly
+    // divisible by eight, which might be the case for i1, i.e. booleans
+    Desc.Size = Ty->getPrimitiveSizeInBits() / 8 +
+                (Ty->getPrimitiveSizeInBits() % 8 != 0);
     Result[Index++] = Desc;
     Offset += Desc.Size;
   }
 }
 
-std::pair<StringRef, std::vector<CompositeSpecConstElementDescriptor>>
+std::pair<StringRef, std::vector<SpecConstantDescriptor>>
 getCompositeSpecConstMetadata(const Instruction *I) {
   const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
   if (!N)
-    return std::make_pair("",
-                          std::vector<CompositeSpecConstElementDescriptor>{});
+    return std::make_pair("", std::vector<SpecConstantDescriptor>{});
   const auto *MDSym = cast<MDString>(N->getOperand(0));
 
-  std::vector<CompositeSpecConstElementDescriptor> Result(N->getNumOperands() -
-                                                          1);
+  std::vector<SpecConstantDescriptor> Result(N->getNumOperands() - 1);
   unsigned Index = 0, Offset = 0;
   collectCompositeElementsInfoRecursive(I->getModule(), I->getType(), Index,
                                         Offset, Result);
@@ -403,7 +439,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       continue;
 
     if (!F.getName().startswith(SYCL_GET_SPEC_CONST_VAL) &&
-        !F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL))
+        !F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
       continue;
 
     SmallVector<CallInst *, 32> SCIntrCalls;
@@ -420,7 +458,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       // literals are passed to it in the SYCL RT source code, and application
       // code can't use this intrinsic directly.
       bool IsComposite =
-          F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL);
+          F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) ||
+          F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
 
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
@@ -505,9 +544,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
-bool SpecConstantsPass::collectSpecConstantMetadata(
-    Module &M, ScalarSpecIDMapTy &ScalarIDMap,
-    CompositeSpecIDMapTy &CompositeIDMap) {
+bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
+                                                    SpecIDMapTy &IDMap) {
   bool Met = false;
 
   for (Function &F : M) {
@@ -521,18 +559,16 @@ bool SpecConstantsPass::collectSpecConstantMetadata(
       if (!CI || CI->isIndirectCall() || !(Callee = CI->getCalledFunction()))
         continue;
 
+      std::pair<StringRef, std::vector<SpecConstantDescriptor>> Res;
       if (Callee->getName().contains(SPIRV_GET_SPEC_CONST_COMPOSITE)) {
-        auto Res = getCompositeSpecConstMetadata(CI);
-        if (!Res.first.empty()) {
-          CompositeIDMap[Res.first] = Res.second;
-          Met = true;
-        }
+        Res = getCompositeSpecConstMetadata(CI);
       } else if (Callee->getName().contains(SPIRV_GET_SPEC_CONST_VAL)) {
-        auto Res = getScalarSpecConstMetadata(CI);
-        if (!Res.first.empty()) {
-          ScalarIDMap[Res.first] = Res.second;
-          Met = true;
-        }
+        Res = getScalarSpecConstMetadata(CI);
+      }
+
+      if (!Res.first.empty()) {
+        IDMap[Res.first] = Res.second;
+        Met = true;
       }
     }
   }

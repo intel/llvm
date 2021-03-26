@@ -315,7 +315,8 @@ public:
     kind_std_layout,
     kind_sampler,
     kind_pointer,
-    kind_last = kind_pointer
+    kind_specialization_constants_buffer,
+    kind_last = kind_specialization_constants_buffer
   };
 
 public:
@@ -10197,11 +10198,6 @@ public:
   void AddOptnoneAttributeIfNoConflicts(FunctionDecl *FD, SourceLocation Loc);
 
   template <typename AttrType>
-  bool checkRangedIntegralArgument(Expr *E, const AttrType *TmpAttr,
-                                   ExprResult &Result);
-  template <typename AttrType>
-  void AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  template <typename AttrType>
   void AddOneConstantPowerTwoValueAttr(Decl *D, const AttributeCommonInfo &CI,
                                        Expr *E);
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -10240,6 +10236,11 @@ public:
                                      Expr *E);
   IntelFPGAMaxReplicatesAttr *
   MergeIntelFPGAMaxReplicatesAttr(Decl *D, const IntelFPGAMaxReplicatesAttr &A);
+  void AddIntelFPGAForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  IntelFPGAForcePow2DepthAttr *
+  MergeIntelFPGAForcePow2DepthAttr(Decl *D,
+                                   const IntelFPGAForcePow2DepthAttr &A);
 
   SYCLIntelFPGAMaxConcurrencyAttr *MergeSYCLIntelFPGAMaxConcurrencyAttr(
       Decl *D, const SYCLIntelFPGAMaxConcurrencyAttr &A);
@@ -13091,7 +13092,7 @@ public:
   /// Tells whether given variable is a SYCL explicit SIMD extension's "private
   /// global" variable - global variable in the private address space.
   bool isSYCLEsimdPrivateGlobal(VarDecl *VDecl) {
-    return getLangOpts().SYCLIsDevice && getLangOpts().SYCLExplicitSIMD &&
+    return getLangOpts().SYCLIsDevice && VDecl->hasAttr<SYCLSimdAttr>() &&
            VDecl->hasGlobalStorage() &&
            (VDecl->getType().getAddressSpace() == LangAS::opencl_private);
   }
@@ -13182,20 +13183,6 @@ void Sema::addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
   }
   D->addAttr(::new (Context)
                  WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
-}
-
-template <typename AttrType>
-void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,
-                                   Expr *E) {
-  AttrType TmpAttr(Context, CI, E);
-
-  if (!E->isValueDependent()) {
-    ExprResult ICE;
-    if (checkRangedIntegralArgument<AttrType>(E, &TmpAttr, ICE))
-      return;
-    E = ICE.get();
-  }
-  D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
 template <typename AttrType>

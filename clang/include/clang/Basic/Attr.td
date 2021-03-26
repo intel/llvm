@@ -1191,7 +1191,7 @@ def SYCLKernel : InheritableAttr {
 def SYCLSimd : InheritableAttr {
   let Spellings = [GNU<"sycl_explicit_simd">,
                    CXX11<"intel", "sycl_explicit_simd">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, GlobalVar]>;
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLSimdDocs];
   let SupportsNonconformingLambdaSyntax = 1;
@@ -2102,7 +2102,7 @@ def IntelFPGABankBits : Attr {
   let Documentation = [IntelFPGABankBitsDocs];
 }
 
-def IntelFPGAForcePow2Depth : Attr {
+def IntelFPGAForcePow2Depth : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","force_pow2_depth">,
                    CXX11<"intel","force_pow2_depth">];
   let Args = [ExprArgument<"Value">];
@@ -2110,14 +2110,6 @@ def IntelFPGAForcePow2Depth : Attr {
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAForcePow2DepthAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 0;
-    }
-    static unsigned getMaxValue() {
-      return 1;
-    }
-  }];
 }
 
 def Naked : InheritableAttr {
