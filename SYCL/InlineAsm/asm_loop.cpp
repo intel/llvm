@@ -3,6 +3,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// XFAIL:*
 #include "include/asmhelper.h"
 #include <CL/sycl.hpp>
 #include <cmath>
