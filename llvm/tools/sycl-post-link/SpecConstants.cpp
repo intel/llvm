@@ -426,7 +426,9 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
   unsigned NextID = 0;
+  unsigned Offset = 0;
   StringMap<SmallVector<unsigned, 1>> IDMap;
+  StringMap<unsigned> OffsetMap;
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_getSpecConstantValue(const char *ID)
@@ -521,16 +523,61 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         //          %1, i32 %2), !SYCL_SPEC_CONST_SYM_ID !23
         // !23 = {!"string-id-2", i32 3, i32 4}
       } else {
-        // 2a. Spec constant must be resolved at compile time - just replace
-        // the intrinsic with default C++ value for the spec constant type.
-        Value *Default = getDefaultCPPValue(SCTy);
-        if (IsComposite) {
-          // __sycl_getCompositeSpecConstant returns through argument, so, the
-          // only thing we need to do here is to store into a memory pointed by
-          // that argument
-          new StoreInst(Default, CI->getArgOperand(0), CI);
+        // 2a. Spec constant must be resolved at compile time - replace the
+        // intrinsic with the actual value for spec constant.
+
+        bool Is2020Intrinsic =
+            F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
+            F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
+
+        if (Is2020Intrinsic) {
+          // Handle SYCL2020 version of intrinsic - replace it with a pointer to
+          // specialization constant value.
+          // A pointer to a single RT-buffer with all the values of
+          // specialization constants is passed as a 3rd argument of intrinsic.
+          if (IsComposite) {
+
+          } else {
+            Type *Int8Ty = Type::getInt8Ty(CI->getContext());
+            Type *Int32Ty = Type::getInt32Ty(CI->getContext());
+            Value *RTBuffer = CI->getArgOperand(2);
+
+            // Add the string literal to a "spec const string literal ID" ->
+            // "offset" map, uniquing the integer offsets if this is new
+            // literal.
+            auto Ins = OffsetMap.insert(std::make_pair(SymID, Offset));
+            bool IsNewSpecConstant = Ins.second;
+            auto CurrentOffset = Ins.first->second;
+            if (IsNewSpecConstant) {
+              Offset += SCTy->getScalarSizeInBits() / __CHAR_BIT__;
+            }
+
+            GetElementPtrInst *GEP = GetElementPtrInst::Create(
+                Int8Ty, RTBuffer,
+                {ConstantInt::get(Int32Ty, CurrentOffset, false)}, "gep",
+                CI->getNextNode());
+
+            BitCastInst *BitCast = new BitCastInst(
+                GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc",
+                GEP->getNextNode());
+
+            LoadInst *Load =
+                new LoadInst(SCTy, BitCast, "load", BitCast->getNextNode());
+
+            CI->replaceAllUsesWith(Load);
+          }
         } else {
-          CI->replaceAllUsesWith(Default);
+          // Replace the intrinsic with default C++ value for the spec constant
+          // type.
+          Value *Default = getDefaultCPPValue(SCTy);
+          if (IsComposite) {
+            // __sycl_getCompositeSpecConstant returns through argument, so, the
+            // only thing we need to do here is to store into a memory pointed
+            // by that argument
+            new StoreInst(Default, CI->getArgOperand(0), CI);
+          } else {
+            CI->replaceAllUsesWith(Default);
+          }
         }
       }
 
