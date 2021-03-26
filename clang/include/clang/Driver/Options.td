@@ -4295,10 +4295,6 @@ def fsycl : Flag<["-"], "fsycl">, Flags<[NoXarchOption, CoreOption]>, Group<sycl
   HelpText<"Enables SYCL kernels compilation for device">;
 def fno_sycl : Flag<["-"], "fno-sycl">, Flags<[NoXarchOption, CoreOption]>, Group<sycl_Group>,
   HelpText<"Disables SYCL kernels compilation for device">;
-def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>, Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
-  HelpText<"SYCL language standard to compile for.">, Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
-  NormalizedValues<["SYCL_2020", "SYCL_2017", "SYCL_2017", "SYCL_2017", "SYCL_2017"]>, NormalizedValuesScope<"LangOptions">,
-  MarshallingInfoString<LangOpts<"SYCLVersion">, "SYCL_None">, AutoNormalizeEnum;
 defm sycl_esimd: BoolFOption<"sycl-explicit-simd",
   LangOpts<"SYCLExplicitSIMD">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Enable">, NegFlag<SetFalse, [], "Disable">,
@@ -4873,7 +4869,8 @@ def header_include_file : Separate<["-"], "header-include-file">,
 def show_includes : Flag<["--"], "show-includes">,
   HelpText<"Print cl.exe style /showIncludes to stdout">;
 def dependency_filter : Separate<["-"], "dependency-filter">,
-  HelpText<"Filter dependencies with prefix from the dependency output.">;
+  HelpText<"Filter dependencies with prefix from the dependency output.">,
+  MarshallingInfoString<DependencyOutputOpts<"DependencyFilter">>;
 
 //===----------------------------------------------------------------------===//
 // Diagnostic Options
@@ -5528,12 +5525,26 @@ def fsycl_int_header_EQ : Joined<["-"], "fsycl-int-header=">,
 def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params">,
   HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,
   MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;
-defm sycl_allow_func_ptr: OptInFFlag<"sycl-allow-func-ptr", "Allow", "Disallow", " function pointers in SYCL device.", [CC1Option,CoreOption], LangOpts<"SYCLAllowFuncPtr">>;
+defm sycl_allow_func_ptr: BoolFOption<"sycl-allow-func-ptr",
+  LangOpts<"SYCLAllowFuncPtr">, DefaultFalse,
+  PosFlag<SetTrue, [], "Allow">,
+  NegFlag<SetFalse, [], "Disallow">,
+  BothFlags<[CC1Option, CoreOption], " function pointers in SYCL device.">>;
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
+
+def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
+  Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
+  HelpText<"SYCL language standard to compile for.">,
+  Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
+  NormalizedValues<["SYCL_2020", "SYCL_2017", "SYCL_2017", "SYCL_2017", "SYCL_2017"]>,
+  NormalizedValuesScope<"LangOptions">,
+  MarshallingInfoString<LangOpts<"SYCLVersion">, "SYCL_None">,
+  AutoNormalizeEnum,
+  ShouldParseIf<!strconcat(fsycl_is_device.KeyPath, "||", fsycl_is_host.KeyPath)>;
 
 defm cuda_approx_transcendentals : BoolFOption<"cuda-approx-transcendentals",
   LangOpts<"CUDADeviceApproxTranscendentals">, DefaultFalse,

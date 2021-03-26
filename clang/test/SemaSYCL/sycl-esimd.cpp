@@ -1,9 +1,12 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
+// This test checks specifics of semantic analysis of ESIMD kernels.
+
 // ----------- Negative tests
 
-__attribute__((sycl_explicit_simd)) // expected-warning {{'sycl_explicit_simd' attribute only applies to functions}}
-int N;
+void foo(
+    __attribute__((sycl_explicit_simd)) // expected-warning {{'sycl_explicit_simd' attribute only applies to functions and global variables}}
+    int N);
 
 __attribute__((sycl_explicit_simd(3))) // expected-error {{'sycl_explicit_simd' attribute takes no arguments}}
 void

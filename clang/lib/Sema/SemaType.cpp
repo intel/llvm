@@ -8123,7 +8123,8 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     default:
       // A C++11 attribute on a declarator chunk must appertain to a type.
       if (attr.isCXX11Attribute() && TAL == TAL_DeclChunk &&
-          (!state.isProcessingLambdaExpr() || !attr.isAllowedOnLambdas())) {
+          (!state.isProcessingLambdaExpr() ||
+           !attr.supportsNonconformingLambdaSyntax())) {
         state.getSema().Diag(attr.getLoc(), diag::err_attribute_not_type_attr)
             << attr;
         attr.setUsedAsTypeAttr();

@@ -566,6 +566,14 @@ class Attr {
   // attribute may be documented under multiple categories, more than one
   // Documentation entry may be listed.
   list<Documentation> Documentation;
+  // The SYCL specification allows attributes on lambdas as a nonconforming
+  // extension to C++. The attributes are written in the type position but will
+  // be applied to the generated function declaration rather than type. Setting
+  // this bit to 1 opts an attribute into this nonconforming extension. New
+  // attributes should not set this bit unless the attribute is required by the
+  // SYCL specification. This bit only applies to the [[]] spelling of an
+  // attribute and has no effect on any other spellings.
+  bit SupportsNonconformingLambdaSyntax = 0;
 }
 
 /// A type attribute is not processed on a declaration or a statement.
@@ -1183,9 +1191,10 @@ def SYCLKernel : InheritableAttr {
 def SYCLSimd : InheritableAttr {
   let Spellings = [GNU<"sycl_explicit_simd">,
                    CXX11<"intel", "sycl_explicit_simd">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, GlobalVar]>;
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLSimdDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 // Available in SYCL explicit SIMD extension. Binds a file scope private
@@ -1258,11 +1267,12 @@ def SYCLRequiresDecomposition : InheritableAttr {
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
-  let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
+  let Spellings = [CXX11<"intel", "kernel_args_restrict">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let LangOpts = [ SYCLIsDevice, SYCLIsHost ];
-  let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLIntelKernelArgsRestrictDocs];
   let SimpleHandler = 1;
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
@@ -1272,6 +1282,7 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelUseStallEnableClusters : InheritableAttr {
@@ -1279,6 +1290,7 @@ def SYCLIntelUseStallEnableClusters : InheritableAttr {
   let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
@@ -1288,6 +1300,7 @@ def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelMaxWorkGroupSize : InheritableAttr {
@@ -1313,6 +1326,7 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
     }
   }];
   let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
@@ -1322,6 +1336,7 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
@@ -1331,6 +1346,7 @@ def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNoGlobalWorkOffsetAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelLoopFuse : InheritableAttr {
@@ -1342,6 +1358,7 @@ def SYCLIntelLoopFuse : InheritableAttr {
   let Accessors = [Accessor<"isIndependent",
                   [CXX11<"intel", "loop_fuse_independent">]>];
   let Documentation = [SYCLIntelLoopFuseDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def C11NoReturn : InheritableAttr {
@@ -1404,6 +1421,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -2083,7 +2101,7 @@ def IntelFPGABankBits : Attr {
   let Documentation = [IntelFPGABankBitsDocs];
 }
 
-def IntelFPGAForcePow2Depth : Attr {
+def IntelFPGAForcePow2Depth : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","force_pow2_depth">,
                    CXX11<"intel","force_pow2_depth">];
   let Args = [ExprArgument<"Value">];
@@ -2091,14 +2109,6 @@ def IntelFPGAForcePow2Depth : Attr {
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAForcePow2DepthAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 0;
-    }
-    static unsigned getMaxValue() {
-      return 1;
-    }
-  }];
 }
 
 def Naked : InheritableAttr {
@@ -2808,6 +2818,7 @@ def ReqdWorkGroupSize : InheritableAttr {
     }
   }];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def WorkGroupSizeHint :  InheritableAttr {

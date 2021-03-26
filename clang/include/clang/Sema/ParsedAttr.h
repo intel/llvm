@@ -60,6 +60,9 @@ struct ParsedAttrInfo {
   unsigned IsKnownToGCC : 1;
   /// True if this attribute is supported by #pragma clang attribute.
   unsigned IsSupportedByPragmaAttribute : 1;
+  /// True if this attribute supports a nonconforming behavior when applied to
+  /// a lambda in the type position.
+  unsigned SupportsNonconformingLambdaSyntax : 1;
   /// The syntaxes supported by this attribute and how they're spelled.
   struct Spelling {
     AttributeCommonInfo::Syntax Syntax;
@@ -590,6 +593,7 @@ public:
   bool existsInTarget(const TargetInfo &Target) const;
   bool isKnownToGCC() const;
   bool isSupportedByPragmaAttribute() const;
+  bool supportsNonconformingLambdaSyntax() const;
 
   /// If the parsed attribute has a semantic equivalent, and it would
   /// have a semantic Spelling enumeration (due to having semantically-distinct

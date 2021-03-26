@@ -49,6 +49,18 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
   using type = char *;
 };
 
+namespace detail {
+template <> struct InteropFeatureSupportMap<backend::level_zero> {
+  static constexpr bool MakePlatform = true;
+  static constexpr bool MakeDevice = false;
+  static constexpr bool MakeContext = false;
+  static constexpr bool MakeQueue = false;
+  static constexpr bool MakeEvent = false;
+  static constexpr bool MakeBuffer = false;
+  static constexpr bool MakeKernel = false;
+};
+} // namespace detail
+
 namespace level_zero {
 
 // Since Level-Zero is not doing any reference counting itself, we have to
