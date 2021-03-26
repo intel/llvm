@@ -20,7 +20,7 @@ public:
 
   template <class... Args>
   explicit constexpr specialization_id(Args &&... args)
-      : MSpecializationConstantValue(args...) {}
+      : MSpecializationConstantValue(std::forward<Args>(args)...) {}
 
   specialization_id(const specialization_id &rhs) = delete;
   specialization_id(specialization_id &&rhs) = delete;

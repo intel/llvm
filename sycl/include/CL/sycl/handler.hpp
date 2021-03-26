@@ -498,7 +498,7 @@ private:
                                                         LambdaArgType>() &&
         MIsHost) {
       throw cl::sycl::feature_not_supported(
-          "kernel_handler is not supported by host device.",
+          "kernel_handler is not yet supported by host device.",
           PI_INVALID_OPERATION);
     }
     MHostKernel.reset(
