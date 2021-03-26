@@ -1253,9 +1253,7 @@ template <typename KernelName, class Reduction>
 std::enable_if_t<!Reduction::is_usm>
 reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
-#ifndef __SYCL_DEVICE_ONLY__
   Redu.associateWithHandler(CGH);
-#endif
   if (Redu.hasUserDiscardWriteAccessor())
     CGH.copy(InAcc, Redu.getUserDiscardWriteAccessor());
   else
@@ -1275,11 +1273,10 @@ reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
   auto BOp = Redu.getBinaryOperation();
   CGH.single_task<KernelName>([=] {
-    if (IsUpdateOfUserVar) {
+    if (IsUpdateOfUserVar)
       *UserVarPtr = BOp(*UserVarPtr, *(InAcc.get_pointer()));
-    } else {
+    else
       *UserVarPtr = *(InAcc.get_pointer());
-    }
   });
 }
 
