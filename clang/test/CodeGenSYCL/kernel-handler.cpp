@@ -22,17 +22,17 @@ void test(int val) {
   });
 }
 
-// NONATIVESUPPORT: define dso_local void @"_ZTSZZ4testiENK3$_0clERN2cl4sycl7handlerEE19test_kernel_handler"
+// NONATIVESUPPORT: define dso_local void @"{{.*}}test_kernel_handler{{.*}}"
 // NONATIVESUPPORT-SAME: (i32 %_arg_, i8* %_arg__specialization_constants_buffer)
-// NONATIVESUPPORT: %kh = alloca %"class._ZTSN2cl4sycl14kernel_handlerE.cl::sycl::kernel_handler", align 1
+// NONATIVESUPPORT: %kh = alloca %"class.[[MANGLEDCLASS:[a-zA-Z0-9_]+]].cl::sycl::kernel_handler", align 1
 // NONATIVESUPPORT: %[[KH:[0-9]+]] = load i8*, i8** %_arg__specialization_constants_buffer.addr, align 8
-// NONATIVESUPPORT: call void @_ZN2cl4sycl14kernel_handler38__init_specialization_constants_bufferEPc(%"class._ZTSN2cl4sycl14kernel_handlerE.cl::sycl::kernel_handler"* nonnull dereferenceable(1) %kh, i8* %[[KH]])
-// NONATIVESUPPORT: void @"_ZZZ4testiENK3$_0clERN2cl4sycl7handlerEENKUlT_E_clINS1_14kernel_handlerEEEDaS4_"
-// NONATIVESUPPORT-SAME: byval(%"class._ZTSN2cl4sycl14kernel_handlerE.cl::sycl::kernel_handler")
+// NONATIVESUPPORT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler"* nonnull dereferenceable(1) %kh, i8* %[[KH]])
+// NONATIVESUPPORT: void @"[[MANGLEDKERNELCALL:[a-zA-Z0-9_$]+]]"
+// NONATIVESUPPORT-SAME: byval(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler")
 
-// NATIVESUPPORT: define dso_local spir_kernel void @"_ZTSZZ4testiENK3$_0clERN2cl4sycl7handlerEE19test_kernel_handler"
+// NATIVESUPPORT: define dso_local spir_kernel void @"{{.*}}test_kernel_handler{{.*}}"
 // NATIVESUPPORT-SAME: (i32 %_arg_)
-// NATIVESUPPORT: %kh = alloca %"class._ZTSN2cl4sycl14kernel_handlerE.cl::sycl::kernel_handler"
+// NATIVESUPPORT: %kh = alloca %"class.[[MANGLEDCLASS:[a-zA-Z0-9_]+]].cl::sycl::kernel_handler"
 // NATIVESUPPORT-NOT: __init_specialization_constants_buffer
-// NATIVE-SUPPORT: call spir_func void @"_ZZZ4testiENK3$_0clERN2cl4sycl7handlerEENKUlT_E_clINS1_14kernel_handlerEEEDaS4_"
-// NATIVE-SUPPORT-SAME: byval(%"class._ZTSN2cl4sycl14kernel_handlerE.cl::sycl::kernel_handler")
+// NATIVE-SUPPORT: call spir_func void @"[[MANGLEDKERNELCALL:[a-zA-Z0-9_$]+]]"
+// NATIVE-SUPPORT-SAME: byval(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler")

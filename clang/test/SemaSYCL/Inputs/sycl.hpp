@@ -228,7 +228,7 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
-  kernelFunc();
+  kernelFunc(); // #KernelSingleTaskKernelFuncCall
 }
 template <typename KernelName = auto_name, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
@@ -249,7 +249,7 @@ public:
   void single_task(const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_single_task<NameT>(kernelFunc);
+    kernel_single_task<NameT>(kernelFunc); // #KernelSingleTask
 #else
     kernelFunc();
 #endif
