@@ -152,7 +152,7 @@ struct _pi_device : _pi_object {
   int32_t ZeCopyQueueGroupIndex;
 
   // This returns "true" if a copy engine is available for use.
-  bool HasCopyEngine() { return (ZeCopyQueueGroupIndex >= 0); }
+  bool hasCopyEngine() { return (ZeCopyQueueGroupIndex >= 0); }
 
   // Initialize the entire PI device.
   pi_result initialize();
@@ -304,11 +304,13 @@ const pi_uint32 DynamicBatchStartSize = 4;
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             ze_command_queue_handle_t CopyQueue, pi_context Context,
-            pi_device Device, pi_uint32 BatchSize)
+            pi_device Device, pi_uint32 BatchSize,
+            pi_queue_properties PiQueueProperties = 0)
       : ZeComputeCommandQueue{Queue},
         ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
-        UseDynamicBatching{BatchSize == 0} {}
+        UseDynamicBatching{BatchSize == 0},
+        PiQueueProperties(PiQueueProperties) {}
 
   // Level Zero compute command queue handle.
   ze_command_queue_handle_t ZeComputeCommandQueue;
@@ -374,12 +376,18 @@ struct _pi_queue : _pi_object {
 
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
-  typedef std::map<ze_command_list_handle_t, command_list_fence_t>
+  typedef std::unordered_map<ze_command_list_handle_t, command_list_fence_t>
       command_list_fence_map_t;
   command_list_fence_map_t ZeCommandListFenceMap;
 
   // return 'true' if a command list is a "copy" command list
   bool getZeCommandListIsCopyList(ze_command_list_handle_t ZeCommandList);
+
+  // Keeps the properties of this queue.
+  pi_queue_properties PiQueueProperties;
+
+  // Returns true if the queue is a in-order queue.
+  bool isInOrderQueue() const;
 
   // Returns true if any commands for this queue are allowed to
   // be batched together.

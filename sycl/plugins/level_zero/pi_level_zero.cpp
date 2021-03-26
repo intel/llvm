@@ -569,6 +569,12 @@ pi_result _pi_context::finalize() {
   return PI_SUCCESS;
 }
 
+bool _pi_queue::isInOrderQueue() const {
+  // If out-of-order queue property is not set, then this is a in-order queue.
+  return ((this->PiQueueProperties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
+          0);
+}
+
 pi_result _pi_queue::resetCommandListFenceEntry(
     _pi_queue::command_list_fence_map_t::value_type &MapEntry,
     bool MakeAvailable) {
@@ -608,6 +614,8 @@ static const pi_uint32 ZeCommandListBatchSize = [] {
   return BatchSizeVal;
 }();
 
+// This function requires a map lookup operation which can be expensive.
+// TODO: Restructure code to eliminate map lookup.
 bool _pi_queue::getZeCommandListIsCopyList(
     ze_command_list_handle_t ZeCommandList) {
   auto it = this->ZeCommandListFenceMap.find(ZeCommandList);
@@ -621,13 +629,12 @@ bool _pi_queue::getZeCommandListIsCopyList(
 // Caller must hold a lock on the Queue passed in.
 pi_result _pi_context::getAvailableCommandList(
     pi_queue Queue, ze_command_list_handle_t *ZeCommandList,
-    ze_fence_handle_t *ZeFence, bool PreferCopyCommandList,
-    bool AllowBatching) {
+    ze_fence_handle_t *ZeFence, bool PreferCopyEngine, bool AllowBatching) {
   // First see if there is an command-list open for batching commands
   // for this queue.
   if (Queue->ZeOpenCommandList) {
     // TODO: Batching of copy commands will be supported.
-    if (AllowBatching && !PreferCopyCommandList) {
+    if (AllowBatching && !PreferCopyEngine) {
       *ZeCommandList = Queue->ZeOpenCommandList;
       *ZeFence = Queue->ZeOpenCommandListFence;
       return PI_SUCCESS;
@@ -640,8 +647,10 @@ pi_result _pi_context::getAvailableCommandList(
     if (auto Res = Queue->executeOpenCommandList())
       return Res;
   }
-
-  bool UseCopyEngine = PreferCopyCommandList && Queue->Device->HasCopyEngine();
+  // Use of copy engine is enabled only for out-of-order queues.
+  // TODO: Revisit this when in-order queue spport is available in L0 plugin.
+  bool UseCopyEngine = !(Queue->isInOrderQueue()) && PreferCopyEngine &&
+                       Queue->Device->hasCopyEngine();
 
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
@@ -2199,7 +2208,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   // Create second queue to copy engine
   ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
-  if (Device->HasCopyEngine()) {
+  if (Device->hasCopyEngine()) {
     ZeCommandQueueDesc.ordinal = Device->ZeCopyQueueGroupIndex;
     ZE_CALL(zeCommandQueueCreate,
             (Context->ZeContext, ZeDevice,
@@ -2210,7 +2219,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
-                           Device, ZeCommandListBatchSize);
+                           Device, ZeCommandListBatchSize, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3729,7 +3738,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyCommandList */,
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyEngine */,
           true /* AllowBatching */))
     return Res;
 
@@ -4289,7 +4298,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
   ZE_CALL(zeCommandQueueSynchronize,
           (Queue->ZeComputeCommandQueue, UINT64_MAX));
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCopyCommandQueue, UINT64_MAX));
+  if (Queue->ZeCopyCommandQueue != nullptr)
+    ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCopyCommandQueue, UINT64_MAX));
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return PI_SUCCESS;
 }
@@ -4392,7 +4402,7 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, !PreferCopyEngine))
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4448,7 +4458,7 @@ static pi_result enqueueMemCopyRectHelper(
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, !PreferCopyEngine))
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4565,7 +4575,9 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
                                  pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  bool PreferCopyEngine = (!(SrcBuffer->OnHost) && !(DstBuffer->OnHost));
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
   return enqueueMemCopyHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue,
       pi_cast<char *>(DstBuffer->getZeHandle()) + DstOffset,
@@ -4582,7 +4594,9 @@ pi_result piEnqueueMemBufferCopyRect(
     const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  bool PreferCopyEngine = (!(SrcBuffer->OnHost) && !(DstBuffer->OnHost));
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, Queue, SrcBuffer->getZeHandle(),
       DstBuffer->getZeHandle(), SrcOrigin, DstOrigin, Region, SrcRowPitch,
@@ -4618,7 +4632,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Performance analysis on a simple SYCL data "fill" test shows copy engine
   // is faster than compute engine for such operations.
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, true /* PreferCopyCommandList */))
+          Queue, &ZeCommandList, &ZeFence, true /* PreferCopyEngine */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4956,7 +4970,7 @@ static pi_result enqueueMemImageCommandHelper(
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, !PreferCopyEngine))
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5116,7 +5130,9 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
                       const pi_event *EventWaitList, pi_event *Event) {
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  bool PreferCopyEngine = (!(SrcImage->OnHost) && !(DstImage->OnHost));
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = (SrcImage->OnHost || DstImage->OnHost);
   return enqueueMemImageCommandHelper(
       PI_COMMAND_TYPE_IMAGE_COPY, Queue, SrcImage, DstImage,
       false, // is_blocking
@@ -5567,10 +5583,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  // TODO: Change PreferCopyCommandList argument to 'true' once L0 backend
+  // TODO: Change PreferCopyEngine argument to 'true' once L0 backend
   // support is added
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyCommandList */))
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyEngine */))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
@@ -5625,8 +5641,11 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
+  // PreferCopyEngine is set to 'false' here.
+  // TODO: Additional analysis is required to check if this operation will
+  // run faster on copy engines.
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyCommandList */))
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyEngine */))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
