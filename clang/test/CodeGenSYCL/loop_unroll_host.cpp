@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-host -triple spir64 -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 // CHECK: br label %{{.*}}, !llvm.loop ![[COUNT:[0-9]+]]
 // CHECK: br label %{{.*}}, !llvm.loop ![[DISABLE:[0-9]+]]
 // CHECK: br i1 %{{.*}}, label %{{.*}}, label %{{.*}}, !llvm.loop ![[ENABLE:[0-9]+]]

@@ -951,6 +951,19 @@ public:
     llvm_unreachable("Target didn't implement TargetInstrInfo::copyPhysReg!");
   }
 
+  /// Allow targets to tell MachineVerifier whether a specific register
+  /// MachineOperand can be used as part of PC-relative addressing.
+  /// PC-relative addressing modes in many CISC architectures contain
+  /// (non-PC) registers as offsets or scaling values, which inherently
+  /// tags the corresponding MachineOperand with OPERAND_PCREL.
+  ///
+  /// @param MO The MachineOperand in question. MO.isReg() should always
+  /// be true.
+  /// @return Whether this operand is allowed to be used PC-relatively.
+  virtual bool isPCRelRegisterOperandLegal(const MachineOperand &MO) const {
+    return false;
+  }
+
 protected:
   /// Target-dependent implementation for IsCopyInstr.
   /// If the specific machine instruction is a instruction that moves/copies
@@ -1382,7 +1395,7 @@ public:
                            unsigned Quantity) const;
 
   /// Return the noop instruction to use for a noop.
-  virtual void getNoop(MCInst &NopInst) const;
+  virtual MCInst getNop() const;
 
   /// Return true for post-incremented instructions.
   virtual bool isPostIncrement(const MachineInstr &MI) const { return false; }

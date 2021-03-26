@@ -22,10 +22,12 @@ if (MLIR_SPIRV_CPU_RUNNER_ENABLED)
     MLIRIR
     MLIRJitRunner
     MLIRLLVMIR
+    MLIRLLVMToLLVMIRTranslation
+    MLIRMemRef
     MLIRParser
     MLIRSPIRV
     MLIRStandard
-    MLIRTargetLLVMIR
+    MLIRTargetLLVMIRExport
     MLIRTransforms
     MLIRTranslation
     MLIRSupport

@@ -13,6 +13,7 @@
 
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/LoopUtils.h"
@@ -31,6 +32,9 @@ struct TestAffineDataCopy
   TestAffineDataCopy() = default;
   TestAffineDataCopy(const TestAffineDataCopy &pass){};
 
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<memref::MemRefDialect>();
+  }
   void runOnFunction() override;
 
 private:
@@ -106,7 +110,7 @@ void TestAffineDataCopy::runOnFunction() {
   // Promoting single iteration loops could lead to simplification of
   // generated load's/store's, and the latter could anyway also be
   // canonicalized.
-  OwningRewritePatternList patterns;
+  RewritePatternSet patterns(&getContext());
   for (auto op : copyOps) {
     patterns.clear();
     if (isa<AffineLoadOp>(op)) {

@@ -11,7 +11,6 @@
 #include "AffineMapDetail.h"
 #include "AttributeDetail.h"
 #include "IntegerSetDetail.h"
-#include "LocationDetail.h"
 #include "TypeDetail.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -24,6 +23,7 @@
 #include "mlir/IR/Location.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Types.h"
+#include "mlir/Support/DebugAction.h"
 #include "mlir/Support/ThreadLocalCache.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -211,6 +211,13 @@ namespace mlir {
 class MLIRContextImpl {
 public:
   //===--------------------------------------------------------------------===//
+  // Debugging
+  //===--------------------------------------------------------------------===//
+
+  /// An action manager for use within the context.
+  DebugActionManager debugActionManager;
+
+  //===--------------------------------------------------------------------===//
   // Identifier uniquing
   //===--------------------------------------------------------------------===//
 
@@ -383,20 +390,15 @@ MLIRContext::MLIRContext(const DialectRegistry &registry)
   //// Attributes.
   //// Note: These must be registered after the types as they may generate one
   //// of the above types internally.
-  /// Bool Attributes.
-  impl->falseAttr = AttributeUniquer::get<IntegerAttr>(
-                        this, impl->int1Ty, APInt(/*numBits=*/1, false))
-                        .cast<BoolAttr>();
-  impl->trueAttr = AttributeUniquer::get<IntegerAttr>(
-                       this, impl->int1Ty, APInt(/*numBits=*/1, true))
-                       .cast<BoolAttr>();
-  /// Unit Attribute.
-  impl->unitAttr = AttributeUniquer::get<UnitAttr>(this);
   /// Unknown Location Attribute.
   impl->unknownLocAttr = AttributeUniquer::get<UnknownLoc>(this);
+  /// Bool Attributes.
+  impl->falseAttr = IntegerAttr::getBoolAttrUnchecked(impl->int1Ty, false);
+  impl->trueAttr = IntegerAttr::getBoolAttrUnchecked(impl->int1Ty, true);
+  /// Unit Attribute.
+  impl->unitAttr = AttributeUniquer::get<UnitAttr>(this);
   /// The empty dictionary attribute.
-  impl->emptyDictionaryAttr =
-      AttributeUniquer::get<DictionaryAttr>(this, ArrayRef<NamedAttribute>());
+  impl->emptyDictionaryAttr = DictionaryAttr::getEmptyUnchecked(this);
 
   // Register the affine storage objects with the uniquer.
   impl->affineUniquer
@@ -416,6 +418,14 @@ static ArrayRef<T> copyArrayRefInto(llvm::BumpPtrAllocator &allocator,
   auto result = allocator.Allocate<T>(elements.size());
   std::uninitialized_copy(elements.begin(), elements.end(), result);
   return ArrayRef<T>(result, elements.size());
+}
+
+//===----------------------------------------------------------------------===//
+// Debugging
+//===----------------------------------------------------------------------===//
+
+DebugActionManager &MLIRContext::getDebugActionManager() {
+  return getImpl().debugActionManager;
 }
 
 //===----------------------------------------------------------------------===//
@@ -504,9 +514,11 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
     // Refresh all the identifiers dialect field, this catches cases where a
     // dialect may be loaded after identifier prefixed with this dialect name
     // were already created.
+    llvm::SmallString<32> dialectPrefix(dialectNamespace);
+    dialectPrefix.push_back('.');
     for (auto &identifierEntry : impl.identifiers)
-      if (!identifierEntry.second &&
-          identifierEntry.first().startswith(dialectNamespace))
+      if (identifierEntry.second.is<MLIRContext *>() &&
+          identifierEntry.first().startswith(dialectPrefix))
         identifierEntry.second = dialect.get();
 
     // Actually register the interfaces with delayed registration.
@@ -856,12 +868,13 @@ IntegerType IntegerType::get(MLIRContext *context, unsigned width,
   return Base::get(context, width, signedness);
 }
 
-IntegerType IntegerType::getChecked(Location location, unsigned width,
-                                    SignednessSemantics signedness) {
-  if (auto cached =
-          getCachedIntegerType(width, signedness, location->getContext()))
+IntegerType
+IntegerType::getChecked(function_ref<InFlightDiagnostic()> emitError,
+                        MLIRContext *context, unsigned width,
+                        SignednessSemantics signedness) {
+  if (auto cached = getCachedIntegerType(width, signedness, context))
     return cached;
-  return Base::getChecked(location, width, signedness);
+  return Base::getChecked(emitError, context, width, signedness);
 }
 
 /// Get an instance of the NoneType.
@@ -902,7 +915,7 @@ UnitAttr UnitAttr::get(MLIRContext *context) {
   return context->getImpl().unitAttr;
 }
 
-Location UnknownLoc::get(MLIRContext *context) {
+UnknownLoc UnknownLoc::get(MLIRContext *context) {
   return context->getImpl().unknownLocAttr;
 }
 
@@ -1005,11 +1018,14 @@ IntegerSet IntegerSet::get(unsigned dimCount, unsigned symbolCount,
 // StorageUniquerSupport
 //===----------------------------------------------------------------------===//
 
-/// Utility method to generate a default location for use when checking the
-/// construction invariants of a storage object. This is defined out-of-line to
-/// avoid the need to include Location.h.
-const AttributeStorage *
-mlir::detail::generateUnknownStorageLocation(MLIRContext *ctx) {
-  return reinterpret_cast<const AttributeStorage *>(
-      ctx->getImpl().unknownLocAttr.getAsOpaquePointer());
+/// Utility method to generate a callback that can be used to generate a
+/// diagnostic when checking the construction invariants of a storage object.
+/// This is defined out-of-line to avoid the need to include Location.h.
+llvm::unique_function<InFlightDiagnostic()>
+mlir::detail::getDefaultDiagnosticEmitFn(MLIRContext *ctx) {
+  return [ctx] { return emitError(UnknownLoc::get(ctx)); };
+}
+llvm::unique_function<InFlightDiagnostic()>
+mlir::detail::getDefaultDiagnosticEmitFn(const Location &loc) {
+  return [=] { return emitError(loc); };
 }
