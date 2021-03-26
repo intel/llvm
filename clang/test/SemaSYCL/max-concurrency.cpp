@@ -3,7 +3,6 @@
 #include "sycl.hpp"
 
 using namespace cl::sycl;
-queue q;
 
 class Functor1 {
 public:
@@ -23,7 +22,7 @@ template <int NT>
 class Functor3 {
 public:
   [[intel::max_concurrency(NT)]] void operator()() const {}
-  // expected-error@+1 {{'max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and (device) functions}}
+  // expected-error@+1 {{'max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and functions}}
   [[intel::max_concurrency(2)]] int a[10];
 };
 

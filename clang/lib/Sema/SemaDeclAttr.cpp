@@ -6309,9 +6309,10 @@ SYCLIntelFPGAMaxConcurrencyAttr *Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
     }
     return nullptr;
   }
-  // TODO
+  // FIXME
   // max_concurrency and disable_component_pipelining attributes can't be
-  // applied to the same function.
+  // applied to the same function. Upcoming patch needs to have this code
+  // added to it:
   // if (checkAttrMutualExclusion<IntelDisableComponentPipeline>(S, D, AL))
   //  return;
 
@@ -6353,10 +6354,11 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
 static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
                                                   const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
-  // TODO
+  // FIXME
   // max_concurrency and disable_component_pipelining attributes can't be
-  // applied to the same function. if
-  // (checkAttrMutualExclusion<IntelDisableComponentPipeline>(S, D, AL))
+  // applied to the same function. Upcoming patch needs to have this code
+  // added to it:
+  // if (checkAttrMutualExclusion<IntelDisableComponentPipeline>(S, D, AL))
   //  return;
 
   Expr *E = A.getArgAsExpr(0);

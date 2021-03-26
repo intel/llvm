@@ -10,7 +10,7 @@ void foo() {
   [[intel::ivdep]] int a[10];
   // expected-error@+1 {{'initiation_interval' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::initiation_interval(2)]] int c[10];
-  // expected-error@+1 {{'max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and (device) functions}}
+  // expected-error@+1 {{'max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and functions}}
   [[intel::max_concurrency(2)]] int d[10];
   // expected-error@+1 {{'disable_loop_pipelining' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::disable_loop_pipelining]] int g[10];
