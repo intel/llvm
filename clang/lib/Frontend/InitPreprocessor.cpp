@@ -1132,7 +1132,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     // Enable SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING macro for
     // all FPGA compilations.
     if (TI.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-      Builder.defineMacro("__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__", "1");
+      Builder.defineMacro("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING", "1");
     }
 
     if (TI.getTriple().isNVPTX()) {
