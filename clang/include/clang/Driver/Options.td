@@ -2422,7 +2422,10 @@ def fsycl_instrument_device_code : Flag<["-"], "fsycl-instrument-device-code">,
   Group<sycl_Group>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Add ITT instrumentation intrinsics calls">,
   MarshallingInfoFlag<CodeGenOpts<"SPIRITTAnnotations">>;
-defm sycl_id_queries_fit_in_int: OptInFFlag<"sycl-id-queries-fit-in-int", "Assume", "Do not assume", " that SYCL ID queries fit within MAX_INT.", [CC1Option,CoreOption], LangOpts<"SYCLValueFitInMaxInt">>;
+defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
+  LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
+  PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,
+  BothFlags<[CC1Option, CoreOption], " that SYCL ID queries fit within MAX_INT.">>;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
