@@ -729,13 +729,10 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    // FIXME Remove the ESIMD check once rounding of execution range works well
-    // with ESIMD compilation flow.
     // Range rounding can be disabled by the user.
     // Range rounding is not done on the host device.
     // Range rounding is supported only for newer SYCL standards.
-#if !defined(__SYCL_EXPLICIT_SIMD__) &&                                        \
-    !defined(SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING) &&                      \
+#if !defined(SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING) &&                      \
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
     !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) && SYCL_LANGUAGE_VERSION >= 202001
     // Range should be a multiple of this for reasonable performance.
@@ -825,8 +822,9 @@ private:
       MCGType = detail::CG::KERNEL;
 #endif
     } else
-#endif // !__SYCL_EXPLICIT_SIMD__ && !SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING
-       // && SYCL_LANGUAGE_VERSION > 202001
+#endif // !SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING &&                         \
+       // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&       \
+       // SYCL_LANGUAGE_VERSION >= 202001
     {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;

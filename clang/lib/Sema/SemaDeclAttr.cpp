@@ -4476,24 +4476,6 @@ static void handleAlignedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.AddAlignedAttr(D, AL, E, AL.isPackExpansion());
 }
 
-template <typename AttrType>
-bool Sema::checkRangedIntegralArgument(Expr *E, const AttrType *TmpAttr,
-                                       ExprResult &Result) {
-  llvm::APSInt Value;
-  Result = VerifyIntegerConstantExpression(E, &Value);
-  if (Result.isInvalid())
-    return true;
-
-  if (Value < AttrType::getMinValue() || Value > AttrType::getMaxValue()) {
-    Diag(TmpAttr->getRange().getBegin(),
-         diag::err_attribute_argument_out_of_range)
-        << TmpAttr << AttrType::getMinValue() << AttrType::getMaxValue()
-        << E->getSourceRange();
-    return true;
-  }
-  return false;
-}
-
 void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                           bool IsPackExpansion) {
   AlignedAttr TmpAttr(Context, CI, true, E);
@@ -6025,11 +6007,18 @@ void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
         D->dropAttr<IntelFPGAMaxReplicatesAttr>();
       }
     }
-    // [[intel::fpga_register]] and [[intel::max_replicates()]]
-    // attributes are incompatible.
-    if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
-      return;
   }
+
+  // [[intel::fpga_register]] and [[intel::max_replicates()]]
+  // attributes are incompatible.
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
+    return;
+
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        Context, IntelFPGAMemoryAttr::Default));
 
   D->addAttr(::new (Context) IntelFPGAMaxReplicatesAttr(Context, CI, E));
 }
@@ -6244,21 +6233,88 @@ static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
   S.AddIntelFPGAPrivateCopiesAttr(D, A, A.getArgAsExpr(0));
 }
 
-static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
-                                              const ParsedAttr &A) {
-  checkForDuplicateAttribute<IntelFPGAForcePow2DepthAttr>(S, D, A);
+void Sema::AddIntelFPGAForcePow2DepthAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
 
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
+    // This attribute requires a range of values.
+    if (ArgVal < 0 || ArgVal > 1) {
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
+          << CI << 0 << 1 << E->getSourceRange();
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<IntelFPGAForcePow2DepthAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // If there is no mismatch, drop any duplicate attributes.
+        return;
+      }
+    }
+  }
+
+  // [[intel::fpga_register]] and [[intel::force_pow2_depth()]]
+  // attributes are incompatible.
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
     return;
 
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-        S.Context, IntelFPGAMemoryAttr::Default));
+        Context, IntelFPGAMemoryAttr::Default));
 
+  D->addAttr(::new (Context) IntelFPGAForcePow2DepthAttr(Context, CI, E));
+}
+
+IntelFPGAForcePow2DepthAttr *
+Sema::MergeIntelFPGAForcePow2DepthAttr(Decl *D,
+                                       const IntelFPGAForcePow2DepthAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelFPGAForcePow2DepthAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // If there is no mismatch, drop any duplicate attributes.
+        return nullptr;
+      }
+    }
+  }
+
+  // [[intel::fpga_register]] and [[intel::force_pow2_depth()]]
+  // attributes are incompatible.
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, A))
+    return nullptr;
+
+  return ::new (Context) IntelFPGAForcePow2DepthAttr(Context, A, A.getValue());
+}
+
+static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
+                                              const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.AddOneConstantValueAttr<IntelFPGAForcePow2DepthAttr>(D, A,
-                                                         A.getArgAsExpr(0));
+  S.AddIntelFPGAForcePow2DepthAttr(D, A, A.getArgAsExpr(0));
 }
 
 static void handleXRayLogArgsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
