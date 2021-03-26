@@ -4628,28 +4628,6 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
-  _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
-    return Res;
-
-  // For discrete devices we don't need a commandlist
-  ze_command_list_handle_t ZeCommandList = nullptr;
-  ze_fence_handle_t ZeFence = nullptr;
-  ze_event_handle_t ZeEvent = nullptr;
-
-  {
-    // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-    auto Res = createEventAndAssociateQueue(
-        Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_MAP, ZeCommandList);
-    if (Res != PI_SUCCESS)
-      return Res;
-    ZeEvent = (*Event)->ZeEvent;
-    (*Event)->WaitList = TmpWaitList;
-  }
-
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing new memory allocation and a copy (read) on discrete devices.
   // For integrated devices, we have allocated the buffer in host memory so no
@@ -4662,58 +4640,28 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   // Can we get SYCL RT to predict/allocate in shared memory
   // from the beginning?
 
+  if (Buffer->MapHostPtr)
+    *RetMap = Buffer->MapHostPtr + Offset;
+
   // For integrated devices the buffer has been allocated in host memory.
   if (Buffer->OnHost) {
-    // Wait on incoming events before doing the copy
-    PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
-    if (Buffer->MapHostPtr) {
-      *RetMap = Buffer->MapHostPtr + Offset;
-      if (!(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION))
-        memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
-    } else {
+    if (!Buffer->MapHostPtr) {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
-
-    // Signal this event
-    ZE_CALL(zeEventHostSignal, (ZeEvent));
-
-    return Buffer->addMapping(*RetMap, Offset, Size);
-  }
-
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-  // For discrete devices we need a command list
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
-    return Res;
-
-  // Set the commandlist in the event
-  if (Event) {
-    (*Event)->ZeCommandList = ZeCommandList;
-  }
-
-  if (Buffer->MapHostPtr) {
-    *RetMap = Buffer->MapHostPtr + Offset;
   } else {
-    ze_host_mem_alloc_desc_t ZeDesc = {};
-    ZeDesc.flags = 0;
+    if (!Buffer->MapHostPtr) {
+      ze_host_mem_alloc_desc_t ZeDesc = {};
+      ZeDesc.flags = 0;
 
-    ZE_CALL(zeMemAllocHost,
-            (Queue->Context->ZeContext, &ZeDesc, Size, 1, RetMap));
+      ZE_CALL(zeMemAllocHost,
+              (Queue->Context->ZeContext, &ZeDesc, Size, 1, RetMap));
+    }
   }
 
-  const auto &WaitList = (*Event)->WaitList;
-  if (WaitList.Length) {
-    ZE_CALL(zeCommandListAppendWaitOnEvents,
-            (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
-  }
-  ZE_CALL(zeCommandListAppendMemoryCopy,
-          (ZeCommandList, *RetMap,
-           pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size, ZeEvent, 0,
-           nullptr));
-
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, BlockingMap))
+  if (auto Res = enqueueMemCopyHelper(
+          PI_COMMAND_TYPE_MEM_BUFFER_MAP, Queue, *RetMap, BlockingMap, Size,
+          pi_cast<char *>(Buffer->getZeHandle()) + Offset, NumEventsInWaitList,
+          EventWaitList, Event))
     return Res;
 
   return Buffer->addMapping(*RetMap, Offset, Size);
