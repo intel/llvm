@@ -334,6 +334,12 @@ public:
                      Action::OffloadKind DeviceOffloadKind,
                      SmallVectorImpl<llvm::opt::Arg *> *AllocatedArgs) const;
 
+  /// TranslateBackendTargetArgs - populate an argument list with the specific
+  /// options that are determined to be passed along to an offline backend
+  /// target compiler.
+  void TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
+                                  llvm::opt::ArgStringList &CmdArgs) const;
+
   /// Choose a tool to use to handle the action \p JA.
   ///
   /// This can be overridden when a particular ToolChain needs to use

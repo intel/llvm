@@ -10,8 +10,8 @@
 #include "InputInfo.h"
 #include "ToolChains/Arch/ARM.h"
 #include "ToolChains/Clang.h"
-#include "ToolChains/InterfaceStubs.h"
 #include "ToolChains/Flang.h"
+#include "ToolChains/InterfaceStubs.h"
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Config/config.h"
@@ -33,6 +33,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -1442,4 +1443,72 @@ llvm::opt::DerivedArgList *ToolChain::TranslateXarchArgs(
 
   delete DAL;
   return nullptr;
+}
+
+static void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs) {
+  // Tokenize the string.
+  SmallVector<const char *, 8> TargetArgs;
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver S(A);
+  llvm::cl::TokenizeGNUCommandLine(ArgString, S, TargetArgs);
+  for (StringRef TA : TargetArgs)
+    CmdArgs.push_back(Args.MakeArgString(TA));
+}
+
+void ToolChain::TranslateBackendTargetArgs(
+    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
+  for (auto *A : Args) {
+    // Handle -Xs flags.
+    // When parsing the target args, the -Xs<opt> type option applies to all
+    // target compilations is not associated with a specific triple.  The
+    // option can be used in 3 different ways:
+    //   -Xs -DFOO -Xs -DBAR
+    //   -Xs "-DFOO -DBAR"
+    //   -XsDFOO -XsDBAR
+    // All of the above examples will pass -DFOO -DBAR to the backend compiler.
+    if (A->getOption().matches(options::OPT_Xs)) {
+      // Take the arg and create an option out of it.
+      CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
+      A->claim();
+      continue;
+    }
+    if (A->getOption().matches(options::OPT_Xs_separate)) {
+      StringRef ArgString(A->getValue());
+      parseTargetOpts(ArgString, Args, CmdArgs);
+      A->claim();
+      continue;
+    }
+    // Handle -Xsycl-target-backend.
+    bool OptNoTriple;
+    OptNoTriple = A->getOption().matches(options::OPT_Xsycl_backend);
+    if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+      // Passing device args: -X<Opt>=<triple> -opt=val.
+      if (A->getValue() != getTripleString())
+        // Provided triple does not match current tool chain.
+        continue;
+    } else if (!OptNoTriple)
+      // Don't worry about any of the other args, we only want to pass what is
+      // passed in -X<Opt>
+      continue;
+
+    // Add the argument from -X<Opt>
+    StringRef ArgString;
+    if (OptNoTriple) {
+      // With multiple -fsycl-targets, a triple is required so we know where
+      // the options should go.
+      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
+        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+            << A->getSpelling();
+        continue;
+      }
+      // No triple, so just add the argument.
+      ArgString = A->getValue();
+    } else
+      // Triple found, add the next argument in line.
+      ArgString = A->getValue(1);
+
+    parseTargetOpts(ArgString, Args, CmdArgs);
+    A->claim();
+  }
 }

@@ -7708,7 +7708,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += ',';
     Triples += Action::GetOffloadKindName(Action::OFK_SYCL);
     Triples += '-';
-    Triples += llvm::Triple::getArchTypeName(llvm::Triple::fpga_dep);
+    Triples += types::getTypeName(types::TY_FPGA_Dependencies);
   }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
@@ -7775,7 +7775,9 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   bool IsFPGADepUnbundle = JA.getType() == types::TY_FPGA_Dependencies;
   bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
 
-  if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR) {
+  if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR ||
+      InputType == types::TY_FPGA_AOCX_EMU ||
+      InputType == types::TY_FPGA_AOCR_EMU) {
     // Override type with AOCX/AOCR which will unbundle to a list containing
     // binaries with the appropriate file extension (.aocx/.aocr).
     // TODO - representation of the output file from the unbundle for these
@@ -7783,9 +7785,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // better in the output extension and type for improved understanding
     // of file contents and debuggability.
     if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga)
-      TypeArg = InputType == types::TY_FPGA_AOCX ? "aocx" : "aocr";
-    else
+        llvm::Triple::SPIRSubArch_fpga) {
+      bool isAOCX = InputType == types::TY_FPGA_AOCX ||
+                    InputType == types::TY_FPGA_AOCX_EMU;
+      TypeArg = isAOCX ? "aocx" : "aocr";
+    } else
       TypeArg = "aoo";
   }
   if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
@@ -7853,7 +7857,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // file as it does not match the type being bundled.
     Triples += Action::GetOffloadKindName(Action::OFK_SYCL);
     Triples += '-';
-    Triples += llvm::Triple::getArchTypeName(llvm::Triple::fpga_dep);
+    Triples += types::getTypeName(types::TY_FPGA_Dependencies);
   }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
@@ -7927,9 +7931,12 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // to the target triple setting.
     if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
         TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
+      SmallString<16> FPGAArch("fpga_");
       auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ);
-      TT.setArchName((A->getValue() == StringRef("early")) ? "fpga_aocr"
-                                                           : "fpga_aocx");
+      FPGAArch += A->getValue() == StringRef("early") ? "aocr" : "aocx";
+      if (C.getDriver().isFPGAEmulationMode())
+        FPGAArch += "_emu";
+      TT.setArchName(FPGAArch);
       TT.setVendorName("intel");
       TT.setEnvironment(llvm::Triple::SYCLDevice);
       TargetTripleOpt = TT.str();
