@@ -3415,9 +3415,13 @@ Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted &&
-        (getEmissionReason(FD) & Reason) != Sema::DeviceDiagnosticReason::None)
-      return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
+    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
+      if ((getEmissionReason(FD) & Reason) !=
+          Sema::DeviceDiagnosticReason::None)
+        return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
+      else
+        // Skip the diagnostic if we know it won't be emitted.
+        return SemaDiagnosticBuilder::K_Nop;
     return SemaDiagnosticBuilder::K_Deferred;
   }();
   return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this, Reason);
