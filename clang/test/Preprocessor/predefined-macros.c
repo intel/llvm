@@ -214,3 +214,13 @@
 // CHECK-HIP-DEV: #define __HIPCC__ 1
 // CHECK-HIP-DEV: #define __HIP_DEVICE_COMPILE__ 1
 // CHECK-HIP-DEV: #define __HIP__ 1
+
+// RUN: %clang_cc1 %s -E -dM -triple spir64_fpga-unknown-unknown-sycldevice \
+// RUN: -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
+// CHECK-RANGE: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+
+// RUN: %clang_cc1 %s -E -dM -triple spir64_fpga-unknown-unknown-sycldevice \
+// RUN: -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
+// CHECK-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
