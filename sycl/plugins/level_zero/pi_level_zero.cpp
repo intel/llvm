@@ -1066,7 +1066,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
         PiPlatformCachePopulated = true;
       } else {
         std::vector<ze_driver_handle_t> ZeDrivers;
-        ZeDrivers.reserve(ZeDriverCount);
+        ZeDrivers.resize(ZeDriverCount);
 
         ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
         for (uint32_t I = 0; I < ZeDriverCount; ++I) {
@@ -1087,16 +1087,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     }
   }
 
-  if (Platforms && NumEntries > 0) {
-    uint32_t I = 0;
-    for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
-      if (I < NumEntries) {
-        *Platforms++ = CachedPlatform;
-        I++;
-      } else {
-        break;
-      }
-    }
+  // Populate returned platforms from the cache.
+  if (Platforms) {
+    PI_ASSERT(NumEntries <= PiPlatformsCache->size(), PI_INVALID_PLATFORM);
+    std::copy_n(PiPlatformsCache->begin(), NumEntries, Platforms);
   }
 
   if (NumPlatforms)
