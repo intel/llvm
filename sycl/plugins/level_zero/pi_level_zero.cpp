@@ -74,7 +74,7 @@ std::mutex ZeCall::GlobalLock;
 // Controls PI level tracing prints.
 static bool PrintPiTrace = false;
 
-// Map Level Zero runtime error code to PI error code
+// Map Level Zero runtime error code to PI error code.
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
   // values, which is TBD.
