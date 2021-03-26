@@ -1,3 +1,5 @@
+// REQUIRES: level_zero
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
