@@ -230,10 +230,9 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
       return get_event_profiling_info<
           info::event_profiling::command_submit>::get(this->getHandleRef(),
                                                       this->getPlugin());
-    else
-      // TODO this should throw an exception if the queue the dummy event is
-      // bound to does not support profiling info.
-      return 0;
+    // TODO this should throw an exception if the queue the dummy event is
+    // bound to does not support profiling info.
+    return 0;
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
@@ -249,10 +248,9 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
       return get_event_profiling_info<
           info::event_profiling::command_start>::get(this->getHandleRef(),
                                                      this->getPlugin());
-    else
-      // TODO this should throw an exception if the queue the dummy event is
-      // bound to does not support profiling info.
-      return 0;
+    // TODO this should throw an exception if the queue the dummy event is
+    // bound to does not support profiling info.
+    return 0;
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
@@ -267,10 +265,9 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
     if (MEvent)
       return get_event_profiling_info<info::event_profiling::command_end>::get(
           this->getHandleRef(), this->getPlugin());
-    else
-      // TODO this should throw an exception if the queue the dummy event is
-      // bound to does not support profiling info.
-      return 0;
+    // TODO this should throw an exception if the queue the dummy event is
+    // bound to does not support profiling info.
+    return 0;
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
