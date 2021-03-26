@@ -304,8 +304,6 @@ public:
                                SPIRVInstruction * = nullptr) override;
   SPIRVEntry *addDebugInfo(SPIRVWord, SPIRVType *TheType,
                            const std::vector<SPIRVWord> &) override;
-  SPIRVEntry *addModuleProcessed(const std::string &) override;
-  std::vector<SPIRVModuleProcessed *> getModuleProcessedVec() override;
   SPIRVInstruction *addBinaryInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
                                   SPIRVBasicBlock *) override;
   SPIRVInstruction *addCallInst(SPIRVFunction *, const std::vector<SPIRVWord> &,
@@ -516,7 +514,6 @@ private:
   std::map<unsigned, SPIRVTypeInt *> IntTypeMap;
   std::map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
-  std::vector<SPIRVModuleProcessed *> ModuleProcessedVec;
 
   void layoutEntry(SPIRVEntry *Entry);
 };
@@ -1286,15 +1283,6 @@ SPIRVEntry *SPIRVModuleImpl::addDebugInfo(SPIRVWord InstId, SPIRVType *TheType,
                        ExtInstSetIds[getDebugInfoEIS()], InstId, Args));
 }
 
-SPIRVEntry *SPIRVModuleImpl::addModuleProcessed(const std::string &Process) {
-  ModuleProcessedVec.push_back(new SPIRVModuleProcessed(this, Process));
-  return ModuleProcessedVec.back();
-}
-
-std::vector<SPIRVModuleProcessed *> SPIRVModuleImpl::getModuleProcessedVec() {
-  return ModuleProcessedVec;
-}
-
 SPIRVInstruction *
 SPIRVModuleImpl::addCallInst(SPIRVFunction *TheFunction,
                              const std::vector<SPIRVWord> &TheArguments,
@@ -1771,8 +1759,8 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
       M.getEntry(I)->encodeName(O);
   }
 
-  O << MI.MemberNameVec << MI.ModuleProcessedVec << MI.DecGroupVec
-    << MI.DecorateSet << MI.GroupDecVec << MI.ForwardPointerVec
+  O << MI.MemberNameVec << MI.DecGroupVec << MI.DecorateSet << MI.GroupDecVec
+    << MI.ForwardPointerVec
     << TopologicalSort(MI.TypeVec, MI.ConstVec, MI.VariableVec,
                        MI.ForwardPointerVec);
 
