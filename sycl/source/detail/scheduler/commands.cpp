@@ -1695,6 +1695,12 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
                                                        Arg.MSize, Arg.MPtr);
       break;
     }
+    case kernel_param_kind_t::kind_specialization_constants_buffer: {
+      throw cl::sycl::feature_not_supported(
+        "Specialization constants are not yet fully supported",
+        PI_INVALID_OPERATION);
+      break;
+    }
     }
     ++NextTrueIndex;
   }
