@@ -29,6 +29,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
@@ -42,6 +43,13 @@ namespace id = itanium_demangle;
 
 #define SLM_BTI 254
 
+// This option is only for testing. TODO: remove this option
+// with the refactoring of LowerESIMD pass (ModulePass -> FunctionPass)
+static cl::opt<bool> LowerEsimdOptLevelO0(
+    "lower-esimd-opt-level-O0", llvm::cl::Optional, llvm::cl::Hidden,
+    llvm::cl::desc("Force no optimizations for LowerESIMD pass"),
+    llvm::cl::init(false));
+
 namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
 void generateKernelMetadata(Module &);
@@ -49,7 +57,10 @@ void generateKernelMetadata(Module &);
 class SYCLLowerESIMDLegacyPass : public ModulePass {
 public:
   static char ID; // Pass identification, replacement for typeid
-  SYCLLowerESIMDLegacyPass() : ModulePass(ID) {
+  SYCLLowerESIMDLegacyPass() : ModulePass(ID), Impl(/*OptLevelO0*/ false) {
+    initializeSYCLLowerESIMDLegacyPassPass(*PassRegistry::getPassRegistry());
+  }
+  SYCLLowerESIMDLegacyPass(bool OptLevelO0) : ModulePass(ID), Impl(OptLevelO0) {
     initializeSYCLLowerESIMDLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
@@ -70,9 +81,13 @@ INITIALIZE_PASS(SYCLLowerESIMDLegacyPass, "LowerESIMD",
                 "Lower constructs specific to Close To Metal", false, false)
 
 // Public interface to the SYCLLowerESIMDPass.
-ModulePass *llvm::createSYCLLowerESIMDPass() {
-  return new SYCLLowerESIMDLegacyPass();
+ModulePass *llvm::createSYCLLowerESIMDPass(bool OptLevelO0) {
+  return new SYCLLowerESIMDLegacyPass(OptLevelO0);
 }
+
+SYCLLowerESIMDPass::SYCLLowerESIMDPass() : OptLevelO0(LowerEsimdOptLevelO0) {}
+SYCLLowerESIMDPass::SYCLLowerESIMDPass(bool OptLevelO0)
+    : OptLevelO0(LowerEsimdOptLevelO0 ? true : OptLevelO0) {}
 
 namespace {
 // The regexp for ESIMD intrinsics:
@@ -1262,7 +1277,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with
   // 'alwaysinline' attribute.
-  if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
+  if (!OptLevelO0 && (F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
       !F.hasFnAttribute(Attribute::AlwaysInline))
     F.addFnAttr(Attribute::AlwaysInline);
 

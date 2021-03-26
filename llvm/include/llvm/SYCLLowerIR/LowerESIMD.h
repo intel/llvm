@@ -28,12 +28,15 @@ namespace llvm {
 class SYCLLowerESIMDPass : public PassInfoMixin<SYCLLowerESIMDPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  SYCLLowerESIMDPass();
+  SYCLLowerESIMDPass(bool OptLevelO0);
 
 private:
   size_t runOnFunction(Function &F, SmallPtrSet<Type *, 4> &);
+  const bool OptLevelO0;
 };
 
-ModulePass *createSYCLLowerESIMDPass();
+ModulePass *createSYCLLowerESIMDPass(bool OptLevelO0 = false);
 void initializeSYCLLowerESIMDLegacyPassPass(PassRegistry &);
 
 class ESIMDLowerLoadStorePass : public PassInfoMixin<ESIMDLowerLoadStorePass> {

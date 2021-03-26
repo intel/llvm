@@ -491,7 +491,7 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
 // TODO: support options like -debug-pass, -print-[before|after], and others
 static void LowerEsimdConstructs(Module &M) {
   legacy::PassManager MPM;
-  MPM.add(createSYCLLowerESIMDPass());
+  MPM.add(createSYCLLowerESIMDPass(OptLevelO0));
   if (!OptLevelO0) {
     // Force-inline all functions marked 'alwaysinline' by the LowerESIMD pass.
     MPM.add(createAlwaysInlinerLegacyPass());
