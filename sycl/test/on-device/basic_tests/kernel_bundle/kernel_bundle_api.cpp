@@ -132,10 +132,10 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE1:0x[0-9,a-f]+]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,PROGRAM_HANDLE1:]]
     //
     // CHECK:---> piProgramCompile(
-    // CHECK-Next: <unknown> : [[PROGRAM_HANDLE1]]
+    // CHECK-Next: <unknown> : 0x[[#PROGRAM_HANDLE1]]
 
 
 
@@ -147,10 +147,10 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE2:0x[0-9,a-f]+]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,PROGRAM_HANDLE2:]]
     //
     // CHECK:---> piProgramCompile(
-    // CHECK-Next: <unknown> : [[PROGRAM_HANDLE2]]
+    // CHECK-Next: <unknown> : 0x[[#PROGRAM_HANDLE2]]
 
 
     // TODO: Pass more kernel bundles
@@ -173,55 +173,71 @@ int main() {
 
     assert(KernelBundleExecutable.has_kernel(Kernel1ID));
     assert(KernelBundleExecutable.has_kernel(Kernel2ID));
-  }
 
-  {
-    // Test handle::use_kernel_bundle APIs.
-    sycl::kernel_id Kernel3ID = sycl::get_kernel_id<Kernel3Name>();
+    sycl::kernel_bundle<sycl::bundle_state::executable>
+        KernelBundleExecutable2 =
+            sycl::build(KernelBundleInput1, KernelBundleInput1.get_devices());
 
-    sycl::kernel_bundle KernelBundleInput =
-        sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                           {Kernel3ID});
-    // 3 SPIRV images - 3 calls to piextDeviceSelectBinary are expected
-    // CHECK:---> piextDeviceSelectBinary
-    // CHECK:---> piextDeviceSelectBinary
-    // CHECK:---> piextDeviceSelectBinary
-    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExecutable =
-        sycl::build(KernelBundleInput, KernelBundleInput.get_devices());
     // CHECK:---> piProgramCreate
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE3:0x[0-9,a-f]+]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,PROGRAM_HANDLE3:]]
     //
     // CHECK:---> piProgramBuild(
-    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
+    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE3]]
     //
     // CHECK:---> piProgramRetain(
-    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
+    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE3]]
+    // CHECK-NEXT:---> pi_result : PI_SUCCESS
+  }
+
+  {
+    // Test handle::use_kernel_bundle APIs.
+    sycl::kernel_id Kernel3ID = sycl::get_kernel_id<Kernel3Name>();
+
+    sycl::kernel_bundle KernelBundleExecutable =
+        sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev},
+                                                                {Kernel3ID});
+    // 3 SPIRV images - 3 calls to piextDeviceSelectBinary are expected
+    // CHECK:---> piextDeviceSelectBinary
+    // CHECK:---> piextDeviceSelectBinary
+    // CHECK:---> piextDeviceSelectBinary
+    // CHECK:---> piProgramCreate
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: <unknown> : {{.*}}
+    // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,PROGRAM_HANDLE4:]]
+    //
+    // CHECK:---> piProgramBuild(
+    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE4]]
+    //
+    // CHECK:---> piProgramRetain(
+    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE4]]
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
     //
     // CHECK:---> piKernelCreate(
-    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
+    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE4]]
     // CHECK-NEXT:<const char *>: _ZTS11Kernel3Name
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[KERNEL_HANDLE:0x[0-9,a-f]+]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,KERNEL_HANDLE:]]
     //
     // CHECK:---> piKernelRetain(
-    // CHECK-NEXT: <unknown> : [[KERNEL_HANDLE]]
+    // CHECK-NEXT: <unknown> : 0x[[#KERNEL_HANDLE]]
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
     //
     // CHECK:---> piEnqueueKernelLaunch(
     // CHECK-NEXT:<unknown> : {{.*}}
-    // CHECK-NEXT:<unknown> : [[KERNEL_HANDLE]]
+    // CHECK-NEXT:<unknown> : 0x[[#KERNEL_HANDLE]]
     //
     // CHECK:---> piKernelRelease(
-    // CHECK-NEXT: <unknown> : [[KERNEL_HANDLE]]
+    // CHECK-NEXT: <unknown> : 0x[[#KERNEL_HANDLE]]
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
-
 
     cl::sycl::buffer<int, 1> Buf(sycl::range<1>{1});
 
