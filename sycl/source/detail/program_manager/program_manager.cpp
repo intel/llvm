@@ -1184,9 +1184,9 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 }
 
 std::vector<device_image_plain>
-ProgramManager::getSYCLDeviceImages(const context &Ctx,
-                                    const std::vector<device> &Devs,
-                                    bundle_state TargetState) {
+ProgramManager::getSYCLDeviceImagesWithCompatibleState(const context &Ctx,
+                                             const std::vector<device> &Devs,
+                                             bundle_state TargetState) {
 
   // Collect raw device images
   std::vector<RTDeviceBinaryImage *> BinImages;
@@ -1207,7 +1207,16 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
   std::vector<device_image_plain> SYCLDeviceImages;
   for (RTDeviceBinaryImage *BinImage : BinImages) {
     const bundle_state ImgState = getBinImageState(BinImage);
-    if (ImgState != TargetState)
+    // Ignore images with incompatible state. Image is considered compatible
+    // with a target state if an image is already in the target state or can be
+    // brought to target state by compiling/linking/building.
+    //
+    // Example: an image in "executable" state is not compatbile with "input"
+    // target state - there is no operation to convert the image it to "input"
+    // state.
+    // An image in "input" state is compatible with "executable" target state
+    // because it can be built to get into "executable" state.
+    if (ImgState > TargetState)
       continue;
 
     for (const sycl::device &Dev : Devs)
@@ -1240,6 +1249,106 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
   }
 
   return SYCLDeviceImages;
+}
+
+void ProgramManager::bringSYCLDeviceImagesToState(
+    std::vector<device_image_plain> &DeviceImages, bundle_state TargetState) {
+
+  for(device_image_plain &DevImage: DeviceImages) {
+    const bundle_state DevImageState = getSyclObjImpl(DevImage)->get_state();
+
+    switch (TargetState) {
+    case bundle_state::input:
+      // Do nothing since there is no state which can be upgradet to the input.
+      assert(DevImageState == bundle_state::input);
+      break;
+    case bundle_state::object:
+      if (DevImageState == bundle_state::input) {
+        DevImage = compile(DevImage, getSyclObjImpl(DevImage)->get_devices(),
+                           /*PropList=*/{});
+        break;
+      }
+      // Device image is expected to be object state then.
+      assert(DevImageState == bundle_state::object);
+      break;
+    case bundle_state::executable: {
+      switch (DevImageState) {
+      case bundle_state::input:
+        DevImage = build(DevImage, getSyclObjImpl(DevImage)->get_devices(),
+                         /*PropList=*/{});
+        break;
+      case bundle_state::object: {
+        std::vector<device_image_plain> LinkedDevImages =
+            link({DevImage}, getSyclObjImpl(DevImage)->get_devices(),
+                 /*PropList=*/{});
+        // Since only one device image is passed here one output device image is
+        // expected
+        assert(LinkedDevImages.size() == 1 && "Expected one linked image here");
+        DevImage = LinkedDevImages[0];
+        break;
+      }
+      case bundle_state::executable:
+        // Device image is already in the desired state.
+        break;
+      }
+      break;
+    }
+    }
+  }
+}
+
+std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
+    const context &Ctx, const std::vector<device> &Devs,
+    bundle_state TargetState) {
+  // Collect device images with compatible state
+  std::vector<device_image_plain> DeviceImages =
+      getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
+  // Brind device images with compatible state to desired state
+  bringSYCLDeviceImagesToState(DeviceImages, TargetState);
+  return DeviceImages;
+}
+
+std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
+    const context &Ctx, const std::vector<device> &Devs,
+    const DevImgSelectorImpl &Selector, bundle_state TargetState) {
+  // Collect device images with compatible state
+  std::vector<device_image_plain> DeviceImages =
+      getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
+
+    // Filter out images that are rejected by Selector
+  auto It = std::remove_if(DeviceImages.begin(), DeviceImages.end(),
+                           [&Selector](const device_image_plain &Image) {
+                             return !Selector(getSyclObjImpl(Image));
+                           });
+  DeviceImages.erase(It, DeviceImages.end());
+
+  // Brind device images with compatible state to desired state
+  bringSYCLDeviceImagesToState(DeviceImages, TargetState);
+  return DeviceImages;
+}
+
+std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
+    const context &Ctx, const std::vector<device> &Devs,
+    const std::vector<kernel_id> &KernelIDs, bundle_state TargetState) {
+  // Collect device images with compatible state
+  std::vector<device_image_plain> DeviceImages =
+      getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
+
+  // Filter out images that have no kernel_ids specified
+  auto It = std::remove_if(DeviceImages.begin(), DeviceImages.end(),
+                           [&KernelIDs](const device_image_plain &Image) {
+                             return std::none_of(
+                                 KernelIDs.begin(), KernelIDs.end(),
+                                 [&Image](const sycl::kernel_id &KernelID) {
+                                   return Image.has_kernel(KernelID);
+                                 });
+                           });
+
+  DeviceImages.erase(It, DeviceImages.end());
+
+  // Brind device images with compatible state to desired state
+  bringSYCLDeviceImagesToState(DeviceImages, TargetState);
+  return DeviceImages;
 }
 
 device_image_plain

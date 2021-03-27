@@ -114,30 +114,18 @@ public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
                      bundle_state State)
-      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), State) {
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
 
-    // Filter out images that have no kernel_ids specified
-    auto It = std::remove_if(MDeviceImages.begin(), MDeviceImages.end(),
-                             [&KernelIDs](const device_image_plain &Image) {
-                               return std::none_of(
-                                   KernelIDs.begin(), KernelIDs.end(),
-                                   [&Image](const sycl::kernel_id &KernelID) {
-                                     return Image.has_kernel(KernelID);
-                                   });
-                             });
-    MDeviceImages.erase(It, MDeviceImages.end());
+    MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
+        MContext, MDevices, KernelIDs, State);
   }
 
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const DevImgSelectorImpl &Selector, bundle_state State)
-      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), State) {
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
 
-    // Filter out images that are rejected by Selector
-    auto It = std::remove_if(MDeviceImages.begin(), MDeviceImages.end(),
-                             [&Selector](const device_image_plain &Image) {
-                               return !Selector(getSyclObjImpl(Image));
-                             });
-    MDeviceImages.erase(It, MDeviceImages.end());
+    MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
+        MContext, MDevices, Selector, State);
   }
 
   // C'tor matches sycl::join API
