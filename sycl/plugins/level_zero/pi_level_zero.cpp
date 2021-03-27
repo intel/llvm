@@ -3958,8 +3958,6 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       for (auto ZeWaitEvent : EventList[I]->waitEvents) {
         zePrint("ZeWaitEvent = %lx\n", pi_cast<std::uintptr_t>(ZeWaitEvent));
         ZE_CALL(zeHostSynchronize, (ZeWaitEvent));
-        //if (ZeWaitEvent)
-        //  ZE_CALL(zeEventHostSynchronize, (ZeWaitEvent, UINT32_MAX));
       }
       if (EventList[I]->CopyPending) {
         memcpy(EventList[I]->CopyDst, EventList[I]->CopySrc,
