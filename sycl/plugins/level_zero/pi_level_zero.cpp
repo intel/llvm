@@ -74,7 +74,7 @@ std::mutex ZeCall::GlobalLock;
 // Controls PI level tracing prints.
 static bool PrintPiTrace = false;
 
-// Map Level Zero runtime error code to PI error code
+// Map Level Zero runtime error code to PI error code.
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
   // values, which is TBD.
@@ -149,6 +149,38 @@ static void zePrint(const char *Format, ...) {
     va_end(Args);
   }
 }
+
+// Helper function to implement zeHostSynchronize.
+// The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
+// This allows for a much more responsive debugging of hangs.
+//
+template <typename T, typename Func>
+ze_result_t zeHostSynchronizeImpl(Func Api, T Handle) {
+  if (!ZeDebug) {
+    return Api(Handle, UINT64_MAX);
+  }
+
+  ze_result_t R;
+  while ((R = Api(Handle, 1000)) == ZE_RESULT_NOT_READY)
+    ;
+  return R;
+}
+
+// Template function to do various types of host synchronizations.
+// This is intended to be used instead of direct calls to specific
+// Level-Zero synchronization APIs.
+//
+template <typename T> ze_result_t zeHostSynchronize(T Handle);
+template <> ze_result_t zeHostSynchronize(ze_event_handle_t Handle) {
+  return zeHostSynchronizeImpl(zeEventHostSynchronize, Handle);
+}
+template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
+  return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
+}
+// template <>
+// ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
+//   return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
+// }
 
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -560,6 +592,26 @@ pi_result _pi_queue::resetCommandListFenceEntry(
   return PI_SUCCESS;
 }
 
+// Maximum Number of Command Lists that can be created.
+// This Value is initialized to 20000, but can be changed by the user
+// thru the environment variable SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE
+// ie SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE =10000.
+static const int ZeMaxCommandListCacheSize = [] {
+  const char *CommandListCacheSize =
+      std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
+  pi_uint32 CommandListCacheSizeValue;
+  try {
+    CommandListCacheSizeValue =
+        CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
+  } catch (std::exception const &) {
+    zePrint(
+        "SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE: invalid value provided, "
+        "default set.\n");
+    CommandListCacheSizeValue = 20000;
+  }
+  return CommandListCacheSizeValue;
+}();
+
 static const pi_uint32 ZeCommandListBatchSize = [] {
   // Default value of 0. This specifies to use dynamic batch size adjustment.
   pi_uint32 BatchSizeVal = 0;
@@ -660,7 +712,7 @@ pi_result _pi_context::getAvailableCommandList(
   // map.
   if ((*ZeCommandList == nullptr) &&
       (Queue->Device->Platform->ZeGlobalCommandListCount <
-       Queue->Device->Platform->ZeMaxCommandListCache)) {
+       ZeMaxCommandListCacheSize)) {
     ZE_CALL(zeCommandListCreate,
             (Queue->Context->ZeContext, Queue->Device->ZeDevice,
              &ZeCommandListDesc, ZeCommandList));
@@ -759,7 +811,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
     // Wait until command lists attached to the command queue are executed.
-    ZE_CALL(zeCommandQueueSynchronize, (ZeCommandQueue, UINT32_MAX));
+    ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
   }
   return PI_SUCCESS;
 }
@@ -950,6 +1002,27 @@ static bool setEnvVar(const char *name, const char *value) {
   return true;
 }
 
+pi_result _pi_platform::initialize() {
+  // Cache driver properties
+  ze_driver_properties_t ZeDriverProperties;
+  ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
+  uint32_t DriverVersion = ZeDriverProperties.driverVersion;
+  // Intel Level-Zero GPU driver stores version as:
+  // | 31 - 24 | 23 - 16 | 15 - 0 |
+  // |  Major  |  Minor  | Build  |
+  auto VersionMajor = std::to_string((DriverVersion & 0xFF000000) >> 24);
+  auto VersionMinor = std::to_string((DriverVersion & 0x00FF0000) >> 16);
+  auto VersionBuild = std::to_string(DriverVersion & 0x0000FFFF);
+  ZeDriverVersion = VersionMajor + "." + VersionMinor + "." + VersionBuild;
+
+  ze_api_version_t ZeApiVersion;
+  ZE_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
+  ZeDriverApiVersion = std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
+                       std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+  return PI_SUCCESS;
+}
+
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
@@ -1016,21 +1089,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformsCacheMutex};
   if (!PiPlatformCachePopulated) {
-    const char *CommandListCacheSize =
-        std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
-    pi_uint32 CommandListCacheSizeValue;
     try {
-      CommandListCacheSizeValue =
-          CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
-    } catch (std::exception const &) {
-      zePrint(
-          "SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE: invalid value provided, "
-          "default set.\n");
-      CommandListCacheSizeValue = 20000;
-    }
-
-    try {
-
       // Level Zero does not have concept of Platforms, but Level Zero driver is
       // the closest match.
       uint32_t ZeDriverCount = 0;
@@ -1038,36 +1097,19 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
       if (ZeDriverCount == 0) {
         PiPlatformCachePopulated = true;
       } else {
-        ze_driver_handle_t ZeDriver;
-        PI_ASSERT(ZeDriverCount == 1, PI_INVALID_VALUE);
+        std::vector<ze_driver_handle_t> ZeDrivers;
+        ZeDrivers.resize(ZeDriverCount);
 
-        ZE_CALL(zeDriverGet, (&ZeDriverCount, &ZeDriver));
-        pi_platform Platform = new _pi_platform(ZeDriver);
-
-        // Cache driver properties
-        ze_driver_properties_t ZeDriverProperties;
-        ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
-        uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
-        // Intel Level-Zero GPU driver stores version as:
-        // | 31 - 24 | 23 - 16 | 15 - 0 |
-        // |  Major  |  Minor  | Build  |
-        auto VersionMajor =
-            std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
-        auto VersionMinor =
-            std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
-        auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
-        Platform->ZeDriverVersion =
-            VersionMajor + "." + VersionMinor + "." + VersionBuild;
-
-        ze_api_version_t ZeApiVersion;
-        ZE_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
-        Platform->ZeDriverApiVersion =
-            std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
-            std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
-
-        Platform->ZeMaxCommandListCache = CommandListCacheSizeValue;
-        // Save a copy in the cache for future uses.
-        PiPlatformsCache->push_back(Platform);
+        ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
+        for (uint32_t I = 0; I < ZeDriverCount; ++I) {
+          pi_platform Platform = new _pi_platform(ZeDrivers[I]);
+          pi_result Result = Platform->initialize();
+          if (Result != PI_SUCCESS) {
+            return Result;
+          }
+          // Save a copy in the cache for future uses.
+          PiPlatformsCache->push_back(Platform);
+        }
         PiPlatformCachePopulated = true;
       }
     } catch (const std::bad_alloc &) {
@@ -1077,16 +1119,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     }
   }
 
-  if (Platforms && NumEntries > 0) {
-    uint32_t I = 0;
-    for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
-      if (I < NumEntries) {
-        *Platforms++ = CachedPlatform;
-        I++;
-      } else {
-        break;
-      }
-    }
+  // Populate returned platforms from the cache.
+  if (Platforms) {
+    PI_ASSERT(NumEntries <= PiPlatformsCache->size(), PI_INVALID_PLATFORM);
+    std::copy_n(PiPlatformsCache->begin(), NumEntries, Platforms);
   }
 
   if (NumPlatforms)
@@ -2206,7 +2242,7 @@ pi_result piQueueRelease(pi_queue Queue) {
         return Res;
 
       // Make sure all commands get executed.
-      zeCommandQueueSynchronize(Queue->ZeCommandQueue, UINT64_MAX);
+      ZE_CALL(zeHostSynchronize, (Queue->ZeCommandQueue));
 
       // Destroy all the fences created associated with this queue.
       for (auto &MapEntry : Queue->ZeCommandListFenceMap) {
@@ -2242,7 +2278,7 @@ pi_result piQueueFinish(pi_queue Queue) {
   if (auto Res = Queue->executeOpenCommandList())
     return Res;
 
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCommandQueue, UINT32_MAX));
+  ZE_CALL(zeHostSynchronize, (Queue->ZeCommandQueue));
   return PI_SUCCESS;
 }
 
@@ -3915,7 +3951,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     ze_event_handle_t ZeEvent = EventList[I]->ZeEvent;
     zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-    ZE_CALL(zeEventHostSynchronize, (ZeEvent, UINT32_MAX));
+    ZE_CALL(zeHostSynchronize, (ZeEvent));
 
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
@@ -4201,7 +4237,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Res != PI_SUCCESS)
     return Res;
 
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCommandQueue, UINT64_MAX));
+  ZE_CALL(zeHostSynchronize, (Queue->ZeCommandQueue));
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return PI_SUCCESS;
 }
