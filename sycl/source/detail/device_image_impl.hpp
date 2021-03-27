@@ -129,8 +129,6 @@ public:
 
   const RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
 
-  //RTDeviceBinaryImage * const * get_bin_image_ptr() const noexcept { return &MBinImage; }
-
   const context &get_context() const noexcept { return MContext; }
 
   std::vector<kernel_id> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
@@ -156,7 +154,7 @@ private:
   context MContext;
   std::vector<device> MDevices;
   bundle_state MState;
-	// Native program handler which this device image represents
+  // Native program handler which this device image represents
   RT::PiProgram MProgram = nullptr;
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
