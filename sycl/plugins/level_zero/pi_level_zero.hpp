@@ -558,6 +558,14 @@ struct _pi_event : _pi_object {
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
+  // For deferred copy from Map/Unmap operations
+  bool DeferredHostCopy = false;
+  std::vector<ze_event_handle_t> waitEvents;
+  void* CopyDst = nullptr;
+  const void* CopySrc = nullptr;
+  size_t CopySize = 0;
+  bool CopyPending = false;
+
   // Level Zero command list where the command signaling this event was appended
   // to. This is currently used to remember/destroy the command list after all
   // commands in it are completed, i.e. this event signaled.
