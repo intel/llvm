@@ -45,15 +45,15 @@ namespace detail {
 // approach is implemented:
 //
 // Those classes have a member - MSharedPtrStorage which is an std::vector of
-// std::shared_ptr's and is supposed to hold a reference counters of a user
+// std::shared_ptr's and is supposed to hold reference counters of user
 // provided shared_ptr's.
 //
 // The first element of this vector is reused to store a vector of additional
 // members handler and CG need to have.
 //
-// This additional arguments are represented using "ExtendedMemberT" structure
+// These additional arguments are represented using "ExtendedMemberT" structure
 // which has a pointer to an arbitrary value and an integer which is used to
-// understand how the value pointer points to should be interpreted.
+// understand how the value the pointer points to should be interpreted.
 //
 // ========  ========      ========
 // |      |  |      | ...  |      | std::vector<std::shared_ptr<void>>
@@ -69,13 +69,13 @@ namespace detail {
 // | Ptr  |  | Ptr  | ...  | Ptr  |
 // ========  ========      ========
 //
-// Prior this change this vector is supposed to have user's values only, so it
-// is not legal to expect that the first argument is a special one. Versioning
-// is implemented to overcome this problem - if first element of the
-// MSharedPtrStorage is a pointer to the special vector then CGType value has
-// version "1" encoded.
+// Prior to this change this vector was supposed to have user's values only, so
+// it is not legal to expect that the first argument is a special one.
+// Versioning is implemented to overcome this problem - if the first element of
+// the MSharedPtrStorage is a pointer to the special vector then CGType value
+// has version "1" encoded.
 //
-// The version of CG type is encoded in the higher byte of the value:
+// The version of CG type is encoded in the highest byte of the value:
 //
 // 0x00000001 - CG type KERNEL version 0
 // 0x01000001 - CG type KERNEL version 1
@@ -84,9 +84,9 @@ namespace detail {
 // The byte specifies the version
 //
 // A user of this vector should not expect that a specific data is stored at a
-// specific position, but interator over all looking for a ExtendedMemberT
-// value with desired type.
-// This allows changing/extending the content of this vector without changing
+// specific position, but iterate over all looking for an ExtendedMemberT value
+// with the desired type.
+// This allows changing/extending the contents of this vector without changing
 // the version.
 //
 
@@ -114,7 +114,7 @@ class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
 
-// The constant is used to shift left CG type value to access it's version
+// The constant is used to left shift a CG type value to access it's version
 constexpr unsigned int ShiftBitsForVersion = 24;
 
 // Constructs versioned type
@@ -138,10 +138,10 @@ constexpr unsigned char getCGTypeVersion(unsigned int Type) {
 /// Base class for all types of command groups.
 class CG {
 public:
-  // Used to version CG and handler classes. Using unsigned char to as the
-  // version is encoded in the highest byte of CGType value. So it is not
-  // possible to encode a value > 255 anyway which should be big enough room
-  // for version bumping.
+  // Used to version CG and handler classes. Using unsigned char as the version
+  // is encoded in the highest byte of CGType value. So it is not possible to
+  // encode a value > 255 anyway which should be big enough room for version
+  // bumping.
   enum class CG_VERSION : unsigned char {
     V0 = 0,
     V1 = 1,

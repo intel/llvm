@@ -34,7 +34,7 @@ handler::handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
 // returns newly created kernel_bundle if Insert is true
 // returns shared_ptr(nullptr) if Insert is false
 std::shared_ptr<detail::kernel_bundle_impl>
-handler::getOrInsertHandlerKernelBundle(bool Insert) {
+handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 
   std::lock_guard<std::mutex> Lock(
       detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());

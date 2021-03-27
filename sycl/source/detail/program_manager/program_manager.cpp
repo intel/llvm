@@ -293,10 +293,16 @@ RT::PiProgram
 ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context,
                                 const std::vector<device> &Devices) {
-  if (DbgProgMgr > 0)
+  if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
-              << getRawSyclObjImpl(Context) << ", "
-              << getRawSyclObjImpl(Devices[0]) << ")\n";
+              << getRawSyclObjImpl(Context) << ", ";
+
+    for (const device &Dev : Devices)
+      std::cout << getRawSyclObjImpl(Dev);
+
+    std::cout << ")\n";
+  }
+
   const pi_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
@@ -328,8 +334,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context",
         PI_INVALID_OPERATION);
 
-  assert(((Format == PI_DEVICE_BINARY_TYPE_SPIRV) ||
-          (Format != PI_DEVICE_BINARY_TYPE_SPIRV && Devices.size() == 1)) &&
+  assert((Format == PI_DEVICE_BINARY_TYPE_SPIRV || Devices.size() == 1) &&
          "Creating a program from AOT binary for multiple device is not "
          "supported");
 
@@ -1147,7 +1152,7 @@ ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
   return {};
 }
 
-static bundle_state getBinImageState(RTDeviceBinaryImage *BinImage) {
+static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
   auto IsAOTBinary = [](const char *Format) {
     return (
         (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
@@ -1194,12 +1199,29 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(const context &Ctx,
     std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
     for (auto &ImagesSets : m_DeviceImages) {
       auto &ImagesUPtrs = *ImagesSets.second.get();
-      for (auto &ImageUPtr : ImagesUPtrs)
+      for (auto &ImageUPtr : ImagesUPtrs) {
+        const RTDeviceBinaryImage *BinImage = ImageUPtr.get();
+        const bundle_state ImgState = getBinImageState(BinImage);
+
+        // Ignore images with incompatible state. Image is considered compatible
+        // with a target state if an image is already in the target state or can
+        // be brought to target state by compiling/linking/building.
+        //
+        // Example: an image in "executable" state is not compatbile with
+        // "input" target state - there is no operation to convert the image it
+        // to "input" state. An image in "input" state is compatible with
+        // "executable" target state because it can be built to get into
+        // "executable" state.
+        if (ImgState > TargetState)
+          continue;
+
         BinImages.push_back(ImageUPtr.get());
+      }
     }
   }
   // TODO: Add a diagnostic on multiple device images with conflicting kernel
-  // names.
+  // names, and remove OSModuleHandle usage, as conflicting kernel names will be
+  // an error.
 
   // TODO: Cache device_image objects
   // Create SYCL device image from those that have compatible state and at least
@@ -1207,45 +1229,35 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(const context &Ctx,
   std::vector<device_image_plain> SYCLDeviceImages;
   for (RTDeviceBinaryImage *BinImage : BinImages) {
     const bundle_state ImgState = getBinImageState(BinImage);
-    // Ignore images with incompatible state. Image is considered compatible
-    // with a target state if an image is already in the target state or can be
-    // brought to target state by compiling/linking/building.
-    //
-    // Example: an image in "executable" state is not compatbile with "input"
-    // target state - there is no operation to convert the image it to "input"
-    // state.
-    // An image in "input" state is compatible with "executable" target state
-    // because it can be built to get into "executable" state.
-    if (ImgState > TargetState)
-      continue;
 
-    for (const sycl::device &Dev : Devs)
-      if (compatibleWithDevice(BinImage, Dev)) {
+    for (const sycl::device &Dev : Devs) {
+      if (!compatibleWithDevice(BinImage, Dev))
+        continue;
 
-        // TODO: Cache kernel_ids
-        std::vector<sycl::kernel_id> KernelIDs;
-        // Collect kernel names for the image
-        pi_device_binary DevBin =
-            const_cast<pi_device_binary>(&BinImage->getRawData());
-        for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
-             EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
+      // TODO: Cache kernel_ids
+      std::vector<sycl::kernel_id> KernelIDs;
+      // Collect kernel names for the image
+      pi_device_binary DevBin =
+          const_cast<pi_device_binary>(&BinImage->getRawData());
+      for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
+           EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
 
-          std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-              std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+        std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
 
-          KernelIDs.push_back(
-              detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl));
-        }
-        // device_image_impl expects kernel ids to be sorted for fast search
-        std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
-
-        DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
-            BinImage, Ctx, Devs, ImgState, KernelIDs, /*PIProgram=*/nullptr);
-
-        SYCLDeviceImages.push_back(
-            createSyclObjFromImpl<device_image_plain>(Impl));
-        break;
+        KernelIDs.push_back(
+            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl));
       }
+      // device_image_impl expects kernel ids to be sorted for fast search
+      std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
+
+      DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
+          BinImage, Ctx, Devs, ImgState, KernelIDs, /*PIProgram=*/nullptr);
+
+      SYCLDeviceImages.push_back(
+          createSyclObjFromImpl<device_image_plain>(Impl));
+      break;
+    }
   }
 
   return SYCLDeviceImages;
@@ -1440,6 +1452,10 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   return {createSyclObjFromImpl<device_image_plain>(ExecutableImpl)};
 }
 
+// The function duplicates most of the code from existing getBuiltPIProgram.
+// The differences are:
+// Different API - uses different objects to extract required info
+// Supports caching of a program built for multiple devices
 device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
                                          const std::vector<device> &Devs,
                                          const property_list &PropList) {
@@ -1479,7 +1495,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     LinkOpts = LinkOptsEnv;
   }
 
-  RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
+  const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
 
   // TODO: Unify this code with getBuiltPIProgram
@@ -1506,10 +1522,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Devs);
 
     const std::vector<unsigned char> &SpecConstsBlob =
-        InputImpl->get_spec_const_blob();
+        InputImpl->get_spec_const_blob_ref();
 
     std::vector<device_image_impl::SpecConstDescT> &SpecConstOffsets =
-        InputImpl->get_spec_const_offsets();
+        InputImpl->get_spec_const_offsets_ref();
 
     unsigned int PrevOffset = 0;
     for (const device_image_impl::SpecConstDescT &SpecIDDesc :
@@ -1547,7 +1563,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
-  SerializedObj SpecConsts = InputImpl->get_spec_const_blob();
+  SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
 
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(

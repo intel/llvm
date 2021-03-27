@@ -258,7 +258,7 @@ public:
   template <auto &SpecName, bundle_state _State = State,
             typename = detail::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
-      typename std::remove_reference_t<decltype(SpecName)>::type Value) {
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
     (void)Value;
     throw sycl::runtime_error(
         "kernel_bundle::set_specialization_constant is not implemented yet",
@@ -268,7 +268,7 @@ public:
   /// The value of the specialization constant whose address is SpecName for
   /// this kernel bundle.
   template <auto &SpecName>
-  typename std::remove_reference_t<decltype(SpecName)>::type
+  typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
     throw sycl::runtime_error(
         "kernel_bundle::get_specialization_constant is not implemented yet",

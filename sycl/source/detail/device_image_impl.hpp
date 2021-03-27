@@ -34,7 +34,7 @@ namespace detail {
 // of specialization constants for it
 class device_image_impl {
 public:
-  device_image_impl(RTDeviceBinaryImage *BinImage, context Context,
+  device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::vector<kernel_id> KernelIDs, RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
@@ -127,17 +127,19 @@ public:
 
   const RT::PiProgram &get_program_ref() const noexcept { return MProgram; }
 
-  RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
+  const RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
+
+  //RTDeviceBinaryImage * const * get_bin_image_ptr() const noexcept { return &MBinImage; }
 
   const context &get_context() const noexcept { return MContext; }
 
   std::vector<kernel_id> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
 
-  std::vector<unsigned char> &get_spec_const_blob() noexcept {
+  std::vector<unsigned char> &get_spec_const_blob_ref() noexcept {
     return MSpecConstsBlob;
   }
 
-  std::vector<SpecConstDescT> &get_spec_const_offsets() noexcept {
+  std::vector<SpecConstDescT> &get_spec_const_offsets_ref() noexcept {
     return MSpecConstDescs;
   }
 
@@ -150,10 +152,11 @@ public:
   }
 
 private:
-  RTDeviceBinaryImage *MBinImage = nullptr;
+  const RTDeviceBinaryImage *MBinImage = nullptr;
   context MContext;
   std::vector<device> MDevices;
   bundle_state MState;
+	// Native program handler which this device image represents
   RT::PiProgram MProgram = nullptr;
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp

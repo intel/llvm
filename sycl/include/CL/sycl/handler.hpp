@@ -899,7 +899,7 @@ private:
 #endif
 
   std::shared_ptr<detail::kernel_bundle_impl>
-  getOrInsertHandlerKernelBundle(bool Insert);
+  getOrInsertHandlerKernelBundle(bool Insert) const;
 
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
@@ -913,7 +913,7 @@ public:
 #if __cplusplus > 201402L
   template <auto &SpecName>
   void set_specialization_constant(
-      typename std::remove_reference_t<decltype(SpecName)>::type Value) {
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/true);
@@ -921,6 +921,18 @@ public:
     detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
         KernelBundleImplPtr)
         .set_specialization_constant<SpecName>(Value);
+  }
+
+  template <auto &SpecName>
+  typename std::remove_reference_t<decltype(SpecName)>::type
+  get_specialization_constant() const {
+
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
+        getOrInsertHandlerKernelBundle(/*Insert=*/true);
+
+    return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+               KernelBundleImplPtr)
+        .get_specialization_constant<SpecName>();
   }
 
 #endif
@@ -2050,7 +2062,7 @@ private:
   vector_class<detail::AccessorImplPtr> MAccStorage;
   vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
   vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
-  vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
+  mutable vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
   /// The list of arguments for the kernel.
   vector_class<detail::ArgDesc> MArgs;
   /// The list of associated accessors with this handler.

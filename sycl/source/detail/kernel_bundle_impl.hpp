@@ -271,7 +271,7 @@ public:
 
   const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
 
-  size_t size() const { return MDeviceImages.size(); }
+  size_t size() const noexcept { return MDeviceImages.size(); }
 
   bundle_state get_bundle_state() const {
     // All device images are expected to have the same state
