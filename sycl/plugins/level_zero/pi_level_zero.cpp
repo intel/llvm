@@ -4323,7 +4323,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
                      const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
-#if 0
+#if 1
   if (HostCopy) {
     assert(Event);
     if (*Event && !BlockingWrite) {
@@ -4338,7 +4338,16 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
       (*Event)->RetMapSize = Size;
       (*Event)->CopyPending = true;
     } else {
+      for (uint32_t I = 0; I < NumEventsInWaitList; I++) {
+        for (auto ZeWaitEvent : EventWaitList[I]->waitEvents) {
+          zePrint("ZeWaitEvent = %lx\n", pi_cast<std::uintptr_t>(ZeWaitEvent));
+          if (ZeWaitEvent)
+            ZE_CALL(zeEventHostSynchronize, (ZeWaitEvent, UINT32_MAX));
+        }
+      }
       memcpy(Dst, Src, Size);
+      if (*Event)
+        ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
     }
     return PI_SUCCESS;
   }
