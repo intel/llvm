@@ -58,11 +58,17 @@ class PersistentCache {
   static bool isPersistentCacheEnabled();
 
 public:
+  /* Program binaries built for one or more devices are read from persistent
+   * cache and returned in form of vector of programs. Each binary program is
+   * stored in vector of chars.
+   */
   static std::vector<std::vector<char>>
   getPIProgramFromDisc(const device &Device, const RTDeviceBinaryImage &Img,
                        const SerializedObj &SpecConsts,
                        const std::string &BuildOptionsString,
                        RT::PiProgram &NativePrg);
+  /* Stores build program in persisten cache
+   */
   static void putPIProgramToDisc(const detail::plugin &Plugin,
                                  const device &Device,
                                  const RTDeviceBinaryImage &Img,

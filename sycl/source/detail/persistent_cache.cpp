@@ -13,22 +13,24 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+/* Stores build program in persisten cache
+ */
 void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
                                          const device &Device,
                                          const RTDeviceBinaryImage &Img,
                                          const SerializedObj &SpecConsts,
                                          const std::string &BuildOptionsString,
                                          const RT::PiProgram &Program) {
+
+  if (!isPersistentCacheEnabled())
+    return;
+
   // Only SPIRV images are cached
   if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV &&
       (Img.getFormat() == PI_DEVICE_BINARY_TYPE_NONE &&
        pi::getBinaryImageFormat(Img.getRawData().BinaryStart, Img.getSize()) !=
            PI_DEVICE_BINARY_TYPE_SPIRV))
     return;
-
-  if (!isPersistentCacheEnabled()) {
-    return;
-  }
 
   std::string DirName =
       getCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString);
@@ -67,19 +69,23 @@ void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
                     BuildOptionsString);
 }
 
+/* Program binaries built for one or more devices are read from persistent
+ * cache and returned in form of vector of programs. Each binary program is
+ * stored in vector of chars.
+ */
 std::vector<std::vector<char>> PersistentCache::getPIProgramFromDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     RT::PiProgram &NativePrg) {
+
+  if (!isPersistentCacheEnabled())
+    return {};
 
   // Only SPIRV images are cached
   if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV &&
       (Img.getFormat() == PI_DEVICE_BINARY_TYPE_NONE &&
        pi::getBinaryImageFormat(Img.getRawData().BinaryStart, Img.getSize()) !=
            PI_DEVICE_BINARY_TYPE_SPIRV))
-    return {};
-
-  if (!isPersistentCacheEnabled())
     return {};
 
   std::string Path{
@@ -102,11 +108,13 @@ std::vector<std::vector<char>> PersistentCache::getPIProgramFromDisc(
   return {};
 }
 
+/* Returns string value which can be used to identify different device
+ */
 std::string PersistentCache::getDeviceString(const device &Device) {
-  return {Device.get_platform().get_info<sycl::info::platform::name>() + "/" +
-          Device.get_info<sycl::info::device::name>() + "/" +
-          Device.get_info<sycl::info::device::version>() + "/" +
-          Device.get_info<sycl::info::device::driver_version>()};
+  return Device.get_platform().get_info<sycl::info::platform::name>() + "/" +
+         Device.get_info<sycl::info::device::name>() + "/" +
+         Device.get_info<sycl::info::device::version>() + "/" +
+         Device.get_info<sycl::info::device::driver_version>();
 }
 
 /* Write built binary to persistent cache
@@ -216,6 +224,9 @@ bool PersistentCache::isCacheItemSrcEqual(
   return true;
 }
 
+/* Returns directory name to store specific kernel image for specified
+ * device, build options and specialization constants values.
+ */
 std::string PersistentCache::getCacheItemDirName(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
@@ -228,12 +239,15 @@ std::string PersistentCache::getCacheItemDirName(
                                SpecConsts.size()};
   std::hash<std::string> StringHasher{};
 
-  return {cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
-          std::to_string(StringHasher(ImgString)) + "/" +
-          std::to_string(StringHasher(SpecConstsString)) + "/" +
-          std::to_string(StringHasher(BuildOptionsString))};
+  return cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
+         std::to_string(StringHasher(ImgString)) + "/" +
+         std::to_string(StringHasher(SpecConstsString)) + "/" +
+         std::to_string(StringHasher(BuildOptionsString));
 }
 
+/* Returns true if persistent cache enabled. The cache can be disabled by
+ * setting SYCL_CACHE_EVICTION_DISABLE environmnet variable.
+ */
 bool PersistentCache::isPersistentCacheEnabled() {
   static const char *PersistenCacheDisabled =
       SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get();
