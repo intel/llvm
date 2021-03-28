@@ -132,10 +132,10 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,PROGRAM_HANDLE1:]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[#%x,PROGRAM_HANDLE1:]]
     //
     // CHECK:---> piProgramCompile(
-    // CHECK-Next: <unknown> : 0x[[#PROGRAM_HANDLE1]]
+    // CHECK-Next: <unknown> : [[#PROGRAM_HANDLE1]]
 
 
 
@@ -147,10 +147,10 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,PROGRAM_HANDLE2:]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[#%x,PROGRAM_HANDLE2:]]
     //
     // CHECK:---> piProgramCompile(
-    // CHECK-Next: <unknown> : 0x[[#PROGRAM_HANDLE2]]
+    // CHECK-Next: <unknown> : [[#PROGRAM_HANDLE2]]
 
 
     // TODO: Pass more kernel bundles
@@ -184,13 +184,13 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,PROGRAM_HANDLE3:]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[#%x,PROGRAM_HANDLE3:]]
     //
     // CHECK:---> piProgramBuild(
-    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE3]]
+    // CHECK-NEXT: <unknown> : [[#PROGRAM_HANDLE3]]
     //
     // CHECK:---> piProgramRetain(
-    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE3]]
+    // CHECK-NEXT: <unknown> : [[#PROGRAM_HANDLE3]]
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
   }
 
@@ -211,32 +211,32 @@ int main() {
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,PROGRAM_HANDLE4:]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[#%x,PROGRAM_HANDLE4:]]
     //
     // CHECK:---> piProgramBuild(
-    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE4]]
+    // CHECK-NEXT: <unknown> : [[#PROGRAM_HANDLE4]]
     //
     // CHECK:---> piProgramRetain(
-    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE4]]
+    // CHECK-NEXT: <unknown> : [[#PROGRAM_HANDLE4]]
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
     //
     // CHECK:---> piKernelCreate(
-    // CHECK-NEXT: <unknown> : 0x[[#PROGRAM_HANDLE4]]
+    // CHECK-NEXT: <unknown> : [[#PROGRAM_HANDLE4]]
     // CHECK-NEXT:<const char *>: _ZTS11Kernel3Name
     // CHECK-NEXT: <unknown> : {{.*}}
     // CHECK-NEXT: ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ 0x[[#%x,KERNEL_HANDLE:]]
+    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[#%x,KERNEL_HANDLE:]]
     //
     // CHECK:---> piKernelRetain(
-    // CHECK-NEXT: <unknown> : 0x[[#KERNEL_HANDLE]]
+    // CHECK-NEXT: <unknown> : [[#KERNEL_HANDLE]]
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
     //
     // CHECK:---> piEnqueueKernelLaunch(
     // CHECK-NEXT:<unknown> : {{.*}}
-    // CHECK-NEXT:<unknown> : 0x[[#KERNEL_HANDLE]]
+    // CHECK-NEXT:<unknown> : [[#KERNEL_HANDLE]]
     //
     // CHECK:---> piKernelRelease(
-    // CHECK-NEXT: <unknown> : 0x[[#KERNEL_HANDLE]]
+    // CHECK-NEXT: <unknown> : [[#KERNEL_HANDLE]]
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
 
     cl::sycl::buffer<int, 1> Buf(sycl::range<1>{1});
