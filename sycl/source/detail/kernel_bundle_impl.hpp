@@ -93,7 +93,8 @@ public:
                 return detail::getSyclObjImpl(LHS) <
                        detail::getSyclObjImpl(RHS);
               });
-    std::unique(Result.begin(), Result.end());
+    auto LastIt = std::unique(Result.begin(), Result.end());
+    Result.erase(LastIt, Result.end());
 
     return Result;
   }
