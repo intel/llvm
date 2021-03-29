@@ -51,8 +51,8 @@ public:
 template <int NT>
 [[intel::max_concurrency(NT)]] void func() {}
 
-[[intel::max_concurrency(8)]] void dup();
-[[intel::max_concurrency(9)]] void dup() {} // expected-error {{duplicate Intel FPGA function attribute 'max_concurrency'}}
+[[intel::max_concurrency(8)]] void dup();   // expected-note {{previous attribute is here}}
+[[intel::max_concurrency(9)]] void dup() {} // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
 
 int main() {
   queue q;
@@ -64,6 +64,10 @@ int main() {
     Functor2 f2;
     h.single_task<class kernel_name2>(f2);
 
+    // Applying attributes to lambdas is a nonconforming extension. This will
+    // remain an an error until the SYCL specifications allow it or until
+    // users require it. Refer to comments about
+    // SupportsNonconformingLambdaSyntax bit in Attr.td.
     h.single_task<class kernel_name3>(
       []() [[intel::max_concurrency(3)]]{}); // expected-error{{'max_concurrency' attribute cannot be applied to types}}
 

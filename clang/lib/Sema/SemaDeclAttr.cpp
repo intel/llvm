@@ -6359,9 +6359,8 @@ SYCLIntelFPGAMaxConcurrencyAttr *Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
     const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNThreadsExpr());
     if (DeclExpr && MergeExpr &&
         DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-      Diag(DeclAttr->getLocation(),
-           diag::err_sycl_loop_or_function_attr_duplication)
-          << 1 << 1 << DeclAttr;
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
     }
     return nullptr;
   }
