@@ -3415,13 +3415,14 @@ Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
-      if ((getEmissionReason(FD) & Reason) !=
+    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted) {
+      // Skip the diagnostic if we know it won't be emitted.
+      if ((getEmissionReason(FD) & Reason) ==
           Sema::DeviceDiagnosticReason::None)
-        return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
-      else
-        // Skip the diagnostic if we know it won't be emitted.
         return SemaDiagnosticBuilder::K_Nop;
+
+      return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
+    }
     return SemaDiagnosticBuilder::K_Deferred;
   }();
   return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this, Reason);
