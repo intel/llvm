@@ -560,7 +560,7 @@ struct _pi_event : _pi_object {
 
   // For deferred copy from Map/Unmap operations
   bool DeferredHostCopy = false;
-  std::vector<ze_event_handle_t> waitEvents;
+  _pi_ze_event_list_t CopyWaitList;
   void *CopyDst = nullptr;
   const void *CopySrc = nullptr;
   size_t CopySize = 0;

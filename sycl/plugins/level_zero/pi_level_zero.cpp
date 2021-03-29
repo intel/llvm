@@ -3952,12 +3952,17 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     ze_event_handle_t ZeEvent = EventList[I]->ZeEvent;
     zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
 
-    // If event comes from a Map operation in integrated device, then do
+    // If event comes from a deferred copy on an integrated device, then do
     // sync, memcpy, and signaling on the host.
     if (EventList[I]->DeferredHostCopy) {
-      for (auto ZeWaitEvent : EventList[I]->waitEvents) {
-        zePrint("ZeWaitEvent = %lx\n", pi_cast<std::uintptr_t>(ZeWaitEvent));
-        ZE_CALL(zeHostSynchronize, (ZeWaitEvent));
+      for (pi_uint32 J = 0; J < EventList[I]->CopyWaitList.Length; J++) {
+        auto DeferredZeEvent = EventList[I]->CopyWaitList.ZeEventList[J];
+        auto DeferredPiEvent = EventList[I]->CopyWaitList.PiEventList[J];
+        if (DeferredZeEvent && !(*DeferredPiEvent).DeferredHostCopy) {
+          ZE_CALL(zeHostSynchronize, (DeferredZeEvent));
+        } else {
+          piEventsWait(1, &DeferredPiEvent);
+        }
       }
       if (EventList[I]->CopyPending) {
         memcpy(EventList[I]->CopyDst, EventList[I]->CopySrc,
@@ -4359,34 +4364,6 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
-  if (HostCopy) {
-    assert(Event);
-    if (*Event && !BlockingWrite) {
-      (*Event)->DeferredHostCopy = true;
-      for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-        zePrint("enqueueMemCopyHelper added ZeWaitEvent = %lx\n",
-                pi_cast<std::uintptr_t>(EventWaitList[i]->ZeEvent));
-        (*Event)->waitEvents.push_back(EventWaitList[i]->ZeEvent);
-      }
-      (*Event)->CopySrc = Src;
-      (*Event)->CopyDst = Dst;
-      (*Event)->CopySize = Size;
-      (*Event)->CopyPending = true;
-    } else {
-      for (uint32_t I = 0; I < NumEventsInWaitList; I++) {
-        for (auto ZeWaitEvent : EventWaitList[I]->waitEvents) {
-          zePrint("ZeWaitEvent = %lx\n", pi_cast<std::uintptr_t>(ZeWaitEvent));
-          if (ZeWaitEvent)
-            ZE_CALL(zeEventHostSynchronize, (ZeWaitEvent, UINT32_MAX));
-        }
-      }
-      memcpy(Dst, Src, Size);
-      if (*Event)
-        ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
-    }
-    return PI_SUCCESS;
-  }
-
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
                                                           EventWaitList, Queue))
@@ -4408,6 +4385,17 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
+
+  if (HostCopy && !BlockingWrite) {
+    (*Event)->DeferredHostCopy = true;
+    (*Event)->CopyWaitList = TmpWaitList;
+    (*Event)->CopySrc = Src;
+    (*Event)->CopyDst = Dst;
+    (*Event)->CopySize = Size;
+    (*Event)->CopyPending = true;
+    return PI_SUCCESS;
+  }
+
   (*Event)->WaitList = TmpWaitList;
 
   const auto &WaitList = (*Event)->WaitList;
