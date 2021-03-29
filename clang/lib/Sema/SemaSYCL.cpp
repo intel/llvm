@@ -321,11 +321,12 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
 
   llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
     // FIXME: Make this list self-adapt as new SYCL attributes are added.
-    return isa<IntelReqdSubGroupSizeAttr, ReqdWorkGroupSizeAttr,
-               SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-               SYCLIntelSchedulerTargetFmaxMhzAttr,
-               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
+        return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
+                   ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
+                   SYCLIntelNumSimdWorkItemsAttr,
+                   SYCLIntelSchedulerTargetFmaxMhzAttr,
+                   SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                   SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
   });
 
   // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
@@ -3405,6 +3406,105 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   }
 }
 
+// Figure out the sub-group for the this function.  First we check the
+// attributes, then the global settings.
+static std::pair<LangOptions::SubGroupSizeType, int64_t>
+CalcEffectiveSubGroup(ASTContext &Ctx, const LangOptions &LO,
+                      FunctionDecl *FD) {
+  if (const auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    int64_t Val = getIntExprValue(A->getValue(), Ctx);
+    return {LangOptions::SubGroupSizeType::Integer, Val};
+  }
+
+  if(const auto *A = FD->getAttr<IntelNamedSubGroupSizeAttr>()) {
+    if (A->isPrimary())
+      return {LangOptions::SubGroupSizeType::Primary, 0};
+    return {LangOptions::SubGroupSizeType::Auto, 0};
+  }
+
+  // Return the global settings.
+  return {LO.getDefaultSubGroupSizeType(),
+          static_cast<uint64_t>(LO.DefaultSubGroupSize)};
+}
+
+static SourceLocation GetSubGroupLoc(FunctionDecl *FD) {
+  if (const auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
+    return A->getLocation();
+  if (const auto *A = FD->getAttr<IntelNamedSubGroupSizeAttr>())
+    return A->getLocation();
+  return SourceLocation{};
+}
+
+static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
+                                       FunctionDecl *FD) {
+  // If they are the same, no error.
+  if (CalcEffectiveSubGroup(S.Context, S.getLangOpts(), SYCLKernel) ==
+      CalcEffectiveSubGroup(S.Context, S.getLangOpts(), FD))
+    return;
+
+  // Else we need to figure out why they don't match.
+  SourceLocation FDAttrLoc = GetSubGroupLoc(FD);
+  SourceLocation KernelAttrLoc = GetSubGroupLoc(SYCLKernel);
+
+  if (FDAttrLoc.isValid()) {
+    // This side was caused by an attribute.
+    S.Diag(FDAttrLoc, diag::err_sycl_mismatch_group_size)
+        << /*kernel called*/ 0;
+
+    if (KernelAttrLoc.isValid()) {
+      S.Diag(KernelAttrLoc, diag::note_conflicting_attribute);
+    } else {
+      // Kernel is 'default'.
+      S.Diag(SYCLKernel->getLocation(), diag::note_sycl_kernel_declared_here);
+    }
+    return;
+  }
+
+  // Else this doesn't have an attribute, which can only be caused by this being
+  // an undefined SYCL_EXTERNAL, and the kernel has an attribute that conflicts.
+  assert(KernelAttrLoc.isValid() && "Kernel doesn't have attribute either?");
+  S.Diag(FD->getLocation(), diag::err_sycl_mismatch_group_size)
+      << /*undefined SYCL_EXTERNAL*/ 1;
+  S.Diag(KernelAttrLoc, diag::note_conflicting_attribute);
+}
+
+// Check SYCL2020 Attributes.  2020 attributes don't propogate, they are only
+// valid if they match the attribute on the kernel. Note that this is a slight
+// difference from what the spec says, which says these attributes are only
+// valid on SYCL Kernels and SYCL_EXTERNAL, but we felt that for
+// self-documentation purposes that it would be nice to be able to repeat these
+// on subsequent functions.
+static void
+CheckSYCL2020Attributes(Sema &S, FunctionDecl *SYCLKernel,
+                        llvm::SmallPtrSetImpl<FunctionDecl *> &CalledFuncs) {
+
+  for (auto *FD : CalledFuncs) {
+    for (auto *Attr : FD->attrs()) {
+      switch (Attr->getKind()) {
+      case attr::Kind::IntelReqdSubGroupSize:
+        if (const auto *A = cast<IntelReqdSubGroupSizeAttr>(Attr))
+          // Pre SYCL2020 spellings handled during collection.
+          if (!A->isSYCL2020Spelling())
+            break;
+        LLVM_FALLTHROUGH;
+      case attr::Kind::IntelNamedSubGroupSize:
+        CheckSYCL2020SubGroupSizes(S, SYCLKernel, FD);
+        break;
+      case attr::Kind::SYCLDevice:
+        // If a SYCL_EXTERNAL function is not defined in this TU, its necessary
+        // that it has a compatible sub-group-size. Don't diagnose if it has a
+        // sub-group attribute, we can count on the other checks to catch this.
+        if (!FD->isDefined() && !FD->hasAttr<IntelReqdSubGroupSizeAttr>() &&
+            !FD->hasAttr<IntelNamedSubGroupSizeAttr>())
+          CheckSYCL2020SubGroupSizes(S, SYCLKernel, FD);
+        break;
+      default:
+        break;
+      }
+    }
+  }
+}
+
 void Sema::MarkDevice(void) {
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
@@ -3434,12 +3534,21 @@ void Sema::MarkDevice(void) {
       FunctionDecl *KernelBody =
           Marker.CollectPossibleKernelAttributes(SYCLKernel, Attrs);
 
+      CheckSYCL2020Attributes(*this, SYCLKernel, VisitedSet);
+
       for (auto *A : Attrs) {
         switch (A->getKind()) {
         case attr::Kind::IntelReqdSubGroupSize: {
           auto *Attr = cast<IntelReqdSubGroupSizeAttr>(A);
+
+          // SYCL2020 spelling, handled elsewhere.
+          if (Attr->isSYCL2020Spelling())
+            break;
+
           const auto *KBSimdAttr =
               KernelBody ? KernelBody->getAttr<SYCLSimdAttr>() : nullptr;
+          // If 'Existing' is a 2020 spelling, this should still conflict, so no
+          // special work is done here.
           if (auto *Existing =
                   SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
             if (getIntExprValue(Existing->getValue(), getASTContext()) !=
@@ -3531,6 +3640,9 @@ void Sema::MarkDevice(void) {
           break;
         }
         // TODO: vec_len_hint should be handled here
+        case attr::Kind::IntelNamedSubGroupSize:
+          // Nothing to do here, SYCL 2020 attr only.
+          break;
         default:
           // Seeing this means that CollectPossibleKernelAttributes was
           // updated while this switch wasn't...or something went wrong

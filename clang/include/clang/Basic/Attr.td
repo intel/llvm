@@ -1415,13 +1415,33 @@ def LoopUnrollHint : StmtAttr {
 }
 
 def IntelReqdSubGroupSize: InheritableAttr {
-  let Spellings = [GNU<"intel_reqd_sub_group_size">,
-                   CXX11<"intel", "reqd_sub_group_size">];
+  let Spellings = [
+    GNU<"intel_reqd_sub_group_size">, CXX11<"intel", "reqd_sub_group_size">,
+    CXX11<"intel", "sub_group_size"> // SYCL2020 spelling.
+  ];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let SupportsNonconformingLambdaSyntax = 1;
+  let AdditionalMembers = [{
+    bool isSYCL2020Spelling() const {
+      return getSemanticSpelling() == CXX11_intel_sub_group_size;
+    }
+  }];
+}
+
+def IntelNamedSubGroupSize : InheritableAttr {
+  let Spellings = [CXX11<"intel", "named_sub_group_size">];
+  let Args = [IdentifierArgument<"Type">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [IntelNamedSubGroupSizeDocs];
+  let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let SupportsNonconformingLambdaSyntax = 1;
+  let AdditionalMembers = [{
+    bool isPrimary() const { return getType()->isStr("primary"); }
+    bool isAuto() const { return getType()->isStr("auto"); }
+}];
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for

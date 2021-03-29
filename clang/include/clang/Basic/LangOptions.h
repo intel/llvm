@@ -263,6 +263,13 @@ public:
     Single
   };
 
+  enum class SubGroupSizeType {
+    None,
+    Auto,
+    Primary,
+    Integer
+  };
+
 public:
   /// The used language standard.
   LangStandard::Kind LangStd;

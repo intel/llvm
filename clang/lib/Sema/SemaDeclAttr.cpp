@@ -3210,6 +3210,11 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E) {
+  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(*this, D, CI))
+    return;
+  if (checkAttrMutualExclusion<SYCLSimdAttr>(*this, D, CI))
+    return;
+
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
@@ -3267,6 +3272,29 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
                                         const ParsedAttr &AL) {
   Expr *E = AL.getArgAsExpr(0);
   S.AddIntelReqdSubGroupSize(D, AL, E);
+}
+
+static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
+                                         const ParsedAttr &AL) {
+  if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(S, D, AL))
+    return;
+  if (checkAttrMutualExclusion<SYCLSimdAttr>(S, D, AL))
+    return;
+
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getArgAsExpr(0)->getBeginLoc(),
+           diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentIdentifier;
+    return;
+  }
+
+  IdentifierLoc *IL = AL.getArgAsIdent(0);
+  if (!IL->Ident->isStr("auto") && !IL->Ident->isStr("primary")) {
+    S.Diag(IL->Loc, diag::warn_attribute_type_not_supported) << AL << IL->Ident;
+    return;
+  }
+
+  D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, IL->Ident, AL));
 }
 
 void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
@@ -9275,6 +9303,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleIntelReqdSubGroupSize(S, D, AL);
+    break;
+  case ParsedAttr::AT_IntelNamedSubGroupSize:
+    handleIntelNamedSubGroupSize(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
     handleSYCLIntelNumSimdWorkItemsAttr(S, D, AL);

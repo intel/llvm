@@ -3728,6 +3728,28 @@ bool CompilerInvocation::ParseLangArgsImpl(LangOptions &Opts, ArgList &Args,
     }
   }
 
+  // Parse SYCL Default Sub group size.
+  if (const Arg *A = Args.getLastArg(OPT_fsycl_default_sub_group_size)) {
+    StringRef Value = A->getValue();
+    Opts.setDefaultSubGroupSizeType(
+        llvm::StringSwitch<LangOptions::SubGroupSizeType>(Value)
+            .Case("auto", LangOptions::SubGroupSizeType::Auto)
+            .Case("primary", LangOptions::SubGroupSizeType::Primary)
+            .Default(LangOptions::SubGroupSizeType::Integer));
+
+    if (Opts.getDefaultSubGroupSizeType() ==
+        LangOptions::SubGroupSizeType::Integer) {
+      int64_t IntResult;
+      if (Value.getAsInteger(10, IntResult)) {
+        Opts.DefaultSubGroupSize = IntResult;
+      } else {
+        Diags.Report(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+        Opts.setDefaultSubGroupSizeType(LangOptions::SubGroupSizeType::None);
+      }
+    }
+  }
+
   Opts.DeclareSPIRVBuiltins = Args.hasArg(OPT_fdeclare_spirv_builtins);
 
   // These need to be parsed now. They are used to set OpenCL defaults.
