@@ -1306,32 +1306,33 @@ public:
   // versions handling 1 reduction variable are more efficient right now.
   //
   // Algorithm:
-  // 1) discard_write accessor (DWAcc):
+  // 1) discard_write accessor (DWAcc), InitializeToIdentity = true:
   //    a) Create uninitialized buffer and read_write accessor (RWAcc).
   //    b) discard-write partial sums to RWAcc.
-  //    c) Copy RWAcc to DWAcc
+  //    c) Repeat the steps (a) and (b) to get one final sum.
+  //    d) Copy RWAcc to DWAcc.
   // 2) read_write accessor (RWAcc), InitializeToIdentity = false:
   //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
   //       re-use user's RWAcc (if #work-groups is 1).
   //    b) discard-write to RWAcc (#WG > 1), or update-write (#WG == 1).
-  //    c) Copy step is skipped.
+  //    c) Repeat the steps (a) and (b) to get one final sum.
   // 3) read_write accessor (RWAcc), InitializeToIdentity = true:
   //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
   //       re-use user's RWAcc (if #work-groups is 1).
   //    b) discard-write to RWAcc.
-  //    c) Copy step is skipped.
+  //    c) Repeat the steps (a) and (b) to get one final sum.
   // 4) USM pointer, InitializeToIdentity = false:
   //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
   //       re-use user's USM pointer (if #work-groups is 1).
   //    b) discard-write to RWAcc (#WG > 1) or
   //       update-write to USM pointer (#WG == 1).
-  //    c) Copy step is skipped.
+  //    c) Repeat the steps (a) and (b) to get one final sum.
   // 5) USM pointer, InitializeToIdentity = true:
   //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
   //       re-use user's USM pointer (if #work-groups is 1).
   //    b) discard-write to RWAcc (#WG > 1) or
   //       discard-write to USM pointer (#WG == 1).
-  //    c) Copy step is skipped.
+  //    c) Repeat the steps (a) and (b) to get one final sum.
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   std::enable_if_t<(sizeof...(RestT) >= 3 &&

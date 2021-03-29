@@ -493,8 +493,8 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -508,8 +508,8 @@ public:
             shared_ptr_class<rw_accessor_type>{}, &Acc)),
         MIdentity(getIdentity()), InitializeToIdentity(false) {
     if (Acc.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -523,8 +523,8 @@ public:
             shared_ptr_class<dw_accessor_type>{}, &Acc)),
         MIdentity(getIdentity()), InitializeToIdentity(true) {
     if (Acc.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// SYCL-2020.
@@ -540,8 +540,8 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -567,8 +567,8 @@ public:
             shared_ptr_class<rw_accessor_type>{}, &Acc)),
         MIdentity(getIdentity()), InitializeToIdentity(false) {
     if (Acc.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -590,8 +590,8 @@ public:
             shared_ptr_class<dw_accessor_type>{}, &Acc)),
         MIdentity(getIdentity()), InitializeToIdentity(true) {
     if (Acc.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -617,8 +617,8 @@ public:
         MBinaryOp(BOp), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -632,8 +632,8 @@ public:
             shared_ptr_class<rw_accessor_type>{}, &Acc)),
         MIdentity(Identity), MBinaryOp(BOp), InitializeToIdentity(false) {
     if (Acc.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -647,8 +647,8 @@ public:
             shared_ptr_class<dw_accessor_type>{}, &Acc)),
         MIdentity(Identity), MBinaryOp(BOp), InitializeToIdentity(true) {
     if (Acc.get_count() != 1)
-      throw runtime_error("Reduction variable must be a scalar.",
-                          PI_INVALID_VALUE);
+      throw sycl::runtime_error("Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -699,13 +699,14 @@ public:
       : MIdentity(Identity), MUSMPointer(VarPtr), MBinaryOp(BOp),
         InitializeToIdentity(InitializeToIdentity) {}
 
-  /// Associates reduction accessor with the given handler and saves reduction
-  /// buffer so that it is alive until the command group finishes the work.
+  /// Associates the reduction accessor to user's memory with \p CGH handler
+  /// to keep the accessor alive until the command group finishes the work.
+  /// This function does not do anything for USM reductions.
   void associateWithHandler(handler &CGH) {
 #ifndef __SYCL_DEVICE_ONLY__
     if (MRWAcc)
       CGH.associateWithHandler(MRWAcc.get(), access::target::global_buffer);
-    if (MDWAcc)
+    else if (MDWAcc)
       CGH.associateWithHandler(MDWAcc.get(), access::target::global_buffer);
 #else
     (void)CGH;
@@ -719,7 +720,7 @@ public:
   accessor<T, buffer_dim, access::mode::read>
   getReadAccToPreviousPartialReds(handler &CGH) const {
     CGH.addReduction(MOutBufPtr);
-    return accessor<T, buffer_dim, access::mode::read>(*MOutBufPtr, CGH);
+    return {*MOutBufPtr, CGH};
   }
 
   /// Returns user's USM pointer passed to reduction for editing.
@@ -750,9 +751,17 @@ public:
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
 
+  /// Returns an accessor accessing the memory that will hold the reduction
+  /// partial sums.
+  /// If \p Size is equal to one, then the reduction result is the final and
+  /// needs to be written to user's read-write accessor (if there is such).
+  /// Otherwise, a new buffer is created and accessor to that buffer is
+  /// returned.
   rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
-    if (Size == 1 && MRWAcc != nullptr)
+    if (Size == 1 && MRWAcc != nullptr) {
+      associateWithHandler(CGH);
       return *MRWAcc;
+    }
 
     // Create a new output buffer and return an accessor to it.
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
@@ -988,17 +997,17 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 ///
 /// Briefly: user's lambda, ONEAPI:reduce(), FP + ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool IsPow2WG, typename OutputT>
+          bool IsPow2WG>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-               Reduction &Redu, OutputT Out) {
+               Reduction &Redu, typename Reduction::rw_accessor_type Out) {
 
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsUpdateOfUserVar =
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
 
   using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, IsPow2WG, OutputT>::name;
+      KernelName, KernelType, Reduction::is_usm, IsPow2WG>::name;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1026,10 +1035,10 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool IsPow2WG, typename OutputT>
+          bool IsPow2WG>
 enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-               Reduction &Redu, OutputT Out) {
+               Reduction &Redu, typename Reduction::rw_accessor_type Out) {
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
@@ -1044,7 +1053,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   auto LocalReds = Reduction::getReadWriteLocalAcc(NumLocalElements, CGH);
   typename Reduction::result_type ReduIdentity = Redu.getIdentity();
   using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, IsPow2WG, OutputT>::name;
+      KernelName, KernelType, Reduction::is_usm, IsPow2WG>::name;
   auto BOp = Redu.getBinaryOperation();
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
@@ -1217,11 +1226,6 @@ reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
 
   size_t NWorkGroups;
   size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
-
-  // The last kernel DOES write to user's accessor passed to reduction.
-  // Associate it with handler manually.
-  if (NWorkGroups == 1 && !Reduction::is_usm)
-    Redu.associateWithHandler(CGH);
 
   // The last work-group may be not fully loaded with work, or the work group
   // size may be not power of two. Those two cases considered inefficient
@@ -1738,9 +1742,7 @@ std::enable_if_t<!Reduction::is_usm> reduSaveFinalResultToUserMemHelper(
     handler CopyHandler(Queue, IsHost);
     auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
     auto OutAcc = Redu.getUserDiscardWriteAccessor();
-#ifndef __SYCL_DEVICE_ONLY__
-    CopyHandler.associateWithHandler(&OutAcc, access::target::global_buffer);
-#endif
+    Redu.associateWithHandler(CopyHandler);
     if (!Events.empty())
       CopyHandler.depends_on(Events.back());
     CopyHandler.copy(InAcc, OutAcc);
