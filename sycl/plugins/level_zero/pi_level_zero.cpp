@@ -860,6 +860,11 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
       for (pi_uint32 I = 0; I < EventListLength; I++) {
         auto ZeEvent = EventList[I]->ZeEvent;
 
+        if (EventList[I]->DeferredHostCopy) {
+          piEventsWait(1, &EventList[I]);
+          continue;
+        }
+
         if (FilterEventWaitList) {
           auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeEvent));
           if (Res == ZE_RESULT_SUCCESS) {
@@ -3955,11 +3960,28 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     // If event comes from a deferred copy on an integrated device, then do
     // sync, memcpy, and signaling on the host.
     if (EventList[I]->DeferredHostCopy) {
+      zePrint("FOUND A DEFERRED HOST COPY\n");
       for (pi_uint32 J = 0; J < EventList[I]->CopyWaitList.Length; J++) {
+        zePrint("FOUND SOMETHING IN ITS LIST\n");
         auto DeferredZeEvent = EventList[I]->CopyWaitList.ZeEventList[J];
         auto DeferredPiEvent = EventList[I]->CopyWaitList.PiEventList[J];
         if (DeferredZeEvent && !(*DeferredPiEvent).DeferredHostCopy) {
+          {
+            auto Queue = (*DeferredPiEvent).Queue;
+
+            // Lock automatically releases when this goes out of scope.
+            std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+            if (Queue->RefCount > 0) {
+              if (auto Res = Queue->executeOpenCommandList())
+                return Res;
+            }
+          }
           ZE_CALL(zeHostSynchronize, (DeferredZeEvent));
+
+          // NOTE: we are cleaning up after the event here to free resources
+          // sooner in case run-time is not calling piEventRelease soon enough.
+          cleanupAfterEvent(EventList[I]);
         } else {
           piEventsWait(1, &DeferredPiEvent);
         }
@@ -3971,12 +3993,12 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       }
       ZE_CALL(zeEventHostSignal, (ZeEvent));
     } else {
-      ZE_CALL(zeEventHostSynchronize, (ZeEvent, UINT32_MAX));
-    }
+      ZE_CALL(zeHostSynchronize, (ZeEvent));
 
-    // NOTE: we are cleaning up after the event here to free resources
-    // sooner in case run-time is not calling piEventRelease soon enough.
-    cleanupAfterEvent(EventList[I]);
+      // NOTE: we are cleaning up after the event here to free resources
+      // sooner in case run-time is not calling piEventRelease soon enough.
+      cleanupAfterEvent(EventList[I]);
+    }
   }
   return PI_SUCCESS;
 }
@@ -4393,6 +4415,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
     (*Event)->CopyDst = Dst;
     (*Event)->CopySize = Size;
     (*Event)->CopyPending = true;
+    zePrint("DEFERRED A HOST COPY\n");
     return PI_SUCCESS;
   }
 
