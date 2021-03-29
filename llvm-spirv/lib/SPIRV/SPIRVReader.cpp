@@ -4357,6 +4357,7 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
     ArgTypes.resize(1);
   }
 
+  Type *RetTy = transType(BC->getType());
   if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR) {
     // Convert extended instruction into an OpenCL built-in
     if (IsPrintf) {
@@ -4366,14 +4367,14 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
     }
   } else {
     MangledName = getSPIRVFriendlyIRFunctionName(
-        static_cast<OCLExtOpKind>(EntryPoint), ArgTypes);
+        static_cast<OCLExtOpKind>(EntryPoint), ArgTypes, RetTy);
   }
 
   SPIRVDBG(spvdbgs() << "[transOCLBuiltinFromExtInst] ModifiedUnmangledName: "
                      << UnmangledName << " MangledName: " << MangledName
                      << '\n');
 
-  FunctionType *FT = FunctionType::get(transType(BC->getType()), ArgTypes,
+  FunctionType *FT = FunctionType::get(RetTy, ArgTypes,
                                        /* IsVarArg */ IsPrintf);
   Function *F = M->getFunction(MangledName);
   if (!F) {
