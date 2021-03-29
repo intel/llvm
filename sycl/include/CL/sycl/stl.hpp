@@ -28,7 +28,7 @@ namespace detail {
 // which is not guaranteed to work and considered not safe in general.
 // Only using same dynamic C++ runtime library for sycl[d].dll and for
 // the application using sycl[d].dll is guaranteed to work properly.
-inline constexpr bool isMSVCDynamicCXXRuntime() {
+constexpr bool isMSVCDynamicCXXRuntime() {
 // The options /MD and /MDd that make the code to use dynamic runtime also
 // define the _DLL macro.
 #ifdef _DLL
