@@ -331,6 +331,18 @@ struct _pi_queue : _pi_object {
   // needed/used for the queue data structures.
   std::mutex PiQueueMutex;
 
+  // Keeps the properties of this queue.
+  pi_queue_properties PiQueueProperties;
+
+  // Keeps track of the event associated with the last enqueued command into
+  // this queue. this is used to add dependency with the last command to add
+  // in-order semantics and updated with the latest event each time a new
+  // command is enqueued.
+  pi_event LastCommandEvent;
+
+  // Returns true if the queue is a in-order queue.
+  bool isInOrderQueue() const;
+
   // Open command list field for batching commands into this queue.
   ze_command_list_handle_t ZeOpenCommandList = {nullptr};
   ze_fence_handle_t ZeOpenCommandListFence = {nullptr};
