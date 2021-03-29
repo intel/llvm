@@ -3524,8 +3524,8 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLIntelUseStallEnableClusters:
         case attr::Kind::SYCLIntelLoopFuse:
-        case attr::Kind::SYCLSimd:
-        case attr::Kind::SYCLIntelFPGAMaxConcurrency: {
+        case attr::Kind::SYCLIntelFPGAMaxConcurrency:
+        case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
             // Usual kernel can't call ESIMD functions.
