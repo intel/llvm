@@ -3731,11 +3731,11 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
 
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
-  // We have to set the SIGNAL & WAIT flags as HOST scope because the
+  // We have to set the SIGNAL flag as HOST scope because the
   // Level-Zero plugin implementation waits for the events to complete
   // on the host.
   ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-  ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_HOST;
+  ZeEventDesc.wait = 0;
   ZeEventDesc.index = Index;
 
   ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
