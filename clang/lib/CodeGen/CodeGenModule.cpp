@@ -1580,6 +1580,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   // MDNode for the intel_buffer_location attribute.
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
+  // MDNode for accessor no_alias property
+  SmallVector<llvm::Metadata *, 8> argSYCLIntelAccessorNoAliasProperty;
+
   // MDNode for listing ESIMD kernel pointer arguments originating from
   // accessors
   SmallVector<llvm::Metadata *, 8> argESIMDAccPtrs;
@@ -1687,6 +1690,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
 
+      //Sindhu
+      //auto *SYCLIntelAccessorNoAliasPropertyAttr = 
+        //  parm->getAttr<SYCLIntelAccessorNoAliasPropertyAttr>();
+      
       if (FD->hasAttr<SYCLSimdAttr>())
         argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
             CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
