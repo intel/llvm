@@ -51,8 +51,8 @@ public:
 template <int NT>
 [[intel::max_concurrency(NT)]] void func() {}
 
-[[intel::max_concurrency(8)]] void dup();
-[[intel::max_concurrency(9)]] void dup() {} // expected-error {{duplicate Intel FPGA function attribute 'max_concurrency'}}
+[[intel::max_concurrency(8)]] void dup();   // expected-note {{previous attribute is here}}
+[[intel::max_concurrency(9)]] void dup() {} // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
 
 int main() {
   queue q;
