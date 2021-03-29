@@ -1904,6 +1904,17 @@ def SYCLIntelFPGADisableLoopPipelining : StmtAttr {
   let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
 }
 
+def SYCLIntelFPGALoopControlAvg : StmtAttr {
+  let Spellings = [CXX11<"intelfpga","loop_control_avg">,
+                   CXX11<"intel","loop_control_avg">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Args = [ExprArgument<"N">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let Documentation = [SYCLIntelFPGALoopControlAvgDocs];
+}
+
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
   let Spellings = [CXX11<"intelfpga","max_interleaving">,
                    CXX11<"intel","max_interleaving">];

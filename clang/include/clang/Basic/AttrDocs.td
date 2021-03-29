@@ -2877,6 +2877,29 @@ or ivdep.
   }];
 }
 
+def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::loo_control_avg";
+  let Content = [{
+This attribute applies to a loop. Its purpose is to pass to the optimizer the
+average trip count of a loop. This will allow the optimizer to figure out if
+the optimization is beneficial.
+
+.. code-block:: c++
+
+  void foo() {
+    int a[10];
+    [[intel::loop_control_avg(40)] for (int i = 0; i < 10; ++i) a[i] = 0;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::loop_control_avg(N)]] for(;;) { }
+  }
+
+  }];
+}
+
 def SYCLIntelFPGAMaxInterleavingAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_interleaving";
