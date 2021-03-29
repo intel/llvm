@@ -348,6 +348,7 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
         }
       }
     }
+    DeviceNum++;
   }
   PiDevices.resize(InsertIDx);
 }
@@ -408,6 +409,14 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
+  const string_class PlatformName =
+      sycl::detail::get_platform_info<string_class, info::platform::name>::get(
+          MPlatform, Plugin);
+
+  const string_class PlatformVer =
+      sycl::detail::get_platform_info<string_class,
+                                      info::platform::version>::get(MPlatform,
+                                                                    Plugin);
   // Filter out devices that are not compatible with SYCL_DEVICE_FILTER
   filterDeviceFilter(PiDevices, Plugin);
 
