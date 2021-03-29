@@ -4350,6 +4350,10 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   // all previous enqueued commands to the command-queue have completed.
   //
   // TODO: find a way to do that without blocking the host.
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
   auto Res =
       createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER, nullptr);
   if (Res != PI_SUCCESS)
@@ -4359,12 +4363,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Queue->ZeCopyCommandQueue)
     ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueue));
 
-  {
-    // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-    Queue->LastCommandEvent = *Event;
-  }
+  Queue->LastCommandEvent = *Event;
 
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return PI_SUCCESS;
@@ -5779,11 +5778,11 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   ZE_CALL(zeCommandListAppendMemAdvise,
           (ZeCommandList, Queue->Device->ZeDevice, Ptr, Length, ZeAdvice));
 
+  Queue->LastCommandEvent = *Event;
+
   // TODO: Level Zero does not have a completion "event" with the advise API,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
-
-  Queue->LastCommandEvent = *Event;
 
   Queue->executeCommandList(ZeCommandList, ZeFence, false);
   return PI_SUCCESS;
