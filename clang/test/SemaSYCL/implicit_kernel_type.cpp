@@ -27,10 +27,10 @@ int main() {
   queue q;
 
 #if defined(WARN)
-  // expected-error@Inputs/sycl.hpp:233 {{'InvalidKernelName1' should be globally visible}}
+  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
   // expected-note@+7 {{in instantiation of function template specialization}}
 #elif defined(ERROR)
-  // expected-error@Inputs/sycl.hpp:233 {{'InvalidKernelName1' should be globally visible}}
+  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
   // expected-note@+4 {{in instantiation of function template specialization}}
 #endif
   class InvalidKernelName1 {};
@@ -39,9 +39,9 @@ int main() {
   });
 
 #if defined(WARN)
-  // expected-warning@Inputs/sycl.hpp:233 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-warning@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
 #elif defined(ERROR)
-  // expected-error@Inputs/sycl.hpp:233 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-error@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
 #endif
 
   q.submit([&](handler &h) {
@@ -53,9 +53,9 @@ int main() {
   });
 
 #if defined(WARN)
-  // expected-warning@Inputs/sycl.hpp:233 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-warning@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
 #elif defined(ERROR)
-  // expected-error@Inputs/sycl.hpp:233 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-error@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
 #endif
 
   q.submit([&](handler &h) {

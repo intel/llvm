@@ -28,32 +28,32 @@ queue q;
 int main() {
 #ifdef CHECK_ERROR
   q.submit([&](handler &h) {
-    // expected-error@Inputs/sycl.hpp:233 {{'nullptr_t' is an invalid kernel name, 'std::nullptr_t' is declared in the 'std' namespace }}
+    // expected-error@#KernelSingleTask {{'nullptr_t' is an invalid kernel name, 'std::nullptr_t' is declared in the 'std' namespace }}
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<std::nullptr_t>([=] {});
   });
   q.submit([&](handler &h) {
-    // expected-error@Inputs/sycl.hpp:233 {{'std::T' is an invalid kernel name, 'std::T' is declared in the 'std' namespace}}
+    // expected-error@#KernelSingleTask {{'std::T' is an invalid kernel name, 'std::T' is declared in the 'std' namespace}}
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<std::T>([=] {});
   });
   q.submit([&](handler &h) {
-    // expected-error@Inputs/sycl.hpp:233 {{'Templated_kernel_name<nullptr_t>' is an invalid kernel name, 'std::nullptr_t' is declared in the 'std' namespace }}
+    // expected-error@#KernelSingleTask {{'Templated_kernel_name<nullptr_t>' is an invalid kernel name, 'std::nullptr_t' is declared in the 'std' namespace }}
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<Templated_kernel_name<std::nullptr_t>>([=] {});
   });
   q.submit([&](handler &h) {
-    // expected-error@Inputs/sycl.hpp:233 {{'Templated_kernel_name<std::U>' is an invalid kernel name, 'std::U' is declared in the 'std' namespace}}
+    // expected-error@#KernelSingleTask {{'Templated_kernel_name<std::U>' is an invalid kernel name, 'std::U' is declared in the 'std' namespace}}
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<Templated_kernel_name<std::U>>([=] {});
   });
   q.submit([&](handler &cgh) {
-    // expected-error@Inputs/sycl.hpp:233 {{'Templated_kernel_name2<Templated_kernel_name<std::Foo>>' is an invalid kernel name, 'std::Foo' is declared in the 'std' namespace}}
+    // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<std::Foo>>' is an invalid kernel name, 'std::Foo' is declared in the 'std' namespace}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task<Templated_kernel_name2<Templated_kernel_name<std::Foo>>>([]() {});
   });
   q.submit([&](handler &cgh) {
-    // expected-error@Inputs/sycl.hpp:233 {{'TemplParamPack<int, float, nullptr_t, double>' is an invalid kernel name, 'std::nullptr_t' is declared in the 'std' namespace }}
+    // expected-error@#KernelSingleTask {{'TemplParamPack<int, float, nullptr_t, double>' is an invalid kernel name, 'std::nullptr_t' is declared in the 'std' namespace }}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task<TemplParamPack<int, float, std::nullptr_t, double>>([]() {});
   });

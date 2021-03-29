@@ -37,7 +37,7 @@ public:
   void test() {
     cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:233 {{'InvalidKernelName1' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
     // expected-note@+4{{in instantiation of function template specialization}}
 #endif
     class InvalidKernelName1 {};
@@ -46,7 +46,7 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:233 {{'namespace1::KernelName<InvalidKernelName2>' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<InvalidKernelName2>' should be globally visible}}
     // expected-note@+4{{in instantiation of function template specialization}}
 #endif
     class InvalidKernelName2 {};
@@ -55,7 +55,7 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:233 {{'MyWrapper::InvalidKernelName0' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -63,7 +63,7 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:233 {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -76,7 +76,7 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:233 {{'std::max_align_t' is an invalid kernel name, 'std::(anonymous)' is declared in the 'std' namespace}}
+    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name, 'std::(anonymous)' is declared in the 'std' namespace}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -85,7 +85,7 @@ public:
 
     using InvalidAlias = InvalidKernelName4;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:233 {{'MyWrapper::InvalidKernelName4' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -94,14 +94,14 @@ public:
 
     using InvalidAlias1 = InvalidKernelName5;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:233 {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
     });
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:233 {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -113,7 +113,7 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error-re@Inputs/sycl.hpp:233 {{unnamed lambda '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' used}}
+  // expected-error-re@#KernelSingleTask {{unnamed lambda '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' used}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });

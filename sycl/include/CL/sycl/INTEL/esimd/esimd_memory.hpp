@@ -583,15 +583,18 @@ ESIMD_NODEBUG ESIMD_INLINE
                                                   src1.data(), pred.data());
 }
 
-/// Generic work-group barrier.
-/// \ingroup sycl_esimd
-inline ESIMD_NODEBUG void esimd_barrier() { __esimd_barrier(); }
-
-/// Generic work-group split barrier
-inline ESIMD_NODEBUG void esimd_sbarrier(EsimdSbarrierType flag) {
-  __esimd_sbarrier(flag);
-}
-
+/// Bits used to form the bitmask that controls the behavior of esimd_fence
+/// Bit 0: the “commit enable” bit. If set, the fence is guaranteed
+///        to be globally observable
+/// Bit 1: flush instruction cache if set.
+/// Bit 2: flush sampler cache if set
+/// Bit 3: flush constant cache if set
+/// Bit 4: flush read-write cache if set
+/// Bit 5: 0 means the fence is applied to global memory
+///        1 means the fence applies to shared local memory only
+/// Bit 6: flush L1 read-only data cache if set
+/// Bit 7: indicates this is a scheduling barrier
+///        but will not generate an actual fence instruction
 enum EsimdFenceMask {
   ESIMD_GLOBAL_COHERENT_FENCE = 0x1,
   ESIMD_L3_FLUSH_INSTRUCTIONS = 0x2,
@@ -604,9 +607,28 @@ enum EsimdFenceMask {
 };
 
 /// esimd_fence sets the memory read/write order.
+/// \tparam cntl is the bitmask composed from enum EsimdFenceMask
 /// \ingroup sycl_esimd
 ESIMD_INLINE ESIMD_NODEBUG void esimd_fence(uint8_t cntl) {
   __esimd_slm_fence(cntl);
+}
+
+/// Generic work-group barrier.
+/// Performs barrier synchronization for all threads within the same thread
+/// group. The barrier instruction causes the executing thread to wait until
+/// all threads in the same thread group have executed the barrier instruction.
+/// Memory ordering is also guaranteed by this instruction.
+/// The behavior is undefined if this instruction is executed in divergent
+/// control flow.
+/// \ingroup sycl_esimd
+inline ESIMD_NODEBUG void esimd_barrier() {
+  __esimd_slm_fence(ESIMD_GLOBAL_COHERENT_FENCE | ESIMD_LOCAL_BARRIER);
+  __esimd_barrier();
+}
+
+/// Generic work-group split barrier
+inline ESIMD_NODEBUG void esimd_sbarrier(EsimdSbarrierType flag) {
+  __esimd_sbarrier(flag);
 }
 
 /// @defgroup sycl_esimd_slm SLM functions
