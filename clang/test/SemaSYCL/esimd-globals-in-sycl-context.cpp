@@ -7,7 +7,7 @@ ESIMD_PRIVATE int esimd_glob;
 
 // -- Negative1: usage of ESIMD global reachable from SYCL code
 
-// Deffered diagnostic
+// Deferred diagnostic
 void foo_sycl(int x) {
   // expected-error@+1{{ESIMD globals cannot be used in a SYCL context}}
   esimd_glob = x;
