@@ -38,19 +38,19 @@ public:
   void test() {
     cl::sycl::queue q;
 
-    // expected-error@Inputs/sycl.hpp:233 {{'std::NestedInStd::NestedStruct' is an invalid kernel name, 'std::NestedInStd::NestedStruct' is declared in the 'std' namespace}}
+    // expected-error@#KernelSingleTask {{'std::NestedInStd::NestedStruct' is an invalid kernel name, 'std::NestedInStd::NestedStruct' is declared in the 'std' namespace}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<std::NestedInStd::NestedStruct>([] {});
     });
 
-    // expected-error@Inputs/sycl.hpp:233 {{'Named::(anonymous namespace)::IsThisValid' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'Named::(anonymous namespace)::IsThisValid' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<Named::IsThisValid>([] {});
     });
 
-    // expected-error@Inputs/sycl.hpp:233 {{'(anonymous namespace)::NestedInAnon::StructInAnonymousNS' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'(anonymous namespace)::NestedInAnon::StructInAnonymousNS' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<NestedInAnon::StructInAnonymousNS>([] {});
@@ -61,7 +61,7 @@ public:
       h.single_task<ValidNS::StructinValidNS>([] {});
     });
 
-    // expected-error@Inputs/sycl.hpp:233 {{'ParentStruct::ChildStruct' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'ParentStruct::ChildStruct' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<ParentStruct::ChildStruct>([] {});
