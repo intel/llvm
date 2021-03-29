@@ -89,7 +89,6 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
       }
     }
   }
-  std::cout << "num devices = " << devices.size() << std::endl;
   return devices;
 }
 
