@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
-#include <CL/sycl/backend_traits.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/context.hpp>
@@ -25,6 +24,15 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+template <backend Backend> class backend_traits {
+public:
+  template <class T> using input_type = typename interop<Backend, T>::type;
+
+  template <class T> using return_type = typename interop<Backend, T>::type;
+
+  // TODO define errc once SYCL2020-style exceptions are supported.
+};
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj) ->
