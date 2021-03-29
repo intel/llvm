@@ -10,6 +10,10 @@
 //CHECK-NEXT: ConstantExpr
 //CHECK-NEXT: value:{{.*}}12
 //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
+//CHECK: IntelFPGAMaxReplicatesAttr
+//CHECK-NEXT: ConstantExpr
+//CHECK-NEXT: value:{{.*}}12
+//CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
 [[intel::max_replicates(12)]] extern const int var_max_replicates;
 [[intel::max_replicates(12)]] const int var_max_replicates = 0; // OK
 

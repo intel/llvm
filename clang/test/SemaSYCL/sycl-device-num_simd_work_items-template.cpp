@@ -66,13 +66,6 @@ template <int N>
 template <int N>
 [[intel::num_simd_work_items(N)]] void func4() {} // expected-warning {{attribute 'num_simd_work_items' is already applied with different arguments}}
 
-// Test that checks template instantiations for same argument values. Duplicate attribute is silently ignored.
-template <int size>
-[[intel::num_simd_work_items(2)]] void func5();
-
-template <int size>
-[[intel::num_simd_work_items(size)]] void func5() {}
-
 int check() {
   // no error expected.
   func3<8>();
@@ -80,10 +73,12 @@ int check() {
   func3<-1>();
   //expected-note@+1 {{in instantiation of function template specialization 'func4<6>' requested here}}
   func4<6>();
-  // no error expected.
-  func5<2>();
   return 0;
 }
+
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::num_simd_work_items(2)]]
+[[intel::num_simd_work_items(2)]] void func5() {}
 
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
 // CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 0 N

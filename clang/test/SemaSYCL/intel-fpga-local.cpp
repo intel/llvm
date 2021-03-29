@@ -158,7 +158,7 @@ void check_ast()
   [[intel::max_replicates(12)]]
   [[intel::max_replicates(12)]] int var_max_replicates; // OK
 
-  // Checking of duplicate argument values. Duplicate attribute is silently ignored.
+  // Check duplicate argument values.
   //CHECK: VarDecl{{.*}}var_private_copies
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAPrivateCopiesAttr

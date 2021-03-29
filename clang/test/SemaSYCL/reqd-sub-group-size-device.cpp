@@ -10,10 +10,11 @@ queue q;
 // expected-note@-1 {{conflicting attribute is here}}
 [[intel::reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
 
-// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
+// No diagnostic is emitted because the arguments match.
 [[intel::reqd_sub_group_size(12)]] void bar();
 [[intel::reqd_sub_group_size(12)]] void bar() {} // OK
 
+// Diagnostic is emitted because the arguments mismatch.
 [[intel::reqd_sub_group_size(12)]] void quux(); // expected-note {{previous attribute is here}}
 [[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
 

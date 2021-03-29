@@ -11,8 +11,7 @@
 [[intel::loop_fuse(0, 1)]] void func3() {}             // expected-error{{'loop_fuse' attribute takes no more than 1 argument}}
 [[intel::loop_fuse_independent(2, 3)]] void func4() {} // expected-error{{'loop_fuse_independent' attribute takes no more than 1 argument}}
 
-// Tests for Intel FPGA loop fusion function attributes duplication
-// No diagnostic is thrown since arguments match. Duplicate attribute is silently ignored.
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
 [[intel::loop_fuse]] [[intel::loop_fuse]] void func5() {}
 [[intel::loop_fuse_independent(10)]] [[intel::loop_fuse_independent(10)]] void func6() {}
 

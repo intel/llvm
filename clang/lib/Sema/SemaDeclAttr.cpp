@@ -3237,10 +3237,9 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-          return;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<IntelReqdSubGroupSizeAttr>();
+        // Drop the duplicate attribute.
+        return;
       }
     }
   }
@@ -3261,8 +3260,8 @@ Sema::MergeIntelReqdSubGroupSizeAttr(Decl *D,
           Diag(A.getLoc(), diag::note_previous_attribute);
           return nullptr;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<IntelReqdSubGroupSizeAttr>();
+        // Do not add a duplicate attribute.
+        return nullptr;
       }
     }
   }
@@ -3305,10 +3304,9 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-          return;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<SYCLIntelNumSimdWorkItemsAttr>();
+        // Drop the duplicate attribute.
+        return;
       }
     }
 
@@ -3340,10 +3338,9 @@ SYCLIntelNumSimdWorkItemsAttr *Sema::MergeSYCLIntelNumSimdWorkItemsAttr(
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
-          return nullptr;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<SYCLIntelNumSimdWorkItemsAttr>();
+        // Do not add a duplicate attribute.
+        return nullptr;
       }
     }
   }
@@ -3405,10 +3402,9 @@ void Sema::AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-          return;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>();
+        // Drop the duplicate attribute.
+        return;
       }
     }
   }
@@ -3431,8 +3427,8 @@ Sema::MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
           Diag(A.getLoc(), diag::note_previous_attribute);
           return nullptr;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>();
+        // Do not add a duplicate attribute.
+        return nullptr;
       }
     }
   }
@@ -3490,18 +3486,6 @@ void Sema::AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelLoopFuseAttr>()) {
-      // If the other attribute argument is instantiation dependent, we won't
-      // have converted it to a constant expression yet and thus we test
-      // whether this is a null pointer.
-      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-          return;
-        }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<SYCLIntelLoopFuseAttr>();
-      }
       // [[intel::loop_fuse]] and [[intel::loop_fuse_independent]] are
       // incompatible.
       // FIXME: If additional spellings are provided for this attribute,
@@ -3511,6 +3495,17 @@ void Sema::AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
         Diag(CI.getLoc(), diag::err_attributes_are_not_compatible)
             << CI << DeclAttr;
         Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+        return;
+      }
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
         return;
       }
     }
@@ -3524,17 +3519,6 @@ Sema::MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelLoopFuseAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
-        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-          Diag(A.getLoc(), diag::note_previous_attribute);
-          return nullptr;
-        }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<SYCLIntelLoopFuseAttr>();
-      }
-    }
     // [[intel::loop_fuse]] and [[intel::loop_fuse_independent]] are
     // incompatible.
     // FIXME: If additional spellings are provided for this attribute,
@@ -3545,6 +3529,16 @@ Sema::MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A) {
           << &A << DeclAttr;
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
       return nullptr;
+    }
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
     }
   }
 
@@ -5792,10 +5786,9 @@ void Sema::AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-          return;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<SYCLIntelNoGlobalWorkOffsetAttr>();
+        // Drop the duplicate attribute.
+        return;
       }
     }
   }
@@ -5813,10 +5806,9 @@ SYCLIntelNoGlobalWorkOffsetAttr *Sema::MergeSYCLIntelNoGlobalWorkOffsetAttr(
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
-          return nullptr;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<SYCLIntelNoGlobalWorkOffsetAttr>();
+        // Do not add a duplicate attribute.
+        return nullptr;
       }
     }
   }
@@ -6001,10 +5993,9 @@ void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-          return;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<IntelFPGAMaxReplicatesAttr>();
+        // Drop the duplicate attribute.
+        return;
       }
     }
   }
@@ -6034,10 +6025,9 @@ Sema::MergeIntelFPGAMaxReplicatesAttr(Decl *D,
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
-          return nullptr;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<IntelFPGAMaxReplicatesAttr>();
+        // Do not add a duplicate attribute.
+        return nullptr;
       }
     }
   }
@@ -6206,22 +6196,23 @@ void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-          return;
         }
-        // If there is no mismatch, drop any duplicate attributes.
-        D->dropAttr<IntelFPGAPrivateCopiesAttr>();
+        // Drop the duplicate attribute.
+        return;
       }
     }
-    // [[intel::fpga_register]] and [[intel::private_copies()]]
-    // attributes are incompatible.
-    if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
-      return;
-    // If the declaration does not have [[intel::memory]]
-    // attribute, this creates default implicit memory.
-    if (!D->hasAttr<IntelFPGAMemoryAttr>())
-      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-          Context, IntelFPGAMemoryAttr::Default));
   }
+
+  // [[intel::fpga_register]] and [[intel::private_copies()]]
+  // attributes are incompatible.
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
+    return;
+
+  // If the declaration does not have [[intel::memory]]
+  // attribute, this creates default implicit memory.
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        Context, IntelFPGAMemoryAttr::Default));
 
   D->addAttr(::new (Context) IntelFPGAPrivateCopiesAttr(Context, CI, E));
 }

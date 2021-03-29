@@ -65,13 +65,6 @@ template <int N>
 template <int N>
 [[intel::scheduler_target_fmax_mhz(N)]] void func4() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 
-// Test that checks template instantiations for same argument values. Duplicate attribute is silently ignored.
-template <int size>
-[[intel::scheduler_target_fmax_mhz(8)]] void func5();
-
-template <int size>
-[[intel::scheduler_target_fmax_mhz(size)]] void func5() {}
-
 int check() {
   // no error expected
   func3<3>();
@@ -79,10 +72,12 @@ int check() {
   func3<-1>();
   //expected-note@+1 {{in instantiation of function template specialization 'func4<6>' requested here}}
   func4<6>(); 
-  // no error expected
-  func5<8>();
   return 0;
 }
+
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::scheduler_target_fmax_mhz(8)]]
+[[intel::scheduler_target_fmax_mhz(8)]] void func5() {}
 
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
 // CHECK: TemplateArgument integral 3

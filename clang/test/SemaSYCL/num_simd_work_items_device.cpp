@@ -26,10 +26,11 @@ void foo() {
   });
 }
 
-// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
+// No diagnostic is emitted because the arguments match.
 [[intel::num_simd_work_items(12)]] void bar();
 [[intel::num_simd_work_items(12)]] void bar() {} // OK
 
+// Diagnostic is emitted because the arguments mismatch.
 [[intel::num_simd_work_items(12)]] void baz();  // expected-note {{previous attribute is here}}
 [[intel::num_simd_work_items(100)]] void baz(); // expected-warning {{attribute 'num_simd_work_items' is already applied with different parameters}}
 

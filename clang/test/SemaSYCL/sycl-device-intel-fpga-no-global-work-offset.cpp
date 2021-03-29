@@ -43,10 +43,11 @@ int main() {
 [[intel::no_global_work_offset(0)]] void func4(); // expected-note {{previous attribute is here}}
 [[intel::no_global_work_offset]] void func4();    // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
 
-// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
+// No diagnostic is emitted because the arguments match.
 [[intel::no_global_work_offset(1)]] void func5();
 [[intel::no_global_work_offset(1)]] void func5() {} // OK
 
+// Diagnostic is emitted because the arguments mismatch.
 [[intel::no_global_work_offset(0)]] void func6(); // expected-note {{previous attribute is here}}
 [[intel::no_global_work_offset(1)]] void func6(); // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
 
@@ -69,19 +70,15 @@ template <int N>
 template <int N>
 [[intel::no_global_work_offset(N)]] void func7() {} // expected-warning {{attribute 'no_global_work_offset' is already applied with different arguments}}
 
-// Test that checks template instantiations for same argument values. Duplicate attribute is silently ignored.
-template <int size>
-[[intel::no_global_work_offset(1)]] void func8();
-
-template <int size>
-[[intel::no_global_work_offset(size)]] void func8() {}
-
 int check() {
   func6<1>();
   func7<1>(); //expected-note {{in instantiation of function template specialization 'func7<1>' requested here}}
-  func8<1>();
   return 0;
 }
+
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::no_global_work_offset(1)]]
+[[intel::no_global_work_offset(1)]] void func8() {}
 
 // CHECK: FunctionDecl {{.*}} {{.*}} func6 'void ()'
 // CHECK: TemplateArgument integral 1
