@@ -2877,7 +2877,7 @@ or ivdep.
   }];
 }
 
-def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
+def SYCLIntelFPGALoopControlAvgAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loo_control_avg";
   let Content = [{

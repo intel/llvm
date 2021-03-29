@@ -1912,7 +1912,7 @@ def SYCLIntelFPGALoopControlAvg : StmtAttr {
   let Args = [ExprArgument<"N">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let Documentation = [SYCLIntelFPGALoopControlAvgDocs];
+  let Documentation = [SYCLIntelFPGALoopControlAvgAttrDocs];
 }
 
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
