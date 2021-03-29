@@ -497,14 +497,6 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   }
 
   // Do not add redundant event dependencies for in-order queues.
-  // TODO temporarily disabled with Level Zero since the enqueued operations
-  // that are implemented directly in the plugin (e.g. map/unmap) do not satisfy
-  // in-order queue requirements.
-  /*if (WorkerQueue->is_host() ||
-      WorkerQueue->getPlugin().getBackend() != backend::level_zero)*/
-    if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->has_property<property::queue::in_order>())
-      return;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task

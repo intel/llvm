@@ -973,22 +973,6 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     // previous command has finished. The event associated with the last
     // enqued command is added into the waitlist to ensure in-order semantics.
     if (CurQueue->isInOrderQueue()) {
-      auto Queue = CurQueue->LastCommandEvent->Queue;
-
-      if (Queue != CurQueue) {
-        // If the event that is going to be waited on is in a
-        // different queue, then any open command list in
-        // that queue must be closed and executed because
-        // the event being waited on could be for a command
-        // in the queue's batch.
-
-        // Lock automatically releases when this goes out of scope.
-        std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-        if (auto Res = Queue->executeOpenCommandList())
-          return Res;
-      }
-
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
       TmpListLength += 1;
@@ -4375,11 +4359,6 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Queue->ZeCopyCommandQueue)
     ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueue));
 
-  auto LastCommandQueue = Queue->LastCommandEvent->Queue;
-  if (Queue != LastCommandQueue) {
-    ZE_CALL(zeHostSynchronize, (LastCommandQueue->ZeCommandQueue));
-  }
-
   {
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
@@ -4810,8 +4789,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
     _pi_ze_event_list_t TmpWaitList;
-    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                            EventWaitList, Queue))
+    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+            NumEventsInWaitList, EventWaitList, Queue))
       return Res;
 
     auto Res = createEventAndAssociateQueue(
@@ -4926,8 +4905,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
     _pi_ze_event_list_t TmpWaitList;
-    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                            EventWaitList, Queue))
+    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+            NumEventsInWaitList, EventWaitList, Queue))
       return Res;
 
     auto Res = createEventAndAssociateQueue(
@@ -5785,7 +5764,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
-  
+
   if (auto Res =
           (*Event)->WaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
     return Res;
