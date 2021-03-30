@@ -1349,7 +1349,9 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                  D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_FPGA);
       break;
     default:
-      die("Unexpected PI device type");
+      Matched = false;
+      zePrint("Unknown device type");
+      break;
     }
     if (Matched)
       MatchedDevices.push_back(D.get());
