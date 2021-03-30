@@ -1369,7 +1369,9 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
       getSyclObjImpl(InputImpl->get_context())->getPlugin();
 
   // TODO: Add support for creating non-SPIRV programs from multiple devices.
-  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV && Devs.size() > 1)
+  if (InputImpl->get_bin_image_ref()->getFormat() !=
+          PI_DEVICE_BINARY_TYPE_SPIRV &&
+      Devs.size() > 1)
     sycl::runtime_error(
         "Creating a program from AOT binary for multiple device is not "
         "supported",
@@ -1521,7 +1523,19 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       LinkOpts += Img.getLinkOptions();
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    RT::PiProgram NativePrg = createPIProgram(Img, Context, Devs);
+
+    // TODO: Add support for creating non-SPIRV programs from multiple devices.
+    if (InputImpl->get_bin_image_ref()->getFormat() !=
+            PI_DEVICE_BINARY_TYPE_SPIRV &&
+        Devs.size() > 1)
+      sycl::runtime_error(
+          "Creating a program from AOT binary for multiple device is not "
+          "supported",
+          PI_INVALID_OPERATION);
+
+    // Device is not used when creating program from SPIRV, so passing only one
+    // device is OK.
+    RT::PiProgram NativePrg = createPIProgram(Img, Context, Devs[0]);
 
     const std::vector<unsigned char> &SpecConstsBlob =
         InputImpl->get_spec_const_blob_ref();

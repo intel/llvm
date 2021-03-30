@@ -72,8 +72,7 @@ public:
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
-                                const context &Context,
-                                const std::vector<device> &Device);
+                                const context &Context, const device &Device);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M idenfies the OS module the kernel comes from (multiple OS modules
