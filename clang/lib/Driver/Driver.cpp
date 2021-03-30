@@ -136,10 +136,11 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
     : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
       SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone), LTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
-      DriverTitle(Title), CCPrintOptionsFilename(nullptr),
-      CCPrintHeadersFilename(nullptr), CCLogDiagnosticsFilename(nullptr),
-      CCCPrintBindings(false), CCPrintOptions(false), CCPrintHeaders(false),
-      CCLogDiagnostics(false), CCGenDiagnostics(false),
+      DriverTitle(Title), CCPrintStatReportFilename(nullptr),
+      CCPrintOptionsFilename(nullptr), CCPrintHeadersFilename(nullptr),
+      CCLogDiagnosticsFilename(nullptr), CCCPrintBindings(false),
+      CCPrintOptions(false), CCPrintHeaders(false), CCLogDiagnostics(false),
+      CCGenDiagnostics(false), CCPrintProcessStats(false),
       TargetTriple(TargetTriple), CCCGenericGCCName(""), Saver(Alloc),
       CheckInputsExist(true), GenReproducer(false),
       SuppressMissingInputWarning(false) {
@@ -1278,6 +1279,15 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   GenReproducer = Args.hasFlag(options::OPT_gen_reproducer,
                                options::OPT_fno_crash_diagnostics,
                                !!::getenv("FORCE_CLANG_DIAGNOSTICS_CRASH"));
+
+  // Process -fproc-stat-report options.
+  if (const Arg *A = Args.getLastArg(options::OPT_fproc_stat_report_EQ)) {
+    CCPrintProcessStats = true;
+    CCPrintStatReportFilename = A->getValue();
+  }
+  if (Args.hasArg(options::OPT_fproc_stat_report))
+    CCPrintProcessStats = true;
+
   // FIXME: TargetTriple is used by the target-prefixed calls to as/ld
   // and getToolChain is const.
   if (IsCLMode()) {
@@ -1670,8 +1680,7 @@ void Driver::generateCompilationDiagnostics(
     }
   }
 
-  for (const auto &A : C.getArgs().filtered(options::OPT_frewrite_map_file,
-                                            options::OPT_frewrite_map_file_EQ))
+  for (const auto &A : C.getArgs().filtered(options::OPT_frewrite_map_file_EQ))
     Diag(clang::diag::note_drv_command_failed_diag_msg) << A->getValue();
 
   Diag(clang::diag::note_drv_command_failed_diag_msg)
@@ -2071,6 +2080,15 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
     return false;
   }
 
+  if (C.getArgs().hasArg(options::OPT_print_runtime_dir)) {
+    if (auto RuntimePath = TC.getRuntimePath()) {
+      llvm::outs() << *RuntimePath << '\n';
+      return false;
+    }
+    llvm::outs() << TC.getCompilerRTPath() << '\n';
+    return false;
+  }
+
   // FIXME: The following handlers should use a callback mechanism, we don't
   // know what the client would like to do.
   if (Arg *A = C.getArgs().getLastArg(options::OPT_print_file_name_EQ)) {
@@ -2456,15 +2474,20 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
 
         // stdin must be handled specially.
         if (memcmp(Value, "-", 2) == 0) {
-          // If running with -E, treat as a C input (this changes the builtin
-          // macros, for example). This may be overridden by -ObjC below.
-          //
-          // Otherwise emit an error but still use a valid type to avoid
-          // spurious errors (e.g., no inputs).
-          if (!Args.hasArgNoClaim(options::OPT_E) && !CCCIsCPP())
-            Diag(IsCLMode() ? clang::diag::err_drv_unknown_stdin_type_clang_cl
-                            : clang::diag::err_drv_unknown_stdin_type);
-          Ty = CType;
+          if (IsFlangMode()) {
+            Ty = types::TY_Fortran;
+          } else {
+            // If running with -E, treat as a C input (this changes the
+            // builtin macros, for example). This may be overridden by -ObjC
+            // below.
+            //
+            // Otherwise emit an error but still use a valid type to avoid
+            // spurious errors (e.g., no inputs).
+            if (!Args.hasArgNoClaim(options::OPT_E) && !CCCIsCPP())
+              Diag(IsCLMode() ? clang::diag::err_drv_unknown_stdin_type_clang_cl
+                              : clang::diag::err_drv_unknown_stdin_type);
+            Ty = types::TY_C;
+          }
         } else {
           // Otherwise lookup by extension.
           // Fallback is C if invoked as C preprocessor, C++ if invoked with
@@ -3351,12 +3374,15 @@ class OffloadingActionBuilder final {
   class HIPActionBuilder final : public CudaActionBuilderBase {
     /// The linker inputs obtained for each device arch.
     SmallVector<ActionList, 8> DeviceLinkerInputs;
+    bool GPUSanitize;
 
   public:
     HIPActionBuilder(Compilation &C, DerivedArgList &Args,
                      const Driver::InputList &Inputs)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP) {
       DefaultCudaArch = CudaArch::GFX803;
+      GPUSanitize = Args.hasFlag(options::OPT_fgpu_sanitize,
+                                 options::OPT_fno_gpu_sanitize, false);
     }
 
     bool canUseBundlerUnbundler() const override { return true; }
@@ -3405,17 +3431,33 @@ class OffloadingActionBuilder final {
         // a fat binary containing all the code objects for different GPU's.
         // The fat binary is then an input to the host action.
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
-          auto BackendAction = C.getDriver().ConstructPhaseAction(
-              C, Args, phases::Backend, CudaDeviceActions[I],
-              AssociatedOffloadKind);
-          auto AssembleAction = C.getDriver().ConstructPhaseAction(
-              C, Args, phases::Assemble, BackendAction, AssociatedOffloadKind);
-          // Create a link action to link device IR with device library
-          // and generate ISA.
-          ActionList AL;
-          AL.push_back(AssembleAction);
-          CudaDeviceActions[I] =
-              C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+          if (GPUSanitize) {
+            // When GPU sanitizer is enabled, since we need to link in the
+            // the sanitizer runtime library after the sanitize pass, we have
+            // to skip the backend and assemble phases and use lld to link
+            // the bitcode.
+            ActionList AL;
+            AL.push_back(CudaDeviceActions[I]);
+            // Create a link action to link device IR with device library
+            // and generate ISA.
+            CudaDeviceActions[I] =
+                C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+          } else {
+            // When GPU sanitizer is not enabled, we follow the conventional
+            // compiler phases, including backend and assemble phases.
+            ActionList AL;
+            auto BackendAction = C.getDriver().ConstructPhaseAction(
+                C, Args, phases::Backend, CudaDeviceActions[I],
+                AssociatedOffloadKind);
+            auto AssembleAction = C.getDriver().ConstructPhaseAction(
+                C, Args, phases::Assemble, BackendAction,
+                AssociatedOffloadKind);
+            AL.push_back(AssembleAction);
+            // Create a link action to link device IR with device library
+            // and generate ISA.
+            CudaDeviceActions[I] =
+                C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+          }
 
           // OffloadingActionBuilder propagates device arch until an offload
           // action. Since the next action for creating fatbin does
@@ -3559,8 +3601,16 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      for (Action *&A : OpenMPDeviceActions)
+      for (unsigned I = 0; I < ToolChains.size(); ++I) {
+        Action *&A = OpenMPDeviceActions[I];
+        // AMDGPU does not support linking of object files, so we skip
+        // assemble and backend actions to produce LLVM IR.
+        if (ToolChains[I]->getTriple().isAMDGCN() &&
+            (CurPhase == phases::Assemble || CurPhase == phases::Backend))
+          continue;
+
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A);
+      }
 
       return ABRT_Success;
     }
@@ -5525,66 +5575,64 @@ void Driver::BuildJobs(Compilation &C) const {
                        /*TargetDeviceOffloadKind*/ Action::OFK_None);
   }
 
-  StringRef StatReportFile;
-  bool PrintProcessStat = false;
-  if (const Arg *A = C.getArgs().getLastArg(options::OPT_fproc_stat_report_EQ))
-    StatReportFile = A->getValue();
-  if (C.getArgs().hasArg(options::OPT_fproc_stat_report))
-    PrintProcessStat = true;
-
   // If we have more than one job, then disable integrated-cc1 for now. Do this
   // also when we need to report process execution statistics.
-  if (C.getJobs().size() > 1 || !StatReportFile.empty() || PrintProcessStat)
+  if (C.getJobs().size() > 1 || CCPrintProcessStats)
     for (auto &J : C.getJobs())
       J.InProcess = false;
 
-  if (!StatReportFile.empty() || PrintProcessStat) {
+  if (CCPrintProcessStats) {
     C.setPostCallback([=](const Command &Cmd, int Res) {
       Optional<llvm::sys::ProcessStatistics> ProcStat =
           Cmd.getProcessStatistics();
       if (!ProcStat)
         return;
-      if (PrintProcessStat) {
+
+      const char *LinkingOutput = nullptr;
+      if (FinalOutput)
+        LinkingOutput = FinalOutput->getValue();
+      else if (!Cmd.getOutputFilenames().empty())
+        LinkingOutput = Cmd.getOutputFilenames().front().c_str();
+      else
+        LinkingOutput = getDefaultImageName();
+
+      if (!CCPrintStatReportFilename) {
         using namespace llvm;
         // Human readable output.
         outs() << sys::path::filename(Cmd.getExecutable()) << ": "
-               << "output=";
-        if (Cmd.getOutputFilenames().empty())
-          outs() << "\"\"";
-        else
-          outs() << Cmd.getOutputFilenames().front();
+               << "output=" << LinkingOutput;
         outs() << ", total="
                << format("%.3f", ProcStat->TotalTime.count() / 1000.) << " ms"
                << ", user="
                << format("%.3f", ProcStat->UserTime.count() / 1000.) << " ms"
                << ", mem=" << ProcStat->PeakMemory << " Kb\n";
-      }
-      if (!StatReportFile.empty()) {
+      } else {
         // CSV format.
         std::string Buffer;
         llvm::raw_string_ostream Out(Buffer);
         llvm::sys::printArg(Out, llvm::sys::path::filename(Cmd.getExecutable()),
                             /*Quote*/ true);
         Out << ',';
-        if (Cmd.getOutputFilenames().empty())
-          Out << "\"\"";
-        else
-          llvm::sys::printArg(Out, Cmd.getOutputFilenames().front(), true);
+        llvm::sys::printArg(Out, LinkingOutput, true);
         Out << ',' << ProcStat->TotalTime.count() << ','
             << ProcStat->UserTime.count() << ',' << ProcStat->PeakMemory
             << '\n';
         Out.flush();
         std::error_code EC;
-        llvm::raw_fd_ostream OS(StatReportFile, EC, llvm::sys::fs::OF_Append);
+        llvm::raw_fd_ostream OS(CCPrintStatReportFilename, EC,
+                                llvm::sys::fs::OF_Append |
+                                    llvm::sys::fs::OF_Text);
         if (EC)
           return;
         auto L = OS.lock();
         if (!L) {
-          llvm::errs() << "ERROR: Cannot lock file " << StatReportFile << ": "
+          llvm::errs() << "ERROR: Cannot lock file "
+                       << CCPrintStatReportFilename << ": "
                        << toString(L.takeError()) << "\n";
           return;
         }
         OS << Buffer;
+        OS.flush();
       }
     });
   }
@@ -6336,11 +6384,14 @@ InputInfo Driver::BuildJobsForActionNoCache(
         A->getOffloadingDeviceKind(), TC->getTriple().normalize(),
         /*CreatePrefixForHost=*/!!A->getOffloadingHostActiveKinds() &&
             !AtTopLevel);
-      if (isa<OffloadWrapperJobAction>(JA)) {
-        OffloadingPrefix += "-wrapper";
-        if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
-          BaseInput = FinalOutput->getValue();
-      }
+    }
+    if (isa<OffloadWrapperJobAction>(JA)) {
+      if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+        BaseInput = FinalOutput->getValue();
+      else
+        BaseInput = getDefaultImageName();
+      BaseInput =
+          C.getArgs().MakeArgString(std::string(BaseInput) + "-wrapper");
     }
     Result = InputInfo(A, GetNamedOutputPath(C, *JA, BaseInput, BoundArch,
                                              AtTopLevel, MultipleArchs,

@@ -19,6 +19,11 @@ This behavior is not following the SYCL spec since `constant_ptr` conversions to
 the underlying pointer types return pointers without any additional qualifiers
 so it's disabled by default.
 
+### `DISABLE_SYCL_INSTRUMENTATION_METADATA`
+
+This macro is used to disable passing of code location information to public
+methods.
+
 ### SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 Disables warnings coming from usage of SYCL 1.2.1 APIs, that are deprecated in

@@ -155,20 +155,12 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
   //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
-  //CHECK: IntelFPGAMaxReplicatesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}12
-  //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
   [[intel::max_replicates(12)]]
   [[intel::max_replicates(12)]] int var_max_replicates; // OK
 
-  // Checking of duplicate argument values.
+  // Check duplicate argument values.
   //CHECK: VarDecl{{.*}}var_private_copies
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}12
-  //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
   //CHECK: IntelFPGAPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12

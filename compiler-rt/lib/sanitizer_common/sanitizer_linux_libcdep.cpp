@@ -36,6 +36,7 @@
 #include <link.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sys/mman.h>
 #include <sys/resource.h>
 #include <syslog.h>
 
@@ -574,20 +575,12 @@ struct DlIteratePhdrData {
   bool first;
 };
 
-static int dl_iterate_phdr_cb(dl_phdr_info *info, size_t size, void *arg) {
-  DlIteratePhdrData *data = (DlIteratePhdrData*)arg;
-  InternalScopedString module_name(kMaxPathLength);
-  if (data->first) {
-    data->first = false;
-    // First module is the binary itself.
-    ReadBinaryNameCached(module_name.data(), module_name.size());
-  } else if (info->dlpi_name) {
-    module_name.append("%s", info->dlpi_name);
-  }
+static int AddModuleSegments(const char *module_name, dl_phdr_info *info,
+                             InternalMmapVectorNoCtor<LoadedModule> *modules) {
   if (module_name[0] == '\0')
     return 0;
   LoadedModule cur_module;
-  cur_module.set(module_name.data(), info->dlpi_addr);
+  cur_module.set(module_name, info->dlpi_addr);
   for (int i = 0; i < (int)info->dlpi_phnum; i++) {
     const Elf_Phdr *phdr = &info->dlpi_phdr[i];
     if (phdr->p_type == PT_LOAD) {
@@ -599,7 +592,26 @@ static int dl_iterate_phdr_cb(dl_phdr_info *info, size_t size, void *arg) {
                                  writable);
     }
   }
-  data->modules->push_back(cur_module);
+  modules->push_back(cur_module);
+  return 0;
+}
+
+static int dl_iterate_phdr_cb(dl_phdr_info *info, size_t size, void *arg) {
+  DlIteratePhdrData *data = (DlIteratePhdrData *)arg;
+  if (data->first) {
+    InternalMmapVector<char> module_name(kMaxPathLength);
+    data->first = false;
+    // First module is the binary itself.
+    ReadBinaryNameCached(module_name.data(), module_name.size());
+    return AddModuleSegments(module_name.data(), info, data->modules);
+  }
+
+  if (info->dlpi_name) {
+    InternalScopedString module_name;
+    module_name.append("%s", info->dlpi_name);
+    return AddModuleSegments(module_name.data(), info, data->modules);
+  }
+
   return 0;
 }
 
@@ -803,20 +815,13 @@ void LogMessageOnPrintf(const char *str) {
 
 #endif  // SANITIZER_LINUX
 
-#if SANITIZER_LINUX && !SANITIZER_GO
+#if SANITIZER_GLIBC && !SANITIZER_GO
 // glibc crashes when using clock_gettime from a preinit_array function as the
 // vDSO function pointers haven't been initialized yet. __progname is
 // initialized after the vDSO function pointers, so if it exists, is not null
 // and is not empty, we can use clock_gettime.
 extern "C" SANITIZER_WEAK_ATTRIBUTE char *__progname;
-inline bool CanUseVDSO() {
-  // Bionic is safe, it checks for the vDSO function pointers to be initialized.
-  if (SANITIZER_ANDROID)
-    return true;
-  if (&__progname && __progname && *__progname)
-    return true;
-  return false;
-}
+inline bool CanUseVDSO() { return &__progname && __progname && *__progname; }
 
 // MonotonicNanoTime is a timing function that can leverage the vDSO by calling
 // clock_gettime. real_clock_gettime only exists if clock_gettime is
@@ -836,13 +841,13 @@ u64 MonotonicNanoTime() {
   return (u64)ts.tv_sec * (1000ULL * 1000 * 1000) + ts.tv_nsec;
 }
 #else
-// Non-Linux & Go always use the syscall.
+// Non-glibc & Go always use the regular function.
 u64 MonotonicNanoTime() {
   timespec ts;
-  internal_clock_gettime(CLOCK_MONOTONIC, &ts);
+  clock_gettime(CLOCK_MONOTONIC, &ts);
   return (u64)ts.tv_sec * (1000ULL * 1000 * 1000) + ts.tv_nsec;
 }
-#endif  // SANITIZER_LINUX && !SANITIZER_GO
+#endif  // SANITIZER_GLIBC && !SANITIZER_GO
 
 void ReExec() {
   const char *pathname = "/proc/self/exe";
@@ -909,6 +914,64 @@ uptr MapDynamicShadow(uptr shadow_size_bytes, uptr shadow_scale,
   UnmapFromTo(shadow_start + shadow_size, map_start + map_size);
 
   return shadow_start;
+}
+
+static uptr MmapSharedNoReserve(uptr addr, uptr size) {
+  return internal_mmap(
+      reinterpret_cast<void *>(addr), size, PROT_READ | PROT_WRITE,
+      MAP_FIXED | MAP_SHARED | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+}
+
+static uptr MremapCreateAlias(uptr base_addr, uptr alias_addr,
+                              uptr alias_size) {
+#if SANITIZER_LINUX
+  return internal_mremap(reinterpret_cast<void *>(base_addr), 0, alias_size,
+                         MREMAP_MAYMOVE | MREMAP_FIXED,
+                         reinterpret_cast<void *>(alias_addr));
+#else
+  CHECK(false && "mremap is not supported outside of Linux");
+#endif
+}
+
+static void CreateAliases(uptr start_addr, uptr alias_size, uptr num_aliases) {
+  uptr total_size = alias_size * num_aliases;
+  uptr mapped = MmapSharedNoReserve(start_addr, total_size);
+  CHECK_EQ(mapped, start_addr);
+
+  for (uptr i = 1; i < num_aliases; ++i) {
+    uptr alias_addr = start_addr + i * alias_size;
+    CHECK_EQ(MremapCreateAlias(start_addr, alias_addr, alias_size), alias_addr);
+  }
+}
+
+uptr MapDynamicShadowAndAliases(uptr shadow_size, uptr alias_size,
+                                uptr num_aliases, uptr ring_buffer_size) {
+  CHECK_EQ(alias_size & (alias_size - 1), 0);
+  CHECK_EQ(num_aliases & (num_aliases - 1), 0);
+  CHECK_EQ(ring_buffer_size & (ring_buffer_size - 1), 0);
+
+  const uptr granularity = GetMmapGranularity();
+  shadow_size = RoundUpTo(shadow_size, granularity);
+  CHECK_EQ(shadow_size & (shadow_size - 1), 0);
+
+  const uptr alias_region_size = alias_size * num_aliases;
+  const uptr alignment =
+      2 * Max(Max(shadow_size, alias_region_size), ring_buffer_size);
+  const uptr left_padding = ring_buffer_size;
+
+  const uptr right_size = alignment;
+  const uptr map_size = left_padding + 2 * alignment;
+
+  const uptr map_start = reinterpret_cast<uptr>(MmapNoAccess(map_size));
+  CHECK_NE(map_start, static_cast<uptr>(-1));
+  const uptr right_start = RoundUpTo(map_start + left_padding, alignment);
+
+  UnmapFromTo(map_start, right_start - left_padding);
+  UnmapFromTo(right_start + right_size, map_start + map_size);
+
+  CreateAliases(right_start + right_size / 2, alias_size, num_aliases);
+
+  return right_start;
 }
 
 void InitializePlatformCommonFlags(CommonFlags *cf) {
