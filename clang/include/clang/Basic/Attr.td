@@ -1434,7 +1434,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
 def IntelNamedSubGroupSize : InheritableAttr {
   let Spellings = [CXX11<"intel", "named_sub_group_size">];
   let Args = [EnumArgument<"Type", "SubGroupSizeType", ["automatic", "primary"],
-                           ["Auto", "Primary"]>];
+                           ["Automatic", "Primary"]>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelNamedSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];

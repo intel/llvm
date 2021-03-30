@@ -3282,7 +3282,7 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
 IntelNamedSubGroupSizeAttr *
 Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
                                       const IntelNamedSubGroupSizeAttr &A) {
-  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(*this, D, A))
+  if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(*this, D, A))
     return nullptr;
   if (checkAttrMutualExclusion<SYCLSimdAttr>(*this, D, A))
     return nullptr;
@@ -3293,8 +3293,8 @@ Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
     if (DeclAttr->getType() != A.getType()) {
       Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
       Diag(A.getLoc(), diag::note_previous_attribute);
-      return nullptr;
     }
+    return nullptr;
   }
 
   return IntelNamedSubGroupSizeAttr::Create(Context, A.getType(), A);
