@@ -2854,6 +2854,8 @@ The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
   void bar() {
     [[intel::initiation_interval(N)]] for(;;) { }
   }
+
+  template<int N>
   [[intel::initiation_interval(N)]] void bar1 { }
 
   }];
