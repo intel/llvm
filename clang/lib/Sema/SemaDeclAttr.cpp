@@ -6402,6 +6402,9 @@ static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
   // if (checkAttrMutualExclusion<IntelDisableComponentPipeline>(S, D, AL))
   //  return;
 
+  if (!A.checkAtLeastNumArgs(S, 1))
+    return;
+
   Expr *E = A.getArgAsExpr(0);
   S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
 }
