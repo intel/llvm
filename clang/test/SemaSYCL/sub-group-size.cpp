@@ -1,4 +1,6 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-explicit-simd -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-explicit-simd -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary,integer %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-explicit-simd -fsycl-default-sub-group-size=primary -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,integer %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-explicit-simd -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary %s
 
 #include "Inputs/sycl.hpp"
 
@@ -73,6 +75,8 @@ struct Functor {
   }
 };
 
+// If the kernel function has an attribute, only an undefined SYCL_EXTERNAL
+// should diagnose.
 void calls_kernel_1() {
   sycl::kernel_single_task<class Kernel1>([]() [[intel::named_sub_group_size(primary)]] {
     NoAttrFunc();
@@ -88,12 +92,35 @@ void calls_kernel_2() {
   sycl::kernel_single_task<class Kernel2>(F);
 }
 
-// Func w/o attr called from kernel, kernel has attr.
-// normal func: fine
-// defined SYCL_EXTERNAL: fine
-// undef SYCL_EXTERNAL: Not fine
-// all are OK if kernel has 'default' attr.
+// If the kernel doesn't have an attribute,
+[[intel::named_sub_group_size(primary)]] void AttrFunc(){} // #AttrFunc
+[[intel::named_sub_group_size(primary)]] SYCL_EXTERNAL void AttrExternalDefined() {} // #AttrExternalDefined
+[[intel::named_sub_group_size(primary)]] SYCL_EXTERNAL void AttrExternalNotDefined(); // #AttrExternalNotDefined
 
+void calls_kernel_3() {
+  sycl::kernel_single_task<class Kernel3>([]() {
+    // primary-error@#AttrFunc{{ :??}}
+    AttrFunc();
+    AttrExternalDefined();
+    // expected-error@#NoAttrExternalNotDefined{{undefined 'SYCL_EXTERNAL' function must have a sub group size that matches the size specified for the kernel}}
+    // expected-note@-4{{conflicting attribute is here}}
+    AttrExternalNotDefined();
+  });
+}
+
+[[intel::sub_group_size(4)]] void AttrFunc2(){}
+[[intel::sub_group_size(4)]] SYCL_EXTERNAL void AttrExternalDefined2() {}
+[[intel::sub_group_size(4)]] SYCL_EXTERNAL void AttrExternalNotDefined2();
+
+void calls_kernel_4() {
+  sycl::kernel_single_task<class Kernel4>([]() {
+    AttrFunc2();
+    AttrExternalDefined2();
+    // expected-error@#NoAttrExternalNotDefined{{undefined 'SYCL_EXTERNAL' function must have a sub group size that matches the size specified for the kernel}}
+    // expected-note@-4{{conflicting attribute is here}}
+    AttrExternalNotDefined2();
+  });
+}
 // Func w attr called from kernel, kernel has attr.
 // first matches default.
 // kernel matches default

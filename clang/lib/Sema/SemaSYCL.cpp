@@ -3476,7 +3476,15 @@ static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
 // on subsequent functions.
 static void
 CheckSYCL2020Attributes(Sema &S, FunctionDecl *SYCLKernel,
+                        FunctionDecl *KernelBody,
                         llvm::SmallPtrSetImpl<FunctionDecl *> &CalledFuncs) {
+
+  // SYCL_EXTERNAL functions don't have a body, but also include themselves in
+  // the call graph, so correct KernelBody and remove 'self' from the list.
+  if (!KernelBody) {
+    KernelBody = SYCLKernel;
+    CalledFuncs.erase(KernelBody);
+  }
 
   for (auto *FD : CalledFuncs) {
     for (auto *Attr : FD->attrs()) {
@@ -3538,7 +3546,9 @@ void Sema::MarkDevice(void) {
       FunctionDecl *KernelBody =
           Marker.CollectPossibleKernelAttributes(SYCLKernel, Attrs);
 
-      CheckSYCL2020Attributes(*this, KernelBody, Marker.KernelSet);
+      // Check the list of implemented SYCL2020 attributes, which have different
+      // rules for propogation.
+      CheckSYCL2020Attributes(*this, SYCLKernel, KernelBody, Marker.KernelSet);
 
       for (auto *A : Attrs) {
         switch (A->getKind()) {
