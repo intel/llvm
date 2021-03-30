@@ -88,15 +88,15 @@ std::vector<std::vector<char>> PersistentCache::getPIProgramFromDisc(
            PI_DEVICE_BINARY_TYPE_SPIRV))
     return {};
 
-  std::string Path{
-      getCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString)};
+  std::string Path =
+      getCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString);
 
   if (!OSUtil::isPathPresent(Path))
     return {};
 
   int i = 0;
   std::string FileName{Path + "/" + std::to_string(i)};
-  while (OSUtil::isPathPresent(FileName + ".bin") &&
+  while (OSUtil::isPathPresent(FileName + ".bin") ||
          OSUtil::isPathPresent(FileName + ".src")) {
     if (isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
                             BuildOptionsString)) {
@@ -104,7 +104,6 @@ std::vector<std::vector<char>> PersistentCache::getPIProgramFromDisc(
     }
     FileName = Path + "/" + std::to_string(++i);
   }
-
   return {};
 }
 
@@ -139,15 +138,15 @@ void PersistentCache::writeCacheItemBin(
  */
 std::vector<std::vector<char>>
 PersistentCache::readCacheItem(const std::string &FileName) {
-  std::vector<std::vector<char>> Res;
   std::ifstream FileStream{FileName, std::ios::binary};
   size_t ImgNum, ImgSize;
   FileStream.read((char *)&ImgNum, sizeof(ImgNum));
-  Res.resize(ImgNum);
+  std::vector<std::vector<char>> Res(ImgNum);
   for (size_t i = 0; i < ImgNum; ++i) {
     FileStream.read((char *)&ImgSize, sizeof(ImgSize));
-    Res[i].resize(ImgSize);
-    FileStream.read(Res[i].data(), ImgSize);
+    std::vector<char> ImgData(ImgSize);
+    FileStream.read(ImgData.data(), ImgSize);
+    Res[i] = std::move(ImgData);
   }
 
   return Res;

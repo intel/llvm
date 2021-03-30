@@ -2,6 +2,24 @@
 
 #include <thread>
 #include <vector>
+class Barrier {
+public:
+  Barrier() = delete;
+  explicit Barrier(std::size_t count) : threadNum(count) {}
+  void wait() {
+    std::unique_lock<std::mutex> lock(mutex);
+    if (--threadNum == 0) {
+      cv.notify_all();
+    } else {
+      cv.wait(lock, [this] { return threadNum == 0; });
+    }
+  }
+
+private:
+  std::mutex mutex;
+  std::condition_variable cv;
+  std::size_t threadNum;
+};
 
 class ThreadPool {
 public:

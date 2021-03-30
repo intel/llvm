@@ -12,13 +12,45 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
+#include <fcntl.h>
 #include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+/* This is temporary solution until std::filesystem is available when SYCL RT
+ * is moved to c++17 standard*/
+/*class LockCacheItem {
+  const std::string FileName;
+
+public:
+  LockCacheItem(const std::string &DirName) : FileName(DirName + ".lock") {
+    int fd;
+    while ((fd = open(FileName.c_str(), O_CREAT | O_EXCL, S_IWRITE)) == -1) {
+      std::this_thread::yield();
+    }
+    close(fd);
+  }
+  ~LockCacheItem() { std::remove(FileName.c_str()); }
+};
+bool lockCacheDir(const std::string &DirName) {
+  int fd = open((DirName+".lock").c_str(), O_CREAT | O_EXCL, S_IWRITE);
+  if(fd!=-1){
+    close(fd);
+    return true;
+  }
+  return false;
+}
+void unlockCacheDir(const std::string &DirName) {
+  std::remove(DirName+".lock");
+}*/
+
 class PersistentCache {
+
   /* Form string representing device version */
   static std::string getDeviceString(const device &Device);
   /* Write built binary to persistent cache

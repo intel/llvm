@@ -309,10 +309,10 @@ int OSUtil::makeDir(const char *Dir) {
 
   free(CurDir);
 
-#if defined(__SYCL_RT_OS_WINDOWS)
-  return _mkdir(Dir);
-#else
+#if defined(__SYCL_RT_OS_LINUX)
   return mkdir(Dir, 0777);
+#else
+  return _mkdir(Dir);
 #endif
 }
 
