@@ -59,8 +59,11 @@ entry:
   %c.ascast.i = addrspacecast %struct._ZTS1A.A* %c.i to %struct._ZTS1A.A addrspace(4)*
   %3 = bitcast %struct._ZTS1A.A* %c.i to i8*
   call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %3) #3
-  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI13MyComposConstET_PKcPvS4_(%struct._ZTS1A.A addrspace(4)* sret(%struct._ZTS1A.A) align 4 %c.ascast.i, i8 addrspace(4)* getelementptr inbounds ([20 x i8], [20 x i8] addrspace(4)* addrspacecast ([20 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI13MyComposConstE3getIS4_EENSt9enable_ifIXaasr3std8is_classIT_EE5valuesr3std6is_podIS9_EE5valueES9_E4typeEv to [20 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* null, i8 addrspace(4)* null) #4
-; CHECK: %[[GEP:[0-9a-z]+]] = getelementptr i8, i8 addrspace(4)* null, i32 0
+  %a.i.i = alloca i32, align 4
+  %bc = bitcast i32* %a.i.i to i8*
+  %tmp = addrspacecast i8* %bc to i8 addrspace(4)*
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI13MyComposConstET_PKcPvS4_(%struct._ZTS1A.A addrspace(4)* sret(%struct._ZTS1A.A) align 4 %c.ascast.i, i8 addrspace(4)* getelementptr inbounds ([20 x i8], [20 x i8] addrspace(4)* addrspacecast ([20 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI13MyComposConstE3getIS4_EENSt9enable_ifIXaasr3std8is_classIT_EE5valuesr3std6is_podIS9_EE5valueES9_E4typeEv to [20 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* null, i8 addrspace(4)* %tmp) #4
+; CHECK: %[[GEP:[0-9a-z]+]] = getelementptr i8, i8 addrspace(4)* %tmp, i32 0
 ; CHECK: %[[BITCAST:[0-9a-z]+]] = bitcast i8 addrspace(4)* %[[GEP]] to %struct._ZTS1A.A addrspace(4)*
 ; CHECK: %[[LOAD:[0-9a-z]+]] = load %struct._ZTS1A.A, %struct._ZTS1A.A addrspace(4)* %[[BITCAST]], align 4
 ; CHECK: store %struct._ZTS1A.A %[[LOAD]], %struct._ZTS1A.A {{.*}}* %[[CAST1]]

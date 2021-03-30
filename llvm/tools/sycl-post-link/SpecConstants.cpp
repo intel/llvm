@@ -426,7 +426,7 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
   unsigned NextID = 0;
-  unsigned Offset = 0;
+  unsigned NextOffset = 0;
   StringMap<SmallVector<unsigned, 1>> IDMap;
   StringMap<unsigned> OffsetMap;
 
@@ -525,7 +525,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       } else {
         // 2a. Spec constant must be resolved at compile time - replace the
         // intrinsic with the actual value for spec constant.
-
+        Value *Val = nullptr;
         bool Is2020Intrinsic =
             F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
             F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
@@ -541,7 +541,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // Add the string literal to a "spec const string literal ID" ->
           // "offset" map, uniquing the integer offsets if this is new
           // literal.
-          auto Ins = OffsetMap.insert(std::make_pair(SymID, Offset));
+          auto Ins = OffsetMap.insert(std::make_pair(SymID, NextOffset));
           bool IsNewSpecConstant = Ins.second;
           auto CurrentOffset = Ins.first->second;
           if (IsNewSpecConstant) {
@@ -555,46 +555,35 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
                   CI->getArgOperand(0)->getType()->getPointerElementType());
               const StructLayout *SL =
                   M.getDataLayout().getStructLayout(StructTy);
-              Offset += SL->getSizeInBytes();
+              NextOffset += SL->getSizeInBytes();
             } else
-              Offset += SCTy->getScalarSizeInBits() / __CHAR_BIT__;
+              NextOffset += SCTy->getScalarSizeInBits() / CHAR_BIT;
           }
 
           Type *Int8Ty = Type::getInt8Ty(CI->getContext());
           Type *Int32Ty = Type::getInt32Ty(CI->getContext());
           GetElementPtrInst *GEP = GetElementPtrInst::Create(
               Int8Ty, RTBuffer,
-              {ConstantInt::get(Int32Ty, CurrentOffset, false)}, "gep",
-              CI->getNextNode());
+              {ConstantInt::get(Int32Ty, CurrentOffset, false)}, "gep", CI);
 
           BitCastInst *BitCast = new BitCastInst(
-              GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc",
-              GEP->getNextNode());
+              GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc", CI);
 
-          LoadInst *Load =
-              new LoadInst(SCTy, BitCast, "load", BitCast->getNextNode());
-
-          if (IsComposite) {
-            // __sycl_getCompositeSpecConstant returns through argument, so, the
-            // only thing we need to do here is to store into a memory pointed
-            // by that argument
-            new StoreInst(Load, CI->getArgOperand(0), Load->getNextNode());
-          } else {
-            CI->replaceAllUsesWith(Load);
-          }
+          LoadInst *Load = new LoadInst(SCTy, BitCast, "load", CI);
+          Val = Load;
         } else {
           // Replace the intrinsic with default C++ value for the spec constant
           // type.
-          Value *Default = getDefaultCPPValue(SCTy);
+          Val = getDefaultCPPValue(SCTy);
+        }
           if (IsComposite) {
             // __sycl_getCompositeSpecConstant returns through argument, so, the
             // only thing we need to do here is to store into a memory pointed
             // by that argument
-            new StoreInst(Default, CI->getArgOperand(0), CI);
+            new StoreInst(Val, CI->getArgOperand(0), CI);
           } else {
-            CI->replaceAllUsesWith(Default);
+            CI->replaceAllUsesWith(Val);
           }
-        }
       }
 
       for (auto *I : DelInsts) {
