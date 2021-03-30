@@ -6,7 +6,7 @@
 
 // ERROR: error: unknown argument: '-fsycl'
 
-// Test that you cannot specify -fscyl-is-device and -fsycl-is-host at the same time.
+// Test that you cannot specify -fsycl-is-device and -fsycl-is-host at the same time.
 // RUN: not %clang_cc1 -fsycl-is-device -fsycl-is-host %s 2>&1 | FileCheck --check-prefix=ERROR-BOTH %s
 // RUN: not %clang_cc1 -fsycl-is-host -fsycl-is-device %s 2>&1 | FileCheck --check-prefix=ERROR-BOTH %s
 

@@ -34,6 +34,41 @@ def LinalgContractionOpInterface : OpInterface<"ContractionOpInterface"> {
   }];
   let cppNamespace = "::mlir::linalg";
   let verify = [{ return detail::verifyContractionInterface($_op); }];
+  let methods = [
+    InterfaceMethod<
+    /*desc=*/[{
+      Returns whether the given op has indexing maps that correspond to a
+      row-major matmul operation.
+    }],
+    /*retTy=*/"bool",
+    /*methodName=*/"isRowMajorMatmul",
+    /*args=*/(ins),
+    /*methodBody=*/[{
+        return mlir::isRowMajorMatmul($_op.indexing_maps());
+    }]>,
+    InterfaceMethod<
+    /*desc=*/[{
+      Returns whether the given op has indexing maps that correspond to a
+      column-major matmul operation.
+    }],
+    /*retTy=*/"bool",
+    /*methodName=*/"isColumnMajorMatmul",
+    /*args=*/(ins),
+    /*methodBody=*/[{
+        return mlir::isColumnMajorMatmul($_op.indexing_maps());
+    }]>,
+    InterfaceMethod<
+    /*desc=*/[{
+      Returns whether the given op has indexing maps that correspond to a
+      row-major batch matmul operation.
+    }],
+    /*retTy=*/"bool",
+    /*methodName=*/"isRowMajorBatchMatmul",
+    /*args=*/(ins),
+    /*methodBody=*/[{
+        return mlir::isRowMajorBatchMatmul($_op.indexing_maps());
+    }]>,
+  ];
 }
 
 // The 'LinalgStructuredInterface' provides access to the 'LinalgOp' interface.
@@ -644,6 +679,22 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
+        Return true if `opOperand` is an output tensor.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isOutputTensor",
+      /*args=*/(ins "OpOperand *":$opOperand),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        if (!opOperand->get().getType().template isa<RankedTensorType>())
+          return false;
+        if (opOperand->getOperandNumber() >= $_op.getNumInputs())
+          return true;
+        return false;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return true if `opOperand` is an init tensor. This is true when it is
         an output tensor operand whose value is used in the payload region.
       }],
@@ -652,9 +703,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*args=*/(ins "OpOperand *":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        if (!opOperand->get().getType().template isa<RankedTensorType>())
-          return false;
-        if (opOperand->getOperandNumber() < $_op.getNumInputs())
+        if (!$_op.isOutputTensor(opOperand))
           return false;
         return payloadUsesValueFromOpOperand(opOperand);
       }]
@@ -1052,6 +1101,44 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
             getNumInputs() + resultIdx, dim);
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Like `getShape`, but only returns statically-known information, without
+        generating any new IR. For each shape dimension, returns >=0 if that
+        dimension is statically known, or ShapeType::kDynamicSize otherwise.
+      }],
+      /*retTy=*/"SmallVector<int64_t, 8>",
+      /*methodName=*/"getStaticShape",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        SmallVector<int64_t, 8> res;
+        for (Value v : getShapedOperands()) {
+          auto shape = v.getType().cast<ShapedType>().getShape();
+          res.append(shape.begin(), shape.end());
+        }
+        return res;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Returns the statically-known loop ranges. Composes
+        `getShapesToLoopsMap()` with the result of `getStaticShape`.
+        Returns None if `getShapesToLoopsMap()` fails. Returns
+        ShapeType::kDynamicSize for non-statically-known loop ranges.
+      }],
+      /*retTy=*/"Optional<SmallVector<int64_t, 4>>",
+      /*methodName=*/"getStaticLoopRanges",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        SmallVector<int64_t, 8> viewSizes = getStaticShape();
+        AffineMap invertedMap = getShapesToLoopsMap();
+        if (!invertedMap)
+          return {};
+        return invertedMap.compose(viewSizes);
+      }]
+    >,
 
     //===------------------------------------------------------------------===//
     // Other static interface methods.
@@ -1069,6 +1156,27 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
            "ValueRange":$operands),
       [{
         BlockAndValueMapping bvm;
+        OperationState state(
+          loc, ConcreteOp::getOperationName(), operands, resultTypes,
+          $_op->getAttrs());
+        for (Region &r : $_op->getRegions())
+          r.cloneInto(state.addRegion(), bvm);
+        return b.createOperation(state);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Clone the current operation with the given location, operands
+        and BlockAndValueMapping. This is used to abstract away the
+        optional underlying region creation. This does not change the
+        balance between input, output_buffer and init_tensors
+        operands.
+      }],
+      /*retTy=*/"Operation *",
+      /*methodName=*/"cloneWithMapper",
+      (ins "OpBuilder &":$b, "Location":$loc, "TypeRange":$resultTypes,
+           "ValueRange":$operands, "BlockAndValueMapping &":$bvm),
+      [{
         OperationState state(
           loc, ConcreteOp::getOperationName(), operands, resultTypes,
           $_op->getAttrs());

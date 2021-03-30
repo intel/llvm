@@ -489,6 +489,9 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   // sense that it's not weighted by profile counts at all.
   int ColdSize = 0;
 
+  // Whether inlining is decided by cost-benefit analysis.
+  bool DecidedByCostBenefit = false;
+
   bool SingleBB = true;
 
   unsigned SROACostSavings = 0;
@@ -825,6 +828,7 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
       Threshold -= VectorBonus / 2;
 
     if (auto Result = costBenefitAnalysis()) {
+      DecidedByCostBenefit = true;
       if (Result.getValue())
         return InlineResult::success();
       else
@@ -926,6 +930,7 @@ public:
   virtual ~InlineCostCallAnalyzer() {}
   int getThreshold() { return Threshold; }
   int getCost() { return Cost; }
+  bool wasDecidedByCostBenefit() { return DecidedByCostBenefit; }
 };
 } // namespace
 
@@ -1577,10 +1582,11 @@ void InlineCostCallAnalyzer::updateThreshold(CallBase &Call, Function &Callee) {
     }
   }
 
+  Threshold += TTI.adjustInliningThreshold(&Call);
+
   // Finally, take the target-specific inlining threshold multiplier into
   // account.
   Threshold *= TTI.getInliningThresholdMultiplier();
-  Threshold += TTI.adjustInliningThreshold(&Call);
 
   SingleBBBonus = Threshold * SingleBBBonusPercent / 100;
   VectorBonus = Threshold * VectorBonusPercent / 100;
@@ -2607,6 +2613,16 @@ InlineCost llvm::getInlineCost(
   InlineResult ShouldInline = CA.analyze();
 
   LLVM_DEBUG(CA.dump());
+
+  // Always make cost benefit based decision explicit.
+  // We use always/never here since threshold is not meaningful,
+  // as it's not what drives cost-benefit analysis.
+  if (CA.wasDecidedByCostBenefit()) {
+    if (ShouldInline.isSuccess())
+      return InlineCost::getAlways("benefit over cost");
+    else
+      return InlineCost::getNever("cost over benefit");
+  }
 
   // Check if there was a reason to force inlining or no inlining.
   if (!ShouldInline.isSuccess() && CA.getCost() < CA.getThreshold())
