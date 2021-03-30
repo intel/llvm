@@ -335,7 +335,7 @@ struct _pi_queue : _pi_object {
   // this queue. this is used to add dependency with the last command to add
   // in-order semantics and updated with the latest event each time a new
   // command is enqueued.
-  pi_event LastCommandEvent;
+  pi_event LastCommandEvent = nullptr;
 
   // Open command list field for batching commands into this queue.
   ze_command_list_handle_t ZeOpenCommandList = {nullptr};

@@ -925,7 +925,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   this->PiEventList = nullptr;
 
   try {
-    if (CurQueue->isInOrderQueue()) {
+    if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
     } else if (EventListLength > 0) {
@@ -972,7 +972,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     // For in-order queues, every command should be executed once after the
     // previous command has finished. The event associated with the last
     // enqued command is added into the waitlist to ensure in-order semantics.
-    if (CurQueue->isInOrderQueue()) {
+    if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
       TmpListLength += 1;
@@ -4815,7 +4815,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   // For integrated devices the buffer has been allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
-    if (Queue->isInOrderQueue()) {
+    if (Queue->isInOrderQueue() && Queue->LastCommandEvent != nullptr) {
       PI_CALL(piEventsWait(1, &(Queue->LastCommandEvent)));
 
       // Lock automatically releases when this goes out of scope.
@@ -4933,7 +4933,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // For integrated devices the buffer is allocated in host memory.
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
-    if (Queue->isInOrderQueue()) {
+    if (Queue->isInOrderQueue() && Queue->LastCommandEvent != nullptr) {
       PI_CALL(piEventsWait(1, &(Queue->LastCommandEvent)));
 
       // Lock automatically releases when this goes out of scope.
