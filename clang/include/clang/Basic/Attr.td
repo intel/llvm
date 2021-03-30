@@ -1433,15 +1433,12 @@ def IntelReqdSubGroupSize: InheritableAttr {
 
 def IntelNamedSubGroupSize : InheritableAttr {
   let Spellings = [CXX11<"intel", "named_sub_group_size">];
-  let Args = [IdentifierArgument<"Type">];
+  let Args = [EnumArgument<"Type", "SubGroupSizeType", ["automatic", "primary"],
+                           ["Auto", "Primary"]>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelNamedSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let SupportsNonconformingLambdaSyntax = 1;
-  let AdditionalMembers = [{
-    bool isPrimary() const { return getType()->isStr("primary"); }
-    bool isAuto() const { return getType()->isStr("auto"); }
-}];
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for

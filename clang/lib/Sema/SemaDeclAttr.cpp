@@ -3253,6 +3253,11 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
 IntelReqdSubGroupSizeAttr *
 Sema::MergeIntelReqdSubGroupSizeAttr(Decl *D,
                                      const IntelReqdSubGroupSizeAttr &A) {
+  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(*this, D, A))
+    return nullptr;
+  if (checkAttrMutualExclusion<SYCLSimdAttr>(*this, D, A))
+    return nullptr;
+
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<IntelReqdSubGroupSizeAttr>()) {
@@ -3274,6 +3279,27 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
   S.AddIntelReqdSubGroupSize(D, AL, E);
 }
 
+IntelNamedSubGroupSizeAttr *
+Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
+                                      const IntelNamedSubGroupSizeAttr &A) {
+  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(*this, D, A))
+    return nullptr;
+  if (checkAttrMutualExclusion<SYCLSimdAttr>(*this, D, A))
+    return nullptr;
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelNamedSubGroupSizeAttr>()) {
+    if (DeclAttr->getType() != A.getType()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+
+  return IntelNamedSubGroupSizeAttr::Create(Context, A.getType(), A);
+}
+
 static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
                                          const ParsedAttr &AL) {
   if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(S, D, AL))
@@ -3287,13 +3313,15 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
     return;
   }
 
+  IntelNamedSubGroupSizeAttr::SubGroupSizeType SizeType;
   IdentifierLoc *IL = AL.getArgAsIdent(0);
-  if (!IL->Ident->isStr("auto") && !IL->Ident->isStr("primary")) {
+  if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(
+          IL->Ident->getName(), SizeType)) {
     S.Diag(IL->Loc, diag::warn_attribute_type_not_supported) << AL << IL->Ident;
     return;
   }
 
-  D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, IL->Ident, AL));
+  D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
 }
 
 void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,

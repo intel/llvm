@@ -3417,7 +3417,7 @@ CalcEffectiveSubGroup(ASTContext &Ctx, const LangOptions &LO,
   }
 
   if (const auto *A = FD->getAttr<IntelNamedSubGroupSizeAttr>()) {
-    if (A->isPrimary())
+    if (A->getType() == IntelNamedSubGroupSizeAttr::Primary)
       return {LangOptions::SubGroupSizeType::Primary, 0};
     return {LangOptions::SubGroupSizeType::Auto, 0};
   }

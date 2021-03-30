@@ -3733,7 +3733,7 @@ bool CompilerInvocation::ParseLangArgsImpl(LangOptions &Opts, ArgList &Args,
     StringRef Value = A->getValue();
     Opts.setDefaultSubGroupSizeType(
         llvm::StringSwitch<LangOptions::SubGroupSizeType>(Value)
-            .Case("auto", LangOptions::SubGroupSizeType::Auto)
+            .Case("automatic", LangOptions::SubGroupSizeType::Auto)
             .Case("primary", LangOptions::SubGroupSizeType::Primary)
             .Default(LangOptions::SubGroupSizeType::Integer));
 

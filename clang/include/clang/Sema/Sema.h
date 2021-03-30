@@ -10211,6 +10211,8 @@ public:
                                 Expr *E);
   IntelReqdSubGroupSizeAttr *
   MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
+  IntelNamedSubGroupSizeAttr *
+  MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
   void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E);
   SYCLIntelNumSimdWorkItemsAttr *

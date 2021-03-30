@@ -4254,9 +4254,11 @@ The [[intel::reqd_sub_group_size(n)]] attribute indicates that the kernel must
 be compiled and executed with a sub-group of size n. The value of n must be set
 to a sub-group size supported by the device, or device compilation will fail.
 
-The ``[[intel::sub_group_size(n)]]`` attribute has the same affect as the other
-forms of this, except it follows the SYCL 2020 Attribute Rules. See the
-``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
+The ``[[intel::sub_group_size(n)]]`` attribute has the same effect as the other
+attribute spellings, except that it follows the SYCL 2020 Attribute Rules. See
+ the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
+
+This attribute is mutually exclusive with ``[[intel::named_sub_group_size(NAME)]]``.
 
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
@@ -4284,24 +4286,25 @@ See Sub-groups for NDRange Parallelism proposal in sycl/doc/extensions/sub_group
 def IntelNamedSubGroupSizeDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-The ``[[intel::named_sub_group_size(NAME)]]`` attribute works with the
-``[[intel::sub_group_size(N)]]`` attribute to define the specific subgroup size
-for the kernel. The ``[[intel::named_sub_group_size(NAME)]]`` form accepts a
-required parameter of either ``auto`` or ``primary``.
+The ``[[intel::named_sub_group_size(NAME)]]`` attribute works similar to
+``[[intel::sub_group_size(N)]]`` attribute in that it defines the specific
+subgroup size for the kernel. The ``[[intel::named_sub_group_size(NAME)]]`` form
+accepts a required parameter of either ``automatic`` or ``primary``.
 
-``auto`` specifies that the implementation is free to select any of the valid
-sub-group sizes associated with the device to which the kernel is submitted.
-``primary`` specifies that the implementation should select the device's primary
-sub-group size as reported by ``info::device::primary_sub_group_size``.
+``automatic`` specifies that the implementation is free to select any of the
+valid sub-group sizes associated with the device to which the kernel is
+submitted.  ``primary`` specifies that the implementation should select the
+device's primary sub-group size as reported by
+``info::device::primary_sub_group_size``.
 
 This attribute may not be combined with ``[[intel::sub_group_size(N)]]``, as
 the two attributes have different meanings.
 
 In addition to the attributes, a default sub-group size strategy may be
-specified by the command line parameter ``-fsycl-default-sub-group-size`` flag,
-which accepts either ``auto``, ``primary``, or a default size as an integer.
-These values match and have the same behavior as the ``auto``, ``primary``, and
-``[[intel::sub_group_size(N)]]`` values respectively.
+specified by the ``-fsycl-default-sub-group-size`` command line option, which
+accepts either ``automatic``, ``primary``, or a default size as an integer.
+These values match and have the same behavior as the ``automatic``, ``primary``,
+and ``[[intel::sub_group_size(N)]]`` values respectively.
 
 SYCL 2020 Attribute Rules:
 SYCL 2020 specifies that kernel-type attributes should only be specified on the
@@ -4317,7 +4320,6 @@ In addition to the SYCL 2020 Attribute Rules, this attribute and the
 matching sub-group size specification, so ``SYCL_EXTERNAL`` functions not
 defined in this translation unit must also have a matching sub-group
 specification to the kernel function that calls it.
-:xa
 }];
 }
 
