@@ -2622,6 +2622,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeIntelReqdSubGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<IntelNamedSubGroupSizeAttr>(Attr))
     NewAttr = S.MergeIntelNamedSubGroupSizeAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLSimdAttr>(Attr))
+    NewAttr = S.MergeSYCLSimdAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(Attr))
     NewAttr = S.MergeSYCLIntelNumSimdWorkItemsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(Attr))

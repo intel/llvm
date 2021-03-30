@@ -10213,6 +10213,7 @@ public:
   MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
   IntelNamedSubGroupSizeAttr *
   MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
+  SYCLSimdAttr *MergeSYCLSimdAttr(Decl *D, const SYCLSimdAttr &A);
   void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E);
   SYCLIntelNumSimdWorkItemsAttr *

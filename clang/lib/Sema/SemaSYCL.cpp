@@ -3521,10 +3521,14 @@ void Sema::MarkDevice(void) {
     }
   }
 
+
+  llvm::SmallPtrSet<FunctionDecl *, 10> AllKernelSets;
   for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {
       llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
+      Marker.KernelSet.clear();
       Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
+      AllKernelSets.insert(Marker.KernelSet.begin(), Marker.KernelSet.end());
 
       // Let's propagate attributes from device functions to a SYCL kernels
       llvm::SmallVector<Attr *, 4> Attrs;
@@ -3534,7 +3538,7 @@ void Sema::MarkDevice(void) {
       FunctionDecl *KernelBody =
           Marker.CollectPossibleKernelAttributes(SYCLKernel, Attrs);
 
-      CheckSYCL2020Attributes(*this, SYCLKernel, VisitedSet);
+      CheckSYCL2020Attributes(*this, KernelBody, Marker.KernelSet);
 
       for (auto *A : Attrs) {
         switch (A->getKind()) {
@@ -3652,7 +3656,7 @@ void Sema::MarkDevice(void) {
       }
     }
   }
-  for (const auto &elt : Marker.KernelSet) {
+  for (const auto &elt : AllKernelSets) {
     if (FunctionDecl *Def = elt->getDefinition())
       Marker.TraverseStmt(Def->getBody());
   }

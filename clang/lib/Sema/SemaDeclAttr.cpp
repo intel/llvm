@@ -3279,6 +3279,7 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
   S.AddIntelReqdSubGroupSize(D, AL, E);
 }
 
+
 IntelNamedSubGroupSizeAttr *
 Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
                                       const IntelNamedSubGroupSizeAttr &A) {
@@ -3322,6 +3323,25 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
   }
 
   D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
+}
+
+SYCLSimdAttr *Sema::MergeSYCLSimdAttr(Decl *D, const SYCLSimdAttr &A) {
+  if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(*this, D, A))
+    return nullptr;
+  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(*this, D, A))
+    return nullptr;
+
+  return A.clone(Context);
+}
+
+static void handleSYCLSimdAttr(Sema &S, Decl *D,
+                                         const ParsedAttr &AL) {
+  if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(S, D, AL))
+    return;
+  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(S, D, AL))
+    return;
+
+  handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
 }
 
 void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
@@ -9145,7 +9165,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleSYCLKernelAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLSimd:
-    handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
+    handleSYCLSimdAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);

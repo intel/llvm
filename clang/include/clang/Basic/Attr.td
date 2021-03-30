@@ -1424,11 +1424,8 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let SupportsNonconformingLambdaSyntax = 1;
-  let AdditionalMembers = [{
-    bool isSYCL2020Spelling() const {
-      return getSemanticSpelling() == CXX11_intel_sub_group_size;
-    }
-  }];
+  let Accessors =
+      [Accessor<"isSYCL2020Spelling", [CXX11<"intel", "sub_group_size">]>];
 }
 
 def IntelNamedSubGroupSize : InheritableAttr {
