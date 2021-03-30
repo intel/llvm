@@ -321,12 +321,12 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
 
   llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
     // FIXME: Make this list self-adapt as new SYCL attributes are added.
-        return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-                   ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-                   SYCLIntelNumSimdWorkItemsAttr,
-                   SYCLIntelSchedulerTargetFmaxMhzAttr,
-                   SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-                   SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
+    return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
+               ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
+               SYCLIntelNumSimdWorkItemsAttr,
+               SYCLIntelSchedulerTargetFmaxMhzAttr,
+               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
   });
 
   // Allow the kernel attribute "use_stall_enable_clusters" only on lambda

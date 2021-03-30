@@ -3282,8 +3282,7 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
     return;
 
   if (!AL.isArgIdent(0)) {
-    S.Diag(AL.getArgAsExpr(0)->getBeginLoc(),
-           diag::err_attribute_argument_type)
+    S.Diag(AL.getArgAsExpr(0)->getBeginLoc(), diag::err_attribute_argument_type)
         << AL << AANT_ArgumentIdentifier;
     return;
   }
