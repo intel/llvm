@@ -565,6 +565,24 @@ public:
         }
       }
 
+      // Attribute "disable_loop_pipelining" can be applied explicitly on
+      // kernel function. Attribute should not be propagated from device
+      // functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelFPGADisableLoopPipeliningAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+      }
+
+      // Attribute "initiation_interval" can be applied explicitly on
+      // kernel function. Attribute should not be propagated from device
+      // functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+      }
+
       // TODO: vec_len_hint should be handled here
 
       CallGraphNode *N = SYCLCG.getNode(FD);
@@ -3517,6 +3535,8 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLIntelUseStallEnableClusters:
         case attr::Kind::SYCLIntelLoopFuse:
+        case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
+        case attr::Kind::SYCLIntelFPGAInitiationInterval:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {

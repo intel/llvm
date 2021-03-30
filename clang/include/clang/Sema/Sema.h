@@ -10241,6 +10241,13 @@ public:
   IntelFPGAForcePow2DepthAttr *
   MergeIntelFPGAForcePow2DepthAttr(Decl *D,
                                    const IntelFPGAForcePow2DepthAttr &A);
+  void AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
+		                              const AttributeCommonInfo &CI,
+                                              Expr *E);
+  SYCLIntelFPGAInitiationIntervalAttr *
+  MergeSYCLIntelFPGAInitiationIntervalAttr(
+		                  Decl *D,
+                                  const SYCLIntelFPGAInitiationIntervalAttr &A);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
