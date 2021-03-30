@@ -40,12 +40,13 @@ static Timer icfTimer("ICF", Timer::root());
 
 class ICF {
 public:
+  ICF(ICFLevel icfLevel) : icfLevel(icfLevel){};
   void run(ArrayRef<Chunk *> v);
 
 private:
   void segregate(size_t begin, size_t end, bool constant);
 
-  bool assocEquals(const SectionChunk *a, const SectionChunk *b);
+  bool equalsEHData(const SectionChunk *a, const SectionChunk *b);
 
   bool equalsConstant(const SectionChunk *a, const SectionChunk *b);
   bool equalsVariable(const SectionChunk *a, const SectionChunk *b);
@@ -62,6 +63,7 @@ private:
   std::vector<SectionChunk *> chunks;
   int cnt = 0;
   std::atomic<bool> repeat = {false};
+  ICFLevel icfLevel = ICFLevel::All;
 };
 
 // Returns true if section S is subject of ICF.
@@ -81,8 +83,9 @@ bool ICF::isEligible(SectionChunk *c) {
   if (!c->isCOMDAT() || !c->live || writable)
     return false;
 
-  // Code sections are eligible.
-  if (c->getOutputCharacteristics() & llvm::COFF::IMAGE_SCN_MEM_EXECUTE)
+  // Under regular (not safe) ICF, all code sections are eligible.
+  if ((icfLevel == ICFLevel::All) &&
+      c->getOutputCharacteristics() & llvm::COFF::IMAGE_SCN_MEM_EXECUTE)
     return true;
 
   // .pdata and .xdata unwind info sections are eligible.
@@ -124,21 +127,31 @@ void ICF::segregate(size_t begin, size_t end, bool constant) {
   }
 }
 
-// Returns true if two sections' associative children are equal.
-bool ICF::assocEquals(const SectionChunk *a, const SectionChunk *b) {
-  // Ignore associated metadata sections that don't participate in ICF, such as
-  // debug info and CFGuard metadata.
-  auto considerForICF = [](const SectionChunk &assoc) {
-    StringRef Name = assoc.getSectionName();
-    return !(Name.startswith(".debug") || Name == ".gfids$y" ||
-             Name == ".giats$y" || Name == ".gljmp$y");
+// Returns true if two sections have equivalent associated .pdata/.xdata
+// sections.
+bool ICF::equalsEHData(const SectionChunk *a, const SectionChunk *b) {
+  auto findEHData = [](const SectionChunk *s) {
+    const SectionChunk *pdata = nullptr;
+    const SectionChunk *xdata = nullptr;
+    for (const SectionChunk &assoc : s->children()) {
+      StringRef name = assoc.getSectionName();
+      if (name.startswith(".pdata") && (name.size() == 6 || name[6] == '$'))
+        pdata = &assoc;
+      else if (name.startswith(".xdata") &&
+               (name.size() == 6 || name[6] == '$'))
+        xdata = &assoc;
+    }
+    return std::make_pair(pdata, xdata);
   };
-  auto ra = make_filter_range(a->children(), considerForICF);
-  auto rb = make_filter_range(b->children(), considerForICF);
-  return std::equal(ra.begin(), ra.end(), rb.begin(), rb.end(),
-                    [&](const SectionChunk &ia, const SectionChunk &ib) {
-                      return ia.eqClass[cnt % 2] == ib.eqClass[cnt % 2];
-                    });
+  auto aData = findEHData(a);
+  auto bData = findEHData(b);
+  auto considerEqual = [cnt = cnt](const SectionChunk *l,
+                                   const SectionChunk *r) {
+    return l == r || (l->getContents() == r->getContents() &&
+                      l->eqClass[cnt % 2] == r->eqClass[cnt % 2]);
+  };
+  return considerEqual(aData.first, bData.first) &&
+         considerEqual(aData.second, bData.second);
 }
 
 // Compare "non-moving" part of two sections, namely everything
@@ -172,7 +185,7 @@ bool ICF::equalsConstant(const SectionChunk *a, const SectionChunk *b) {
          a->getSectionName() == b->getSectionName() &&
          a->header->SizeOfRawData == b->header->SizeOfRawData &&
          a->checksum == b->checksum && a->getContents() == b->getContents() &&
-         assocEquals(a, b);
+         equalsEHData(a, b);
 }
 
 // Compare "moving" part of two sections, namely relocation targets.
@@ -190,7 +203,7 @@ bool ICF::equalsVariable(const SectionChunk *a, const SectionChunk *b) {
   };
   return std::equal(a->getRelocs().begin(), a->getRelocs().end(),
                     b->getRelocs().begin(), eq) &&
-         assocEquals(a, b);
+         equalsEHData(a, b);
 }
 
 // Find the first Chunk after Begin that has a different class from Begin.
@@ -314,7 +327,9 @@ void ICF::run(ArrayRef<Chunk *> vec) {
 }
 
 // Entry point to ICF.
-void doICF(ArrayRef<Chunk *> chunks) { ICF().run(chunks); }
+void doICF(ArrayRef<Chunk *> chunks, ICFLevel icfLevel) {
+  ICF(icfLevel).run(chunks);
+}
 
 } // namespace coff
 } // namespace lld

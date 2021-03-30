@@ -472,8 +472,16 @@ std::string ToolChain::getCompilerRTPath() const {
 }
 
 std::string ToolChain::getCompilerRTBasename(const ArgList &Args,
-                                             StringRef Component, FileType Type,
-                                             bool AddArch) const {
+                                             StringRef Component,
+                                             FileType Type) const {
+  std::string CRTAbsolutePath = getCompilerRT(Args, Component, Type);
+  return llvm::sys::path::filename(CRTAbsolutePath).str();
+}
+
+std::string ToolChain::buildCompilerRTBasename(const llvm::opt::ArgList &Args,
+                                               StringRef Component,
+                                               FileType Type,
+                                               bool AddArch) const {
   const llvm::Triple &TT = getTriple();
   bool IsITANMSVCWindows =
       TT.isWindowsMSVCEnvironment() || TT.isWindowsItaniumEnvironment();
@@ -489,8 +497,8 @@ std::string ToolChain::getCompilerRTBasename(const ArgList &Args,
     Suffix = IsITANMSVCWindows ? ".lib" : ".a";
     break;
   case ToolChain::FT_Shared:
-    Suffix = Triple.isOSWindows()
-                 ? (Triple.isWindowsGNUEnvironment() ? ".dll.a" : ".lib")
+    Suffix = TT.isOSWindows()
+                 ? (TT.isWindowsGNUEnvironment() ? ".dll.a" : ".lib")
                  : ".so";
     break;
   }
@@ -508,7 +516,7 @@ std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
                                      FileType Type) const {
   // Check for runtime files in the new layout without the architecture first.
   std::string CRTBasename =
-      getCompilerRTBasename(Args, Component, Type, /*AddArch=*/false);
+      buildCompilerRTBasename(Args, Component, Type, /*AddArch=*/false);
   for (const auto &LibPath : getLibraryPaths()) {
     SmallString<128> P(LibPath);
     llvm::sys::path::append(P, CRTBasename);
@@ -518,7 +526,8 @@ std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
 
   // Fall back to the old expected compiler-rt name if the new one does not
   // exist.
-  CRTBasename = getCompilerRTBasename(Args, Component, Type, /*AddArch=*/true);
+  CRTBasename =
+      buildCompilerRTBasename(Args, Component, Type, /*AddArch=*/true);
   SmallString<128> Path(getCompilerRTPath());
   llvm::sys::path::append(Path, CRTBasename);
   return std::string(Path.str());
@@ -669,11 +678,11 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
 
     std::string LinkerPath(GetProgramPath(LinkerName.c_str()));
     if (llvm::sys::fs::can_execute(LinkerPath)) {
-      // FIXME: Remove lld.darwinnew here once it's the only MachO lld.
+      // FIXME: Remove LinkerIsLLDDarwinNew once there's only one MachO lld.
       if (LinkerIsLLD)
-        *LinkerIsLLD = UseLinker == "lld" || UseLinker == "lld.darwinnew";
+        *LinkerIsLLD = UseLinker == "lld" || UseLinker == "lld.darwinold";
       if (LinkerIsLLDDarwinNew)
-        *LinkerIsLLDDarwinNew = UseLinker == "lld.darwinnew";
+        *LinkerIsLLDDarwinNew = UseLinker == "lld";
       return LinkerPath;
     }
   }
@@ -784,129 +793,9 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
   case llvm::Triple::armeb:
   case llvm::Triple::thumb:
   case llvm::Triple::thumbeb: {
-    // FIXME: Factor into subclasses.
     llvm::Triple Triple = getTriple();
-    bool IsBigEndian = getTriple().getArch() == llvm::Triple::armeb ||
-                       getTriple().getArch() == llvm::Triple::thumbeb;
-
-    // Handle pseudo-target flags '-mlittle-endian'/'-EL' and
-    // '-mbig-endian'/'-EB'.
-    if (Arg *A = Args.getLastArg(options::OPT_mlittle_endian,
-                                 options::OPT_mbig_endian)) {
-      IsBigEndian = !A->getOption().matches(options::OPT_mlittle_endian);
-    }
-
-    // Thumb2 is the default for V7 on Darwin.
-    //
-    // FIXME: Thumb should just be another -target-feaure, not in the triple.
-    StringRef MCPU, MArch;
-    if (const Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
-      MCPU = A->getValue();
-    if (const Arg *A = Args.getLastArg(options::OPT_march_EQ))
-      MArch = A->getValue();
-    std::string CPU =
-        Triple.isOSBinFormatMachO()
-            ? tools::arm::getARMCPUForMArch(MArch, Triple).str()
-            : tools::arm::getARMTargetCPU(MCPU, MArch, Triple);
-    StringRef Suffix =
-      tools::arm::getLLVMArchSuffixForARM(CPU, MArch, Triple);
-    bool IsMProfile = ARM::parseArchProfile(Suffix) == ARM::ProfileKind::M;
-    bool ThumbDefault = IsMProfile || (ARM::parseArchVersion(Suffix) == 7 &&
-                                       getTriple().isOSBinFormatMachO());
-    // FIXME: this is invalid for WindowsCE
-    if (getTriple().isOSWindows())
-      ThumbDefault = true;
-    std::string ArchName;
-    if (IsBigEndian)
-      ArchName = "armeb";
-    else
-      ArchName = "arm";
-
-    // Check if ARM ISA was explicitly selected (using -mno-thumb or -marm) for
-    // M-Class CPUs/architecture variants, which is not supported.
-    bool ARMModeRequested = !Args.hasFlag(options::OPT_mthumb,
-                                          options::OPT_mno_thumb, ThumbDefault);
-    if (IsMProfile && ARMModeRequested) {
-      if (!MCPU.empty())
-        getDriver().Diag(diag::err_cpu_unsupported_isa) << CPU << "ARM";
-       else
-        getDriver().Diag(diag::err_arch_unsupported_isa)
-          << tools::arm::getARMArch(MArch, getTriple()) << "ARM";
-    }
-
-    // Check to see if an explicit choice to use thumb has been made via
-    // -mthumb. For assembler files we must check for -mthumb in the options
-    // passed to the assembler via -Wa or -Xassembler.
-    bool IsThumb = false;
-    if (InputType != types::TY_PP_Asm)
-      IsThumb = Args.hasFlag(options::OPT_mthumb, options::OPT_mno_thumb,
-                              ThumbDefault);
-    else {
-      // Ideally we would check for these flags in
-      // CollectArgsForIntegratedAssembler but we can't change the ArchName at
-      // that point.
-      llvm::StringRef WaMArch, WaMCPU;
-      for (const auto *A :
-           Args.filtered(options::OPT_Wa_COMMA, options::OPT_Xassembler)) {
-        for (StringRef Value : A->getValues()) {
-          // There is no assembler equivalent of -mno-thumb, -marm, or -mno-arm.
-          if (Value == "-mthumb")
-            IsThumb = true;
-          else if (Value.startswith("-march="))
-            WaMArch = Value.substr(7);
-          else if (Value.startswith("-mcpu="))
-            WaMCPU = Value.substr(6);
-        }
-      }
-
-      if (WaMCPU.size() || WaMArch.size()) {
-        // The way this works means that we prefer -Wa,-mcpu's architecture
-        // over -Wa,-march. Which matches the compiler behaviour.
-        Suffix = tools::arm::getLLVMArchSuffixForARM(WaMCPU, WaMArch, Triple);
-      }
-    }
-    // Assembly files should start in ARM mode, unless arch is M-profile, or
-    // -mthumb has been passed explicitly to the assembler. Windows is always
-    // thumb.
-    if (IsThumb || IsMProfile || getTriple().isOSWindows()) {
-      if (IsBigEndian)
-        ArchName = "thumbeb";
-      else
-        ArchName = "thumb";
-    }
-    Triple.setArchName(ArchName + Suffix.str());
-
-    bool isHardFloat =
-        (arm::getARMFloatABI(getDriver(), Triple, Args) == arm::FloatABI::Hard);
-    switch (Triple.getEnvironment()) {
-    case Triple::GNUEABI:
-    case Triple::GNUEABIHF:
-      Triple.setEnvironment(isHardFloat ? Triple::GNUEABIHF : Triple::GNUEABI);
-      break;
-    case Triple::EABI:
-    case Triple::EABIHF:
-      Triple.setEnvironment(isHardFloat ? Triple::EABIHF : Triple::EABI);
-      break;
-    case Triple::MuslEABI:
-    case Triple::MuslEABIHF:
-      Triple.setEnvironment(isHardFloat ? Triple::MuslEABIHF
-                                        : Triple::MuslEABI);
-      break;
-    default: {
-      arm::FloatABI DefaultABI = arm::getDefaultFloatABI(Triple);
-      if (DefaultABI != arm::FloatABI::Invalid &&
-          isHardFloat != (DefaultABI == arm::FloatABI::Hard)) {
-        Arg *ABIArg =
-            Args.getLastArg(options::OPT_msoft_float, options::OPT_mhard_float,
-                            options::OPT_mfloat_abi_EQ);
-        assert(ABIArg && "Non-default float abi expected to be from arg");
-        D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << ABIArg->getAsString(Args) << Triple.getTriple();
-      }
-      break;
-    }
-    }
-
+    tools::arm::setArchNameInTriple(getDriver(), Args, InputType, Triple);
+    tools::arm::setFloatABIInTriple(getDriver(), Args, Triple);
     return Triple.getTriple();
   }
   }
@@ -978,9 +867,12 @@ ToolChain::UnwindLibType ToolChain::GetUnwindLibType(
     unwindLibType = ToolChain::UNW_None;
   else if (LibName == "platform" || LibName == "") {
     ToolChain::RuntimeLibType RtLibType = GetRuntimeLibType(Args);
-    if (RtLibType == ToolChain::RLT_CompilerRT)
-      unwindLibType = ToolChain::UNW_None;
-    else if (RtLibType == ToolChain::RLT_Libgcc)
+    if (RtLibType == ToolChain::RLT_CompilerRT) {
+      if (getTriple().isAndroid())
+        unwindLibType = ToolChain::UNW_CompilerRT;
+      else
+        unwindLibType = ToolChain::UNW_None;
+    } else if (RtLibType == ToolChain::RLT_Libgcc)
       unwindLibType = ToolChain::UNW_Libgcc;
   } else if (LibName == "libunwind") {
     if (GetRuntimeLibType(Args) == RLT_Libgcc)
@@ -1184,6 +1076,11 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
+
+llvm::SmallVector<std::string, 12>
+ToolChain::getHIPDeviceLibs(const ArgList &DriverArgs) const {
+  return {};
+}
 
 void ToolChain::AddIAMCUIncludeArgs(const ArgList &DriverArgs,
                                     ArgStringList &CC1Args) const {}
