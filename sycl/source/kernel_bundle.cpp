@@ -9,6 +9,8 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 
+#include <set>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -115,17 +117,78 @@ join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                             bundle_state State) {
-  // Just create a kernel_bundle and check if it has any device_images inside.
-  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, State);
-  return KernelBundleImpl.size();
+  const bool AllDevicesInTheContext = CheckAllDevicesAreInContext(Devs, Ctx);
+  if (Devs.empty() || !AllDevicesInTheContext)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Not all devices are associated with the context or "
+                          "vector of devices is empty");
+
+  if (bundle_state::input == State &&
+      !CheckAllDevicesHaveAspect(Devs, aspect::online_compiler))
+    return false;
+  if (bundle_state::object == State &&
+      !CheckAllDevicesHaveAspect(Devs, aspect::online_linker))
+    return false;
+
+  const std::vector<device_image_plain> DeviceImages =
+      detail::ProgramManager::getInstance()
+          .getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, State);
+
+  // TODO: Add a check that all kernel ids are compatible with at least one
+  // device in Devs
+
+  return (bool)DeviceImages.size();
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                             const std::vector<kernel_id> &KernelIds,
                             bundle_state State) {
-  // Just create a kernel_bundle and check if it has any device_images inside.
-  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, KernelIds, State);
-  return KernelBundleImpl.size();
+  const bool AllDevicesInTheContext = CheckAllDevicesAreInContext(Devs, Ctx);
+
+  if (Devs.empty() || !AllDevicesInTheContext)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Not all devices are associated with the context or "
+                          "vector of devices is empty");
+
+  bool DeviceHasRequireAspectForState = false;
+  if (bundle_state::input == State) {
+    DeviceHasRequireAspectForState =
+        std::all_of(Devs.begin(), Devs.end(), [](const device &Dev) {
+          return Dev.has(aspect::online_compiler);
+        });
+  } else if (bundle_state::object == State) {
+    DeviceHasRequireAspectForState =
+        std::all_of(Devs.begin(), Devs.end(), [](const device &Dev) {
+          return Dev.has(aspect::online_linker);
+        });
+  }
+
+  if (!DeviceHasRequireAspectForState)
+    return false;
+
+  const std::vector<device_image_plain> DeviceImages =
+      detail::ProgramManager::getInstance()
+          .getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, State);
+
+  std::set<kernel_id, LessByNameComp> CombinedKernelIDs;
+  for (const device_image_plain &DeviceImage : DeviceImages) {
+    const std::shared_ptr<device_image_impl> &DeviceImageImpl =
+        getSyclObjImpl(DeviceImage);
+
+    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ref().begin(),
+                             DeviceImageImpl->get_kernel_ids_ref().end());
+  }
+
+  const bool AllKernelIDsRepresented =
+      std::all_of(KernelIds.begin(), KernelIds.end(),
+                  [&CombinedKernelIDs](const kernel_id &KernelID) {
+                    return CombinedKernelIDs.count(KernelID);
+                  });
+
+  // TODO: Add a check that all kernel ids are compatible with at least one
+  // device in Devs
+
+  return AllKernelIDsRepresented;
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
@@ -147,6 +210,43 @@ build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
            const std::vector<device> &Devs, const property_list &PropList) {
   return std::make_shared<detail::kernel_bundle_impl>(
       InputBundle, Devs, PropList, bundle_state::executable);
+}
+
+__SYCL_EXPORT std::vector<sycl::device> find_device_intersection(
+    const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles) {
+  // This API requires to find the intersection of associated devices in common
+  // for all bundles
+  std::vector<sycl::device> IntersectDevices;
+  std::vector<unsigned int> DevsCounters;
+  for (const sycl::kernel_bundle<bundle_state::object> &ObjectBundle :
+       ObjectBundles)
+    // Increment counter in "DevsCounters" each time a device is seen
+    for (const sycl::device &Device : ObjectBundle.get_devices()) {
+      auto It =
+          std::find(IntersectDevices.begin(), IntersectDevices.end(), Device);
+      if (IntersectDevices.end() != It) {
+        assert((size_t)(std::distance(IntersectDevices.begin(), It) + 1) ==
+               DevsCounters.size());
+        ++DevsCounters[std::distance(IntersectDevices.begin(), It)];
+        continue;
+      }
+      IntersectDevices.push_back(Device);
+      DevsCounters.push_back(1);
+    }
+
+  // If for some device counter is less than ObjectBundles.size() it means some
+  // bundle doesn't have it - remove such a device from the final result
+  size_t NewSize = DevsCounters.size();
+  for (size_t Idx = 0; Idx < NewSize; ++Idx) {
+    if (ObjectBundles.size() == DevsCounters[Idx])
+      continue;
+
+    std::swap(IntersectDevices[Idx], IntersectDevices.back());
+    --NewSize;
+  }
+  IntersectDevices.resize(NewSize);
+
+  return IntersectDevices;
 }
 
 } // namespace detail

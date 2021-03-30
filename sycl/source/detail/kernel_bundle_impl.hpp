@@ -33,14 +33,52 @@ template <class T> struct LessByHash {
   }
 };
 
+static bool CheckAllDevicesAreInContext(const std::vector<device> &Devices,
+                                        const context &Context) {
+  const std::vector<device> &ContextDevices = Context.get_devices();
+  return std::all_of(
+      Devices.begin(), Devices.end(), [&ContextDevices](const device &Dev) {
+        return ContextDevices.end() !=
+               std::find(ContextDevices.begin(), ContextDevices.end(), Dev);
+      });
+}
+
+static bool CheckAllDevicesHaveAspect(const std::vector<device> &Devices,
+                                      aspect Aspect) {
+  return std::all_of(Devices.begin(), Devices.end(),
+                     [&Aspect](const device &Dev) { return Dev.has(Aspect); });
+}
+
 // The class is an impl counterpart of the sycl::kernel_bundle.
 // It provides an access and utilities to manage set of sycl::device_images
 // objects.
 class kernel_bundle_impl {
 
+  void common_ctor_checks(bundle_state State) {
+    const bool AllDevicesInTheContext =
+        CheckAllDevicesAreInContext(MDevices, MContext);
+    if (MDevices.empty() || !AllDevicesInTheContext)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Not all devices are associated with the context or "
+          "vector of devices is empty");
+
+    if (bundle_state::input == State &&
+        !CheckAllDevicesHaveAspect(MDevices, aspect::online_compiler))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Not all devices have aspect::online_compiler");
+
+    if (bundle_state::object == State &&
+        !CheckAllDevicesHaveAspect(MDevices, aspect::online_linker))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Not all devices have aspect::online_linker");
+  }
+
 public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
+
+    common_ctor_checks(State);
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, State);
@@ -53,6 +91,21 @@ public:
                      std::vector<device> Devs, const property_list &PropList,
                      bundle_state TargetState)
       : MContext(InputBundle.get_context()), MDevices(std::move(Devs)) {
+
+    const std::vector<device> &InputBundleDevices =
+        getSyclObjImpl(InputBundle)->get_devices();
+    const bool AllDevsAssociatedWithInputBundle =
+        std::all_of(MDevices.begin(), MDevices.end(),
+                    [&InputBundleDevices](const device &Dev) {
+                      return InputBundleDevices.end() !=
+                             std::find(InputBundleDevices.begin(),
+                                       InputBundleDevices.end(), Dev);
+                    });
+    if (MDevices.empty() || !AllDevsAssociatedWithInputBundle)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Not all devices are in the set of associated "
+          "devices for input bundle or vector of devices is empty");
 
     for (const device_image_plain &DeviceImage : InputBundle) {
       // Skip images which are not compatible with devices provided
@@ -85,7 +138,38 @@ public:
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
       std::vector<device> Devs, const property_list &PropList)
-      : MContext(ObjectBundles[0].get_context()), MDevices(std::move(Devs)) {
+      : MDevices(std::move(Devs)) {
+
+    if (ObjectBundles.empty())
+      return;
+
+    MContext = ObjectBundles[0].get_context();
+    for (size_t I = 1; I < ObjectBundles.size(); ++I) {
+      if (ObjectBundles[I].get_context() != MContext)
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Not all input bundles have the same associated context");
+    }
+
+    // Check if any of the devices in devs are not in the set of associated
+    // devices for any of the bundles in ObjectBundles
+    const bool AllDevsAssociatedWithInputBundles = std::all_of(
+        MDevices.begin(), MDevices.end(), [&ObjectBundles](const device &Dev) {
+          return std::all_of(
+              ObjectBundles.begin(), ObjectBundles.end(),
+              [&Dev](const kernel_bundle<bundle_state::object> &KernelBundle) {
+                const std::vector<device> &BundleDevices =
+                    getSyclObjImpl(KernelBundle)->get_devices();
+                return BundleDevices.end() != std::find(BundleDevices.begin(),
+                                                        BundleDevices.end(),
+                                                        Dev);
+              });
+        });
+    if (MDevices.empty() || !AllDevsAssociatedWithInputBundles)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Not all devices are in the set of associated "
+          "devices for input bundles or vector of devices is empty");
 
     // TODO: Unify with c'tor for sycl::comile and sycl::build by calling
     // sycl::join on vector of kernel_bundles
@@ -116,6 +200,10 @@ public:
                      bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
 
+    // TODO: Add a check that all kernel ids are compatible with at least one
+    // device in Devs
+    common_ctor_checks(State);
+
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, KernelIDs, State);
   }
@@ -124,23 +212,35 @@ public:
                      const DevImgSelectorImpl &Selector, bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
 
+    common_ctor_checks(State);
+
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, Selector, State);
   }
 
   // C'tor matches sycl::join API
   kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
+    if (Bundles.empty())
+      return;
+
     MContext = Bundles[0]->MContext;
+    MDevices = Bundles[0]->MDevices;
+    for (size_t I = 1; I < Bundles.size(); ++I) {
+      if (Bundles[I]->MContext != MContext)
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Not all input bundles have the same associated context.");
+      if (Bundles[I]->MDevices != MDevices)
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Not all input bundles have the same set of associated devices.");
+    }
+
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
-      MDevices.insert(MDevices.end(), Bundle->MDevices.begin(),
-                      Bundle->MDevices.end());
+
       MDeviceImages.insert(MDeviceImages.end(), Bundle->MDeviceImages.begin(),
                            Bundle->MDeviceImages.end());
     }
-
-    std::sort(MDevices.begin(), MDevices.end(), LessByHash<device>{});
-    const auto DevIt = std::unique(MDevices.begin(), MDevices.end());
-    MDevices.erase(DevIt, MDevices.end());
 
     std::sort(MDeviceImages.begin(), MDeviceImages.end(),
               LessByHash<device_image_plain>{});
@@ -171,14 +271,7 @@ public:
     }
     std::sort(Result.begin(), Result.end(), LessByNameComp{});
 
-    auto NewIt =
-        std::unique(Result.begin(), Result.end(),
-                    [](const sycl::kernel_id &LHS, const sycl::kernel_id &RHS) {
-                      return strcmp(LHS.get_name(), RHS.get_name()) == 0;
-                    }
-
-        );
-
+    auto NewIt = std::unique(Result.begin(), Result.end(), EqualByNameComp{});
     Result.erase(NewIt, Result.end());
 
     return Result;
@@ -192,6 +285,12 @@ public:
                            [&KernelID](const device_image_plain &DeviceImage) {
                              return DeviceImage.has_kernel(KernelID);
                            });
+
+    if (MDeviceImages.end() == It)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "The kernel bundle does not contain the kernel "
+                            "identified by kernelId.");
+
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
         detail::getSyclObjImpl(*It);
 
