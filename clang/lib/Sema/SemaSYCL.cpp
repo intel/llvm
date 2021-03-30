@@ -3478,14 +3478,16 @@ static void
 CheckSYCL2020Attributes(Sema &S, FunctionDecl *SYCLKernel,
                         FunctionDecl *KernelBody,
                         llvm::SmallPtrSetImpl<FunctionDecl *> &CalledFuncs) {
+  // We don't care about the kernel itself or the body, so remove them from the
+  // list.
+  CalledFuncs.erase(SYCLKernel);
+  CalledFuncs.erase(KernelBody);
 
-  // SYCL_EXTERNAL functions don't have a body, but also include themselves in
-  // the call graph, so correct KernelBody and remove 'self' from the list.
-  if (!KernelBody) {
-    KernelBody = SYCLKernel;
-    CalledFuncs.erase(KernelBody);
+  // If the kernel has a body, we should get the attributes for the kernel from
+  // there instead, so that we get the functor object.
+  if (KernelBody) {
+    SYCLKernel = KernelBody;
   }
-
   for (auto *FD : CalledFuncs) {
     for (auto *Attr : FD->attrs()) {
       switch (Attr->getKind()) {

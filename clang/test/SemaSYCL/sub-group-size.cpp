@@ -65,20 +65,10 @@ void NoAttrFunc(){}
 SYCL_EXTERNAL void NoAttrExternalDefined() {}
 SYCL_EXTERNAL void NoAttrExternalNotDefined(); // #NoAttrExternalNotDefined
 
-struct Functor {
-  [[intel::named_sub_group_size(primary)]] void operator()() const {
-    NoAttrFunc();
-    NoAttrExternalDefined();
-    // expected-error@#NoAttrExternalNotDefined{{undefined 'SYCL_EXTERNAL' function must have a sub group size that matches the size specified for the kernel}}
-    // expected-note@-4{{conflicting attribute is here}}
-    NoAttrExternalNotDefined();
-  }
-};
-
 // If the kernel function has an attribute, only an undefined SYCL_EXTERNAL
 // should diagnose.
 void calls_kernel_1() {
-  sycl::kernel_single_task<class Kernel1>([]() [[intel::named_sub_group_size(primary)]] {
+  sycl::kernel_single_task<class Kernel1>([]() [[intel::named_sub_group_size(automatic)]] {
     NoAttrFunc();
     NoAttrExternalDefined();
     // expected-error@#NoAttrExternalNotDefined{{undefined 'SYCL_EXTERNAL' function must have a sub group size that matches the size specified for the kernel}}
@@ -86,6 +76,16 @@ void calls_kernel_1() {
     NoAttrExternalNotDefined();
   });
 }
+
+struct Functor {
+  [[intel::named_sub_group_size(automatic)]] void operator()() const {
+    NoAttrFunc();
+ //   NoAttrExternalDefined();
+    // expected-error@#NoAttrExternalNotDefined{{undefined 'SYCL_EXTERNAL' function must have a sub group size that matches the size specified for the kernel}}
+    // expected-note@-4{{conflicting attribute is here}}
+    NoAttrExternalNotDefined();
+  }
+};
 
 void calls_kernel_2() {
   Functor F;
@@ -98,29 +98,38 @@ void calls_kernel_2() {
 [[intel::named_sub_group_size(primary)]] SYCL_EXTERNAL void AttrExternalNotDefined(); // #AttrExternalNotDefined
 
 void calls_kernel_3() {
-  sycl::kernel_single_task<class Kernel3>([]() {
-    // primary-error@#AttrFunc{{ :??}}
+  sycl::kernel_single_task<class Kernel3>([]() { // #Kernel3
+    // primary-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // primary-note@#Kernel3{{kernel declared here}}
     AttrFunc();
+    // primary-error@#AttrExternalDefined{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // primary-note@#Kernel3{{kernel declared here}}
     AttrExternalDefined();
-    // expected-error@#NoAttrExternalNotDefined{{undefined 'SYCL_EXTERNAL' function must have a sub group size that matches the size specified for the kernel}}
-    // expected-note@-4{{conflicting attribute is here}}
+    // primary-error@#AttrExternalNotDefined{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // primary-note@#Kernel3{{kernel declared here}}
     AttrExternalNotDefined();
   });
 }
 
-[[intel::sub_group_size(4)]] void AttrFunc2(){}
-[[intel::sub_group_size(4)]] SYCL_EXTERNAL void AttrExternalDefined2() {}
-[[intel::sub_group_size(4)]] SYCL_EXTERNAL void AttrExternalNotDefined2();
+[[intel::sub_group_size(10)]] void AttrFunc2(){} // #AttrFunc2
+[[intel::sub_group_size(10)]] SYCL_EXTERNAL void AttrExternalDefined2() {} // #AttrExternalDefined2
+[[intel::sub_group_size(10)]] SYCL_EXTERNAL void AttrExternalNotDefined2(); // #AttrExternalNotDefined2
 
 void calls_kernel_4() {
-  sycl::kernel_single_task<class Kernel4>([]() {
+  sycl::kernel_single_task<class Kernel4>([]() { // #Kernel4
+    // integer-error@#AttrFunc2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // integer-note@#Kernel4{{kernel declared here}}
     AttrFunc2();
+    // integer-error@#AttrExternalDefined2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // integer-note@#Kernel4{{kernel declared here}}
     AttrExternalDefined2();
-    // expected-error@#NoAttrExternalNotDefined{{undefined 'SYCL_EXTERNAL' function must have a sub group size that matches the size specified for the kernel}}
-    // expected-note@-4{{conflicting attribute is here}}
+    // integer-error@#AttrExternalNotDefined2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // integer-note@#Kernel4{{kernel declared here}}
     AttrExternalNotDefined2();
   });
 }
+
+// TODO!
 // Func w attr called from kernel, kernel has attr.
 // first matches default.
 // kernel matches default

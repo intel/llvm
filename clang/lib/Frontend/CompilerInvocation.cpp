@@ -3740,7 +3740,7 @@ bool CompilerInvocation::ParseLangArgsImpl(LangOptions &Opts, ArgList &Args,
     if (Opts.getDefaultSubGroupSizeType() ==
         LangOptions::SubGroupSizeType::Integer) {
       int64_t IntResult;
-      if (Value.getAsInteger(10, IntResult)) {
+      if (!Value.getAsInteger(10, IntResult)) {
         Opts.DefaultSubGroupSize = IntResult;
       } else {
         Diags.Report(diag::err_drv_invalid_value)

@@ -5548,10 +5548,11 @@ def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
 
 def fsycl_default_sub_group_size
     : Separate<["-"], "fsycl-default-sub-group-size">,
-      HelpText<"Set the default sub group size for SYCL kernels">;
+      HelpText<"Set the default sub group size for SYCL kernels">,
+      Flags<[CC1Option]>;
 def fsycl_default_sub_group_size_EQ
     : Joined<["-"], "fsycl-default-sub-group-size=">,
-      Alias<fsycl_default_sub_group_size>;
+      Alias<fsycl_default_sub_group_size>, Flags<[CC1Option]>;
 
 defm cuda_approx_transcendentals : BoolFOption<"cuda-approx-transcendentals",
   LangOpts<"CUDADeviceApproxTranscendentals">, DefaultFalse,
