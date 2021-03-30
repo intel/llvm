@@ -20,7 +20,7 @@
 [[intel::initiation_interval(4)]] void func4();
 [[intel::initiation_interval(4)]] void func4(); // OK
 
-// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+// Diagnostic is emitted because the arguments mismatch.
 [[intel::initiation_interval(2)]]                  // expected-note {{previous attribute is here}}
 [[intel::initiation_interval(4)]] void func5() {}  // expected-warning {{attribute 'initiation_interval' is already applied with different arguments}}
 
