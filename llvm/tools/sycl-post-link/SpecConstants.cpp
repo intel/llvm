@@ -576,14 +576,15 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // type.
           Val = getDefaultCPPValue(SCTy);
         }
-          if (IsComposite) {
-            // __sycl_getCompositeSpecConstant returns through argument, so, the
-            // only thing we need to do here is to store into a memory pointed
-            // by that argument
-            new StoreInst(Val, CI->getArgOperand(0), CI);
-          } else {
-            CI->replaceAllUsesWith(Val);
-          }
+
+        if (IsComposite) {
+          // __sycl_getCompositeSpecConstant returns through argument, so, the
+          // only thing we need to do here is to store into a memory pointed
+          // by that argument
+          new StoreInst(Val, CI->getArgOperand(0), CI);
+        } else {
+          CI->replaceAllUsesWith(Val);
+        }
       }
 
       for (auto *I : DelInsts) {
