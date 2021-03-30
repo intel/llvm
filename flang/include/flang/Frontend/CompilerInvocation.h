@@ -69,6 +69,13 @@ class CompilerInvocation : public CompilerInvocationBase {
   // of options.
   std::string moduleDir_ = ".";
 
+  bool debugModuleDir_ = false;
+
+  // Fortran Dialect options
+  Fortran::common::IntrinsicTypeDefaultKinds defaultKinds_;
+
+  bool EnableConformanceChecks_ = false;
+
 public:
   CompilerInvocation() = default;
 
@@ -88,6 +95,21 @@ public:
   std::string &moduleDir() { return moduleDir_; }
   const std::string &moduleDir() const { return moduleDir_; }
 
+  bool &debugModuleDir() { return debugModuleDir_; }
+  const bool &debugModuleDir() const { return debugModuleDir_; }
+
+  bool &enableConformanceChecks() { return EnableConformanceChecks_; }
+  const bool &enableConformanceChecks() const {
+    return EnableConformanceChecks_;
+  }
+
+  Fortran::common::IntrinsicTypeDefaultKinds &defaultKinds() {
+    return defaultKinds_;
+  }
+  const Fortran::common::IntrinsicTypeDefaultKinds &defaultKinds() const {
+    return defaultKinds_;
+  }
+
   /// Create a compiler invocation from a list of input options.
   /// \returns true on success.
   /// \returns false if an error was encountered while parsing the arguments
@@ -95,6 +117,14 @@ public:
   static bool CreateFromArgs(CompilerInvocation &res,
       llvm::ArrayRef<const char *> commandLineArgs,
       clang::DiagnosticsEngine &diags);
+
+  // Enables the std=f2018 conformance check
+  void set_EnableConformanceChecks() { EnableConformanceChecks_ = true; }
+
+  /// Useful setters
+  void SetModuleDir(std::string &moduleDir) { moduleDir_ = moduleDir; }
+
+  void SetDebugModuleDir(bool flag) { debugModuleDir_ = flag; }
 
   /// Set the Fortran options to predifined defaults. These defaults are
   /// consistend with f18/f18.cpp.

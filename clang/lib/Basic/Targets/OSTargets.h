@@ -114,7 +114,7 @@ public:
     this->MCountName = "\01mcount";
   }
 
-  std::string isValidSectionSpecifier(StringRef SR) const override {
+  llvm::Error isValidSectionSpecifier(StringRef SR) const override {
     // Let MCSectionMachO validate this.
     StringRef Segment, Section;
     unsigned TAA, StubSize;
@@ -260,6 +260,9 @@ public:
       break;
     case llvm::Triple::arm:
       this->MCountName = "__mcount";
+      break;
+    case llvm::Triple::riscv32:
+    case llvm::Triple::riscv64:
       break;
     }
   }
@@ -490,6 +493,9 @@ public:
     case llvm::Triple::ppc64le:
     case llvm::Triple::sparcv9:
       this->MCountName = "_mcount";
+      break;
+    case llvm::Triple::riscv32:
+    case llvm::Triple::riscv64:
       break;
     }
   }

@@ -38,11 +38,15 @@ class Tosa_QuantizedType<string n, list<int> params, bit signed>
 // Used to express accumulator results or compare results.
 //===----------------------------------------------------------------------===//
 
+def Tosa_Int8 : I<8>;
+def Tosa_Int16 : I<16>;
 def Tosa_Int32 : I<32>;
 def Tosa_Int48 : I<48>;
 def Tosa_Int64 : I<64>;
 
-def Tosa_SignedInt : AnyTypeOf<[Tosa_Int32,
+def Tosa_SignedInt : AnyTypeOf<[Tosa_Int8,
+                                Tosa_Int16,
+                                Tosa_Int32,
                                 Tosa_Int48,
                                 Tosa_Int64]>;
 
@@ -122,6 +126,21 @@ def Tosa_Tensor1Dto6D : TensorRankOf<[Tosa_AnyNumber], [1,2,3,4,5,6]>;
 
 def Tosa_TensorUpto4D : TensorRankOf<[Tosa_AnyNumber], [0,1,2,3,4]>;
 def Tosa_TensorUpto6D : TensorRankOf<[Tosa_AnyNumber], [0,1,2,3,4,5,6]>;
+
+//===----------------------------------------------------------------------===//
+// Generic scalar, vector, or tensor of a particular type.
+//===----------------------------------------------------------------------===//
+
+class Tosa_TypeLike<list<Type> types, string description = ""> : TypeConstraint<Or<[
+     AnyTypeOf<types>.predicate,
+     VectorOf<types>.predicate,
+     TensorOf<types>.predicate]>,
+     "signless-integer-32-like">;
+
+def Tosa_Int8Like : Tosa_TypeLike<[Tosa_Int8], "signless-integer-8-bit-like">;
+def Tosa_Int16Like : Tosa_TypeLike<[Tosa_Int16], "signless-integer-16-bit-like">;
+def Tosa_Int32Like : Tosa_TypeLike<[Tosa_Int32], "signless-integer-32-bit-like">;
+def Tosa_Int64Like : Tosa_TypeLike<[Tosa_Int64], "signless-integer-64-bit-like">;
 
 //===----------------------------------------------------------------------===//
 // Attribute predicates and classes.
