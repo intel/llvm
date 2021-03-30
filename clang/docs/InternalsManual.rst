@@ -572,6 +572,421 @@ The Frontend Library
 The Frontend library contains functionality useful for building tools on top of
 the Clang libraries, for example several methods for outputting diagnostics.
 
+Compiler Invocation
+-------------------
+
+One of the classes provided by the Frontend library is ``CompilerInvocation``,
+which holds information that describe current invocation of the Clang frontend.
+The information typically comes from the command line constructed by the Clang
+driver or from clients performing custom initialization. The data structure is
+split into logical units used by different parts of the compiler, for example
+``PreprocessorOptions``, ``LanguageOptions`` or ``CodeGenOptions``.
+
+Command Line Interface
+----------------------
+
+The command line interface of the Clang ``-cc1`` frontend is defined alongside
+the driver options in ``clang/Driver/Options.td``. The information making up an
+option definition includes its prefix and name (for example ``-std=``), form and
+position of the option value, help text, aliases and more. Each option may
+belong to a certain group and can be marked with zero or more flags. Options
+accepted by the ``-cc1`` frontend are marked with the ``CC1Option`` flag.
+
+Command Line Parsing
+--------------------
+
+Option definitions are processed by the ``-gen-opt-parser-defs`` tablegen
+backend during early stages of the build. Options are then used for querying an
+instance ``llvm::opt::ArgList``, a wrapper around the command line arguments.
+This is done in the Clang driver to construct individual jobs based on the
+driver arguments and also in the ``CompilerInvocation::CreateFromArgs`` function
+that parses the ``-cc1`` frontend arguments.
+
+Command Line Generation
+-----------------------
+
+Any valid ``CompilerInvocation`` created from a ``-cc1`` command line  can be
+also serialized back into semantically equivalent command line in a
+deterministic manner. This enables features such as implicitly discovered,
+explicitly built modules.
+
+..
+  TODO: Create and link corresponding section in Modules.rst.
+
+Adding new Command Line Option
+------------------------------
+
+When adding a new command line option, the first place of interest is the header
+file declaring the corresponding options class (e.g. ``CodeGenOptions.h`` for
+command line option that affects the code generation). Create new member
+variable for the option value:
+
+.. code-block:: diff
+
+    class CodeGenOptions : public CodeGenOptionsBase {
+
+  +   /// List of dynamic shared object files to be loaded as pass plugins.
+  +   std::vector<std::string> PassPlugins;
+
+    }
+
+Next, declare the command line interface of the option in the tablegen file
+``clang/include/clang/Driver/Options.td``. This is done by instantiating the
+``Option`` class (defined in ``llvm/include/llvm/Option/OptParser.td``). The
+instance is typically created through one of the helper classes that encode the
+acceptable ways to specify the option value on the command line:
+
+* ``Flag`` - the option does not accept any value,
+* ``Joined`` - the value must immediately follow the option name within the same
+  argument,
+* ``Separate`` - the value must follow the option name in the next command line
+  argument,
+* ``JoinedOrSeparate`` - the value can be specified either as ``Joined`` or
+  ``Separate``,
+* ``CommaJoined`` - the values are comma-separated and must immediately follow
+  the option name within the same argument (see ``Wl,`` for an example).
+
+The helper classes take a list of acceptable prefixes of the option (e.g.
+``"-"``, ``"--"`` or ``"/"``) and the option name:
+
+.. code-block:: diff
+
+    // Options.td
+
+  + def fpass_plugin_EQ : Joined<["-"], "fpass-plugin=">;
+
+Then, specify additional attributes via mix-ins:
+
+* ``HelpText`` holds the text that will be printed besides the option name when
+  the user requests help (e.g. via ``clang --help``).
+* ``Group`` specifies the "category" of options this option belongs to. This is
+  used by various tools to filter certain options of interest.
+* ``Flags`` may contain a number of "tags" associated with the option. This
+  enables more granular filtering than the ``Group`` attribute.
+* ``Alias`` denotes that the option is an alias of another option. This may be
+  combined with ``AliasArgs`` that holds the implied value.
+
+.. code-block:: diff
+
+    // Options.td
+
+    def fpass_plugin_EQ : Joined<["-"], "fpass-plugin=">,
+  +   Group<f_Group>, Flags<[CC1Option]>,
+  +   HelpText<"Load pass plugin from a dynamic shared object file.">;
+
+New options are recognized by the Clang driver unless marked with the
+``NoDriverOption`` flag. On the other hand, options intended for the ``-cc1``
+frontend must be explicitly marked with the ``CC1Option`` flag.
+
+Next, parse (or manufacture) the command line arguments in the Clang driver and
+use them to construct the ``-cc1`` job:
+
+.. code-block:: diff
+
+    void Clang::ConstructJob(const ArgList &Args /*...*/) const {
+      ArgStringList CmdArgs;
+      // ... 
+
+  +   for (const Arg *A : Args.filtered(OPT_fpass_plugin_EQ)) {
+  +     CmdArgs.push_back(Args.MakeArgString(Twine("-fpass-plugin=") + A->getValue()));
+  +     A->claim();
+  +   }
+    }
+
+The last step is implementing the ``-cc1`` command line argument
+parsing/generation that initializes/serializes the option class (in our case
+``CodeGenOptions``) stored within ``CompilerInvocation``. This can be done
+automatically by using the marshalling annotations on the option definition:
+
+.. code-block:: diff
+
+    // Options.td
+
+    def fpass_plugin_EQ : Joined<["-"], "fpass-plugin=">,
+      Group<f_Group>, Flags<[CC1Option]>,
+      HelpText<"Load pass plugin from a dynamic shared object file.">,
+  +   MarshallingInfoStringVector<CodeGenOpts<"PassPlugins">>;
+
+Inner workings of the system are introduced in the :ref:`marshalling
+infrastructure <OptionMarshalling>` section and the available annotations are
+listed :ref:`here <OptionMarshallingAnnotations>`.
+
+In case the marshalling infrastructure does not support the desired semantics,
+consider simplifying it to fit the existing model. This makes the command line
+more uniform and reduces the amount of custom, manually written code. Remember
+that the ``-cc1`` command line interface is intended only for Clang developers,
+meaning it does not need to mirror the driver interface, maintain backward
+compatibility or be compatible with GCC.
+
+If the option semantics cannot be encoded via marshalling annotations, you can
+resort to parsing/serializing the command line arguments manually:
+
+.. code-block:: diff
+
+    // CompilerInvocation.cpp
+
+    static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args /*...*/) {
+      // ...
+
+  +   Opts.PassPlugins = Args.getAllArgValues(OPT_fpass_plugin_EQ);
+    }
+
+    static void GenerateCodeGenArgs(const CodeGenOptions &Opts,
+                                    SmallVectorImpl<const char *> &Args,
+                                    CompilerInvocation::StringAllocator SA /*...*/) {
+      // ...
+
+  +   for (const std::string &PassPlugin : Opts.PassPlugins)
+  +     GenerateArg(Args, OPT_fpass_plugin_EQ, PassPlugin, SA);
+    }
+
+Finally, you can specify the argument on the command line:
+``clang -fpass-plugin=a -fpass-plugin=b`` and use the new member variable as
+desired.
+
+.. code-block:: diff
+
+    void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(/*...*/) {
+      // ...
+  +   for (auto &PluginFN : CodeGenOpts.PassPlugins)
+  +     if (auto PassPlugin = PassPlugin::Load(PluginFN))
+  +        PassPlugin->registerPassBuilderCallbacks(PB);
+    }
+
+.. _OptionMarshalling:
+
+Option Marshalling Infrastructure
+---------------------------------
+
+The option marshalling infrastructure automates the parsing of command line
+arguments into ``CompilerInvocation`` and their generation from
+``CompilerInvocation``. The system replaces lots of repetitive C++ code with
+simple, declarative tablegen annotations and it's being used for the majority of
+the ``-cc1`` command line interface. This section provides an overview of the
+system.
+
+To read and modify contents of ``CompilerInvocation``, the marshalling system
+uses key paths, which are declared in two steps. First, a tablegen definition
+for the ``CompilerInvocation`` member is created by inheriting from
+``KeyPathAndMacro``:
+
+.. code-block:: text
+
+  // Options.td
+
+  class LangOpts<string field> : KeyPathAndMacro<"LangOpts->", field, "LANG_"> {}
+  //                   CompilerInvocation member  ^^^^^^^^^^
+  //                                    OPTION_WITH_MARSHALLING prefix ^^^^^
+
+The first argument to the parent class is the beginning of the key path that
+references the ``CompilerInvocation`` member. This argument ends with ``->`` if
+the member is a pointer type or with ``.`` if it's a value type. The child class
+takes a single parameter ``field`` that is forwarded as the second argument to
+the base class. The child class can then be used like so:
+``LangOpts<"IgnoreExceptions">``, constructing a key path to the field
+``LangOpts->IgnoreExceptions``. The third argument passed to the parent class is
+a string that the tablegen backend uses as a prefix to the
+``OPTION_WITH_MARSHALLING`` macro. Using the key path as a mix-in on an
+``Option`` instance instructs the backend to generate the following code:
+
+.. code-block:: c++
+
+  // Options.inc
+
+  #ifdef LANG_OPTION_WITH_MARSHALLING
+  LANG_OPTION_WITH_MARSHALLING([...], LangOpts->IgnoreExceptions, [...])
+  #endif // LANG_OPTION_WITH_MARSHALLING
+
+Such definition can be used used in the function for parsing and generating
+command line:
+
+.. code-block:: c++
+
+  // clang/lib/Frontend/CompilerInvoation.cpp
+
+  bool CompilerInvocation::ParseLangArgs(LangOptions *LangOpts, ArgList &Args,
+                                         DiagnosticsEngine &Diags) {
+    bool Success = true;
+
+  #define LANG_OPTION_WITH_MARSHALLING(                                          \
+      PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
+      HELPTEXT, METAVAR, VALUES, SPELLING, SHOULD_PARSE, ALWAYS_EMIT, KEYPATH,   \
+      DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER,     \
+      MERGER, EXTRACTOR, TABLE_INDEX)                                            \
+    PARSE_OPTION_WITH_MARSHALLING(Args, Diags, Success, ID, FLAGS, PARAM,        \
+                                  SHOULD_PARSE, KEYPATH, DEFAULT_VALUE,          \
+                                  IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER,      \
+                                  MERGER, TABLE_INDEX)
+  #include "clang/Driver/Options.inc"
+  #undef LANG_OPTION_WITH_MARSHALLING
+
+    // ...
+
+    return Success;
+  }
+
+  void CompilerInvocation::GenerateLangArgs(LangOptions *LangOpts,
+                                            SmallVectorImpl<const char *> &Args,
+                                            StringAllocator SA) {
+  #define LANG_OPTION_WITH_MARSHALLING(                                          \
+      PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
+      HELPTEXT, METAVAR, VALUES, SPELLING, SHOULD_PARSE, ALWAYS_EMIT, KEYPATH,   \
+      DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER,     \
+      MERGER, EXTRACTOR, TABLE_INDEX)                                            \
+    GENERATE_OPTION_WITH_MARSHALLING(                                            \
+        Args, SA, KIND, FLAGS, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,    \
+        IMPLIED_CHECK, IMPLIED_VALUE, DENORMALIZER, EXTRACTOR, TABLE_INDEX)
+  #include "clang/Driver/Options.inc"
+  #undef LANG_OPTION_WITH_MARSHALLING
+
+    // ...
+  }
+
+The ``PARSE_OPTION_WITH_MARSHALLING`` and ``GENERATE_OPTION_WITH_MARSHALLING``
+macros are defined in ``CompilerInvocation.cpp`` and they implement the generic
+algorithm for parsing and generating command line arguments.
+
+.. _OptionMarshallingAnnotations:
+
+Option Marshalling Annotations
+------------------------------
+
+How does the tablegen backend know what to put in place of ``[...]`` in the
+generated ``Options.inc``? This is specified by the ``Marshalling`` utilities
+described below. All of them take a key path argument and possibly other
+information required for parsing or generating the command line argument.
+
+**Positive Flag**
+
+The key path defaults to ``false`` and is set to ``true`` when the flag is
+present on command line.
+
+.. code-block:: text
+
+  def fignore_exceptions : Flag<["-"], "fignore-exceptions">, Flags<[CC1Option]>,
+    MarshallingInfoFlag<LangOpts<"IgnoreExceptions">>;
+
+**Negative Flag**
+
+The key path defaults to ``true`` and is set to ``false`` when the flag is
+present on command line.
+
+.. code-block:: text
+
+  def fno_verbose_asm : Flag<["-"], "fno-verbose-asm">, Flags<[CC1Option]>,
+    MarshallingInfoNegativeFlag<CodeGenOpts<"AsmVerbose">>;
+
+**Negative and Positive Flag**
+
+The key path defaults to the specified value (``false``, ``true`` or some
+boolean value that's statically unknown in the tablegen file). Then, the key
+path is set to the value associated with the flag that appears last on command
+line.
+
+.. code-block:: text
+
+  defm legacy_pass_manager : BoolOption<"f", "legacy-pass-manager",
+    CodeGenOpts<"LegacyPassManager">, DefaultFalse,
+    PosFlag<SetTrue, [], "Use the legacy pass manager in LLVM">,
+    NegFlag<SetFalse, [], "Use the new pass manager in LLVM">,
+    BothFlags<[CC1Option]>>;
+
+With most such pair of flags, the ``-cc1`` frontend accepts only the flag that
+changes the default key path value. The Clang driver is responsible for
+accepting both and either forwarding the changing flag or discarding the flag
+that would just set the key path to its default.
+
+The first argument to ``BoolOption`` is a prefix that is used to construct the
+full names of both flags. The positive flag would then be named
+``flegacy-pass-manager`` and the negative ``fno-legacy-pass-manager``.
+``BoolOption`` also implies the ``-`` prefix for both flags. It's also possible
+to use ``BoolFOption`` that implies the ``"f"`` prefix and ``Group<f_Group>``.
+The ``PosFlag`` and ``NegFlag`` classes hold the associated boolean value, an
+array of elements passed to the ``Flag`` class and the help text. The optional
+``BothFlags`` class holds an array of ``Flag`` elements that are common for both
+the positive and negative flag and their common help text suffix.
+
+**String**
+
+The key path defaults to the specified string, or an empty one, if omitted. When
+the option appears on the command line, the argument value is simply copied.
+
+.. code-block:: text
+
+  def isysroot : JoinedOrSeparate<["-"], "isysroot">, Flags<[CC1Option]>,
+    MarshallingInfoString<HeaderSearchOpts<"Sysroot">, [{"/"}]>;
+
+**List of Strings**
+
+The key path defaults to an empty ``std::vector<std::string>``. Values specified
+with each appearance of the option on the command line are appended to the
+vector.
+
+.. code-block:: text
+
+  def frewrite_map_file : Separate<["-"], "frewrite-map-file">, Flags<[CC1Option]>,
+    MarshallingInfoStringVector<CodeGenOpts<"RewriteMapFiles">>;
+
+**Integer**
+
+The key path defaults to the specified integer value, or ``0`` if omitted. When
+the option appears on the command line, its value gets parsed by ``llvm::APInt``
+and the result is assigned to the key path on success.
+
+.. code-block:: text
+
+  def mstack_probe_size : Joined<["-"], "mstack-probe-size=">, Flags<[CC1Option]>,
+    MarshallingInfoInt<CodeGenOpts<"StackProbeSize">, "4096">;
+
+**Enumeration**
+
+The key path defaults to the value specified in ``MarshallingInfoEnum`` prefixed
+by the contents of ``NormalizedValuesScope`` and ``::``. This ensures correct
+reference to an enum case is formed even if the enum resides in different
+namespace or is an enum class. If the value present on command line does not
+match any of the comma-separated values from ``Values``, an error diagnostics is
+issued. Otherwise, the corresponding element from ``NormalizedValues`` at the
+same index is assigned to the key path (also correctly scoped). The number of
+comma-separated string values and elements of the array within
+``NormalizedValues`` must match.
+
+.. code-block:: text
+
+  def mthread_model : Separate<["-"], "mthread-model">, Flags<[CC1Option]>,
+    Values<"posix,single">, NormalizedValues<["POSIX", "Single"]>,
+    NormalizedValuesScope<"LangOptions::ThreadModelKind">,
+    MarshallingInfoEnum<LangOpts<"ThreadModel">, "POSIX">;
+
+..
+  Intentionally omitting MarshallingInfoBitfieldFlag. It's adding some
+  complexity to the marshalling infrastructure and might be removed.
+
+It is also possible to define relationships between options.
+
+**Implication**
+
+The key path defaults to the default value from the primary ``Marshalling``
+annotation. Then, if any of the elements of ``ImpliedByAnyOf`` evaluate to true,
+the key path value is changed to the specified value or ``true`` if missing.
+Finally, the command line is parsed according to the primary annotation.
+
+.. code-block:: text
+
+  def fms_extensions : Flag<["-"], "fms-extensions">, Flags<[CC1Option]>,
+    MarshallingInfoFlag<LangOpts<"MicrosoftExt">>,
+    ImpliedByAnyOf<[fms_compatibility.KeyPath], "true">;
+
+**Condition**
+
+The option is parsed only if the expression in ``ShouldParseIf`` evaluates to
+true.
+
+.. code-block:: text
+
+  def fopenmp_enable_irbuilder : Flag<["-"], "fopenmp-enable-irbuilder">, Flags<[CC1Option]>,
+    MarshallingInfoFlag<LangOpts<"OpenMPIRBuilder">>,
+    ShouldParseIf<fopenmp.KeyPath>;
+
 The Lexer and Preprocessor Library
 ==================================
 
@@ -1439,13 +1854,151 @@ Because the same entity can be defined multiple times in different modules,
 it is also possible for there to be multiple definitions of (for instance)
 a ``CXXRecordDecl``, all of which describe a definition of the same class.
 In such a case, only one of those "definitions" is considered by Clang to be
-the definiition of the class, and the others are treated as non-defining
+the definition of the class, and the others are treated as non-defining
 declarations that happen to also contain member declarations. Corresponding
 members in each definition of such multiply-defined classes are identified
 either by redeclaration chains (if the members are ``Redeclarable``)
 or by simply a pointer to the canonical declaration (if the declarations
 are not ``Redeclarable`` -- in that case, a ``Mergeable`` base class is used
 instead).
+
+Error Handling
+--------------
+
+Clang produces an AST even when the code contains errors. Clang won't generate
+and optimize code for it, but it's used as parsing continues to detect further
+errors in the input. Clang-based tools also depend on such ASTs, and IDEs in
+particular benefit from a high-quality AST for broken code.
+
+In presence of errors, clang uses a few error-recovery strategies to present the
+broken code in the AST:
+
+- correcting errors: in cases where clang is confident about the fix, it
+  provides a FixIt attaching to the error diagnostic and emits a corrected AST
+  (reflecting the written code with FixIts applied). The advantage of that is to
+  provide more accurate subsequent diagnostics. Typo correction is a typical
+  example.
+- representing invalid node: the invalid node is preserved in the AST in some
+  form, e.g. when the "declaration" part of the declaration contains semantic
+  errors, the Decl node is marked as invalid.
+- dropping invalid node: this often happens for errors that we don’t have
+  graceful recovery. Prior to Recovery AST, a mismatched-argument function call
+  expression was dropped though a CallExpr was created for semantic analysis.
+
+With these strategies, clang surfaces better diagnostics, and provides AST
+consumers a rich AST reflecting the written source code as much as possible even
+for broken code.
+
+Recovery AST
+^^^^^^^^^^^^
+
+The idea of Recovery AST is to use recovery nodes which act as a placeholder to
+maintain the rough structure of the parsing tree, preserve locations and
+children but have no language semantics attached to them.
+
+For example, consider the following mismatched function call:
+
+.. code-block:: c++
+
+   int NoArg();
+   void test(int abc) {
+     NoArg(abc); // oops, mismatched function arguments.
+   }
+
+Without Recovery AST, the invalid function call expression (and its child
+expressions) would be dropped in the AST:
+
+::
+
+    |-FunctionDecl <line:1:1, col:11> NoArg 'int ()'
+    `-FunctionDecl <line:2:1, line:4:1> test 'void (int)'
+     |-ParmVarDecl <col:11, col:15> col:15 used abc 'int'
+     `-CompoundStmt <col:20, line:4:1>
+
+
+With Recovery AST, the AST looks like:
+
+::
+
+    |-FunctionDecl <line:1:1, col:11> NoArg 'int ()'
+    `-FunctionDecl <line:2:1, line:4:1> test 'void (int)'
+      |-ParmVarDecl <col:11, col:15> used abc 'int'
+      `-CompoundStmt <col:20, line:4:1>
+        `-RecoveryExpr <line:3:3, col:12> 'int' contains-errors
+          |-UnresolvedLookupExpr <col:3> '<overloaded function type>' lvalue (ADL) = 'NoArg'
+          `-DeclRefExpr <col:9> 'int' lvalue ParmVar 'abc' 'int'
+
+
+An alternative is to use existing Exprs, e.g. CallExpr for the above example.
+This would capture more call details (e.g. locations of parentheses) and allow
+it to be treated uniformly with valid CallExprs. However, jamming the data we
+have into CallExpr forces us to weaken its invariants, e.g. arg count may be
+wrong. This would introduce a huge burden on consumers of the AST to handle such
+"impossible" cases. So when we're representing (rather than correcting) errors,
+we use a distinct recovery node type with extremely weak invariants instead.
+
+``RecoveryExpr`` is the only recovery node so far. In practice, broken decls
+need more detailed semantics preserved (the current ``Invalid`` flag works
+fairly well), and completely broken statements with interesting internal
+structure are rare (so dropping the statements is OK).
+
+Types and dependence
+^^^^^^^^^^^^^^^^^^^^
+
+``RecoveryExpr`` is an ``Expr``, so it must have a type. In many cases the true
+type can't really be known until the code is corrected (e.g. a call to a
+function that doesn't exist). And it means that we can't properly perform type
+checks on some containing constructs, such as ``return 42 + unknownFunction()``.
+
+To model this, we generalize the concept of dependence from C++ templates to
+mean dependence on a template parameter or how an error is repaired. The
+``RecoveryExpr`` ``unknownFunction()`` has the totally unknown type
+``DependentTy``, and this suppresses type-based analysis in the same way it
+would inside a template.
+
+In cases where we are confident about the concrete type (e.g. the return type
+for a broken non-overloaded function call), the ``RecoveryExpr`` will have this
+type. This allows more code to be typechecked, and produces a better AST and
+more diagnostics. For example:
+
+.. code-block:: C++
+
+   unknownFunction().size() // .size() is a CXXDependentScopeMemberExpr
+   std::string(42).size() // .size() is a resolved MemberExpr
+
+Whether or not the ``RecoveryExpr`` has a dependent type, it is always
+considered value-dependent, because its value isn't well-defined until the error
+is resolved. Among other things, this means that clang doesn't emit more errors
+where a RecoveryExpr is used as a constant (e.g. array size), but also won't try
+to evaluate it.
+
+ContainsErrors bit
+^^^^^^^^^^^^^^^^^^
+
+Beyond the template dependence bits, we add a new “ContainsErrors” bit to
+express “Does this expression or anything within it contain errors” semantic,
+this bit is always set for RecoveryExpr, and propagated to other related nodes.
+This provides a fast way to query whether any (recursive) child of an expression
+had an error, which is often used to improve diagnostics.
+
+.. code-block:: C++
+
+   // C++
+   void recoveryExpr(int abc) {
+    unknownFunction(); // type-dependent, value-dependent, contains-errors
+
+    std::string(42).size(); // value-dependent, contains-errors,
+                            // not type-dependent, as we know the type is std::string
+   }
+
+
+.. code-block:: C
+
+   // C
+   void recoveryExpr(int abc) {
+     unknownVar + abc; // type-dependent, value-dependent, contains-errors
+   }
+
 
 The ASTImporter
 ---------------

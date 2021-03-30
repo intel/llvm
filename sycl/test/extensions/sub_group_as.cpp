@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
                 local[i] = i;
               }
             }
-            // CHECK:  call void {{.*}}spirv_ControlBarrierjjj
+            // CHECK:  call spir_func void {{.*}}spirv_ControlBarrierjjj
             it.barrier();
 
             int i = (it.get_global_id(0) / sg.get_max_local_range()[0]) *

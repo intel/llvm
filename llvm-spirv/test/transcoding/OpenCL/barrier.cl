@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -triple spir -cl-std=CL1.2 -emit-llvm-bc -o %t.bc
+// RUN: %clang_cc1 %s -triple spir -cl-std=CL1.2 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc -o %t.bc
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
@@ -7,20 +7,8 @@
 // This test checks that the translator is capable to correctly translate
 // barrier OpenCL C 1.2 built-in function [1] into corresponding SPIR-V
 // instruction and vice-versa.
-//
-// Forward declarations and defines below are based on the following sources:
-// - llvm/llvm-project [2]:
-//   - clang/lib/Headers/opencl-c-base.h
-//   - clang/lib/Headers/opencl-c.h
-// - OpenCL C 1.2 reference pages [1]
-// TODO: remove these and switch to using -fdeclare-opencl-builtins once
-// barrier is supported by this flag
 
-typedef unsigned int cl_mem_fence_flags;
-
-#define CLK_LOCAL_MEM_FENCE 0x01
-#define CLK_GLOBAL_MEM_FENCE 0x02
-// Strictly speaking, this flag is not supported by barrier in OpenCL 1.2
+// FIXME: Strictly speaking, this flag is not supported by barrier in OpenCL 1.2
 #define CLK_IMAGE_MEM_FENCE 0x04
 
 void __attribute__((overloadable)) __attribute__((convergent)) barrier(cl_mem_fence_flags);
@@ -43,8 +31,8 @@ __kernel void test_barrier_non_const_flags(cl_mem_fence_flags flags) {
 // CHECK-SPIRV: EntryPoint {{[0-9]+}} [[TEST_CONST_FLAGS:[0-9]+]] "test_barrier_const_flags"
 // CHECK-SPIRV: TypeInt [[UINT:[0-9]+]] 32 0
 //
-// In SPIR-V, barrier is represented as OpControlBarrier [4] and OpenCL
-// cl_mem_fence_flags are represented as part of Memory Semantics [3], which
+// In SPIR-V, barrier is represented as OpControlBarrier [3] and OpenCL
+// cl_mem_fence_flags are represented as part of Memory Semantics [2], which
 // also includes memory order constraints. The translator applies some default
 // memory order for OpControlBarrier and therefore, constants below include a
 // bit more information than original source
@@ -83,6 +71,5 @@ __kernel void test_barrier_non_const_flags(cl_mem_fence_flags flags) {
 
 // References:
 // [1]: https://www.khronos.org/registry/OpenCL/sdk/1.2/docs/man/xhtml/barrier.html
-// [2]: https://github.com/llvm/llvm-project
-// [3]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_memory_semantics__id_a_memory_semantics_lt_id_gt
-// [4]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#OpControlBarrier
+// [2]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_memory_semantics__id_a_memory_semantics_lt_id_gt
+// [3]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#OpControlBarrier

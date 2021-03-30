@@ -296,14 +296,17 @@ private:
     // sharing the same cwd). However, it is fairly unlikely to happen as
     // we generally don't use scoped_test_env from multiple threads, so
     // this is deemed acceptable.
+    // The cwd.filename() itself isn't unique across all tests in the suite,
+    // so start the numbering from a hash of the full cwd, to avoid
+    // different tests interfering with each other.
     static inline fs::path available_cwd_path() {
         fs::path const cwd = utils::getcwd();
         fs::path const tmp = fs::temp_directory_path();
-        fs::path const base = tmp / cwd.filename();
-        int i = 0;
-        fs::path p = base / ("static_env." + std::to_string(i));
+        std::string base = cwd.filename().string();
+        size_t i = std::hash<std::string>()(cwd.string());
+        fs::path p = tmp / (base + "-static_env." + std::to_string(i));
         while (utils::exists(p.string())) {
-            p = fs::path(base) / ("static_env." + std::to_string(++i));
+            p = tmp / (base + "-static_env." + std::to_string(++i));
         }
         return p;
     }
@@ -591,6 +594,12 @@ inline bool PathEq(fs::path const& LHS, fs::path const& RHS) {
   return LHS.native() == RHS.native();
 }
 
+inline bool PathEqIgnoreSep(fs::path LHS, fs::path RHS) {
+  LHS.make_preferred();
+  RHS.make_preferred();
+  return LHS.native() == RHS.native();
+}
+
 struct ExceptionChecker {
   std::errc expected_err;
   fs::path expected_path1;
@@ -628,9 +637,7 @@ struct ExceptionChecker {
       additional_msg = opt_message + ": ";
     }
     auto transform_path = [](const fs::path& p) {
-      if (p.native().empty())
-        return std::string("\"\"");
-      return p.string();
+      return "\"" + p.string() + "\"";
     };
     std::string format = [&]() -> std::string {
       switch (num_paths) {
@@ -664,5 +671,30 @@ struct ExceptionChecker {
   ExceptionChecker& operator=(ExceptionChecker const&) = delete;
 
 };
+
+inline fs::path GetWindowsInaccessibleDir() {
+  // Only makes sense on windows, but the code can be compiled for
+  // any platform.
+  const fs::path dir("C:\\System Volume Information");
+  std::error_code ec;
+  const fs::path root("C:\\");
+  fs::directory_iterator it(root, ec);
+  if (ec)
+    return fs::path();
+  const fs::directory_iterator endIt{};
+  while (it != endIt) {
+    const fs::directory_entry &ent = *it;
+    if (ent == dir) {
+      // Basic sanity checks on the directory_entry
+      if (!ent.exists())
+        return fs::path();
+      if (!ent.is_directory())
+        return fs::path();
+      return ent;
+    }
+    ++it;
+  }
+  return fs::path();
+}
 
 #endif /* FILESYSTEM_TEST_HELPER_HPP */

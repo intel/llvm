@@ -44,11 +44,11 @@ class TensorFromPointerConverter
 };
 
 /// Sparse conversion rule for dimension accesses.
-class TensorToDimSizeConverter : public OpConversionPattern<DimOp> {
+class TensorToDimSizeConverter : public OpConversionPattern<memref::DimOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(DimOp op, ArrayRef<Value> operands,
+  matchAndRewrite(memref::DimOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     if (!operands[0].getType().isa<LLVM::LLVMPointerType>())
       return failure();
@@ -73,7 +73,9 @@ public:
     Type eltType = resType.cast<ShapedType>().getElementType();
     StringRef name;
     if (eltType.isIndex() || eltType.isInteger(64))
-      name = "sparsePtrsI64";
+      name = "sparsePointers64";
+    else if (eltType.isInteger(32))
+      name = "sparsePointers32";
     else
       return failure();
     rewriter.replaceOpWithNewOp<CallOp>(
@@ -95,7 +97,9 @@ public:
     Type eltType = resType.cast<ShapedType>().getElementType();
     StringRef name;
     if (eltType.isIndex() || eltType.isInteger(64))
-      name = "sparseIndxsI64";
+      name = "sparseIndices64";
+    else if (eltType.isInteger(32))
+      name = "sparseIndices32";
     else
       return failure();
     rewriter.replaceOpWithNewOp<CallOp>(
@@ -117,7 +121,9 @@ public:
     Type eltType = resType.cast<ShapedType>().getElementType();
     StringRef name;
     if (eltType.isF64())
-      name = "sparseValsF64";
+      name = "sparseValuesF64";
+    else if (eltType.isF32())
+      name = "sparseValuesF32";
     else
       return failure();
     rewriter.replaceOpWithNewOp<CallOp>(
@@ -131,8 +137,8 @@ public:
 /// Populates the given patterns list with conversion rules required for
 /// the sparsification of linear algebra operations.
 void linalg::populateSparsificationConversionPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns) {
-  patterns.insert<TensorFromPointerConverter, TensorToDimSizeConverter,
-                  TensorToPointersConverter, TensorToIndicesConverter,
-                  TensorToValuesConverter>(context);
+    RewritePatternSet &patterns) {
+  patterns.add<TensorFromPointerConverter, TensorToDimSizeConverter,
+               TensorToPointersConverter, TensorToIndicesConverter,
+               TensorToValuesConverter>(patterns.getContext());
 }
