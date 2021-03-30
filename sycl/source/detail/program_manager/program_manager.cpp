@@ -289,20 +289,13 @@ static const char *getFormatStr(RT::PiDeviceBinaryType Format) {
   return "unknown";
 }
 
-RT::PiProgram
-ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
-                                const context &Context,
-                                const std::vector<device> &Devices) {
-  if (DbgProgMgr > 0) {
+RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
+                                              const context &Context,
+                                              const device &Device) {
+  if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
-              << getRawSyclObjImpl(Context) << ", ";
-
-    for (const device &Dev : Devices)
-      std::cout << getRawSyclObjImpl(Dev);
-
-    std::cout << ")\n";
-  }
-
+              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
+              << ")\n";
   const pi_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
@@ -334,16 +327,12 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context",
         PI_INVALID_OPERATION);
 
-  assert((Format == PI_DEVICE_BINARY_TYPE_SPIRV || Devices.size() == 1) &&
-         "Creating a program from AOT binary for multiple device is not "
-         "supported");
-
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   RT::PiProgram Res =
       Format == PI_DEVICE_BINARY_TYPE_SPIRV
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
-          : createBinaryProgram(Ctx, Devices[0], RawImg.BinaryStart, ImgSize);
+          : createBinaryProgram(Ctx, Device, RawImg.BinaryStart, ImgSize);
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
@@ -427,7 +416,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       LinkOpts += Img.getLinkOptions();
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    RT::PiProgram NativePrg = createPIProgram(Img, Context, {Device});
+    RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
     if (Prg)
       flushSpecConstants(*Prg, NativePrg, &Img);
     ProgramPtr ProgramManaged(
@@ -1335,8 +1324,8 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
                            });
   DeviceImages.erase(It, DeviceImages.end());
 
-  // Bring device images with compatible state to desired state
-  bringSYCLDeviceImagesToState(DeviceImages, TargetState);
+  // The spec says that the function should not call online compiler or linker
+  // to translate device images into target state
   return DeviceImages;
 }
 
@@ -1369,6 +1358,9 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
                         const property_list &) {
 
+  // TODO: Extract compile options from property list once the Spec clarifies
+  // how they can be passed.
+
   // TODO: Probably we could have cached compiled device images.
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
@@ -1376,8 +1368,17 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   const detail::plugin &Plugin =
       getSyclObjImpl(InputImpl->get_context())->getPlugin();
 
+  // TODO: Add support for creating non-SPIRV programs from multiple devices.
+  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV && Devs.size() > 1)
+    sycl::runtime_error(
+        "Creating a program from AOT binary for multiple device is not "
+        "supported",
+        PI_INVALID_OPERATION);
+
+  // Device is not used when creating program from SPIRV, so passing only one
+  // device is OK.
   RT::PiProgram Prog = createPIProgram(*InputImpl->get_bin_image_ref(),
-                                       InputImpl->get_context(), Devs);
+                                       InputImpl->get_context(), Devs[0]);
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
