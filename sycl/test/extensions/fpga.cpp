@@ -59,14 +59,14 @@ int main() {
   /*Check LSU interface*/
   {
     cl::sycl::buffer<int, 1> output_buffer(1);
-    auto *in_ptr = cl::sycl::malloc_host<int>(1,Queue.get_context());
+    auto *in_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
 
     Queue.submit([&](cl::sycl::handler &cgh) {
       auto output_accessor =
           output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
 
       cgh.single_task<class kernel>([=] {
-          cl::sycl::host_ptr<int> input_ptr(in_ptr);
+        cl::sycl::host_ptr<int> input_ptr(in_ptr);
         auto output_ptr = output_accessor.get_pointer();
 
         using PrefetchingLSU =
