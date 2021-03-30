@@ -70,40 +70,15 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
 
 template <typename FPGALoopAttrT>
 static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
-  if (!isa<ForStmt, CXXForRangeStmt, DoStmt, WhileStmt>(St)) {
-    S.Diag(A.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << A << "'for', 'while', and 'do' statements";
-    return nullptr;
-  }
-
-  unsigned NumArgs = A.getNumArgs();
-  if (NumArgs == 0) {
-    if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAInitiationInterval ||
-        A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency ||
-        A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving ||
-        A.getKind() == ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations) {
-      S.Diag(A.getLoc(), diag::warn_attribute_too_few_arguments) << A << 1;
-      return nullptr;
-    }
-  }
-
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
   return S.BuildSYCLIntelFPGALoopAttr<FPGALoopAttrT>(
       A, A.getNumArgs() ? A.getArgAsExpr(0) : nullptr);
 }
 
-template <>
-Attr *handleIntelFPGALoopAttr<SYCLIntelFPGADisableLoopPipeliningAttr>(
-    Sema &S, Stmt *St, const ParsedAttr &A) {
-  if (!isa<ForStmt, CXXForRangeStmt, DoStmt, WhileStmt>(St)) {
-    S.Diag(A.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << A << "'for', 'while', and 'do' statements";
-    return nullptr;
-  }
-
+static Attr *handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Stmt *,
+                                                          const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
 }
 
@@ -259,12 +234,6 @@ CheckRedundantSYCLIntelFPGAIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
 }
 
 static Attr *handleIntelFPGAIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
-  if (!isa<ForStmt, CXXForRangeStmt, DoStmt, WhileStmt>(St)) {
-    S.Diag(A.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << A << "'for', 'while', and 'do' statements";
-    return nullptr;
-  }
-
   unsigned NumArgs = A.getNumArgs();
 
   S.CheckDeprecatedSYCLAttributeSpelling(A);
@@ -788,8 +757,7 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
   case ParsedAttr::AT_SYCLIntelFPGALoopCoalesce:
     return handleIntelFPGALoopAttr<SYCLIntelFPGALoopCoalesceAttr>(S, St, A);
   case ParsedAttr::AT_SYCLIntelFPGADisableLoopPipelining:
-    return handleIntelFPGALoopAttr<SYCLIntelFPGADisableLoopPipeliningAttr>(
-        S, St, A);
+    return handleSYCLIntelFPGADisableLoopPipeliningAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving:
     return handleIntelFPGALoopAttr<SYCLIntelFPGAMaxInterleavingAttr>(S, St, A);
   case ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations:
