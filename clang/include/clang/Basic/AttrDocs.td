@@ -2835,6 +2835,8 @@ def SYCLIntelFPGAInitiationIntervalAttrDocs : Documentation {
 This attribute applies to a loop or a function. Indicates that the loop or
 function should be pipelined with an initiation interval of N. N must be a
 positive integer. Cannot be applied multiple times to the same loop or function.
+Cannot be used on the same loop or function in conjunction with
+disable_loop_pipelining.
 
 The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
 ``[[intel::initiation_interval]]`` and will be removed in the future.
