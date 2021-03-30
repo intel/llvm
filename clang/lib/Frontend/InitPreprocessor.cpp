@@ -1139,8 +1139,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
         Builder.defineMacro("__SYCL_NVPTX__", "1");
     }
   }
-  if (LangOpts.SYCLExplicitSIMD)
-    Builder.defineMacro("__SYCL_EXPLICIT_SIMD__", "1");
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
 
