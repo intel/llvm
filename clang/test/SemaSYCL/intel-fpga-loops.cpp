@@ -424,7 +424,7 @@ void parse_order_error() {
   // We had a bug where we would only look at the first attribute in the group
   // when trying to determine whether to diagnose the loop attributes on an
   // incorrect subject. Test that we properly catch this situation.
-  [[clang::nomerge, intel::max_concurrency(1)]] // expected-error {{'max_concurrency' attribute only applies to 'for', 'while', and 'do' statements}}
+  [[clang::nomerge, intel::max_concurrency(1)]] // expected-error {{'max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and functions}}
   if (1) { parse_order_error(); }               // Recursive call silences unrelated diagnostic about nomerge.
 
   [[clang::nomerge, intel::max_concurrency(1)]] // OK
