@@ -634,7 +634,7 @@ private:
 
   void setOffloadStaticLibSeen() { OffloadStaticLibSeen = true; }
 
-  /// FPGA Emulation Mode.  By default, this is true due to the fact than
+  /// FPGA Emulation Mode.  By default, this is true due to the fact that
   /// an external option setting is required to target hardware.
   bool FPGAEmulationMode = true;
   void unsetFPGAEmulationMode() { FPGAEmulationMode = false; }
