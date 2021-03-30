@@ -3447,7 +3447,7 @@ Sema::MergeSYCLIntelFPGAInitiationIntervalAttr(
   // attributes are incompatible.
   if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>(*this, D,
                                                                        A))
-     return nullptr;
+    return nullptr;
 
   return ::new (Context)
       SYCLIntelFPGAInitiationIntervalAttr(Context, A, A.getIntervalExpr());
