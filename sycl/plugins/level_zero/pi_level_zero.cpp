@@ -2444,11 +2444,14 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   pi_result Result;
+  auto Alignment = std::min(Size, 64UL);
+  if ((Alignment & (Alignment - 1)) != 0)
+    Alignment = 1;
   if (DeviceIsIntegrated) {
-    Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, 64);
+    Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
   } else {
     Result = piextUSMDeviceAlloc(&Ptr, Context, Context->Devices[0], nullptr,
-                                 Size, 64);
+                                 Size, Alignment);
   }
   if (Result != PI_SUCCESS)
     return Result;
@@ -5451,6 +5454,8 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
     return Ex.getError();
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
   }
 
   return PI_SUCCESS;
@@ -5478,6 +5483,8 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
     return Ex.getError();
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
   }
 
   return PI_SUCCESS;
@@ -5499,6 +5506,8 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
     return Ex.getError();
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
   }
 
   return PI_SUCCESS;
@@ -5525,6 +5534,8 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
       Context->HostMemAllocContext->deallocate(Ptr);
     } catch (const UsmAllocationException &Ex) {
       return Ex.getError();
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
     }
     return PI_SUCCESS;
   }
