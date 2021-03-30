@@ -3378,8 +3378,8 @@ static void handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Decl *D,
 
 // Handles initiation_interval attribute.
 void Sema::AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
-		    const AttributeCommonInfo &CI,
-                                         Expr *E) {
+                                                  const AttributeCommonInfo &CI,
+                                                  Expr *E) {
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
@@ -3397,12 +3397,13 @@ void Sema::AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
     }
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
+    if (const auto *DeclAttr =
+            D->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
       // If the other attribute argument is instantiation dependent, we won't
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
-      if (const auto *DeclExpr = 
-		      dyn_cast<ConstantExpr>(DeclAttr->getIntervalExpr())) {
+      if (const auto *DeclExpr =
+              dyn_cast<ConstantExpr>(DeclAttr->getIntervalExpr())) {
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
@@ -3415,19 +3416,22 @@ void Sema::AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
 
   // [[intel::disable_loop_pipelining] and [[intel::initiation_interval()]]
   // attributes are incompatible.
-  if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>(*this, D, CI))
+  if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>(*this, D,
+                                                                       CI))
     return;
 
-  D->addAttr(::new (Context) SYCLIntelFPGAInitiationIntervalAttr(Context, CI, E));
+  D->addAttr(::new (Context)
+                 SYCLIntelFPGAInitiationIntervalAttr(Context, CI, E));
 }
 
-SYCLIntelFPGAInitiationIntervalAttr *
-Sema::MergeSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
-                                      const SYCLIntelFPGAInitiationIntervalAttr &A) {
+Sema::MergeSYCLIntelFPGAInitiationIntervalAttr(
+    Decl *D, const SYCLIntelFPGAInitiationIntervalAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getIntervalExpr())) {
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
+    if (const auto *DeclExpr =
+            dyn_cast<ConstantExpr>(DeclAttr->getIntervalExpr())) {
       if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getIntervalExpr())) {
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
@@ -3439,18 +3443,18 @@ Sema::MergeSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
     }
   }
 
-  // [[intel::disable_loop_pipelining] and [[intel::initiation_interval()]]
+  // [[intel::initiation_interval()]] and [[intel::disable_loop_pipelining]
   // attributes are incompatible.
-  if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>
-                  (*this, D, A))
-    return nullptr;
+  if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>(*this, D,
+                                                                       A))
+     return nullptr;
 
-  return ::new (Context) SYCLIntelFPGAInitiationIntervalAttr(
-		  Context, A, A.getIntervalExpr());
+  return ::new (Context)
+      SYCLIntelFPGAInitiationIntervalAttr(Context, A, A.getIntervalExpr());
 }
 
 static void handleSYCLIntelFPGAInitiationIntervalAttr(Sema &S, Decl *D,
-                                             const ParsedAttr &A) {
+                                                      const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
   S.AddSYCLIntelFPGAInitiationIntervalAttr(D, A, A.getArgAsExpr(0));
