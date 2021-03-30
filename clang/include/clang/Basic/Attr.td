@@ -337,7 +337,6 @@ def SYCL : LangOpt<"SYCL">;
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
 def SilentlyIgnoreSYCLIsHost : LangOpt<"SYCLIsHost", "", 1>;
-def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
 def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
@@ -1192,7 +1191,6 @@ def SYCLSimd : InheritableAttr {
   let Spellings = [GNU<"sycl_explicit_simd">,
                    CXX11<"intel", "sycl_explicit_simd">];
   let Subjects = SubjectList<[Function, GlobalVar]>;
-  let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLSimdDocs];
   let SupportsNonconformingLambdaSyntax = 1;
 }
@@ -1205,7 +1203,6 @@ def SYCLRegisterNum : InheritableAttr {
   let Subjects = SubjectList<[GlobalVar]>;
   // This attribute is applied to file-scope variables and must be compilable
   // for the host device as well
-  let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLRegisterNumDocs];
 }
 
@@ -1218,7 +1215,6 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
   let Subjects = SubjectList<[ParmVar]>;
-  let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [Undocumented];
 }
 
