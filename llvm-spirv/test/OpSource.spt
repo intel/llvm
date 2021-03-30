@@ -1,0 +1,38 @@
+119734787 65536 393230 13 0 
+2 Capability Addresses 
+2 Capability Linkage 
+2 Capability Kernel 
+2 Capability Int8 
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2 
+5 EntryPoint 6 8 "test"
+3 ExecutionMode 8 31 
+14 String 12 "kernel_arg_type.test.char,short,int,long,int2,"
+3 Source 12345 67890 
+6 Name 4 "_Z8popcountc"
+3 Name 9 "x8"
+4 Name 10 "entry"
+8 Decorate 4 LinkageAttributes "_Z8popcountc" Import 
+4 TypeInt 2 8 0 
+4 TypeFunction 3 2 2 
+2 TypeVoid 6 
+4 TypeFunction 7 6 2 
+
+
+5 Function 2 4 0 3 
+3 FunctionParameter 2 5 
+
+1 FunctionEnd 
+
+5 Function 6 8 4 7 
+3 FunctionParameter 2 9 
+
+2 Label 10 
+5 FunctionCall 2 11 4 9 
+1 Return 
+
+1 FunctionEnd 
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; Reverse translation shouldn't crash:
+; RUN: llvm-spirv -r %t.spv -o %t.bc

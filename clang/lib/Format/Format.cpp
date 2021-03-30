@@ -423,7 +423,7 @@ template <> struct ScalarEnumerationTraits<FormatStyle::SortIncludesOptions> {
 
     // For backward compatibility.
     IO.enumCase(Value, "false", FormatStyle::SI_Never);
-    IO.enumCase(Value, "true", FormatStyle::SI_CaseInsensitive);
+    IO.enumCase(Value, "true", FormatStyle::SI_CaseSensitive);
   }
 };
 
@@ -597,6 +597,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("IncludeIsMainRegex", Style.IncludeStyle.IncludeIsMainRegex);
     IO.mapOptional("IncludeIsMainSourceRegex",
                    Style.IncludeStyle.IncludeIsMainSourceRegex);
+    IO.mapOptional("IndentAccessModifiers", Style.IndentAccessModifiers);
     IO.mapOptional("IndentCaseLabels", Style.IndentCaseLabels);
     IO.mapOptional("IndentCaseBlocks", Style.IndentCaseBlocks);
     IO.mapOptional("IndentGotoLabels", Style.IndentGotoLabels);
@@ -641,6 +642,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("PointerAlignment", Style.PointerAlignment);
     IO.mapOptional("RawStringFormats", Style.RawStringFormats);
     IO.mapOptional("ReflowComments", Style.ReflowComments);
+    IO.mapOptional("ShortNamespaceLines", Style.ShortNamespaceLines);
     IO.mapOptional("SortIncludes", Style.SortIncludes);
     IO.mapOptional("SortJavaStaticImport", Style.SortJavaStaticImport);
     IO.mapOptional("SortUsingDeclarations", Style.SortUsingDeclarations);
@@ -984,6 +986,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
       {".*", 1, 0, false}};
   LLVMStyle.IncludeStyle.IncludeIsMainRegex = "(Test)?$";
   LLVMStyle.IncludeStyle.IncludeBlocks = tooling::IncludeStyle::IBS_Preserve;
+  LLVMStyle.IndentAccessModifiers = false;
   LLVMStyle.IndentCaseLabels = false;
   LLVMStyle.IndentCaseBlocks = false;
   LLVMStyle.IndentGotoLabels = true;
@@ -1004,6 +1007,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.ObjCSpaceAfterProperty = false;
   LLVMStyle.ObjCSpaceBeforeProtocolList = true;
   LLVMStyle.PointerAlignment = FormatStyle::PAS_Right;
+  LLVMStyle.ShortNamespaceLines = 1;
   LLVMStyle.SpacesBeforeTrailingComments = 1;
   LLVMStyle.Standard = FormatStyle::LS_Latest;
   LLVMStyle.UseCRLF = false;
@@ -1043,7 +1047,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.PenaltyIndentedWhitespace = 0;
 
   LLVMStyle.DisableFormat = false;
-  LLVMStyle.SortIncludes = FormatStyle::SI_CaseInsensitive;
+  LLVMStyle.SortIncludes = FormatStyle::SI_CaseSensitive;
   LLVMStyle.SortJavaStaticImport = FormatStyle::SJSIO_Before;
   LLVMStyle.SortUsingDeclarations = true;
   LLVMStyle.StatementAttributeLikeMacros.push_back("Q_EMIT");
@@ -1133,7 +1137,7 @@ FormatStyle getGoogleStyle(FormatStyle::LanguageKind Language) {
               "ParseTestProto",
               "ParsePartialTestProto",
           },
-          /*CanonicalDelimiter=*/"",
+          /*CanonicalDelimiter=*/"pb",
           /*BasedOnStyle=*/"google",
       },
   };
@@ -1246,7 +1250,7 @@ FormatStyle getChromiumStyle(FormatStyle::LanguageKind Language) {
         "java",
         "javax",
     };
-    ChromiumStyle.SortIncludes = FormatStyle::SI_CaseInsensitive;
+    ChromiumStyle.SortIncludes = FormatStyle::SI_CaseSensitive;
   } else if (Language == FormatStyle::LK_JavaScript) {
     ChromiumStyle.AllowShortIfStatementsOnASingleLine = FormatStyle::SIS_Never;
     ChromiumStyle.AllowShortLoopsOnASingleLine = false;
@@ -1394,8 +1398,9 @@ bool getPredefinedStyle(StringRef Name, FormatStyle::LanguageKind Language,
 }
 
 std::error_code parseConfiguration(llvm::MemoryBufferRef Config,
-                                   FormatStyle *Style,
-                                   bool AllowUnknownOptions) {
+                                   FormatStyle *Style, bool AllowUnknownOptions,
+                                   llvm::SourceMgr::DiagHandlerTy DiagHandler,
+                                   void *DiagHandlerCtxt) {
   assert(Style);
   FormatStyle::LanguageKind Language = Style->Language;
   assert(Language != FormatStyle::LK_None);
@@ -1403,7 +1408,8 @@ std::error_code parseConfiguration(llvm::MemoryBufferRef Config,
     return make_error_code(ParseError::Error);
   Style->StyleSet.Clear();
   std::vector<FormatStyle> Styles;
-  llvm::yaml::Input Input(Config);
+  llvm::yaml::Input Input(Config, /*Ctxt=*/nullptr, DiagHandler,
+                          DiagHandlerCtxt);
   // DocumentListTraits<vector<FormatStyle>> uses the context to get default
   // values for the fields, keys for which are missing from the configuration.
   // Mapping also uses the context to get the language to find the correct
@@ -2242,7 +2248,7 @@ static void sortCppIncludes(const FormatStyle &Style,
     Indices.push_back(i);
   }
 
-  if (Style.SortIncludes == FormatStyle::SI_CaseSensitive) {
+  if (Style.SortIncludes == FormatStyle::SI_CaseInsensitive) {
     llvm::stable_sort(Indices, [&](unsigned LHSI, unsigned RHSI) {
       const auto LHSFilenameLower = Includes[LHSI].Filename.lower();
       const auto RHSFilenameLower = Includes[RHSI].Filename.lower();
@@ -2990,6 +2996,8 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
   FilesToLookFor.push_back(".clang-format");
   FilesToLookFor.push_back("_clang-format");
 
+  auto dropDiagnosticHandler = [](const llvm::SMDiagnostic &, void *) {};
+
   for (StringRef Directory = Path; !Directory.empty();
        Directory = llvm::sys::path::parent_path(Directory)) {
 
@@ -3034,7 +3042,8 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
           LLVM_DEBUG(llvm::dbgs() << "Applying child configurations\n");
 
           for (const auto& MemBuf : llvm::reverse(ChildFormatTextToApply)){
-            auto Ec = parseConfiguration(*MemBuf, &Style, AllowUnknownOptions);
+            auto Ec = parseConfiguration(*MemBuf, &Style, AllowUnknownOptions,
+                                         dropDiagnosticHandler);
             // It was already correctly parsed.
             assert(!Ec);
             static_cast<void>(Ec);
@@ -3069,8 +3078,9 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
     LLVM_DEBUG(llvm::dbgs()
                << "Applying child configuration on fallback style\n");
 
-    auto Ec = parseConfiguration(*ChildFormatTextToApply.front(),
-                                 &FallbackStyle, AllowUnknownOptions);
+    auto Ec =
+        parseConfiguration(*ChildFormatTextToApply.front(), &FallbackStyle,
+                           AllowUnknownOptions, dropDiagnosticHandler);
     // It was already correctly parsed.
     assert(!Ec);
     static_cast<void>(Ec);

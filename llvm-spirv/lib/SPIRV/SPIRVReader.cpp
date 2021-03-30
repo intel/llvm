@@ -1548,18 +1548,20 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case OpTypeInt: {
       const unsigned NumBits = BT->getBitWidth();
       if (NumBits > 64) {
-        // Translate arbitrary precision integer constants
+        // Translate huge arbitrary precision integer constants
         const unsigned RawDataNumWords = BConst->getNumWords();
         const unsigned BigValNumWords = (RawDataNumWords + 1) / 2;
         std::vector<uint64_t> BigValVec(BigValNumWords);
-        const SPIRVWord *RawData = BConst->getSPIRVWords();
+        const std::vector<SPIRVWord> &RawData = BConst->getSPIRVWords();
         // SPIRV words are integers of 32-bit width, meanwhile llvm::APInt
         // is storing data using an array of 64-bit words. Here we pack SPIRV
         // words into 64-bit integer array.
-        for (size_t I = 0; I != RawDataNumWords; ++I)
-          BigValVec[I / 2] =
-              (I % 2) ? BigValVec[I / 2] | ((uint64_t)RawData[I] << 32)
-                      : BigValVec[I / 2] | ((uint64_t)RawData[I]);
+        for (size_t I = 0; I != RawDataNumWords / 2; ++I)
+          BigValVec[I] =
+              (static_cast<uint64_t>(RawData[2 * I + 1]) << SpirvWordBitWidth) |
+              RawData[2 * I];
+        if (RawDataNumWords % 2)
+          BigValVec.back() = RawData.back();
         return mapValue(BV, ConstantInt::get(LT, APInt(NumBits, BigValVec)));
       }
       return mapValue(
@@ -2771,21 +2773,23 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
 
   // Format of instruction CastFromInt:
   //   LLVM arbitrary floating point functions return value: iN
-  //   Arguments: A(iN), Mout(i32), EnableSubnormals(i32),
+  //   Arguments: A(iN), Mout(i32), FromSign(bool), EnableSubnormals(i32),
   //              RoundingMode(i32), RoundingAccuracy(i32)
   //   where A and return values are of arbitrary precision integer type.
   //   SPIR-V arbitrary floating point instruction layout:
-  //   <id>ResTy Res<id> A<id> Literal Mout Literal EnableSubnormals
-  //       Literal RoundingMode Literal RoundingAccuracy
+  //   <id>ResTy Res<id> A<id> Literal Mout Literal FromSign
+  //       Literal EnableSubnormals Literal RoundingMode
+  //       Literal RoundingAccuracy
 
   // Format of instruction CastToInt:
   //   LLVM arbitrary floating point functions return value: iN
-  //   Arguments: A(iN), MA(i32), EnableSubnormals(i32), RoundingMode(i32),
-  //              RoundingAccuracy(i32)
+  //   Arguments: A(iN), MA(i32), ToSign(bool), EnableSubnormals(i32),
+  //              RoundingMode(i32), RoundingAccuracy(i32)
   //   where A and return values are of arbitrary precision integer type.
   //   SPIR-V arbitrary floating point instruction layout:
-  //   <id>ResTy Res<id> A<id> Literal MA Literal EnableSubnormals
-  //       Literal RoundingMode Literal RoundingAccuracy
+  //   <id>ResTy Res<id> A<id> Literal MA Literal ToSign
+  //       Literal EnableSubnormals Literal RoundingMode
+  //       Literal RoundingAccuracy
 
   // Format of other instructions:
   //   LLVM arbitrary floating point functions return value: iN
@@ -2797,7 +2801,7 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   //       Literal RoundingMode Literal RoundingAccuracy
 
   Type *RetTy = transType(BI->getType());
-  IntegerType *Int32Ty = IntegerType::get(*Context, 32);
+  IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
   auto Inst = static_cast<SPIRVArbFloatIntelInst *>(BI);
 
@@ -2805,7 +2809,7 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   Type *BTy = nullptr;
 
   // Words contain:
-  // A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout]
+  // A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout] [Literal Sign]
   //   [Literal EnableSubnormals Literal RoundingMode Literal RoundingAccuracy]
   const std::vector<SPIRVWord> Words = Inst->getOpWords();
   auto WordsItr = Words.begin() + 1; /* Skip word for A input id */
@@ -2814,6 +2818,14 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   std::vector<Value *> Args = {
       transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
       ConstantInt::get(Int32Ty, *WordsItr++) /* MA/Mout - width of mantissa */};
+
+  Op OC = Inst->getOpCode();
+  if (OC == OpArbitraryFloatCastFromIntINTEL ||
+      OC == OpArbitraryFloatCastToIntINTEL) {
+    IntegerType *Int1Ty = Type::getInt1Ty(*Context);
+    ArgTys.push_back(Int1Ty);
+    Args.push_back(ConstantInt::get(Int1Ty, *WordsItr++)); /* ToSign/FromSign */
+  }
 
   if (IsBinaryInst) {
     /* B - input */
@@ -2830,8 +2842,8 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                  });
 
   FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
-  std::string FuncName = SPIRVArbFloatIntelMap::rmap(Inst->getOpCode()) +
-                         getFuncAPIntSuffix(RetTy, ATy, BTy);
+  std::string FuncName =
+      SPIRVArbFloatIntelMap::rmap(OC) + getFuncAPIntSuffix(RetTy, ATy, BTy);
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
   auto *Func = cast<Function>(FCallee.getCallee());
@@ -3475,8 +3487,7 @@ bool SPIRVToLLVM::translate() {
     return false;
   if (!transFPContractMetadata())
     return false;
-  if (!transSourceLanguage())
-    return false;
+  transSourceLanguage();
   if (!transSourceExtension())
     return false;
   transGeneratorMD();
@@ -4388,12 +4399,12 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
 
 // SPIR-V only contains language version. Use OpenCL language version as
 // SPIR version.
-bool SPIRVToLLVM::transSourceLanguage() {
+void SPIRVToLLVM::transSourceLanguage() {
   SPIRVWord Ver = 0;
   SourceLanguage Lang = BM->getSourceLanguage(&Ver);
-  assert((Lang == SourceLanguageUnknown || // Allow unknown for debug info test
-          Lang == SourceLanguageOpenCL_C || Lang == SourceLanguageOpenCL_CPP) &&
-         "Unsupported source language");
+  if (Lang != SourceLanguageUnknown && // Allow unknown for debug info test
+      Lang != SourceLanguageOpenCL_C && Lang != SourceLanguageOpenCL_CPP)
+    return;
   unsigned short Major = 0;
   unsigned char Minor = 0;
   unsigned char Rev = 0;
@@ -4407,7 +4418,6 @@ bool SPIRVToLLVM::transSourceLanguage() {
     addOCLVersionMetadata(Context, M, kSPIR2MD::SPIRVer, 2, 0);
 
   addOCLVersionMetadata(Context, M, kSPIR2MD::OCLVer, Major, Minor);
-  return true;
 }
 
 bool SPIRVToLLVM::transSourceExtension() {

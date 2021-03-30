@@ -30,6 +30,7 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
 | SYCL_PI_LEVEL_ZERO_BATCH_SIZE | Integer | Sets a preferred number of commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
 | SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST | Integer | When set to 0, disables filtering of signaled events from wait lists when using the Level Zero backend. The default is 1. |
+| SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The default is 1. |
 | SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE | Any(\*) | Enables tracing of parallel_for invocations with rounded-up ranges. |
 | SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING | Any(\*) | Disables automatic rounding-up of parallel_for invocation ranges. |
 | SYCL_ENABLE_PCI | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
