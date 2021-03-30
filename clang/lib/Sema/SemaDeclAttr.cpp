@@ -3424,6 +3424,7 @@ void Sema::AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
                  SYCLIntelFPGAInitiationIntervalAttr(Context, CI, E));
 }
 
+SYCLIntelFPGAInitiationIntervalAttr *
 Sema::MergeSYCLIntelFPGAInitiationIntervalAttr(
     Decl *D, const SYCLIntelFPGAInitiationIntervalAttr &A) {
   // Check to see if there's a duplicate attribute with different values
