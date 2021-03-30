@@ -3550,21 +3550,28 @@ void Sema::MarkDevice(void) {
 // SYCL device specific diagnostics implementation
 // -----------------------------------------------------------------------------
 
-Sema::SemaDiagnosticBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
-                                                       unsigned DiagID) {
+Sema::SemaDiagnosticBuilder
+Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
+                           DeviceDiagnosticReason Reason) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
-  SemaDiagnosticBuilder::Kind DiagKind = [this, FD] {
+  SemaDiagnosticBuilder::Kind DiagKind = [this, FD, Reason] {
     if (DiagnosingSYCLKernel)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
+    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted) {
+      // Skip the diagnostic if we know it won't be emitted.
+      if ((getEmissionReason(FD) & Reason) ==
+          Sema::DeviceDiagnosticReason::None)
+        return SemaDiagnosticBuilder::K_Nop;
+
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
+    }
     return SemaDiagnosticBuilder::K_Deferred;
   }();
-  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this);
+  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this, Reason);
 }
 
 bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
@@ -3585,11 +3592,12 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   SemaDiagnosticBuilder::Kind DiagKind = SemaDiagnosticBuilder::K_Nop;
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
-
-  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Sema::KernelCallUndefinedFunction;
-  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
-                    Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
+                        diag::note_previous_decl, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Callee;
 
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&

@@ -1769,6 +1769,34 @@ public:
     }
   };
 
+  /// Bitmask to contain the list of reasons a single diagnostic should be
+  /// emitted, based on its language.  This permits multiple offload systems
+  /// to coexist in the same translation unit.
+  enum class DeviceDiagnosticReason {
+    /// Diagnostic doesn't apply to anything. Included for completeness, but
+    /// should make this a no-op.
+    None = 0,
+    /// OpenMP specific diagnostic.
+    OmpDevice = 1 << 0,
+    OmpHost = 1 << 1,
+    OmpAll = OmpDevice | OmpHost,
+    /// CUDA specific diagnostics.
+    CudaDevice = 1 << 2,
+    CudaHost = 1 << 3,
+    CudaAll = CudaDevice | CudaHost,
+    /// SYCL specific diagnostic.
+    Sycl = 1 << 4,
+    /// ESIMD specific diagnostic.
+    Esimd = 1 << 5,
+    /// A flag representing 'all'.  This can be used to avoid the check
+    /// all-together and make this behave as it did before the
+    /// DiagnosticReason was added (that is, unconditionally emit).
+    /// Note: This needs to be updated if any flags above are added.
+    All = OmpAll | CudaAll | Sycl | Esimd,
+
+    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/All)
+  };
+
   /// A generic diagnostic builder for errors which may or may not be deferred.
   ///
   /// In CUDA, there exist constructs (e.g. variable-length arrays, try/catch)
@@ -1801,7 +1829,7 @@ public:
     };
 
     SemaDiagnosticBuilder(Kind K, SourceLocation Loc, unsigned DiagID,
-                          FunctionDecl *Fn, Sema &S);
+                          FunctionDecl *Fn, Sema &S, DeviceDiagnosticReason R);
     SemaDiagnosticBuilder(SemaDiagnosticBuilder &&D);
     SemaDiagnosticBuilder(const SemaDiagnosticBuilder &) = default;
     ~SemaDiagnosticBuilder();
@@ -1826,7 +1854,9 @@ public:
       if (Diag.ImmediateDiag.hasValue())
         *Diag.ImmediateDiag << Value;
       else if (Diag.PartialDiagId.hasValue())
-        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId].second
+        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId]
+                .getDiag()
+                .second
             << Value;
       return Diag;
     }
@@ -1840,7 +1870,8 @@ public:
       if (ImmediateDiag.hasValue())
         *ImmediateDiag << std::move(V);
       else if (PartialDiagId.hasValue())
-        S.DeviceDeferredDiags[Fn][*PartialDiagId].second << std::move(V);
+        S.DeviceDeferredDiags[Fn][*PartialDiagId].getDiag().second
+            << std::move(V);
       return *this;
     }
 
@@ -1849,7 +1880,9 @@ public:
       if (Diag.ImmediateDiag.hasValue())
         PD.Emit(*Diag.ImmediateDiag);
       else if (Diag.PartialDiagId.hasValue())
-        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId].second = PD;
+        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId]
+            .getDiag()
+            .second = PD;
       return Diag;
     }
 
@@ -1857,7 +1890,8 @@ public:
       if (ImmediateDiag.hasValue())
         ImmediateDiag->AddFixItHint(Hint);
       else if (PartialDiagId.hasValue())
-        S.DeviceDeferredDiags[Fn][*PartialDiagId].second.AddFixItHint(Hint);
+        S.DeviceDeferredDiags[Fn][*PartialDiagId].getDiag().second.AddFixItHint(
+            Hint);
     }
 
     friend ExprResult ExprError(const SemaDiagnosticBuilder &) {
@@ -4281,6 +4315,7 @@ public:
   };
   FunctionEmissionStatus getEmissionStatus(FunctionDecl *Decl,
                                            bool Final = false);
+  DeviceDiagnosticReason getEmissionReason(const FunctionDecl *Decl);
 
   // Whether the callee should be ignored in CUDA/HIP/OpenMP host/device check.
   bool shouldIgnoreInHostDeviceCheck(FunctionDecl *Callee);
@@ -12157,11 +12192,25 @@ public:
   /// before incrementing, so you can emit an error.
   bool PopForceCUDAHostDevice();
 
+  class DeviceDeferredDiagnostic {
+  public:
+    DeviceDeferredDiagnostic(SourceLocation SL, const PartialDiagnostic &PD,
+                             DeviceDiagnosticReason R)
+        : Diagnostic(SL, PD), Reason(R) {}
+
+    PartialDiagnosticAt &getDiag() { return Diagnostic; }
+    DeviceDiagnosticReason getReason() const { return Reason; }
+
+  private:
+    PartialDiagnosticAt Diagnostic;
+    DeviceDiagnosticReason Reason;
+  };
+
   /// Diagnostics that are emitted only if we discover that the given function
   /// must be codegen'ed.  Because handling these correctly adds overhead to
   /// compilation, this is currently only enabled for CUDA compilations.
   llvm::DenseMap<CanonicalDeclPtr<FunctionDecl>,
-                 std::vector<PartialDiagnosticAt>>
+                 std::vector<DeviceDeferredDiagnostic>>
       DeviceDeferredDiags;
 
   /// A pair of a canonical FunctionDecl and a SourceLocation.  When used as the
@@ -13124,8 +13173,10 @@ public:
   /// if (!S.Context.getTargetInfo().hasFloat128Type() &&
   ///     S.getLangOpts().SYCLIsDevice)
   ///   SYCLDiagIfDeviceCode(Loc, diag::err_type_unsupported) << "__float128";
-  SemaDiagnosticBuilder SYCLDiagIfDeviceCode(SourceLocation Loc,
-                                             unsigned DiagID);
+  SemaDiagnosticBuilder SYCLDiagIfDeviceCode(
+      SourceLocation Loc, unsigned DiagID,
+      DeviceDiagnosticReason Reason = DeviceDiagnosticReason::Sycl |
+                                      DeviceDiagnosticReason::Esimd);
 
   /// Check whether we're allowed to call Callee from the current context.
   ///

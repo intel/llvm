@@ -18434,6 +18434,15 @@ Decl *Sema::getObjCDeclContext() const {
   return (dyn_cast_or_null<ObjCContainerDecl>(CurContext));
 }
 
+Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
+  if (FD->hasAttr<SYCLSimdAttr>())
+    return Sema::DeviceDiagnosticReason::Esimd;
+  else if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
+    return Sema::DeviceDiagnosticReason::Sycl;
+  // FIXME: Figure out the logic for OMP and CUDA.
+  return Sema::DeviceDiagnosticReason::All;
+}
+
 Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
                                                      bool Final) {
   assert(FD && "Expected non-null FunctionDecl");
