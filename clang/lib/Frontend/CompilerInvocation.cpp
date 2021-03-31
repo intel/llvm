@@ -4295,14 +4295,14 @@ static void CreateEmptyFile(StringRef HeaderName) {
   if (HeaderName.empty())
     return;
 
-  Expected<llvm::sys::fs::file_t> ft = llvm::sys::fs::openNativeFileForWrite(
+  Expected<llvm::sys::fs::file_t> FT = llvm::sys::fs::openNativeFileForWrite(
       HeaderName, llvm::sys::fs::CD_OpenAlways, llvm::sys::fs::OF_None);
-  if (ft)
-    llvm::sys::fs::closeFile(*ft);
+  if (FT)
+    llvm::sys::fs::closeFile(*FT);
   else {
     // Emit a message but don't terminate; compilation will fail
     // later if this file is absent.
-    llvm::errs() << "Error: " << llvm::toString(ft.takeError())
+    llvm::errs() << "Error: " << llvm::toString(FT.takeError())
                  << " when opening " << HeaderName << "\n";
   }
 }
