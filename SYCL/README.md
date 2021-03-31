@@ -1,175 +1,168 @@
 # Table of contents
  * [Overview](#overview)
- * [Execution](#execution)
- * [Main parameters](#main-parameters)
- * [LIT parameters accepted by LIT executor](#lit-parameters-accepted-by-lit-executor)
- * [LIT features which can be used to configure test execution](#lit-features-which-can-be-used-to-configure-test-execution)
+ * [Prerequisites](#prerequisites)
+ * [Build and run tests](#build-and-run-tests)
+ * [CMake parameters](#cmake-parameters)
+ * [Special test categories](#special-test-categories)
+ * [Creating or modifying tests](#creating-or-modifying-tests)
+   * [LIT feature checks](#lit-feature-checks)
+   * [llvm-lit parameters](#llvm-lit-parameters)
 
 # Overview
-This directory contains SYCL-related tests distributed in subdirectories:
- - Basic - tests used for sanity testing. Building, executing and checks are
-   defined using insource comments with LIT syntax.
- - External - contains infrastructure for running tests which sources are
-   stored outside of this repository (see [External/README.md](External/README.md) for details).
- - ExtraTests - contains infrastructure for picking up LIT style tests
-   from external directory passed in SYCL_EXTRA_TESTS_SRC. 
+This directory contains SYCL-related tests distributed in subdirectories based
+on testing scope.
 
-# Execution
+# Prerequisites
+
+ - DPC++ compiler. Can be built following these
+   [instructions](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain)
+   or taken prebuilt from [releases](https://github.com/intel/llvm/releases).
+ - LIT tools (llvm-lit, llvm-size). They are not available at prebuilts above,
+   but can be built in compiler project (e.g. with "ninja check").
+ - Target runtime(s) to execute tests on devices other than host. See
+   [installation instructions](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
+
+# Build and run tests
+
+Get sources
+
 ```
-git clone <GIT_REPO> # e.g. https://github.com/intel/llvm-test-suite
+git clone https://github.com/intel/llvm-test-suite
 cd llvm-test-suite
 mkdir build
 cd build
-# configuring test execution (selecting compiler version, target BE and target device)
-cmake -G Ninja \
-        -DTEST_SUITE_SUBDIRS=SYCL \
-        -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> \
-        -DCHECK_SYCL_ALL="opencl:cpu,acc,gpu,host;opencl:cpu;opencl:gpu;opencl:acc;opencl:host;opencl:gpu,host;level_zero:gpu;level_zero:host" \
-        -DSYCL_EXTERNAL_TESTS="RSBench" \
-        ..
-# Build and run full list of tests for all supported combinations of target
-backends and devices.
-ninja check-sycl-all -k0
-# Get list of available tests
-llvm-lit . --show-tests
-# Run specific test
-llvm-lit <path_to_test>
-# Run tests with parameters
-llvm-lit --param target_devices=host,gpu --param sycl_be=level_zero \
-        --param dpcpp_compiler=path/to/clang++ --param dump_ir=True .
 ```
 
-Notes:
- - it is assumed that LIT framework, FileCheck and other LIT dependencies are
-available in the same directory with llvm-lit.
- - compiler variant as well as compile/link options are defined in cashed cmake
- configurations:
-   - [dpcpp.cmake](../../cmake/caches/dpcpp.cmake)
-   - [clang_fsycl.cmake](../../cmake/cashes/clang_fsycl.cmake)
-   - [clang_fsycl_cuda.cmake](../../cmake/cashes/clang_fsycl_cuda.cmake)
- - compiler is taken from environment.
+With compiler tools available in the PATH:
 
-# Main parameters
-It is possible to change test scope by specifying test directory/file in first
-argument to for the lit-runner.py script.
+```
+# Configure
+cmake \
+ -DCMAKE_CXX_COMPILER=clang++ \
+ -DTEST_SUITE_SUBDIRS=SYCL \
+ -DCHECK_SYCL_ALL="opencl:host" \
+ ..
 
-***CMAKE_CXX_COMPILER*** should point to the DPCPP compiler
+# Build and Run
+make check-sycl-all
 
-***SYCL_TARGET_DEVICES*** defines comma separated target device types (default
-value is cpu,gpu,acc,host). Supported target_devices values are:
+```
+
+To use ninja build run as:
+
+```
+# Configure
+cmake -G Ninja ...
+
+# Build and Run
+ninja check-sycl-all
+```
+
+# Cmake parameters
+
+These parameters can be used to configure tests:
+
+***CMAKE_CXX_COMPILER*** path DPCPP compiler
+
+***TEST_SUITE_LLVM_SIZE*** path to llvm-size tool, required for code size
+collection
+
+***TEST_SUITE_COLLECT_COMPILE_TIME=OFF*** can be used to turn off compile time
+collection
+
+***TEST_SUITE_COLLECT_CODE_SIZE=OFF*** can be used to turn off code size
+collection
+
+***TEST_SUITE_LIT*** path to llvm-lit tool
+
+***CHECK_SYCL_ALL*** defines selection of multiple SYCL backends with set of
+target devices per each to be tested iteratively. Value is semicolon-separated
+list of configurations. Each configuration includes backend separated
+from comma-separated list of target devices with colon. Example:
+
+```
+-DCHECK_SYCL_ALL="opencl:cpu,host;level_zero:gpu,host;cuda:gpu"
+```
+
+***SYCL_BE*** SYCL backend to be used for testing. Supported values are:
+ - **opencl** - for OpenCL backend;
+ - **cuda** - for CUDA backend;
+ - **level_zero** - Level Zero backend.
+
+***SYCL_TARGET_DEVICES*** comma separated list of target devices for testing.
+Default value is cpu,gpu,acc,host. Supported values are:
  - **cpu**  - CPU device available in OpenCL backend only;
  - **gpu**  - GPU device available in OpenCL, Level Zero and CUDA backends;
  - **acc**  - FPGA emulator device available in OpenCL backend only;
- - **host** - SYCL Host device availabel with all backends.
+ - **host** - SYCL Host device available with all backends.
 
-***SYCL_BE*** defined SYCL backend to be used for testing.
-Supported sycl_be values are:
- - opencl - for OpenCL backend;
- - cuda - for CUDA backend;
- - level_zero - Level Zero backend.
+***OpenCL_LIBRARY*** path to OpenCL ICD loader library. OpenCL interoperability
+tests require OpenCL ICD loader to be linked with. For such tests OpenCL ICD
+loader library should be installed in the system or available at the full path
+specified by this variable.
 
-***CHECK_SYCL_ALL*** allows selection of multiple SYCL backends with set of
-target devices per each to be tested iteratively. Value may contain semicolon-
-separated list of configurations. Each configuration includes backend separated
-from comma-separated list of target devices with colon (e.g.
--DCHECK_SYCL_ALL="opencl:cpu,host;level_zero:gpu,host"). The testing is
-done using check-sycl-all target. It is recommended to pass -k0 parameter to
-build command line to avoid break execution on test failures for the first
-backend.
+***LEVEL_ZERO_INCLUDE*** path to Level Zero headers.
 
-Note: for compatibility reasons old values for SYCL backend selections are
-supported temporarely (PI_OPENCL, PI_CUDA, PI_LEVEL_ZERO).
+***LEVEL_ZERO_LIBS_DIR*** path to Level Zero libraries.
 
-***SYCL_EXTERNAL_TESTS*** semicolon-separate names of external SYCL applications
-which are built and run as part of the testing. Name is equal to subdirectory in
-[External](External) containing driver for building and running the application
-in llvm-test-suite infrastructure (e.g. -DSYCL_EXTERNAL_TESTS=RSBench). Source
-code of external application can be downloaded from external repo as part of the
-build or provided in CMake variable <APPNAME>_SRC (e.g. RSBench_SRC).
+# Special test categories
 
-***SYCL_EXTRA_TESTS_SRC*** path to directory which contains extra LIT tests.
+There are two special directories for extended testing. See documentation at:
 
-***OpenCL_LIBRARY*** OpenCL interoperability tests require OpenCL ICD loader
-to be linked with. Make sure OpenCL ICD loader library is available in the
-system or library with full path passed to CMake configuration using the
-variable.
+ - [ExtraTests](ExtraTests/README.md)
+ - [External](External/README.md)
 
-***LEVEL_ZERO_HEADERS*** - directory containing Level_Zero native headers,
-   can be also set by LIT parameter level_zero_headers.
+# Creating or modifying tests
 
-***LEVEL_ZERO_LIBS_DIR*** - directory containing Level_Zero native libraries,
-   can be also set by LIT parameter level_zero_libs_dir.
+## LIT feature checks
 
-It is asssumed that all required dependencies (OpenCL runtimes, CUDA SDK, AOT
-compilers, etc) are available in the system.
+Following features can be checked in tests to limit test execution to the
+specific environment via REQUIRES, UNSUPPORTED, etc. filters. For example if
+REQUIRES:sycl-ls specified, test will run only if sycl-ls tool is available.
+If UNSUPPORTED:sycl-ls specified, test will run only if sycl-ls tool is
+unavailable.
 
-See examples below for configuring tests targeting different devices:
- - Multiple backends iterative mode
-```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DCHECK_SYCL_ALL="opencl:acc,gpu,cpu,host;level_zero:gpu,host;cuda:gpu,host" -C../cmake/caches/clang_fsycl.cmake  ..
-ninja -k0 check-sycl-all
-```
- - SYCL host:
-```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=opencl -DSYCL_TARGET_DEVICES="host" -C../cmake/caches/clang_fsycl.cmake  ..
-ninja check
-```
- - OpenCL GPU
-```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=opencl -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
-ninja check
-```
- - OpenCL CPU
-```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=opencl -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
-ninja check
-```
- - OpenCL FPGA emulator
-```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=opencl -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
-ninja check
-```
- - CUDA GPU
-```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=cuda -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl_cuda.cmake  ..
-ninja check
-```
- - Level Zero GPU
-```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=level_zero -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
-ninja check
-```
+ * **windows**, **linux** - host OS;
+ * **cpu**, **gpu**, **host**, **accelerator** - target device;
+ * **cuda**, **opencl**, **level_zero** - target backend;
+ * **sycl-ls** - sycl-ls tool availability;
+ * **cl_options** - CL command line options recognized (or not) by compiler;
+ * **opencl_icd** - OpenCL ICD loader availability;
+ * **aot_tool** - Ahead-of-time compilation tools availability;
+ * **aoc**, **ocloc**, **opencl-aot** - Specific AOT tool availability;
+ * **level_zero_dev_kit** - Level_Zero headers and libraries availability;
+ * **gpu-intel-dg1** - Intel GPU DG1 availability;
+ * **dump_ir**: - compiler can / cannot dump IR;
 
-# LIT parameters accepted by LIT executor:
+## llvm-lit parameters
+
+Following options can be passed to llvm-lit tool through --param option to
+configure specific single test execution in the command line:
+
  * **dpcpp_compiler** - full path to dpcpp compiler;
  * **target_device** - comma-separated list of target devices (cpu, gpu, acc,
    host);
  * **sycl_be** - SYCL backend to be used (opencl, level_zero, cuda);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
  * **gpu-intel-dg1** - tells LIT infra that Intel GPU DG1 is present in the
-   system. It is developer / CI infra responsibility to make sure that the device
-   is available in the system. Tests requiring DG1 to run must use proper device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
-   SYCL_DEVICE_FILTER to get proper configuration (see [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
+   system. It is developer / CI infra responsibility to make sure that the
+   device is available in the system. Tests requiring DG1 to run must use proper
+   device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
+   SYCL_DEVICE_FILTER to get proper configuration (see
+   [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
  * **extra_environment** - comma-separated list of variables with values to be
    added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
    in cmake.
- * **level_zero_headers** - directory containing Level_Zero native headers,
-   can be also set by CMake variable LEVEL_ZERO_HEADERS.
+ * **level_zero_include** - directory containing Level_Zero native headers,
+   can be also set by CMake variable LEVEL_ZERO_INCLUDE.
  * **level_zero_libs_dir** - directory containing Level_Zero native libraries,
    can be also set by CMake variable LEVEL_ZERO_LIBS_DIR.
 
-# LIT features which can be used to configure test execution:
- * **windows**, **linux** - host OS;
- * **cpu**, **gpu**, **host**, **accelerator** - target devices;
- * **cuda**, **opencl**, **level_zero** - target backend;
- * **sycl-ls** - sycl-ls tool is available;
- * **cl_options** - compiler uses CL command line options;
- * **opencl_icd** - OpenCL ICD loader is availabl, the libarary is needed for
-   OpenCL interoperability tests;
- * **aot_tool** - Ahead-of-time compilation tools are available, enables
-   corresponding tests;
- * **level_zero_dev_kit** - Level_Zero headers and library are available,
-   needed for Level_Zero interoperability tests;
- * **gpu-intel-dg1** - Intel GPU DG1 is available for testing;
- * **dump_ir**: is set to true if compiler supports dumping IR. Can be also
-   defined by setting DUMP_IR_SUPPORTED in cmake. Default values is false.
+Example:
+
+```
+llvm-lit --param target_devices=host,gpu --param sycl_be=level_zero \
+         --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
+         SYCL/External/RSBench
+```
+
