@@ -689,28 +689,13 @@ static Attr *handleLoopUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
   // determines unrolling factor) or 1 argument (the unroll factor provided
   // by the user).
 
-  if (!isa<ForStmt, CXXForRangeStmt, DoStmt, WhileStmt>(St)) {
-    S.Diag(A.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << A << "'for', 'while', and 'do' statements";
-    return nullptr;
-  }
-
   Expr *E = A.getNumArgs() ? A.getArgAsExpr(0) : nullptr;
   if (A.getParsedKind() == ParsedAttr::AT_OpenCLUnrollHint)
     return S.BuildOpenCLLoopUnrollHintAttr(A, E);
-  else if (A.getParsedKind() == ParsedAttr::AT_LoopUnrollHint) {
-    // FIXME: this should be hoisted up to the top level, but can't be placed
-    // there until the opencl attribute has its parsing error converted into a
-    // semantic error. See: Parser::ParseOpenCLUnrollHintAttribute().
-    if (!isa<ForStmt, CXXForRangeStmt, DoStmt, WhileStmt>(St)) {
-      S.Diag(A.getLoc(), diag::err_attribute_wrong_decl_type_str)
-          << A << "'for', 'while', and 'do' statements";
-      return nullptr;
-    }
+  if (A.getParsedKind() == ParsedAttr::AT_LoopUnrollHint)
     return S.BuildLoopUnrollHintAttr(A, E);
-  }
 
-  return nullptr;
+  llvm_unreachable("Unknown loop unroll hint");
 }
 
 static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
