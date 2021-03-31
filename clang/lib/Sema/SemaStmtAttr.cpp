@@ -245,12 +245,6 @@ static Attr *handleIntelFPGAIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
 
 static Attr *handleIntelFPGANofusionAttr(Sema &S, Stmt *St,
                                          const ParsedAttr &A) {
-  if (!isa<ForStmt, CXXForRangeStmt, DoStmt, WhileStmt>(St)) {
-    S.Diag(A.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << A << "'for', 'while', and 'do' statements";
-    return nullptr;
-  }
-
   return new (S.Context) SYCLIntelFPGANofusionAttr(S.Context, A);
 }
 
