@@ -438,7 +438,9 @@ void OCLToSPIRV::visitCallInst(CallInst &CI) {
     visitCallGroupBuiltin(&CI, DemangledName);
     return;
   }
-  if (DemangledName == kOCLBuiltinName::MemFence) {
+  if (DemangledName == kOCLBuiltinName::MemFence ||
+      DemangledName == kOCLBuiltinName::ReadMemFence ||
+      DemangledName == kOCLBuiltinName::WriteMemFence) {
     visitCallMemFence(&CI);
     return;
   }

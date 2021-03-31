@@ -115,7 +115,7 @@ public:
   CallInst *transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                               bool IsBinaryInst = false);
   bool transNonTemporalMetadata(Instruction *I);
-  bool transSourceLanguage();
+  void transSourceLanguage();
   bool transSourceExtension();
   void transGeneratorMD();
   Value *transConvertInst(SPIRVValue *BV, Function *F, BasicBlock *BB);

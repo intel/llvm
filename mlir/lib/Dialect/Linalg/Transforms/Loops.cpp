@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
+#include "mlir/Dialect/MemRef/EDSC/Intrinsics.h"
 #include "mlir/Dialect/SCF/EDSC/Builders.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/IR/AffineExpr.h"
@@ -200,7 +201,7 @@ Value getPaddedInput(Value input, ArrayRef<Value> indices,
       conds.push_back(leftOutOfBound);
     else
       conds.push_back(conds.back() || leftOutOfBound);
-    Value rightBound = std_dim(input, idx);
+    Value rightBound = memref_dim(input, idx);
     conds.push_back(conds.back() || (sge(dim, rightBound)));
 
     // When padding is involved, the indices will only be shifted to negative,
@@ -307,12 +308,12 @@ static void emitScalarImplementation(ArrayRef<Value> allIvs, ConvOp convOp) {
   IndexedValueType F(convOp.filter()), O(convOp.output());
 
   // Emit scalar form. Padded conv involves an affine.max in the memory access
-  // which is not allowed by affine.load. Override to use an StdIndexedValue
+  // which is not allowed by affine.load. Override to use an MemRefIndexedValue
   // when there is non-zero padding.
   if (hasPadding(convOp)) {
     Type type = convOp.input().getType().cast<MemRefType>().getElementType();
     Value padValue = std_constant(type, getPadValueAttr<ConvOp>(type));
-    Value paddedInput = getPaddedInput<StdIndexedValue>(
+    Value paddedInput = getPaddedInput<MemRefIndexedValue>(
         convOp.input(), imIdx,
         /* Only need to pad the window dimensions */
         {0, static_cast<int>(imIdx.size()) - 1}, padValue);
@@ -338,9 +339,9 @@ static Value getPoolingInput(PoolingOp op, ArrayRef<Value> inputIndices) {
     Type type =
         op.input().getType().template cast<MemRefType>().getElementType();
     Value padValue = std_constant(type, getPadValueAttr<PoolingOp>(type));
-    return getPaddedInput<StdIndexedValue>(op.input(), inputIndices,
-                                           /*Pad every dimension*/ {},
-                                           padValue);
+    return getPaddedInput<MemRefIndexedValue>(op.input(), inputIndices,
+                                              /*Pad every dimension*/ {},
+                                              padValue);
   }
   IndexedValueType input(op.input());
   return input(inputIndices);
@@ -519,8 +520,9 @@ namespace {
 template <typename LoopType>
 class LinalgRewritePattern : public RewritePattern {
 public:
-  LinalgRewritePattern(ArrayRef<unsigned> interchangeVector)
-      : RewritePattern(/*benefit=*/1, MatchAnyOpTypeTag()),
+  LinalgRewritePattern(MLIRContext *context,
+                       ArrayRef<unsigned> interchangeVector)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context),
         interchangeVector(interchangeVector.begin(), interchangeVector.end()) {}
 
   LogicalResult matchAndRewrite(Operation *op,
@@ -544,11 +546,11 @@ template <typename LoopType>
 static void lowerLinalgToLoopsImpl(FuncOp funcOp,
                                    ArrayRef<unsigned> interchangeVector) {
   MLIRContext *context = funcOp.getContext();
-  OwningRewritePatternList patterns;
-  patterns.insert<LinalgRewritePattern<LoopType>>(interchangeVector);
-  DimOp::getCanonicalizationPatterns(patterns, context);
+  RewritePatternSet patterns(context);
+  patterns.add<LinalgRewritePattern<LoopType>>(context, interchangeVector);
+  memref::DimOp::getCanonicalizationPatterns(patterns, context);
   AffineApplyOp::getCanonicalizationPatterns(patterns, context);
-  patterns.insert<FoldAffineOp>(context);
+  patterns.add<FoldAffineOp>(context);
   // Just apply the patterns greedily.
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
 }
@@ -593,12 +595,18 @@ struct FoldAffineOp : public RewritePattern {
 
 struct LowerToAffineLoops
     : public LinalgLowerToAffineLoopsBase<LowerToAffineLoops> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<memref::MemRefDialect>();
+  }
   void runOnFunction() override {
     lowerLinalgToLoopsImpl<AffineForOp>(getFunction(), interchangeVector);
   }
 };
 
 struct LowerToLoops : public LinalgLowerToLoopsBase<LowerToLoops> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<memref::MemRefDialect, scf::SCFDialect>();
+  }
   void runOnFunction() override {
     lowerLinalgToLoopsImpl<scf::ForOp>(getFunction(), interchangeVector);
   }

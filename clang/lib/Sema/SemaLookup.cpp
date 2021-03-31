@@ -641,8 +641,8 @@ void LookupResult::resolveKind() {
 void LookupResult::addDeclsFromBasePaths(const CXXBasePaths &P) {
   CXXBasePaths::const_paths_iterator I, E;
   for (I = P.begin(), E = P.end(); I != E; ++I)
-    for (DeclContext::lookup_iterator DI = I->Decls.begin(),
-         DE = I->Decls.end(); DI != DE; ++DI)
+    for (DeclContext::lookup_iterator DI = I->Decls, DE = DI.end(); DI != DE;
+         ++DI)
       addDecl(*DI);
 }
 
@@ -684,6 +684,40 @@ static inline QualType GetFloat16Type(clang::ASTContext &Context) {
   return Context.getLangOpts().OpenCL ? Context.HalfTy : Context.Float16Ty;
 }
 
+/// Diagnose a missing builtin type.
+static QualType diagOpenCLBuiltinTypeError(Sema &S, llvm::StringRef TypeClass,
+                                           llvm::StringRef Name) {
+  S.Diag(SourceLocation(), diag::err_opencl_type_not_found)
+      << TypeClass << Name;
+  return S.Context.VoidTy;
+}
+
+/// Lookup an OpenCL enum type.
+static QualType getOpenCLEnumType(Sema &S, llvm::StringRef Name) {
+  LookupResult Result(S, &S.Context.Idents.get(Name), SourceLocation(),
+                      Sema::LookupTagName);
+  S.LookupName(Result, S.TUScope);
+  if (Result.empty())
+    return diagOpenCLBuiltinTypeError(S, "enum", Name);
+  EnumDecl *Decl = Result.getAsSingle<EnumDecl>();
+  if (!Decl)
+    return diagOpenCLBuiltinTypeError(S, "enum", Name);
+  return S.Context.getEnumType(Decl);
+}
+
+/// Lookup an OpenCL typedef type.
+static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name) {
+  LookupResult Result(S, &S.Context.Idents.get(Name), SourceLocation(),
+                      Sema::LookupOrdinaryName);
+  S.LookupName(Result, S.TUScope);
+  if (Result.empty())
+    return diagOpenCLBuiltinTypeError(S, "typedef", Name);
+  TypedefNameDecl *Decl = Result.getAsSingle<TypedefNameDecl>();
+  if (!Decl)
+    return diagOpenCLBuiltinTypeError(S, "typedef", Name);
+  return S.Context.getTypedefType(Decl);
+}
+
 /// Get the QualType instances of the return type and arguments for a ProgModel
 /// builtin function signature.
 /// \param Context (in) The Context instance.
@@ -697,12 +731,12 @@ static inline QualType GetFloat16Type(clang::ASTContext &Context) {
 ///        of (vector sizes) x (types) .
 template <typename ProgModel>
 static void GetQualTypesForProgModelBuiltin(
-    ASTContext &Context, const typename ProgModel::BuiltinStruct &Builtin,
+    Sema &S, const typename ProgModel::BuiltinStruct &Builtin,
     unsigned &GenTypeMaxCnt, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes) {
   // Get the QualType instances of the return types.
   unsigned Sig = ProgModel::SignatureTable[Builtin.SigTableIndex];
-  ProgModel::Bultin2Qual(Context, ProgModel::TypeTable[Sig], RetTypes);
+  ProgModel::Bultin2Qual(S, ProgModel::TypeTable[Sig], RetTypes);
   GenTypeMaxCnt = RetTypes.size();
 
   // Get the QualType instances of the arguments.
@@ -710,7 +744,7 @@ static void GetQualTypesForProgModelBuiltin(
   for (unsigned Index = 1; Index < Builtin.NumTypes; Index++) {
     SmallVector<QualType, 1> Ty;
     ProgModel::Bultin2Qual(
-        Context,
+        S,
         ProgModel::TypeTable[ProgModel::SignatureTable[Builtin.SigTableIndex +
                                                        Index]],
         Ty);
@@ -732,7 +766,8 @@ static void GetProgModelBuiltinFctOverloads(
     ASTContext &Context, unsigned GenTypeMaxCnt,
     std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic) {
-  FunctionProtoType::ExtProtoInfo PI;
+  FunctionProtoType::ExtProtoInfo PI(
+      Context.getDefaultCallingConvention(false, false, true));
   PI.Variadic = IsVariadic;
 
   // Create FunctionTypes for each (gen)type.
@@ -794,15 +829,26 @@ static void InsertBuiltinDeclarationsFromTable(
     // Ignore this builtin function if it carries an extension macro that is
     // not defined. This indicates that the extension is not supported by the
     // target, so the builtin function should not be available.
-    StringRef Ext = ProgModel::FunctionExtensionTable[Builtin.Extension];
-    if (!Ext.empty() && !S.getPreprocessor().isMacroDefined(Ext))
-      continue;
+    StringRef Extensions = ProgModel::FunctionExtensionTable[Builtin.Extension];
+    if (!Extensions.empty()) {
+      SmallVector<StringRef, 2> ExtVec;
+      Extensions.split(ExtVec, " ");
+      bool AllExtensionsDefined = true;
+      for (StringRef Ext : ExtVec) {
+        if (!S.getPreprocessor().isMacroDefined(Ext)) {
+          AllExtensionsDefined = false;
+          break;
+        }
+      }
+      if (!AllExtensionsDefined)
+        continue;
+    }
 
     SmallVector<QualType, 1> RetTypes;
     SmallVector<SmallVector<QualType, 1>, 5> ArgTypes;
 
     // Obtain QualType lists for the function signature.
-    GetQualTypesForProgModelBuiltin<ProgModel>(Context, Builtin, GenTypeMaxCnt,
+    GetQualTypesForProgModelBuiltin<ProgModel>(S, Builtin, GenTypeMaxCnt,
                                                RetTypes, ArgTypes);
     if (GenTypeMaxCnt > 1) {
       HasGenType = true;
@@ -2224,9 +2270,9 @@ bool Sema::LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
     CXXRecordDecl *BaseRecord = Specifier->getType()->getAsCXXRecordDecl();
     // Drop leading non-matching lookup results from the declaration list so
     // we don't need to consider them again below.
-    for (Path.Decls = BaseRecord->lookup(Name); !Path.Decls.empty();
-         Path.Decls = Path.Decls.slice(1)) {
-      if (Path.Decls.front()->isInIdentifierNamespace(IDNS))
+    for (Path.Decls = BaseRecord->lookup(Name).begin();
+         Path.Decls != Path.Decls.end(); ++Path.Decls) {
+      if ((*Path.Decls)->isInIdentifierNamespace(IDNS))
         return true;
     }
     return false;
@@ -2250,9 +2296,9 @@ bool Sema::LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
   AccessSpecifier SubobjectAccess = AS_none;
 
   // Check whether the given lookup result contains only static members.
-  auto HasOnlyStaticMembers = [&](DeclContextLookupResult Result) {
-    for (NamedDecl *ND : Result)
-      if (ND->isInIdentifierNamespace(IDNS) && ND->isCXXInstanceMember())
+  auto HasOnlyStaticMembers = [&](DeclContext::lookup_iterator Result) {
+    for (DeclContext::lookup_iterator I = Result, E = I.end(); I != E; ++I)
+      if ((*I)->isInIdentifierNamespace(IDNS) && (*I)->isCXXInstanceMember())
         return false;
     return true;
   };
@@ -2261,8 +2307,8 @@ bool Sema::LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
 
   // Determine whether two sets of members contain the same members, as
   // required by C++ [class.member.lookup]p6.
-  auto HasSameDeclarations = [&](DeclContextLookupResult A,
-                                 DeclContextLookupResult B) {
+  auto HasSameDeclarations = [&](DeclContext::lookup_iterator A,
+                                 DeclContext::lookup_iterator B) {
     using Iterator = DeclContextLookupResult::iterator;
     using Result = const void *;
 
@@ -2299,7 +2345,7 @@ bool Sema::LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
 
     // We'll often find the declarations are in the same order. Handle this
     // case (and the special case of only one declaration) efficiently.
-    Iterator AIt = A.begin(), BIt = B.begin(), AEnd = A.end(), BEnd = B.end();
+    Iterator AIt = A, BIt = B, AEnd, BEnd;
     while (true) {
       Result AResult = Next(AIt, AEnd);
       Result BResult = Next(BIt, BEnd);
@@ -2382,10 +2428,11 @@ bool Sema::LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
 
   // Lookup in a base class succeeded; return these results.
 
-  for (auto *D : Paths.front().Decls) {
+  for (DeclContext::lookup_iterator I = Paths.front().Decls, E = I.end();
+       I != E; ++I) {
     AccessSpecifier AS = CXXRecordDecl::MergeAccess(SubobjectAccess,
-                                                    D->getAccess());
-    if (NamedDecl *ND = R.getAcceptableDecl(D))
+                                                    (*I)->getAccess());
+    if (NamedDecl *ND = R.getAcceptableDecl(*I))
       R.addDecl(ND, AS);
   }
   R.resolveKind();
@@ -2528,7 +2575,7 @@ void Sema::DiagnoseAmbiguousLookup(LookupResult &Result) {
       << Name << SubobjectType << getAmbiguousPathsDisplayString(*Paths)
       << LookupRange;
 
-    DeclContext::lookup_iterator Found = Paths->front().Decls.begin();
+    DeclContext::lookup_iterator Found = Paths->front().Decls;
     while (isa<CXXMethodDecl>(*Found) &&
            cast<CXXMethodDecl>(*Found)->isStatic())
       ++Found;
@@ -2546,7 +2593,7 @@ void Sema::DiagnoseAmbiguousLookup(LookupResult &Result) {
     for (CXXBasePaths::paths_iterator Path = Paths->begin(),
                                       PathEnd = Paths->end();
          Path != PathEnd; ++Path) {
-      const NamedDecl *D = Path->Decls.front();
+      const NamedDecl *D = *Path->Decls;
       if (!D->isInIdentifierNamespace(Result.getIdentifierNamespace()))
         continue;
       if (DeclsPrinted.insert(D).second) {
