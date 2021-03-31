@@ -35,7 +35,6 @@ class DataLayout;
 class DominatorTree;
 class Function;
 class GEPOperator;
-class LoopInfo;
 class PHINode;
 class SelectInst;
 class TargetLibraryInfo;
@@ -56,23 +55,20 @@ class BasicAAResult : public AAResultBase<BasicAAResult> {
   const TargetLibraryInfo &TLI;
   AssumptionCache &AC;
   DominatorTree *DT;
-  LoopInfo *LI;
   PhiValues *PV;
 
 public:
   BasicAAResult(const DataLayout &DL, const Function &F,
                 const TargetLibraryInfo &TLI, AssumptionCache &AC,
-                DominatorTree *DT = nullptr, LoopInfo *LI = nullptr,
-                PhiValues *PV = nullptr)
-      : AAResultBase(), DL(DL), F(F), TLI(TLI), AC(AC), DT(DT), LI(LI), PV(PV)
-        {}
+                DominatorTree *DT = nullptr, PhiValues *PV = nullptr)
+      : AAResultBase(), DL(DL), F(F), TLI(TLI), AC(AC), DT(DT), PV(PV) {}
 
   BasicAAResult(const BasicAAResult &Arg)
       : AAResultBase(Arg), DL(Arg.DL), F(Arg.F), TLI(Arg.TLI), AC(Arg.AC),
-        DT(Arg.DT),  LI(Arg.LI), PV(Arg.PV) {}
+        DT(Arg.DT), PV(Arg.PV) {}
   BasicAAResult(BasicAAResult &&Arg)
       : AAResultBase(std::move(Arg)), DL(Arg.DL), F(Arg.F), TLI(Arg.TLI),
-        AC(Arg.AC), DT(Arg.DT), LI(Arg.LI), PV(Arg.PV) {}
+        AC(Arg.AC), DT(Arg.DT), PV(Arg.PV) {}
 
   /// Handle invalidation events in the new pass manager.
   bool invalidate(Function &Fn, const PreservedAnalyses &PA,
@@ -143,6 +139,9 @@ private:
     SmallVector<VariableGEPIndex, 4> VarIndices;
     // Is GEP index scale compile-time constant.
     bool HasCompileTimeConstantScale;
+    // Are all operations inbounds GEPs or non-indexing operations?
+    // (None iff expression doesn't involve any geps)
+    Optional<bool> InBounds;
 
     void dump() const {
       print(dbgs());
@@ -150,15 +149,15 @@ private:
     }
     void print(raw_ostream &OS) const {
       OS << "(DecomposedGEP Base=" << Base->getName()
-	 << ", Offset=" << Offset
-	 << ", VarIndices=[";
+         << ", Offset=" << Offset
+         << ", VarIndices=[";
       for (size_t i = 0; i < VarIndices.size(); i++) {
-       if (i != 0)
-         OS << ", ";
-       VarIndices[i].print(OS);
+        if (i != 0)
+          OS << ", ";
+        VarIndices[i].print(OS);
       }
       OS << "], HasCompileTimeConstantScale=" << HasCompileTimeConstantScale
-	 << ")";
+         << ")";
     }
   };
 

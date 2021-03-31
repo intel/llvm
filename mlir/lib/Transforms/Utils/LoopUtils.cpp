@@ -18,6 +18,7 @@
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -402,7 +403,7 @@ LogicalResult mlir::affineForOpBodySkew(AffineForOp forOp,
 
       if (res) {
         // Simplify/canonicalize the affine.for.
-        OwningRewritePatternList patterns;
+        RewritePatternSet patterns(res.getContext());
         AffineForOp::getCanonicalizationPatterns(patterns, res.getContext());
         bool erased;
         (void)applyOpPatternsAndFold(res, std::move(patterns), &erased);
@@ -848,7 +849,9 @@ constructTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
     OperandRange newUbOperands = origLoops[i].getUpperBoundOperands();
     newLoops[i].setLowerBound(newLbOperands, origLoops[i].getLowerBoundMap());
     newLoops[i].setUpperBound(newUbOperands, origLoops[i].getUpperBoundMap());
-    newLoops[i].setStep(tileSizes[i]);
+    // If the step size of original loop is x and tileSize is y then after
+    // tiling the tile space loops' step size becomes x*y.
+    newLoops[i].setStep(tileSizes[i] * origLoops[i].getStep());
   }
   // Bounds for intra-tile loops.
   for (unsigned i = 0; i < width; i++) {
@@ -858,20 +861,23 @@ constructTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
     AffineMap lbMap = b.getDimIdentityMap();
     newLoops[width + i].setLowerBound(
         /*operands=*/newLoops[i].getInductionVar(), lbMap);
+    // The step sizes of intra-tile loops is just the original loops' step size.
+    newLoops[width + i].setStep(origLoops[i].getStep());
 
     // Set the upper bound.
     if (mayBeConstantCount && mayBeConstantCount.getValue() < tileSizes[i]) {
       // Trip count is less than the tile size: upper bound is lower bound +
-      // trip count.
-      AffineMap ubMap =
-          b.getSingleDimShiftAffineMap(mayBeConstantCount.getValue());
+      // trip count * stepSize.
+      AffineMap ubMap = b.getSingleDimShiftAffineMap(
+          mayBeConstantCount.getValue() * origLoops[i].getStep());
       newLoops[width + i].setUpperBound(
           /*operands=*/newLoops[i].getInductionVar(), ubMap);
     } else if (largestDiv % tileSizes[i] != 0) {
-      // Intra-tile loop ii goes from i to min(i + tileSize, ub_i).
+      // Intra-tile loop ii goes from i to min(i + tileSize * stepSize, ub_i).
       // Construct the upper bound map; the operands are the original operands
       // with 'i' (tile-space loop) appended to it. The new upper bound map is
-      // the original one with an additional expression i + tileSize appended.
+      // the original one with an additional expression i + tileSize * stepSize
+      // appended.
 
       // Add dim operands from original upper bound.
       SmallVector<Value, 4> ubOperands;
@@ -892,8 +898,8 @@ constructTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
       boundExprs.reserve(1 + origUbMap.getNumResults());
       AffineExpr dim = b.getAffineDimExpr(origUbMap.getNumDims());
       // The new upper bound map is the original one with an additional
-      // expression i + tileSize appended.
-      boundExprs.push_back(dim + tileSizes[i]);
+      // expression i + tileSize * stepSize (of original loop) appended.
+      boundExprs.push_back(dim + tileSizes[i] * origLoops[i].getStep());
       boundExprs.append(origUbMap.getResults().begin(),
                         origUbMap.getResults().end());
       AffineMap ubMap =
@@ -903,7 +909,8 @@ constructTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
     } else {
       // No need of the min expression.
       AffineExpr dim = b.getAffineDimExpr(0);
-      AffineMap ubMap = AffineMap::get(1, 0, dim + tileSizes[i]);
+      AffineMap ubMap =
+          AffineMap::get(1, 0, dim + tileSizes[i] * origLoops[i].getStep());
       newLoops[width + i].setUpperBound(newLoops[i].getInductionVar(), ubMap);
     }
   }
@@ -1830,9 +1837,9 @@ Loops mlir::tilePerfectlyNested(scf::ForOp rootForOp, ArrayRef<Value> sizes) {
 // Return failure when any op fails to hoist.
 static LogicalResult hoistOpsBetween(scf::ForOp outer, scf::ForOp inner) {
   SetVector<Operation *> forwardSlice;
-  getForwardSlice(outer.getOperation(), &forwardSlice, [&inner](Operation *op) {
-    return op != inner.getOperation();
-  });
+  getForwardSlice(
+      outer.getInductionVar(), &forwardSlice,
+      [&inner](Operation *op) { return op != inner.getOperation(); });
   LogicalResult status = success();
   SmallVector<Operation *, 8> toHoist;
   for (auto &op : outer.getBody()->without_terminator()) {
@@ -1844,8 +1851,8 @@ static LogicalResult hoistOpsBetween(scf::ForOp outer, scf::ForOp inner) {
       status = failure();
       continue;
     }
-    // Skip scf::ForOp, these are not considered a failure.
-    if (op.getNumRegions() > 0)
+    // Skip intermediate scf::ForOp, these are not considered a failure.
+    if (isa<scf::ForOp>(op))
       continue;
     // Skip other ops with regions.
     if (op.getNumRegions() > 0) {
@@ -2146,17 +2153,28 @@ void mlir::mapLoopToProcessorIds(scf::ForOp forOp, ArrayRef<Value> processorId,
 
   OpBuilder b(forOp);
   Location loc(forOp.getLoc());
-  Value mul = processorId.front();
-  for (unsigned i = 1, e = processorId.size(); i < e; ++i)
-    mul = b.create<AddIOp>(loc, b.create<MulIOp>(loc, mul, numProcessors[i]),
-                           processorId[i]);
-  Value lb = b.create<AddIOp>(loc, forOp.lowerBound(),
-                              b.create<MulIOp>(loc, forOp.step(), mul));
+  AffineExpr lhs, rhs;
+  bindSymbols(forOp.getContext(), lhs, rhs);
+  auto mulMap = AffineMap::get(0, 2, lhs * rhs);
+  auto addMap = AffineMap::get(0, 2, lhs + rhs);
+
+  Value linearIndex = processorId.front();
+  for (unsigned i = 1, e = processorId.size(); i < e; ++i) {
+    auto mulApplyOp = b.create<AffineApplyOp>(
+        loc, mulMap, ValueRange{linearIndex, numProcessors[i]});
+    linearIndex = b.create<AffineApplyOp>(
+        loc, addMap, ValueRange{mulApplyOp, processorId[i]});
+  }
+
+  auto mulApplyOp = b.create<AffineApplyOp>(
+      loc, mulMap, ValueRange{linearIndex, forOp.step()});
+  Value lb = b.create<AffineApplyOp>(
+      loc, addMap, ValueRange{mulApplyOp, forOp.lowerBound()});
   forOp.setLowerBound(lb);
 
   Value step = forOp.step();
   for (auto numProcs : numProcessors)
-    step = b.create<MulIOp>(loc, step, numProcs);
+    step = b.create<AffineApplyOp>(loc, mulMap, ValueRange{numProcs, step});
   forOp.setStep(step);
 }
 
@@ -2470,7 +2488,8 @@ static LogicalResult generateCopy(
 
     // Create the fast memory space buffer just before the 'affine.for'
     // operation.
-    fastMemRef = prologue.create<AllocOp>(loc, fastMemRefType).getResult();
+    fastMemRef =
+        prologue.create<memref::AllocOp>(loc, fastMemRefType).getResult();
     // Record it.
     fastBufferMap[memref] = fastMemRef;
     // fastMemRefType is a constant shaped memref.
@@ -2540,7 +2559,7 @@ static LogicalResult generateCopy(
     // Create a tag (single element 1-d memref) for the DMA.
     auto tagMemRefType = MemRefType::get({1}, top.getIntegerType(32), {},
                                          copyOptions.tagMemorySpace);
-    auto tagMemRef = prologue.create<AllocOp>(loc, tagMemRefType);
+    auto tagMemRef = prologue.create<memref::AllocOp>(loc, tagMemRefType);
 
     SmallVector<Value, 4> tagIndices({zeroIndex});
     auto tagAffineMap = b.getMultiDimIdentityMap(tagIndices.size());
@@ -2568,7 +2587,7 @@ static LogicalResult generateCopy(
                               numElementsSSA);
 
     // Generate dealloc for the tag.
-    auto tagDeallocOp = epilogue.create<DeallocOp>(loc, tagMemRef);
+    auto tagDeallocOp = epilogue.create<memref::DeallocOp>(loc, tagMemRef);
     if (*nEnd == end && isCopyOutAtEndOfBlock)
       // Since new ops are being appended (for outgoing DMAs), adjust the end to
       // mark end of range of the original.
@@ -2577,7 +2596,7 @@ static LogicalResult generateCopy(
 
   // Generate dealloc for the buffer.
   if (!existingBuf) {
-    auto bufDeallocOp = epilogue.create<DeallocOp>(loc, fastMemRef);
+    auto bufDeallocOp = epilogue.create<memref::DeallocOp>(loc, fastMemRef);
     // When generating pointwise copies, `nEnd' has to be set to deallocOp on
     // the fast buffer (since it marks the new end insertion point).
     if (!copyOptions.generateDma && *nEnd == end && isCopyOutAtEndOfBlock)
@@ -2719,12 +2738,12 @@ uint64_t mlir::affineDataCopyGenerate(Block::iterator begin,
     // Gather regions to allocate to buffers in faster memory space.
     if (auto loadOp = dyn_cast<AffineLoadOp>(opInst)) {
       if ((filterMemRef.hasValue() && filterMemRef != loadOp.getMemRef()) ||
-          (loadOp.getMemRefType().getMemorySpace() !=
+          (loadOp.getMemRefType().getMemorySpaceAsInt() !=
            copyOptions.slowMemorySpace))
         return;
     } else if (auto storeOp = dyn_cast<AffineStoreOp>(opInst)) {
       if ((filterMemRef.hasValue() && filterMemRef != storeOp.getMemRef()) ||
-          storeOp.getMemRefType().getMemorySpace() !=
+          storeOp.getMemRefType().getMemorySpaceAsInt() !=
               copyOptions.slowMemorySpace)
         return;
     } else {

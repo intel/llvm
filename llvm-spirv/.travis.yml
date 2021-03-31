@@ -11,7 +11,6 @@ git:
 
 branches:
   only:
-    - master
     - /llvm_release_\d+$/
 # From https://docs.travis-ci.com/user/customizing-the-build/#safelisting-or-blocklisting-branches
 # "Note that safelisting also prevents tagged commits from being built.

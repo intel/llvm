@@ -40,6 +40,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Assumptions.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -153,7 +154,8 @@ static bool isInstanceMethod(const Decl *D) {
   return false;
 }
 
-static inline bool isNSStringType(QualType T, ASTContext &Ctx) {
+static inline bool isNSStringType(QualType T, ASTContext &Ctx,
+                                  bool AllowNSAttributedString = false) {
   const auto *PT = T->getAs<ObjCObjectPointerType>();
   if (!PT)
     return false;
@@ -164,6 +166,9 @@ static inline bool isNSStringType(QualType T, ASTContext &Ctx) {
 
   IdentifierInfo* ClsName = Cls->getIdentifier();
 
+  if (AllowNSAttributedString &&
+      ClsName == &Ctx.Idents.get("NSAttributedString"))
+    return true;
   // FIXME: Should we walk the chain of classes?
   return ClsName == &Ctx.Idents.get("NSString") ||
          ClsName == &Ctx.Idents.get("NSMutableString");
@@ -188,44 +193,6 @@ static inline bool isCFStringType(QualType T, ASTContext &Ctx) {
 static unsigned getNumAttributeArgs(const ParsedAttr &AL) {
   // FIXME: Include the type in the argument list.
   return AL.getNumArgs() + AL.hasParsedType();
-}
-
-template <typename Compare>
-static bool checkAttributeNumArgsImpl(Sema &S, const ParsedAttr &AL,
-                                      unsigned Num, unsigned Diag,
-                                      Compare Comp) {
-  if (Comp(getNumAttributeArgs(AL), Num)) {
-    S.Diag(AL.getLoc(), Diag) << AL << Num;
-    return false;
-  }
-
-  return true;
-}
-
-/// Check if the attribute has exactly as many args as Num. May
-/// output an error.
-static bool checkAttributeNumArgs(Sema &S, const ParsedAttr &AL, unsigned Num) {
-  return checkAttributeNumArgsImpl(S, AL, Num,
-                                   diag::err_attribute_wrong_number_arguments,
-                                   std::not_equal_to<unsigned>());
-}
-
-/// Check if the attribute has at least as many args as Num. May
-/// output an error.
-static bool checkAttributeAtLeastNumArgs(Sema &S, const ParsedAttr &AL,
-                                         unsigned Num) {
-  return checkAttributeNumArgsImpl(S, AL, Num,
-                                   diag::err_attribute_too_few_arguments,
-                                   std::less<unsigned>());
-}
-
-/// Check if the attribute has at most as many args as Num. May
-/// output an error.
-static bool checkAttributeAtMostNumArgs(Sema &S, const ParsedAttr &AL,
-                                        unsigned Num) {
-  return checkAttributeNumArgsImpl(S, AL, Num,
-                                   diag::err_attribute_too_many_arguments,
-                                   std::greater<unsigned>());
 }
 
 /// A helper function to provide Attribute Location for the Attr types
@@ -473,10 +440,10 @@ appendDiagnostics(const Sema::SemaDiagnosticBuilder &Bldr, T &&ExtraArg,
                            std::forward<DiagnosticArgs>(ExtraArgs)...);
 }
 
-/// Add an attribute {@code AttrType} to declaration {@code D}, provided that
-/// {@code PassesCheck} is true.
-/// Otherwise, emit diagnostic {@code DiagID}, passing in all parameters
-/// specified in {@code ExtraArgs}.
+/// Add an attribute @c AttrType to declaration @c D, provided that
+/// @c PassesCheck is true.
+/// Otherwise, emit diagnostic @c DiagID, passing in all parameters
+/// specified in @c ExtraArgs.
 template <typename AttrType, typename... DiagnosticArgs>
 static void handleSimpleAttributeOrDiagnose(Sema &S, Decl *D,
                                             const AttributeCommonInfo &CI,
@@ -596,16 +563,9 @@ static bool checkRecordDeclForAttr(const RecordDecl *RD) {
 
   // Else check if any base classes have the attribute.
   if (const auto *CRD = dyn_cast<CXXRecordDecl>(RD)) {
-    CXXBasePaths BPaths(false, false);
-    if (CRD->lookupInBases(
-            [](const CXXBaseSpecifier *BS, CXXBasePath &) {
-              const auto &Ty = *BS->getType();
-              // If it's type-dependent, we assume it could have the attribute.
-              if (Ty.isDependentType())
-                return true;
-              return Ty.castAs<RecordType>()->getDecl()->hasAttr<AttrType>();
-            },
-            BPaths, true))
+    if (!CRD->forallBases([](const CXXRecordDecl *Base) {
+          return !Base->hasAttr<AttrType>();
+        }))
       return true;
   }
   return false;
@@ -820,7 +780,7 @@ static void handlePtGuardedByAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static bool checkAcquireOrderAttrCommon(Sema &S, Decl *D, const ParsedAttr &AL,
                                         SmallVectorImpl<Expr *> &Args) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1))
     return false;
 
   // Check that this attribute only applies to lockable types.
@@ -916,8 +876,7 @@ static bool checkParamIsIntegerType(Sema &S, const FunctionDecl *FD,
 }
 
 static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1) ||
-      !checkAttributeAtMostNumArgs(S, AL, 2))
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 2))
     return;
 
   const auto *FD = cast<FunctionDecl>(D);
@@ -953,7 +912,7 @@ static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static bool checkTryLockFunAttrCommon(Sema &S, Decl *D, const ParsedAttr &AL,
                                       SmallVectorImpl<Expr *> &Args) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1))
     return false;
 
   if (!isIntOrBool(AL.getArgAsExpr(0))) {
@@ -1000,7 +959,7 @@ static void handleLockReturnedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleLocksExcludedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1))
     return;
 
   // check that all arguments are lockable objects
@@ -1242,7 +1201,7 @@ static bool checkForConsumableClass(Sema &S, const CXXMethodDecl *MD,
 }
 
 static void handleCallableWhenAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1))
     return;
 
   if (!checkForConsumableClass(S, cast<CXXMethodDecl>(D), AL))
@@ -2065,7 +2024,7 @@ static void handleCPUSpecificAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1))
     return;
 
   SmallVector<IdentifierInfo *, 8> CPUs;
@@ -2169,7 +2128,7 @@ static void handleNoCfCheckAttr(Sema &S, Decl *D, const ParsedAttr &Attrs) {
 }
 
 bool Sema::CheckAttrNoArgs(const ParsedAttr &Attrs) {
-  if (!checkAttributeNumArgs(*this, Attrs, 0)) {
+  if (!Attrs.checkExactlyNumArgs(*this, 0)) {
     Attrs.setInvalid();
     return true;
   }
@@ -2544,7 +2503,7 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(
 }
 
 static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeNumArgs(S, AL, 1))
+  if (!AL.checkExactlyNumArgs(S, 1))
     return;
   IdentifierLoc *Platform = AL.getArgAsIdent(0);
 
@@ -2652,10 +2611,8 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static void handleExternalSourceSymbolAttr(Sema &S, Decl *D,
                                            const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
     return;
-  assert(checkAttributeAtMostNumArgs(S, AL, 3) &&
-         "Invalid number of arguments in an external_source_symbol attribute");
 
   StringRef Language;
   if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(0)))
@@ -2925,8 +2882,10 @@ static void handleSentinelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     QualType Ty = V->getType();
     if (Ty->isBlockPointerType() || Ty->isFunctionPointerType()) {
       const FunctionType *FT = Ty->isFunctionPointerType()
-       ? D->getFunctionType()
-       : Ty->castAs<BlockPointerType>()->getPointeeType()->getAs<FunctionType>();
+                                   ? D->getFunctionType()
+                                   : Ty->castAs<BlockPointerType>()
+                                         ->getPointeeType()
+                                         ->castAs<FunctionType>();
       if (!cast<FunctionProtoType>(FT)->isVariadic()) {
         int m = Ty->isFunctionPointerType() ? 0 : 1;
         S.Diag(AL.getLoc(), diag::warn_attribute_sentinel_not_variadic) << m;
@@ -3127,7 +3086,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
        AL.getAttributeSpellingListIndex() ==
            ReqdWorkGroupSizeAttr::CXX11_cl_reqd_work_group_size) ||
       (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)) {
-    if (!checkAttributeNumArgs(S, AL, 3))
+    if (!AL.checkExactlyNumArgs(S, 3))
       return;
   }
 
@@ -3183,7 +3142,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   uint32_t WGSize[3];
 
-  if (!checkAttributeNumArgs(S, AL, 3))
+  if (!AL.checkExactlyNumArgs(S, 3))
     return;
 
   for (unsigned i = 0; i < 3; ++i) {
@@ -3605,10 +3564,10 @@ SectionAttr *Sema::mergeSectionAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 bool Sema::checkSectionName(SourceLocation LiteralLoc, StringRef SecName) {
-  std::string Error = Context.getTargetInfo().isValidSectionSpecifier(SecName);
-  if (!Error.empty()) {
-    Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target) << Error
-         << 1 /*'section'*/;
+  if (llvm::Error E =
+          Context.getTargetInfo().isValidSectionSpecifier(SecName)) {
+    Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
+        << toString(std::move(E)) << 1 /*'section'*/;
     return false;
   }
   return true;
@@ -3626,10 +3585,9 @@ static void handleSectionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   // If the target wants to validate the section specifier, make it happen.
-  std::string Error = S.Context.getTargetInfo().isValidSectionSpecifier(Str);
-  if (!Error.empty()) {
+  if (llvm::Error E = S.Context.getTargetInfo().isValidSectionSpecifier(Str)) {
     S.Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
-    << Error;
+        << toString(std::move(E));
     return;
   }
 
@@ -3648,11 +3606,10 @@ static void handleSectionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // `#pragma code_seg("segname")` uses checkSectionName() instead.
 static bool checkCodeSegName(Sema &S, SourceLocation LiteralLoc,
                              StringRef CodeSegName) {
-  std::string Error =
-      S.Context.getTargetInfo().isValidSectionSpecifier(CodeSegName);
-  if (!Error.empty()) {
+  if (llvm::Error E =
+          S.Context.getTargetInfo().isValidSectionSpecifier(CodeSegName)) {
     S.Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
-        << Error << 0 /*'code-seg'*/;
+        << toString(std::move(E)) << 0 /*'code-seg'*/;
     return false;
   }
 
@@ -3881,7 +3838,7 @@ static void handleFormatArgAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   Ty = getFunctionOrMethodResultType(D);
-  if (!isNSStringType(Ty, S.Context) &&
+  if (!isNSStringType(Ty, S.Context, /*AllowNSAttributedString=*/true) &&
       !isCFStringType(Ty, S.Context) &&
       (!Ty->isPointerType() ||
        !Ty->castAs<PointerType>()->getPointeeType()->isCharType())) {
@@ -5068,7 +5025,7 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
 }
 
 static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeNumArgs(S, AL, 1))
+  if (!AL.checkExactlyNumArgs(S, 1))
     return;
   uint32_t RegNo = 0;
   const Expr *E = AL.getArgAsExpr(0);
@@ -5276,7 +5233,7 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleSuppressAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1))
     return;
 
   std::vector<StringRef> DiagnosticIdentifiers;
@@ -5366,7 +5323,7 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   }
 
   unsigned ReqArgs = Attrs.getKind() == ParsedAttr::AT_Pcs ? 1 : 0;
-  if (!checkAttributeNumArgs(*this, Attrs, ReqArgs)) {
+  if (!Attrs.checkExactlyNumArgs(*this, ReqArgs)) {
     Attrs.setInvalid();
     return true;
   }
@@ -5594,7 +5551,7 @@ bool Sema::CheckRegparmAttr(const ParsedAttr &AL, unsigned &numParams) {
   if (AL.isInvalid())
     return true;
 
-  if (!checkAttributeNumArgs(*this, AL, 1)) {
+  if (!AL.checkExactlyNumArgs(*this, 1)) {
     AL.setInvalid();
     return true;
   }
@@ -5683,8 +5640,7 @@ void Sema::AddLaunchBoundsAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 static void handleLaunchBoundsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1) ||
-      !checkAttributeAtMostNumArgs(S, AL, 2))
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 2))
     return;
 
   S.AddLaunchBoundsAttr(D, AL, AL.getArgAsExpr(0),
@@ -5731,7 +5687,7 @@ static void handleTypeTagForDatatypeAttr(Sema &S, Decl *D,
     return;
   }
 
-  if (!checkAttributeNumArgs(S, AL, 1))
+  if (!AL.checkExactlyNumArgs(S, 1))
     return;
 
   if (!isa<VarDecl>(D)) {
@@ -6090,7 +6046,7 @@ static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleIntelFPGABankBitsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   checkForDuplicateAttribute<IntelFPGABankBitsAttr>(S, D, A);
 
-  if (!checkAttributeAtLeastNumArgs(S, A, 1))
+  if (!A.checkAtLeastNumArgs(S, 1))
     return;
 
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
@@ -7058,7 +7014,7 @@ static void checkSwiftAsyncErrorBlock(Sema &S, Decl *D,
   // handleSwiftAsyncAttr already verified the type is correct, so no need to
   // double-check it here.
   const auto *FuncTy = HandlerParam->getType()
-                           ->getAs<BlockPointerType>()
+                           ->castAs<BlockPointerType>()
                            ->getPointeeType()
                            ->getAs<FunctionProtoType>();
   ArrayRef<QualType> BlockParams;
@@ -7136,7 +7092,7 @@ static void handleSwiftAsyncError(Sema &S, Decl *D, const ParsedAttr &AL) {
   switch (ConvKind) {
   case SwiftAsyncErrorAttr::ZeroArgument:
   case SwiftAsyncErrorAttr::NonZeroArgument: {
-    if (!checkAttributeNumArgs(S, AL, 2))
+    if (!AL.checkExactlyNumArgs(S, 2))
       return;
 
     Expr *IdxExpr = AL.getArgAsExpr(1);
@@ -7146,7 +7102,7 @@ static void handleSwiftAsyncError(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
   case SwiftAsyncErrorAttr::NonNullError:
   case SwiftAsyncErrorAttr::None: {
-    if (!checkAttributeNumArgs(S, AL, 1))
+    if (!AL.checkExactlyNumArgs(S, 1))
       return;
     break;
   }
@@ -7472,7 +7428,7 @@ static void handleSwiftAsyncName(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static void handleSwiftNewType(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Make sure that there is an identifier as the annotation's single argument.
-  if (!checkAttributeNumArgs(S, AL, 1))
+  if (!AL.checkExactlyNumArgs(S, 1))
     return;
 
   if (!AL.isArgIdent(0)) {
@@ -7514,11 +7470,11 @@ static void handleSwiftAsyncAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   ParamIdx Idx;
   if (Kind == SwiftAsyncAttr::None) {
     // If this is 'none', then there shouldn't be any additional arguments.
-    if (!checkAttributeNumArgs(S, AL, 1))
+    if (!AL.checkExactlyNumArgs(S, 1))
       return;
   } else {
     // Non-none swift_async requires a completion handler index argument.
-    if (!checkAttributeNumArgs(S, AL, 2))
+    if (!AL.checkExactlyNumArgs(S, 2))
       return;
 
     Expr *HandlerIdx = AL.getArgAsExpr(1);
@@ -7535,8 +7491,8 @@ static void handleSwiftAsyncAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     }
     QualType BlockTy =
-        CompletionBlockType->getAs<BlockPointerType>()->getPointeeType();
-    if (!BlockTy->getAs<FunctionType>()->getReturnType()->isVoidType()) {
+        CompletionBlockType->castAs<BlockPointerType>()->getPointeeType();
+    if (!BlockTy->castAs<FunctionType>()->getReturnType()->isVoidType()) {
       S.Diag(CompletionBlock->getLocation(),
              diag::err_swift_async_bad_block_type)
           << CompletionBlock->getType();
@@ -7682,7 +7638,7 @@ static void handleAbiTagAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
     if (AL.getNumArgs() == 0)
       Tags.push_back(NS->getName());
-  } else if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  } else if (!AL.checkAtLeastNumArgs(S, 1))
     return;
 
   // Store tags sorted and without duplicates.
@@ -7740,7 +7696,7 @@ static void handleMSP430InterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   // The attribute takes one integer argument.
-  if (!checkAttributeNumArgs(S, AL, 1))
+  if (!AL.checkExactlyNumArgs(S, 1))
     return;
 
   if (!AL.isArgExpr(0)) {
@@ -7825,6 +7781,39 @@ static void handleMipsInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) MipsInterruptAttr(S.Context, AL, Kind));
 }
 
+static void handleM68kInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!AL.checkExactlyNumArgs(S, 1))
+    return;
+
+  if (!AL.isArgExpr(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentIntegerConstant;
+    return;
+  }
+
+  // FIXME: Check for decl - it should be void ()(void).
+
+  Expr *NumParamsExpr = static_cast<Expr *>(AL.getArgAsExpr(0));
+  auto MaybeNumParams = NumParamsExpr->getIntegerConstantExpr(S.Context);
+  if (!MaybeNumParams) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentIntegerConstant
+        << NumParamsExpr->getSourceRange();
+    return;
+  }
+
+  unsigned Num = MaybeNumParams->getLimitedValue(255);
+  if ((Num & 1) || Num > 30) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_out_of_bounds)
+        << AL << (int)MaybeNumParams->getSExtValue()
+        << NumParamsExpr->getSourceRange();
+    return;
+  }
+
+  D->addAttr(::new (S.Context) M68kInterruptAttr(S.Context, AL, Num));
+  D->addAttr(UsedAttr::CreateImplicit(S.Context));
+}
+
 static void handleAnyX86InterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Semantic checks for a function with the 'interrupt' attribute.
   // a) Must be a function.
@@ -7896,7 +7885,7 @@ static void handleAVRInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (!checkAttributeNumArgs(S, AL, 0))
+  if (!AL.checkExactlyNumArgs(S, 0))
     return;
 
   handleSimpleAttribute<AVRInterruptAttr>(S, D, AL);
@@ -7909,7 +7898,7 @@ static void handleAVRSignalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (!checkAttributeNumArgs(S, AL, 0))
+  if (!AL.checkExactlyNumArgs(S, 0))
     return;
 
   handleSimpleAttribute<AVRSignalAttr>(S, D, AL);
@@ -8040,7 +8029,7 @@ static void handleRISCVInterruptAttr(Sema &S, Decl *D,
   }
 
   // Check the attribute argument. Argument is optional.
-  if (!checkAttributeAtMostNumArgs(S, AL, 1))
+  if (!AL.checkAtMostNumArgs(S, 1))
     return;
 
   StringRef Str;
@@ -8096,6 +8085,9 @@ static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   case llvm::Triple::mipsel:
   case llvm::Triple::mips:
     handleMipsInterruptAttr(S, D, AL);
+    break;
+  case llvm::Triple::m68k:
+    handleM68kInterruptAttr(S, D, AL);
     break;
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
@@ -8210,8 +8202,7 @@ void Sema::addAMDGPUWavesPerEUAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 static void handleAMDGPUWavesPerEUAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1) ||
-      !checkAttributeAtMostNumArgs(S, AL, 2))
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 2))
     return;
 
   Expr *MinExpr = AL.getArgAsExpr(0);
@@ -8434,7 +8425,7 @@ static void handleReleaseCapabilityAttr(Sema &S, Decl *D,
 
 static void handleRequiresCapabilityAttr(Sema &S, Decl *D,
                                          const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1))
     return;
 
   // check that all arguments are lockable objects
@@ -8468,7 +8459,7 @@ static void handleDeprecatedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   // Only support a single optional message for Declspec and CXX11.
   if (AL.isDeclspecAttribute() || AL.isCXX11Attribute())
-    checkAttributeAtMostNumArgs(S, AL, 1);
+    AL.checkAtMostNumArgs(S, 1);
   else if (AL.isArgExpr(1) && AL.getArgAsExpr(1) &&
            !S.checkStringLiteralArgumentAttr(AL, 1, Replacement))
     return;
@@ -8486,7 +8477,7 @@ static bool isGlobalVar(const Decl *D) {
 }
 
 static void handleNoSanitizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!checkAttributeAtLeastNumArgs(S, AL, 1))
+  if (!AL.checkAtLeastNumArgs(S, 1))
     return;
 
   std::vector<StringRef> Sanitizers;
@@ -8554,49 +8545,6 @@ static void handleOpenCLNoSVMAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   else
     S.Diag(AL.getLoc(), diag::warn_opencl_attr_deprecated_ignored) << AL
                                                                    << "2.0";
-}
-
-/// Handles semantic checking for features that are common to all attributes,
-/// such as checking whether a parameter was properly specified, or the correct
-/// number of arguments were passed, etc.
-static bool handleCommonAttributeFeatures(Sema &S, Decl *D,
-                                          const ParsedAttr &AL) {
-  // Several attributes carry different semantics than the parsing requires, so
-  // those are opted out of the common argument checks.
-  //
-  // We also bail on unknown and ignored attributes because those are handled
-  // as part of the target-specific handling logic.
-  if (AL.getKind() == ParsedAttr::UnknownAttribute)
-    return false;
-  // Check whether the attribute requires specific language extensions to be
-  // enabled.
-  if (!AL.diagnoseLangOpts(S))
-    return true;
-  // Check whether the attribute appertains to the given subject.
-  if (!AL.diagnoseAppertainsTo(S, D))
-    return true;
-  if (AL.hasCustomParsing())
-    return false;
-
-  if (AL.getMinArgs() == AL.getMaxArgs()) {
-    // If there are no optional arguments, then checking for the argument count
-    // is trivial.
-    if (!checkAttributeNumArgs(S, AL, AL.getMinArgs()))
-      return true;
-  } else {
-    // There are optional arguments, so checking is slightly more involved.
-    if (AL.getMinArgs() &&
-        !checkAttributeAtLeastNumArgs(S, AL, AL.getMinArgs()))
-      return true;
-    else if (!AL.hasVariadicArg() && AL.getMaxArgs() &&
-             !checkAttributeAtMostNumArgs(S, AL, AL.getMaxArgs()))
-      return true;
-  }
-
-  if (S.CheckAttrTarget(AL))
-    return true;
-
-  return false;
 }
 
 static void handleOpenCLAccessAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -8964,7 +8912,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     return;
   }
 
-  if (handleCommonAttributeFeatures(S, D, AL))
+  if (S.checkCommonAttributeFeatures(D, AL))
     return;
 
   switch (AL.getKind()) {
@@ -8976,6 +8924,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
       assert(AL.isTypeAttr() && "Non-type attribute not handled");
       break;
     }
+    // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
+    // statement attribute is not written on a declaration, but this code is
+    // needed for attributes in Attr.td that do not list any subjects.
     S.Diag(AL.getLoc(), diag::err_stmt_attribute_invalid_on_decl)
         << AL << D->getLocation();
     break;

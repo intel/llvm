@@ -649,7 +649,7 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 /* Indexed profile format version (start from 1). */
 #define INSTR_PROF_INDEX_VERSION 7
 /* Coverage mapping format version (start from 0). */
-#define INSTR_PROF_COVMAP_VERSION 4
+#define INSTR_PROF_COVMAP_VERSION 5
 
 /* Profile version is always of type uint64_t. Reserve the upper 8 bits in the
  * version for other variants of profile. We set the lowest bit of the upper 8
@@ -813,6 +813,7 @@ typedef struct InstrProfValueData {
  * range and used to store in the runtime profile data records and the VP
  * metadata. For example, it's 2 for [2, 2] and 64 for [65, 127].
  */
+#define INSTR_PROF_NUM_BUCKETS 22
 
 /*
  * Clz and Popcount. This code was copied from
@@ -872,7 +873,7 @@ InstrProfGetRangeRepValue(uint64_t Value) {
     return Value;
   else
     // Otherwise, take to the previous power of two + 1.
-    return (1 << (64 - InstProfClzll(Value) - 1)) + 1;
+    return (UINT64_C(1) << (64 - InstProfClzll(Value) - 1)) + 1;
 }
 
 /* Return true if the range that an (observed) memop size value belongs to has
