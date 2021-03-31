@@ -81,10 +81,10 @@ void boo() {
   // expected-error@+1 {{'initiation_interval' attribute takes no more than 1 argument}}
   [[intel::initiation_interval(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-warning@+1 {{'max_concurrency' attribute takes at least 1 argument; attribute ignored}}
+  // expected-error@+1 {{'max_concurrency' attribute takes one argument}}
   [[intel::max_concurrency]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_concurrency' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'max_concurrency' attribute takes one argument}}
   [[intel::max_concurrency(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 

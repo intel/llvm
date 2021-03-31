@@ -2875,6 +2875,7 @@ unbounded. Cannot be applied multiple times to the same loop.
   void bar() {
     [[intel::max_concurrency(N)]] for(;;) { }
   }
+  template<int N>
   [[intel::max_concurrency(N)]] void bar1() { }
 
   }];

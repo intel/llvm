@@ -9,7 +9,7 @@ public:
   [[intel::max_concurrency(4)]] void operator()() const {}
 };
 
-[[intel::max_concurrency]] void foo() {} // expected-error {{'max_concurrency' attribute takes at least 1 argument}}
+[[intel::max_concurrency]] void foo() {} // expected-error {{'max_concurrency' attribute takes one argument}}
 
 class Functor2 {
 public:
@@ -26,7 +26,7 @@ public:
   [[intel::max_concurrency(2)]] int a[10];
 };
 
-// expected-error@+1 {{'max_concurrency' attribute takes no more than 1 argument}}
+// expected-error@+1 {{'max_concurrency' attribute takes one argument}}
 [[intel::max_concurrency(3, 3)]] void goo() {}
 
 class Functor4 {
