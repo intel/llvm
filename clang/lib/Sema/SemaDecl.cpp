@@ -2632,6 +2632,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelFPGAMaxConcurrencyAttr(D, *A);
   else if (const auto *A = dyn_cast<IntelFPGAForcePow2DepthAttr>(Attr))
     NewAttr = S.MergeIntelFPGAForcePow2DepthAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelFPGAInitiationIntervalAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -18434,6 +18436,15 @@ void Sema::ActOnPragmaWeakAlias(IdentifierInfo* Name,
 
 Decl *Sema::getObjCDeclContext() const {
   return (dyn_cast_or_null<ObjCContainerDecl>(CurContext));
+}
+
+Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
+  if (FD->hasAttr<SYCLSimdAttr>())
+    return Sema::DeviceDiagnosticReason::Esimd;
+  else if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
+    return Sema::DeviceDiagnosticReason::Sycl;
+  // FIXME: Figure out the logic for OMP and CUDA.
+  return Sema::DeviceDiagnosticReason::All;
 }
 
 Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
