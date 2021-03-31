@@ -986,6 +986,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
   for (pi_uint32 I = 0; I < this->Length; I++) {
     PI_CALL(piEventRetain(this->PiEventList[I]));
+
   }
 
   return PI_SUCCESS;
@@ -4481,8 +4482,8 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   (*Event)->WaitList = TmpWaitList;
 
   const auto &WaitList = (*Event)->WaitList;
-
   if (WaitList.Length) {
+
     ZE_CALL(zeCommandListAppendWaitOnEvents,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
@@ -4815,15 +4816,23 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   // For integrated devices the buffer has been allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
-    if (Queue->isInOrderQueue() && Queue->LastCommandEvent != nullptr) {
-      PI_CALL(piEventsWait(1, &(Queue->LastCommandEvent)));
-
-      // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-      Queue->LastCommandEvent = *Event;
-    }
-
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
+
+    if (Queue->isInOrderQueue()) {
+      pi_event TmpLastCommandEvent = nullptr;
+
+      {
+        // Lock automatically releases when this goes out of scope.
+        std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+        if (Queue->LastCommandEvent != nullptr) {
+          TmpLastCommandEvent = Queue->LastCommandEvent;
+        }
+      }
+
+      if (TmpLastCommandEvent != nullptr) {
+        PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
+      }
+    }
 
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
@@ -4831,6 +4840,12 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
         memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
+    }
+
+    {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+      Queue->LastCommandEvent = *Event;
     }
 
     // Signal this event
@@ -4933,19 +4948,31 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // For integrated devices the buffer is allocated in host memory.
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
-    if (Queue->isInOrderQueue() && Queue->LastCommandEvent != nullptr) {
-      PI_CALL(piEventsWait(1, &(Queue->LastCommandEvent)));
-
-      // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-      Queue->LastCommandEvent = *Event;
-    }
-
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
+
+      if (Queue->isInOrderQueue()) {
+        pi_event TmpLastCommandEvent = nullptr;
+        {
+          // Lock automatically releases when this goes out of scope.
+          std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+          if (Queue->LastCommandEvent != nullptr) {
+            TmpLastCommandEvent = Queue->LastCommandEvent;
+          }
+        }
+        if (TmpLastCommandEvent != nullptr) {
+          PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
+        }
+      }
 
     if (MemObj->MapHostPtr)
       memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
              MapInfo.Size);
+
+    {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+      Queue->LastCommandEvent = *Event;
+    }
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
