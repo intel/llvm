@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -c %s
+// RUN: %clangxx -fsycl -fsycl-device-only -c %s
 // This test checks compile-time evaluation of functions from esimd_util.hpp
 
 #include "CL/sycl.hpp"
