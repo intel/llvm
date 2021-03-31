@@ -531,8 +531,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
 
         if (Is2020Intrinsic) {
-          // Handle SYCL2020 version of intrinsic - replace it with a pointer to
-          // specialization constant value.
+          // Handle SYCL2020 version of intrinsic - replace it with a load from
+          // the pointer to the specialization constant value.
           // A pointer to a single RT-buffer with all the values of
           // specialization constants is passed as a 3rd argument of intrinsic.
           Value *RTBuffer =
@@ -553,6 +553,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               // padded in order to ensure particular alignment of its elements.
               auto *StructTy = cast<StructType>(
                   CI->getArgOperand(0)->getType()->getPointerElementType());
+              // We rely on the fact that the StructLayout of spec constant RT
+              // values is the same for the host and the device.
               const StructLayout *SL =
                   M.getDataLayout().getStructLayout(StructTy);
               NextOffset += SL->getSizeInBytes();
