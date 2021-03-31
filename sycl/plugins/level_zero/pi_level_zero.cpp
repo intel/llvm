@@ -4824,9 +4824,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       {
         // Lock automatically releases when this goes out of scope.
         std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-        if (Queue->LastCommandEvent != nullptr) {
-          TmpLastCommandEvent = Queue->LastCommandEvent;
-        }
+        TmpLastCommandEvent = Queue->LastCommandEvent;
       }
 
       if (TmpLastCommandEvent != nullptr) {
@@ -4840,12 +4838,6 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
         memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
-    }
-
-    {
-      // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-      Queue->LastCommandEvent = *Event;
     }
 
     // Signal this event
@@ -4950,29 +4942,23 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
 
-      if (Queue->isInOrderQueue()) {
-        pi_event TmpLastCommandEvent = nullptr;
-        {
-          // Lock automatically releases when this goes out of scope.
-          std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-          if (Queue->LastCommandEvent != nullptr) {
-            TmpLastCommandEvent = Queue->LastCommandEvent;
-          }
-        }
-        if (TmpLastCommandEvent != nullptr) {
-          PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
-        }
+    if (Queue->isInOrderQueue()) {
+      pi_event TmpLastCommandEvent = nullptr;
+
+      {
+        // Lock automatically releases when this goes out of scope.
+        std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+        TmpLastCommandEvent = Queue->LastCommandEvent;
       }
+
+      if (TmpLastCommandEvent != nullptr) {
+          PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
+      }
+    }
 
     if (MemObj->MapHostPtr)
       memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
              MapInfo.Size);
-
-    {
-      // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-      Queue->LastCommandEvent = *Event;
-    }
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
