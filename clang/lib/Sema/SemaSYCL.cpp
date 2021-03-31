@@ -3487,7 +3487,11 @@ CheckSYCL2020Attributes(Sema &S, FunctionDecl *SYCLKernel,
   // there instead, so that we get the functor object.
   if (KernelBody) {
     SYCLKernel = KernelBody;
+    // TODO: In the else case here, we likely want to propagate kernel-body
+    // attributes to the kernel, so that we can limit codegen of these to just
+    //  the kernel.
   }
+
   for (auto *FD : CalledFuncs) {
     for (auto *Attr : FD->attrs()) {
       switch (Attr->getKind()) {

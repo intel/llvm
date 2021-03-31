@@ -645,6 +645,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   const IntelReqdSubGroupSizeAttr *ReqSubGroup =
       FD->getAttr<IntelReqdSubGroupSizeAttr>();
 
+  // TODO: This section and the next (sub-group-size) is in flux and awaiting
+  // a review of the spec.
   // To support the SYCL 2020 spelling with no propagation, only emit for
   // kernel-or-device when that spelling, fall-back to old behavior.
   if (ReqSubGroup && (IsKernelOrDevice || !ReqSubGroup->isSYCL2020Spelling())) {

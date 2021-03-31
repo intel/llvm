@@ -129,15 +129,20 @@ void calls_kernel_4() {
   });
 }
 
-// TODO!
+// TODO, test the following:
 // Func w attr called from kernel, kernel has attr.
+// Neither matches default.
 // first matches default.
 // kernel matches default
 // both matches default
 // +SYCL_EXTERNAL
 
 // Func w attr called from kernel, kernel has no attr.
+// Neither matches default.
 // first matches default.
 // kernel matches default
 // both matches default
 // +SYCL_EXTERNAL
+
+
+// TODO: CodeGen tests
