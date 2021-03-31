@@ -81,7 +81,7 @@ handling can't be used here).
 Therefore, we can't have headers-only implementation and the crucial part of
 design is how to organize mapping mechanism between SYCL identifiers for
 specialization constants (`specialization_id`s) and low-level identifiers
-(numeric IDs in SPIR-V or kernel arguments).
+(numeric IDs in SPIR-V or information about corresponding kernel arguments).
 
 That mapping mechanism is particularly tricky, because of some additional
 complexity coming from SYCL 2020 specification:
@@ -89,15 +89,15 @@ complexity coming from SYCL 2020 specification:
   identifiers (being non-type template parameters of some methods) can't be
   forward-declared in general case (for example, if defined as `static`), which
   means that we can't use integration header to attach some information to them
-  through some C++ templates tricks (like it is done for kernel arguments or
-  kernel names, for example).
+  through some C++ templates tricks (like it is done for regular kernel
+  arguments or kernel names, for example).
 - they also can be declared as `static` or just non-`inline` `constexpr`, which
   means that they have internal linkage and can't be referenced from other
   translation units, which means that we can't for example create a new
   translation unit which contains some mapping from `specialization_id` address
   to some desired info.
 
-Based on those limitations, the following design is proposed:
+Based on those limitations, the following mapping design is proposed:
 - DPC++ RT uses special function:
   ```
   namespace detail {
@@ -109,7 +109,7 @@ Based on those limitations, the following design is proposed:
   information like numeric ID of a specialization constant.
 - Definition of that function template are provided by DPC++ FE in form of
   _integration footer_: the compiler generates a piece of C++ code which is
-  injected at the end of the translation unit:
+  injected at the end of a translation unit:
   ```
   namespace detail {
     // assuming user defined and used the following specialization_id:
@@ -133,8 +133,18 @@ Based on those limitations, the following design is proposed:
   Those symbolic IDs are used to identify device image properties corresponding
   to those specialization constants, which store additional information (like
   numeric SPIR-V ID of a constant) needed for DPC++ RT.
-- That integration footer is automatically embedded by the compiler at the end
+- That integration footer is automatically appended by the compiler at the end
   of user-provided translation unit by driver.
+
+Another significant part of the design is how specialization constants support
+is emulated: as briefly mentioned before, the general approach is to transform
+specialization constants into kernel arguments. In fact all specialization
+constants used within a program a bundler together and stored into a single
+buffer, which is passed as implicit kernel argument. The layout of that buffer
+is well-defined and known to both the compiler and the runtime, so when user
+sets the value of a specialization constant, that value is being copied into
+particular place within that buffer and once the constant is requested in
+device code, the compiler generates a load from the same place of the buffer.
 
 Summarizing, overall design looks like:
 
@@ -142,24 +152,25 @@ DPC++ Headers provide special markup, which used by the compiler to detect
 presence of specialization constants and properly handle them.
 
 DPC++ FE handles `kernel_handler` SYCL kernel function argument, creates
-additional kernel arguments to pass specialization constants through buffer if
-necessary (if native support is not available) and generates integration footer.
+additional kernel argument to pass specialization constants through buffer if
+necessary (i.e. if native support is not available) and generates integration
+footer.
 
-`sycl-post-link` transforms device code to either generate proper SPIR-V with
-specialization constants (when native support is available) or to generate
-correct access to corresponding kernel arguments (which are used when native
-support is not available); also the tool generates some device image properties
-with all information needed for DPC++ RT (like which numeric SPIR-V ID was
-assigned to which symbolic ID).
+`sycl-post-link` transforms device code to either generate proper SPIR-V
+Friendly IR with specialization constants (when native support is available) or
+to generate correct access to corresponding kernel argument (which are used
+when native support is not available); also the tool generates some device image
+properties with all information needed for DPC++ RT (like which numeric SPIR-V
+ID was assigned to which symbolic ID).
 
 With help of `clang-offload-wrapper` tool, those device image properties are
 embedded into the application together with device code and used by DPC++ RT
 while handling specialization constants during application execution: it either
-calls corresponding PI API to set a value of corresponding specialization
-constant or it fills a special buffer with values of specialization constants
-and passes it as kernel argument to emulate support of specialization constants.
+calls corresponding PI API to set a value of a specialization constant or it
+fills a special buffer with values of specialization constants and passes it as
+kernel argument to emulate support of specialization constants.
 
-Sections below describe each component in details.
+Sections below describe each component in more details.
 
 ### DPC++ Headers
 
@@ -251,15 +262,17 @@ different translation units, so it happens in `sycl-post-link` tool.
 
 There is a `SpecConstantsPass` LLVM IR pass which:
 1. Assigns numeric IDs to specialization constants found in the linked module.
-2. Brings IR to the form expected by the SPIR-V translator (format of the
-   expected IR is covered in "Transformation of LLVM IR to SPIR-V friendly IR
-   form" section)
+2. Transforms IR to either:
+  a. The form expected by the SPIR-V translator (format of the
+     expected IR is covered in "Transformation of LLVM IR to SPIR-V friendly IR
+     form" section).
+  b. The form which is used for emulating specialization constants.
 3. Collects and provides \<Symbolic ID\> =\> \<numeric IDs + additional info\>
    mapping, which is later being used by DPC++ RT to set specialization constant
    values provided by user (section "Collecting spec constants info and
    communicating it to DPC++ RT" provides more info on that)
 
-#### Assignment of numeric IDs to specialization constants
+#### 1. Assignment of numeric IDs to specialization constants
 
 This task is achieved by maintaining a map, which holds a list of numeric IDs
 for each encountered symbolic ID of a specialization constant. Those IDs are
@@ -306,7 +319,7 @@ contains another composite within it, that nested composite is also being
 specialization constants. This done by depth-first search through the composite
 elements.
 
-##### Transformation of LLVM IR to SPIR-V friendly IR form
+#### 2.a Transformation of LLVM IR to SPIR-V friendly IR form
 
 SPIR-V friendly IR form is a special representation of LLVM IR, where some
 function are named in particular way in order to be recognizable by the SPIR-V
@@ -373,7 +386,75 @@ LLVM IR generated by `SpecConstantsPass`:
 %gold = call %struct.POD __spirv_SpecConstantComposite([2 x %struct.A] %gold_POD_A, <2 x i32> %gold_POD_b)
 ```
 
-##### Collecting spec constants info and communicating it to DPC++ RT
+#### 2.b Transformation of LLVM IR for emulating specialization constants
+
+In case we are not targeting SPIR-V, we don't have a native support for
+specialization constants and have to emulate them somehow. As stated above, it
+is done by converting specialization constants into kernel arguments: they all
+bundled together and put into a single buffer.
+
+`SpecConstatnsPass` should generate proper accesses to that buffer when
+specialization constants are used: this is done by replacing special
+`__sycl_getScalar2020SpecConstantValue` and
+`__sycl_getComposite2020SpecConstantValue` functions with accesses to their
+third argument, which contains a pointer to the buffer with values of all
+specialization constants. That access looks like a sequence of the following
+LLVM IR instruction `getelementptr` from the buffer pointer by calculated,
+offset, then `bitcast` to pointer to proper return type (because the buffer
+pointer is just an "untyped" `i8 *`) and `load`. An example of that LLVM IR:
+```
+; an example for:
+; specialization_id<double> id_double;
+;   [=](kernel_handler h) {
+;     h.get_specialization_constant<id_double>();
+
+; __sycl_getScalar2020SpecConstantValue(@SymbolicID, %DefaultValue, i8 *%RTBuffer)
+; is being replaced with
+
+%gep = getelementptr i8, i8* %RTBuffer, i32 [calculated-offset-for-@SymbolicID]
+%bitcast = bitcase i8* %gep to double*
+%load = load double, double* %bitcast
+
+; %load is the resulting value, which is used further instead of a result of
+; call to __sycl_getScalar2020SpecConstantValue
+```
+
+The layout of that buffer is defined as follows: all specialization constants
+are placed there one after another in ascending order of their numeric IDs
+assigned to them by `SpecConstantPass` previously.
+
+For example, the following code:
+```
+struct Nested {
+  float a, b;
+};
+struct A {
+  int x;
+  Nested n;
+};
+
+specialization_id<int> id_int;
+specialization_id<A> id_A;
+specialization_id<Nested> id_Nested;
+// ...
+  [=](kernel_handler h) {
+    h.get_specialization_constant<id_int>();
+    h.get_specialization_constant<id_A>();
+    h.get_specialization_constant<id_Nested>();
+  }
+```
+
+Will result in the following buffer layout, i.e. offsets of each specialization
+constant in that buffer:
+```
+[
+  0, // for id_int, the first constant is at the beginning of the buffer
+  4, // sizeof(int) == 4, the second constant is located right after the fisrt one
+  16, // sizeof(int) + sizezof(A) == 4, the same approach for the third constant
+]
+```
+
+#### 3. Collecting spec constants info and communicating it to DPC++ RT
 
 For each encountered specialization constants `sycl-post-link` emits a property,
 which encodes information required by DPC++ RT to set the value of a
@@ -475,7 +556,188 @@ property_set {
 }
 ```
 
-#### DPC++ runtime
+The property set described above is mainly intended to be used when native
+specialization constants are available, but it will be also used for emulation
+of specialization constants: SPIR-V IDs and sizes of specialization constants
+will be used to calculate offset of each specialization constant within a
+buffer, which is used to propagate them to kernel through kernel arguments.
+
+Additionally, another property set will be generated to support emulated
+specialization constants, which will contain a single property with default
+values of all specialization constants in the same form as they will be
+propagated from host to device through kernel arguments, i.e. this property will
+simply contain a blob, which can be used by DPC++ RT to either pre-initialize
+the whole buffer for specialization constants with their default value or to
+extract default value of a particular specialization constant out of it.
+
+For example, the following code:
+```
+struct Nested {
+  constexpr Nested(float a, float b) : a(a), b(b) {}
+  float a, b;
+};
+struct A {
+  constexpr A(int x, float a, b) : x(x), n(a, b) {}
+  int x;
+  Nested n;
+};
+
+specialization_id<int> id_int(42);
+specialization_id<A> id_A(1, 2.0, 3.0);
+specialization_id<Nested> id_Nested(4.0, 5.0);
+// ...
+  [=](kernel_handler h) {
+    h.get_specialization_constant<id_int>();
+    h.get_specialization_constant<id_A>();
+    h.get_specialization_constant<id_Nested>();
+  }
+```
+
+The following property set will be generated:
+```
+property_set {
+  Name = "SYCL/specialization constants default values",
+  properties: [
+    property {
+      Name: "all",
+      ValAddr: points to byte array [
+        42, // id_int
+        1, 2.0, 3.0, // id_A
+        4.0, 5.0 // id_Nested
+      ],
+      Type: PI_PROPERTY_TYPE_BYTE_ARRAY,
+      Size: sizeof(byte array above)
+    }
+  ]
+}
+```
+
+### DPC++ Compiler: front-end
+
+DPC++ FE is responsible for several things related to specialization constants:
+1. Handling of `kernel_handler` SYCL kernel function argument.
+2. Communicating to DPC++ RT which kernel argument should be used for passing
+   buffer with specialization constants values when they are emulated.
+3. Communicating to DPC++ RT mapping between `specialization_id`s and
+   corresponding symbolic IDs through integration footer.
+
+`kernel_handler` is defined by SYCL 2020 specification as interface for
+retrieving specialization constant values in SYCL kernel functions, but it
+actually used only in emulation mode: since native specialization constant are
+directly lowered into corresponding SPIR-V instructions, no additional handling
+is needed. However, in order to get a value of a specialization constant which
+was passed through a buffer, we need to have a pointer to that buffer: as it is
+shown in DPC++ Headers section of the document, pointer to that buffer is stored
+within `kernel_handler` object and passed to `__sycl_get*2020SpecConstantValue`
+function.
+
+According to the [compiler design][compiler-and-runtime-design], DPC++ FE wraps
+SYCL kernel functions into OpenCL kernels and when `kernel_handler` object is
+passed as an argument to SYCL kernel function, DPC++ FE should re-create that
+object within the wrapper function and initialize it from implicitly created
+OpenCL kernel argument, if necessary - if we aim for emulating specialization
+constants, which is the case when we do not target SPIR-V (happens in AOT and
+for CUDA).
+
+[compiler-and-runtime-design]: https://github.com/intel/llvm/blob/sycl/sycl/doc/CompilerAndRuntimeDesign.md#lowering-of-lambda-function-objects-and-named-function-objects
+
+Considering the following input to DPC++ FE:
+```
+template <typename KernelName, typename KernelType>
+  __attribute__((sycl_kernel)) void
+  kernel_single_task(const KernelType &KernelFunc, kernel_handler kh) {
+    KernelFunc(kh);
+  }
+```
+
+It should be transformed into something like this:
+```
+__kernel void oclKernel(args_for_lambda_init, ..., specialization_constants_buffer) {
+  KernelType LocalLambdaClone = { args_for_lambda_init }; // We already do this
+  kernel_handler LocalKernelHandler;
+  LocalKernelHandler.__init_specialization_constants_buffer(specialization_constants_buffer);
+  // for simplicity we could have just used
+  // kernel_handler LocalKernelHandler = { args_for_kernel_handler_init };
+  // here, but we assume that kernel_handler might be used for more than just
+  // accessing specialization constants and therefore there could be other
+  // initialization parameters which also could be conditional
+  // Even now we don't need to always initialize the kernel_handler object
+  // Re-used body of "sycl_kernel" function:
+  {
+     LocalLambdaClone(LocalKernelHandler);
+   }
+}
+```
+
+As mentioned above, creation of `specialization_constants_buffer` kernel
+argument and initialization of `LocalKernelHandler` object with it only happens
+if we are not targeting SPIR-V, i.e. when we compile code for a target without
+native support for specialization constants.
+
+If that new argument was added, it is communicated to DPC++ through regular
+integration header mechanism, i.e. it is added as new entry to
+`kernel_signatures` structure there with parameter kind set to a new
+enumeration value `kernel_param_kind_t::kind_specialization_constants_buffer`.
+
+Those were descriptions of tasks (1) and (2) of DPC++ FE. Task (3) is to help
+DPC++ RT to connect user-provided `specialization_id` variable with
+corresponding symbolic ID of a specialization constant when
+`handler::set_specialization_constant` is invoked.
+
+As noted above, we can't use regular integration header here, because in general
+case, `specialization_id` variables can't be forward-declared. Therefore, we are
+using integration footer approach, which for the following code snippet:
+```
+struct A {
+  float a, b;
+};
+
+specialization_id<int> id_int;
+specialization_id<A> id_A;
+// ...
+[&](handler &cgh) {
+  cgh.set_specialization_constant<id_int>(42);
+  cgh.set_specialization_constant<id_A>({3.14, 3.14});
+}
+```
+
+Will look like:
+
+```
+namespace detail {
+// generic declaration
+template<auto &SpecName>
+struct get_symbolic_id_helper{};
+
+// specializations for each specialization constant:
+// we can refer to all those specialization_id variables, because integration
+// footer was _appended_ to the user-provided translation unit
+template<>
+struct get_symbolic_id_helper<id_int> {
+  static const char *get_symbolic_id() {
+    return "result of __builtin_unique_ID(id_int) encoded here";
+  }
+};
+
+template<>
+struct get_symbolic_id_helper<id_A> {
+  static const char *get_symbolic_id() {
+    return "result of __builtin_unique_ID(A) encoded here";
+  }
+};
+
+} // namespace detail
+
+// TODO: elaborate why we have to include handler implementation here
+#include <CL/sycl/detail/handler.hpp>
+```
+
+NOTE: By direct using `__builtin_unique_ID` in DPC++ Headers we could avoid
+generating integration footer at all, but since the host part of the program can
+be compiled with a third-party C++ 17-compatible compiler, which is unaware of
+the clang-specific built-ins, it can result in build errors.
+
+### DPC++ runtime
 
 For each device binary compiler generates a map
 \<Symbolic ID\> =\> \<list of spec constant descriptors\> ("ID map"). DPC++
@@ -494,78 +756,17 @@ trick is used within `set_specialization_constant` method:
 template<auto& SpecName>
 void set_specialization_constant(
   typename std::remove_reference_t<decltype(SpecName)>::type value) {
-  const char *SymbolicID =
-#if __has_builint(__builtin_unique_stable_name)
-      __builtin_unique_stable_name(detail::specialization_id_name_generator<S>);
-#else
-      // without the builtin we can't get the symbolic ID of the constant
-      "";
-#endif
+  const char *SymbolicID = detail::get_symbolic_id_helper<SpecName>::get_symbolic_id();
   // remember the value of the specialization constant
   SpecConstantValuesMap[SymbolicID] = value;
 }
 ```
-
-The major downside of that approach is that it can't be used with any
-third-party host compiler, because it uses a specific built-in function to
-generate symbolic IDs of specialization constants. Good solution would be to
-employ integration header here, i.e. we could provide some class template
-specializations which will return symbolic IDs - the same approach as we use
-for communicating OpenCL kernel names from the compiler to the runtime.
-
-For the following user code:
-```
-specalization_id<int> id_int;
-// ...
-  [=](kernel_handler h) {
-    h.get_specialization_constant<id_int>();
-  }
-```
-
-The following integration header would be produced:
-```
-// fallback
-template<auto &S>
-class specialization_constant_info {
-  static const char *getName() { return ""; }
-};
-
-// forward declaration
-extern specialization_id<int> id_int;
-
-// specialization
-template<>
-class specialization_constant_info<id_int> {
-  static const char *getName() {
-    return "result of __builtin_unique_stable_name(detail::specialization_id_name_generator<id_int>) encoded here";
-  }
-};
-```
-
-And it would be used by DPC++ RT in the following way:
-```
-template<auto& SpecName>
-void set_specialization_constant(
-  typename std::remove_reference_t<decltype(SpecName)>::type value) {
-  const char *SymbolicID = specialiation_constant_info<SpecName>::getName();
-  // remember the value of the specialization constant
-  SpecConstantValuesMap[SymbolicID] = value;
-}
-```
-
-Such trick would allow use to compile host part of the app with any third-party
-compiler that supports C++17, but the problem here is that SYCL 2020 spec states
-the following:
-
-> Specialization constants must be declared using the `specialization_id` class,
-> and the declaration must be outside of kernel scope using static storage
-> duration. The declaration must be in either namespace scope or class scope.
-
-`class` scope `static` variables are not forward-declarable, which means that
-the approach with integration header is not available for us here.
 
 Before invoking JIT compilation of a program, the runtime "flushes"
-specialization constants: it iterates through the value map and invokes
+specialization constants:
+
+If native specialization constants are supported by target device, the runtime
+iterates through the value map and invokes
 
 ```
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
@@ -579,8 +780,17 @@ Plugin Interface function for descriptor of each property: `spec_id` and
 address of the specialization constant provided by user and `offset` field of
 the descriptor.
 
+If native specialization constants are not supported by target device, then
+the runtime calculates the location (offset) of each specialization constant in
+corresponding runtime buffer and copied user-provided value into that location.
 
-#### SPIRV-LLVM-Translator
+**TODO**: buffer creation
+**TODO**: lifetime of the buffer
+**TODO**: offset calculation
+**TODO**: handling of default values
+**TODO**: setting buffer as kernel argument
+
+### SPIRV-LLVM-Translator
 
 Given the `__spirv_SpecConstant` intrinsic calls produced by the
 `SpecConstants` pass:
@@ -628,209 +838,4 @@ the translator will generate `OpSpecConstant` SPIR-V instructions with proper
          %2 = OpLabel
               OpReturnValue %struct
               OpFunctionEnd
-```
-
-### Emulation of specialization constants
-
-Emulation of specialization constants is performed by converting them into
-kernel arguments.
-
-Overall idea is that DPC++ runtimes packs all specialization constants into a
-single buffer, which is passed as an extra implicit kernel argument. Then the
-compiler instead of lowering `__sycl_get*2020SpecConstantValue` intrinsics into
-SPIR-V friendly IR replaces it with extracting an element from that buffer.
-
-"All" specialization constants here means complete list of specialization
-constants encountered in an application or a shared library which is being
-compiled: that list is computed by `sycl-post-link` tool and communicated to
-the runtime through device image properties like it is described in "Support for
-native specialization constants" section.
-
-#### DPC++ Headers
-
-The same DPC++ Headers are used for native and emulated specialization constants
-and their design is decribed in the corresponding sub-section of "Support for
-native specialization constants" section.
-
-However, that part of the document doesn't describe the third argument of
-`__sycl_get*2020SpecConstantValue` intrinsics: it is a pointer to a runtime
-buffer, which holds values of all specialization constants and should be used
-to retrieve their values in device code.
-
-This pointer is stored within `kernel_handler` object and it is initialized only
-if our target doesn't support native specialization constants.
-Since `kernel_handler` object is not captured by SYCL kernel funtion, it means
-that we are not able to employ some header-only solution here and need help of
-the compiler.
-
-DPC++ FE searches for functions marked with `sycl_kernel` attribute to handle
-them and turn into entry points of device code.
-
-
-#### DPC++ FE
-
-DPC++ FE should look for `kernel_handler` argument in a function marked with
-`sycl_kernel" attribute. If such argument is present, it means that this kernel
-can access specialization constants and therefore FE needs to do the following:
-
-If native specialization constants are supported:
-- create `kernel_handler` object
-- use default constructor to initialize it
-- pass that `kernel_handler` object to user-provided SYCL kernel function
-
-If native specialization constants are not supported:
-- generate one more kernel argument for passing a buffer with specialization
-  constants values
-- create `kernel_handler` object
-- initialize that `kernel_handler` object with newly created kernel argument
-- pass that `kernel_handler` object to user-provided SYCL kernel function
-- Provide information about new kernel argument through the integration header
-
-So, having the following as the input:
-```
-template <typename KernelName, typename KernelType>
-__attribute__((sycl_kernel)) void
-kernel_single_task(const KernelType &KernelFunc, kernel_handler kh) {
-  KernelFunc(kh);
-}
-```
-For the target which doesn't have native support for specialization constatns
-DPC++ FE shoud tranform it into something like:
-
-```
-__kernel void KernelName(args_for_lambda_init, ..., char *specialization_constants_buffer) {
-  KernelType LocalLambdaClone = { args_for_lambda_init }; // We already do this
-  kernel_handler LocalKernelHandler;
-  LocalKernelHandler.__init_specialization_constants_buffer(specialization_constants_buffer);
-  // Re-used body of "sycl_kernel" function:
-  {
-     LocalLambdaClone(LocalKernelHandler);
-  }
-}
-```
-
-Also the new kernel argument `specialization_constants_buffer` should have
-corresponding entry in the `kernel_signatures` structure in the integration
-header. The param kind for this argument should be
-`kernel_param_kind_t:specialization_constants_buffer`.
-
-Example:
-```
-  const kernel_param_desc_t kernel_signatures[] = {
-   //--- _ZTSN2cl4sycl6detail19__pf_kernel_wrapperIZZ4mainENK3$_0clERNS0_7handlerEE6init_aEE
-   { kernel_param_kind_t::kind_std_layout, 8, 0 },
-   { kernel_param_kind_t::kind_accessor, 4062, 8 },
-   { kernel_param_kind_t::kind_specialization_constants_buffer, /*parameter_size_in_bytes= */ 8, /*offset_in_lambda=*/0},
- };
-
-```
-
-Offset for this argument is zero since it has no any connected captured
-variable.
-
-#### DPC++ Compiler: sycl-post-link tool
-
-When native specialization constants are not available, we need to lower
-`__sycl_get*2020SpecializationConstant` intrinsic into some load from the
-additional kernel argument, which points to a buffer with all specialization
-constant values.
-
-We assume that both DPC++ compiler and runtime know the layout of that buffer so
-the compiler can correctly access particular constants from it and the runtime
-is able to properly fill the buffer with values of those specialization
-constants.
-
-The layout is defined as follows: all specialization constants are sorted by
-their numeric IDs (i.e. the order of they discovery by sycl-post-link tool) and
-stored within a buffer one after each other without any paddings. So, the
-specialization constant with ID `N` is located within a buffer at offset, which
-is equal to sum of sizes of all specialization constants with ID less than `N`.
-
-For example, if we have the following specialization constants discovered in the
-following order:
-```
-struct custom_type { int a; double b; }
-specialization_id<double> id_double;
-specialization_id<custom_type> id_custom;
-specialization_id<int> id_int;
-```
-`id_double` will be located at the beginning of the buffer, because it is the
-first discovered specialization constant (ID = 0). `id_custom` (ID = 1) will be
-located at the offset 8, because we have a single specialization constant with
-the ID < 1 and its size is 8 bytes. `id_int` (ID = 2) will be located at the
-offset 20, which is computed as `sizeof(id_double) + sizeof(id_custom)`.
-
-When specialization constants emulation is requested, `sycl-post-link` replaces
-calls to `__sycl_get*SpecializationConstant` intrinsics with the following
-LLVM IR pattern:
-```
-%gep = i8, i8* %arg_three_of_sycl_intrinsic_call, i64 [offset]
-; We use the third argument of the __sycl_get*SpecializationConstant intrinsic
-; as a pointer to where all specialization constants are stored
-; [offset] here is a placeholder for some literal integer value computed by
-; the pass based on the ID of the requested specialization constant as described
-; above
-%cast = bitcast i8* %gep to [return-type]*
-; [return-type] here is a placeholder for the actual type of the requested
-; specialization constant
-%load = load [return-type], [return-type]* %cast
-; %load is the resulting value, which should replace all uses of the original
-; call to __sycl_get*SpecializationConstant intrinsic
-```
-
-**TODO**: elaborate on handling of composite types.
-
-##### Collecting spec constants info and communicating it to DPC++ RT
-
-As in the processing of native specialization constants, `sycl-post-link` emits
-some information in device image properties, which is required by DPC++ runtime
-to properly handle emulation of specialization constants.
-
-`sycl-post-link` provides two property sets when specialization constants are
-emulated:
-1. Mapping from Symbolic ID to offset
-2. Mapping from Symbolic ID to the default value
-
-The first mapping can be substituted with the property set generated for native
-specialization constants, but it is still provided in order to simplify the
-runtime part, i.e. it allows to avoid calculating those offsets at runtime by
-re-using ones calculated by the compiler.
-
-**TODO**: is it possible to have both native and emulated specialization
-constants within a single device image?
-
-The second mapping is required and it allows the runtime to properly set default
-values of specialization constants.
-
-**TODO**: document exact property set names and properties structure
-
-#### DPC++ Compiler: Generation of OpenCL kernel
-
-Optional `kernel_handler` SYCL kernel function argument should be created by
-front-end and passed to SYCL kernel function if it is expected there.
-
-So, the following SYCL code
-```
-specialization_id<int> id_int;
-class WithSpecConst;
-class WithoutSpecConst;
-// ...
-/* ... */.single_task<WithSpecConst>([=](kernel_handler h) {
-  auto v = h.get_specialization_constant<id_int>();
-  // ...
-});
-/* ... */.single_task<WithoutSpecConst>([=]() {
-  // ...
-});
-```
-
-Should produce something like this (pseudo-code):
-```
-void WithSpecConstOpenCLKernel(/* ... */) {
-  kernel_handler h;
-  WithSpecConstSYCLKernelFunction(/* ... */, h);
-}
-void WithoutSpecConstOpenCLKernel(/* ... */) {
-  WithoutSpecConstSYCLKernelFunction(/* ... */);
-}
 ```
