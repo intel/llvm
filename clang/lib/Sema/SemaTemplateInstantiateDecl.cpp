@@ -959,7 +959,7 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
       continue;
     }
-    if (const auto* SYCLIntelMaxConcurrency =
+    if (const auto *SYCLIntelMaxConcurrency =
             dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(TmplAttr)) {
       instantiateSYCLIntelFPGAMaxConcurrencyAttr(*this, TemplateArgs,
                                                  SYCLIntelMaxConcurrency, New);
