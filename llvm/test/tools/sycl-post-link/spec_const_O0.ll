@@ -17,7 +17,7 @@ $FOO = comdat any
 ; check that post link removes the no longer used global
 ; CHECK-NOT: @__unique_stable_name.FOO
 
-declare dso_local spir_func zeroext i1 @_Z27__sycl_getSpecConstantValueIbET_PKc(i8 addrspace(4)*) #7
+declare dso_local spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)*) #7
 
 ; Function Attrs: argmemonly nounwind willreturn
 declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
@@ -36,7 +36,7 @@ define spir_func zeroext i1 @FOO(%"UserSpecConstIDType" addrspace(4)* %0) comdat
   store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([18 x i8], [18 x i8]* @__unique_stable_name.FOO, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %3, align 8, !tbaa !8
 ; CHECK-NOT: store{{.*}}@__unique_stable_name.FOO
   %6 = load i8 addrspace(4)*, i8 addrspace(4)** %3, align 8, !tbaa !8
-  %7 = call spir_func zeroext i1 @_Z27__sycl_getSpecConstantValueIbET_PKc(i8 addrspace(4)* %6)
+  %7 = call spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)* %6)
 ; with -spec-const=rt the __sycl_getSpecConstantValue is replaced with
 ;  SPIRV intrinsic
 ; CHECK-RT: %{{[0-9]+}} = call i1 @_Z20__spirv_SpecConstantib(i32 0, i1 false), !SYCL_SPEC_CONST_SYM_ID ![[MD_ID:[0-9]+]]

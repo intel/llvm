@@ -61,6 +61,8 @@ function(add_sycl_rt_library LIB_NAME)
     endif()
   endif()
 
+  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+
   target_include_directories(
     ${LIB_OBJ_NAME}
     PRIVATE

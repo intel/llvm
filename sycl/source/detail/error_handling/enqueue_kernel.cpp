@@ -320,7 +320,7 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
 
   default:
     throw runtime_error(
-        "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
+        "Native API failed. Native API returns: " + codeToString(Error), Error);
   }
 }
 

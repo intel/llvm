@@ -27,7 +27,7 @@ using namespace mlir;
 /// attribute.
 static uint64_t getFirstIntValue(ArrayAttr attr) {
   return (*attr.getAsValueRange<IntegerAttr>().begin()).getZExtValue();
-};
+}
 
 namespace {
 
@@ -241,12 +241,12 @@ struct VectorInsertStridedSliceOpConvert final
 
 } // namespace
 
-void mlir::populateVectorToSPIRVPatterns(MLIRContext *context,
-                                         SPIRVTypeConverter &typeConverter,
-                                         OwningRewritePatternList &patterns) {
-  patterns.insert<VectorBitcastConvert, VectorBroadcastConvert,
-                  VectorExtractElementOpConvert, VectorExtractOpConvert,
-                  VectorExtractStridedSliceOpConvert, VectorFmaOpConvert,
-                  VectorInsertElementOpConvert, VectorInsertOpConvert,
-                  VectorInsertStridedSliceOpConvert>(typeConverter, context);
+void mlir::populateVectorToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
+                                         RewritePatternSet &patterns) {
+  patterns.add<VectorBitcastConvert, VectorBroadcastConvert,
+               VectorExtractElementOpConvert, VectorExtractOpConvert,
+               VectorExtractStridedSliceOpConvert, VectorFmaOpConvert,
+               VectorInsertElementOpConvert, VectorInsertOpConvert,
+               VectorInsertStridedSliceOpConvert>(typeConverter,
+                                                  patterns.getContext());
 }

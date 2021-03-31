@@ -50,8 +50,9 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
 
   message(STATUS "Found LLVM: ${LLVM_VERSION}")
 
+  option(CCACHE_ALLOWED "allow use of ccache" TRUE)
   find_program(CCACHE_EXE_FOUND ccache)
-  if(CCACHE_EXE_FOUND)
+  if(CCACHE_EXE_FOUND AND CCACHE_ALLOWED)
     message(STATUS "Found ccache: ${CCACHE_EXE_FOUND}")
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)

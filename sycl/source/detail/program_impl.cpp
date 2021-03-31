@@ -489,7 +489,7 @@ void program_impl::create_pi_program_with_kernel_name(
   const device FirstDevice = get_devices()[0];
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
       Module, KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
-  MProgram = PM.createPIProgram(Img, get_context(), FirstDevice);
+  MProgram = PM.createPIProgram(Img, get_context(), {FirstDevice});
 }
 
 template <>
@@ -530,29 +530,14 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
                                         RT::PiProgram NativePrg) const {
   // iterate via all specialization constants the program's image depends on,
   // and set each to current runtime value (if any)
-  const pi::DeviceBinaryImage::PropertyRange &ScalarSCRange =
-      Img.getScalarSpecConstants();
-  const pi::DeviceBinaryImage::PropertyRange &CompositeSCRange =
-      Img.getCompositeSpecConstants();
+  const pi::DeviceBinaryImage::PropertyRange &SCRange = Img.getSpecConstants();
   ContextImplPtr Ctx = getSyclObjImpl(get_context());
   using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
 
   auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
   NativePrg = NativePrg ? NativePrg : getHandleRef();
 
-  for (SCItTy SCIt : ScalarSCRange) {
-    auto SCEntry = SpecConstRegistry.find((*SCIt)->Name);
-    if (SCEntry == SpecConstRegistry.end())
-      // spec constant has not been set in user code - SPIR-V will use default
-      continue;
-    const spec_constant_impl &SC = SCEntry->second;
-    assert(SC.isSet() && "uninitialized spec constant");
-    pi_uint32 ID = pi::DeviceBinaryProperty(*SCIt).asUint32();
-    Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
-        NativePrg, ID, SC.getSize(), SC.getValuePtr());
-  }
-
-  for (SCItTy SCIt : CompositeSCRange) {
+  for (SCItTy SCIt : SCRange) {
     auto SCEntry = SpecConstRegistry.find((*SCIt)->Name);
     if (SCEntry == SpecConstRegistry.end())
       // spec constant has not been set in user code - SPIR-V will use default
@@ -564,9 +549,9 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     assert(Descriptors.size() > 8 && "Unexpected property size");
     // Expected layout is vector of 3-component tuples (flattened into a vector
     // of scalars), where each tuple consists of: ID of a scalar spec constant,
-    // which is a member of the composite; offset, which is used to calculate
-    // location of scalar member within the composite; size of a scalar member
-    // of the composite.
+    // (which might be a member of the composite); offset, which is used to
+    // calculate location of scalar member within the composite or zero for
+    // scalar spec constants; size of a spec constant
     assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % 3 == 0 &&
            "unexpected layout of composite spec const descriptors");
     auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);

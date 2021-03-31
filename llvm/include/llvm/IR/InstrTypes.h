@@ -1214,6 +1214,15 @@ public:
   static CallBase *Create(CallBase *CB, ArrayRef<OperandBundleDef> Bundles,
                           Instruction *InsertPt = nullptr);
 
+  /// Create a clone of \p CB with the operand bundle with the tag matching
+  /// \p Bundle's tag replaced with Bundle, and insert it before \p InsertPt.
+  ///
+  /// The returned call instruction is identical \p CI in every way except that
+  /// the specified operand bundle has been replaced.
+  static CallBase *Create(CallBase *CB,
+                          OperandBundleDef Bundle,
+                          Instruction *InsertPt = nullptr);
+
   /// Create a clone of \p CB with operand bundle \p OB added.
   static CallBase *addOperandBundle(CallBase *CB, uint32_t ID,
                                     OperandBundleDef OB,
@@ -1546,6 +1555,15 @@ public:
     setAttributes(PAL);
   }
 
+  /// Removes noundef and other attributes that imply undefined behavior if a
+  /// `undef` or `poison` value is passed from the given argument.
+  void removeParamUndefImplyingAttrs(unsigned ArgNo) {
+    assert(ArgNo < getNumArgOperands() && "Out of bounds");
+    AttributeList PAL = getAttributes();
+    PAL = PAL.removeParamUndefImplyingAttributes(getContext(), ArgNo);
+    setAttributes(PAL);
+  }
+
   /// adds the dereferenceable attribute to the list of attributes.
   void addDereferenceableAttr(unsigned i, uint64_t Bytes) {
     AttributeList PAL = getAttributes();
@@ -1651,6 +1669,17 @@ public:
     return paramHasAttr(ArgNo, Attribute::ByVal) ||
            paramHasAttr(ArgNo, Attribute::InAlloca) ||
            paramHasAttr(ArgNo, Attribute::Preallocated);
+  }
+
+  /// Determine whether passing undef to this argument is undefined behavior.
+  /// If passing undef to this argument is UB, passing poison is UB as well
+  /// because poison is more undefined than undef.
+  bool isPassingUndefUB(unsigned ArgNo) const {
+    return paramHasAttr(ArgNo, Attribute::NoUndef) ||
+           // dereferenceable implies noundef.
+           paramHasAttr(ArgNo, Attribute::Dereferenceable) ||
+           // dereferenceable implies noundef, and null is a well-defined value.
+           paramHasAttr(ArgNo, Attribute::DereferenceableOrNull);
   }
 
   /// Determine if there are is an inalloca argument. Only the last argument can
@@ -1765,9 +1794,6 @@ public:
   bool onlyReadsMemory() const {
     return doesNotAccessMemory() || hasFnAttr(Attribute::ReadOnly);
   }
-
-  /// Returns true if this function is guaranteed to return.
-  bool willReturn() const { return hasFnAttr(Attribute::WillReturn); }
 
   void setOnlyReadsMemory() {
     addAttribute(AttributeList::FunctionIndex, Attribute::ReadOnly);
@@ -1996,12 +2022,7 @@ public:
 
   /// Return true if this operand bundle user has operand bundles that
   /// may read from the heap.
-  bool hasReadingOperandBundles() const {
-    // Implementation note: this is a conservative implementation of operand
-    // bundle semantics, where *any* operand bundle forces a callsite to be at
-    // least readonly.
-    return hasOperandBundles();
-  }
+  bool hasReadingOperandBundles() const;
 
   /// Return true if this operand bundle user has operand bundles that
   /// may write to the heap.

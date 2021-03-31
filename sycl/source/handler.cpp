@@ -14,12 +14,83 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/global_handler.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+handler::handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
+    : MQueue(std::move(Queue)), MIsHost(IsHost) {
+  MSharedPtrStorage.emplace_back(
+      std::make_shared<std::vector<detail::ExtendedMemberT>>());
+}
+
+// Returns a shared_ptr to kernel_bundle stored in the extended members vector.
+// If there is no kernel_bundle created:
+// returns newly created kernel_bundle if Insert is true
+// returns shared_ptr(nullptr) if Insert is false
+std::shared_ptr<detail::kernel_bundle_impl>
+handler::getOrInsertHandlerKernelBundle(bool Insert) const {
+
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  // Look for the kernel bundle in extended members
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
+  for (const detail::ExtendedMemberT &EMember : *ExendedMembersVec)
+    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+      KernelBundleImpPtr =
+          std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
+      break;
+    }
+
+  // No kernel bundle yet, create one
+  if (!KernelBundleImpPtr && Insert) {
+    KernelBundleImpPtr = detail::getSyclObjImpl(
+        get_kernel_bundle<bundle_state::input>(MQueue->get_context()));
+
+    detail::ExtendedMemberT EMember = {
+        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
+
+    ExendedMembersVec->push_back(EMember);
+  }
+
+  return KernelBundleImpPtr;
+}
+
+// Sets kernel bundle to the provided one. Either replaces existing one or
+// create a new entry in the extended members vector.
+void handler::setHandlerKernelBundle(
+    const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
+  assert(!MSharedPtrStorage.empty());
+
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  for (detail::ExtendedMemberT &EMember : *ExendedMembersVec)
+    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+      EMember.MData = NewKernelBundleImpPtr;
+      return;
+    }
+
+  detail::ExtendedMemberT EMember = {
+      detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
+      NewKernelBundleImpPtr};
+
+  ExendedMembersVec->push_back(EMember);
+}
 
 event handler::finalize() {
   // This block of code is needed only for reduction implementation.
@@ -28,9 +99,37 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  // Kernel_bundles could not be used before CGType version 1
+  if (getCGTypeVersion(MCGType) >
+      static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
+    // If there were uses of set_specialization_constant build the kernel_bundle
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
+        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    if (KernelBundleImpPtr) {
+      switch (KernelBundleImpPtr->get_bundle_state()) {
+      case bundle_state::input: {
+        // Underlying level expects kernel_bundle to be in executable state
+        kernel_bundle<bundle_state::executable> ExecBundle = build(
+            detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+                KernelBundleImpPtr));
+        setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+        break;
+      }
+      case bundle_state::executable:
+        // Nothing to do
+        break;
+      case bundle_state::object:
+        assert(0 && "Expected that the bundle is either in input or executable "
+                    "states.");
+        break;
+      }
+    }
+  }
+
   unique_ptr_class<detail::CG> CommandGroup;
   switch (MCGType) {
   case detail::CG::KERNEL:
+  case detail::CG::KERNEL_V1:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),

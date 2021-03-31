@@ -786,7 +786,8 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
     Instruction *I = BB.getFirstNonPHI();
 
     for (; I->getOpcode() == Instruction::Alloca ||
-           I->getOpcode() == Instruction::AddrSpaceCast;
+           I->getOpcode() == Instruction::AddrSpaceCast ||
+           I->isDebugOrPseudoInst();
          I = I->getNextNode()) {
       auto *AllocaI = dyn_cast<AllocaInst>(I);
       // Allocas marked with "work_item_scope" are those originating from

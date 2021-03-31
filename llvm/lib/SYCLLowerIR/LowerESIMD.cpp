@@ -1263,6 +1263,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   // limitation, mark every function called from ESIMD kernel with
   // 'alwaysinline' attribute.
   if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
+      !F.hasFnAttribute(Attribute::NoInline) &&
       !F.hasFnAttribute(Attribute::AlwaysInline))
     F.addFnAttr(Attribute::AlwaysInline);
 

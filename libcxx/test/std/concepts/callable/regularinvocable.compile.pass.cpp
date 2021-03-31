@@ -19,19 +19,21 @@
 
 #include "functions.h"
 
+// clang-format off
 template <class F, class... Args>
-requires std::invocable<F, Args...> constexpr void
-ModelsRegularInvocable(F, Args&&...) noexcept{};
+requires std::regular_invocable<F, Args...>
+constexpr void ModelsRegularInvocable(F, Args&&...) noexcept {}
 
 template <class F, class... Args>
-requires(!std::invocable<F, Args...>) constexpr
-    void NotRegularInvocable(F, Args&&...) noexcept {}
+requires (!std::regular_invocable<F, Args...>)
+constexpr void NotRegularInvocable(F, Args&&...) noexcept {}
+// clang-format on
 
-static_assert(!std::invocable<void>);
-static_assert(!std::invocable<void*>);
-static_assert(!std::invocable<int>);
-static_assert(!std::invocable<int&>);
-static_assert(!std::invocable<int&&>);
+static_assert(!std::regular_invocable<void>);
+static_assert(!std::regular_invocable<void*>);
+static_assert(!std::regular_invocable<int>);
+static_assert(!std::regular_invocable<int&>);
+static_assert(!std::regular_invocable<int&&>);
 
 int main(int, char**) {
   {
@@ -48,7 +50,7 @@ int main(int, char**) {
     NotRegularInvocable(&A::F);
 
     {
-      auto X = A{};
+      A X;
       ModelsRegularInvocable(&A::I, X);
       ModelsRegularInvocable(&A::F, X);
       ModelsRegularInvocable(&A::G, X, 0);
@@ -56,7 +58,7 @@ int main(int, char**) {
       NotRegularInvocable(&A::G, 0);
       NotRegularInvocable(&A::H);
 
-      auto const& Y = X;
+      A const& Y = X;
       ModelsRegularInvocable(&A::I, Y);
       ModelsRegularInvocable(&A::F, Y);
       NotRegularInvocable(&A::G, Y, 0);

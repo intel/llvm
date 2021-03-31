@@ -581,8 +581,7 @@ static void instantiateIntelFPGAForcePow2DepthAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    return S.AddOneConstantValueAttr<IntelFPGAForcePow2DepthAttr>(
-        New, *Attr, Result.getAs<Expr>());
+    return S.AddIntelFPGAForcePow2DepthAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateIntelFPGABankWidthAttr(
@@ -712,6 +711,16 @@ static void instantiateIntelFPGAMaxReplicatesAttr(
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
     S.AddIntelFPGAMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
+}
+
+static void instantiateSYCLIntelFPGAInitiationIntervalAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelFPGAInitiationIntervalAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getIntervalExpr(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelFPGAInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
 }
 
 /// Determine whether the attribute A might be relevent to the declaration D.
@@ -938,6 +947,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
       instantiateIntelSYCTripleLFunctionAttr<SYCLIntelMaxWorkGroupSizeAttr>(
           *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
+      continue;
+    }
+    if (const auto *SYCLIntelFPGAInitiationInterval =
+            dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(TmplAttr)) {
+      instantiateSYCLIntelFPGAInitiationIntervalAttr(
+          *this, TemplateArgs, SYCLIntelFPGAInitiationInterval, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.

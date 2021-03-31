@@ -652,6 +652,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       const bool InitFromUserData =
           Record->MAllocaCommands.empty() && HostUnifiedMemory;
       AllocaCommandBase *LinkedAllocaCmd = nullptr;
+      // TODO casting is required here to get the necessary information
+      // without breaking ABI, replace with the next major version.
+      auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
 
       // For the first allocation on a device without host unified memory we
       // might need to also create a host alloca right away in order to perform
@@ -662,9 +665,6 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             Req->MAccessMode != access::mode::discard_read_write) {
           // There's no need to make a host allocation if the buffer is not
           // initialized with user data.
-          // TODO casting is required here to get the necessary information
-          // without breaking ABI, replace with the next major version.
-          auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
           if (MemObj->hasUserDataPtr()) {
             QueueImplPtr DefaultHostQueue =
                 Scheduler::getInstance().getDefaultHostQueue();
@@ -691,10 +691,17 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             // plugin runtime and that can lead to unnecessary copy overhead on
             // devices that do not support host unified memory. Do not link the
             // allocations in this case.
+            // However, if the user explicitly requests use of pinned host
+            // memory, map/unmap operations are expected to work faster than
+            // read/write from/to an artbitrary host pointer. Link such commands
+            // regardless of host unified memory support.
+            bool PinnedHostMemory = MemObj->has_property<
+                sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+
             bool HostUnifiedMemoryOnNonHostDevice =
                 Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
                                  : HostUnifiedMemory;
-            if (HostUnifiedMemoryOnNonHostDevice) {
+            if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
               AllocaCommandBase *LinkedAllocaCmdCand =
                   findAllocaForReq(Record, Req, Record->MCurContext);
 
