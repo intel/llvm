@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
 
 // This test checks specifics of semantic analysis of ESIMD private globals
 

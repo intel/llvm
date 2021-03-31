@@ -713,6 +713,16 @@ static void instantiateIntelFPGAMaxReplicatesAttr(
     S.AddIntelFPGAMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLIntelFPGAInitiationIntervalAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelFPGAInitiationIntervalAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getIntervalExpr(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelFPGAInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
+}
+
 /// Determine whether the attribute A might be relevent to the declaration D.
 /// If not, we can skip instantiating it. The attribute may or may not have
 /// been instantiated yet.
@@ -937,6 +947,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
       instantiateIntelSYCTripleLFunctionAttr<SYCLIntelMaxWorkGroupSizeAttr>(
           *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
+      continue;
+    }
+    if (const auto *SYCLIntelFPGAInitiationInterval =
+            dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(TmplAttr)) {
+      instantiateSYCLIntelFPGAInitiationIntervalAttr(
+          *this, TemplateArgs, SYCLIntelFPGAInitiationInterval, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.
