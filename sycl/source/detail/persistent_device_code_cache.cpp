@@ -7,15 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
-#include <detail/persistent_cache.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/plugin.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-// These are temporary implementation of file operations until moving to C++17
-// and use of std::filesystem instead 
 
+/* This is temporary solution until std::filesystem is available when SYCL RT
+ * is moved to c++17 standard*/
 std::string getDirName(const char *Path) {
   std::string Tmp(Path);
   // Remove trailing directory separators
@@ -29,16 +30,8 @@ std::string getDirName(const char *Path) {
   return Tmp;
 }
 
-#include <sys/stat.h>
-/// Checks if specified path is present
-static inline bool isPathPresent(const std::string &Path) {
-   struct stat Stat;
-   return !stat(Path.c_str(), &Stat);
-}
-
 int makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
-
   // Directory is present - do nothing
   if (isPathPresent(Dir))
     return 0;
@@ -55,28 +48,23 @@ int makeDir(const char *Dir) {
 #endif
 }
 
-
 /* Stores build program in persisten cache
  */
-void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
-                                         const device &Device,
-                                         const RTDeviceBinaryImage &Img,
-                                         const SerializedObj &SpecConsts,
-                                         const std::string &BuildOptionsString,
-                                         const RT::PiProgram &Program) {
+void PersistentDeviceCodeCache::putItemToDisc(
+    const device &Device, const RTDeviceBinaryImage &Img,
+    const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
+    const RT::PiProgram &NativePrg) {
 
-  if (!isPersistentCacheEnabled())
+  if (!isEnabled())
     return;
 
   // Only SPIRV images are cached
-  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV &&
-      (Img.getFormat() == PI_DEVICE_BINARY_TYPE_NONE &&
-       pi::getBinaryImageFormat(Img.getRawData().BinaryStart, Img.getSize()) !=
-           PI_DEVICE_BINARY_TYPE_SPIRV))
+  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
     return;
 
+  auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
   std::string DirName =
-      getCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString);
+      getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
 
   size_t i = 0;
   std::string FileName;
@@ -86,13 +74,13 @@ void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
 
   unsigned int DeviceNum = 0;
 
-  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_NUM_DEVICES,
-                                           sizeof(DeviceNum), &DeviceNum,
-                                           nullptr);
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      NativePrg, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
+      nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
   Plugin.call<PiApiKind::piProgramGetInfo>(
-      Program, PI_PROGRAM_INFO_BINARY_SIZES,
+      NativePrg, PI_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
   std::vector<std::vector<char>> Result;
@@ -102,48 +90,54 @@ void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
     Pointers.push_back(Result[I].data());
   }
 
-  Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_BINARIES,
+  Plugin.call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
                                            sizeof(char *) * Pointers.size(),
                                            Pointers.data(), nullptr);
 
-  makeDir(DirName.c_str());
-  writeCacheItemBin(FileName + ".bin", Result);
-  writeCacheItemSrc(FileName + ".src", Device, Img, SpecConsts,
+  try {
+    makeDir(DirName.c_str());
+    LockCacheItem Lock{DirName};
+    writeBinaryDataToFile(FileName + ".bin", Result);
+    writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
                     BuildOptionsString);
+  } catch (...) {
+    // If a problem happens on storing cache item, do nothing
+  }
 }
 
 /* Program binaries built for one or more devices are read from persistent
  * cache and returned in form of vector of programs. Each binary program is
  * stored in vector of chars.
  */
-std::vector<std::vector<char>> PersistentCache::getPIProgramFromDisc(
+std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     RT::PiProgram &NativePrg) {
 
-  if (!isPersistentCacheEnabled())
+  if (!isEnabled())
     return {};
 
   // Only SPIRV images are cached
-  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV &&
-      (Img.getFormat() == PI_DEVICE_BINARY_TYPE_NONE &&
-       pi::getBinaryImageFormat(Img.getRawData().BinaryStart, Img.getSize()) !=
-           PI_DEVICE_BINARY_TYPE_SPIRV))
+  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
     return {};
 
   std::string Path =
-      getCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString);
+      getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
 
   if (!isPathPresent(Path))
     return {};
 
   int i = 0;
+
+  // If cache directory is locked ignore cache
+  if (LockCacheItem::isLocked(Path))
+    return {};
+
   std::string FileName{Path + "/" + std::to_string(i)};
-  while (isPathPresent(FileName + ".bin") ||
-         isPathPresent(FileName + ".src")) {
+  while (isPathPresent(FileName + ".bin") || isPathPresent(FileName + ".src")) {
     if (isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
                             BuildOptionsString)) {
-      return readCacheItem(FileName + ".bin");
+      return readBinaryDataFromFile(FileName + ".bin");
     }
     FileName = Path + "/" + std::to_string(++i);
   }
@@ -152,7 +146,7 @@ std::vector<std::vector<char>> PersistentCache::getPIProgramFromDisc(
 
 /* Returns string value which can be used to identify different device
  */
-std::string PersistentCache::getDeviceString(const device &Device) {
+std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
   return Device.get_platform().get_info<sycl::info::platform::name>() + "/" +
          Device.get_info<sycl::info::device::name>() + "/" +
          Device.get_info<sycl::info::device::version>() + "/" +
@@ -162,7 +156,7 @@ std::string PersistentCache::getDeviceString(const device &Device) {
 /* Write built binary to persistent cache
  * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
  */
-void PersistentCache::writeCacheItemBin(
+void PersistentDeviceCodeCache::writeBinaryDataToFile(
     const std::string &FileName, const std::vector<std::vector<char>> &Data) {
   std::ofstream FileStream{FileName, std::ios::binary};
 
@@ -180,7 +174,7 @@ void PersistentCache::writeCacheItemBin(
  * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
  */
 std::vector<std::vector<char>>
-PersistentCache::readCacheItem(const std::string &FileName) {
+PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
   std::ifstream FileStream{FileName, std::ios::binary};
   size_t ImgNum, ImgSize;
   FileStream.read((char *)&ImgNum, sizeof(ImgNum));
@@ -199,13 +193,12 @@ PersistentCache::readCacheItem(const std::string &FileName) {
  * Format: Four pairs of [size, value] for device, build options, specialization
  * constant values, device code SPIR-V image.
  */
-void PersistentCache::writeCacheItemSrc(const std::string &FileName,
-                                        const device &Device,
-                                        const RTDeviceBinaryImage &Img,
-                                        const SerializedObj &SpecConsts,
-                                        const std::string &BuildOptionsString) {
+void PersistentDeviceCodeCache::writeSourceItem(
+    const std::string &FileName, const device &Device,
+    const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
+    const std::string &BuildOptionsString) {
   std::ofstream FileStream{FileName, std::ios::binary};
-  std::string DeviceString{getDeviceString(Device)};
+  std::string DeviceString{getDeviceIDString(Device)};
 
   size_t Size = DeviceString.size();
   FileStream.write((char *)&Size, sizeof(Size));
@@ -224,14 +217,14 @@ void PersistentCache::writeCacheItemSrc(const std::string &FileName,
 
 /* Check that cache item key sources are equal to the current program
  */
-bool PersistentCache::isCacheItemSrcEqual(
+bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
     const std::string &FileName, const device &Device,
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
   std::ifstream FileStream{FileName, std::ios::binary};
   std::string ImgString{(const char *)Img.getRawData().BinaryStart,
                         Img.getSize()};
-  std::string DeviceString{getDeviceString(Device)};
+  std::string DeviceString{getDeviceIDString(Device)};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
 
@@ -269,14 +262,14 @@ bool PersistentCache::isCacheItemSrcEqual(
 /* Returns directory name to store specific kernel image for specified
  * device, build options and specialization constants values.
  */
-std::string PersistentCache::getCacheItemDirName(
+std::string PersistentDeviceCodeCache::getCacheItemPath(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
-  static std::string cache_root{getDeviceCodeCacheRoot()};
+  static std::string cache_root{getRootDir()};
 
   std::string ImgString{(const char *)Img.getRawData().BinaryStart,
                         Img.getSize()};
-  std::string DeviceString{getDeviceString(Device)};
+  std::string DeviceString{getDeviceIDString(Device)};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
   std::hash<std::string> StringHasher{};
@@ -290,7 +283,7 @@ std::string PersistentCache::getCacheItemDirName(
 /* Returns true if persistent cache enabled. The cache can be disabled by
  * setting SYCL_CACHE_EVICTION_DISABLE environmnet variable.
  */
-bool PersistentCache::isPersistentCacheEnabled() {
+bool PersistentDeviceCodeCache::isEnabled() {
   static const char *PersistenCacheDisabled =
       SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get();
   return !PersistenCacheDisabled;
@@ -298,7 +291,7 @@ bool PersistentCache::isPersistentCacheEnabled() {
 
 /* Returns path for device code cache root directory
  */
-std::string PersistentCache::getDeviceCodeCacheRoot() {
+std::string PersistentDeviceCodeCache::getRootDir() {
   static const char *RootDir = SYCLConfig<SYCL_CACHE_DIR>::get();
   if (RootDir)
     return RootDir;

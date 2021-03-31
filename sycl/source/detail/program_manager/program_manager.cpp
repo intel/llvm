@@ -21,7 +21,7 @@
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/persistent_cache.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -421,7 +421,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram NativePrg;
-    auto BinProg = PersistentCache::getPIProgramFromDisc(
+
+    auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
         Device, Img, SpecConsts, CompileOpts + LinkOpts, NativePrg);
     if (BinProg.size()) {
       // TODO: Build for multiple devices once supported by program manager
@@ -457,10 +458,11 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
     }
+
+    // Save program to persistent cache if it not there
     if (!BinProg.size())
-      PersistentCache::putPIProgramToDisc(Plugin, Device, Img, SpecConsts,
-                                          CompileOpts + LinkOpts,
-                                          BuiltProgram.get());
+      PersistentDeviceCodeCache::putItemToDisc(
+          Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
     return BuiltProgram.release();
   };
 
