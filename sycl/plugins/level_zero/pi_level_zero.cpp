@@ -2443,10 +2443,15 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     //
   }
 
-  pi_result Result;
-  auto Alignment = std::min(Size, 64UL);
+  // Alignment is at most 64.
+  auto Alignment = Size;
+  if (Alignment > 64UL)
+    Alignment = 64UL;
+  // Alignment must be a power of 2, else make it 1.
   if ((Alignment & (Alignment - 1)) != 0)
     Alignment = 1;
+
+  pi_result Result;
   if (DeviceIsIntegrated) {
     Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
   } else {
