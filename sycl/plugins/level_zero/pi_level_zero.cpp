@@ -986,7 +986,6 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
   for (pi_uint32 I = 0; I < this->Length; I++) {
     PI_CALL(piEventRetain(this->PiEventList[I]));
-
   }
 
   return PI_SUCCESS;
@@ -4952,7 +4951,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
       }
 
       if (TmpLastCommandEvent != nullptr) {
-          PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
+        PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
       }
     }
 
