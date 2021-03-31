@@ -344,7 +344,8 @@ static Optional<Type> convertTensorType(const spirv::TargetEnv &targetEnv,
 static Optional<Type> convertMemrefType(const spirv::TargetEnv &targetEnv,
                                         MemRefType type) {
   Optional<spirv::StorageClass> storageClass =
-      SPIRVTypeConverter::getStorageClassForMemorySpace(type.getMemorySpace());
+      SPIRVTypeConverter::getStorageClassForMemorySpace(
+          type.getMemorySpaceAsInt());
   if (!storageClass) {
     LLVM_DEBUG(llvm::dbgs()
                << type << " illegal: cannot convert memory space\n");
@@ -498,7 +499,7 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
                                           : TypeRange()));
 
   // Copy over all attributes other than the function name and type.
-  for (const auto &namedAttr : funcOp.getAttrs()) {
+  for (const auto &namedAttr : funcOp->getAttrs()) {
     if (namedAttr.first != impl::getTypeAttrName() &&
         namedAttr.first != SymbolTable::getSymbolAttrName())
       newFuncOp->setAttr(namedAttr.first, namedAttr.second);
@@ -513,10 +514,9 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
   return success();
 }
 
-void mlir::populateBuiltinFuncToSPIRVPatterns(
-    MLIRContext *context, SPIRVTypeConverter &typeConverter,
-    OwningRewritePatternList &patterns) {
-  patterns.insert<FuncOpConversion>(typeConverter, context);
+void mlir::populateBuiltinFuncToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
+                                              RewritePatternSet &patterns) {
+  patterns.add<FuncOpConversion>(typeConverter, patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//
@@ -526,7 +526,7 @@ void mlir::populateBuiltinFuncToSPIRVPatterns(
 static spirv::GlobalVariableOp getBuiltinVariable(Block &body,
                                                   spirv::BuiltIn builtin) {
   // Look through all global variables in the given `body` block and check if
-  // there is a spv.globalVariable that has the same `builtin` attribute.
+  // there is a spv.GlobalVariable that has the same `builtin` attribute.
   for (auto varOp : body.getOps<spirv::GlobalVariableOp>()) {
     if (auto builtinAttr = varOp->getAttrOfType<StringAttr>(
             spirv::SPIRVDialect::getAttributeName(
@@ -606,6 +606,31 @@ Value mlir::spirv::getBuiltinVariableValue(Operation *op,
 // Index calculation
 //===----------------------------------------------------------------------===//
 
+Value mlir::spirv::linearizeIndex(ValueRange indices, ArrayRef<int64_t> strides,
+                                  int64_t offset, Location loc,
+                                  OpBuilder &builder) {
+  assert(indices.size() == strides.size() &&
+         "must provide indices for all dimensions");
+
+  auto indexType = SPIRVTypeConverter::getIndexType(builder.getContext());
+
+  // TODO: Consider moving to use affine.apply and patterns converting
+  // affine.apply to standard ops. This needs converting to SPIR-V passes to be
+  // broken down into progressive small steps so we can have intermediate steps
+  // using other dialects. At the moment SPIR-V is the final sink.
+
+  Value linearizedIndex = builder.create<spirv::ConstantOp>(
+      loc, indexType, IntegerAttr::get(indexType, offset));
+  for (auto index : llvm::enumerate(indices)) {
+    Value strideVal = builder.create<spirv::ConstantOp>(
+        loc, indexType, IntegerAttr::get(indexType, strides[index.index()]));
+    Value update = builder.create<spirv::IMulOp>(loc, strideVal, index.value());
+    linearizedIndex =
+        builder.create<spirv::IAddOp>(loc, linearizedIndex, update);
+  }
+  return linearizedIndex;
+}
+
 spirv::AccessChainOp mlir::spirv::getElementPtr(
     SPIRVTypeConverter &typeConverter, MemRefType baseType, Value basePtr,
     ValueRange indices, Location loc, OpBuilder &builder) {
@@ -622,28 +647,16 @@ spirv::AccessChainOp mlir::spirv::getElementPtr(
   auto indexType = typeConverter.getIndexType(builder.getContext());
 
   SmallVector<Value, 2> linearizedIndices;
-  // Add a '0' at the start to index into the struct.
   auto zero = spirv::ConstantOp::getZero(indexType, loc, builder);
+
+  // Add a '0' at the start to index into the struct.
   linearizedIndices.push_back(zero);
 
   if (baseType.getRank() == 0) {
     linearizedIndices.push_back(zero);
   } else {
-    // TODO: Instead of this logic, use affine.apply and add patterns for
-    // lowering affine.apply to standard ops. These will get lowered to SPIR-V
-    // ops by the DialectConversion framework.
-    Value ptrLoc = builder.create<spirv::ConstantOp>(
-        loc, indexType, IntegerAttr::get(indexType, offset));
-    assert(indices.size() == strides.size() &&
-           "must provide indices for all dimensions");
-    for (auto index : llvm::enumerate(indices)) {
-      Value strideVal = builder.create<spirv::ConstantOp>(
-          loc, indexType, IntegerAttr::get(indexType, strides[index.index()]));
-      Value update =
-          builder.create<spirv::IMulOp>(loc, strideVal, index.value());
-      ptrLoc = builder.create<spirv::IAddOp>(loc, ptrLoc, update);
-    }
-    linearizedIndices.push_back(ptrLoc);
+    linearizedIndices.push_back(
+        linearizeIndex(indices, strides, offset, loc, builder));
   }
   return builder.create<spirv::AccessChainOp>(loc, basePtr, linearizedIndices);
 }

@@ -1192,39 +1192,39 @@ bool WebAssemblyCFGStackify::fixCallUnwindMismatches(MachineFunction &MF) {
   for (auto &MBB : reverse(MF)) {
     bool SeenThrowableInstInBB = false;
     for (auto &MI : reverse(MBB)) {
-      if (MI.getOpcode() == WebAssembly::TRY)
-        EHPadStack.pop_back();
-      else if (WebAssembly::isCatch(MI.getOpcode()))
-        EHPadStack.push_back(MI.getParent());
       bool MayThrow = WebAssembly::mayThrow(MI);
 
       // If MBB has an EH pad successor and this is the last instruction that
       // may throw, this instruction unwinds to the EH pad and not to the
       // caller.
-      if (MBB.hasEHPadSuccessor() && MayThrow && !SeenThrowableInstInBB) {
+      if (MBB.hasEHPadSuccessor() && MayThrow && !SeenThrowableInstInBB)
         SeenThrowableInstInBB = true;
-        continue;
-      }
 
       // We wrap up the current range when we see a marker even if we haven't
       // finished a BB.
-      if (RangeEnd && WebAssembly::isMarker(MI.getOpcode())) {
+      else if (RangeEnd && WebAssembly::isMarker(MI.getOpcode()))
         RecordCallerMismatchRange(EHPadStack.back());
-        continue;
-      }
 
       // If EHPadStack is empty, that means it correctly unwinds to the caller
       // if it throws, so we're good. If MI does not throw, we're good too.
-      if (EHPadStack.empty() || !MayThrow)
-        continue;
+      else if (EHPadStack.empty() || !MayThrow) {
+      }
 
       // We found an instruction that unwinds to the caller but currently has an
       // incorrect unwind destination. Create a new range or increment the
       // currently existing range.
-      if (!RangeEnd)
-        RangeBegin = RangeEnd = &MI;
-      else
-        RangeBegin = &MI;
+      else {
+        if (!RangeEnd)
+          RangeBegin = RangeEnd = &MI;
+        else
+          RangeBegin = &MI;
+      }
+
+      // Update EHPadStack.
+      if (MI.getOpcode() == WebAssembly::TRY)
+        EHPadStack.pop_back();
+      else if (WebAssembly::isCatch(MI.getOpcode()))
+        EHPadStack.push_back(MI.getParent());
     }
 
     if (RangeEnd)
@@ -1330,7 +1330,7 @@ bool WebAssemblyCFGStackify::fixCatchUnwindMismatches(MachineFunction &MF) {
 
         // This can happen when the unwind dest was removed during the
         // optimization, e.g. because it was unreachable.
-        else if (EHPadStack.empty() && EHInfo->hasEHPadUnwindDest(EHPad)) {
+        else if (EHPadStack.empty() && EHInfo->hasUnwindDest(EHPad)) {
           LLVM_DEBUG(dbgs() << "EHPad (" << EHPad->getName()
                             << "'s unwind destination does not exist anymore"
                             << "\n\n");
@@ -1338,7 +1338,7 @@ bool WebAssemblyCFGStackify::fixCatchUnwindMismatches(MachineFunction &MF) {
 
         // The EHPad's next unwind destination is the caller, but we incorrectly
         // unwind to another EH pad.
-        else if (!EHPadStack.empty() && !EHInfo->hasEHPadUnwindDest(EHPad)) {
+        else if (!EHPadStack.empty() && !EHInfo->hasUnwindDest(EHPad)) {
           EHPadToUnwindDest[EHPad] = getFakeCallerBlock(MF);
           LLVM_DEBUG(dbgs()
                      << "- Catch unwind mismatch:\nEHPad = " << EHPad->getName()
@@ -1348,8 +1348,8 @@ bool WebAssemblyCFGStackify::fixCatchUnwindMismatches(MachineFunction &MF) {
 
         // The EHPad's next unwind destination is an EH pad, whereas we
         // incorrectly unwind to another EH pad.
-        else if (!EHPadStack.empty() && EHInfo->hasEHPadUnwindDest(EHPad)) {
-          auto *UnwindDest = EHInfo->getEHPadUnwindDest(EHPad);
+        else if (!EHPadStack.empty() && EHInfo->hasUnwindDest(EHPad)) {
+          auto *UnwindDest = EHInfo->getUnwindDest(EHPad);
           if (EHPadStack.back() != UnwindDest) {
             EHPadToUnwindDest[EHPad] = UnwindDest;
             LLVM_DEBUG(dbgs() << "- Catch unwind mismatch:\nEHPad = "
@@ -1368,6 +1368,7 @@ bool WebAssemblyCFGStackify::fixCatchUnwindMismatches(MachineFunction &MF) {
   if (EHPadToUnwindDest.empty())
     return false;
   NumCatchUnwindMismatches += EHPadToUnwindDest.size();
+  SmallPtrSet<MachineBasicBlock *, 4> NewEndTryBBs;
 
   for (auto &P : EHPadToUnwindDest) {
     MachineBasicBlock *EHPad = P.first;
@@ -1375,6 +1376,77 @@ bool WebAssemblyCFGStackify::fixCatchUnwindMismatches(MachineFunction &MF) {
     MachineInstr *Try = EHPadToTry[EHPad];
     MachineInstr *EndTry = BeginToEnd[Try];
     addTryDelegate(Try, EndTry, UnwindDest);
+    NewEndTryBBs.insert(EndTry->getParent());
+  }
+
+  // Adding a try-delegate wrapping an existing try-catch-end can make existing
+  // branch destination BBs invalid. For example,
+  //
+  // - Before:
+  // bb0:
+  //   block
+  //     br bb3
+  // bb1:
+  //     try
+  //       ...
+  // bb2: (ehpad)
+  //     catch
+  // bb3:
+  //     end_try
+  //   end_block   ;; 'br bb3' targets here
+  //
+  // Suppose this try-catch-end has a catch unwind mismatch, so we need to wrap
+  // this with a try-delegate. Then this becomes:
+  //
+  // - After:
+  // bb0:
+  //   block
+  //     br bb3    ;; invalid destination!
+  // bb1:
+  //     try       ;; (new instruction)
+  //       try
+  //         ...
+  // bb2: (ehpad)
+  //       catch
+  // bb3:
+  //       end_try ;; 'br bb3' still incorrectly targets here!
+  // delegate_bb:  ;; (new BB)
+  //     delegate  ;; (new instruction)
+  // split_bb:     ;; (new BB)
+  //   end_block
+  //
+  // Now 'br bb3' incorrectly branches to an inner scope.
+  //
+  // As we can see in this case, when branches target a BB that has both
+  // 'end_try' and 'end_block' and the BB is split to insert a 'delegate', we
+  // have to remap existing branch destinations so that they target not the
+  // 'end_try' BB but the new 'end_block' BB. There can be multiple 'delegate's
+  // in between, so we try to find the next BB with 'end_block' instruction. In
+  // this example, the 'br bb3' instruction should be remapped to 'br split_bb'.
+  for (auto &MBB : MF) {
+    for (auto &MI : MBB) {
+      if (MI.isTerminator()) {
+        for (auto &MO : MI.operands()) {
+          if (MO.isMBB() && NewEndTryBBs.count(MO.getMBB())) {
+            auto *BrDest = MO.getMBB();
+            bool FoundEndBlock = false;
+            for (; std::next(BrDest->getIterator()) != MF.end();
+                 BrDest = BrDest->getNextNode()) {
+              for (const auto &MI : *BrDest) {
+                if (MI.getOpcode() == WebAssembly::END_BLOCK) {
+                  FoundEndBlock = true;
+                  break;
+                }
+              }
+              if (FoundEndBlock)
+                break;
+            }
+            assert(FoundEndBlock);
+            MO.setMBB(BrDest);
+          }
+        }
+      }
+    }
   }
 
   return true;

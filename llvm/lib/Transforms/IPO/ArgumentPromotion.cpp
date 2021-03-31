@@ -312,6 +312,12 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
           AAMDNodes AAInfo;
           OrigLoad->getAAMetadata(AAInfo);
           newLoad->setAAMetadata(AAInfo);
+          // And other metadata.
+          newLoad->copyMetadata(
+              *OrigLoad,
+              {LLVMContext::MD_nontemporal, LLVMContext::MD_nonnull,
+               LLVMContext::MD_dereferenceable, LLVMContext::MD_align,
+               LLVMContext::MD_noundef, LLVMContext::MD_range});
 
           Args.push_back(newLoad);
           ArgAttrVec.push_back(AttributeSet());
@@ -1046,6 +1052,7 @@ PreservedAnalyses ArgumentPromotionPass::run(LazyCallGraph::SCC &C,
       // swaps out the particular function mapped to a particular node in the
       // graph.
       C.getOuterRefSCC().replaceNodeFunction(N, *NewF);
+      FAM.clear(OldF, OldF.getName());
       OldF.eraseFromParent();
     }
 

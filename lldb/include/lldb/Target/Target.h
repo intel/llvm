@@ -211,7 +211,7 @@ public:
 
   void SetDisplayRecognizedArguments(bool b);
 
-  const ProcessLaunchInfo &GetProcessLaunchInfo();
+  const ProcessLaunchInfo &GetProcessLaunchInfo() const;
 
   void SetProcessLaunchInfo(const ProcessLaunchInfo &launch_info);
 
@@ -226,6 +226,10 @@ public:
   bool GetAutoInstallMainExecutable() const;
 
   void UpdateLaunchInfoFromProperties();
+
+  void SetDebugUtilityExpression(bool debug);
+
+  bool GetDebugUtilityExpression() const;
 
 private:
   // Callbacks for m_launch_info.
