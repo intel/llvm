@@ -89,6 +89,9 @@ class PersistentCache {
    */
   static bool isPersistentCacheEnabled();
 
+  /* Returns the path to directory storing persistent device code cache.*/
+  static std::string getDeviceCodeCacheRoot();
+
 public:
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is

@@ -16,7 +16,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <string>
-#include <sys/stat.h>
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
@@ -58,15 +57,6 @@ public:
   /// Returns a directory component of a path.
   static std::string getDirName(const char *Path);
 
-  /// Checks if specified path is present
-  static inline bool isPathPresent(const std::string &Path) {
-    struct stat Stat;
-    return !stat(Path.c_str(), &Stat);
-  }
-
-  /// Creates directory recursively
-  static int makeDir(const char *Dir);
-
   /// Module handle for the executable module - it is assumed there is always
   /// single one at most.
   static constexpr OSModuleHandle ExeModuleHandle = -1;
@@ -90,9 +80,6 @@ public:
 
   /// Deallocates the memory referenced by \p Ptr.
   static void alignedFree(void *Ptr);
-
-  /// Returns the path to directory storing on-disk SYCL program cache.
-  static std::string getCacheRoot();
 };
 
 } // namespace detail

@@ -273,49 +273,6 @@ void OSUtil::alignedFree(void *Ptr) {
 #endif
 }
 
-std::string OSUtil::getCacheRoot() {
-  static const char *PersistenCacheRoot = SYCLConfig<SYCL_CACHE_DIR>::get();
-  if (PersistenCacheRoot)
-    return PersistenCacheRoot;
-
-  constexpr char SYCLCacheDir[] = "/libsycl_cache";
-
-  // Use static to calculate directory only once per program run
-#if defined(__SYCL_RT_OS_LINUX)
-  static const char *CacheDir = std::getenv("XDG_CACHE_HOME");
-  static const char *HomeDir = std::getenv("HOME");
-  static std::string Res{
-      std::string(CacheDir
-                      ? CacheDir
-                      : (HomeDir ? std::string(HomeDir) + "/.cache" : ".")) +
-      SYCLCacheDir};
-#else
-  static const char *AppDataDir = std::getenv("AppData");
-  static std::string Res{std::string(AppDataDir ? AppDataDir : ".") +
-                         SYCLCacheDir};
-#endif
-  return Res;
-}
-
-int OSUtil::makeDir(const char *Dir) {
-  assert((Dir != nullptr) && "Passed null-pointer as directory name.");
-
-  // Directory is present - do nothing
-  if (isPathPresent(Dir))
-    return 0;
-
-  char *CurDir = strdup(Dir);
-  makeDir(getDirName(CurDir).c_str());
-
-  free(CurDir);
-
-#if defined(__SYCL_RT_OS_LINUX)
-  return mkdir(Dir, 0777);
-#else
-  return _mkdir(Dir);
-#endif
-}
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

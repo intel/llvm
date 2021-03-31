@@ -13,6 +13,49 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+// These are temporary implementation of file operations until moving to C++17
+// and use of std::filesystem instead 
+
+std::string getDirName(const char *Path) {
+  std::string Tmp(Path);
+  // Remove trailing directory separators
+  Tmp.erase(Tmp.find_last_not_of("/\\") + 1, std::string::npos);
+
+  auto pos = Tmp.find_last_of("/\\");
+  if (pos != std::string::npos)
+    return Tmp.substr(0, pos);
+
+  // If no directory separator is present return initial path like dirname does
+  return Tmp;
+}
+
+#include <sys/stat.h>
+/// Checks if specified path is present
+static inline bool isPathPresent(const std::string &Path) {
+   struct stat Stat;
+   return !stat(Path.c_str(), &Stat);
+}
+
+int makeDir(const char *Dir) {
+  assert((Dir != nullptr) && "Passed null-pointer as directory name.");
+
+  // Directory is present - do nothing
+  if (isPathPresent(Dir))
+    return 0;
+
+  char *CurDir = strdup(Dir);
+  makeDir(getDirName(CurDir).c_str());
+
+  free(CurDir);
+
+#if defined(__SYCL_RT_OS_LINUX)
+  return mkdir(Dir, 0777);
+#else
+  return _mkdir(Dir);
+#endif
+}
+
+
 /* Stores build program in persisten cache
  */
 void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
@@ -39,7 +82,7 @@ void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
   std::string FileName;
   do {
     FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin"));
+  } while (isPathPresent(FileName + ".bin"));
 
   unsigned int DeviceNum = 0;
 
@@ -63,7 +106,7 @@ void PersistentCache::putPIProgramToDisc(const detail::plugin &Plugin,
                                            sizeof(char *) * Pointers.size(),
                                            Pointers.data(), nullptr);
 
-  OSUtil::makeDir(DirName.c_str());
+  makeDir(DirName.c_str());
   writeCacheItemBin(FileName + ".bin", Result);
   writeCacheItemSrc(FileName + ".src", Device, Img, SpecConsts,
                     BuildOptionsString);
@@ -91,13 +134,13 @@ std::vector<std::vector<char>> PersistentCache::getPIProgramFromDisc(
   std::string Path =
       getCacheItemDirName(Device, Img, SpecConsts, BuildOptionsString);
 
-  if (!OSUtil::isPathPresent(Path))
+  if (!isPathPresent(Path))
     return {};
 
   int i = 0;
   std::string FileName{Path + "/" + std::to_string(i)};
-  while (OSUtil::isPathPresent(FileName + ".bin") ||
-         OSUtil::isPathPresent(FileName + ".src")) {
+  while (isPathPresent(FileName + ".bin") ||
+         isPathPresent(FileName + ".src")) {
     if (isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
                             BuildOptionsString)) {
       return readCacheItem(FileName + ".bin");
@@ -229,7 +272,7 @@ bool PersistentCache::isCacheItemSrcEqual(
 std::string PersistentCache::getCacheItemDirName(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
-  static std::string cache_root{detail::OSUtil::getCacheRoot()};
+  static std::string cache_root{getDeviceCodeCacheRoot()};
 
   std::string ImgString{(const char *)Img.getRawData().BinaryStart,
                         Img.getSize()};
@@ -251,6 +294,32 @@ bool PersistentCache::isPersistentCacheEnabled() {
   static const char *PersistenCacheDisabled =
       SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get();
   return !PersistenCacheDisabled;
+}
+
+/* Returns path for device code cache root directory
+ */
+std::string PersistentCache::getDeviceCodeCacheRoot() {
+  static const char *RootDir = SYCLConfig<SYCL_CACHE_DIR>::get();
+  if (RootDir)
+    return RootDir;
+
+  constexpr char DeviceCodeCacheDir[] = "/libsycl_cache";
+
+  // Use static to calculate directory only once per program run
+#if defined(__SYCL_RT_OS_LINUX)
+  static const char *CacheDir = std::getenv("XDG_CACHE_HOME");
+  static const char *HomeDir = std::getenv("HOME");
+  static std::string Res{
+      std::string(CacheDir
+                      ? CacheDir
+                      : (HomeDir ? std::string(HomeDir) + "/.cache" : ".")) +
+      DeviceCodeCacheDir};
+#else
+  static const char *AppDataDir = std::getenv("AppData");
+  static std::string Res{std::string(AppDataDir ? AppDataDir : ".") +
+                         DeviceCodeCacheDir};
+#endif
+  return Res;
 }
 
 } // namespace detail
