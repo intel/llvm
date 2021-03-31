@@ -197,8 +197,7 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
     const DeclContext *DC = FD->getDeclContext();
-    if (II && II->isStr("__spirv_ocl_printf") &&
-        !FD->isDefined() &&
+    if (II && II->isStr("__spirv_ocl_printf") && !FD->isDefined() &&
         FD->getLanguageLinkage() == CXXLanguageLinkage &&
         DC->getEnclosingNamespaceContext()->isTranslationUnit())
       return true;
@@ -1666,6 +1665,25 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
+
+    // zahira
+#if 0
+    // zahira
+    StringRef FuncName = KernelDecl->getName();
+    StringRef ArgName = FD->getName();
+    std::string ArgType = FieldTy.getAsString();
+    SourceLocation ArgLoc = FD->getLocation();
+
+    printf("AddParam FD\n");
+    printf("FuncName: %s\n", FuncName.data());
+    printf("ArgName: %s \n", ArgName.data());
+    printf("ArgType: %s \n", ArgType.data());
+#endif
+#if 1
+    SemaRef.getDiagnostics().OptReportHandler.AddKernelArgs(
+        KernelDecl, FD->getName(), FieldTy.getAsString(),
+        FD->getLocation());
+#endif
     addParam(newParamDesc, FieldTy);
   }
 
@@ -1676,6 +1694,22 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     StringRef Name = "_arg__base";
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
+    // zahira
+#if 0
+    StringRef FuncName = KernelDecl->getName();
+    StringRef ArgName = "_arg__base";
+    std::string ArgType = FieldTy.getAsString();
+    SourceLocation KernelArgLoc = BS.getBaseTypeLoc();
+    printf("AddParam BS\n");
+    printf("FuncName: %s\n", FuncName.data());
+    printf("ArgName: %s \n", Name.data());
+    printf("ArgType: %s \n", ArgType.data());
+#endif
+#if 1
+    SemaRef.getDiagnostics().OptReportHandler.AddKernelArgs(
+        KernelDecl, "_arg__base", FieldTy.getAsString(),
+        BS.getBaseTypeLoc());
+#endif
     addParam(newParamDesc, FieldTy);
   }
   // Add a parameter with specified name and type
@@ -3588,8 +3622,8 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
   SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
       << Sema::KernelCallUndefinedFunction;
-  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
-                    Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
+                        diag::note_previous_decl, Caller, *this)
       << Callee;
 
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
@@ -3612,8 +3646,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   bool NotDefinedNoAttr = !Callee->isDefined() && !HasAttr;
 
   if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
-    Diag(Loc, diag::err_sycl_restrict)
-        << Sema::KernelCallUndefinedFunction;
+    Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
     Diag(Caller->getLocation(), diag::note_called_by) << Caller;
   }

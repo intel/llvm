@@ -15,6 +15,8 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "clang/Basic/SourceLocation.h"
 #include <assert.h>
 
 using namespace clang;
