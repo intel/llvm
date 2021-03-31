@@ -4,6 +4,11 @@
 
 using namespace cl::sycl;
 
+class Functor0 {
+public:
+  [[intel::max_concurrency(0)]] void operator()() const {}
+};
+
 class Functor1 {
 public:
   [[intel::max_concurrency(4)]] void operator()() const {}
@@ -36,12 +41,20 @@ public:
   }
 };
 
-// expected-error@+1 {{'max_concurrency' attribute requires a positive integral compile time constant expression}}
+// expected-error@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
 [[intel::max_concurrency(-1)]] void bar() {}
 class Functor5 {
 public:
   void operator() () const {
     bar();
+  }
+};
+
+[[intel::max_concurrency(0)]] void bar0() {}
+class Functor6 {
+public:
+  void operator() () const {
+    bar0();
   }
 };
 
@@ -58,6 +71,9 @@ int main() {
   queue q;
 
   q.submit([&](handler &h) {
+    Functor1 f0;
+    h.single_task<class kernel_name1>(f0);
+
     Functor1 f1;
     h.single_task<class kernel_name1>(f1);
 
@@ -81,6 +97,11 @@ int main() {
   });
 }
 
+// CHECK: CXXMethodDecl {{.*}} operator() {{.*}}
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr
+// CHECK: ConstantExpr {{.*}} 'int'
+// CHECK: value: Int 0
+// CHECK: IntegerLiteral {{.*}}0{{$}}
 // CHECK: CXXMethodDecl {{.*}}used operator() {{.*}}
 // CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
 // CHECK: ConstantExpr {{.*}} 'int'
@@ -94,6 +115,11 @@ int main() {
 // CHECK: ConstantExpr {{.*}} 'int'
 // CHECK: value: Int 4
 // CHECK: IntegerLiteral {{.*}}4{{$}}
+// CHECK: FunctionDecl {{.*}}{{.*}} used bar0 {{.*}}
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
+// CHECK: ConstantExpr {{.*}} 'int'
+// CHECK: value: Int 0
+// CHECK:IntegerLiteral {{.*}}{{.*}}0{{$}}
 // CHECK: FunctionDecl {{.*}}{{.*}}func {{.*}}
 // CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
 // CHECK: FunctionDecl {{.*}}{{.*}}used func 'void ()'

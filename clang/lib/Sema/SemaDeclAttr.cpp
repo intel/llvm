@@ -6471,9 +6471,9 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
     E = Res.get();
 
     // This attribute requires a strictly positive value.
-    if (ArgVal <= 0) {
+    if (ArgVal < 0) {
       Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*positive*/ 0;
+          << CI << /*non-negative*/ 1;
       return;
     }
 
