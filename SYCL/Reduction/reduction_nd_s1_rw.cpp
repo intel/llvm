@@ -7,6 +7,10 @@
 // with reductions initialized with 1-dimensional read_write accessor
 // accessing 1 element buffer.
 
+// This test fails with exceeded time out on Windows with OpenCL, temporarily
+// disabling
+// UNSUPPORTED: windows && opencl
+
 #include "reduction_utils.hpp"
 #include <CL/sycl.hpp>
 #include <cassert>
