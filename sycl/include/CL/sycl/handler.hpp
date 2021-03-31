@@ -21,6 +21,7 @@
 #include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/property_list.hpp>
@@ -332,8 +333,7 @@ private:
   ///
   /// \param Queue is a SYCL queue.
   /// \param IsHost indicates if this handler is created for SYCL host device.
-  handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
-      : MQueue(std::move(Queue)), MIsHost(IsHost) {}
+  handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost);
 
   /// Stores copy of Arg passed to the MArgsStorage.
   template <typename T, typename F = typename detail::remove_const_t<
@@ -838,7 +838,7 @@ private:
       MNDRDesc.set(std::move(AdjustedRange));
       StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
-      MCGType = detail::CG::KERNEL;
+      MCGType = detail::CG::KERNEL_V1;
 #endif
     } else
 #endif // !SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING &&                         \
@@ -853,7 +853,7 @@ private:
       MNDRDesc.set(std::move(NumWorkItems));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
-      MCGType = detail::CG::KERNEL;
+      MCGType = detail::CG::KERNEL_V1;
 #endif
     }
   }
@@ -872,7 +872,7 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -917,11 +917,49 @@ private:
 
 #endif
 
+  std::shared_ptr<detail::kernel_bundle_impl>
+  getOrInsertHandlerKernelBundle(bool Insert) const;
+
+  void setHandlerKernelBundle(
+      const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
+
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
+
+#if __cplusplus > 201402L
+  template <auto &SpecName>
+  void set_specialization_constant(
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
+
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
+        getOrInsertHandlerKernelBundle(/*Insert=*/true);
+
+    detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+        KernelBundleImplPtr)
+        .set_specialization_constant<SpecName>(Value);
+  }
+
+  template <auto &SpecName>
+  typename std::remove_reference_t<decltype(SpecName)>::type
+  get_specialization_constant() const {
+
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
+        getOrInsertHandlerKernelBundle(/*Insert=*/true);
+
+    return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+               KernelBundleImplPtr)
+        .get_specialization_constant<SpecName>();
+  }
+
+#endif
+
+  void
+  use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle) {
+    setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+  }
 
   /// Requires access to the memory object associated with the placeholder
   /// accessor.
@@ -1030,7 +1068,7 @@ public:
     MNDRDesc.set(range<1>{1});
 
     StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
 #endif
   }
 
@@ -1142,7 +1180,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
 #endif
   }
 
@@ -1174,7 +1212,7 @@ public:
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
 #endif
   }
 
@@ -1407,7 +1445,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1443,7 +1481,7 @@ public:
     detail::checkValueRange<Dims>(ExecRange);
     MNDRDesc.set(std::move(ExecRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1460,7 +1498,7 @@ public:
     // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1493,7 +1531,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1512,7 +1550,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1536,7 +1574,7 @@ public:
     // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1577,7 +1615,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1613,7 +1651,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1649,7 +1687,7 @@ public:
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1690,7 +1728,7 @@ public:
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1731,7 +1769,7 @@ public:
     MNDRDesc.set(std::move(ExecRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V1;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -2055,7 +2093,7 @@ private:
   vector_class<detail::AccessorImplPtr> MAccStorage;
   vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
   vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
-  vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
+  mutable vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
   /// The list of arguments for the kernel.
   vector_class<detail::ArgDesc> MArgs;
   /// The list of associated accessors with this handler.

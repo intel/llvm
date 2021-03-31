@@ -1,5 +1,4 @@
-// TODO ESIMD enable host device under -fsycl
-// RUN: %clangxx -I %sycl_include %s -o %t.out -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
 // Check that the code compiles with -O0 and -g
