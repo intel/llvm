@@ -8,7 +8,7 @@
 // REQUIRES: gpu
 // Issue #162 Test timeouts on Windows
 // UNSUPPORTED: windows
-// RUN: %clangxx-esimd -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out
+// RUN: %clangxx-esimd -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda
 //

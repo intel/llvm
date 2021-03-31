@@ -1,7 +1,7 @@
 // UNSUPPORTED: cuda
 // CUDA does not support the function pointer as kernel argument extension.
 
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr %cxx_std_optionc++14 -fsycl %s -o %t.out
+// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

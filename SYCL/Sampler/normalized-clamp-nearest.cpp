@@ -4,6 +4,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // XFAIL: level_zero
 
+// TODO: enable this test after flaky bug is gone on Windows
+// UNSUPPORTED: windows
+
 // LevelZero has a bug wherein it always returns the first pixel value.
 // Will re-enable once fixed.
 
