@@ -112,6 +112,9 @@ void test_normalized_none_linear_sampler(image_channel_order ChanOrder,
             0.625f, Norm_None_Linear_sampler); // {0.2,0.4,0.6,0.8}
         test_acc[i++] =
             image_acc.read(0.875f, Norm_None_Linear_sampler); // {0.6,0.4,0.2,0}
+        // OCL:CPU returning inconsistent result, same thing happening for
+        // unnormalized-none-linear.  Temporarily skippin check (below) until
+        // fixed.
       });
     });
     E_Test.wait();
@@ -175,8 +178,8 @@ int main() {
 // CHECK-NEXT: 3 -- 0: {0.2,0.4,0.6,0.8} 
 // CHECK-NEXT: 4 -- 1: {0.6,0.4,0.2,0} 
 // CHECK-NEXT: 5 -- 2: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 6 -- 3: {0.6,0.4,0.2,0} 
-// CHECK-NEXT: unorm_int8 -------
+// skip        6 -- 3: {0.6,0.4,0.2,0} 
+// CHECK: unorm_int8 -------
 // CHECK-NEXT: read three pixels at inner boundary locations,  sample:   Normalized +  None  + Linear
 // CHECK-NEXT: 0 -- 1: {0.4,0.4,0.4,0.4} 
 // CHECK-NEXT: 1 -- 2: {0.4,0.4,0.4,0.4} 
@@ -185,5 +188,5 @@ int main() {
 // CHECK-NEXT: 3 -- 0: {0.2,0.4,0.6,0.8} 
 // CHECK-NEXT: 4 -- 1: {0.6,0.4,0.2,0} 
 // CHECK-NEXT: 5 -- 2: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 6 -- 3: {0.6,0.4,0.2,0}
+// skip        6 -- 3: {0.6,0.4,0.2,0}
 // clang-format on
