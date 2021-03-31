@@ -12,6 +12,7 @@
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
+#include <CL/sycl/detail/tuple.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
 
@@ -29,6 +30,15 @@ using cl::sycl::detail::is_sgenfloat;
 using cl::sycl::detail::is_sgeninteger;
 using cl::sycl::detail::queue_impl;
 using cl::sycl::detail::remove_AS;
+
+// std::tuple seems to be a) too heavy and b) not copyable to device now
+// Thus sycl::detail::tuple is used instead.
+// Switching from sycl::device::tuple to std::tuple can be done by re-defining
+// the ReduTupleT type and makeReduTupleT() function below.
+template <typename... Ts> using ReduTupleT = sycl::detail::tuple<Ts...>;
+template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
+  return sycl::detail::make_tuple(Elements...);
+}
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
@@ -1290,7 +1300,7 @@ reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
 template <typename... Reductions, size_t... Is>
 auto createReduLocalAccs(size_t Size, handler &CGH,
                          std::index_sequence<Is...>) {
-  return std::make_tuple(
+  return makeReduTupleT(
       std::tuple_element_t<Is, std::tuple<Reductions...>>::getReadWriteLocalAcc(
           Size, CGH)...);
 }
@@ -1302,7 +1312,7 @@ template <bool IsOneWG, typename... Reductions, size_t... Is>
 auto createReduOutAccs(size_t NWorkGroups, handler &CGH,
                        std::tuple<Reductions...> &ReduTuple,
                        std::index_sequence<Is...>) {
-  return std::make_tuple(
+  return makeReduTupleT(
       std::get<Is>(ReduTuple).template getWriteMemForPartialReds<IsOneWG>(
           NWorkGroups, CGH)...);
 }
@@ -1314,19 +1324,19 @@ template <typename... Reductions, size_t... Is>
 auto getReadAccsToPreviousPartialReds(handler &CGH,
                                       std::tuple<Reductions...> &ReduTuple,
                                       std::index_sequence<Is...>) {
-  return std::make_tuple(
+  return makeReduTupleT(
       std::get<Is>(ReduTuple).getReadAccToPreviousPartialReds(CGH)...);
 }
 
 template <typename... Reductions, size_t... Is>
-std::tuple<typename Reductions::result_type...>
+ReduTupleT<typename Reductions::result_type...>
 getReduIdentities(std::tuple<Reductions...> &ReduTuple,
                   std::index_sequence<Is...>) {
   return {std::get<Is>(ReduTuple).getIdentity()...};
 }
 
 template <typename... Reductions, size_t... Is>
-std::tuple<typename Reductions::binary_operation...>
+ReduTupleT<typename Reductions::binary_operation...>
 getReduBOPs(std::tuple<Reductions...> &ReduTuple, std::index_sequence<Is...>) {
   return {std::get<Is>(ReduTuple).getBinaryOperation()...};
 }
@@ -1340,8 +1350,8 @@ getInitToIdentityProperties(std::tuple<Reductions...> &ReduTuple,
 
 template <typename... Reductions, size_t... Is>
 std::tuple<typename Reductions::reducer_type...>
-createReducers(std::tuple<typename Reductions::result_type...> Identities,
-               std::tuple<typename Reductions::binary_operation...> BOPsTuple,
+createReducers(ReduTupleT<typename Reductions::result_type...> Identities,
+               ReduTupleT<typename Reductions::binary_operation...> BOPsTuple,
                std::index_sequence<Is...>) {
   return {typename Reductions::reducer_type{std::get<Is>(Identities),
                                             std::get<Is>(BOPsTuple)}...};
@@ -1357,9 +1367,9 @@ void callReduUserKernelFunc(KernelType KernelFunc, nd_item<Dims> NDIt,
 template <bool Pow2WG, typename... LocalAccT, typename... ReducerT,
           typename... ResultT, size_t... Is>
 void initReduLocalAccs(size_t LID, size_t WGSize,
-                       std::tuple<LocalAccT...> LocalAccs,
+                       ReduTupleT<LocalAccT...> LocalAccs,
                        const std::tuple<ReducerT...> &Reducers,
-                       const std::tuple<ResultT...> Identities,
+                       ReduTupleT<ResultT...> Identities,
                        std::index_sequence<Is...>) {
   std::tie(std::get<Is>(LocalAccs)[LID]...) =
       std::make_tuple(std::get<Is>(Reducers).MValue...);
@@ -1375,9 +1385,9 @@ void initReduLocalAccs(size_t LID, size_t WGSize,
 template <bool UniformPow2WG, typename... LocalAccT, typename... InputAccT,
           typename... ResultT, size_t... Is>
 void initReduLocalAccs(size_t LID, size_t GID, size_t NWorkItems, size_t WGSize,
-                       std::tuple<InputAccT...> LocalAccs,
-                       std::tuple<LocalAccT...> InputAccs,
-                       const std::tuple<ResultT...> Identities,
+                       ReduTupleT<InputAccT...> LocalAccs,
+                       ReduTupleT<LocalAccT...> InputAccs,
+                       ReduTupleT<ResultT...> Identities,
                        std::index_sequence<Is...>) {
   // Normally, the local accessors are initialized with elements from the input
   // accessors. The exception is the case when (GID >= NWorkItems), which
@@ -1402,8 +1412,8 @@ void initReduLocalAccs(size_t LID, size_t GID, size_t NWorkItems, size_t WGSize,
 
 template <typename... LocalAccT, typename... BOPsT, size_t... Is>
 void reduceReduLocalAccs(size_t IndexA, size_t IndexB,
-                         std::tuple<LocalAccT...> LocalAccs,
-                         std::tuple<BOPsT...> BOPs,
+                         ReduTupleT<LocalAccT...> LocalAccs,
+                         ReduTupleT<BOPsT...> BOPs,
                          std::index_sequence<Is...>) {
   std::tie(std::get<Is>(LocalAccs)[IndexA]...) =
       std::make_tuple((std::get<Is>(BOPs)(std::get<Is>(LocalAccs)[IndexA],
@@ -1415,8 +1425,8 @@ template <bool Pow2WG, bool IsOneWG, typename... Reductions,
           typename... Ts, size_t... Is>
 void writeReduSumsToOutAccs(
     size_t OutAccIndex, size_t WGSize, std::tuple<Reductions...> *,
-    std::tuple<OutAccT...> OutAccs, std::tuple<LocalAccT...> LocalAccs,
-    std::tuple<BOPsT...> BOPs, std::tuple<Ts...> IdentityVals,
+    ReduTupleT<OutAccT...> OutAccs, ReduTupleT<LocalAccT...> LocalAccs,
+    ReduTupleT<BOPsT...> BOPs, ReduTupleT<Ts...> IdentityVals,
     std::array<bool, sizeof...(Reductions)> IsInitializeToIdentity,
     std::index_sequence<Is...>) {
   // Add the initial value of user's variable to the final result.
@@ -1528,9 +1538,9 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
   auto OutAccsTuple =
       createReduOutAccs<IsOneWG>(NWorkGroups, CGH, ReduTuple, ReduIndices);
   auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
+  auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
   auto InitToIdentityProps =
       getInitToIdentityProperties(ReduTuple, ReduIndices);
-  auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
 
   using Name = typename get_reduction_main_kernel_name_t<
       KernelName, KernelType, Pow2WG, IsOneWG, decltype(OutAccsTuple)>::name;
