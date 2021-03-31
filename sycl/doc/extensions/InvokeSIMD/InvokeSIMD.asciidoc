@@ -1,4 +1,4 @@
-= SYCL_INTEL_invoke_simd
+= SYCL_EXT_ONEAPI_INVOKE_SIMD
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -25,10 +25,6 @@ NOTE: This document is better viewed when rendered as html with asciidoctor.  Gi
 
 This extension introduces a mechanism to invoke explicitly vectorized functions
 written using SIMD types from a SYCL kernel.
-
-== Name Strings
-
-+SYCL_INTEL_invoke_simd+
 
 == Notice
 
@@ -58,6 +54,22 @@ Jason Sewall, Intel (jason 'dot' sewall 'at' intel 'dot' com) +
 This extension is written against the SYCL 2020 specification, Revision 2 and the following extensions:
 
 - SPV_INTEL_function_pointers
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_INVOKE_SIMD` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
 
 == Overview
 
@@ -352,6 +364,7 @@ SYCL 2020 specification states that this only applies to inter-device transfers.
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-03-30|John Pennycook|*Initial public working draft*
+|2|2021-03-31|John Pennycook|*Rename extension and add feature test macro*
 |========================================
 
 //************************************************************************
