@@ -22,26 +22,28 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-#if defined(_WIN32) && !defined(__SYCL_DEVICE_ONLY__)
-namespace detail {
+#if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
 // SYCL library is designed such a way that STL objects cross DLL boundary,
-// which is not guaranteed to work and considered not safe in general.
-// Only using same dynamic C++ runtime library for sycl[d].dll and for
-// the application using sycl[d].dll is guaranteed to work properly.
-constexpr bool isMSVCDynamicCXXRuntime() {
+// which is guaranteed to work properly only when the application uses the same
+// C++ runtime that SYCL library uses.
+// The appplications using sycl.dll must be linked with dynamic/release C++ MSVC
+// runtime, i.e. be compiled with /MD switch. Similarly, the applications using
+// sycld.dll must be linked with dynamic/debug C++ runtime and be compiled with
+// /MDd switch.
+// Compiler automatically adds /MD or /MDd when -fsycl switch is used.
 // The options /MD and /MDd that make the code to use dynamic runtime also
 // define the _DLL macro.
-#ifdef _DLL
-  return true;
+#if defined(_MSC_VER)
+#pragma message(                                                               \
+    "SYCL library is designed to work safely with dynamic C++ runtime."        \
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "        \
+    "or -fsycl switch to set C++ runtime automatically.")
 #else
-  return false;
+#warning "SYCL library is designed to work safely with dynamic C++ runtime."\
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "\
+    "or -fsycl switch to set C++ runtime automatically."
 #endif
-}
-static_assert(isMSVCDynamicCXXRuntime(),
-              "SYCL library is designed to work with dynamic C++ runtime, "
-              "please use /MD or /MDd switches.");
-} // namespace detail
-#endif // defined(_WIN32) && !defined(__SYCL_DEVICE_ONLY__)
+#endif // defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
 
 template <class T, class Alloc = std::allocator<T>>
 using vector_class = std::vector<T, Alloc>;
@@ -68,6 +70,5 @@ unique_ptr_class<T> make_unique_ptr(ArgsT &&... Args) {
   return unique_ptr_class<T>(new T(std::forward<ArgsT>(Args)...));
 }
 
-} // sycl
-} // cl
-
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
