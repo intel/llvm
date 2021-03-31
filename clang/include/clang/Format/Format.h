@@ -19,6 +19,7 @@
 #include "clang/Tooling/Inclusions/IncludeStyle.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/SourceMgr.h"
 #include <system_error>
 
 namespace llvm {
@@ -1964,12 +1965,14 @@ struct FormatStyle {
   /// not use this in config files, etc. Use at your own risk.
   bool ExperimentalAutoDetectBinPacking;
 
-  /// If ``true``, clang-format adds missing namespace end comments and
-  /// fixes invalid existing ones.
+  /// If ``true``, clang-format adds missing namespace end comments for
+  /// short namespaces and fixes invalid existing ones. Short ones are
+  /// controlled by "ShortNamespaceLines".
   /// \code
   ///    true:                                  false:
   ///    namespace a {                  vs.     namespace a {
   ///    foo();                                 foo();
+  ///    bar();                                 bar();
   ///    } // namespace a                       }
   /// \endcode
   bool FixNamespaceComments;
@@ -2046,6 +2049,32 @@ struct FormatStyle {
   std::vector<std::string> WhitespaceSensitiveMacros;
 
   tooling::IncludeStyle IncludeStyle;
+
+  /// Specify whether access modifiers should have their own indentation level.
+  ///
+  /// When ``false``, access modifiers are indented (or outdented) relative to
+  /// the record members, respecting the ``AccessModifierOffset``. Record
+  /// members are indented one level below the record.
+  /// When ``true``, access modifiers get their own indentation level. As a
+  /// consequence, record members are always indented 2 levels below the record,
+  /// regardless of the access modifier presence. Value of the
+  /// ``AccessModifierOffset`` is ignored.
+  /// \code
+  ///    false:                                 true:
+  ///    class C {                      vs.     class C {
+  ///      class D {                                class D {
+  ///        void bar();                                void bar();
+  ///      protected:                                 protected:
+  ///        D();                                       D();
+  ///      };                                       };
+  ///    public:                                  public:
+  ///      C();                                     C();
+  ///    };                                     };
+  ///    void foo() {                           void foo() {
+  ///      return 1;                              return 1;
+  ///    }                                      }
+  /// \endcode
+  bool IndentAccessModifiers;
 
   /// Indent case labels one level from the switch statement.
   ///
@@ -2618,6 +2647,27 @@ struct FormatStyle {
   bool ReflowComments;
   // clang-format on
 
+  /// The maximal number of unwrapped lines that a short namespace spans.
+  /// Defaults to 1.
+  ///
+  /// This determines the maximum length of short namespaces by counting
+  /// unwrapped lines (i.e. containing neither opening nor closing
+  /// namespace brace) and makes "FixNamespaceComments" omit adding
+  /// end comments for those.
+  /// \code
+  ///    ShortNamespaceLines: 1     vs.     ShortNamespaceLines: 0
+  ///    namespace a {                      namespace a {
+  ///      int foo;                           int foo;
+  ///    }                                  } // namespace a
+  ///
+  ///    ShortNamespaceLines: 1     vs.     ShortNamespaceLines: 0
+  ///    namespace b {                      namespace b {
+  ///      int foo;                           int foo;
+  ///      int bar;                           int bar;
+  ///    } // namespace b                   } // namespace b
+  /// \endcode
+  unsigned ShortNamespaceLines;
+
   /// Include sorting options.
   enum SortIncludesOptions : unsigned char {
     /// Includes are never sorted.
@@ -2629,24 +2679,24 @@ struct FormatStyle {
     ///    #include "B/a.h"
     /// \endcode
     SI_Never,
-    /// Includes are sorted in an ASCIIbetical or case insensitive fashion.
+    /// Includes are sorted in an ASCIIbetical or case sensitive fashion.
     /// \code
     ///    #include "A/B.h"
     ///    #include "A/b.h"
     ///    #include "B/A.h"
     ///    #include "B/a.h"
     ///    #include "a/b.h"
-    /// \endcode
-    SI_CaseInsensitive,
-    /// Includes are sorted in an alphabetical or case sensitive fashion.
-    /// \code
-    ///    #include "A/B.h"
-    ///    #include "A/b.h"
-    ///    #include "a/b.h"
-    ///    #include "B/A.h"
-    ///    #include "B/a.h"
     /// \endcode
     SI_CaseSensitive,
+    /// Includes are sorted in an alphabetical or case insensitive fashion.
+    /// \code
+    ///    #include "A/B.h"
+    ///    #include "A/b.h"
+    ///    #include "a/b.h"
+    ///    #include "B/A.h"
+    ///    #include "B/a.h"
+    /// \endcode
+    SI_CaseInsensitive,
   };
 
   /// Controls if and how clang-format will sort ``#includes``.
@@ -3161,6 +3211,7 @@ struct FormatStyle {
                R.IncludeStyle.IncludeIsMainRegex &&
            IncludeStyle.IncludeIsMainSourceRegex ==
                R.IncludeStyle.IncludeIsMainSourceRegex &&
+           IndentAccessModifiers == R.IndentAccessModifiers &&
            IndentCaseLabels == R.IndentCaseLabels &&
            IndentCaseBlocks == R.IndentCaseBlocks &&
            IndentGotoLabels == R.IndentGotoLabels &&
@@ -3197,6 +3248,7 @@ struct FormatStyle {
                R.PenaltyBreakTemplateDeclaration &&
            PointerAlignment == R.PointerAlignment &&
            RawStringFormats == R.RawStringFormats &&
+           ShortNamespaceLines == R.ShortNamespaceLines &&
            SortIncludes == R.SortIncludes &&
            SortJavaStaticImport == R.SortJavaStaticImport &&
            SpaceAfterCStyleCast == R.SpaceAfterCStyleCast &&
@@ -3269,9 +3321,11 @@ struct FormatStyle {
 private:
   FormatStyleSet StyleSet;
 
-  friend std::error_code parseConfiguration(llvm::MemoryBufferRef Config,
-                                            FormatStyle *Style,
-                                            bool AllowUnknownOptions);
+  friend std::error_code
+  parseConfiguration(llvm::MemoryBufferRef Config, FormatStyle *Style,
+                     bool AllowUnknownOptions,
+                     llvm::SourceMgr::DiagHandlerTy DiagHandler,
+                     void *DiagHandlerCtxt);
 };
 
 /// Returns a format style complying with the LLVM coding standards:
@@ -3329,9 +3383,13 @@ bool getPredefinedStyle(StringRef Name, FormatStyle::LanguageKind Language,
 ///
 /// If AllowUnknownOptions is true, no errors are emitted if unknown
 /// format options are occured.
-std::error_code parseConfiguration(llvm::MemoryBufferRef Config,
-                                   FormatStyle *Style,
-                                   bool AllowUnknownOptions = false);
+///
+/// If set all diagnostics are emitted through the DiagHandler.
+std::error_code
+parseConfiguration(llvm::MemoryBufferRef Config, FormatStyle *Style,
+                   bool AllowUnknownOptions = false,
+                   llvm::SourceMgr::DiagHandlerTy DiagHandler = nullptr,
+                   void *DiagHandlerCtx = nullptr);
 
 /// Like above but accepts an unnamed buffer.
 inline std::error_code parseConfiguration(StringRef Config, FormatStyle *Style,

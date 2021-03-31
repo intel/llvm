@@ -813,6 +813,9 @@ void Verifier::visitMDNode(const MDNode &MD, AreDebugLocsAllowed AllowLocs) {
   if (!MDNodes.insert(&MD).second)
     return;
 
+  Assert(&MD.getContext() == &Context,
+         "MDNode context does not match Module context!", &MD);
+
   switch (MD.getMetadataID()) {
   default:
     llvm_unreachable("Invalid MDNode subclass");
@@ -1301,6 +1304,13 @@ void Verifier::visitDIMacroFile(const DIMacroFile &N) {
   }
 }
 
+void Verifier::visitDIArgList(const DIArgList &N) {
+  AssertDI(!N.getNumOperands(),
+           "DIArgList should have no operands other than a list of "
+           "ValueAsMetadata",
+           &N);
+}
+
 void Verifier::visitDIModule(const DIModule &N) {
   AssertDI(N.getTag() == dwarf::DW_TAG_module, "invalid tag", &N);
   AssertDI(!N.getName().empty(), "anonymous module", &N);
@@ -1622,6 +1632,7 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::InlineHint:
   case Attribute::StackAlignment:
   case Attribute::UWTable:
+  case Attribute::VScaleRange:
   case Attribute::NonLazyBind:
   case Attribute::ReturnsTwice:
   case Attribute::SanitizeAddress:
@@ -1978,6 +1989,14 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
 
     if (Args.second && !CheckParam("number of elements", *Args.second))
       return;
+  }
+
+  if (Attrs.hasFnAttribute(Attribute::VScaleRange)) {
+    std::pair<unsigned, unsigned> Args =
+        Attrs.getVScaleRangeArgs(AttributeList::FunctionIndex);
+
+    if (Args.first > Args.second && Args.second != 0)
+      CheckFailed("'vscale_range' minimum cannot be greater than maximum", V);
   }
 
   if (Attrs.hasFnAttribute("frame-pointer")) {
@@ -3671,10 +3690,9 @@ void Verifier::visitStoreInst(StoreInst &SI) {
 /// Check that SwiftErrorVal is used as a swifterror argument in CS.
 void Verifier::verifySwiftErrorCall(CallBase &Call,
                                     const Value *SwiftErrorVal) {
-  unsigned Idx = 0;
-  for (auto I = Call.arg_begin(), E = Call.arg_end(); I != E; ++I, ++Idx) {
-    if (*I == SwiftErrorVal) {
-      Assert(Call.paramHasAttr(Idx, Attribute::SwiftError),
+  for (const auto &I : llvm::enumerate(Call.args())) {
+    if (I.value() == SwiftErrorVal) {
+      Assert(Call.paramHasAttr(I.index(), Attribute::SwiftError),
              "swifterror value when used in a callsite should be marked "
              "with swifterror attribute",
              SwiftErrorVal, Call);
@@ -4536,7 +4554,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   // know they are legal for the intrinsic!) get the intrinsic name through the
   // usual means.  This allows us to verify the mangling of argument types into
   // the name.
-  const std::string ExpectedName = Intrinsic::getName(ID, ArgTys);
+  const std::string ExpectedName =
+      Intrinsic::getName(ID, ArgTys, IF->getParent(), IFTy);
   Assert(ExpectedName == IF->getName(),
          "Intrinsic name not mangled correctly for type arguments! "
          "Should be: " +
@@ -5018,20 +5037,34 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
 
     break;
   }
-  case Intrinsic::sadd_sat:
-  case Intrinsic::uadd_sat:
-  case Intrinsic::ssub_sat:
-  case Intrinsic::usub_sat:
-  case Intrinsic::sshl_sat:
-  case Intrinsic::ushl_sat: {
-    Value *Op1 = Call.getArgOperand(0);
-    Value *Op2 = Call.getArgOperand(1);
-    Assert(Op1->getType()->isIntOrIntVectorTy(),
-           "first operand of [us][add|sub|shl]_sat must be an int type or "
-           "vector of ints");
-    Assert(Op2->getType()->isIntOrIntVectorTy(),
-           "second operand of [us][add|sub|shl]_sat must be an int type or "
-           "vector of ints");
+  case Intrinsic::vector_reduce_and:
+  case Intrinsic::vector_reduce_or:
+  case Intrinsic::vector_reduce_xor:
+  case Intrinsic::vector_reduce_add:
+  case Intrinsic::vector_reduce_mul:
+  case Intrinsic::vector_reduce_smax:
+  case Intrinsic::vector_reduce_smin:
+  case Intrinsic::vector_reduce_umax:
+  case Intrinsic::vector_reduce_umin: {
+    Type *ArgTy = Call.getArgOperand(0)->getType();
+    Assert(ArgTy->isIntOrIntVectorTy() && ArgTy->isVectorTy(),
+           "Intrinsic has incorrect argument type!");
+    break;
+  }
+  case Intrinsic::vector_reduce_fmax:
+  case Intrinsic::vector_reduce_fmin: {
+    Type *ArgTy = Call.getArgOperand(0)->getType();
+    Assert(ArgTy->isFPOrFPVectorTy() && ArgTy->isVectorTy(),
+           "Intrinsic has incorrect argument type!");
+    break;
+  }
+  case Intrinsic::vector_reduce_fadd:
+  case Intrinsic::vector_reduce_fmul: {
+    // Unlike the other reductions, the first argument is a start value. The
+    // second argument is the vector to be reduced.
+    Type *ArgTy = Call.getArgOperand(1)->getType();
+    Assert(ArgTy->isFPOrFPVectorTy() && ArgTy->isVectorTy(),
+           "Intrinsic has incorrect argument type!");
     break;
   }
   case Intrinsic::smul_fix:
@@ -5163,6 +5196,15 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
       Assert(Stride->getZExtValue() >= NumRows->getZExtValue(),
              "Stride must be greater or equal than the number of rows!", IF);
 
+    break;
+  }
+  case Intrinsic::experimental_stepvector: {
+    VectorType *VecTy = dyn_cast<VectorType>(Call.getType());
+    Assert(VecTy && VecTy->getScalarType()->isIntegerTy() &&
+               VecTy->getScalarSizeInBits() >= 8,
+           "experimental_stepvector only supported for vectors of integers "
+           "with a bitwidth of at least 8.",
+           &Call);
     break;
   }
   case Intrinsic::experimental_vector_insert: {
@@ -5351,10 +5393,10 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
 }
 
 void Verifier::visitDbgIntrinsic(StringRef Kind, DbgVariableIntrinsic &DII) {
-  auto *MD = cast<MetadataAsValue>(DII.getArgOperand(0))->getMetadata();
-  AssertDI(isa<ValueAsMetadata>(MD) ||
-             (isa<MDNode>(MD) && !cast<MDNode>(MD)->getNumOperands()),
-         "invalid llvm.dbg." + Kind + " intrinsic address/value", &DII, MD);
+  auto *MD = DII.getRawLocation();
+  AssertDI(isa<ValueAsMetadata>(MD) || isa<DIArgList>(MD) ||
+               (isa<MDNode>(MD) && !cast<MDNode>(MD)->getNumOperands()),
+           "invalid llvm.dbg." + Kind + " intrinsic address/value", &DII, MD);
   AssertDI(isa<DILocalVariable>(DII.getRawVariable()),
          "invalid llvm.dbg." + Kind + " intrinsic variable", &DII,
          DII.getRawVariable());

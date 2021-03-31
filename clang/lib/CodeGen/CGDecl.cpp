@@ -468,8 +468,10 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   if (const SectionAttr *SA = D.getAttr<SectionAttr>())
     var->setSection(SA->getName());
 
-  if (D.hasAttr<UsedAttr>())
+  if (D.hasAttr<RetainAttr>())
     CGM.addUsedGlobal(var);
+  else if (D.hasAttr<UsedAttr>())
+    CGM.addUsedOrCompilerUsedGlobal(var);
 
   // We may have to cast the constant because of the initializer
   // mismatch above.
@@ -1812,8 +1814,8 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
     llvm::Value *BaseSizeInChars =
         llvm::ConstantInt::get(IntPtrTy, EltSize.getQuantity());
     Address Begin = Builder.CreateElementBitCast(Loc, Int8Ty, "vla.begin");
-    llvm::Value *End =
-        Builder.CreateInBoundsGEP(Begin.getPointer(), SizeVal, "vla.end");
+    llvm::Value *End = Builder.CreateInBoundsGEP(
+        Begin.getElementType(), Begin.getPointer(), SizeVal, "vla.end");
     llvm::BasicBlock *OriginBB = Builder.GetInsertBlock();
     EmitBlock(LoopBB);
     llvm::PHINode *Cur = Builder.CreatePHI(Begin.getType(), 2, "vla.cur");
@@ -2241,7 +2243,8 @@ void CodeGenFunction::emitDestroy(Address addr, QualType type,
   }
 
   llvm::Value *begin = addr.getPointer();
-  llvm::Value *end = Builder.CreateInBoundsGEP(begin, length);
+  llvm::Value *end =
+      Builder.CreateInBoundsGEP(addr.getElementType(), begin, length);
   emitArrayDestroy(begin, end, type, elementAlign, destroyer,
                    checkZeroLength, useEHCleanupForArray);
 }

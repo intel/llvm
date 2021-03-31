@@ -103,9 +103,9 @@ MlirAttribute mlirFloatAttrDoubleGet(MlirContext ctx, MlirType type,
   return wrap(FloatAttr::get(unwrap(type), value));
 }
 
-MlirAttribute mlirFloatAttrDoubleGetChecked(MlirType type, double value,
-                                            MlirLocation loc) {
-  return wrap(FloatAttr::getChecked(unwrap(type), value, unwrap(loc)));
+MlirAttribute mlirFloatAttrDoubleGetChecked(MlirLocation loc, MlirType type,
+                                            double value) {
+  return wrap(FloatAttr::getChecked(unwrap(loc), unwrap(type), value));
 }
 
 double mlirFloatAttrGetValueDouble(MlirAttribute attr) {
@@ -163,9 +163,9 @@ bool mlirAttributeIsAOpaque(MlirAttribute attr) {
 MlirAttribute mlirOpaqueAttrGet(MlirContext ctx, MlirStringRef dialectNamespace,
                                 intptr_t dataLength, const char *data,
                                 MlirType type) {
-  return wrap(OpaqueAttr::get(
-      unwrap(ctx), Identifier::get(unwrap(dialectNamespace), unwrap(ctx)),
-      StringRef(data, dataLength), unwrap(type)));
+  return wrap(
+      OpaqueAttr::get(Identifier::get(unwrap(dialectNamespace), unwrap(ctx)),
+                      StringRef(data, dataLength), unwrap(type)));
 }
 
 MlirStringRef mlirOpaqueAttrGetDialectNamespace(MlirAttribute attr) {

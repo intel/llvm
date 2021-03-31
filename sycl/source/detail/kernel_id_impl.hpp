@@ -12,6 +12,13 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// Used for sorting vector of kernel_id's
+struct LessByNameComp {
+  bool operator()(const sycl::kernel_id &LHS, const sycl::kernel_id &RHS) {
+    return std::strcmp(LHS.get_name(), RHS.get_name()) < 0;
+  }
+};
+
 // The class is impl counterpart for sycl::kernel_id which represent a kernel
 // identificator
 class kernel_id_impl {

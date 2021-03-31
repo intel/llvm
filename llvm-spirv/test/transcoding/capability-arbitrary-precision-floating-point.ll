@@ -3,7 +3,11 @@
 ; SYCL source code for this test:
 ; #include "CL/__spirv/spirv_ops.hpp"
 ;
-; constexpr int32_t Subnorm = 0, RndMode = 2, RndAcc = 1;
+; constexpr int32_t Subnorm = 0;
+; constexpr int32_t RndMode = 2;
+; constexpr int32_t RndAcc = 1;
+; constexpr bool FromSign = false;
+; constexpr bool ToSign = true;
 ;
 ; template <int EA, int MA, int Eout, int Mout>
 ; void ap_float_cast() {
@@ -18,7 +22,7 @@
 ;   ap_int<WA> A;
 ;   ap_int<1+Eout+Mout> cast_from_int_res =
 ;       __spirv_ArbitraryFloatCastFromIntINTEL<WA, 1+Eout+Mout>(
-;           A, Mout, Subnorm, RndMode, RndAcc);
+;           A, Mout, FromSign, Subnorm, RndMode, RndAcc);
 ; }
 ;
 ; template <int EA, int MA, int Wout>
@@ -26,7 +30,7 @@
 ;   ap_int<1+EA+MA> A;
 ;   ap_int<Wout> cast_to_int_res =
 ;       __spirv_ArbitraryFloatCastToIntINTEL<1+EA+MA, Wout>(
-;           A, MA, Subnorm, RndMode, RndAcc);
+;           A, MA, ToSign, Subnorm, RndMode, RndAcc);
 ; }
 ;
 ; Test also that the same arbitrary precision floating point intrinsic with
@@ -397,7 +401,7 @@
 ; }
 
 ; LLVM IR compilation command:
-; clang -I llvm/include/sycl -S -emit-llvm -fsycl-device-only capability-arbitrary-precision-floating-point.cpp
+; clang -I llvm/include/sycl -S -emit-llvm -fno-sycl-early-optimizations -fsycl-device-only capability-arbitrary-precision-floating-point.cpp
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_arbitrary_precision_floating_point -o %t.spv
@@ -566,10 +570,10 @@ define linkonce_odr dso_local spir_func void @_Z22ap_float_cast_from_intILi43ELi
   %4 = bitcast i25* %2 to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
   %5 = load i43, i43* %1, align 8, !tbaa !11
-  %6 = call spir_func signext i25 @_Z38__spirv_ArbitraryFloatCastFromIntINTELILi43ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiii(i43 %5, i32 16, i32 0, i32 2, i32 1) #5
+  %6 = call spir_func signext i25 @_Z38__spirv_ArbitraryFloatCastFromIntINTELILi43ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiibiii(i43 %5, i32 16, i1 zeroext false, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_43]] [[CastFromInt_AId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 8 ArbitraryFloatCastFromIntINTEL [[Ty_25]] [[#]] [[CastFromInt_AId]] 16 0 2 1
-; CHECK-LLVM: call i25 @intel_arbitrary_float_cast_from_int.i25.i43(i43 %[[#]], i32 16, i32 0, i32 2, i32 1)
+; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCastFromIntINTEL [[Ty_25]] [[#]] [[CastFromInt_AId]] 16 0 0 2 1
+; CHECK-LLVM: call i25 @intel_arbitrary_float_cast_from_int.i25.i43(i43 %[[#]], i32 16, i1 false, i32 0, i32 2, i32 1)
   store i25 %6, i25* %2, align 4, !tbaa !13
   %7 = bitcast i25* %2 to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %7) #5
@@ -587,10 +591,10 @@ define linkonce_odr dso_local spir_func void @_Z20ap_float_cast_to_intILi7ELi15E
   %4 = bitcast i30* %2 to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
   %5 = load i23, i23* %1, align 4, !tbaa !15
-  %6 = call spir_func signext i30 @_Z36__spirv_ArbitraryFloatCastToIntINTELILi23ELi30EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiii(i23 signext %5, i32 15, i32 0, i32 2, i32 1) #5
+  %6 = call spir_func signext i30 @_Z36__spirv_ArbitraryFloatCastToIntINTELILi23ELi30EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiibiii(i23 signext %5, i32 15, i1 zeroext true, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_23]] [[CastToInt_AId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 8 ArbitraryFloatCastToIntINTEL [[Ty_30]] [[#]] [[CastToInt_AId]] 15 0 2 1
-; CHECK-LLVM: call i30 @intel_arbitrary_float_cast_to_int.i30.i23(i23 %[[#]], i32 15, i32 0, i32 2, i32 1)
+; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCastToIntINTEL [[Ty_30]] [[#]] [[CastToInt_AId]] 15 1 0 2 1
+; CHECK-LLVM: call i30 @intel_arbitrary_float_cast_to_int.i30.i23(i23 %[[#]], i32 15, i1 true, i32 0, i32 2, i32 1)
   store i30 %6, i30* %2, align 4, !tbaa !17
   %7 = bitcast i30* %2 to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %7) #5
@@ -1562,10 +1566,10 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_pownILi4ELi7ELi10ELi5
 declare dso_local spir_func i40 @_Z31__spirv_ArbitraryFloatCastINTELILi40ELi40EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i40, i32, i32, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
-declare dso_local spir_func signext i25 @_Z38__spirv_ArbitraryFloatCastFromIntINTELILi43ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiii(i43, i32, i32, i32, i32) #4
+declare dso_local spir_func signext i25 @_Z38__spirv_ArbitraryFloatCastFromIntINTELILi43ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiibiii(i43, i32, i1 zeroext, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
-declare dso_local spir_func signext i30 @_Z36__spirv_ArbitraryFloatCastToIntINTELILi23ELi30EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiii(i23 signext, i32, i32, i32, i32) #4
+declare dso_local spir_func signext i30 @_Z36__spirv_ArbitraryFloatCastToIntINTELILi23ELi30EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiibiii(i23 signext, i32, i1 zeroext, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
 declare dso_local spir_func signext i14 @_Z30__spirv_ArbitraryFloatAddINTELILi13ELi15ELi14EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i13 signext, i32, i15 signext, i32, i32, i32, i32, i32) #4

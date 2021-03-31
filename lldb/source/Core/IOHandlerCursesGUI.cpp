@@ -26,6 +26,7 @@
 
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/StreamFile.h"
+#include "lldb/Core/ValueObjectUpdater.h"
 #include "lldb/Host/File.h"
 #include "lldb/Utility/Predicate.h"
 #include "lldb/Utility/Status.h"
@@ -1491,7 +1492,7 @@ protected:
 using namespace curses;
 
 struct Row {
-  ValueObjectManager value;
+  ValueObjectUpdater value;
   Row *parent;
   // The process stop ID when the children were calculated.
   uint32_t children_stop_id = 0;
@@ -1504,7 +1505,7 @@ struct Row {
   std::vector<Row> children;
 
   Row(const ValueObjectSP &v, Row *p)
-      : value(v, lldb::eDynamicDontRunTarget, true), parent(p),
+      : value(v), parent(p),
         might_have_children(v ? v->MightHaveChildren() : false) {}
 
   size_t GetDepth() const {
@@ -3391,10 +3392,10 @@ public:
   SourceFileWindowDelegate(Debugger &debugger)
       : WindowDelegate(), m_debugger(debugger), m_sc(), m_file_sp(),
         m_disassembly_scope(nullptr), m_disassembly_sp(), m_disassembly_range(),
-        m_title(), m_line_width(4), m_selected_line(0), m_pc_line(0),
-        m_stop_id(0), m_frame_idx(UINT32_MAX), m_first_visible_line(0),
-        m_first_visible_column(0), m_min_x(0), m_min_y(0), m_max_x(0),
-        m_max_y(0) {}
+        m_title(), m_tid(LLDB_INVALID_THREAD_ID), m_line_width(4),
+        m_selected_line(0), m_pc_line(0), m_stop_id(0), m_frame_idx(UINT32_MAX),
+        m_first_visible_line(0), m_first_visible_column(0), m_min_x(0),
+        m_min_y(0), m_max_x(0), m_max_y(0) {}
 
   ~SourceFileWindowDelegate() override = default;
 

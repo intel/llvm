@@ -1,3 +1,10 @@
+add_custom_target(lldb-api-test-deps)
+add_dependencies(lldb-api-test-deps lldb-test-deps)
+
+add_lit_testsuites(LLDB-API
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  DEPENDS lldb-api-test-deps)
+
 function(add_python_test_target name test_script args comment)
   set(PYTHON_TEST_COMMAND
     ${Python3_EXECUTABLE}
@@ -108,18 +115,8 @@ if(CMAKE_HOST_APPLE)
     message(STATUS "LLDB tests use out-of-tree debugserver: ${system_debugserver_path}")
     list(APPEND LLDB_TEST_COMMON_ARGS --out-of-tree-debugserver)
     add_lldb_test_dependency(debugserver)
-  elseif(TARGET debugserver)
-    set(debugserver_path ${LLVM_RUNTIME_OUTPUT_INTDIR}/debugserver)
-    message(STATUS "LLDB Tests use just-built debugserver: ${debugserver_path}")
-    set(LLDB_TEST_SERVER ${debugserver_path})
-    add_lldb_test_dependency(debugserver)
-  elseif(TARGET lldb-server)
-    set(lldb_server_path ${LLVM_RUNTIME_OUTPUT_INTDIR}/lldb-server)
-    message(STATUS "LLDB Tests use just-built lldb-server: ${lldb_server_path}")
-    set(LLDB_TEST_SERVER ${lldb_server_path})
-    add_lldb_test_dependency(lldb-server)
   else()
-    message(WARNING "LLDB Tests enabled, but no server available")
+    message(STATUS "LLDB Tests use just-built debug server")
   endif()
 endif()
 
@@ -136,7 +133,6 @@ if(LLDB_BUILT_STANDALONE)
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_EXECUTABLE "${LLDB_TEST_EXECUTABLE}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_COMPILER "${LLDB_TEST_COMPILER}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_DSYMUTIL "${LLDB_TEST_DSYMUTIL}")
-  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_SERVER "${LLDB_TEST_SERVER}")
 
   # Remaining ones must be paths to the provided LLVM build-tree.
   if(LLVM_CONFIGURATION_TYPES)
@@ -163,19 +159,36 @@ string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_BUILD_DI
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_EXECUTABLE "${LLDB_TEST_EXECUTABLE}")
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_COMPILER "${LLDB_TEST_COMPILER}")
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_DSYMUTIL "${LLDB_TEST_DSYMUTIL}")
-string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_SERVER "${LLDB_TEST_SERVER}")
 
-# Configure the API test suite.
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
 
-if (CMAKE_GENERATOR STREQUAL "Xcode")
-  # Xcode does not get the auto-generated targets. We need to create
-  # check-lldb-api manually.
-  add_lit_testsuite(check-lldb-api "Running lldb api test suite"
-    ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS lldb-test-deps)
-endif()
+# Targets for running the test suite on the different Apple simulators.
+add_lit_testsuite(check-lldb-simulator-ios
+  "Running lldb test suite on the iOS simulator"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  PARAMS "lldb-run-with-simulator=ios"
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS lldb-api-test-deps)
+
+add_lit_testsuite(check-lldb-simulator-watchos
+  "Running lldb test suite on the watchOS simulator"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  PARAMS "lldb-run-with-simulator=watchos"
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS lldb-api-test-deps)
+
+add_lit_testsuite(check-lldb-simulator-tvos
+  "Running lldb test suite on the tvOS simulator"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  PARAMS "lldb-run-with-simulator=tvos"
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS lldb-api-test-deps)
+
+add_lit_testsuite(check-lldb-api "Running lldb api test suite"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS lldb-api-test-deps)
