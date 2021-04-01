@@ -11,13 +11,11 @@
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <filesystem>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <llvm/Support/FileSystem.h>
 #include <mutex>
 #include <vector>
-
-namespace fs = std::filesystem;
 
 namespace {
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
@@ -26,10 +24,10 @@ using namespace cl::sycl;
 /* Vector of programs which can be used for testing
  */
 std::vector<std::vector<int>> Progs = {
-    {128}, /*tiny program for 1 target device, 128 B long*/
+    {128},   /*tiny program for 1 target device, 128 B long*/
     {10240}, /*small program for 1 target device, 10 kB long*/
     {1024 * 1024, 1024, 256, 1024 * 64}, /*big program for 4 target
-					   device, ~1 MB long*/
+                                           device, ~1 MB long*/
 };
 
 static unsigned char DeviceCodeID = 2;
@@ -108,8 +106,9 @@ public:
 
   void ConcurentReadWriteCache(unsigned char ProgramID, size_t ThreadCount) {
     DeviceCodeID = ProgramID;
-     std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      Dev, Img, {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}, "--build-options");
+    std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+        Dev, Img, {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID},
+        "--build-options");
 
     Barrier b(ThreadCount);
     {
@@ -135,7 +134,7 @@ public:
 
       ThreadPool MPool(ThreadCount, testLambda);
     }
-    fs::remove_all(ItemDir);
+    llvm::sys::fs::remove_directories(ItemDir);
   }
 
 protected:
@@ -151,27 +150,29 @@ protected:
   std::unique_ptr<unittest::PiMock> Mock;
 };
 
-/* Do read/write for the same cache item to/from 2000 threads for small device
+/* Do read/write for the same cache item to/from 300 threads for small device
  * code size. Make sure that there is no data corruption or crashes.
  */
 TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteSmallItem) {
-  ConcurentReadWriteCache(0, 2000);
+  ConcurentReadWriteCache(0, 300);
 }
 
-/* Do read/write for the same cache item to/from 1000 threads for medium device
+/* Do read/write for the same cache item to/from 100 threads for medium device
  * code size. Make sure that there is no data corruption or crashes.
  */
 TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheMediumItem) {
-  ConcurentReadWriteCache(1, 1000);
+  ConcurentReadWriteCache(1, 100);
 }
 
-/* Do read/write for the same cache item to/from 200 threads from big device
+/* Do read/write for the same cache item to/from 20 threads from big device
  * code size. Make sure that there is no data corruption or crashes.
  */
 TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
-  ConcurentReadWriteCache(2, 200);
+  ConcurentReadWriteCache(2, 20);
 }
 
+#ifndef _WIN32
+// llvm::sys::fs::setPermissions doe not make effect on Windows
 /* Checks cache behavior when filesystem read/write operations fail
  */
 TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
@@ -179,35 +180,22 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
       Dev, Img, {}, "--build-options");
   detail::PersistentDeviceCodeCache::putItemToDisc(
       Dev, Img, {}, "--build-options", NativeProg);
-  assert(fs::exists(ItemDir + "/0.bin") && "No file created");
-  fs::permissions(ItemDir + "/0.bin",
-                  fs::perms::owner_all | fs::perms::group_all |
-                      fs::perms::others_all,
-                  fs::perm_options::remove);
+  assert(llvm::sys::fs::exists(ItemDir + "/0.bin") && "No file created");
+  llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::no_perms);
   // No access to binary file new cache item to be created
   detail::PersistentDeviceCodeCache::putItemToDisc(
       Dev, Img, {}, "--build-options", NativeProg);
-  assert(fs::exists(ItemDir + "/1.bin") && "No file created");
+  assert(llvm::sys::fs::exists(ItemDir + "/1.bin") && "No file created");
 
-  fs::permissions(ItemDir + "/1.src",
-                  fs::perms::owner_all | fs::perms::group_all |
-                      fs::perms::others_all,
-                  fs::perm_options::remove);
+  llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::no_perms);
   auto res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, "--build-options", NativeProg);
 
   // No image to be read due to lack of permissions fro source file
   assert(res.size() == 0);
 
-  fs::permissions(ItemDir + "/0.bin",
-                  fs::perms::owner_all | fs::perms::group_all |
-                      fs::perms::others_all,
-                  fs::perm_options::add);
-
-  fs::permissions(ItemDir + "/1.src",
-                  fs::perms::owner_all | fs::perms::group_all |
-                      fs::perms::others_all,
-                  fs::perm_options::add);
+  llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::all_perms);
+  llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::all_perms);
 
   res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, "--build-options", NativeProg);
@@ -217,6 +205,7 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
       assert(res[i][j] == i && "Corrupted image loaded from persistent cache");
     }
   }
-  fs::remove_all(ItemDir);
+  llvm::sys::fs::remove_directories(ItemDir);
 }
+#endif //_WIN32
 } // namespace
