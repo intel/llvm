@@ -2481,13 +2481,23 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     //
   }
 
-  // Choose an alignment is at most 64.
+  // Choose an alignment that is at most 64 and is the next power of 2 for sizes
+  // less than 64.
   auto Alignment = Size;
-  if (Alignment > 64UL)
+  if (Alignment > 32UL)
     Alignment = 64UL;
-  // When less than 64, it must be a power of 2, else make it 8.
-  if ((Alignment & (Alignment - 1)) != 0)
-    Alignment = 8;
+  else if (Alignment > 16UL)
+    Alignment = 32UL;
+  else if (Alignment > 8UL)
+    Alignment = 16UL;
+  else if (Alignment > 4UL)
+    Alignment = 8UL;
+  else if (Alignment > 2UL)
+    Alignment = 4UL;
+  else if (Alignment > 1UL)
+    Alignment = 2UL;
+  else
+    Alignment = 1UL;
 
   pi_result Result;
   if (DeviceIsIntegrated) {
