@@ -1691,8 +1691,8 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
 
       if (parm->hasAttr<RestrictAttr>())
-      argAccessorNoAliasPropertyAttr.push_back(llvm::ConstantAsMetadata::get(
-          CGF->Builder.getInt1(parm->hasAttr<RestrictAttr>())));
+        argAccessorNoAliasPropertyAttr.push_back(llvm::ConstantAsMetadata::get(
+            CGF->Builder.getInt1(true)));
 
       if (FD->hasAttr<SYCLSimdAttr>())
         argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
