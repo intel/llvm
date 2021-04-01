@@ -1581,7 +1581,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
   // MDNode for accessor no_alias property
-  SmallVector<llvm::Metadata *, 8> argSYCLIntelAccessorNoAliasProperty;
+  SmallVector<llvm::Metadata *, 8> argAccessorNoAliasPropertyAttr;
 
   // MDNode for listing ESIMD kernel pointer arguments originating from
   // accessors
@@ -1690,10 +1690,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
 
-      //Sindhu
-      //auto *SYCLIntelAccessorNoAliasPropertyAttr = 
-        //  parm->getAttr<SYCLIntelAccessorNoAliasPropertyAttr>();
-      
+      if (parm->hasAttr<RestrictAttr>())
+      argAccessorNoAliasPropertyAttr.push_back(llvm::ConstantAsMetadata::get(
+          CGF->Builder.getInt1(parm->hasAttr<RestrictAttr>())));
+
       if (FD->hasAttr<SYCLSimdAttr>())
         argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
             CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
@@ -1701,10 +1701,14 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
 
   bool IsEsimdFunction = FD && FD->hasAttr<SYCLSimdAttr>();
 
-  if (LangOpts.SYCLIsDevice && !IsEsimdFunction)
+  if (LangOpts.SYCLIsDevice && !IsEsimdFunction) {
+
+    Fn->setMetadata(llvm::Attribute::NoAlias,
+                    llvm::MDNode::get(VMContext, argAccessorNoAliasPropertyAttr));
+
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
-  else {
+  } else {
     Fn->setMetadata("kernel_arg_addr_space",
                     llvm::MDNode::get(VMContext, addressQuals));
     Fn->setMetadata("kernel_arg_access_qual",

@@ -1746,27 +1746,21 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
          Prop != TemplArg.pack_end(); ++Prop) {
       QualType PropTy = Prop->getAsType();
-      ASTContext &Ctx = SemaRef.getASTContext(); 
-      //const auto *PropDecl =
-      //    cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-      //const auto NoAliasLoc = PropDecl->getTemplateArgs()[0];
-      //int LocationID = static_cast<int>(NoAliasLoc.getAsIntegral().getExtValue());
-
       if (Util::isSyclAccessorNoAliasPropertyType(PropTy)) 
-         Param->addAttr(SYCLIntelKernelArgsRestrictAttr::CreateImplicit(Ctx, Loc));
-        
-        //handleNoAliasProperty(Param, PropTy, Loc);
+        handleNoAliasProperty(Param, PropTy, Loc);
       if (Util::isSyclBufferLocationType(PropTy))
         handleBufferLocationProperty(Param, PropTy, Loc);
     }
   }
 
-  void handleNoAliasProperty(ParmVarDecl *Param, QualType PropTy, 
+  void handleNoAliasProperty(ParmVarDecl *Param, QualType PropTy,
                                     SourceLocation Loc) {
-     //if (Param->hasAttr<SYCLIntelAccessorPropertyNoAlias>)
-     //   Param->addAttr(SYCLIntelKernelArgsRestrictAttr);::CreateImplicit(Ctx
-
+    if (PropTy.isRestrictQualified()) {
+      ASTContext &Ctx = SemaRef.getASTContext();
+      Param->addAttr(RestrictAttr::CreateImplicit(Ctx, Loc));
+    }
   }
+
   // Obtain an integer value stored in a template parameter of buffer_location
   // property to pass it to buffer_location kernel attribute
   void handleBufferLocationProperty(ParmVarDecl *Param, QualType PropTy,
