@@ -21,6 +21,11 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   if (NOT DEFINED SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE)
     set(SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE ${SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE})
   endif()
+
+  #TODO: Replace ExternalProject with FetchContent for better maintainance and
+  #      cmake files simplification
+  include(ExternalProject)
+
   ExternalProject_Add(level-zero-loader
     GIT_REPOSITORY    https://github.com/oneapi-src/level-zero.git
     GIT_TAG           v1.0.16
@@ -40,7 +45,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
                LOG_BUILD 1
                LOG_INSTALL 1
     STEP_TARGETS      configure,build,install
-    DEPENDS           ocl-headers
+    DEPENDS           OpenCL-Headers
     BUILD_BYPRODUCTS ${LEVEL_ZERO_LOADER}
   )
   ExternalProject_Add_Step(level-zero-loader llvminstall
@@ -91,8 +96,8 @@ target_include_directories(LevelZeroLoader-Headers
   INTERFACE "${LEVEL_ZERO_INCLUDE_DIR}"
 )
 
+
 include_directories("${sycl_inc_dir}")
-include_directories(${OPENCL_INCLUDE})
 
 add_library(pi_level_zero SHARED
   "${sycl_inc_dir}/CL/sycl/detail/pi.h"
@@ -125,9 +130,13 @@ endif()
 if (TARGET level-zero-loader)
   add_dependencies(pi_level_zero level-zero-loader)
 endif()
-  add_dependencies(sycl-toolchain pi_level_zero)
 
-  target_link_libraries(pi_level_zero PRIVATE "${LEVEL_ZERO_LOADER}")
+add_dependencies(sycl-toolchain pi_level_zero)
+target_link_libraries(pi_level_zero
+  PRIVATE "${LEVEL_ZERO_LOADER}"
+  PRIVATE OpenCL-Headers
+)
+
 if (UNIX)
   target_link_libraries(pi_level_zero PRIVATE pthread)
 endif()
