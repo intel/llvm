@@ -24,6 +24,7 @@ void disable_loop_pipelining() {
       a[i] = 0;
 }
 
+// Test templated and nontemplated use of [[intel::ii]] on a for loop.
 template <int A>
 void ii() {
   int a[10];
@@ -37,6 +38,8 @@ void ii() {
       a[i] = 0;
 }
 
+// Test templated and nontemplated use of [[intel::initiation_interval]] on a
+// for loop. This shows that the behavior is the same as with [[intel::ii]].
 template <int A>
 void initiation_interval() {
   int a[10];
