@@ -6,13 +6,11 @@
 
 sycl::queue q;
 
-// expected-note@+1{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse1(int n);
 
 // expected-note@+1 3{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse(int n) {
   if (n)
-    // expected-error@+1{{SYCL kernel cannot call a recursive function}}
     return constexpr_recurse1(n - 1);
   return 103;
 }
