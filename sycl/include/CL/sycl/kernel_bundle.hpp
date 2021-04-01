@@ -553,7 +553,7 @@ compile(const kernel_bundle<bundle_state::input> &InputBundle,
 /////////////////////////
 
 namespace detail {
-std::vector<sycl::device> find_device_intersection(
+__SYCL_EXPORT std::vector<sycl::device> find_device_intersection(
     const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles);
 
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>

@@ -212,7 +212,7 @@ build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
       InputBundle, Devs, PropList, bundle_state::executable);
 }
 
-__SYCL_EXPORT std::vector<sycl::device> find_device_intersection(
+std::vector<sycl::device> find_device_intersection(
     const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles) {
   // This API requires to find the intersection of associated devices in common
   // for all bundles
