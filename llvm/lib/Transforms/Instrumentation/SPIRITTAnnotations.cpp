@@ -138,8 +138,8 @@ ModulePass *llvm::createSPIRITTAnnotationsPass() {
 
 namespace {
 
-// Check for calling convention of a function.
-bool isSPIRKernel(Function &F) {
+// Check for calling convention of a function. Return true if it's SPIR kernel.
+inline bool isSPIRKernel(Function &F) {
   return F.getCallingConv() == CallingConv::SPIR_KERNEL;
 }
 
@@ -240,20 +240,24 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
       SPIRV_GROUP_FMAX,      SPIRV_GROUP_UMAX, SPIRV_GROUP_SMAX};
 
   for (Function &F : M) {
-    // Annotate only SPIR kernels
-    if (F.isDeclaration() || !isSPIRKernel(F))
+    if (F.isDeclaration())
       continue;
+
+    // Work item start/finish annotations are only for SPIR kernels
+    bool IsSPIRKernel = isSPIRKernel(F);
 
     // At the beggining of a kernel insert work item start annotation
     // instruction.
-    IRModified |= insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START,
-                                                  &*inst_begin(F));
+    if (IsSPIRKernel)
+      IRModified |= insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START,
+                                                    &*inst_begin(F));
 
     for (BasicBlock &BB : F) {
       // Insert Finish instruction before return instruction
-      if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator()))
-        IRModified |=
-            insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_FINISH, RI);
+      if (IsSPIRKernel)
+        if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator()))
+          IRModified |=
+              insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_FINISH, RI);
       for (Instruction &I : BB) {
         CallInst *CI = dyn_cast<CallInst>(&I);
         if (!CI)

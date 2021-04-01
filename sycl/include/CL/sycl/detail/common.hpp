@@ -100,13 +100,14 @@ static inline std::string codeToString(cl_int code) {
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
 #define __SYCL_OCL_ERROR_REPORT                                                \
-  "OpenCL API failed. " /*__FILE__*/                                           \
+  "Native API failed. " /*__FILE__*/                                           \
   /* TODO: replace __FILE__ to report only relative path*/                     \
   /* ":" __SYCL_STRINGIFY_LINE(__LINE__) ": " */                               \
-                               "OpenCL API returns: "
+                               "Native API returns: "
 
 #ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
+// TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
 #define __SYCL_REPORT_OCL_ERR_TO_STREAM(expr)                                  \
   {                                                                            \
     auto code = expr;                                                          \

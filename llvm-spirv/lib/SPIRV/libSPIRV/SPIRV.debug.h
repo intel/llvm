@@ -6,6 +6,7 @@
 namespace SPIRVDebug {
 
 const unsigned int DebugInfoVersion = 0x00010000;
+static const std::string ChecksumKindPrefx = {"//__CSK_"};
 
 // clang-format off
 

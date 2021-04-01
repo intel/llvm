@@ -49,6 +49,7 @@ if.end.i:                                         ; preds = %entry
 ; CHECK-NEXT: {{.*}}__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_1]],{{.*}}, i32 896
 ; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 0, i32 0)
   %call3.i.i.i.i = tail call spir_func i32 @_Z18__spirv_AtomicLoadPU3AS1KiN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(i32 addrspace(1)* %add.ptr.i34, i32 1, i32 896) #2
+  call spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %add.ptr.i34)
   %ptridx.i.i.i = getelementptr inbounds i32, i32 addrspace(1)* %add.ptr.i, i64 %4
   %ptridx.ascast.i.i.i = addrspacecast i32 addrspace(1)* %ptridx.i.i.i to i32 addrspace(4)*
   store i32 %call3.i.i.i.i, i32 addrspace(4)* %ptridx.ascast.i.i.i, align 4, !tbaa !14
@@ -57,6 +58,18 @@ if.end.i:                                         ; preds = %entry
 _ZZN2cl4sycl7handler24parallel_for_lambda_implI11load_kernelIiEZZ9load_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit: ; preds = %entry, %if.end.i
 ; CHECK: call void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
+  ret void
+}
+
+define weak_odr dso_local spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %ptr) {
+entry:
+; CHECK-LABEL: spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %{{.*}}) {
+; CHECK-NEXT: entry:
+; CHECK-NEXT: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_S:[0-9a-zA-Z._]+]], i32 0, i32 0)
+; CHECK-NEXT: {{.*}}__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_S]],{{.*}}, i32 896
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_S]], i32 0, i32 0)
+  call spir_func i32 @_Z18__spirv_AtomicLoadPU3AS1KiN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(i32 addrspace(1)* %ptr, i32 1, i32 896) #2
+; CHECK-NOT: call void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 

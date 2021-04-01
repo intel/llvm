@@ -8,6 +8,7 @@ Using oneAPI DPC++ for Application Development
    :maxdepth: 1
 
    GetStartedGuide
+   Getting Started (Japanese) <https://www.isus.jp/others/get-started-with-oneapi-dpc/>
    UsersManual
    PreprocessorMacros
    cuda/contents

@@ -186,10 +186,15 @@ bool FlattenCFG(BasicBlock *BB, AAResults *AA = nullptr);
 /// If this basic block is ONLY a setcc and a branch, and if a predecessor
 /// branches to us and one of our successors, fold the setcc into the
 /// predecessor and use logical operations to pick the right destination.
+/// If PoisonSafe is true, use select i1 rather than and/or i1 to successfully
+/// block unexpected propagation of poison when merging the branches. This is
+/// set to false by default when used by LoopSimplify for performance, but this
+/// should be turned on by default.
 bool FoldBranchToCommonDest(BranchInst *BI, llvm::DomTreeUpdater *DTU = nullptr,
                             MemorySSAUpdater *MSSAU = nullptr,
                             const TargetTransformInfo *TTI = nullptr,
-                            unsigned BonusInstThreshold = 1);
+                            unsigned BonusInstThreshold = 1,
+                            bool PoisonSafe = false);
 
 /// This function takes a virtual register computed by an Instruction and
 /// replaces it with a slot in the stack frame, allocated via alloca.
@@ -311,9 +316,10 @@ void salvageDebugInfoForDbgValues(Instruction &I,
 /// Given an instruction \p I and DIExpression \p DIExpr operating on it, write
 /// the effects of \p I into the returned DIExpression, or return nullptr if
 /// it cannot be salvaged. \p StackVal: whether DW_OP_stack_value should be
-/// appended to the expression.
+/// appended to the expression. \p LocNo: the index of the location operand to
+/// which \p I applies, should be 0 for debug info without a DIArgList.
 DIExpression *salvageDebugInfoImpl(Instruction &I, DIExpression *DIExpr,
-                                   bool StackVal);
+                                   bool StackVal, unsigned LocNo);
 
 /// Point debug users of \p From to \p To or salvage them. Use this function
 /// only when replacing all uses of \p From with \p To, with a guarantee that

@@ -461,9 +461,9 @@ private:
 private:
   friend class sycl::INTEL::gpu::AccessorPrivateProxy;
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#ifdef __SYCL_DEVICE_ONLY__
   const OCLImageTy getNativeImageObj() const { return MImageObj; }
-#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+#endif // __SYCL_DEVICE_ONLY__
 
 public:
   using value_type = DataT;
@@ -858,19 +858,8 @@ protected:
 
   detail::AccessorImplDevice<AdjustedDim> impl;
 
-#ifdef __SYCL_EXPLICIT_SIMD__
-  // TODO all the Image1dBuffer* stuff, including the union with MData field
-  // below is not used anymore and is left temporarily to avoid ABI breaking
-  // changes.
-  using OCLImage1dBufferTy =
-      typename detail::opencl_image1d_buffer_type<AccessMode>::type;
-#endif // __SYCL_EXPLICIT_SIMD__
-
   union {
     ConcreteASPtrType MData;
-#ifdef __SYCL_EXPLICIT_SIMD__
-    OCLImage1dBufferTy ImageBuffer;
-#endif // __SYCL_EXPLICIT_SIMD__
   };
 
   // TODO replace usages with getQualifiedPtr

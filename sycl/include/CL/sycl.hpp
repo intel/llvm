@@ -28,12 +28,14 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/feature_test.hpp>
 #include <CL/sycl/group.hpp>
+#include <CL/sycl/group_local_memory.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
+#include <CL/sycl/kernel_handler.hpp>
 #include <CL/sycl/marray.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -47,6 +49,7 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/reduction.hpp>
 #include <CL/sycl/sampler.hpp>
+#include <CL/sycl/specialization_id.hpp>
 #include <CL/sycl/stream.hpp>
 #include <CL/sycl/types.hpp>
 #include <CL/sycl/usm.hpp>

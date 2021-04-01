@@ -9,6 +9,16 @@
 #include "device_math.h"
 
 #ifdef __SPIR__
+
+DEVICE_EXTERN_C
+int abs(int x) { return __devicelib_abs(x); }
+
+DEVICE_EXTERN_C
+long int labs(long int x) { return __devicelib_labs(x); }
+
+DEVICE_EXTERN_C
+long long int llabs(long long int x) { return __devicelib_llabs(x); }
+
 DEVICE_EXTERN_C
 div_t div(int x, int y) { return __devicelib_div(x, y); }
 

@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsyntax-only -Xclang -verify  %s -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning
-//==-- implicit_conversion_error.cpp - Unintended implicit conversion check --==//
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify  %s -Xclang -verify-ignore-unexpected=note,warning
+//=- implicit_conversion_error.cpp - Unintended implicit conversion check -=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

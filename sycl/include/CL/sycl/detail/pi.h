@@ -661,12 +661,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// Name must be consistent with
 /// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
 /// PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SCALAR_SPEC_CONST_MAP                           \
-  "SYCL/specialization constants"
-/// PropertySetRegistry::SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS defined in
-/// PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_COMPOSITE_SPEC_CONST_MAP                        \
-  "SYCL/composite specialization constants"
+#define __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
 /// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h

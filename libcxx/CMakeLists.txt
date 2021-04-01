@@ -90,7 +90,11 @@ option(LIBCXX_ENABLE_SHARED "Build libc++ as a shared library." ON)
 option(LIBCXX_ENABLE_STATIC "Build libc++ as a static library." ON)
 option(LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY "Build libc++experimental.a" ON)
 set(ENABLE_FILESYSTEM_DEFAULT ON)
-if (WIN32)
+if (WIN32 AND NOT MINGW)
+  # Filesystem is buildable for windows, but it requires __int128 helper
+  # functions, that currently are provided by libgcc or compiler_rt builtins.
+  # These are available in MinGW environments, but not currently in MSVC
+  # environments.
   set(ENABLE_FILESYSTEM_DEFAULT OFF)
 endif()
 option(LIBCXX_ENABLE_FILESYSTEM "Build filesystem as part of the main libc++ library"
@@ -568,7 +572,14 @@ endfunction()
 # Warning flags ===============================================================
 function(cxx_add_warning_flags target)
   target_compile_definitions(${target} PUBLIC -D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-  target_add_compile_flags_if_supported(${target} PRIVATE -Wall -Wextra -W -Wwrite-strings
+  if (MSVC)
+    # -W4 is the cl.exe/clang-cl equivalent of -Wall. (In cl.exe and clang-cl,
+    # -Wall is equivalent to -Weverything in GCC style compiler drivers.)
+    target_add_compile_flags_if_supported(${target} PRIVATE -W4)
+  else()
+    target_add_compile_flags_if_supported(${target} PRIVATE -Wall)
+  endif()
+  target_add_compile_flags_if_supported(${target} PRIVATE -Wextra -W -Wwrite-strings
                                                           -Wno-unused-parameter -Wno-long-long
                                                           -Werror=return-type -Wextra-semi)
   if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -725,9 +736,19 @@ endif()
 
 # Link system libraries =======================================================
 function(cxx_link_system_libraries target)
-  target_add_link_flags_if_supported(${target} PRIVATE "-nodefaultlibs")
-  target_add_compile_flags_if_supported(${target} PRIVATE "/Zl")
-  target_add_link_flags_if_supported(${target} PRIVATE "/nodefaultlib")
+
+# In order to remove just libc++ from the link step
+# we need to use -nostdlib++ whenever it is supported.
+# Unfortunately this cannot be used universally because for example g++ supports
+# only -nodefaultlibs in which case all libraries will be removed and
+# all libraries but c++ have to be added in manually.
+  if (LIBCXX_SUPPORTS_NOSTDLIBXX_FLAG)
+    target_add_link_flags_if_supported(${target} PRIVATE "-nostdlib++")
+  else()
+    target_add_link_flags_if_supported(${target} PRIVATE "-nodefaultlibs")
+    target_add_compile_flags_if_supported(${target} PRIVATE "/Zl")
+    target_add_link_flags_if_supported(${target} PRIVATE "/nodefaultlib")
+  endif()
 
   if (LIBCXX_HAS_SYSTEM_LIB)
     target_link_libraries(${target} PRIVATE System)

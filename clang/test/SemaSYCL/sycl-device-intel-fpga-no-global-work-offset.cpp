@@ -36,15 +36,18 @@ int main() {
   KernelFunctor<1>();
 }
 
+// No diagnostic is thrown since arguments match. Silently ignore duplicate attribute.
 [[intel::no_global_work_offset]] void func3 ();
 [[intel::no_global_work_offset(1)]] void func3() {} // OK
 
 [[intel::no_global_work_offset(0)]] void func4(); // expected-note {{previous attribute is here}}
 [[intel::no_global_work_offset]] void func4();    // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
 
+// No diagnostic is emitted because the arguments match.
 [[intel::no_global_work_offset(1)]] void func5();
 [[intel::no_global_work_offset(1)]] void func5() {} // OK
 
+// Diagnostic is emitted because the arguments mismatch.
 [[intel::no_global_work_offset(0)]] void func6(); // expected-note {{previous attribute is here}}
 [[intel::no_global_work_offset(1)]] void func6(); // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
 
@@ -73,6 +76,10 @@ int check() {
   return 0;
 }
 
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::no_global_work_offset(1)]]
+[[intel::no_global_work_offset(1)]] void func8() {}
+
 // CHECK: FunctionDecl {{.*}} {{.*}} func6 'void ()'
 // CHECK: TemplateArgument integral 1
 // CHECK: SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
@@ -80,4 +87,10 @@ int check() {
 // CHECK-NEXT: value: Int 1
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
+// CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+
+// CHECK: FunctionDecl {{.*}} {{.*}} func8 'void ()'
+// CHECK: SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 1
 // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}

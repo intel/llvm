@@ -16,8 +16,9 @@ target_link_libraries(mlir-cpu-runner PRIVATE
   MLIRIR
   MLIRJitRunner
   MLIRLLVMIR
-  MLIROpenMP
+  MLIRLLVMToLLVMIRTranslation
+  MLIRToLLVMIRTranslationRegistration
   MLIRParser
-  MLIRTargetLLVMIR
+  MLIRTargetLLVMIRExport
   MLIRSupport
   )

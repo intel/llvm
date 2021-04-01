@@ -123,7 +123,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_bind_front",
     "values": { "c++20": 201907 },
     "headers": ["functional"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_bit_cast",
     "values": { "c++20": 201806 },
@@ -199,31 +198,26 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_constexpr_iterator",
     "values": { "c++20": 201811 },
     "headers": ["iterator"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_constexpr_memory",
     "values": { "c++20": 201811 },
     "headers": ["memory"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_constexpr_numeric",
     "values": { "c++20": 201911 },
     "headers": ["numeric"],
   }, {
     "name": "__cpp_lib_constexpr_string",
-    "values": { "c++20": 201907 },
+    "values": { "c++20": 201811 },  # because P1032R1 is implemented; but should become 201907 after P0980R1
     "headers": ["string"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_constexpr_string_view",
     "values": { "c++20": 201811 },
     "headers": ["string_view"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_constexpr_tuple",
     "values": { "c++20": 201811 },
     "headers": ["tuple"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_constexpr_utility",
     "values": { "c++20": 201811 },
@@ -423,8 +417,8 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_math_constants",
     "values": { "c++20": 201907 },
     "headers": ["numbers"],
-    "depends": "defined(__cpp_concepts) && __cpp_concepts >= 201811L",
-    "internal_depends": "defined(__cpp_concepts) && __cpp_concepts >= 201811L",
+    "depends": "defined(__cpp_concepts) && __cpp_concepts >= 201907L",
+    "internal_depends": "!defined(_LIBCPP_HAS_NO_CONCEPTS)",
   }, {
     "name": "__cpp_lib_math_special_functions",
     "values": { "c++17": 201603 },
@@ -596,6 +590,10 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["utility"],
     "unimplemented": True,
   }, {
+    "name": "__cpp_lib_to_underlying",
+    "values": { "c++2b": 202102 },
+    "headers": ["utility"],
+  }, {
     "name": "__cpp_lib_transformation_trait_aliases",
     "values": { "c++14": 201304 },
     "headers": ["type_traits"],
@@ -629,7 +627,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["functional"],
   }, {
     "name": "__cpp_lib_variant",
-    "values": { "c++17": 201606 },
+    "values": { "c++17": 202102 },
     "headers": ["variant"],
   }, {
     "name": "__cpp_lib_void_t",
@@ -718,7 +716,7 @@ def get_std_number(std):
 
 def produce_macros_definition_for_std(std):
   result = ""
-  indent = 56
+  indent = 55
   for tc in feature_test_macros:
     if std not in tc["values"]:
       continue
@@ -732,7 +730,7 @@ def produce_macros_definition_for_std(std):
       result += "# undef  %s\n" % tc["name"]
     line = "#%sdefine %s" % ((" " * inner_indent), tc["name"])
     line += " " * (indent - len(line))
-    line += "%sL" % tc["values"][std]
+    line += " %sL" % tc["values"][std]
     if 'unimplemented' in tc.keys():
       line = "// " + line
     result += line
@@ -821,7 +819,11 @@ def produce_version_header():
 #pragma GCC system_header
 #endif
 
+// clang-format off
+
 {cxx_macros}
+
+// clang-format on
 
 #endif // _LIBCPP_VERSIONH
 """

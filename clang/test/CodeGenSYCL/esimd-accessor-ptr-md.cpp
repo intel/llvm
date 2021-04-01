@@ -3,7 +3,7 @@
 // separate. So, we can split this test into 2, where one
 // will be testing code generation and the second ESIMD lowering.
 //
-// RUN: %clang_cc1 -fsycl-explicit-simd -fsycl-is-device \
+// RUN: %clang_cc1 -fsycl-is-device \
 // RUN:   -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice \
 // RUN:   -disable-llvm-passes -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table

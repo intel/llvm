@@ -20,13 +20,15 @@
 
 #include "functions.h"
 
+// clang-format off
 template <class F, class... Args>
-requires std::invocable<F, Args...> constexpr void
-ModelsInvocable(F, Args&&...) noexcept{};
+requires std::invocable<F, Args...>
+constexpr void ModelsInvocable(F, Args&&...) noexcept{}
 
 template <class F, class... Args>
-requires(!std::invocable<F, Args...>) constexpr
-    void NotInvocable(F, Args&&...) noexcept {}
+requires(!std::invocable<F, Args...>)
+constexpr void NotInvocable(F, Args&&...) noexcept {}
+// clang-format on
 
 static_assert(!std::invocable<void>);
 static_assert(!std::invocable<void*>);
@@ -49,7 +51,7 @@ int main(int, char**) {
     NotInvocable(&A::F);
 
     {
-      auto X = A{};
+      A X;
       ModelsInvocable(&A::I, X);
       ModelsInvocable(&A::F, X);
       ModelsInvocable(&A::G, X, 0);
@@ -57,7 +59,7 @@ int main(int, char**) {
       NotInvocable(&A::G, 0);
       NotInvocable(&A::H);
 
-      auto const& Y = X;
+      A const& Y = X;
       ModelsInvocable(&A::I, Y);
       ModelsInvocable(&A::F, Y);
       NotInvocable(&A::G, Y, 0);

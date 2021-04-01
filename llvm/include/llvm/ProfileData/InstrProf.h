@@ -253,6 +253,10 @@ void annotateValueSite(Module &M, Instruction &Inst,
                        ArrayRef<InstrProfValueData> VDs, uint64_t Sum,
                        InstrProfValueKind ValueKind, uint32_t MaxMDCount);
 
+/// Magic number in the value profile data showing a target has been
+/// promoted for the instruction and shouldn't be promoted again.
+const uint64_t NOMORE_ICP_MAGICNUM = -1;
+
 /// Extract the value profile data from \p Inst which is annotated with
 /// value profile meta data. Return false if there is no value data annotated,
 /// otherwise  return true.
@@ -260,7 +264,8 @@ bool getValueProfDataFromInst(const Instruction &Inst,
                               InstrProfValueKind ValueKind,
                               uint32_t MaxNumValueData,
                               InstrProfValueData ValueData[],
-                              uint32_t &ActualNumValueData, uint64_t &TotalC);
+                              uint32_t &ActualNumValueData, uint64_t &TotalC,
+                              bool GetNoICPValue = false);
 
 inline StringRef getPGOFuncNameMetadataName() { return "PGOFuncName"; }
 
@@ -290,6 +295,7 @@ enum class instrprof_error {
   truncated,
   malformed,
   unknown_function,
+  invalid_prof,
   hash_mismatch,
   count_mismatch,
   counter_overflow,

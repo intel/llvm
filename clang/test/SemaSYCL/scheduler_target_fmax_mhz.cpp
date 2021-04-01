@@ -6,9 +6,11 @@
 [[intelfpga::scheduler_target_fmax_mhz(2)]] void
 func() {}
 
+// No diagnostic is emitted because the arguments match.
 [[intel::scheduler_target_fmax_mhz(12)]] void bar();
 [[intel::scheduler_target_fmax_mhz(12)]] void bar() {} // OK
 
+// Diagnostic is emitted because the arguments mismatch.
 [[intel::scheduler_target_fmax_mhz(12)]] void baz();  // expected-note {{previous attribute is here}}
 [[intel::scheduler_target_fmax_mhz(100)]] void baz(); // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 

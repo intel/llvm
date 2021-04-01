@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -28,41 +29,17 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// Used for sorting vector of kernel_id's
-struct LessByNameComp {
-  bool operator()(const sycl::kernel_id &LHS, const sycl::kernel_id &RHS) {
-    return std::strcmp(LHS.get_name(), RHS.get_name()) < 0;
-  }
-};
-
 // The class is impl counterpart for sycl::device_image
 // It can represent a program in different states, kernel_id's it has and state
 // of specialization constants for it
 class device_image_impl {
 public:
-  device_image_impl(RTDeviceBinaryImage *BinImage, context Context,
-                    std::vector<device> Devices, bundle_state State)
+  device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
+                    std::vector<device> Devices, bundle_state State,
+                    std::vector<kernel_id> KernelIDs, RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State) {
-
-    // Collect kernel names for the image
-    pi_device_binary DevBin =
-        const_cast<pi_device_binary>(&MBinImage->getRawData());
-    for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
-         EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
-
-      std::shared_ptr<detail::kernel_id_impl> KernleIDImpl =
-          std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-
-      sycl::kernel_id KernelID =
-          detail::createSyclObjFromImpl<sycl::kernel_id>(KernleIDImpl);
-
-      // Insert new element keeping MKernelIDs sorted.
-      auto It = std::lower_bound(MKernelIDs.begin(), MKernelIDs.end(), KernelID,
-                                 LessByNameComp{});
-      MKernelIDs.insert(It, std::move(KernelID));
-    }
-  }
+        MDevices(std::move(Devices)), MState(State), MProgram(Program),
+        MKernelIDs(std::move(KernelIDs)) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
@@ -93,27 +70,30 @@ public:
 
   // The struct maps specialization ID to offset in the binary blob where value
   // for this spec const should be.
-  struct SpecConstIDOffset {
+  struct SpecConstDescT {
     unsigned int ID = 0;
     unsigned int Offset = 0;
+    bool IsSet = false;
   };
 
   bool has_specialization_constant(unsigned int SpecID) const noexcept {
-    return std::any_of(
-        MSpecConstOffsets.begin(), MSpecConstOffsets.end(),
-        [SpecID](const SpecConstIDOffset &Pair) { return Pair.ID == SpecID; });
+    return std::any_of(MSpecConstDescs.begin(), MSpecConstDescs.end(),
+                       [SpecID](const SpecConstDescT &SpecConstDesc) {
+                         return SpecConstDesc.ID == SpecID;
+                       });
   }
 
   void set_specialization_constant_raw_value(unsigned int SpecID,
                                              const void *Value,
                                              size_t ValueSize) noexcept {
-    for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
-      if (Pair.ID == SpecID) {
+    for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
+      if (SpecConstDesc.ID == SpecID) {
         // Lock the mutex to prevent when one thread in the middle of writing a
         // new value while another thread is reading the value to pass it to
         // JIT compiler.
         const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-        std::memcpy(MSpecConstsBlob.data() + Pair.Offset, Value, ValueSize);
+        std::memcpy(MSpecConstsBlob.data() + SpecConstDesc.Offset, Value,
+                    ValueSize);
         return;
       }
   }
@@ -121,13 +101,14 @@ public:
   void get_specialization_constant_raw_value(unsigned int SpecID,
                                              void *ValueRet,
                                              size_t ValueSize) const noexcept {
-    for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
-      if (Pair.ID == SpecID) {
+    for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
+      if (SpecConstDesc.ID == SpecID) {
         // Lock the mutex to prevent when one thread in the middle of writing a
         // new value while another thread is reading the value to pass it to
         // JIT compiler.
         const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-        std::memcpy(ValueRet, MSpecConstsBlob.data() + Pair.Offset, ValueSize);
+        std::memcpy(ValueRet, MSpecConstsBlob.data() + SpecConstDesc.Offset,
+                    ValueSize);
         return;
       }
   }
@@ -136,11 +117,45 @@ public:
 
   void set_state(bundle_state NewState) noexcept { MState = NewState; }
 
+  const std::vector<device> &get_devices() const noexcept { return MDevices; }
+
+  bool compatible_with_device(const device &Dev) const {
+    return std::any_of(
+        MDevices.begin(), MDevices.end(),
+        [&Dev](const device &DevCand) { return Dev == DevCand; });
+  }
+
+  const RT::PiProgram &get_program_ref() const noexcept { return MProgram; }
+
+  const RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
+
+  const context &get_context() const noexcept { return MContext; }
+
+  std::vector<kernel_id> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
+
+  std::vector<unsigned char> &get_spec_const_blob_ref() noexcept {
+    return MSpecConstsBlob;
+  }
+
+  std::vector<SpecConstDescT> &get_spec_const_offsets_ref() noexcept {
+    return MSpecConstDescs;
+  }
+
+  ~device_image_impl() {
+
+    if (MProgram) {
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      Plugin.call<PiApiKind::piProgramRelease>(MProgram);
+    }
+  }
+
 private:
-  RTDeviceBinaryImage *MBinImage = nullptr;
+  const RTDeviceBinaryImage *MBinImage = nullptr;
   context MContext;
   std::vector<device> MDevices;
   bundle_state MState;
+  // Native program handler which this device image represents
+  RT::PiProgram MProgram = nullptr;
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
   std::vector<kernel_id> MKernelIDs;
@@ -152,7 +167,7 @@ private:
   // image
   std::vector<unsigned char> MSpecConstsBlob;
   // Contains list of spec ID + their offsets in the MSpecConstsBlob
-  std::vector<SpecConstIDOffset> MSpecConstOffsets;
+  std::vector<SpecConstDescT> MSpecConstDescs;
 };
 
 } // namespace detail

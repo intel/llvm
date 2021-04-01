@@ -75,6 +75,10 @@ int check() {
   return 0;
 }
 
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::scheduler_target_fmax_mhz(8)]]
+[[intel::scheduler_target_fmax_mhz(8)]] void func5() {}
+
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
 // CHECK: TemplateArgument integral 3
 // CHECK: SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
@@ -83,3 +87,9 @@ int check() {
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+
+// CHECK: FunctionDecl {{.*}} {{.*}} func5 'void ()'
+// CHECK: SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 8
+// CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
