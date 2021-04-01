@@ -1,4 +1,4 @@
-// RUN: %clangxx %s -o %t.out -I %sycl_include -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 
 //==--------------- aspects.cpp - SYCL device test ------------------------==//

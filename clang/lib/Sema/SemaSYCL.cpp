@@ -565,6 +565,31 @@ public:
         }
       }
 
+      // Attribute "max_concurrency" is applied to device functions only. The
+      // attribute is not propagated to the caller.
+      if (auto *A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>())
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+
+      // Attribute "disable_loop_pipelining" can be applied explicitly on
+      // kernel function. Attribute should not be propagated from device
+      // functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelFPGADisableLoopPipeliningAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+      }
+
+      // Attribute "initiation_interval" can be applied explicitly on
+      // kernel function. Attribute should not be propagated from device
+      // functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+      }
+
       // TODO: vec_len_hint should be handled here
 
       CallGraphNode *N = SYCLCG.getNode(FD);
@@ -3517,6 +3542,9 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLIntelUseStallEnableClusters:
         case attr::Kind::SYCLIntelLoopFuse:
+        case attr::Kind::SYCLIntelFPGAMaxConcurrency:
+        case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
+        case attr::Kind::SYCLIntelFPGAInitiationInterval:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
@@ -3550,21 +3578,28 @@ void Sema::MarkDevice(void) {
 // SYCL device specific diagnostics implementation
 // -----------------------------------------------------------------------------
 
-Sema::SemaDiagnosticBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
-                                                       unsigned DiagID) {
+Sema::SemaDiagnosticBuilder
+Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
+                           DeviceDiagnosticReason Reason) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
-  SemaDiagnosticBuilder::Kind DiagKind = [this, FD] {
+  SemaDiagnosticBuilder::Kind DiagKind = [this, FD, Reason] {
     if (DiagnosingSYCLKernel)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
+    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted) {
+      // Skip the diagnostic if we know it won't be emitted.
+      if ((getEmissionReason(FD) & Reason) ==
+          Sema::DeviceDiagnosticReason::None)
+        return SemaDiagnosticBuilder::K_Nop;
+
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
+    }
     return SemaDiagnosticBuilder::K_Deferred;
   }();
-  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this);
+  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this, Reason);
 }
 
 bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
@@ -3585,11 +3620,12 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   SemaDiagnosticBuilder::Kind DiagKind = SemaDiagnosticBuilder::K_Nop;
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
-
-  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Sema::KernelCallUndefinedFunction;
-  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
-                    Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
+                        diag::note_previous_decl, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Callee;
 
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
