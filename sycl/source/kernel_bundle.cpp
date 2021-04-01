@@ -62,23 +62,8 @@ bool kernel_bundle_plain::native_specialization_constant() const noexcept {
   return impl->native_specialization_constant();
 }
 
-bool kernel_bundle_plain::has_specialization_constant(
-    unsigned int SpecID) const noexcept {
-  return impl->has_specialization_constant(SpecID);
-}
-
-void kernel_bundle_plain::set_specialization_constant_raw_value(
-    unsigned int SpecID, const void *Value, size_t ValueSize) {
-  impl->set_specialization_constant_raw_value(SpecID, Value, ValueSize);
-}
-
-void kernel_bundle_plain::get_specialization_constant_raw_value(
-    unsigned int SpecID, void *ValueRet, size_t ValueSize) const {
-  impl->get_specialization_constant_raw_value(SpecID, ValueRet, ValueSize);
-}
-
 kernel kernel_bundle_plain::get_kernel(const kernel_id &KernelID) const {
-  return impl->get_kernel(KernelID);
+  return impl->get_kernel(KernelID, impl);
 }
 
 const device_image_plain *kernel_bundle_plain::begin() const {
@@ -98,6 +83,10 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
+////////////////////////////
+///// free functions
+///////////////////////////
+
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State) {
@@ -115,11 +104,52 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State, const DevImgSelectorImpl &Selector) {
-
   return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, Selector,
                                                       State);
 }
 
+std::shared_ptr<detail::kernel_bundle_impl>
+join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
+  return std::make_shared<detail::kernel_bundle_impl>(Bundles);
+}
+
+bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                            bundle_state State) {
+  // Just create a kernel_bundle and check if it has any device_images inside.
+  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, State);
+  return KernelBundleImpl.size();
+}
+
+bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                            const std::vector<kernel_id> &KernelIds,
+                            bundle_state State) {
+  // Just create a kernel_bundle and check if it has any device_images inside.
+  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, KernelIds, State);
+  return KernelBundleImpl.size();
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
+             const std::vector<device> &Devs, const property_list &PropList) {
+  return std::make_shared<detail::kernel_bundle_impl>(
+      InputBundle, Devs, PropList, bundle_state::object);
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+          const std::vector<device> &Devs, const property_list &PropList) {
+  return std::make_shared<detail::kernel_bundle_impl>(ObjectBundles, Devs,
+                                                      PropList);
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
+           const std::vector<device> &Devs, const property_list &PropList) {
+  return std::make_shared<detail::kernel_bundle_impl>(
+      InputBundle, Devs, PropList, bundle_state::executable);
+}
+
 } // namespace detail
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

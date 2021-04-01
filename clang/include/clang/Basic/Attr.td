@@ -337,7 +337,6 @@ def SYCL : LangOpt<"SYCL">;
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
 def SilentlyIgnoreSYCLIsHost : LangOpt<"SYCLIsHost", "", 1>;
-def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
 def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
@@ -1195,7 +1194,6 @@ def SYCLSimd : InheritableAttr {
   let Spellings = [GNU<"sycl_explicit_simd">,
                    CXX11<"intel", "sycl_explicit_simd">];
   let Subjects = SubjectList<[Function, GlobalVar]>;
-  let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLSimdDocs];
   let SupportsNonconformingLambdaSyntax = 1;
 }
@@ -1208,7 +1206,6 @@ def SYCLRegisterNum : InheritableAttr {
   let Subjects = SubjectList<[GlobalVar]>;
   // This attribute is applied to file-scope variables and must be compilable
   // for the host device as well
-  let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLRegisterNumDocs];
 }
 
@@ -1221,7 +1218,6 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
   let Subjects = SubjectList<[ParmVar]>;
-  let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [Undocumented];
 }
 
@@ -1878,16 +1874,18 @@ def SYCLIntelFPGAIVDep : StmtAttr {
   let Documentation = [SYCLIntelFPGAIVDepAttrDocs];
 }
 
-def SYCLIntelFPGAInitiationInterval : StmtAttr {
+def SYCLIntelFPGAInitiationInterval : DeclOrStmtAttr {
   let Spellings = [CXX11<"intelfpga","ii">,
                    CXX11<"intel","ii">,
                    CXX11<"intel", "initiation_interval">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
+                              ErrorDiag,
+                              "'for', 'while', 'do' statements, and functions">;
   let Args = [ExprArgument<"IntervalExpr", /*opt*/1>];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
   let Documentation = [SYCLIntelFPGAInitiationIntervalAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelFPGAMaxConcurrency : StmtAttr {
@@ -1912,14 +1910,16 @@ def SYCLIntelFPGALoopCoalesce : StmtAttr {
   let Documentation = [SYCLIntelFPGALoopCoalesceAttrDocs];
 }
 
-def SYCLIntelFPGADisableLoopPipelining : StmtAttr {
+def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
   let Spellings = [CXX11<"intelfpga","disable_loop_pipelining">,
                    CXX11<"intel","disable_loop_pipelining">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
+                              ErrorDiag,
+                              "'for', 'while', 'do' statements, and functions">;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
   let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
