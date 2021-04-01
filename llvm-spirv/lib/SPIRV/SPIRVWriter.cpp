@@ -604,10 +604,8 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       if (!isa<MDString>(BufferLocation->getOperand(ArgNo)) &&
           !isa<MDNode>(BufferLocation->getOperand(ArgNo)))
         LocID = getMDOperandAsInt(BufferLocation, ArgNo);
-      if (LocID >= 0) {
-        BM->addCapability(CapabilityFPGABufferLocationINTEL);
+      if (LocID >= 0)
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
-      }
     }
   }
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
@@ -728,17 +726,14 @@ void LLVMToSPIRV::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (MDNode *StallEnable = F->getMetadata(kSPIR2MD::StallEnable)) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_fpga_cluster_attributes)) {
-      if (getMDOperandAsInt(StallEnable, 0)) {
-        BM->addCapability(CapabilityFPGAClusterAttributesINTEL);
+      if (getMDOperandAsInt(StallEnable, 0))
         BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
-      }
     }
   }
   if (MDNode *LoopFuse = F->getMetadata(kSPIR2MD::LoopFuse)) {
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_loop_fuse)) {
       size_t Depth = getMDOperandAsInt(LoopFuse, 0);
       size_t Independent = getMDOperandAsInt(LoopFuse, 1);
-      BM->addCapability(CapabilityLoopFuseINTEL);
       BF->addDecorate(
           new SPIRVDecorateFuseLoopsInFunctionINTEL(BF, Depth, Independent));
     }
@@ -2991,7 +2986,6 @@ void LLVMToSPIRV::transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO) {
   SPIRVValue *SV = transValue(V, nullptr);
   assert(SV && "Failed to process OCL PipeStorage object");
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_io_pipes)) {
-    BM->addCapability(CapabilityIOPipesINTEL);
     unsigned ID = getMDOperandAsInt(IO, 0);
     SV->addDecorate(DecorationIOPipeStorageINTEL, ID);
   }
