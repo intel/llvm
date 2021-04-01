@@ -92,7 +92,7 @@ public:
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// no_alias class.
-  static bool isSyclAccessorNoAliasPropertyType(const QualType &Ty);
+  static bool isSyclAccessorNoAliasPropertyType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// buffer_location class.
@@ -1754,7 +1754,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
   void handleNoAliasProperty(ParmVarDecl *Param, QualType PropTy,
-                                    SourceLocation Loc) {
+                             SourceLocation Loc) {
     if (PropTy.isRestrictQualified()) {
       ASTContext &Ctx = SemaRef.getASTContext();
       Param->addAttr(RestrictAttr::CreateImplicit(Ctx, Loc));
@@ -4328,16 +4328,14 @@ bool Util::isSyclKernelHandlerType(const QualType &Ty) {
 }
 
 bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
-  StringRef PropertyName = "no_alias";
-  StringRef InstanceName = "instance";
   std::array<DeclContextDesc, 6> Scopes = {
       Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, PropertyName},
+      Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
-                            InstanceName}};
+                            "instance"}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 

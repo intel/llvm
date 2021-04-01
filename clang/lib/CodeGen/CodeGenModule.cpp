@@ -1703,8 +1703,8 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
 
   if (LangOpts.SYCLIsDevice && !IsEsimdFunction) {
 
-    Fn->setMetadata(llvm::Attribute::NoAlias,
-                    llvm::MDNode::get(VMContext, argAccessorNoAliasPropertyAttr));
+    Fn->setMetadata("noalias", llvm::MDNode::get(
+                                   VMContext, argAccessorNoAliasPropertyAttr));
 
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
