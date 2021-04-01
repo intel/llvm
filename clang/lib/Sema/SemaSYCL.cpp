@@ -4331,8 +4331,8 @@ bool Util::isSyclAccessorNoAliasPropertyType(const QualType &Ty) {
   const StringRef &PropertyName = "no_alias";
   const StringRef &InstanceName = "instance";
   std::array<DeclContextDesc, 6> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
       Util::DeclContextDesc{Decl::Kind::CXXRecord, PropertyName},
