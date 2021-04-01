@@ -4327,9 +4327,9 @@ bool Util::isSyclKernelHandlerType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclAccessorNoAliasPropertyType(const QualType &Ty) {
-  const StringRef &PropertyName = "no_alias";
-  const StringRef &InstanceName = "instance";
+bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
+  StringRef PropertyName = "no_alias";
+  StringRef InstanceName = "instance";
   std::array<DeclContextDesc, 6> Scopes = {
       Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
