@@ -98,13 +98,13 @@ int main(void) {
     });
   }
   for (unsigned i = 0; i < Size; ++i) {
-     if (A[i] + B[i] != C[i]) {
+    if (A[i] + B[i] != C[i]) {
       std::cout << "failed at index " << i << ", " << C[i] << " != " << A[i]
-                << " + " << B[i] << "\n";
+                 << " + " << B[i] << "\n";
       return 1;
-     }
+    }
   }
-
+ 
   std::cout << "Passed\n";
   return 0;
 }
