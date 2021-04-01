@@ -96,14 +96,13 @@ int main(void) {
             block_store<int, VL>(pC + i * VL, vc);
           });
     });
-
-    for (unsigned i = 0; i < Size; ++i) {
-      if (A[i] + B[i] != C[i]) {
-        std::cout << "failed at index " << i << ", " << C[i] << " != " << A[i]
-                  << " + " << B[i] << "\n";
-        return 1;
-      }
-    }
+  }
+  for (unsigned i = 0; i < Size; ++i) {
+     if (A[i] + B[i] != C[i]) {
+      std::cout << "failed at index " << i << ", " << C[i] << " != " << A[i]
+                << " + " << B[i] << "\n";
+      return 1;
+     }
   }
 
   std::cout << "Passed\n";
