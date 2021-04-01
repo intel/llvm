@@ -3,6 +3,8 @@
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_DLP:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_II:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_II_2:[0-9]+]]
+// CHECK: br label %for.cond,   !llvm.loop ![[MD_INITI:[0-9]+]]
+// CHECK: br label %for.cond2,  !llvm.loop ![[MD_INITI_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_MC:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MC_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_LC:[0-9]+]]
@@ -32,6 +34,19 @@ void ii() {
   // CHECK: ![[MD_II_2]] = distinct !{![[MD_II_2]], ![[MP]], ![[MD_ii_count_2:[0-9]+]]}
   // CHECK-NEXT: ![[MD_ii_count_2]] = !{!"llvm.loop.ii.count", i32 8}
   [[intel::ii(8)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
+template <int A>
+void initiation_interval() {
+  int a[10];
+  // CHECK: ![[MD_INITI]] = distinct !{![[MD_INITI]], ![[MP]], ![[MD_initi_count:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_initi_count]] = !{!"llvm.loop.ii.count", i32 6}
+  [[intel::initiation_interval(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_INITI_2]] = distinct !{![[MD_INITI_2]], ![[MP]], ![[MD_initi_count_2:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_initi_count_2]] = !{!"llvm.loop.ii.count", i32 10}
+  [[intel::initiation_interval(10)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -100,6 +115,7 @@ int main() {
   kernel_single_task<class kernel_function>([]() {
     disable_loop_pipelining();
     ii<4>();
+    initiation_interval<6>();
     max_concurrency<0>();
     loop_coalesce<2>();
     max_interleaving<3>();
