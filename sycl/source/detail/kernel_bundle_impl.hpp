@@ -254,9 +254,9 @@ public:
           ->set_specialization_constant_raw_value(SpecID, Value, ValueSize);
   }
 
-  const void *get_specialization_constant_raw_value(unsigned int SpecID,
-                                                    void *ValueRet,
-                                                    size_t ValueSize) const {
+  void get_specialization_constant_raw_value(unsigned int SpecID,
+                                             void *ValueRet,
+                                             size_t ValueSize) const {
     for (const device_image_plain &DeviceImage : MDeviceImages)
       if (getSyclObjImpl(DeviceImage)->has_specialization_constant(SpecID)) {
         getSyclObjImpl(DeviceImage)
@@ -264,7 +264,8 @@ public:
                                                     ValueSize);
       }
 
-    return nullptr;
+    throw sycl::runtime_error("Specialization constant not found",
+                              PI_INVALID_VALUE);
   }
 
   const device_image_plain *begin() const { return &MDeviceImages.front(); }

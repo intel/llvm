@@ -83,6 +83,25 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
+bool kernel_bundle_plain::has_specialization_constant_impl(
+    const char *SpecName) const noexcept {
+  return impl->has_specialization_constant(SpecName);
+}
+
+void kernel_bundle_plain::set_specialization_constant_impl(const char *SpecName,
+                                                           void *Value,
+                                                           size_t Size) {
+  unsigned SpecID = 0;
+  impl->set_specialization_constant_raw_value(SpecName, Value, Size);
+}
+
+void kernel_bundle_plain::get_specialization_constant_impl(const char *SpecID,
+                                                           void *Value,
+                                                           size_t Size) const {
+  unsigned SpecID = 0;
+  impl->get_specialization_constant_raw_value(SpecName, Value, Size);
+}
+
 ////////////////////////////
 ///// free functions
 ///////////////////////////

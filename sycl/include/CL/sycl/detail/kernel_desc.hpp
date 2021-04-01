@@ -49,6 +49,11 @@ template <class Name> struct SpecConstantInfo {
   static constexpr const char *getName() { return ""; }
 };
 
+// Translates SYCL 2020 specialization constant type to its name.
+template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
+  return __builtin_unique_stable_name(SpecName);
+}
+
 #ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() { return 0; }

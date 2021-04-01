@@ -39,7 +39,9 @@ public:
                     std::vector<kernel_id> KernelIDs, RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
-        MKernelIDs(std::move(KernelIDs)) {}
+        MKernelIDs(std::move(KernelIDs)) {
+    updateSpecConstSymMap();
+  }
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
@@ -76,16 +78,21 @@ public:
     bool IsSet = false;
   };
 
-  bool has_specialization_constant(unsigned int SpecID) const noexcept {
+  bool has_specialization_constant(const char *SpecName) const noexcept {
+    if (SpecID.count(SpecID) == 0)
+      return false;
+
+    unsigned SpecID = MSpecConstSymMap.at(SpecName);
     return std::any_of(MSpecConstDescs.begin(), MSpecConstDescs.end(),
                        [SpecID](const SpecConstDescT &SpecConstDesc) {
                          return SpecConstDesc.ID == SpecID;
                        });
   }
 
-  void set_specialization_constant_raw_value(unsigned int SpecID,
+  void set_specialization_constant_raw_value(const char *SpecName,
                                              const void *Value,
                                              size_t ValueSize) noexcept {
+    unsigned SpecID = MSpecConstSymMap[SpecName];
     for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
       if (SpecConstDesc.ID == SpecID) {
         // Lock the mutex to prevent when one thread in the middle of writing a
@@ -98,9 +105,10 @@ public:
       }
   }
 
-  void get_specialization_constant_raw_value(unsigned int SpecID,
+  void get_specialization_constant_raw_value(const char *SpecName,
                                              void *ValueRet,
                                              size_t ValueSize) const noexcept {
+    unsigned SpecID = MSpecConstSymMap[SpecName];
     for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
       if (SpecConstDesc.ID == SpecID) {
         // Lock the mutex to prevent when one thread in the middle of writing a
@@ -150,25 +158,51 @@ public:
   }
 
 private:
-  const RTDeviceBinaryImage *MBinImage = nullptr;
-  context MContext;
-  std::vector<device> MDevices;
-  bundle_state MState;
-  // Native program handler which this device image represents
-  RT::PiProgram MProgram = nullptr;
-  // List of kernel ids available in this image, elements should be sorted
-  // according to LessByNameComp
-  std::vector<kernel_id> MKernelIDs;
+  void updateSpecConstSymMap() {
+    if (MBinImage) {
+      const pi_device_binary_struct &RawImg = MBinImage->getRawData();
+      const auto &PropSetsBegin = RawImg->PropertySetsBegin;
+      const auto &PropSetsEnd = RawImg->PropertySetsEnd;
+      const auto &SpecConstMap = std::find_if(
+          PropSetsBegin, PropSetsEnd,
+          [](const _pi_device_binary_property_set_struct &Set) {
+            return strcmp(Set->Name, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP) ==
+                   0;
+          });
 
-  // A mutex for sycnhronizing access to spec constants blob. Mutable because
-  // needs to be locked in the const method for getting spec constant value.
-  mutable std::mutex MSpecConstAccessMtx;
-  // Binary blob which can have values of all specialization constants in the
-  // image
-  std::vector<unsigned char> MSpecConstsBlob;
-  // Contains list of spec ID + their offsets in the MSpecConstsBlob
-  std::vector<SpecConstDescT> MSpecConstDescs;
-};
+      if (SpecConstMap != PropSetsEnd) {
+        const auto &PropsBegin = SpecConstMap->PropertiesBegin;
+        const auto &PropsEnd = SpecConstMap->PropertiesEnd;
+
+        std::for_each(PropsBegin, PropsEnd,
+                      [&](const _pi_device_binary_property_struct &Prop) {
+                        MSpecConstSymMap[Prop.Name] =
+                            *static_cast<unsigned *>(Prop.ValAddr);
+                      });
+      }
+    }
+
+    const RTDeviceBinaryImage *MBinImage = nullptr;
+    context MContext;
+    std::vector<device> MDevices;
+    bundle_state MState;
+    // Native program handler which this device image represents
+    RT::PiProgram MProgram = nullptr;
+    // List of kernel ids available in this image, elements should be sorted
+    // according to LessByNameComp
+    std::vector<kernel_id> MKernelIDs;
+
+    // A mutex for sycnhronizing access to spec constants blob. Mutable because
+    // needs to be locked in the const method for getting spec constant value.
+    mutable std::mutex MSpecConstAccessMtx;
+    // Binary blob which can have values of all specialization constants in the
+    // image
+    std::vector<unsigned char> MSpecConstsBlob;
+    // Contains list of spec ID + their offsets in the MSpecConstsBlob
+    std::vector<SpecConstDescT> MSpecConstDescs;
+
+    std::map<const char *, unsigned> MSpecConstSymMap;
+  };
 
 } // namespace detail
 } // namespace sycl

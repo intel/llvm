@@ -168,6 +168,14 @@ protected:
   // \returns an iterator to the last device image kernel_bundle contains
   const device_image_plain *end() const;
 
+  bool has_specialization_constant_impl(const char *SpecName) const noexcept;
+
+  void set_specialization_constant_impl(const char *SpecName, void *Value,
+                                        size_t Size);
+
+  void get_specialization_constant_impl(const char *SpecName, void *Value,
+                                        size_t Size) const;
+
   detail::KernelBundleImplPtr impl;
 };
 
@@ -247,9 +255,8 @@ public:
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
-    throw sycl::runtime_error(
-        "kernel_bundle::has_specialization_constant is not implemented yet",
-        PI_INVALID_OPERATION);
+    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    return has_specialization_constant(SpecSymName);
   }
 
   /// Sets the value of the specialization constant whose address is SpecName
@@ -259,20 +266,33 @@ public:
             typename = detail::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
-    (void)Value;
-    throw sycl::runtime_error(
-        "kernel_bundle::set_specialization_constant is not implemented yet",
-        PI_INVALID_OPERATION);
+
+    using SCType = std::remove_reference_t<decltype(SpecName)>::value_type;
+    static_assert(std::is_trivially_copyable_v<SCType>);
+    // TODO can this be simply default constructible
+    static_assert(std::is_trivially_default_constructible_v<SCType>);
+
+    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    set_specialization_constant_impl(SpecSymName, &Value, sizeof(SCType));
   }
 
-  /// The value of the specialization constant whose address is SpecName for
-  /// this kernel bundle.
+  /// \returns the value of the specialization constant whose address is
+  /// SpecName for this kernel bundle.
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
-    throw sycl::runtime_error(
-        "kernel_bundle::get_specialization_constant is not implemented yet",
-        PI_INVALID_OPERATION);
+
+    using SCType = std::remove_reference_t<decltype(SpecName)>::value_type;
+    static_assert(std::is_trivially_copyable_v<SCType>);
+    // TODO can this be simply default constructible
+    static_assert(std::is_trivially_default_constructible_v<SCType>);
+
+    SCType RetValue;
+
+    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    get_specialization_constant_impl(SpecSymName, &RetValue, sizeof(SCType));
+
+    return RetValue;
   }
 #endif
 
