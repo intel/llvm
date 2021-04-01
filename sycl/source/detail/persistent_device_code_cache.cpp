@@ -10,6 +10,12 @@
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/plugin.hpp>
+#if defined(__SYCL_RT_OS_LINUX)
+#include <unistd.h>
+#else
+#include <direct.h>
+#include <io.h>
+#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -46,6 +52,15 @@ int makeDir(const char *Dir) {
 #else
   return _mkdir(Dir);
 #endif
+}
+
+LockCacheItem::LockCacheItem(const std::string &DirName)
+    : FileName(DirName + "/.lock") {
+  int fd;
+  while ((fd = open(FileName.c_str(), O_CREAT | O_EXCL, S_IWRITE)) == -1) {
+    std::this_thread::yield();
+  }
+  close(fd);
 }
 
 /* Stores build program in persisten cache
@@ -137,7 +152,11 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
   while (isPathPresent(FileName + ".bin") || isPathPresent(FileName + ".src")) {
     if (isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
                             BuildOptionsString)) {
-      return readBinaryDataFromFile(FileName + ".bin");
+      try {
+        return readBinaryDataFromFile(FileName + ".bin");
+      } catch (...) {
+        // If read was unsuccessfull try the next item
+      }
     }
     FileName = Path + "/" + std::to_string(++i);
   }
@@ -155,17 +174,27 @@ std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
 
 /* Write built binary to persistent cache
  * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
+ * Return on first unsuccessfull file operation
  */
 void PersistentDeviceCodeCache::writeBinaryDataToFile(
     const std::string &FileName, const std::vector<std::vector<char>> &Data) {
   std::ofstream FileStream{FileName, std::ios::binary};
+  if (FileStream.fail())
+    return;
 
   size_t Size = Data.size();
   FileStream.write((char *)&Size, sizeof(Size));
+  if (FileStream.fail())
+    return;
+
   for (size_t i = 0; i < Data.size(); ++i) {
     Size = Data[i].size();
     FileStream.write((char *)&Size, sizeof(Size));
+    if (FileStream.fail())
+      return;
     FileStream.write(Data[i].data(), Size);
+    if (FileStream.fail())
+      return;
   }
   FileStream.close();
 }
@@ -176,13 +205,24 @@ void PersistentDeviceCodeCache::writeBinaryDataToFile(
 std::vector<std::vector<char>>
 PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
   std::ifstream FileStream{FileName, std::ios::binary};
+  if (FileStream.fail())
+    return {};
   size_t ImgNum, ImgSize;
   FileStream.read((char *)&ImgNum, sizeof(ImgNum));
+  if (FileStream.fail())
+    return {};
+
   std::vector<std::vector<char>> Res(ImgNum);
   for (size_t i = 0; i < ImgNum; ++i) {
     FileStream.read((char *)&ImgSize, sizeof(ImgSize));
+    if (FileStream.fail())
+      return {};
+
     std::vector<char> ImgData(ImgSize);
     FileStream.read(ImgData.data(), ImgSize);
+    if (FileStream.fail())
+      return {};
+
     Res[i] = std::move(ImgData);
   }
 
@@ -198,30 +238,53 @@ void PersistentDeviceCodeCache::writeSourceItem(
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
   std::ofstream FileStream{FileName, std::ios::binary};
+  if (FileStream.fail())
+    return;
+
   std::string DeviceString{getDeviceIDString(Device)};
 
   size_t Size = DeviceString.size();
   FileStream.write((char *)&Size, sizeof(Size));
+  if (FileStream.fail())
+    return;
   FileStream.write(DeviceString.data(), Size);
+  if (FileStream.fail())
+    return;
   Size = BuildOptionsString.size();
   FileStream.write((char *)&Size, sizeof(Size));
+  if (FileStream.fail())
+    return;
   FileStream.write(BuildOptionsString.data(), Size);
+  if (FileStream.fail())
+    return;
   Size = SpecConsts.size();
   FileStream.write((char *)&Size, sizeof(Size));
+  if (FileStream.fail())
+    return;
   FileStream.write((const char *)SpecConsts.data(), Size);
+  if (FileStream.fail())
+    return;
   Size = Img.getSize();
   FileStream.write((char *)&Size, sizeof(Size));
+  if (FileStream.fail())
+    return;
   FileStream.write((const char *)Img.getRawData().BinaryStart, Size);
+  if (FileStream.fail())
+    return;
   FileStream.close();
 }
 
-/* Check that cache item key sources are equal to the current program
+/* Check that cache item key sources are equal to the current program.
+ * If file read operations fail cache item is treated as not equal.
  */
 bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
     const std::string &FileName, const device &Device,
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
   std::ifstream FileStream{FileName, std::ios::binary};
+  if (FileStream.fail())
+    return false;
+
   std::string ImgString{(const char *)Img.getRawData().BinaryStart,
                         Img.getSize()};
   std::string DeviceString{getDeviceIDString(Device)};
@@ -229,30 +292,40 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
                                SpecConsts.size()};
 
   size_t Size;
-  std::string res;
-
   FileStream.read((char *)&Size, sizeof(Size));
-  res.resize(Size);
+  if (FileStream.fail())
+    return false;
+
+  std::string res(Size, '\0');
   FileStream.read(&res[0], Size);
-  if (DeviceString.compare(res))
+  if (FileStream.fail() || DeviceString.compare(res))
     return false;
 
   FileStream.read((char *)&Size, sizeof(Size));
+  if (FileStream.fail())
+    return false;
+
   res.resize(Size);
   FileStream.read(&res[0], Size);
-  if (BuildOptionsString.compare(0, Size, res.data()))
+  if (FileStream.fail() || BuildOptionsString.compare(0, Size, res.data()))
     return false;
 
   FileStream.read((char *)&Size, sizeof(Size));
+  if (FileStream.fail())
+    return false;
+
   res.resize(Size);
   FileStream.read(&res[0], Size);
-  if (SpecConstsString.compare(res))
+  if (FileStream.fail() || SpecConstsString.compare(res))
     return false;
 
   FileStream.read((char *)&Size, sizeof(Size));
+  if (FileStream.fail())
+    return false;
+
   res.resize(Size);
   FileStream.read(&res[0], Size);
-  if (ImgString.compare(res))
+  if (FileStream.fail() || ImgString.compare(res))
     return false;
 
   FileStream.close();

@@ -1,4 +1,4 @@
-//==----- PersistenCacheConcurrentAccess.cpp --- Persistent cache tests ----==//
+//==----- PersistenDeviceCodeCache.cpp --- Persistent cache tests ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,11 +17,23 @@
 #include <mutex>
 #include <vector>
 
+namespace fs = std::filesystem;
+
 namespace {
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 using namespace cl::sycl;
-constexpr size_t BinNum = 4;
-constexpr size_t BinSizes[BinNum] = {1024, 1024 * 1024, 256, 1024 * 64};
+
+/* Vector of programs which can be used for testing
+ */
+std::vector<std::vector<int>> Progs = {
+    {128}, /*tiny program for 1 target device, 128 B long*/
+    {10240}, /*small program for 1 target device, 10 kB long*/
+    {1024 * 1024, 1024, 256, 1024 * 64}, /*big program for 4 target
+					   device, ~1 MB long*/
+};
+
+static unsigned char DeviceCodeID = 2;
+
 static pi_result redefinedProgramGetInfo(pi_program program,
                                          pi_program_info param_name,
                                          size_t param_value_size,
@@ -29,19 +41,19 @@ static pi_result redefinedProgramGetInfo(pi_program program,
                                          size_t *param_value_size_ret) {
   if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
     auto value = reinterpret_cast<unsigned int *>(param_value);
-    *value = BinNum;
+    *value = Progs[DeviceCodeID].size();
   }
 
   if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
     auto value = reinterpret_cast<size_t *>(param_value);
-    for (int i = 0; i < BinNum; ++i)
-      value[i] = BinSizes[i];
+    for (int i = 0; i < Progs[DeviceCodeID].size(); ++i)
+      value[i] = Progs[DeviceCodeID][i];
   }
 
   if (param_name == PI_PROGRAM_INFO_BINARIES) {
     auto value = reinterpret_cast<unsigned char **>(param_value);
-    for (int i = 0; i < BinNum; ++i)
-      for (int j = 0; j < BinSizes[i]; ++j)
+    for (int i = 0; i < Progs[DeviceCodeID].size(); ++i)
+      for (int j = 0; j < Progs[DeviceCodeID][i]; ++j)
         value[i][j] = i;
   }
 
@@ -92,7 +104,38 @@ public:
     Dev = Plt.get_devices()[0];
     Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
         redefinedProgramGetInfo);
-    std::filesystem::remove_all(cacheRoot);
+  }
+
+  void ConcurentReadWriteCache(unsigned char ProgramID, size_t ThreadCount) {
+    DeviceCodeID = ProgramID;
+     std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      Dev, Img, {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}, "--build-options");
+
+    Barrier b(ThreadCount);
+    {
+      auto testLambda = [&](std::size_t threadId) {
+        b.wait();
+        detail::PersistentDeviceCodeCache::putItemToDisc(
+            Dev, Img,
+            sycl::vector_class<unsigned char>(
+                {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}),
+            "--build-options", NativeProg);
+        auto res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+            Dev, Img,
+            sycl::vector_class<unsigned char>(
+                {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}),
+            "--build-options", NativeProg);
+        for (int i = 0; i < res.size(); ++i) {
+          for (int j = 0; j < res[i].size(); ++j) {
+            assert(res[i][j] == i &&
+                   "Corrupted image loaded from persistent cache");
+          }
+        }
+      };
+
+      ThreadPool MPool(ThreadCount, testLambda);
+    }
+    fs::remove_all(ItemDir);
   }
 
 protected:
@@ -106,77 +149,65 @@ protected:
   detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
   RT::PiProgram NativeProg;
   std::unique_ptr<unittest::PiMock> Mock;
-  std::vector<std::vector<char>> Data = {
-      std::vector<char>(1024, '1'), std::vector<char>(1024 * 1024, '2'),
-      std::vector<char>(256, '3'), std::vector<char>(1024 * 64, '4')};
 };
 
-TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheItem) {
-  constexpr std::size_t threadCount = 1000;
-
-  Barrier b(threadCount);
-  {
-    auto testLambda = [&](std::size_t threadId) {
-      b.wait();
-      detail::PersistentDeviceCodeCache::putItemToDisc(
-          Dev, Img,
-          sycl::vector_class<unsigned char>(
-              {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't'}),
-          "--build-options", NativeProg);
-      auto res = detail::PersistentDeviceCodeCache::getItemFromDisc(
-          Dev, Img,
-          sycl::vector_class<unsigned char>(
-              {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't'}),
-          "--build-options", NativeProg);
-      for (int i = 0; i < res.size(); ++i) {
-        for (int j = 0; j < res[i].size(); ++j) {
-          assert(res[i][j] == i &&
-                 "Corrupted image loaded from persistent cache");
-        }
-      }
-    };
-
-    ThreadPool MPool(threadCount, testLambda);
-  }
+/* Do read/write for the same cache item to/from 2000 threads for small device
+ * code size. Make sure that there is no data corruption or crashes.
+ */
+TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteSmallItem) {
+  ConcurentReadWriteCache(0, 2000);
 }
+
+/* Do read/write for the same cache item to/from 1000 threads for medium device
+ * code size. Make sure that there is no data corruption or crashes.
+ */
+TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheMediumItem) {
+  ConcurentReadWriteCache(1, 1000);
+}
+
+/* Do read/write for the same cache item to/from 200 threads from big device
+ * code size. Make sure that there is no data corruption or crashes.
+ */
+TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
+  ConcurentReadWriteCache(2, 200);
+}
+
+/* Checks cache behavior when filesystem read/write operations fail
+ */
 TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, "--build-options");
   detail::PersistentDeviceCodeCache::putItemToDisc(
       Dev, Img, {}, "--build-options", NativeProg);
-  assert(std::filesystem::exists(ItemDir + "/0.bin") && "No file created");
-  std::filesystem::permissions(ItemDir + "/0.bin",
-                               std::filesystem::perms::owner_all |
-                                   std::filesystem::perms::group_all |
-                                   std::filesystem::perms::others_all,
-                               std::filesystem::perm_options::remove);
+  assert(fs::exists(ItemDir + "/0.bin") && "No file created");
+  fs::permissions(ItemDir + "/0.bin",
+                  fs::perms::owner_all | fs::perms::group_all |
+                      fs::perms::others_all,
+                  fs::perm_options::remove);
   // No access to binary file new cache item to be created
   detail::PersistentDeviceCodeCache::putItemToDisc(
       Dev, Img, {}, "--build-options", NativeProg);
-  assert(std::filesystem::exists(ItemDir + "/1.bin") && "No file created");
+  assert(fs::exists(ItemDir + "/1.bin") && "No file created");
 
-  std::filesystem::permissions(ItemDir + "/1.src",
-                               std::filesystem::perms::owner_all |
-                                   std::filesystem::perms::group_all |
-                                   std::filesystem::perms::others_all,
-                               std::filesystem::perm_options::remove);
+  fs::permissions(ItemDir + "/1.src",
+                  fs::perms::owner_all | fs::perms::group_all |
+                      fs::perms::others_all,
+                  fs::perm_options::remove);
   auto res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, "--build-options", NativeProg);
-  std::cout << res.size() << std::endl;
-  // No image to be read due to lack of permissions
+
+  // No image to be read due to lack of permissions fro source file
   assert(res.size() == 0);
 
-  std::filesystem::permissions(ItemDir + "/0.bin",
-                               std::filesystem::perms::owner_all |
-                                   std::filesystem::perms::group_all |
-                                   std::filesystem::perms::others_all,
-                               std::filesystem::perm_options::add);
+  fs::permissions(ItemDir + "/0.bin",
+                  fs::perms::owner_all | fs::perms::group_all |
+                      fs::perms::others_all,
+                  fs::perm_options::add);
 
-  std::filesystem::permissions(ItemDir + "/1.src",
-                               std::filesystem::perms::owner_all |
-                                   std::filesystem::perms::group_all |
-                                   std::filesystem::perms::others_all,
-                               std::filesystem::perm_options::add);
+  fs::permissions(ItemDir + "/1.src",
+                  fs::perms::owner_all | fs::perms::group_all |
+                      fs::perms::others_all,
+                  fs::perm_options::add);
 
   res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, "--build-options", NativeProg);
@@ -186,5 +217,6 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
       assert(res[i][j] == i && "Corrupted image loaded from persistent cache");
     }
   }
+  fs::remove_all(ItemDir);
 }
 } // namespace

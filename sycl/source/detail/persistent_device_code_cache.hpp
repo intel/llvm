@@ -15,7 +15,6 @@
 #include <fcntl.h>
 #include <string>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -39,20 +38,48 @@ class LockCacheItem {
   const std::string FileName;
 
 public:
-  LockCacheItem(const std::string &DirName) : FileName(DirName + "/.lock") {
-    int fd;
-    while ((fd = open(FileName.c_str(), O_CREAT | O_EXCL, S_IWRITE)) == -1) {
-      std::this_thread::yield();
-    }
-    close(fd);
-  }
+  LockCacheItem(const std::string &DirName);
   static bool isLocked(const std::string &DirName) {
     return isPathPresent(DirName + "/.lock");
   }
   ~LockCacheItem() { std::remove(FileName.c_str()); }
 };
+/* End of temporary solution*/
 
 class PersistentDeviceCodeCache {
+  /* The device code images are stored on file system using structure below:
+   * <cache_root>/
+   *     <device_hash>/
+   *         <device_image_hash>/
+   *             <spec_constants_values_hash>/
+   *                 <build_options_hash>/
+   *                     <n>.src
+   *                     <n>.bin
+   *                     .lock
+   *   <cache_root>                 - root directory storing cache files;
+   *   <device_hash>                - hash out of device information used to
+   *                                  identify target device;
+   *   <device_image_hash>          - hash made out of device image used as
+   * input for the JIT compilation; <spec_constants_values_hash> - hash for
+   * specialization constants values; <build_options_hash>         - hash for
+   * all build options; <n>                          - sequential number of hash
+   * collisions. When hashes matches for the specific build but full values
+   * don't, new cache item is added with incremented value (enumeration started
+   *                                  from 0).
+   * Two files per cache item are stored on disk:
+   *   <n>.src - contains full values for build parameters (device information,
+   *             specialization constant values, build options, device image)
+   *             which is used to resolve hash collisions and analysis of cached
+   *             items.
+   *   <n>.bin - contains built device code.
+   * Also directory lock file is created when cache item is written. Lock item
+   *   .lock   - directory lock file. It is created when data is save to
+   *             filesystem. On read operation the absence of file is checked
+   *             but not created to avoid lock.
+   * All filesystem operations do not treated as SYCL errors and ignored:
+   *  - on cache write operation cache item is not created;
+   *  - on cache read operation it is treated as cache miss.
+   */
 private:
   /* Write built binary to persistent cache
    * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]

@@ -2,6 +2,10 @@
 
 #include <thread>
 #include <vector>
+
+/* Thread barrier which makes threads wait until defined number of threads reach
+ * the barrier.
+ */
 class Barrier {
 public:
   Barrier() = delete;
