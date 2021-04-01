@@ -67,15 +67,15 @@ int main() {
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
-    // expected-error@Inputs/sycl.hpp:220 {{'dummy_functor_2<val_3>' is an invalid kernel name type}}
-    // expected-note@Inputs/sycl.hpp:220 {{unscoped enum 'unscoped_enum_no_type_set' requires fixed underlying type}}
+    // expected-error@#KernelSingleTask {{'dummy_functor_2<val_3>' is an invalid kernel name type}}
+    // expected-note@#KernelSingleTask {{unscoped enum 'unscoped_enum_no_type_set' requires fixed underlying type}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f2);
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
-    // expected-error@Inputs/sycl.hpp:220 {{'templated_functor<dummy_functor_2>' is an invalid kernel name type}}
-    // expected-note@Inputs/sycl.hpp:220 {{unscoped enum 'unscoped_enum_no_type_set' requires fixed underlying type}}
+    // expected-error@#KernelSingleTask {{'templated_functor<dummy_functor_2>' is an invalid kernel name type}}
+    // expected-note@#KernelSingleTask {{unscoped enum 'unscoped_enum_no_type_set' requires fixed underlying type}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f5);
   });

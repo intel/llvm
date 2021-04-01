@@ -4,13 +4,13 @@
 // will be testing code generation and the second ESIMD lowering.
 //
 // RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice \
-// RUN:   -fsycl-is-device -fsycl-explicit-simd -emit-llvm %s -o %t
+// RUN:   -fsycl-is-device -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 // This test checks that FE allows globals with register_num attribute in ESIMD mode.
 
-__attribute__((opencl_private)) __attribute__((register_num(17))) int vc;
+__attribute__((opencl_private)) __attribute__((sycl_explicit_simd)) __attribute__((register_num(17))) int vc;
 // CHECK: @vc = {{.+}} i32 0, align 4 #0
 
 template <typename name, typename Func>

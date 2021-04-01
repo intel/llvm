@@ -1,7 +1,7 @@
 * @bader
 
 # Front-end compiler
-clang/ @premanandrao @elizabethandrews
+clang/ @premanandrao @elizabethandrews @AaronBallman
 
 # Driver
 clang/**/Driver @mdtoguchi @AGindinson
@@ -114,3 +114,8 @@ SYCLLowerIR/ @kbobrovs @DenisBakhvalov
 esimd/ @kbobrovs @DenisBakhvalov
 sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs @DenisBakhvalov
 sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
+
+# ITT annotations
+llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims
+llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims
+

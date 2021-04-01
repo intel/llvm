@@ -89,7 +89,7 @@ bool device_impl::is_affinity_supported(
 }
 
 cl_device_id device_impl::get() const {
-  if (MIsHostDevice || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+  if (MIsHostDevice) {
     throw invalid_object_error(
         "This instance of device doesn't support OpenCL interoperability.",
         PI_INVALID_DEVICE);

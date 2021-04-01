@@ -36,6 +36,7 @@ DPC++ extensions status:
 | [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
 | [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
 | [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
+| [ITT annotations support](ITTAnnotations/ITTAnnotations.rst) | Supported | |
 
 Legend:
 

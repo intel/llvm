@@ -366,12 +366,6 @@ def parseOptionsAndInitTestdirs():
                     args.executable)
             sys.exit(-1)
 
-    if args.server and args.out_of_tree_debugserver:
-        logging.warning('Both --server and --out-of-tree-debugserver are set')
-
-    if args.server and not args.out_of_tree_debugserver:
-        os.environ['LLDB_DEBUGSERVER_PATH'] = args.server
-
     if args.excluded:
         for excl_file in args.excluded:
             parseExclusion(excl_file)
@@ -807,6 +801,10 @@ def canRunWatchpointTests():
         except subprocess.CalledProcessError:
             pass
         return False, "security.models.extensions.user_set_dbregs disabled"
+    elif platform == "freebsd" and configuration.arch == "aarch64":
+        import lldb
+        if lldb.SBPlatform.GetHostPlatform().GetOSMajorVersion() < 13:
+            return False, "Watchpoint support on arm64 requires FreeBSD 13.0"
     return True, "watchpoint support available"
 
 def checkWatchpointSupport():

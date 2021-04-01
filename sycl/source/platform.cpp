@@ -19,10 +19,11 @@ namespace sycl {
 
 platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
-platform::platform(cl_platform_id PlatformId)
-    : impl(std::make_shared<detail::platform_impl>(
-          detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
-          RT::getPlugin<backend::opencl>())) {}
+platform::platform(cl_platform_id PlatformId) {
+  impl = detail::platform_impl::getOrMakePlatformImpl(
+      detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
+      detail::RT::getPlugin<backend::opencl>());
+}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();

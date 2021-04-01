@@ -1970,8 +1970,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   // Check to see if we have a function *definition* which must have a body.
   if (D.isFunctionDeclarator()) {
     if (Tok.is(tok::equal) && NextToken().is(tok::code_completion)) {
-      Actions.CodeCompleteAfterFunctionEquals(D);
       cutOffParsing();
+      Actions.CodeCompleteAfterFunctionEquals(D);
       return nullptr;
     }
     // Look at the next token to make sure that this isn't a function
@@ -2310,9 +2310,9 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
       InitializerScopeRAII InitScope(*this, D, ThisDecl);
 
       if (Tok.is(tok::code_completion)) {
+        cutOffParsing();
         Actions.CodeCompleteInitializer(getCurScope(), ThisDecl);
         Actions.FinalizeDeclaration(ThisDecl);
-        cutOffParsing();
         return nullptr;
       }
 
@@ -3091,10 +3091,11 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
           = DSContext == DeclSpecContext::DSC_top_level ||
             (DSContext == DeclSpecContext::DSC_class && DS.isFriendSpecified());
 
+        cutOffParsing();
         Actions.CodeCompleteDeclSpec(getCurScope(), DS,
                                      AllowNonIdentifiers,
                                      AllowNestedNameSpecifiers);
-        return cutOffParsing();
+        return;
       }
 
       if (getCurScope()->getFnParent() || getCurScope()->getBlockParent())
@@ -3107,8 +3108,9 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       else if (CurParsedObjCImpl)
         CCC = Sema::PCC_ObjCImplementation;
 
+      cutOffParsing();
       Actions.CodeCompleteOrdinaryName(getCurScope(), CCC);
-      return cutOffParsing();
+      return;
     }
 
     case tok::coloncolon: // ::foo::bar
@@ -3647,8 +3649,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       // C++ for OpenCL does not allow virtual function qualifier, to avoid
       // function pointers restricted in OpenCL v2.0 s6.9.a.
       if (getLangOpts().OpenCLCPlusPlus &&
-          !getActions().getOpenCLOptions().isEnabled(
-              "__cl_clang_function_pointers")) {
+          !getActions().getOpenCLOptions().isAvailableOption(
+              "__cl_clang_function_pointers", getLangOpts())) {
         DiagID = diag::err_openclcxx_virtual_function;
         PrevSpec = Tok.getIdentifierInfo()->getNameStart();
         isInvalid = true;
@@ -4363,8 +4365,9 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
   // Parse the tag portion of this.
   if (Tok.is(tok::code_completion)) {
     // Code completion for an enum name.
+    cutOffParsing();
     Actions.CodeCompleteTag(getCurScope(), DeclSpec::TST_enum);
-    return cutOffParsing();
+    return;
   }
 
   // If attributes exist after tag, parse them.
@@ -4772,7 +4775,6 @@ void Parser::ParseEnumBody(SourceLocation StartLoc, Decl *EnumDecl) {
     // If attributes exist after the enumerator, parse them.
     ParsedAttributesWithRange attrs(AttrFactory);
     MaybeParseGNUAttributes(attrs);
-    ProhibitAttributes(attrs); // GNU-style attributes are prohibited.
     if (standardAttributesAllowed() && isCXX11AttributeSpecifier()) {
       if (getLangOpts().CPlusPlus)
         Diag(Tok.getLocation(), getLangOpts().CPlusPlus17
@@ -5459,11 +5461,12 @@ void Parser::ParseTypeQualifierListOpt(
 
     switch (Tok.getKind()) {
     case tok::code_completion:
+      cutOffParsing();
       if (CodeCompletionHandler)
         (*CodeCompletionHandler)();
       else
         Actions.CodeCompleteTypeQualifiers(DS);
-      return cutOffParsing();
+      return;
 
     case tok::kw_const:
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_const   , Loc, PrevSpec, DiagID,
@@ -7000,8 +7003,9 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
                   std::move(attrs), T.getCloseLocation());
     return;
   } else if (Tok.getKind() == tok::code_completion) {
+    cutOffParsing();
     Actions.CodeCompleteBracketDeclarator(getCurScope());
-    return cutOffParsing();
+    return;
   }
 
   // If valid, this location is the position where we read the 'static' keyword.

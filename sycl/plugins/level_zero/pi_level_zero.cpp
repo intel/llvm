@@ -74,7 +74,7 @@ std::mutex ZeCall::GlobalLock;
 // Controls PI level tracing prints.
 static bool PrintPiTrace = false;
 
-// Map Level Zero runtime error code to PI error code
+// Map Level Zero runtime error code to PI error code.
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
   // values, which is TBD.
@@ -149,6 +149,38 @@ static void zePrint(const char *Format, ...) {
     va_end(Args);
   }
 }
+
+// Helper function to implement zeHostSynchronize.
+// The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
+// This allows for a much more responsive debugging of hangs.
+//
+template <typename T, typename Func>
+ze_result_t zeHostSynchronizeImpl(Func Api, T Handle) {
+  if (!ZeDebug) {
+    return Api(Handle, UINT64_MAX);
+  }
+
+  ze_result_t R;
+  while ((R = Api(Handle, 1000)) == ZE_RESULT_NOT_READY)
+    ;
+  return R;
+}
+
+// Template function to do various types of host synchronizations.
+// This is intended to be used instead of direct calls to specific
+// Level-Zero synchronization APIs.
+//
+template <typename T> ze_result_t zeHostSynchronize(T Handle);
+template <> ze_result_t zeHostSynchronize(ze_event_handle_t Handle) {
+  return zeHostSynchronizeImpl(zeEventHostSynchronize, Handle);
+}
+template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
+  return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
+}
+// template <>
+// ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
+//   return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
+// }
 
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -353,7 +385,8 @@ static pi_result
 enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
                      pi_bool BlockingWrite, size_t Size, const void *Src,
                      pi_uint32 NumEventsInWaitList,
-                     const pi_event *EventWaitList, pi_event *Event);
+                     const pi_event *EventWaitList, pi_event *Event,
+                     bool PreferCopyEngine = false);
 
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, void *SrcBuffer,
@@ -361,7 +394,8 @@ static pi_result enqueueMemCopyRectHelper(
     pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
     size_t SrcRowPitch, size_t SrcSlicePitch, size_t DstRowPitch,
     size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event);
+    const pi_event *EventWaitList, pi_event *Event,
+    bool PreferCopyEngine = false);
 
 inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   switch (ZeError) {
@@ -407,7 +441,7 @@ inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
 
 #undef ZE_ERRCASE
   default:
-    assert("Unexpected Error code");
+    assert(false && "Unexpected Error code");
   } // switch
 }
 
@@ -462,6 +496,15 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   // In piEventRelease, the reference counter of the Queue is decremented
   // to release it.
   piQueueRetainNoLock(Queue);
+
+  // SYCL RT does not track completion of the events, so it could
+  // release a PI event as soon as that's not being waited in the app.
+  // But we have to ensure that the event is not destroyed before
+  // it is really signalled, so retain it explicitly here and
+  // release in cleanupAfterEvent.
+  //
+  PI_CALL(piEventRetain(*Event));
+
   return PI_SUCCESS;
 }
 
@@ -490,6 +533,27 @@ pi_result _pi_device::initialize() {
     return PI_ERROR_UNKNOWN;
   }
   this->ZeComputeQueueGroupIndex = ComputeGroupIndex;
+
+  int CopyGroupIndex = -1;
+  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
+  if (UseCopyEngine) {
+    for (uint32_t i = 0; i < numQueueGroups; i++) {
+      if (((queueProperties[i].flags &
+            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
+          (queueProperties[i].flags &
+           ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
+        CopyGroupIndex = i;
+        break;
+      }
+    }
+    if (CopyGroupIndex < 0)
+      zePrint("NOTE: blitter/copy engine is not available though it was "
+              "requested\n");
+    else
+      zePrint("NOTE: blitter/copy engine is available\n");
+  }
+  this->ZeCopyQueueGroupIndex = CopyGroupIndex;
 
   // Cache device properties
   ZeDeviceProperties = {};
@@ -526,16 +590,31 @@ pi_result _pi_context::finalize() {
   ZE_CALL(zeCommandListDestroy, (ZeCommandListInit));
 
   std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
-  for (ze_command_list_handle_t &ZeCommandList : ZeCommandListCache) {
+  for (ze_command_list_handle_t &ZeCommandList : ZeComputeCommandListCache) {
+    if (ZeCommandList)
+      ZE_CALL(zeCommandListDestroy, (ZeCommandList));
+  }
+  for (ze_command_list_handle_t &ZeCommandList : ZeCopyCommandListCache) {
     if (ZeCommandList)
       ZE_CALL(zeCommandListDestroy, (ZeCommandList));
   }
   return PI_SUCCESS;
 }
 
+bool _pi_queue::isInOrderQueue() const {
+  // If out-of-order queue property is not set, then this is a in-order queue.
+  return ((this->PiQueueProperties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
+          0);
+}
+
 pi_result _pi_queue::resetCommandListFenceEntry(
     _pi_queue::command_list_fence_map_t::value_type &MapEntry,
     bool MakeAvailable) {
+  bool UseCopyEngine = MapEntry.second.IsCopyCommandList;
+  auto &ZeCommandListCache = (UseCopyEngine)
+                                 ? this->Context->ZeCopyCommandListCache
+                                 : this->Context->ZeComputeCommandListCache;
+
   // Fence had been signalled meaning the associated command-list completed.
   // Reset the fence and put the command list into a cache for reuse in PI
   // calls.
@@ -545,11 +624,31 @@ pi_result _pi_queue::resetCommandListFenceEntry(
 
   if (MakeAvailable) {
     std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
-    this->Context->ZeCommandListCache.push_back(MapEntry.first);
+    ZeCommandListCache.push_back(MapEntry.first);
   }
 
   return PI_SUCCESS;
 }
+
+// Maximum Number of Command Lists that can be created.
+// This Value is initialized to 20000, but can be changed by the user
+// thru the environment variable SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE
+// ie SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE =10000.
+static const int ZeMaxCommandListCacheSize = [] {
+  const char *CommandListCacheSize =
+      std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
+  pi_uint32 CommandListCacheSizeValue;
+  try {
+    CommandListCacheSizeValue =
+        CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
+  } catch (std::exception const &) {
+    zePrint(
+        "SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE: invalid value provided, "
+        "default set.\n");
+    CommandListCacheSizeValue = 20000;
+  }
+  return CommandListCacheSizeValue;
+}();
 
 static const pi_uint32 ZeCommandListBatchSize = [] {
   // Default value of 0. This specifies to use dynamic batch size adjustment.
@@ -567,15 +666,27 @@ static const pi_uint32 ZeCommandListBatchSize = [] {
   return BatchSizeVal;
 }();
 
+// This function requires a map lookup operation which can be expensive.
+// TODO: Restructure code to eliminate map lookup.
+bool _pi_queue::getZeCommandListIsCopyList(
+    ze_command_list_handle_t ZeCommandList) {
+  auto it = this->ZeCommandListFenceMap.find(ZeCommandList);
+  if (it == this->ZeCommandListFenceMap.end()) {
+    die("Missing command-list fence map entry");
+  }
+  return it->second.IsCopyCommandList;
+}
+
 // Retrieve an available command list to be used in a PI call
 // Caller must hold a lock on the Queue passed in.
 pi_result _pi_context::getAvailableCommandList(
     pi_queue Queue, ze_command_list_handle_t *ZeCommandList,
-    ze_fence_handle_t *ZeFence, bool AllowBatching) {
+    ze_fence_handle_t *ZeFence, bool PreferCopyEngine, bool AllowBatching) {
   // First see if there is an command-list open for batching commands
   // for this queue.
   if (Queue->ZeOpenCommandList) {
-    if (AllowBatching) {
+    // TODO: Batching of copy commands will be supported.
+    if (AllowBatching && !PreferCopyEngine) {
       *ZeCommandList = Queue->ZeOpenCommandList;
       *ZeFence = Queue->ZeOpenCommandListFence;
       return PI_SUCCESS;
@@ -588,6 +699,10 @@ pi_result _pi_context::getAvailableCommandList(
     if (auto Res = Queue->executeOpenCommandList())
       return Res;
   }
+  // Use of copy engine is enabled only for out-of-order queues.
+  // TODO: Revisit this when in-order queue spport is available in L0 plugin.
+  bool UseCopyEngine = !(Queue->isInOrderQueue()) && PreferCopyEngine &&
+                       Queue->Device->hasCopyEngine();
 
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
@@ -599,6 +714,15 @@ pi_result _pi_context::getAvailableCommandList(
   ze_fence_desc_t ZeFenceDesc = {};
   ZeFenceDesc.stype = ZE_STRUCTURE_TYPE_FENCE_DESC;
 
+  ZeCommandListDesc.commandQueueGroupOrdinal =
+      (UseCopyEngine) ? Queue->Device->ZeCopyQueueGroupIndex
+                      : Queue->Device->ZeComputeQueueGroupIndex;
+  auto &ZeCommandListCache = (UseCopyEngine)
+                                 ? Queue->Context->ZeCopyCommandListCache
+                                 : Queue->Context->ZeComputeCommandListCache;
+  auto &ZeCommandQueue = (UseCopyEngine) ? Queue->ZeCopyCommandQueue
+                                         : Queue->ZeComputeCommandQueue;
+
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
   // Level-Zero Command List and Fence for this PI call.
@@ -607,8 +731,8 @@ pi_result _pi_context::getAvailableCommandList(
     // will be a race condition.
     std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
 
-    if (Queue->Context->ZeCommandListCache.size() > 0) {
-      *ZeCommandList = Queue->Context->ZeCommandListCache.front();
+    if (ZeCommandListCache.size() > 0) {
+      *ZeCommandList = ZeCommandListCache.front();
       auto it = Queue->ZeCommandListFenceMap.find(*ZeCommandList);
       if (it != Queue->ZeCommandListFenceMap.end()) {
         *ZeFence = it->second.ZeFence;
@@ -618,10 +742,11 @@ pi_result _pi_context::getAvailableCommandList(
         // fence yet associated, then we must create a fence/list
         // reference for this Queue. This can happen if two Queues reuse
         // a device which did not have the resources freed.
-        ZE_CALL(zeFenceCreate, (Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
-        Queue->ZeCommandListFenceMap[*ZeCommandList] = {*ZeFence, true};
+        ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, ZeFence));
+        Queue->ZeCommandListFenceMap[*ZeCommandList] = {*ZeFence, true,
+                                                        UseCopyEngine};
       }
-      Queue->Context->ZeCommandListCache.pop_front();
+      ZeCommandListCache.pop_front();
       return PI_SUCCESS;
     }
   }
@@ -633,6 +758,10 @@ pi_result _pi_context::getAvailableCommandList(
   // reuse. If a command list is found to have been signalled, then the
   // command list & fence are reset and we return.
   for (auto &MapEntry : Queue->ZeCommandListFenceMap) {
+    // Make sure this is the command list type needed.
+    if (UseCopyEngine != MapEntry.second.IsCopyCommandList)
+      continue;
+
     ze_result_t ZeResult =
         ZE_CALL_NOCHECK(zeFenceQueryStatus, (MapEntry.second.ZeFence));
     if (ZeResult == ZE_RESULT_SUCCESS) {
@@ -651,16 +780,16 @@ pi_result _pi_context::getAvailableCommandList(
   // map.
   if ((*ZeCommandList == nullptr) &&
       (Queue->Device->Platform->ZeGlobalCommandListCount <
-       Queue->Device->Platform->ZeMaxCommandListCache)) {
+       ZeMaxCommandListCacheSize)) {
     ZE_CALL(zeCommandListCreate,
             (Queue->Context->ZeContext, Queue->Device->ZeDevice,
              &ZeCommandListDesc, ZeCommandList));
     // Increments the total number of command lists created on this platform.
     Queue->Device->Platform->ZeGlobalCommandListCount++;
-    ZE_CALL(zeFenceCreate, (Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
+    ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, ZeFence));
     Queue->ZeCommandListFenceMap.insert(
         std::pair<ze_command_list_handle_t, _pi_queue::command_list_fence_t>(
-            *ZeCommandList, {*ZeFence, false}));
+            *ZeCommandList, {*ZeFence, false, UseCopyEngine}));
     pi_result = PI_SUCCESS;
   }
 
@@ -741,6 +870,11 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
     this->ZeOpenCommandListSize = 0;
   }
 
+  bool UseCopyEngine = getZeCommandListIsCopyList(ZeCommandList);
+  if (UseCopyEngine)
+    zePrint("Command list to be executed on copy engine\n");
+  auto &ZeCommandQueue =
+      (UseCopyEngine) ? ZeCopyCommandQueue : ZeComputeCommandQueue;
   // Close the command list and have it ready for dispatch.
   ZE_CALL(zeCommandListClose, (ZeCommandList));
   // Offload command list to the GPU for asynchronous execution
@@ -750,7 +884,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
     // Wait until command lists attached to the command queue are executed.
-    ZE_CALL(zeCommandQueueSynchronize, (ZeCommandQueue, UINT32_MAX));
+    ZE_CALL(zeHostSynchronize, (ZeCommandQueue));
   }
   return PI_SUCCESS;
 }
@@ -941,6 +1075,27 @@ static bool setEnvVar(const char *name, const char *value) {
   return true;
 }
 
+pi_result _pi_platform::initialize() {
+  // Cache driver properties
+  ze_driver_properties_t ZeDriverProperties;
+  ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
+  uint32_t DriverVersion = ZeDriverProperties.driverVersion;
+  // Intel Level-Zero GPU driver stores version as:
+  // | 31 - 24 | 23 - 16 | 15 - 0 |
+  // |  Major  |  Minor  | Build  |
+  auto VersionMajor = std::to_string((DriverVersion & 0xFF000000) >> 24);
+  auto VersionMinor = std::to_string((DriverVersion & 0x00FF0000) >> 16);
+  auto VersionBuild = std::to_string(DriverVersion & 0x0000FFFF);
+  ZeDriverVersion = VersionMajor + "." + VersionMinor + "." + VersionBuild;
+
+  ze_api_version_t ZeApiVersion;
+  ZE_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
+  ZeDriverApiVersion = std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
+                       std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+  return PI_SUCCESS;
+}
+
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
@@ -984,8 +1139,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // We must only initialize the driver once, even if piPlatformsGet() is called
   // multiple times.  Declaring the return value as "static" ensures it's only
   // called once.
-  static ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
+  static ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit, (0));
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
@@ -1007,21 +1161,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformsCacheMutex};
   if (!PiPlatformCachePopulated) {
-    const char *CommandListCacheSize =
-        std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
-    pi_uint32 CommandListCacheSizeValue;
     try {
-      CommandListCacheSizeValue =
-          CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
-    } catch (std::exception const &) {
-      zePrint(
-          "SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE: invalid value provided, "
-          "default set.\n");
-      CommandListCacheSizeValue = 20000;
-    }
-
-    try {
-
       // Level Zero does not have concept of Platforms, but Level Zero driver is
       // the closest match.
       uint32_t ZeDriverCount = 0;
@@ -1029,36 +1169,19 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
       if (ZeDriverCount == 0) {
         PiPlatformCachePopulated = true;
       } else {
-        ze_driver_handle_t ZeDriver;
-        PI_ASSERT(ZeDriverCount == 1, PI_INVALID_VALUE);
+        std::vector<ze_driver_handle_t> ZeDrivers;
+        ZeDrivers.resize(ZeDriverCount);
 
-        ZE_CALL(zeDriverGet, (&ZeDriverCount, &ZeDriver));
-        pi_platform Platform = new _pi_platform(ZeDriver);
-
-        // Cache driver properties
-        ze_driver_properties_t ZeDriverProperties;
-        ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
-        uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
-        // Intel Level-Zero GPU driver stores version as:
-        // | 31 - 24 | 23 - 16 | 15 - 0 |
-        // |  Major  |  Minor  | Build  |
-        auto VersionMajor =
-            std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
-        auto VersionMinor =
-            std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
-        auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
-        Platform->ZeDriverVersion =
-            VersionMajor + "." + VersionMinor + "." + VersionBuild;
-
-        ze_api_version_t ZeApiVersion;
-        ZE_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
-        Platform->ZeDriverApiVersion =
-            std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
-            std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
-
-        Platform->ZeMaxCommandListCache = CommandListCacheSizeValue;
-        // Save a copy in the cache for future uses.
-        PiPlatformsCache->push_back(Platform);
+        ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
+        for (uint32_t I = 0; I < ZeDriverCount; ++I) {
+          pi_platform Platform = new _pi_platform(ZeDrivers[I]);
+          pi_result Result = Platform->initialize();
+          if (Result != PI_SUCCESS) {
+            return Result;
+          }
+          // Save a copy in the cache for future uses.
+          PiPlatformsCache->push_back(Platform);
+        }
         PiPlatformCachePopulated = true;
       }
     } catch (const std::bad_alloc &) {
@@ -1068,16 +1191,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     }
   }
 
-  if (Platforms && NumEntries > 0) {
-    uint32_t I = 0;
-    for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
-      if (I < NumEntries) {
-        *Platforms++ = CachedPlatform;
-        I++;
-      } else {
-        break;
-      }
-    }
+  // Populate returned platforms from the cache.
+  if (Platforms) {
+    PI_ASSERT(NumEntries <= PiPlatformsCache->size(), PI_INVALID_PLATFORM);
+    std::copy_n(PiPlatformsCache->begin(), NumEntries, Platforms);
   }
 
   if (NumPlatforms)
@@ -1201,24 +1318,46 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
 
-  // Get number of devices supporting Level Zero
-  uint32_t ZeDeviceCount = 0;
   std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-
   pi_result Res = populateDeviceCacheIfNeeded(Platform);
   if (Res != PI_SUCCESS) {
     return Res;
   }
 
-  ZeDeviceCount = Platform->PiDevicesCache.size();
-  const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
-  const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
+  // Filter available devices based on input DeviceType
+  std::vector<pi_device> MatchedDevices;
+  for (auto &D : Platform->PiDevicesCache) {
+    // Only ever return root-devices from piDevicesGet, but the
+    // devices cache also keeps sub-devices.
+    if (D->IsSubDevice)
+      continue;
 
-  if (ZeDeviceCount == 0 || !(AskingForGPU || AskingForDefault)) {
-    if (NumDevices)
-      *NumDevices = 0;
-    return PI_SUCCESS;
+    bool Matched = false;
+    switch (DeviceType) {
+    case PI_DEVICE_TYPE_ALL:
+      Matched = true;
+      break;
+    case PI_DEVICE_TYPE_GPU:
+    case PI_DEVICE_TYPE_DEFAULT:
+      Matched = (D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_GPU);
+      break;
+    case PI_DEVICE_TYPE_CPU:
+      Matched = (D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_CPU);
+      break;
+    case PI_DEVICE_TYPE_ACC:
+      Matched = (D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_MCA ||
+                 D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_FPGA);
+      break;
+    default:
+      Matched = false;
+      zePrint("Unknown device type");
+      break;
+    }
+    if (Matched)
+      MatchedDevices.push_back(D.get());
   }
+
+  uint32_t ZeDeviceCount = MatchedDevices.size();
 
   if (NumDevices)
     *NumDevices = ZeDeviceCount;
@@ -1230,15 +1369,9 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   // Return the devices from the cache.
-  uint32_t I = 0;
-  for (const std::unique_ptr<_pi_device> &CachedDevice :
-       Platform->PiDevicesCache) {
-    if (I < NumEntries) {
-      *Devices++ = CachedDevice.get();
-      I++;
-    } else {
-      break;
-    }
+  if (Devices) {
+    PI_ASSERT(NumEntries <= ZeDeviceCount, PI_INVALID_DEVICE);
+    std::copy_n(MatchedDevices.begin(), NumEntries, Devices);
   }
 
   return PI_SUCCESS;
@@ -1358,11 +1491,18 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   switch (ParamName) {
   case PI_DEVICE_INFO_TYPE: {
-    if (Device->ZeDeviceProperties.type != ZE_DEVICE_TYPE_GPU) {
+    switch (Device->ZeDeviceProperties.type) {
+    case ZE_DEVICE_TYPE_GPU:
+      return ReturnValue(PI_DEVICE_TYPE_GPU);
+    case ZE_DEVICE_TYPE_CPU:
+      return ReturnValue(PI_DEVICE_TYPE_CPU);
+    case ZE_DEVICE_TYPE_MCA:
+    case ZE_DEVICE_TYPE_FPGA:
+      return ReturnValue(PI_DEVICE_TYPE_ACC);
+    default:
       zePrint("This device type is not supported\n");
       return PI_INVALID_VALUE;
     }
-    return ReturnValue(PI_DEVICE_TYPE_GPU);
   }
   case PI_DEVICE_INFO_PARENT_DEVICE:
     // TODO: all Level Zero devices are parent ?
@@ -2102,7 +2242,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
             PI_INVALID_VALUE);
 
   ze_device_handle_t ZeDevice;
-  ze_command_queue_handle_t ZeCommandQueue;
+  ze_command_queue_handle_t ZeComputeCommandQueue;
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
@@ -2122,13 +2262,22 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   ZE_CALL(zeCommandQueueCreate,
           (Context->ZeContext, ZeDevice,
            &ZeCommandQueueDesc, // TODO: translate properties
-           &ZeCommandQueue));
+           &ZeComputeCommandQueue));
 
+  // Create second queue to copy engine
+  ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
+  if (Device->hasCopyEngine()) {
+    ZeCommandQueueDesc.ordinal = Device->ZeCopyQueueGroupIndex;
+    ZE_CALL(zeCommandQueueCreate,
+            (Context->ZeContext, ZeDevice,
+             &ZeCommandQueueDesc, // TODO: translate properties
+             &ZeCopyCommandQueue));
+  }
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   try {
-    *Queue =
-        new _pi_queue(ZeCommandQueue, Context, Device, ZeCommandListBatchSize);
+    *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
+                           Device, ZeCommandListBatchSize, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2197,7 +2346,9 @@ pi_result piQueueRelease(pi_queue Queue) {
         return Res;
 
       // Make sure all commands get executed.
-      zeCommandQueueSynchronize(Queue->ZeCommandQueue, UINT64_MAX);
+      ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
+      if (Queue->ZeCopyCommandQueue)
+        ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueue));
 
       // Destroy all the fences created associated with this queue.
       for (auto &MapEntry : Queue->ZeCommandListFenceMap) {
@@ -2209,8 +2360,12 @@ pi_result piQueueRelease(pi_queue Queue) {
         ZE_CALL(zeFenceDestroy, (MapEntry.second.ZeFence));
       }
       Queue->ZeCommandListFenceMap.clear();
-      ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCommandQueue));
-      Queue->ZeCommandQueue = nullptr;
+      ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
+      Queue->ZeComputeCommandQueue = nullptr;
+      if (Queue->ZeCopyCommandQueue) {
+        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
+        Queue->ZeCopyCommandQueue = nullptr;
+      }
 
       zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
               Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
@@ -2233,7 +2388,10 @@ pi_result piQueueFinish(pi_queue Queue) {
   if (auto Res = Queue->executeOpenCommandList())
     return Res;
 
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCommandQueue, UINT32_MAX));
+  ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
+  if (Queue->ZeCopyCommandQueue)
+    ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueue));
+
   return PI_SUCCESS;
 }
 
@@ -2247,7 +2405,8 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
   // Extract the Level Zero queue handle from the given PI queue
-  *ZeQueue = Queue->ZeCommandQueue;
+  *ZeQueue = Queue->ZeComputeCommandQueue; // TODO: Can we try to return copy
+                                           // command queue here?
   return PI_SUCCESS;
 }
 
@@ -2263,7 +2422,10 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Attach the queue to the "0" device.
   // TODO: see if we need to let user choose the device.
   pi_device Device = Context->Devices[0];
-  *Queue = new _pi_queue(ZeQueue, Context, Device, ZeCommandListBatchSize);
+  // TODO: see what we can do to correctly initialize PI queue for
+  // compute vs. copy Level-Zero queue.
+  *Queue =
+      new _pi_queue(ZeQueue, nullptr, Context, Device, ZeCommandListBatchSize);
   return PI_SUCCESS;
 }
 
@@ -2295,20 +2457,16 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
-  // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
-  // pinned host memory which then becomes automatically accessible from
-  // discrete devices through PCI. This property ensures that the memory
-  // map/unmap operations are free of cost and the buffer is optimized for
-  // frequent accesses from the host giving improved performance.
-  // see:
-  // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
-  bool AllocHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC;
-
-  if (AllocHostPtr) {
-    PI_ASSERT(HostPtr == nullptr, PI_INVALID_VALUE);
+  if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
+    // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
+    // pinned host memory, see:
+    // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
+    // We are however missing such functionality in Level Zero, so we just
+    // ignore the flag for now.
+    //
   }
 
-  if (AllocHostPtr || DeviceIsIntegrated) {
+  if (DeviceIsIntegrated) {
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
@@ -2350,7 +2508,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     *RetMem = new _pi_buffer(
         Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
         HostPtrOrNull, nullptr, 0, 0,
-        AllocHostPtr || DeviceIsIntegrated /* allocation in host memory */);
+        DeviceIsIntegrated /* allocation in host memory */);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3638,8 +3796,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence, true))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyEngine */,
+          true /* AllowBatching */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -3690,11 +3849,11 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
 
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
-  // We have to set the SIGNAL & WAIT flags as HOST scope because the
+  // We have to set the SIGNAL flag as HOST scope because the
   // Level-Zero plugin implementation waits for the events to complete
   // on the host.
   ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-  ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_HOST;
+  ZeEventDesc.wait = 0;
   ZeEventDesc.index = Index;
 
   ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
@@ -3852,6 +4011,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
       Event->CommandData = nullptr;
     }
+
+    if (!Event->CleanedUp) {
+      Event->CleanedUp = true;
+      // Release this event since we explicitly retained it on creation.
+      // NOTE: that this needs to be done only once for an event so
+      // this is guarded with the CleanedUp flag.
+      //
+      PI_CALL(piEventRelease(Event));
+    }
   }
 
   // Make a list of all the dependent events that must have signalled
@@ -3875,6 +4043,7 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         EventsToBeReleased);
     PI_CALL(piEventRelease(DepEvent));
   }
+
   return PI_SUCCESS;
 }
 
@@ -3900,7 +4069,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     ze_event_handle_t ZeEvent = EventList[I]->ZeEvent;
     zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-    ZE_CALL(zeEventHostSynchronize, (ZeEvent, UINT32_MAX));
+    ZE_CALL(zeHostSynchronize, (ZeEvent));
 
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
@@ -3936,6 +4105,9 @@ pi_result piEventRetain(pi_event Event) {
 
 pi_result piEventRelease(pi_event Event) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
+  if (!Event->RefCount) {
+    die("piEventRelease: called on a destroyed event");
+  }
 
   if (--(Event->RefCount) == 0) {
     cleanupAfterEvent(Event);
@@ -4183,7 +4355,10 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Res != PI_SUCCESS)
     return Res;
 
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCommandQueue, UINT64_MAX));
+  ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
+  if (Queue->ZeCopyCommandQueue)
+    ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueue));
+
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return PI_SUCCESS;
 }
@@ -4264,11 +4439,13 @@ pi_result piEnqueueMemBufferReadRect(
 
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must not have queue's mutex locked on entry.
-static pi_result
-enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
-                     pi_bool BlockingWrite, size_t Size, const void *Src,
-                     pi_uint32 NumEventsInWaitList,
-                     const pi_event *EventWaitList, pi_event *Event) {
+static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
+                                      pi_queue Queue, void *Dst,
+                                      pi_bool BlockingWrite, size_t Size,
+                                      const void *Src,
+                                      pi_uint32 NumEventsInWaitList,
+                                      const pi_event *EventWaitList,
+                                      pi_event *Event, bool PreferCopyEngine) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
@@ -4283,8 +4460,8 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence, true))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4309,8 +4486,8 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence,
-                                           BlockingWrite, true))
+  if (auto Res =
+          Queue->executeCommandList(ZeCommandList, ZeFence, BlockingWrite))
     return Res;
 
   return PI_SUCCESS;
@@ -4324,7 +4501,7 @@ static pi_result enqueueMemCopyRectHelper(
     pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
     size_t SrcRowPitch, size_t DstRowPitch, size_t SrcSlicePitch,
     size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
+    const pi_event *EventWaitList, pi_event *Event, bool PreferCopyEngine) {
 
   PI_ASSERT(Region && SrcOrigin && DstOrigin && Queue, PI_INVALID_VALUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
@@ -4336,12 +4513,11 @@ static pi_result enqueueMemCopyRectHelper(
 
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4458,13 +4634,15 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
                                  pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
   return enqueueMemCopyHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue,
       pi_cast<char *>(DstBuffer->getZeHandle()) + DstOffset,
       false, // blocking
       Size, pi_cast<char *>(SrcBuffer->getZeHandle()) + SrcOffset,
-      NumEventsInWaitList, EventWaitList, Event);
+      NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 pi_result piEnqueueMemBufferCopyRect(
@@ -4475,13 +4653,15 @@ pi_result piEnqueueMemBufferCopyRect(
     const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(SrcBuffer && DstBuffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, Queue, SrcBuffer->getZeHandle(),
       DstBuffer->getZeHandle(), SrcOrigin, DstOrigin, Region, SrcRowPitch,
       DstRowPitch, SrcSlicePitch, DstSlicePitch,
       false, // blocking
-      NumEventsInWaitList, EventWaitList, Event);
+      NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 } // extern "C"
@@ -4508,8 +4688,10 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  // Performance analysis on a simple SYCL data "fill" test shows copy engine
+  // is faster than compute engine for such operations.
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, true /* PreferCopyEngine */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4602,18 +4784,17 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing new memory allocation and a copy (read) on discrete devices.
-  // For pinned host memory and integrated devices, we have allocated the
-  // buffer in host memory so no actions are needed here except for
-  // synchronizing on incoming events. A host-to-host copy is done if a host
-  // pointer had been supplied during buffer creation on integrated devices.
+  // For integrated devices, we have allocated the buffer in host memory so no
+  // actions are needed here except for synchronizing on incoming events.
+  // A host-to-host copy is done if a host pointer had been supplied during
+  // buffer creation on integrated devices.
   //
   // TODO: for discrete, check if the input buffer is already allocated
   // in shared memory and thus is accessible from the host as is.
   // Can we get SYCL RT to predict/allocate in shared memory
   // from the beginning?
 
-  // For pinned host memory and integrated devices the buffer has been
-  // allocated in host memory.
+  // For integrated devices the buffer has been allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
@@ -4718,8 +4899,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     (*Event)->CommandData =
         (MemObj->OnHost ? nullptr : (MemObj->MapHostPtr ? nullptr : MappedPtr));
 
-  // For pinned host memory and integrated devices the buffer is allocated
-  // in host memory.
+  // For integrated devices the buffer is allocated in host memory.
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
@@ -4826,15 +5006,14 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
 
 // Helper function to implement image read/write/copy.
 // Caller must not hold a lock on the Queue passed in.
-static pi_result
-enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
-                             const void *Src, // image or ptr
-                             void *Dst,       // image or ptr
-                             pi_bool IsBlocking, pi_image_offset SrcOrigin,
-                             pi_image_offset DstOrigin, pi_image_region Region,
-                             size_t RowPitch, size_t SlicePitch,
-                             pi_uint32 NumEventsInWaitList,
-                             const pi_event *EventWaitList, pi_event *Event) {
+static pi_result enqueueMemImageCommandHelper(
+    pi_command_type CommandType, pi_queue Queue,
+    const void *Src, // image or ptr
+    void *Dst,       // image or ptr
+    pi_bool IsBlocking, pi_image_offset SrcOrigin, pi_image_offset DstOrigin,
+    pi_image_region Region, size_t RowPitch, size_t SlicePitch,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event, bool PreferCopyEngine = false) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
@@ -4849,8 +5028,8 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5010,14 +5189,16 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
                       const pi_event *EventWaitList, pi_event *Event) {
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = (SrcImage->OnHost || DstImage->OnHost);
   return enqueueMemImageCommandHelper(
       PI_COMMAND_TYPE_IMAGE_COPY, Queue, SrcImage, DstImage,
       false, // is_blocking
       SrcOrigin, DstOrigin, Region,
       0, // row pitch
       0, // slice pitch
-      NumEventsInWaitList, EventWaitList, Event);
+      NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 pi_result piEnqueueMemImageFill(pi_queue Queue, pi_mem Image,
@@ -5461,8 +5642,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  // TODO: Change PreferCopyEngine argument to 'true' once L0 backend
+  // support is added
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyEngine */))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
@@ -5517,8 +5700,11 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  // PreferCopyEngine is set to 'false' here.
+  // TODO: Additional analysis is required to check if this operation will
+  // run faster on copy engines.
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, false /* PreferCopyEngine */))
     return Res;
 
   // TODO: do we need to create a unique command type for this?

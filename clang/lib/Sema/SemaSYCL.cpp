@@ -58,6 +58,8 @@ enum KernelInvocationKind {
 
 static constexpr llvm::StringLiteral InitMethodName = "__init";
 static constexpr llvm::StringLiteral InitESIMDMethodName = "__init_esimd";
+static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
+    "__init_specialization_constants_buffer";
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
@@ -108,6 +110,10 @@ public:
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization constant class.
   static bool isSyclSpecConstantType(const QualType &Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// kernel_handler class.
+  static bool isSyclKernelHandlerType(const QualType &Ty);
 
   // Checks declaration context hierarchy.
   /// \param DC     the context of the item to be checked.
@@ -306,6 +312,37 @@ static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
   return E->getIntegerConstantExpr(Ctx)->getSExtValue();
 }
 
+// Collect function attributes related to SYCL.
+static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
+                                  llvm::SmallVector<Attr *, 4> &Attrs,
+                                  bool DirectlyCalled = true) {
+  if (!FD->hasAttrs())
+    return;
+
+  llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+    // FIXME: Make this list self-adapt as new SYCL attributes are added.
+    return isa<IntelReqdSubGroupSizeAttr, ReqdWorkGroupSizeAttr,
+               SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
+               SYCLIntelSchedulerTargetFmaxMhzAttr,
+               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
+  });
+
+  // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
+  // functions and function objects called directly from a kernel.
+  // For all other cases, emit a warning and ignore.
+  if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
+    if (DirectlyCalled) {
+      Attrs.push_back(A);
+    } else {
+      S.Diag(A->getLocation(),
+             diag::warn_attribute_on_direct_kernel_callee_only)
+          << A;
+      FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
+    }
+  }
+}
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
   // Used to keep track of the constexpr depth, so we know whether to skip
   // diagnostics.
@@ -477,7 +514,7 @@ public:
   // Returns the kernel body function found during traversal.
   FunctionDecl *
   CollectPossibleKernelAttributes(FunctionDecl *SYCLKernel,
-                                  llvm::SmallPtrSet<Attr *, 4> &Attrs) {
+                                  llvm::SmallVector<Attr *, 4> &Attrs) {
     typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
     llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
@@ -508,55 +545,41 @@ public:
                               "function can be called");
         KernelBody = FD;
       }
+
       WorkList.pop_back();
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
 
-      if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLSimdAttr>())
-        Attrs.insert(A);
-
-      // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
-      // functions and function objects that are called directly from a kernel
-      // (i.e. the one passed to the single_task or parallel_for functions).
-      // For all other cases, emit a warning and ignore.
-      if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
-        }
-      }
+      // Gather all attributes of FD that are SYCL related.
+      // Some attributes are allowed only on lambda functions and function
+      // objects called directly from a kernel (i.e. the one passed to the
+      // single_task or parallel_for functions).
+      bool DirectlyCalled = (ParentFD == SYCLKernel);
+      collectSYCLAttributes(SemaRef, FD, Attrs, DirectlyCalled);
 
       // Attribute "loop_fuse" can be applied explicitly on kernel function.
       // Attribute should not be propagated from device functions to kernel.
       if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
         if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
+          Attrs.push_back(A);
+        }
+      }
+
+      // Attribute "disable_loop_pipelining" can be applied explicitly on
+      // kernel function. Attribute should not be propagated from device
+      // functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelFPGADisableLoopPipeliningAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+      }
+
+      // Attribute "initiation_interval" can be applied explicitly on
+      // kernel function. Attribute should not be propagated from device
+      // functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
         }
       }
 
@@ -617,10 +640,15 @@ public:
     auto *M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
     if (!M || (M->getOverloadedOperator() != OO_Call))
       return true;
-    const int NumPFWGLambdaArgs = 2; // group and lambda obj
+
+    unsigned int NumPFWGLambdaArgs =
+        M->getNumParams() + 1; // group, optional kernel_handler and lambda obj
     if (Call->getNumArgs() != NumPFWGLambdaArgs)
       return true;
     if (!Util::isSyclType(Call->getArg(1)->getType(), "group", true /*Tmpl*/))
+      return true;
+    if ((Call->getNumArgs() > 2) &&
+        !Util::isSyclKernelHandlerType(Call->getArg(2)->getType()))
       return true;
     if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
       return true;
@@ -733,12 +761,7 @@ static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
-static ParamDesc makeParamDesc(ASTContext &Ctx, const CXXBaseSpecifier &Src,
-                               QualType Ty) {
-  // TODO: There is no name for the base available, but duplicate names are
-  // seemingly already possible, so we'll give them all the same name for now.
-  // This only happens with the accessor types.
-  std::string Name = "_arg__base";
+static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
@@ -776,6 +799,28 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
           PredefinedExpr::ComputeName(S.getASTContext(),
                                       PredefinedExpr::UniqueStableNameType,
                                       KernelNameType)};
+}
+
+static bool isDefaultSPIRArch(ASTContext &Context) {
+  llvm::Triple T = Context.getTargetInfo().getTriple();
+  if (T.isSPIR() && T.getSubArch() == llvm::Triple::NoSubArch)
+    return true;
+  return false;
+}
+
+static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
+  // Specialization constants in SYCL 2020 are not captured by lambda and
+  // accessed through new optional lambda argument kernel_handler
+  auto IsHandlerLambda = [](ParmVarDecl *PVD) {
+    return Util::isSyclKernelHandlerType(PVD->getType());
+  };
+
+  assert(llvm::count_if(KernelCallerFunc->parameters(), IsHandlerLambda) <= 1 &&
+         "Multiple kernel_handler parameters");
+
+  auto KHArg = llvm::find_if(KernelCallerFunc->parameters(), IsHandlerLambda);
+
+  return (KHArg != KernelCallerFunc->param_end()) ? *KHArg : nullptr;
 }
 
 // anonymous namespace so these don't get linkage.
@@ -1643,9 +1688,19 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
   void addParam(const CXXBaseSpecifier &BS, QualType FieldTy) {
+    // TODO: There is no name for the base available, but duplicate names are
+    // seemingly already possible, so we'll give them all the same name for now.
+    // This only happens with the accessor types.
+    StringRef Name = "_arg__base";
     ParamDesc newParamDesc =
-        makeParamDesc(SemaRef.getASTContext(), BS, FieldTy);
+        makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
     addParam(newParamDesc, FieldTy);
+  }
+  // Add a parameter with specified name and type
+  void addParam(StringRef Name, QualType ParamTy) {
+    ParamDesc newParamDesc =
+        makeParamDesc(SemaRef.getASTContext(), Name, ParamTy);
+    addParam(newParamDesc, ParamTy);
   }
 
   void addParam(ParamDesc newParamDesc, QualType FieldTy) {
@@ -1947,6 +2002,18 @@ public:
     return true;
   }
 
+  // Generate kernel argument to intialize specialization constants. This
+  // argument is only generated when the target has no native support for
+  // specialization constants
+  void handleSyclKernelHandlerType() {
+    ASTContext &Context = SemaRef.getASTContext();
+    if (isDefaultSPIRArch(Context))
+      return;
+
+    StringRef Name = "_arg__specialization_constants_buffer";
+    addParam(Name, Context.getPointerType(Context.CharTy));
+  }
+
   void setBody(CompoundStmt *KB) { KernelDecl->setBody(KB); }
 
   FunctionDecl *getKernelDecl() { return KernelDecl; }
@@ -2058,8 +2125,8 @@ public:
   using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
-static const CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (const auto *MD : Rec->methods()) {
+static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
+  for (auto *MD : Rec->methods()) {
     if (MD->getOverloadedOperator() == OO_Call)
       return MD;
   }
@@ -2092,28 +2159,46 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // pointer-struct-wrapping code to ensure that we don't try to wrap
   // non-top-level pointers.
   uint64_t StructDepth = 0;
+  VarDecl *KernelHandlerClone = nullptr;
+
+  Stmt *replaceWithLocalClone(ParmVarDecl *OriginalParam, VarDecl *LocalClone,
+                              Stmt *FunctionBody) {
+    // DeclRefExpr with valid source location but with decl which is not marked
+    // as used is invalid.
+    LocalClone->setIsUsed();
+    std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair =
+        std::make_pair(OriginalParam, LocalClone);
+    KernelBodyTransform KBT(MappingPair, SemaRef);
+    return KBT.TransformStmt(FunctionBody).get();
+  }
 
   // Using the statements/init expressions that we've created, this generates
   // the kernel body compound stmt. CompoundStmt needs to know its number of
   // statements in advance to allocate it, so we cannot do this as we go along.
   CompoundStmt *createKernelBody() {
+    // Push the Kernel function scope to ensure the scope isn't empty
+    SemaRef.PushFunctionScope();
+
+    // Initialize kernel object local clone
     assert(CollectionInitExprs.size() == 1 &&
            "Should have been popped down to just the first one");
     KernelObjClone->setInit(CollectionInitExprs.back());
-    Stmt *FunctionBody = KernelCallerFunc->getBody();
 
-    ParmVarDecl *KernelObjParam = *(KernelCallerFunc->param_begin());
+    // Replace references to the kernel object in kernel body, to use the
+    // compiler generated local clone
+    Stmt *NewBody =
+        replaceWithLocalClone(KernelCallerFunc->getParamDecl(0), KernelObjClone,
+                              KernelCallerFunc->getBody());
 
-    // DeclRefExpr with valid source location but with decl which is not marked
-    // as used is invalid.
-    KernelObjClone->setIsUsed();
-    std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair =
-        std::make_pair(KernelObjParam, KernelObjClone);
+    // If kernel_handler argument is passed by SYCL kernel, replace references
+    // to this argument in kernel body, to use the compiler generated local
+    // clone
+    if (ParmVarDecl *KernelHandlerParam =
+            getSyclKernelHandlerArg(KernelCallerFunc))
+      NewBody = replaceWithLocalClone(KernelHandlerParam, KernelHandlerClone,
+                                      NewBody);
 
-    // Push the Kernel function scope to ensure the scope isn't empty
-    SemaRef.PushFunctionScope();
-    KernelBodyTransform KBT(MappingPair, SemaRef);
-    Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
+    // Use transformed body (with clones) as kernel body
     BodyStmts.push_back(NewBody);
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
@@ -2413,6 +2498,39 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return true;
   }
 
+  // Generate __init call for kernel handler argument
+  void handleSpecialType(QualType KernelHandlerTy) {
+    DeclRefExpr *KernelHandlerCloneRef =
+        DeclRefExpr::Create(SemaRef.Context, NestedNameSpecifierLoc(),
+                            KernelCallerSrcLoc, KernelHandlerClone, false,
+                            DeclarationNameInfo(), KernelHandlerTy, VK_LValue);
+    const auto *RecordDecl =
+        KernelHandlerClone->getType()->getAsCXXRecordDecl();
+    MemberExprBases.push_back(KernelHandlerCloneRef);
+    createSpecialMethodCall(RecordDecl, InitSpecConstantsBuffer, BodyStmts);
+    MemberExprBases.pop_back();
+  }
+
+  void createKernelHandlerClone(ASTContext &Ctx, DeclContext *DC,
+                                ParmVarDecl *KernelHandlerArg) {
+    QualType Ty = KernelHandlerArg->getType();
+    TypeSourceInfo *TSInfo = Ctx.getTrivialTypeSourceInfo(Ty);
+    KernelHandlerClone =
+        VarDecl::Create(Ctx, DC, KernelCallerSrcLoc, KernelCallerSrcLoc,
+                        KernelHandlerArg->getIdentifier(), Ty, TSInfo, SC_None);
+
+    // Default initialize clone
+    InitializedEntity VarEntity =
+        InitializedEntity::InitializeVariable(KernelHandlerClone);
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(KernelCallerSrcLoc);
+    InitializationSequence InitSeq(SemaRef, VarEntity, InitKind, None);
+    ExprResult Init = InitSeq.Perform(SemaRef, VarEntity, InitKind, None);
+    KernelHandlerClone->setInit(
+        SemaRef.MaybeCreateExprWithCleanups(Init.get()));
+    KernelHandlerClone->setInitStyle(VarDecl::CallInit);
+  }
+
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
@@ -2515,6 +2633,28 @@ public:
   bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     addSimpleFieldInit(FD, FieldTy);
     return true;
+  }
+
+  // Default inits the type, then calls the init-method in the body
+  void handleSyclKernelHandlerType(ParmVarDecl *KernelHandlerArg) {
+
+    // Create and default initialize local clone of kernel handler
+    createKernelHandlerClone(SemaRef.getASTContext(),
+                             DeclCreator.getKernelDecl(), KernelHandlerArg);
+
+    // Add declaration statement to openCL kernel body
+    Stmt *DS =
+        new (SemaRef.Context) DeclStmt(DeclGroupRef(KernelHandlerClone),
+                                       KernelCallerSrcLoc, KernelCallerSrcLoc);
+    BodyStmts.push_back(DS);
+
+    // Generate
+    // KernelHandlerClone.__init_specialization_constants_buffer(specialization_constants_buffer)
+    // call if target does not have native support for specialization constants.
+    // Here, specialization_constants_buffer is the compiler generated kernel
+    // argument of type char*.
+    if (!isDefaultSPIRArch(SemaRef.Context))
+      handleSpecialType(KernelHandlerArg->getType());
   }
 
   bool enterStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
@@ -2871,6 +3011,22 @@ public:
     return true;
   }
 
+  void handleSyclKernelHandlerType(QualType Ty) {
+    // The compiler generated kernel argument used to initialize SYCL 2020
+    // specialization constants, `specialization_constants_buffer`, should
+    // have corresponding entry in integration header. This argument is
+    // only generated when target has no native support for specialization
+    // constants.
+    ASTContext &Context = SemaRef.getASTContext();
+    if (isDefaultSPIRArch(Context))
+      return;
+
+    // Offset is zero since kernel_handler argument is not part of
+    // kernel object (i.e. it is not captured)
+    addParam(Context.getPointerType(Context.CharTy),
+             SYCLIntegrationHeader::kind_specialization_constants_buffer, 0);
+  }
+
   bool enterStream(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     ++StructDepth;
     CurOffset += offsetOf(FD, Ty);
@@ -3149,6 +3305,56 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     KernelFunc->setInvalidDecl();
 }
 
+// For a wrapped parallel_for, copy attributes from original
+// kernel to wrapped kernel.
+void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
+  // Get the operator() function of the wrapper.
+  CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
+  assert(OpParens && "invalid kernel object");
+
+  typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
+  llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
+  llvm::SmallVector<ChildParentPair, 16> WorkList;
+  WorkList.push_back({OpParens, nullptr});
+  FunctionDecl *KernelBody = nullptr;
+
+  CallGraph SYCLCG;
+  SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+  while (!WorkList.empty()) {
+    FunctionDecl *FD = WorkList.back().first;
+    FunctionDecl *ParentFD = WorkList.back().second;
+
+    if ((ParentFD == OpParens) && isSYCLKernelBodyFunction(FD)) {
+      KernelBody = FD;
+      break;
+    }
+
+    WorkList.pop_back();
+    if (!Visited.insert(FD).second)
+      continue; // We've already seen this Decl
+
+    CallGraphNode *N = SYCLCG.getNode(FD);
+    if (!N)
+      continue;
+
+    for (const CallGraphNode *CI : *N) {
+      if (auto *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
+        Callee = Callee->getMostRecentDecl();
+        if (!Visited.count(Callee))
+          WorkList.push_back({Callee, FD});
+      }
+    }
+  }
+
+  assert(KernelBody && "improper parallel_for wrap");
+  if (KernelBody) {
+    llvm::SmallVector<Attr *, 4> Attrs;
+    collectSYCLAttributes(*this, KernelBody, Attrs);
+    if (!Attrs.empty())
+      llvm::for_each(Attrs, [OpParens](Attr *A) { OpParens->addAttr(A); });
+  }
+}
+
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
@@ -3181,14 +3387,20 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   if (KernelObj->isInvalidDecl())
     return;
 
-  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
-
   // Calculate both names, since Integration headers need both.
   std::string CalculatedName, StableName;
   std::tie(CalculatedName, StableName) =
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
+
+  // Attributes of a user-written SYCL kernel must be copied to the internally
+  // generated alternative kernel, identified by a known string in its name.
+  if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
+    copySYCLKernelAttrs(KernelObj);
+
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+
   SyclKernelDeclCreator kernel_decl(*this, KernelName, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(),
                                     IsSIMDKernel);
@@ -3202,6 +3414,13 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   KernelObjVisitor Visitor{*this};
   Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header);
   Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header);
+
+  if (ParmVarDecl *KernelHandlerArg =
+          getSyclKernelHandlerArg(KernelCallerFunc)) {
+    kernel_decl.handleSyclKernelHandlerType();
+    kernel_body.handleSyclKernelHandlerType(KernelHandlerArg);
+    int_header.handleSyclKernelHandlerType(KernelHandlerArg->getType());
+  }
 }
 
 void Sema::MarkDevice(void) {
@@ -3226,7 +3445,7 @@ void Sema::MarkDevice(void) {
       Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
 
       // Let's propagate attributes from device functions to a SYCL kernels
-      llvm::SmallPtrSet<Attr *, 4> Attrs;
+      llvm::SmallVector<Attr *, 4> Attrs;
       // This function collects all kernel attributes which might be applied to
       // a device functions, but need to be propagated down to callers, i.e.
       // SYCL kernels
@@ -3316,6 +3535,8 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLIntelUseStallEnableClusters:
         case attr::Kind::SYCLIntelLoopFuse:
+        case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
+        case attr::Kind::SYCLIntelFPGAInitiationInterval:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
@@ -3349,21 +3570,28 @@ void Sema::MarkDevice(void) {
 // SYCL device specific diagnostics implementation
 // -----------------------------------------------------------------------------
 
-Sema::SemaDiagnosticBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
-                                                       unsigned DiagID) {
+Sema::SemaDiagnosticBuilder
+Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
+                           DeviceDiagnosticReason Reason) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
-  SemaDiagnosticBuilder::Kind DiagKind = [this, FD] {
+  SemaDiagnosticBuilder::Kind DiagKind = [this, FD, Reason] {
     if (DiagnosingSYCLKernel)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
+    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted) {
+      // Skip the diagnostic if we know it won't be emitted.
+      if ((getEmissionReason(FD) & Reason) ==
+          Sema::DeviceDiagnosticReason::None)
+        return SemaDiagnosticBuilder::K_Nop;
+
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
+    }
     return SemaDiagnosticBuilder::K_Deferred;
   }();
-  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this);
+  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this, Reason);
 }
 
 bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
@@ -3384,11 +3612,12 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   SemaDiagnosticBuilder::Kind DiagKind = SemaDiagnosticBuilder::K_Nop;
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
-
-  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Sema::KernelCallUndefinedFunction;
-  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
-                    Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
+                        diag::note_previous_decl, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Callee;
 
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
@@ -3449,6 +3678,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(accessor);
     CASE(std_layout);
     CASE(sampler);
+    CASE(specialization_constants_buffer);
     CASE(pointer);
   }
   return "<ERROR>";
@@ -4031,6 +4261,15 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isSyclKernelHandlerType(const QualType &Ty) {
+  const StringRef &Name = "kernel_handler";
+  std::array<DeclContextDesc, 3> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{Decl::Kind::CXXRecord, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 

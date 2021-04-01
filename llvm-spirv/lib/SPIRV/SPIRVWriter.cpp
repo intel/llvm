@@ -1716,8 +1716,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
   }
 
   if (Instruction *Inst = dyn_cast<Instruction>(V)) {
-    BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
-                                 toString(Inst) + "\n", "", __FILE__, __LINE__);
+    BM->SPIRVCK(false, InvalidInstruction, toString(Inst));
   }
 
   llvm_unreachable("Not implemented");
@@ -2733,7 +2732,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       return BM->addInstTemplate(OpSaveMemoryINTEL, BB, Ty);
     }
     BM->getErrorLog().checkError(
-        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        BM->isUnknownIntrinsicAllowed(II), SPIRVEC_InvalidFunctionCall,
         toString(II) + "\nTranslation of llvm.stacksave intrinsic requires "
                        "SPV_INTEL_variable_length_array extension or "
                        "-spirv-allow-unknown-intrinsics option.");
@@ -2747,7 +2746,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
                                  nullptr);
     }
     BM->getErrorLog().checkError(
-        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        BM->isUnknownIntrinsicAllowed(II), SPIRVEC_InvalidFunctionCall,
         toString(II) + "\nTranslation of llvm.restore intrinsic requires "
                        "SPV_INTEL_variable_length_array extension or "
                        "-spirv-allow-unknown-intrinsics option.");
@@ -2770,7 +2769,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       return transValue(ConstantInt::getFalse(II->getType()), BB, false);
   }
   default:
-    if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
+    if (BM->isUnknownIntrinsicAllowed(II))
       return BM->addCallInst(
           transFunctionDecl(II->getCalledFunction()),
           transArguments(II, BB,
@@ -2779,9 +2778,8 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     else
       // Other LLVM intrinsics shouldn't get to SPIRV, because they
       // can't be represented in SPIRV or aren't implemented yet.
-      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                   II->getCalledOperand()->getName().str(), "",
-                                   __FILE__, __LINE__);
+      BM->SPIRVCK(
+          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
   }
   return nullptr;
 }
@@ -3685,21 +3683,23 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // Format of instruction CastFromInt:
     //   LLVM arbitrary floating point functions return value type:
     //       iN (arbitrary precision integer of N bits length)
-    //   Arguments: A(iN), Mout(i32), EnableSubnormals(i32), RoundingMode(i32),
-    //              RoundingAccuracy(i32)
+    //   Arguments: A(iN), Mout(i32), FromSign(bool), EnableSubnormals(i32),
+    //              RoundingMode(i32), RoundingAccuracy(i32)
     //   where A and return values are of arbitrary precision integer type.
     //   SPIR-V arbitrary floating point instruction layout:
-    //   <id>ResTy Res<id> A<id> Literal Mout Literal EnableSubnormals
-    //       Literal RoundingMode Literal RoundingAccuracy
+    //   <id>ResTy Res<id> A<id> Literal Mout Literal FromSign
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
 
     // Format of instruction CastToInt:
     //   LLVM arbitrary floating point functions return value: iN
-    //   Arguments: A(iN), MA(i32), EnableSubnormals(i32), RoundingMode(i32),
-    //              RoundingAccuracy(i32)
+    //   Arguments: A(iN), MA(i32), ToSign(bool), EnableSubnormals(i32),
+    //              RoundingMode(i32), RoundingAccuracy(i32)
     //   where A and return values are of arbitrary precision integer type.
     //   SPIR-V arbitrary floating point instruction layout:
-    //   <id>ResTy Res<id> A<id> Literal MA Literal EnableSubnormals
-    //       Literal RoundingMode Literal RoundingAccuracy
+    //   <id>ResTy Res<id> A<id> Literal MA Literal ToSign
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
 
     // Format of other instructions:
     //   LLVM arbitrary floating point functions return value: iN

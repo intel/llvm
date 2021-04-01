@@ -126,7 +126,7 @@ public:
 
   /// \return an OpenCL interoperability queue handle.
   cl_command_queue get() {
-    if (MHostQueue || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    if (MHostQueue) {
       throw invalid_object_error(
           "This instance of queue doesn't support OpenCL interoperability",
           PI_INVALID_QUEUE);
@@ -364,6 +364,12 @@ public:
       initHostTaskAndEventCallbackThreadPool();
 
     return *MHostTaskThreadPool;
+  }
+
+  void stopThreadPool() {
+    if (MHostTaskThreadPool) {
+      MHostTaskThreadPool->finishAndWait();
+    }
   }
 
   /// Gets the native handle of the SYCL queue.

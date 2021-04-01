@@ -25,9 +25,11 @@ namespace sycl {
 namespace detail {
 // Forward declaration
 class program_impl;
+class kernel_bundle_impl;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using ProgramImplPtr = std::shared_ptr<program_impl>;
+using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
 class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a PiKernel
@@ -55,6 +57,16 @@ public:
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource);
 
+  /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
+  /// kernel_bundle and / PiKernel.
+  ///
+  /// \param Kernel is a valid PiKernel instance
+  /// \param ContextImpl is a valid SYCL context
+  /// \param ProgramImpl is a valid instance of kernel_bundle_impl
+  kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+              DeviceImageImplPtr DeviceImageImpl,
+              KernelBundleImplPtr KernelBundleImpl);
+
   /// Constructs a SYCL kernel for host device
   ///
   /// \param Context is a valid SYCL context
@@ -80,7 +92,7 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    if (is_host()) {
       throw invalid_object_error(
           "This instance of kernel doesn't support OpenCL interoperability.",
           PI_INVALID_KERNEL);
@@ -171,11 +183,15 @@ public:
   /// \return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
+  const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
   const ProgramImplPtr MProgramImpl;
   bool MCreatedFromSource = true;
+  const DeviceImageImplPtr MDeviceImageImpl;
+  const KernelBundleImplPtr MKernelBundleImpl;
 };
 
 template <info::kernel param>

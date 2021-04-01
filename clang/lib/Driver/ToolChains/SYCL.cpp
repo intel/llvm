@@ -43,8 +43,7 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
     CmdArgs.push_back("-spirv-ext=+all");
     CmdArgs.push_back("-spirv-debug-info-version=legacy");
     CmdArgs.push_back("-spirv-allow-extra-diexpressions");
-    if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
-      CmdArgs.push_back("-spirv-allow-unknown-intrinsics");
+    CmdArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
   }
@@ -531,8 +530,17 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 
   if (!DAL) {
     DAL = new DerivedArgList(Args.getBaseArgs());
-    for (Arg *A : Args)
-      DAL->append(A);
+    for (Arg *A : Args) {
+      // Filter out any options we do not want to pass along to the device
+      // compilation.
+      switch ((options::ID)A->getOption().getID()) {
+      default:
+        DAL->append(A);
+        break;
+      case options::OPT_fcoverage_mapping:
+        break;
+      }
+    }
   }
 
   const OptTable &Opts = getDriver().getOpts();
