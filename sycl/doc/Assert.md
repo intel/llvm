@@ -81,12 +81,6 @@ public:
       : event_error(string_class(Msg), Err) {}
 
   event_error(const string_class &Msg, cl_int Err) : runtime_error(Msg, Err) {}
-
-  /// Returns global ID with the dimension provided
-  int globalId(int Dim) const;
-
-  /// Returns local ID with the dimension provided
-  int localId(int Dim) const;
 };
 ```
 
