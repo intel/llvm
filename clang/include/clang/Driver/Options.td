@@ -5685,11 +5685,11 @@ def fsycl_int_header : Separate<["-"], "fsycl-int-header">,
   MarshallingInfoString<LangOpts<"SYCLIntHeader">>;
 def fsycl_int_header_EQ : Joined<["-"], "fsycl-int-header=">,
   Alias<fsycl_int_header>;
-def fsycl_post_int_header : Separate<["-"], "fsycl-post-int-header">,
-  HelpText<"Generate SYCL post integration header into this file.">,
-  MarshallingInfoString<LangOpts<"SYCLPostIntHeader">>;
-def fsycl_post_int_header_EQ : Joined<["-"], "fsycl-post-int-header=">,
-  Alias<fsycl_post_int_header>;
+def fsycl_int_footer : Separate<["-"], "fsycl-int-footer">,
+  HelpText<"Generate SYCL integration footer into this file.">,
+  MarshallingInfoString<LangOpts<"SYCLIntFooter">>;
+def fsycl_int_footer_EQ : Joined<["-"], "fsycl-int-footer=">,
+  Alias<fsycl_int_footer>;
 def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params">,
   HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,
   MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;

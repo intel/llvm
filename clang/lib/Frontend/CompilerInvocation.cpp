@@ -4390,7 +4390,7 @@ bool CompilerInvocation::CreateFromArgsImpl(
     Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
     // If specified, create empty integration header files for now.
     CreateEmptyFile(LangOpts.SYCLIntHeader);
-    CreateEmptyFile(LangOpts.SYCLPostIntHeader);
+    CreateEmptyFile(LangOpts.SYCLIntFooter);
   }
 
   Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags, T,

@@ -3086,12 +3086,12 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
-class SyclKernelPostIntHeaderCreator : public SyclKernelFieldHandler {
-  SYCLPostIntegrationHeader &Header;
+class SyclKernelIntFooterCreator : public SyclKernelFieldHandler {
+  SYCLIntegrationFooter &Footer;
 
 public:
-  SyclKernelPostIntHeaderCreator(Sema &S, SYCLPostIntegrationHeader &H)
-      : SyclKernelFieldHandler(S), Header(H) {}
+  SyclKernelIntFooterCreator(Sema &S, SYCLIntegrationFooter &F)
+      : SyclKernelFieldHandler(S), Footer(F) {}
 };
 
 } // namespace
@@ -3419,14 +3419,13 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       calculateKernelNameType(Context, KernelCallerFunc), KernelName,
       StableName, KernelCallerFunc);
 
-  SyclKernelPostIntHeaderCreator post_int_header(
-      *this, getSyclPostIntegrationHeader());
+  SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
 
   KernelObjVisitor Visitor{*this};
   Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                           post_int_header);
+                           int_footer);
   Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                            post_int_header);
+                            int_footer);
 
   if (ParmVarDecl *KernelHandlerArg =
           getSyclKernelHandlerArg(KernelCallerFunc)) {
@@ -4239,7 +4238,7 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
     : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
 // Post-compile integration header support.
-bool SYCLPostIntegrationHeader::emit(StringRef IntHeaderName) {
+bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
     return false;
   int IntHeaderFD = 0;
@@ -4254,8 +4253,8 @@ bool SYCLPostIntegrationHeader::emit(StringRef IntHeaderName) {
   return emit(Out);
 }
 
-bool SYCLPostIntegrationHeader::emit(raw_ostream &O) {
-  O << "// Post Integration Header contents to go here.\n";
+bool SYCLIntegrationFooter::emit(raw_ostream &O) {
+  O << "// Integration Footer contents to go here.\n";
   return true;
 }
 

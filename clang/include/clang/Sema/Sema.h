@@ -430,9 +430,9 @@ private:
   Sema &S;
 };
 
-class SYCLPostIntegrationHeader {
+class SYCLIntegrationFooter {
 public:
-  SYCLPostIntegrationHeader(Sema &S) : S(S) {}
+  SYCLIntegrationFooter(Sema &S) : S(S) {}
   bool emit(StringRef MainSrc);
 
 private:
@@ -13119,7 +13119,7 @@ private:
   // SYCL integration header instance for current compilation unit this Sema
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
-  std::unique_ptr<SYCLPostIntegrationHeader> SyclPostIntHeader;
+  std::unique_ptr<SYCLIntegrationFooter> SyclIntFooter;
 
   // Used to suppress diagnostics during kernel construction, since these were
   // already emitted earlier. Diagnosing during Kernel emissions also skips the
@@ -13138,10 +13138,10 @@ public:
     return *SyclIntHeader.get();
   }
 
-  SYCLPostIntegrationHeader &getSyclPostIntegrationHeader() {
-    if (SyclPostIntHeader == nullptr)
-      SyclPostIntHeader = std::make_unique<SYCLPostIntegrationHeader>(*this);
-    return *SyclPostIntHeader.get();
+  SYCLIntegrationFooter &getSyclIntegrationFooter() {
+    if (SyclIntFooter == nullptr)
+      SyclIntFooter = std::make_unique<SYCLIntegrationFooter>(*this);
+    return *SyclIntFooter.get();
   }
 
   enum SYCLRestrictKind {
