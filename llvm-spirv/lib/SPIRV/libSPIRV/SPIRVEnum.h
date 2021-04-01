@@ -398,8 +398,6 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationFuncParamIOKindINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationStackCallINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationSIMTCallINTEL, {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(DecorationFuncParamKindINTEL, {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(DecorationFuncParamDescINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationBurstCoalesceINTEL,
                {CapabilityFPGAMemoryAccessesINTEL});
   ADD_VEC_INIT(DecorationCacheSizeINTEL, {CapabilityFPGAMemoryAccessesINTEL});

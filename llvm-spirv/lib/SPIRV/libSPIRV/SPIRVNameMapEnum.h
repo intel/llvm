@@ -158,8 +158,6 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationCacheSizeINTEL, "CacheSizeINTEL");
   add(DecorationDontStaticallyCoalesceINTEL, "DontStaticallyCoalesceINTEL");
   add(DecorationPrefetchINTEL, "PrefetchINTEL");
-  add(DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
-  add(DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(DecorationBufferLocationINTEL, "BufferLocationINTEL");
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
   add(DecorationFunctionFloatingPointModeINTEL,

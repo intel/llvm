@@ -4124,20 +4124,8 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);
     }
-    if (BA->hasDecorate(DecorationFuncParamKindINTEL, 0, &Kind)) {
-      Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
-                                      std::to_string(Kind));
-      F->addAttribute(ArgNo + 1, Attr);
-    }
     if (BA->hasDecorate(DecorationSingleElementVectorINTEL))
       F->addAttribute(ArgNo + 1, SEVAttr);
-    if (BA->hasDecorate(DecorationFuncParamDescINTEL)) {
-      auto Desc =
-          BA->getDecorationStringLiteral(DecorationFuncParamDescINTEL).front();
-      Attribute Attr =
-          Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
-      F->addAttribute(ArgNo + 1, Attr);
-    }
   }
 
   // Do not add float control if there is no any

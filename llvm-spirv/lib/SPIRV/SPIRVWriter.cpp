@@ -687,19 +687,6 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
              "This decoration is valid only for Scalar or Pointer types");
       BA->addDecorate(DecorationSingleElementVectorINTEL);
     }
-    if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCArgumentKind)) {
-      SPIRVWord Kind;
-      Attrs.getAttribute(ArgNo + 1, kVCMetadata::VCArgumentKind)
-          .getValueAsString()
-          .getAsInteger(0, Kind);
-      BA->addDecorate(DecorationFuncParamKindINTEL, Kind);
-    }
-    if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCArgumentDesc)) {
-      StringRef Desc =
-          Attrs.getAttribute(ArgNo + 1, kVCMetadata::VCArgumentDesc)
-              .getValueAsString();
-      BA->addDecorate(new SPIRVDecorateFuncParamDescAttr(BA, Desc.str()));
-    }
   }
   if (!isKernel(F) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float_controls2) &&

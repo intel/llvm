@@ -453,15 +453,6 @@ public:
       : SPIRVDecorateStrAttrBase(TheTarget, AnnotateString) {}
 };
 
-class SPIRVDecorateFuncParamDescAttr
-    : public SPIRVDecorateStrAttrBase<DecorationFuncParamDescINTEL> {
-public:
-  //  Complete constructor for UserSemantic decoration
-  SPIRVDecorateFuncParamDescAttr(SPIRVEntry *TheTarget,
-                                 const std::string &AnnotateString)
-      : SPIRVDecorateStrAttrBase(TheTarget, AnnotateString) {}
-};
-
 class SPIRVDecorateMergeINTELAttr : public SPIRVDecorate {
 public:
   // Complete constructor for MergeINTEL decoration
