@@ -39,7 +39,8 @@ class SymbolIndex;
 /// MessageHandler binds the implemented LSP methods (e.g. onInitialize) to
 /// corresponding JSON-RPC methods ("initialize").
 /// The server also supports $/cancelRequest (MessageHandler provides this).
-class ClangdLSPServer : private ClangdServer::Callbacks {
+class ClangdLSPServer : private ClangdServer::Callbacks,
+                        private LSPBinder::RawOutgoing {
 public:
   struct Options : ClangdServer::Options {
     /// Supplies configuration (overrides ClangdServer::ContextProvider).
@@ -47,9 +48,6 @@ public:
     /// Look for compilation databases, rather than using compile commands
     /// set via LSP (extensions) only.
     bool UseDirBasedCDB = true;
-    /// A fixed directory to search for a compilation database in.
-    /// If not set, we search upward from the source file.
-    llvm::Optional<Path> CompileCommandsDir;
     /// The offset-encoding to use, or None to negotiate it over LSP.
     llvm::Optional<OffsetEncoding> Encoding;
     /// If set, periodically called to release memory.
@@ -86,6 +84,7 @@ private:
                           std::vector<Diag> Diagnostics) override;
   void onFileUpdated(PathRef File, const TUStatus &Status) override;
   void onBackgroundIndexProgress(const BackgroundQueue::Stats &Stats) override;
+  void onSemanticsMaybeChanged(PathRef File) override;
 
   // LSP methods. Notifications have signature void(const Params&).
   // Calls have signature void(const Params&, Callback<Response>).
@@ -165,10 +164,27 @@ private:
   void onCommandApplyEdit(const WorkspaceEdit &, Callback<llvm::json::Value>);
   void onCommandApplyTweak(const TweakArgs &, Callback<llvm::json::Value>);
 
+  /// Outgoing LSP calls.
+  LSPBinder::OutgoingMethod<ApplyWorkspaceEditParams,
+                            ApplyWorkspaceEditResponse>
+      ApplyWorkspaceEdit;
+  LSPBinder::OutgoingNotification<ShowMessageParams> ShowMessage;
+  LSPBinder::OutgoingNotification<PublishDiagnosticsParams> PublishDiagnostics;
+  LSPBinder::OutgoingNotification<FileStatus> NotifyFileStatus;
+  LSPBinder::OutgoingMethod<WorkDoneProgressCreateParams, std::nullptr_t>
+      CreateWorkDoneProgress;
+  LSPBinder::OutgoingNotification<ProgressParams<WorkDoneProgressBegin>>
+      BeginWorkDoneProgress;
+  LSPBinder::OutgoingNotification<ProgressParams<WorkDoneProgressReport>>
+      ReportWorkDoneProgress;
+  LSPBinder::OutgoingNotification<ProgressParams<WorkDoneProgressEnd>>
+      EndWorkDoneProgress;
+  LSPBinder::OutgoingMethod<NoParams, std::nullptr_t> SemanticTokensRefresh;
+
   void applyEdit(WorkspaceEdit WE, llvm::json::Value Success,
                  Callback<llvm::json::Value> Reply);
 
-  void bindMethods(LSPBinder &);
+  void bindMethods(LSPBinder &, const ClientCapabilities &Caps);
   std::vector<Fix> getFixes(StringRef File, const clangd::Diagnostic &D);
 
   /// Checks if completion request should be ignored. We need this due to the
@@ -177,16 +193,7 @@ private:
   /// produce '->' and '::', respectively.
   bool shouldRunCompletion(const CompletionParams &Params) const;
 
-  /// Requests a reparse of currently opened files using their latest source.
-  /// This will typically only rebuild if something other than the source has
-  /// changed (e.g. the CDB yields different flags, or files included in the
-  /// preamble have been modified).
-  void reparseOpenFilesIfNeeded(
-      llvm::function_ref<bool(llvm::StringRef File)> Filter);
   void applyConfiguration(const ConfigurationSettings &Settings);
-
-  /// Sends a "publishDiagnostics" notification to the LSP client.
-  void publishDiagnostics(const PublishDiagnosticsParams &);
 
   /// Runs profiling and exports memory usage metrics if tracing is enabled and
   /// profiling hasn't happened recently.
@@ -220,35 +227,16 @@ private:
   std::mutex SemanticTokensMutex;
   llvm::StringMap<SemanticTokens> LastSemanticTokens;
 
-  // Most code should not deal with Transport directly.
-  // MessageHandler deals with incoming messages, use call() etc for outgoing.
+  // Most code should not deal with Transport, callMethod, notify directly.
+  // Use LSPBinder to handle incoming and outgoing calls.
   clangd::Transport &Transp;
   class MessageHandler;
   std::unique_ptr<MessageHandler> MsgHandler;
   std::mutex TranspWriter;
 
-  template <typename Response>
-  void call(StringRef Method, llvm::json::Value Params, Callback<Response> CB) {
-    // Wrap the callback with LSP conversion and error-handling.
-    auto HandleReply =
-        [CB = std::move(CB), Ctx = Context::current().clone(),
-         Method = Method.str()](
-            llvm::Expected<llvm::json::Value> RawResponse) mutable {
-          if (!RawResponse)
-            return CB(RawResponse.takeError());
-          CB(LSPBinder::parse<Response>(*RawResponse, Method, "response"));
-        };
-    callRaw(Method, std::move(Params), std::move(HandleReply));
-  }
-  void callRaw(StringRef Method, llvm::json::Value Params,
-               Callback<llvm::json::Value> CB);
-  void notify(StringRef Method, llvm::json::Value Params);
-  template <typename T> void progress(const llvm::json::Value &Token, T Value) {
-    ProgressParams<T> Params;
-    Params.token = Token;
-    Params.value = std::move(Value);
-    notify("$/progress", Params);
-  }
+  void callMethod(StringRef Method, llvm::json::Value Params,
+                  Callback<llvm::json::Value> CB) override;
+  void notify(StringRef Method, llvm::json::Value Params) override;
 
   LSPBinder::RawHandlers Handlers;
 
@@ -287,8 +275,6 @@ private:
   BackgroundQueue::Stats PendingBackgroundIndexProgress;
   /// LSP extension: skip WorkDoneProgressCreate, just send progress streams.
   bool BackgroundIndexSkipCreate = false;
-  // Store of the current versions of the open documents.
-  DraftStore DraftMgr;
 
   Options Opts;
   // The CDB is created by the "initialize" LSP method.

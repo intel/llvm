@@ -148,6 +148,7 @@ public:
   ///
   /// \param ClContext is an instance of OpenCL cl_context.
   /// \param AsyncHandler is an instance of async_handler.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   context(cl_context ClContext, async_handler AsyncHandler = {});
 
   /// Queries this SYCL context for information.
@@ -187,6 +188,7 @@ public:
   /// The OpenCL cl_context handle is retained on return.
   ///
   /// \return a valid instance of OpenCL cl_context.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   cl_context get() const;
 
   /// Checks if this context is a SYCL host context.

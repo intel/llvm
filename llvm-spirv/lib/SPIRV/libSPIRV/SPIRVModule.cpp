@@ -1038,21 +1038,6 @@ SPIRVValue *SPIRVModuleImpl::addConstant(SPIRVType *Ty, uint64_t V) {
   return addConstant(new SPIRVConstant(this, Ty, getId(), V));
 }
 
-// Complete constructor for AP integer constant
-template <spv::Op OC>
-SPIRVConstantBase<OC>::SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType,
-                                         SPIRVId TheId, llvm::APInt &TheValue)
-    : SPIRVValue(M, 0, OC, TheType, TheId) {
-  const uint64_t *BigValArr = TheValue.getRawData();
-  for (size_t I = 0; I != TheValue.getNumWords(); ++I) {
-    Union.Words[I * 2 + 1] =
-        (uint32_t)((BigValArr[I] & 0xFFFFFFFF00000000LL) >> 32);
-    Union.Words[I * 2] = (uint32_t)(BigValArr[I] & 0xFFFFFFFFLL);
-  }
-  recalculateWordCount();
-  validate();
-}
-
 SPIRVValue *SPIRVModuleImpl::addConstant(SPIRVType *Ty, llvm::APInt V) {
   return addConstant(new SPIRVConstant(this, Ty, getId(), V));
 }
@@ -1492,7 +1477,7 @@ SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
     Op OC, SPIRVType *ResTy, SPIRVValue *InA, SPIRVValue *InB,
     const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB) {
   // SPIR-V format:
-  //   A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout]
+  //   A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout] [Literal Sign]
   //   [Literal EnableSubnormals Literal RoundingMode Literal RoundingAccuracy]
   auto OpsItr = Ops.begin();
   std::vector<SPIRVWord> TheOps = getVec(InA->getId(), *OpsItr++);

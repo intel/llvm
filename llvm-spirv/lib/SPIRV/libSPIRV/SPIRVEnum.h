@@ -48,11 +48,17 @@ using namespace spv;
 
 namespace SPIRV {
 
+// SPIR-V specification p2.2.1. "Instructions":
+//   - SPIR-V Word size is 32 bits.
+//   - an <id> always consumes one word.
 typedef uint32_t SPIRVWord;
 typedef uint32_t SPIRVId;
 #define SPIRVID_MAX ~0U
 #define SPIRVID_INVALID ~0U
 #define SPIRVWORD_MAX ~0U
+static constexpr unsigned SpirvWordSize =
+    static_cast<unsigned>(sizeof(SPIRVWord));
+static constexpr unsigned SpirvWordBitWidth = 32;
 
 inline bool isValidId(SPIRVId Id) { return Id != SPIRVID_INVALID && Id != 0; }
 
