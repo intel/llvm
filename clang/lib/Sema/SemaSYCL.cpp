@@ -31,7 +31,6 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
-// #include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -105,8 +104,6 @@ public:
   /// \param FD    the function being checked.
   /// \param Name  the function name to be checked against.
   static bool isSyclFunction(const FunctionDecl *FD, StringRef Name);
-
-  // static void printSyclFunction(const FunctionDecl *FD);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization constant class.
@@ -368,7 +365,8 @@ public:
       Callee = Callee->getCanonicalDecl();
       assert(Callee && "Device function canonical decl must be available");
 
-      bool RecursionAllowed = TraverseEsimdKernel && Callee->hasAttr<NoInlineAttr>(); 
+      bool RecursionAllowed =
+          TraverseEsimdKernel && Callee->hasAttr<NoInlineAttr>();
       // Remember that all SYCL kernel functions have deferred
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
@@ -469,60 +467,83 @@ public:
 
   // The call graph for this translation unit.
   CallGraph SYCLCG;
-  // The set of functions called by a kernel function.
-  // llvm::SmallPtrSet<FunctionDecl *, 10> KernelSet;
-  llvm::DenseMap<FunctionDecl *, llvm::SmallPtrSet<FunctionDecl *, 10>> SYCLKernelInvokeMap;
-  // The set of recursive functions identified while building the
-  // kernel set, this is used for error diagnostics.
+  // Record the mapping between each SYCL kernel or SYCL_EXTERNAL function and
+  // functions called by it.
+  llvm::DenseMap<FunctionDecl *, llvm::SmallPtrSet<FunctionDecl *, 10>>
+      SYCLKernelInvokeMap;
+  // The set of recursive functions identified while going through the call
+  // graph for each SYCL kernel or SYCL_EXTERNAL function, this is used for
+  // error diagnostics.
   llvm::SmallPtrSet<FunctionDecl *, 10> RecursiveSet;
 
-  void WalkSYCLKernelCGNode(FunctionDecl *KernelNode, llvm::SmallPtrSet<FunctionDecl *, 10> &VisitedSet) {
-    CallGraphNode *CGN = SYCLCG.getNode(KernelNode);
-    if (!CGN)  return;
-    for (const CallGraphNode *CI : *CGN) {
-      if (FunctionDecl *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
+  // Traverse over call graph to find all functions directly or indirectly
+  // called by SYCLFunc, all functions called are recorded in VisitedSet.
+  // Each time a function is visited, check if it is a "cyclic" function
+  // which means the function will directly or indrectly call itself.
+  // All "cyclic" functions are recorded in RecursiveSet for later recursion
+  // error diagnostics.
+  void
+  WalkSYCLFunctionCG(FunctionDecl *SYCLFunc,
+                     llvm::SmallPtrSet<FunctionDecl *, 10> &VisitedSet,
+                     llvm::SmallPtrSet<FunctionDecl *, 10> CyclicCheckSet) {
+    CallGraphNode *SYCLFuncCGN = SYCLCG.getNode(SYCLFunc);
+    if (!SYCLFuncCGN)
+      return;
+    for (const CallGraphNode *CGN : *SYCLFuncCGN) {
+      if (FunctionDecl *Callee = dyn_cast<FunctionDecl>(CGN->getDecl())) {
         Callee = Callee->getCanonicalDecl();
         if (VisitedSet.count(Callee) == 0) {
-          // Util::printSyclFunction(Callee);
           VisitedSet.insert(Callee);
-          if (IsCylicSYCLFunction(Callee)) {
-            RecursiveSet.insert(Callee);
+          if (CyclicCheckSet.count(Callee) == 0) {
+            if (IsCyclicSYCLFunction(Callee)) {
+              RecursiveSet.insert(Callee);
+            }
+            CyclicCheckSet.insert(Callee);
           }
-          WalkSYCLKernelCGNode(Callee, VisitedSet);
+          WalkSYCLFunctionCG(Callee, VisitedSet, CyclicCheckSet);
         }
       }
     }
   }
 
-  bool IsCylicSYCLFunction(FunctionDecl *SYCLFunc) {
-    CallGraphNode *CGN = SYCLCG.getNode(SYCLFunc);
-    if (!CGN)  return false;
+  // Traverses over call graph to find whether a SYCL function will directly
+  // or indirectly call itself.
+  bool IsCyclicSYCLFunction(FunctionDecl *SYCLFunc) {
+    CallGraphNode *SYCLFuncCGN = SYCLCG.getNode(SYCLFunc);
+    if (!SYCLFuncCGN)
+      return false;
     llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
-    for (const CallGraphNode *CI : *CGN) {
-      if (FunctionDecl *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
+    for (const CallGraphNode *CGN : *SYCLFuncCGN) {
+      if (FunctionDecl *Callee = dyn_cast<FunctionDecl>(CGN->getDecl())) {
         Callee = Callee->getCanonicalDecl();
-        if (SYCLFunctionVisit(Callee, SYCLFunc, VisitedSet)) return true;
+        if (IsSYCLFunctionInvoke(Callee, SYCLFunc, VisitedSet))
+          return true;
       }
     }
     return false;
   }
 
-  bool SYCLFunctionVisit(FunctionDecl *FDSrc, FunctionDecl *FDDes, llvm::SmallPtrSet<FunctionDecl *, 10> &VisitedSet) {
-    if (FDSrc == FDDes) return true;
-    CallGraphNode *CGN = SYCLCG.getNode(FDSrc);
-    if (!CGN) return false;
-    for (const CallGraphNode *CI : *CGN) {
-      if (FunctionDecl *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
+  // Traverse over call graph to find whether FDSrc wil directly or indrectly
+  // call FDDes.
+  bool IsSYCLFunctionInvoke(FunctionDecl *FDSrc, FunctionDecl *FDDes,
+                            llvm::SmallPtrSet<FunctionDecl *, 10> &VisitedSet) {
+    if (FDSrc == FDDes)
+      return true;
+    CallGraphNode *SYCLFuncCGN = SYCLCG.getNode(FDSrc);
+    if (!SYCLFuncCGN)
+      return false;
+    for (const CallGraphNode *CGN : *SYCLFuncCGN) {
+      if (FunctionDecl *Callee = dyn_cast<FunctionDecl>(CGN->getDecl())) {
         Callee = Callee->getCanonicalDecl();
         if (VisitedSet.count(Callee) == 0) {
           VisitedSet.insert(Callee);
-          if (SYCLFunctionVisit(Callee, FDDes, VisitedSet)) return true;
+          if (IsSYCLFunctionInvoke(Callee, FDDes, VisitedSet))
+            return true;
         }
       }
     }
     return false;
   }
-
   void SetTraverseEsimdKernel(bool TEsimdK) { TraverseEsimdKernel = TEsimdK; }
   bool IsTraverseEsimdKernel() const { return TraverseEsimdKernel; }
   // Traverses over CallGraph to collect list of attributes applied to
@@ -3301,15 +3322,15 @@ void Sema::MarkDevice(void) {
     }
   }
 
+  llvm::SmallPtrSet<FunctionDecl *, 10> SYCLFunctionCyclicCheckSet;
   for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {
-      // Util::printSyclFunction(SYCLKernel);
       llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
-      // Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
       llvm::SmallPtrSet<FunctionDecl *, 10> SYCLKernelInvokeSet;
-      llvm::SmallPtrSet<FunctionDecl *, 10> RecurSet;
-      Marker.WalkSYCLKernelCGNode(SYCLKernel, SYCLKernelInvokeSet);
-      Marker.SYCLKernelInvokeMap.insert(std::make_pair(SYCLKernel, SYCLKernelInvokeSet));
+      Marker.WalkSYCLFunctionCG(SYCLKernel, SYCLKernelInvokeSet,
+                                SYCLFunctionCyclicCheckSet);
+      Marker.SYCLKernelInvokeMap.insert(
+          std::make_pair(SYCLKernel, SYCLKernelInvokeSet));
 
       // Let's propagate attributes from device functions to a SYCL kernels
       llvm::SmallVector<Attr *, 4> Attrs;
@@ -3426,19 +3447,44 @@ void Sema::MarkDevice(void) {
     }
   }
 
-  llvm::SmallPtrSet<FunctionDecl *, 10> NoEsimdModeVisited;
-  llvm::SmallPtrSet<FunctionDecl *, 10> EsimdModeVisited;
+  // Previously, we traverse all SYCL functions including kernel functions
+  // and functions called by kernel to do some sema check following same rules.
+  // But this mechanism can't meet our requirements now as different rules may
+  // be required for different type of SYCL kernel. For example, recursion is
+  // not allowed for normal SYCL kernel but recursive function with "noinline"
+  // attribute is permitted in SYCL ESIMD kernel.
+  // Now, we traverse each SYCL kernel together with all functions called by it
+  // directly or indirectly. Before the sema check, we will check kernel type
+  // to decide whether different rules are used. Currently, only normal SYCL
+  // kernel and SYCL ESIMD kernel are supported here. A internal flag in Marker
+  // is used to indicate whether current check is on SYCL ESIMD kernel and all
+  // functions it call directly or indirectly.
+  // The traverse will introduce unnecessary duplicate checks as a function can
+  // be called in different SYCL kernels. For example, if "kernel1" and
+  // "kernel2" both call function "foo" and these 2 kernels are same type, we
+  // firstly check "kernel1" with "foo" and when we check "kernel2", "foo" will
+  // be checked again but it is unnecessary as the rules are same with previous
+  // check. In order to avoid unnecessary checks, we use 2 set to record all
+  // checked functions in different mode, only the one not in set will be
+  // checked.
+  llvm::SmallPtrSet<FunctionDecl *, 10> NonESIMDModeCheckSet;
+  llvm::SmallPtrSet<FunctionDecl *, 10> ESIMDModeCheckSet;
   for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernelDec = dyn_cast<FunctionDecl>(D)) {
       if (FunctionDecl *SYCLKernelDef = SYCLKernelDec->getDefinition()) {
         Marker.SetTraverseEsimdKernel(SYCLKernelDef->hasAttr<SYCLSimdAttr>());
-        auto &VisitedSYCLFunctionSet = (SYCLKernelDef->hasAttr<SYCLSimdAttr>() ? EsimdModeVisited : NoEsimdModeVisited);
+        auto &SYCLFunctionCheckSet =
+            (SYCLKernelDef->hasAttr<SYCLSimdAttr>() ? ESIMDModeCheckSet
+                                                    : NonESIMDModeCheckSet);
         Marker.TraverseStmt(SYCLKernelDef->getBody());
-        for (FunctionDecl * SYCLFunctionDec : Marker.SYCLKernelInvokeMap[SYCLKernelDec]) {
-          if (VisitedSYCLFunctionSet.count(SYCLFunctionDec) != 0) continue;
-          if (FunctionDecl *SYCLFunctionDef = SYCLFunctionDec->getDefinition()) {
+        for (FunctionDecl *SYCLFunctionDec :
+             Marker.SYCLKernelInvokeMap[SYCLKernelDec]) {
+          if (SYCLFunctionCheckSet.count(SYCLFunctionDec) != 0)
+            continue;
+          if (FunctionDecl *SYCLFunctionDef =
+                  SYCLFunctionDec->getDefinition()) {
             Marker.TraverseStmt(SYCLFunctionDef->getBody());
-            VisitedSYCLFunctionSet.insert(SYCLFunctionDec);
+            SYCLFunctionCheckSet.insert(SYCLFunctionDec);
           }
         }
       }
@@ -4173,21 +4219,6 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"}};
   return matchContext(DC, Scopes);
 }
-
-/* void Util::printSyclFunction(const FunctionDecl *FD) {
-  if (FD != nullptr && FD->isFunctionOrMethod() && FD->getIdentifier() &&
-      !FD->getName().empty()) {
-    std::cout << "sycl function: " << FD->getName().str() << std::endl;
-    return;
-  }
-
-  if (FD == nullptr) std::cout << "null FD" << std::endl;
-  else if (!FD->isFunctionOrMethod()) std::cout << "FD is not function or method" << std::endl;
-  else if (!FD->getIdentifier()) std::cout << "FD has no identifier" << std::endl;
-  else if (FD->getName().empty()) std::cout << "FD empty name" << std::endl;
-  else;
-  return;
-}*/
 
 bool Util::isAccessorPropertyListType(const QualType &Ty) {
   const StringRef &Name = "accessor_property_list";
