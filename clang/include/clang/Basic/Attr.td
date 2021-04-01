@@ -1888,11 +1888,12 @@ def SYCLIntelFPGAInitiationInterval : DeclOrStmtAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
-def SYCLIntelFPGAMaxConcurrency : StmtAttr {
+def SYCLIntelFPGAMaxConcurrency : DeclOrStmtAttr {
   let Spellings = [CXX11<"intelfpga","max_concurrency">,
                    CXX11<"intel","max_concurrency">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
+                             ErrorDiag,
+                             "'for', 'while', 'do' statements, and functions">;
   let Args = [ExprArgument<"NThreadsExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
