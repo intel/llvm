@@ -1580,7 +1580,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   // MDNode for the intel_buffer_location attribute.
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
-  // MDNode for accessor no_alias property
+  // MDNode for accessor no_alias property.
   SmallVector<llvm::Metadata *, 8> argAccessorNoAliasPropertyAttr;
 
   // MDNode for listing ESIMD kernel pointer arguments originating from
