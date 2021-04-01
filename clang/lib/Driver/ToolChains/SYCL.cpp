@@ -43,8 +43,7 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
     CmdArgs.push_back("-spirv-ext=+all");
     CmdArgs.push_back("-spirv-debug-info-version=legacy");
     CmdArgs.push_back("-spirv-allow-extra-diexpressions");
-    if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
-      CmdArgs.push_back("-spirv-allow-unknown-intrinsics");
+    CmdArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
   }
