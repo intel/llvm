@@ -119,19 +119,19 @@ class feature_not_supported : public device_error {
 
 enum class errc : unsigned int {
   runtime = 0,
-  kernel,
-  accessor,
-  nd_range,
-  event,
-  kernel_argument,
-  build,
-  invalid,
-  memory_allocation,
-  platform,
-  profiling,
-  feature_not_supported,
-  kernel_not_supported,
-  backend_mismatch
+  kernel = 1,
+  accessor = 2,
+  nd_range = 3,
+  event = 4,
+  kernel_argument = 5,
+  build = 6,
+  invalid = 7,
+  memory_allocation = 8,
+  platform = 9,
+  profiling = 10,
+  feature_not_supported = 11,
+  kernel_not_supported = 12,
+  backend_mismatch = 13,
 };
 
 /// Constructs an error code using e and sycl_category()
