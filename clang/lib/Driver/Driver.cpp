@@ -3854,17 +3854,10 @@ class OffloadingActionBuilder final {
         }
       }
 
-      // FIXME: This adds the integration header generation pass before the
-      // Host compilation pass so the Host can use the header generated.  This
-      // can be improved upon to where the header generation and spv generation
-      // is done in the same step.  Currently, its not too efficient.
-      // The host depends on the generated integrated header from the device
-      // compilation.
+      // Device compilation generates LLVM BC.
       if (CurPhase == phases::Compile) {
         bool SYCLDeviceOnly = Args.hasArg(options::OPT_fsycl_device_only);
         for (Action *&A : SYCLDeviceActions) {
-          DeviceCompilerInput =
-              C.MakeAction<CompileJobAction>(A, types::TY_SYCL_Header);
           types::ID OutputType = types::TY_LLVM_BC;
           if (SYCLDeviceOnly) {
             if (Args.hasArg(options::OPT_S))
@@ -3879,6 +3872,7 @@ class OffloadingActionBuilder final {
             }
           }
           A = C.MakeAction<CompileJobAction>(A, OutputType);
+          DeviceCompilerInput = A;
         }
         const auto *TC = ToolChains.front();
         const char *BoundArch = nullptr;
@@ -5112,6 +5106,21 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   handleArguments(C, Args, Inputs, Actions);
+
+  // When compiling for -fsycl, generate the integration header files that
+  // will be used during the compilation.
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    for (auto &I : Inputs) {
+      if (!types::isSrcFile(I.first))
+        continue;
+      std::string SrcFileName(I.second->getAsString(Args));
+      std::string TmpFileNameHeader = C.getDriver().GetTemporaryPath(
+          llvm::sys::path::stem(SrcFileName + "-header"), "h");
+      const char *TmpFileHeader =
+          C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
+      addIntegrationFiles(TmpFileHeader, SrcFileName);
+    }
+  }
 
   // Builder to be used to build offloading actions.
   OffloadingActionBuilder OffloadBuilder(C, Args, Inputs);

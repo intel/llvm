@@ -648,6 +648,11 @@ private:
   /// Track filename used for the FPGA dependency info.
   mutable llvm::StringMap<const std::string> FPGATempDepFiles;
 
+  /// A list of inputs and their corresponding integration headers. These
+  /// files are generated during the device compilation and are consumed
+  /// by the host compilation.
+  mutable llvm::StringMap<const char *> IntegrationFileList;
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not
@@ -683,6 +688,17 @@ public:
   /// an FPGA object.
   const std::string getFPGATempDepFile(const std::string &FileName) const {
     return FPGATempDepFiles[FileName];
+  }
+
+  /// addIntegrationFiles - Add the integration files that will be populated
+  /// by the device compilation and used by the host compile.
+  void addIntegrationFiles(const char *IntHeaderName,
+                           const std::string &FileName) const {
+    IntegrationFileList.insert({FileName, IntHeaderName});
+  }
+  /// getIntegrationHeader - Get the integration header file
+  const char *getIntegrationHeader(const std::string &FileName) const {
+    return IntegrationFileList[FileName];
   }
 };
 
