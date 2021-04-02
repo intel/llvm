@@ -18,7 +18,7 @@
 //
 // The other operations form the bridge between the opaque pointer and
 // the actual storage of pointers, indices, and values. These operations
-// resemble 'tensor_to_memref' in the sense that they map tensors to
+// resemble 'buffer_cast' in the sense that they map tensors to
 // their bufferized memrefs, but they lower into actual calls since
 // sparse storage does not bufferize into a single memrefs, as dense
 // tensors do, but into a hierarchical storage scheme where pointers
@@ -32,9 +32,11 @@
 #define LINALG_SPARSE_OPS
 
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // Base class.
-class Linalg_SparseOp<string mnemonic> : Op<Linalg_Dialect, mnemonic, []> {
+class Linalg_SparseOp<string mnemonic, list<OpTrait> traits = []>
+  : Op<Linalg_Dialect, mnemonic, traits> {
   let printer = [{ return ::print(p, *this); }];
   let verifier = ?;
   let parser = [{ return ::parse$cppClass(parser, result); }];
@@ -65,16 +67,16 @@ def Linalg_SparseTensorFromPointerOp :
 }
 
 def Linalg_SparseTensorToPointersMemRefOp :
-    Linalg_SparseOp<"sparse_pointers">,
+    Linalg_SparseOp<"sparse_pointers", [NoSideEffect]>,
     Arguments<(ins AnyTensor:$tensor, Index:$dim)>,
     Results<(outs AnyStridedMemRefOfRank<1>:$result)> {
   let summary = "Extract pointers array at given dimension from a tensor";
   let description = [{
      Returns the pointers array of the sparse storage scheme at the
      given dimension for the given tensor. This is similar to the
-     `tensor_to_memref` operation in the sense that it provides a bridge
+     `buffer_cast` operation in the sense that it provides a bridge
      between a tensor world view and a bufferized world view. Unlike the
-     `tensor_to_memref` operation, however, this sparse operation actually
+     `buffer_cast` operation, however, this sparse operation actually
      lowers into a call into a support library to obtain access to the
      pointers array.
 
@@ -89,16 +91,16 @@ def Linalg_SparseTensorToPointersMemRefOp :
 }
 
 def Linalg_SparseTensorToIndicesMemRefOp :
-    Linalg_SparseOp<"sparse_indices">,
+    Linalg_SparseOp<"sparse_indices", [NoSideEffect]>,
     Arguments<(ins AnyTensor:$tensor, Index:$dim)>,
     Results<(outs AnyStridedMemRefOfRank<1>:$result)> {
   let summary = "Extract indices array at given dimension from a tensor";
   let description = [{
      Returns the indices array of the sparse storage scheme at the
      given dimension for the given tensor. This is similar to the
-     `tensor_to_memref` operation in the sense that it provides a bridge
+     `buffer_cast` operation in the sense that it provides a bridge
      between a tensor world view and a bufferized world view. Unlike the
-     `tensor_to_memref` operation, however, this sparse operation actually
+     `buffer_cast` operation, however, this sparse operation actually
      lowers into a call into a support library to obtain access to the
      indices array.
 
@@ -113,16 +115,16 @@ def Linalg_SparseTensorToIndicesMemRefOp :
 }
 
 def Linalg_SparseTensorToValuesMemRefOp :
-    Linalg_SparseOp<"sparse_values">,
+    Linalg_SparseOp<"sparse_values", [NoSideEffect]>,
     Arguments<(ins AnyTensor:$tensor)>,
     Results<(outs AnyStridedMemRefOfRank<1>:$result)> {
   let summary = "Extract numerical values array from a tensor";
   let description = [{
      Returns the values array of the sparse storage scheme for the given
      tensor, independent of the actual dimension. This is similar to the
-     `tensor_to_memref` operation in the sense that it provides a bridge
+     `buffer_cast` operation in the sense that it provides a bridge
      between a tensor world view and a bufferized world view. Unlike the
-     `tensor_to_memref` operation, however, this sparse operation actually
+     `buffer_cast` operation, however, this sparse operation actually
      lowers into a call into a support library to obtain access to the
      values array.
 

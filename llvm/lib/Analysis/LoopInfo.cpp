@@ -876,17 +876,14 @@ void LoopInfo::erase(Loop *Unloop) {
   // First handle the special case of no parent loop to simplify the algorithm.
   if (Unloop->isOutermost()) {
     // Since BBLoop had no parent, Unloop blocks are no longer in a loop.
-    for (Loop::block_iterator I = Unloop->block_begin(),
-                              E = Unloop->block_end();
-         I != E; ++I) {
-
+    for (BasicBlock *BB : Unloop->blocks()) {
       // Don't reparent blocks in subloops.
-      if (getLoopFor(*I) != Unloop)
+      if (getLoopFor(BB) != Unloop)
         continue;
 
       // Blocks no longer have a parent but are still referenced by Unloop until
       // the Unloop object is deleted.
-      changeLoopFor(*I, nullptr);
+      changeLoopFor(BB, nullptr);
     }
 
     // Remove the loop from the top-level LoopInfo object.
@@ -925,6 +922,31 @@ void LoopInfo::erase(Loop *Unloop) {
       break;
     }
   }
+}
+
+bool
+LoopInfo::wouldBeOutOfLoopUseRequiringLCSSA(const Value *V,
+                                            const BasicBlock *ExitBB) const {
+  if (V->getType()->isTokenTy())
+    // We can't form PHIs of token type, so the definition of LCSSA excludes
+    // values of that type.
+    return false;
+
+  const Instruction *I = dyn_cast<Instruction>(V);
+  if (!I)
+    return false;
+  const Loop *L = getLoopFor(I->getParent());
+  if (!L)
+    return false;
+  if (L->contains(ExitBB))
+    // Could be an exit bb of a subloop and contained in defining loop
+    return false;
+
+  // We found a (new) out-of-loop use location, for a value defined in-loop.
+  // (Note that because of LCSSA, we don't have to account for values defined
+  // in sibling loops.  Such values will have LCSSA phis of their own in the
+  // common parent loop.)
+  return true;
 }
 
 AnalysisKey LoopAnalysis::Key;

@@ -322,12 +322,13 @@ extern SYCL_EXTERNAL ap_int<Wout> __spirv_ArbitraryFloatCastINTEL(
 
 template <int WA, int Wout>
 extern SYCL_EXTERNAL ap_int<Wout> __spirv_ArbitraryFloatCastFromIntINTEL(
-    ap_int<WA> A, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+    ap_int<WA> A, int32_t Mout, bool FromSign = false,
+    int32_t EnableSubnormals = 0, int32_t RoundingMode = 0,
+    int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int Wout>
 extern SYCL_EXTERNAL ap_int<Wout> __spirv_ArbitraryFloatCastToIntINTEL(
-    ap_int<WA> A, int32_t MA, int32_t EnableSubnormals = 0,
+    ap_int<WA> A, int32_t MA, bool ToSign = false, int32_t EnableSubnormals = 0,
     int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int WB, int Wout>

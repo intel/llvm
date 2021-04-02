@@ -31,16 +31,15 @@ static uint32_t initProt(StringRef name) {
 }
 
 static uint32_t maxProt(StringRef name) {
-  assert(config->arch != AK_i386 &&
+  assert(config->target.Arch != AK_i386 &&
          "TODO: i386 has different maxProt requirements");
   return initProt(name);
 }
 
 size_t OutputSegment::numNonHiddenSections() const {
   size_t count = 0;
-  for (const OutputSection *osec : sections) {
+  for (const OutputSection *osec : sections)
     count += (!osec->isHidden() ? 1 : 0);
-  }
   return count;
 }
 

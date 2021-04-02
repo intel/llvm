@@ -214,4 +214,133 @@ define i1 @mul_constantexpr(i16 %a) {
   ret i1 %cmp
 }
 
+define i1 @mul_nuw(i16 %x) {
+; CHECK-LABEL: @mul_nuw(
+; CHECK-NEXT:    ret i1 false
+;
+  %nz = or i16 %x, 2
+  %mul = mul nuw i16 %nz, 2
+  %cmp = icmp eq i16 %nz, %mul
+  ret i1 %cmp
+}
+
+define i1 @mul_nuw_comm(i16 %x) {
+; CHECK-LABEL: @mul_nuw_comm(
+; CHECK-NEXT:    ret i1 false
+;
+  %nz = or i16 %x, 2
+  %mul = mul nuw i16 %nz, 2
+  %cmp = icmp eq i16 %mul, %nz
+  ret i1 %cmp
+}
+
+define i1 @mul_nsw(i16 %x) {
+; CHECK-LABEL: @mul_nsw(
+; CHECK-NEXT:    ret i1 false
+;
+  %nz = or i16 %x, 2
+  %mul = mul nsw i16 %nz, 2
+  %cmp = icmp eq i16 %nz, %mul
+  ret i1 %cmp
+}
+
+define i1 @mul_nsw_comm(i16 %x) {
+; CHECK-LABEL: @mul_nsw_comm(
+; CHECK-NEXT:    ret i1 false
+;
+  %nz = or i16 %x, 2
+  %mul = mul nsw i16 %nz, 2
+  %cmp = icmp eq i16 %mul, %nz
+  ret i1 %cmp
+}
+
+define i1 @mul_may_wrap(i16 %x) {
+; CHECK-LABEL: @mul_may_wrap(
+; CHECK-NEXT:    [[NZ:%.*]] = or i16 [[X:%.*]], 2
+; CHECK-NEXT:    [[MUL:%.*]] = mul i16 [[NZ]], 2
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i16 [[NZ]], [[MUL]]
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %nz = or i16 %x, 2
+  %mul = mul i16 %nz, 2
+  %cmp = icmp eq i16 %nz, %mul
+  ret i1 %cmp
+}
+
+define i1 @mul_may_be_zero(i16 %x) {
+; CHECK-LABEL: @mul_may_be_zero(
+; CHECK-NEXT:    [[MUL:%.*]] = mul nuw i16 [[X:%.*]], 2
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i16 [[X]], [[MUL]]
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %mul = mul nuw i16 %x, 2
+  %cmp = icmp eq i16 %x, %mul
+  ret i1 %cmp
+}
+
+define i1 @mul_other_may_be_zero_or_one(i16 %x, i16 %y) {
+; CHECK-LABEL: @mul_other_may_be_zero_or_one(
+; CHECK-NEXT:    [[NZ:%.*]] = or i16 [[X:%.*]], 2
+; CHECK-NEXT:    [[MUL:%.*]] = mul nuw i16 [[NZ]], [[Y:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i16 [[NZ]], [[MUL]]
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %nz = or i16 %x, 2
+  %mul = mul nuw i16 %nz, %y
+  %cmp = icmp eq i16 %nz, %mul
+  ret i1 %cmp
+}
+
+define i1 @known_non_equal_phis(i8 %p, i8* %pq, i8 %n, i8 %r) {
+; CHECK-LABEL: @known_non_equal_phis(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[A:%.*]] = phi i8 [ 2, [[ENTRY:%.*]] ], [ [[NEXT:%.*]], [[LOOP]] ]
+; CHECK-NEXT:    [[NEXT]] = mul nsw i8 [[A]], 2
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp eq i8 [[A]], [[N:%.*]]
+; CHECK-NEXT:    br i1 [[CMP1]], label [[EXIT:%.*]], label [[LOOP]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  br label %loop
+loop:
+  %A = phi i8 [ 2, %entry ], [ %next, %loop ]
+  %B = phi i8 [ 3, %entry ], [ %A, %loop ]
+  %next = mul nsw i8 %A, 2
+  %cmp1 = icmp eq i8 %A, %n
+  br i1 %cmp1, label %exit, label %loop
+exit:
+  %cmp = icmp ne i8 %A, %B
+  ret i1 %cmp
+}
+
+define i1 @known_non_equal_phis_fail(i8 %p, i8* %pq, i8 %n, i8 %r) {
+; CHECK-LABEL: @known_non_equal_phis_fail(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[A:%.*]] = phi i8 [ 2, [[ENTRY:%.*]] ], [ [[NEXT:%.*]], [[LOOP]] ]
+; CHECK-NEXT:    [[B:%.*]] = phi i8 [ 2, [[ENTRY]] ], [ [[A]], [[LOOP]] ]
+; CHECK-NEXT:    [[NEXT]] = mul nsw i8 [[A]], 2
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp eq i8 [[A]], [[N:%.*]]
+; CHECK-NEXT:    br i1 [[CMP1]], label [[EXIT:%.*]], label [[LOOP]]
+; CHECK:       exit:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i8 [[A]], [[B]]
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+entry:
+  br label %loop
+loop:
+  %A = phi i8 [ 2, %entry ], [ %next, %loop ]
+  %B = phi i8 [ 2, %entry ], [ %A, %loop ]
+  %next = mul nsw i8 %A, 2
+  %cmp1 = icmp eq i8 %A, %n
+  br i1 %cmp1, label %exit, label %loop
+exit:
+  %cmp = icmp ne i8 %A, %B
+  ret i1 %cmp
+}
+
 !0 = !{ i8 1, i8 5 }
