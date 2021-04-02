@@ -171,9 +171,6 @@ if config.sycl_be not in ['host', 'opencl','cuda', 'level_zero']:
                      config.sycl_be +
                      "' supported values are opencl, cuda, level_zero")
 
-config.substitutions.append( ('%clangxx-esimd',  config.dpcpp_compiler +
-                              ' ' + '-fsycl-explicit-simd' + ' ' +
-                              config.cxx_flags ) )
 config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags ) )
 config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler + ' ' + config.c_flags ) )
 config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
@@ -234,7 +231,6 @@ config.substitutions.append( ('%CPU_RUN_ON_LINUX_PLACEHOLDER',  cpu_run_on_linux
 config.substitutions.append( ('%CPU_CHECK_PLACEHOLDER',  cpu_check_substitute) )
 config.substitutions.append( ('%CPU_CHECK_ON_LINUX_PLACEHOLDER',  cpu_check_on_linux_substitute) )
 
-esimd_run_substitute = "true"
 gpu_run_substitute = "true"
 gpu_run_on_linux_substitute = "true "
 gpu_check_substitute = ""
