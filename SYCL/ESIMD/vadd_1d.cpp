@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda
-// RUN: %clangxx-esimd -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 
 #include "esimd_test_utils.hpp"

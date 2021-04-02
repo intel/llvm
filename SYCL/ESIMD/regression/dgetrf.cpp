@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda
-// RUN: %clangxx-esimd -fsycl -DUSE_REF %s -I%S/.. -o %t.ref.out
-// RUN: %clangxx-esimd -fsycl %s -I%S/.. -o %t.out
+// RUN: %clangxx -fsycl -DUSE_REF %s -I%S/.. -o %t.ref.out
+// RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.ref.out 3 2 1
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 3 2 1
 //

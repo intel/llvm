@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda
-// RUN: %clangxx-esimd -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out 20
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 20
 

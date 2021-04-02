@@ -10,7 +10,7 @@
 // based spirv translator. This test should start working on Windows when the
 // llvm version is switched to 9.
 // UNSUPPORTED: windows
-// RUN: %clangxx-esimd -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
+// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda
 //

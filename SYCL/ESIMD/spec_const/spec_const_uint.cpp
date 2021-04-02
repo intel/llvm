@@ -12,7 +12,7 @@
 // driver is disabled at all. This feature will start working on Windows when
 // the llvm version is switched to 9.
 // UNSUPPORTED: windows
-// RUN: %clangxx-esimd -fsycl -I%S/.. %s -o %t.out
+// RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda
 

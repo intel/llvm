@@ -15,7 +15,7 @@
 // Linux Level Zero fail with assertion in SPIRV about specialization constant
 // type size.
 // XFAIL: level_zero
-// RUN: %clangxx-esimd -fsycl -I%S/.. %s -o %t.out
+// RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda
 

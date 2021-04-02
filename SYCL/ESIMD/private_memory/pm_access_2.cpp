@@ -8,5 +8,5 @@
 
 // REQUIRES: gpu
 // UNSUPPORTED: cuda
-// RUN: %clangxx-esimd -fsycl -I%S/.. %S/Inputs/pm_common.cpp -o %t.out
+// RUN: %clangxx -fsycl -I%S/.. %S/Inputs/pm_common.cpp -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 2
