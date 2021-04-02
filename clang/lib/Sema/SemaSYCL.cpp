@@ -3132,6 +3132,14 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
+class SyclKernelIntFooterCreator : public SyclKernelFieldHandler {
+  SYCLIntegrationFooter &Footer;
+
+public:
+  SyclKernelIntFooterCreator(Sema &S, SYCLIntegrationFooter &F)
+      : SyclKernelFieldHandler(S), Footer(F) {}
+};
+
 } // namespace
 
 class SYCLKernelNameTypeVisitor
@@ -3457,9 +3465,13 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       calculateKernelNameType(Context, KernelCallerFunc), KernelName,
       StableName, KernelCallerFunc);
 
+  SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
+
   KernelObjVisitor Visitor{*this};
-  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header);
-  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header);
+  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
+                           int_footer);
+  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
+                            int_footer);
 
   if (ParmVarDecl *KernelHandlerArg =
           getSyclKernelHandlerArg(KernelCallerFunc)) {
@@ -4181,7 +4193,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "\n";
 }
 
-bool SYCLIntegrationHeader::emit(const StringRef &IntHeaderName) {
+bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
     return false;
   int IntHeaderFD = 0;
@@ -4253,10 +4265,30 @@ void SYCLIntegrationHeader::setCallsThisGroup(bool B) {
   K->FreeFunctionCalls.CallsThisGroup = B;
 }
 
-SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
-                                             bool _UnnamedLambdaSupport,
+SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
                                              Sema &_S)
     : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
+
+// Post-compile integration header support.
+bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
+  if (IntHeaderName.empty())
+    return false;
+  int IntHeaderFD = 0;
+  std::error_code EC =
+      llvm::sys::fs::openFileForWrite(IntHeaderName, IntHeaderFD);
+  if (EC) {
+    llvm::errs() << "Error: " << EC.message() << "\n";
+    // compilation will fail on absent include file - don't need to fail here
+    return false;
+  }
+  llvm::raw_fd_ostream Out(IntHeaderFD, true /*close in destructor*/);
+  return emit(Out);
+}
+
+bool SYCLIntegrationFooter::emit(raw_ostream &O) {
+  O << "// Integration Footer contents to go here.\n";
+  return true;
+}
 
 // -----------------------------------------------------------------------------
 // Utility class methods

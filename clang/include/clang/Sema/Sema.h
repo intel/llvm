@@ -320,15 +320,14 @@ public:
   };
 
 public:
-  SYCLIntegrationHeader(DiagnosticsEngine &Diag, bool UnnamedLambdaSupport,
-                        Sema &S);
+  SYCLIntegrationHeader(bool UnnamedLambdaSupport, Sema &S);
 
   /// Emits contents of the header into given stream.
   void emit(raw_ostream &Out);
 
   /// Emits contents of the header into a file with given name.
   /// Returns true/false on success/failure.
-  bool emit(const StringRef &MainSrc);
+  bool emit(StringRef MainSrc);
 
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
@@ -428,6 +427,16 @@ private:
   /// Whether header is generated with unnamed lambda support
   bool UnnamedLambdaSupport;
 
+  Sema &S;
+};
+
+class SYCLIntegrationFooter {
+public:
+  SYCLIntegrationFooter(Sema &S) : S(S) {}
+  bool emit(StringRef MainSrc);
+
+private:
+  bool emit(raw_ostream &O);
   Sema &S;
 };
 
@@ -13119,6 +13128,7 @@ private:
   // SYCL integration header instance for current compilation unit this Sema
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
+  std::unique_ptr<SYCLIntegrationFooter> SyclIntFooter;
 
   // Used to suppress diagnostics during kernel construction, since these were
   // already emitted earlier. Diagnosing during Kernel emissions also skips the
@@ -13133,8 +13143,14 @@ public:
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
     if (SyclIntHeader == nullptr)
       SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(
-          getDiagnostics(), getLangOpts().SYCLUnnamedLambda, *this);
+          getLangOpts().SYCLUnnamedLambda, *this);
     return *SyclIntHeader.get();
+  }
+
+  SYCLIntegrationFooter &getSyclIntegrationFooter() {
+    if (SyclIntFooter == nullptr)
+      SyclIntFooter = std::make_unique<SYCLIntegrationFooter>(*this);
+    return *SyclIntFooter.get();
   }
 
   enum SYCLRestrictKind {
