@@ -335,6 +335,12 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                        Index + IndexShift);
     break;
   }
+  case kernel_param_kind_t::kind_specialization_constants_buffer: {
+    throw cl::sycl::feature_not_supported(
+        "SYCL2020 specialization constants are not yet fully supported",
+        PI_INVALID_OPERATION);
+    break;
+  }
   }
 }
 
