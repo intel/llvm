@@ -328,8 +328,6 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
   });
 
-  // TODO: ERICH: We should probably warn on the bottom3 as well and turn this
-  // into a copy_if.
   // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
   // functions and function objects called directly from a kernel.
   // For all other cases, emit a warning and ignore.
@@ -343,37 +341,14 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
     }
   }
-  // Attribute "loop_fuse" can be applied explicitly on kernel function.
-  // Attribute should not be propagated from device functions to kernel.
-  if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
-    if (DirectlyCalled) {
-      Attrs.push_back(A);
-    }
-  }
 
-  // Attribute "max_concurrency" is applied to device functions only. The
-  // attribute is not propagated to the caller.
-  if (auto *A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>())
-    if (DirectlyCalled) {
-      Attrs.push_back(A);
-    }
-
-  // Attribute "disable_loop_pipelining" can be applied explicitly on
-  // kernel function. Attribute should not be propagated from device
-  // functions to kernel.
-  if (auto *A = FD->getAttr<SYCLIntelFPGADisableLoopPipeliningAttr>()) {
-    if (DirectlyCalled) {
-      Attrs.push_back(A);
-    }
-  }
-
-  // Attribute "initiation_interval" can be applied explicitly on
-  // kernel function. Attribute should not be propagated from device
-  // functions to kernel.
-  if (auto *A = FD->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
-    if (DirectlyCalled) {
-      Attrs.push_back(A);
-    }
+  // Attributes that should not be propagated from device functions to a kernel.
+  if (DirectlyCalled) {
+    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+      return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
+                 SYCLIntelFPGADisableLoopPipeliningAttr,
+                 SYCLIntelFPGAInitiationIntervalAttr>(A);
+    });
   }
 }
 
@@ -523,10 +498,6 @@ class DeviceFunctionTracker {
   void CollectSyclExternalFuncs() {
     for (CallGraphNode::CallRecord Record : CG.getRoot()->callees())
       if (auto *FD = dyn_cast<FunctionDecl>(Record.Callee->getDecl()))
-        // TODO: ERICH: The original excluded cases where the SYCLKernel
-        // attribute was also here, but I don't see the value here.  The
-        // collection is already a set, so it doesn't seem worth the confusion
-        // here. Figure out if there is another reason.
         if (FD->hasBody() && FD->hasAttr<SYCLDeviceAttr>())
           SemaRef.addSyclDeviceDecl(FD);
   }
@@ -3614,8 +3585,6 @@ void Sema::MarkDevices(void) {
   DeviceFunctionTracker Tracker(*this);
 
   for (Decl *D : syclDeviceDecls()) {
-    // TODO: ERICH: original code had a dyn_cast here, do we know if a
-    // non-function can end up in the sycl kernel list?  I don't think so...
     FunctionDecl *SYCLKernel = cast<FunctionDecl>(D);
 
     // This type does the actual analysis on a per-kernel basis. It does this to
