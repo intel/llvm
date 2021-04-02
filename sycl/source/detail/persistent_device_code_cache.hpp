@@ -76,7 +76,8 @@ class PersistentDeviceCodeCache {
    *   .lock   - directory lock file. It is created when data is save to
    *             filesystem. On read operation the absence of file is checked
    *             but not created to avoid lock.
-   * All filesystem operations do not treated as SYCL errors and ignored:
+   * All filesystem operations are not treated as SYCL errors and ignored. If
+   * such errors happen warning messages are written to std::err:
    *  - on cache write operation cache item is not created;
    *  - on cache read operation it is treated as cache miss.
    */

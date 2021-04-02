@@ -74,22 +74,6 @@ public:
 #endif
 
   PersistenDeviceCodeCache() : Plt{default_selector()} {
-    const char *envTmp =
-#ifdef _WIN32
-        std::getenv("TEMP");
-#else
-        std::getenv("TMP");
-#endif
-    if (envTmp != nullptr)
-      cacheRoot += envTmp;
-    else
-#ifdef _WIN32
-      cacheRoot += "C:/temp";
-#else
-      cacheRoot += "/tmp";
-#endif
-    cacheRoot += "/PersistenCache";
-    setenv("SYCL_CACHE_DIR", cacheRoot.c_str(), 0);
 
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       std::clog << "This test is only supported on OpenCL devices\n";
@@ -105,6 +89,10 @@ public:
   }
 
   void ConcurentReadWriteCache(unsigned char ProgramID, size_t ThreadCount) {
+    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+      return;
+    }
+
     DeviceCodeID = ProgramID;
     std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
         Dev, Img, {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID},
@@ -138,7 +126,6 @@ public:
   }
 
 protected:
-  std::string cacheRoot;
   detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
   platform Plt;
   device Dev;
@@ -176,6 +163,9 @@ TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
 /* Checks cache behavior when filesystem read/write operations fail
  */
 TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, "--build-options");
   detail::PersistentDeviceCodeCache::putItemToDisc(

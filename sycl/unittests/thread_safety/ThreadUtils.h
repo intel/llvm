@@ -3,8 +3,9 @@
 #include <thread>
 #include <vector>
 
-/* Thread barrier which makes threads wait until defined number of threads reach
- * the barrier.
+/* Single use thread barrier which makes threads wait until defined number of
+ * threads reach it.
+ * std:barrier should be used instead once compiler is moved to C++20 standard.
  */
 class Barrier {
 public:

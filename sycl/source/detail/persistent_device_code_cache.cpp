@@ -207,7 +207,7 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
   std::ifstream FileStream{FileName, std::ios::binary};
   if (FileStream.fail())
     return {};
-  size_t ImgNum, ImgSize;
+  size_t ImgNum = 0, ImgSize = 0;
   FileStream.read((char *)&ImgNum, sizeof(ImgNum));
   if (FileStream.fail())
     return {};
@@ -242,7 +242,6 @@ void PersistentDeviceCodeCache::writeSourceItem(
     return;
 
   std::string DeviceString{getDeviceIDString(Device)};
-
   size_t Size = DeviceString.size();
   FileStream.write((char *)&Size, sizeof(Size));
   if (FileStream.fail())
@@ -291,7 +290,7 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
 
-  size_t Size;
+  size_t Size = 0;
   FileStream.read((char *)&Size, sizeof(Size));
   if (FileStream.fail())
     return false;
