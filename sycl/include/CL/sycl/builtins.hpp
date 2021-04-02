@@ -1630,6 +1630,51 @@ extern SYCL_EXTERNAL double atanh(double x);
 extern SYCL_EXTERNAL double frexp(double x, int *exp);
 extern SYCL_EXTERNAL double ldexp(double x, int exp);
 extern SYCL_EXTERNAL double hypot(double x, double y);
+
+extern SYCL_EXTERNAL float cimagf(float __complex__ z);
+extern SYCL_EXTERNAL double cimag(double __complex__ z);
+extern SYCL_EXTERNAL float crealf(float __complex__ z);
+extern SYCL_EXTERNAL double creal(double __complex__ z);
+extern SYCL_EXTERNAL float cargf(float __complex__ z);
+extern SYCL_EXTERNAL double carg(double __complex__ z);
+extern SYCL_EXTERNAL float cabsf(float __complex__ z);
+extern SYCL_EXTERNAL double cabs(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ cprojf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ cproj(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ cexpf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ cexp(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ clogf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ clog(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ cpowf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ cpow(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ csqrtf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ csqrt(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ csinhf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ csinh(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ ccoshf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ ccosh(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ ctanhf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ ctanh(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ csinf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ csin(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ ccosf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ ccos(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ ctanf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ ctan(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ cacosf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ cacos(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ cacoshf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ cacosh(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ casinf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ casin(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ casinhf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ casinh(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ catanf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ catan(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ catanhf(float __complex__ z);
+extern SYCL_EXTERNAL double __complex__ catanh(double __complex__ z);
+extern SYCL_EXTERNAL float __complex__ cpolarf(float rho, float theta);
+extern SYCL_EXTERNAL double __complex__ cpolar(double rho, double theta);
 }
 #ifdef __GLIBC__
 extern "C" {
@@ -1638,6 +1683,14 @@ extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
 extern SYCL_EXTERNAL float frexpf(float x, int *exp);
 extern SYCL_EXTERNAL float ldexpf(float x, int exp);
 extern SYCL_EXTERNAL float hypotf(float x, float y);
+extern SYCL_EXTERNAL float __complex__ __mulsc3(float a, float b, float c,
+                                                float d);
+extern SYCL_EXTERNAL double __complex__ __muldc3(double a, double b, double c,
+                                                 double d);
+extern SYCL_EXTERNAL float __complex__ __divsc3(float a, float b, float c,
+                                                float d);
+extern SYCL_EXTERNAL double __complex__ __divdc3(float a, float b, float c,
+                                                 float d);
 }
 #elif defined(_WIN32)
 extern "C" {
