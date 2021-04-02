@@ -80,7 +80,7 @@ void constexpr_recurse_test() {
 
   ConstexprIf1<0>(); // Should not cause a diagnostic.
   // expected-error@+1{{SYCL kernel cannot call a recursive function}}
-  ConstexprIf2<1>(); // Should not cause a diagnostic.
+  ConstexprIf2<1>();
 }
 
 void constexpr_recurse_test_err() {
