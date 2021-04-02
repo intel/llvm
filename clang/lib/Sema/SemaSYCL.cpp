@@ -382,7 +382,7 @@ class DiagDeviceFunction : public RecursiveASTVisitor<DiagDeviceFunction> {
   // diagnostics.
   unsigned ConstexprDepth = 0;
   Sema &SemaRef;
-  const llvm::SmallPtrSetImpl<FunctionDecl*> &RecursiveFuncs;
+  const llvm::SmallPtrSetImpl<FunctionDecl *> &RecursiveFuncs;
 
   struct ConstexprDepthRAII {
     DiagDeviceFunction &DDF;
@@ -568,7 +568,7 @@ class SingleDeviceFunctionTracker {
   FunctionDecl *KernelBody = nullptr;
   llvm::SmallPtrSet<FunctionDecl *, 16> DeviceFunctions;
   llvm::SmallPtrSet<FunctionDecl *, 16> RecursiveFunctions;
-  llvm::SmallVector<Attr*> CollectedAttributes;
+  llvm::SmallVector<Attr *> CollectedAttributes;
 
   FunctionDecl *GetFDFromNode(CallGraphNode *Node) {
     FunctionDecl *FD = Node->getDecl()->getAsFunction();
@@ -656,7 +656,7 @@ class SingleDeviceFunctionTracker {
   // Function to walk the call graph and identify the important information.
   void Init() {
     CallGraphNode *KernelNode = Parent.getNodeForKernel(SYCLKernel);
-    llvm::SmallVector<FunctionDecl*> CallStack;
+    llvm::SmallVector<FunctionDecl *> CallStack;
     VisitCallNode(KernelNode, CallStack);
   }
 
@@ -666,15 +666,11 @@ public:
     Init();
   }
 
-  FunctionDecl *GetSYCLKernel() {
-    return SYCLKernel;
-  }
+  FunctionDecl *GetSYCLKernel() { return SYCLKernel; }
 
-  FunctionDecl *GetKernelBody() {
-    return KernelBody;
-  }
+  FunctionDecl *GetKernelBody() { return KernelBody; }
 
-  llvm::SmallVectorImpl<Attr*> &GetCollectedAttributes() {
+  llvm::SmallVectorImpl<Attr *> &GetCollectedAttributes() {
     return CollectedAttributes;
   }
 
@@ -3428,7 +3424,7 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
   assert(KernelBody && "improper parallel_for wrap");
   if (KernelBody) {
     llvm::SmallVector<Attr *, 4> Attrs;
-    collectSYCLAttributes(*this, KernelBody, Attrs, /*DirectlyCalled*/true);
+    collectSYCLAttributes(*this, KernelBody, Attrs, /*DirectlyCalled*/ true);
     if (!Attrs.empty())
       llvm::for_each(Attrs, [OpParens](Attr *A) { OpParens->addAttr(A); });
   }
