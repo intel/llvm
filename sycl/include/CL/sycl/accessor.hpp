@@ -328,8 +328,8 @@ protected:
     }
 
     template <int CurDims = SubDims>
-    typename detail::enable_if_t<
-        CurDims == 1 && IsAccessAtomic, atomic<DataT, AS>>
+    typename detail::enable_if_t<CurDims == 1 && IsAccessAtomic,
+                                 atomic<DataT, AS>>
     operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
