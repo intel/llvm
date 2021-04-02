@@ -41,7 +41,6 @@ public:
   void AddKernelArgs(const FunctionDecl *FD, StringRef ArgName,
                      std::string ArgType, SourceLocation ArgLoc) {
     Map[FD].emplace_back(ArgName, ArgType, ArgLoc);
-    auto It = Map.find(FD);
   }
   SmallVector<OptReportInfo, 4> &getInfo(const FunctionDecl *FD) {
     auto It = Map.find(FD);

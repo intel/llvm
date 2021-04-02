@@ -757,6 +757,30 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("initiation_interval",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
+  // zahira
+  llvm::DiagnosticLocation DL = SourceLocToDebugLoc(FD->getBody()->getBeginLoc());
+#if 0
+  llvm::DiagnosticLocation DL = SourceLocToDebugLoc(Fn->getLoca
+  SyclOptReportHandler &OptReportHandler = CGM.getDiags().OptReportHandler;
+  if (OptReportHandler.HasOptReportInfo(FD)) {
+    llvm::OptimizationRemarkEmitter ORE(Fn);
+    for (auto &ORI : OptReportHandler.getInfo(FD)) {
+      llvm::DiagnosticLocation DL = SourceLocToDebugLoc(ORI.KernelArgLoc);
+      llvm::OptimizationRemark Remark("sycl", "Region", DL,
+                                            &Fn->getEntryBlock());
+#if 1
+      printf("Name of FD: %s \n", FD->getName().data());
+      printf("ArgName: %s \n", ORI.KernelArgName.data());
+      printf("ArgType: %s \n", ORI.KernelArgType.data());
+      printf("ArgLoc: %d \n", ORI.KernelArgLoc.getRawEncoding());
+#endif
+      Remark << llvm::ore::NV("KernelArg", ORI.KernelArgName);
+      Remark << llvm::ore::NV("ArgType", ORI.KernelArgType);      
+      ORE.emit(Remark);
+    }
+  }
+#endif
+  // end zahira
 }
 
 /// Determine whether the function F ends with a return stmt.
@@ -1137,6 +1161,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       ArgTypes.push_back(VD->getType());
     QualType FnType = getContext().getFunctionType(
         RetTy, ArgTypes, FunctionProtoType::ExtProtoInfo(CC));
+
     DI->emitFunctionStart(GD, Loc, StartLoc, FnType, CurFn, CurFuncIsThunk);
   }
 
@@ -1484,29 +1509,29 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   // Emit the standard function prologue.
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
 
+  // zahira
+#if 1
   SyclOptReportHandler &OptReportHandler = CGM.getDiags().OptReportHandler;
 
-  // zahira
   if (OptReportHandler.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
-    //llvm::DiagnosticLocation DL = SourceLocToDebugLoc(Body->getBeginLoc());  
     for (auto &ORI : OptReportHandler.getInfo(FD)) {
       llvm::DiagnosticLocation DL = SourceLocToDebugLoc(ORI.KernelArgLoc);
-      llvm::OptimizationRemarkMissed Remark("SYCL", "ZAHIRA_Region", DL,
-                                            &Fn->getEntryBlock());
+      llvm::OptimizationRemark Remark("sycl", "Region", DL,
+                                      &Fn->getEntryBlock());
 #if 1
       printf("Name of FD: %s \n", FD->getName().data());
       printf("ArgName: %s \n", ORI.KernelArgName.data());
       printf("ArgType: %s \n", ORI.KernelArgType.data());
       printf("ArgLoc: %d \n", ORI.KernelArgLoc.getRawEncoding());
 #endif
-      //llvm::OptimizationRemark Remark("sycl", "Kernelrgs", Fn);
       Remark << llvm::ore::NV("KernelArg", ORI.KernelArgName);
-      Remark << llvm::ore::NV("ArgType", ORI.KernelArgType);      
+      Remark << llvm::ore::NV("ArgType", ORI.KernelArgType);
+      Remark << llvm::ore::NV("ArgLoc", ORI.KernelArgLoc.getRawEncoding());
       ORE.emit(Remark);
     }
   }
-
+#endif
   // Generate the body of the function.
   PGO.assignRegionCounters(GD, CurFn);
   if (isa<CXXDestructorDecl>(FD))
