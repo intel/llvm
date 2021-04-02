@@ -1630,7 +1630,17 @@ extern SYCL_EXTERNAL double atanh(double x);
 extern SYCL_EXTERNAL double frexp(double x, int *exp);
 extern SYCL_EXTERNAL double ldexp(double x, int exp);
 extern SYCL_EXTERNAL double hypot(double x, double y);
+}
+#ifdef __GLIBC__
+extern "C" {
+extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
+                                        unsigned int line, const char *func);
+extern SYCL_EXTERNAL float frexpf(float x, int *exp);
+extern SYCL_EXTERNAL float ldexpf(float x, int exp);
+extern SYCL_EXTERNAL float hypotf(float x, float y);
 
+// MS UCRT supports most of the C standard library but <complex.h> is
+// an exception.
 extern SYCL_EXTERNAL float cimagf(float __complex__ z);
 extern SYCL_EXTERNAL double cimag(double __complex__ z);
 extern SYCL_EXTERNAL float crealf(float __complex__ z);
@@ -1675,14 +1685,6 @@ extern SYCL_EXTERNAL float __complex__ catanhf(float __complex__ z);
 extern SYCL_EXTERNAL double __complex__ catanh(double __complex__ z);
 extern SYCL_EXTERNAL float __complex__ cpolarf(float rho, float theta);
 extern SYCL_EXTERNAL double __complex__ cpolar(double rho, double theta);
-}
-#ifdef __GLIBC__
-extern "C" {
-extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
-                                        unsigned int line, const char *func);
-extern SYCL_EXTERNAL float frexpf(float x, int *exp);
-extern SYCL_EXTERNAL float ldexpf(float x, int exp);
-extern SYCL_EXTERNAL float hypotf(float x, float y);
 extern SYCL_EXTERNAL float __complex__ __mulsc3(float a, float b, float c,
                                                 float d);
 extern SYCL_EXTERNAL double __complex__ __muldc3(double a, double b, double c,
