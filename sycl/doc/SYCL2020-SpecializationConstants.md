@@ -139,7 +139,7 @@ Based on those limitations, the following mapping design is proposed:
 Another significant part of the design is how specialization constants support
 is emulated: as briefly mentioned before, the general approach is to transform
 specialization constants into kernel arguments. In fact all specialization
-constants used within a program a bundler together and stored into a single
+constants used within a program are bundled together and stored into a single
 buffer, which is passed as implicit kernel argument. The layout of that buffer
 is well-defined and known to both the compiler and the runtime, so when user
 sets the value of a specialization constant, that value is being copied into
@@ -566,14 +566,19 @@ Additionally, another property set will be generated to support emulated
 specialization constants, which will contain a single property with default
 values of all specialization constants in the same form as they will be
 propagated from host to device through kernel arguments, i.e. this property will
-simply contain a blob, which can be used by DPC++ RT to either pre-initialize
-the whole buffer for specialization constants with their default value or to
-extract default value of a particular specialization constant out of it.
+simply contain a blob that for each specialization constant of type `A`
+represents an object of type `A` constructed with values passed to
+`specialization_id` constructor; those values are ordered in ascending order of
+numeric SPIR-V IDs assigned to corresponding specialization constants.
+
+This blob can be used by DPC++ RT to either pre-initialize the whole buffer for
+specialization constants with their default value or to extract default value of
+a particular specialization constant out of it.
 
 For example, the following code:
 ```
 struct Nested {
-  constexpr Nested(float a, float b) : a(a), b(b) {}
+  constexpr Nested(float a, float b) : a(a + 1.0), b(b + 1.0) {}
   float a, b;
 };
 struct A {
@@ -603,7 +608,7 @@ property_set {
       ValAddr: points to byte array [
         42, // id_int
         1, 2.0, 3.0, // id_A
-        4.0, 5.0 // id_Nested
+        5.0, 6.0 // id_Nested
       ],
       Type: PI_PROPERTY_TYPE_BYTE_ARRAY,
       Size: sizeof(byte array above)
