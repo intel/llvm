@@ -625,6 +625,7 @@ DPC++ FE is responsible for several things related to specialization constants:
    buffer with specialization constants values when they are emulated.
 3. Communicating to DPC++ RT mapping between `specialization_id`s and
    corresponding symbolic IDs through integration footer.
+4. It provides `__builtin_unique_ID` implementation.
 
 `kernel_handler` is defined by SYCL 2020 specification as interface for
 retrieving specialization constant values in SYCL kernel functions, but it
@@ -737,6 +738,15 @@ NOTE: By direct using `__builtin_unique_ID` in DPC++ Headers we could avoid
 generating integration footer at all, but since the host part of the program can
 be compiled with a third-party C++ 17-compatible compiler, which is unaware of
 the clang-specific built-ins, it can result in build errors.
+
+`__builtin_unique_ID` is defined as follows: it accepts a variable and returns
+a C-string (`const char *`), which:
+- if the variable has external linkage, the string must be consistent in all
+  translation units that reference this same variable.
+- if the variable has internal linkage, the string must be unique across all
+  translation units.
+- return string must be the same if the built-in was called twice for the same
+  variable within a single translation unit.
 
 ### DPC++ runtime
 
