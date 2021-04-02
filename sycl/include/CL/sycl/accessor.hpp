@@ -286,6 +286,8 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
+  constexpr static bool IsAccessAtomic = AccessMode == access::mode::atomic;
+
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
@@ -327,7 +329,7 @@ protected:
 
     template <int CurDims = SubDims>
     typename detail::enable_if_t<
-        CurDims == 1 && AccessMode == access::mode::atomic, atomic<DataT, AS>>
+        CurDims == 1 && IsAccessAtomic, atomic<DataT, AS>>
     operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
