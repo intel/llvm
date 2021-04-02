@@ -11,7 +11,7 @@ declare spir_func <16 x float> @_Z18__esimd_block_readIfLi16EPU3AS1fEN2cl4sycl5I
 define spir_func void @func1(float addrspace(1)* %arg1, i32 %arg2 ){
 ; CHECK-LABEL: @func1(
 ; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint float addrspace(1)* [[ARG1:%.*]] to i32, !dbg [[DBG11:![0-9]+]]
-; CHECK-NEXT:    [[CALL1_I_I_ESIMD:%.*]] = call <16 x float> @llvm.genx.oword.ld.unaligned.v16f32(i32 0, i32 [[TMP1]], i32 [[ARG2:%.*]])
+; CHECK-NEXT:    [[CALL1_I_I_ESIMD:%.*]] = call <16 x float> @llvm.genx.oword.ld.unaligned.v16f32(i32 0, i32 [[TMP1]], i32 [[ARG2:%.*]]), !dbg [[DBG11]]
 ; CHECK-NEXT:    call void @llvm.dbg.value(metadata <16 x float> [[CALL1_I_I_ESIMD]], metadata [[META9:![0-9]+]], metadata !DIExpression()), !dbg [[DBG11]]
 ; CHECK-NEXT:    ret void, !dbg [[DBG12:![0-9]+]]
 ;
@@ -22,17 +22,17 @@ define spir_func void @func1(float addrspace(1)* %arg1, i32 %arg2 ){
 define spir_func void @func2(i64 addrspace(1)* %arg1) {
 ; CHECK-LABEL: @func2(
 ; CHECK-NEXT:    call void @llvm.dbg.value(metadata <3 x i64> undef, metadata [[META15:![0-9]+]], metadata !DIExpression()), !dbg [[DBG21:![0-9]+]]
-; CHECK-NEXT:    [[DOTESIMD:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32()
-; CHECK-NEXT:    [[LOCAL_ID_X:%.*]] = extractelement <3 x i32> [[DOTESIMD]], i32 0
-; CHECK-NEXT:    [[LOCAL_ID_X_CAST_TY:%.*]] = zext i32 [[LOCAL_ID_X]] to i64
-; CHECK-NEXT:    [[DOTESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
-; CHECK-NEXT:    [[WGSIZE_X:%.*]] = extractelement <3 x i32> [[DOTESIMD1]], i32 0
-; CHECK-NEXT:    [[WGSIZE_X_CAST_TY:%.*]] = zext i32 [[WGSIZE_X]] to i64
-; CHECK-NEXT:    [[GROUP_ID_X:%.*]] = call i32 @llvm.genx.group.id.x()
-; CHECK-NEXT:    [[GROUP_ID_X_CAST_TY:%.*]] = zext i32 [[GROUP_ID_X]] to i64
+; CHECK-NEXT:    [[DOTESIMD:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32(), !dbg [[DBG22:![0-9]+]]
+; CHECK-NEXT:    [[LOCAL_ID_X:%.*]] = extractelement <3 x i32> [[DOTESIMD]], i32 0, !dbg [[DBG22]]
+; CHECK-NEXT:    [[LOCAL_ID_X_CAST_TY:%.*]] = zext i32 [[LOCAL_ID_X]] to i64, !dbg [[DBG22]]
+; CHECK-NEXT:    [[DOTESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32(), !dbg [[DBG22]]
+; CHECK-NEXT:    [[WGSIZE_X:%.*]] = extractelement <3 x i32> [[DOTESIMD1]], i32 0, !dbg [[DBG22]]
+; CHECK-NEXT:    [[WGSIZE_X_CAST_TY:%.*]] = zext i32 [[WGSIZE_X]] to i64, !dbg [[DBG22]]
+; CHECK-NEXT:    [[GROUP_ID_X:%.*]] = call i32 @llvm.genx.group.id.x(), !dbg [[DBG22]]
+; CHECK-NEXT:    [[GROUP_ID_X_CAST_TY:%.*]] = zext i32 [[GROUP_ID_X]] to i64, !dbg [[DBG22]]
 ; CHECK-NEXT:    [[MUL:%.*]] = mul i64 [[WGSIZE_X_CAST_TY]], [[GROUP_ID_X_CAST_TY]]
 ; CHECK-NEXT:    [[ADD:%.*]] = add i64 [[LOCAL_ID_X_CAST_TY]], [[MUL]]
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata i64 [[ADD]], metadata [[META17:![0-9]+]], metadata !DIExpression()), !dbg [[DBG22:![0-9]+]]
+; CHECK-NEXT:    call void @llvm.dbg.value(metadata i64 [[ADD]], metadata [[META17:![0-9]+]], metadata !DIExpression()), !dbg [[DBG22]]
 ; CHECK-NEXT:    [[PTRIDX_I_I:%.*]] = getelementptr inbounds i64, i64 addrspace(1)* [[ARG1:%.*]], i64 2, !dbg [[DBG23:![0-9]+]]
 ; CHECK-NEXT:    call void @llvm.dbg.value(metadata i64 addrspace(1)* [[PTRIDX_I_I]], metadata [[META19:![0-9]+]], metadata !DIExpression()), !dbg [[DBG23]]
 ; CHECK-NEXT:    [[PTRIDX_ASCAST_I_I:%.*]] = addrspacecast i64 addrspace(1)* [[PTRIDX_I_I]] to i64 addrspace(4)*, !dbg [[DBG24:![0-9]+]]
