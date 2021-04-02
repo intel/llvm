@@ -102,7 +102,7 @@ Based on those limitations, the following mapping design is proposed:
   ```
   namespace detail {
     template<auto &SpecName>
-    const char *get_spec_constant_symbolic_ID();
+    inline const char *get_spec_constant_symbolic_ID();
   }
   ```
   Which is only declared, but not defined in there and used to retrieve required
@@ -120,11 +120,11 @@ Based on those limitations, the following mapping design is proposed:
     // };
 
     template<>
-    const char *get_spec_constant_symbolic_ID<int_const>() {
+    inline const char *get_spec_constant_symbolic_ID<int_const>() {
       return "unique_name_for_int_const";
     }
     template<>
-    const char *get_spec_constant_symbolic_ID<Wrapper::float_const>() {
+    inline const char *get_spec_constant_symbolic_ID<Wrapper::float_const>() {
       return "unique_name_for_Wrapper_float_const";
     }
   }
@@ -712,24 +712,20 @@ Will look like:
 namespace detail {
 // generic declaration
 template<auto &SpecName>
-struct get_symbolic_id_helper{};
+inline const char *get_spec_constant_symbolic_ID();
 
 // specializations for each specialization constant:
 // we can refer to all those specialization_id variables, because integration
 // footer was _appended_ to the user-provided translation unit
 template<>
-struct get_symbolic_id_helper<id_int> {
-  static const char *get_symbolic_id() {
-    return "result of __builtin_unique_ID(id_int) encoded here";
-  }
-};
+inline const char *get_spec_constant_symbolic_ID() {
+  return "result of __builtin_unique_ID(id_int) encoded here";
+}
 
 template<>
-struct get_symbolic_id_helper<id_A> {
-  static const char *get_symbolic_id() {
-    return "result of __builtin_unique_ID(A) encoded here";
-  }
-};
+inline const char *get_spec_constant_symbolic_ID() {
+  return "result of __builtin_unique_ID(A) encoded here";
+}
 
 } // namespace detail
 
