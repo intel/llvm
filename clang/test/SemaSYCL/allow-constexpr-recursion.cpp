@@ -36,6 +36,21 @@ struct ConditionallyExplicitCtor {
 
 void conditionally_noexcept() noexcept(constexpr_recurse(5)) {}
 
+template<int I>
+void ConstexprIf1() {
+  if constexpr (I == 1)
+    ConstexprIf1<I>();
+}
+
+// Same as the above, but split up so the diagnostic is more clear.
+// expected-note@+2 2{{function implemented using recursion declared here}}
+template<int I>
+void ConstexprIf2() {
+  if constexpr (I == 1)
+    // expected-error@+1{{SYCL kernel cannot call a recursive function}}
+    ConstexprIf2<I>();
+}
+
 // All of the uses of constexpr_recurse here are forced constant expressions, so
 // they should not diagnose.
 void constexpr_recurse_test() {
@@ -62,6 +77,10 @@ void constexpr_recurse_test() {
   }
 
   ConditionallyExplicitCtor c(1);
+
+  ConstexprIf1<0>(); // Should not cause a diagnostic.
+  // expected-error@+1{{SYCL kernel cannot call a recursive function}}
+  ConstexprIf2<1>(); // Should not cause a diagnostic.
 }
 
 void constexpr_recurse_test_err() {
