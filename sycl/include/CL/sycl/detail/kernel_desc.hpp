@@ -12,6 +12,7 @@
 
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/kernel_handler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -49,10 +50,13 @@ template <class Name> struct SpecConstantInfo {
   static constexpr const char *getName() { return ""; }
 };
 
+#if __cplusplus >= 201703L
 // Translates SYCL 2020 specialization constant type to its name.
 template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
-  return __builtin_unique_stable_name(SpecName);
+  return __builtin_unique_stable_name(
+      specialization_id_name_generator<SpecName>);
 }
+#endif
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {

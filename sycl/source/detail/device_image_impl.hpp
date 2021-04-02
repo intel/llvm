@@ -79,7 +79,7 @@ public:
   };
 
   bool has_specialization_constant(const char *SpecName) const noexcept {
-    if (SpecID.count(SpecID) == 0)
+    if (MSpecConstSymMap.count(SpecName) == 0)
       return false;
 
     unsigned SpecID = MSpecConstSymMap.at(SpecName);
@@ -108,7 +108,7 @@ public:
   void get_specialization_constant_raw_value(const char *SpecName,
                                              void *ValueRet,
                                              size_t ValueSize) const noexcept {
-    unsigned SpecID = MSpecConstSymMap[SpecName];
+    unsigned SpecID = MSpecConstSymMap.at(SpecName);
     for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
       if (SpecConstDesc.ID == SpecID) {
         // Lock the mutex to prevent when one thread in the middle of writing a
@@ -161,13 +161,12 @@ private:
   void updateSpecConstSymMap() {
     if (MBinImage) {
       const pi_device_binary_struct &RawImg = MBinImage->getRawData();
-      const auto &PropSetsBegin = RawImg->PropertySetsBegin;
-      const auto &PropSetsEnd = RawImg->PropertySetsEnd;
+      const auto &PropSetsBegin = RawImg.PropertySetsBegin;
+      const auto &PropSetsEnd = RawImg.PropertySetsEnd;
       const auto &SpecConstMap = std::find_if(
           PropSetsBegin, PropSetsEnd,
           [](const _pi_device_binary_property_set_struct &Set) {
-            return strcmp(Set->Name, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP) ==
-                   0;
+            return strcmp(Set.Name, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP) == 0;
           });
 
       if (SpecConstMap != PropSetsEnd) {
@@ -181,6 +180,7 @@ private:
                       });
       }
     }
+  }
 
     const RTDeviceBinaryImage *MBinImage = nullptr;
     context MContext;
