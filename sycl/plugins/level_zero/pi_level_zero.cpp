@@ -4031,6 +4031,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
       Event->CommandData = nullptr;
     }
 
+    // If this event was the LastCommandEvent in the queue, being used
+    // to make sure that commands were executed in-order, remove this.
+    // If we don't do this, the event can get released and freed leaving
+    // a dangling pointer to this event.  It could also cause unneeded
+    // already finished events to show up in the wait list.
+    if (Queue->LastCommandEvent == Event) {
+      Queue->LastCommandEvent = nullptr;
+    }
+
     if (!Event->CleanedUp) {
       Event->CleanedUp = true;
       // Release this event since we explicitly retained it on creation.
