@@ -324,6 +324,14 @@ protected:
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
+    
+    template <int CurDims = SubDims>
+    typename detail::enable_if_t<CurDims == 1 && AccessMode == access::mode::atomic,
+                              atomic<DataT, AS>> 
+    operator[](size_t Index) const {
+      MIDs[Dims - CurDims] = Index;
+      return MAccessor[MIDs];
+    }
 
     template <int CurDims = SubDims,
               typename = detail::enable_if_t<CurDims == 1 && IsAccessReadOnly>>
