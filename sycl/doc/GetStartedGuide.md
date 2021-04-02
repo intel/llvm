@@ -639,8 +639,10 @@ which contains all the symbols required.
 
 ## C++ standard
 
-* DPC++ runtime and headers require C++14 at least.
-* DPC++ compiler is building apps as C++17 apps by default.
+* DPC++ headers require C++17 at least.
+* DPC++ runtime requires C++14 at least.
+* DPC++ compiler supports building apps as C++17 apps and higher.
+* DPC++ compiler builds apps as C++17 apps by default.
 
 ## Known Issues and Limitations
 
