@@ -651,7 +651,7 @@ private:
   /// A list of inputs and their corresponding integration headers. These
   /// files are generated during the device compilation and are consumed
   /// by the host compilation.
-  mutable llvm::StringMap<const char *> IntegrationFileList;
+  mutable llvm::StringMap<StringRef> IntegrationFileList;
 
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
@@ -697,7 +697,7 @@ public:
     IntegrationFileList.insert({FileName, IntHeaderName});
   }
   /// getIntegrationHeader - Get the integration header file
-  const char *getIntegrationHeader(const std::string &FileName) const {
+  StringRef getIntegrationHeader(const std::string &FileName) const {
     return IntegrationFileList[FileName];
   }
 };

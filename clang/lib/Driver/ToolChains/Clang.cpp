@@ -6622,15 +6622,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // performing the host side compilation.
     if (!IsSYCLOffloadDevice) {
       // Add the integration header option to generate the header.
-      const char *Header = D.getIntegrationHeader(Input.getBaseInput());
+      StringRef Header = D.getIntegrationHeader(Input.getBaseInput());
       if (types::getPreprocessedType(InputType) != types::TY_INVALID &&
-          Header) {
+          !Header.empty()) {
         CmdArgs.push_back("-include");
-        CmdArgs.push_back(Header);
+        CmdArgs.push_back(Args.MakeArgString(Header));
         // When creating dependency information, filter out the generated
         // header file.
         CmdArgs.push_back("-dependency-filter");
-        CmdArgs.push_back(Header);
+        CmdArgs.push_back(Args.MakeArgString(Header));
       }
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
@@ -6653,7 +6653,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
     if (IsSYCLOffloadDevice) {
       // Add the integration header option to generate the header.
-      if (const char *Header = D.getIntegrationHeader(Input.getBaseInput())) {
+      StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
+      if (!Header.empty()) {
         SmallString<128> HeaderOpt("-fsycl-int-header=");
         HeaderOpt.append(Header);
         CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
