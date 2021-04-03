@@ -8260,8 +8260,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
-    if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
-      TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics");
+    TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
 
     // Disable SPV_INTEL_usm_storage_classes by default since it adds new
     // storage classes that represent global_device and global_host address

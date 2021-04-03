@@ -1139,8 +1139,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // We must only initialize the driver once, even if piPlatformsGet() is called
   // multiple times.  Declaring the return value as "static" ensures it's only
   // called once.
-  static ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
+  static ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit, (0));
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
@@ -1319,24 +1318,46 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
 
-  // Get number of devices supporting Level Zero
-  uint32_t ZeDeviceCount = 0;
   std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-
   pi_result Res = populateDeviceCacheIfNeeded(Platform);
   if (Res != PI_SUCCESS) {
     return Res;
   }
 
-  ZeDeviceCount = Platform->PiDevicesCache.size();
-  const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
-  const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
+  // Filter available devices based on input DeviceType
+  std::vector<pi_device> MatchedDevices;
+  for (auto &D : Platform->PiDevicesCache) {
+    // Only ever return root-devices from piDevicesGet, but the
+    // devices cache also keeps sub-devices.
+    if (D->IsSubDevice)
+      continue;
 
-  if (ZeDeviceCount == 0 || !(AskingForGPU || AskingForDefault)) {
-    if (NumDevices)
-      *NumDevices = 0;
-    return PI_SUCCESS;
+    bool Matched = false;
+    switch (DeviceType) {
+    case PI_DEVICE_TYPE_ALL:
+      Matched = true;
+      break;
+    case PI_DEVICE_TYPE_GPU:
+    case PI_DEVICE_TYPE_DEFAULT:
+      Matched = (D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_GPU);
+      break;
+    case PI_DEVICE_TYPE_CPU:
+      Matched = (D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_CPU);
+      break;
+    case PI_DEVICE_TYPE_ACC:
+      Matched = (D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_MCA ||
+                 D->ZeDeviceProperties.type == ZE_DEVICE_TYPE_FPGA);
+      break;
+    default:
+      Matched = false;
+      zePrint("Unknown device type");
+      break;
+    }
+    if (Matched)
+      MatchedDevices.push_back(D.get());
   }
+
+  uint32_t ZeDeviceCount = MatchedDevices.size();
 
   if (NumDevices)
     *NumDevices = ZeDeviceCount;
@@ -1348,15 +1369,9 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   // Return the devices from the cache.
-  uint32_t I = 0;
-  for (const std::unique_ptr<_pi_device> &CachedDevice :
-       Platform->PiDevicesCache) {
-    if (I < NumEntries) {
-      *Devices++ = CachedDevice.get();
-      I++;
-    } else {
-      break;
-    }
+  if (Devices) {
+    PI_ASSERT(NumEntries <= ZeDeviceCount, PI_INVALID_DEVICE);
+    std::copy_n(MatchedDevices.begin(), NumEntries, Devices);
   }
 
   return PI_SUCCESS;
@@ -1476,11 +1491,18 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   switch (ParamName) {
   case PI_DEVICE_INFO_TYPE: {
-    if (Device->ZeDeviceProperties.type != ZE_DEVICE_TYPE_GPU) {
+    switch (Device->ZeDeviceProperties.type) {
+    case ZE_DEVICE_TYPE_GPU:
+      return ReturnValue(PI_DEVICE_TYPE_GPU);
+    case ZE_DEVICE_TYPE_CPU:
+      return ReturnValue(PI_DEVICE_TYPE_CPU);
+    case ZE_DEVICE_TYPE_MCA:
+    case ZE_DEVICE_TYPE_FPGA:
+      return ReturnValue(PI_DEVICE_TYPE_ACC);
+    default:
       zePrint("This device type is not supported\n");
       return PI_INVALID_VALUE;
     }
-    return ReturnValue(PI_DEVICE_TYPE_GPU);
   }
   case PI_DEVICE_INFO_PARENT_DEVICE:
     // TODO: all Level Zero devices are parent ?
