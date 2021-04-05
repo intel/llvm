@@ -197,7 +197,8 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
     const DeclContext *DC = FD->getDeclContext();
-    if (II && II->isStr("__spirv_ocl_printf") && !FD->isDefined() &&
+    if (II && II->isStr("__spirv_ocl_printf") && 
+        !FD->isDefined() &&
         FD->getLanguageLinkage() == CXXLanguageLinkage &&
         DC->getEnclosingNamespaceContext()->isTranslationUnit())
       return true;
@@ -3665,7 +3666,8 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   bool NotDefinedNoAttr = !Callee->isDefined() && !HasAttr;
 
   if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
-    Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
+    Diag(Loc, diag::err_sycl_restrict)
+        << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
     Diag(Caller->getLocation(), diag::note_called_by) << Caller;
   }
