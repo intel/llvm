@@ -315,19 +315,19 @@ public:
     kind_std_layout,
     kind_sampler,
     kind_pointer,
-    kind_last = kind_pointer
+    kind_specialization_constants_buffer,
+    kind_last = kind_specialization_constants_buffer
   };
 
 public:
-  SYCLIntegrationHeader(DiagnosticsEngine &Diag, bool UnnamedLambdaSupport,
-                        Sema &S);
+  SYCLIntegrationHeader(bool UnnamedLambdaSupport, Sema &S);
 
   /// Emits contents of the header into given stream.
   void emit(raw_ostream &Out);
 
   /// Emits contents of the header into a file with given name.
   /// Returns true/false on success/failure.
-  bool emit(const StringRef &MainSrc);
+  bool emit(StringRef MainSrc);
 
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
@@ -427,6 +427,16 @@ private:
   /// Whether header is generated with unnamed lambda support
   bool UnnamedLambdaSupport;
 
+  Sema &S;
+};
+
+class SYCLIntegrationFooter {
+public:
+  SYCLIntegrationFooter(Sema &S) : S(S) {}
+  bool emit(StringRef MainSrc);
+
+private:
+  bool emit(raw_ostream &O);
   Sema &S;
 };
 
@@ -1768,6 +1778,34 @@ public:
     }
   };
 
+  /// Bitmask to contain the list of reasons a single diagnostic should be
+  /// emitted, based on its language.  This permits multiple offload systems
+  /// to coexist in the same translation unit.
+  enum class DeviceDiagnosticReason {
+    /// Diagnostic doesn't apply to anything. Included for completeness, but
+    /// should make this a no-op.
+    None = 0,
+    /// OpenMP specific diagnostic.
+    OmpDevice = 1 << 0,
+    OmpHost = 1 << 1,
+    OmpAll = OmpDevice | OmpHost,
+    /// CUDA specific diagnostics.
+    CudaDevice = 1 << 2,
+    CudaHost = 1 << 3,
+    CudaAll = CudaDevice | CudaHost,
+    /// SYCL specific diagnostic.
+    Sycl = 1 << 4,
+    /// ESIMD specific diagnostic.
+    Esimd = 1 << 5,
+    /// A flag representing 'all'.  This can be used to avoid the check
+    /// all-together and make this behave as it did before the
+    /// DiagnosticReason was added (that is, unconditionally emit).
+    /// Note: This needs to be updated if any flags above are added.
+    All = OmpAll | CudaAll | Sycl | Esimd,
+
+    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/All)
+  };
+
   /// A generic diagnostic builder for errors which may or may not be deferred.
   ///
   /// In CUDA, there exist constructs (e.g. variable-length arrays, try/catch)
@@ -1800,7 +1838,7 @@ public:
     };
 
     SemaDiagnosticBuilder(Kind K, SourceLocation Loc, unsigned DiagID,
-                          FunctionDecl *Fn, Sema &S);
+                          FunctionDecl *Fn, Sema &S, DeviceDiagnosticReason R);
     SemaDiagnosticBuilder(SemaDiagnosticBuilder &&D);
     SemaDiagnosticBuilder(const SemaDiagnosticBuilder &) = default;
     ~SemaDiagnosticBuilder();
@@ -1825,7 +1863,9 @@ public:
       if (Diag.ImmediateDiag.hasValue())
         *Diag.ImmediateDiag << Value;
       else if (Diag.PartialDiagId.hasValue())
-        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId].second
+        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId]
+                .getDiag()
+                .second
             << Value;
       return Diag;
     }
@@ -1839,7 +1879,8 @@ public:
       if (ImmediateDiag.hasValue())
         *ImmediateDiag << std::move(V);
       else if (PartialDiagId.hasValue())
-        S.DeviceDeferredDiags[Fn][*PartialDiagId].second << std::move(V);
+        S.DeviceDeferredDiags[Fn][*PartialDiagId].getDiag().second
+            << std::move(V);
       return *this;
     }
 
@@ -1848,7 +1889,9 @@ public:
       if (Diag.ImmediateDiag.hasValue())
         PD.Emit(*Diag.ImmediateDiag);
       else if (Diag.PartialDiagId.hasValue())
-        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId].second = PD;
+        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId]
+            .getDiag()
+            .second = PD;
       return Diag;
     }
 
@@ -1856,7 +1899,8 @@ public:
       if (ImmediateDiag.hasValue())
         ImmediateDiag->AddFixItHint(Hint);
       else if (PartialDiagId.hasValue())
-        S.DeviceDeferredDiags[Fn][*PartialDiagId].second.AddFixItHint(Hint);
+        S.DeviceDeferredDiags[Fn][*PartialDiagId].getDiag().second.AddFixItHint(
+            Hint);
     }
 
     friend ExprResult ExprError(const SemaDiagnosticBuilder &) {
@@ -4280,6 +4324,7 @@ public:
   };
   FunctionEmissionStatus getEmissionStatus(FunctionDecl *Decl,
                                            bool Final = false);
+  DeviceDiagnosticReason getEmissionReason(const FunctionDecl *Decl);
 
   // Whether the callee should be ignored in CUDA/HIP/OpenMP host/device check.
   bool shouldIgnoreInHostDeviceCheck(FunctionDecl *Callee);
@@ -10219,11 +10264,6 @@ public:
   void AddOptnoneAttributeIfNoConflicts(FunctionDecl *FD, SourceLocation Loc);
 
   template <typename AttrType>
-  bool checkRangedIntegralArgument(Expr *E, const AttrType *TmpAttr,
-                                   ExprResult &Result);
-  template <typename AttrType>
-  void AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  template <typename AttrType>
   void AddOneConstantPowerTwoValueAttr(Decl *D, const AttributeCommonInfo &CI,
                                        Expr *E);
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -10262,6 +10302,19 @@ public:
                                      Expr *E);
   IntelFPGAMaxReplicatesAttr *
   MergeIntelFPGAMaxReplicatesAttr(Decl *D, const IntelFPGAMaxReplicatesAttr &A);
+  void AddIntelFPGAForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  IntelFPGAForcePow2DepthAttr *
+  MergeIntelFPGAForcePow2DepthAttr(Decl *D,
+                                   const IntelFPGAForcePow2DepthAttr &A);
+  void AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              Expr *E);
+  SYCLIntelFPGAInitiationIntervalAttr *MergeSYCLIntelFPGAInitiationIntervalAttr(
+      Decl *D, const SYCLIntelFPGAInitiationIntervalAttr &A);
+
+  SYCLIntelFPGAMaxConcurrencyAttr *MergeSYCLIntelFPGAMaxConcurrencyAttr(
+      Decl *D, const SYCLIntelFPGAMaxConcurrencyAttr &A);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
@@ -10316,6 +10369,12 @@ public:
   /// addSYCLIntelPipeIOAttr - Adds a pipe I/O attribute to a particular
   /// declaration.
   void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
+
+  /// AddSYCLIntelFPGAMaxConcurrencyAttr - Adds a max_concurrency attribute to a
+  /// particular declaration.
+  void AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
 
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD,
@@ -12156,11 +12215,25 @@ public:
   /// before incrementing, so you can emit an error.
   bool PopForceCUDAHostDevice();
 
+  class DeviceDeferredDiagnostic {
+  public:
+    DeviceDeferredDiagnostic(SourceLocation SL, const PartialDiagnostic &PD,
+                             DeviceDiagnosticReason R)
+        : Diagnostic(SL, PD), Reason(R) {}
+
+    PartialDiagnosticAt &getDiag() { return Diagnostic; }
+    DeviceDiagnosticReason getReason() const { return Reason; }
+
+  private:
+    PartialDiagnosticAt Diagnostic;
+    DeviceDiagnosticReason Reason;
+  };
+
   /// Diagnostics that are emitted only if we discover that the given function
   /// must be codegen'ed.  Because handling these correctly adds overhead to
   /// compilation, this is currently only enabled for CUDA compilations.
   llvm::DenseMap<CanonicalDeclPtr<FunctionDecl>,
-                 std::vector<PartialDiagnosticAt>>
+                 std::vector<DeviceDeferredDiagnostic>>
       DeviceDeferredDiags;
 
   /// A pair of a canonical FunctionDecl and a SourceLocation.  When used as the
@@ -13055,6 +13128,7 @@ private:
   // SYCL integration header instance for current compilation unit this Sema
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
+  std::unique_ptr<SYCLIntegrationFooter> SyclIntFooter;
 
   // Used to suppress diagnostics during kernel construction, since these were
   // already emitted earlier. Diagnosing during Kernel emissions also skips the
@@ -13069,8 +13143,14 @@ public:
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
     if (SyclIntHeader == nullptr)
       SyclIntHeader = std::make_unique<SYCLIntegrationHeader>(
-          getDiagnostics(), getLangOpts().SYCLUnnamedLambda, *this);
+          getLangOpts().SYCLUnnamedLambda, *this);
     return *SyclIntHeader.get();
+  }
+
+  SYCLIntegrationFooter &getSyclIntegrationFooter() {
+    if (SyclIntFooter == nullptr)
+      SyclIntFooter = std::make_unique<SYCLIntegrationFooter>(*this);
+    return *SyclIntFooter.get();
   }
 
   enum SYCLRestrictKind {
@@ -13123,8 +13203,10 @@ public:
   /// if (!S.Context.getTargetInfo().hasFloat128Type() &&
   ///     S.getLangOpts().SYCLIsDevice)
   ///   SYCLDiagIfDeviceCode(Loc, diag::err_type_unsupported) << "__float128";
-  SemaDiagnosticBuilder SYCLDiagIfDeviceCode(SourceLocation Loc,
-                                             unsigned DiagID);
+  SemaDiagnosticBuilder SYCLDiagIfDeviceCode(
+      SourceLocation Loc, unsigned DiagID,
+      DeviceDiagnosticReason Reason = DeviceDiagnosticReason::Sycl |
+                                      DeviceDiagnosticReason::Esimd);
 
   /// Check whether we're allowed to call Callee from the current context.
   ///
@@ -13241,20 +13323,6 @@ void Sema::addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
   }
   D->addAttr(::new (Context)
                  WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
-}
-
-template <typename AttrType>
-void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,
-                                   Expr *E) {
-  AttrType TmpAttr(Context, CI, E);
-
-  if (!E->isValueDependent()) {
-    ExprResult ICE;
-    if (checkRangedIntegralArgument<AttrType>(E, &TmpAttr, ICE))
-      return;
-    E = ICE.get();
-  }
-  D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
 template <typename AttrType>

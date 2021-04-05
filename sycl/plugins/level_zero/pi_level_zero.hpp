@@ -68,6 +68,8 @@ struct _pi_object {
 
 struct _pi_platform {
   _pi_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
+  // Performs initialization of a newly constructed PI platform.
+  pi_result initialize();
 
   // Level Zero lacks the notion of a platform, but there is a driver, which is
   // a pretty good fit to keep here.
@@ -82,12 +84,6 @@ struct _pi_platform {
   std::mutex PiDevicesCacheMutex;
   pi_device getDeviceFromNativeHandle(ze_device_handle_t);
   bool DeviceCachePopulated = false;
-
-  // Maximum Number of Command Lists that can be created.
-  // This Value is initialized to 20000, but can be changed by the user
-  // thru the environment variable SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE
-  // ie SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE =10000.
-  int ZeMaxCommandListCache = 0;
 
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
@@ -144,11 +140,15 @@ struct _pi_device : _pi_object {
   }
 
   // Keep the ordinal of a "compute" commands group, where we send all
-  // commands currently.
-  // TODO[1.0]: discover "copy" command group as well to use for memory
-  // copying operations exclusively.
-  //
-  uint32_t ZeComputeQueueGroupIndex;
+  // compute commands and some copy commands, and the ordinal of the
+  // "copy" commands group, where we can send only copy commands.
+  // A value of "-1" means that there is no such queue group available
+  // in the level zero backend.
+  int32_t ZeComputeQueueGroupIndex;
+  int32_t ZeCopyQueueGroupIndex;
+
+  // This returns "true" if a copy engine is available for use.
+  bool hasCopyEngine() { return (ZeCopyQueueGroupIndex >= 0); }
 
   // Initialize the entire PI device.
   pi_result initialize();
@@ -225,11 +225,13 @@ struct _pi_context : _pi_object {
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
 
-  // Mutex Lock for the Command List Cache
+  // Mutex Lock for the Command List Cache. This lock is used to control both
+  // compute and copy command list caches.
   std::mutex ZeCommandListCacheMutex;
-
   // Cache of all currently Available Command Lists for use by PI APIs
-  std::list<ze_command_list_handle_t> ZeCommandListCache;
+  std::list<ze_command_list_handle_t> ZeComputeCommandListCache;
+  // Cache of all currently Available Copy Command Lists for use by PI APIs
+  std::list<ze_command_list_handle_t> ZeCopyCommandListCache;
 
   // Retrieves a command list for executing on this device along with
   // a fence to be used in tracking the execution of this command list.
@@ -246,6 +248,7 @@ struct _pi_context : _pi_object {
   pi_result getAvailableCommandList(pi_queue Queue,
                                     ze_command_list_handle_t *ZeCommandList,
                                     ze_fence_handle_t *ZeFence,
+                                    bool PreferCopyCommandList = false,
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no avialble
@@ -295,14 +298,21 @@ private:
 const pi_uint32 DynamicBatchStartSize = 4;
 
 struct _pi_queue : _pi_object {
-  _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
-            pi_device Device, pi_uint32 BatchSize)
-      : ZeCommandQueue{Queue}, Context{Context}, Device{Device},
+  _pi_queue(ze_command_queue_handle_t Queue,
+            ze_command_queue_handle_t CopyQueue, pi_context Context,
+            pi_device Device, pi_uint32 BatchSize,
+            pi_queue_properties PiQueueProperties = 0)
+      : ZeComputeCommandQueue{Queue},
+        ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
-        UseDynamicBatching{BatchSize == 0} {}
+        UseDynamicBatching{BatchSize == 0},
+        PiQueueProperties(PiQueueProperties) {}
 
-  // Level Zero command queue handle.
-  ze_command_queue_handle_t ZeCommandQueue;
+  // Level Zero compute command queue handle.
+  ze_command_queue_handle_t ZeComputeCommandQueue;
+  // Level Zero copy command command queue handle. This might not be available
+  // depending on user preference and/or target device.
+  ze_command_queue_handle_t ZeCopyCommandQueue;
 
   // Keeps the PI context to which this queue belongs.
   // This field is only set at _pi_queue creation time, and cannot change.
@@ -320,6 +330,12 @@ struct _pi_queue : _pi_object {
   // from a pi_queue API call.  No other mutexes/locking should be
   // needed/used for the queue data structures.
   std::mutex PiQueueMutex;
+
+  // Keeps track of the event associated with the last enqueued command into
+  // this queue. this is used to add dependency with the last command to add
+  // in-order semantics and updated with the latest event each time a new
+  // command is enqueued.
+  pi_event LastCommandEvent = nullptr;
 
   // Open command list field for batching commands into this queue.
   ze_command_list_handle_t ZeOpenCommandList = {nullptr};
@@ -355,15 +371,25 @@ struct _pi_queue : _pi_object {
     // was not yet signaled at the time all events in that list were already
     // completed (we are polling the fence at events completion). The fence
     // may be still "in-use" due to sporadic delay in HW.
-    //
     bool InUse;
+    // Record if the associated command list (if any) is a "copy" command list.
+    bool IsCopyCommandList;
   } command_list_fence_t;
 
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
-  typedef std::map<ze_command_list_handle_t, command_list_fence_t>
+  typedef std::unordered_map<ze_command_list_handle_t, command_list_fence_t>
       command_list_fence_map_t;
   command_list_fence_map_t ZeCommandListFenceMap;
+
+  // return 'true' if a command list is a "copy" command list
+  bool getZeCommandListIsCopyList(ze_command_list_handle_t ZeCommandList);
+
+  // Keeps the properties of this queue.
+  pi_queue_properties PiQueueProperties;
+
+  // Returns true if the queue is a in-order queue.
+  bool isInOrderQueue() const;
 
   // Returns true if any commands for this queue are allowed to
   // be batched together.

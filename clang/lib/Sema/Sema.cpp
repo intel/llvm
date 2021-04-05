@@ -183,7 +183,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       DisableTypoCorrection(false), TyposCorrected(0), AnalysisWarnings(*this),
       ThreadSafetyDeclCache(nullptr), VarDataSharingAttributesStack(nullptr),
       CurScope(nullptr), Ident_super(nullptr), Ident___float128(nullptr),
-      SyclIntHeader(nullptr) {
+      SyclIntHeader(nullptr), SyclIntFooter(nullptr) {
   TUScope = nullptr;
   isConstantEvaluatedOverride = false;
 
@@ -1037,6 +1037,8 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
     // Emit SYCL integration header for current translation unit if needed
     if (SyclIntHeader != nullptr)
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
+    if (SyclIntFooter != nullptr)
+      SyclIntFooter->emit(getLangOpts().SYCLIntFooter);
     MarkDevice();
   }
 
@@ -1530,7 +1532,8 @@ bool Sema::hasUncompilableErrorOccurred() const {
   if (Loc == DeviceDeferredDiags.end())
     return false;
   for (auto PDAt : Loc->second) {
-    if (DiagnosticIDs::isDefaultMappingAsError(PDAt.second.getDiagID()))
+    if (DiagnosticIDs::isDefaultMappingAsError(
+            PDAt.getDiag().second.getDiagID()))
       return true;
   }
   return false;
@@ -1600,6 +1603,8 @@ public:
   // Emission state of the root node of the current use graph.
   bool ShouldEmitRootNode;
 
+  Sema::DeviceDiagnosticReason RootReason = Sema::DeviceDiagnosticReason::All;
+
   // Current OpenMP device context level. It is initialized to 0 and each
   // entering of device context increases it by 1 and each exit decreases
   // it by 1. Non-zero value indicates it is currently in device context.
@@ -1617,10 +1622,20 @@ public:
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (isa<VarDecl>(D))
       return;
-    if (auto *FD = dyn_cast<FunctionDecl>(D))
+    if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+      Sema::DeviceDiagnosticReason SaveReason = RootReason;
+      // Allow switching context from SYCL to ESIMD. Switching back is not
+      // allowed. I.e., once we entered ESIMD code we stay there until we exit
+      // the subgraph.
+      if ((RootReason == Sema::DeviceDiagnosticReason::Sycl) &&
+          (S.getEmissionReason(FD) == Sema::DeviceDiagnosticReason::Esimd))
+        RootReason = Sema::DeviceDiagnosticReason::Esimd;
       checkFunc(Loc, FD);
-    else
+      // Restore the context
+      RootReason = SaveReason;
+    } else {
       Inherited::visitUsedDecl(Loc, D);
+    }
   }
 
   void checkVar(VarDecl *VD) {
@@ -1675,9 +1690,13 @@ public:
     if (auto *FD = dyn_cast<FunctionDecl>(D)) {
       ShouldEmitRootNode = S.getEmissionStatus(FD, /*Final=*/true) ==
                            Sema::FunctionEmissionStatus::Emitted;
+      RootReason = S.getEmissionReason(FD);
       checkFunc(SourceLocation(), FD);
-    } else
+    } else {
+      // Global VarDecls don't really have a reason, so set this to 'ALL'.
+      RootReason = Sema::DeviceDiagnosticReason::All;
       checkVar(cast<VarDecl>(D));
+    }
   }
 
   // Emit any deferred diagnostics for FD
@@ -1687,15 +1706,22 @@ public:
       return;
     bool HasWarningOrError = false;
     bool FirstDiag = true;
-    for (PartialDiagnosticAt &PDAt : It->second) {
+    for (Sema::DeviceDeferredDiagnostic &D : It->second) {
       // Respect error limit.
       if (S.Diags.hasFatalErrorOccurred())
         return;
-      const SourceLocation &Loc = PDAt.first;
-      const PartialDiagnostic &PD = PDAt.second;
+      const SourceLocation &Loc = D.getDiag().first;
+      const PartialDiagnostic &PD = D.getDiag().second;
+      Sema::DeviceDiagnosticReason Reason = D.getReason();
       HasWarningOrError |=
           S.getDiagnostics().getDiagnosticLevel(PD.getDiagID(), Loc) >=
           DiagnosticsEngine::Warning;
+
+      // If the diagnostic doesn't apply to this call graph, skip this
+      // diagnostic.
+      if ((RootReason & Reason) == Sema::DeviceDiagnosticReason::None)
+        continue;
+
       {
         DiagnosticBuilder Builder(S.Diags.Report(Loc, PD.getDiagID()));
         PD.Emit(Builder);
@@ -1752,7 +1778,8 @@ void Sema::emitDeferredDiags() {
 
 Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
                                                    unsigned DiagID,
-                                                   FunctionDecl *Fn, Sema &S)
+                                                   FunctionDecl *Fn, Sema &S,
+                                                   DeviceDiagnosticReason R)
     : S(S), Loc(Loc), DiagID(DiagID), Fn(Fn),
       ShowCallStack(K == K_ImmediateWithCallStack || K == K_Deferred) {
   switch (K) {
@@ -1767,7 +1794,7 @@ Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
     assert(Fn && "Must have a function to attach the deferred diag to.");
     auto &Diags = S.DeviceDeferredDiags[Fn];
     PartialDiagId.emplace(Diags.size());
-    Diags.emplace_back(Loc, S.PDiag(DiagID));
+    Diags.emplace_back(Loc, S.PDiag(DiagID), R);
     break;
   }
 }
@@ -1811,7 +1838,7 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD) {
     return SYCLDiagIfDeviceCode(Loc, DiagID);
 
   return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc, DiagID,
-                               FD, *this);
+                               FD, *this, DeviceDiagnosticReason::All);
 }
 
 Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
@@ -1827,7 +1854,8 @@ Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
   if (!ShouldDefer) {
     SetIsLastErrorImmediate(true);
     return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc,
-                                 DiagID, getCurFunctionDecl(), *this);
+                                 DiagID, getCurFunctionDecl(), *this,
+                                 DeviceDiagnosticReason::All);
   }
 
   SemaDiagnosticBuilder DB = getLangOpts().CUDAIsDevice

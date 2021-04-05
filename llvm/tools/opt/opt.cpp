@@ -603,6 +603,7 @@ int main(int argc, char **argv) {
   initializeSPIRITTAnnotationsLegacyPassPass(Registry);
   initializeESIMDLowerLoadStorePass(Registry);
   initializeESIMDLowerVecArgLegacyPassPass(Registry);
+  initializeSYCLLowerWGLocalMemoryLegacyPass(Registry);
 
 #ifdef BUILD_EXAMPLES
   initializeExampleIRTransforms(Registry);

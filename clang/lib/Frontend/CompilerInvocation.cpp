@@ -3698,8 +3698,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   // '-mignore-xcoff-visibility' is implied. The generated command line will
   // contain both '-fvisibility default' and '-mignore-xcoff-visibility' and
   // subsequent calls to `CreateFromArgs`/`generateCC1CommandLine` will always
-  // produce the same arguments. 
- 
+  // produce the same arguments.
+
   if (T.isOSAIX() && (Args.hasArg(OPT_mignore_xcoff_visibility) ||
                       !Args.hasArg(OPT_fvisibility)))
     Opts.IgnoreXCOFFVisibility = 1;
@@ -4291,6 +4291,22 @@ static bool ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
   return Success && Diags.getNumErrors() == NumErrorsBefore;
 }
 
+static void CreateEmptyFile(StringRef HeaderName) {
+  if (HeaderName.empty())
+    return;
+
+  Expected<llvm::sys::fs::file_t> FT = llvm::sys::fs::openNativeFileForWrite(
+      HeaderName, llvm::sys::fs::CD_OpenAlways, llvm::sys::fs::OF_None);
+  if (FT)
+    llvm::sys::fs::closeFile(*FT);
+  else {
+    // Emit a message but don't terminate; compilation will fail
+    // later if this file is absent.
+    llvm::errs() << "Error: " << llvm::toString(FT.takeError())
+                 << " when opening " << HeaderName << "\n";
+  }
+}
+
 bool CompilerInvocation::CreateFromArgsImpl(
     CompilerInvocation &Res, ArrayRef<const char *> CommandLineArgs,
     DiagnosticsEngine &Diags, const char *Argv0) {
@@ -4372,21 +4388,9 @@ bool CompilerInvocation::CreateFromArgsImpl(
   if (LangOpts.SYCLIsDevice) {
     // Set the triple of the host for SYCL device compile.
     Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
-    // If specified, create an empty integration header file for now.
-    const StringRef &HeaderName = LangOpts.SYCLIntHeader;
-    if (!HeaderName.empty()) {
-      Expected<llvm::sys::fs::file_t> ft =
-          llvm::sys::fs::openNativeFileForWrite(
-              HeaderName, llvm::sys::fs::CD_OpenAlways, llvm::sys::fs::OF_None);
-      if (ft)
-        llvm::sys::fs::closeFile(*ft);
-      else {
-        // Emit a message but don't terminate; compilation will fail
-        // later if this file is absent.
-        llvm::errs() << "Error: " << llvm::toString(ft.takeError())
-                     << " when opening " << HeaderName << "\n";
-      }
-    }
+    // If specified, create empty integration header files for now.
+    CreateEmptyFile(LangOpts.SYCLIntHeader);
+    CreateEmptyFile(LangOpts.SYCLIntFooter);
   }
 
   Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags, T,
