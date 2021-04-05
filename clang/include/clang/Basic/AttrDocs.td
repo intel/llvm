@@ -2832,9 +2832,11 @@ def SYCLIntelFPGAInitiationIntervalAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::initiation_interval";
   let Content = [{
-This attribute applies to a loop. Indicates that the loop should be pipelined
-with an initiation interval of N. N must be a positive integer. Cannot be
-applied multiple times to the same loop.
+This attribute applies to a loop or a function. Indicates that the loop or
+function should be pipelined with an initiation interval of N. N must be a
+positive integer. Cannot be applied multiple times to the same loop or function.
+Cannot be used on the same loop or function in conjunction with
+disable_loop_pipelining.
 
 The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
 ``[[intel::initiation_interval]]`` and will be removed in the future.
@@ -2846,10 +2848,15 @@ The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
     [[intel::initiation_interval(4)]] for (int i = 0; i < 10; ++i) var++;
   }
 
+  [[intel::initiation_interval(4)]] void foo1 { }
+
   template<int N>
   void bar() {
     [[intel::initiation_interval(N)]] for(;;) { }
   }
+
+  template<int N>
+  [[intel::initiation_interval(N)]] void bar1 { }
 
   }];
 }
@@ -2858,10 +2865,11 @@ def SYCLIntelFPGAMaxConcurrencyAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_concurrency";
   let Content = [{
-This attribute applies to a loop. Indicates that the loop should allow no more
-than N threads or iterations to execute it simultaneously. N must be a non
-negative integer. '0' indicates the max_concurrency case to be unbounded. Cannot
-be applied multiple times to the same loop.
+This attribute applies to a loop or a function. It indicates that the
+loop/function should allow no more than N threads or iterations to execute it
+simultaneously. N must be a non negative integer. '0' indicates the
+max_concurrency case to be unbounded. Cannot be applied multiple times to the
+same loop.
 
 .. code-block:: c++
 
@@ -2870,10 +2878,13 @@ be applied multiple times to the same loop.
     [[intel::max_concurrency(2)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
+  [[intel::max_concurrency(2)]] void foo1 { }
   template<int N>
   void bar() {
     [[intel::max_concurrency(N)]] for(;;) { }
   }
+  template<int N>
+  [[intel::max_concurrency(N)]] void bar1() { }
 
   }];
 }
@@ -2921,10 +2932,11 @@ def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::disable_loop_pipelining";
   let Content = [{
-This attribute applies to a loop. Disables pipelining of the loop data path,
-causing the loop to be executed serially. Cannot be used on the same loop in
-conjunction with max_interleaving, speculated_iterations, max_concurrency, ii
-or ivdep.
+This attribute applies to a loop or a function. Takes no arguments and
+disables pipelining of the loop or function data path, causing the loop
+or function to be executed serially. Cannot be used on the same loop or
+function in conjunction with max_interleaving, speculated_iterations,
+max_concurrency, initiation_interval, or ivdep.
 
 .. code-block:: c++
 
@@ -2932,6 +2944,8 @@ or ivdep.
     int var = 0;
     [[intel::disable_loop_pipelining] for (int i = 0; i < 10; ++i) var++;
   }
+
+  [[intel::disable_loop_pipelining] void foo1() { }
 
   }];
 }

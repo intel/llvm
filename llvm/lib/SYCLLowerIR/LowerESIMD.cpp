@@ -28,6 +28,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -1263,6 +1264,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   // limitation, mark every function called from ESIMD kernel with
   // 'alwaysinline' attribute.
   if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
+      !F.hasFnAttribute(Attribute::NoInline) &&
       !F.hasFnAttribute(Attribute::AlwaysInline))
     F.addFnAttr(Attribute::AlwaysInline);
 
@@ -1295,7 +1297,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     auto *CI = dyn_cast<CallInst>(&I);
     Function *Callee = nullptr;
     if (CI && (Callee = CI->getCalledFunction())) {
-
+      // TODO workaround for ESIMD BE until it starts supporting @llvm.assume
+      if (match(&I, PatternMatch::m_Intrinsic<Intrinsic::assume>())) {
+        ESIMDToErases.push_back(CI);
+        continue;
+      }
       StringRef Name = Callee->getName();
 
       // See if the Name represents an ESIMD intrinsic and demangle only if it
