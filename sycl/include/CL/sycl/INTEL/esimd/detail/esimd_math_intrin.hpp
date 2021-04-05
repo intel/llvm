@@ -1173,9 +1173,10 @@ __esimd_dp4a(__SIGD::vector_type_t<T2, N> src0,
 
   int src1_a, src1_b, src1_c, src1_d, src2_a, src2_b, src2_c, src2_d, ret;
 
-  uint32_t sat1 = __SIGED::SetSatur<T2, __SIGED::is_inttype<T1>::value>::set() ||
-                  __SIGED::SetSatur<T3, __SIGED::is_inttype<T1>::value>::set() ||
-                  __SIGED::SetSatur<T4, __SIGED::is_inttype<T1>::value>::set();
+  uint32_t sat1 =
+      __SIGED::SetSatur<T2, __SIGED::is_inttype<T1>::value>::set() ||
+      __SIGED::SetSatur<T3, __SIGED::is_inttype<T1>::value>::set() ||
+      __SIGED::SetSatur<T4, __SIGED::is_inttype<T1>::value>::set();
 
   for (uint32_t i = 0; i < N; i++) {
 
