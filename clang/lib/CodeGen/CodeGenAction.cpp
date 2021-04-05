@@ -304,34 +304,13 @@ namespace clang {
         return;
 
       LLVMContext &Ctx = getModule()->getContext();
-      // zahira
-      //LLVMContext::InlineAsmDiagHandlerTy OldHandler =
-       // Ctx.getInlineAsmDiagnosticHandler();
-      // end zahira
       
       std::unique_ptr<DiagnosticHandler> OldDiagnosticHandler =
           Ctx.getDiagnosticHandler();
       Ctx.setDiagnosticHandler(std::make_unique<ClangDiagnosticHandler>(
         CodeGenOpts, this));
-#if 0
-      Expected<std::unique_ptr<llvm::ToolOutputFile>> OptRecordFileOrErr =
-          setupLLVMOptimizationRemarks(
-              Ctx, CodeGenOpts.OptRecordFile, CodeGenOpts.OptRecordPasses,
-              CodeGenOpts.OptRecordFormat, CodeGenOpts.DiagnosticsWithHotness,
-              CodeGenOpts.DiagnosticsHotnessThreshold);
+      // The diagnostic handler is now processed in OptRecordFileRAII.
 
-      if (Error E = OptRecordFileOrErr.takeError()) {
-        reportOptRecordError(std::move(E), Diags, CodeGenOpts);
-        return;
-      }
-
-      std::unique_ptr<llvm::ToolOutputFile> OptRecordFile =
-          std::move(*OptRecordFileOrErr);
-
-      if (OptRecordFile &&
-          CodeGenOpts.getProfileUse() != CodeGenOptions::ProfileNone)
-        Ctx.setDiagnosticsHotnessRequested(true);
-#endif
       // The parallel_for_work_group legalization pass can emit calls to
       // builtins function. Definitions of those builtins can be provided in
       // LinkModule. We force the pass to legalize the code before the link
@@ -354,10 +333,6 @@ namespace clang {
                         getModule(), Action, std::move(AsmOutStream));
 
       Ctx.setDiagnosticHandler(std::move(OldDiagnosticHandler));
-#if 0
-      if (OptRecordFile)
-        OptRecordFile->keep();
-#endif
     }
 
     void HandleTagDeclDefinition(TagDecl *D) override {

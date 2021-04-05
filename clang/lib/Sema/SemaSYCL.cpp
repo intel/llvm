@@ -1690,25 +1690,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
-
-#if 0
-    // zahira
-    StringRef FuncName = KernelDecl->getName();
-    
-    StringRef ArgName = FD->getName();
-    std::string ArgType = FieldTy.getAsString();
-    SourceLocation ArgLoc = FD->getLocation();
-
-    printf("AddParam FD\n");
-    printf("FuncName: %s\n", FuncName.data());
-    printf("ArgName: %s \n", ArgName.data());
-    printf("ArgType: %s \n", ArgType.data());
-#endif
-#if 1
     SemaRef.getDiagnostics().OptReportHandler.AddKernelArgs(
         KernelDecl, FD->getName(), FieldTy.getAsString(),
         FD->getLocation());
-#endif
     addParam(newParamDesc, FieldTy);
   }
  
@@ -1719,22 +1703,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     StringRef Name = "_arg__base";
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
-    // zahira
-#if 0
-    StringRef FuncName = KernelDecl->getName();
-    StringRef ArgName = " ";
-    std::string ArgType = FieldTy.getAsString();
-    SourceLocation KernelArgLoc = BS.getBaseTypeLoc();
-    printf("AddParam BS\n");
-    printf("FuncName: %s\n", FuncName.data());
-    printf("ArgName: %s \n", Name.data());
-    printf("ArgType: %s \n", ArgType.data());
-#endif
-#if 1
     SemaRef.getDiagnostics().OptReportHandler.AddKernelArgs(
         KernelDecl, "", FieldTy.getAsString(),
         BS.getBaseTypeLoc());
-#endif
     addParam(newParamDesc, FieldTy);
   }
   // Add a parameter with specified name and type
