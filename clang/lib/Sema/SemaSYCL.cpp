@@ -112,6 +112,10 @@ public:
   static bool isSyclSpecConstantType(const QualType &Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
+  /// specialization id class.
+  static bool isSyclSpecIdType(const QualType &Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
   /// kernel_handler class.
   static bool isSyclKernelHandlerType(const QualType &Ty);
 
@@ -4245,6 +4249,22 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
                                              Sema &_S)
     : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
+void SYCLIntegrationFooter::addVarDecl(VarDecl *VD) {
+  // Step 1: ensure that this is of the correct type(spec-constant template
+  // specialization).
+  if (!Util::isSyclSpecIdType(VD->getType()))
+    return;
+  // Step 2: ensure that this is a static member, or a namespace-scope.
+  // Note that the isLocalVarDeclorParm excludes thread-local and static-local
+  // intentionally, as there is no way to 'spell' one of those in the
+  // specialization. We just don't generate the specialization for those, and
+  // let an error happen during host compilation.
+  if (!VD->hasGlobalStorage() || VD->isLocalVarDeclOrParm())
+    return;
+  // Step 3: Add to SpecConstants collection.
+  SpecConstants.push_back(VD);
+}
+
 // Post-compile integration header support.
 bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
@@ -4261,8 +4281,40 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   return emit(Out);
 }
 
+void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
+  // FIXME: Figure out the spec-constant unique name here.
+  // Note that this changes based on the linkage of the variable.
+  // We typically want to use the __builtin_unique_stable_name for the variable
+  // (or the newer-equivilent for values, see the JIRA), but we also have to
+  // figure out if this has internal or external linkage.  In external-case this
+  // should be the same as the the unique-name.  However, this isn't the case
+  // with local-linkage, where we want to put the driver-provided random-value
+  // ahead of it, so that we make sure it is unique across translation units.
+  // This name should come from the yet implemented__builtin_unique_stable_name
+  // feature that accepts variables and gives the mangling for that.
+  O << "";
+}
+
 bool SYCLIntegrationFooter::emit(raw_ostream &O) {
-  O << "// Integration Footer contents to go here.\n";
+  PrintingPolicy Policy{S.getLangOpts()};
+  Policy.adjustForCPlusPlusFwdDecl();
+  Policy.SuppressTypedefs = true;
+  Policy.SuppressUnwrittenScope = true;
+
+  for (const VarDecl *D : SpecConstants) {
+    O << "template<>\n";
+    O << "inline const char *get_spec_constant_symbolic_ID<";
+    // Emit the FQN for this, but we probably need to do some funny-business for
+    // anonymous namespaces.
+    D->printQualifiedName(O, Policy);
+    O << ">() {\n";
+    O << "  return \"";
+    emitSpecIDName(O, D);
+    O << "\";\n";
+    O << "}\n";
+  }
+
+  O << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
   return true;
 }
 
@@ -4300,6 +4352,15 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isSyclSpecIdType(const QualType &Ty) {
+  llvm::StringLiteral Name = "specialization_id";
+  std::array<DeclContextDesc, 3> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
