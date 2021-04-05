@@ -434,7 +434,7 @@ inline __SIGD::vector_type_t<T0, SZ>
 __esimd_ssshl(__SIGD::vector_type_t<T1, SZ> src0,
               __SIGD::vector_type_t<T1, SZ> src1) {
   int i;
-  typename maxtype<T1>::type ret;
+  typename __SIGED::maxtype<T1>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -449,7 +449,7 @@ inline __SIGD::vector_type_t<T0, SZ>
 __esimd_sushl(__SIGD::vector_type_t<T1, SZ> src0,
               __SIGD::vector_type_t<T1, SZ> src1) {
   int i;
-  typename maxtype<T1>::type ret;
+  typename __SIGED::maxtype<T1>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -464,7 +464,7 @@ inline __SIGD::vector_type_t<T0, SZ>
 __esimd_usshl(__SIGD::vector_type_t<T1, SZ> src0,
               __SIGD::vector_type_t<T1, SZ> src1) {
   int i;
-  typename maxtype<T1>::type ret;
+  typename __SIGED::maxtype<T1>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -479,7 +479,7 @@ inline __SIGD::vector_type_t<T0, SZ>
 __esimd_uushl(__SIGD::vector_type_t<T1, SZ> src0,
               __SIGD::vector_type_t<T1, SZ> src1) {
   int i;
-  typename maxtype<T1>::type ret;
+  typename __SIGED::maxtype<T1>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -494,7 +494,7 @@ inline __SIGD::vector_type_t<T0, SZ>
 __esimd_ssshl_sat(__SIGD::vector_type_t<T1, SZ> src0,
                   __SIGD::vector_type_t<T1, SZ> src1) {
   int i;
-  typename maxtype<T1>::type ret;
+  typename __SIGED::maxtype<T1>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -509,7 +509,7 @@ inline __SIGD::vector_type_t<T0, SZ>
 __esimd_sushl_sat(__SIGD::vector_type_t<T1, SZ> src0,
                   __SIGD::vector_type_t<T1, SZ> src1) {
   int i;
-  typename maxtype<T1>::type ret;
+  typename __SIGED::maxtype<T1>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -524,7 +524,7 @@ inline __SIGD::vector_type_t<T0, SZ>
 __esimd_usshl_sat(__SIGD::vector_type_t<T1, SZ> src0,
                   __SIGD::vector_type_t<T1, SZ> src1) {
   int i;
-  typename maxtype<T1>::type ret;
+  typename __SIGED::maxtype<T1>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -539,7 +539,7 @@ inline __SIGD::vector_type_t<T0, SZ>
 __esimd_uushl_sat(__SIGD::vector_type_t<T1, SZ> src0,
                   __SIGD::vector_type_t<T1, SZ> src1) {
   int i;
-  typename maxtype<T1>::type ret;
+  typename __SIGED::maxtype<T1>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -791,7 +791,7 @@ inline __SIGD::vector_type_t<T0, SZ> __esimd_bfins(
     __SIGD::vector_type_t<T0, SZ> width, __SIGD::vector_type_t<T0, SZ> offset,
     __SIGD::vector_type_t<T0, SZ> val, __SIGD::vector_type_t<T0, SZ> src) {
   int i;
-  typename maxtype<T0>::type ret;
+  typename __SIGED::maxtype<T0>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -816,7 +816,7 @@ __esimd_bfext(__SIGD::vector_type_t<T0, SZ> width,
               __SIGD::vector_type_t<T0, SZ> offset,
               __SIGD::vector_type_t<T0, SZ> src) {
   int i;
-  typename maxtype<T0>::type ret;
+  typename __SIGED::maxtype<T0>::type ret;
   __SIGD::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
@@ -1173,9 +1173,9 @@ __esimd_dp4a(__SIGD::vector_type_t<T2, N> src0,
 
   int src1_a, src1_b, src1_c, src1_d, src2_a, src2_b, src2_c, src2_d, ret;
 
-  uint32_t sat1 = __SIGED::SetSatur<T2, is_inttype<T1>::value>::set() ||
-                  __SIGED::SetSatur<T3, is_inttype<T1>::value>::set() ||
-                  __SIGED::SetSatur<T4, is_inttype<T1>::value>::set();
+  uint32_t sat1 = __SIGED::SetSatur<T2, __SIGED::is_inttype<T1>::value>::set() ||
+                  __SIGED::SetSatur<T3, __SIGED::is_inttype<T1>::value>::set() ||
+                  __SIGED::SetSatur<T4, __SIGED::is_inttype<T1>::value>::set();
 
   for (uint32_t i = 0; i < N; i++) {
 
