@@ -698,12 +698,19 @@ struct A {
   float a, b;
 };
 
-specialization_id<int> id_int;
-specialization_id<A> id_A;
+constexpr specialization_id<int> id_int;
+constexpr specialization_id<A> id_A;
+constexpr inline specialization_id<double> id_double;
+constexpr inline specialization_id<float> id_float;
 // ...
 [&](handler &cgh) {
   cgh.set_specialization_constant<id_int>(42);
-  cgh.set_specialization_constant<id_A>({3.14, 3.14});
+  cgh.get_specialization_constant<id_double>();
+  // ...
+  [=](kernel_handler h) {
+    h.get_specialization_constant<id_int>();
+    h.get_specialization_constant<id_A>();
+  }
 }
 ```
 
@@ -719,20 +726,35 @@ inline const char *get_spec_constant_symbolic_ID();
 // we can refer to all those specialization_id variables, because integration
 // footer was _appended_ to the user-provided translation unit
 template<>
-inline const char *get_spec_constant_symbolic_ID() {
+inline const char *get_spec_constant_symbolic_ID<id_int>() {
   return "result of __builtin_unique_ID(id_int) encoded here";
 }
 
 template<>
-inline const char *get_spec_constant_symbolic_ID() {
-  return "result of __builtin_unique_ID(A) encoded here";
+inline const char *get_spec_constant_symbolic_ID<id_A>() {
+  return "result of __builtin_unique_ID(id_A) encoded here";
+}
+
+template<>
+inline const char *get_spec_constant_symbolic_ID<id_double>() {
+  return "result of __builtin_unique_ID(id_double) encoded here";
+}
+
+template<>
+inline const char *get_spec_constant_symbolic_ID<id_float>() {
+  return "result of __builtin_unique_ID(id_float) encoded here";
 }
 
 } // namespace detail
 
 // TODO: elaborate why we have to include handler implementation here
-#include <CL/sycl/detail/handler.hpp>
+#include <CL/sycl/detail/spec_const_integration.hpp>
 ```
+
+Note that `get_spec_constant_symbolic_ID` specialization are generated for each
+definition of `specialization_id` object regardless of its uses within SYCL
+kernel functions: those IDs are used by DPC++ RT as well even for those spec
+constants, which are never accessed on device.
 
 NOTE: By direct using `__builtin_unique_ID` in DPC++ Headers we could avoid
 generating integration footer at all, but since the host part of the program can
