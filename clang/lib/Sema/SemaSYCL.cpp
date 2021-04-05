@@ -1746,7 +1746,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
          Prop != TemplArg.pack_end(); ++Prop) {
       QualType PropTy = Prop->getAsType();
-      if (Util::isSyclAccessorNoAliasPropertyType(PropTy)) 
+      if (Util::isSyclAccessorNoAliasPropertyType(PropTy))
         handleNoAliasProperty(Param, PropTy, Loc);
       if (Util::isSyclBufferLocationType(PropTy))
         handleBufferLocationProperty(Param, PropTy, Loc);
