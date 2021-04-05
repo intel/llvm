@@ -50,7 +50,8 @@ In this use-case every work-item with even X dimension will trigger assertion
 failure. Assertion failure should be reported via asynchronous exceptions. If
 asynchronous exception handler is set the failure is reported with
 `cl::sycl::event_error` exception. Otherwise, SYCL Runtime should trigger abort.
-At least one failed assertion should be reported.
+At least one failed assertion should be reported. The assertion failure message
+is printed to `stderr` by SYCL Runtime.
 
 When multiple kernels are enqueued and both fail at assertion at least single
 assertion should be reported.
