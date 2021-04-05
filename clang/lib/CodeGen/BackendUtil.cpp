@@ -993,7 +993,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   if (LangOpts.SYCLIsDevice) {
     // Group local memory pass depends on inlining. Turn it on even in case if
     // all llvm passes or SYCL early optimizations are disabled.
-    // TODO: Remove this workaround when dependency on inlining is eliminated.
+    // FIXME: Remove this workaround when dependency on inlining is eliminated.
     if (CodeGenOpts.DisableLLVMPasses)
       PerModulePasses.add(createAlwaysInlinerLegacyPass(false));
     PerModulePasses.add(createSYCLLowerWGLocalMemoryLegacyPass());
