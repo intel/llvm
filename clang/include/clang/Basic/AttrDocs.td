@@ -2865,10 +2865,11 @@ def SYCLIntelFPGAMaxConcurrencyAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_concurrency";
   let Content = [{
-This attribute applies to a loop. Indicates that the loop should allow no more
-than N threads or iterations to execute it simultaneously. N must be a non
-negative integer. '0' indicates the max_concurrency case to be unbounded. Cannot
-be applied multiple times to the same loop.
+This attribute applies to a loop or a function. It indicates that the
+loop/function should allow no more than N threads or iterations to execute it
+simultaneously. N must be a non negative integer. '0' indicates the
+max_concurrency case to be unbounded. Cannot be applied multiple times to the
+same loop.
 
 .. code-block:: c++
 
@@ -2877,10 +2878,13 @@ be applied multiple times to the same loop.
     [[intel::max_concurrency(2)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
+  [[intel::max_concurrency(2)]] void foo1 { }
   template<int N>
   void bar() {
     [[intel::max_concurrency(N)]] for(;;) { }
   }
+  template<int N>
+  [[intel::max_concurrency(N)]] void bar1() { }
 
   }];
 }

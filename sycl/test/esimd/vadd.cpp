@@ -1,5 +1,4 @@
-// TODO ESIMD enable host device under -fsycl
-// RUN: %clangxx -I %sycl_include %s -o %t.out -lsycl
+// RUN: %clangxx -fsycl -fsycl-explicit-simd %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
 // Check that the code compiles with -O0 and -g
@@ -97,13 +96,12 @@ int main(void) {
             block_store<int, VL>(pC + i * VL, vc);
           });
     });
-
-    for (unsigned i = 0; i < Size; ++i) {
-      if (A[i] + B[i] != C[i]) {
-        std::cout << "failed at index " << i << ", " << C[i] << " != " << A[i]
-                  << " + " << B[i] << "\n";
-        return 1;
-      }
+  }
+  for (unsigned i = 0; i < Size; ++i) {
+    if (A[i] + B[i] != C[i]) {
+      std::cout << "failed at index " << i << ", " << C[i] << " != " << A[i]
+                << " + " << B[i] << "\n";
+      return 1;
     }
   }
 

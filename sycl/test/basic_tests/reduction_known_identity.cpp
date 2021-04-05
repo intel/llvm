@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsyntax-only -Xclang -verify %s -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 
 // This test performs basic checks of has_known_identity and known_identity

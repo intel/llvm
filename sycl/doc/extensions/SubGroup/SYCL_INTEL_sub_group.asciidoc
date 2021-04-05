@@ -70,13 +70,13 @@ Providing a generic group abstraction encapsulating the shared functionality of 
 
 The +[[intel::sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression.  The kernel should only be submitted to a device that supports that sub-group size (as reported by +info::device::sub_group_sizes+).  If the kernel is submitted to a device that does not support the requested sub-group size, or a device on which the requested sub-group size is incompatible with any language features used by the kernel, the implementation must throw a synchronous exception with the `errc::feature_not_supported` error code from the kernel invocation command.
 
-The +[[intel::named_sub_group_size(NAME)]]+ attribute indicates that the kernel must be compiled and executed with a named sub-group size.  _NAME_ must be one of the following special tokens: +auto+, +primary+.  If _NAME_ is +auto+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If _NAME_ is +primary+, the implementation will select the device's primary sub-group size (as reported by the +info::device::primary_sub_group_size+ query) for all kernels with this attribute.
+The +[[intel::named_sub_group_size(NAME)]]+ attribute indicates that the kernel must be compiled and executed with a named sub-group size.  _NAME_ must be one of the following special tokens: +automatic+, +primary+.  If _NAME_ is +automatic+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If _NAME_ is +primary+, the implementation will select the device's primary sub-group size (as reported by the +info::device::primary_sub_group_size+ query) for all kernels with this attribute.
 
 There are special requirements whenever a device function defined in one translation unit makes a call to a device function that is defined in a second translation unit. In such a case, the second device function is always declared using +SYCL_EXTERNAL+. If the kernel calling these device functions is defined using a sub-group size attribute, the functions declared using +SYCL_EXTERNAL+ must be similarly decorated to ensure that the same sub-group size is used. This decoration must exist in both the translation unit making the call and also in the translation unit that defines the function. If the sub-group size attribute is missing in the translation unit that makes the call, or if the sub-group size of the called function does not match the sub-group size of the calling function, the program is ill-formed and the compiler must raise a diagnostic.
 
 If no sub-group size attribute appears on a kernel or +SYCL_EXTERNAL+ function, the default behavior is as-if +[[intel::named_sub_group_size(primary)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).  Only one sub-group size attribute may appear on a kernel or +SYCL_EXTERNAL+ function.
 
-Note that a compiler may choose a different sub-group size for each kernel and +SYCL_EXTERNAL+ function using an +auto+ sub-group size.  If kernels with an +auto+ sub-group size call +SYCL_EXTERNAL+ functions using an +auto+ sub-group size, the program may be ill-formed.  The behavior when +SYCL_EXTERNAL+ is used in conjunction with an +auto+ sub-group size is implementation-defined, and code relying on specific behavior should not be expected to be portable across implementations.  If a kernel calls a +SYCL_EXTERNAL+ function with an incompatible sub-group size, the compiler must raise a diagnostic -- it is expected that this diagnostic will be raised during link-time, since this is the first time the compiler will see both translation units together.
+Note that a compiler may choose a different sub-group size for each kernel and +SYCL_EXTERNAL+ function using an +automatic+ sub-group size.  If kernels with an +automatic+ sub-group size call +SYCL_EXTERNAL+ functions using an +automatic+ sub-group size, the program may be ill-formed.  The behavior when +SYCL_EXTERNAL+ is used in conjunction with an +automatic+ sub-group size is implementation-defined, and code relying on specific behavior should not be expected to be portable across implementations.  If a kernel calls a +SYCL_EXTERNAL+ function with an incompatible sub-group size, the compiler must raise a diagnostic -- it is expected that this diagnostic will be raised during link-time, since this is the first time the compiler will see both translation units together.
 
 === Compiler Flags
 
@@ -144,7 +144,7 @@ The kernel descriptors below are added to the +info::kernel_device_specific+ enu
 |+info::kernel_device_specific::compile_sub_group_size+
 |N/A
 |+uint32_t+
-|Returns the sub-group size of the kernel, set implicitly by the implementation or explicitly using a kernel attribute. Returns 0 if the requested size was `auto`, and returns the device's primary sub-group size if the requested size was `primary`.
+|Returns the sub-group size of the kernel, set implicitly by the implementation or explicitly using a kernel attribute. Returns 0 if the requested size was `automatic`, and returns the device's primary sub-group size if the requested size was `primary`.
 |===
 
 === The sub_group Class
@@ -308,7 +308,7 @@ The current behavior requires exact matching.  Should this be relaxed to allow a
 +
 --
 *RESOLVED*:
-Exact matching is required to ensure that developers can reason about the portability of their code across different implementations.  Setting the default sub-group size to "primary" and providing an override flag to select "auto" everywhere means that only advanced developers who are tuning sub-group size on a per-kernel basis will have to worry about potential matching issues.
+Exact matching is required to ensure that developers can reason about the portability of their code across different implementations.  Setting the default sub-group size to "primary" and providing an override flag to select "automatic" everywhere means that only advanced developers who are tuning sub-group size on a per-kernel basis will have to worry about potential matching issues.
 --
 
 //. asd
@@ -332,6 +332,7 @@ Exact matching is required to ensure that developers can reason about the portab
 |6|2020-04-22|John Pennycook|*Align with SYCL_INTEL_device_specific_kernel_queries*
 |7|2020-07-13|John Pennycook|*Clarify that reqd_sub_group_size must be a compile-time constant*
 |8|2020-10-21|John Pennycook|*Define default behavior and reduce verbosity*
+|9|2021-03-30|John Pennycook|*Rename auto to automatic*
 |========================================
 
 //************************************************************************

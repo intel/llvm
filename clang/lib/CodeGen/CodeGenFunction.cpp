@@ -742,6 +742,14 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("stall_enable", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  if (const auto *A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+    const auto *CE = cast<ConstantExpr>(A->getNThreadsExpr());
+    llvm::APSInt ArgVal = CE->getResultAsAPSInt();
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
+    Fn->setMetadata("max_concurrency", llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
   if (FD->hasAttr<SYCLIntelFPGADisableLoopPipeliningAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
