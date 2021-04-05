@@ -112,8 +112,8 @@ clang::ToConstrainedExceptMD(LangOptions::FPExceptionModeKind Kind) {
 
 void CodeGenFunction::SetFPModel() {
   llvm::RoundingMode RM = getLangOpts().getFPRoundingMode();
-  auto fpExceptionBehavior = ToConstrainedExceptMD(getLangOpts().
-                               getFPExceptionMode());
+  auto fpExceptionBehavior = ToConstrainedExceptMD(
+                               getLangOpts().getFPExceptionMode());
 
   Builder.setDefaultConstrainedRounding(RM);
   Builder.setDefaultConstrainedExcept(fpExceptionBehavior);
@@ -206,7 +206,8 @@ LValue CodeGenFunction::MakeNaturalAlignAddrLValue(llvm::Value *V, QualType T) {
 
 /// Given a value of type T* that may not be to a complete object,
 /// construct an l-value with the natural pointee alignment of T.
-LValue CodeGenFunction::MakeNaturalAlignPointeeAddrLValue(llvm::Value *V, QualType T) {
+LValue
+CodeGenFunction::MakeNaturalAlignPointeeAddrLValue(llvm::Value *V, QualType T) {
   LValueBaseInfo BaseInfo;
   TBAAAccessInfo TBAAInfo;
   CharUnits Align = CGM.getNaturalTypeAlignment(T, &BaseInfo, &TBAAInfo,
@@ -1172,14 +1173,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       if (CGM.getCodeGenOpts().MNopMCount) {
         if (!CGM.getCodeGenOpts().CallFEntry)
           CGM.getDiags().Report(diag::err_opt_not_valid_without_opt)
-              << "-mnop-mcount" << "-mfentry";
+            << "-mnop-mcount" << "-mfentry";
         Fn->addFnAttr("mnop-mcount");
       }
 
       if (CGM.getCodeGenOpts().RecordMCount) {
         if (!CGM.getCodeGenOpts().CallFEntry)
           CGM.getDiags().Report(diag::err_opt_not_valid_without_opt)
-              << "-mrecord-mcount" << "-mfentry";
+            << "-mrecord-mcount" << "-mfentry";
         Fn->addFnAttr("mrecord-mcount");
       }
     }
@@ -2004,7 +2005,7 @@ static void emitNonZeroVLAInit(CodeGenFunction &CGF, QualType baseType,
   CGBuilderTy &Builder = CGF.Builder;
 
   CharUnits baseSize = CGF.getContext().getTypeSizeInChars(baseType);
-  llvm::Value *baseSizeInChars 
+  llvm::Value *baseSizeInChars
     = llvm::ConstantInt::get(CGF.IntPtrTy, baseSize.getQuantity());
 
   Address begin =
@@ -2059,7 +2060,7 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
   // Get size and alignment info for this aggregate.
   CharUnits size = getContext().getTypeSizeInChars(Ty);
 
-  llvm::Value *SizeVal;()
+  llvm::Value *SizeVal;
   const VariableArrayType *vla;
 
   // Don't bother emitting a zero-byte memset.
@@ -2094,8 +2095,8 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
 
     llvm::GlobalVariable *NullVariable =
       new llvm::GlobalVariable(CGM.getModule(), NullConstant->getType(),
-                               /*isConstant=*/true, 
-                               llvm::GlobalVariable::PrivateLinkage, 
+                               /*isConstant=*/true,
+                               llvm::GlobalVariable::PrivateLinkage,
                                NullConstant, Twine());
     CharUnits NullAlign = DestPtr.getAlignment();
     NullVariable->setAlignment(NullAlign.getAsAlign());
@@ -2129,13 +2130,12 @@ llvm::BlockAddress *CodeGenFunction::GetAddrOfLabel(const LabelDecl *L) {
 
 llvm::BasicBlock *CodeGenFunction::GetIndirectGotoBlock() {
   // If we already made the indirect branch for indirect goto, return its block.
-  if (IndirectBranch)
-    return IndirectBranch->getParent();
+  if (IndirectBranch) return IndirectBranch->getParent();
 
   CGBuilderTy TmpBuilder(*this, createBasicBlock("indirectgoto"));
 
   // Create the PHI node that indirect gotos will add entries to.
-  llvm::Value *DestVal = TmpBuilder.CreatePHI(Int8PtrTy, 0, 
+  llvm::Value *DestVal = TmpBuilder.CreatePHI(Int8PtrTy, 0,
                                               "indirect.goto.dest");
 
   // Create the indirect branch instruction.
@@ -2225,8 +2225,8 @@ llvm::Value *CodeGenFunction::emitArrayLength(const ArrayType *origArrayType,
 
   baseType = eltType;
 
-  llvm::Value *numElements =
-    llvm::ConstantInt::get(SizeTy, countFromCLAs);
+  llvm::Value *numElements
+    = llvm::ConstantInt::get(SizeTy, countFromCLAs);
 
   // If we had any VLA dimensions, factor them in.
   if (numVLAElements)
@@ -2569,7 +2569,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   // don't perform bitcasts if value is integer
   if (VTy->getPointerElementType()->isIntegerTy()) {
     llvm::Function *F =
-        CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
+      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
 
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
       V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
