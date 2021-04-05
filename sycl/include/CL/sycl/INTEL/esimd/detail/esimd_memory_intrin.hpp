@@ -676,10 +676,8 @@ __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
   // On host the input surface is modeled as sycl image 2d object,
   // and the read/write access is done through accessor,
   // which is passed in as the handle argument.
-  auto range =
-      sycl::INTEL::gpu::detail::AccessorPrivateProxy::getImageRange(handle);
-  unsigned bpp =
-      sycl::INTEL::gpu::detail::AccessorPrivateProxy::getElemSize(handle);
+  auto range = __SIGD::AccessorPrivateProxy::getImageRange(handle);
+  unsigned bpp = __SIGD::AccessorPrivateProxy::getElemSize(handle);
   unsigned vpp = bpp / sizeof(Ty);
   unsigned int i = x / bpp;
   unsigned int j = y;
@@ -727,11 +725,9 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
                                       unsigned plane, unsigned width,
                                       unsigned x, unsigned y,
                                       __SIGD::vector_type_t<Ty, M * N> vals) {
-  unsigned bpp =
-      sycl::INTEL::gpu::detail::AccessorPrivateProxy::getElemSize(handle);
+  unsigned bpp = __SIGD::AccessorPrivateProxy::getElemSize(handle);
   unsigned vpp = bpp / sizeof(Ty);
-  auto range =
-      sycl::INTEL::gpu::detail::AccessorPrivateProxy::getImageRange(handle);
+  auto range = __SIGD::AccessorPrivateProxy::getImageRange(handle);
   unsigned int i = x / bpp;
   unsigned int j = y;
 
