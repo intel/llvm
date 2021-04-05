@@ -4,12 +4,12 @@
 #include "CL/sycl.hpp"
 #include "CL/sycl/INTEL/esimd/esimd.hpp"
 
-static_assert(__esimd::getNextPowerOf2<0>() == 0, "");
-static_assert(__esimd::getNextPowerOf2<1>() == 1, "");
-static_assert(__esimd::getNextPowerOf2<7>() == 8, "");
-static_assert(__esimd::getNextPowerOf2<1024>() == 1024, "");
+static_assert(sycl::INTEL::gpu::detail::getNextPowerOf2<0>() == 0, "");
+static_assert(sycl::INTEL::gpu::detail::getNextPowerOf2<1>() == 1, "");
+static_assert(sycl::INTEL::gpu::detail::getNextPowerOf2<7>() == 8, "");
+static_assert(sycl::INTEL::gpu::detail::getNextPowerOf2<1024>() == 1024, "");
 
-static_assert(__esimd::log2<0>() == 0, "");
-static_assert(__esimd::log2<1>() == 0, "");
-static_assert(__esimd::log2<7>() == 2, "");
-static_assert(__esimd::log2<1024 * 1024>() == 20, "");
+static_assert(sycl::INTEL::gpu::detail::log2<0>() == 0, "");
+static_assert(sycl::INTEL::gpu::detail::log2<1>() == 0, "");
+static_assert(sycl::INTEL::gpu::detail::log2<7>() == 2, "");
+static_assert(sycl::INTEL::gpu::detail::log2<1024 * 1024>() == 20, "");
