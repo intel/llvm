@@ -5116,7 +5116,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       std::string SrcFileName(I.second->getAsString(Args));
       std::string TmpFileNameHeader = C.getDriver().GetTemporaryPath(
           llvm::sys::path::stem(SrcFileName + "-header"), "h");
-      const char *TmpFileHeader =
+      StringRef TmpFileHeader =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
       addIntegrationFiles(TmpFileHeader, SrcFileName);
     }

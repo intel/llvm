@@ -692,12 +692,11 @@ public:
 
   /// addIntegrationFiles - Add the integration files that will be populated
   /// by the device compilation and used by the host compile.
-  void addIntegrationFiles(const char *IntHeaderName,
-                           const std::string &FileName) const {
+  void addIntegrationFiles(StringRef IntHeaderName, StringRef FileName) const {
     IntegrationFileList.insert({FileName, IntHeaderName});
   }
   /// getIntegrationHeader - Get the integration header file
-  StringRef getIntegrationHeader(const std::string &FileName) const {
+  StringRef getIntegrationHeader(StringRef FileName) const {
     return IntegrationFileList[FileName];
   }
 };
