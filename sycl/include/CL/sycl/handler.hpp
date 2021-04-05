@@ -825,7 +825,7 @@ private:
       MCGType = detail::CG::KERNEL_V1;
 #endif
     } else
-#endif // !SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING &&                         \
+#endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&                     \
        // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&       \
        // SYCL_LANGUAGE_VERSION >= 202001
     {
