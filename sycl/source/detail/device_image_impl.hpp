@@ -93,8 +93,9 @@ public:
                                              const void *Value,
                                              size_t ValueSize) noexcept {
     unsigned SpecID = MSpecConstSymMap[SpecName];
-    for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
+    for (SpecConstDescT &SpecConstDesc : MSpecConstDescs)
       if (SpecConstDesc.ID == SpecID) {
+        SpecConstDesc.IsSet = true;
         // Lock the mutex to prevent when one thread in the middle of writing a
         // new value while another thread is reading the value to pass it to
         // JIT compiler.
@@ -177,6 +178,11 @@ private:
                       [&](const _pi_device_binary_property_struct &Prop) {
                         MSpecConstSymMap[Prop.Name] =
                             *static_cast<unsigned *>(Prop.ValAddr);
+                        MSpecConstDescs.emplace_back(
+                            *static_cast<unsigned *>(Prop.ValAddr), // ID
+                            *(static_cast<unsigned *>(Prop.ValAddr) + 1), // Offset
+                            false
+                        );
                       });
       }
     }

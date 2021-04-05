@@ -262,6 +262,7 @@ public:
         getSyclObjImpl(DeviceImage)
             ->get_specialization_constant_raw_value(SpecName, ValueRet,
                                                     ValueSize);
+        return;
       }
 
     throw sycl::runtime_error("Specialization constant not found",
