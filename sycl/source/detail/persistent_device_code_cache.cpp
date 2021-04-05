@@ -23,35 +23,28 @@ namespace detail {
 
 /* This is temporary solution until std::filesystem is available when SYCL RT
  * is moved to c++17 standard*/
-std::string getDirName(const char *Path) {
-  std::string Tmp(Path);
-  // Remove trailing directory separators
-  Tmp.erase(Tmp.find_last_not_of("/\\") + 1, std::string::npos);
 
-  auto pos = Tmp.find_last_of("/\\");
-  if (pos != std::string::npos)
-    return Tmp.substr(0, pos);
-
-  // If no directory separator is present return initial path like dirname does
-  return Tmp;
-}
-
+/* Create directory recursively */
 int makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
-  // Directory is present - do nothing
   if (isPathPresent(Dir))
     return 0;
 
-  char *CurDir = strdup(Dir);
-  makeDir(getDirName(CurDir).c_str());
+  std::string Path{Dir}, CurPath;
+  size_t pos = 0;
 
-  free(CurDir);
-
+  do {
+    pos = Path.find_first_of("/\\", ++pos);
+    CurPath = Path.substr(0, pos);
 #if defined(__SYCL_RT_OS_LINUX)
-  return mkdir(Dir, 0777);
+    auto Res = mkdir(CurPath.c_str(), 0777);
 #else
-  return _mkdir(Dir);
+    auto Res = _mkdir(CurPath.c_str());
 #endif
+    if (Res && errno != EEXIST)
+      return Res;
+  } while (pos != std::string::npos);
+  return 0;
 }
 
 LockCacheItem::LockCacheItem(const std::string &DirName)
