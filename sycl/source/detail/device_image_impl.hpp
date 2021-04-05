@@ -178,11 +178,11 @@ private:
                       [&](const _pi_device_binary_property_struct &Prop) {
                         MSpecConstSymMap[Prop.Name] =
                             *static_cast<unsigned *>(Prop.ValAddr);
-                        MSpecConstDescs.emplace_back(
+                        MSpecConstDescs.push_back(SpecConstDescT{
                             *static_cast<unsigned *>(Prop.ValAddr), // ID
                             *(static_cast<unsigned *>(Prop.ValAddr) + 1), // Offset
                             false
-                        );
+                        });
                       });
       }
     }

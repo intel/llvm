@@ -256,7 +256,7 @@ public:
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
     const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
-    return has_specialization_constant(SpecSymName);
+    return has_specialization_constant_impl(SpecSymName);
   }
 
   /// Sets the value of the specialization constant whose address is SpecName
@@ -267,7 +267,7 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
 
-    using SCType = std::remove_reference_t<decltype(SpecName)>::value_type;
+    using SCType = typename std::remove_reference_t<decltype(SpecName)>::value_type;
     static_assert(std::is_trivially_copyable_v<SCType>);
     // TODO can this be simply default constructible
     static_assert(std::is_trivially_default_constructible_v<SCType>);
@@ -282,7 +282,7 @@ public:
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
 
-    using SCType = std::remove_reference_t<decltype(SpecName)>::value_type;
+    using SCType = typename std::remove_reference_t<decltype(SpecName)>::value_type;
     static_assert(std::is_trivially_copyable_v<SCType>);
     // TODO can this be simply default constructible
     static_assert(std::is_trivially_default_constructible_v<SCType>);

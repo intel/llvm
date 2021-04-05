@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include <type_traits>
+#include <CL/sycl/exception.hpp>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
