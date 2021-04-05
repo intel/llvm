@@ -1684,10 +1684,10 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
 
-    // zahira
 #if 0
     // zahira
     StringRef FuncName = KernelDecl->getName();
+    
     StringRef ArgName = FD->getName();
     std::string ArgType = FieldTy.getAsString();
     SourceLocation ArgLoc = FD->getLocation();
@@ -1704,7 +1704,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 #endif
     addParam(newParamDesc, FieldTy);
   }
-
+ 
   void addParam(const CXXBaseSpecifier &BS, QualType FieldTy) {
     // TODO: There is no name for the base available, but duplicate names are
     // seemingly already possible, so we'll give them all the same name for now.
@@ -1715,7 +1715,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     // zahira
 #if 0
     StringRef FuncName = KernelDecl->getName();
-    StringRef ArgName = "_arg__base";
+    StringRef ArgName = " ";
     std::string ArgType = FieldTy.getAsString();
     SourceLocation KernelArgLoc = BS.getBaseTypeLoc();
     printf("AddParam BS\n");
@@ -1725,7 +1725,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 #endif
 #if 1
     SemaRef.getDiagnostics().OptReportHandler.AddKernelArgs(
-        KernelDecl, "_arg__base", FieldTy.getAsString(),
+        KernelDecl, "", FieldTy.getAsString(),
         BS.getBaseTypeLoc());
 #endif
     addParam(newParamDesc, FieldTy);

@@ -1515,19 +1515,34 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   if (OptReportHandler.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
+    int count = 0;
+
     for (auto &ORI : OptReportHandler.getInfo(FD)) {
-      llvm::DiagnosticLocation DL = SourceLocToDebugLoc(ORI.KernelArgLoc);
-      llvm::OptimizationRemark Remark("sycl", "Region", DL,
-                                      &Fn->getEntryBlock());
-#if 1
+#if 0
       printf("Name of FD: %s \n", FD->getName().data());
+      printf("Name of Fn: %s\n", Fn->getFunction().getName().data());
       printf("ArgName: %s \n", ORI.KernelArgName.data());
       printf("ArgType: %s \n", ORI.KernelArgType.data());
       printf("ArgLoc: %d \n", ORI.KernelArgLoc.getRawEncoding());
 #endif
-      Remark << llvm::ore::NV("KernelArg", ORI.KernelArgName);
-      Remark << llvm::ore::NV("ArgType", ORI.KernelArgType);
-      Remark << llvm::ore::NV("ArgLoc", ORI.KernelArgLoc.getRawEncoding());
+      std::string prefix;
+      if (ORI.KernelArgName.empty())
+        prefix = "&";
+      llvm::DiagnosticLocation DL = SourceLocToDebugLoc(ORI.KernelArgLoc);
+      llvm::OptimizationRemark Remark("sycl", "Region", DL,
+                                      &Fn->getEntryBlock());
+      Remark << "Argument " << llvm::ore::NV("Argument", count++)
+             << " for function kernel: " 
+             << llvm::ore::NV(ORI.KernelArgName.empty()
+                ? "&" : "") << " "
+             << Fn->getName() << "." 
+             << llvm::ore::NV(ORI.KernelArgName.empty() ? " " : ORI.KernelArgName)           
+             << "(" << ORI.KernelArgType << ")";
+#if 0
+      Remark << llvm::ore::NV("KernelArg ", ORI.KernelArgName)
+             << llvm::ore::NV("ArgType ", ORI.KernelArgType)
+             << llvm::ore::NV("ArgLoc ", ORI.KernelArgLoc.getRawEncoding());
+      #endif
       ORE.emit(Remark);
     }
   }
