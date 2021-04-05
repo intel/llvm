@@ -50,9 +50,9 @@ enum class image_channel_type : unsigned int {
   signed_int32 = 9,
   unsigned_int8 = 10,
   unsigned_int16 = 11,
-  unsigned_int32 = 13,
-  fp16 = 14,
-  fp32 = 15
+  unsigned_int32 = 12,
+  fp16 = 13,
+  fp32 = 14
 };
 
 using byte = unsigned char;
