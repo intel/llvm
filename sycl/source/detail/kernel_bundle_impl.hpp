@@ -33,7 +33,7 @@ template <class T> struct LessByHash {
   }
 };
 
-static bool CheckAllDevicesAreInContext(const std::vector<device> &Devices,
+static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
                                         const context &Context) {
   const std::vector<device> &ContextDevices = Context.get_devices();
   return std::all_of(
@@ -43,7 +43,7 @@ static bool CheckAllDevicesAreInContext(const std::vector<device> &Devices,
       });
 }
 
-static bool CheckAllDevicesHaveAspect(const std::vector<device> &Devices,
+static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
                                       aspect Aspect) {
   return std::all_of(Devices.begin(), Devices.end(),
                      [&Aspect](const device &Dev) { return Dev.has(Aspect); });
@@ -56,7 +56,7 @@ class kernel_bundle_impl {
 
   void common_ctor_checks(bundle_state State) {
     const bool AllDevicesInTheContext =
-        CheckAllDevicesAreInContext(MDevices, MContext);
+        checkAllDevicesAreInContext(MDevices, MContext);
     if (MDevices.empty() || !AllDevicesInTheContext)
       throw sycl::exception(
           make_error_code(errc::invalid),
@@ -64,12 +64,12 @@ class kernel_bundle_impl {
           "vector of devices is empty");
 
     if (bundle_state::input == State &&
-        !CheckAllDevicesHaveAspect(MDevices, aspect::online_compiler))
+        !checkAllDevicesHaveAspect(MDevices, aspect::online_compiler))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Not all devices have aspect::online_compiler");
 
     if (bundle_state::object == State &&
-        !CheckAllDevicesHaveAspect(MDevices, aspect::online_linker))
+        !checkAllDevicesHaveAspect(MDevices, aspect::online_linker))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Not all devices have aspect::online_linker");
   }
@@ -155,6 +155,7 @@ public:
     // devices for any of the bundles in ObjectBundles
     const bool AllDevsAssociatedWithInputBundles = std::all_of(
         MDevices.begin(), MDevices.end(), [&ObjectBundles](const device &Dev) {
+          // Number of devices is expected to be small
           return std::all_of(
               ObjectBundles.begin(), ObjectBundles.end(),
               [&Dev](const kernel_bundle<bundle_state::object> &KernelBundle) {
