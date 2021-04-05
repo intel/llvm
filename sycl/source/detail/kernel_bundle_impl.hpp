@@ -28,7 +28,7 @@ namespace sycl {
 namespace detail {
 
 template <class T> struct LessByHash {
-  bool operator()(const T &LHS, const T &RHS) {
+  bool operator()(const T &LHS, const T &RHS) const {
     return getSyclObjImpl(LHS) < getSyclObjImpl(RHS);
   }
 };
