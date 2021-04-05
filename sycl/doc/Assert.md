@@ -104,7 +104,7 @@ should be performed via calls to `clGetEventInfo` for OpenCL backend and
 ## How it works?
 
 For the time being, `assert(expr)` macro ends up in call to
-`__devicelib_assert_fail` function. This function is part of [Device library extension](doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst#cl_intel_devicelib_cassert).
+`__devicelib_assert_fail` function. This function is part of [Device library extension](extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst#cl_intel_devicelib_cassert).
 Device code already contains call to the function. Currently, a device-binary
 is always linked against fallback implementation.
 
@@ -121,7 +121,7 @@ is responsible for:
 When detected, Low-level Runtime reports assert failure to DPCPP Runtime
 at synchronization points.
 
-Refer to [OpenCL](doc/extensions/Assert/opencl.md) and [Level-Zero](doc/extensions/Assert/level-zero.md)
+Refer to [OpenCL](extensions/Assert/opencl.md) and [Level-Zero](extensions/Assert/level-zero.md)
 extensions.
 
 
