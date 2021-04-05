@@ -5406,9 +5406,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   for (const Arg *A :
-       // TODO: remove -fsycl-explicit-simd when support is dropped.
-       Args.filtered(options::OPT_clang_ignored_legacy_options_Group,
-                     options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd)) {
+       Args.filtered(options::OPT_clang_ignored_legacy_options_Group)) {
     D.Diag(diag::warn_ignored_clang_option) << A->getAsString(Args);
     A->claim();
   }
