@@ -132,7 +132,7 @@ public:
     MaxPoolableSize *= (1 << 20);
     MaxPoolSize *= (1 << 20);
   }
-} L;
+} UsmPoolSettings;
 } // namespace settings
 
 // Aligns the pointer down to the specified alignment
