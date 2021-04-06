@@ -12,9 +12,11 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
+#include <chrono>
 #include <fcntl.h>
 #include <string>
 #include <sys/stat.h>
+#include <thread>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -25,24 +27,32 @@ namespace detail {
  * is moved to c++17 standard*/
 std::string getDirName(const char *Path);
 
-#include <sys/stat.h>
 /// Checks if specified path is present
 inline bool isPathPresent(const std::string &Path) {
   struct stat Stat;
   return !stat(Path.c_str(), &Stat);
 }
 
+/// Checks if file age exceeds defined threshold
+bool exceedLifeTime(const std::string &Path, time_t sec);
+
+/// Make directory recursibely
 int makeDir(const char *Dir);
 
 class LockCacheItem {
+private:
   const std::string FileName;
+  bool Owned = false;
+  static const char LockSuffix[];
 
 public:
-  LockCacheItem(const std::string &DirName);
-  static bool isLocked(const std::string &DirName) {
-    return isPathPresent(DirName + "/.lock");
+  LockCacheItem(const std::string &Path);
+
+  bool isOwned() { return Owned; }
+  static bool isLocked(const std::string &Path) {
+    return isPathPresent(Path + LockSuffix);
   }
-  ~LockCacheItem() { std::remove(FileName.c_str()); }
+  ~LockCacheItem();
 };
 /* End of temporary solution*/
 
@@ -80,6 +90,16 @@ class PersistentDeviceCodeCache {
    * such errors happen warning messages are written to std::err:
    *  - on cache write operation cache item is not created;
    *  - on cache read operation it is treated as cache miss.
+   *
+   * To avoid concurent write operations to the same cache item causing data
+   * corruption cache item dir is locked using .lock file. It is created on
+   * write operation and checked on read.
+   *  - Lock is done per cache item.
+   *  - Lock is not blocking. If lock fails cache item read/write is skipped
+   *  and SYCL application flow resumes. There is time threshold for locking
+   *  a cache item: 10 microseconds.
+   *  - If lock file exists for 1 hour it is cleared on next access to resume
+   *  caching for the particular cache item.
    */
 private:
   /* Write built binary to persistent cache

@@ -10,6 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/plugin.hpp>
+
 #if defined(__SYCL_RT_OS_LINUX)
 #include <unistd.h>
 #else
@@ -47,13 +48,50 @@ int makeDir(const char *Dir) {
   return 0;
 }
 
-LockCacheItem::LockCacheItem(const std::string &DirName)
-    : FileName(DirName + "/.lock") {
+/// Checks if file age exceeds defined threshold
+bool exceedLifeTime(const std::string &Path, time_t sec) {
+  struct stat Stat;
+
+  if (stat(Path.c_str(), &Stat)) {
+    time_t CurTime;
+    time(&CurTime);
+    return (CurTime - Stat.st_mtime) > (sec * 1000);
+  }
+  return false;
+}
+
+const char LockCacheItem::LockSuffix[] = ".lock";
+LockCacheItem::LockCacheItem(const std::string &Path)
+    : FileName(Path + LockSuffix) {
   int fd;
+  if (exceedLifeTime(FileName, 3600))
+    std::remove(FileName.c_str());
+
+  auto Start = std::chrono::high_resolution_clock::now();
+
   while ((fd = open(FileName.c_str(), O_CREAT | O_EXCL, S_IWRITE)) == -1) {
+    // if lock file is not created unblock the thread
+    if (std::chrono::high_resolution_clock::now() - Start >
+        std::chrono::microseconds(100)) {
+      return;
+    }
     std::this_thread::yield();
   }
   close(fd);
+  Owned = true;
+}
+
+LockCacheItem::~LockCacheItem() {
+  if (Owned) {
+    auto Start = std::chrono::high_resolution_clock::now();
+    while (std::remove(FileName.c_str())) {
+      // if lock file is not cleaned unblock the thread
+      if (std::chrono::high_resolution_clock::now() - Start >
+          std::chrono::microseconds(10))
+        return;
+      std::this_thread::yield();
+    }
+  }
 }
 
 /* Stores build program in persisten cache
@@ -104,10 +142,12 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   try {
     makeDir(DirName.c_str());
-    LockCacheItem Lock{DirName};
-    writeBinaryDataToFile(FileName + ".bin", Result);
-    writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
-                    BuildOptionsString);
+    LockCacheItem Lock{FileName};
+    if (Lock.isOwned()) {
+      writeBinaryDataToFile(FileName + ".bin", Result);
+      writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
+                      BuildOptionsString);
+    }
   } catch (...) {
     // If a problem happens on storing cache item, do nothing
   }
@@ -137,13 +177,11 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
 
   int i = 0;
 
-  // If cache directory is locked ignore cache
-  if (LockCacheItem::isLocked(Path))
-    return {};
-
   std::string FileName{Path + "/" + std::to_string(i)};
   while (isPathPresent(FileName + ".bin") || isPathPresent(FileName + ".src")) {
-    if (isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
+
+    if (!LockCacheItem::isLocked(FileName) &&
+        isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
                             BuildOptionsString)) {
       try {
         return readBinaryDataFromFile(FileName + ".bin");

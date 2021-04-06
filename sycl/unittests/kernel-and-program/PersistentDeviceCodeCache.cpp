@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/Process.h>
 #include <mutex>
 #include <vector>
 
@@ -92,11 +93,13 @@ public:
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       return;
     }
-
+    std::string BuildOptions{"--concurrent-access=" +
+                             std::to_string(ThreadCount)};
     DeviceCodeID = ProgramID;
     std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
         Dev, Img, {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID},
-        "--build-options");
+        BuildOptions);
+    llvm::sys::fs::remove_directories(ItemDir);
 
     Barrier b(ThreadCount);
     {
@@ -106,15 +109,15 @@ public:
             Dev, Img,
             sycl::vector_class<unsigned char>(
                 {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}),
-            "--build-options", NativeProg);
-        auto res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+            BuildOptions, NativeProg);
+        auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
             Dev, Img,
             sycl::vector_class<unsigned char>(
                 {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}),
-            "--build-options", NativeProg);
-        for (int i = 0; i < res.size(); ++i) {
-          for (int j = 0; j < res[i].size(); ++j) {
-            assert(res[i][j] == i &&
+            BuildOptions, NativeProg);
+        for (int i = 0; i < Res.size(); ++i) {
+          for (int j = 0; j < Res[i].size(); ++j) {
+            assert(Res[i][j] == i &&
                    "Corrupted image loaded from persistent cache");
           }
         }
@@ -158,6 +161,77 @@ TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
   ConcurentReadWriteCache(2, 20);
 }
 
+// llvm::sys::fs::setPermissions doe not make effect on Windows
+/* Checks cache behavior when filesystem read/write operations fail
+ */
+TEST_F(PersistenDeviceCodeCache, LockFile) {
+  std::chrono::time_point<std::chrono::system_clock> OldTime =
+      std::chrono::system_clock::now() - std::chrono::hours(2);
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+  std::string BuildOptions{"--obsolete-lock"};
+  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      Dev, Img, {}, BuildOptions);
+  llvm::sys::fs::remove_directories(ItemDir);
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
+  assert(llvm::sys::fs::exists(ItemDir + "/0.bin") && "No file created");
+  std::string LockFile = ItemDir + "/0.lock";
+  assert(!llvm::sys::fs::exists(LockFile) && "Cache item locked");
+
+  int FD = -1;
+  // Create lock file for cache item
+  assert(!llvm::sys::fs::openFileForWrite(LockFile, FD,
+                                          llvm::sys::fs::CD_CreateNew) &&
+         "Failed to create lock file");
+  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+  // Cache item is locked - ignore it
+  auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
+  assert(Res.size() == 0 && "Locked item was read");
+
+  // Cache item is locked - new cache item to be created
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
+  assert(llvm::sys::fs::exists(ItemDir + "/1.bin") && "No file created");
+
+  // Lock second cache item
+  assert(!llvm::sys::fs::openFileForWrite(ItemDir + "/1.lock", FD,
+                                          llvm::sys::fs::CD_CreateNew) &&
+         "Failed to create lock file");
+  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+
+  assert(!llvm::sys::fs::openFileForWrite(LockFile, FD,
+                                          llvm::sys::fs::CD_OpenExisting) &&
+         "Failed to open lock file");
+  // Make cache Item obsolete (last access time more than theshold)
+  llvm::sys::fs::setLastAccessAndModificationTime(FD, OldTime, OldTime);
+  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+
+  // Lock file is obsolete - clean lock
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
+  assert(!llvm::sys::fs::exists(ItemDir + "/2.bin") && "File was created");
+
+  assert(!llvm::sys::fs::openFileForWrite(LockFile, FD,
+                                          llvm::sys::fs::CD_OpenExisting) &&
+         "Failed to open lock file");
+  // Make cache Item obsolete (last access time more than theshold)
+  llvm::sys::fs::setLastAccessAndModificationTime(FD, OldTime, OldTime);
+  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+
+  Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
+  // Image should be successfully read
+  for (int i = 0; i < Res.size(); ++i) {
+    for (int j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
+    }
+  }
+  llvm::sys::fs::remove_directories(ItemDir);
+}
+
 #ifndef _WIN32
 // llvm::sys::fs::setPermissions doe not make effect on Windows
 /* Checks cache behavior when filesystem read/write operations fail
@@ -166,33 +240,35 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+  std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      Dev, Img, {}, "--build-options");
-  detail::PersistentDeviceCodeCache::putItemToDisc(
-      Dev, Img, {}, "--build-options", NativeProg);
+      Dev, Img, {}, BuildOptions);
+  llvm::sys::fs::remove_directories(ItemDir);
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
   assert(llvm::sys::fs::exists(ItemDir + "/0.bin") && "No file created");
   llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::no_perms);
   // No access to binary file new cache item to be created
-  detail::PersistentDeviceCodeCache::putItemToDisc(
-      Dev, Img, {}, "--build-options", NativeProg);
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
   assert(llvm::sys::fs::exists(ItemDir + "/1.bin") && "No file created");
 
   llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::no_perms);
-  auto res = detail::PersistentDeviceCodeCache::getItemFromDisc(
-      Dev, Img, {}, "--build-options", NativeProg);
+  auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
 
   // No image to be read due to lack of permissions fro source file
-  assert(res.size() == 0);
+  assert(Res.size() == 0);
 
   llvm::sys::fs::setPermissions(ItemDir + "/0.bin", llvm::sys::fs::all_perms);
   llvm::sys::fs::setPermissions(ItemDir + "/1.bin", llvm::sys::fs::all_perms);
 
-  res = detail::PersistentDeviceCodeCache::getItemFromDisc(
-      Dev, Img, {}, "--build-options", NativeProg);
+  Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
   // Image should be successfully read
-  for (int i = 0; i < res.size(); ++i) {
-    for (int j = 0; j < res[i].size(); ++j) {
-      assert(res[i][j] == i && "Corrupted image loaded from persistent cache");
+  for (int i = 0; i < Res.size(); ++i) {
+    for (int j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
     }
   }
   llvm::sys::fs::remove_directories(ItemDir);
