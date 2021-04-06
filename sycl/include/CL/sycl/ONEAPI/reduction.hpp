@@ -508,30 +508,24 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
-  // Note that aliasing constructor was used to initialize MRWAcc to avoid
-  // destruction of the object referenced by the parameter Acc.
   template <
       typename _T = T,
       enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
   reduction_impl(rw_accessor_type &Acc)
-      : MRWAcc(shared_ptr_class<rw_accessor_type>(
-            shared_ptr_class<rw_accessor_type>{}, &Acc)),
-        MIdentity(getIdentity()), InitializeToIdentity(false) {
+      : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
+        InitializeToIdentity(false) {
     if (Acc.get_count() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
-  // Note that aliasing constructor was used to initialize MDWAcc to avoid
-  // destruction of the object referenced by the parameter Acc.
   template <
       typename _T = T,
       enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
   reduction_impl(dw_accessor_type &Acc)
-      : MDWAcc(shared_ptr_class<dw_accessor_type>(
-            shared_ptr_class<dw_accessor_type>{}, &Acc)),
-        MIdentity(getIdentity()), InitializeToIdentity(true) {
+      : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
+        InitializeToIdentity(true) {
     if (Acc.get_count() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
@@ -567,15 +561,12 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
-  // Note that aliasing constructor was used to initialize MRWAcc to avoid
-  // destruction of the object referenced by the parameter Acc.
   template <
       typename _T = T,
       enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
   reduction_impl(rw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
-      : MRWAcc(shared_ptr_class<rw_accessor_type>(
-            shared_ptr_class<rw_accessor_type>{}, &Acc)),
-        MIdentity(getIdentity()), InitializeToIdentity(false) {
+      : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
+        InitializeToIdentity(false) {
     if (Acc.get_count() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
@@ -592,13 +583,14 @@ public:
     // list of known operations does not break the existing programs.
   }
 
+  /// Constructs reduction_impl when the identity value is statically known,
+  /// and user still passed the identity value.
   template <
       typename _T = T,
       enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
   reduction_impl(dw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
-      : MDWAcc(shared_ptr_class<dw_accessor_type>(
-            shared_ptr_class<dw_accessor_type>{}, &Acc)),
-        MIdentity(getIdentity()), InitializeToIdentity(true) {
+      : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
+        InitializeToIdentity(true) {
     if (Acc.get_count() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
@@ -632,30 +624,24 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  // Note that aliasing constructor was used to initialize MRWAcc to avoid
-  // destruction of the object referenced by the parameter Acc.
   template <
       typename _T = T,
       enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
   reduction_impl(rw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
-      : MRWAcc(shared_ptr_class<rw_accessor_type>(
-            shared_ptr_class<rw_accessor_type>{}, &Acc)),
-        MIdentity(Identity), MBinaryOp(BOp), InitializeToIdentity(false) {
+      : MRWAcc(new rw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
+        InitializeToIdentity(false) {
     if (Acc.get_count() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  // Note that aliasing constructor was used to initialize MDWAcc to avoid
-  // destruction of the object referenced by the parameter Acc.
   template <
       typename _T = T,
       enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
   reduction_impl(dw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
-      : MDWAcc(shared_ptr_class<dw_accessor_type>(
-            shared_ptr_class<dw_accessor_type>{}, &Acc)),
-        MIdentity(Identity), MBinaryOp(BOp), InitializeToIdentity(true) {
+      : MDWAcc(new dw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
+        InitializeToIdentity(true) {
     if (Acc.get_count() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
