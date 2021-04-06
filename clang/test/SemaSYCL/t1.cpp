@@ -10,7 +10,7 @@ int main() {
   q.submit([&](handler &h) {
     h.single_task<class NT>(
         []() [[intel::max_concurrency(NT)]]{})
-    });
+  });
 });
 }
 
