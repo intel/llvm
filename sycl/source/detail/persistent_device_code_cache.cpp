@@ -48,25 +48,10 @@ int makeDir(const char *Dir) {
   return 0;
 }
 
-/// Checks if file age exceeds defined threshold
-bool exceedLifeTime(const std::string &Path, time_t sec) {
-  struct stat Stat;
-
-  if (stat(Path.c_str(), &Stat)) {
-    time_t CurTime;
-    time(&CurTime);
-    return (CurTime - Stat.st_mtime) > (sec * 1000);
-  }
-  return false;
-}
-
 const char LockCacheItem::LockSuffix[] = ".lock";
 LockCacheItem::LockCacheItem(const std::string &Path)
     : FileName(Path + LockSuffix) {
   int fd;
-  if (exceedLifeTime(FileName, 3600))
-    std::remove(FileName.c_str());
-
   auto Start = std::chrono::high_resolution_clock::now();
 
   while ((fd = open(FileName.c_str(), O_CREAT | O_EXCL, S_IWRITE)) == -1) {

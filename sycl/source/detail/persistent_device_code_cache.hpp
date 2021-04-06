@@ -33,9 +33,6 @@ inline bool isPathPresent(const std::string &Path) {
   return !stat(Path.c_str(), &Stat);
 }
 
-/// Checks if file age exceeds defined threshold
-bool exceedLifeTime(const std::string &Path, time_t sec);
-
 /// Make directory recursibely
 int makeDir(const char *Dir);
 
@@ -70,36 +67,28 @@ class PersistentDeviceCodeCache {
    *   <device_hash>                - hash out of device information used to
    *                                  identify target device;
    *   <device_image_hash>          - hash made out of device image used as
-   * input for the JIT compilation; <spec_constants_values_hash> - hash for
-   * specialization constants values; <build_options_hash>         - hash for
-   * all build options; <n>                          - sequential number of hash
-   * collisions. When hashes matches for the specific build but full values
-   * don't, new cache item is added with incremented value (enumeration started
-   *                                  from 0).
+   *                                  input for the JIT compilation;
+   *   <spec_constants_values_hash> - hash for specialization constants values;
+   *   <build_options_hash>         - hash for all build options;
+   *   <n>                          - sequential number of hash collisions.
+   *                                  When hashes match for the specific build
+   *                                  but full values don't, new cache item is
+   *                                  added with incremented value(enumeration
+   *                                  started from 0).
    * Two files per cache item are stored on disk:
-   *   <n>.src - contains full values for build parameters (device information,
-   *             specialization constant values, build options, device image)
-   *             which is used to resolve hash collisions and analysis of cached
-   *             items.
-   *   <n>.bin - contains built device code.
-   * Also directory lock file is created when cache item is written. Lock item
-   *   .lock   - directory lock file. It is created when data is save to
-   *             filesystem. On read operation the absence of file is checked
-   *             but not created to avoid lock.
-   * All filesystem operations are not treated as SYCL errors and ignored. If
-   * such errors happen warning messages are written to std::err:
+   *   <n>.src  - contains full values for build parameters (device information,
+   *              specialization constant values, build options, device image)
+   *              which is used to resolve hash collisions and analysis of
+   *              cached items.
+   *   <n>.bin  - contains built device code.
+   *   <n>.lock - cache item lock file. It is created when data is saved to
+   *              filesystem. On read operation the absence of file is checked
+   *              but it is not created to avoid lock.
+   * All filesystem operation failures are not treated as SYCL errors and
+   * ignored. If such errors happen warning messages are written to std::cerr
+   * and:
    *  - on cache write operation cache item is not created;
    *  - on cache read operation it is treated as cache miss.
-   *
-   * To avoid concurent write operations to the same cache item causing data
-   * corruption cache item dir is locked using .lock file. It is created on
-   * write operation and checked on read.
-   *  - Lock is done per cache item.
-   *  - Lock is not blocking. If lock fails cache item read/write is skipped
-   *  and SYCL application flow resumes. There is time threshold for locking
-   *  a cache item: 10 microseconds.
-   *  - If lock file exists for 1 hour it is cleared on next access to resume
-   *  caching for the particular cache item.
    */
 private:
   /* Write built binary to persistent cache

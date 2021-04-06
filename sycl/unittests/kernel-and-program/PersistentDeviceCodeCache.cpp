@@ -14,7 +14,6 @@
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
-#include <llvm/Support/Process.h>
 #include <mutex>
 #include <vector>
 
@@ -182,10 +181,8 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
 
   int FD = -1;
   // Create lock file for cache item
-  assert(!llvm::sys::fs::openFileForWrite(LockFile, FD,
-                                          llvm::sys::fs::CD_CreateNew) &&
-         "Failed to create lock file");
-  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+  { std::ofstream File{LockFile}; }
+
   // Cache item is locked - ignore it
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, BuildOptions, NativeProg);
@@ -197,29 +194,10 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   assert(llvm::sys::fs::exists(ItemDir + "/1.bin") && "No file created");
 
   // Lock second cache item
-  assert(!llvm::sys::fs::openFileForWrite(ItemDir + "/1.lock", FD,
-                                          llvm::sys::fs::CD_CreateNew) &&
-         "Failed to create lock file");
-  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+  { std::ofstream File{ItemDir + "/1.lock"}; }
 
-  assert(!llvm::sys::fs::openFileForWrite(LockFile, FD,
-                                          llvm::sys::fs::CD_OpenExisting) &&
-         "Failed to open lock file");
-  // Make cache Item obsolete (last access time more than theshold)
-  llvm::sys::fs::setLastAccessAndModificationTime(FD, OldTime, OldTime);
-  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
-
-  // Lock file is obsolete - clean lock
-  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
-                                                   NativeProg);
-  assert(!llvm::sys::fs::exists(ItemDir + "/2.bin") && "File was created");
-
-  assert(!llvm::sys::fs::openFileForWrite(LockFile, FD,
-                                          llvm::sys::fs::CD_OpenExisting) &&
-         "Failed to open lock file");
-  // Make cache Item obsolete (last access time more than theshold)
-  llvm::sys::fs::setLastAccessAndModificationTime(FD, OldTime, OldTime);
-  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+  // Remove lock file
+  std::remove(LockFile.c_str());
 
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, BuildOptions, NativeProg);
