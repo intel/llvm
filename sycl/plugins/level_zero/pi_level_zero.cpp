@@ -1460,14 +1460,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO: To confirm with spec.
     return ReturnValue(pi_uint32{64});
   }
-  case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
-    // TODO: To confirm with spec.
-    uint32_t MaxMemAllocSize = 0;
-    for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
-      MaxMemAllocSize += ZeDeviceMemoryProperties[I].totalSize;
-    }
-    return ReturnValue(pi_uint64{MaxMemAllocSize});
-  }
+  case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
+    return ReturnValue(pi_uint64{Device->ZeDeviceProperties.maxMemAllocSize});
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
     for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
