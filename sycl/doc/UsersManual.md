@@ -55,8 +55,8 @@ and not recommended to use in production environment.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
-    Enables/Disables SYCL explicit SIMD extension.
-    Disabled by default. Is not used anymore.
+    The option was used to enable/disable SYCL explicit SIMD extension.
+    Not used anymore.
 
 ## Optimization options
 
