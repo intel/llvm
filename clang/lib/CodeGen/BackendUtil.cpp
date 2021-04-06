@@ -873,7 +873,15 @@ static void setCommandLineOpts(const CodeGenOptions &CodeGenOpts) {
     BackendArgs.push_back("-limit-float-precision");
     BackendArgs.push_back(CodeGenOpts.LimitFloatPrecision.c_str());
   }
+  // Check for the default "clang" invocation that won't set any cl::opt values.
+  // Skip trying to parse the command line invocation to avoid the issues
+  // described below.
+  if (BackendArgs.size() == 1)
+    return;
   BackendArgs.push_back(nullptr);
+  // FIXME: The command line parser below is not thread-safe and shares a global
+  // state, so this call might crash or overwrite the options of another Clang
+  // instance in the same process.
   llvm::cl::ParseCommandLineOptions(BackendArgs.size() - 1,
                                     BackendArgs.data());
 }
@@ -1525,10 +1533,7 @@ static void runThinLTOBackend(
   // we should only invoke this using the individual indexes written out
   // via a WriteIndexesThinBackend.
   FunctionImporter::ImportMapTy ImportList;
-  std::vector<std::unique_ptr<llvm::MemoryBuffer>> OwnedImports;
-  MapVector<llvm::StringRef, llvm::BitcodeModule> ModuleMap;
-  if (!lto::loadReferencedModules(*M, *CombinedIndex, ImportList, ModuleMap,
-                                  OwnedImports))
+  if (!lto::initImportList(*M, *CombinedIndex, ImportList))
     return;
 
   auto AddStream = [&](size_t Task) {
@@ -1605,7 +1610,7 @@ static void runThinLTOBackend(
   if (Error E =
           thinBackend(Conf, -1, AddStream, *M, *CombinedIndex, ImportList,
                       ModuleToDefinedGVSummaries[M->getModuleIdentifier()],
-                      ModuleMap, CGOpts.CmdArgs)) {
+                      /* ModuleMap */ nullptr, CGOpts.CmdArgs)) {
     handleAllErrors(std::move(E), [&](ErrorInfoBase &EIB) {
       errs() << "Error running ThinLTO backend: " << EIB.message() << '\n';
     });

@@ -7,6 +7,9 @@ from typing import Dict, Sequence
 from mlir.ir import *
 from mlir.dialects import linalg
 from mlir.dialects import std
+# TODO: resolve name collision for Linalg functionality that is injected inside
+# the _mlir.dialects.linalg directly via pybind.
+from _mlir.dialects.linalg import fill_builtin_region
 
 from .scalar_expr import *
 from .config import *
@@ -16,10 +19,16 @@ __all__ = [
     "emit_named_structured_op",
 ]
 
+def isa(cls : Type, ty : Type):
+  try:
+    cls(ty)
+    return True
+  except ValueError:
+    return False
 
-def emit_generic_structured_op(op_config: LinalgStructuredOpConfig,
-                               *ins: Value,
-                               outs: Value = ()):
+def prepare_common_structured_op(op_config: LinalgStructuredOpConfig,
+                                 *ins: Value,
+                                 outs: Value):
   all_arg_defs = op_config.ordered_tensor_args
   in_arg_defs = [arg for arg in all_arg_defs if arg.usage == "input"]
   out_arg_defs = [arg for arg in all_arg_defs if arg.usage == "output"]
@@ -35,6 +44,8 @@ def emit_generic_structured_op(op_config: LinalgStructuredOpConfig,
   outs, out_types = _infer_structured_outs(op_config, in_arg_defs, ins,
                                            out_arg_defs, outs)
 
+  result_types = [t for t in out_types if isa(RankedTensorType, t)]
+
   # Extract type vars for input/output based types.
   type_mapping = dict()  # type: Dict[str, Type]
   for arg_def, arg_element_type in zip(
@@ -46,18 +57,37 @@ def emit_generic_structured_op(op_config: LinalgStructuredOpConfig,
   # Emit the generic op.
   # TODO: Support emission of pure memref form.
   indexing_maps_attr = ArrayAttr.get(
-      [AffineMapAttr.get(am) for am in op_config.indexing_maps])
+      [AffineMapAttr.get(am)
+       # TODO: linalg verification does not currently allow symbols.
+       # Compress them for now.
+       for am in AffineMap.compress_unused_symbols(op_config.indexing_maps, Context.current)])
   iterator_types_attr = ArrayAttr.get(
       [StringAttr.get(s) for s in op_config.iterator_types])
+  sparse_attr = ArrayAttr.get(
+      [BoolAttr.get(False) for s in list(ins) + list(outs) if isa(RankedTensorType, s.type)])
+  if len(sparse_attr) == 0:
+    sparse_attr = None
+
+  return (all_arg_defs, in_arg_defs, out_arg_defs, outs, result_types,
+          type_mapping, indexing_maps_attr, iterator_types_attr, sparse_attr)
+
+
+def emit_generic_structured_op(op_config: LinalgStructuredOpConfig,
+                               *ins: Value,
+                               outs: Value = ()):
+  all_arg_defs, in_arg_defs, out_arg_defs, outs, result_types, \
+  type_mapping, indexing_maps_attr, iterator_types_attr, sparse_attr =   \
+     prepare_common_structured_op(op_config, *ins, outs = outs)
+
   generic_op = linalg.GenericOp(
-      result_tensors=out_types,
+      result_tensors=result_types,
       inputs=ins,
       outputs=outs,
       indexing_maps=indexing_maps_attr,
       iterator_types=iterator_types_attr,
       doc=None,  # TODO: Make optional.
       library_call=None,  # TODO: Make optional.
-      sparse=BoolAttr.get(False))  # TODO: Make optional.
+      sparse=sparse_attr)  # TODO: Make optional.
 
   # Construct the body.
   block_arg_names = _get_tensor_def_names(*in_arg_defs, *out_arg_defs)
@@ -70,17 +100,42 @@ def emit_generic_structured_op(op_config: LinalgStructuredOpConfig,
       body_builder.assign(assignment)
     body_builder.yield_outputs(*_get_tensor_def_names(*out_arg_defs))
 
-  if len(out_arg_defs) == 1:
+  if len(result_types) == 1:
     return generic_op.result
   else:
     return generic_op.results
 
 
 def emit_named_structured_op(op_config: LinalgStructuredOpConfig,
+                             op_name: str,
+                             op_class_name: str,
                              *ins: Value,
                              outs: Value = ()):
-  raise NotImplementedError(
-      f"Emission of named structured ops is not supported: {op_config}")
+  all_arg_defs, in_arg_defs, out_arg_defs, outs, result_types, \
+  type_mapping, indexing_maps_attr, iterator_types_attr, sparse_attr =   \
+     prepare_common_structured_op(op_config, *ins, outs = outs)
+
+  # If we get here, there must exist a builtin class `op_class_name`.
+  ctx = Context.current
+  fully_qualified_name = 'linalg.' + op_name
+  if (not ctx.is_registered_operation(fully_qualified_name) or
+      not op_class_name in linalg.__dict__.keys()):
+    raise NotImplementedError(
+        f"Unknown named op_name / op_class_name: {op_name} / {op_class_name}")
+
+  named_op = getattr(linalg, op_class_name)(ins, outs, result_types)
+  linalgDialect = ctx.get_dialect_descriptor("linalg")
+  fill_builtin_region(linalgDialect, named_op.operation)
+  # Note: mlir-linalg-ods-yaml-gen.cpp uses a special linalg.memoized_indexing_maps
+  # attribute that the non-yaml path does not. The non-yaml path hardcodes the 
+  # indexing_maps in C++ directly.
+  named_op.operation.attributes["linalg.memoized_indexing_maps"] = indexing_maps_attr
+  # iterator_types are hardcoded in C++ both in the yaml and non-yaml path.
+
+  if len(result_types) == 1:
+    return named_op.result
+  else:
+    return named_op.results
 
 
 class _BodyBuilder:

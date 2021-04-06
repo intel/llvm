@@ -1836,7 +1836,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     } else if (TemplateInfo.Kind == ParsedTemplateInfo::ExplicitInstantiation &&
         TUK == Sema::TUK_Declaration) {
       // This is an explicit instantiation of a class template.
-      ProhibitAttributes(attrs);
+      ProhibitCXX11Attributes(attrs, diag::err_attributes_not_allowed,
+                              /*DiagnoseEmptyAttrs=*/true);
 
       TagOrTempResult = Actions.ActOnExplicitInstantiation(
           getCurScope(), TemplateInfo.ExternLoc, TemplateInfo.TemplateLoc,
@@ -1851,7 +1852,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     } else if (TUK == Sema::TUK_Reference ||
                (TUK == Sema::TUK_Friend &&
                 TemplateInfo.Kind == ParsedTemplateInfo::NonTemplate)) {
-      ProhibitAttributes(attrs);
+      ProhibitCXX11Attributes(attrs, diag::err_attributes_not_allowed,
+                              /*DiagnoseEmptyAttrs=*/true);
       TypeResult = Actions.ActOnTagTemplateIdType(TUK, TagType, StartLoc,
                                                   SS,
                                                   TemplateId->TemplateKWLoc,
@@ -1923,7 +1925,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
         TagType, StartLoc, SS, Name, NameLoc, attrs);
   } else if (TUK == Sema::TUK_Friend &&
              TemplateInfo.Kind != ParsedTemplateInfo::NonTemplate) {
-    ProhibitAttributes(attrs);
+    ProhibitCXX11Attributes(attrs, diag::err_attributes_not_allowed,
+                            /*DiagnoseEmptyAttrs=*/true);
 
     TagOrTempResult = Actions.ActOnTemplatedFriendTag(
         getCurScope(), DS.getFriendSpecLoc(), TagType, StartLoc, SS, Name,
@@ -1932,7 +1935,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
                                TemplateParams ? TemplateParams->size() : 0));
   } else {
     if (TUK != Sema::TUK_Declaration && TUK != Sema::TUK_Definition)
-      ProhibitAttributes(attrs);
+      ProhibitCXX11Attributes(attrs, diag::err_attributes_not_allowed,
+                              /* DiagnoseEmptyAttrs=*/true);
 
     if (TUK == Sema::TUK_Definition &&
         TemplateInfo.Kind == ParsedTemplateInfo::ExplicitInstantiation) {
