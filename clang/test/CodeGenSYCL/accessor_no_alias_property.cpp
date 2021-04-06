@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -emit-llvm %s -o - | FileCheck %s
 
-// CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function{{.*}} !noalias
+// CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function({{.*}} noalias {{.*}} %_arg_, {{.*}})
 
 #include "Inputs/sycl.hpp"
 
