@@ -160,8 +160,7 @@ TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
   ConcurentReadWriteCache(2, 20);
 }
 
-// llvm::sys::fs::setPermissions doe not make effect on Windows
-/* Checks cache behavior when filesystem read/write operations fail
+/* Checks that lock file affects cache operations as expected.
  */
 TEST_F(PersistenDeviceCodeCache, LockFile) {
   std::chrono::time_point<std::chrono::system_clock> OldTime =
@@ -211,7 +210,7 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
 }
 
 #ifndef _WIN32
-// llvm::sys::fs::setPermissions doe not make effect on Windows
+// llvm::sys::fs::setPermissions does not make effect on Windows
 /* Checks cache behavior when filesystem read/write operations fail
  */
 TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
