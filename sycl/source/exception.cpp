@@ -26,7 +26,6 @@ context exception::get_context() const {
 
 cl_int exception::get_cl_code() const { return MCLErr; }
 
-
 const std::error_category &sycl_category() noexcept {
   static const detail::SYCLCategory SYCLCategoryObj;
   return SYCLCategoryObj;
