@@ -109,6 +109,7 @@ public:
   void get_specialization_constant_raw_value(const char *SpecName,
                                              void *ValueRet,
                                              size_t ValueSize) const noexcept {
+    // operator[] can't be used here, since it's not marked as const
     unsigned SpecID = MSpecConstSymMap.at(SpecName);
     for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
       if (SpecConstDesc.ID == SpecID) {
