@@ -12413,7 +12413,7 @@ SDValue DAGCombiner::visitBITCAST(SDNode *N) {
                                              VT.getVectorElementType());
 
   // If the input is a constant, let getNode fold it.
-  if (isa<ConstantSDNode>(N0) || isa<ConstantFPSDNode>(N0)) {
+  if (isIntOrFPConstant(N0)) {
     // If we can't allow illegal operations, we need to check that this is just
     // a fp -> int or int -> conversion and that the resulting operation will
     // be legal.
@@ -12651,7 +12651,7 @@ SDValue DAGCombiner::visitFREEZE(SDNode *N) {
     return N0;
 
   // If the input is a constant, return it.
-  if (isa<ConstantSDNode>(N0) || isa<ConstantFPSDNode>(N0))
+  if (isIntOrFPConstant(N0))
     return N0;
 
   return SDValue();
@@ -16912,7 +16912,7 @@ void DAGCombiner::getStoreMergeCandidates(
     case StoreSource::Constant:
       if (NoTypeMatch)
         return false;
-      if (!(isa<ConstantSDNode>(OtherBC) || isa<ConstantFPSDNode>(OtherBC)))
+      if (!isIntOrFPConstant(OtherBC))
         return false;
       break;
     case StoreSource::Extract:
@@ -20492,7 +20492,7 @@ static SDValue combineShuffleOfScalars(ShuffleVectorSDNode *SVN,
     // generating a splat; semantically, this is fine, but it's likely to
     // generate low-quality code if the target can't reconstruct an appropriate
     // shuffle.
-    if (!Op.isUndef() && !isa<ConstantSDNode>(Op) && !isa<ConstantFPSDNode>(Op))
+    if (!Op.isUndef() && !isIntOrFPConstant(Op))
       if (!IsSplat && !DuplicateOps.insert(Op).second)
         return SDValue();
 
@@ -21285,11 +21285,14 @@ SDValue DAGCombiner::visitVECTOR_SHUFFLE(SDNode *N) {
           SDValue Op1 = LeftOp ? Op10 : Op11;
           if (Commute)
             std::swap(Op0, Op1);
-          return Op0.getOpcode() == ISD::VECTOR_SHUFFLE &&
-                 InnerN->isOnlyUserOf(Op0.getNode()) &&
-                 MergeInnerShuffle(Commute, SVN, cast<ShuffleVectorSDNode>(Op0),
-                                   Op1, TLI, SV0, SV1, Mask) &&
-                 llvm::none_of(Mask, [](int M) { return M < 0; });
+          // Only accept the merged shuffle if we don't introduce undef elements,
+          // or the inner shuffle already contained undef elements.
+          auto *SVN0 = dyn_cast<ShuffleVectorSDNode>(Op0);
+          return SVN0 && InnerN->isOnlyUserOf(SVN0) &&
+                 MergeInnerShuffle(Commute, SVN, SVN0, Op1, TLI, SV0, SV1,
+                                   Mask) &&
+                 (llvm::any_of(SVN0->getMask(), [](int M) { return M < 0; }) ||
+                  llvm::none_of(Mask, [](int M) { return M < 0; }));
         };
 
         // Ensure we don't increase the number of shuffles - we must merge a
