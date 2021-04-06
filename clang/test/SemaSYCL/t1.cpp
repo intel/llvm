@@ -9,7 +9,7 @@ int main() {
 
   q.submit([&](handler &h) {
     h.single_task<class kernel_name_3>(
-        []() [[intel::initiation_interval(4)]]{}); // expected-error{{'max_concurrency' attribute cannot be applied to types}}
+        []() [[intel::max_concurrency(4)]]{}); // expected-error{{'max_concurrency' attribute cannot be applied to types}}
   });
 
   return 0;
