@@ -141,6 +141,9 @@ accessor metadata from program scope variable and writes assert information to
 the assert buffer. Atomic operations are used in order to not overwrite existing
 information.
 
+DPCPP Runtime checks contents of the assert buffer for assert failure flag after
+kernel finishes.
+
 Both storing of accessor metadata and writing assert failure is performed with
 help of built-ins. Implementations of these builtins are substituted by
 frontend.
