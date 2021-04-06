@@ -11,7 +11,6 @@ int main() {
   deviceQueue.submit([&](sycl::handler &h) { 
 h.single_task<class kernel_name_3>(
         []() [[intel::initiation_interval(4)]]{}); // expected-error{{'max_concurrency' attribute cannot be applied to types}}
- }); 
-
+  });
   return 0;
 }
