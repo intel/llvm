@@ -485,7 +485,13 @@ public:
   }
 };
 
-// TODO: ERICH: This likely needs a better name and documentation.
+// This type manages the list of device functions and recursive functions, as
+// well as an entry point for attribute collection, for the translation unit
+// during MarkDevices. On construction this type makes sure that all of the
+// root-device functions(that is, those marked with SYCL_EXTERNAL) are
+// collected.  On destruction it manages and runs the diagnostics required. When
+// processing individual kernel/external functions, the
+// SingleDeviceFunctionTracker type updates this type.
 class DeviceFunctionTracker {
   friend class SingleDeviceFunctionTracker;
   CallGraph CG;
@@ -520,7 +526,6 @@ public:
     CollectSyclExternalFuncs();
   }
 
-  // TODO: is this too clever?  Should this just be a called function?
   ~DeviceFunctionTracker() {
     for (const FunctionDecl *FD : DeviceFunctions)
       if (const FunctionDecl *Def = FD->getDefinition())
@@ -528,11 +533,13 @@ public:
   }
 };
 
-// TODO: Name + docs.
-// 1- It identifies all functions that are recursive in this kernel.
-// 2- It identifies all attributes that possibly need to be propagated to the
-// kernel.
-// 3- It figures out the kernel-body.
+// This type does the heavy lifting for the management of device functions,
+// recursive function detection, and attribute collection for a single
+// kernel/external function. It walks the callgraph to find all functions that
+// are called, marks the recursive-functions, and figures out the list of
+// attributes that apply to this kernel.
+//
+// Upon destruction, this type updates the DeviceFunctionTracker.
 class SingleDeviceFunctionTracker {
   DeviceFunctionTracker &Parent;
   FunctionDecl *SYCLKernel = nullptr;
