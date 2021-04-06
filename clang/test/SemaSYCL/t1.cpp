@@ -8,12 +8,9 @@ int main() {
   queue q;
 
   q.submit([&](handler &h) {
-
     h.single_task<class NT>(
-      []() [[intel::max_concurrency(NT)]]{})
-
+        []() [[intel::max_concurrency(NT)]]{})
     });
-
-  });
+});
 }
 
