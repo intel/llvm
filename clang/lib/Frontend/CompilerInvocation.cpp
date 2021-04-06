@@ -3496,6 +3496,9 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   if (Opts.getSignReturnAddressKey() ==
       LangOptions::SignReturnAddressKeyKind::BKey)
     GenerateArg(Args, OPT_msign_return_address_key_EQ, "b_key", SA);
+
+  if (Opts.DeclareSPIRVBuiltins)
+    GenerateArg(Args, OPT_fdeclare_spirv_builtins, SA);
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
