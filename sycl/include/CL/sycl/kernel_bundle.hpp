@@ -267,7 +267,8 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
 
-    using SCType = typename std::remove_reference_t<decltype(SpecName)>::value_type;
+    using SCType =
+        typename std::remove_reference_t<decltype(SpecName)>::value_type;
     static_assert(std::is_trivially_copyable_v<SCType>);
     // TODO can this be simply default constructible
     static_assert(std::is_trivially_default_constructible_v<SCType>);
@@ -281,14 +282,16 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
-    using SCType = typename std::remove_reference_t<decltype(SpecName)>::value_type;
+    using SCType =
+        typename std::remove_reference_t<decltype(SpecName)>::value_type;
     static_assert(std::is_trivially_copyable_v<SCType>);
     // TODO can this be simply default constructible
     static_assert(std::is_trivially_default_constructible_v<SCType>);
 
     if (!has_specialization_constant<SpecName>())
       // TODO replace with SYCL 2020 exception
-      throw sycl::runtime_error("Unknown specialization constant", PI_INVALID_VALUE);
+      throw sycl::runtime_error("Unknown specialization constant",
+                                PI_INVALID_VALUE);
 
     SCType RetValue;
 

@@ -175,41 +175,41 @@ private:
         const auto &PropsBegin = SpecConstMap->PropertiesBegin;
         const auto &PropsEnd = SpecConstMap->PropertiesEnd;
 
-        std::for_each(PropsBegin, PropsEnd,
-                      [&](const _pi_device_binary_property_struct &Prop) {
-                        MSpecConstSymMap[Prop.Name] =
-                            *static_cast<unsigned *>(Prop.ValAddr);
-                        MSpecConstDescs.push_back(SpecConstDescT{
-                            *static_cast<unsigned *>(Prop.ValAddr), // ID
-                            *(static_cast<unsigned *>(Prop.ValAddr) + 1), // Offset
-                            false
-                        });
-                      });
+        std::for_each(
+            PropsBegin, PropsEnd,
+            [&](const _pi_device_binary_property_struct &Prop) {
+              MSpecConstSymMap[Prop.Name] =
+                  *static_cast<unsigned *>(Prop.ValAddr);
+              MSpecConstDescs.push_back(SpecConstDescT{
+                  *static_cast<unsigned *>(Prop.ValAddr),       // ID
+                  *(static_cast<unsigned *>(Prop.ValAddr) + 1), // Offset
+                  false});
+            });
       }
     }
   }
 
-    const RTDeviceBinaryImage *MBinImage = nullptr;
-    context MContext;
-    std::vector<device> MDevices;
-    bundle_state MState;
-    // Native program handler which this device image represents
-    RT::PiProgram MProgram = nullptr;
-    // List of kernel ids available in this image, elements should be sorted
-    // according to LessByNameComp
-    std::vector<kernel_id> MKernelIDs;
+  const RTDeviceBinaryImage *MBinImage = nullptr;
+  context MContext;
+  std::vector<device> MDevices;
+  bundle_state MState;
+  // Native program handler which this device image represents
+  RT::PiProgram MProgram = nullptr;
+  // List of kernel ids available in this image, elements should be sorted
+  // according to LessByNameComp
+  std::vector<kernel_id> MKernelIDs;
 
-    // A mutex for sycnhronizing access to spec constants blob. Mutable because
-    // needs to be locked in the const method for getting spec constant value.
-    mutable std::mutex MSpecConstAccessMtx;
-    // Binary blob which can have values of all specialization constants in the
-    // image
-    std::vector<unsigned char> MSpecConstsBlob;
-    // Contains list of spec ID + their offsets in the MSpecConstsBlob
-    std::vector<SpecConstDescT> MSpecConstDescs;
+  // A mutex for sycnhronizing access to spec constants blob. Mutable because
+  // needs to be locked in the const method for getting spec constant value.
+  mutable std::mutex MSpecConstAccessMtx;
+  // Binary blob which can have values of all specialization constants in the
+  // image
+  std::vector<unsigned char> MSpecConstsBlob;
+  // Contains list of spec ID + their offsets in the MSpecConstsBlob
+  std::vector<SpecConstDescT> MSpecConstDescs;
 
-    std::map<const char *, unsigned> MSpecConstSymMap;
-  };
+  std::map<const char *, unsigned> MSpecConstSymMap;
+};
 
 } // namespace detail
 } // namespace sycl
