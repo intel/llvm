@@ -217,8 +217,6 @@ public:
     //CP
     //using iterator               =  __wrap_iter<pointer>;
     using iterator               = pointer;
-    //using iterator               = iterator<pointer>;
-
     //using reverse_iterator       = _VSTD::reverse_iterator<iterator>;
     using rev_iterator           = reverse_iterator<pointer>;
 
@@ -398,8 +396,6 @@ public:
     //CP
     //using iterator               =  __wrap_iter<pointer>;
     using iterator               = pointer;
-    //using iterator               = iterator<pointer>;
-
     //using reverse_iterator       = _VSTD::reverse_iterator<iterator>;
     using rev_iterator           = reverse_iterator<pointer>;
 
