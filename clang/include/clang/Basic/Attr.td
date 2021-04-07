@@ -1898,6 +1898,7 @@ def SYCLIntelFPGAMaxConcurrency : DeclOrStmtAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
   let Documentation = [SYCLIntelFPGAMaxConcurrencyAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelFPGALoopCoalesce : StmtAttr {

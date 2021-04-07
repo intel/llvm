@@ -85,7 +85,7 @@ int main() {
     // users require it. Refer to comments about
     // SupportsNonconformingLambdaSyntax bit in Attr.td.
     h.single_task<class kernel_name3>(
-      []() [[intel::max_concurrency(3)]]{}); // expected-error{{'max_concurrency' attribute cannot be applied to types}}
+      []() [[intel::max_concurrency(3)]]{});
 
     Functor3<4> f3;
     h.single_task<class kernel_name4>(f3);
