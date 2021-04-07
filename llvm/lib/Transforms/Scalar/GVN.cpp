@@ -62,7 +62,6 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/IR/Statepoint.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
@@ -1603,9 +1602,7 @@ static bool hasUsersIn(Value *V, BasicBlock *BB) {
   return false;
 }
 
-bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
-  assert(IntrinsicI->getIntrinsicID() == Intrinsic::assume &&
-         "This function can only be called with llvm.assume intrinsic");
+bool GVN::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
   Value *V = IntrinsicI->getArgOperand(0);
 
   if (ConstantInt *Cond = dyn_cast<ConstantInt>(V)) {
@@ -2186,9 +2183,8 @@ bool GVN::processInstruction(Instruction *I) {
     }
   }
 
-  if (IntrinsicInst *IntrinsicI = dyn_cast<IntrinsicInst>(I))
-    if (IntrinsicI->getIntrinsicID() == Intrinsic::assume)
-      return processAssumeIntrinsic(IntrinsicI);
+  if (auto *Assume = dyn_cast<AssumeInst>(I))
+    return processAssumeIntrinsic(Assume);
 
   if (LoadInst *Load = dyn_cast<LoadInst>(I)) {
     if (processLoad(Load))
@@ -2466,6 +2462,8 @@ bool GVN::performScalarPREInsertion(Instruction *Instr, BasicBlock *Pred,
   Instr->insertBefore(Pred->getTerminator());
   Instr->setName(Instr->getName() + ".pre");
   Instr->setDebugLoc(Instr->getDebugLoc());
+
+  ICF->insertInstructionTo(Instr, Pred);
 
   unsigned Num = VN.lookupOrAdd(Instr);
   VN.add(Instr, Num);
