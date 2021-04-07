@@ -176,6 +176,12 @@ disprove the uniformity of a variable passed to the
 an implementation issue a diagnostic if it is known that an expression can
 never be uniform.
 
+Several classes in SYCL encapsulate information that is known to vary across
+work-items; instances of such classes can never be uniform. An implementation
+must issue a diagnostic if the +sycl::ext::oneapi::uniform+ class template is
+instantiated with any of the following types: +sycl::item+, +sycl::nd_item+,
++sycl::h_item+, +sycl::group+, +sycl::sub_group+ and +sycl::nd_range+.
+
 [source, c++]
 ----
 namespace sycl {
@@ -250,9 +256,11 @@ rules in reverse:
   was mapped individually (e.g. a +std::tuple<sycl::ext::oneapi::simd<float, N>, sycl::ext::oneapi::simd<int, N>>+
   becomes a +std::tuple<float, int>+).
 
-Note that these conversion rules do not permit user-defined types or special
-types (e.g. +nd_item+) being passed between SPMD and SIMD contexts.  This
-restriction prevents a SIMD function from calling functions that are only
+Note that these conversion rules do not permit special types (e.g. +sycl::nd_item+)
+being passed between SPMD and SIMD contexts, because they cannot be declared uniform.
+If an application bypasses this restriction (e.g. by wrapping an unsupported
+type, or passing an unsupported type via a pointer) then behavior is undefined.
+This restriction prevents a SIMD function from calling functions that are only
 well-defined in SPMD contexts (e.g. sub-group barriers).  If a SIMD function
 requires access to a member variable of a SYCL class, the value of the
 variable should be passed via a dedicated argument (e.g. the value returned
