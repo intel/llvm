@@ -92,6 +92,7 @@ struct ESIMDIntrinDesc {
     SRC_TMPL_ARG, // is an integer template argument
     NUM_BYTES,    // is a number of bytes (gather.scaled and scatter.scaled)
     UNDEF,        // is an undef value
+    CONST_INT8,   // is an i8 constant
     CONST_INT16,  // is an i16 constant
     CONST_INT32,  // is an i32 constant
     CONST_INT64,  // is an i64 constant
@@ -187,6 +188,10 @@ private:
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
         {{N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule c8(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT8, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c16(int16_t N) {
@@ -984,6 +989,11 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
                      ? CI.getType()
                      : CI.getArgOperand(Rule.I.Arg.CallArgNo)->getType();
       GenXArgs.push_back(UndefValue::get(Ty));
+      break;
+    }
+    case ESIMDIntrinDesc::GenXArgRuleKind::CONST_INT8: {
+      auto Ty = IntegerType::getInt8Ty(CI.getContext());
+      GenXArgs.push_back(llvm::ConstantInt::get(Ty, Rule.I.ArgConst));
       break;
     }
     case ESIMDIntrinDesc::GenXArgRuleKind::CONST_INT16: {
