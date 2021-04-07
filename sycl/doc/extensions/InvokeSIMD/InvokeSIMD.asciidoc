@@ -87,7 +87,11 @@ expressed using SIMD types, with clear delineation between SPMD and SIMD code re
 
 Uniform arguments are represented by scalars, and varying arguments by explicit
 vector types.  The explicit vector are types are based on the SIMD classes
-from [Parallelism TS2](http://wg21.link/N4808).
+from [Parallelism TS2](http://wg21.link/N4808), and support all of the functions
+operating on SIMD types as defined there. Additionally, each of the functions
+defined in Sections 4.17.5, 4.17.6 and 4.17.7 of the SYCL 2020 specification
+are overloaded to accept SIMD classes; these overloads operate element-wise on
+the contents of the SIMD class.
 
 [source, c++]
 ----
