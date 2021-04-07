@@ -379,9 +379,7 @@ public:
       Sema &S, const llvm::SmallPtrSetImpl<FunctionDecl *> &RecursiveFuncs)
       : RecursiveASTVisitor(), SemaRef(S), RecursiveFuncs(RecursiveFuncs) {}
 
-  void CheckBody(Stmt *ToBeDiagnosed) {
-    TraverseStmt(ToBeDiagnosed);
-  }
+  void CheckBody(Stmt *ToBeDiagnosed) { TraverseStmt(ToBeDiagnosed); }
 
   bool VisitCallExpr(CallExpr *e) {
     if (FunctionDecl *Callee = e->getDirectCallee()) {
