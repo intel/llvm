@@ -141,6 +141,32 @@ private:
   /* Form string representing device version */
   static std::string getDeviceIDString(const device &Device);
 
+  /* Returns true if specified image should be cached on disk. It checks if
+   * cache is enabled, image has SPIRV type and matches thresholds. */
+  static bool isImageCached(const RTDeviceBinaryImage &Img);
+
+  /* Returns value of specified parameter. Default value is used if failure
+   * happens during obtaining value. */
+  template <ConfigID Config>
+  static unsigned long getNumParam(unsigned long Default) {
+    auto Value = SYCLConfig<Config>::get();
+    try {
+      if (Value)
+        return std::stol(Value);
+    } catch (std::exception const &) {
+      PersistentDeviceCodeCache::trace("Invalid value provided, use default " +
+                                       std::to_string(Default));
+    }
+    return Default;
+  }
+
+  /* Default value for minimum device code size to be cached on disk in bytes */
+  static constexpr unsigned long DEFAULT_MIN_DEVICE_IMAGE_SIZE = 0;
+
+  /* Default value for maximum device code size to be cached on disk in bytes */
+  static constexpr unsigned long DEFAULT_MAX_DEVICE_IMAGE_SIZE =
+      1024 * 1024 * 1024;
+
 public:
   /* Get directory name for storing current cache item
    */
@@ -148,13 +174,6 @@ public:
                                       const RTDeviceBinaryImage &Img,
                                       const SerializedObj &SpecConsts,
                                       const std::string &BuildOptionsString);
-
-  /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
-  static void trace(const std::string &msg) {
-    static const char *TraceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::get();
-    if (TraceEnabled)
-      std::cerr << msg << std::endl;
-  }
 
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
@@ -173,6 +192,13 @@ public:
                             const SerializedObj &SpecConsts,
                             const std::string &BuildOptionsString,
                             const RT::PiProgram &NativePrg);
+
+  /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
+  static void trace(const std::string &msg) {
+    static const char *TraceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::get();
+    if (TraceEnabled)
+      std::cerr << msg << std::endl;
+  }
 };
 } // namespace detail
 } // namespace sycl

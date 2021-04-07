@@ -48,7 +48,9 @@ int makeDir(const char *Dir) {
   return 0;
 }
 
+/* Lock file suffix */
 const char LockCacheItem::LockSuffix[] = ".lock";
+
 LockCacheItem::LockCacheItem(const std::string &Path)
     : FileName(Path + LockSuffix) {
   int fd;
@@ -68,6 +70,27 @@ LockCacheItem::~LockCacheItem() {
                                      FileName);
 }
 
+/* Returns true if specified image should be cached on disk. It checks if
+ * cache is enabled, image has SPIRV type and matches thresholds. */
+bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
+  // Cache shoould be enabled and image type should be SPIR-V
+  if (!isEnabled() || Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
+    return false;
+
+  static auto MaxImgSize = getNumParam<SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE>(
+      DEFAULT_MAX_DEVICE_IMAGE_SIZE);
+  static auto MinImgSize = getNumParam<SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE>(
+      DEFAULT_MIN_DEVICE_IMAGE_SIZE);
+
+  // Make sure that image size is between caching thresholds if they are set.
+  // Zero values for threshold is treated as disabled threshold.
+  if ((MaxImgSize && (Img.getSize() > MaxImgSize)) ||
+      (MinImgSize && (Img.getSize() < MinImgSize)))
+    return false;
+
+  return true;
+}
+
 /* Stores build program in persisten cache
  */
 void PersistentDeviceCodeCache::putItemToDisc(
@@ -75,11 +98,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     const RT::PiProgram &NativePrg) {
 
-  if (!isEnabled())
-    return;
-
-  // Only SPIRV images are cached
-  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
+  if (!isImageCached(Img))
     return;
 
   auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
@@ -136,11 +155,7 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     RT::PiProgram &NativePrg) {
 
-  if (!isEnabled())
-    return {};
-
-  // Only SPIRV images are cached
-  if (Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
+  if (!isImageCached(Img))
     return {};
 
   std::string Path =

@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+// This file contains tests covering persistena device code cache functionality.
+// Detailed description of the tests cases can be seen per test function.
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/persistent_device_code_cache.hpp"
 #include <CL/sycl.hpp>
