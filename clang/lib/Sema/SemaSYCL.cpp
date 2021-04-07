@@ -579,7 +579,7 @@ class SingleDeviceFunctionTracker {
     // void recurse1() { recurse2(); }
     // void CallerInKernel() { recurse1(); recurse2(); }
     // When checking 'recurse1', we'd have ended up 'visiting' recurse2 without
-    // realizing it was recursive, since we enver went into the
+    // realizing it was recursive, since we never went into the
     // child-of-its-child, since THAT was recursive and exited early out of
     // necessity.
     // Then when we go to visit the kernel's call to recurse2, we would
@@ -3604,7 +3604,7 @@ void Sema::MarkDevices(void) {
   DeviceFunctionTracker Tracker(*this);
 
   for (Decl *D : syclDeviceDecls()) {
-    FunctionDecl *SYCLKernel = cast<FunctionDecl>(D);
+    auto *SYCLKernel = cast<FunctionDecl>(D);
 
     // This type does the actual analysis on a per-kernel basis. It does this to
     // make sure that we're only ever dealing with the context of a single
