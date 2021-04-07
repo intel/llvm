@@ -5693,7 +5693,7 @@ def fsycl_int_footer_EQ : Joined<["-"], "fsycl-int-footer=">,
 def fsycl_unique_prefix_EQ
     : Joined<["-"], "fsycl-unique-prefix=">,
       HelpText<"A unique prefix for this translation unit across devices, used "
-               "to generate a unique name for local variables">,
+               "to generate a unique name for local variables.">,
       MarshallingInfoString<LangOpts<"SYCLUniquePrefix">>;
 def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params">,
   HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,

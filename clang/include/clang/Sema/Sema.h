@@ -434,12 +434,12 @@ class SYCLIntegrationFooter {
 public:
   SYCLIntegrationFooter(Sema &S) : S(S) {}
   bool emit(StringRef MainSrc);
-  void addVarDecl(VarDecl *);
+  void addVarDecl(const VarDecl *VD);
 
 private:
   bool emit(raw_ostream &O);
   Sema &S;
-  llvm::SmallVector<VarDecl *> SpecConstants;
+  llvm::SmallVector<const VarDecl *> SpecConstants;
   void emitSpecIDName(raw_ostream &O, const VarDecl *VD);
 };
 

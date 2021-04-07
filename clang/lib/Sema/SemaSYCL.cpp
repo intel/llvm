@@ -113,7 +113,7 @@ public:
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization id class.
-  static bool isSyclSpecIdType(const QualType &Ty);
+  static bool isSyclSpecIdType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// kernel_handler class.
@@ -4249,13 +4249,13 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
                                              Sema &_S)
     : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
-void SYCLIntegrationFooter::addVarDecl(VarDecl *VD) {
-  // Step 1: ensure that this is of the correct type(spec-constant template
+void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
+  // Step 1: ensure that this is of the correct type-spec-constant template
   // specialization).
   if (!Util::isSyclSpecIdType(VD->getType()))
     return;
   // Step 2: ensure that this is a static member, or a namespace-scope.
-  // Note that the isLocalVarDeclorParm excludes thread-local and static-local
+  // Note that isLocalVarDeclorParm excludes thread-local and static-local
   // intentionally, as there is no way to 'spell' one of those in the
   // specialization. We just don't generate the specialization for those, and
   // let an error happen during host compilation.
@@ -4356,7 +4356,7 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclSpecIdType(const QualType &Ty) {
+bool Util::isSyclSpecIdType(QualType Ty) {
   llvm::StringLiteral Name = "specialization_id";
   std::array<DeclContextDesc, 3> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
