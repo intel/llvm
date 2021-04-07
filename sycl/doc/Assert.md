@@ -2,19 +2,20 @@
 
 **IMPORTANT**: This document is a draft.
 
-During debugging of kernel code user may put assertions here and there.
-The expected behaviour of assertion failure at host is application abort.
-Our choice for device-side assertions is asynchronous exception in order to
-allow for extensibility.
+Using the standard C++ `assert` API ("assertions") is an important debugging
+technique widely used by developers. This document describes the design of
+supporting assertions within SYCL device code.
+The basic approach we chose is delivering device-side assertions as host-side
+asynchronous exceptions, which allows further extensibility, such as better
+error handling or potential recovery.
 
-The user is free to disable assertions by defining `NDEBUG` macro at
-compile-time.
-
+As usual, device-side assertions can be disabled by defining `NDEBUG` macro at
+compile time.
 
 ## Use-case example
 
 ```
-using namespace cl::sycl;
+using namespace sycl;
 auto ErrorHandler = [] (exception_list Exs) {
   for (exception_ptr const& E : Exs) {
     try {
@@ -49,12 +50,13 @@ int main() {
 In this use-case every work-item with even X dimension will trigger assertion
 failure. Assertion failure should be reported via asynchronous exceptions. If
 asynchronous exception handler is set the failure is reported with
-`cl::sycl::event_error` exception. Otherwise, SYCL Runtime should trigger abort.
-At least one failed assertion should be reported. The assertion failure message
-is printed to `stderr` by SYCL Runtime.
+`sycl::event_error` exception. Otherwise, SYCL Runtime should trigger abort.
+Even though multiple failures of the same or different assertions can happen in
+multiple workitems, implementation is required to deliver only one. The
+assertion failure message is printed to `stderr` by SYCL Runtime.
 
-When multiple kernels are enqueued and both fail at assertion at least single
-assertion should be reported.
+When multiple kernels are enqueued and more than one fail at assertion, at least
+single assertion should be reported.
 
 
 ## User requirements
@@ -68,10 +70,14 @@ From user's point of view there are the following requirements:
 | 3 | Stop under debugger | When debugger is attached, break at assertion point | Highly desired |
 | 4 | Reliability | Assert failure should be reported regardless of kernel deadlock | Highly desired |
 
+Implementations without enough capabilities to implement fourth requirement are
+allowed to realize the fallback approach described below, which does not
+guarantee assertion failure delivery to host, but is still useful in many
+practical cases.
 
-## Contents of `cl::sycl::event_error`
+## Contents of `sycl::event_error`
 
-Interface of `cl::sycl::event_error` should look like:
+Interface of `sycl::event_error` should look like:
 ```
 class event_error : public runtime_error {
 public:
@@ -87,50 +93,63 @@ public:
 Regardless of whether asynchronous exception handler is set or not, there's an
 action to be performed by SYCL Runtime. To achieve this, information about
 assert failure should be propagated from device-side to SYCL Runtime. This
-should be performed via calls to `clGetEventInfo` for OpenCL backend and
-`zeEventQueryStatus` for Level-Zero backend.
+should be performed via calls to `piEventGetInfo`. This Plugin Interface call
+"lowers" to `clGetEventInfo` for OpenCL backend and `zeEventQueryStatus` for
+Level-Zero backend.
 
 
 ## Terms
 
- - Device-side Runtime - part of device-code, which is supplied by Device-side
-   Compiler.
- - Device-side Compiler - compiler which generates device-native binary image
+ - Device-side Runtime - runtime library supplied by the Native Device Compiler
+   and running on the device.
+ - Native Device Compiler - compiler which generates device-native binary image
    based on input SPIR-V image.
- - Low-level Runtime - the backend/runtime behind DPCPP Runtime.
+ - Low-level Runtime - the backend/runtime behind DPCPP Runtime attached via the
+   Plugin Interface.
  - Accessor metadata - parts of accessor representation at device-side: pointer,
    ranges, offset.
 
 
 ## How it works?
 
-For the time being, `assert(expr)` macro ends up in call to
-`__devicelib_assert_fail` function. This function is part of [Device library extension](extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst#cl_intel_devicelib_cassert).
-Device code already contains call to the function. Currently, a device-binary
-is always linked against fallback implementation.
+`assert(expr)` macro ends up in call to `__devicelib_assert_fail`. This function
+is part of [Device library extension](extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst#cl_intel_devicelib_cassert).
+
+Implementation of this function is supplied by Native Device Compiler for
+safe approach or by DPCPP Compiler for fallback one.
+
+Due to lack of support of online linking in Level-Zero, the application is
+linked against fallback implementation of `__devicelib_assert_fail`. Hence,
+Native Device Compilers should prefer their implementation instead of the one
+provided in incoming SPIR-V/LLVM IR binary.
 
 
-### Device-specific approach
+### Safe approach
 
-Device-side compiler/linker provides their implementation of `__devicelib_assert_fail`
-and prefer this implementation over fallback one.
+This is the preferred approach and implementations should use it when possible.
+It guarantees assertion failure notification delivery to the host regardless of
+kernel behavior which hit the assertion.
 
-If Device-side Runtime supports `__devicelib_assert_fail` then Low-Level Runtime
-is responsible for:
+The Native Device Compiler is responsible for providing implementation of
+`__devicelib_assert_fail` which completely hides details of communication
+between the device code and the Low-Level Runtime from the SYCL device compiler
+and runtime. The Low-Level Runtime is responsible for:
  - detecting if assert failure took place;
  - flushing assert message to `stderr` on host.
+
 When detected, Low-level Runtime reports assert failure to DPCPP Runtime
-at synchronization points.
+via events objects.
 
 Refer to [OpenCL](extensions/Assert/opencl.md) and [Level-Zero](extensions/Assert/level-zero.md)
 extensions.
 
 
-### Device-agnostic approach
+### Fallback approach
 
 If Device-side Runtime doesn't support `__devicelib_assert_fail` then a buffer
 based approach comes in place. The approach doesn't require any support from
-Device-side Runtime and Compiler. Neither it does from Low-level Runtime.
+Device-side Runtime and Native Device Compiler. Neither it does from Low-level
+Runtime.
 
 Within this approach, a dedicated assert buffer is allocated and implicit kernel
 argument is introduced. The argument is an accessor with `discard_read_write`
