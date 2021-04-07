@@ -11,10 +11,10 @@
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/os_util.hpp>
+#include <cstdio>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
-#include <mutex>
 #include <vector>
 
 namespace {
@@ -88,6 +88,11 @@ public:
         redefinedProgramGetInfo);
   }
 
+  /* Helper function for concurent cache item read/write from diffrent number
+   * of threads with diffrent cache item sizes:
+   *  ProgramID   - defines program parameters to be used for testing (see Progs
+   *              vector above.
+   *  ThreadCount - number of parallel executors used for the test*/
   void ConcurentReadWriteCache(unsigned char ProgramID, size_t ThreadCount) {
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       return;
@@ -160,11 +165,77 @@ TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
   ConcurentReadWriteCache(2, 20);
 }
 
-/* Checks that lock file affects cache operations as expected.
+/* Checks that no crash happens when cache items are corrupted on cache read.
+ * The case when source or binary files are corrupted is treated as cache miss.
+ *  - only source file is present;
+ *  - only binary file is present;
+ *  - source file is corrupted;
+ *  - binary file is corrupted.
+ */
+TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+  std::string BuildOptions{"--corrupted-file"};
+  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      Dev, Img, {}, BuildOptions);
+  llvm::sys::fs::remove_directories(ItemDir);
+
+  // Only source file is present
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
+  assert(!llvm::sys::fs::remove(ItemDir + "/0.bin") &&
+         "Failed to remove binary file");
+  auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
+  assert(Res.size() == 0 && "Item with missed binary file was read");
+  llvm::sys::fs::remove_directories(ItemDir);
+
+  // Only binary file is present
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
+  assert(!llvm::sys::fs::remove(ItemDir + "/0.src") &&
+         "Failed to remove source file");
+  Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
+  assert(Res.size() == 0 && "Item with missed source file was read");
+  llvm::sys::fs::remove_directories(ItemDir);
+
+  // Binary file is corrupted
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
+  std::ofstream FileStream(ItemDir + "/0.bin",
+                           std::ofstream::out | std::ofstream::trunc);
+  /* Emulate binary built for 2 devices: first is OK, second is trancated
+   * from 23 bytes to 4
+   */
+  FileStream << 2 << 12 << "123456789012" << 23 << "1234";
+  FileStream.close();
+  assert((!FileStream.fail()) && "Failed to create trancated binary file");
+  Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
+  assert(Res.size() == 0 && "Item with corrupted binary file was read");
+
+  llvm::sys::fs::remove_directories(ItemDir);
+
+  // Source file is empty
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
+                                                   NativeProg);
+  {
+    std::ofstream FileStream(ItemDir + "/0.src",
+                             std::ofstream::out | std::ofstream::trunc);
+  }
+  Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
+  assert(Res.size() == 0 && "Item with corrupted binary file was read");
+  llvm::sys::fs::remove_directories(ItemDir);
+}
+
+/* Checks that lock file affects cache operations as expected:
+ *  - new cache item is created if existing one is locked on write operation;
+ *  - cache miss happens on read operation.
  */
 TEST_F(PersistenDeviceCodeCache, LockFile) {
-  std::chrono::time_point<std::chrono::system_clock> OldTime =
-      std::chrono::system_clock::now() - std::chrono::hours(2);
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
@@ -172,17 +243,18 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
   llvm::sys::fs::remove_directories(ItemDir);
+
+  // Create 1st cahe item
   detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, {}, BuildOptions,
                                                    NativeProg);
   assert(llvm::sys::fs::exists(ItemDir + "/0.bin") && "No file created");
   std::string LockFile = ItemDir + "/0.lock";
   assert(!llvm::sys::fs::exists(LockFile) && "Cache item locked");
 
-  int FD = -1;
-  // Create lock file for cache item
+  // Create lock file for the 1st cache item
   { std::ofstream File{LockFile}; }
 
-  // Cache item is locked - ignore it
+  // Cache item is locked, cache miss happens on read
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, BuildOptions, NativeProg);
   assert(Res.size() == 0 && "Locked item was read");
@@ -192,15 +264,16 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
                                                    NativeProg);
   assert(llvm::sys::fs::exists(ItemDir + "/1.bin") && "No file created");
 
-  // Lock second cache item
+  // Second cache item is locked, cache miss happens on read
   { std::ofstream File{ItemDir + "/1.lock"}; }
-
-  // Remove lock file
-  std::remove(LockFile.c_str());
-
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, BuildOptions, NativeProg);
-  // Image should be successfully read
+  assert(Res.size() == 0 && "Locked item was read");
+
+  // First cache item was anlocked and successfully read
+  std::remove(LockFile.c_str());
+  Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      Dev, Img, {}, BuildOptions, NativeProg);
   for (int i = 0; i < Res.size(); ++i) {
     for (int j = 0; j < Res[i].size(); ++j) {
       assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");

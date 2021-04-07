@@ -12,7 +12,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
-#include <chrono>
+#include <detail/config.hpp>
 #include <fcntl.h>
 #include <string>
 #include <sys/stat.h>
@@ -33,9 +33,20 @@ inline bool isPathPresent(const std::string &Path) {
   return !stat(Path.c_str(), &Stat);
 }
 
-/// Make directory recursibely
+/// Make directory recursively and returns zero code on success
 int makeDir(const char *Dir);
 
+/* The class manages inter-process synchronization:
+ *  - Path passed to the constructor is appended with .lock and used as lock
+ *    file.
+ *  - All operations are not blocking and failure ignoring (diagnostic may be
+ *    send to std::cerr when SYCL_CHACE_TRACE environment variable is set).
+ *  - There are two modes of accessing shared resource:
+ *    - write access assumes that lock is aquired (object is created and
+ *      isOwned() method confirms that current executor owns the lock);
+ *    - read access checks that the lock is not aquired for write by others
+ *      with the help of isLocked() method.
+ */
 class LockCacheItem {
 private:
   const std::string FileName;
@@ -137,6 +148,13 @@ public:
                                       const RTDeviceBinaryImage &Img,
                                       const SerializedObj &SpecConsts,
                                       const std::string &BuildOptionsString);
+
+  /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
+  static void trace(const std::string &msg) {
+    static const char *TraceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::get();
+    if (TraceEnabled)
+      std::cerr << msg << std::endl;
+  }
 
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
