@@ -68,7 +68,18 @@ namespace {
 /// Various utilities.
 class Util {
 public:
-  using DeclContextDesc = std::pair<clang::Decl::Kind, StringRef>;
+  using DeclContextDesc = std::pair<Decl::Kind, StringRef>;
+
+  template <size_t N>
+  static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
+                                                       const char (&Str)[N]) {
+    return DeclContextDesc{K, llvm::StringLiteral{Str}};
+  }
+
+  static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
+                                                       llvm::StringRef SR) {
+    return DeclContextDesc{K, SR};
+  }
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor class.
@@ -4314,47 +4325,43 @@ bool Util::isSyclSamplerType(QualType Ty) { return isSyclType(Ty, "sampler"); }
 bool Util::isSyclStreamType(QualType Ty) { return isSyclType(Ty, "stream"); }
 
 bool Util::isSyclHalfType(QualType Ty) {
-  llvm::StringLiteral Name = "half";
   std::array<DeclContextDesc, 5> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "detail"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "half_impl"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "detail"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "half_impl"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "half")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclSpecConstantType(QualType Ty) {
-  llvm::StringLiteral Name = "spec_constant";
   std::array<DeclContextDesc, 5> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "spec_constant")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclKernelHandlerType(QualType Ty) {
-  llvm::StringLiteral Name = "kernel_handler";
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "kernel_handler")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclBufferLocationType(QualType Ty) {
-  llvm::StringLiteral PropertyName = "buffer_location";
-  llvm::StringLiteral InstanceName = "instance";
   std::array<DeclContextDesc, 6> Scopes = {
-      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "INTEL"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, PropertyName},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
-                            InstanceName}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "INTEL"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "instance")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
@@ -4362,9 +4369,9 @@ bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
   Decl::Kind ClassDeclKind =
       Tmpl ? Decl::Kind::ClassTemplateSpecialization : Decl::Kind::CXXRecord;
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{ClassDeclKind, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(ClassDeclKind, Name)};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
@@ -4378,18 +4385,18 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
     return false;
 
   std::array<DeclContextDesc, 2> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl")};
   return matchContext(DC, Scopes);
 }
 
 bool Util::isAccessorPropertyListType(QualType Ty) {
-  llvm::StringLiteral Name = "accessor_property_list";
   std::array<DeclContextDesc, 4> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "accessor_property_list")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
@@ -4401,17 +4408,17 @@ bool Util::matchContext(const DeclContext *Ctx,
   StringRef Name = "";
 
   for (const auto &Scope : llvm::reverse(Scopes)) {
-    clang::Decl::Kind DK = Ctx->getDeclKind();
+    Decl::Kind DK = Ctx->getDeclKind();
     if (DK != Scope.first)
       return false;
 
     switch (DK) {
-    case clang::Decl::Kind::ClassTemplateSpecialization:
+    case Decl::Kind::ClassTemplateSpecialization:
       // ClassTemplateSpecializationDecl inherits from CXXRecordDecl
-    case clang::Decl::Kind::CXXRecord:
+    case Decl::Kind::CXXRecord:
       Name = cast<CXXRecordDecl>(Ctx)->getName();
       break;
-    case clang::Decl::Kind::Namespace:
+    case Decl::Kind::Namespace:
       Name = cast<NamespaceDecl>(Ctx)->getName();
       break;
     default:
