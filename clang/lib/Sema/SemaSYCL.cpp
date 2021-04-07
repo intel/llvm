@@ -77,7 +77,7 @@ public:
   }
 
   static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
-                                                       llvm::StringRef SR) {
+                                                       StringRef SR) {
     return DeclContextDesc{K, SR};
   }
 
