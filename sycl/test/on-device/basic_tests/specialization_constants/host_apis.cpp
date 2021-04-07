@@ -1,5 +1,11 @@
-#include <cmath>
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %t.out
+
+// UNSUPPORTED: cuda
+
 #include <sycl/sycl.hpp>
+
+#include <cmath>
 
 class Kernel1Name;
 class Kernel2Name;
