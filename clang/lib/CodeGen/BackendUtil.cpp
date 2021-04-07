@@ -867,7 +867,8 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     if (LangOpts.EnableDAEInSpirKernels)
       MPM.add(createDeadArgEliminationSYCLPass());
 
-    // Allocate static local memory in SYCL kernel scope for each allocation call.
+    // Allocate static local memory in SYCL kernel scope for each allocation
+    // call.
     MPM.add(createSYCLLowerWGLocalMemoryLegacyPass());
   }
 }
