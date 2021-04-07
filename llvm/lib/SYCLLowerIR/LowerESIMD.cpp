@@ -491,6 +491,12 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
     Val = ValL->getValue();
     break;
   }
+  case id::Node::KBoolExpr: {
+    auto *ValL = castNode(Args[N], BoolExpr);
+    Ty = IntegerType::getInt32Ty(Ctx);
+    ValL->match([&Val](bool Value) { Value ? Val = "1" : Val = "0"; });
+    break;
+  }
   case id::Node::KEnumLiteral: {
     auto *CE = castNode(Args[N], EnumLiteral);
     Ty = IntegerType::getInt32Ty(Ctx);
