@@ -2914,14 +2914,19 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     mapValue(BA, &(*I));
     setName(&(*I), BA);
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
-      if (Kind == FunctionParameterAttributeNoWrite)
-        return;
       Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
       Type *AttrTy = nullptr;
-      if (LLVMKind == Attribute::AttrKind::ByVal)
+      switch (LLVMKind) {
+      case Attribute::AttrKind::ByVal:
         AttrTy = cast<PointerType>(I->getType())->getElementType();
-      else if (LLVMKind == Attribute::AttrKind::StructRet)
+        break;
+      case Attribute::AttrKind::StructRet:
+      case Attribute::AttrKind::ReadOnly:
         AttrTy = I->getType();
+        break;
+      default:
+        break; // do nothing
+      }
       // Make sure to use a correct constructor for a typed/typeless attribute
       auto A = AttrTy ? Attribute::get(*Context, LLVMKind, AttrTy)
                       : Attribute::get(*Context, LLVMKind);
