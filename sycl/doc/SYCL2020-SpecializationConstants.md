@@ -292,8 +292,8 @@ struct A {
   Nested n;
 };
 
-specialization_id<int> id_int;
-specialization_id<A> id_A;
+constexpr specialization_id<int> id_int;
+constexpr specialization_id<A> id_A;
 // ...
   [=](kernel_handler h) {
     h.get_specialization_constant<id_int>();
@@ -403,7 +403,7 @@ offset, then `bitcast` to pointer to proper return type (because the buffer
 pointer is just an "untyped" `i8 *`) and `load`. An example of that LLVM IR:
 ```
 ; an example for:
-; specialization_id<double> id_double;
+; constexpr specialization_id<double> id_double;
 ;   [=](kernel_handler h) {
 ;     h.get_specialization_constant<id_double>();
 
@@ -432,9 +432,9 @@ struct A {
   Nested n;
 };
 
-specialization_id<int> id_int;
-specialization_id<A> id_A;
-specialization_id<Nested> id_Nested;
+constexpr specialization_id<int> id_int;
+constexpr specialization_id<A> id_A;
+constexpr specialization_id<Nested> id_Nested;
 // ...
   [=](kernel_handler h) {
     h.get_specialization_constant<id_int>();
@@ -525,8 +525,8 @@ struct A {
   Nested n;
 };
 
-specialization_id<int> id_int;
-specialization_id<A> id_A;
+constexpr specialization_id<int> id_int;
+constexpr specialization_id<A> id_A;
 // ...
   [=](kernel_handler h) {
     h.get_specialization_constant<id_int>();
@@ -586,9 +586,9 @@ struct A {
   Nested n;
 };
 
-specialization_id<int> id_int(42);
-specialization_id<A> id_A(1, 2.0, 3.0);
-specialization_id<Nested> id_Nested(4.0, 5.0);
+constexpr specialization_id<int> id_int(42);
+constexpr specialization_id<A> id_A(1, 2.0, 3.0);
+constexpr specialization_id<Nested> id_Nested(4.0, 5.0);
 // ...
   [=](kernel_handler h) {
     h.get_specialization_constant<id_int>();
