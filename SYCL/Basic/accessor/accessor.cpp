@@ -166,6 +166,29 @@ int main() {
     }
   }
 
+  // Device accessor with 2-dimensional subscript operators for atomic accessor
+  // check compile error
+  {
+    cl::sycl::queue queue;
+    if (!queue.is_host()) {
+      cl::sycl::range<2> range(1, 1);
+      int Arr[] = {2};
+      {
+        cl::sycl::buffer<int, 1> Buf(Arr, 1);
+        queue.submit([&](cl::sycl::handler &cgh) {
+          auto acc =
+              cl::sycl::accessor<int, 2, cl::sycl::access::mode::atomic,
+                                 cl::sycl::access::target::local>(range, cgh);
+          cgh.parallel_for<class dim2_subscr_atomic>(
+              cl::sycl::nd_range<2>{range, range}, [=](cl::sycl::nd_item<2>) {
+                sycl::atomic<int, sycl::access::address_space::local_space>
+                    value = acc[0][0];
+              });
+        });
+      }
+    }
+  }
+
   // Device accessor with 3-dimensional subscript operators.
   {
     sycl::queue Queue;
