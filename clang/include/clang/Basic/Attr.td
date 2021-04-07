@@ -1971,13 +1971,6 @@ def IntelFPGAConstVar : SubsetSubject<Var,
                             LangAS::opencl_constant)}],
                       "constant variables">;
 
-def IntelFPGALocalStaticSlaveMemVar : SubsetSubject<Var,
-      [{S->getKind() != Decl::ImplicitParam &&
-        S->getKind() != Decl::NonTypeTemplateParm &&
-        (S->getStorageClass() == SC_Static ||
-         S->hasLocalStorage())}],
-         "local variables, static variables, slave memory arguments">;
-
 def IntelFPGALocalStaticAgentMemVar : SubsetSubject<Var,
       [{S->getKind() != Decl::ImplicitParam &&
         S->getKind() != Decl::NonTypeTemplateParm &&
