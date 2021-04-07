@@ -860,6 +860,16 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
 
   PMBuilder.populateFunctionPassManager(FPM);
   PMBuilder.populateModulePassManager(MPM);
+
+  if (LangOpts.SYCLIsDevice) {
+    // Eliminate dead arguments from SPIR kernels in SYCL environment.
+    // Run DAE when LLVM optimizations are applied as well.
+    if (LangOpts.EnableDAEInSpirKernels)
+      MPM.add(createDeadArgEliminationSYCLPass());
+
+    // Allocate static local memory in SYCL kernel scope for each allocation call.
+    MPM.add(createSYCLLowerWGLocalMemoryLegacyPass());
+  }
 }
 
 static void setCommandLineOpts(const CodeGenOptions &CodeGenOpts) {
@@ -973,12 +983,6 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   std::unique_ptr<llvm::ToolOutputFile> ThinLinkOS, DwoOS;
 
-  // Eliminate dead arguments from SPIR kernels in SYCL environment.
-  // Run DAE when LLVM optimizations are applied as well.
-  if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableLLVMPasses &&
-      LangOpts.EnableDAEInSpirKernels)
-    PerModulePasses.add(createDeadArgEliminationSYCLPass());
-
   // Add SPIRITTAnnotations pass to the pass manager if
   // -fsycl-instrument-device-code option was passed. This option can be
   // used only with spir triple.
@@ -987,16 +991,6 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
       llvm::report_fatal_error(
           "ITT annotations can only by added to a module with spir target");
     PerModulePasses.add(createSPIRITTAnnotationsPass());
-  }
-
-  // Allocate static local memory in SYCL kernel scope for each allocation call.
-  if (LangOpts.SYCLIsDevice) {
-    // Group local memory pass depends on inlining. Turn it on even in case if
-    // all llvm passes or SYCL early optimizations are disabled.
-    // FIXME: Remove this workaround when dependency on inlining is eliminated.
-    if (CodeGenOpts.DisableLLVMPasses)
-      PerModulePasses.add(createAlwaysInlinerLegacyPass(false));
-    PerModulePasses.add(createSYCLLowerWGLocalMemoryLegacyPass());
   }
 
   switch (Action) {
