@@ -18,7 +18,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
-//#include "libcxx_span.hpp"
+#include "libcxx_span.hpp"
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

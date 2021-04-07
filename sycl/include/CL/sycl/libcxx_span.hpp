@@ -149,12 +149,6 @@ _LIBCPP_PUSH_MACROS
 //_LIBCPP_BEGIN_NAMESPACE_STD
 namespace std {
 
-//CP (when included from stl.hpp ??)
-//using std::void_t;
-template <class...> using void_t = void;
-
-template< class T >
-/*inline*/ constexpr bool is_array_v = is_array<T>::value;
 
 //CP
 /*
@@ -486,7 +480,7 @@ public:
     //using iterator               = iterator<pointer>;
 
     //using reverse_iterator       = _VSTD::reverse_iterator<iterator>;
-    using reverse_iterator       = reverse_iterator<pointer>;
+    using rev_iterator           = reverse_iterator<pointer>;
 
     static constexpr size_type extent = _Extent;
 
@@ -631,8 +625,8 @@ public:
 // [span.iter], span iterator support
     _LIBCPP_INLINE_VISIBILITY constexpr iterator                 begin() const noexcept { return iterator(data()); }
     _LIBCPP_INLINE_VISIBILITY constexpr iterator                   end() const noexcept { return iterator(data() + size()); }
-    _LIBCPP_INLINE_VISIBILITY constexpr reverse_iterator        rbegin() const noexcept { return reverse_iterator(end()); }
-    _LIBCPP_INLINE_VISIBILITY constexpr reverse_iterator          rend() const noexcept { return reverse_iterator(begin()); }
+    _LIBCPP_INLINE_VISIBILITY constexpr rev_iterator        rbegin() const noexcept { return rev_iterator(end()); }
+    _LIBCPP_INLINE_VISIBILITY constexpr rev_iterator          rend() const noexcept { return rev_iterator(begin()); }
 
     _LIBCPP_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)> __as_bytes() const noexcept
     { return span<const byte, _Extent * sizeof(element_type)>{reinterpret_cast<const byte *>(data()), size_bytes()}; }
@@ -667,7 +661,7 @@ public:
     //using iterator               = iterator<pointer>;
 
     //using reverse_iterator       = _VSTD::reverse_iterator<iterator>;
-    using reverse_iterator       = reverse_iterator<pointer>;
+    using rev_iterator           = reverse_iterator<pointer>;
 
     static constexpr size_type extent = dynamic_extent;
 
@@ -796,8 +790,8 @@ public:
 // [span.iter], span iterator support
     _LIBCPP_INLINE_VISIBILITY constexpr iterator                 begin() const noexcept { return iterator(data()); }
     _LIBCPP_INLINE_VISIBILITY constexpr iterator                   end() const noexcept { return iterator(data() + size()); }
-    _LIBCPP_INLINE_VISIBILITY constexpr reverse_iterator        rbegin() const noexcept { return reverse_iterator(end()); }
-    _LIBCPP_INLINE_VISIBILITY constexpr reverse_iterator          rend() const noexcept { return reverse_iterator(begin()); }
+    _LIBCPP_INLINE_VISIBILITY constexpr rev_iterator        rbegin() const noexcept { return rev_iterator(end()); }
+    _LIBCPP_INLINE_VISIBILITY constexpr rev_iterator          rend() const noexcept { return rev_iterator(begin()); }
 
     _LIBCPP_INLINE_VISIBILITY span<const byte, dynamic_extent> __as_bytes() const noexcept
     { return {reinterpret_cast<const byte *>(data()), size_bytes()}; }
