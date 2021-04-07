@@ -80,8 +80,8 @@ inside explicit SIMD kernels and functions. Most of them will be eventually
 dropped. What's not supported today:
 - Explicit SIMD kernels can co-exist with regular SYCL kernels in the same
   translation unit and in the same program. However, interoperability between
-  them is not yet supported, e.g. currently it's not allowed to invoke a ESIMD
-  functions from a regular SYCL code.
+  them is not yet supported, e.g. currently it's not allowed to invoke an ESIMD
+  kernel from a regular SYCL kernel and vice-versa.
 - Local accessors. Local memory is allocated and accessed via explicit
 device-side API
 - 2D and 3D accessors
