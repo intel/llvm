@@ -512,32 +512,6 @@ CheckForIncompatibleAttributes(Sema &S,
           << CategoryState.NumericAttr->getDiagnosticName(Policy);
     }
   }
-
-  // C++20 [dcl.attr.likelihood]p1 The attribute-token likely shall not appear
-  // in an attribute-specifier-seq that contains the attribute-token unlikely.
-  const LikelyAttr *Likely = nullptr;
-  const UnlikelyAttr *Unlikely = nullptr;
-  for (const auto *I : Attrs) {
-    if (const auto *Attr = dyn_cast<LikelyAttr>(I)) {
-      if (Unlikely) {
-        S.Diag(Attr->getLocation(), diag::err_attributes_are_not_compatible)
-            << Attr << Unlikely << Attr->getRange();
-        S.Diag(Unlikely->getLocation(), diag::note_conflicting_attribute)
-            << Unlikely->getRange();
-        return;
-      }
-      Likely = Attr;
-    } else if (const auto *Attr = dyn_cast<UnlikelyAttr>(I)) {
-      if (Likely) {
-        S.Diag(Attr->getLocation(), diag::err_attributes_are_not_compatible)
-            << Attr << Likely << Attr->getRange();
-        S.Diag(Likely->getLocation(), diag::note_conflicting_attribute)
-            << Likely->getRange();
-        return;
-      }
-      Unlikely = Attr;
-    }
-  }
 }
 
 template <typename LoopAttrT>
@@ -765,23 +739,17 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
   }
 }
 
-StmtResult Sema::ProcessStmtAttributes(Stmt *S,
-                                       const ParsedAttributesView &AttrList,
-                                       SourceRange Range) {
-  SmallVector<const Attr*, 8> Attrs;
-  for (const ParsedAttr &AL : AttrList) {
-    if (Attr *a = ProcessStmtAttribute(*this, S, AL, Range))
-      Attrs.push_back(a);
+void Sema::ProcessStmtAttributes(Stmt *S,
+                                 const ParsedAttributesWithRange &InAttrs,
+                                 SmallVectorImpl<const Attr *> &OutAttrs) {
+  for (const ParsedAttr &AL : InAttrs) {
+    if (const Attr *A = ProcessStmtAttribute(*this, S, AL, InAttrs.Range))
+      OutAttrs.push_back(A);
   }
 
-  CheckForIncompatibleAttributes(*this, Attrs);
-  CheckForIncompatibleSYCLLoopAttributes(*this, Attrs);
-  CheckForIncompatibleUnrollHintAttributes(*this, Attrs, Range);
-
-  if (Attrs.empty())
-    return S;
-
-  return ActOnAttributedStmt(Range.getBegin(), Attrs, S);
+  CheckForIncompatibleAttributes(*this, OutAttrs);
+  CheckForIncompatibleSYCLLoopAttributes(*this, OutAttrs);
+  CheckForIncompatibleUnrollHintAttributes(*this, OutAttrs, InAttrs.Range);
 }
 bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
   CheckRedundantSYCLIntelFPGAIVDepAttrs(*this, Attrs);
