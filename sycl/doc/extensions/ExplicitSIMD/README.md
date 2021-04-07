@@ -91,5 +91,5 @@ program behavior if violated.
 
 ##### Other restrictions:
 - Only Intel GPU device is supported
-- Interoperability between regular SYCL and ESIMD kernels is not supported.
-  I.e., it's not possible to call ESIMD code from SYCL and vise-versa.
+- Interoperability between regular SYCL and ESIMD kernels is not yet supported.
+  I.e., it's not possible to invoke an ESIMD kernel from SYCL kernel and vice-versa.
