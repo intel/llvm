@@ -246,7 +246,7 @@ rules in reverse:
   and broadcast to each work-item; every work-item in the sub-group receives
   the same value.
 
-- Return values of type +std::tuple+ are mapped as if each memebr of the tuple
+- Return values of type +std::tuple+ are mapped as if each member of the tuple
   was mapped individually (e.g. a +std::tuple<sycl::ext::oneapi::simd<float, N>, sycl::ext::oneapi::simd<int, N>>+
   becomes a +std::tuple<float, int>+).
 
