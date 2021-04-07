@@ -80,10 +80,6 @@ int main() {
     Functor2 f2;
     h.single_task<class kernel_name2>(f2);
 
-    // Applying attributes to lambdas is a nonconforming extension. This will
-    // remain an an error until the SYCL specifications allow it or until
-    // users require it. Refer to comments about
-    // SupportsNonconformingLambdaSyntax bit in Attr.td.
     h.single_task<class kernel_name3>(
       []() [[intel::max_concurrency(3)]]{});
 
