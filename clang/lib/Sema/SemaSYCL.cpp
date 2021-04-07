@@ -72,34 +72,34 @@ public:
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor class.
-  static bool isSyclAccessorType(const QualType &Ty);
+  static bool isSyclAccessorType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// sampler class.
-  static bool isSyclSamplerType(const QualType &Ty);
+  static bool isSyclSamplerType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// stream class.
-  static bool isSyclStreamType(const QualType &Ty);
+  static bool isSyclStreamType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// half class.
-  static bool isSyclHalfType(const QualType &Ty);
+  static bool isSyclHalfType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor_property_list class.
-  static bool isAccessorPropertyListType(const QualType &Ty);
+  static bool isAccessorPropertyListType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// buffer_location class.
-  static bool isSyclBufferLocationType(const QualType &Ty);
+  static bool isSyclBufferLocationType(QualType Ty);
 
   /// Checks whether given clang type is a standard SYCL API class with given
   /// name.
   /// \param Ty    the clang type being checked
   /// \param Name  the class name checked against
   /// \param Tmpl  whether the class is template instantiation or simple record
-  static bool isSyclType(const QualType &Ty, StringRef Name, bool Tmpl = false);
+  static bool isSyclType(QualType Ty, StringRef Name, bool Tmpl = false);
 
   /// Checks whether given function is a standard SYCL API function with given
   /// name.
@@ -109,11 +109,11 @@ public:
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization constant class.
-  static bool isSyclSpecConstantType(const QualType &Ty);
+  static bool isSyclSpecConstantType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// kernel_handler class.
-  static bool isSyclKernelHandlerType(const QualType &Ty);
+  static bool isSyclKernelHandlerType(QualType Ty);
 
   // Checks declaration context hierarchy.
   /// \param DC     the context of the item to be checked.
@@ -127,7 +127,7 @@ public:
   /// \param Ty         the clang type being checked
   /// \param Scopes     the declaration scopes leading from the type to the
   ///     translation unit (excluding the latter)
-  static bool matchQualifiedTypeName(const QualType &Ty,
+  static bool matchQualifiedTypeName(QualType Ty,
                                      ArrayRef<Util::DeclContextDesc> Scopes);
 };
 
@@ -1321,7 +1321,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   DiagnosticsEngine &Diag;
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
-  bool checkNotCopyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
+  bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
     if (FieldTy->isArrayType()) {
       if (const auto *CAT =
               SemaRef.getASTContext().getAsConstantArrayType(FieldTy)) {
@@ -4305,20 +4305,16 @@ bool SYCLIntegrationFooter::emit(raw_ostream &O) {
 // Utility class methods
 // -----------------------------------------------------------------------------
 
-bool Util::isSyclAccessorType(const QualType &Ty) {
+bool Util::isSyclAccessorType(QualType Ty) {
   return isSyclType(Ty, "accessor", true /*Tmpl*/);
 }
 
-bool Util::isSyclSamplerType(const QualType &Ty) {
-  return isSyclType(Ty, "sampler");
-}
+bool Util::isSyclSamplerType(QualType Ty) { return isSyclType(Ty, "sampler"); }
 
-bool Util::isSyclStreamType(const QualType &Ty) {
-  return isSyclType(Ty, "stream");
-}
+bool Util::isSyclStreamType(QualType Ty) { return isSyclType(Ty, "stream"); }
 
-bool Util::isSyclHalfType(const QualType &Ty) {
-  const StringRef &Name = "half";
+bool Util::isSyclHalfType(QualType Ty) {
+  llvm::StringLiteral Name = "half";
   std::array<DeclContextDesc, 5> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
@@ -4328,8 +4324,8 @@ bool Util::isSyclHalfType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclSpecConstantType(const QualType &Ty) {
-  const StringRef &Name = "spec_constant";
+bool Util::isSyclSpecConstantType(QualType Ty) {
+  llvm::StringLiteral Name = "spec_constant";
   std::array<DeclContextDesc, 5> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
@@ -4339,8 +4335,8 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclKernelHandlerType(const QualType &Ty) {
-  const StringRef &Name = "kernel_handler";
+bool Util::isSyclKernelHandlerType(QualType Ty) {
+  llvm::StringLiteral Name = "kernel_handler";
   std::array<DeclContextDesc, 3> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
@@ -4348,9 +4344,9 @@ bool Util::isSyclKernelHandlerType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclBufferLocationType(const QualType &Ty) {
-  const StringRef &PropertyName = "buffer_location";
-  const StringRef &InstanceName = "instance";
+bool Util::isSyclBufferLocationType(QualType Ty) {
+  llvm::StringLiteral PropertyName = "buffer_location";
+  llvm::StringLiteral InstanceName = "instance";
   std::array<DeclContextDesc, 6> Scopes = {
       Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
@@ -4362,7 +4358,7 @@ bool Util::isSyclBufferLocationType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
+bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
   Decl::Kind ClassDeclKind =
       Tmpl ? Decl::Kind::ClassTemplateSpecialization : Decl::Kind::CXXRecord;
   std::array<DeclContextDesc, 3> Scopes = {
@@ -4387,8 +4383,8 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
   return matchContext(DC, Scopes);
 }
 
-bool Util::isAccessorPropertyListType(const QualType &Ty) {
-  const StringRef &Name = "accessor_property_list";
+bool Util::isAccessorPropertyListType(QualType Ty) {
+  llvm::StringLiteral Name = "accessor_property_list";
   std::array<DeclContextDesc, 4> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
@@ -4428,7 +4424,7 @@ bool Util::matchContext(const DeclContext *Ctx,
   return Ctx->isTranslationUnit();
 }
 
-bool Util::matchQualifiedTypeName(const QualType &Ty,
+bool Util::matchQualifiedTypeName(QualType Ty,
                                   ArrayRef<Util::DeclContextDesc> Scopes) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
 
