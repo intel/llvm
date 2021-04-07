@@ -46,5 +46,25 @@ int main() {
   auto NewBuf = sycl::make_buffer<BE, char>(NativeBuf, Ctx);
   assert(NewBuf.get_range()[0] == 128);
 
+  constexpr const char *ProgSrc = "kernel _() {}";
+  cl_error Err;
+
+  cl_program OclProg =
+      clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
+  if (Err != CL_SUCCESS)
+    return -1;
+
+  auto KB = sycl::make_kernel_bundle<BE, bundle_state::input>(OclProg, Ctx);
+  assert(KB.has_kernel("_"));
+
+  Err = clBuildProgram(OclProg, 1, &NativeDev, "", nullptr, nullptr);
+  assert(Err == CL_SUCCESS);
+
+  cl_kernel NativeKer = clCreateKernel(OclProg, "_", &err);
+  assert(Err == CL_SUCCESS);
+
+  auto Kernel = sycl::make_kernel<BE>(NativeKer, Ctx);
+  assert(Kernel.get_info<sycl::info::kernel::name>() == "_");
+
   return 0;
 }

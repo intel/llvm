@@ -481,6 +481,13 @@ pi_result piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
                      sizeof(cl_sampler), cast<const cl_sampler *>(arg_value)));
 }
 
+pi_result piextKernelCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                            pi_context, pi_kernel *piKernel) {
+  assert(piKernel != nullptr);
+  *piKernel = reinterpret_cast<pi_kernel>(nativeHandle);
+  return PI_SUCCESS;
+}
+
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
@@ -1269,6 +1276,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRelease, clReleaseKernel)
   _PI_CL(piKernelSetExecInfo, piKernelSetExecInfo)
   _PI_CL(piextKernelSetArgPointer, piextKernelSetArgPointer)
+  _PI_CL(piextKernelCreateWithNativeHandle, piextKernelCreateWithNativeHandle)
   // Event
   _PI_CL(piEventCreate, piEventCreate)
   _PI_CL(piEventGetInfo, clGetEventInfo)

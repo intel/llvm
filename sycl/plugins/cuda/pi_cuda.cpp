@@ -2477,6 +2477,12 @@ pi_result cuda_piEnqueueNativeKernel(
   return {};
 }
 
+pi_result cuda_piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
+                                                 pi_kernel *) {
+  sycl::detail::pi::die("Unsupported operation");
+  return PI_SUCCESS;
+}
+
 /// \TODO Not implemented
 pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
                                 const pi_image_format *image_format,
@@ -4650,6 +4656,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRelease, cuda_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, cuda_piKernelSetExecInfo)
   _PI_CL(piextKernelSetArgPointer, cuda_piextKernelSetArgPointer)
+  _PI_CL(piextKernelCreateWithNativeHandle,
+         cuda_piextKernelCreateWithNativeHandle)
   // Event
   _PI_CL(piEventCreate, cuda_piEventCreate)
   _PI_CL(piEventGetInfo, cuda_piEventGetInfo)

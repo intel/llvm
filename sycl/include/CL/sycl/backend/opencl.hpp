@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "CL/sycl/kernel_bundle.hpp"
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
@@ -20,6 +21,12 @@ namespace sycl {
 template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
 };
+
+template <bundle_state S> struct interop<backend::opencl, kernel_bundle<S>> {
+  using type = cl_platform_id;
+};
+
+template <> struct interop<backend::opencl, kernel> { using type = cl_kernel; };
 
 template <> struct interop<backend::opencl, device> {
   using type = cl_device_id;
@@ -67,6 +74,7 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = true;
   static constexpr bool MakeKernel = true;
+  static constexpr bool MakeKernelBundle = true;
 };
 } // namespace detail
 

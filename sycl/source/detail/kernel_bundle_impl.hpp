@@ -46,6 +46,13 @@ public:
         MContext, MDevices, State);
   }
 
+  // Interop constructor
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+                     device_image_plain &DevImage)
+      : MContext(Ctx), MDevices(Devs) {
+    MDeviceImages.push_back(DevImage);
+  }
+
   // Matches sycl::build and sycl::compile
   // Have one constructor because sycl::build and sycl::compile have the same
   // signature
