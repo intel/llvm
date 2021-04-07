@@ -35,8 +35,6 @@ enum InternalLinkageType {
 };
 
 enum InternalOp {
-  IOpAssumeTrueINTEL = 5630,
-  IOpExpectINTEL = 5631,
   IOpAliasDomainDeclINTEL = 5911,
   IOpAliasScopeDeclINTEL = 5912,
   IOpAliasScopeListDeclINTEL = 5913,
@@ -50,7 +48,6 @@ enum InternalDecoration {
 };
 
 enum InternalCapability {
-  ICapOptimizationHintsINTEL = 5629,
   ICapMemoryAccessAliasingINTEL = 5910,
   ICapOptNoneINTEL = 6094
 };
@@ -66,8 +63,6 @@ constexpr LinkageType LinkageTypeInternal =
     static_cast<LinkageType>(ILTInternal);
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
-constexpr Op OpAssumeTrueINTEL = static_cast<Op>(IOpAssumeTrueINTEL);
-constexpr Op OpExpectINTEL = static_cast<Op>(IOpExpectINTEL);
 constexpr Op OpAliasDomainDeclINTEL = static_cast<Op>(IOpAliasDomainDeclINTEL);
 constexpr Op OpAliasScopeDeclINTEL = static_cast<Op>(IOpAliasScopeDeclINTEL);
 constexpr Op OpAliasScopeListDeclINTEL =
@@ -78,8 +73,6 @@ constexpr Decoration DecorationAliasScopeINTEL =
 constexpr Decoration DecorationNoAliasINTEL =
     static_cast<Decoration>(IDecNoAliasINTEL);
 
-constexpr Capability CapabilityOptimizationHintsINTEL =
-    static_cast<Capability>(ICapOptimizationHintsINTEL);
 constexpr Capability CapabilityOptNoneINTEL =
     static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityMemoryAccessAliasingINTEL =
