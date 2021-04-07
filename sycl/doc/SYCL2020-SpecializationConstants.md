@@ -185,11 +185,10 @@ device code and properly handle them.
 
 ```
 namespace sycl {
-// TODO: Add `const` to `DefaultValue` and `RTBuffer`?
 template<typename T>
-T __sycl_getScalar2020SpecConstantValue<T>(const char *SymbolicID, void *DefaultValue, void *RTBuffer);
+T __sycl_getScalar2020SpecConstantValue<T>(const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
 template<typename T>
-T __sycl_getComposite2020SpecConstantValue<T>(const char *SymbolicID, void *DefaultValue, void *RTBuffer);
+T __sycl_getComposite2020SpecConstantValue<T>(const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
 
 class kernel_handler {
 public:
@@ -339,9 +338,9 @@ T __spirv_SpecConstantComposite(Elements... elements);
 ```
 
 Particularly, `SpecConstantsPass` translates calls to the
-`T __sycl_getScalar2020SpecConstantValue(const char *SymbolicID, void *DefaultValue, char *RTBuffer)`
+`T __sycl_getScalar2020SpecConstantValue(const char *SymbolicID, const void *DefaultValue, const char *RTBuffer)`
 intrinsic into calls to `T __spirv_SpecConstant(int ID, T default_val)`.
-And for `T __sycl_getComposite2020SpecConstantValue(const chat *SybmolicID, void *DefaultValue, char *RTBuffer)`
+And for `T __sycl_getComposite2020SpecConstantValue(const chat *SybmolicID, const void *DefaultValue, const char *RTBuffer)`
 it generates number of `T __spirv_SpecConstant(int ID, T default_val)` calls for
 each leaf of the composite type, plus number of
 `T __spirv_SpecConstantComposite(Elements... elements)` for each composite type
