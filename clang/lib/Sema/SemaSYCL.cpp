@@ -376,10 +376,11 @@ class DiagDeviceFunction : public RecursiveASTVisitor<DiagDeviceFunction> {
 
 public:
   DiagDeviceFunction(
-      Sema &S, const llvm::SmallPtrSetImpl<FunctionDecl *> &RecursiveFuncs,
-      Stmt *ToBeDiaged)
-      : RecursiveASTVisitor(), SemaRef(S), RecursiveFuncs(RecursiveFuncs) {
-    TraverseStmt(ToBeDiaged);
+      Sema &S, const llvm::SmallPtrSetImpl<FunctionDecl *> &RecursiveFuncs)
+      : RecursiveASTVisitor(), SemaRef(S), RecursiveFuncs(RecursiveFuncs) {}
+
+  void CheckBody(Stmt *ToBeDiagnosed) {
+    TraverseStmt(ToBeDiagnosed);
   }
 
   bool VisitCallExpr(CallExpr *e) {
@@ -487,10 +488,10 @@ public:
 
 // This type manages the list of device functions and recursive functions, as
 // well as an entry point for attribute collection, for the translation unit
-// during MarkDevices. On construction this type makes sure that all of the
-// root-device functions(that is, those marked with SYCL_EXTERNAL) are
-// collected.  On destruction it manages and runs the diagnostics required. When
-// processing individual kernel/external functions, the
+// during MarkDevices. On construction, this type makes sure that all of the
+// root-device functions, (that is, those marked with SYCL_EXTERNAL) are
+// collected.  On destruction, it manages and runs the diagnostics required.
+// When processing individual kernel/external functions, the
 // SingleDeviceFunctionTracker type updates this type.
 class DeviceFunctionTracker {
   friend class SingleDeviceFunctionTracker;
@@ -514,8 +515,8 @@ class DeviceFunctionTracker {
   }
 
   void
-  AddSingleFunctions(const llvm::SmallPtrSetImpl<FunctionDecl *> &DevFuncs,
-                     const llvm::SmallPtrSetImpl<FunctionDecl *> &Recursive) {
+  AddSingleFunction(const llvm::SmallPtrSetImpl<FunctionDecl *> &DevFuncs,
+                    const llvm::SmallPtrSetImpl<FunctionDecl *> &Recursive) {
     DeviceFunctions.insert(DevFuncs.begin(), DevFuncs.end());
     RecursiveFunctions.insert(Recursive.begin(), Recursive.end());
   }
@@ -527,9 +528,10 @@ public:
   }
 
   ~DeviceFunctionTracker() {
+    DiagDeviceFunction Diagnoser{SemaRef, RecursiveFunctions};
     for (const FunctionDecl *FD : DeviceFunctions)
       if (const FunctionDecl *Def = FD->getDefinition())
-        DiagDeviceFunction{SemaRef, RecursiveFunctions, Def->getBody()};
+        Diagnoser.CheckBody(Def->getBody());
   }
 };
 
@@ -565,14 +567,14 @@ class SingleDeviceFunctionTracker {
       return;
 
     // Determine if this is a recursive function. If so, we're done.
-    if (llvm::find(CallStack, CurrentDecl) != CallStack.end()) {
+    if (llvm::is_contained(CallStack, CurrentDecl)) {
       RecursiveFunctions.insert(CurrentDecl->getCanonicalDecl());
       return;
     }
 
     // We previously thought we could skip this function if we'd seen it before,
     // but if we haven't seen it before in this call graph, we can end up
-    // missing a recursive call.  SO, we have to re-visit call-graphs we've
+    // missing a recursive call.  SO, we have to revisit call-graphs we've
     // already seen, just in case it ALSO has recursion.  For example:
     // void recurse1();
     // void recurse2() { recurse1(); }
@@ -653,7 +655,7 @@ public:
   }
 
   ~SingleDeviceFunctionTracker() {
-    Parent.AddSingleFunctions(DeviceFunctions, RecursiveFunctions);
+    Parent.AddSingleFunction(DeviceFunctions, RecursiveFunctions);
   }
 };
 
@@ -3597,7 +3599,7 @@ static void PropagateAndDiagnoseDeviceAttr(Sema &S, Attr *A,
   }
 }
 
-void Sema::MarkDevices(void) {
+void Sema::MarkDevices() {
   // This Tracker object ensures that the SyclDeviceDecls collection includes
   // the SYCL_EXTERNAL functions, and manages the diagnostics for all of the
   // functions in the kernel.
