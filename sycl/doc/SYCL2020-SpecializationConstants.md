@@ -788,7 +788,7 @@ trick is used within `set_specialization_constant` method:
 template<auto& SpecName>
 void set_specialization_constant(
   typename std::remove_reference_t<decltype(SpecName)>::type value) {
-  const char *SymbolicID = detail::get_symbolic_id_helper<SpecName>::get_symbolic_id();
+  const char *SymbolicID = detail::get_spec_constant_symbolic_ID();
   // remember the value of the specialization constant
   SpecConstantValuesMap[SymbolicID] = value;
 }
