@@ -797,8 +797,8 @@ void set_specialization_constant(
 Before invoking JIT compilation of a program, the runtime "flushes"
 specialization constants:
 
-If native specialization constants are supported by target device, the runtime
-iterates through the value map and invokes
+If native specialization constants are supported by the target device, the
+runtime iterates through the value map and invokes
 
 ```
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
@@ -812,15 +812,23 @@ Plugin Interface function for descriptor of each property: `spec_id` and
 address of the specialization constant provided by user and `offset` field of
 the descriptor.
 
-If native specialization constants are not supported by target device, then
+If native specialization constants are not supported by the target device, then
 the runtime calculates the location (offset) of each specialization constant in
 corresponding runtime buffer and copied user-provided value into that location.
 
-**TODO**: buffer creation
-**TODO**: lifetime of the buffer
-**TODO**: offset calculation
-**TODO**: handling of default values
-**TODO**: setting buffer as kernel argument
+That buffer should be allocated for each `kernel_bundler` or `queue::submit` and
+it should be set as a kernel argument, if corresponding `kernel_signature`
+contains `kernel_param_kind_t::kind_specialization_constants_buffer`.
+
+Offsets into that buffer are calculated based on "SYCL/specialization constants"
+property set, i.e. all properties from there are sorted in ascending order of
+their numeric IDs and offset for each specialization constant is calculated as
+sum of sizes of all other specialization constants with smaller numeric ID.
+
+In order to properly set default values of specialization constants,
+"SYCL/specialization constants default values" property set is used: its content
+is used to either fully or partially initialize the buffer with specialization
+constant values.
 
 ### SPIRV-LLVM-Translator
 
