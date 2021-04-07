@@ -329,7 +329,8 @@ The following are all examples of valid implementations of this model:
 - Mapping SIMD operations to an unrolled loop executed by a single work-item.
 
 Since this execution model guarantees SIMD-like behavior, there is no need for
-the user to insert sub-group barriers in an explicit SIMD function.
+the user to insert any form of explicit synchronization functions to ensure
+memory consistency across SIMD lanes.
 
 == Issues
 
