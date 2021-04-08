@@ -101,7 +101,6 @@ TYPE("dependencies",             Dependencies, INVALID,         "d",      phases
 TYPE("cuda-fatbin",              CUDA_FATBIN,  INVALID,         "fatbin", phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("hip-fatbin",               HIP_FATBIN,   INVALID,         "hipfb",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("spirv",                    SPIRV,        INVALID,         "spv",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("sycl-header",              SYCL_Header,  INVALID,         "h",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("sycl-fatbin",              SYCL_FATBIN,  INVALID,         nullptr,  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempfilelist",             Tempfilelist, INVALID,         "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempfiletable",            Tempfiletable,INVALID,         "table",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)

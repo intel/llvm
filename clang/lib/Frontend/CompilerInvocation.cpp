@@ -211,6 +211,7 @@ static void denormalizeStringImpl(SmallVectorImpl<const char *> &Args,
   switch (OptClass) {
   case Option::SeparateClass:
   case Option::JoinedOrSeparateClass:
+  case Option::JoinedAndSeparateClass:
     Args.push_back(Spelling);
     Args.push_back(SA(Value));
     break;
@@ -2482,9 +2483,13 @@ static void GenerateFrontendArgs(const FrontendOptions &Opts,
 
   GenerateProgramAction();
 
-  for (const auto &PluginArgs : Opts.PluginArgs)
+  for (const auto &PluginArgs : Opts.PluginArgs) {
+    Option Opt = getDriverOptTable().getOption(OPT_plugin_arg);
+    const char *Spelling =
+        SA(Opt.getPrefix() + Opt.getName() + PluginArgs.first);
     for (const auto &PluginArg : PluginArgs.second)
-      GenerateArg(Args, OPT_plugin_arg, PluginArgs.first + PluginArg, SA);
+      denormalizeString(Args, Spelling, SA, Opt.getKind(), 0, PluginArg);
+  }
 
   for (const auto &Ext : Opts.ModuleFileExtensions)
     if (auto *TestExt = dyn_cast_or_null<TestModuleFileExtension>(Ext.get()))
@@ -3496,6 +3501,9 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   if (Opts.getSignReturnAddressKey() ==
       LangOptions::SignReturnAddressKeyKind::BKey)
     GenerateArg(Args, OPT_msign_return_address_key_EQ, "b_key", SA);
+
+  if (Opts.DeclareSPIRVBuiltins)
+    GenerateArg(Args, OPT_fdeclare_spirv_builtins, SA);
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
@@ -3698,8 +3706,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   // '-mignore-xcoff-visibility' is implied. The generated command line will
   // contain both '-fvisibility default' and '-mignore-xcoff-visibility' and
   // subsequent calls to `CreateFromArgs`/`generateCC1CommandLine` will always
-  // produce the same arguments. 
- 
+  // produce the same arguments.
+
   if (T.isOSAIX() && (Args.hasArg(OPT_mignore_xcoff_visibility) ||
                       !Args.hasArg(OPT_fvisibility)))
     Opts.IgnoreXCOFFVisibility = 1;
@@ -4291,6 +4299,22 @@ static bool ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
   return Success && Diags.getNumErrors() == NumErrorsBefore;
 }
 
+static void CreateEmptyFile(StringRef HeaderName) {
+  if (HeaderName.empty())
+    return;
+
+  Expected<llvm::sys::fs::file_t> FT = llvm::sys::fs::openNativeFileForWrite(
+      HeaderName, llvm::sys::fs::CD_OpenAlways, llvm::sys::fs::OF_None);
+  if (FT)
+    llvm::sys::fs::closeFile(*FT);
+  else {
+    // Emit a message but don't terminate; compilation will fail
+    // later if this file is absent.
+    llvm::errs() << "Error: " << llvm::toString(FT.takeError())
+                 << " when opening " << HeaderName << "\n";
+  }
+}
+
 bool CompilerInvocation::CreateFromArgsImpl(
     CompilerInvocation &Res, ArrayRef<const char *> CommandLineArgs,
     DiagnosticsEngine &Diags, const char *Argv0) {
@@ -4372,21 +4396,9 @@ bool CompilerInvocation::CreateFromArgsImpl(
   if (LangOpts.SYCLIsDevice) {
     // Set the triple of the host for SYCL device compile.
     Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
-    // If specified, create an empty integration header file for now.
-    const StringRef &HeaderName = LangOpts.SYCLIntHeader;
-    if (!HeaderName.empty()) {
-      Expected<llvm::sys::fs::file_t> ft =
-          llvm::sys::fs::openNativeFileForWrite(
-              HeaderName, llvm::sys::fs::CD_OpenAlways, llvm::sys::fs::OF_None);
-      if (ft)
-        llvm::sys::fs::closeFile(*ft);
-      else {
-        // Emit a message but don't terminate; compilation will fail
-        // later if this file is absent.
-        llvm::errs() << "Error: " << llvm::toString(ft.takeError())
-                     << " when opening " << HeaderName << "\n";
-      }
-    }
+    // If specified, create empty integration header files for now.
+    CreateEmptyFile(LangOpts.SYCLIntHeader);
+    CreateEmptyFile(LangOpts.SYCLIntFooter);
   }
 
   Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags, T,

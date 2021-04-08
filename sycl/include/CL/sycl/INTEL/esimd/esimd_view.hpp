@@ -34,7 +34,8 @@ public:
   using value_type = simd<typename ShapeTy::element_type, length>;
 
   /// The underlying builtin value type
-  using vector_type = vector_type_t<typename ShapeTy::element_type, length>;
+  using vector_type =
+      detail::vector_type_t<typename ShapeTy::element_type, length>;
 
   /// The region type of this class.
   using region_type = RegionTy;

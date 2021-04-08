@@ -684,6 +684,8 @@ bool SPIRVToLLVM::isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const {
   return isCmpOpCode(OC) && !(OC >= OpLessOrGreater && OC <= OpUnordered);
 }
 
+// TODO: Instead of direct translation to OCL we should always produce SPIR-V
+// friendly IR and apply lowering later if needed
 bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
   if (isSubgroupAvcINTELInstructionOpCode(OpCode) ||
       isIntelSubgroupOpCode(OpCode))
@@ -696,7 +698,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
     // clang-consistent format in SPIRVToOCL pass.
     return !(isAtomicOpCode(OpCode) || isGroupOpCode(OpCode) ||
              isGroupNonUniformOpcode(OpCode) || isPipeOpCode(OpCode) ||
-             isMediaBlockINTELOpcode(OpCode));
+             isMediaBlockINTELOpcode(OpCode) || OpCode == OpGroupAsyncCopy ||
+             OpCode == OpGroupWaitEvents);
   }
   return false;
 }
@@ -4357,6 +4360,7 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
     ArgTypes.resize(1);
   }
 
+  Type *RetTy = transType(BC->getType());
   if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR) {
     // Convert extended instruction into an OpenCL built-in
     if (IsPrintf) {
@@ -4366,14 +4370,14 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
     }
   } else {
     MangledName = getSPIRVFriendlyIRFunctionName(
-        static_cast<OCLExtOpKind>(EntryPoint), ArgTypes);
+        static_cast<OCLExtOpKind>(EntryPoint), ArgTypes, RetTy);
   }
 
   SPIRVDBG(spvdbgs() << "[transOCLBuiltinFromExtInst] ModifiedUnmangledName: "
                      << UnmangledName << " MangledName: " << MangledName
                      << '\n');
 
-  FunctionType *FT = FunctionType::get(transType(BC->getType()), ArgTypes,
+  FunctionType *FT = FunctionType::get(RetTy, ArgTypes,
                                        /* IsVarArg */ IsPrintf);
   Function *F = M->getFunction(MangledName);
   if (!F) {
@@ -4481,9 +4485,11 @@ std::string SPIRVToLLVM::getOCLGenericCastToPtrName(SPIRVInstruction *BI) {
 
 llvm::GlobalValue::LinkageTypes
 SPIRVToLLVM::transLinkageType(const SPIRVValue *V) {
-  if (V->getLinkageType() == internal::LinkageTypeInternal) {
+  int LT = V->getLinkageType();
+  switch (LT) {
+  case internal::LinkageTypeInternal:
     return GlobalValue::InternalLinkage;
-  } else if (V->getLinkageType() == LinkageTypeImport) {
+  case LinkageTypeImport:
     // Function declaration
     if (V->getOpCode() == OpFunction) {
       if (static_cast<const SPIRVFunction *>(V)->getNumBasicBlock() == 0)
@@ -4496,13 +4502,17 @@ SPIRVToLLVM::transLinkageType(const SPIRVValue *V) {
     }
     // Definition
     return GlobalValue::AvailableExternallyLinkage;
-  } else { // LinkageTypeExport
+  case LinkageTypeExport:
     if (V->getOpCode() == OpVariable) {
       if (static_cast<const SPIRVVariable *>(V)->getInitializer() == 0)
         // Tentative definition
         return GlobalValue::CommonLinkage;
     }
     return GlobalValue::ExternalLinkage;
+  case LinkageTypeLinkOnceODR:
+    return GlobalValue::LinkOnceODRLinkage;
+  default:
+    llvm_unreachable("Invalid linkage type");
   }
 }
 
