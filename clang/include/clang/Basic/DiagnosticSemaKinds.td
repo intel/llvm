@@ -11220,7 +11220,7 @@ def err_esimd_glob_cant_init : Error<
 def err_esimd_global_in_sycl_context : Error<
   "ESIMD globals cannot be used in a SYCL context">;
 def err_sycl_device_function_is_called_from_esimd : Error<
-  "SYCL device function cannot be called from ESIMD context">;
+  "SYCL device function cannot be called from an ESIMD context">;
 
 def err_nullptr_t_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, "
                                         "'std::nullptr_t' is declared in the 'std' namespace ">;

@@ -13,7 +13,7 @@ __attribute__((sycl_device)) __attribute__((sycl_explicit_simd)) void esimd_func
   __reserved_func();
 }
 
-// Deffered diagnostic
+// Deferred diagnostic
 void foo() {
   // expected-error@+1{{SYCL device function cannot be called from ESIMD context}}
   sycl_func();

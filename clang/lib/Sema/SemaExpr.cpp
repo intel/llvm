@@ -241,12 +241,11 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                !checkAllowedSYCLInitializer(VD, /*CheckValueDependent =*/true))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelConstStaticVariable;
-    } else if (isa<FunctionDecl>(D)) {
+    } else if (auto *FDecl = dyn_cast<FunctionDecl>(D)) {
       // SYCL device function cannot be called from ESIMD context. However,
       // there are some device function declarations that are shared between
       // SYCL and ESIMD, e.g. spirv builtins. Those are reserved functions
       // and we allow to call them from ESIMD context.
-      FunctionDecl *FDecl = cast<FunctionDecl>(D);
       const IdentifierInfo *Id = FDecl->getIdentifier();
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
           Id && !Id->isReservedName(/*doubleUnderscoreOnly=*/true)) {
