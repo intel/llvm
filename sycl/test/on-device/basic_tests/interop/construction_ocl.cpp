@@ -54,7 +54,8 @@ int main() {
   if (Err != CL_SUCCESS)
     return -1;
 
-  auto KB = sycl::make_kernel_bundle<BE, bundle_state::input>(OclProg, Ctx);
+  auto KB =
+      sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
   assert(KB.has_kernel("_"));
 
   Err = clBuildProgram(OclProg, 1, &NativeDev, "", nullptr, nullptr);
