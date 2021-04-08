@@ -25,8 +25,8 @@ public:
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::max_concurrency(4)]] [[intel::disable_loop_pipelining]] void check1();
 
-// expected-error@+2 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
-// expected-note@+2 {{conflicting attribute is here}}
+// expected-error@+3 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
 [[intel::max_concurrency(4)]] void check2();
 [[intel::disable_loop_pipelining]] void check2();
 

@@ -2835,8 +2835,8 @@ def SYCLIntelFPGAInitiationIntervalAttrDocs : Documentation {
 This attribute applies to a loop or a function. Indicates that the loop or
 function should be pipelined with an initiation interval of N. N must be a
 positive integer. Cannot be applied multiple times to the same loop or function.
-Cannot be used on the same loop or function in conjunction with
-disable_loop_pipelining.
+Cannot be used on the same loop or function, or in conjunction with
+``disable_loop_pipelining``.
 
 The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
 ``[[intel::initiation_interval]]`` and will be removed in the future.
@@ -2869,7 +2869,7 @@ This attribute applies to a loop or a function. It indicates that the
 loop/function should allow no more than N threads or iterations to execute it
 simultaneously. N must be a non negative integer. '0' indicates the
 max_concurrency case to be unbounded. Cannot be applied multiple times to the
-same loop or function in conjunction with disable_loop_pipelining.
+same loop or function, or in conjunction with ``disable_loop_pipelining``.
 
 .. code-block:: c++
 
@@ -2935,8 +2935,9 @@ def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
 This attribute applies to a loop or a function. Takes no arguments and
 disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
-function in conjunction with max_interleaving, speculated_iterations,
-max_concurrency, initiation_interval, or ivdep.
+function, or in conjunction with ``max_interleaving``,
+``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
+or ``ivdep``.
 
 .. code-block:: c++
 

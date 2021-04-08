@@ -1951,6 +1951,9 @@ def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
+def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
+                        SYCLIntelFPGADisableLoopPipelining]>;
+
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
   let Spellings = [CXX11<"intelfpga","max_interleaving">,
                    CXX11<"intel","max_interleaving">];

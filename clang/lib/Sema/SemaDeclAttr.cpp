@@ -3313,11 +3313,6 @@ static void handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Decl *D,
   if (checkAttrMutualExclusion<SYCLIntelFPGAInitiationIntervalAttr>(S, D, A))
     return;
 
-  // [[intel::disable_loop_pipelining] and [[intel::max_concurrency()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<SYCLIntelFPGAMaxConcurrencyAttr>(S, D, A))
-    return;
-
   D->addAttr(::new (S.Context)
                  SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A));
 }
@@ -6373,12 +6368,6 @@ SYCLIntelFPGAMaxConcurrencyAttr *Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
     return nullptr;
   }
 
-  // [[intel::max_concurrency()]] and [[intel::disable_loop_pipelining]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>(*this, D,
-                                                                       A))
-    return nullptr;
-
   return ::new (Context)
       SYCLIntelFPGAMaxConcurrencyAttr(Context, A, A.getNThreadsExpr());
 }
@@ -6410,12 +6399,6 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
       return;
     }
   }
-
-  // [[intel::disable_loop_pipelining] and [[intel::max_concurrency()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>(*this, D,
-                                                                       CI))
-    return;
 
   D->addAttr(::new (Context) SYCLIntelFPGAMaxConcurrencyAttr(Context, CI, E));
 }
