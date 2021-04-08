@@ -1950,6 +1950,8 @@ def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
   let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
 }
+def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
+                        SYCLIntelFPGADisableLoopPipelining]>;
 
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
   let Spellings = [CXX11<"intelfpga","max_interleaving">,
@@ -2061,6 +2063,8 @@ def IntelFPGARegister : Attr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGARegisterAttrDocs];
 }
+def : MutualExclusions<[IntelFPGADoublePump, IntelFPGASinglePump,
+                        IntelFPGARegister]>;
 
 // One integral argument.
 def IntelFPGABankWidth : Attr {
@@ -2072,6 +2076,7 @@ def IntelFPGABankWidth : Attr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGABankWidthAttrDocs];
 }
+def : MutualExclusions<[IntelFPGARegister, IntelFPGABankWidth]>;
 
 def IntelFPGANumBanks : Attr {
   let Spellings = [CXX11<"intelfpga","numbanks">,
@@ -2091,6 +2096,7 @@ def IntelFPGAPrivateCopies : InheritableAttr {
   let Subjects = SubjectList<[IntelFPGALocalNonConstVar, Field], ErrorDiag>;
   let Documentation = [IntelFPGAPrivateCopiesAttrDocs];
 }
+def : MutualExclusions<[IntelFPGARegister, IntelFPGAPrivateCopies]>;
 
 // Two string arguments.
 def IntelFPGAMerge : Attr {
@@ -2102,6 +2108,7 @@ def IntelFPGAMerge : Attr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAMergeAttrDocs];
 }
+def : MutualExclusions<[IntelFPGARegister, IntelFPGAMerge]>;
 
 def IntelFPGAMaxReplicates : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","max_replicates">,
@@ -2112,6 +2119,7 @@ def IntelFPGAMaxReplicates : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAMaxReplicatesAttrDocs];
 }
+def : MutualExclusions<[IntelFPGARegister, IntelFPGAMaxReplicates]>;
 
 def IntelFPGASimpleDualPort : Attr {
   let Spellings = [CXX11<"intelfpga","simple_dual_port">,
@@ -2121,6 +2129,7 @@ def IntelFPGASimpleDualPort : Attr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGASimpleDualPortAttrDocs];
 }
+def : MutualExclusions<[IntelFPGARegister, IntelFPGASimpleDualPort]>;
 
 def SYCLFPGAPipe : TypeAttr {
   let Spellings = [GNU<"pipe">];
@@ -2147,6 +2156,7 @@ def IntelFPGABankBits : Attr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGABankBitsDocs];
 }
+def : MutualExclusions<[IntelFPGARegister, IntelFPGABankBits]>;
 
 def IntelFPGAForcePow2Depth : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","force_pow2_depth">,
@@ -2157,6 +2167,7 @@ def IntelFPGAForcePow2Depth : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAForcePow2DepthAttrDocs];
 }
+def : MutualExclusions<[IntelFPGARegister, IntelFPGAForcePow2Depth]>;
 
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];

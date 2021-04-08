@@ -36,8 +36,8 @@
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::initiation_interval(4)]] [[intel::disable_loop_pipelining]] void func8();
 
-// expected-error@+2 {{'initiation_interval' and 'disable_loop_pipelining' attributes are not compatible}}
-// expected-note@+2 {{conflicting attribute is here}}
+// expected-error@+3 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
 [[intel::initiation_interval(4)]] void func9();
 [[intel::disable_loop_pipelining]] void func9();
 
