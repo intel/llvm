@@ -1692,11 +1692,10 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
     SemaRef.getDiagnostics().OptReportHandler.AddKernelArgs(
-        KernelDecl, FD->getName(), FieldTy.getAsString(),
-        FD->getLocation());
+        KernelDecl, FD->getName(), FieldTy.getAsString(), FD->getLocation());
     addParam(newParamDesc, FieldTy);
   }
- 
+
   void addParam(const CXXBaseSpecifier &BS, QualType FieldTy) {
     // TODO: There is no name for the base available, but duplicate names are
     // seemingly already possible, so we'll give them all the same name for now.
@@ -1705,8 +1704,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
     SemaRef.getDiagnostics().OptReportHandler.AddKernelArgs(
-        KernelDecl, "", FieldTy.getAsString(),
-        BS.getBaseTypeLoc());
+        KernelDecl, "", FieldTy.getAsString(), BS.getBaseTypeLoc());
     addParam(newParamDesc, FieldTy);
   }
   // Add a parameter with specified name and type

@@ -1485,7 +1485,6 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   // Emit the standard function prologue.
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
 
-
   SyclOptReportHandler &OptReportHandler = CGM.getDiags().OptReportHandler;
   if (OptReportHandler.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
@@ -1496,10 +1495,10 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
                                       &Fn->getEntryBlock());
       Remark << "Argument " << llvm::ore::NV("Argument", count++)
              << " for function kernel: " 
-             << llvm::ore::NV(ORI.KernelArgName.empty()
-                ? "&" : "") << " "
+             << llvm::ore::NV(ORI.KernelArgName.empty() ? "&" : "") << " "
              << Fn->getName() << "." 
-             << llvm::ore::NV(ORI.KernelArgName.empty() ? " " : ORI.KernelArgName)           
+             << llvm::ore::NV(ORI.KernelArgName.empty() ? " "
+                                                        : ORI.KernelArgName)           
              << "(" << ORI.KernelArgType << ")";
       ORE.emit(Remark);
     }
@@ -2568,8 +2567,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
   if (VTy->getPointerElementType()->isIntegerTy()) {
-    llvm::Function *F =
-      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
+    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
 
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
       V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);

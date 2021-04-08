@@ -305,6 +305,7 @@ namespace clang {
 
       LLVMContext &Ctx = getModule()->getContext();
       
+
       std::unique_ptr<DiagnosticHandler> OldDiagnosticHandler =
           Ctx.getDiagnosticHandler();
       Ctx.setDiagnosticHandler(std::make_unique<ClangDiagnosticHandler>(
@@ -1028,10 +1029,10 @@ CodeGenAction::loadModule(MemoryBufferRef MBRef) {
 }
 
 namespace {
-  // Handles the initialization and cleanup of the OptRecordFile. This
-  // customization allows initialization before the clang codegen runs
-  // so it can also emit to the opt report.
-  struct OptRecordFileRAII {
+ // Handles the initialization and cleanup of the OptRecordFile. This
+ // customization allows initialization before the clang codegen runs
+ // so it can also emit to the opt report.
+ struct OptRecordFileRAII {
   std::unique_ptr<llvm::ToolOutputFile> OptRecordFile;
   std::unique_ptr<DiagnosticHandler> OldDiagnosticHandler;
   llvm::LLVMContext &Ctx;
@@ -1067,7 +1068,7 @@ namespace {
     if (OptRecordFile)
       OptRecordFile->keep();
   }
-  };
+};
 } // namespace
 
 void CodeGenAction::ExecuteAction() {

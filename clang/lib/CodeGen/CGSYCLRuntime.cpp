@@ -14,9 +14,10 @@
 #include "CodeGenFunction.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "clang/Basic/SourceLocation.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/IR/Instructions.h"
+
 #include <assert.h>
 
 using namespace clang;
