@@ -12,8 +12,20 @@
 
 using namespace cl::sycl;
 
+// Note that this function is created only to test that if the accessor
+// object passed to ONEAPI::reduction is destroyed right after
+// ONEAPI::reduction creation, then the reduction still works properly,
+// i.e. it holds a COPY of user's accessor.
+template <typename T, typename BOpT>
+auto createReduction(sycl::buffer<T, 1> Buffer, handler &CGH, T Identity,
+                     BOpT BOp) {
+  auto Acc = Buffer.template get_access<access::mode::discard_write>(CGH);
+  return ONEAPI::reduction(Acc, Identity, BOp);
+}
+
 template <class KernelName, typename T, class BinaryOperation>
-void test(T Identity, BinaryOperation BOp, size_t WGSize, size_t NWItems) {
+void test(queue &Q, T Identity, BinaryOperation BOp, size_t WGSize,
+          size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
 
@@ -22,15 +34,11 @@ void test(T Identity, BinaryOperation BOp, size_t WGSize, size_t NWItems) {
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
 
   // Compute.
-  queue Q;
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
-    auto Out = OutBuf.template get_access<access::mode::discard_write>(CGH);
-    auto Redu = ONEAPI::reduction(Out, Identity, BOp);
+    auto Redu = createReduction(OutBuf, CGH, Identity, BOp);
 
-    range<1> GlobalRange(NWItems);
-    range<1> LocalRange(WGSize);
-    nd_range<1> NDRange(GlobalRange, LocalRange);
+    nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
     CGH.parallel_for<KernelName>(NDRange, Redu,
                                  [=](nd_item<1> NDIt, auto &Sum) {
                                    Sum.combine(In[NDIt.get_global_linear_id()]);
@@ -41,22 +49,23 @@ void test(T Identity, BinaryOperation BOp, size_t WGSize, size_t NWItems) {
   auto Out = OutBuf.template get_access<access::mode::read>();
   T ComputedOut = *(Out.get_pointer());
   if (ComputedOut != CorrectOut) {
-    std::cout << "NWItems = " << NWItems << ", WGSize = " << WGSize << "\n";
-    std::cout << "Computed value: " << ComputedOut
+    std::cerr << "NWItems = " << NWItems << ", WGSize = " << WGSize << "\n";
+    std::cerr << "Computed value: " << ComputedOut
               << ", Expected value: " << CorrectOut << "\n";
     assert(0 && "Wrong value.");
   }
 }
 
 int main() {
+  queue Q;
   test<class AddTestName, int>(
-      0, [](auto x, auto y) { return (x + y); }, 1, 1024);
+      Q, 0, [](auto x, auto y) { return (x + y); }, 1, 1024);
   test<class MulTestName, int>(
-      0, [](auto x, auto y) { return (x * y); }, 8, 32);
+      Q, 0, [](auto x, auto y) { return (x * y); }, 8, 32);
 
   // Check with CUSTOM type.
   test<class CustomAddTestname, CustomVec<long long>>(
-      CustomVec<long long>(0),
+      Q, CustomVec<long long>(0),
       [](auto x, auto y) {
         CustomVecPlus<long long> BOp;
         return BOp(x, y);
