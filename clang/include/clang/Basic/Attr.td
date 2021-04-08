@@ -1953,7 +1953,7 @@ def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
 def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
-def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
+def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
