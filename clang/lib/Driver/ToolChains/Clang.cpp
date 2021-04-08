@@ -40,6 +40,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/FileSystem.h"
@@ -4192,6 +4193,138 @@ static bool ContainsWrapperAction(const Action *A) {
   return false;
 }
 
+// Put together an external compiler compilation call which is used instead
+// of the clang invocation for the host compile of an offload compilation.
+void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
+    const InputInfo &Output, const InputInfoList &Inputs,
+    const llvm::opt::ArgList &TCArgs, const Tool *T) const {
+
+  // The Host compilation step that occurs here is constructed based on the
+  // input from the user.  This consists of the compiler to call and the
+  // options that will be used during the compilation.
+  ArgStringList HostCompileArgs;
+  const InputInfo &InputFile = Inputs.front();
+  const auto &TC = getToolChain();
+
+  // Input file.
+  HostCompileArgs.push_back(InputFile.getFilename());
+
+  // When performing the host compilation, we are expecting to only be
+  // creating intermediate files.  These being preprocessed, assembly or
+  // object files.
+  // We are making assumptions in regards to what options are used to
+  // generate these intermediate files.
+  //                gcc/g++/clang/clang++/default | cl
+  //  Object:                   -c                | -c
+  //  Preprocessed:             -E                | -P -Fi<file>
+  //  Assembly:                 -S                | -c -Fa<file>
+  //  Header Input:        -include <file>        | -FI <file>
+  //
+  // The options used are determined by the compiler name and target triple.
+  auto *HostArg = TCArgs.getLastArg(options::OPT_fsycl_host_compiler_EQ);
+  assert(HostArg && "Expected host compiler designation.");
+
+  bool IsMSVCHostCompiler = false;
+  bool OutputAdded = false;
+  StringRef CompilerName = llvm::sys::path::stem(HostArg->getValue());
+  IsMSVCHostCompiler = CompilerName.contains("cl");
+
+  auto addMSVCOutputFile = [&](StringRef Opt) {
+    SmallString<128> OutOpt(Opt);
+    OutOpt += Output.getFilename();
+    HostCompileArgs.push_back(TCArgs.MakeArgString(OutOpt));
+    OutputAdded = true;
+  };
+  if (isa<PreprocessJobAction>(JA)) {
+    if (IsMSVCHostCompiler) {
+      // Check the output file, if it is 'stdout' we want to use -E.
+      llvm::errs() << "output string is " << Output.getAsString() << '\n';
+      if (StringRef(Output.getFilename()).equals("-")) {
+        HostCompileArgs.push_back("-E");
+        OutputAdded = true;
+      } else {
+        HostCompileArgs.push_back("-P");
+        addMSVCOutputFile("-Fi");
+      }
+    } else
+      HostCompileArgs.push_back("-E");
+  } else if (isa<AssembleJobAction>(JA)) {
+    HostCompileArgs.push_back("-c");
+    if (IsMSVCHostCompiler)
+      addMSVCOutputFile("-Fo");
+  } else {
+    assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
+           "Invalid action for external host compilation tool.");
+    if (JA.getType() == types::TY_PP_Asm) {
+      if (IsMSVCHostCompiler) {
+        HostCompileArgs.push_back("-c");
+        addMSVCOutputFile("-Fa");
+        // The MSVC Compiler does not have a way to just create the assembly
+        // file so we create the assembly file and object file, and redirect
+        // the object file to a temporary.
+        std::string ObjTmpName = C.getDriver().GetTemporaryPath("host", "obj");
+        StringRef WrapperFileName =
+            C.addTempFile(C.getArgs().MakeArgString(ObjTmpName));
+        SmallString<128> ObjOutOpt("-Fo");
+        ObjOutOpt += WrapperFileName;
+        HostCompileArgs.push_back(C.getArgs().MakeArgString(ObjOutOpt));
+      } else
+        HostCompileArgs.push_back("-S");
+    } else {
+      TC.getDriver().Diag(diag::err_drv_output_type_with_host_compiler);
+    }
+  }
+
+  // Add default header search directories.
+  SmallString<128> BaseDir(C.getDriver().Dir);
+  llvm::sys::path::append(BaseDir, "..");
+  llvm::sys::path::append(BaseDir, "include");
+  SmallString<128> SYCLDir(BaseDir);
+  llvm::sys::path::append(SYCLDir, "sycl");
+  HostCompileArgs.push_back("-I");
+  HostCompileArgs.push_back(TCArgs.MakeArgString(SYCLDir));
+  HostCompileArgs.push_back("-I");
+  HostCompileArgs.push_back(TCArgs.MakeArgString(BaseDir));
+
+  if (!OutputAdded) {
+    // Add output file to the command line.  This is assumed to be prefaced
+    // with the '-o' option that is used to designate the output file.
+    HostCompileArgs.push_back("-o");
+    HostCompileArgs.push_back(Output.getFilename());
+  }
+
+  // Add the integration header.
+  StringRef Header = TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
+  if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
+      !Header.empty()) {
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
+    HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
+  }
+
+  SmallString<128> ExecPath;
+  if (HostArg) {
+    ExecPath = HostArg->getValue();
+    if (ExecPath == llvm::sys::path::stem(ExecPath))
+      ExecPath = TC.GetProgramPath(ExecPath.c_str());
+  }
+
+  // Add any user specified arguments
+  if (auto *Arg =
+          TCArgs.getLastArg(options::OPT_fsycl_host_compiler_options_EQ)) {
+    SmallVector<const char *, 8> TargetArgs;
+    llvm::BumpPtrAllocator BPA;
+    llvm::StringSaver S(BPA);
+    // Tokenize the string.
+    llvm::cl::TokenizeGNUCommandLine(Arg->getValue(), S, TargetArgs);
+    for (auto A : TargetArgs)
+      HostCompileArgs.push_back(TCArgs.MakeArgString(A));
+  }
+  auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(ExecPath), HostCompileArgs, None);
+
+  C.addCommand(std::move(Cmd));
+}
+
 void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
@@ -4224,6 +4357,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   assert((IsCuda || IsHIP || (IsOpenMPDevice && Inputs.size() == 2) || IsSYCL ||
           IsHeaderModulePrecompile || Inputs.size() == 1) &&
          "Unable to handle multiple inputs.");
+
+  // Perform the host compilation using an external compiler if the user
+  // requested.
+  if (Args.hasArg(options::OPT_fsycl_host_compiler_EQ) && IsSYCL &&
+      !IsSYCLOffloadDevice) {
+    ConstructHostCompilerJob(C, JA, Output, Inputs, Args, this);
+    return;
+  }
 
   // A header module compilation doesn't have a main input file, so invent a
   // fake one as a placeholder.

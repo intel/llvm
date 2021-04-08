@@ -222,6 +222,22 @@ and not recommended to use in production environment.
     same as specifying -fsycl-help with no argument and emits help for all
     backends.
 
+**`-fsycl-host-compiler=<arg>`**
+
+    Informs the compiler driver that the host compilation step that is performed
+    as part of the greater compilation flow will be performed by the compiler
+    <arg>.  It is expected that <arg> is the compiler to be called, either by
+    name (in which the PATH will be used to discover it) or a fully qualified
+    directory with compiler to invoke.  This option is only useful when -fsycl
+    is provided on the command line.
+
+**`-fsycl-host-compiler-options="opts"`**
+
+    Passes along the space separated quoted "opts" string as option arguments
+    to the compiler specified with the -fsycl-host-compiler=<arg> option.  It is
+    expected that the options used here are compatible with the compiler
+    specified via -fsycl-host-compiler=<arg>.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.
