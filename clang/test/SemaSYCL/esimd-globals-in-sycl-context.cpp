@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 
 // This test checks usage of an ESIMD global in ESIMD(positive) and SYCL(negative) contexts.
 
