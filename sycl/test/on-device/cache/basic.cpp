@@ -1,5 +1,5 @@
 // No JITing for host devices.
-// REQUIRES: opencl || level_zero || cuda
+// REQUIRES: opencl || level_zero
 // RUN: rm -rf %t/cache_dir
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECK-BUILD

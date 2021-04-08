@@ -1,5 +1,5 @@
 // No JITing for host devices.
-// REQUIRES: opencl || level_zero || cuda
+// REQUIRES: opencl || level_zero
 // RUN: rm -rf %t/cache_dir
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -DTARGET_IMAGE=INC100
 // Build program and add item to cache
