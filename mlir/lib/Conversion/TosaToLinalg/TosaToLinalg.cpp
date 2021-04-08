@@ -115,6 +115,13 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
     return rewriter.create<mlir::MulFOp>(loc, resultTypes, args);
   }
 
+  // tosa::ReciprocalOp
+  if (isa<tosa::ReciprocalOp>(op) && elementTy.isa<FloatType>()) {
+    auto one =
+        rewriter.create<mlir::ConstantOp>(loc, FloatAttr::get(elementTy, 1));
+    return rewriter.create<mlir::DivFOp>(loc, resultTypes, one, args[0]);
+  }
+
   if (isa<tosa::MulOp>(op) && elementTy.isa<IntegerType>()) {
     Value a = args[0];
     Value b = args[1];
@@ -325,6 +332,16 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
                                      rewriter);
   }
 
+  // tosa::SigmoidOp
+  if (isa<tosa::SigmoidOp>(op) && elementTy.isa<FloatType>()) {
+    auto one =
+        rewriter.create<mlir::ConstantOp>(loc, FloatAttr::get(elementTy, 1));
+    auto negate = rewriter.create<mlir::NegFOp>(loc, resultTypes, args[0]);
+    auto exp = rewriter.create<mlir::math::ExpOp>(loc, resultTypes, negate);
+    auto added = rewriter.create<mlir::AddFOp>(loc, resultTypes, exp, one);
+    return rewriter.create<mlir::DivFOp>(loc, resultTypes, one, added);
+  }
+
   // tosa::CastOp
   if (isa<tosa::CastOp>(op)) {
     Type srcTy = elementTy;
@@ -497,6 +514,12 @@ static Attribute createInitialValueForReduceOp(Operation *op, Type elementTy,
     return rewriter.getIntegerAttr(
         elementTy, APInt::getSignedMinValue(elementTy.getIntOrFloatBitWidth()));
 
+  if (isa<tosa::ReduceAllOp>(op) && elementTy.isInteger(1))
+    return rewriter.getIntegerAttr(elementTy, APInt::getAllOnesValue(1));
+
+  if (isa<tosa::ReduceAnyOp>(op) && elementTy.isInteger(1))
+    return rewriter.getIntegerAttr(elementTy, APInt::getNullValue(1));
+
   if (isa<tosa::ArgMaxOp>(op) && elementTy.isa<FloatType>())
     return rewriter.getFloatAttr(
         elementTy, APFloat::getLargest(
@@ -556,6 +579,12 @@ static Value createLinalgBodyCalculationForReduceOp(Operation *op,
     return rewriter.create<mlir::SelectOp>(loc, predicate, args[0], args[1]);
   }
 
+  if (isa<tosa::ReduceAllOp>(op) && elementTy.isInteger(1))
+    return rewriter.create<mlir::AndOp>(loc, args);
+
+  if (isa<tosa::ReduceAnyOp>(op) && elementTy.isInteger(1))
+    return rewriter.create<mlir::OrOp>(loc, args);
+
   return {};
 }
 
@@ -596,6 +625,8 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
                                       : getParallelIteratorTypeName());
     if (axis != i)
       dstExprs.push_back(mlir::getAffineDimExpr(i, rewriter.getContext()));
+    else
+      dstExprs.push_back(rewriter.getAffineConstantExpr(0));
   }
 
   bool didEncounterError = false;
@@ -1382,11 +1413,11 @@ void mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(
     RewritePatternSet *patterns) {
   patterns->add<
       PointwiseConverter<tosa::AddOp>, PointwiseConverter<tosa::SubOp>,
-      PointwiseConverter<tosa::MulOp>, PointwiseConverter<tosa::NegateOp>,
-      PointwiseConverter<tosa::PowOp>, PointwiseConverter<tosa::RsqrtOp>,
-      PointwiseConverter<tosa::LogOp>, PointwiseConverter<tosa::ExpOp>,
-      PointwiseConverter<tosa::AbsOp>, PointwiseConverter<tosa::TanhOp>,
-      PointwiseConverter<tosa::BitwiseAndOp>,
+      PointwiseConverter<tosa::MulOp>, PointwiseConverter<tosa::ReciprocalOp>,
+      PointwiseConverter<tosa::NegateOp>, PointwiseConverter<tosa::PowOp>,
+      PointwiseConverter<tosa::RsqrtOp>, PointwiseConverter<tosa::LogOp>,
+      PointwiseConverter<tosa::ExpOp>, PointwiseConverter<tosa::AbsOp>,
+      PointwiseConverter<tosa::TanhOp>, PointwiseConverter<tosa::BitwiseAndOp>,
       PointwiseConverter<tosa::BitwiseOrOp>,
       PointwiseConverter<tosa::BitwiseNotOp>,
       PointwiseConverter<tosa::BitwiseXorOp>,
@@ -1401,11 +1432,12 @@ void mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(
       PointwiseConverter<tosa::MaximumOp>, PointwiseConverter<tosa::MinimumOp>,
       PointwiseConverter<tosa::CeilOp>, PointwiseConverter<tosa::FloorOp>,
       PointwiseConverter<tosa::ClampOp>, PointwiseConverter<tosa::ReluNOp>,
-      IdentityNConverter<tosa::IdentityOp>,
-      IdentityNConverter<tosa::IdentityNOp>, ReduceConverter<tosa::ReduceMinOp>,
+      PointwiseConverter<tosa::SigmoidOp>, IdentityNConverter<tosa::IdentityOp>,
+      IdentityNConverter<tosa::IdentityNOp>, ReduceConverter<tosa::ReduceAllOp>,
+      ReduceConverter<tosa::ReduceAnyOp>, ReduceConverter<tosa::ReduceMinOp>,
       ReduceConverter<tosa::ReduceMaxOp>, ReduceConverter<tosa::ReduceSumOp>,
-      ReduceConverter<tosa::ReduceProdOp>, ArgMaxConverter, ConcatConverter, PadConverter,
-      ReshapeConverter, RescaleConverter, ReverseConverter, TileConverter,
-      TransposeConverter, MatMulConverter, FullyConnectedConverter>(
-        patterns->getContext());
+      ReduceConverter<tosa::ReduceProdOp>, ArgMaxConverter, ConcatConverter,
+      PadConverter, ReshapeConverter, RescaleConverter, ReverseConverter,
+      TileConverter, TransposeConverter, MatMulConverter,
+      FullyConnectedConverter>(patterns->getContext());
 }
