@@ -104,6 +104,15 @@ public:
   ///   convert_uchar2_sat(int2)
   void visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC, StringRef DemangledName);
 
+  /// Transform
+  ///   __spirv_AsyncGroupCopy(ScopeWorkGroup, dst, src, n, stride, event)
+  ///   => async_work_group_strided_copy(dst, src, n, stride, event)
+  void visitCallAsyncWorkGroupCopy(CallInst *CI, Op OC);
+
+  /// Transform __spirv_GroupWaitEvents(Scope, NumEvents, EventsList)
+  ///   => wait_group_events(NumEvents, EventsList)
+  void visitCallGroupWaitEvents(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);

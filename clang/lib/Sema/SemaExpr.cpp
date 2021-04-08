@@ -3962,6 +3962,14 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
         Diag(Tok.getLocation(), diag::ext_c99_longlong);
     }
 
+    // 'z/uz' literals are a C++2b feature.
+    if (Literal.isSizeT)
+      Diag(Tok.getLocation(), getLangOpts().CPlusPlus
+                                  ? getLangOpts().CPlusPlus2b
+                                        ? diag::warn_cxx20_compat_size_t_suffix
+                                        : diag::ext_cxx2b_size_t_suffix
+                                  : diag::err_cxx2b_size_t_suffix);
+
     // Get the value in the widest-possible width.
     unsigned MaxWidth = Context.getTargetInfo().getIntMaxTWidth();
     llvm::APInt ResultVal(MaxWidth, 0);
@@ -3996,7 +4004,26 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
         }
       }
 
-      if (Ty.isNull() && !Literal.isLong && !Literal.isLongLong) {
+      // Check C++2b size_t literals.
+      if (Literal.isSizeT) {
+        assert(!Literal.MicrosoftInteger &&
+               "size_t literals can't be Microsoft literals");
+        unsigned SizeTSize = Context.getTargetInfo().getTypeWidth(
+            Context.getTargetInfo().getSizeType());
+
+        // Does it fit in size_t?
+        if (ResultVal.isIntN(SizeTSize)) {
+          // Does it fit in ssize_t?
+          if (!Literal.isUnsigned && ResultVal[SizeTSize - 1] == 0)
+            Ty = Context.getSignedSizeType();
+          else if (AllowUnsigned)
+            Ty = Context.getSizeType();
+          Width = SizeTSize;
+        }
+      }
+
+      if (Ty.isNull() && !Literal.isLong && !Literal.isLongLong &&
+          !Literal.isSizeT) {
         // Are int/unsigned possibilities?
         unsigned IntSize = Context.getTargetInfo().getIntWidth();
 
@@ -4012,7 +4039,7 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
       }
 
       // Are long/unsigned long possibilities?
-      if (Ty.isNull() && !Literal.isLongLong) {
+      if (Ty.isNull() && !Literal.isLongLong && !Literal.isSizeT) {
         unsigned LongSize = Context.getTargetInfo().getLongWidth();
 
         // Does it fit in a unsigned long?
@@ -4043,7 +4070,7 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
       }
 
       // Check long long if needed.
-      if (Ty.isNull()) {
+      if (Ty.isNull() && !Literal.isSizeT) {
         unsigned LongLongSize = Context.getTargetInfo().getLongLongWidth();
 
         // Does it fit in a unsigned long long?
@@ -4060,10 +4087,16 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
         }
       }
 
-      // If we still couldn't decide a type, we probably have something that
-      // does not fit in a signed long long, but has no U suffix.
+      // If we still couldn't decide a type, we either have 'size_t' literal
+      // that is out of range, or a decimal literal that does not fit in a
+      // signed long long and has no U suffix.
       if (Ty.isNull()) {
-        Diag(Tok.getLocation(), diag::ext_integer_literal_too_large_for_signed);
+        if (Literal.isSizeT)
+          Diag(Tok.getLocation(), diag::err_size_t_literal_too_large)
+              << Literal.isUnsigned;
+        else
+          Diag(Tok.getLocation(),
+               diag::ext_integer_literal_too_large_for_signed);
         Ty = Context.UnsignedLongLongTy;
         Width = Context.getTargetInfo().getLongLongWidth();
       }

@@ -56,7 +56,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::host_buffer> A
   (void)Acc.get_size();
 }
 
-// CHECK-COUNT-3: 0 | class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer, sycl::access::placeholder::false_t>
+// CHECK-COUNT-2: 0 | class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer, sycl::access::placeholder::false_t>
 // CHECK-NEXT:  0 |   class sycl::detail::AccessorBaseHost (base)
 // CHECK-NEXT:  0 |     class std::shared_ptr<class sycl::detail::AccessorImplHost> impl
 // CHECK-NEXT:  0 |       class std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic> (base)
