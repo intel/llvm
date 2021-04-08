@@ -3,8 +3,8 @@
 // This test checks that attribute !intel_reqd_sub_group_size !1
 // is added for kernels with !sycl_explicit_simd
 
-__attribute__((sycl_device)) void shared_func_decl();
-__attribute__((sycl_device)) void shared_func() { shared_func_decl(); }
+void shared_func_decl();
+void shared_func() { shared_func_decl(); }
 
 __attribute__((sycl_device)) __attribute__((sycl_explicit_simd)) void esimd_func() { shared_func(); }
 
