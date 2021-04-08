@@ -450,7 +450,7 @@ specialization constants and have to emulate them somehow. As stated above, it
 is done by converting specialization constants into kernel arguments: they all
 bundled together and put into a single buffer.
 
-`SpecConstatnsPass` should generate proper accesses to that buffer when
+`SpecConstantsPass` should generate proper accesses to that buffer when
 specialization constants are used: this is done by replacing special
 `__sycl_getScalar2020SpecConstantValue` and
 `__sycl_getComposite2020SpecConstantValue` functions with accesses to their
