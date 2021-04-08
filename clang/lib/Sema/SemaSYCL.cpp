@@ -357,7 +357,7 @@ class DiagDeviceFunction : public RecursiveASTVisitor<DiagDeviceFunction> {
   // diagnostics.
   unsigned ConstexprDepth = 0;
   Sema &SemaRef;
-  const llvm::SmallPtrSetImpl<FunctionDecl *> &RecursiveFuncs;
+  const llvm::SmallPtrSetImpl<const FunctionDecl *> &RecursiveFuncs;
 
   struct ConstexprDepthRAII {
     DiagDeviceFunction &DDF;
@@ -376,7 +376,8 @@ class DiagDeviceFunction : public RecursiveASTVisitor<DiagDeviceFunction> {
 
 public:
   DiagDeviceFunction(
-      Sema &S, const llvm::SmallPtrSetImpl<FunctionDecl *> &RecursiveFuncs)
+      Sema &S,
+      const llvm::SmallPtrSetImpl<const FunctionDecl *> &RecursiveFuncs)
       : RecursiveASTVisitor(), SemaRef(S), RecursiveFuncs(RecursiveFuncs) {}
 
   void CheckBody(Stmt *ToBeDiagnosed) { TraverseStmt(ToBeDiagnosed); }
@@ -498,7 +499,7 @@ class DeviceFunctionTracker {
   // The list of functions used on the device, kept so we can diagnose on them
   // later.
   llvm::SmallPtrSet<FunctionDecl *, 16> DeviceFunctions;
-  llvm::SmallPtrSet<FunctionDecl *, 16> RecursiveFunctions;
+  llvm::SmallPtrSet<const FunctionDecl *, 16> RecursiveFunctions;
 
   void CollectSyclExternalFuncs() {
     for (CallGraphNode::CallRecord Record : CG.getRoot()->callees())
@@ -512,9 +513,9 @@ class DeviceFunctionTracker {
     return CG.getNode(Kernel);
   }
 
-  void
-  AddSingleFunction(const llvm::SmallPtrSetImpl<FunctionDecl *> &DevFuncs,
-                    const llvm::SmallPtrSetImpl<FunctionDecl *> &Recursive) {
+  void AddSingleFunction(
+      const llvm::SmallPtrSetImpl<FunctionDecl *> &DevFuncs,
+      const llvm::SmallPtrSetImpl<const FunctionDecl *> &Recursive) {
     DeviceFunctions.insert(DevFuncs.begin(), DevFuncs.end());
     RecursiveFunctions.insert(Recursive.begin(), Recursive.end());
   }
@@ -545,7 +546,7 @@ class SingleDeviceFunctionTracker {
   FunctionDecl *SYCLKernel = nullptr;
   FunctionDecl *KernelBody = nullptr;
   llvm::SmallPtrSet<FunctionDecl *, 16> DeviceFunctions;
-  llvm::SmallPtrSet<FunctionDecl *, 16> RecursiveFunctions;
+  llvm::SmallPtrSet<const FunctionDecl *, 16> RecursiveFunctions;
   llvm::SmallVector<Attr *> CollectedAttributes;
 
   FunctionDecl *GetFDFromNode(CallGraphNode *Node) {
@@ -3565,6 +3566,17 @@ static void PropagateAndDiagnoseDeviceAttr(Sema &S, Attr *A,
     }
     break;
   }
+  case attr::Kind::SYCLSimd:
+    if (KernelBody && !KernelBody->getAttr<SYCLSimdAttr>()) {
+      // Usual kernel can't call ESIMD functions.
+      S.Diag(KernelBody->getLocation(),
+             diag::err_sycl_function_attribute_mismatch)
+          << A;
+      S.Diag(A->getLocation(), diag::note_attribute);
+      KernelBody->setInvalidDecl();
+      break;
+    }
+    LLVM_FALLTHROUGH;
   case attr::Kind::SYCLIntelKernelArgsRestrict:
   case attr::Kind::SYCLIntelNumSimdWorkItems:
   case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
@@ -3575,19 +3587,8 @@ static void PropagateAndDiagnoseDeviceAttr(Sema &S, Attr *A,
   case attr::Kind::SYCLIntelFPGAMaxConcurrency:
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
-  case attr::Kind::SYCLSimd: {
-    if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
-        !KernelBody->getAttr<SYCLSimdAttr>()) {
-      // Usual kernel can't call ESIMD functions.
-      S.Diag(KernelBody->getLocation(),
-             diag::err_sycl_function_attribute_mismatch)
-          << A;
-      S.Diag(A->getLocation(), diag::note_attribute);
-      KernelBody->setInvalidDecl();
-    } else
-      SYCLKernel->addAttr(A);
+    SYCLKernel->addAttr(A);
     break;
-  }
   // TODO: vec_len_hint should be handled here
   default:
     // Seeing this means that CollectPossibleKernelAttributes was
