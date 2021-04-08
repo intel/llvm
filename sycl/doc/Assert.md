@@ -48,12 +48,11 @@ int main() {
 ```
 
 In this use-case every work-item with even X dimension will trigger assertion
-failure. Assertion failure should be reported via asynchronous exceptions. If
-asynchronous exception handler is set the failure is reported with
-`sycl::event_error` exception. Otherwise, SYCL Runtime should trigger abort.
+failure. Assertion failure should be reported via asynchronous exceptions with
+[`assert` error code](extensions/Assert/SYCL_INTEL_assert_exception.asciidoc).
 Even though multiple failures of the same or different assertions can happen in
 multiple workitems, implementation is required to deliver only one. The
-assertion failure message is printed to `stderr` by SYCL Runtime.
+assertion failure message is printed to `stderr` by DPCPP Runtime.
 
 When multiple kernels are enqueued and more than one fail at assertion, at least
 single assertion should be reported.
@@ -74,28 +73,6 @@ Implementations without enough capabilities to implement fourth requirement are
 allowed to realize the fallback approach described below, which does not
 guarantee assertion failure delivery to host, but is still useful in many
 practical cases.
-
-## Contents of `sycl::event_error`
-
-Interface of `sycl::event_error` should look like:
-```
-class event_error : public runtime_error {
-public:
-  event_error() = default;
-
-  event_error(const char *Msg, cl_int Err)
-      : event_error(string_class(Msg), Err) {}
-
-  event_error(const string_class &Msg, cl_int Err) : runtime_error(Msg, Err) {}
-};
-```
-
-Regardless of whether asynchronous exception handler is set or not, there's an
-action to be performed by SYCL Runtime. To achieve this, information about
-assert failure should be propagated from device-side to SYCL Runtime. This
-should be performed via calls to `piEventGetInfo`. This Plugin Interface call
-"lowers" to `clGetEventInfo` for OpenCL backend and `zeEventQueryStatus` for
-Level-Zero backend.
 
 
 ## Terms
@@ -118,7 +95,7 @@ is part of [Device library extension](extensions/C-CXX-StandardLibrary/DeviceLib
 Implementation of this function is supplied by Native Device Compiler for
 safe approach or by DPCPP Compiler for fallback one.
 
-Due to lack of support of online linking in Level-Zero, the application is
+NB: Due to lack of support of online linking in Level-Zero, the application is
 linked against fallback implementation of `__devicelib_assert_fail`. Hence,
 Native Device Compilers should prefer their implementation instead of the one
 provided in incoming SPIR-V/LLVM IR binary.
@@ -138,7 +115,10 @@ and runtime. The Low-Level Runtime is responsible for:
  - flushing assert message to `stderr` on host.
 
 When detected, Low-level Runtime reports assert failure to DPCPP Runtime
-via events objects.
+via events objects. To achieve this, information about assert failure should be
+propagated from device-side to SYCL Runtime. This should be performed via calls
+to `piEventGetInfo`. This Plugin Interface call "lowers" to `clGetEventInfo` for
+OpenCL backend and `zeEventQueryStatus` for Level-Zero backend.
 
 Refer to [OpenCL](extensions/Assert/opencl.md) and [Level-Zero](extensions/Assert/level-zero.md)
 extensions.
