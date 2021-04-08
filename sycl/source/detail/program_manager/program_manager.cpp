@@ -1412,13 +1412,18 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   // TODO: Set spec constatns here.
 
   // TODO: Handle zero sized Device list.
-  Plugin.call<PiApiKind::piProgramCompile>(
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
       PIDevices.data(),
       /*options=*/nullptr,
       /*num_input_headers=*/0, /*input_headers=*/nullptr,
       /*header_include_names=*/nullptr,
       /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
+  if (Error != PI_SUCCESS)
+    throw sycl::exception(
+        make_error_code(errc::build),
+        getProgramBuildLog(ObjectImpl->get_program_ref(),
+                           getSyclObjImpl(ObjectImpl->get_context())));
 
   return createSyclObjFromImpl<device_image_plain>(ObjectImpl);
 }
@@ -1440,19 +1445,23 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
+  const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
-  const detail::plugin &Plugin = getSyclObjImpl(Context)->getPlugin();
+  const detail::plugin &Plugin = ContextImpl->getPlugin();
 
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-      getSyclObjImpl(Context)->getHandleRef(), PIDevices.size(),
-      PIDevices.data(),
+      ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
       /*options=*/nullptr, PIPrograms.size(), PIPrograms.data(),
       /*pfn_notify=*/nullptr,
       /*user_data=*/nullptr, &LinkedProg);
 
-  (void)Error;
-  // TODO: Add error handling
+  if (Error != PI_SUCCESS) {
+    const string_class ErrorMsg =
+        LinkedProg ? getProgramBuildLog(LinkedProg, ContextImpl)
+                   : "Online link operation failed";
+    throw sycl::exception(make_error_code(errc::build), ErrorMsg);
+  }
 
   std::vector<kernel_id> KernelIDs;
   for (const device_image_plain &DeviceImage : DeviceImages) {
@@ -1600,6 +1609,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
 
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
+  // TODO: Throw SYCL2020 style exception
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
       std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),

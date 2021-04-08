@@ -10,7 +10,7 @@ void foo() {
   [[intel::ivdep]] int a[10];
   // expected-error@+1 {{'initiation_interval' attribute only applies to 'for', 'while', 'do' statements, and functions}}
   [[intel::initiation_interval(2)]] int c[10];
-  // expected-error@+1 {{'max_concurrency' attribute cannot be applied to a declaration}}
+  // expected-error@+1 {{'max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and functions}}
   [[intel::max_concurrency(2)]] int d[10];
   // expected-error@+1 {{'disable_loop_pipelining' attribute only applies to 'for', 'while', 'do' statements, and functions}}
   [[intel::disable_loop_pipelining]] int g[10];
@@ -75,16 +75,16 @@ void boo() {
   // expected-error@+1 {{duplicate argument to 'ivdep'; attribute requires one or both of a safelen and array}}
   [[intel::ivdep(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-warning@+1 {{'initiation_interval' attribute takes at least 1 argument; attribute ignored}}
+  // expected-error@+1 {{'initiation_interval' attribute takes one argument}}
   [[intel::initiation_interval]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'initiation_interval' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'initiation_interval' attribute takes one argument}}
   [[intel::initiation_interval(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-warning@+1 {{'max_concurrency' attribute takes at least 1 argument; attribute ignored}}
+  // expected-error@+1 {{'max_concurrency' attribute takes one argument}}
   [[intel::max_concurrency]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_concurrency' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'max_concurrency' attribute takes one argument}}
   [[intel::max_concurrency(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
@@ -104,16 +104,16 @@ void boo() {
   // expected-error@+1 {{'loop_coalesce' attribute takes no more than 1 argument}}
   [[intel::loop_coalesce(2, 3)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-warning@+1 {{'max_interleaving' attribute takes at least 1 argument; attribute ignored}}
+  // expected-error@+1 {{'max_interleaving' attribute takes one argument}}
   [[intel::max_interleaving]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_interleaving' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'max_interleaving' attribute takes one argument}}
   [[intel::max_interleaving(2, 4)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-warning@+1 {{'speculated_iterations' attribute takes at least 1 argument; attribute ignored}}
+  // expected-error@+1 {{'speculated_iterations' attribute takes one argument}}
   [[intel::speculated_iterations]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'speculated_iterations' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'speculated_iterations' attribute takes one argument}}
   [[intel::speculated_iterations(1, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'nofusion' attribute takes no arguments}}
@@ -424,7 +424,7 @@ void parse_order_error() {
   // We had a bug where we would only look at the first attribute in the group
   // when trying to determine whether to diagnose the loop attributes on an
   // incorrect subject. Test that we properly catch this situation.
-  [[clang::nomerge, intel::max_concurrency(1)]] // expected-error {{'max_concurrency' attribute only applies to 'for', 'while', and 'do' statements}}
+  [[clang::nomerge, intel::max_concurrency(1)]] // expected-error {{'max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and functions}}
   if (1) { parse_order_error(); }               // Recursive call silences unrelated diagnostic about nomerge.
 
   [[clang::nomerge, intel::max_concurrency(1)]] // OK

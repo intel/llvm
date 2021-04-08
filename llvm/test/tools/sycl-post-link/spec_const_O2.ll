@@ -116,7 +116,10 @@ define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel(float addrsp
   %37 = tail call spir_func double @_Z37__sycl_getScalar2020SpecConstantValueIdET_PKcPvS3_(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([21 x i8], [21 x i8]* @__unique_stable_name.SC_Id14MyDoubleConst2E3getEv, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* null, i8 addrspace(4)* null)
 ; CHECK-RT: %{{[0-9]+}} = call double @_Z20__spirv_SpecConstantid(i32 11, double 0.000000e+00), !SYCL_SPEC_CONST_SYM_ID ![[ID11:[0-9]+]]
   %38 = fadd double %37, %36
-; CHECK-DEF: %[[SUM10:[0-9]+]] = fadd double 0.000000e+00, %[[SUM9]]
+; CHECK-DEF: %[[GEP:[0-9a-z]+]] = getelementptr i8, i8 addrspace(4)* null, i32 0
+; CHECK-DEF: %[[BITCAST:[0-9a-z]+]] = bitcast i8 addrspace(4)* %[[GEP]] to double addrspace(4)*
+; CHECK-DEF: %[[LOAD:[0-9a-z]+]] = load double, double addrspace(4)* %[[BITCAST]], align 8
+; CHECK-DEF: %[[SUM10:[0-9]+]] = fadd double %[[LOAD]], %[[SUM9]]
   %39 = fptrunc double %38 to float
 ; CHECK-DEF: %[[VAL8:[0-9]+]] = fptrunc double %[[SUM10]] to float
   %40 = addrspacecast float addrspace(1)* %7 to float addrspace(4)*

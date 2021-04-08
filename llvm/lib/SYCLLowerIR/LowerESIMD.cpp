@@ -28,6 +28,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -812,6 +813,12 @@ static Instruction *generateVectorGenXForSpirv(ExtractElementInst *EEI,
   Instruction *ExtrI = ExtractElementInst::Create(
       IntrI, ConstantInt::get(I32Ty, ExtractIndex), ExtractName, EEI);
   Instruction *CastI = addCastInstIfNeeded(EEI, ExtrI);
+  if (EEI->getDebugLoc()) {
+    IntrI->setDebugLoc(EEI->getDebugLoc());
+    ExtrI->setDebugLoc(EEI->getDebugLoc());
+    // It's OK if ExtrI and CastI is the same instruction
+    CastI->setDebugLoc(EEI->getDebugLoc());
+  }
   return CastI;
 }
 
@@ -838,6 +845,11 @@ static Instruction *generateGenXForSpirv(ExtractElementInst *EEI,
   Instruction *IntrI =
       IntrinsicInst::Create(NewFDecl, {}, IntrinName + Suff.str(), EEI);
   Instruction *CastI = addCastInstIfNeeded(EEI, IntrI);
+  if (EEI->getDebugLoc()) {
+    IntrI->setDebugLoc(EEI->getDebugLoc());
+    // It's OK if IntrI and CastI is the same instruction
+    CastI->setDebugLoc(EEI->getDebugLoc());
+  }
   return CastI;
 }
 
@@ -1092,6 +1104,8 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);
+  if (CI.getDebugLoc())
+    NewCI->setDebugLoc(CI.getDebugLoc());
   NewCI = addCastInstIfNeeded(&CI, NewCI);
   CI.replaceAllUsesWith(NewCI);
   CI.eraseFromParent();
@@ -1296,7 +1310,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     auto *CI = dyn_cast<CallInst>(&I);
     Function *Callee = nullptr;
     if (CI && (Callee = CI->getCalledFunction())) {
-
+      // TODO workaround for ESIMD BE until it starts supporting @llvm.assume
+      if (match(&I, PatternMatch::m_Intrinsic<Intrinsic::assume>())) {
+        ESIMDToErases.push_back(CI);
+        continue;
+      }
       StringRef Name = Callee->getName();
 
       // See if the Name represents an ESIMD intrinsic and demangle only if it

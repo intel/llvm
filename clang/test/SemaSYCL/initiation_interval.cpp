@@ -9,7 +9,7 @@
 
 [[intel::initiation_interval(-1)]] void func1() {} // expected-error{{'initiation_interval' attribute requires a positive integral compile time constant expression}}
 
-[[intel::initiation_interval(0, 1)]] void func2() {} // expected-error{{'initiation_interval' attribute takes no more than 1 argument}}
+[[intel::initiation_interval(0, 1)]] void func2() {} // expected-error{{'initiation_interval' attribute takes one argument}}
 
 // Tests for Intel FPGA initiation_interval function attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
