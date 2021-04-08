@@ -271,7 +271,7 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
       Dev, Img, {}, BuildOptions, NativeProg);
   assert(Res.size() == 0 && "Locked item was read");
 
-  // First cache item was anlocked and successfully read
+  // First cache item was unlocked and successfully read
   std::remove(LockFile.c_str());
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
       Dev, Img, {}, BuildOptions, NativeProg);

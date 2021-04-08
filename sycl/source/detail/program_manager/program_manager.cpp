@@ -459,7 +459,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       NativePrograms[BuiltProgram.get()] = &Img;
     }
 
-    // Save program to persistent cache if it not there
+    // Save program to persistent cache if it is not there
     if (!BinProg.size())
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());

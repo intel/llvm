@@ -13,7 +13,6 @@
 #include "basic.hpp"
 
 // CHECK-BUILD: piProgramBuild
-// CHECK-BUILD: piProgramCreateWithBinary
 
 // CHECK-CACHE-NOT: piProgramBuild
 // CHECK-CACHE: piProgramCreateWithBinary

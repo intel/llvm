@@ -22,32 +22,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-/* This is temporary solution until std::filesystem is available when SYCL RT
- * is moved to c++17 standard*/
-
-/* Create directory recursively and return non zero code on success*/
-int makeDir(const char *Dir) {
-  assert((Dir != nullptr) && "Passed null-pointer as directory name.");
-  if (isPathPresent(Dir))
-    return 0;
-
-  std::string Path{Dir}, CurPath;
-  size_t pos = 0;
-
-  do {
-    pos = Path.find_first_of("/\\", ++pos);
-    CurPath = Path.substr(0, pos);
-#if defined(__SYCL_RT_OS_LINUX)
-    auto Res = mkdir(CurPath.c_str(), 0777);
-#else
-    auto Res = _mkdir(CurPath.c_str());
-#endif
-    if (Res && errno != EEXIST)
-      return Res;
-  } while (pos != std::string::npos);
-  return 0;
-}
-
 /* Lock file suffix */
 const char LockCacheItem::LockSuffix[] = ".lock";
 
@@ -91,7 +65,7 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
   return true;
 }
 
-/* Stores build program in persisten cache
+/* Stores built program in persisten cache
  */
 void PersistentDeviceCodeCache::putItemToDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
@@ -109,7 +83,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
   std::string FileName;
   do {
     FileName = DirName + "/" + std::to_string(i++);
-  } while (isPathPresent(FileName + ".bin"));
+  } while (OSUtil::isPathPresent(FileName + ".bin"));
 
   unsigned int DeviceNum = 0;
 
@@ -134,7 +108,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
                                            Pointers.data(), nullptr);
 
   try {
-    makeDir(DirName.c_str());
+    OSUtil::makeDir(DirName.c_str());
     LockCacheItem Lock{FileName};
     if (Lock.isOwned()) {
       writeBinaryDataToFile(FileName + ".bin", Result);
@@ -161,13 +135,14 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
   std::string Path =
       getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
 
-  if (!isPathPresent(Path))
+  if (!OSUtil::isPathPresent(Path))
     return {};
 
   int i = 0;
 
   std::string FileName{Path + "/" + std::to_string(i)};
-  while (isPathPresent(FileName + ".bin") || isPathPresent(FileName + ".src")) {
+  while (OSUtil::isPathPresent(FileName + ".bin") ||
+         OSUtil::isPathPresent(FileName + ".src")) {
 
     if (!LockCacheItem::isLocked(FileName) &&
         isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,

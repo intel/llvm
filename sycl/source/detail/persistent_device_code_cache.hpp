@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/device_binary_image.hpp>
+#include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
@@ -27,24 +28,15 @@ namespace detail {
  * is moved to c++17 standard*/
 std::string getDirName(const char *Path);
 
-/// Checks if specified path is present
-inline bool isPathPresent(const std::string &Path) {
-  struct stat Stat;
-  return !stat(Path.c_str(), &Stat);
-}
-
-/// Make directory recursively and returns zero code on success
-int makeDir(const char *Dir);
-
 /* The class manages inter-process synchronization:
  *  - Path passed to the constructor is appended with .lock and used as lock
  *    file.
  *  - All operations are not blocking and failure ignoring (diagnostic may be
- *    send to std::cerr when SYCL_CHACE_TRACE environment variable is set).
+ *    sent to std::cerr when SYCL_CACHE_TRACE environment variable is set).
  *  - There are two modes of accessing shared resource:
- *    - write access assumes that lock is aquired (object is created and
+ *    - write access assumes that lock is acquired (object is created and
  *      isOwned() method confirms that current executor owns the lock);
- *    - read access checks that the lock is not aquired for write by others
+ *    - read access checks that the lock is not acquired for write by others
  *      with the help of isLocked() method.
  */
 class LockCacheItem {
@@ -58,7 +50,7 @@ public:
 
   bool isOwned() { return Owned; }
   static bool isLocked(const std::string &Path) {
-    return isPathPresent(Path + LockSuffix);
+    return OSUtil::isPathPresent(Path + LockSuffix);
   }
   ~LockCacheItem();
 };
@@ -197,7 +189,7 @@ public:
   static void trace(const std::string &msg) {
     static const char *TraceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::get();
     if (TraceEnabled)
-      std::cerr << msg << std::endl;
+      std::cerr << "*** Code caching: " << msg << std::endl;
   }
 };
 } // namespace detail
