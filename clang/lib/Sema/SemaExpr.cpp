@@ -248,7 +248,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       // and we allow to call them from ESIMD context.
       const IdentifierInfo *Id = FDecl->getIdentifier();
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
-          Id && !Id->isReservedName(/*doubleUnderscoreOnly=*/true)) {
+          Id && !Id->getName().startswith("__spirv_") &&
+          !Id->getName().startswith("__sycl_")) {
         SYCLDiagIfDeviceCode(
             *Locs.begin(), diag::err_sycl_device_function_is_called_from_esimd,
             Sema::DeviceDiagnosticReason::Esimd);
