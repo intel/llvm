@@ -4354,10 +4354,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fsycl-is-device");
     CmdArgs.push_back("-fdeclare-spirv-builtins");
 
-    if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
-                     false))
-      CmdArgs.push_back("-fsycl-explicit-simd");
-
     // Default value for FPGA is false, for all other targets is true.
     if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
                       options::OPT_fno_sycl_early_optimizations,
@@ -6662,10 +6658,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
-
-      if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
-                       false))
-        CmdArgs.push_back("-fsycl-explicit-simd");
 
       if (!D.IsCLMode()) {
         // SYCL library is guaranteed to work correctly only with dynamic
