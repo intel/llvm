@@ -264,7 +264,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUPrintfRuntimeBindingPass(*PR);
   initializeGCNRegBankReassignPass(*PR);
   initializeGCNNSAReassignPass(*PR);
-  initializeSIAddIMGInitPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -1097,7 +1096,6 @@ bool GCNPassConfig::addInstSelector() {
   AMDGPUPassConfig::addInstSelector();
   addPass(&SIFixSGPRCopiesID);
   addPass(createSILowerI1CopiesPass());
-  addPass(createSIAddIMGInitPass());
   return false;
 }
 
@@ -1134,10 +1132,6 @@ void GCNPassConfig::addPreGlobalInstructionSelect() {
 
 bool GCNPassConfig::addGlobalInstructionSelect() {
   addPass(new InstructionSelect(getOptLevel()));
-  // TODO: Fix instruction selection to do the right thing for image
-  // instructions with tfe or lwe in the first place, instead of running a
-  // separate pass to fix them up?
-  addPass(createSIAddIMGInitPass());
   return false;
 }
 

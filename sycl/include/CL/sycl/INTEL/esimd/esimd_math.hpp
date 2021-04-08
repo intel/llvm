@@ -1879,7 +1879,7 @@ T0 esimd_reduce_single(simd<T1, SZ> v) {
   if constexpr (SZ == 1) {
     return v[0];
   } else {
-    static_assert(__esimd::isPowerOf2(SZ),
+    static_assert(detail::isPowerOf2(SZ),
                   "Invaid input for esimd_reduce_single - the vector size must "
                   "be power of two.");
     constexpr int N = SZ / 2;
@@ -1903,7 +1903,7 @@ T0 esimd_reduce_pair(simd<T1, N1> v1, simd<T1, N2> v2) {
     return esimd_reduce_pair<T0, T0, N1, N, OpType>(tmp1, tmp2);
   } else {
     static_assert(
-        __esimd::isPowerOf2(N1),
+        detail::isPowerOf2(N1),
         "Invaid input for esimd_reduce_pair - N1 must be power of two.");
     constexpr int N = N1 / 2;
     simd<T0, N> tmp = OpType<T0, T1, N>()(v1.template select<N, 1>(0),
@@ -1917,11 +1917,11 @@ T0 esimd_reduce_pair(simd<T1, N1> v1, simd<T1, N2> v2) {
 template <typename T0, typename T1, int SZ,
           template <typename RT, typename T, int N> class OpType>
 T0 esimd_reduce(simd<T1, SZ> v) {
-  constexpr bool isPowerOf2 = __esimd::isPowerOf2(SZ);
+  constexpr bool isPowerOf2 = detail::isPowerOf2(SZ);
   if constexpr (isPowerOf2) {
     return esimd_reduce_single<T0, T1, SZ, OpType>(v);
   } else {
-    constexpr unsigned N1 = 1u << __esimd::log2<SZ>();
+    constexpr unsigned N1 = 1u << detail::log2<SZ>();
     constexpr unsigned N2 = SZ - N1;
 
     simd<T1, N1> v1 = v.template select<N1, 1>(0);
