@@ -2869,7 +2869,7 @@ This attribute applies to a loop or a function. It indicates that the
 loop/function should allow no more than N threads or iterations to execute it
 simultaneously. N must be a non negative integer. '0' indicates the
 max_concurrency case to be unbounded. Cannot be applied multiple times to the
-same loop.
+same loop or function in conjunction with disable_loop_pipelining.
 
 .. code-block:: c++
 
@@ -2942,10 +2942,10 @@ max_concurrency, initiation_interval, or ivdep.
 
   void foo() {
     int var = 0;
-    [[intel::disable_loop_pipelining] for (int i = 0; i < 10; ++i) var++;
+    [[intel::disable_loop_pipelining]] for (int i = 0; i < 10; ++i) var++;
   }
 
-  [[intel::disable_loop_pipelining] void foo1() { }
+  [[intel::disable_loop_pipelining]] void foo1() { }
 
   }];
 }

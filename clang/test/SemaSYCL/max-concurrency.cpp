@@ -16,6 +16,20 @@ public:
 
 [[intel::max_concurrency]] void foo() {} // expected-error {{'max_concurrency' attribute takes one argument}}
 
+// Tests for Intel FPGA max_concurrency and disable_loop_pipelining function attributes compatibility.
+// expected-error@+2 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::disable_loop_pipelining]] [[intel::max_concurrency(2)]] void check();
+
+// expected-error@+2 {{'disable_loop_pipelining' and 'max_concurrency' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::max_concurrency(4)]] [[intel::disable_loop_pipelining]] void check1();
+
+// expected-error@+2 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
+// expected-note@+2 {{conflicting attribute is here}}
+[[intel::max_concurrency(4)]] void check2();
+[[intel::disable_loop_pipelining]] void check2();
+
 class Functor2 {
 public:
   void operator()() const {
