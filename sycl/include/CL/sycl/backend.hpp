@@ -8,19 +8,19 @@
 
 #pragma once
 
-#include "CL/sycl/detail/common.hpp"
-#include "CL/sycl/detail/export.hpp"
-#include "CL/sycl/detail/pi.h"
-#include "CL/sycl/kernel_bundle.hpp"
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
+#include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/queue.hpp>
 

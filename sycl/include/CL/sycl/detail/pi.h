@@ -1255,6 +1255,13 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
 __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_kernel *kernel);
 
+/// Gets the native handle of a PI kernel object.
+///
+/// \param kernel is the PI kernel to get the native handle of.
+/// \param nativeHandle is the native handle of kernel.
+__SYCL_EXPORT pi_result
+piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
+
 //
 // Events
 //

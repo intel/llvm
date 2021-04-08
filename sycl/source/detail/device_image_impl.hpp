@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include "CL/sycl/detail/pi.hpp"
+#include "detail/plugin.hpp"
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.h>
@@ -139,6 +141,17 @@ public:
 
   std::vector<SpecConstDescT> &get_spec_const_offsets_ref() noexcept {
     return MSpecConstDescs;
+  }
+
+  pi_native_handle getNative() const {
+    const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
+    const plugin &Plugin = ContextImplPtr->getPlugin();
+
+    pi_native_handle NativeProgram;
+    Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
+                                                        &NativeProgram);
+
+    return NativeProgram;
   }
 
   ~device_image_impl() {

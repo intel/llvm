@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "CL/sycl/detail/defines_elementary.hpp"
 #include <CL/sycl/ONEAPI/experimental/spec_constant.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/export.hpp>
@@ -36,7 +37,8 @@ enum class program_state { none = 0, compiled = 1, linked = 2 };
 /// \sa queue
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT program {
+class __SYCL_EXPORT __SYCL2020_DEPRECATED(
+    "program class is deprecated, use kernel_bundle instead") program {
 public:
   program() = delete;
 

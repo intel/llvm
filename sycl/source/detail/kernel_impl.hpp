@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "CL/sycl/detail/pi.h"
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
@@ -184,6 +185,17 @@ public:
   bool isCreatedFromSource() const;
 
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
+
+  pi_native_handle getNative() const {
+    const plugin &Plugin = MContext->getPlugin();
+
+    Plugin.call<PiApiKind::piKernelRetain>(MKernel);
+
+    pi_native_handle NativeKernel;
+    Plugin.call<PiApiKind::piextKernelGetNativeHandle>(MKernel, &NativeKernel);
+
+    return NativeKernel;
+  }
 
 private:
   RT::PiKernel MKernel;

@@ -1188,6 +1188,11 @@ pi_result piextProgramGetNativeHandle(pi_program program,
   return piextGetNativeHandle(program, nativeHandle);
 }
 
+pi_result piextKernelGetNativeHandle(pi_kernel kernel,
+                                     pi_native_handle *nativeHandle) {
+  return piextGetNativeHandle(kernel, nativeHandle);
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
@@ -1277,6 +1282,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelSetExecInfo, piKernelSetExecInfo)
   _PI_CL(piextKernelSetArgPointer, piextKernelSetArgPointer)
   _PI_CL(piextKernelCreateWithNativeHandle, piextKernelCreateWithNativeHandle)
+  _PI_CL(piextKernelGetNativeHandle, piextKernelGetNativeHandle)
   // Event
   _PI_CL(piEventCreate, piEventCreate)
   _PI_CL(piEventGetInfo, clGetEventInfo)

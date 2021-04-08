@@ -27,6 +27,7 @@
 #include <level_zero/zes_api.h>
 #include <level_zero/zet_api.h>
 
+#include "CL/sycl/detail/pi.h"
 #include "usm_allocator.hpp"
 
 namespace {
@@ -3859,6 +3860,12 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
                                             pi_kernel *) {
+  die("Unsupported operation");
+  return PI_SUCCESS;
+}
+
+pi_result piextKernelGetNativeHandle(pi_kernel kernel,
+                                     pi_native_handle *nativeHandle) {
   die("Unsupported operation");
   return PI_SUCCESS;
 }

@@ -80,6 +80,7 @@ _PI_API(piKernelRelease)
 _PI_API(piextKernelSetArgPointer)
 _PI_API(piKernelSetExecInfo)
 _PI_API(piextKernelCreateWithNativeHandle)
+_PI_API(piextKernelGetNativeHandle)
 // Event
 _PI_API(piEventCreate)
 _PI_API(piEventGetInfo)
