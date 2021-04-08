@@ -47,7 +47,7 @@ int main() {
   assert(NewBuf.get_range()[0] == 128);
 
   constexpr const char *ProgSrc = "kernel _() {}";
-  cl_error Err;
+  cl_int Err;
 
   cl_program OclProg =
       clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
