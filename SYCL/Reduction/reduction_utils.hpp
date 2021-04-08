@@ -58,3 +58,9 @@ template <typename T> T getMaximumFPValue() {
              ? std::numeric_limits<T>::infinity()
              : (std::numeric_limits<T>::max)();
 }
+
+template <access::mode Mode> property_list getPropertyList() {
+  if constexpr (Mode == access::mode::read_write)
+    return property_list();
+  return property_list(property::reduction::initialize_to_identity{});
+}

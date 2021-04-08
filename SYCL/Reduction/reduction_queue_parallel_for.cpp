@@ -15,11 +15,10 @@ using namespace sycl;
 
 template <typename T, bool B> class KName;
 
-template <typename Name, bool IsSYCL2020Mode> int test() {
+template <typename Name, bool IsSYCL2020Mode> int test(queue &Q) {
   const size_t NElems = 1024;
   const size_t WGSize = 256;
 
-  queue Q;
   int *Data = malloc_shared<int>(NElems, Q);
   for (int I = 0; I < NElems; I++)
     Data[I] = I;
@@ -53,7 +52,8 @@ template <typename Name, bool IsSYCL2020Mode> int test() {
 }
 
 int main() {
-  int Error = test<KName<class A, true>, true>();
-  Error += test<KName<class A, false>, false>();
+  queue Q;
+  int Error = test<KName<class A, true>, true>(Q);
+  Error += test<KName<class A, false>, false>(Q);
   return Error;
 }

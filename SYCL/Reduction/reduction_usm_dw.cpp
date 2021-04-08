@@ -4,9 +4,9 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
-// with reductions initialized with USM var. It tests both ONEAPI::reduction
-// and SYCL-2020 reduction (sycl::reduction) assuming only read-write access,
-// i.e. without using SYCL-2020 property::reduction::initialize_to_identity.
+// with reductions initialized with USM var. It tests only SYCL-2020 reduction
+// (sycl::reduction) assuming discard-write access, i.e. when reduction
+// is created with property::reduction::initialize_to_identity.
 
 #include "reduction_utils.hpp"
 #include <CL/sycl.hpp>
@@ -16,15 +16,7 @@ using namespace cl::sycl;
 
 template <typename T1, typename T2> class KernelNameGroup;
 
-template <bool IsSYCL2020, typename T, typename BinaryOperation>
-auto createReduction(T *USMPtr, T Identity, BinaryOperation BOp) {
-  if constexpr (IsSYCL2020)
-    return sycl::reduction(USMPtr, Identity, BOp);
-  else
-    return ONEAPI::reduction(USMPtr, Identity, BOp);
-}
-
-template <typename Name, bool IsSYCL2020, typename T, class BinaryOperation>
+template <typename Name, typename T, class BinaryOperation>
 void test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
           usm::alloc AllocType) {
   auto Dev = Q.get_device();
@@ -56,12 +48,12 @@ void test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
 
   buffer<T, 1> InBuf(NWItems);
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
-  CorrectOut = BOp(CorrectOut, Init);
 
   // Compute.
   Q.submit([&](handler &CGH) {
      auto In = InBuf.template get_access<access::mode::read>(CGH);
-     auto Redu = createReduction<IsSYCL2020>(ReduVarPtr, Identity, BOp);
+     property_list PropList(property::reduction::initialize_to_identity{});
+     auto Redu = sycl::reduction(ReduVarPtr, Identity, BOp, PropList);
      nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
 
      CGH.parallel_for<KernelNameGroup<Name, class Test>>(
@@ -96,20 +88,11 @@ void test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
 
 template <typename Name, typename T, class BinaryOperation>
 void testUSM(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems) {
-  // Test SYCL-2020 reductions
-  test<KernelNameGroup<Name, class Shared2020>, true, T, BinaryOperation>(
+  test<KernelNameGroup<Name, class Shared2020>, T, BinaryOperation>(
       Q, Identity, Init, WGSize, NWItems, usm::alloc::shared);
-  test<KernelNameGroup<Name, class Host2020>, true, T, BinaryOperation>(
+  test<KernelNameGroup<Name, class Host2020>, T, BinaryOperation>(
       Q, Identity, Init, WGSize, NWItems, usm::alloc::host);
-  test<KernelNameGroup<Name, class Device2020>, true, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::device);
-
-  // Test ONEAPI reductions
-  test<KernelNameGroup<Name, class Shared>, false, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::shared);
-  test<KernelNameGroup<Name, class Host>, false, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::host);
-  test<KernelNameGroup<Name, class Device>, false, T, BinaryOperation>(
+  test<KernelNameGroup<Name, class Device2020>, T, BinaryOperation>(
       Q, Identity, Init, WGSize, NWItems, usm::alloc::device);
 }
 

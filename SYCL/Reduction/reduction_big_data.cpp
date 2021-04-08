@@ -28,8 +28,7 @@ size_t getSafeMaxWGSize(size_t MaxWGSize, size_t MemSize, size_t OneElemSize) {
 }
 
 template <typename KernelName, typename T, int Dim, class BinaryOperation>
-void test(T Identity) {
-  queue Q;
+void test(queue &Q, T Identity) {
   device Device = Q.get_device();
 
   std::size_t MaxWGSize = Device.get_info<info::device::max_work_group_size>();
@@ -99,10 +98,11 @@ template <class T> struct BigCustomVecPlus {
 };
 
 int main() {
-  test<class Test1, float, 0, ONEAPI::maximum<>>(getMinimumFPValue<float>());
+  queue Q;
+  test<class Test1, float, 0, ONEAPI::maximum<>>(Q, getMinimumFPValue<float>());
 
   using BCV = BigCustomVec<long long>;
-  test<class Test2, BCV, 1, BigCustomVecPlus<long long>>(BCV(0));
+  test<class Test2, BCV, 1, BigCustomVecPlus<long long>>(Q, BCV(0));
 
   std::cout << "Test passed\n";
   return 0;

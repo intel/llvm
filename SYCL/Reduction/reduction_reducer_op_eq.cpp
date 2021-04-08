@@ -3,14 +3,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: this is a temporary solution until the odd performance effect
-// on opencl:cpu is analyzed/fixed. Running 2x more test cases with USM
-// reductions may cause 10x longer execution time right now.
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-unnamed-lambda -DTEST_SYCL2020_REDUCTIONS %s -o %t2020.out
-// RUN: %CPU_RUN_PLACEHOLDER %t2020.out
-// RUN: %GPU_RUN_PLACEHOLDER %t2020.out
-// RUN: %ACC_RUN_PLACEHOLDER %t2020.out
-
 // This test checks that operators ++, +=, *=, |=, &=, ^= are supported
 // whent the corresponding std::plus<>, std::multiplies, etc are defined.
 
@@ -96,11 +88,10 @@ auto createReduction(T *USMPtr, T Identity, BinaryOperation BOp) {
 
 template <typename T, bool IsSYCL2020Mode, typename BinaryOperation,
           OperationEqual OpEq, bool IsFP>
-int test(T Identity) {
+int test(queue &Q, T Identity) {
   constexpr size_t N = 16;
   constexpr size_t L = 4;
 
-  queue Q;
   T *Data = malloc_host<T>(N, Q);
   T *Res = malloc_host<T>(1, Q);
   T Expected = Identity;
@@ -168,42 +159,40 @@ int test(T Identity) {
 
 template <typename T, typename BinaryOperation, OperationEqual OpEq,
           bool IsFP = false>
-int testBoth(T Identity) {
+int testBoth(queue &Q, T Identity) {
   int Error = 0;
-#ifdef TEST_SYCL2020_REDUCTIONS
-  Error += test<T, true, BinaryOperation, OpEq, IsFP>(Identity);
-#else
-  Error += test<T, false, BinaryOperation, OpEq, IsFP>(Identity);
-#endif
+  Error += test<T, true, BinaryOperation, OpEq, IsFP>(Q, Identity);
+  Error += test<T, false, BinaryOperation, OpEq, IsFP>(Q, Identity);
   return Error;
 }
 
-template <typename T> int testFPPack() {
+template <typename T> int testFPPack(queue &Q) {
   int Error = 0;
-  Error += testBoth<T, std::plus<T>, PlusEq, true>(T{});
-  Error += testBoth<T, std::multiplies<T>, MultipliesEq, true>(T{1, 1});
+  Error += testBoth<T, std::plus<T>, PlusEq, true>(Q, T{});
+  Error += testBoth<T, std::multiplies<T>, MultipliesEq, true>(Q, T{1, 1});
   return Error;
 }
 
-template <typename T, bool TestPlusPlus> int testINTPack() {
+template <typename T, bool TestPlusPlus> int testINTPack(queue &Q) {
   int Error = 0;
   if constexpr (TestPlusPlus) {
-    Error += testBoth<T, std::plus<T>, PlusPlus>(T{});
-    Error += testBoth<T, std::plus<>, PlusPlusInt>(T{});
+    Error += testBoth<T, std::plus<T>, PlusPlus>(Q, T{});
+    Error += testBoth<T, std::plus<>, PlusPlusInt>(Q, T{});
   }
-  Error += testBoth<T, std::plus<T>, PlusEq>(T{});
-  Error += testBoth<T, std::multiplies<T>, MultipliesEq>(T{1, 1});
-  Error += testBoth<T, std::bit_or<T>, BitwiseOREq>(T{});
-  Error += testBoth<T, std::bit_xor<T>, BitwiseXOREq>(T{});
-  Error += testBoth<T, std::bit_and<T>, BitwiseANDEq>(T{~0, ~0});
+  Error += testBoth<T, std::plus<T>, PlusEq>(Q, T{});
+  Error += testBoth<T, std::multiplies<T>, MultipliesEq>(Q, T{1, 1});
+  Error += testBoth<T, std::bit_or<T>, BitwiseOREq>(Q, T{});
+  Error += testBoth<T, std::bit_xor<T>, BitwiseXOREq>(Q, T{});
+  Error += testBoth<T, std::bit_and<T>, BitwiseANDEq>(Q, T{~0, ~0});
   return Error;
 }
 
 int main() {
+  queue Q;
   int Error = 0;
-  Error += testFPPack<float2>();
-  Error += testINTPack<int2, true>();
-  Error += testINTPack<XY, false>();
+  Error += testFPPack<float2>(Q);
+  Error += testINTPack<int2, true>(Q);
+  Error += testINTPack<XY, false>(Q);
 
   std::cout << (Error ? "Failed\n" : "Passed.\n");
   return Error;

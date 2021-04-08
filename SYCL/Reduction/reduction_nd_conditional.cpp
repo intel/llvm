@@ -56,7 +56,7 @@ template <class T> struct VecPlus {
 
 template <typename SpecializationKernelName, typename T, int Dim,
           class BinaryOperation>
-void test(T Identity, size_t WGSize, size_t NWItems) {
+void test(queue &Q, T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
 
@@ -66,7 +66,6 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
 
   // Compute.
-  queue Q;
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
@@ -100,11 +99,11 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 }
 
 int main() {
-  test<class KernelName_lAx, int, 0, ONEAPI::plus<int>>(0, 2, 2);
-  test<class KernelName_eVBkBK, int, 1, ONEAPI::plus<int>>(0, 7, 7);
-  test<class KernelName_vMSyszeYKJbaXATnPL, int, 0, ONEAPI::plus<int>>(0, 2,
-                                                                       64);
-  test<class KernelName_UPKnfG, short, 1, ONEAPI::plus<short>>(0, 16, 256);
+  queue Q;
+  test<class A, int, 0, ONEAPI::plus<int>>(Q, 0, 2, 2);
+  test<class B, int, 1, ONEAPI::plus<int>>(Q, 0, 7, 7);
+  test<class C, int, 0, ONEAPI::plus<int>>(Q, 0, 2, 64);
+  test<class D, short, 1, ONEAPI::plus<short>>(Q, 0, 16, 256);
 
   std::cout << "Test passed\n";
   return 0;

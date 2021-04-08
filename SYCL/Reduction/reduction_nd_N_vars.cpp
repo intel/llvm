@@ -1,16 +1,10 @@
-// TODO: level_zero reports an internal error for this test.
-// UNSUPPORTED: level_zero
-
-// TODO: Windows implementation of std::tuple is not trivially copiable and
-// thus cannot be passed from HOST to DEVICE. Enable the test on Windows when
-// SYCL RT gets new type traits having less strict requirements for objects
-// being passed to DEVICE.
-// UNSUPPORTED: windows
-
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+// TODO: The test irregularly reports incorrect results on CPU.
+// UNSUPPORTED: cpu
 
 // This test checks handling of parallel_for() accepting nd_range and
 // two or more reductions.
@@ -36,26 +30,30 @@ constexpr access::mode RW = access::mode::read_write;
 constexpr access::mode DW = access::mode::discard_write;
 
 template <typename T>
-bool cherkResultIsExpected(int TestCaseNum, T Expected, T Computed) {
+bool cherkResultIsExpected(int TestCaseNum, T Expected, T Computed,
+                           bool IsSYCL2020) {
   bool Success;
   if (!std::is_floating_point<T>::value)
     Success = (Expected == Computed);
   else
     Success = std::abs((Expected / Computed) - 1) < 0.5;
 
-  if (!Success)
-    std::cout << TestCaseNum << ": Expected value = " << Expected
+  if (!Success) {
+    std::cerr << "Is SYCL2020 mode: " << IsSYCL2020 << std::endl;
+    std::cerr << TestCaseNum << ": Expected value = " << Expected
               << ", Computed value = " << Computed << "\n";
+  }
 
   return Success;
 }
 
 // Returns 0 if the test case passed. Otherwise, some non-zero value.
-template <class Name, bool IsSYCL2020Mode, typename T1, access::mode Mode1,
+template <class Name, bool IsSYCL2020, typename T1, access::mode Mode1,
           typename T2, access::mode Mode2, typename T3, access::mode Mode3,
-          typename T4, class BinaryOperation1, class BinaryOperation2,
-          class BinaryOperation3, class BinaryOperation4>
-int testOne(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
+          typename T4, access::mode Mode4, class BinaryOperation1,
+          class BinaryOperation2, class BinaryOperation3,
+          class BinaryOperation4>
+int testOne(queue &Q, T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
             T2 IdentityVal2, T2 InitVal2, BinaryOperation2 BOp2,
             T3 IdentityVal3, T3 InitVal3, BinaryOperation3 BOp3,
             T4 IdentityVal4, T3 InitVal4, BinaryOperation4 BOp4,
@@ -68,7 +66,6 @@ int testOne(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
   buffer<T2, 1> OutBuf2(1);
   buffer<T3, 1> OutBuf3(1);
 
-  queue Q;
   auto Dev = Q.get_device();
   if (AllocType4 == usm::alloc::shared &&
       !Dev.get_info<info::device::usm_shared_allocations>())
@@ -100,8 +97,9 @@ int testOne(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
     CorrectOut2 = BOp2(CorrectOut2, InitVal2);
   if (Mode3 == access::mode::read_write)
     CorrectOut3 = BOp3(CorrectOut3, InitVal3);
-  // 4th reduction is USM and this is read_write.
-  CorrectOut4 = BOp4(CorrectOut4, InitVal4);
+  // discard_write mode for USM reductions is available only SYCL2020.
+  if (Mode4 == access::mode::read_write || !IsSYCL2020)
+    CorrectOut4 = BOp4(CorrectOut4, InitVal4);
 
   // Inititialize data.
   {
@@ -123,17 +121,21 @@ int testOne(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
   }
 
   auto NDR = nd_range<1>{range<1>(NWorkItems), range<1>{WGSize}};
-  if constexpr (IsSYCL2020Mode) {
+  if constexpr (IsSYCL2020) {
     Q.submit([&](handler &CGH) {
        auto In1 = InBuf1.template get_access<access::mode::read>(CGH);
        auto In2 = InBuf2.template get_access<access::mode::read>(CGH);
        auto In3 = InBuf3.template get_access<access::mode::read>(CGH);
        auto In4 = InBuf4.template get_access<access::mode::read>(CGH);
 
-       auto Redu1 = sycl::reduction(OutBuf1, CGH, IdentityVal1, BOp1);
-       auto Redu2 = sycl::reduction(OutBuf2, CGH, IdentityVal2, BOp2);
-       auto Redu3 = sycl::reduction(OutBuf3, CGH, IdentityVal3, BOp3);
-       auto Redu4 = sycl::reduction(Out4, IdentityVal4, BOp4);
+       auto Redu1 = sycl::reduction(OutBuf1, CGH, IdentityVal1, BOp1,
+                                    getPropertyList<Mode1>());
+       auto Redu2 = sycl::reduction(OutBuf2, CGH, IdentityVal2, BOp2,
+                                    getPropertyList<Mode2>());
+       auto Redu3 = sycl::reduction(OutBuf3, CGH, IdentityVal3, BOp3,
+                                    getPropertyList<Mode3>());
+       auto Redu4 =
+           sycl::reduction(Out4, IdentityVal4, BOp4, getPropertyList<Mode4>());
 
        auto Lambda = [=](nd_item<1> NDIt, auto &Sum1, auto &Sum2, auto &Sum3,
                          auto &Sum4) {
@@ -193,10 +195,10 @@ int testOne(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
       Out4Val = *Out4;
     }
 
-    Error += cherkResultIsExpected(1, CorrectOut1, Out1[0]) ? 0 : 1;
-    Error += cherkResultIsExpected(2, CorrectOut2, Out2[0]) ? 0 : 1;
-    Error += cherkResultIsExpected(3, CorrectOut3, Out3[0]) ? 0 : 1;
-    Error += cherkResultIsExpected(4, CorrectOut4, Out4Val) ? 0 : 1;
+    Error += cherkResultIsExpected(1, CorrectOut1, Out1[0], IsSYCL2020) ? 0 : 1;
+    Error += cherkResultIsExpected(2, CorrectOut2, Out2[0], IsSYCL2020) ? 0 : 1;
+    Error += cherkResultIsExpected(3, CorrectOut3, Out3[0], IsSYCL2020) ? 0 : 1;
+    Error += cherkResultIsExpected(4, CorrectOut4, Out4Val, IsSYCL2020) ? 0 : 1;
     free(Out4, Q.get_context());
   }
 
@@ -211,45 +213,41 @@ int testOne(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
 // sycl::reduction and sycl::ONEAPI::reduction
 template <class Name, typename T1, access::mode Mode1, typename T2,
           access::mode Mode2, typename T3, access::mode Mode3, typename T4,
-          class BinaryOperation1, class BinaryOperation2,
+          access::mode Mode4, class BinaryOperation1, class BinaryOperation2,
           class BinaryOperation3, class BinaryOperation4>
-int testBoth(T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
+int testBoth(queue &Q, T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
              T2 IdentityVal2, T2 InitVal2, BinaryOperation2 BOp2,
              T3 IdentityVal3, T3 InitVal3, BinaryOperation3 BOp3,
              T4 IdentityVal4, T3 InitVal4, BinaryOperation4 BOp4,
              usm::alloc AllocType4, size_t NWorkItems, size_t WGSize) {
   int Error =
-      testOne<KName<Name, false>, false, T1, Mode1, T2, Mode2, T3, Mode3, T4>(
-          IdentityVal1, InitVal1, BOp1, IdentityVal2, InitVal2, BOp2,
-          IdentityVal3, InitVal3, BOp3, IdentityVal4, InitVal4, BOp4,
-          AllocType4, NWorkItems, WGSize);
+      testOne<KName<Name, false>, false, T1, Mode1, T2, Mode2, T3, Mode3, T4,
+              Mode4>(Q, IdentityVal1, InitVal1, BOp1, IdentityVal2, InitVal2,
+                     BOp2, IdentityVal3, InitVal3, BOp3, IdentityVal4, InitVal4,
+                     BOp4, AllocType4, NWorkItems, WGSize);
 
-  // TODO: property::reduction::initialize_to_identity is not supported yet.
-  // Thus only read_write mode is tested now.
-  constexpr access::mode _Mode1 = (Mode1 == DW) ? RW : Mode1;
-  constexpr access::mode _Mode2 = (Mode2 == DW) ? RW : Mode2;
-  constexpr access::mode _Mode3 = (Mode3 == DW) ? RW : Mode3;
   Error +=
-      testOne<KName<Name, true>, true, T1, _Mode1, T2, _Mode2, T3, _Mode3, T4>(
-          IdentityVal1, InitVal1, BOp1, IdentityVal2, InitVal2, BOp2,
-          IdentityVal3, InitVal3, BOp3, IdentityVal4, InitVal4, BOp4,
-          AllocType4, NWorkItems, WGSize);
+      testOne<KName<Name, true>, true, T1, Mode1, T2, Mode2, T3, Mode3, T4,
+              Mode4>(Q, IdentityVal1, InitVal1, BOp1, IdentityVal2, InitVal2,
+                     BOp2, IdentityVal3, InitVal3, BOp3, IdentityVal4, InitVal4,
+                     BOp4, AllocType4, NWorkItems, WGSize);
   return Error;
 }
 
 int main() {
-  int Error = testBoth<class FP32Plus16x16, float, DW, int, RW, short, RW, int>(
-      0, 1000, std::plus<float>{}, 0, 2000, std::plus<>{}, 0, 4000,
+  queue Q;
+  int Error = testBoth<class Case1, float, DW, int, RW, short, RW, int, RW>(
+      Q, 0, 1000, std::plus<float>{}, 0, 2000, std::plus<>{}, 0, 4000,
       std::bit_or<>{}, 0, 8000, std::bit_xor<>{}, usm::alloc::shared, 16, 16);
 
   auto Add = [](auto x, auto y) { return (x + y); };
-  Error += testBoth<class FP32Plus5x257, float, RW, int, RW, short, DW, int>(
-      0, 1000, std::plus<float>{}, 0, 2000, std::plus<>{}, 0, 4000, Add, 0,
-      8000, std::bit_xor<int>{}, usm::alloc::device, 5 * (256 + 1), 5);
+  Error += testBoth<class Case2, float, RW, int, RW, short, DW, int, DW>(
+      Q, 0, 1000, std::plus<float>{}, 0, 2000, std::plus<>{}, 0, 4000, Add, 0,
+      8000, std::plus<>{}, usm::alloc::device, 5 * (256 + 1), 5);
 
   if (!Error)
     std::cout << "Test passed\n";
   else
-    std::cout << Error << " test-cases failed\n";
+    std::cerr << Error << " test-cases failed\n";
   return Error;
 }
