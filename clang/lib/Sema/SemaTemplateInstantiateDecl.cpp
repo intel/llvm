@@ -693,6 +693,16 @@ static void instantiateIntelSYCLFunctionAttr(
     S.addIntelSingleArgAttr<AttrName>(New, *Attr, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLIntelFPGAMaxConcurrencyAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelFPGAMaxConcurrencyAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getNThreadsExpr(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelFPGAMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
+}
+
 static void instantiateIntelFPGAPrivateCopiesAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const IntelFPGAPrivateCopiesAttr *A, Decl *New) {
@@ -948,6 +958,11 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
       instantiateIntelSYCTripleLFunctionAttr<SYCLIntelMaxWorkGroupSizeAttr>(
           *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
       continue;
+    }
+    if (const auto *SYCLIntelMaxConcurrency =
+            dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(TmplAttr)) {
+      instantiateSYCLIntelFPGAMaxConcurrencyAttr(*this, TemplateArgs,
+                                                 SYCLIntelMaxConcurrency, New);
     }
     if (const auto *SYCLIntelFPGAInitiationInterval =
             dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(TmplAttr)) {

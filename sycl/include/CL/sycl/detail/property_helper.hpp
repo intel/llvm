@@ -32,7 +32,10 @@ enum DataLessPropKind {
   BufferUsePinnedHostMemory = 5,
   UsePrimaryContext = 6,
   InitializeToIdentity = 7,
-  DataLessPropKindSize = 8
+  // Indicates the last known dataless property.
+  LastKnownDataLessPropKind = 7,
+  // Exceeding 32 may cause ABI breaking change on some of OSes.
+  DataLessPropKindSize = 32
 };
 
 // List of all properties with data IDs
