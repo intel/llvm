@@ -1607,14 +1607,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO: To confirm with spec.
     return ReturnValue(pi_uint32{64});
   }
-  case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
-    // TODO: To confirm with spec.
-    uint32_t MaxMemAllocSize = 0;
-    for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
-      MaxMemAllocSize += ZeDeviceMemoryProperties[I].totalSize;
-    }
-    return ReturnValue(pi_uint64{MaxMemAllocSize});
-  }
+  case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
+    return ReturnValue(pi_uint64{Device->ZeDeviceProperties.maxMemAllocSize});
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
     for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
@@ -4029,6 +4023,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         Event->CommandData) {
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
       Event->CommandData = nullptr;
+    }
+
+    // If this event was the LastCommandEvent in the queue, being used
+    // to make sure that commands were executed in-order, remove this.
+    // If we don't do this, the event can get released and freed leaving
+    // a dangling pointer to this event.  It could also cause unneeded
+    // already finished events to show up in the wait list.
+    if (Queue->LastCommandEvent == Event) {
+      Queue->LastCommandEvent = nullptr;
     }
 
     if (!Event->CleanedUp) {
