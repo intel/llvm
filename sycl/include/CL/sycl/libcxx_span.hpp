@@ -148,13 +148,31 @@ _LIBCPP_PUSH_MACROS
 
 //CP adjust namespace declaration
 //_LIBCPP_BEGIN_NAMESPACE_STD
-namespace std {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 
 //CP living dangerously
 #define _LIBCPP_ASSERT(x, m) ((void)0)
 
 //CP - we make span available even outside C++20
 //#if _LIBCPP_STD_VER > 17
+
+//CP
+using std::numeric_limits;
+using std::true_type;
+using std::false_type;
+using std::remove_cv_t;
+using std::enable_if;
+using std::enable_if_t;
+using std::array;
+using std::void_t;
+using std::nullptr_t;
+using std::is_array_v;
+using std::declval;
+using std::is_convertible_v;
+using std::remove_pointer_t;
+using std::reverse_iterator;
+using std::is_const_v;
 
 inline constexpr size_t dynamic_extent = numeric_limits<size_t>::max();
 template <typename _Tp, size_t _Extent = dynamic_extent> class span;
@@ -366,11 +384,11 @@ public:
     _LIBCPP_INLINE_VISIBILITY constexpr rev_iterator        rbegin() const noexcept { return rev_iterator(end()); }
     _LIBCPP_INLINE_VISIBILITY constexpr rev_iterator          rend() const noexcept { return rev_iterator(begin()); }
 
-    _LIBCPP_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)> __as_bytes() const noexcept
-    { return span<const byte, _Extent * sizeof(element_type)>{reinterpret_cast<const byte *>(data()), size_bytes()}; }
+    _LIBCPP_INLINE_VISIBILITY span<const std::byte, _Extent * sizeof(element_type)> __as_bytes() const noexcept
+    { return span<const std::byte, _Extent * sizeof(element_type)>{reinterpret_cast<const std::byte *>(data()), size_bytes()}; }
 
-    _LIBCPP_INLINE_VISIBILITY span<byte, _Extent * sizeof(element_type)> __as_writable_bytes() const noexcept
-    { return span<byte, _Extent * sizeof(element_type)>{reinterpret_cast<byte *>(data()), size_bytes()}; }
+    _LIBCPP_INLINE_VISIBILITY span<std::byte, _Extent * sizeof(element_type)> __as_writable_bytes() const noexcept
+    { return span<std::byte, _Extent * sizeof(element_type)>{reinterpret_cast<std::byte *>(data()), size_bytes()}; }
 
 private:
     pointer    __data;
@@ -529,11 +547,11 @@ public:
     _LIBCPP_INLINE_VISIBILITY constexpr rev_iterator        rbegin() const noexcept { return rev_iterator(end()); }
     _LIBCPP_INLINE_VISIBILITY constexpr rev_iterator          rend() const noexcept { return rev_iterator(begin()); }
 
-    _LIBCPP_INLINE_VISIBILITY span<const byte, dynamic_extent> __as_bytes() const noexcept
-    { return {reinterpret_cast<const byte *>(data()), size_bytes()}; }
+    _LIBCPP_INLINE_VISIBILITY span<const std::byte, dynamic_extent> __as_bytes() const noexcept
+    { return {reinterpret_cast<const std::byte *>(data()), size_bytes()}; }
 
-    _LIBCPP_INLINE_VISIBILITY span<byte, dynamic_extent> __as_writable_bytes() const noexcept
-    { return {reinterpret_cast<byte *>(data()), size_bytes()}; }
+    _LIBCPP_INLINE_VISIBILITY span<std::byte, dynamic_extent> __as_writable_bytes() const noexcept
+    { return {reinterpret_cast<std::byte *>(data()), size_bytes()}; }
 
 private:
     pointer   __data;
@@ -571,7 +589,8 @@ template<class _Container>
 
 //CP
 //_LIBCPP_END_NAMESPACE_STD
-} // namespace std
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 _LIBCPP_POP_MACROS
 
