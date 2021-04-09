@@ -13190,7 +13190,7 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
-  void MarkDevice();
+  void MarkDevices();
 
   /// Emit a diagnostic about the given attribute having a deprecated name, and
   /// also emit a fixit hint to generate the new attribute name.

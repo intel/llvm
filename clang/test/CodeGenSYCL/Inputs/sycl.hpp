@@ -104,6 +104,15 @@ struct buffer_location {
 } // namespace INTEL
 
 namespace ONEAPI {
+namespace property {
+// Compile time known accessor property
+struct no_alias {
+  template <bool> class instance {};
+};
+} // namespace property
+} // namespace ONEAPI
+
+namespace ONEAPI {
 template <typename... properties>
 class accessor_property_list {};
 } // namespace ONEAPI
