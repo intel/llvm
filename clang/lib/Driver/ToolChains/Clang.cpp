@@ -4568,6 +4568,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
 
+    // Add the integration footer option to generated the footer.
+    StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
+    if (!Footer.empty()) {
+      SmallString<128> FooterOpt("-fsycl-int-footer=");
+      FooterOpt.append(Footer);
+      CmdArgs.push_back(Args.MakeArgString(FooterOpt));
+    }
+
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
   }

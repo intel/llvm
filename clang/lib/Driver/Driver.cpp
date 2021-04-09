@@ -5173,7 +5173,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
           llvm::sys::path::stem(SrcFileName).str() + "-header", "h");
       StringRef TmpFileHeader =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
-      addIntegrationFiles(TmpFileHeader, SrcFileName);
+      std::string TmpFileNameFooter = C.getDriver().GetTemporaryPath(
+          llvm::sys::path::stem(SrcFileName).str() + "-footer", "h");
+      StringRef TmpFileFooter =
+          C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
+      addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
     }
   }
 
