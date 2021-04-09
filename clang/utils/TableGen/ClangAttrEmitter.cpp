@@ -3758,9 +3758,9 @@ static void GenerateMutualExclusionsChecks(const Record &Attr,
                 << (Attr.getName() + "Attr").str() << ">(A)) {\n";
     MergeStmtOS << "      auto Iter = llvm::find_if(C, [](const Attr *Check) "
                 << "{ return isa<";
-    interleave(StmtAttrs,
-               [&](const std::string &Name) { MergeStmtOS << Name; },
-               [&] { MergeStmtOS << ", "; });
+    interleave(
+        StmtAttrs, [&](const std::string &Name) { MergeStmtOS << Name; },
+        [&] { MergeStmtOS << ", "; });
     MergeStmtOS << ">(Check); });\n";
     MergeStmtOS << "      if (Iter != C.end()) {\n";
     MergeStmtOS << "        S.Diag((*Iter)->getLocation(), "
