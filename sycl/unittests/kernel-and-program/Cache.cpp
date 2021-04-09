@@ -46,6 +46,13 @@ static pi_result redefinedProgramCreateWithSource(pi_context context,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedProgramCreateWithBinary(
+    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
+    const size_t *lengths, const unsigned char **binaries,
+    pi_int32 *binary_status, pi_program *ret_program) {
+  return PI_SUCCESS;
+}
+
 static pi_result
 redefinedProgramBuild(pi_program program, pi_uint32 num_devices,
                       const pi_device *device_list, const char *options,
@@ -69,6 +76,37 @@ redefinedProgramLink(pi_context context, pi_uint32 num_devices,
                      const pi_program *input_programs,
                      void (*pfn_notify)(pi_program program, void *user_data),
                      void *user_data, pi_program *ret_program) {
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramGetInfo(pi_program program,
+                                         pi_program_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret) {
+  if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
+    auto value = reinterpret_cast<unsigned int *>(param_value);
+    *value = 1;
+  }
+
+  if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
+    auto value = reinterpret_cast<size_t *>(param_value);
+    value[0] = 1;
+  }
+
+  if (param_name == PI_PROGRAM_INFO_BINARIES) {
+    auto value = reinterpret_cast<unsigned char *>(param_value);
+    value[0] = 1;
+  }
+
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramRetain(pi_program program) {
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramRelease(pi_program program) {
   return PI_SUCCESS;
 }
 
@@ -119,10 +157,17 @@ protected:
 
     Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
         redefinedProgramCreateWithSource);
+    Mock->redefine<detail::PiApiKind::piProgramCreateWithBinary>(
+        redefinedProgramCreateWithBinary);
     Mock->redefine<detail::PiApiKind::piProgramCompile>(
         redefinedProgramCompile);
     Mock->redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
     Mock->redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+    Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
+        redefinedProgramGetInfo);
+    Mock->redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
+    Mock->redefine<detail::PiApiKind::piProgramRelease>(
+        redefinedProgramRelease);
     Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
     Mock->redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
     Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
