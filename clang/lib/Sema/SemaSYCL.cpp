@@ -73,7 +73,12 @@ public:
   template <size_t N>
   static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
                                                        const char (&Str)[N]) {
-    return DeclContextDesc{K, llvm::StringRef{Str, N}};
+    // FIXME: This SHOULD be able to use the StringLiteral constructor here
+    // instead, however this seems to fail with an 'invalid string literal' note
+    // on the correct constructor in some build configurations.  We need to
+    // figure that out before reverting this to use the StringLiteral
+    // constructor.
+    return DeclContextDesc{K, StringRef{Str, N}};
   }
 
   static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
