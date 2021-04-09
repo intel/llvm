@@ -140,7 +140,10 @@ struct LoopAttributes {
   /// Value for llvm.loop.intel.speculated.iterations.count metadata.
   unsigned SYCLSpeculatedIterationsNIterations;
 
-  /// llvm.unroll.
+   /// Value for llvm.loop.intel.loopcount_average metadata.
+  unsigned SYCLIntelFPGALoopCountAverage;
+ 
+   /// llvm.unroll.
   unsigned UnrollCount;
 
   /// llvm.unroll.
@@ -366,17 +369,19 @@ public:
     StagedAttrs.SYCLMaxConcurrencyEnable = true;
   }
 
-  void setSYCLIntelFPGALoopControlAvgEnable() {
-    StagedAttrs.SYCLIntelFPGALoopControlAvgEnable = true;
-  }
-
-  void setSYCLIntelFPGALoopControlAvgNTripCount(unsigned C) {
-    StagedAttrs.SYCLIntelFPGALoopControlAvgEnable = C;
-  }
-
   /// Set value of threads for the next loop pushed.
   void setSYCLMaxConcurrencyNThreads(unsigned C) {
     StagedAttrs.SYCLMaxConcurrencyNThreads = C;
+  }
+
+  /// Set flag of loop_control_avg for the next loop pushed.
+  void setSYCLIntelFPGALoopControlAvgEnable() {
+    StagedAttrs.SYCLIntelFPGALoopCountAverage = true;
+  }
+  /// Set value of loop control count average for the next
+  /// loop pushed.
+  void setSYCLIntelFPGALoopCountAverage(unsigned C) {
+    StagedAttrs.SYCLIntelFPGALoopCountAverage = C;
   }
 
   /// Set flag of loop_coalesce for the next loop pushed.

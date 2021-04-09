@@ -22,6 +22,8 @@ void foo() {
   [[intel::speculated_iterations(6)]] int j[10];
   // expected-error@+1 {{'nofusion' attribute cannot be applied to a declaration}}
   [[intel::nofusion]] int k[10];
+  // expected-error@+1{{'loop_control_avg' attribute cannot be applied to a declaration}}
+  [[intel::loop_control_avg(6)]] int p[10];
 }
 
 // Test for deprecated spelling of Intel FPGA loop attributes
@@ -65,6 +67,11 @@ void foo_deprecated() {
   // expected-warning@+2 {{attribute 'intelfpga::speculated_iterations' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::speculated_iterations' instead?}}
   [[intelfpga::speculated_iterations(6)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-warning@+2 {{attribute 'intelfpga::loop_control_avg' is deprecated}}
+  // expected-note@+1 {{did you mean to use 'intel::loop_control_avg' instead?}}
+  [[intelfpga::loop_control_avg(6)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -118,6 +125,9 @@ void boo() {
       a[i] = 0;
   // expected-error@+1 {{'nofusion' attribute takes no arguments}}
   [[intel::nofusion(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'loop_control_avg' attribute takes one argument}}
+  [[intel::loop_control_avg(3, 6)]]  for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -195,6 +205,15 @@ void goo() {
 
   // no diagnostics are expected
   [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::loop_control_avg(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'loop_control_avg' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_control_avg(-1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'loop_control_avg' attribute requires an integer constant}}
+    [[intel::loop_control_avg("abc")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -304,6 +323,11 @@ void zoo() {
   // expected-error@+1 {{duplicate Intel FPGA loop attribute 'nofusion'}}
   [[intel::nofusion]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::loop_control_avg(2)]]
+  // expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_control_avg'}}
+  [[intel::loop_control_avg(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -397,6 +421,22 @@ void max_concurrency_dependent() {
       a[i] = 0;
 }
 
+template<int A, int B, int C>
+void loop_control_avg_dependent() {
+  int a[10];
+
+  //expected-error@+1{{'loop_control_avg' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_control_avg(C)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::loop_control_avg(A)]]
+  //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_control_avg'}}
+  [[intel::loop_control_avg(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+}
+
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     h.single_task<class kernel_function>([]() {
@@ -414,7 +454,10 @@ int main() {
       //expected-note@-1 +{{in instantiation of function template specialization}}
       max_concurrency_dependent<1, 4, -2>();
       //expected-note@-1 +{{in instantiation of function template specialization}}
-    });
+
+     loop_control_avg_dependent<3, 2, -1>();
+      //expected-note@-1{{in instantiation of function template specialization 'loop_control_avg_dependent<3, 2, -1>' requested here}}
+});
   });
 
   return 0;
