@@ -255,7 +255,9 @@ PreservedAnalyses ESIMDLowerVecArgPass::run(Module &M,
 
   SmallVector<Function *, 10> functions;
   for (auto &F : M) {
-    functions.push_back(&F);
+    // Skip functions that are used through function pointers
+    if (!F.hasAddressTaken())
+      functions.push_back(&F);
   }
 
   for (auto F : functions) {
