@@ -73,7 +73,7 @@ public:
   template <size_t N>
   static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
                                                        const char (&Str)[N]) {
-    return DeclContextDesc{K, llvm::StringLiteral{Str}};
+    return DeclContextDesc{K, llvm::StringRef{Str, N}};
   }
 
   static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
