@@ -62,22 +62,17 @@ void f10();
 void f10();
 
 // expected-error@+1 {{'named_sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
-[[intel::named_sub_group_size("primary")]]
-void f11();
+[[intel::named_sub_group_size("primary")]] void f11();
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sycl_explicit_simd]]
-void f11();
+[[intel::sycl_explicit_simd]] void f11();
 
 // expected-error@+1 {{'named_sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
-[[intel::named_sub_group_size("automatic")]]
-void f12();
+[[intel::named_sub_group_size("automatic")]] void f12();
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sycl_explicit_simd]]
-void f12();
+[[intel::sycl_explicit_simd]] void f12();
 
 // expected-warning@+1 {{'named_sub_group_size' attribute argument not supported: invalid string}}
-[[intel::named_sub_group_size("invalid string")]]
-void f13();
+[[intel::named_sub_group_size("invalid string")]] void f13();
 
 void NoAttrFunc(){}
 SYCL_EXTERNAL void NoAttrExternalDefined() {}
