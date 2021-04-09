@@ -1,0 +1,124 @@
+ze_intel_assert_return_code
+======================================
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Name Strings
+
++ze_intel_assert_return_code+
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation. All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Dependencies
+
+This extension is written against the Level-Zero Specification Version 1.1.2.
+
+== Overview
+
+This extension allows Level-Zero devices to notify host that assert had
+happened.
+
+== New enumeration value
+
+`ze_result_t`: +
+[source]
+----
+ZE_RESULT_ASSERT_FAILED
+----
+
+This value should be returned by `zeEventQueryStatus` if assert failure took
+place in device-code during kernel execution.
+
+An example:
+[source]
+----
+ze_event_handle_t Event; // describes an event of kernel been submitted previously
+ze_result Result = zeEventQueryStatus(Event);
+----
+
+If kernel failed an assertion `zeEventQueryStatus` should return
+`ZE_RESULT_ASSERT_FAILED`.
+
+
+== Modifications to Level-Zero API
+
+(Add to Section API Documentation / Core API / Common / Common Enums / `ze_result_t`) ::
++
+--
+`ZE_RESULT_ASSERT_FAILED = 0x70000006` +
+[Core] Assert failure took place in device-code during kernel execution.
+--
+
+(Add to section API Documentation / Core API / Event / Event Functions / `zeEventQueryStatus`) ::
++
+--
+Return: +
+`ZE_RESULT_ASSERT_FAILED`
+--
+
+An example:
+[source]
+----
+cl_event Event; // describes an event of kernel been submitted previously
+cl_int Result;
+size_t ResultSize;
+
+clGetEventInfo(Event, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(Result), &Result, &ResultSize);
+----
+
+If kernel failed an assertion `clGetEventInfo` should put `CL_ASSERT_FAILURE` in
+`Result`.
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-04-09|Sergey Kanaev|*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
