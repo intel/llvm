@@ -20,20 +20,6 @@ def riscv_vmv_x_s : SDNode<"RISCVISD::VMV_X_S",
 def riscv_read_vlenb : SDNode<"RISCVISD::READ_VLENB",
                               SDTypeProfile<1, 0, [SDTCisVT<0, XLenVT>]>>;
 
-def riscv_vleff : SDNode<"RISCVISD::VLEFF",
-                         SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisPtrTy<1>,
-                                              SDTCisVT<2, XLenVT>]>,
-                         [SDNPHasChain, SDNPOutGlue, SDNPMayLoad,
-                          SDNPSideEffect]>;
-def riscv_vleff_mask : SDNode<"RISCVISD::VLEFF_MASK",
-                              SDTypeProfile<1, 4, [SDTCisVec<0>,
-                                                   SDTCisSameAs<0, 1>,
-                                                   SDTCisPtrTy<2>,
-                                                   SDTCVecEltisVT<3, i1>,
-                                                   SDTCisVT<4, XLenVT>]>,
-                              [SDNPHasChain, SDNPOutGlue, SDNPMayLoad,
-                               SDNPSideEffect]>;
-
 // X0 has special meaning for vsetvl/vsetvli.
 //  rd | rs1 |   AVL value | Effect on vl
 //--------------------------------------------------------------
@@ -402,29 +388,149 @@ def RISCVVPseudosTable : GenericTable {
   let Fields = [ "Pseudo", "BaseInstr" ];
   let PrimaryKey = [ "Pseudo" ];
   let PrimaryKeyName = "getPseudoInfo";
+  let PrimaryKeyEarlyOut = true;
 }
 
 def RISCVVIntrinsicsTable : GenericTable {
   let FilterClass = "RISCVVIntrinsic";
   let CppTypeName = "RISCVVIntrinsicInfo";
-  let Fields = ["IntrinsicID", "ExtendOperand"];
+  let Fields = ["IntrinsicID", "SplatOperand"];
   let PrimaryKey = ["IntrinsicID"];
   let PrimaryKeyName = "getRISCVVIntrinsicInfo";
 }
 
-class RISCVZvlsseg<string IntrName, bits<11> S, bits<3> L, bits<3> IL = V_M1.value> {
-  Intrinsic IntrinsicID = !cast<Intrinsic>(IntrName);
-  bits<11> SEW = S;
+class RISCVVLE<bit M, bit Str, bit F, bits<7> S, bits<3> L> {
+  bits<1> Masked = M;
+  bits<1> Strided = Str;
+  bits<1> FF = F;
+  bits<7> SEW = S;
+  bits<3> LMUL = L;
+  Pseudo Pseudo = !cast<Pseudo>(NAME);
+}
+
+def RISCVVLETable : GenericTable {
+  let FilterClass = "RISCVVLE";
+  let CppTypeName = "VLEPseudo";
+  let Fields = ["Masked", "Strided", "FF", "SEW", "LMUL", "Pseudo"];
+  let PrimaryKey = ["Masked", "Strided", "FF", "SEW", "LMUL"];
+  let PrimaryKeyName = "getVLEPseudo";
+}
+
+class RISCVVSE<bit M, bit Str, bits<7> S, bits<3> L> {
+  bits<1> Masked = M;
+  bits<1> Strided = Str;
+  bits<7> SEW = S;
+  bits<3> LMUL = L;
+  Pseudo Pseudo = !cast<Pseudo>(NAME);
+}
+
+def RISCVVSETable : GenericTable {
+  let FilterClass = "RISCVVSE";
+  let CppTypeName = "VSEPseudo";
+  let Fields = ["Masked", "Strided", "SEW", "LMUL", "Pseudo"];
+  let PrimaryKey = ["Masked", "Strided", "SEW", "LMUL"];
+  let PrimaryKeyName = "getVSEPseudo";
+}
+
+class RISCVVLX_VSX<bit M, bit O, bits<7> S, bits<3> L, bits<3> IL> {
+  bits<1> Masked = M;
+  bits<1> Ordered = O;
+  bits<7> SEW = S;
   bits<3> LMUL = L;
   bits<3> IndexLMUL = IL;
   Pseudo Pseudo = !cast<Pseudo>(NAME);
 }
 
-def RISCVZvlssegTable : GenericTable {
-  let FilterClass = "RISCVZvlsseg";
-  let Fields = ["IntrinsicID", "SEW", "LMUL", "IndexLMUL", "Pseudo"];
-  let PrimaryKey = ["IntrinsicID", "SEW", "LMUL", "IndexLMUL"];
-  let PrimaryKeyName = "getPseudo";
+class RISCVVLX<bit M, bit O, bits<7> S, bits<3> L, bits<3> IL> :
+  RISCVVLX_VSX<M, O, S, L, IL>;
+class RISCVVSX<bit M, bit O, bits<7> S, bits<3> L, bits<3> IL> :
+  RISCVVLX_VSX<M, O, S, L, IL>;
+
+class RISCVVLX_VSXTable : GenericTable {
+  let CppTypeName = "VLX_VSXPseudo";
+  let Fields = ["Masked", "Ordered", "SEW", "LMUL", "IndexLMUL", "Pseudo"];
+  let PrimaryKey = ["Masked", "Ordered", "SEW", "LMUL", "IndexLMUL"];
+}
+
+def RISCVVLXTable : RISCVVLX_VSXTable {
+  let FilterClass = "RISCVVLX";
+  let PrimaryKeyName = "getVLXPseudo";
+}
+
+def RISCVVSXTable : RISCVVLX_VSXTable {
+  let FilterClass = "RISCVVSX";
+  let PrimaryKeyName = "getVSXPseudo";
+}
+
+class RISCVVLSEG<bits<4> N, bit M, bit Str, bit F, bits<7> S, bits<3> L> {
+  bits<4> NF = N;
+  bits<1> Masked = M;
+  bits<1> Strided = Str;
+  bits<1> FF = F;
+  bits<7> SEW = S;
+  bits<3> LMUL = L;
+  Pseudo Pseudo = !cast<Pseudo>(NAME);
+}
+
+def RISCVVLSEGTable : GenericTable {
+  let FilterClass = "RISCVVLSEG";
+  let CppTypeName = "VLSEGPseudo";
+  let Fields = ["NF", "Masked", "Strided", "FF", "SEW", "LMUL", "Pseudo"];
+  let PrimaryKey = ["NF", "Masked", "Strided", "FF", "SEW", "LMUL"];
+  let PrimaryKeyName = "getVLSEGPseudo";
+}
+
+class RISCVVLXSEG<bits<4> N, bit M, bit O, bits<7> S, bits<3> L, bits<3> IL> {
+  bits<4> NF = N;
+  bits<1> Masked = M;
+  bits<1> Ordered = O;
+  bits<7> SEW = S;
+  bits<3> LMUL = L;
+  bits<3> IndexLMUL = IL;
+  Pseudo Pseudo = !cast<Pseudo>(NAME);
+}
+
+def RISCVVLXSEGTable : GenericTable {
+  let FilterClass = "RISCVVLXSEG";
+  let CppTypeName = "VLXSEGPseudo";
+  let Fields = ["NF", "Masked", "Ordered", "SEW", "LMUL", "IndexLMUL", "Pseudo"];
+  let PrimaryKey = ["NF", "Masked", "Ordered", "SEW", "LMUL", "IndexLMUL"];
+  let PrimaryKeyName = "getVLXSEGPseudo";
+}
+
+class RISCVVSSEG<bits<4> N, bit M, bit Str, bits<7> S, bits<3> L> {
+  bits<4> NF = N;
+  bits<1> Masked = M;
+  bits<1> Strided = Str;
+  bits<7> SEW = S;
+  bits<3> LMUL = L;
+  Pseudo Pseudo = !cast<Pseudo>(NAME);
+}
+
+def RISCVVSSEGTable : GenericTable {
+  let FilterClass = "RISCVVSSEG";
+  let CppTypeName = "VSSEGPseudo";
+  let Fields = ["NF", "Masked", "Strided", "SEW", "LMUL", "Pseudo"];
+  let PrimaryKey = ["NF", "Masked", "Strided", "SEW", "LMUL"];
+  let PrimaryKeyName = "getVSSEGPseudo";
+}
+
+class RISCVVSXSEG<bits<4> N, bit M, bit O, bits<7> S, bits<3> L, bits<3> IL> {
+  bits<4> NF = N;
+  bits<1> Masked = M;
+  bits<1> Ordered = O;
+  bits<7> SEW = S;
+  bits<3> LMUL = L;
+  bits<3> IndexLMUL = IL;
+  Pseudo Pseudo = !cast<Pseudo>(NAME);
+}
+
+def RISCVVSXSEGTable : GenericTable {
+  let FilterClass = "RISCVVSXSEG";
+  let CppTypeName = "VSXSEGPseudo";
+  let Fields = ["NF", "Masked", "Ordered", "SEW", "LMUL", "IndexLMUL", "Pseudo"];
+  let PrimaryKey = ["NF", "Masked", "Ordered", "SEW", "LMUL", "IndexLMUL"];
+  let PrimaryKeyName = "getVSXSEGPseudo";
 }
 
 //===----------------------------------------------------------------------===//
@@ -454,35 +560,6 @@ class PseudoToVInst<string PseudoInst> {
                  !subst("Pseudo", "", PseudoInst))))))))))))))))))));
 }
 
-class ToLowerCase<string Upper> {
-  string L = !subst("FF", "ff",
-             !subst("VLSEG", "vlseg",
-             !subst("VLSSEG", "vlsseg",
-             !subst("VSSEG", "vsseg",
-             !subst("VSSSEG", "vssseg",
-             !subst("VLOXSEG", "vloxseg",
-             !subst("VLUXSEG", "vluxseg",
-             !subst("VSOXSEG", "vsoxseg",
-             !subst("VSUXSEG", "vsuxseg", Upper)))))))));
-}
-
-// Example: PseudoVLSEG2E32_V_M2 -> int_riscv_vlseg2
-// Example: PseudoVLSEG2E32_V_M2_MASK -> int_riscv_vlseg2_mask
-class PseudoToIntrinsic<string PseudoInst, bit IsMasked> {
-  string Intrinsic = !strconcat("int_riscv_",
-                        ToLowerCase<
-                        !subst("E8", "",
-                        !subst("E16", "",
-                        !subst("E32", "",
-                        !subst("E64", "",
-                        !subst("EI8", "",
-                        !subst("EI16", "",
-                        !subst("EI32", "",
-                        !subst("EI64", "",
-                        !subst("_V", "", PseudoToVInst<PseudoInst>.VInst)))))))))>.L,
-                        !if(IsMasked, "_mask", ""));
-}
-
 // The destination vector register group for a masked vector instruction cannot
 // overlap the source mask register (v0), unless the destination vector register
 // is being written with a mask value (e.g., comparisons) or the scalar result
@@ -492,7 +569,18 @@ class GetVRegNoV0<VReg VRegClass> {
                  !eq(VRegClass, VRM2) : VRM2NoV0,
                  !eq(VRegClass, VRM4) : VRM4NoV0,
                  !eq(VRegClass, VRM8) : VRM8NoV0,
-                 !eq(1, 1) : VRegClass);
+                 !eq(VRegClass, VRN2M1) : VRN2M1NoV0,
+                 !eq(VRegClass, VRN2M2) : VRN2M2NoV0,
+                 !eq(VRegClass, VRN2M4) : VRN2M4NoV0,
+                 !eq(VRegClass, VRN3M1) : VRN3M1NoV0,
+                 !eq(VRegClass, VRN3M2) : VRN3M2NoV0,
+                 !eq(VRegClass, VRN4M1) : VRN4M1NoV0,
+                 !eq(VRegClass, VRN4M2) : VRN4M2NoV0,
+                 !eq(VRegClass, VRN5M1) : VRN5M1NoV0,
+                 !eq(VRegClass, VRN6M1) : VRN6M1NoV0,
+                 !eq(VRegClass, VRN7M1) : VRN7M1NoV0,
+                 !eq(VRegClass, VRN8M1) : VRN8M1NoV0,
+                 true : VRegClass);
 }
 
 // Join strings in list using separator and ignoring empty elements
@@ -511,10 +599,11 @@ class VPseudo<Instruction instr, LMULInfo m, dag outs, dag ins> :
   let VLMul = m.value;
 }
 
-class VPseudoUSLoadNoMask<VReg RetClass>:
+class VPseudoUSLoadNoMask<VReg RetClass, bits<7> EEW, bit isFF> :
       Pseudo<(outs RetClass:$rd),
              (ins GPR:$rs1, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVLE</*Masked*/0, /*Strided*/0, /*FF*/isFF, EEW, VLMul> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -526,12 +615,13 @@ class VPseudoUSLoadNoMask<VReg RetClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoUSLoadMask<VReg RetClass>:
+class VPseudoUSLoadMask<VReg RetClass, bits<7> EEW, bit isFF> :
       Pseudo<(outs GetVRegNoV0<RetClass>.R:$rd),
               (ins GetVRegNoV0<RetClass>.R:$merge,
                    GPR:$rs1,
                    VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVLE</*Masked*/1, /*Strided*/0, /*FF*/isFF, EEW, VLMul> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -544,10 +634,11 @@ class VPseudoUSLoadMask<VReg RetClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoSLoadNoMask<VReg RetClass>:
+class VPseudoSLoadNoMask<VReg RetClass, bits<7> EEW>:
       Pseudo<(outs RetClass:$rd),
              (ins GPR:$rs1, GPR:$rs2, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVLE</*Masked*/0, /*Strided*/1, /*FF*/0, EEW, VLMul> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -559,12 +650,13 @@ class VPseudoSLoadNoMask<VReg RetClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoSLoadMask<VReg RetClass>:
+class VPseudoSLoadMask<VReg RetClass, bits<7> EEW>:
       Pseudo<(outs GetVRegNoV0<RetClass>.R:$rd),
               (ins GetVRegNoV0<RetClass>.R:$merge,
                    GPR:$rs1, GPR:$rs2,
                    VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVLE</*Masked*/1, /*Strided*/1, /*FF*/0, EEW, VLMul> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -577,10 +669,12 @@ class VPseudoSLoadMask<VReg RetClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoILoadNoMask<VReg RetClass, VReg IdxClass>:
+class VPseudoILoadNoMask<VReg RetClass, VReg IdxClass, bits<7> EEW, bits<3> LMUL,
+                         bit Ordered, bit EarlyClobber>:
       Pseudo<(outs RetClass:$rd),
              (ins GPR:$rs1, IdxClass:$rs2, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVLX</*Masked*/0, Ordered, EEW, VLMul, LMUL> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -589,20 +683,23 @@ class VPseudoILoadNoMask<VReg RetClass, VReg IdxClass>:
   let HasVLOp = 1;
   let HasSEWOp = 1;
   let HasDummyMask = 1;
+  let Constraints = !if(!eq(EarlyClobber, 1), "@earlyclobber $rd", "");
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoILoadMask<VReg RetClass, VReg IdxClass>:
+class VPseudoILoadMask<VReg RetClass, VReg IdxClass, bits<7> EEW, bits<3> LMUL,
+                       bit Ordered, bit EarlyClobber>:
       Pseudo<(outs GetVRegNoV0<RetClass>.R:$rd),
               (ins GetVRegNoV0<RetClass>.R:$merge,
                    GPR:$rs1, IdxClass:$rs2,
                    VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVLX</*Masked*/1, Ordered, EEW, VLMul, LMUL> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
-  let Constraints = "$rd = $merge";
+  let Constraints = !if(!eq(EarlyClobber, 1), "@earlyclobber $rd, $rd = $merge", "$rd = $merge");
   let Uses = [VL, VTYPE];
   let HasVLOp = 1;
   let HasSEWOp = 1;
@@ -610,10 +707,11 @@ class VPseudoILoadMask<VReg RetClass, VReg IdxClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoUSStoreNoMask<VReg StClass>:
+class VPseudoUSStoreNoMask<VReg StClass, bits<7> EEW>:
       Pseudo<(outs),
               (ins StClass:$rd, GPR:$rs1, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVSE</*Masked*/0, /*Strided*/0, EEW, VLMul> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -625,10 +723,11 @@ class VPseudoUSStoreNoMask<VReg StClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoUSStoreMask<VReg StClass>:
+class VPseudoUSStoreMask<VReg StClass, bits<7> EEW>:
       Pseudo<(outs),
               (ins StClass:$rd, GPR:$rs1, VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVSE</*Masked*/1, /*Strided*/0, EEW, VLMul> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -639,10 +738,11 @@ class VPseudoUSStoreMask<VReg StClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoSStoreNoMask<VReg StClass>:
+class VPseudoSStoreNoMask<VReg StClass, bits<7> EEW>:
       Pseudo<(outs),
               (ins StClass:$rd, GPR:$rs1, GPR:$rs2, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVSE</*Masked*/0, /*Strided*/1, EEW, VLMul> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -654,10 +754,11 @@ class VPseudoSStoreNoMask<VReg StClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoSStoreMask<VReg StClass>:
+class VPseudoSStoreMask<VReg StClass, bits<7> EEW>:
       Pseudo<(outs),
               (ins StClass:$rd, GPR:$rs1, GPR:$rs2, VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVSE</*Masked*/1, /*Strided*/1, EEW, VLMul> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -838,10 +939,12 @@ class VPseudoBinaryNoMask<VReg RetClass,
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoIStoreNoMask<VReg StClass, VReg IdxClass>:
+class VPseudoIStoreNoMask<VReg StClass, VReg IdxClass, bits<7> EEW, bits<3> LMUL,
+                          bit Ordered>:
       Pseudo<(outs),
               (ins StClass:$rd, GPR:$rs1, IdxClass:$rs2, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVSX</*Masked*/0, Ordered, EEW, VLMul, LMUL> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -853,10 +956,12 @@ class VPseudoIStoreNoMask<VReg StClass, VReg IdxClass>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoIStoreMask<VReg StClass, VReg IdxClass>:
+class VPseudoIStoreMask<VReg StClass, VReg IdxClass, bits<7> EEW, bits<3> LMUL,
+                        bit Ordered>:
       Pseudo<(outs),
               (ins StClass:$rd, GPR:$rs1, IdxClass:$rs2, VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
-      RISCVVPseudo {
+      RISCVVPseudo,
+      RISCVVSX</*Masked*/1, Ordered, EEW, VLMul, LMUL> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -986,12 +1091,10 @@ multiclass VPseudoAMOEI<int eew> {
       defvar octuple_emul = !srl(!mul(eew, octuple_lmul), shift_amount<sew>.val);
       if !and(!ge(octuple_emul, 1), !le(octuple_emul, 64)) then {
         defvar emulMX = octuple_to_str<octuple_emul>.ret;
-        defvar lmulMX = octuple_to_str<octuple_lmul>.ret;
         defvar emul= !cast<LMULInfo>("V_" # emulMX);
-        defvar lmul = !cast<LMULInfo>("V_" # lmulMX);
         let VLMul = lmul.value in {
-          def "_WD_" # lmulMX # "_" # emulMX : VPseudoAMOWDNoMask<lmul.vrclass, emul.vrclass>;
-          def "_WD_" # lmulMX # "_" # emulMX # "_MASK" : VPseudoAMOWDMask<lmul.vrclass, emul.vrclass>;
+          def "_WD_" # lmul.MX # "_" # emulMX : VPseudoAMOWDNoMask<lmul.vrclass, emul.vrclass>;
+          def "_WD_" # lmul.MX # "_" # emulMX # "_MASK" : VPseudoAMOWDMask<lmul.vrclass, emul.vrclass>;
         }
       }
     }
@@ -1003,11 +1106,11 @@ multiclass VPseudoAMO {
     defm "EI" # eew : VPseudoAMOEI<eew>;
 }
 
-class VPseudoUSSegLoadNoMask<VReg RetClass, bits<11> EEW>:
+class VPseudoUSSegLoadNoMask<VReg RetClass, bits<7> EEW, bits<4> NF, bit isFF>:
       Pseudo<(outs RetClass:$rd),
              (ins GPR:$rs1, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, false>.Intrinsic, EEW, VLMul> {
+      RISCVVLSEG<NF, /*Masked*/0, /*Strided*/0, /*FF*/isFF, EEW, VLMul> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -1019,12 +1122,12 @@ class VPseudoUSSegLoadNoMask<VReg RetClass, bits<11> EEW>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoUSSegLoadMask<VReg RetClass, bits<11> EEW>:
+class VPseudoUSSegLoadMask<VReg RetClass, bits<7> EEW, bits<4> NF, bit isFF>:
       Pseudo<(outs GetVRegNoV0<RetClass>.R:$rd),
              (ins GetVRegNoV0<RetClass>.R:$merge, GPR:$rs1,
                   VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, true>.Intrinsic, EEW, VLMul> {
+      RISCVVLSEG<NF, /*Masked*/1, /*Strided*/0, /*FF*/isFF, EEW, VLMul> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -1037,11 +1140,12 @@ class VPseudoUSSegLoadMask<VReg RetClass, bits<11> EEW>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoSSegLoadNoMask<VReg RetClass, bits<11> EEW>:
+class VPseudoSSegLoadNoMask<VReg RetClass, bits<7> EEW, bits<4> NF>:
       Pseudo<(outs RetClass:$rd),
              (ins GPR:$rs1, GPR:$offset, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, false>.Intrinsic, EEW, VLMul> {
+      RISCVVLSEG<NF, /*Masked*/0, /*Strided*/1, /*FF*/0, EEW, VLMul> {
+  let mayLoad = 1;
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -1053,12 +1157,12 @@ class VPseudoSSegLoadNoMask<VReg RetClass, bits<11> EEW>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoSSegLoadMask<VReg RetClass, bits<11> EEW>:
+class VPseudoSSegLoadMask<VReg RetClass, bits<7> EEW, bits<4> NF>:
       Pseudo<(outs GetVRegNoV0<RetClass>.R:$rd),
              (ins GetVRegNoV0<RetClass>.R:$merge, GPR:$rs1,
                   GPR:$offset, VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, true>.Intrinsic, EEW, VLMul> {
+      RISCVVLSEG<NF, /*Masked*/1, /*Strided*/1, /*FF*/0, EEW, VLMul> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -1071,11 +1175,12 @@ class VPseudoSSegLoadMask<VReg RetClass, bits<11> EEW>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoISegLoadNoMask<VReg RetClass, VReg IdxClass, bits<11> EEW, bits<3> LMUL>:
+class VPseudoISegLoadNoMask<VReg RetClass, VReg IdxClass, bits<7> EEW, bits<3> LMUL,
+                            bits<4> NF, bit Ordered>:
       Pseudo<(outs RetClass:$rd),
              (ins GPR:$rs1, IdxClass:$offset, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, false>.Intrinsic, EEW, VLMul, LMUL> {
+      RISCVVLXSEG<NF, /*Masked*/0, Ordered, EEW, VLMul, LMUL> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -1090,12 +1195,13 @@ class VPseudoISegLoadNoMask<VReg RetClass, VReg IdxClass, bits<11> EEW, bits<3> 
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoISegLoadMask<VReg RetClass, VReg IdxClass, bits<11> EEW, bits<3> LMUL>:
+class VPseudoISegLoadMask<VReg RetClass, VReg IdxClass, bits<7> EEW, bits<3> LMUL,
+                          bits<4> NF, bit Ordered>:
       Pseudo<(outs GetVRegNoV0<RetClass>.R:$rd),
              (ins GetVRegNoV0<RetClass>.R:$merge, GPR:$rs1,
                   IdxClass:$offset, VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, true>.Intrinsic, EEW, VLMul, LMUL> {
+      RISCVVLXSEG<NF, /*Masked*/1, Ordered, EEW, VLMul, LMUL> {
   let mayLoad = 1;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -1110,11 +1216,11 @@ class VPseudoISegLoadMask<VReg RetClass, VReg IdxClass, bits<11> EEW, bits<3> LM
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoUSSegStoreNoMask<VReg ValClass, bits<11> EEW>:
+class VPseudoUSSegStoreNoMask<VReg ValClass, bits<7> EEW, bits<4> NF>:
       Pseudo<(outs),
              (ins ValClass:$rd, GPR:$rs1, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, false>.Intrinsic, EEW, VLMul> {
+      RISCVVSSEG<NF, /*Masked*/0, /*Strided*/0, EEW, VLMul> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -1126,12 +1232,12 @@ class VPseudoUSSegStoreNoMask<VReg ValClass, bits<11> EEW>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoUSSegStoreMask<VReg ValClass, bits<11> EEW>:
+class VPseudoUSSegStoreMask<VReg ValClass, bits<7> EEW, bits<4> NF>:
       Pseudo<(outs),
              (ins ValClass:$rd, GPR:$rs1,
                   VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, true>.Intrinsic, EEW, VLMul> {
+      RISCVVSSEG<NF, /*Masked*/1, /*Strided*/0, EEW, VLMul> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -1142,11 +1248,11 @@ class VPseudoUSSegStoreMask<VReg ValClass, bits<11> EEW>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoSSegStoreNoMask<VReg ValClass, bits<11> EEW>:
+class VPseudoSSegStoreNoMask<VReg ValClass, bits<7> EEW, bits<4> NF>:
       Pseudo<(outs),
              (ins ValClass:$rd, GPR:$rs1, GPR: $offset, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, false>.Intrinsic, EEW, VLMul> {
+      RISCVVSSEG<NF, /*Masked*/0, /*Strided*/1, EEW, VLMul> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -1158,12 +1264,12 @@ class VPseudoSSegStoreNoMask<VReg ValClass, bits<11> EEW>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoSSegStoreMask<VReg ValClass, bits<11> EEW>:
+class VPseudoSSegStoreMask<VReg ValClass, bits<7> EEW, bits<4> NF>:
       Pseudo<(outs),
              (ins ValClass:$rd, GPR:$rs1, GPR: $offset,
                   VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, true>.Intrinsic, EEW, VLMul> {
+      RISCVVSSEG<NF, /*Masked*/1, /*Strided*/1, EEW, VLMul> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -1174,12 +1280,13 @@ class VPseudoSSegStoreMask<VReg ValClass, bits<11> EEW>:
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoISegStoreNoMask<VReg ValClass, VReg IdxClass, bits<11> EEW, bits<3> LMUL>:
+class VPseudoISegStoreNoMask<VReg ValClass, VReg IdxClass, bits<7> EEW, bits<3> LMUL,
+                             bits<4> NF, bit Ordered>:
       Pseudo<(outs),
              (ins ValClass:$rd, GPR:$rs1, IdxClass: $index,
                   GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, false>.Intrinsic, EEW, VLMul, LMUL> {
+      RISCVVSXSEG<NF, /*Masked*/0, Ordered, EEW, VLMul, LMUL> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -1191,12 +1298,13 @@ class VPseudoISegStoreNoMask<VReg ValClass, VReg IdxClass, bits<11> EEW, bits<3>
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
-class VPseudoISegStoreMask<VReg ValClass, VReg IdxClass, bits<11> EEW, bits<3> LMUL>:
+class VPseudoISegStoreMask<VReg ValClass, VReg IdxClass, bits<7> EEW, bits<3> LMUL,
+                           bits<4> NF, bit Ordered>:
       Pseudo<(outs),
              (ins ValClass:$rd, GPR:$rs1, IdxClass: $index,
                   VMaskOp:$vm, GPR:$vl, ixlenimm:$sew),[]>,
       RISCVVPseudo,
-      RISCVZvlsseg<PseudoToIntrinsic<NAME, true>.Intrinsic, EEW, VLMul, LMUL> {
+      RISCVVSXSEG<NF, /*Masked*/1, Ordered, EEW, VLMul, LMUL> {
   let mayLoad = 0;
   let mayStore = 1;
   let hasSideEffects = 0;
@@ -1214,8 +1322,10 @@ multiclass VPseudoUSLoad<bit isFF> {
       defvar vreg = lmul.vrclass;
       defvar FFStr = !if(isFF, "FF", "");
       let VLMul = lmul.value in {
-        def "E" # eew # FFStr # "_V_" # LInfo : VPseudoUSLoadNoMask<vreg>;
-        def "E" # eew # FFStr # "_V_" # LInfo # "_MASK" : VPseudoUSLoadMask<vreg>;
+        def "E" # eew # FFStr # "_V_" # LInfo :
+          VPseudoUSLoadNoMask<vreg, eew, isFF>;
+        def "E" # eew # FFStr # "_V_" # LInfo # "_MASK" :
+          VPseudoUSLoadMask<vreg, eew, isFF>;
       }
     }
   }
@@ -1224,7 +1334,7 @@ multiclass VPseudoUSLoad<bit isFF> {
 multiclass VPseudoLoadMask {
   foreach mti = AllMasks in {
     let VLMul = mti.LMul.value in {
-      def "_V_" # mti.BX : VPseudoUSLoadNoMask<VR>;
+      def "_V_" # mti.BX : VPseudoUSLoadNoMask<VR, /*EEW*/1, /*isFF*/0>;
     }
   }
 }
@@ -1235,24 +1345,34 @@ multiclass VPseudoSLoad {
       defvar LInfo = lmul.MX;
       defvar vreg = lmul.vrclass;
       let VLMul = lmul.value in {
-        def "E" # eew # "_V_" # LInfo : VPseudoSLoadNoMask<vreg>;
-        def "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoSLoadMask<vreg>;
+        def "E" # eew # "_V_" # LInfo : VPseudoSLoadNoMask<vreg, eew>;
+        def "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoSLoadMask<vreg, eew>;
       }
     }
   }
 }
 
-multiclass VPseudoILoad {
+multiclass VPseudoILoad<bit Ordered> {
   foreach eew = EEWList in {
-    foreach lmul = MxList.m in
-    foreach idx_lmul = MxSet<eew>.m in {
-      defvar LInfo = lmul.MX;
-      defvar Vreg = lmul.vrclass;
-      defvar IdxLInfo = idx_lmul.MX;
-      defvar IdxVreg = idx_lmul.vrclass;
-      let VLMul = lmul.value in {
-        def "EI" # eew # "_V_" # IdxLInfo # "_" # LInfo : VPseudoILoadNoMask<Vreg, IdxVreg>;
-        def "EI" # eew # "_V_" # IdxLInfo # "_" # LInfo # "_MASK" : VPseudoILoadMask<Vreg, IdxVreg>;
+    foreach sew = EEWList in {
+      foreach lmul = MxSet<sew>.m in {
+        defvar octuple_lmul = octuple_from_str<lmul.MX>.ret;
+        // Calculate emul = eew * lmul / sew
+        defvar octuple_emul = !srl(!mul(eew, octuple_lmul), shift_amount<sew>.val);
+        if !and(!ge(octuple_emul, 1), !le(octuple_emul, 64)) then {
+          defvar LInfo = lmul.MX;
+          defvar IdxLInfo = octuple_to_str<octuple_emul>.ret;
+          defvar idx_lmul = !cast<LMULInfo>("V_" # IdxLInfo);
+          defvar Vreg = lmul.vrclass;
+          defvar IdxVreg = idx_lmul.vrclass;
+          defvar HasConstraint = !ne(sew, eew);
+          let VLMul = lmul.value in {
+            def "EI" # eew # "_V_" # IdxLInfo # "_" # LInfo :
+              VPseudoILoadNoMask<Vreg, IdxVreg, eew, idx_lmul.value, Ordered, HasConstraint>;
+            def "EI" # eew # "_V_" # IdxLInfo # "_" # LInfo # "_MASK" :
+              VPseudoILoadMask<Vreg, IdxVreg, eew, idx_lmul.value, Ordered, HasConstraint>;
+          }
+        }
       }
     }
   }
@@ -1264,8 +1384,8 @@ multiclass VPseudoUSStore {
       defvar LInfo = lmul.MX;
       defvar vreg = lmul.vrclass;
       let VLMul = lmul.value in {
-        def "E" # eew # "_V_" # LInfo : VPseudoUSStoreNoMask<vreg>;
-        def "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoUSStoreMask<vreg>;
+        def "E" # eew # "_V_" # LInfo : VPseudoUSStoreNoMask<vreg, eew>;
+        def "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoUSStoreMask<vreg, eew>;
       }
     }
   }
@@ -1274,7 +1394,7 @@ multiclass VPseudoUSStore {
 multiclass VPseudoStoreMask {
   foreach mti = AllMasks in {
     let VLMul = mti.LMul.value in {
-      def "_V_" # mti.BX : VPseudoUSStoreNoMask<VR>;
+      def "_V_" # mti.BX : VPseudoUSStoreNoMask<VR, /*EEW*/1>;
     }
   }
 }
@@ -1285,26 +1405,33 @@ multiclass VPseudoSStore {
       defvar LInfo = lmul.MX;
       defvar vreg = lmul.vrclass;
       let VLMul = lmul.value in {
-        def "E" # eew # "_V_" # LInfo : VPseudoSStoreNoMask<vreg>;
-        def "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoSStoreMask<vreg>;
+        def "E" # eew # "_V_" # LInfo : VPseudoSStoreNoMask<vreg, eew>;
+        def "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoSStoreMask<vreg, eew>;
       }
     }
   }
 }
 
-multiclass VPseudoIStore {
+multiclass VPseudoIStore<bit Ordered> {
   foreach eew = EEWList in {
-    foreach lmul = MxList.m in
-    foreach idx_lmul = MxSet<eew>.m in {
-      defvar LInfo = lmul.MX;
-      defvar Vreg = lmul.vrclass;
-      defvar IdxLInfo = idx_lmul.MX;
-      defvar IdxVreg = idx_lmul.vrclass;
-      let VLMul = lmul.value in {
-        def "EI" # eew # "_V_" # IdxLInfo # "_" # LInfo :
-          VPseudoIStoreNoMask<Vreg, IdxVreg>;
-        def "EI" # eew # "_V_" # IdxLInfo # "_" # LInfo # "_MASK" :
-          VPseudoIStoreMask<Vreg, IdxVreg>;
+    foreach sew = EEWList in {
+      foreach lmul = MxSet<sew>.m in {
+        defvar octuple_lmul = octuple_from_str<lmul.MX>.ret;
+        // Calculate emul = eew * lmul / sew
+        defvar octuple_emul = !srl(!mul(eew, octuple_lmul), shift_amount<sew>.val);
+        if !and(!ge(octuple_emul, 1), !le(octuple_emul, 64)) then {
+          defvar LInfo = lmul.MX;
+          defvar IdxLInfo = octuple_to_str<octuple_emul>.ret;
+          defvar idx_lmul = !cast<LMULInfo>("V_" # IdxLInfo);
+          defvar Vreg = lmul.vrclass;
+          defvar IdxVreg = idx_lmul.vrclass;
+          let VLMul = lmul.value in {
+            def "EI" # eew # "_V_" # IdxLInfo # "_" # LInfo :
+              VPseudoIStoreNoMask<Vreg, IdxVreg, eew, idx_lmul.value, Ordered>;
+            def "EI" # eew # "_V_" # IdxLInfo # "_" # LInfo # "_MASK" :
+              VPseudoIStoreMask<Vreg, IdxVreg, eew, idx_lmul.value, Ordered>;
+          }
+        }
       }
     }
   }
@@ -1879,9 +2006,9 @@ multiclass VPseudoUSSegLoad<bit isFF> {
           defvar vreg = SegRegClass<lmul, nf>.RC;
           defvar FFStr = !if(isFF, "FF", "");
           def nf # "E" # eew # FFStr # "_V_" # LInfo :
-            VPseudoUSSegLoadNoMask<vreg, eew>;
+            VPseudoUSSegLoadNoMask<vreg, eew, nf, isFF>;
           def nf # "E" # eew # FFStr # "_V_" # LInfo # "_MASK" :
-            VPseudoUSSegLoadMask<vreg, eew>;
+            VPseudoUSSegLoadMask<vreg, eew, nf, isFF>;
         }
       }
     }
@@ -1895,28 +2022,37 @@ multiclass VPseudoSSegLoad {
       let VLMul = lmul.value in {
         foreach nf = NFSet<lmul>.L in {
           defvar vreg = SegRegClass<lmul, nf>.RC;
-          def nf # "E" # eew # "_V_" # LInfo : VPseudoSSegLoadNoMask<vreg, eew>;
-          def nf # "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoSSegLoadMask<vreg, eew>;
+          def nf # "E" # eew # "_V_" # LInfo : VPseudoSSegLoadNoMask<vreg, eew, nf>;
+          def nf # "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoSSegLoadMask<vreg, eew, nf>;
         }
       }
     }
   }
 }
 
-multiclass VPseudoISegLoad {
-  foreach idx_eew = EEWList in {  // EEW for index argument.
-    foreach idx_lmul = MxSet<idx_eew>.m in {  // LMUL for index argument.
-      foreach val_lmul = MxList.m in {  // LMUL for the value.
-        defvar IdxLInfo = idx_lmul.MX;
-        defvar IdxVreg = idx_lmul.vrclass;
-        defvar ValLInfo = val_lmul.MX;
-        let VLMul = val_lmul.value in {
-          foreach nf = NFSet<val_lmul>.L in {
-            defvar ValVreg = SegRegClass<val_lmul, nf>.RC;
-            def nf # "EI" # idx_eew # "_V_" # IdxLInfo # "_" # ValLInfo :
-              VPseudoISegLoadNoMask<ValVreg, IdxVreg, idx_eew, idx_lmul.value>;
-            def nf # "EI" # idx_eew # "_V_" # IdxLInfo # "_" # ValLInfo # "_MASK" :
-              VPseudoISegLoadMask<ValVreg, IdxVreg, idx_eew, idx_lmul.value>;
+multiclass VPseudoISegLoad<bit Ordered> {
+  foreach idx_eew = EEWList in {
+    foreach sew = EEWList in {
+      foreach val_lmul = MxSet<sew>.m in {
+        defvar octuple_lmul = octuple_from_str<val_lmul.MX>.ret;
+        // Calculate emul = eew * lmul / sew
+        defvar octuple_emul = !srl(!mul(idx_eew, octuple_lmul), shift_amount<sew>.val);
+        if !and(!ge(octuple_emul, 1), !le(octuple_emul, 64)) then {
+          defvar ValLInfo = val_lmul.MX;
+          defvar IdxLInfo = octuple_to_str<octuple_emul>.ret;
+          defvar idx_lmul = !cast<LMULInfo>("V_" # IdxLInfo);
+          defvar Vreg = val_lmul.vrclass;
+          defvar IdxVreg = idx_lmul.vrclass;
+          let VLMul = val_lmul.value in {
+            foreach nf = NFSet<val_lmul>.L in {
+              defvar ValVreg = SegRegClass<val_lmul, nf>.RC;
+              def nf # "EI" # idx_eew # "_V_" # IdxLInfo # "_" # ValLInfo :
+                VPseudoISegLoadNoMask<ValVreg, IdxVreg, idx_eew, idx_lmul.value,
+                                      nf, Ordered>;
+              def nf # "EI" # idx_eew # "_V_" # IdxLInfo # "_" # ValLInfo # "_MASK" :
+                VPseudoISegLoadMask<ValVreg, IdxVreg, idx_eew, idx_lmul.value,
+                                    nf, Ordered>;
+            }
           }
         }
       }
@@ -1931,8 +2067,8 @@ multiclass VPseudoUSSegStore {
       let VLMul = lmul.value in {
         foreach nf = NFSet<lmul>.L in {
           defvar vreg = SegRegClass<lmul, nf>.RC;
-          def nf # "E" # eew # "_V_" # LInfo : VPseudoUSSegStoreNoMask<vreg, eew>;
-          def nf # "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoUSSegStoreMask<vreg, eew>;
+          def nf # "E" # eew # "_V_" # LInfo : VPseudoUSSegStoreNoMask<vreg, eew, nf>;
+          def nf # "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoUSSegStoreMask<vreg, eew, nf>;
         }
       }
     }
@@ -1946,28 +2082,37 @@ multiclass VPseudoSSegStore {
       let VLMul = lmul.value in {
         foreach nf = NFSet<lmul>.L in {
           defvar vreg = SegRegClass<lmul, nf>.RC;
-          def nf # "E" # eew # "_V_" # LInfo : VPseudoSSegStoreNoMask<vreg, eew>;
-          def nf # "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoSSegStoreMask<vreg, eew>;
+          def nf # "E" # eew # "_V_" # LInfo : VPseudoSSegStoreNoMask<vreg, eew, nf>;
+          def nf # "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoSSegStoreMask<vreg, eew, nf>;
         }
       }
     }
   }
 }
 
-multiclass VPseudoISegStore {
-  foreach idx_eew = EEWList in {  // EEW for index argument.
-    foreach idx_lmul = MxSet<idx_eew>.m in {  // LMUL for index argument.
-      foreach val_lmul = MxList.m in {  // LMUL for the value.
-        defvar IdxLInfo = idx_lmul.MX;
-        defvar IdxVreg = idx_lmul.vrclass;
-        defvar ValLInfo = val_lmul.MX;
-        let VLMul = val_lmul.value in {
-          foreach nf = NFSet<val_lmul>.L in {
-            defvar ValVreg = SegRegClass<val_lmul, nf>.RC;
-            def nf # "EI" # idx_eew # "_V_" # IdxLInfo # "_" # ValLInfo :
-              VPseudoISegStoreNoMask<ValVreg, IdxVreg, idx_eew, idx_lmul.value>;
-            def nf # "EI" # idx_eew # "_V_" # IdxLInfo # "_" # ValLInfo # "_MASK" :
-              VPseudoISegStoreMask<ValVreg, IdxVreg, idx_eew, idx_lmul.value>;
+multiclass VPseudoISegStore<bit Ordered> {
+  foreach idx_eew = EEWList in {
+    foreach sew = EEWList in {
+      foreach val_lmul = MxSet<sew>.m in {
+        defvar octuple_lmul = octuple_from_str<val_lmul.MX>.ret;
+        // Calculate emul = eew * lmul / sew
+        defvar octuple_emul = !srl(!mul(idx_eew, octuple_lmul), shift_amount<sew>.val);
+        if !and(!ge(octuple_emul, 1), !le(octuple_emul, 64)) then {
+          defvar ValLInfo = val_lmul.MX;
+          defvar IdxLInfo = octuple_to_str<octuple_emul>.ret;
+          defvar idx_lmul = !cast<LMULInfo>("V_" # IdxLInfo);
+          defvar Vreg = val_lmul.vrclass;
+          defvar IdxVreg = idx_lmul.vrclass;
+          let VLMul = val_lmul.value in {
+            foreach nf = NFSet<val_lmul>.L in {
+              defvar ValVreg = SegRegClass<val_lmul, nf>.RC;
+              def nf # "EI" # idx_eew # "_V_" # IdxLInfo # "_" # ValLInfo :
+                VPseudoISegStoreNoMask<ValVreg, IdxVreg, idx_eew, idx_lmul.value,
+                                       nf, Ordered>;
+              def nf # "EI" # idx_eew # "_V_" # IdxLInfo # "_" # ValLInfo # "_MASK" :
+                VPseudoISegStoreMask<ValVreg, IdxVreg, idx_eew, idx_lmul.value,
+                                     nf, Ordered>;
+            }
           }
         }
       }
@@ -2180,147 +2325,6 @@ class VPatAMOWDMask<string intrinsic_name,
                    (!cast<Instruction>(inst # "_WD_" # vlmul.MX # "_" # emul.MX # "_MASK")
                     $rs1, $vs2, $vd,
                     (mask_type V0), GPR:$vl, sew)>;
-
-multiclass VPatUSLoad<string intrinsic,
-                      string inst,
-                      ValueType type,
-                      ValueType mask_type,
-                      int sew,
-                      LMULInfo vlmul,
-                      VReg reg_class>
-{
-    defvar Intr = !cast<Intrinsic>(intrinsic);
-    defvar Pseudo = !cast<Instruction>(inst#"_V_"#vlmul.MX);
-    def : Pat<(type (Intr GPR:$rs1, (XLenVT (VLOp GPR:$vl)))),
-                    (Pseudo $rs1, GPR:$vl, sew)>;
-    defvar IntrMask = !cast<Intrinsic>(intrinsic # "_mask");
-    defvar PseudoMask = !cast<Instruction>(inst#"_V_"#vlmul.MX#"_MASK");
-    def : Pat<(type (IntrMask (type GetVRegNoV0<reg_class>.R:$merge),
-                               GPR:$rs1, (mask_type V0), (XLenVT (VLOp GPR:$vl)))),
-                    (PseudoMask $merge,
-                                $rs1, (mask_type V0), GPR:$vl, sew)>;
-}
-
-multiclass VPatUSLoadFF<string inst,
-                        ValueType type,
-                        ValueType mask_type,
-                        int sew,
-                        LMULInfo vlmul,
-                        VReg reg_class>
-{
-    defvar Pseudo = !cast<Instruction>(inst#"_V_"#vlmul.MX);
-    def : Pat<(type (riscv_vleff GPR:$rs1, (XLenVT (VLOp GPR:$vl)))),
-                    (Pseudo $rs1, GPR:$vl, sew)>;
-    defvar PseudoMask = !cast<Instruction>(inst#"_V_"#vlmul.MX#"_MASK");
-    def : Pat<(type (riscv_vleff_mask (type GetVRegNoV0<reg_class>.R:$merge),
-                                      GPR:$rs1, (mask_type V0), (XLenVT (VLOp GPR:$vl)))),
-                    (PseudoMask $merge,
-                                $rs1, (mask_type V0), GPR:$vl, sew)>;
-}
-
-multiclass VPatSLoad<string intrinsic,
-                     string inst,
-                     ValueType type,
-                     ValueType mask_type,
-                     int sew,
-                     LMULInfo vlmul,
-                     VReg reg_class>
-{
-    defvar Intr = !cast<Intrinsic>(intrinsic);
-    defvar Pseudo = !cast<Instruction>(inst#"_V_"#vlmul.MX);
-    def : Pat<(type (Intr GPR:$rs1, GPR:$rs2, (XLenVT (VLOp GPR:$vl)))),
-                    (Pseudo $rs1, $rs2, GPR:$vl, sew)>;
-    defvar IntrMask = !cast<Intrinsic>(intrinsic # "_mask");
-    defvar PseudoMask = !cast<Instruction>(inst#"_V_"#vlmul.MX#"_MASK");
-    def : Pat<(type (IntrMask (type GetVRegNoV0<reg_class>.R:$merge),
-                               GPR:$rs1, GPR:$rs2, (mask_type V0), (XLenVT (VLOp GPR:$vl)))),
-                    (PseudoMask $merge,
-                                $rs1, $rs2, (mask_type V0), GPR:$vl, sew)>;
-}
-
-multiclass VPatILoad<string intrinsic,
-                     string inst,
-                     ValueType type,
-                     ValueType idx_type,
-                     ValueType mask_type,
-                     int sew,
-                     LMULInfo vlmul,
-                     LMULInfo idx_vlmul,
-                     VReg reg_class,
-                     VReg idx_reg_class>
-{
-    defvar Intr = !cast<Intrinsic>(intrinsic);
-    defvar Pseudo = !cast<Instruction>(inst#"_V_"#idx_vlmul.MX#"_"#vlmul.MX);
-    def : Pat<(type (Intr GPR:$rs1, (idx_type idx_reg_class:$rs2), (XLenVT (VLOp GPR:$vl)))),
-                    (Pseudo $rs1, $rs2, GPR:$vl, sew)>;
-
-    defvar IntrMask = !cast<Intrinsic>(intrinsic # "_mask");
-    defvar PseudoMask = !cast<Instruction>(inst#"_V_"#idx_vlmul.MX#"_"#vlmul.MX#"_MASK");
-    def : Pat<(type (IntrMask (type GetVRegNoV0<reg_class>.R:$merge),
-                               GPR:$rs1, (idx_type idx_reg_class:$rs2),
-                               (mask_type V0), (XLenVT (VLOp GPR:$vl)))),
-                    (PseudoMask $merge,
-                                $rs1, $rs2, (mask_type V0), GPR:$vl, sew)>;
-}
-
-multiclass VPatUSStore<string intrinsic,
-                       string inst,
-                       ValueType type,
-                       ValueType mask_type,
-                       int sew,
-                       LMULInfo vlmul,
-                       VReg reg_class>
-{
-    defvar Intr = !cast<Intrinsic>(intrinsic);
-    defvar Pseudo = !cast<Instruction>(inst#"_V_"#vlmul.MX);
-    def : Pat<(Intr (type reg_class:$rs3), GPR:$rs1, (XLenVT (VLOp GPR:$vl))),
-                    (Pseudo $rs3, $rs1, GPR:$vl, sew)>;
-    defvar IntrMask = !cast<Intrinsic>(intrinsic # "_mask");
-    defvar PseudoMask = !cast<Instruction>(inst#"_V_"#vlmul.MX#"_MASK");
-    def : Pat<(IntrMask (type reg_class:$rs3), GPR:$rs1, (mask_type V0), (XLenVT (VLOp GPR:$vl))),
-              (PseudoMask $rs3, $rs1, (mask_type V0), GPR:$vl, sew)>;
-}
-
-multiclass VPatSStore<string intrinsic,
-                      string inst,
-                      ValueType type,
-                      ValueType mask_type,
-                      int sew,
-                      LMULInfo vlmul,
-                      VReg reg_class>
-{
-    defvar Intr = !cast<Intrinsic>(intrinsic);
-    defvar Pseudo = !cast<Instruction>(inst#"_V_"#vlmul.MX);
-    def : Pat<(Intr (type reg_class:$rs3), GPR:$rs1, GPR:$rs2, (XLenVT (VLOp GPR:$vl))),
-                    (Pseudo $rs3, $rs1, $rs2, GPR:$vl, sew)>;
-    defvar IntrMask = !cast<Intrinsic>(intrinsic # "_mask");
-    defvar PseudoMask = !cast<Instruction>(inst#"_V_"#vlmul.MX#"_MASK");
-    def : Pat<(IntrMask (type reg_class:$rs3), GPR:$rs1, GPR:$rs2, (mask_type V0), (XLenVT (VLOp GPR:$vl))),
-              (PseudoMask $rs3, $rs1, $rs2, (mask_type V0), GPR:$vl, sew)>;
-}
-
-multiclass VPatIStore<string intrinsic,
-                      string inst,
-                      ValueType type,
-                      ValueType idx_type,
-                      ValueType mask_type,
-                      int sew,
-                      LMULInfo vlmul,
-                      LMULInfo idx_vlmul,
-                      VReg reg_class,
-                      VReg idx_reg_class>
-{
-    defvar Intr = !cast<Intrinsic>(intrinsic);
-    defvar Pseudo = !cast<Instruction>(inst#"_V_"#idx_vlmul.MX#"_"#vlmul.MX);
-    def : Pat<(Intr (type reg_class:$rs3), GPR:$rs1,
-                    (idx_type idx_reg_class:$rs2), (XLenVT (VLOp GPR:$vl))),
-              (Pseudo $rs3, $rs1, $rs2, GPR:$vl, sew)>;
-    defvar IntrMask = !cast<Intrinsic>(intrinsic # "_mask");
-    defvar PseudoMask = !cast<Instruction>(inst#"_V_"#idx_vlmul.MX#"_"#vlmul.MX#"_MASK");
-    def : Pat<(IntrMask (type reg_class:$rs3), GPR:$rs1,
-                        (idx_type idx_reg_class:$rs2), (mask_type V0), (XLenVT (VLOp GPR:$vl))),
-              (PseudoMask $rs3, $rs1, $rs2, (mask_type V0), GPR:$vl, sew)>;
-}
 
 multiclass VPatUnaryS_M<string intrinsic_name,
                              string inst>
@@ -3155,6 +3159,34 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCodeGenOnly = 1,
     Uses = [VL] in
 def PseudoReadVL : Pseudo<(outs GPR:$rd), (ins), []>;
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 1, isCodeGenOnly = 1 in {
+  def PseudoVSPILL_M1 : VPseudo<VS1R_V, V_M1, (outs), (ins VR:$rs1, GPR:$rs2)>;
+  def PseudoVSPILL_M2 : VPseudo<VS2R_V, V_M2, (outs), (ins VRM2:$rs1, GPR:$rs2)>;
+  def PseudoVSPILL_M4 : VPseudo<VS4R_V, V_M4, (outs), (ins VRM4:$rs1, GPR:$rs2)>;
+  def PseudoVSPILL_M8 : VPseudo<VS8R_V, V_M8, (outs), (ins VRM8:$rs1, GPR:$rs2)>;
+}
+
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 1 in {
+  def PseudoVRELOAD_M1 : VPseudo<VL1RE8_V, V_M1, (outs VR:$rs1), (ins GPR:$rs2)>;
+  def PseudoVRELOAD_M2 : VPseudo<VL2RE8_V, V_M2, (outs VRM2:$rs1), (ins GPR:$rs2)>;
+  def PseudoVRELOAD_M4 : VPseudo<VL4RE8_V, V_M4, (outs VRM4:$rs1), (ins GPR:$rs2)>;
+  def PseudoVRELOAD_M8 : VPseudo<VL8RE8_V, V_M8, (outs VRM8:$rs1), (ins GPR:$rs2)>;
+}
+
+foreach lmul = MxList.m in {
+  foreach nf = NFSet<lmul>.L in {
+    defvar vreg = SegRegClass<lmul, nf>.RC;
+    let hasSideEffects = 0, mayLoad = 0, mayStore = 1, isCodeGenOnly = 1 in {
+      def "PseudoVSPILL" # nf # "_" # lmul.MX :
+        Pseudo<(outs), (ins vreg:$rs1, GPR:$rs2, GPR:$vlenb), []>;
+    }
+    let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 1 in {
+      def "PseudoVRELOAD" # nf # "_" # lmul.MX :
+        Pseudo<(outs vreg:$rs1), (ins GPR:$rs2, GPR:$vlenb), []>;
+    }
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // 6. Configuration-Setting Instructions
 //===----------------------------------------------------------------------===//
@@ -3193,10 +3225,10 @@ defm PseudoVSS : VPseudoSStore;
 //===----------------------------------------------------------------------===//
 
 // Vector Indexed Loads and Stores
-defm PseudoVLUX : VPseudoILoad;
-defm PseudoVLOX : VPseudoILoad;
-defm PseudoVSOX : VPseudoIStore;
-defm PseudoVSUX : VPseudoIStore;
+defm PseudoVLUX : VPseudoILoad</*Ordered=*/false>;
+defm PseudoVLOX : VPseudoILoad</*Ordered=*/true>;
+defm PseudoVSOX : VPseudoIStore</*Ordered=*/true>;
+defm PseudoVSUX : VPseudoIStore</*Ordered=*/false>;
 
 //===----------------------------------------------------------------------===//
 // 7.7. Unit-stride Fault-Only-First Loads
@@ -3211,12 +3243,12 @@ defm PseudoVL : VPseudoUSLoad</*isFF=*/true>;
 //===----------------------------------------------------------------------===//
 defm PseudoVLSEG : VPseudoUSSegLoad</*isFF=*/false>;
 defm PseudoVLSSEG : VPseudoSSegLoad;
-defm PseudoVLOXSEG : VPseudoISegLoad;
-defm PseudoVLUXSEG : VPseudoISegLoad;
+defm PseudoVLOXSEG : VPseudoISegLoad</*Ordered=*/true>;
+defm PseudoVLUXSEG : VPseudoISegLoad</*Ordered=*/false>;
 defm PseudoVSSEG : VPseudoUSSegStore;
 defm PseudoVSSSEG : VPseudoSSegStore;
-defm PseudoVSOXSEG : VPseudoISegStore;
-defm PseudoVSUXSEG : VPseudoISegStore;
+defm PseudoVSOXSEG : VPseudoISegStore</*Ordered=*/true>;
+defm PseudoVSUXSEG : VPseudoISegStore</*Ordered=*/false>;
 
 // vlseg<nf>e<eew>ff.v may update VL register
 let hasSideEffects = 1, Defs = [VL] in
@@ -3245,6 +3277,53 @@ defm PseudoVAMOMAXU : VPseudoAMO;
 defm PseudoVADD        : VPseudoBinaryV_VV_VX_VI;
 defm PseudoVSUB        : VPseudoBinaryV_VV_VX;
 defm PseudoVRSUB       : VPseudoBinaryV_VX_VI;
+
+foreach vti = AllIntegerVectors in {
+  // Match vrsub with 2 vector operands to vsub.vv by swapping operands. This
+  // Occurs when legalizing vrsub.vx intrinsics for i64 on RV32 since we need
+  // to use a more complex splat sequence. Add the pattern for all VTs for
+  // consistency.
+  def : Pat<(vti.Vector (int_riscv_vrsub (vti.Vector vti.RegClass:$rs2),
+                                         (vti.Vector vti.RegClass:$rs1),
+                                         (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVSUB_VV_"#vti.LMul.MX) vti.RegClass:$rs1,
+                                                              vti.RegClass:$rs2,
+                                                              GPR:$vl,
+                                                              vti.SEW)>;
+  def : Pat<(vti.Vector (int_riscv_vrsub_mask (vti.Vector vti.RegClass:$merge),
+                                              (vti.Vector vti.RegClass:$rs2),
+                                              (vti.Vector vti.RegClass:$rs1),
+                                              (vti.Mask V0),
+                                              (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVSUB_VV_"#vti.LMul.MX#"_MASK")
+                                                      vti.RegClass:$merge,
+                                                      vti.RegClass:$rs1,
+                                                      vti.RegClass:$rs2,
+                                                      (vti.Mask V0),
+                                                      GPR:$vl,
+                                                      vti.SEW)>;
+
+  // Match VSUB with a small immediate to vadd.vi by negating the immediate.
+  def : Pat<(vti.Vector (int_riscv_vsub (vti.Vector vti.RegClass:$rs1),
+                                        (vti.Scalar simm5_plus1:$rs2),
+                                        (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVADD_VI_"#vti.LMul.MX) vti.RegClass:$rs1,
+                                                              (NegImm simm5_plus1:$rs2),
+                                                              GPR:$vl,
+                                                              vti.SEW)>;
+  def : Pat<(vti.Vector (int_riscv_vsub_mask (vti.Vector vti.RegClass:$merge),
+                                             (vti.Vector vti.RegClass:$rs1),
+                                             (vti.Scalar simm5_plus1:$rs2),
+                                             (vti.Mask V0),
+                                             (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVADD_VI_"#vti.LMul.MX#"_MASK")
+                                                      vti.RegClass:$merge,
+                                                      vti.RegClass:$rs1,
+                                                      (NegImm simm5_plus1:$rs2),
+                                                      (vti.Mask V0),
+                                                      GPR:$vl,
+                                                      vti.SEW)>;
+}
 
 //===----------------------------------------------------------------------===//
 // 12.2. Vector Widening Integer Add/Subtract
@@ -3359,12 +3438,12 @@ defm PseudoVWMACCSU    : VPseudoTernaryW_VV_VX;
 defm PseudoVWMACCUS    : VPseudoTernaryW_VX;
 
 //===----------------------------------------------------------------------===//
-// 12.16. Vector Integer Merge Instructions
+// 12.15. Vector Integer Merge Instructions
 //===----------------------------------------------------------------------===//
 defm PseudoVMERGE      : VPseudoBinaryV_VM_XM_IM;
 
 //===----------------------------------------------------------------------===//
-// 12.17. Vector Integer Move Instructions
+// 12.16. Vector Integer Move Instructions
 //===----------------------------------------------------------------------===//
 defm PseudoVMV_V       : VPseudoUnaryV_V_X_I_NoDummyMask;
 
@@ -3729,91 +3808,6 @@ defm PseudoVCOMPRESS : VPseudoUnaryV_V_AnyMask;
 //===----------------------------------------------------------------------===//
 // Patterns.
 //===----------------------------------------------------------------------===//
-let Predicates = [HasStdExtV] in {
-
-//===----------------------------------------------------------------------===//
-// 7. Vector Loads and Stores
-//===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
-// 7.4 Vector Unit-Stride Instructions
-//===----------------------------------------------------------------------===//
-
-foreach vti = AllVectors in
-{
-  defm : VPatUSLoad<"int_riscv_vle",
-                    "PseudoVLE" # vti.SEW,
-                    vti.Vector, vti.Mask, vti.SEW, vti.LMul, vti.RegClass>;
-  defm : VPatUSLoadFF<"PseudoVLE" # vti.SEW # "FF",
-                      vti.Vector, vti.Mask, vti.SEW, vti.LMul, vti.RegClass>;
-  defm : VPatUSStore<"int_riscv_vse",
-                     "PseudoVSE" # vti.SEW,
-                     vti.Vector, vti.Mask, vti.SEW, vti.LMul, vti.RegClass>;
-}
-
-foreach vti = AllMasks in {
-  defvar PseudoVLE1 = !cast<Instruction>("PseudoVLE1_V_"#vti.BX);
-  def : Pat<(vti.Mask (int_riscv_vle1 GPR:$rs1, (XLenVT (VLOp GPR:$vl)))),
-            (PseudoVLE1 $rs1, GPR:$vl, vti.SEW)>;
-  defvar PseudoVSE1 = !cast<Instruction>("PseudoVSE1_V_"#vti.BX);
-  def : Pat<(int_riscv_vse1 (vti.Mask VR:$rs3), GPR:$rs1, (XLenVT (VLOp GPR:$vl))),
-            (PseudoVSE1 $rs3, $rs1, GPR:$vl, vti.SEW)>;
-}
-
-//===----------------------------------------------------------------------===//
-// 7.5 Vector Strided Instructions
-//===----------------------------------------------------------------------===//
-
-foreach vti = AllVectors in
-{
-  defm : VPatSLoad<"int_riscv_vlse",
-                   "PseudoVLSE" # vti.SEW,
-                   vti.Vector, vti.Mask, vti.SEW, vti.LMul, vti.RegClass>;
-  defm : VPatSStore<"int_riscv_vsse",
-                    "PseudoVSSE" # vti.SEW,
-                    vti.Vector, vti.Mask, vti.SEW, vti.LMul, vti.RegClass>;
-}
-
-//===----------------------------------------------------------------------===//
-// 7.6 Vector Indexed Instructions
-//===----------------------------------------------------------------------===//
-
-foreach vti = AllVectors in
-foreach eew = EEWList in {
-  defvar vlmul = vti.LMul;
-  defvar octuple_lmul = octuple_from_str<vti.LMul.MX>.ret;
-  defvar log_sew = shift_amount<vti.SEW>.val;
-  // The data vector register group has EEW=SEW, EMUL=LMUL, while the offset
-  // vector register group has EEW encoding in the instruction and EMUL=(EEW/SEW)*LMUL.
-  // calculate octuple elmul which is (eew * octuple_lmul) >> log_sew
-  defvar octuple_elmul = !srl(!mul(eew, octuple_lmul), log_sew);
-  // legal octuple elmul should be more than 0 and less than equal 64
-  if !gt(octuple_elmul, 0) then {
-    if !le(octuple_elmul, 64) then {
-       defvar elmul_str = octuple_to_str<octuple_elmul>.ret;
-       defvar elmul =!cast<LMULInfo>("V_" # elmul_str);
-       defvar idx_vti = !cast<VTypeInfo>("VI" # eew # elmul_str);
-
-       defm : VPatILoad<"int_riscv_vluxei",
-                        "PseudoVLUXEI"#eew,
-                         vti.Vector, idx_vti.Vector, vti.Mask, vti.SEW,
-                         vlmul, elmul, vti.RegClass, idx_vti.RegClass>;
-       defm : VPatILoad<"int_riscv_vloxei",
-                        "PseudoVLOXEI"#eew,
-                         vti.Vector, idx_vti.Vector, vti.Mask, vti.SEW,
-                         vlmul, elmul, vti.RegClass, idx_vti.RegClass>;
-       defm : VPatIStore<"int_riscv_vsoxei",
-                          "PseudoVSOXEI"#eew,
-                          vti.Vector, idx_vti.Vector, vti.Mask, vti.SEW,
-                          vlmul, elmul, vti.RegClass, idx_vti.RegClass>;
-       defm : VPatIStore<"int_riscv_vsuxei",
-                          "PseudoVSUXEI"#eew,
-                          vti.Vector, idx_vti.Vector, vti.Mask, vti.SEW,
-                          vlmul, elmul, vti.RegClass, idx_vti.RegClass>;
-    }
-  }
-}
-} // Predicates = [HasStdExtV]
 
 //===----------------------------------------------------------------------===//
 // 8. Vector AMO Operations
@@ -3921,21 +3915,68 @@ defm "" : VPatBinaryM_VV_VX_VI<"int_riscv_vmsle", "PseudoVMSLE", AllIntegerVecto
 defm "" : VPatBinaryM_VX_VI<"int_riscv_vmsgtu", "PseudoVMSGTU", AllIntegerVectors>;
 defm "" : VPatBinaryM_VX_VI<"int_riscv_vmsgt", "PseudoVMSGT", AllIntegerVectors>;
 
+// Match vmsgt with 2 vector operands to vmslt with the operands swapped.
+// Occurs when legalizing vmsgt(u).vx intrinsics for i64 on RV32 since we need
+// to use a more complex splat sequence. Add the pattern for all VTs for
+// consistency.
+foreach vti = AllIntegerVectors in {
+  def : Pat<(vti.Mask (int_riscv_vmsgt (vti.Vector vti.RegClass:$rs2),
+                                       (vti.Vector vti.RegClass:$rs1),
+                                       (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVMSLT_VV_"#vti.LMul.MX) vti.RegClass:$rs1,
+                                                               vti.RegClass:$rs2,
+                                                               GPR:$vl,
+                                                               vti.SEW)>;
+  def : Pat<(vti.Mask (int_riscv_vmsgt_mask (vti.Mask VR:$merge),
+                                            (vti.Vector vti.RegClass:$rs2),
+                                            (vti.Vector vti.RegClass:$rs1),
+                                            (vti.Mask V0),
+                                            (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVMSLT_VV_"#vti.LMul.MX#"_MASK")
+                                                      VR:$merge,
+                                                      vti.RegClass:$rs1,
+                                                      vti.RegClass:$rs2,
+                                                      (vti.Mask V0),
+                                                      GPR:$vl,
+                                                      vti.SEW)>;
+
+  def : Pat<(vti.Mask (int_riscv_vmsgtu (vti.Vector vti.RegClass:$rs2),
+                                        (vti.Vector vti.RegClass:$rs1),
+                                        (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVMSLTU_VV_"#vti.LMul.MX) vti.RegClass:$rs1,
+                                                                vti.RegClass:$rs2,
+                                                                GPR:$vl,
+                                                                vti.SEW)>;
+  def : Pat<(vti.Mask (int_riscv_vmsgtu_mask (vti.Mask VR:$merge),
+                                             (vti.Vector vti.RegClass:$rs2),
+                                             (vti.Vector vti.RegClass:$rs1),
+                                             (vti.Mask V0),
+                                             (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVMSLTU_VV_"#vti.LMul.MX#"_MASK")
+                                                       VR:$merge,
+                                                       vti.RegClass:$rs1,
+                                                       vti.RegClass:$rs2,
+                                                       (vti.Mask V0),
+                                                       GPR:$vl,
+                                                       vti.SEW)>;
+}
+
 // Match vmslt(u).vx intrinsics to vmsle(u).vi if the scalar is -15 to 16. This
 // avoids the user needing to know that there is no vmslt(u).vi instruction.
 // This is limited to vmslt(u).vx as there is no vmsge().vx intrinsic or
 // instruction.
 foreach vti = AllIntegerVectors in {
   def : Pat<(vti.Mask (int_riscv_vmslt (vti.Vector vti.RegClass:$rs1),
-                                       (vti.Scalar simm5_plus1:$rs2), (XLenVT (VLOp GPR:$vl)))),
+                                       (vti.Scalar simm5_plus1:$rs2),
+                                       (XLenVT (VLOp GPR:$vl)))),
             (!cast<Instruction>("PseudoVMSLE_VI_"#vti.LMul.MX) vti.RegClass:$rs1,
                                                                (DecImm simm5_plus1:$rs2),
                                                                GPR:$vl,
                                                                vti.SEW)>;
-  def : Pat<(vti.Mask (int_riscv_vmslt_mask (vti.Mask V0),
+  def : Pat<(vti.Mask (int_riscv_vmslt_mask (vti.Mask VR:$merge),
                                             (vti.Vector vti.RegClass:$rs1),
                                             (vti.Scalar simm5_plus1:$rs2),
-                                            (vti.Mask VR:$merge),
+                                            (vti.Mask V0),
                                             (XLenVT (VLOp GPR:$vl)))),
             (!cast<Instruction>("PseudoVMSLE_VI_"#vti.LMul.MX#"_MASK")
                                                       VR:$merge,
@@ -3945,17 +3986,17 @@ foreach vti = AllIntegerVectors in {
                                                       GPR:$vl,
                                                       vti.SEW)>;
 
- def : Pat<(vti.Mask (int_riscv_vmsltu (vti.Vector vti.RegClass:$rs1),
+  def : Pat<(vti.Mask (int_riscv_vmsltu (vti.Vector vti.RegClass:$rs1),
                                         (vti.Scalar simm5_plus1:$rs2),
                                         (XLenVT (VLOp GPR:$vl)))),
             (!cast<Instruction>("PseudoVMSLEU_VI_"#vti.LMul.MX) vti.RegClass:$rs1,
                                                                 (DecImm simm5_plus1:$rs2),
                                                                 GPR:$vl,
                                                                 vti.SEW)>;
-  def : Pat<(vti.Mask (int_riscv_vmsltu_mask (vti.Mask V0),
+  def : Pat<(vti.Mask (int_riscv_vmsltu_mask (vti.Mask VR:$merge),
                                              (vti.Vector vti.RegClass:$rs1),
                                              (vti.Scalar simm5_plus1:$rs2),
-                                             (vti.Mask VR:$merge),
+                                             (vti.Mask V0),
                                              (XLenVT (VLOp GPR:$vl)))),
             (!cast<Instruction>("PseudoVMSLEU_VI_"#vti.LMul.MX#"_MASK")
                                                       VR:$merge,
@@ -3973,11 +4014,11 @@ foreach vti = AllIntegerVectors in {
                                                                vti.RegClass:$rs1,
                                                                GPR:$vl,
                                                                vti.SEW)>;
-  def : Pat<(vti.Mask (int_riscv_vmsltu_mask (vti.Mask V0),
-                                            (vti.Vector vti.RegClass:$rs1),
-                                            (vti.Scalar 0),
-                                            (vti.Mask VR:$merge),
-                                            (XLenVT (VLOp GPR:$vl)))),
+  def : Pat<(vti.Mask (int_riscv_vmsltu_mask (vti.Mask VR:$merge),
+                                             (vti.Vector vti.RegClass:$rs1),
+                                             (vti.Scalar 0),
+                                             (vti.Mask V0),
+                                             (XLenVT (VLOp GPR:$vl)))),
             (!cast<Instruction>("PseudoVMSNE_VV_"#vti.LMul.MX#"_MASK")
                                                      VR:$merge,
                                                      vti.RegClass:$rs1,
@@ -4035,12 +4076,12 @@ defm "" : VPatTernaryW_VV_VX<"int_riscv_vwmaccsu", "PseudoVWMACCSU", AllWidenabl
 defm "" : VPatTernaryW_VX<"int_riscv_vwmaccus", "PseudoVWMACCUS", AllWidenableIntVectors>;
 
 //===----------------------------------------------------------------------===//
-// 12.16. Vector Integer Merge Instructions
+// 12.15. Vector Integer Merge Instructions
 //===----------------------------------------------------------------------===//
 defm "" : VPatBinaryV_VM_XM_IM<"int_riscv_vmerge", "PseudoVMERGE">;
 
 //===----------------------------------------------------------------------===//
-// 12.17. Vector Integer Move Instructions
+// 12.16. Vector Integer Move Instructions
 //===----------------------------------------------------------------------===//
 foreach vti = AllVectors in {
   def : Pat<(vti.Vector (int_riscv_vmv_v_v (vti.Vector vti.RegClass:$rs1),
@@ -4337,10 +4378,7 @@ let Predicates = [HasStdExtV] in {
 foreach vti = AllIntegerVectors in {
   def : Pat<(riscv_vmv_x_s (vti.Vector vti.RegClass:$rs2)),
             (!cast<Instruction>("PseudoVMV_X_S_" # vti.LMul.MX) $rs2, vti.SEW)>;
-  def : Pat<(vti.Vector (int_riscv_vmv_s_x (vti.Vector vti.RegClass:$rs1),
-                                           GPR:$rs2, (XLenVT (VLOp GPR:$vl)))),
-            (!cast<Instruction>("PseudoVMV_S_X_" # vti.LMul.MX)
-             (vti.Vector $rs1), $rs2, GPR:$vl, vti.SEW)>;
+  // vmv.s.x is handled with a custom node in RISCVInstrInfoVVLPatterns.td
 }
 } // Predicates = [HasStdExtV]
 

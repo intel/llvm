@@ -30,10 +30,19 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
 | SYCL_PI_LEVEL_ZERO_BATCH_SIZE | Integer | Sets a preferred number of commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
 | SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST | Integer | When set to 0, disables filtering of signaled events from wait lists when using the Level Zero backend. The default is 1. |
+| SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The default is 1. |
 | SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE | Any(\*) | Enables tracing of parallel_for invocations with rounded-up ranges. |
 | SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING | Any(\*) | Disables automatic rounding-up of parallel_for invocation ranges. |
 | SYCL_ENABLE_PCI | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
 | SYCL_HOST_UNIFIED_MEMORY | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
+| SYCL_CACHE_DIR | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if XDG_CACHE_HOME is not set then `$HOME/.cache/libsycl_cache`. |
+| SYCL_CACHE_TRACE | Any(\*) | Enables printing messages to std::cerr when non-blocking failures happen (e.g. unable to access cache item file). Default values if off. |
+| SYCL_CACHE_DISABLE_PERSISTENT | Any(\*) | Switches persistent cache switch off. Default value is ON. |
+| SYCL_CACHE_EVICTION_DISABLE | Any(\*) | Switches cache eviction off. Default value is ON. |
+| SYCL_CACHE_MAX_SIZE | Positive integer | Cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
+| SYCL_CACHE_THRESHOLD | Positive integer | Cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
+| SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE | Positive integer | Minimum size of device code image in bytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it. Default value is 0 to cache all images. |
+| SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE | Positive integer | Maximum size of device image in bytes which is cached. Too big kernels may overload disk too fast. Default value is 1 GB. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 

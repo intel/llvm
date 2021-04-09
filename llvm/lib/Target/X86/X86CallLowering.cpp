@@ -50,6 +50,7 @@ using namespace llvm;
 X86CallLowering::X86CallLowering(const X86TargetLowering &TLI)
     : CallLowering(&TLI) {}
 
+// FIXME: This should be removed and the generic version used
 bool X86CallLowering::splitToValueTypes(const ArgInfo &OrigArg,
                                         SmallVectorImpl<ArgInfo> &SplitArgs,
                                         const DataLayout &DL,
@@ -104,7 +105,8 @@ struct X86OutgoingValueHandler : public CallLowering::OutgoingValueHandler {
         STI(MIRBuilder.getMF().getSubtarget<X86Subtarget>()) {}
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
-                           MachinePointerInfo &MPO) override {
+                           MachinePointerInfo &MPO,
+                           ISD::ArgFlagsTy Flags) override {
     LLT p0 = LLT::pointer(0, DL.getPointerSizeInBits(0));
     LLT SType = LLT::scalar(DL.getPointerSizeInBits(0));
     auto SPReg =
@@ -234,9 +236,15 @@ struct X86IncomingValueHandler : public CallLowering::IncomingValueHandler {
         DL(MIRBuilder.getMF().getDataLayout()) {}
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
-                           MachinePointerInfo &MPO) override {
+                           MachinePointerInfo &MPO,
+                           ISD::ArgFlagsTy Flags) override {
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
-    int FI = MFI.CreateFixedObject(Size, Offset, true);
+
+    // Byval is assumed to be writable memory, but other stack passed arguments
+    // are not.
+    const bool IsImmutable = !Flags.isByVal();
+
+    int FI = MFI.CreateFixedObject(Size, Offset, IsImmutable);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
 
     return MIRBuilder

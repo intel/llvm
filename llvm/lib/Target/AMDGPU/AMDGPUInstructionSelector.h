@@ -36,6 +36,8 @@ struct ImageDimIntrinsicInfo;
 class AMDGPUInstrInfo;
 class AMDGPURegisterBankInfo;
 class AMDGPUTargetMachine;
+class BlockFrequencyInfo;
+class ProfileSummaryInfo;
 class GCNSubtarget;
 class MachineInstr;
 class MachineIRBuilder;
@@ -60,8 +62,9 @@ public:
   bool select(MachineInstr &I) override;
   static const char *getName();
 
-  void setupMF(MachineFunction &MF, GISelKnownBits &KB,
-               CodeGenCoverage &CoverageInfo) override;
+  void setupMF(MachineFunction &MF, GISelKnownBits *KB,
+               CodeGenCoverage &CoverageInfo, ProfileSummaryInfo *PSI,
+               BlockFrequencyInfo *BFI) override;
 
 private:
   struct GEPInfo {
@@ -144,7 +147,8 @@ private:
   bool selectG_INSERT_VECTOR_ELT(MachineInstr &I) const;
   bool selectG_SHUFFLE_VECTOR(MachineInstr &I) const;
   bool selectAMDGPU_BUFFER_ATOMIC_FADD(MachineInstr &I) const;
-  bool selectGlobalAtomicFaddIntrinsic(MachineInstr &I) const;
+  bool selectGlobalAtomicFadd(MachineInstr &I, MachineOperand &AddrOp,
+                              MachineOperand &DataOp) const;
   bool selectBVHIntrinsic(MachineInstr &I) const;
 
   std::pair<Register, unsigned> selectVOP3ModsImpl(MachineOperand &Root,
@@ -283,14 +287,13 @@ private:
 
   void renderPopcntImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
                        int OpIdx) const;
-  void renderExtractGLC(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                        int OpIdx) const;
-  void renderExtractSLC(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                        int OpIdx) const;
-  void renderExtractDLC(MachineInstrBuilder &MIB, const MachineInstr &MI,
-                        int OpIdx) const;
+  void renderExtractCPol(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                         int OpIdx) const;
   void renderExtractSWZ(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx) const;
+  void renderSetGLC(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                    int OpIdx) const;
+
   void renderFrameIndex(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx) const;
 

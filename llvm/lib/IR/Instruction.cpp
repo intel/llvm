@@ -618,6 +618,36 @@ bool Instruction::hasAtomicStore() const {
   }
 }
 
+bool Instruction::isVolatile() const {
+  switch (getOpcode()) {
+  default:
+    return false;
+  case Instruction::AtomicRMW:
+    return cast<AtomicRMWInst>(this)->isVolatile();
+  case Instruction::Store:
+    return cast<StoreInst>(this)->isVolatile();
+  case Instruction::Load:
+    return cast<LoadInst>(this)->isVolatile();
+  case Instruction::AtomicCmpXchg:
+    return cast<AtomicCmpXchgInst>(this)->isVolatile();
+  case Instruction::Call:
+  case Instruction::Invoke:
+    // There are a very limited number of intrinsics with volatile flags.
+    if (auto *II = dyn_cast<IntrinsicInst>(this)) {
+      if (auto *MI = dyn_cast<MemIntrinsic>(II))
+        return MI->isVolatile();
+      switch (II->getIntrinsicID()) {
+      default: break;
+      case Intrinsic::matrix_column_major_load:
+        return cast<ConstantInt>(II->getArgOperand(2))->isOne();
+      case Intrinsic::matrix_column_major_store:
+        return cast<ConstantInt>(II->getArgOperand(3))->isOne();
+      }
+    }
+    return false;
+  }
+}
+
 bool Instruction::mayThrow() const {
   if (const CallInst *CI = dyn_cast<CallInst>(this))
     return !CI->doesNotThrow();
@@ -631,6 +661,16 @@ bool Instruction::mayThrow() const {
 bool Instruction::isSafeToRemove() const {
   return (!isa<CallInst>(this) || !this->mayHaveSideEffects()) &&
          !this->isTerminator();
+}
+
+bool Instruction::willReturn() const {
+  if (const auto *CB = dyn_cast<CallBase>(this))
+    // FIXME: Temporarily assume that all side-effect free intrinsics will
+    // return. Remove this workaround once all intrinsics are appropriately
+    // annotated.
+    return CB->hasFnAttr(Attribute::WillReturn) ||
+           (isa<IntrinsicInst>(CB) && CB->onlyReadsMemory());
+  return true;
 }
 
 bool Instruction::isLifetimeStartOrEnd() const {

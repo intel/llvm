@@ -604,10 +604,8 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       if (!isa<MDString>(BufferLocation->getOperand(ArgNo)) &&
           !isa<MDNode>(BufferLocation->getOperand(ArgNo)))
         LocID = getMDOperandAsInt(BufferLocation, ArgNo);
-      if (LocID >= 0) {
-        BM->addCapability(CapabilityFPGABufferLocationINTEL);
+      if (LocID >= 0)
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
-      }
     }
   }
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
@@ -728,17 +726,14 @@ void LLVMToSPIRV::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (MDNode *StallEnable = F->getMetadata(kSPIR2MD::StallEnable)) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_fpga_cluster_attributes)) {
-      if (getMDOperandAsInt(StallEnable, 0)) {
-        BM->addCapability(CapabilityFPGAClusterAttributesINTEL);
+      if (getMDOperandAsInt(StallEnable, 0))
         BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
-      }
     }
   }
   if (MDNode *LoopFuse = F->getMetadata(kSPIR2MD::LoopFuse)) {
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_loop_fuse)) {
       size_t Depth = getMDOperandAsInt(LoopFuse, 0);
       size_t Independent = getMDOperandAsInt(LoopFuse, 1);
-      BM->addCapability(CapabilityLoopFuseINTEL);
       BF->addDecorate(
           new SPIRVDecorateFuseLoopsInFunctionINTEL(BF, Depth, Independent));
     }
@@ -1716,8 +1711,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
   }
 
   if (Instruction *Inst = dyn_cast<Instruction>(V)) {
-    BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
-                                 toString(Inst) + "\n", "", __FILE__, __LINE__);
+    BM->SPIRVCK(false, InvalidInstruction, toString(Inst));
   }
 
   llvm_unreachable("Not implemented");
@@ -2733,7 +2727,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       return BM->addInstTemplate(OpSaveMemoryINTEL, BB, Ty);
     }
     BM->getErrorLog().checkError(
-        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        BM->isUnknownIntrinsicAllowed(II), SPIRVEC_InvalidFunctionCall,
         toString(II) + "\nTranslation of llvm.stacksave intrinsic requires "
                        "SPV_INTEL_variable_length_array extension or "
                        "-spirv-allow-unknown-intrinsics option.");
@@ -2747,7 +2741,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
                                  nullptr);
     }
     BM->getErrorLog().checkError(
-        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        BM->isUnknownIntrinsicAllowed(II), SPIRVEC_InvalidFunctionCall,
         toString(II) + "\nTranslation of llvm.restore intrinsic requires "
                        "SPV_INTEL_variable_length_array extension or "
                        "-spirv-allow-unknown-intrinsics option.");
@@ -2770,7 +2764,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       return transValue(ConstantInt::getFalse(II->getType()), BB, false);
   }
   default:
-    if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
+    if (BM->isUnknownIntrinsicAllowed(II))
       return BM->addCallInst(
           transFunctionDecl(II->getCalledFunction()),
           transArguments(II, BB,
@@ -2779,9 +2773,8 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     else
       // Other LLVM intrinsics shouldn't get to SPIRV, because they
       // can't be represented in SPIRV or aren't implemented yet.
-      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                   II->getCalledOperand()->getName().str(), "",
-                                   __FILE__, __LINE__);
+      BM->SPIRVCK(
+          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
   }
   return nullptr;
 }
@@ -2993,7 +2986,6 @@ void LLVMToSPIRV::transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO) {
   SPIRVValue *SV = transValue(V, nullptr);
   assert(SV && "Failed to process OCL PipeStorage object");
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_io_pipes)) {
-    BM->addCapability(CapabilityIOPipesINTEL);
     unsigned ID = getMDOperandAsInt(IO, 0);
     SV->addDecorate(DecorationIOPipeStorageINTEL, ID);
   }
@@ -3685,21 +3677,23 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // Format of instruction CastFromInt:
     //   LLVM arbitrary floating point functions return value type:
     //       iN (arbitrary precision integer of N bits length)
-    //   Arguments: A(iN), Mout(i32), EnableSubnormals(i32), RoundingMode(i32),
-    //              RoundingAccuracy(i32)
+    //   Arguments: A(iN), Mout(i32), FromSign(bool), EnableSubnormals(i32),
+    //              RoundingMode(i32), RoundingAccuracy(i32)
     //   where A and return values are of arbitrary precision integer type.
     //   SPIR-V arbitrary floating point instruction layout:
-    //   <id>ResTy Res<id> A<id> Literal Mout Literal EnableSubnormals
-    //       Literal RoundingMode Literal RoundingAccuracy
+    //   <id>ResTy Res<id> A<id> Literal Mout Literal FromSign
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
 
     // Format of instruction CastToInt:
     //   LLVM arbitrary floating point functions return value: iN
-    //   Arguments: A(iN), MA(i32), EnableSubnormals(i32), RoundingMode(i32),
-    //              RoundingAccuracy(i32)
+    //   Arguments: A(iN), MA(i32), ToSign(bool), EnableSubnormals(i32),
+    //              RoundingMode(i32), RoundingAccuracy(i32)
     //   where A and return values are of arbitrary precision integer type.
     //   SPIR-V arbitrary floating point instruction layout:
-    //   <id>ResTy Res<id> A<id> Literal MA Literal EnableSubnormals
-    //       Literal RoundingMode Literal RoundingAccuracy
+    //   <id>ResTy Res<id> A<id> Literal MA Literal ToSign
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
 
     // Format of other instructions:
     //   LLVM arbitrary floating point functions return value: iN
@@ -3867,6 +3861,9 @@ LLVMToSPIRV::transLinkageType(const GlobalValue *GV) {
     return SPIRVLinkageTypeKind::LinkageTypeImport;
   if (GV->hasInternalLinkage() || GV->hasPrivateLinkage())
     return spv::internal::LinkageTypeInternal;
+  if (GV->hasLinkOnceODRLinkage())
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_linkonce_odr))
+      return SPIRVLinkageTypeKind::LinkageTypeLinkOnceODR;
   return SPIRVLinkageTypeKind::LinkageTypeExport;
 }
 

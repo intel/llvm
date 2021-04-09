@@ -219,6 +219,23 @@ static cl::opt<bool> EnableDebugify(
     cl::desc(
         "Start the pipeline with debugify and end it with check-debugify"));
 
+static cl::opt<bool> VerifyDebugInfoPreserve(
+    "verify-debuginfo-preserve",
+    cl::desc("Start the pipeline with collecting and end it with checking of "
+             "debug info preservation."));
+
+static cl::opt<bool> VerifyEachDebugInfoPreserve(
+    "verify-each-debuginfo-preserve",
+    cl::desc("Start each pass with collecting and end it with checking of "
+             "debug info preservation."));
+
+static cl::opt<std::string>
+    VerifyDIPreserveExport("verify-di-preserve-export",
+                   cl::desc("Export debug info preservation failures into "
+                            "specified (JSON) file (should be abs path as we use"
+                            " append mode to insert new JSON objects)"),
+                   cl::value_desc("filename"), cl::init(""));
+
 static cl::opt<bool>
 PrintBreakpoints("print-breakpoints-for-testing",
                  cl::desc("Print select breakpoints location for testing"));
@@ -498,14 +515,15 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "safe-stack",           "cost-model",
       "codegenprepare",       "interleaved-load-combine",
       "unreachableblockelim", "verify-safepoint-ir",
-      "divergence",           "atomic-expand",
+      "atomic-expand",
       "hardware-loops",       "type-promotion",
       "mve-tail-predication", "interleaved-access",
       "global-merge",         "pre-isel-intrinsic-lowering",
       "expand-reductions",    "indirectbr-expand",
       "generic-to-nvvm",      "expandmemcmp",
       "loop-reduce",          "lower-amx-type",
-      "polyhedral-info",      "replace-with-veclib"};
+      "lower-amx-intrinsics", "polyhedral-info",
+      "replace-with-veclib"};
   for (const auto &P : PassNamePrefix)
     if (Pass.startswith(P))
       return true;
@@ -773,6 +791,12 @@ int main(int argc, char **argv) {
                 "full list of passes, see the '--print-passes' flag.\n";
       return 1;
     }
+    if (legacy::debugPassSpecified()) {
+      errs()
+          << "-debug-pass does not work with the new PM, either use "
+             "-debug-pass-manager, or use the legacy PM (-enable-new-pm=0)\n";
+      return 1;
+    }
     if (PassPipeline.getNumOccurrences() > 0 && PassList.size() > 0) {
       errs()
           << "Cannot specify passes via both -foo-pass and --passes=foo-pass\n";
@@ -821,10 +845,21 @@ int main(int argc, char **argv) {
   // about to build. If the -debugify-each option is set, wrap each pass with
   // the (-check)-debugify passes.
   DebugifyCustomPassManager Passes;
-  if (DebugifyEach)
-    Passes.enableDebugifyEach();
+  DebugifyStatsMap DIStatsMap;
+  DebugInfoPerPassMap DIPreservationMap;
+  if (DebugifyEach) {
+    Passes.setDebugifyMode(DebugifyMode::SyntheticDebugInfo);
+    Passes.setDIStatsMap(DIStatsMap);
+  } else if (VerifyEachDebugInfoPreserve) {
+    Passes.setDebugifyMode(DebugifyMode::OriginalDebugInfo);
+    Passes.setDIPreservationMap(DIPreservationMap);
+    if (!VerifyDIPreserveExport.empty())
+      Passes.setOrigDIVerifyBugsReportFilePath(VerifyDIPreserveExport);
+  }
 
-  bool AddOneTimeDebugifyPasses = EnableDebugify && !DebugifyEach;
+  bool AddOneTimeDebugifyPasses =
+      (EnableDebugify && !DebugifyEach) ||
+      (VerifyDebugInfoPreserve && !VerifyEachDebugInfoPreserve);
 
   Passes.add(new TargetLibraryInfoWrapperPass(TLII));
 
@@ -832,8 +867,17 @@ int main(int argc, char **argv) {
   Passes.add(createTargetTransformInfoWrapperPass(TM ? TM->getTargetIRAnalysis()
                                                      : TargetIRAnalysis()));
 
-  if (AddOneTimeDebugifyPasses)
-    Passes.add(createDebugifyModulePass());
+  if (AddOneTimeDebugifyPasses) {
+    if (EnableDebugify) {
+      Passes.setDIStatsMap(DIStatsMap);
+      Passes.add(createDebugifyModulePass());
+    } else if (VerifyDebugInfoPreserve) {
+      Passes.setDIPreservationMap(DIPreservationMap);
+      Passes.add(createDebugifyModulePass(
+          DebugifyMode::OriginalDebugInfo, "",
+          &(Passes.getDebugInfoPerPassMap())));
+    }
+  }
 
   std::unique_ptr<legacy::FunctionPassManager> FPasses;
   if (OptLevelO0 || OptLevelO1 || OptLevelO2 || OptLevelOs || OptLevelOz ||
@@ -977,8 +1021,17 @@ int main(int argc, char **argv) {
   if (!NoVerify && !VerifyEach)
     Passes.add(createVerifierPass());
 
-  if (AddOneTimeDebugifyPasses)
-    Passes.add(createCheckDebugifyModulePass(false));
+  if (AddOneTimeDebugifyPasses) {
+    if (EnableDebugify)
+      Passes.add(createCheckDebugifyModulePass(false));
+    else if (VerifyDebugInfoPreserve) {
+      if (!VerifyDIPreserveExport.empty())
+        Passes.setOrigDIVerifyBugsReportFilePath(VerifyDIPreserveExport);
+      Passes.add(createCheckDebugifyModulePass(
+          false, "", nullptr, DebugifyMode::OriginalDebugInfo,
+          &(Passes.getDebugInfoPerPassMap()), VerifyDIPreserveExport));
+    }
+  }
 
   // In run twice mode, we want to make sure the output is bit-by-bit
   // equivalent if we run the pass manager again, so setup two buffers and

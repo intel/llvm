@@ -23,9 +23,9 @@ developer needs.
 This document describes the LLVM TableGen facility in detail. It is intended
 for the programmer who is using TableGen to produce code for a project. If
 you are looking for a simple overview, check out the :doc:`TableGen Overview
-<./index>`.  The various ``xxx-tblgen`` commands used to invoke TableGen are
-described in :doc:`xxx-tblgen: Target Description to C++ Code
-<../CommandGuide/tblgen>`.
+<./index>`.  The various ``*-tblgen`` commands used to invoke TableGen are
+described in :doc:`tblgen Family - Description to C++
+Code<../CommandGuide/tblgen>`.
 
 An example of a backend is ``RegisterInfo``, which generates the register
 file information for a particular target machine, for use by the LLVM
@@ -299,7 +299,7 @@ wide range of records conveniently and compactly.
 :token:`ClassID`
     Specifying a class name in a type context indicates
     that the type of the defined value must
-    be a subclass of the specified class.  This is useful in conjunction with
+    be a subclass of the specified class. This is useful in conjunction with
     the ``list`` type; for example, to constrain the elements of the list to a
     common base class (e.g., a ``list<Register>`` can only contain definitions
     derived from the ``Register`` class).
@@ -358,7 +358,7 @@ are then indistinguishable from them.
 The ``true`` and ``false`` literals are essentially syntactic sugar for the
 integer values 1 and 0. They improve the readability of TableGen files when
 boolean values are used in field initializations, bit sequences, ``if``
-statements.  etc. When parsed, these literals are converted to integers.
+statements, etc. When parsed, these literals are converted to integers.
 
 .. note::
 
@@ -496,20 +496,25 @@ primary value. Here are the possible suffixes for some primary *value*.
     The final value is bits 8--15 of the integer *value*. The order of the
     bits can be reversed by specifying ``{15...8}``.
 
-*value*\ ``[4...7,17,2...3,4]``
-    The final value is a new list that is a slice of the list *value* (note
-    the brackets). The
-    new list contains elements 4, 5, 6, 7, 17, 2, 3, and 4. Elements may be
-    included multiple times and in any order.
+*value*\ ``[4]``
+    The final value is element 4 of the list *value* (note the brackets).
+    In other words, the brackets act as a subscripting operator on the list.
+    This is the case only when a single element is specified.
 
-*value*\ ``.`` *field*
+*value*\ ``[4...7,17,2...3,4]``
+    The final value is a new list that is a slice of the list *value*.
+    The new list contains elements 4, 5, 6, 7, 17, 2, 3, and 4.
+    Elements may be included multiple times and in any order. This is the result
+    only when more than one element is specified.
+
+*value*\ ``.``\ *field*
     The final value is the value of the specified *field* in the specified
     record *value*.
 
 The paste operator
 ------------------
 
-The paste operator (``#``) is the only infix operator availabe in TableGen
+The paste operator (``#``) is the only infix operator available in TableGen
 expressions. It allows you to concatenate strings or lists, but has a few
 unusual features.
 
@@ -554,19 +559,22 @@ classes and records can inherit.
    TemplateArgDecl: `Type` `TokIdentifier` ["=" `Value`]
 
 A class can be parameterized by a list of "template arguments," whose values
-can be used in the class's record body.  These template arguments are
+can be used in the class's record body. These template arguments are
 specified each time the class is inherited by another class or record.
 
 If a template argument is not assigned a default value with ``=``, it is
 uninitialized (has the "value" ``?``) and must be specified in the template
-argument list when the class is inherited. If an argument is assigned a
-default value, then it need not be specified in the argument list. The
-template argument default values are evaluated from left to right.
+argument list when the class is inherited (required argument). If an
+argument is assigned a default value, then it need not be specified in the
+argument list (optional argument). In the declaration, all required template
+arguments must precede any optional arguments. The template argument default
+values are evaluated from left to right.
 
 The :token:`RecordBody` is defined below. It can include a list of
-superclasses from which the current class inherits, along with field definitions
-and other statements. When a class ``C`` inherits from another class ``D``,
-the fields of ``D`` are effectively merged into the fields of ``C``.
+superclasses from which the current class inherits, along with field
+definitions and other statements. When a class ``C`` inherits from another
+class ``D``, the fields of ``D`` are effectively merged into the fields of
+``C``.
 
 A given class can only be defined once. A ``class`` statement is
 considered to define the class if *any* of the following are true (the
@@ -605,7 +613,7 @@ of the fields of the class or record.
    RecordBody: `ParentClassList` `Body`
    ParentClassList: [":" `ParentClassListNE`]
    ParentClassListNE: `ClassRef` ("," `ClassRef`)*
-   ClassRef: (`ClassID` | `MultiClassID`) ["<" `ValueList` ">"]
+   ClassRef: (`ClassID` | `MultiClassID`) ["<" [`ValueList`] ">"]
 
 A :token:`ParentClassList` containing a :token:`MultiClassID` is valid only
 in the class list of a ``defm`` statement. In that case, the ID must be the
@@ -698,23 +706,23 @@ Here is a simple TableGen file with one class and two record definitions.
 .. code-block:: text
 
   class C {
-    bit V = 1;
+    bit V = true;
   }
 
   def X : C;
   def Y : C {
-    let V = 0;
+    let V = false;
     string Greeting = "Hello!";
   }
 
 First, the abstract class ``C`` is defined. It has one field named ``V``
-that is a bit initialized to 1.
+that is a bit initialized to true.
 
 Next, two records are defined, derived from class ``C``; that is, with ``C``
 as their superclass. Thus they both inherit the ``V`` field. Record ``Y``
 also defines another string field, ``Greeting``, which is initialized to
 ``"Hello!"``. In addition, ``Y`` overrides the inherited ``V`` field,
-setting it to 0.
+setting it to false.
 
 A class is useful for isolating the common features of multiple records in
 one place. A class can initialize common fields to default values, but
@@ -836,10 +844,10 @@ statements can be nested.
 
 .. code-block:: text
 
-  let isTerminator = 1, isReturn = 1, isBarrier = 1, hasCtrlDep = 1 in
+  let isTerminator = true, isReturn = true, isBarrier = true, hasCtrlDep = true in
     def RET : I<0xC3, RawFrm, (outs), (ins), "ret", [(X86retflag 0)]>;
 
-  let isCall = 1 in
+  let isCall = true in
     // All calls clobber the non-callee saved registers...
     let Defs = [EAX, ECX, EDX, FP0, FP1, FP2, FP3, FP4, FP5, FP6, ST0,
                 MM0, MM1, MM2, MM3, MM4, MM5, MM6, MM7, XMM0, XMM1, XMM2,
@@ -895,9 +903,10 @@ to the name.  That is, the following are equivalent inside a multiclass::
     def NAME#Foo ...
 
 The records defined in a multiclass are instantiated when the multiclass is
-"invoked" by a ``defm`` statement outside the multiclass definition. Each
-``def`` statement produces a record. As with top-level ``def`` statements,
-these definitions can inherit from multiple superclasses.
+"instantiated" or "invoked" by a ``defm`` statement outside the multiclass
+definition. Each ``def`` statement produces a record. As with top-level
+``def`` statements, these definitions can inherit from multiple
+superclasses.
 
 See `Examples: multiclasses and defms`_ for examples.
 
@@ -914,9 +923,10 @@ statements in the multiclasses, and indirectly by ``defm`` statements.
    Defm: "defm" [`NameValue`] `ParentClassList` ";"
 
 The optional :token:`NameValue` is formed in the same way as the name of a
-``def``. The :token:`ParentClassList` is a colon followed by a list of at least one
-multiclass and any number of regular classes. The multiclasses must
-precede the regular classes. Note that the ``defm`` does not have a body.
+``def``. The :token:`ParentClassList` is a colon followed by a list of at
+least one multiclass and any number of regular classes. The multiclasses
+must precede the regular classes. Note that the ``defm`` does not have a
+body.
 
 This statement instantiates all the records defined in all the specified
 multiclasses, either directly by ``def`` statements or indirectly by
@@ -1121,10 +1131,10 @@ using several levels of multiclass instantiations.
   }
 
   multiclass basic_ss <bits<4> opc> {
-    let IsDouble = 0 in
+    let IsDouble = false in
       defm SS : basic_r<opc>;
 
-    let IsDouble = 1 in
+    let IsDouble = true in
       defm SD : basic_r<opc>;
   }
 
@@ -1269,11 +1279,29 @@ placement.
   checked after the record is completely built.
 
 * In a class definition, the assertions are saved and inherited by all
-  the record definitions that inherit from the class. The assertions are
-  then checked when the records are completely built. [this placement is not
-  yet available]
+  the subclasses and records that inherit from the class. The assertions are
+  then checked when the records are completely built.
 
 * In a multiclass definition, ... [this placement is not yet available]
+
+Using assertions in TableGen files can simplify record checking in TableGen
+backends. Here is an example of an ``assert`` in two class definitions.
+
+.. code-block:: text
+
+  class PersonName<string name> {
+    assert !le(!size(name), 32), "person name is too long: " # name;
+    string Name = name;
+  }
+
+  class Person<string name, int age> : PersonName<name> {
+    assert !and(!ge(age, 1), !le(age, 120)), "person age is invalid: " # age;
+    int Age = age;
+  }
+
+  def Rec20 : Person<"Donald Knuth", 60> {
+    ...
+  }
 
 
 Additional Details
@@ -1500,7 +1528,7 @@ started in a file must end in that file; that is, must have its
 ``#endif`` in the same file.
 
 A :token:`MacroName` may be defined externally using the ``-D`` option on the
-``xxx-tblgen`` command line::
+``*-tblgen`` command line::
 
   llvm-tblgen self-reference.td -Dmacro1 -Dmacro3
 

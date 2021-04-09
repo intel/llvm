@@ -86,6 +86,7 @@ for.body:
   %0 = load double, double* %arrayidx, align 8
   %1 = call fast double @llvm.sin.f64(double %0) #2
   %add = fadd fast double %1, 1.000000e+00
+  store double %add, double* %arrayidx, align 8
   %iv.next = add nuw nsw i64 %iv, 1
   %exitcond = icmp eq i64 %iv.next, %N
   br i1 %exitcond, label %for.end, label %for.body, !llvm.loop !1

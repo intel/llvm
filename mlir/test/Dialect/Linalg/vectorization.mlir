@@ -166,7 +166,7 @@ func @test_vectorize_copy(%A : memref<8x16xf32>, %B : memref<8x16xf32>) {
 
 // CHECK-LABEL: func @test_vectorize_copy_scalar
 func @test_vectorize_copy_scalar(%A : memref<f32>, %B : memref<f32>) {
-  //       CHECK: %[[V:.*]] = load {{.*}} : memref<f32>
+  //       CHECK: %[[V:.*]] = memref.load {{.*}} : memref<f32>
   //       CHECK: store %[[V]], {{.*}} : memref<f32>
   linalg.copy(%A, %B) :  memref<f32>, memref<f32>
   return
@@ -341,6 +341,42 @@ func @generic_vectorize_tensor(%arg0: tensor<4x256xf32>,
 
 // -----
 
+// Test different input maps.
+#matmul_trait = {
+  indexing_maps = [
+    affine_map<(d0, d1, d2, d3) -> (d1, d0)>,
+    affine_map<(d0, d1, d2, d3) -> (d3, d1)>,
+    affine_map<(d0, d1, d2, d3) -> (d3, d1, d0, d2)>,
+    affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+  ],
+  iterator_types = ["parallel", "parallel", "parallel", "parallel"]
+}
+
+// CHECK-DAG: #[[MAP0:.*]] = affine_map<(d0, d1) -> (d1, d0, 0, 0)>
+// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0, d1) -> (0, d1, 0, d0)>
+// CHECK-DAG: #[[MAP2:.*]] = affine_map<(d0, d1, d2, d3) -> (d2, d1, d3, d0)>
+//       CHECK: func @vectorization_transpose
+//       CHECK: vector.transfer_read {{.*}}{permutation_map = #[[MAP0]]} : memref<14x7xf32>, vector<7x14x8x16xf32>
+//       CHECK: vector.transfer_read {{.*}}{permutation_map = #[[MAP1]]} : memref<16x14xf32>, vector<7x14x8x16xf32>
+//       CHECK: vector.transfer_read {{.*}}{permutation_map = #[[MAP2]]} : memref<16x14x7x8xf32>, vector<7x14x8x16xf32>
+//       CHECK: addf {{.*}} : vector<7x14x8x16xf32>
+//       CHECK: addf {{.*}} : vector<7x14x8x16xf32>
+//       CHECK: vector.transfer_write {{.*}} : vector<7x14x8x16xf32>, memref<7x14x8x16xf32>
+func @vectorization_transpose(%A: memref<14x7xf32>, %B: memref<16x14xf32>,
+                         %C: memref<16x14x7x8xf32>, %D: memref<7x14x8x16xf32>) {
+  linalg.generic #matmul_trait
+    ins(%A, %B, %C : memref<14x7xf32>, memref<16x14xf32>, memref<16x14x7x8xf32>)
+   outs(%D : memref<7x14x8x16xf32>) {
+    ^bb(%a: f32, %b: f32, %c: f32, %d: f32) :
+      %e = addf %a, %b: f32
+      %f = addf %e, %c: f32
+      linalg.yield %f : f32
+  }
+  return
+}
+
+// -----
+
 // CHECK-LABEL: func @matmul_tensors
 //  CHECK-SAME: (%[[ARG0:.*]]: tensor<8x4xf32>, %[[ARG1:.*]]: tensor<4x12xf32>,
 //  CHECK-SAME:  %[[ARG2:.*]]: tensor<8x12xf32>) -> tensor<8x12xf32>
@@ -357,7 +393,7 @@ func @matmul_tensors(
   // a later canonicalization fuses the add into vector.contract.
   //       CHECK:   %[[C:.*]] = vector.contract {{.*}} iterator_types = ["parallel", "parallel", "reduction"], kind = #vector.kind<add>} %[[V0]], %[[V1]], %[[VEC_C0]] : vector<8x4xf32>, vector<4x12xf32> into vector<8x12xf32>
   //       CHECK:   %[[C2:.*]] = addf %[[V2]], %[[C]] : vector<8x12xf32>
-  //       CHECK:   %[[W:.*]] = vector.transfer_write %[[C2]], %[[ARG2]][%[[C0]], %[[C0]]] {masked = [false, false]} : vector<8x12xf32>, tensor<8x12xf32>
+  //       CHECK:   %[[W:.*]] = vector.transfer_write %[[C2]], %[[ARG2]][%[[C0]], %[[C0]]] {in_bounds = [true, true]} : vector<8x12xf32>, tensor<8x12xf32>
   %0 = linalg.matmul  ins(%arg0, %arg1: tensor<8x4xf32>, tensor<4x12xf32>)
                      outs(%arg2: tensor<8x12xf32>)
     -> tensor<8x12xf32>
@@ -373,18 +409,19 @@ func @matmul_tensors(
 //  CHECK-SAME:  %[[ARG2:[a-z0-9]+]]: memref<4x12xi32>
 func @matmul_i8_i8_i32(%a: memref<4x6xi8>, %b: memref<6x12xi8>, %c: memref<4x12xi32>) {
   //   CHECK-DAG:   %[[C0:.*]] = constant 0 : index
-  //   CHECK-DAG:   %[[VEC_C0:.*]] = constant dense<0> : vector<4x12xi8>
+  //   CHECK-DAG:   %[[VEC_C0:.*]] = constant dense<0> : vector<4x12xi32>
   //   CHECK-DAG:   %[[V0:.*]] = vector.transfer_read %[[ARG0]][%[[C0]], %[[C0]]], {{.*}} : memref<4x6xi8>, vector<4x6xi8>
   //   CHECK-DAG:   %[[V1:.*]] = vector.transfer_read %[[ARG1]][%[[C0]], %[[C0]]], {{.*}} : memref<6x12xi8>, vector<6x12xi8>
   //   CHECK-DAG:   %[[V2:.*]] = vector.transfer_read %[[ARG2]][%[[C0]], %[[C0]]], {{.*}} : memref<4x12xi32>, vector<4x12xi32>
+  //   CHECK-DAG:   %[[V0_32:.*]] = sexti %[[V0]] : vector<4x6xi8> to vector<4x6xi32>
+  //   CHECK-DAG:   %[[V1_32:.*]] = sexti %[[V1]] : vector<6x12xi8> to vector<6x12xi32>
   //
   // linalg contraction lowers to %tmp = vector.contract %a, %b, %c0 followed by addf %c, %tmp.
   // a later canonicalization fuses the add into vector.contract.
-  //       CHECK:   %[[C:.*]] = vector.contract {{.*}} iterator_types = ["parallel", "parallel", "reduction"], kind = #vector.kind<add>} %[[V0]], %[[V1]], %[[VEC_C0]]
-  //  CHECK-SAME:     vector<4x6xi8>, vector<6x12xi8> into vector<4x12xi8>
-  //       CHECK:   %[[C32:.*]] = sexti %[[C]] : vector<4x12xi8> to vector<4x12xi32>
-  //       CHECK:   %[[RES:.*]] = addi %[[V2]], %[[C32]] : vector<4x12xi32>
-  //       CHECK:   vector.transfer_write %[[RES]], %[[ARG2]][%[[C0]], %[[C0]]] {masked = [false, false]}
+  //       CHECK:   %[[C:.*]] = vector.contract {{.*}} iterator_types = ["parallel", "parallel", "reduction"], kind = #vector.kind<add>} %[[V0_32]], %[[V1_32]], %[[VEC_C0]]
+  //  CHECK-SAME:     vector<4x6xi32>, vector<6x12xi32> into vector<4x12xi32>
+  //       CHECK:   %[[RES:.*]] = addi %[[V2]], %[[C]] : vector<4x12xi32>
+  //       CHECK:   vector.transfer_write %[[RES]], %[[ARG2]][%[[C0]], %[[C0]]] {in_bounds = [true, true]}
   //  CHECK-SAME:     vector<4x12xi32>, memref<4x12xi32>
   linalg.matmul_i8_i8_i32 ins(%a, %b : memref<4x6xi8>, memref<6x12xi8>)
     outs(%c: memref<4x12xi32>)
@@ -401,7 +438,7 @@ func @pad_static(%arg0: tensor<?x?x?xf32>, %pad_value: f32) -> tensor<2x3x4xf32>
   // CHECK-SAME:   : tensor<?x?x?xf32>, vector<2x3x4xf32>
   //      CHECK: %[[INIT:.*]] = linalg.init_tensor [2, 3, 4] : tensor<2x3x4xf32>
   //      CHECK: %[[WRITTEN:.*]] = vector.transfer_write %[[READ]], %[[INIT]][%[[C0]], %[[C0]], %[[C0]]]
-  // CHECK-SAME:   {masked = [false, false, false]} : vector<2x3x4xf32>, tensor<2x3x4xf32>
+  // CHECK-SAME:   {in_bounds = [true, true, true]} : vector<2x3x4xf32>, tensor<2x3x4xf32>
   %c0 = constant 0 : index
   %0 = linalg.pad_tensor %arg0 low[0, %c0, 0] high[0, 0, %c0] {
     ^bb0(%arg1: index, %arg2: index, %arg3: index):

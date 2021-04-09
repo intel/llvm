@@ -597,6 +597,9 @@ public:
   /// Return true if this atomic instruction stores to memory.
   bool hasAtomicStore() const;
 
+  /// Return true if this instruction has a volatile memory access.
+  bool isVolatile() const;
+
   /// Return true if this instruction may throw an exception.
   bool mayThrow() const;
 
@@ -632,6 +635,10 @@ public:
   /// may have side effects cannot be removed without semantically changing the
   /// generated program.
   bool isSafeToRemove() const;
+
+  /// Return true if the instruction will return (unwinding is considered as
+  /// a form of returning control flow here).
+  bool willReturn() const;
 
   /// Return true if the instruction is a variety of EH-block.
   bool isEHPad() const {

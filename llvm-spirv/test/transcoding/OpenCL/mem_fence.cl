@@ -24,6 +24,8 @@ typedef unsigned int cl_mem_fence_flags;
 #define CLK_IMAGE_MEM_FENCE 0x04
 
 void __attribute__((overloadable)) mem_fence(cl_mem_fence_flags);
+void __attribute__((overloadable)) read_mem_fence(cl_mem_fence_flags);
+void __attribute__((overloadable)) write_mem_fence(cl_mem_fence_flags);
 
 __kernel void test_mem_fence_const_flags() {
   mem_fence(CLK_LOCAL_MEM_FENCE);
@@ -33,6 +35,14 @@ __kernel void test_mem_fence_const_flags() {
   mem_fence(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
   mem_fence(CLK_LOCAL_MEM_FENCE | CLK_IMAGE_MEM_FENCE);
   mem_fence(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE | CLK_IMAGE_MEM_FENCE);
+
+  read_mem_fence(CLK_LOCAL_MEM_FENCE);
+  read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+  read_mem_fence(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+  write_mem_fence(CLK_LOCAL_MEM_FENCE);
+  write_mem_fence(CLK_GLOBAL_MEM_FENCE);
+  write_mem_fence(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 }
 
 __kernel void test_mem_fence_non_const_flags(cl_mem_fence_flags flags) {
@@ -72,6 +82,12 @@ __kernel void test_mem_fence_non_const_flags(cl_mem_fence_flags flags) {
 // CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_GLOBAL]]
 // CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_IMAGE]]
 // CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_GLOBAL_IMAGE]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[GLOBAL]]
+// CHECK-SPIRV: MemoryBarrier [[WG]] [[LOCAL_GLOBAL]]
 //
 // CHECK-LLVM-LABEL: define spir_kernel void @test_mem_fence_const_flags
 // CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 1)
@@ -80,6 +96,12 @@ __kernel void test_mem_fence_non_const_flags(cl_mem_fence_flags flags) {
 // CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 3)
 // CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 5)
 // CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 7)
+// CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 1)
+// CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 2)
+// CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 3)
+// CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 1)
+// CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 2)
+// CHECK-LLVM: call spir_func void @_Z9mem_fencej(i32 3)
 
 // References:
 // [1]: https://www.khronos.org/registry/OpenCL/sdk/1.2/docs/man/xhtml/mem_fence.html

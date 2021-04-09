@@ -1119,7 +1119,7 @@ Currently, only the following parameter attributes are defined:
 
 .. _attr_inalloca:
 
-``inalloca``
+``inalloca(<ty>)``
 
     The ``inalloca`` argument attribute allows the caller to take the
     address of outgoing stack arguments. An ``inalloca`` argument must
@@ -1142,6 +1142,9 @@ Currently, only the following parameter attributes are defined:
     space after an argument allocation and before its call site, but it
     must be cleared off with :ref:`llvm.stackrestore
     <int_stackrestore>`.
+
+    The inalloca attribute requires a type argument, which must be the
+    same as the pointee type of the argument.
 
     See :doc:`InAlloca` for more information on how to use this
     attribute.
@@ -1992,6 +1995,11 @@ example:
     function does not satisfy this contract, the behavior is undefined.  This
     attribute does not apply transitively to callees, but does apply to call
     sites within the function. Note that `willreturn` implies `mustprogress`.
+``vscale_range(<min>[, <max>])``
+    This attribute indicates the minimum and maximum vscale value for the given
+    function. A value of 0 means unbounded. If the optional max value is omitted
+    then max is set to the value of min. If the attribute is not present, no
+    assumptions are made about the range of vscale.
 
 Call Site Attributes
 ----------------------
@@ -2272,7 +2280,7 @@ allows the optimizer to assume that the :ref:`llvm.assume <int_assume>`
 call location is cold and that ``%val`` may not be null.
 
 Just like for the argument of :ref:`llvm.assume <int_assume>`, if any of the
-provided guarantees are are violated at runtime the behavior is undefined.
+provided guarantees are violated at runtime the behavior is undefined.
 
 Even if the assumed property can be encoded as a boolean value, like
 ``nonnull``, using operand bundles to express the property can still have
@@ -2556,6 +2564,33 @@ by the minus sign character ('-'). The canonical forms are:
 This information is passed along to the backend so that it generates
 code for the proper architecture. It's possible to override this on the
 command line with the ``-mtriple`` command line option.
+
+.. _objectlifetime:
+
+Object Lifetime
+----------------------
+
+A memory object, or simply object, is a region of a memory space that is
+reserved by a memory allocation such as :ref:`alloca <i_alloca>`, heap
+allocation calls, and global variable definitions.
+Once it is allocated, the bytes stored in the region can only be read or written
+through a pointer that is :ref:`based on <pointeraliasing>` the allocation
+value.
+If a pointer that is not based on the object tries to read or write to the
+object, it is undefined behavior.
+
+A lifetime of a memory object is a property that decides its accessibility.
+Unless stated otherwise, a memory object is alive since its allocation, and
+dead after its deallocation.
+It is undefined behavior to access a memory object that isn't alive, but
+operations that don't dereference it such as
+:ref:`getelementptr <i_getelementptr>`, :ref:`ptrtoint <i_ptrtoint>` and
+:ref:`icmp <i_icmp>` return a valid result.
+This explains code motion of these instructions across operations that
+impact the object's lifetime.
+A stack object's lifetime can be explicitly specified using
+:ref:`llvm.lifetime.start <int_lifestart>` and
+:ref:`llvm.lifetime.end <int_lifeend>` intrinsic function calls.
 
 .. _pointeraliasing:
 
@@ -3173,6 +3208,63 @@ and a scalable property to represent vectors where the exact hardware
 vector length is unknown at compile time. Vector types are considered
 :ref:`first class <t_firstclass>`.
 
+:Memory Layout:
+
+In general vector elements are laid out in memory in the same way as
+:ref:`array types <t_array>`. Such an anology works fine as long as the vector
+elements are byte sized. However, when the elements of the vector aren't byte
+sized it gets a bit more complicated. One way to describe the layout is by
+describing what happens when a vector such as <N x iM> is bitcasted to an
+integer type with N*M bits, and then following the rules for storing such an
+integer to memory.
+
+A bitcast from a vector type to a scalar integer type will see the elements
+being packed together (without padding). The order in which elements are
+inserted in the integer depends on endianess. For little endian element zero
+is put in the least significant bits of the integer, and for big endian
+element zero is put in the most significant bits.
+
+Using a vector such as ``<i4 1, i4 2, i4 3, i4 5>`` as an example, together
+with the analogy that we can replace a vector store by a bitcast followed by
+an integer store, we get this for big endian:
+
+.. code-block:: llvm
+
+      %val = bitcast <4 x i4> <i4 1, i4 2, i4 3, i4 5> to i16
+
+      ; Bitcasting from a vector to an integral type can be seen as
+      ; concatenating the values:
+      ;   %val now has the hexadecimal value 0x1235.
+
+      store i16 %val, i16* %ptr
+
+      ; In memory the content will be (8-bit addressing):
+      ;
+      ;    [%ptr + 0]: 00010010  (0x12)
+      ;    [%ptr + 1]: 00110101  (0x35)
+
+The same example for little endian:
+
+.. code-block:: llvm
+
+      %val = bitcast <4 x i4> <i4 1, i4 2, i4 3, i4 5> to i16
+
+      ; Bitcasting from a vector to an integral type can be seen as
+      ; concatenating the values:
+      ;   %val now has the hexadecimal value 0x5321.
+
+      store i16 %val, i16* %ptr
+
+      ; In memory the content will be (8-bit addressing):
+      ;
+      ;    [%ptr + 0]: 01010011  (0x53)
+      ;    [%ptr + 1]: 00100001  (0x21)
+
+When ``<N*M>`` isn't evenly divisible by the byte size the exact memory layout
+is unspecified (just like it is for an integral type of the same size). This
+is because different targets could put the padding at different positions when
+the type size is smaller than the type's store size.
+
 :Syntax:
 
 ::
@@ -3365,9 +3457,10 @@ Opaque Structure Types
 
 :Overview:
 
-Opaque structure types are used to represent named structure types that
+Opaque structure types are used to represent structure types that
 do not have a body specified. This corresponds (for example) to the C
-notion of a forward declared structure.
+notion of a forward declared structure. They can be named (``%X``) or
+unnamed (``%52``).
 
 :Syntax:
 
@@ -4329,7 +4422,7 @@ ARM and ARM's Thumb2 mode:
 - ``L``: An immediate integer whose negation is valid for a data-processing
   instruction. (Can be used with template modifier "``n``" to print the negated
   value).
-- ``M``: A power of two or a integer between 0 and 32.
+- ``M``: A power of two or an integer between 0 and 32.
 - ``N``: Invalid immediate constraint.
 - ``O``: Invalid immediate constraint.
 - ``r``: A general-purpose 32-bit integer register (``r0-r15``).
@@ -4723,7 +4816,7 @@ debug information. There are two metadata primitives: strings and nodes.
 Metadata does not have a type, and is not a value. If referenced from a
 ``call`` instruction, it uses the ``metadata`` type.
 
-All metadata are identified in syntax by a exclamation point ('``!``').
+All metadata are identified in syntax by an exclamation point ('``!``').
 
 .. _metadata-string:
 
@@ -5297,6 +5390,14 @@ The current supported opcode vocabulary is limited:
   ``AsmPrinter`` pass when a call site parameter value
   (``DW_AT_call_site_parameter_value``) is represented as entry value
   of the parameter.
+- ``DW_OP_LLVM_arg, N`` is used in debug intrinsics that refer to more than one
+  value, such as one that calculates the sum of two registers. This is always
+  used in combination with an ordered list of values, such that
+  ``DW_OP_LLVM_arg, N`` refers to the ``N``th element in that list. For
+  example, ``!DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_minus,
+  DW_OP_stack_value)`` used with the list ``(%reg1, %reg2)`` would evaluate to
+  ``%reg1 - reg2``. This list of values should be provided by the containing
+  intrinsic/instruction.
 - ``DW_OP_breg`` (or ``DW_OP_bregx``) represents a content on the provided
   signed offset of the specified register. The opcode is only generated by the
   ``AsmPrinter`` pass to describe call site parameter value which requires an
@@ -5371,6 +5472,22 @@ valid debug intrinsic.
     !3 = !DIExpression(DW_OP_deref, DW_OP_constu, 3, DW_OP_plus, DW_OP_LLVM_fragment, 3, 7)
     !4 = !DIExpression(DW_OP_constu, 2, DW_OP_swap, DW_OP_xderef)
     !5 = !DIExpression(DW_OP_constu, 42, DW_OP_stack_value)
+
+DIArgList
+""""""""""""
+
+``DIArgList`` nodes hold a list of constant or SSA value references. These are
+used in :ref:`debug intrinsics<dbg_intrinsics>` (currently only in
+``llvm.dbg.value``) in combination with a ``DIExpression`` that uses the
+``DW_OP_LLVM_arg`` operator. Because a DIArgList may refer to local values
+within a function, it must only be used as a function argument, must always be
+inlined, and cannot appear in named metadata.
+
+.. code-block:: text
+
+    llvm.dbg.value(metadata !DIArgList(i32 %a, i32 %b),
+                   metadata !16,
+                   metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus))
 
 DIFlags
 """""""""""""""
@@ -9318,6 +9435,12 @@ the memory is reclaimed. Allocating zero bytes is legal, but the returned
 pointer may not be unique. The order in which memory is allocated (ie.,
 which way the stack grows) is not specified.
 
+If the returned pointer is used by :ref:`llvm.lifetime.start <int_lifestart>`,
+the returned object is initially dead.
+See :ref:`llvm.lifetime.start <int_lifestart>` and
+:ref:`llvm.lifetime.end <int_lifeend>` for the precise semantics of
+lifetime-manipulating intrinsics.
+
 Example:
 """"""""
 
@@ -9648,8 +9771,7 @@ this ``cmpxchg`` with other :ref:`volatile operations <volatile>`.
 
 The success and failure :ref:`ordering <ordering>` arguments specify how this
 ``cmpxchg`` synchronizes with other atomic operations. Both ordering parameters
-must be at least ``monotonic``, the ordering constraint on failure must be no
-stronger than that on success, and the failure ordering cannot be either
+must be at least ``monotonic``, the failure ordering cannot be either
 ``release`` or ``acq_rel``.
 
 A ``cmpxchg`` instruction can also take an optional
@@ -10546,14 +10668,19 @@ pointers) types with the same address space through this instruction.
 To convert pointers to other types, use the :ref:`inttoptr <i_inttoptr>`
 or :ref:`ptrtoint <i_ptrtoint>` instructions first.
 
+There is a caveat for bitcasts involving vector types in relation to
+endianess. For example ``bitcast <2 x i8> <value> to i16`` puts element zero
+of the vector in the least significant bits of the i16 for little-endian while
+element zero ends up in the most significant bits for big-endian.
+
 Example:
 """"""""
 
 .. code-block:: text
 
-      %X = bitcast i8 255 to i8              ; yields i8 :-1
-      %Y = bitcast i32* %x to sint*          ; yields sint*:%x
-      %Z = bitcast <2 x int> %V to i64;        ; yields i64: %V
+      %X = bitcast i8 255 to i8          ; yields i8 :-1
+      %Y = bitcast i32* %x to sint*      ; yields sint*:%x
+      %Z = bitcast <2 x int> %V to i64;  ; yields i64: %V (depends on endianess)
       %Z = bitcast <2 x i32*> %V to <2 x i64*> ; yields <2 x i64*>
 
 .. _i_addrspacecast:
@@ -11450,6 +11577,15 @@ overloaded, and only one type suffix is required. Because the argument's
 type is matched against the return type, it does not require its own
 name suffix.
 
+:ref:`Unnamed types <t_opaque>` are encoded as ``s_s``. Overloaded intrinsics
+that depend on an unnamed type in one of its overloaded argument types get an
+additional ``.<number>`` suffix. This allows differentiating intrinsics with
+different unnamed types as arguments. (For example:
+``llvm.ssa.copy.p0s_s.2(%42*)``) The number is tracked in the LLVM module and
+it ensures unique names in the module. While linking together two modules, it is
+still possible to get a name clash. In that case one of the names will be
+changed by getting a new number.
+
 For target developers who are defining intrinsics for back-end code
 generation, any intrinsic overloads based solely the distinction between
 integer or floating point types should not be relied upon for correct
@@ -11627,9 +11763,6 @@ Frontends for type-safe garbage collected languages should generate
 these intrinsics to make use of the LLVM garbage collectors. For more
 details, see `Garbage Collection with LLVM <GarbageCollection.html>`_.
 
-Experimental Statepoint Intrinsics
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 LLVM provides an second experimental set of intrinsics for describing garbage
 collection safepoints in compiled code. These intrinsics are an alternative
 to the ``llvm.gcroot`` intrinsics, but are compatible with the ones for
@@ -11744,6 +11877,202 @@ instruction, but may be replaced with substantially more complex code by
 the garbage collector runtime, as needed. The '``llvm.gcwrite``'
 intrinsic may only be used in a function which :ref:`specifies a GC
 algorithm <gc>`.
+
+
+.. _gc_statepoint:
+
+'llvm.experimental.gc.statepoint' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare token
+        @llvm.experimental.gc.statepoint(i64 <id>, i32 <num patch bytes>,
+                       func_type <target>, 
+                       i64 <#call args>, i64 <flags>,
+                       ... (call parameters),
+                       i64 0, i64 0)
+
+Overview:
+"""""""""
+
+The statepoint intrinsic represents a call which is parse-able by the
+runtime.
+
+Operands:
+"""""""""
+
+The 'id' operand is a constant integer that is reported as the ID
+field in the generated stackmap.  LLVM does not interpret this
+parameter in any way and its meaning is up to the statepoint user to
+decide.  Note that LLVM is free to duplicate code containing
+statepoint calls, and this may transform IR that had a unique 'id' per
+lexical call to statepoint to IR that does not.
+
+If 'num patch bytes' is non-zero then the call instruction
+corresponding to the statepoint is not emitted and LLVM emits 'num
+patch bytes' bytes of nops in its place.  LLVM will emit code to
+prepare the function arguments and retrieve the function return value
+in accordance to the calling convention; the former before the nop
+sequence and the latter after the nop sequence.  It is expected that
+the user will patch over the 'num patch bytes' bytes of nops with a
+calling sequence specific to their runtime before executing the
+generated machine code.  There are no guarantees with respect to the
+alignment of the nop sequence.  Unlike :doc:`StackMaps` statepoints do
+not have a concept of shadow bytes.  Note that semantically the
+statepoint still represents a call or invoke to 'target', and the nop
+sequence after patching is expected to represent an operation
+equivalent to a call or invoke to 'target'.
+
+The 'target' operand is the function actually being called.  The
+target can be specified as either a symbolic LLVM function, or as an
+arbitrary Value of appropriate function type.  Note that the function
+type must match the signature of the callee and the types of the 'call
+parameters' arguments.
+
+The '#call args' operand is the number of arguments to the actual
+call.  It must exactly match the number of arguments passed in the
+'call parameters' variable length section.
+
+The 'flags' operand is used to specify extra information about the
+statepoint. This is currently only used to mark certain statepoints
+as GC transitions. This operand is a 64-bit integer with the following
+layout, where bit 0 is the least significant bit:
+
+  +-------+---------------------------------------------------+
+  | Bit # | Usage                                             |
+  +=======+===================================================+
+  |     0 | Set if the statepoint is a GC transition, cleared |
+  |       | otherwise.                                        |
+  +-------+---------------------------------------------------+
+  |  1-63 | Reserved for future use; must be cleared.         |
+  +-------+---------------------------------------------------+
+
+The 'call parameters' arguments are simply the arguments which need to
+be passed to the call target.  They will be lowered according to the
+specified calling convention and otherwise handled like a normal call
+instruction.  The number of arguments must exactly match what is
+specified in '# call args'.  The types must match the signature of
+'target'.
+
+The 'call parameter' attributes must be followed by two 'i64 0' constants.
+These were originally the length prefixes for 'gc transition parameter' and
+'deopt parameter' arguments, but the role of these parameter sets have been
+entirely replaced with the corresponding operand bundles.  In a future
+revision, these now redundant arguments will be removed.
+
+Semantics:
+""""""""""
+
+A statepoint is assumed to read and write all memory.  As a result,
+memory operations can not be reordered past a statepoint.  It is
+illegal to mark a statepoint as being either 'readonly' or 'readnone'.
+
+Note that legal IR can not perform any memory operation on a 'gc
+pointer' argument of the statepoint in a location statically reachable
+from the statepoint.  Instead, the explicitly relocated value (from a
+``gc.relocate``) must be used.
+
+'llvm.experimental.gc.result' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare type*
+        @llvm.experimental.gc.result(token %statepoint_token)
+
+Overview:
+"""""""""
+
+``gc.result`` extracts the result of the original call instruction
+which was replaced by the ``gc.statepoint``.  The ``gc.result``
+intrinsic is actually a family of three intrinsics due to an
+implementation limitation.  Other than the type of the return value,
+the semantics are the same.
+
+Operands:
+"""""""""
+
+The first and only argument is the ``gc.statepoint`` which starts
+the safepoint sequence of which this ``gc.result`` is a part.
+Despite the typing of this as a generic token, *only* the value defined 
+by a ``gc.statepoint`` is legal here.
+
+Semantics:
+""""""""""
+
+The ``gc.result`` represents the return value of the call target of
+the ``statepoint``.  The type of the ``gc.result`` must exactly match
+the type of the target.  If the call target returns void, there will
+be no ``gc.result``.
+
+A ``gc.result`` is modeled as a 'readnone' pure function.  It has no
+side effects since it is just a projection of the return value of the
+previous call represented by the ``gc.statepoint``.
+
+'llvm.experimental.gc.relocate' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <pointer type>
+        @llvm.experimental.gc.relocate(token %statepoint_token, 
+                                       i32 %base_offset, 
+                                       i32 %pointer_offset)
+
+Overview:
+"""""""""
+
+A ``gc.relocate`` returns the potentially relocated value of a pointer
+at the safepoint.
+
+Operands:
+"""""""""
+
+The first argument is the ``gc.statepoint`` which starts the
+safepoint sequence of which this ``gc.relocation`` is a part.
+Despite the typing of this as a generic token, *only* the value defined 
+by a ``gc.statepoint`` is legal here.
+
+The second and third arguments are both indices into operands of the
+corresponding statepoint's :ref:`gc-live <ob_gc_live>` operand bundle.
+
+The second argument is an index which specifies the allocation for the pointer
+being relocated. The associated value must be within the object with which the
+pointer being relocated is associated. The optimizer is free to change *which*
+interior derived pointer is reported, provided that it does not replace an
+actual base pointer with another interior derived pointer. Collectors are
+allowed to rely on the base pointer operand remaining an actual base pointer if
+so constructed.
+
+The third argument is an index which specify the (potentially) derived pointer
+being relocated.  It is legal for this index to be the same as the second
+argument if-and-only-if a base pointer is being relocated.
+
+Semantics:
+""""""""""
+
+The return value of ``gc.relocate`` is the potentially relocated value
+of the pointer specified by its arguments.  It is unspecified how the
+value of the returned pointer relates to the argument to the
+``gc.statepoint`` other than that a) it points to the same source
+language object with the same offset, and b) the 'based-on'
+relationship of the newly relocated pointers is a projection of the
+unrelocated pointers.  In particular, the integer value of the pointer
+returned is unspecified.
+
+A ``gc.relocate`` is modeled as a ``readnone`` pure function.  It has no
+side effects since it is just a way to extract information about work
+done during the actual call modeled by the ``gc.statepoint``.
 
 Code Generator Intrinsics
 -------------------------
@@ -12000,7 +12329,7 @@ arrays in C99.
 Semantics:
 """"""""""
 
-This intrinsic returns a opaque pointer value that can be passed to
+This intrinsic returns an opaque pointer value that can be passed to
 :ref:`llvm.stackrestore <int_stackrestore>`. When an
 ``llvm.stackrestore`` intrinsic is executed with a value saved from
 ``llvm.stacksave``, it effectively restores the state of the stack to
@@ -12053,7 +12382,7 @@ Overview:
       The '``llvm.get.dynamic.area.offset.*``' intrinsic family is used to
       get the offset from native stack pointer to the address of the most
       recent dynamic alloca on the caller's stack. These intrinsics are
-      intendend for use in combination with
+      intended for use in combination with
       :ref:`llvm.stacksave <int_stacksave>` to get a
       pointer to the most recent dynamic alloca. This is useful, for example,
       for AddressSanitizer's stack unpoisoning routines.
@@ -12170,7 +12499,7 @@ Semantics:
 """"""""""
 
 When directly supported, reading the cycle counter should not modify any
-memory. Implementations are allowed to either return a application
+memory. Implementations are allowed to either return an application
 specific value or a system wide value. On backends without support, this
 is lowered to a constant 0.
 
@@ -15715,6 +16044,46 @@ set up the hardware-loop count with a target specific instruction, usually a
 move of this value to a special register or a hardware-loop instruction.
 The result is the conditional value of whether the given count is not zero.
 
+
+'``llvm.test.start.loop.iterations.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic.
+
+::
+
+      declare {i32, i1} @llvm.test.start.loop.iterations.i32(i32)
+      declare {i64, i1} @llvm.test.start.loop.iterations.i64(i64)
+
+Overview:
+"""""""""
+
+The '``llvm.test.start.loop.iterations.*``' intrinsics are similar to the
+'``llvm.test.set.loop.iterations.*``' and '``llvm.start.loop.iterations.*``'
+intrinsics, used to specify the hardware-loop trip count, but also produce a
+value identical to the input that can be used as the input to the loop. The
+second i1 output controls entry to a while-loop.
+
+Arguments:
+""""""""""
+
+The integer operand is the loop trip count of the hardware-loop, and thus
+not e.g. the loop back-edge taken count.
+
+Semantics:
+""""""""""
+
+The '``llvm.test.start.loop.iterations.*``' intrinsics do not perform any
+arithmetic on their operand. It's a hint to the backend that can use this to
+set up the hardware-loop count with a target specific instruction, usually a
+move of this value to a special register or a hardware-loop instruction.
+The result is a pair of the input and a conditional value of whether the
+given count is not zero.
+
+
 '``llvm.loop.decrement.reg.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -16259,6 +16628,82 @@ Arguments:
 """"""""""
 
 The argument to this intrinsic must be a vector.
+
+'``llvm.experimental.vector.splice``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <2 x double> @llvm.experimental.vector.splice.v2f64(<2 x double> %vec1, <2 x double> %vec2, i32 %imm)
+      declare <vscale x 4 x i32> @llvm.experimental.vector.splice.nxv4i32(<vscale x 4 x i32> %vec1, <vscale x 4 x i32> %vec2, i32 %imm)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.vector.splice.*``' intrinsics construct a vector by
+concatenating elements from the first input vector with elements of the second
+input vector, returning a vector of the same type as the input vectors. The
+signed immediate, modulo the number of elements in the vector, is the index
+into the first vector from which to extract the result value. This means
+conceptually that for a positive immediate, a vector is extracted from
+``concat(%vec1, %vec2)`` starting at index ``imm``, whereas for a negative
+immediate, it extracts ``-imm`` trailing elements from the first vector, and
+the remaining elements from ``%vec2``.
+
+These intrinsics work for both fixed and scalable vectors. While this intrinsic
+is marked as experimental, the recommended way to express this operation for
+fixed-width vectors is still to use a shufflevector, as that may allow for more
+optimization opportunities.
+
+For example:
+
+.. code-block:: text
+
+ llvm.experimental.vector.splice(<A,B,C,D>, <E,F,G,H>, 1)  ==> <B, C, D, E> ; index
+ llvm.experimental.vector.splice(<A,B,C,D>, <E,F,G,H>, -3) ==> <B, C, D, E> ; trailing elements
+
+
+Arguments:
+""""""""""
+
+The first two operands are vectors with the same type. The third argument
+``imm`` is the start index, modulo VL, where VL is the runtime vector length of
+the source/result vector. The ``imm`` is a signed integer constant in the range
+``-VL <= imm < VL``. For values outside of this range the result is poison.
+
+
+'``llvm.experimental.stepvector``' Intrinsic
+
+This is an overloaded intrinsic. You can use ``llvm.experimental.stepvector``
+to generate a vector whose lane values comprise the linear sequence
+<0, 1, 2, ...>. It is primarily intended for scalable vectors.
+
+::
+
+      declare <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+      declare <vscale x 8 x i16> @llvm.experimental.stepvector.nxv8i16()
+
+The '``llvm.experimental.stepvector``' intrinsics are used to create vectors
+of integers whose elements contain a linear sequence of values starting from 0
+with a step of 1.  This experimental intrinsic can only be used for vectors
+with integer elements that are at least 8 bits in size. If the sequence value
+exceeds the allowed limit for the element type then the result for that lane is
+undefined.
+
+These intrinsics work for both fixed and scalable vectors. While this intrinsic
+is marked as experimental, the recommended way to express this operation for
+fixed-width vectors is still to generate a constant vector instead.
+
+
+Arguments:
+""""""""""
+
+None.
+
 
 Matrix Intrinsics
 -----------------
@@ -17821,8 +18266,9 @@ Other targets may support this intrinsic differently, for example, by lowering i
 Memory Use Markers
 ------------------
 
-This class of intrinsics provides information about the lifetime of
-memory objects and ranges where variables are immutable.
+This class of intrinsics provides information about the
+:ref:`lifetime of memory objects <objectlifetime>` and ranges where variables
+are immutable.
 
 .. _int_lifestart:
 
@@ -17852,10 +18298,27 @@ to the object.
 Semantics:
 """"""""""
 
-This intrinsic indicates that before this point in the code, the value
-of the memory pointed to by ``ptr`` is dead. This means that it is known
-to never be used and has an undefined value. A load from the pointer
-that precedes this intrinsic can be replaced with ``'undef'``.
+If ``ptr`` is a stack-allocated object and it points to the first byte of
+the object, the object is initially marked as dead.
+``ptr`` is conservatively considered as a non-stack-allocated object if
+the stack coloring algorithm that is used in the optimization pipeline cannot
+conclude that ``ptr`` is a stack-allocated object.
+
+After '``llvm.lifetime.start``', the stack object that ``ptr`` points is marked
+as alive and has an uninitialized value.
+The stack object is marked as dead when either
+:ref:`llvm.lifetime.end <int_lifeend>` to the alloca is executed or the
+function returns.
+
+After :ref:`llvm.lifetime.end <int_lifeend>` is called,
+'``llvm.lifetime.start``' on the stack object can be called again.
+The second '``llvm.lifetime.start``' call marks the object as alive, but it
+does not change the address of the object.
+
+If ``ptr`` is a non-stack-allocated object, it does not point to the first
+byte of the object or it is a stack object that is already alive, it simply
+fills all bytes of the object with ``poison``.
+
 
 .. _int_lifeend:
 
@@ -17872,8 +18335,8 @@ Syntax:
 Overview:
 """""""""
 
-The '``llvm.lifetime.end``' intrinsic specifies the end of a memory
-object's lifetime.
+The '``llvm.lifetime.end``' intrinsic specifies the end of a memory object's
+lifetime.
 
 Arguments:
 """"""""""
@@ -17885,10 +18348,18 @@ to the object.
 Semantics:
 """"""""""
 
-This intrinsic indicates that after this point in the code, the value of
-the memory pointed to by ``ptr`` is dead. This means that it is known to
-never be used and has an undefined value. Any stores into the memory
-object following this intrinsic may be removed as dead.
+If ``ptr`` is a stack-allocated object and it points to the first byte of the
+object, the object is dead.
+``ptr`` is conservatively considered as a non-stack-allocated object if
+the stack coloring algorithm that is used in the optimization pipeline cannot
+conclude that ``ptr`` is a stack-allocated object.
+
+Calling ``llvm.lifetime.end`` on an already dead alloca is no-op.
+
+If ``ptr`` is a non-stack-allocated object or it does not point to the first
+byte of the object, it is equivalent to simply filling all bytes of the object
+with ``poison``.
+
 
 '``llvm.invariant.start``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

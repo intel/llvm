@@ -98,6 +98,8 @@ BENIGN_LANGOPT(ObjCDefaultSynthProperties , 1, 0,
                "Objective-C auto-synthesized properties")
 BENIGN_LANGOPT(EncodeExtendedBlockSig , 1, 0,
                "Encoding extended block type signature")
+BENIGN_LANGOPT(EncodeCXXClassTemplateSpec , 1, 0,
+               "Fully encode c++ class template specialization")
 BENIGN_LANGOPT(ObjCInferRelatedResultType , 1, 1,
                "Objective-C related result type inference")
 LANGOPT(AppExt , 1, 0, "Objective-C App Extension")
@@ -107,6 +109,7 @@ LANGOPT(Bool              , 1, 0, "bool, true, and false keywords")
 LANGOPT(Half              , 1, 0, "half keyword")
 LANGOPT(WChar             , 1, CPlusPlus, "wchar_t keyword")
 LANGOPT(Char8             , 1, 0, "char8_t keyword")
+LANGOPT(IEEE128           , 1, 0, "__ieee128 keyword")
 LANGOPT(DeclSpecKeyword   , 1, 0, "__declspec keyword")
 BENIGN_LANGOPT(DollarIdents   , 1, 1, "'$' in identifiers")
 BENIGN_LANGOPT(AsmPreprocessor, 1, 0, "preprocessor in asm mode")
@@ -256,7 +259,7 @@ LANGOPT(DeclareSPIRVBuiltins, 1, 0, "Declare SPIR-V builtin functions")
 LANGOPT(SYCLExplicitSIMD  , 1, 0, "SYCL compilation with explicit SIMD extension")
 LANGOPT(EnableDAEInSpirKernels , 1, 0, "Enable Dead Argument Elimination in SPIR kernels")
 LANGOPT(
-    SYCLValueFitInMaxInt, 1, 0,
+    SYCLValueFitInMaxInt, 1, 1,
     "SYCL compiler assumes value fits within MAX_INT for member function of "
     "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
     "in SYCL class id, iterm and nd_iterm")
@@ -276,6 +279,7 @@ BENIGN_LANGOPT(DumpRecordLayoutsSimple , 1, 0, "dumping the layout of IRgen'd re
 BENIGN_LANGOPT(DumpVTableLayouts , 1, 0, "dumping the layouts of emitted vtables")
 LANGOPT(NoConstantCFStrings , 1, 0, "no constant CoreFoundation strings")
 BENIGN_LANGOPT(InlineVisibilityHidden , 1, 0, "hidden visibility for inline C++ methods")
+BENIGN_LANGOPT(IgnoreXCOFFVisibility, 1, 0, "All the visibility attributes that are specified in the source code are ignored in aix XCOFF.")
 BENIGN_LANGOPT(VisibilityInlinesHiddenStaticLocalVar, 1, 0,
                "hidden visibility for static local variables in inline C++ "
                "methods when -fvisibility-inlines hidden is enabled")

@@ -188,6 +188,7 @@ add_llvm_component_library(LLVMSupport
   TrigramIndex.cpp
   Triple.cpp
   Twine.cpp
+  TypeSize.cpp
   Unicode.cpp
   UnicodeCaseFold.cpp
   VersionTuple.cpp

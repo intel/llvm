@@ -9,6 +9,9 @@
 #ifndef LLD_MACHO_TARGET_H
 #define LLD_MACHO_TARGET_H
 
+#include "MachOStructs.h"
+#include "Relocations.h"
+
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -23,51 +26,24 @@ LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 class Symbol;
 class DylibSymbol;
 class InputSection;
-struct Reloc;
-
-enum : uint64_t {
-  // We are currently only supporting 64-bit targets since macOS and iOS are
-  // deprecating 32-bit apps.
-  WordSize = 8,
-  PageZeroSize = 1ull << 32, // XXX should be 4096 for 32-bit targets
-  MaxAlignmentPowerOf2 = 32,
-};
-
-enum class RelocAttrBits {
-  _0 = 0,              // invalid
-  PCREL = 1 << 0,      // Value is PC-relative offset
-  ABSOLUTE = 1 << 1,   // Value is an absolute address or fixed offset
-  BYTE4 = 1 << 2,      // 4 byte datum
-  BYTE8 = 1 << 3,      // 8 byte datum
-  EXTERN = 1 << 4,     // Can have an external symbol
-  LOCAL = 1 << 5,      // Can have a local symbol
-  ADDEND = 1 << 6,     // *_ADDEND paired prefix reloc
-  SUBTRAHEND = 1 << 7, // *_SUBTRACTOR paired prefix reloc
-  BRANCH = 1 << 8,     // Value is branch target
-  GOT = 1 << 9,        // Pertains to Global Offset Table slots
-  TLV = 1 << 10,       // Pertains to Thread-Local Variable slots
-  DYSYM8 = 1 << 11,    // Requires DySym width to be 8 bytes
-  LOAD = 1 << 12,      // Relaxable indirect load
-  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue*/ (1 << 13) - 1),
-};
 
 class TargetInfo {
 public:
-  struct RelocAttrs {
-    llvm::StringRef name;
-    RelocAttrBits bits;
-    bool hasAttr(RelocAttrBits b) const { return (bits & b) == b; }
-  };
-  static const RelocAttrs invalidRelocAttrs;
+  template <class LP> TargetInfo(LP) {
+    // Having these values available in TargetInfo allows us to access them
+    // without having to resort to templates.
+    pageZeroSize = LP::pageZeroSize;
+    wordSize = LP::wordSize;
+  }
 
   virtual ~TargetInfo() = default;
 
   // Validate the relocation structure and get its addend.
-  virtual uint64_t
-  getEmbeddedAddend(llvm::MemoryBufferRef, const llvm::MachO::section_64 &,
+  virtual int64_t
+  getEmbeddedAddend(llvm::MemoryBufferRef, uint64_t offset,
                     const llvm::MachO::relocation_info) const = 0;
   virtual void relocateOne(uint8_t *loc, const Reloc &, uint64_t va,
-                           uint64_t pc) const = 0;
+                           uint64_t relocVA) const = 0;
 
   // Write code for lazy binding. See the comments on StubsSection for more
   // details.
@@ -91,23 +67,44 @@ public:
     return getRelocAttrs(type).hasAttr(bit);
   }
 
-  bool validateRelocationInfo(llvm::MemoryBufferRef,
-                              const llvm::MachO::section_64 &sec,
-                              llvm::MachO::relocation_info);
-  bool validateSymbolRelocation(const Symbol *, const InputSection *isec,
-                                const Reloc &);
-  void prepareSymbolRelocation(Symbol *, const InputSection *, const Reloc &);
-
   uint32_t cpuType;
   uint32_t cpuSubtype;
 
+  uint64_t pageZeroSize;
   size_t stubSize;
   size_t stubHelperHeaderSize;
   size_t stubHelperEntrySize;
+  size_t wordSize;
 };
 
 TargetInfo *createX86_64TargetInfo();
 TargetInfo *createARM64TargetInfo();
+
+struct LP64 {
+  using mach_header = llvm::MachO::mach_header_64;
+  using nlist = structs::nlist_64;
+  using segment_command = llvm::MachO::segment_command_64;
+  using section = llvm::MachO::section_64;
+
+  static constexpr uint32_t magic = llvm::MachO::MH_MAGIC_64;
+  static constexpr uint32_t segmentLCType = llvm::MachO::LC_SEGMENT_64;
+
+  static constexpr uint64_t pageZeroSize = 1ull << 32;
+  static constexpr size_t wordSize = 8;
+};
+
+struct ILP32 {
+  using mach_header = llvm::MachO::mach_header;
+  using nlist = structs::nlist;
+  using segment_command = llvm::MachO::segment_command;
+  using section = llvm::MachO::section;
+
+  static constexpr uint32_t magic = llvm::MachO::MH_MAGIC;
+  static constexpr uint32_t segmentLCType = llvm::MachO::LC_SEGMENT;
+
+  static constexpr uint64_t pageZeroSize = 1ull << 12;
+  static constexpr size_t wordSize = 4;
+};
 
 extern TargetInfo *target;
 

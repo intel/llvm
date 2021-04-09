@@ -178,6 +178,16 @@ class ImageType<Type _Ty, string _AccessQualifier> :
   let AddrSpace = _Ty.AddrSpace;
 }
 
+// OpenCL enum type (e.g. memory_scope).
+class EnumType<string _Name> :
+    Type<_Name, QualType<"getOpenCLEnumType(S, \"" # _Name # "\")", 0>> {
+}
+
+// OpenCL typedef type (e.g. cl_mem_fence_flags).
+class TypedefType<string _Name> :
+    Type<_Name, QualType<"getOpenCLTypedefType(S, \"" # _Name # "\")", 0>> {
+}
+
 // List of Types.
 class TypeList<list<Type> _Type> {
   list<Type> List = _Type;
@@ -301,6 +311,9 @@ def ClkEvent              : Type<"clk_event_t", QualType<"Context.OCLClkEventTy"
 def Event                 : Type<"event_t", QualType<"Context.OCLEventTy">>;
 def Queue                 : Type<"queue_t", QualType<"Context.OCLQueueTy">>;
 def ReserveId             : Type<"reserve_id_t", QualType<"Context.OCLReserveIDTy">>;
+def MemFenceFlags         : TypedefType<"cl_mem_fence_flags">;
+def ClkProfilingInfo      : TypedefType<"clk_profiling_info">;
+def NDRange               : TypedefType<"ndrange_t">;
 
 // OpenCL v2.0 s6.13.11: Atomic integer and floating-point types.
 def AtomicInt             : Type<"atomic_int", QualType<"Context.getAtomicType(Context.IntTy)">>;
@@ -313,6 +326,10 @@ def AtomicIntPtr          : Type<"atomic_intptr_t", QualType<"Context.getAtomicT
 def AtomicUIntPtr         : Type<"atomic_uintptr_t", QualType<"Context.getAtomicType(Context.getUIntPtrType())">>;
 def AtomicSize            : Type<"atomic_size_t", QualType<"Context.getAtomicType(Context.getSizeType())">>;
 def AtomicPtrDiff         : Type<"atomic_ptrdiff_t", QualType<"Context.getAtomicType(Context.getPointerDiffType())">>;
+
+def AtomicFlag            : TypedefType<"atomic_flag">;
+def MemoryOrder           : EnumType<"memory_order">;
+def MemoryScope           : EnumType<"memory_scope">;
 
 //===----------------------------------------------------------------------===//
 //                 Definitions of OpenCL gentype variants
@@ -564,8 +581,9 @@ foreach name = ["half_divide", "half_powr",
 foreach name = ["abs"] in {
   def : Builtin<name, [AI2UGenTypeN, AIGenTypeN], Attr.Const>;
 }
-foreach name = ["clz", "popcount"] in {
-  def : Builtin<name, [AIGenTypeN, AIGenTypeN], Attr.Const>;
+def : Builtin<"clz", [AIGenTypeN, AIGenTypeN], Attr.Const>;
+let MinVersion = CL12 in {
+  def : Builtin<"popcount", [AIGenTypeN, AIGenTypeN], Attr.Const>;
 }
 let MinVersion = CL20 in {
   foreach name = ["ctz"] in {
@@ -636,11 +654,17 @@ foreach name = ["step"] in {
 }
 
 // --- 3 arguments ---
-foreach name = ["clamp", "mix"] in {
+foreach name = ["clamp"] in {
   def : Builtin<name, [FGenTypeN, FGenTypeN, FGenTypeN, FGenTypeN], Attr.Const>;
   def : Builtin<name, [GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar, Float, Float], Attr.Const>;
   def : Builtin<name, [GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar, Double, Double], Attr.Const>;
   def : Builtin<name, [GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar, Half, Half], Attr.Const>;
+}
+foreach name = ["mix"] in {
+  def : Builtin<name, [FGenTypeN, FGenTypeN, FGenTypeN, FGenTypeN], Attr.Const>;
+  def : Builtin<name, [GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar, Float], Attr.Const>;
+  def : Builtin<name, [GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar, Double], Attr.Const>;
+  def : Builtin<name, [GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar, Half], Attr.Const>;
 }
 foreach name = ["smoothstep"] in {
   def : Builtin<name, [FGenTypeN, FGenTypeN, FGenTypeN, FGenTypeN], Attr.Const>;
@@ -899,6 +923,29 @@ foreach AS = [ConstantAS] in {
   }
 }
 
+// OpenCL v3.0 s6.15.8 - Synchronization Functions.
+def : Builtin<"barrier", [Void, MemFenceFlags], Attr.Convergent>;
+let MinVersion = CL20 in {
+  def : Builtin<"work_group_barrier", [Void, MemFenceFlags], Attr.Convergent>;
+  def : Builtin<"work_group_barrier", [Void, MemFenceFlags, MemoryScope], Attr.Convergent>;
+}
+
+// OpenCL v3.0 s6.15.9 - Legacy Explicit Memory Fence Functions.
+def : Builtin<"mem_fence", [Void, MemFenceFlags]>;
+def : Builtin<"read_mem_fence", [Void, MemFenceFlags]>;
+def : Builtin<"write_mem_fence", [Void, MemFenceFlags]>;
+
+// OpenCL v3.0 s6.15.10 - Address Space Qualifier Functions.
+// to_global, to_local, to_private are declared in Builtins.def.
+
+let MinVersion = CL20 in {
+  // The OpenCL 3.0 specification defines these with a "gentype" argument indicating any builtin
+  // type or user-defined type, which cannot be represented currently.  Hence we slightly diverge
+  // by providing only the following overloads with a void pointer.
+  def : Builtin<"get_fence", [MemFenceFlags, PointerType<Void, GenericAS>]>;
+  def : Builtin<"get_fence", [MemFenceFlags, PointerType<ConstType<Void>, GenericAS>]>;
+}
+
 //--------------------------------------------------------------------
 // OpenCL v1.1 s6.11.10, v1.2 s6.12.10, v2.0 s6.13.10: Async Copies from Global to Local Memory, Local to Global Memory, and Prefetch
 // OpenCL Extension v2.0 s5.1.7 and s6.1.7: Async Copies from Global to Local Memory, Local to Global Memory, and Prefetch
@@ -999,6 +1046,7 @@ let Extension = FuncExtKhrInt64ExtendedAtomics in {
 }
 // OpenCL v1.1 s6.11.1, v1.2 s6.12.11 - Atomic Functions
 foreach AS = [GlobalAS, LocalAS] in {
+  def : Builtin<"atomic_xchg", [Float, PointerType<VolatileType<Float>, AS>, Float]>;
   foreach Type = [Int, UInt] in {
     foreach name = ["atomic_add", "atomic_sub", "atomic_xchg",
                     "atomic_min", "atomic_max", "atomic_and",
@@ -1015,6 +1063,8 @@ foreach AS = [GlobalAS, LocalAS] in {
 }
 // OpenCL v2.0 s6.13.11 - Atomic Functions.
 let MinVersion = CL20 in {
+  def : Builtin<"atomic_work_item_fence", [Void, MemFenceFlags, MemoryOrder, MemoryScope]>;
+
   foreach TypePair = [[AtomicInt, Int], [AtomicUInt, UInt],
                       [AtomicLong, Long], [AtomicULong, ULong],
                       [AtomicFloat, Float], [AtomicDouble, Double]] in {
@@ -1022,35 +1072,72 @@ let MinVersion = CL20 in {
         [Void, PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[1]]>;
     def : Builtin<"atomic_store",
         [Void, PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[1]]>;
+    def : Builtin<"atomic_store_explicit",
+        [Void, PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[1], MemoryOrder]>;
+    def : Builtin<"atomic_store_explicit",
+        [Void, PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[1], MemoryOrder, MemoryScope]>;
     def : Builtin<"atomic_load",
         [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>]>;
+    def : Builtin<"atomic_load_explicit",
+        [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, MemoryOrder]>;
+    def : Builtin<"atomic_load_explicit",
+        [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, MemoryOrder, MemoryScope]>;
     def : Builtin<"atomic_exchange",
         [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[1]]>;
+    def : Builtin<"atomic_exchange_explicit",
+        [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[1], MemoryOrder]>;
+    def : Builtin<"atomic_exchange_explicit",
+        [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[1], MemoryOrder, MemoryScope]>;
     foreach Variant = ["weak", "strong"] in {
       def : Builtin<"atomic_compare_exchange_" # Variant,
           [Bool, PointerType<VolatileType<TypePair[0]>, GenericAS>,
            PointerType<TypePair[1], GenericAS>, TypePair[1]]>;
+      def : Builtin<"atomic_compare_exchange_" # Variant # "_explicit",
+          [Bool, PointerType<VolatileType<TypePair[0]>, GenericAS>,
+           PointerType<TypePair[1], GenericAS>, TypePair[1], MemoryOrder, MemoryOrder]>;
+      def : Builtin<"atomic_compare_exchange_" # Variant # "_explicit",
+          [Bool, PointerType<VolatileType<TypePair[0]>, GenericAS>,
+           PointerType<TypePair[1], GenericAS>, TypePair[1], MemoryOrder, MemoryOrder, MemoryScope]>;
     }
   }
 
   foreach TypePair = [[AtomicInt, Int, Int], [AtomicUInt, UInt, UInt],
                       [AtomicLong, Long, Long], [AtomicULong, ULong, ULong],
-                      [AtomicIntPtr, IntPtr, PtrDiff],
                       [AtomicUIntPtr, UIntPtr, PtrDiff]] in {
     foreach ModOp = ["add", "sub"] in {
       def : Builtin<"atomic_fetch_" # ModOp,
           [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[2]]>;
+      def : Builtin<"atomic_fetch_" # ModOp # "_explicit",
+          [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[2], MemoryOrder]>;
+      def : Builtin<"atomic_fetch_" # ModOp # "_explicit",
+          [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[2], MemoryOrder, MemoryScope]>;
     }
   }
   foreach TypePair = [[AtomicInt, Int, Int], [AtomicUInt, UInt, UInt],
-                      [AtomicLong, Long, Long], [AtomicULong, ULong, ULong],
-                      [AtomicIntPtr, IntPtr, IntPtr],
-                      [AtomicUIntPtr, UIntPtr, UIntPtr]] in {
+                      [AtomicLong, Long, Long], [AtomicULong, ULong, ULong]] in {
     foreach ModOp = ["or", "xor", "and", "min", "max"] in {
       def : Builtin<"atomic_fetch_" # ModOp,
           [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[2]]>;
+      def : Builtin<"atomic_fetch_" # ModOp # "_explicit",
+          [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[2], MemoryOrder]>;
+      def : Builtin<"atomic_fetch_" # ModOp # "_explicit",
+          [TypePair[1], PointerType<VolatileType<TypePair[0]>, GenericAS>, TypePair[2], MemoryOrder, MemoryScope]>;
     }
   }
+
+  def : Builtin<"atomic_flag_clear",
+      [Void, PointerType<VolatileType<AtomicFlag>, GenericAS>]>;
+  def : Builtin<"atomic_flag_clear_explicit",
+      [Void, PointerType<VolatileType<AtomicFlag>, GenericAS>, MemoryOrder]>;
+  def : Builtin<"atomic_flag_clear_explicit",
+      [Void, PointerType<VolatileType<AtomicFlag>, GenericAS>, MemoryOrder, MemoryScope]>;
+
+  def : Builtin<"atomic_flag_test_and_set",
+      [Bool, PointerType<VolatileType<AtomicFlag>, GenericAS>]>;
+  def : Builtin<"atomic_flag_test_and_set_explicit",
+      [Bool, PointerType<VolatileType<AtomicFlag>, GenericAS>, MemoryOrder]>;
+  def : Builtin<"atomic_flag_test_and_set_explicit",
+      [Bool, PointerType<VolatileType<AtomicFlag>, GenericAS>, MemoryOrder, MemoryScope]>;
 }
 
 //--------------------------------------------------------------------
@@ -1274,20 +1361,38 @@ def : Builtin<"is_valid_reserve_id", [Bool, ReserveId]>;
 // Defined in Builtins.def
 
 // --- Table 33 ---
-def : Builtin<"enqueue_marker",
-    [Int, Queue, UInt, PointerType<ConstType<ClkEvent>, GenericAS>, PointerType<ClkEvent, GenericAS>]>;
+let MinVersion = CL20 in {
+  def : Builtin<"enqueue_marker",
+      [Int, Queue, UInt, PointerType<ConstType<ClkEvent>, GenericAS>, PointerType<ClkEvent, GenericAS>]>;
 
-// --- Table 34 ---
-def : Builtin<"retain_event", [Void, ClkEvent]>;
-def : Builtin<"release_event", [Void, ClkEvent]>;
-def : Builtin<"create_user_event", [ClkEvent]>;
-def : Builtin<"is_valid_event", [Bool, ClkEvent]>;
-def : Builtin<"set_user_event_status", [Void, ClkEvent, Int]>;
-// TODO: capture_event_profiling_info
+  // --- Table 34 ---
+  def : Builtin<"retain_event", [Void, ClkEvent]>;
+  def : Builtin<"release_event", [Void, ClkEvent]>;
+  def : Builtin<"create_user_event", [ClkEvent]>;
+  def : Builtin<"is_valid_event", [Bool, ClkEvent]>;
+  def : Builtin<"set_user_event_status", [Void, ClkEvent, Int]>;
+  def : Builtin<"capture_event_profiling_info",
+      [Void, ClkEvent, ClkProfilingInfo, PointerType<Void, GlobalAS>]>;
 
-// --- Table 35 ---
-def : Builtin<"get_default_queue", [Queue]>;
-// TODO: ndrange functions
+  // --- Table 35 ---
+  def : Builtin<"get_default_queue", [Queue]>;
+
+  def : Builtin<"ndrange_1D", [NDRange, Size]>;
+  def : Builtin<"ndrange_1D", [NDRange, Size, Size]>;
+  def : Builtin<"ndrange_1D", [NDRange, Size, Size, Size]>;
+  def : Builtin<"ndrange_2D", [NDRange, PointerType<ConstType<Size>, PrivateAS>]>;
+  def : Builtin<"ndrange_2D", [NDRange, PointerType<ConstType<Size>, PrivateAS>,
+                                        PointerType<ConstType<Size>, PrivateAS>]>;
+  def : Builtin<"ndrange_2D", [NDRange, PointerType<ConstType<Size>, PrivateAS>,
+                                        PointerType<ConstType<Size>, PrivateAS>,
+                                        PointerType<ConstType<Size>, PrivateAS>]>;
+  def : Builtin<"ndrange_3D", [NDRange, PointerType<ConstType<Size>, PrivateAS>]>;
+  def : Builtin<"ndrange_3D", [NDRange, PointerType<ConstType<Size>, PrivateAS>,
+                                        PointerType<ConstType<Size>, PrivateAS>]>;
+  def : Builtin<"ndrange_3D", [NDRange, PointerType<ConstType<Size>, PrivateAS>,
+                                        PointerType<ConstType<Size>, PrivateAS>,
+                                        PointerType<ConstType<Size>, PrivateAS>]>;
+}
 
 
 //--------------------------------------------------------------------
@@ -1481,7 +1586,10 @@ let Extension = FuncExtKhrSubgroups in {
 }
 
 // --- Table 28.2.2 ---
-// TODO: sub_group_barrier
+let Extension = FuncExtKhrSubgroups in {
+  def : Builtin<"sub_group_barrier", [Void, MemFenceFlags], Attr.Convergent>;
+  def : Builtin<"sub_group_barrier", [Void, MemFenceFlags, MemoryScope], Attr.Convergent>;
+}
 
 // --- Table 28.2.4 ---
 let Extension = FuncExtKhrSubgroups in {

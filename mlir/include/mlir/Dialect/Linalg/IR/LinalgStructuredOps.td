@@ -17,6 +17,7 @@
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
 include "mlir/Dialect/Linalg/IR/LinalgInterfaces.td"
 include "mlir/Interfaces/CopyOpInterface.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // Base Tablegen class for Linalg ops.
@@ -25,13 +26,19 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // depending on the specific Linalg op.
 class LinalgStructuredBase_Op<string mnemonic, list<OpTrait> props>
   : Op<Linalg_Dialect, mnemonic, !listconcat(props, [
-       LinalgStructuredInterface])> {
+       LinalgStructuredInterface, InferShapedTypeOpInterface])> {
   code structuredOpsBaseDecls = [{
     // Return the number of induction variables in the basic block. This should
     // always be 0 for index-free linalg ops. For IndexedGeneric, this must be
     // equal to numLoops.
     unsigned getNumPayloadInductionVariables() {
       return isa<IndexedGenericOp>(this->getOperation()) ? getNumLoops() : 0;
+    }
+
+    LogicalResult reifyReturnTypeShapesPerResultDim(OpBuilder &b,
+        SmallVectorImpl<SmallVector<Value>> &reifiedReturnShapes) {
+      return cast<LinalgOp>(getOperation()).reifyReturnTypeShapesPerResultDim(b,
+          reifiedReturnShapes);
     }
   }];
 }
@@ -113,7 +120,7 @@ def CopyOp : LinalgStructured_Op<"copy", [CopyOpInterface]> {
   let regions = (region AnyRegion:$region);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$input, "Value":$output,
+    OpBuilder<(ins "Value":$input, "Value":$output,
       CArg<"AffineMap", "AffineMap()">:$inputPermutation,
       CArg<"AffineMap", "AffineMap()">:$outputPermutation,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>];
@@ -204,7 +211,7 @@ def FillOp : LinalgStructured_Op<"fill", []> {
   }];
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$output, "Value":$value)>
+    OpBuilder<(ins "Value":$output, "Value":$value)>
   ];
 
   let verifier = [{ return ::verify(*this); }];
@@ -343,7 +350,7 @@ def ConvOp : PoolingBase_Op<"conv", []> {
       // parallelized across; i.e. [zs] in the TF notation above whose number
       // match `xs` (i.e. 1 window loop per "image" dimension).
       // This may evolve in the future.
-      // Conditionally check nPar is large enough for cases of ill-formed op: 
+      // Conditionally check nPar is large enough for cases of ill-formed op:
       // this avoids overflows before hitting the verifier.
       assert(nPar > getNumBatchDimensions() + getNumInputFeatureDimensions() &&
              "expected at least one window dimension (i.e. memref ranks greater "
@@ -496,8 +503,6 @@ def PoolingSumOp: SingleInputPoolingBase_Op<"pooling_sum"> {
 //===----------------------------------------------------------------------===//
 // Generic Linalg ops.
 //===----------------------------------------------------------------------===//
-def LinalgOperand: AnyTypeOf<[AnyRankedTensor, AnyStridedMemRef]>;
-
 class LinalgOperandOfRank<int rank>: Type<
   And<[
     LinalgOperand.predicate,
@@ -642,20 +647,20 @@ def GenericOp : GenericOpBase<"generic"> {
   }];
 
   let builders = [
-    OpBuilderDAG<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
       "ArrayRef<StringRef>":$iteratorTypes, "StringRef":$doc,
       "StringRef":$libraryCall,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
-    OpBuilderDAG<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
       "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
       "StringRef":$doc, "StringRef":$libraryCall,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
-    OpBuilderDAG<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
       "ArrayRef<StringRef>":$iteratorTypes,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
-    OpBuilderDAG<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
       "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>
   ];
@@ -774,23 +779,23 @@ def IndexedGenericOp : GenericOpBase<"indexed_generic"> {
   }];
 
   let builders = [
-    OpBuilderDAG<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
       "ArrayRef<StringRef>":$iteratorTypes, "StringRef":$doc,
       "StringRef":$libraryCall,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>",
            "nullptr">)>,
-    OpBuilderDAG<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
       "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
       "StringRef":$doc, "StringRef":$libraryCall,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>",
            "nullptr">)>,
-    OpBuilderDAG<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
       "ArrayRef<StringRef>":$iteratorTypes,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>",
            "nullptr">)>,
-    OpBuilderDAG<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
       "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>",
            "nullptr">)>
@@ -806,6 +811,7 @@ def IndexedGenericOp : GenericOpBase<"indexed_generic"> {
 //===----------------------------------------------------------------------===//
 
 // This file is auto-generated from a TC def specification.
-include "mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.td"
+include "mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.tcgen.td"
+include "mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.yamlgen.td"
 
 #endif // LINALG_STRUCTURED_OPS

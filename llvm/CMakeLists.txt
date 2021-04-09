@@ -649,12 +649,6 @@ if (LLVM_BUILD_STATIC)
   endforeach()
 endif()
 
-include(CheckSymbolExists)
-check_symbol_exists(proc_pid_rusage "libproc.h" HAVE_PROC_PID_RUSAGE)
-if(HAVE_PROC_PID_RUSAGE)
-  list(APPEND CMAKE_REQUIRED_LIBRARIES proc)
-endif()
-
 # Use libtool instead of ar if you are both on an Apple host, and targeting Apple.
 if(CMAKE_HOST_APPLE AND APPLE)
   include(UseLibtool)
@@ -699,7 +693,8 @@ set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
 
 include(HandleLLVMOptions)
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION} REQUIRED
+    COMPONENTS Interpreter)
 
 ######
 
@@ -764,6 +759,11 @@ set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/bin )
 set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
 set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
 
+if(LLVM_INCLUDE_TESTS)
+  include(GetErrcMessages)
+  get_errc_messages(LLVM_LIT_ERRC_MESSAGES)
+endif()
+
 # For up-to-date instructions for installing the Tensorflow dependency, refer to
 # the bot setup script: https://github.com/google/ml-compiler-opt/blob/master/buildbot/buildbot_init.sh
 # In this case, the latest C API library is available for download from
@@ -794,6 +794,9 @@ if (NOT TENSORFLOW_AOT_PATH STREQUAL "")
   include_directories(${TENSORFLOW_AOT_PATH}/include)
   add_subdirectory(${TENSORFLOW_AOT_PATH}/xla_aot_runtime_src
     ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/tf_runtime)
+  install(TARGETS tf_xla_runtime EXPORT LLVMExports 
+    ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT tf_xla_runtime)
+  set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS tf_xla_runtime)
 endif()
 
 # Keep the legacy CMake flag ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER for

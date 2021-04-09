@@ -2,6 +2,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s  -Wsycl-strict -DWARN
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -verify %s  -Werror=sycl-strict
 
+// This test verifies that incorrect kernel names are diagnosed correctly.
+
 #include "sycl.hpp"
 
 #ifdef __SYCL_UNNAMED_LAMBDA__
@@ -25,12 +27,10 @@ int main() {
   queue q;
 
 #if defined(WARN)
-  // expected-error@#KernelSingleTask {{'InvalidKernelName1' is an invalid kernel name type}}
-  // expected-note@#KernelSingleTask {{'InvalidKernelName1' should be globally-visible}}
-  // expected-note@+8 {{in instantiation of function template specialization}}
+  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
+  // expected-note@+7 {{in instantiation of function template specialization}}
 #elif defined(ERROR)
-  // expected-error@#KernelSingleTask {{'InvalidKernelName1' is an invalid kernel name type}}
-  // expected-note@#KernelSingleTask {{'InvalidKernelName1' should be globally-visible}}
+  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
   // expected-note@+4 {{in instantiation of function template specialization}}
 #endif
   class InvalidKernelName1 {};

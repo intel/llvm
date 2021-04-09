@@ -547,6 +547,17 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
   if (T.isNVPTX()) {
     TLI.disableAllFunctions();
     TLI.setAvailable(LibFunc_nvvm_reflect);
+    TLI.setAvailable(llvm::LibFunc_malloc);
+    TLI.setAvailable(llvm::LibFunc_free);
+
+    // TODO: We could enable the following two according to [0] but we haven't
+    //       done an evaluation wrt. the performance implications.
+    // [0]
+    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#dynamic-global-memory-allocation-and-operations
+    //
+    //    TLI.setAvailable(llvm::LibFunc_memcpy);
+    //    TLI.setAvailable(llvm::LibFunc_memset);
+
   } else {
     TLI.setUnavailable(LibFunc_nvvm_reflect);
   }
@@ -645,7 +656,6 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
                                                    LibFunc F,
                                                    const DataLayout *DL) const {
   LLVMContext &Ctx = FTy.getContext();
-  Type *PCharTy = Type::getInt8PtrTy(Ctx);
   Type *SizeTTy = DL ? DL->getIntPtrType(Ctx, /*AddressSpace=*/0) : nullptr;
   auto IsSizeTTy = [SizeTTy](Type *Ty) {
     return SizeTTy ? Ty == SizeTTy : Ty->isIntegerTy();
@@ -727,7 +737,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_stpcpy:
     return (NumParams == 2 && FTy.getReturnType() == FTy.getParamType(0) &&
             FTy.getParamType(0) == FTy.getParamType(1) &&
-            FTy.getParamType(0) == PCharTy);
+            FTy.getParamType(0)->isPointerTy());
 
   case LibFunc_strlcat_chk:
   case LibFunc_strlcpy_chk:
@@ -752,7 +762,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_stpncpy:
     return (NumParams == 3 && FTy.getReturnType() == FTy.getParamType(0) &&
             FTy.getParamType(0) == FTy.getParamType(1) &&
-            FTy.getParamType(0) == PCharTy &&
+            FTy.getParamType(0)->isPointerTy() &&
             IsSizeTTy(FTy.getParamType(2)));
 
   case LibFunc_strxfrm:
@@ -895,7 +905,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_realloc:
   case LibFunc_reallocf:
   case LibFunc_vec_realloc:
-    return (NumParams == 2 && FTy.getReturnType() == PCharTy &&
+    return (NumParams == 2 && FTy.getReturnType()->isPointerTy() &&
             FTy.getParamType(0) == FTy.getReturnType() &&
             IsSizeTTy(FTy.getParamType(1)));
   case LibFunc_read:
@@ -1026,7 +1036,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_getchar_unlocked:
     return (NumParams == 0 && FTy.getReturnType()->isIntegerTy());
   case LibFunc_gets:
-    return (NumParams == 1 && FTy.getParamType(0) == PCharTy);
+    return (NumParams == 1 && FTy.getParamType(0)->isPointerTy());
   case LibFunc_getitimer:
     return (NumParams == 2 && FTy.getParamType(1)->isPointerTy());
   case LibFunc_ungetc:
@@ -1482,13 +1492,13 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
 
   case LibFunc_strnlen:
     return (NumParams == 2 && FTy.getReturnType() == FTy.getParamType(1) &&
-            FTy.getParamType(0) == PCharTy &&
-            FTy.getParamType(1) == SizeTTy);
+            FTy.getParamType(0)->isPointerTy() &&
+            IsSizeTTy(FTy.getParamType(1)));
 
   case LibFunc_posix_memalign:
     return (NumParams == 3 && FTy.getReturnType()->isIntegerTy(32) &&
             FTy.getParamType(0)->isPointerTy() &&
-            FTy.getParamType(1) == SizeTTy && FTy.getParamType(2) == SizeTTy);
+            IsSizeTTy(FTy.getParamType(1)) && IsSizeTTy(FTy.getParamType(2)));
 
   case LibFunc_wcslen:
     return (NumParams == 1 && FTy.getParamType(0)->isPointerTy() &&
