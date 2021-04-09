@@ -53,7 +53,7 @@ This technique, however, is not available to a developer writing a device side
 library because such a developer does not have control over the host code that
 launches the kernel.  The developer could expose the library function as a
 template with a template parameter that controls the use of the conditional
-feature.  For example, consider a library function that wants to conditionally
+feature.  For example, consider a library function "frob" that wants to conditionally
 use a feature named "fancy":
 
 ```
@@ -127,7 +127,7 @@ include the enumerated aspect values defined in the core SYCL specification as
 well as any enumerated aspect values defined by other extensions that the
 implementation supports.
 
-The first overload takes a single callable (typically a lamdba expression),
+The first overload takes a single callable (typically a lambda expression),
 which the implementation calls only if the condition is true.  The second
 overload takes two callables; the implementation calls the first when the
 condition is true and calls the second when the condition is false.
@@ -304,7 +304,7 @@ aspect: a specialization constant will be set to `true` if the device supports
 that aspect and to `false` if it does not.
 
 One challenge with this approach is that we need some way to guarantee that the
-online compiler will not raise a compilation error from an unselected lamdba
+online compiler will not raise a compilation error from an unselected lambda
 call.  To illustrate, consider a call to `ext_oneapi_if_device_has()` which
 conditionally uses `sycl::half` and let's consider the case where the current
 device does not have this support.  We need to make sure that the online
@@ -313,7 +313,7 @@ lambda body which uses `sycl::half`.  In such a case the SPIR-V will
 conceptually look like:
 
 ```
-if (__builtin_spec_constant(/*SPIR-V ID for aspect::fp16*/)) call lamdba
+if (__builtin_spec_constant(/*SPIR-V ID for aspect::fp16*/)) call lambda
 ```
 
 Of course, the online compiler will know that the value of
@@ -330,7 +330,7 @@ throw an exception when compiling it).
 We propose introducing some SPIR-V extension that provides this guarantee.
 The extension would take a boolean expression of specialization constant values
 to compute an "if" condition.  The extension would then guarantee that the
-body of the "if" (the lamdba call) is discarded if the boolean expression is
+body of the "if" (the lambda call) is discarded if the boolean expression is
 `false`.
 
 [NOTE]
