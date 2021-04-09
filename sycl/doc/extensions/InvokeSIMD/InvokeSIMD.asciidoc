@@ -115,20 +115,20 @@ using simd_mask = std::experimental::simd_mask<T, simd_abi::native_fixed_size<N>
 } // namespace sycl
 ----
 
-We introduce a new +native_fixed_size+ ABI which combines elements of the
-existing +native+ and +fixed_size+ ABIs defined in Parallelism TS2;
+We introduce a new `native_fixed_size` ABI which combines elements of the
+existing `native` and `fixed_size` ABIs defined in Parallelism TS2;
 implementations are expected to use the most efficient representation
-of a +simd<T, N>+ type (e.g. using multiple registers rather than an array).
-We expect implementations of this ABI to build on Clang's +ext_vector_type+,
+of a `simd<T, N>` type (e.g. using multiple registers rather than an array).
+We expect implementations of this ABI to build on Clang's `ext_vector_type`,
 rather than specifying the register types directly.
 
-The value of +N+ for each +simd+ argument to a SIMD function must be the same,
+The value of `N` for each `simd` argument to a SIMD function must be the same,
 and represents the sub-group size of the calling kernel.  If a function accepts
-+simd+ arguments with multiple +N+ values, it cannot be invoked from a SPMD
+`simd` arguments with multiple `N` values, it cannot be invoked from a SPMD
 kernel and the implementation must issue a diagnostic in this case.
 
 The example below shows a simple SIMD function that scales all elements of
-an 8-wide SIMD type +x+ by a scalar value +n+.
+an 8-wide SIMD type `x` by a scalar value `n`.
 
 [source, c++]
 ----
@@ -140,8 +140,8 @@ sycl::ext::oneapi::simd<float, 8> scale(sycl::ext::oneapi::simd<float, 8> x, flo
 
 === Invoking a SIMD Function
 
-The +invoke_simd+ free function invokes a SIMD function using all work-items
-in a +sub_group+.  The +invoke_simd+ interface marshals data between the
+The `invoke_simd` free function invokes a SIMD function using all work-items
+in a `sub_group`.  The `invoke_simd` interface marshals data between the
 SPMD context of the calling kernel and the SIMD context of the callee,
 converting arguments and return values between scalar and SIMD types as
 appropriate.
@@ -160,31 +160,31 @@ auto invoke_simd(sub_group sg, Callable&& f, T... args);
 } // namespace sycl
 ----
 
-The +Callable+ passed to +invoke_simd+ must be a C++ callable that can be
-invoked with the same number of arguments specified in the +args+ parameter
-pack. +Callable+ may be a function object, a lambda,
-or a function pointer (if the device supports +SPV_INTEL_function_pointers+).
-+Callable+ must be an immutable callable with the same type and state for all
+The `Callable` passed to `invoke_simd` must be a C++ callable that can be
+invoked with the same number of arguments specified in the `args` parameter
+pack. `Callable` may be a function object, a lambda,
+or a function pointer (if the device supports `SPV_INTEL_function_pointers`).
+`Callable` must be an immutable callable with the same type and state for all
 work-items in the sub-group, otherwise behavior is undefined.
 
-Each argument to the invoked +Callable+ must be a scalar type, a SIMD type,
-or a +std::tuple+ of these types. The length of each SIMD type must match the
+Each argument to the invoked `Callable` must be a scalar type, a SIMD type,
+or a `std::tuple` of these types. The length of each SIMD type must match the
 sub-group size of the kernel; calling a SIMD function with mismatched lengths
 is an error, and an implementation must issue a diagnostic.
 
-To enable overloading in cases where the +Callable+ accepts either a scalar
-type or a SIMD type, we introduce the +sycl::ext::oneapi::uniform+ wrapper
+To enable overloading in cases where the `Callable` accepts either a scalar
+type or a SIMD type, we introduce the `sycl::ext::oneapi::uniform` wrapper
 type. An implementation is not required to perform any analysis to prove or
 disprove the uniformity of a variable passed to the
-+sycl::ext::oneapi::uniform+ constructor, but it is highly recommended that
+`sycl::ext::oneapi::uniform` constructor, but it is highly recommended that
 an implementation issue a diagnostic if it is known that an expression can
 never be uniform.
 
 Several classes in SYCL encapsulate information that is known to vary across
 work-items; instances of such classes can never be uniform. An implementation
-must issue a diagnostic if the +sycl::ext::oneapi::uniform+ class template is
-instantiated with any of the following types: +sycl::item+, +sycl::nd_item+,
-+sycl::h_item+, +sycl::group+, +sycl::sub_group+ and +sycl::nd_range+.
+must issue a diagnostic if the `sycl::ext::oneapi::uniform` class template is
+instantiated with any of the following types: `sycl::item`, `sycl::nd_item`,
+`sycl::h_item`, `sycl::group`, `sycl::sub_group` and `sycl::nd_range`.
 
 [source, c++]
 ----
@@ -203,64 +203,64 @@ class uniform {
 } // namespace sycl
 ----
 
-Each argument in the +args+ parameter pack must be an arithmetic type, a
-trivially copyable type wrapped in a +sycl::ext::oneapi::uniform+, or a
-+std::tuple+ of these types.  Arguments may not be pointers or references,
+Each argument in the `args` parameter pack must be an arithmetic type, a
+trivially copyable type wrapped in a `sycl::ext::oneapi::uniform`, or a
+`std::tuple` of these types.  Arguments may not be pointers or references,
 but pointers (like any other non-arithmetic type) may be passed if wrapped in a
-+sycl::ext::oneapi::uniform+.  Any such pointer value must point to memory
+`sycl::ext::oneapi::uniform`.  Any such pointer value must point to memory
 that is accessible by all work-items in the sub-group (i.e. the pointer must
 point to an allocation in local or global memory).  The address space for such
 pointers can be local, global or generic; if a generic pointer that points
 to an allocation in private memory is passed as an argument, the behavior is
 undefined.
 
-In order to invoke the SIMD function, +invoke_simd+ converts each argument
-in the +args+ parameter pack according to the following rules:
+In order to invoke the SIMD function, `invoke_simd` converts each argument
+in the `args` parameter pack according to the following rules:
 
-- Arguments of type +bool+ are converted to type
-  +sycl::ext::oneapi::simd_mask<bool, N>+, where +N+ is the sub-group size of
-  the calling kernel.  Element +i+ of the SIMD type represents the value from
-  the work-item with sub-group local ID +i+.
+- Arguments of type `bool` are converted to type
+  `sycl::ext::oneapi::simd_mask<bool, N>`, where `N` is the sub-group size of
+  the calling kernel.  Element `i` of the SIMD type represents the value from
+  the work-item with sub-group local ID `i`.
 
-- All other arithmetic arguments of type +T+ are converted to type
-  +sycl::ext::oneapi::simd<T, N>+, where +N+ is the sub-group size of the
-  calling kernel.  Element +i+ of the SIMD type represents the value from the
-  work-item with sub-group local ID +i+.
+- All other arithmetic arguments of type `T` are converted to type
+  `sycl::ext::oneapi::simd<T, N>`, where `N` is the sub-group size of the
+  calling kernel.  Element `i` of the SIMD type represents the value from the
+  work-item with sub-group local ID `i`.
 
-- Arguments of type +sycl::ext::oneapi::uniform<T>+ are converted to type +T+.
+- Arguments of type `sycl::ext::oneapi::uniform<T>` are converted to type `T`.
   The value may be taken from any work-item in the sub-group; wrapping an
-  argument in a +sycl::ext::oneapi::uniform+ is an assertion that the variable
+  argument in a `sycl::ext::oneapi::uniform` is an assertion that the variable
   holds the same value for all work-items in the sub-group. If this assertion
   does not hold, the value of the scalar variable passed to the SIMD function
   is undefined.
 
-- Arguments of type +std::tuple+ are mapped as if each member of the tuple
-  was mapped individually (e.g. a +std::tuple<float, int>+ becomes a
-  +std::tuple<sycl::ext::oneapi::simd<float, N>, sycl::ext::oneapi::simd<int, N>>+.
+- Arguments of type `std::tuple` are mapped as if each member of the tuple
+  was mapped individually (e.g. a `std::tuple<float, int>` becomes a
+  `std::tuple<sycl::ext::oneapi::simd<float, N>, sycl::ext::oneapi::simd<int, N>>`.
 
-After this mapping has taken place, an appropriate variant of +Callable+ is
+After this mapping has taken place, an appropriate variant of `Callable` is
 selected based on standard overload resolution.
 
-The return value of an +invoke_simd+ function is subject to the same mapping
+The return value of an `invoke_simd` function is subject to the same mapping
 rules in reverse:
 
-- Return values of type +sycl::ext::oneapi::simd_mask<bool, N>+ are converted
-  to +bool+, and the value in element +i+ of the SIMD type is returned to the
-  work-item with sub-group local ID +i+.
+- Return values of type `sycl::ext::oneapi::simd_mask<bool, N>` are converted
+  to `bool`, and the value in element `i` of the SIMD type is returned to the
+  work-item with sub-group local ID `i`.
 
-- Return values of all other arithmetic types +sycl::ext::oneapi::simd<T, N>+
-  are converted to +T+, and the value in element +i+ of the SIMD type is
-  returned to the work-item with sub-group local ID +i+.
+- Return values of all other arithmetic types `sycl::ext::oneapi::simd<T, N>`
+  are converted to `T`, and the value in element `i` of the SIMD type is
+  returned to the work-item with sub-group local ID `i`.
 
-- Return values of type +T+ are converted to +sycl::ext::oneapi::uniform<T>+,
+- Return values of type `T` are converted to `sycl::ext::oneapi::uniform<T>`,
   and broadcast to each work-item; every work-item in the sub-group receives
   the same value.
 
-- Return values of type +std::tuple+ are mapped as if each member of the tuple
-  was mapped individually (e.g. a +std::tuple<sycl::ext::oneapi::simd<float, N>, sycl::ext::oneapi::simd<int, N>>+
-  becomes a +std::tuple<float, int>+).
+- Return values of type `std::tuple` are mapped as if each member of the tuple
+  was mapped individually (e.g. a `std::tuple<sycl::ext::oneapi::simd<float, N>, sycl::ext::oneapi::simd<int, N>>`
+  becomes a `std::tuple<float, int>`).
 
-Note that these conversion rules do not permit special types (e.g. +sycl::nd_item+)
+Note that these conversion rules do not permit special types (e.g. `sycl::nd_item`)
 being passed between SPMD and SIMD contexts, because they cannot be declared uniform.
 If an application bypasses this restriction (e.g. by wrapping an unsupported
 type, or passing an unsupported type via a pointer) then behavior is undefined.
@@ -268,19 +268,19 @@ This restriction prevents a SIMD function from calling functions that are only
 well-defined in SPMD contexts (e.g. sub-group barriers).  If a SIMD function
 requires access to a member variable of a SYCL class, the value of the
 variable should be passed via a dedicated argument (e.g. the value returned
-by +sub_group::get_local_id()[0]+ could be passed as an integer to a
-+Callable+ expecting a +sycl::ext::oneapi::simd<uint32_t, N>+).
+by `sub_group::get_local_id()[0]` could be passed as an integer to a
+`Callable` expecting a `sycl::ext::oneapi::simd<uint32_t, N>`).
 
-The +invoke_simd+ function has the same requirements as other group functions
+The `invoke_simd` function has the same requirements as other group functions
 (as defined in Section 4.17.3 of the SYCL 2020 specification). A call to
-+invoke_simd+ must be encountered in converged control flow by all work-items
-in the group, and the call acts as a synchronization point -- the +Callable+ is
-not invoked until all work-items reach the call to +invoke_simd+, and all
-work-items must wait for the +Callable+ to complete before continuing
+`invoke_simd` must be encountered in converged control flow by all work-items
+in the group, and the call acts as a synchronization point -- the `Callable` is
+not invoked until all work-items reach the call to `invoke_simd`, and all
+work-items must wait for the `Callable` to complete before continuing
 execution.
 
 The example below shows how to invoke a simple SIMD function that scales all
-elements of a SIMD type +x+ by a scalar value +n+, both with and without a
+elements of a SIMD type `x` by a scalar value `n`, both with and without a
 SIMD mask parameter.
 
 [source, c++]
@@ -342,7 +342,7 @@ memory consistency across SIMD lanes.
 +
 --
 *RESOLVED*: No.  Unlike pointers, it is less clear that references carry
-address space information, and users may not expect a +T&+ argument to behave
+address space information, and users may not expect a `T&` argument to behave
 like a pointer to the generic address space.  Users are also more likely to try
 and pass a reference to a variable in the private address space than a reference
 to a variable in the local or global address spaces, which would lead to
@@ -352,7 +352,7 @@ undefined behavior and issues that are difficult to debug.
 . How should returning multiple values and passing user-defined structs be handled?
 +
 --
-*UNRESOLVED*: +std::tuple+ addresses both issues from a user interface perspective,
+*UNRESOLVED*: `std::tuple` addresses both issues from a user interface perspective,
 but this aspect of the design may need to be revisited as we gain implementation experience.
 --
 
