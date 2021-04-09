@@ -3245,20 +3245,21 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
   if (checkAttrMutualExclusion<SYCLSimdAttr>(S, D, AL))
     return;
 
-  if (!AL.isArgIdent(0)) {
-    S.Diag(AL.getArgAsExpr(0)->getBeginLoc(), diag::err_attribute_argument_type)
-        << AL << AANT_ArgumentIdentifier;
+  StringRef SizeStr;
+  SourceLocation Loc;
+  if (AL.isArgIdent(0)) {
+    IdentifierLoc *IL = AL.getArgAsIdent(0);
+    SizeStr = IL->Ident->getName();
+    Loc = IL->Loc;
+  } else if (!S.checkStringLiteralArgumentAttr(AL, 0, SizeStr, &Loc)) {
     return;
   }
 
   IntelNamedSubGroupSizeAttr::SubGroupSizeType SizeType;
-  IdentifierLoc *IL = AL.getArgAsIdent(0);
-  if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(
-          IL->Ident->getName(), SizeType)) {
-    S.Diag(IL->Loc, diag::warn_attribute_type_not_supported) << AL << IL->Ident;
-    return;
+  if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(SizeStr,
+                                                                SizeType)) {
+    S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
   }
-
   D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
 }
 

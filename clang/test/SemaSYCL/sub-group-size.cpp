@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-explicit-simd -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary,integer %s
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-explicit-simd -fsycl-default-sub-group-size=primary -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,integer %s
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-explicit-simd -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary,integer %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=primary -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,integer %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary %s
 
 #include "Inputs/sycl.hpp"
 
@@ -41,7 +41,7 @@ void f6();
 [[intel::named_sub_group_size(automatic)]]
 void f6();
 
-// expected-warning@+1 {{'named_sub_group_size' attribute argument not supported: 'invalid'}}
+// expected-warning@+1 {{'named_sub_group_size' attribute argument not supported: invalid}}
 [[intel::named_sub_group_size(invalid)]]
 void f7();
 
@@ -60,6 +60,24 @@ void f10();
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::sycl_explicit_simd]]
 void f10();
+
+// expected-error@+1 {{'named_sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
+[[intel::named_sub_group_size("primary")]]
+void f11();
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::sycl_explicit_simd]]
+void f11();
+
+// expected-error@+1 {{'named_sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
+[[intel::named_sub_group_size("automatic")]]
+void f12();
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::sycl_explicit_simd]]
+void f12();
+
+// expected-warning@+1 {{'named_sub_group_size' attribute argument not supported: invalid string}}
+[[intel::named_sub_group_size("invalid string")]]
+void f13();
 
 void NoAttrFunc(){}
 SYCL_EXTERNAL void NoAttrExternalDefined() {}
@@ -129,20 +147,18 @@ void calls_kernel_4() {
   });
 }
 
-// TODO, test the following:
-// Func w attr called from kernel, kernel has attr.
-// Neither matches default.
-// first matches default.
-// kernel matches default
-// both matches default
-// +SYCL_EXTERNAL
+// Both have an attribute.
+void calls_kernel_5() {
+  sycl::kernel_single_task<class Kernel5>([]() [[intel::named_sub_group_size(automatic)]] { // #Kernel5
+    // expected-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // expected-note@#Kernel5{{conflicting attribute is here}}
+    AttrFunc();
+    // expected-error@#AttrExternalDefined{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // expected-note@#Kernel5{{conflicting attribute is here}}
+    AttrExternalDefined();
+    // expected-error@#AttrExternalNotDefined{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
+    // expected-note@#Kernel5{{conflicting attribute is here}}
+    AttrExternalNotDefined();
 
-// Func w attr called from kernel, kernel has no attr.
-// Neither matches default.
-// first matches default.
-// kernel matches default
-// both matches default
-// +SYCL_EXTERNAL
-
-
-// TODO: CodeGen tests
+  });
+}
