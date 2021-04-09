@@ -157,16 +157,16 @@ public:
   std::string HostBits, HostMachine, HostSystem, HostRelease;
 
   /// The file to log CC_PRINT_PROC_STAT_FILE output to, if enabled.
-  const char *CCPrintStatReportFilename;
+  std::string CCPrintStatReportFilename;
 
   /// The file to log CC_PRINT_OPTIONS output to, if enabled.
-  const char *CCPrintOptionsFilename;
+  std::string CCPrintOptionsFilename;
 
   /// The file to log CC_PRINT_HEADERS output to, if enabled.
-  const char *CCPrintHeadersFilename;
+  std::string CCPrintHeadersFilename;
 
   /// The file to log CC_LOG_DIAGNOSTICS output to, if enabled.
-  const char *CCLogDiagnosticsFilename;
+  std::string CCLogDiagnosticsFilename;
 
   /// A list of inputs and their types for the given arguments.
   typedef SmallVector<std::pair<types::ID, const llvm::opt::Arg *>, 16>
@@ -648,6 +648,11 @@ private:
   /// Track filename used for the FPGA dependency info.
   mutable llvm::StringMap<const std::string> FPGATempDepFiles;
 
+  /// A list of inputs and their corresponding integration headers. These
+  /// files are generated during the device compilation and are consumed
+  /// by the host compilation.
+  mutable llvm::StringMap<StringRef> IntegrationFileList;
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not
@@ -683,6 +688,16 @@ public:
   /// an FPGA object.
   const std::string getFPGATempDepFile(const std::string &FileName) const {
     return FPGATempDepFiles[FileName];
+  }
+
+  /// addIntegrationFiles - Add the integration files that will be populated
+  /// by the device compilation and used by the host compile.
+  void addIntegrationFiles(StringRef IntHeaderName, StringRef FileName) const {
+    IntegrationFileList.insert({FileName, IntHeaderName});
+  }
+  /// getIntegrationHeader - Get the integration header file
+  StringRef getIntegrationHeader(StringRef FileName) const {
+    return IntegrationFileList[FileName];
   }
 };
 

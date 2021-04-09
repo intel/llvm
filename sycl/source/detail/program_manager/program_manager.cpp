@@ -21,6 +21,7 @@
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -393,9 +394,12 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   if (LinkOptsEnv) {
     LinkOpts = LinkOptsEnv;
   }
+  SerializedObj SpecConsts;
+  if (Prg)
+    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   auto BuildF = [this, &M, &KSId, &Context, &Device, Prg, &CompileOpts,
-                 &LinkOpts, &JITCompilationIsRequired] {
+                 &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     const RTDeviceBinaryImage &Img =
         getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
     // Update only if compile options are not overwritten by environment
@@ -416,19 +420,32 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       LinkOpts += Img.getLinkOptions();
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
-    if (Prg)
-      flushSpecConstants(*Prg, NativePrg, &Img);
+    RT::PiProgram NativePrg;
+
+    auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
+        Device, Img, SpecConsts, CompileOpts + LinkOpts, NativePrg);
+    if (BinProg.size()) {
+      // TODO: Build for multiple devices once supported by program manager
+      NativePrg = createBinaryProgram(ContextImpl, Device,
+                                      (const unsigned char *)BinProg[0].data(),
+                                      BinProg[0].size());
+    } else {
+      NativePrg = createPIProgram(Img, Context, Device);
+      if (Prg)
+        flushSpecConstants(*Prg, NativePrg, &Img);
+    }
+
     ProgramPtr ProgramManaged(
         NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
-    // Pre-compiled programs are supposed to be already linked.
+    // Pre-compiled programs (after AOT compilation or read from persitent
+    // cache) are supposed to be already linked.
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+    if (!BinProg.size() && Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
@@ -441,12 +458,13 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
     }
+
+    // Save program to persistent cache if it is not there
+    if (!BinProg.size())
+      PersistentDeviceCodeCache::putItemToDisc(
+          Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
     return BuiltProgram.release();
   };
-
-  SerializedObj SpecConsts;
-  if (Prg)
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Device)->getHandleRef();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
@@ -1394,13 +1412,18 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   // TODO: Set spec constatns here.
 
   // TODO: Handle zero sized Device list.
-  Plugin.call<PiApiKind::piProgramCompile>(
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
       PIDevices.data(),
       /*options=*/nullptr,
       /*num_input_headers=*/0, /*input_headers=*/nullptr,
       /*header_include_names=*/nullptr,
       /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
+  if (Error != PI_SUCCESS)
+    throw sycl::exception(
+        make_error_code(errc::build),
+        getProgramBuildLog(ObjectImpl->get_program_ref(),
+                           getSyclObjImpl(ObjectImpl->get_context())));
 
   return createSyclObjFromImpl<device_image_plain>(ObjectImpl);
 }
@@ -1422,19 +1445,23 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
+  const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
-  const detail::plugin &Plugin = getSyclObjImpl(Context)->getPlugin();
+  const detail::plugin &Plugin = ContextImpl->getPlugin();
 
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-      getSyclObjImpl(Context)->getHandleRef(), PIDevices.size(),
-      PIDevices.data(),
+      ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
       /*options=*/nullptr, PIPrograms.size(), PIPrograms.data(),
       /*pfn_notify=*/nullptr,
       /*user_data=*/nullptr, &LinkedProg);
 
-  (void)Error;
-  // TODO: Add error handling
+  if (Error != PI_SUCCESS) {
+    const string_class ErrorMsg =
+        LinkedProg ? getProgramBuildLog(LinkedProg, ContextImpl)
+                   : "Online link operation failed";
+    throw sycl::exception(make_error_code(errc::build), ErrorMsg);
+  }
 
   std::vector<kernel_id> KernelIDs;
   for (const device_image_plain &DeviceImage : DeviceImages) {
@@ -1582,6 +1609,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
 
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
+  // TODO: Throw SYCL2020 style exception
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
       std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),

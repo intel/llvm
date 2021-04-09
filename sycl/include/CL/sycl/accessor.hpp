@@ -205,8 +205,10 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace INTEL {
 namespace gpu {
+namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
+} // namespace detail
 } // namespace gpu
 } // namespace INTEL
 } // namespace sycl
@@ -286,6 +288,8 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
+  constexpr static bool IsAccessAtomic = AccessMode == access::mode::atomic;
+
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
@@ -321,6 +325,14 @@ protected:
     template <int CurDims = SubDims,
               typename = detail::enable_if_t<CurDims == 1 && IsAccessAnyWrite>>
     RefType operator[](size_t Index) const {
+      MIDs[Dims - CurDims] = Index;
+      return MAccessor[MIDs];
+    }
+
+    template <int CurDims = SubDims>
+    typename detail::enable_if_t<CurDims == 1 && IsAccessAtomic,
+                                 atomic<DataT, AS>>
+    operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
@@ -459,7 +471,7 @@ private:
 #endif
 
 private:
-  friend class sycl::INTEL::gpu::AccessorPrivateProxy;
+  friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
 
 #ifdef __SYCL_DEVICE_ONLY__
   const OCLImageTy getNativeImageObj() const { return MImageObj; }
@@ -916,7 +928,7 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-  friend class sycl::INTEL::gpu::AccessorPrivateProxy;
+  friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
 
 public:
   using value_type = DataT;
