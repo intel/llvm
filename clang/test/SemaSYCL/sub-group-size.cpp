@@ -6,60 +6,45 @@
 
 // expected-error@+2 {{'named_sub_group_size' and 'sub_group_size' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sub_group_size(1)]][[intel::named_sub_group_size(automatic)]]
-void f1();
+[[intel::sub_group_size(1)]] [[intel::named_sub_group_size(automatic)]] void f1();
 // expected-error@+2 {{'sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::named_sub_group_size(primary)]][[intel::sub_group_size(1)]]
-void f2();
+[[intel::named_sub_group_size(primary)]] [[intel::sub_group_size(1)]] void f2();
 
 // expected-error@+1 {{'sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
-[[intel::sub_group_size(1)]]
-void f3();
+[[intel::sub_group_size(1)]] void f3();
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::named_sub_group_size(primary)]]
-void f3();
+[[intel::named_sub_group_size(primary)]] void f3();
 
 // expected-error@+1 {{'named_sub_group_size' and 'sub_group_size' attributes are not compatible}}
-[[intel::named_sub_group_size(primary)]]
-void f4();
+[[intel::named_sub_group_size(primary)]] void f4();
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sub_group_size(1)]]
-void f4();
+[[intel::sub_group_size(1)]] void f4();
 
 // expected-note@+1 {{previous attribute is here}}
-[[intel::named_sub_group_size(automatic)]]
-void f5();
+[[intel::named_sub_group_size(automatic)]] void f5();
 
 // expected-warning@+1 {{attribute 'named_sub_group_size' is already applied with different arguments}}
-[[intel::named_sub_group_size(primary)]]
-void f5();
+[[intel::named_sub_group_size(primary)]] void f5();
 
-[[intel::named_sub_group_size(automatic)]]
-void f6();
+[[intel::named_sub_group_size(automatic)]] void f6();
 
-[[intel::named_sub_group_size(automatic)]]
-void f6();
+[[intel::named_sub_group_size(automatic)]] void f6();
 
 // expected-warning@+1 {{'named_sub_group_size' attribute argument not supported: invalid}}
-[[intel::named_sub_group_size(invalid)]]
-void f7();
+[[intel::named_sub_group_size(invalid)]] void f7();
 
 // expected-error@+2 {{'named_sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sycl_explicit_simd]][[intel::named_sub_group_size(automatic)]]
-void f8();
+[[intel::sycl_explicit_simd]] [[intel::named_sub_group_size(automatic)]] void f8();
 // expected-error@+2 {{'sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sycl_explicit_simd]][[intel::sub_group_size(1)]]
-void f9();
+[[intel::sycl_explicit_simd]] [[intel::sub_group_size(1)]] void f9();
 
 // expected-error@+1 {{'named_sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
-[[intel::named_sub_group_size(primary)]]
-void f10();
+[[intel::named_sub_group_size(primary)]] void f10();
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sycl_explicit_simd]]
-void f10();
+[[intel::sycl_explicit_simd]] void f10();
 
 // expected-error@+1 {{'named_sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
 [[intel::named_sub_group_size("primary")]] void f11();
@@ -74,7 +59,7 @@ void f10();
 // expected-warning@+1 {{'named_sub_group_size' attribute argument not supported: invalid string}}
 [[intel::named_sub_group_size("invalid string")]] void f13();
 
-void NoAttrFunc(){}
+void NoAttrFunc() {}
 SYCL_EXTERNAL void NoAttrExternalDefined() {}
 SYCL_EXTERNAL void NoAttrExternalNotDefined(); // #NoAttrExternalNotDefined
 
@@ -93,7 +78,7 @@ void calls_kernel_1() {
 struct Functor {
   [[intel::named_sub_group_size(automatic)]] void operator()() const {
     NoAttrFunc();
- //   NoAttrExternalDefined();
+    //   NoAttrExternalDefined();
     // expected-error@#NoAttrExternalNotDefined{{undefined 'SYCL_EXTERNAL' function must have a sub group size that matches the size specified for the kernel}}
     // expected-note@-4{{conflicting attribute is here}}
     NoAttrExternalNotDefined();
@@ -106,8 +91,8 @@ void calls_kernel_2() {
 }
 
 // If the kernel doesn't have an attribute,
-[[intel::named_sub_group_size(primary)]] void AttrFunc(){} // #AttrFunc
-[[intel::named_sub_group_size(primary)]] SYCL_EXTERNAL void AttrExternalDefined() {} // #AttrExternalDefined
+[[intel::named_sub_group_size(primary)]] void AttrFunc() {}                           // #AttrFunc
+[[intel::named_sub_group_size(primary)]] SYCL_EXTERNAL void AttrExternalDefined() {}  // #AttrExternalDefined
 [[intel::named_sub_group_size(primary)]] SYCL_EXTERNAL void AttrExternalNotDefined(); // #AttrExternalNotDefined
 
 void calls_kernel_3() {
@@ -124,8 +109,8 @@ void calls_kernel_3() {
   });
 }
 
-[[intel::sub_group_size(10)]] void AttrFunc2(){} // #AttrFunc2
-[[intel::sub_group_size(10)]] SYCL_EXTERNAL void AttrExternalDefined2() {} // #AttrExternalDefined2
+[[intel::sub_group_size(10)]] void AttrFunc2() {}                           // #AttrFunc2
+[[intel::sub_group_size(10)]] SYCL_EXTERNAL void AttrExternalDefined2() {}  // #AttrExternalDefined2
 [[intel::sub_group_size(10)]] SYCL_EXTERNAL void AttrExternalNotDefined2(); // #AttrExternalNotDefined2
 
 void calls_kernel_4() {

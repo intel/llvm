@@ -3619,7 +3619,6 @@ void Sema::MarkDevice(void) {
     }
   }
 
-
   llvm::SmallPtrSet<FunctionDecl *, 10> AllKernelSets;
   for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {

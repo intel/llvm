@@ -3216,7 +3216,6 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
   S.AddIntelReqdSubGroupSize(D, AL, E);
 }
 
-
 IntelNamedSubGroupSizeAttr *
 Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
                                       const IntelNamedSubGroupSizeAttr &A) {
@@ -3272,8 +3271,7 @@ SYCLSimdAttr *Sema::MergeSYCLSimdAttr(Decl *D, const SYCLSimdAttr &A) {
   return A.clone(Context);
 }
 
-static void handleSYCLSimdAttr(Sema &S, Decl *D,
-                                         const ParsedAttr &AL) {
+static void handleSYCLSimdAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(S, D, AL))
     return;
   if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(S, D, AL))
