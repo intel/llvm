@@ -156,14 +156,17 @@ public:
   /// Information about the host which can be overridden by the user.
   std::string HostBits, HostMachine, HostSystem, HostRelease;
 
+  /// The file to log CC_PRINT_PROC_STAT_FILE output to, if enabled.
+  std::string CCPrintStatReportFilename;
+
   /// The file to log CC_PRINT_OPTIONS output to, if enabled.
-  const char *CCPrintOptionsFilename;
+  std::string CCPrintOptionsFilename;
 
   /// The file to log CC_PRINT_HEADERS output to, if enabled.
-  const char *CCPrintHeadersFilename;
+  std::string CCPrintHeadersFilename;
 
   /// The file to log CC_LOG_DIAGNOSTICS output to, if enabled.
-  const char *CCLogDiagnosticsFilename;
+  std::string CCLogDiagnosticsFilename;
 
   /// A list of inputs and their types for the given arguments.
   typedef SmallVector<std::pair<types::ID, const llvm::opt::Arg *>, 16>
@@ -203,6 +206,10 @@ public:
 
   /// Whether the driver is generating diagnostics for debugging purposes.
   unsigned CCGenDiagnostics : 1;
+
+  /// Set CC_PRINT_PROC_STAT mode, which causes the driver to dump
+  /// performance report to CC_PRINT_PROC_STAT_FILE or to stdout.
+  unsigned CCPrintProcessStats : 1;
 
   /// Pointer to the ExecuteCC1Tool function, if available.
   /// When the clangDriver lib is used through clang.exe, this provides a
@@ -641,6 +648,11 @@ private:
   /// Track filename used for the FPGA dependency info.
   mutable llvm::StringMap<const std::string> FPGATempDepFiles;
 
+  /// A list of inputs and their corresponding integration headers. These
+  /// files are generated during the device compilation and are consumed
+  /// by the host compilation.
+  mutable llvm::StringMap<StringRef> IntegrationFileList;
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not
@@ -676,6 +688,16 @@ public:
   /// an FPGA object.
   const std::string getFPGATempDepFile(const std::string &FileName) const {
     return FPGATempDepFiles[FileName];
+  }
+
+  /// addIntegrationFiles - Add the integration files that will be populated
+  /// by the device compilation and used by the host compile.
+  void addIntegrationFiles(StringRef IntHeaderName, StringRef FileName) const {
+    IntegrationFileList.insert({FileName, IntHeaderName});
+  }
+  /// getIntegrationHeader - Get the integration header file
+  StringRef getIntegrationHeader(StringRef FileName) const {
+    return IntegrationFileList[FileName];
   }
 };
 

@@ -759,16 +759,15 @@ void CudaToolChain::addClangTargetOptions(
   CC1Args.push_back("-mlink-builtin-bitcode");
   CC1Args.push_back(DriverArgs.MakeArgString(LibDeviceFile));
 
-  std::string CudaVersionStr;
+  clang::CudaVersion CudaInstallationVersion = CudaInstallation.version();
 
   // New CUDA versions often introduce new instructions that are only supported
   // by new PTX version, so we need to raise PTX level to enable them in NVPTX
   // back-end.
   const char *PtxFeature = nullptr;
-  switch (CudaInstallation.version()) {
+  switch (CudaInstallationVersion) {
 #define CASE_CUDA_VERSION(CUDA_VER, PTX_VER)                                   \
   case CudaVersion::CUDA_##CUDA_VER:                                           \
-    CudaVersionStr = #CUDA_VER;                                                \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
     CASE_CUDA_VERSION(112, 72);
@@ -782,9 +781,6 @@ void CudaToolChain::addClangTargetOptions(
     CASE_CUDA_VERSION(90, 60);
 #undef CASE_CUDA_VERSION
   default:
-    // If unknown CUDA version, we take it as CUDA 8.0. Same assumption is also
-    // made in libomptarget/deviceRTLs.
-    CudaVersionStr = "80";
     PtxFeature = "+ptx42";
   }
   CC1Args.append({"-target-feature", PtxFeature});
@@ -792,14 +788,20 @@ void CudaToolChain::addClangTargetOptions(
                          options::OPT_fno_cuda_short_ptr, false))
     CC1Args.append({"-mllvm", "--nvptx-short-ptr"});
 
-  if (CudaInstallation.version() >= CudaVersion::UNKNOWN)
-    CC1Args.push_back(DriverArgs.MakeArgString(
-        Twine("-target-sdk-version=") +
-        CudaVersionToString(CudaInstallation.version())));
+  if (CudaInstallationVersion >= CudaVersion::UNKNOWN)
+    CC1Args.push_back(
+        DriverArgs.MakeArgString(Twine("-target-sdk-version=") +
+                                 CudaVersionToString(CudaInstallationVersion)));
 
   if (DeviceOffloadingKind == Action::OFK_OpenMP) {
-    std::string BitcodeSuffix =
-        "nvptx-cuda_" + CudaVersionStr + "-" + GpuArch.str();
+    if (CudaInstallationVersion < CudaVersion::CUDA_92) {
+      getDriver().Diag(
+          diag::err_drv_omp_offload_target_cuda_version_not_support)
+          << CudaVersionToString(CudaInstallationVersion);
+      return;
+    }
+
+    std::string BitcodeSuffix = "nvptx-" + GpuArch.str();
     addOpenMPDeviceRTL(getDriver(), DriverArgs, CC1Args, BitcodeSuffix,
                        getTriple());
   }
@@ -810,9 +812,8 @@ llvm::DenormalMode CudaToolChain::getDefaultDenormalModeForType(
     const llvm::fltSemantics *FPType) const {
   if (JA.getOffloadingDeviceKind() == Action::OFK_Cuda) {
     if (FPType && FPType == &llvm::APFloat::IEEEsingle() &&
-        DriverArgs.hasFlag(options::OPT_fcuda_flush_denormals_to_zero,
-                           options::OPT_fno_cuda_flush_denormals_to_zero,
-                           false))
+        DriverArgs.hasFlag(options::OPT_fgpu_flush_denormals_to_zero,
+                           options::OPT_fno_gpu_flush_denormals_to_zero, false))
       return llvm::DenormalMode::getPreserveSign();
   }
 

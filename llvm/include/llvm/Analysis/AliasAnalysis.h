@@ -335,6 +335,31 @@ createModRefInfo(const FunctionModRefBehavior FMRB) {
   return ModRefInfo(FMRB & static_cast<int>(ModRefInfo::ModRef));
 }
 
+/// Reduced version of MemoryLocation that only stores a pointer and size.
+/// Used for caching AATags independent BasicAA results.
+struct AACacheLoc {
+  const Value *Ptr;
+  LocationSize Size;
+};
+
+template <> struct DenseMapInfo<AACacheLoc> {
+  static inline AACacheLoc getEmptyKey() {
+    return {DenseMapInfo<const Value *>::getEmptyKey(),
+            DenseMapInfo<LocationSize>::getEmptyKey()};
+  }
+  static inline AACacheLoc getTombstoneKey() {
+    return {DenseMapInfo<const Value *>::getTombstoneKey(),
+            DenseMapInfo<LocationSize>::getTombstoneKey()};
+  }
+  static unsigned getHashValue(const AACacheLoc &Val) {
+    return DenseMapInfo<const Value *>::getHashValue(Val.Ptr) ^
+           DenseMapInfo<LocationSize>::getHashValue(Val.Size);
+  }
+  static bool isEqual(const AACacheLoc &LHS, const AACacheLoc &RHS) {
+    return LHS.Ptr == RHS.Ptr && LHS.Size == RHS.Size;
+  }
+};
+
 /// This class stores info we want to provide to or retain within an alias
 /// query. By default, the root query is stateless and starts with a freshly
 /// constructed info object. Specific alias analyses can use this query info to
@@ -344,8 +369,18 @@ createModRefInfo(const FunctionModRefBehavior FMRB) {
 /// The information stored in an `AAQueryInfo` is currently limitted to the
 /// caches used by BasicAA, but can further be extended to fit other AA needs.
 class AAQueryInfo {
+  /// Storage for estimated relative offsets between two partially aliased
+  /// values. Used to optimize out redundant parts of loads/stores (in GVN/DSE).
+  /// These users cannot process quite complicated addresses (e.g. GEPs with
+  /// non-constant offsets). Used by BatchAAResults only.
+  bool CacheOffsets = false;
+  SmallDenseMap<std::pair<std::pair<const Value *, const Value *>,
+                          std::pair<uint64_t, uint64_t>>,
+                int64_t, 4>
+      ClobberOffsets;
+
 public:
-  using LocPair = std::pair<MemoryLocation, MemoryLocation>;
+  using LocPair = std::pair<AACacheLoc, AACacheLoc>;
   struct CacheEntry {
     AliasResult Result;
     /// Number of times a NoAlias assumption has been used.
@@ -371,7 +406,9 @@ public:
   /// assumption is disproven.
   SmallVector<AAQueryInfo::LocPair, 4> AssumptionBasedResults;
 
-  AAQueryInfo() : AliasCache(), IsCapturedCache() {}
+  AAQueryInfo(bool CacheOffsets = false)
+      : CacheOffsets(CacheOffsets), ClobberOffsets(), AliasCache(),
+        IsCapturedCache() {}
 
   /// Create a new AAQueryInfo based on this one, but with the cache cleared.
   /// This is used for recursive queries across phis, where cache results may
@@ -380,6 +417,33 @@ public:
     AAQueryInfo NewAAQI;
     NewAAQI.Depth = Depth;
     return NewAAQI;
+  }
+
+  Optional<int64_t> getClobberOffset(const Value *Ptr1, const Value *Ptr2,
+                                     uint64_t Size1, uint64_t Size2) const {
+    assert(CacheOffsets && "Clobber offset cached in batch mode only!");
+    const bool Swapped = Ptr1 > Ptr2;
+    if (Swapped) {
+      std::swap(Ptr1, Ptr2);
+      std::swap(Size1, Size2);
+    }
+    const auto IOff = ClobberOffsets.find({{Ptr1, Ptr2}, {Size1, Size2}});
+    if (IOff != ClobberOffsets.end())
+      return Swapped ? -IOff->second : IOff->second;
+    return None;
+  }
+
+  void setClobberOffset(const Value *Ptr1, const Value *Ptr2, uint64_t Size1,
+                        uint64_t Size2, int64_t Offset) {
+    // Cache offset for batch mode only.
+    if (!CacheOffsets)
+      return;
+    if (Ptr1 > Ptr2) {
+      std::swap(Ptr1, Ptr2);
+      std::swap(Size1, Size2);
+      Offset = -Offset;
+    }
+    ClobberOffsets[{{Ptr1, Ptr2}, {Size1, Size2}}] = Offset;
   }
 };
 
@@ -823,7 +887,8 @@ class BatchAAResults {
   AAQueryInfo AAQI;
 
 public:
-  BatchAAResults(AAResults &AAR) : AA(AAR), AAQI() {}
+  BatchAAResults(AAResults &AAR, bool CacheOffsets = false)
+      : AA(AAR), AAQI(CacheOffsets) {}
   AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB) {
     return AA.alias(LocA, LocB, AAQI);
   }
@@ -856,6 +921,8 @@ public:
     return alias(MemoryLocation(V1, LocationSize::precise(1)),
                  MemoryLocation(V2, LocationSize::precise(1))) == MustAlias;
   }
+  Optional<int64_t> getClobberOffset(const MemoryLocation &LocA,
+                                     const MemoryLocation &LocB) const;
 };
 
 /// Temporary typedef for legacy code that uses a generic \c AliasAnalysis

@@ -5351,7 +5351,7 @@ void GlobalISelEmitter::emitCxxPredicateFns(
     StringRef AdditionalDeclarations,
     std::function<bool(const Record *R)> Filter) {
   std::vector<const Record *> MatchedRecords;
-  const auto &Defs = RK.getAllDerivedDefinitions("PatFrag");
+  const auto &Defs = RK.getAllDerivedDefinitions("PatFrags");
   std::copy_if(Defs.begin(), Defs.end(), std::back_inserter(MatchedRecords),
                [&](Record *Record) {
                  return !Record->getValueAsString(CodeFieldName).empty() &&
@@ -5682,13 +5682,6 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
     "  AvailableFunctionFeatures = computeAvailableFunctionFeatures("
     "(const " << Target.getName() << "Subtarget *)&MF.getSubtarget(), &MF);\n"
     "}\n";
-
-  if (Target.getName() == "X86" || Target.getName() == "AArch64") {
-    // TODO: Implement PGSO.
-    OS << "static bool shouldOptForSize(const MachineFunction *MF) {\n";
-    OS << "    return MF->getFunction().hasOptSize();\n";
-    OS << "}\n\n";
-  }
 
   SubtargetFeatureInfo::emitComputeAvailableFeatures(
       Target.getName(), "InstructionSelector",

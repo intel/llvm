@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "ELFObjcopy.h"
-#include "Buffer.h"
 #include "CopyConfig.h"
 #include "Object.h"
+#include "llvm-objcopy.h"
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
@@ -133,36 +133,36 @@ static ElfType getOutputElfType(const MachineInfo &MI) {
 }
 
 static std::unique_ptr<Writer> createELFWriter(const CopyConfig &Config,
-                                               Object &Obj, Buffer &Buf,
+                                               Object &Obj, raw_ostream &Out,
                                                ElfType OutputElfType) {
   // Depending on the initial ELFT and OutputFormat we need a different Writer.
   switch (OutputElfType) {
   case ELFT_ELF32LE:
-    return std::make_unique<ELFWriter<ELF32LE>>(Obj, Buf, !Config.StripSections,
+    return std::make_unique<ELFWriter<ELF32LE>>(Obj, Out, !Config.StripSections,
                                                 Config.OnlyKeepDebug);
   case ELFT_ELF64LE:
-    return std::make_unique<ELFWriter<ELF64LE>>(Obj, Buf, !Config.StripSections,
+    return std::make_unique<ELFWriter<ELF64LE>>(Obj, Out, !Config.StripSections,
                                                 Config.OnlyKeepDebug);
   case ELFT_ELF32BE:
-    return std::make_unique<ELFWriter<ELF32BE>>(Obj, Buf, !Config.StripSections,
+    return std::make_unique<ELFWriter<ELF32BE>>(Obj, Out, !Config.StripSections,
                                                 Config.OnlyKeepDebug);
   case ELFT_ELF64BE:
-    return std::make_unique<ELFWriter<ELF64BE>>(Obj, Buf, !Config.StripSections,
+    return std::make_unique<ELFWriter<ELF64BE>>(Obj, Out, !Config.StripSections,
                                                 Config.OnlyKeepDebug);
   }
   llvm_unreachable("Invalid output format");
 }
 
 static std::unique_ptr<Writer> createWriter(const CopyConfig &Config,
-                                            Object &Obj, Buffer &Buf,
+                                            Object &Obj, raw_ostream &Out,
                                             ElfType OutputElfType) {
   switch (Config.OutputFormat) {
   case FileFormat::Binary:
-    return std::make_unique<BinaryWriter>(Obj, Buf);
+    return std::make_unique<BinaryWriter>(Obj, Out);
   case FileFormat::IHex:
-    return std::make_unique<IHexWriter>(Obj, Buf);
+    return std::make_unique<IHexWriter>(Obj, Out);
   default:
-    return createELFWriter(Config, Obj, Buf, OutputElfType);
+    return createELFWriter(Config, Obj, Out, OutputElfType);
   }
 }
 
@@ -171,30 +171,6 @@ static Error makeStringError(std::error_code EC, const Twine &Msg,
                              Ts &&... Args) {
   std::string FullMsg = (EC.message() + ": " + Msg).str();
   return createStringError(EC, FullMsg.c_str(), std::forward<Ts>(Args)...);
-}
-
-static Error splitDWOToFile(const CopyConfig &Config, const Reader &Reader,
-                            StringRef File, ElfType OutputElfType) {
-  Expected<std::unique_ptr<Object>> DWOFile = Reader.create(false);
-  if (!DWOFile)
-    return DWOFile.takeError();
-
-  auto OnlyKeepDWOPred = [&DWOFile](const SectionBase &Sec) {
-    return onlyKeepDWOPred(**DWOFile, Sec);
-  };
-  if (Error E =
-          (*DWOFile)->removeSections(Config.AllowBrokenLinks, OnlyKeepDWOPred))
-    return E;
-  if (Config.OutputArch) {
-    (*DWOFile)->Machine = Config.OutputArch.getValue().EMachine;
-    (*DWOFile)->OSABI = Config.OutputArch.getValue().OSABI;
-  }
-  FileBuffer FB(File);
-  std::unique_ptr<Writer> Writer =
-      createWriter(Config, **DWOFile, FB, OutputElfType);
-  if (Error E = Writer->finalize())
-    return E;
-  return Writer->write();
 }
 
 static Error dumpSectionToFile(StringRef SecName, StringRef Filename,
@@ -372,7 +348,7 @@ static Error replaceAndRemoveSections(const CopyConfig &Config, Object &Obj) {
     };
   }
 
-  if (Config.StripDWO || !Config.SplitDWO.empty())
+  if (Config.StripDWO)
     RemovePred = [RemovePred](const SectionBase &Sec) {
       return isDWOSection(Sec) || RemovePred(Sec);
     };
@@ -530,19 +506,20 @@ static Error replaceAndRemoveSections(const CopyConfig &Config, Object &Obj) {
 // any previous removals. Lastly whether or not something is removed shouldn't
 // depend a) on the order the options occur in or b) on some opaque priority
 // system. The only priority is that keeps/copies overrule removes.
-static Error handleArgs(const CopyConfig &Config, Object &Obj,
-                        const Reader &Reader, ElfType OutputElfType) {
-  if (Config.StripSwiftSymbols)
+static Error handleArgs(const CopyConfig &Config, Object &Obj) {
+  if (Config.StripSwiftSymbols || Config.KeepUndefined)
     return createStringError(llvm::errc::invalid_argument,
                              "option not supported by llvm-objcopy for ELF");
-  if (!Config.SplitDWO.empty())
-    if (Error E =
-            splitDWOToFile(Config, Reader, Config.SplitDWO, OutputElfType))
-      return E;
 
   if (Config.OutputArch) {
     Obj.Machine = Config.OutputArch.getValue().EMachine;
     Obj.OSABI = Config.OutputArch.getValue().OSABI;
+  }
+
+  if (!Config.SplitDWO.empty() && Config.ExtractDWO) {
+    return Obj.removeSections(
+        Config.AllowBrokenLinks,
+        [&Obj](const SectionBase &Sec) { return onlyKeepDWOPred(Obj, Sec); });
   }
 
   // Dump sections before add/remove for compatibility with GNU objcopy.
@@ -686,8 +663,8 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj,
   return Error::success();
 }
 
-static Error writeOutput(const CopyConfig &Config, Object &Obj, Buffer &Out,
-                         ElfType OutputElfType) {
+static Error writeOutput(const CopyConfig &Config, Object &Obj,
+                         raw_ostream &Out, ElfType OutputElfType) {
   std::unique_ptr<Writer> Writer =
       createWriter(Config, Obj, Out, OutputElfType);
   if (Error E = Writer->finalize())
@@ -696,7 +673,7 @@ static Error writeOutput(const CopyConfig &Config, Object &Obj, Buffer &Out,
 }
 
 Error executeObjcopyOnIHex(const CopyConfig &Config, MemoryBuffer &In,
-                           Buffer &Out) {
+                           raw_ostream &Out) {
   IHexReader Reader(&In);
   Expected<std::unique_ptr<Object>> Obj = Reader.create(true);
   if (!Obj)
@@ -704,13 +681,13 @@ Error executeObjcopyOnIHex(const CopyConfig &Config, MemoryBuffer &In,
 
   const ElfType OutputElfType =
       getOutputElfType(Config.OutputArch.getValueOr(MachineInfo()));
-  if (Error E = handleArgs(Config, **Obj, Reader, OutputElfType))
+  if (Error E = handleArgs(Config, **Obj))
     return E;
   return writeOutput(Config, **Obj, Out, OutputElfType);
 }
 
 Error executeObjcopyOnRawBinary(const CopyConfig &Config, MemoryBuffer &In,
-                                Buffer &Out) {
+                                raw_ostream &Out) {
   uint8_t NewSymbolVisibility =
       Config.ELF->NewSymbolVisibility.getValueOr((uint8_t)ELF::STV_DEFAULT);
   BinaryReader Reader(&In, NewSymbolVisibility);
@@ -722,13 +699,13 @@ Error executeObjcopyOnRawBinary(const CopyConfig &Config, MemoryBuffer &In,
   // (-B<arch>).
   const ElfType OutputElfType =
       getOutputElfType(Config.OutputArch.getValueOr(MachineInfo()));
-  if (Error E = handleArgs(Config, **Obj, Reader, OutputElfType))
+  if (Error E = handleArgs(Config, **Obj))
     return E;
   return writeOutput(Config, **Obj, Out, OutputElfType);
 }
 
 Error executeObjcopyOnBinary(const CopyConfig &Config,
-                             object::ELFObjectFileBase &In, Buffer &Out) {
+                             object::ELFObjectFileBase &In, raw_ostream &Out) {
   ELFReader Reader(&In, Config.ExtractPartition);
   Expected<std::unique_ptr<Object>> Obj =
       Reader.create(!Config.SymbolsToAdd.empty());
@@ -739,7 +716,7 @@ Error executeObjcopyOnBinary(const CopyConfig &Config,
       Config.OutputArch ? getOutputElfType(Config.OutputArch.getValue())
                         : getOutputElfType(In);
 
-  if (Error E = handleArgs(Config, **Obj, Reader, OutputElfType))
+  if (Error E = handleArgs(Config, **Obj))
     return createFileError(Config.InputFilename, std::move(E));
 
   if (Error E = writeOutput(Config, **Obj, Out, OutputElfType))

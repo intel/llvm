@@ -101,7 +101,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(
     return;
   SPIRVExtInst *DD = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DD->getBasicBlock();
-  llvm::Value *Alloca = DbgDecl->getVariableLocation();
+  llvm::Value *Alloca = DbgDecl->getVariableLocationOp(0);
 
   using namespace SPIRVDebug::Operand::DebugDeclare;
   SPIRVWordVec Ops(OperandCount);
@@ -116,7 +116,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(
 
 SPIRVValue *LLVMToSPIRVDbgTran::createDebugValuePlaceholder(
     const DbgVariableIntrinsic *DbgValue, SPIRVBasicBlock *BB) {
-  if (!DbgValue->getVariableLocation(/* AllowNullOp = */ false))
+  if (!DbgValue->getVariableLocationOp(0))
     return nullptr; // It is pointless without new value
 
   DbgValueIntrinsics.push_back(DbgValue);
@@ -136,7 +136,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(
     return;
   SPIRVExtInst *DV = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DV->getBasicBlock();
-  Value *Val = DbgValue->getVariableLocation(/* AllowNullOp = */ false);
+  Value *Val = DbgValue->getVariableLocationOp(0);
 
   using namespace SPIRVDebug::Operand::DebugValue;
   SPIRVWordVec Ops(MinOperandCount);
@@ -938,7 +938,15 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
   using namespace SPIRVDebug::Operand::Source;
   SPIRVWordVec Ops(OperandCount);
   Ops[FileIdx] = BM->getString(FileName)->getId();
-  Ops[TextIdx] = getDebugInfoNone()->getId();
+  DIFile *F = DIEntry ? DIEntry->getFile() : nullptr;
+  if (F && F->getRawChecksum()) {
+    const auto &CheckSum = F->getChecksum().getValue();
+    Ops[TextIdx] = BM->getString("//__" + CheckSum.getKindAsString().str() +
+                                 ":" + CheckSum.Value.str())
+                       ->getId();
+  } else {
+    Ops[TextIdx] = getDebugInfoNone()->getId();
+  }
   SPIRVExtInst *Source = static_cast<SPIRVExtInst *>(
       BM->addDebugInfo(SPIRVDebug::Source, getVoidTy(), Ops));
   FileMap[FileName] = Source;

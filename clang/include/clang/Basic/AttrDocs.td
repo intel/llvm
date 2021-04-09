@@ -57,6 +57,55 @@ global variable or function should be in after translation.
   let Heading = "section, __declspec(allocate)";
 }
 
+def UsedDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute, when attached to a function or variable definition, indicates
+that there may be references to the entity which are not apparent in the source
+code.  For example, it may be referenced from inline ``asm``, or it may be
+found through a dynamic symbol or section lookup.
+
+The compiler must emit the definition even if it appears to be unused, and it
+must not apply optimizations which depend on fully understanding how the entity
+is used.
+
+Whether this attribute has any effect on the linker depends on the target and
+the linker. Most linkers support the feature of section garbage collection
+(``--gc-sections``), also known as "dead stripping" (``ld64 -dead_strip``) or
+discarding unreferenced sections (``link.exe /OPT:REF``). On COFF and Mach-O
+targets (Windows and Apple platforms), the `used` attribute prevents symbols
+from being removed by linker section GC. On ELF targets, it has no effect on its
+own, and the linker may remove the definition if it is not otherwise referenced.
+This linker GC can be avoided by also adding the ``retain`` attribute.  Note
+that ``retain`` requires special support from the linker; see that attribute's
+documentation for further information.
+  }];
+}
+
+def RetainDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute, when attached to a function or variable definition, prevents
+section garbage collection in the linker. It does not prevent other discard
+mechanisms, such as archive member selection, and COMDAT group resolution.
+
+If the compiler does not emit the definition, e.g. because it was not used in
+the translation unit or the compiler was able to eliminate all of the uses,
+this attribute has no effect.  This attribute is typically combined with the
+``used`` attribute to force the definition to be emitted and preserved into the
+final linked image.
+
+This attribute is only necessary on ELF targets; other targets prevent section
+garbage collection by the linker when using the ``used`` attribute alone.
+Using the attributes together should result in consistent behavior across
+targets.
+
+This attribute requires the linker to support the ``SHF_GNU_RETAIN`` extension.
+This support is available in GNU ``ld`` and ``gold`` as of binutils 2.36, as
+well as in ``ld.lld`` 13.
+  }];
+}
+
 def InitPriorityDocs : Documentation {
   let Category = DocCatVariable;
   let Content = [{
@@ -1072,8 +1121,18 @@ def NoDebugDocs : Documentation {
   let Category = DocCatVariable;
   let Content = [{
 The ``nodebug`` attribute allows you to suppress debugging information for a
-function or method, or for a variable that is not a parameter or a non-static
-data member.
+function or method, for a variable that is not a parameter or a non-static
+data member, or for a typedef or using declaration.
+  }];
+}
+
+def StandaloneDebugDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``standalone_debug`` attribute causes debug info to be emitted for a record
+type regardless of the debug info optimizations that are enabled with
+-fno-standalone-debug. This attribute only has an effect when debug info
+optimizations are enabled (e.g. with -fno-standalone-debug), and is C++-only.
   }];
 }
 
@@ -2773,9 +2832,11 @@ def SYCLIntelFPGAInitiationIntervalAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::initiation_interval";
   let Content = [{
-This attribute applies to a loop. Indicates that the loop should be pipelined
-with an initiation interval of N. N must be a positive integer. Cannot be
-applied multiple times to the same loop.
+This attribute applies to a loop or a function. Indicates that the loop or
+function should be pipelined with an initiation interval of N. N must be a
+positive integer. Cannot be applied multiple times to the same loop or function.
+Cannot be used on the same loop or function in conjunction with
+disable_loop_pipelining.
 
 The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
 ``[[intel::initiation_interval]]`` and will be removed in the future.
@@ -2787,10 +2848,15 @@ The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
     [[intel::initiation_interval(4)]] for (int i = 0; i < 10; ++i) var++;
   }
 
+  [[intel::initiation_interval(4)]] void foo1 { }
+
   template<int N>
   void bar() {
     [[intel::initiation_interval(N)]] for(;;) { }
   }
+
+  template<int N>
+  [[intel::initiation_interval(N)]] void bar1 { }
 
   }];
 }
@@ -2799,10 +2865,11 @@ def SYCLIntelFPGAMaxConcurrencyAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_concurrency";
   let Content = [{
-This attribute applies to a loop. Indicates that the loop should allow no more
-than N threads or iterations to execute it simultaneously. N must be a non
-negative integer. '0' indicates the max_concurrency case to be unbounded. Cannot
-be applied multiple times to the same loop.
+This attribute applies to a loop or a function. It indicates that the
+loop/function should allow no more than N threads or iterations to execute it
+simultaneously. N must be a non negative integer. '0' indicates the
+max_concurrency case to be unbounded. Cannot be applied multiple times to the
+same loop.
 
 .. code-block:: c++
 
@@ -2811,10 +2878,13 @@ be applied multiple times to the same loop.
     [[intel::max_concurrency(2)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
+  [[intel::max_concurrency(2)]] void foo1 { }
   template<int N>
   void bar() {
     [[intel::max_concurrency(N)]] for(;;) { }
   }
+  template<int N>
+  [[intel::max_concurrency(N)]] void bar1() { }
 
   }];
 }
@@ -2862,10 +2932,11 @@ def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::disable_loop_pipelining";
   let Content = [{
-This attribute applies to a loop. Disables pipelining of the loop data path,
-causing the loop to be executed serially. Cannot be used on the same loop in
-conjunction with max_interleaving, speculated_iterations, max_concurrency, ii
-or ivdep.
+This attribute applies to a loop or a function. Takes no arguments and
+disables pipelining of the loop or function data path, causing the loop
+or function to be executed serially. Cannot be used on the same loop or
+function in conjunction with max_interleaving, speculated_iterations,
+max_concurrency, initiation_interval, or ivdep.
 
 .. code-block:: c++
 
@@ -2873,6 +2944,8 @@ or ivdep.
     int var = 0;
     [[intel::disable_loop_pipelining] for (int i = 0; i < 10; ++i) var++;
   }
+
+  [[intel::disable_loop_pipelining] void foo1() { }
 
   }];
 }
@@ -3963,16 +4036,55 @@ It is only supported when using the Microsoft C++ ABI.
 def LifetimeBoundDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-The ``lifetimebound`` attribute indicates that a resource owned by
-a function parameter or implicit object parameter
-is retained by the return value of the annotated function
-(or, for a parameter of a constructor, in the value of the constructed object).
-It is only supported in C++.
+The ``lifetimebound`` attribute on a function parameter or implicit object
+parameter indicates that objects that are referred to by that parameter may
+also be referred to by the return value of the annotated function (or, for a
+parameter of a constructor, by the value of the constructed object). It is only
+supported in C++.
 
-This attribute provides an experimental implementation of the facility
-described in the C++ committee paper `P0936R0 <http://wg21.link/p0936r0>`_,
-and is subject to change as the design of the corresponding functionality
-changes.
+By default, a reference is considered to refer to its referenced object, a
+pointer is considered to refer to its pointee, a ``std::initializer_list<T>``
+is considered to refer to its underlying array, and aggregates (arrays and
+simple ``struct``\s) are considered to refer to all objects that their
+transitive subobjects refer to.
+
+Clang warns if it is able to detect that an object or reference refers to
+another object with a shorter lifetime. For example, Clang will warn if a
+function returns a reference to a local variable, or if a reference is bound to
+a temporary object whose lifetime is not extended. By using the
+``lifetimebound`` attribute, this determination can be extended to look through
+user-declared functions. For example:
+
+.. code-block:: c++
+
+    // Returns m[key] if key is present, or default_value if not.
+    template<typename T, typename U>
+    const U &get_or_default(const std::map<T, U> &m [[clang::lifetimebound]],
+                            const T &key, /* note, not lifetimebound */
+                            const U &default_value [[clang::lifetimebound]]);
+
+    std::map<std::string, std::string> m;
+    // warning: temporary "bar"s that might be bound to local reference 'val'
+    // will be destroyed at the end of the full-expression
+    const std::string &val = get_or_default(m, "foo"s, "bar"s);
+
+    // No warning in this case.
+    std::string def_val = "bar"s;
+    const std::string &val = get_or_default(m, "foo"s, def_val);
+
+The attribute can be applied to the implicit ``this`` parameter of a member
+function by writing the attribute after the function type:
+
+.. code-block:: c++
+
+    struct string {
+      // The returned pointer should not outlive ``*this``.
+      const char *data() const [[clang::lifetimebound]];
+    };
+
+This attribute is inspired by the C++ committee paper `P0936R0
+<http://wg21.link/p0936r0>`_, but does not affect whether temporary objects
+have their lifetimes extended.
   }];
 }
 
@@ -5138,9 +5250,8 @@ def NotTailCalledDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
 The ``not_tail_called`` attribute prevents tail-call optimization on statically
-bound calls. It has no effect on indirect calls. Virtual functions, objective-c
-methods, and functions marked as ``always_inline`` cannot be marked as
-``not_tail_called``.
+bound calls. Objective-c methods, and functions marked as ``always_inline``
+cannot be marked as ``not_tail_called``.
 
 For example, it prevents tail-call optimization in the following case:
 
@@ -5166,28 +5277,25 @@ However, it doesn't prevent tail-call optimization in this case:
       return (*fn)(a);
     }
 
-Marking virtual functions as ``not_tail_called`` is an error:
+Generally, marking an overriding virtual function as ``not_tail_called`` is
+not useful, because this attribute is a property of the static type. Calls
+made through a pointer or reference to the base class type will respect
+the ``not_tail_called`` attribute of the base class's member function,
+regardless of the runtime destination of the call:
 
   .. code-block:: c++
 
-    class Base {
-    public:
-      // not_tail_called on a virtual function is an error.
-      [[clang::not_tail_called]] virtual int foo1();
-
-      virtual int foo2();
-
-      // Non-virtual functions can be marked ``not_tail_called``.
-      [[clang::not_tail_called]] int foo3();
+    struct Foo { virtual void f(); };
+    struct Bar : Foo {
+      [[clang::not_tail_called]] void f() override;
     };
-
-    class Derived1 : public Base {
-    public:
-      int foo1() override;
-
-      // not_tail_called on a virtual function is an error.
-      [[clang::not_tail_called]] int foo2() override;
-    };
+    void callera(Bar& bar) {
+      Foo& foo = bar;
+      // not_tail_called has no effect on here, even though the
+      // underlying method is f from Bar.
+      foo.f();
+      bar.f(); // No tail-call optimization on here.
+    }
   }];
 }
 
@@ -5836,6 +5944,9 @@ def PatchableFunctionEntryDocs : Documentation {
 before the function entry and N-M NOPs after the function entry. This attribute
 takes precedence over the command line option ``-fpatchable-function-entry=N,M``.
 ``M`` defaults to 0 if omitted.
+
+This attribute is only supported on
+aarch64/aarch64-be/riscv32/riscv64/i386/x86-64 targets.
 }];
 }
 

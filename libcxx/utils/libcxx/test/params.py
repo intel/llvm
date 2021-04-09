@@ -14,6 +14,7 @@ _warningFlags = [
   '-Wall',
   '-Wextra',
   '-Wshadow',
+  '-Wundef',
   '-Wno-unused-command-line-argument',
   '-Wno-attributes',
   '-Wno-pessimizing-move',
@@ -90,7 +91,7 @@ DEFAULT_PARAMETERS = [
             help="Whether to enable tests for experimental C++ libraries (typically Library Fundamentals TSes).",
             actions=lambda experimental: [] if not experimental else [
               AddFeature('c++experimental'),
-              AddLinkFlag('-lc++experimental')
+              PrependLinkFlag('-lc++experimental')
             ]),
 
   Parameter(name='long_tests', choices=[True, False], type=bool, default=True,

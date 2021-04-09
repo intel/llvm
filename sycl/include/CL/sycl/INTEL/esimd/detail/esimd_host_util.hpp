@@ -14,19 +14,19 @@
 
 #define SIMDCF_ELEMENT_SKIP(i)
 
-namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
 namespace detail {
 namespace half_impl {
 class half;
 } // namespace half_impl
 } // namespace detail
-} // namespace sycl
-} // namespace cl
 
-using half = cl::sycl::detail::half_impl::half;
-
-namespace EsimdEmulSys {
+namespace INTEL {
+namespace gpu {
+namespace emu {
+namespace detail {
 
 constexpr int sat_is_on = 1;
 
@@ -44,14 +44,10 @@ template <typename RT> struct satur {
       return (RT)val;
     }
 
-#ifdef max
-#undef max
-#endif
-#ifdef min
-#undef min
-#endif
-    const RT t_max = std::numeric_limits<RT>::max();
-    const RT t_min = std::numeric_limits<RT>::min();
+    // min/max can be macros on Windows, so wrap them into parens to avoid their
+    // expansion
+    const RT t_max = (std::numeric_limits<RT>::max)();
+    const RT t_min = (std::numeric_limits<RT>::min)();
 
     if (val > t_max) {
       return t_max;
@@ -111,8 +107,6 @@ template <> struct SetSatur<float, true> {
 template <> struct SetSatur<double, true> {
   static unsigned int set() { return sat_is_on; }
 };
-
-} // namespace EsimdEmulSys
 
 // used for intermediate type in dp4a emulation
 template <typename T1, typename T2> struct restype_ex {
@@ -470,10 +464,11 @@ template <typename T> struct dwordtype;
 template <> struct dwordtype<int> { static const bool value = true; };
 template <> struct dwordtype<unsigned int> { static const bool value = true; };
 
-template <unsigned int N1, unsigned int N2> struct ressize {
-  static const unsigned int size = (N1 > N2) ? N1 : N2;
-  static const bool conformable =
-      check_true < N1 % size == 0 && N2 % size == 0 > ::value;
-};
+} // namespace detail
+} // namespace emu
+} // namespace gpu
+} // namespace INTEL
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
-#endif
+#endif // #ifndef __SYCL_DEVICE_ONLY__

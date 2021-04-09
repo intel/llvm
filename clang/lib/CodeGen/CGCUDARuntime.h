@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_LIB_CODEGEN_CGCUDARUNTIME_H
 #define LLVM_CLANG_LIB_CODEGEN_CGCUDARUNTIME_H
 
+#include "clang/AST/GlobalDecl.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/GlobalValue.h"
 
@@ -86,17 +87,20 @@ public:
   virtual void handleVarRegistration(const VarDecl *VD,
                                      llvm::GlobalVariable &Var) = 0;
 
-  /// Constructs and returns a module initialization function or nullptr if it's
-  /// not needed. Must be called after all kernels have been emitted.
-  virtual llvm::Function *makeModuleCtorFunction() = 0;
-
-  /// Returns a module cleanup function or nullptr if it's not needed.
-  /// Must be called after ModuleCtorFunction
-  virtual llvm::Function *makeModuleDtorFunction() = 0;
+  /// Finalize generated LLVM module. Returns a module constructor function
+  /// to be added or a null pointer.
+  virtual llvm::Function *finalizeModule() = 0;
 
   /// Returns function or variable name on device side even if the current
   /// compilation is for host.
   virtual std::string getDeviceSideName(const NamedDecl *ND) = 0;
+
+  /// Get kernel handle by stub function.
+  virtual llvm::GlobalValue *getKernelHandle(llvm::Function *Stub,
+                                             GlobalDecl GD) = 0;
+
+  /// Get kernel stub by kernel handle.
+  virtual llvm::Function *getKernelStub(llvm::GlobalValue *Handle) = 0;
 
   /// Adjust linkage of shadow variables in host compilation.
   virtual void

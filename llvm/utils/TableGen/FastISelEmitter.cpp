@@ -290,9 +290,11 @@ struct OperandsSignature {
   }
 
   void PrintParameters(raw_ostream &OS) const {
+    ListSeparator LS;
     for (unsigned i = 0, e = Operands.size(); i != e; ++i) {
+      OS << LS;
       if (Operands[i].isReg()) {
-        OS << "unsigned Op" << i << ", bool Op" << i << "IsKill";
+        OS << "unsigned Op" << i;
       } else if (Operands[i].isImm()) {
         OS << "uint64_t imm" << i;
       } else if (Operands[i].isFP()) {
@@ -300,31 +302,25 @@ struct OperandsSignature {
       } else {
         llvm_unreachable("Unknown operand kind!");
       }
-      if (i + 1 != e)
-        OS << ", ";
     }
   }
 
   void PrintArguments(raw_ostream &OS,
                       const std::vector<std::string> &PR) const {
     assert(PR.size() == Operands.size());
-    bool PrintedArg = false;
+    ListSeparator LS;
     for (unsigned i = 0, e = Operands.size(); i != e; ++i) {
       if (PR[i] != "")
         // Implicit physical register operand.
         continue;
 
-      if (PrintedArg)
-        OS << ", ";
+      OS << LS;
       if (Operands[i].isReg()) {
-        OS << "Op" << i << ", Op" << i << "IsKill";
-        PrintedArg = true;
+        OS << "Op" << i;
       } else if (Operands[i].isImm()) {
         OS << "imm" << i;
-        PrintedArg = true;
       } else if (Operands[i].isFP()) {
         OS << "f" << i;
-        PrintedArg = true;
       } else {
         llvm_unreachable("Unknown operand kind!");
       }
@@ -332,9 +328,11 @@ struct OperandsSignature {
   }
 
   void PrintArguments(raw_ostream &OS) const {
+    ListSeparator LS;
     for (unsigned i = 0, e = Operands.size(); i != e; ++i) {
+      OS << LS;
       if (Operands[i].isReg()) {
-        OS << "Op" << i << ", Op" << i << "IsKill";
+        OS << "Op" << i;
       } else if (Operands[i].isImm()) {
         OS << "imm" << i;
       } else if (Operands[i].isFP()) {
@@ -342,8 +340,6 @@ struct OperandsSignature {
       } else {
         llvm_unreachable("Unknown operand kind!");
       }
-      if (i + 1 != e)
-        OS << ", ";
     }
   }
 
@@ -677,7 +673,7 @@ void FastISelMap::emitInstructionCode(raw_ostream &OS,
       OS << ");\n";
     } else {
       OS << "extractsubreg(" << RetVTName
-         << ", Op0, Op0IsKill, " << Memo.SubRegNo << ");\n";
+         << ", Op0, " << Memo.SubRegNo << ");\n";
     }
 
     if (!PredicateCheck.empty()) {

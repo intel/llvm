@@ -47,7 +47,9 @@ template <class... _mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename _T> static _T load(sycl::global_ptr<_T> Ptr) {
+  template <typename _T, access::address_space _space>
+  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
+    check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     return *__builtin_intel_fpga_mem((_T *)Ptr,
@@ -59,7 +61,9 @@ public:
 #endif
   }
 
-  template <typename _T> static void store(sycl::global_ptr<_T> Ptr, _T Val) {
+  template <typename _T, access::address_space _space>
+  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
+    check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     *__builtin_intel_fpga_mem((_T *)Ptr,
@@ -91,6 +95,14 @@ private:
   static constexpr uint8_t _prefetch = _prefetch_val ? PREFETCH : 0;
 
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");
+
+  template <access::address_space _space> static void check_space() {
+    static_assert(_space == access::address_space::global_space ||
+                      _space == access::address_space::global_device_space ||
+                      _space == access::address_space::global_host_space,
+                  "lsu controls are only supported for global_ptr, "
+                  "device_ptr, and host_ptr objects");
+  }
 
   static void check_load() {
     static_assert(_cache == 0 || _burst_coalesce == BURST_COALESCE,

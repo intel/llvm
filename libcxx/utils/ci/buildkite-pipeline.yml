@@ -111,6 +111,17 @@ steps:
         - exit_status: -1  # Agent was lost
           limit: 2
 
+  - label: "Static libraries"
+    command: "libcxx/utils/ci/run-buildbot generic-static"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
   - label: "GCC/C++20"
     command: "libcxx/utils/ci/run-buildbot generic-gcc"
     artifact_paths:
@@ -178,7 +189,7 @@ steps:
           limit: 2
 
   - label: "No debug mode"
-    command: "libcxx/utils/ci/run-buildbot generic-nodebug"
+    command: "libcxx/utils/ci/run-buildbot generic-no-debug"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -277,6 +288,30 @@ steps:
         - exit_status: -1  # Agent was lost
           limit: 2
 
+  - label: "Runtimes build"
+    command: "libcxx/utils/ci/run-buildbot runtimes-build"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Windows"
+    # TODO: The CI runner doesn't have bash in the path currently. Once it
+    # has that, remove the absolute path and just call 'bash' here.
+    command: "\"\\Program Files\\Git\\usr\\bin\\bash\" libcxx/utils/ci/run-buildbot generic-win"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "windows"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
   # All jobs defined before this `wait` will run whenever a CI job is started.
   # Jobs defined after the `wait` will run only if all the jobs above succeeded.
   # We use this to reduce the load on testers that have more constrained resources
@@ -324,6 +359,78 @@ steps:
       - "**/test-results.xml"
     agents:
       queue: "libcxx-builders-macos10.15"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "AArch64"
+    command: "libcxx/utils/ci/run-buildbot aarch64"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders-linaro-arm"
+      arch: "aarch64"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "AArch64 -fno-exceptions"
+    command: "libcxx/utils/ci/run-buildbot aarch64-noexceptions"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders-linaro-arm"
+      arch: "aarch64"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Armv8"
+    command: "libcxx/utils/ci/run-buildbot armv8"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders-linaro-arm"
+      arch: "armv8l"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Armv8 -fno-exceptions"
+    command: "libcxx/utils/ci/run-buildbot armv8-noexceptions"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders-linaro-arm"
+      arch: "armv8l"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Armv7"
+    command: "libcxx/utils/ci/run-buildbot armv7"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders-linaro-arm"
+      arch: "armv8l" # Compiling for v7, running on v8 hardware
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Armv7 -fno-exceptions"
+    command: "libcxx/utils/ci/run-buildbot armv7-noexceptions"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders-linaro-arm"
+      arch: "armv8l" # Compiling for v7, running on v8 hardware
     retry:
       automatic:
         - exit_status: -1  # Agent was lost

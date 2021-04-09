@@ -18,14 +18,18 @@ endif()
 # When ANDROID, we build tests with the host compiler (i.e. CMAKE_C_COMPILER),
 # and run tests with tools from the host toolchain.
 if(NOT ANDROID)
-  if(NOT COMPILER_RT_STANDALONE_BUILD AND NOT RUNTIMES_BUILD)
+  if(NOT COMPILER_RT_STANDALONE_BUILD AND NOT LLVM_RUNTIMES_BUILD)
     # Use LLVM utils and Clang from the same build tree.
     list(APPEND SANITIZER_COMMON_LIT_TEST_DEPS
       clang clang-resource-headers FileCheck count not llvm-config llvm-nm llvm-objdump
-      llvm-readobj llvm-symbolizer compiler-rt-headers sancov)
+      llvm-readelf llvm-readobj llvm-size llvm-symbolizer compiler-rt-headers sancov)
     if (WIN32)
       list(APPEND SANITIZER_COMMON_LIT_TEST_DEPS KillTheDoctor)
     endif()
+  endif()
+  # Tests use C++ standard library headers.
+  if (TARGET cxx-headers OR HAVE_LIBCXX)
+    list(APPEND SANITIZER_COMMON_LIT_TEST_DEPS cxx-headers)
   endif()
 endif()
 

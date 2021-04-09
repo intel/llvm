@@ -3,14 +3,17 @@
 import gc
 from mlir.ir import *
 
+
 def run(f):
   print("\nTEST:", f.__name__)
   f()
   gc.collect()
   assert Context._get_live_count() == 0
+  return f
 
 
 # CHECK-LABEL: TEST: testDialectDescriptor
+@run
 def testDialectDescriptor():
   ctx = Context()
   d = ctx.get_dialect_descriptor("std")
@@ -25,17 +28,16 @@ def testDialectDescriptor():
   else:
     assert False, "Expected exception"
 
-run(testDialectDescriptor)
-
 
 # CHECK-LABEL: TEST: testUserDialectClass
+@run
 def testUserDialectClass():
   ctx = Context()
   # Access using attribute.
   d = ctx.dialects.std
   # Note that the standard dialect namespace prints as ''. Others will print
   # as "<Dialect %namespace (..."
-  # CHECK: <Dialect (class mlir.dialects.std._Dialect)>
+  # CHECK: <Dialect (class mlir.dialects._std_ops_gen._Dialect)>
   print(d)
   try:
     _ = ctx.dialects.not_existing
@@ -46,7 +48,7 @@ def testUserDialectClass():
 
   # Access using index.
   d = ctx.dialects["std"]
-  # CHECK: <Dialect (class mlir.dialects.std._Dialect)>
+  # CHECK: <Dialect (class mlir.dialects._std_ops_gen._Dialect)>
   print(d)
   try:
     _ = ctx.dialects["not_existing"]
@@ -57,17 +59,17 @@ def testUserDialectClass():
 
   # Using the 'd' alias.
   d = ctx.d["std"]
-  # CHECK: <Dialect (class mlir.dialects.std._Dialect)>
+  # CHECK: <Dialect (class mlir.dialects._std_ops_gen._Dialect)>
   print(d)
-
-run(testUserDialectClass)
 
 
 # CHECK-LABEL: TEST: testCustomOpView
 # This test uses the standard dialect AddFOp as an example of a user op.
 # TODO: Op creation and access is still quite verbose: simplify this test as
 # additional capabilities come online.
+@run
 def testCustomOpView():
+
   def createInput():
     op = Operation.create("pytest_dummy.intinput", results=[f32])
     # TODO: Auto result cast from operation
@@ -77,7 +79,7 @@ def testCustomOpView():
     ctx.allow_unregistered_dialects = True
     m = Module.create()
 
-    with InsertionPoint.at_block_terminator(m.body):
+    with InsertionPoint(m.body):
       f32 = F32Type.get()
       # Create via dialects context collection.
       input1 = createInput()
@@ -95,4 +97,12 @@ def testCustomOpView():
   m.operation.print()
 
 
-run(testCustomOpView)
+# CHECK-LABEL: TEST: testIsRegisteredOperation
+@run
+def testIsRegisteredOperation():
+  ctx = Context()
+
+  # CHECK: std.cond_br: True
+  print(f"std.cond_br: {ctx.is_registered_operation('std.cond_br')}")
+  # CHECK: std.not_existing: False
+  print(f"std.not_existing: {ctx.is_registered_operation('std.not_existing')}")

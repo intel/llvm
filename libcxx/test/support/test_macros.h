@@ -165,7 +165,8 @@
 
 // Sniff out to see if the underlying C library has C11 features
 // This is cribbed from __config; but lives here as well because we can't assume libc++
-#if __ISO_C_VISIBLE >= 2011 || TEST_STD_VER >= 11
+#if (defined(__ISO_C_VISIBLE) && (__ISO_C_VISIBLE >= 2011)) ||                 \
+    TEST_STD_VER >= 11
 #  if defined(__FreeBSD__)
 #    if __FreeBSD_version >= 1300064 || \
        (__FreeBSD_version >= 1201504 && __FreeBSD_version < 1300000)
@@ -214,10 +215,10 @@
 #  elif defined(__APPLE__)
      // timespec_get and aligned_alloc were introduced in macOS 10.15 and
      // aligned releases
-#    if (__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101500 || \
-         __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ >= 130000 || \
-         __ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__ >= 130000 || \
-         __ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__ >= 60000)
+#    if ((defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101500) || \
+         (defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ >= 130000) || \
+         (defined(__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__ >= 130000) || \
+         (defined(__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__ >= 60000))
 #      define TEST_HAS_ALIGNED_ALLOC
 #      define TEST_HAS_TIMESPEC_GET
 #    endif
@@ -369,6 +370,12 @@ inline void DoNotOptimize(Tp const& value) {
 #else
 #define TEST_ALWAYS_INLINE
 #define TEST_NOINLINE
+#endif
+
+#ifdef _WIN32
+#define TEST_NOT_WIN32(...) ((void)0)
+#else
+#define TEST_NOT_WIN32(...) __VA_ARGS__
 #endif
 
 #if defined(__GNUC__)

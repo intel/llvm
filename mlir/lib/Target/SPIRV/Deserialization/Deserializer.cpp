@@ -470,7 +470,7 @@ spirv::Deserializer::processFunctionEnd(ArrayRef<uint32_t> operands) {
   }
 
   // Wire up block arguments from OpPhi instructions.
-  // Put all structured control flow in spv.selection/spv.loop ops.
+  // Put all structured control flow in spv.mlir.selection/spv.mlir.loop ops.
   if (failed(wireUpBlockArgument()) || failed(structurizeControlFlow())) {
     return failure();
   }
@@ -1413,9 +1413,9 @@ Block *spirv::Deserializer::getOrCreateBlock(uint32_t id) {
     return block;
   }
 
-  // We don't know where this block will be placed finally (in a spv.selection
-  // or spv.loop or function). Create it into the function for now and sort
-  // out the proper place later.
+  // We don't know where this block will be placed finally (in a
+  // spv.mlir.selection or spv.mlir.loop or function). Create it into the
+  // function for now and sort out the proper place later.
   auto *block = curFunction->addBlock();
   LLVM_DEBUG(llvm::dbgs() << "[block] created block for id = " << id << " @ "
                           << block << "\n");
@@ -1584,16 +1584,16 @@ LogicalResult spirv::Deserializer::processPhi(ArrayRef<uint32_t> operands) {
 
 namespace {
 /// A class for putting all blocks in a structured selection/loop in a
-/// spv.selection/spv.loop op.
+/// spv.mlir.selection/spv.mlir.loop op.
 class ControlFlowStructurizer {
 public:
   /// Structurizes the loop at the given `headerBlock`.
   ///
-  /// This method will create an spv.loop op in the `mergeBlock` and move all
-  /// blocks in the structured loop into the spv.loop's region. All branches to
-  /// the `headerBlock` will be redirected to the `mergeBlock`.
-  /// This method will also update `mergeInfo` by remapping all blocks inside to
-  /// the newly cloned ones inside structured control flow op's regions.
+  /// This method will create an spv.mlir.loop op in the `mergeBlock` and move
+  /// all blocks in the structured loop into the spv.mlir.loop's region. All
+  /// branches to the `headerBlock` will be redirected to the `mergeBlock`. This
+  /// method will also update `mergeInfo` by remapping all blocks inside to the
+  /// newly cloned ones inside structured control flow op's regions.
   static LogicalResult structurize(Location loc, uint32_t control,
                                    spirv::BlockMergeInfoMap &mergeInfo,
                                    Block *headerBlock, Block *mergeBlock,
@@ -1610,10 +1610,10 @@ private:
       : location(loc), control(control), blockMergeInfo(mergeInfo),
         headerBlock(header), mergeBlock(merge), continueBlock(cont) {}
 
-  /// Creates a new spv.selection op at the beginning of the `mergeBlock`.
+  /// Creates a new spv.mlir.selection op at the beginning of the `mergeBlock`.
   spirv::SelectionOp createSelectionOp(uint32_t selectionControl);
 
-  /// Creates a new spv.loop op at the beginning of the `mergeBlock`.
+  /// Creates a new spv.mlir.loop op at the beginning of the `mergeBlock`.
   spirv::LoopOp createLoopOp(uint32_t loopControl);
 
   /// Collects all blocks reachable from `headerBlock` except `mergeBlock`.
@@ -1628,7 +1628,7 @@ private:
 
   Block *headerBlock;
   Block *mergeBlock;
-  Block *continueBlock; // nullptr for spv.selection
+  Block *continueBlock; // nullptr for spv.mlir.selection
 
   llvm::SetVector<Block *> constructBlocks;
 };
@@ -1640,7 +1640,7 @@ ControlFlowStructurizer::createSelectionOp(uint32_t selectionControl) {
   // merge block so that the newly created SelectionOp will be inserted there.
   OpBuilder builder(&mergeBlock->front());
 
-  auto control = builder.getI32IntegerAttr(selectionControl);
+  auto control = static_cast<spirv::SelectionControl>(selectionControl);
   auto selectionOp = builder.create<spirv::SelectionOp>(location, control);
   selectionOp.addMergeBlock();
 
@@ -1652,7 +1652,7 @@ spirv::LoopOp ControlFlowStructurizer::createLoopOp(uint32_t loopControl) {
   // merge block so that the newly created LoopOp will be inserted there.
   OpBuilder builder(&mergeBlock->front());
 
-  auto control = builder.getI32IntegerAttr(loopControl);
+  auto control = static_cast<spirv::LoopControl>(loopControl);
   auto loopOp = builder.create<spirv::LoopOp>(location, control);
   loopOp.addEntryAndMergeBlock();
 
@@ -1944,8 +1944,8 @@ Location spirv::Deserializer::createFileLineColLoc(OpBuilder opBuilder) {
   auto fileName = debugInfoMap.lookup(debugLine->fileID).str();
   if (fileName.empty())
     fileName = "<unknown>";
-  return opBuilder.getFileLineColLoc(opBuilder.getIdentifier(fileName),
-                                     debugLine->line, debugLine->col);
+  return FileLineColLoc::get(opBuilder.getIdentifier(fileName), debugLine->line,
+                             debugLine->col);
 }
 
 LogicalResult

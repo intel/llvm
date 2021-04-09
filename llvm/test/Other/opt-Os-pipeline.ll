@@ -12,7 +12,6 @@
 ; CHECK-NEXT:     Module Verifier
 ; CHECK-EXT:      Good Bye World Pass
 ; CHECK-NOEXT-NOT:      Good Bye World Pass
-; CHECK-NEXT:     Instrument function entry/exit with calls to e.g. mcount() (pre inlining)
 ; CHECK-NEXT:     Simplify the CFG
 ; CHECK-NEXT:     Dominator Tree Construction
 ; CHECK-NEXT:     SROA
@@ -88,16 +87,20 @@
 ; CHECK-NEXT:         Simplify the CFG
 ; CHECK-NEXT:         Reassociate expressions
 ; CHECK-NEXT:         Dominator Tree Construction
+; CHECK-NEXT:         Basic Alias Analysis (stateless AA impl)
+; CHECK-NEXT:         Function Alias Analysis Results
+; CHECK-NEXT:         Memory SSA
 ; CHECK-NEXT:         Natural Loop Information
 ; CHECK-NEXT:         Canonicalize natural loops
 ; CHECK-NEXT:         LCSSA Verifier
 ; CHECK-NEXT:         Loop-Closed SSA Form Pass
-; CHECK-NEXT:         Basic Alias Analysis (stateless AA impl)
-; CHECK-NEXT:         Function Alias Analysis Results
 ; CHECK-NEXT:         Scalar Evolution Analysis
+; CHECK-NEXT:         Lazy Branch Probability Analysis
+; CHECK-NEXT:         Lazy Block Frequency Analysis
+; CHECK-NEXT:         Loop Pass Manager
+; CHECK-NEXT:           Loop Invariant Code Motion
 ; CHECK-NEXT:         Loop Pass Manager
 ; CHECK-NEXT:           Rotate Loops
-; CHECK-NEXT:         Memory SSA
 ; CHECK-NEXT:         Lazy Branch Probability Analysis
 ; CHECK-NEXT:         Lazy Block Frequency Analysis
 ; CHECK-NEXT:         Loop Pass Manager
@@ -131,14 +134,10 @@
 ; CHECK-NEXT:         Lazy Block Frequency Analysis
 ; CHECK-NEXT:         Optimization Remark Emitter
 ; CHECK-NEXT:         Global Value Numbering
-; CHECK-NEXT:         Phi Values Analysis
-; CHECK-NEXT:         Basic Alias Analysis (stateless AA impl)
-; CHECK-NEXT:         Function Alias Analysis Results
-; CHECK-NEXT:         Memory Dependence Analysis
-; CHECK-NEXT:         MemCpy Optimization
 ; CHECK-NEXT:         Sparse Conditional Constant Propagation
 ; CHECK-NEXT:         Demanded bits analysis
 ; CHECK-NEXT:         Bit-Tracking Dead Code Elimination
+; CHECK-NEXT:         Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:         Function Alias Analysis Results
 ; CHECK-NEXT:         Lazy Branch Probability Analysis
 ; CHECK-NEXT:         Lazy Block Frequency Analysis
@@ -152,6 +151,7 @@
 ; CHECK-NEXT:         Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:         Function Alias Analysis Results
 ; CHECK-NEXT:         Memory SSA
+; CHECK-NEXT:         MemCpy Optimization
 ; CHECK-NEXT:         Dead Store Elimination
 ; CHECK-NEXT:         Natural Loop Information
 ; CHECK-NEXT:         Canonicalize natural loops
