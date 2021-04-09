@@ -340,7 +340,9 @@ Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
   // - integer constant ID:
   Value *ID = ConstantInt::get(Type::getInt32Ty(F->getContext()), NumericID);
   // - default value:
-  Value *Def = DefaultValue != nullptr ? DefaultValue : getDefaultCPPValue(Ty);
+  //   For SYCL 2020 we have it provided by user for us, but for older version
+  //   of specialization constants we use default C++ value based on type.
+  Value *Def = DefaultValue ? DefaultValue : getDefaultCPPValue(Ty);
   // ... Now replace the call with SPIRV intrinsic version.
   Value *Args[] = {ID, Def};
   return emitCall(Ty, SPIRV_GET_SPEC_CONST_VAL, Args, InsertBefore);
@@ -394,9 +396,9 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
 
   SmallVector<Instruction *, 8> Elements;
   auto LoopIteration = [&](Type *Ty, unsigned LocalIndex) {
-    Constant *Def = nullptr;
-    if (DefaultValue)
-      Def = DefaultValue->getAggregateElement(LocalIndex);
+    // Select corresponding element of the default value if it was provided
+    Constant *Def =
+        DefaultValue ? DefaultValue->getAggregateElement(LocalIndex) : nullptr;
     Elements.push_back(
         emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index, Def));
   };
@@ -471,6 +473,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       bool IsComposite =
           F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) ||
           F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
+      // SYCL 2020 specialization constants provide more functionality so they
+      // use separate intrinsic with additional arguments.
+      bool Is2020Intrinsic =
+          F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
+          F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
 
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
@@ -494,24 +501,24 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         auto &IDs = Ins.first->second;
         if (IsNewSpecConstant) {
           // For any spec constant type there will be always at least one ID
-          // generatedA.
+          // generated.
           IDs.push_back(NextID);
         }
 
         Constant *DefaultValue = nullptr;
-        if (F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
-            F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL)) {
+        if (Is2020Intrinsic) {
           // For SYCL 2020, there is a mechanism to specify the default value.
           // It is stored as an initializer of a global variable referenced by
-          // the second argument of the intrinsic
-          auto *Arg =
-              dyn_cast<BitCastOperator>(CI->getArgOperand(NameArgNo + 1));
-          if (Arg) {
-            DefaultValue =
-                cast<GlobalVariable>(Arg->getOperand(0))->getInitializer();
-            assert(isa<ConstantAggregate>(DefaultValue) &&
+          // the second argument of the intrinsic.
+          auto *GV = dyn_cast<GlobalVariable>(
+              CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
+          if (GV) {
+            auto *Initializer = GV->getInitializer();
+            assert(isa<ConstantAggregate>(Initializer) &&
                    "expected specialization_id instance");
-            DefaultValue = DefaultValue->getAggregateElement(0u);
+            // specialization_id structure contains a single field which is the
+            // default value of corresponding specialization constant.
+            DefaultValue = Initializer->getAggregateElement(0u);
           }
         }
 
@@ -553,10 +560,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         // 2a. Spec constant must be resolved at compile time - replace the
         // intrinsic with the actual value for spec constant.
         Value *Val = nullptr;
-        bool Is2020Intrinsic =
-            F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
-            F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
-
         if (Is2020Intrinsic) {
           // Handle SYCL2020 version of intrinsic - replace it with a load from
           // the pointer to the specialization constant value.
