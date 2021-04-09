@@ -102,6 +102,10 @@ public:
   static bool isAccessorPropertyListType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
+  /// no_alias class.
+  static bool isSyclAccessorNoAliasPropertyType(QualType Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
   /// buffer_location class.
   static bool isSyclBufferLocationType(QualType Ty);
 
@@ -1758,9 +1762,17 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
          Prop != TemplArg.pack_end(); ++Prop) {
       QualType PropTy = Prop->getAsType();
+      if (Util::isSyclAccessorNoAliasPropertyType(PropTy))
+        handleNoAliasProperty(Param, PropTy, Loc);
       if (Util::isSyclBufferLocationType(PropTy))
         handleBufferLocationProperty(Param, PropTy, Loc);
     }
+  }
+
+  void handleNoAliasProperty(ParmVarDecl *Param, QualType PropTy,
+                             SourceLocation Loc) {
+    ASTContext &Ctx = SemaRef.getASTContext();
+    Param->addAttr(RestrictAttr::CreateImplicit(Ctx, Loc));
   }
 
   // Obtain an integer value stored in a template parameter of buffer_location
@@ -4412,6 +4424,18 @@ bool Util::isSyclKernelHandlerType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "kernel_handler")};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
+  std::array<DeclContextDesc, 6> Scopes = {
+      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "ONEAPI"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
+      Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
+                            "instance"}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
