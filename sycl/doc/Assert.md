@@ -159,6 +159,41 @@ Both storing of accessor metadata and writing assert failure is performed with
 help of built-ins. Implementations of these builtins are substituted by
 frontend.
 
+User's kernel is executed through a wrapper. Wrapping takes place in DPCPP
+Runtime headers in a following manner:
+
+```
+class handler {
+
+template <typename KernelName> parallel_for(KernelFunc, Range) {
+#ifndef NDEBUG
+  // Assert required
+  if (!MQueue->get_device()->assert_fail_supported()) {
+    using KName2 = class ASSERT_WRAPPER_NAME(KernelName);
+    
+    auto AssertBufferAcc = MQueue->get_context()->getAssertBufferAccessor(this);
+
+    parallel_for_impl<KName2>(
+      Range,
+      [=](Item) {
+        __store_acc(AssertBuffAcc);
+        KernelFunc(Item);
+      });
+  } else {
+#endif
+
+     // (No assert required) OR (Assert supported by device)
+     // ordinary enqueue process
+
+#ifndef NDEBUG
+  }
+#endif
+}
+
+}
+```
+
+
 #### Built-ins operation
 
 Accessor is a pointer augmented with offset and two ranges (access range and
