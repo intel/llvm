@@ -2493,7 +2493,7 @@ def fsycl_instrument_device_code : Flag<["-"], "fsycl-instrument-device-code">,
   HelpText<"Add ITT instrumentation intrinsics calls">,
   MarshallingInfoFlag<CodeGenOpts<"SPIRITTAnnotations">>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
-  LangOpts<"SYCLValueFitInMaxInt">, DefaultFalse,
+  LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,
   BothFlags<[CC1Option, CoreOption], " that SYCL ID queries fit within MAX_INT.">>;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
