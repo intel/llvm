@@ -114,6 +114,8 @@ struct LoopAttributes {
   /// Flag for llvm.loop.max_concurrency.count metadata.
   bool SYCLMaxConcurrencyEnable;
 
+  bool SYCLIntelFPGALoopControlAvgEnable;
+
   /// Value for llvm.loop.max_concurrency.count metadata.
   unsigned SYCLMaxConcurrencyNThreads;
 
@@ -362,6 +364,14 @@ public:
   /// Set flag of max_concurrency for the next loop pushed.
   void setSYCLMaxConcurrencyEnable() {
     StagedAttrs.SYCLMaxConcurrencyEnable = true;
+  }
+
+  void setSYCLIntelFPGALoopControlAvgEnable() {
+    StagedAttrs.SYCLIntelFPGALoopControlAvgEnable = true;
+  }
+
+  void setSYCLIntelFPGALoopControlAvgNTripCount(unsigned C) {
+    StagedAttrs.SYCLIntelFPGALoopControlAvgEnable = C;
   }
 
   /// Set value of threads for the next loop pushed.

@@ -1030,6 +1030,16 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
                                         ->getSExtValue());
     }
 
+    if (const auto *IntelFPGALoopControlAvg =
+            dyn_cast<SYCLIntelFPGALoopControlAvgAttr>(
+                A)) {
+      setSYCLIntelFPGALoopControlAvgEnable();
+      setSYCLIntelFPGALoopControlAvgNTripCount(
+          IntelFPGALoopControlAvg->getNTripCount()
+                                        ->getIntegerConstantExpr(Ctx)
+                                        ->getSExtValue());
+    }
+
     if (const auto *IntelFPGALoopCoalesce =
             dyn_cast<SYCLIntelFPGALoopCoalesceAttr>(A)) {
       if (auto *LCE = IntelFPGALoopCoalesce->getNExpr())

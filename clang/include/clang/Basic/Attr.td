@@ -1909,7 +1909,7 @@ def SYCLIntelFPGALoopControlAvg : StmtAttr {
                    CXX11<"intel","loop_control_avg">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Args = [ExprArgument<"N">];
+  let Args = [ExprArgument<"NTripCount">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
   let Documentation = [SYCLIntelFPGALoopControlAvgAttrDocs];

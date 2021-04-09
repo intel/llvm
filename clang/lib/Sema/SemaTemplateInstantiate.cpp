@@ -1093,6 +1093,9 @@ namespace {
     const SYCLIntelFPGASpeculatedIterationsAttr *
     TransformSYCLIntelFPGASpeculatedIterationsAttr(
         const SYCLIntelFPGASpeculatedIterationsAttr *SI);
+    const SYCLIntelFPGALoopControlAvgAttr *
+    TransformSYCLIntelFPGALoopControlAvgAttr(
+        const SYCLIntelFPGALoopControlAvgAttr *SI);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1616,6 +1619,14 @@ TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
   return getSema()
       .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGASpeculatedIterationsAttr>(
           *SI, TransformedExpr);
+}
+
+const SYCLIntelFPGALoopControlAvgAttr *
+TemplateInstantiator::TransformSYCLIntelFPGALoopControlAvgAttr(
+    const SYCLIntelFPGALoopControlAvgAttr *LCA) {
+  Expr *TransformedExpr = getDerived().TransformExpr(LCA->getNTripCount()).get();
+  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopControlAvgAttr>(
+          *LCA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
