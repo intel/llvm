@@ -283,6 +283,9 @@ class CXXRecordDecl : public RecordDecl {
     /// Whether this class describes a C++ lambda.
     unsigned IsLambda : 1;
 
+    /// Whether the lambda is associated with a kernel
+    unsigned IsKernelLambda = 0;
+
     /// Whether we are currently parsing base specifiers.
     unsigned IsParsingBaseSpecifiers : 1;
 
@@ -415,6 +418,7 @@ class CXXRecordDecl : public RecordDecl {
           NumExplicitCaptures(0), HasKnownInternalLinkage(0), ManglingNumber(0),
           MethodTyInfo(Info) {
       IsLambda = true;
+      IsKernelLambda = false;
 
       // C++1z [expr.prim.lambda]p4:
       //   This class type is not an aggregate type.
@@ -565,6 +569,12 @@ public:
   /// definition is incomplete of dependent.
   bool mayBeNonDynamicClass() const {
     return !hasDefinition() || !isDynamicClass() || hasAnyDependentBases();
+  }
+
+  void setKernelLambda() { data().IsKernelLambda = true; }
+
+  void setKernelness(CXXRecordDecl *Lambda) {
+    Lambda->setKernelLambda();
   }
 
   void setIsParsingBaseSpecifiers() { data().IsParsingBaseSpecifiers = true; }
@@ -992,6 +1002,12 @@ public:
     // An update record can't turn a non-lambda into a lambda.
     auto *DD = DefinitionData;
     return DD && DD->IsLambda;
+  }
+
+  /// Determine whether this class describes a lambda function object.
+  bool isKernelLambda() const {
+    auto *DD = DefinitionData;
+    return DD && DD->IsKernelLambda;
   }
 
   /// Determine whether this class describes a generic
@@ -1706,6 +1722,13 @@ public:
     assert(isLambda() && "Not a lambda closure type!");
     return getLambdaData().ManglingNumber;
   }
+
+  /*
+  unsigned getKernelLambdaManglingNumber() const {
+    assert(isKernelLambda() && "Not a kernel lambda");
+    return getLambdaData().KernelLambdaNumber;
+  }
+  */
 
   /// The lambda is known to has internal linkage no matter whether it has name
   /// mangling number.

@@ -167,6 +167,10 @@ public:
   /// TODO: Extend this to internal types by generating names that are unique
   /// across translation units so it can be used with LTO.
   virtual void mangleTypeName(QualType T, raw_ostream &) = 0;
+  typedef void (CXXRecordDecl::*pfnCallback)(CXXRecordDecl *Lambda);
+  virtual void mangleTypeName(QualType T, CXXRecordDecl *pThat, pfnCallback pFn, raw_ostream &) = 0;
+  typedef void (MangleContext::*ManglerCallback)(CXXRecordDecl *Lambda);
+  virtual void mangleTypeName(QualType T, CXXRecordDecl *Lambda, ManglerCallback Function, raw_ostream &) = 0; 
 
   /// @}
 };

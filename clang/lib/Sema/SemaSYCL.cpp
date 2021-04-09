@@ -761,7 +761,7 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
-static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
+const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
 
   QualType KernelParamTy = Caller->getParamDecl(0)->getType();
@@ -805,6 +805,8 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   return TAL->get(0).getAsType().getCanonicalType();
 }
 
+//typedef void (CXXRecordDecl::*pfnCallback)(CXXRecordDecl *Lambda);
+typedef void (MangleContext::*Callback)(CXXRecordDecl *Lambda);
 // Gets a name for the OpenCL kernel function, calculated from the first
 // template argument of the kernel caller function.
 static std::pair<std::string, std::string>
@@ -815,8 +817,11 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
-
-  MC.mangleTypeName(KernelNameType, Out);
+  CXXRecordDecl *Lambda = KernelNameType->getAsCXXRecordDecl();
+  //Lambda->setKernelLambda();
+  //assert(Lambda->isKernelLambda() && "not a kernel lambda");
+  //MC.mangleTypeName(KernelNameType, Lambda, &CXXRecordDecl::setKernelness, Out);
+  MC.mangleTypeName(KernelNameType, Lambda, &MangleContext::markKernelNamingLambdas, Out);
 
   return {std::string(Out.str()),
           PredefinedExpr::ComputeName(S.getASTContext(),
@@ -3299,10 +3304,14 @@ public:
     VisitTemplateArgs(TA.getPackAsArray());
   }
 };
-
+/*
+void Sema::markKernelBit(CXXRecordDecl *Lambda) {
+  setKernelLambda(Lambda);
+}
+*/
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
-  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelFunc);
+  CXXRecordDecl *KernelObj = getKernelObjectType(KernelFunc);
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
   if (!KernelObj) {
@@ -3310,6 +3319,10 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     KernelFunc->setInvalidDecl();
     return;
   }
+
+  //Sindhu
+  KernelObj->setKernelLambda();
+  //assert(KernelObj->isKernelLambda() && "this is not a kernel lambda");
 
   if (KernelObj->isLambda()) {
     for (const LambdaCapture &LC : KernelObj->captures())
@@ -3336,6 +3349,20 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   if (KernelObj->isInvalidDecl())
     return;
 
+  /*
+  DeclContext *DC = KernelObj->getDeclContext();
+  FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
+ 
+  llvm::DenseSet<TagDecl*> KernelNamingSet;
+  for (const ParmVarDecl *Param : FD->parameters()) {
+    QualType ParamTy = Param->getType();
+    TagDecl *LambdaTagDecl = ParamTy->getAsTagDecl();
+    KernelNamingSet.insert(LambdaTagDecl);
+  }
+  TagDecl *TopLevelLambdaTagDecl = KernelParamTy->getAsTagDecl();
+  KernelNamingSet.insert(TopLevelLambdaTagDecl);
+  */
+ 
   SyclKernelDecompMarker DecompMarker(*this);
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
@@ -3446,7 +3473,7 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
+  CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
   assert(KernelObj && "invalid kernel caller");
 
   // Do not visit invalid kernel object.

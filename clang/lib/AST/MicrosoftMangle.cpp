@@ -179,6 +179,9 @@ public:
                                      ArrayRef<const CXXRecordDecl *> BasePath,
                                      raw_ostream &Out) override;
   void mangleTypeName(QualType T, raw_ostream &) override;
+  typedef void (CXXRecordDecl::*pfnCallback)(CXXRecordDecl *Lambda);
+  void mangleTypeName(QualType T, CXXRecordDecl *pThat, pfnCallback pFn, raw_ostream &);
+      
   void mangleReferenceTemporary(const VarDecl *, unsigned ManglingNumber,
                                 raw_ostream &) override;
   void mangleStaticGuardVariable(const VarDecl *D, raw_ostream &Out) override;
@@ -3716,6 +3719,12 @@ void MicrosoftMangleContextImpl::mangleTypeName(QualType T, raw_ostream &Out) {
   MicrosoftCXXNameMangler Mangler(*this, Out);
   Mangler.getStream() << '?';
   Mangler.mangleType(T, SourceRange());
+}
+
+typedef void (CXXRecordDecl::*pfnCallback)(CXXRecordDecl *Lambda);
+void MicrosoftMangleContextImpl::mangleTypeName(QualType T, CXXRecordDecl *pThat, pfnCallback pFn, raw_ostream &Out) {
+  (pThat->*pFn)(pThat);
+  mangleTypeName(T, Out);
 }
 
 void MicrosoftMangleContextImpl::mangleReferenceTemporary(

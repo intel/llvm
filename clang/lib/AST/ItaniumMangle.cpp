@@ -124,7 +124,7 @@ class ItaniumMangleContextImpl : public ItaniumMangleContext {
   typedef std::pair<const DeclContext*, IdentifierInfo*> DiscriminatorKeyTy;
   llvm::DenseMap<DiscriminatorKeyTy, unsigned> Discriminator;
   llvm::DenseMap<const NamedDecl*, unsigned> Uniquifier;
-
+  llvm::DenseSet<TagDecl*> KernelNamingLambdaSet;
   bool IsDevCtx = false;
   bool NeedsUniqueInternalLinkageNames = false;
 
@@ -165,7 +165,13 @@ public:
   void mangleCXXRTTI(QualType T, raw_ostream &) override;
   void mangleCXXRTTIName(QualType T, raw_ostream &) override;
   void mangleTypeName(QualType T, raw_ostream &) override;
+  //Sindhu
+  typedef void (CXXRecordDecl::*Callback)(CXXRecordDecl *Lambda);
+  void mangleTypeName(QualType T, CXXRecordDecl *Lambda, Callback Function, raw_ostream &) override;
 
+  typedef void (MangleContext::*ManglerCallback)(CXXRecordDecl *Lambda);
+  void mangleTypeName(QualType T, CXXRecordDecl *Lambda, ManglerCallback Function, raw_ostream &) override;
+  void markKernelNamingLambdas(CXXRecordDecl *Lambda);
   void mangleCXXCtorComdat(const CXXConstructorDecl *D, raw_ostream &) override;
   void mangleCXXDtorComdat(const CXXDestructorDecl *D, raw_ostream &) override;
   void mangleStaticGuardVariable(const VarDecl *D, raw_ostream &) override;
@@ -269,6 +275,7 @@ class CXXNameMangler {
   /// The next substitution sequence number.
   unsigned SeqID;
 
+  llvm::DenseSet<TagDecl*> KernelNamingLambdaSet;
   class FunctionTypeDepthState {
     unsigned Bits;
 
@@ -470,6 +477,7 @@ public:
   void mangleType(QualType T);
   void mangleNameOrStandardSubstitution(const NamedDecl *ND);
   void mangleLambdaSig(const CXXRecordDecl *Lambda);
+  void markKernelNamingLambdas(CXXRecordDecl *Lambda);
 
 private:
 
@@ -1889,8 +1897,9 @@ void CXXNameMangler::mangleTemplateParamDecl(const NamedDecl *Decl) {
 static void mangleUniqueNameLambda(CXXNameMangler &Mangler, SourceManager &SM,
                                    raw_ostream &Out,
                                    const CXXRecordDecl *Lambda) {
-  SourceLocation Loc = Lambda->getLocation();
+  const DeclContext *DC = Lambda->getDeclContext();   
 
+  SourceLocation Loc = Lambda->getLocation();
   PresumedLoc PLoc = SM.getPresumedLoc(Loc);
   Mangler.mangleNumber(PLoc.getLine());
   Out << "_";
@@ -1911,6 +1920,12 @@ static void mangleUniqueNameLambda(CXXNameMangler &Mangler, SourceManager &SM,
     if (Loc.isFileID())
       Loc = SM.getImmediateMacroCallerLoc(SLToPrint);
   }
+}
+void ItaniumMangleContextImpl::markKernelNamingLambdas(const CXXRecordDecl *Lambda) {
+  Decl *LambdaContextDecl = Lambda->getLambdaContextDecl();
+  TagDecl *TD = dyn_cast<TagDecl*>(LambdaContextDecl); 
+  KernelNamingLambdaSet.insert(TD);
+  //Lambda->getDeclContext();
 }
 
 void CXXNameMangler::mangleLambda(const CXXRecordDecl *Lambda) {
@@ -6312,6 +6327,20 @@ void ItaniumMangleContextImpl::mangleCXXRTTIName(QualType Ty,
   Mangler.getStream() << "_ZTS";
   Mangler.mangleType(Ty);
 }
+
+typedef void (MangleContext::*ManglerCallback)(CXXRecordDecl *Lambda);
+void mangleTypeName(QualType T, CXXRecordDecl *Lambda, ManglerCallback Function, raw_ostream &Out) {
+  *Function(Lambda);
+  mangleCXXRTTIName(Ty, Out); 
+}
+
+//typedef void (CXXRecordDecl::*pfnCallback)(CXXRecordDecl *Lambda);
+void ItaniumMangleContextImpl::mangleTypeName(QualType Ty, CXXRecordDecl *Lambda, pfnCallback pFn, raw_ostream &Out) {
+  (Lambda->*pFn)(Lambda); //callback to mark kernel bit of the lambda
+  mangleCXXRTTIName(Ty, Out);
+  //DeclContext *DC = Lambda->getDeclContext();
+}
+ 
 
 void ItaniumMangleContextImpl::mangleTypeName(QualType Ty, raw_ostream &Out) {
   mangleCXXRTTIName(Ty, Out);
