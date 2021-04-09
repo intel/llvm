@@ -741,10 +741,12 @@ struct ConversionPatternRewriterImpl {
       Block *block, TypeConverter &converter,
       TypeConverter::SignatureConversion *conversion = nullptr);
 
-  /// Apply a signature conversion on the given region.
+  /// Apply a signature conversion on the given region, using `converter` for
+  /// materializations if not null.
   Block *
   applySignatureConversion(Region *region,
-                           TypeConverter::SignatureConversion &conversion);
+                           TypeConverter::SignatureConversion &conversion,
+                           TypeConverter *converter);
 
   /// Convert the types of block arguments within the given region.
   FailureOr<Block *>
@@ -916,9 +918,13 @@ void ConversionPatternRewriterImpl::applyRewrites() {
 
   // In a second pass, erase all of the replaced operations in reverse. This
   // allows processing nested operations before their parent region is
-  // destroyed.
-  for (auto &repl : llvm::reverse(replacements))
+  // destroyed. Because we process in reverse order, producers may be deleted
+  // before their users (a pattern deleting a producer and then the consumer)
+  // so we first drop all uses explicitly.
+  for (auto &repl : llvm::reverse(replacements)) {
+    repl.first->dropAllUses();
     repl.first->erase();
+  }
 
   argConverter.applyRewrites(mapping);
 
@@ -1141,9 +1147,11 @@ FailureOr<Block *> ConversionPatternRewriterImpl::convertBlockSignature(
 }
 
 Block *ConversionPatternRewriterImpl::applySignatureConversion(
-    Region *region, TypeConverter::SignatureConversion &conversion) {
+    Region *region, TypeConverter::SignatureConversion &conversion,
+    TypeConverter *converter) {
   if (!region->empty()) {
-    return *convertBlockSignature(&region->front(), defaultTypeConverter,
+    return *convertBlockSignature(&region->front(),
+                                  converter ? *converter : defaultTypeConverter,
                                   &conversion);
   }
   return nullptr;
@@ -1331,8 +1339,9 @@ void ConversionPatternRewriter::eraseBlock(Block *block) {
 }
 
 Block *ConversionPatternRewriter::applySignatureConversion(
-    Region *region, TypeConverter::SignatureConversion &conversion) {
-  return impl->applySignatureConversion(region, conversion);
+    Region *region, TypeConverter::SignatureConversion &conversion,
+    TypeConverter *converter) {
+  return impl->applySignatureConversion(region, conversion, converter);
 }
 
 FailureOr<Block *> ConversionPatternRewriter::convertRegionTypes(
@@ -2230,13 +2239,20 @@ LogicalResult OperationConverter::convertOperations(ArrayRef<Operation *> ops) {
   // legalized.
   if (failed(finalize(rewriter)))
     return rewriterImpl.discardRewrites(), failure();
-
   // After a successful conversion, apply rewrites if this is not an analysis
   // conversion.
   if (mode == OpConversionMode::Analysis)
     rewriterImpl.discardRewrites();
-  else
+  else {
     rewriterImpl.applyRewrites();
+
+    // It is possible for a later pattern to erase an op that was originally
+    // identified as illegal and added to the trackedOps, remove it now after
+    // replacements have been computed.
+    if (trackedOps)
+      for (auto &repl : rewriterImpl.replacements)
+        trackedOps->erase(repl.first);
+  }
   return success();
 }
 

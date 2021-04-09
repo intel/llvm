@@ -1,0 +1,99 @@
+cl_intel_assert_return_code
+======================================
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Name Strings
+
++cl_intel_assert_return_code+
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation. All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Dependencies
+
+This extension is written against the OpenCL Specification Version 1.0, Revision 48.
+
+This extension requires OpenCL 1.0 or later.
+
+== Overview
+
+This extension allows OpenCL 1.x and 2.x devices to notify host that assert had
+happened.
+
+== New error code
+
+[source]
+----
+CL_ASSERT_FAILURE
+----
+
+Negative value of this error code should be set into `param_value` of
+`clGetEventInfo` as described in table 5.15 "clGetEventInfo prameter queries" if
+assert failure took place in device-code during kernel execution.
+
+An example:
+[source]
+----
+cl_event Event; // describes an event of kernel been submitted previously
+cl_int Result;
+size_t ResultSize;
+
+clGetEventInfo(Event, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(Result), &Result, &ResultSize);
+----
+
+If kernel failed an assertion `clGetEventInfo` should put `CL_ASSERT_FAILURE` in
+`Result`.
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-04-09|Sergey Kanaev|*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

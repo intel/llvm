@@ -11,6 +11,7 @@
 #include "Driver.h"
 #include "InputFiles.h"
 #include "Symbols.h"
+#include "Target.h"
 
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Strings.h"
@@ -36,6 +37,8 @@ static lto::Config createConfig() {
   c.PreCodeGenPassesHook = [](legacy::PassManager &pm) {
     pm.add(createObjCARCContractPass());
   };
+  c.TimeTraceEnabled = config->timeTraceEnabled;
+  c.TimeTraceGranularity = config->timeTraceGranularity;
   return c;
 }
 

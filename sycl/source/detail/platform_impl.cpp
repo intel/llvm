@@ -100,12 +100,17 @@ vector_class<platform> platform_impl::get_platforms() {
   for (unsigned int i = 0; i < Plugins.size(); i++) {
 
     pi_uint32 NumPlatforms = 0;
-    Plugins[i].call<PiApiKind::piPlatformsGet>(0, nullptr, &NumPlatforms);
+    // Just return zero platforms if plugin fails to initialize.
+    // This way platforms from other plugins get a chance to be discovered.
+    if (Plugins[i].call_nocheck<PiApiKind::piPlatformsGet>(
+            0, nullptr, &NumPlatforms) != PI_SUCCESS)
+      return Platforms;
 
     if (NumPlatforms) {
       vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
-      Plugins[i].call<PiApiKind::piPlatformsGet>(NumPlatforms,
-                                                 PiPlatforms.data(), nullptr);
+      if (Plugins[i].call_nocheck<PiApiKind::piPlatformsGet>(
+              NumPlatforms, PiPlatforms.data(), nullptr) != PI_SUCCESS)
+        return Platforms;
 
       for (const auto &PiPlatform : PiPlatforms) {
         platform Platform = detail::createSyclObjFromImpl<platform>(

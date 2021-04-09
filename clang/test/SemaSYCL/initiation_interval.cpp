@@ -9,7 +9,7 @@
 
 [[intel::initiation_interval(-1)]] void func1() {} // expected-error{{'initiation_interval' attribute requires a positive integral compile time constant expression}}
 
-[[intel::initiation_interval(0, 1)]] void func2() {} // expected-error{{'initiation_interval' attribute takes no more than 1 argument}}
+[[intel::initiation_interval(0, 1)]] void func2() {} // expected-error{{'initiation_interval' attribute takes one argument}}
 
 // Tests for Intel FPGA initiation_interval function attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
@@ -36,8 +36,8 @@
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::initiation_interval(4)]] [[intel::disable_loop_pipelining]] void func8();
 
-// expected-error@+2 {{'initiation_interval' and 'disable_loop_pipelining' attributes are not compatible}}
-// expected-note@+2 {{conflicting attribute is here}}
+// expected-error@+3 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
 [[intel::initiation_interval(4)]] void func9();
 [[intel::disable_loop_pipelining]] void func9();
 
