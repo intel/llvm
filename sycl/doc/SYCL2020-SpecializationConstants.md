@@ -170,7 +170,7 @@ Based on those limitations, the following mapping design is proposed:
   injected at the end of a translation unit:
   ```
   namespace detail {
-    // assuming user defined and used the following specialization_id:
+    // assuming user defined the following specialization_id:
     // constexpr specialiation_id<int> int_const;
     // class Wrapper {
     // public:
@@ -639,7 +639,7 @@ struct Nested {
   float a, b;
 };
 struct A {
-  constexpr A(int x, float a, b) : x(x), n(a, b) {}
+  constexpr A(int x, float a, float b) : x(x), n(a, b) {}
   int x;
   Nested n;
 };
@@ -664,7 +664,7 @@ property_set {
       Name: "all",
       ValAddr: points to byte array [
         42, // id_int
-        1, 2.0, 3.0, // id_A
+        1, 3.0, 4.0, // id_A
         5.0, 6.0 // id_Nested
       ],
       Type: PI_PROPERTY_TYPE_BYTE_ARRAY,
@@ -874,7 +874,7 @@ If native specialization constants are not supported by the target device, then
 the runtime calculates the location (offset) of each specialization constant in
 corresponding runtime buffer and copied user-provided value into that location.
 
-That buffer should be allocated for each `kernel_bundler` or `queue::submit` and
+That buffer should be allocated for each `device_image` and
 it should be set as a kernel argument, if corresponding `kernel_signature`
 contains `kernel_param_kind_t::kind_specialization_constants_buffer`.
 
