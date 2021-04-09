@@ -40,7 +40,7 @@ only be called from host code.
 
 The motivating use case for this extension is for developers who provide device
 side libraries.  To illustrate, consider an application developer (i.e. someone
-who is **not** developing a device side library) who wants to code a kernel
+who is **not** developing a device-side library) who wants to code a kernel
 that conditionally uses a feature that is not available on all devices.  This
 developer can write two versions of the kernel, one which uses the features and
 one that does not.  Then the developer can use `device::has()` to test whether
@@ -49,12 +49,12 @@ to the device's capabilities.  (To avoid code duplication, the developer could
 write the kernel as a template using `if constexpr` and then instantiate the
 template according to the device capabilities.)
 
-This technique, however, is not available to a developer writing a device side
+This technique, however, is not available to a developer writing a device-side
 library because such a developer does not have control over the host code that
 launches the kernel.  The developer could expose the library function as a
 template with a template parameter that controls the use of the conditional
-feature.  For example, consider a library function "frob" that wants to conditionally
-use a feature named "fancy":
+feature.  For example, consider a library function "frob" that wants to
+conditionally use a feature named "fancy":
 
 ```
 template<bool useFancy>
