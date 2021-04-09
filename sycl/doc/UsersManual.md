@@ -53,6 +53,11 @@ and not recommended to use in production environment.
     Enables/Disables unnamed SYCL lambda kernels support.
     Disabled by default.
 
+**`-f[no-]sycl-explicit-simd`** [DEPRECATED]
+
+    The option was used to enable/disable SYCL explicit SIMD extension.
+    Not used anymore.
+
 ## Optimization options
 
 **`-f[no-]sycl-early-optimizations`**

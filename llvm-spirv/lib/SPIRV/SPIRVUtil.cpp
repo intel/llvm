@@ -1569,9 +1569,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
     }
     if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
-      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                   II->getCalledOperand()->getName().str(), "",
-                                   __FILE__, __LINE__);
+      BM->SPIRVCK(
+          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
       return false;
     }
     break;
@@ -1585,9 +1584,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
     }
     if ((!Ty->isIntegerTy()) ||
         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
-      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
-                                   II->getCalledOperand()->getName().str(), "",
-                                   __FILE__, __LINE__);
+      BM->SPIRVCK(
+          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
     }
     break;
   }
@@ -1636,6 +1634,12 @@ public:
       setArgAttr(0, SPIR::ATTR_CONST);
       addUnsignedArg(0);
       break;
+    case OpAtomicUMax:
+      LLVM_FALLTHROUGH;
+    case OpAtomicUMin:
+      addUnsignedArg(0);
+      addUnsignedArg(3);
+      break;
     default:;
       // No special handling is needed
     }
@@ -1648,9 +1652,29 @@ private:
 class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
   OpenCLStdToSPIRVFriendlyIRMangleInfo(OCLExtOpKind ExtOpId,
-                                       ArrayRef<Type *> ArgTys)
+                                       ArrayRef<Type *> ArgTys, Type *RetTy)
       : ExtOpId(ExtOpId), ArgTys(ArgTys) {
-    UnmangledName = getSPIRVExtFuncName(SPIRVEIS_OpenCL, ExtOpId);
+
+    std::string Postfix = "";
+    if (needRetTypePostfix())
+      Postfix = kSPIRVPostfix::Divider + getPostfixForReturnType(RetTy, true);
+
+    UnmangledName = getSPIRVExtFuncName(SPIRVEIS_OpenCL, ExtOpId, Postfix);
+  }
+
+  bool needRetTypePostfix() {
+    switch (ExtOpId) {
+    case OpenCLLIB::Vload_half:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::Vload_halfn:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::Vloada_halfn:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::Vloadn:
+      return true;
+    default:
+      return false;
+    }
   }
 
   void init(StringRef) override {
@@ -1698,13 +1722,15 @@ public:
 private:
   OCLExtOpKind ExtOpId;
   ArrayRef<Type *> ArgTys;
+  Type *RetTy;
 };
 } // namespace
 
 namespace SPIRV {
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
-                                           ArrayRef<Type *> ArgTys) {
-  OpenCLStdToSPIRVFriendlyIRMangleInfo MangleInfo(ExtOpId, ArgTys);
+                                           ArrayRef<Type *> ArgTys,
+                                           Type *RetTy) {
+  OpenCLStdToSPIRVFriendlyIRMangleInfo MangleInfo(ExtOpId, ArgTys, RetTy);
   return mangleBuiltin(MangleInfo.getUnmangledName(), ArgTys, &MangleInfo);
 }
 

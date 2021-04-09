@@ -50,7 +50,6 @@ FunctionPass *createSIAnnotateControlFlowPass();
 FunctionPass *createSIFoldOperandsPass();
 FunctionPass *createSIPeepholeSDWAPass();
 FunctionPass *createSILowerI1CopiesPass();
-FunctionPass *createSIAddIMGInitPass();
 FunctionPass *createSIShrinkInstructionsPass();
 FunctionPass *createSILoadStoreOptimizerPass();
 FunctionPass *createSIWholeQuadModePass();
@@ -71,6 +70,7 @@ FunctionPass *createAMDGPUMachineCFGStructurizerPass();
 FunctionPass *createAMDGPUPropagateAttributesEarlyPass(const TargetMachine *);
 ModulePass *createAMDGPUPropagateAttributesLatePass(const TargetMachine *);
 FunctionPass *createAMDGPURewriteOutArgumentsPass();
+ModulePass *createAMDGPULowerModuleLDSPass();
 FunctionPass *createSIModeRegisterPass();
 
 struct AMDGPUSimplifyLibCallsPass : PassInfoMixin<AMDGPUSimplifyLibCallsPass> {
@@ -145,6 +145,13 @@ private:
   TargetMachine &TM;
 };
 
+void initializeAMDGPULowerModuleLDSPass(PassRegistry &);
+extern char &AMDGPULowerModuleLDSID;
+
+struct AMDGPULowerModuleLDSPass : PassInfoMixin<AMDGPULowerModuleLDSPass> {
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+};
+
 void initializeAMDGPURewriteOutArgumentsPass(PassRegistry &);
 extern char &AMDGPURewriteOutArgumentsID;
 
@@ -196,14 +203,11 @@ extern char &SIWholeQuadModeID;
 void initializeSILowerControlFlowPass(PassRegistry &);
 extern char &SILowerControlFlowID;
 
-void initializeSIRemoveShortExecBranchesPass(PassRegistry &);
-extern char &SIRemoveShortExecBranchesID;
-
 void initializeSIPreEmitPeepholePass(PassRegistry &);
 extern char &SIPreEmitPeepholeID;
 
-void initializeSIInsertSkipsPass(PassRegistry &);
-extern char &SIInsertSkipsPassID;
+void initializeSILateBranchLoweringPass(PassRegistry &);
+extern char &SILateBranchLoweringPassID;
 
 void initializeSIOptimizeExecMaskingPass(PassRegistry &);
 extern char &SIOptimizeExecMaskingID;
@@ -216,9 +220,6 @@ extern char &AMDGPUSimplifyLibCallsID;
 
 void initializeAMDGPUUseNativeCallsPass(PassRegistry &);
 extern char &AMDGPUUseNativeCallsID;
-
-void initializeSIAddIMGInitPass(PassRegistry &);
-extern char &SIAddIMGInitID;
 
 void initializeAMDGPUPerfHintAnalysisPass(PassRegistry &);
 extern char &AMDGPUPerfHintAnalysisID;

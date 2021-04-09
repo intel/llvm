@@ -68,38 +68,49 @@ namespace {
 /// Various utilities.
 class Util {
 public:
-  using DeclContextDesc = std::pair<clang::Decl::Kind, StringRef>;
+  using DeclContextDesc = std::pair<Decl::Kind, StringRef>;
+
+  template <size_t N>
+  static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
+                                                       const char (&Str)[N]) {
+    return DeclContextDesc{K, llvm::StringLiteral{Str}};
+  }
+
+  static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
+                                                       StringRef SR) {
+    return DeclContextDesc{K, SR};
+  }
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor class.
-  static bool isSyclAccessorType(const QualType &Ty);
+  static bool isSyclAccessorType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// sampler class.
-  static bool isSyclSamplerType(const QualType &Ty);
+  static bool isSyclSamplerType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// stream class.
-  static bool isSyclStreamType(const QualType &Ty);
+  static bool isSyclStreamType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// half class.
-  static bool isSyclHalfType(const QualType &Ty);
+  static bool isSyclHalfType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor_property_list class.
-  static bool isAccessorPropertyListType(const QualType &Ty);
+  static bool isAccessorPropertyListType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// buffer_location class.
-  static bool isSyclBufferLocationType(const QualType &Ty);
+  static bool isSyclBufferLocationType(QualType Ty);
 
   /// Checks whether given clang type is a standard SYCL API class with given
   /// name.
   /// \param Ty    the clang type being checked
   /// \param Name  the class name checked against
   /// \param Tmpl  whether the class is template instantiation or simple record
-  static bool isSyclType(const QualType &Ty, StringRef Name, bool Tmpl = false);
+  static bool isSyclType(QualType Ty, StringRef Name, bool Tmpl = false);
 
   /// Checks whether given function is a standard SYCL API function with given
   /// name.
@@ -109,11 +120,15 @@ public:
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization constant class.
-  static bool isSyclSpecConstantType(const QualType &Ty);
+  static bool isSyclSpecConstantType(QualType Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// specialization id class.
+  static bool isSyclSpecIdType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
   /// kernel_handler class.
-  static bool isSyclKernelHandlerType(const QualType &Ty);
+  static bool isSyclKernelHandlerType(QualType Ty);
 
   // Checks declaration context hierarchy.
   /// \param DC     the context of the item to be checked.
@@ -127,7 +142,7 @@ public:
   /// \param Ty         the clang type being checked
   /// \param Scopes     the declaration scopes leading from the type to the
   ///     translation unit (excluding the latter)
-  static bool matchQualifiedTypeName(const QualType &Ty,
+  static bool matchQualifiedTypeName(QualType Ty,
                                      ArrayRef<Util::DeclContextDesc> Scopes);
 };
 
@@ -376,7 +391,8 @@ public:
       // all functions used by kernel have already been parsed and have
       // definitions.
       if (RecursiveSet.count(Callee) && !ConstexprDepth) {
-        SemaRef.Diag(e->getExprLoc(), diag::warn_sycl_restrict_recursion);
+        SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
+            << Sema::KernelCallRecursiveFunction;
         SemaRef.Diag(Callee->getSourceRange().getBegin(),
                      diag::note_sycl_recursive_function_declared_here)
             << Sema::KernelCallRecursiveFunction;
@@ -560,6 +576,31 @@ public:
       // Attribute "loop_fuse" can be applied explicitly on kernel function.
       // Attribute should not be propagated from device functions to kernel.
       if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+      }
+
+      // Attribute "max_concurrency" is applied to device functions only. The
+      // attribute is not propagated to the caller.
+      if (auto *A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>())
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+
+      // Attribute "disable_loop_pipelining" can be applied explicitly on
+      // kernel function. Attribute should not be propagated from device
+      // functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelFPGADisableLoopPipeliningAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.push_back(A);
+        }
+      }
+
+      // Attribute "initiation_interval" can be applied explicitly on
+      // kernel function. Attribute should not be propagated from device
+      // functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
         if (ParentFD == SYCLKernel) {
           Attrs.push_back(A);
         }
@@ -1296,7 +1337,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   DiagnosticsEngine &Diag;
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
-  bool checkNotCopyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
+  bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
     if (FieldTy->isArrayType()) {
       if (const auto *CAT =
               SemaRef.getASTContext().getAsConstantArrayType(FieldTy)) {
@@ -3068,6 +3109,14 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
+class SyclKernelIntFooterCreator : public SyclKernelFieldHandler {
+  SYCLIntegrationFooter &Footer;
+
+public:
+  SyclKernelIntFooterCreator(Sema &S, SYCLIntegrationFooter &F)
+      : SyclKernelFieldHandler(S), Footer(F) {}
+};
+
 } // namespace
 
 class SYCLKernelNameTypeVisitor
@@ -3097,21 +3146,14 @@ public:
   void Visit(QualType T) {
     if (T.isNull())
       return;
+
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-    if (!RD) {
-      if (T->isNullPtrType()) {
-        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << KernelNameType;
-        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
-            << /* kernel name cannot be a type in the std namespace */ 2 << T;
-        IsInvalid = true;
-      }
-      return;
-    }
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
-    if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+    if (const auto *TSD =
+            dyn_cast_or_null<ClassTemplateSpecializationDecl>(RD)) {
       ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+
       VisitTemplateArgs(Args);
     } else {
       InnerTypeVisitor::Visit(T.getTypePtr());
@@ -3124,62 +3166,104 @@ public:
     InnerTemplArgVisitor::Visit(TA);
   }
 
-  void VisitEnumType(const EnumType *T) {
-    const EnumDecl *ED = T->getDecl();
-    if (!ED->isScoped() && !ED->isFixed()) {
-      S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
+  void VisitBuiltinType(const BuiltinType *TT) {
+    if (TT->isNullPtrType()) {
+      S.Diag(KernelInvocationFuncLoc, diag::err_nullptr_t_type_in_sycl_kernel)
           << KernelNameType;
-      S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
-          << /* Unscoped enum requires fixed underlying type */ 1
-          << QualType(ED->getTypeForDecl(), 0);
+
       IsInvalid = true;
     }
+    return;
   }
 
-  void VisitRecordType(const RecordType *T) {
-    return VisitTagDecl(T->getDecl());
+  void VisitTagType(const TagType *TT) {
+    return DiagnoseKernelNameType(TT->getDecl());
   }
 
-  void VisitTagDecl(const TagDecl *Tag) {
+  void DiagnoseKernelNameType(const NamedDecl *DeclNamed) {
+    /*
+    This is a helper function which throws an error if the kernel name
+    declaration is:
+      * declared within namespace 'std' (at any level)
+        e.g., namespace std { namespace literals { class Whatever; } }
+        h.single_task<std::literals::Whatever>([]() {});
+      * declared within an anonymous namespace (at any level)
+        e.g., namespace foo { namespace { class Whatever; } }
+        h.single_task<foo::Whatever>([]() {});
+      * declared within a function
+        e.g., void foo() { struct S { int i; };
+        h.single_task<S>([]() {}); }
+      * declared within another tag
+        e.g., struct S { struct T { int i } t; };
+        h.single_task<S::T>([]() {});
+    */
+
+    if (const auto *ED = dyn_cast<EnumDecl>(DeclNamed)) {
+      if (!ED->isScoped() && !ED->isFixed()) {
+        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
+            << /* unscoped enum requires fixed underlying type */ 1
+            << DeclNamed;
+        IsInvalid = true;
+      }
+    }
+
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
-    const DeclContext *DeclCtx = Tag->getDeclContext();
+    const DeclContext *DeclCtx = DeclNamed->getDeclContext();
     if (DeclCtx && !UnnamedLambdaEnabled) {
-      auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
-      if (NameSpace && NameSpace->isStdNamespace()) {
-        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << KernelNameType;
-        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
-            << /* kernel name cannot be a type in the std namespace */ 2
-            << QualType(Tag->getTypeForDecl(), 0);
-        IsInvalid = true;
-        return;
-      }
-      if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
-        const bool KernelNameIsMissing = Tag->getName().empty();
-        if (KernelNameIsMissing) {
+
+      // Check if the kernel name declaration is declared within namespace
+      // "std" or "anonymous" namespace (at any level).
+      while (!DeclCtx->isTranslationUnit() && isa<NamespaceDecl>(DeclCtx)) {
+        const auto *NSDecl = cast<NamespaceDecl>(DeclCtx);
+        if (NSDecl->isStdNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
-                 diag::err_sycl_kernel_incorrectly_named)
-              << KernelNameType;
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::note_invalid_type_in_sycl_kernel)
-              << /* unnamed type used in a SYCL kernel name */ 3;
+                 diag::err_invalid_std_type_in_sycl_kernel)
+              << KernelNameType << DeclNamed;
           IsInvalid = true;
           return;
         }
-        if (Tag->isCompleteDefinition()) {
+        if (NSDecl->isAnonymousNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
+              << /* kernel name should be globally visible */ 0
               << KernelNameType;
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::note_invalid_type_in_sycl_kernel)
-              << /* kernel name is not globally-visible */ 0
-              << QualType(Tag->getTypeForDecl(), 0);
           IsInvalid = true;
-        } else {
-          S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-          S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
-              << Tag->getName();
+          return;
+        }
+        DeclCtx = DeclCtx->getParent();
+      }
+
+      // Check if the kernel name is a Tag declaration
+      // local to a non-namespace scope (i.e. Inside a function or within
+      // another Tag etc).
+      if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
+        if (const auto *Tag = dyn_cast<TagDecl>(DeclNamed)) {
+          bool UnnamedLambdaUsed = Tag->getIdentifier() == nullptr;
+
+          if (UnnamedLambdaUsed) {
+            S.Diag(KernelInvocationFuncLoc,
+                   diag::err_sycl_kernel_incorrectly_named)
+                << /* unnamed lambda used */ 2 << KernelNameType;
+
+            IsInvalid = true;
+            return;
+          }
+          // Check if the declaration is completely defined within a
+          // function or class/struct.
+
+          if (Tag->isCompleteDefinition()) {
+            S.Diag(KernelInvocationFuncLoc,
+                   diag::err_sycl_kernel_incorrectly_named)
+                << /* kernel name should be globally visible */ 0
+                << KernelNameType;
+
+            IsInvalid = true;
+          } else {
+            S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
+            S.Diag(DeclNamed->getLocation(), diag::note_previous_decl)
+                << DeclNamed->getName();
+          }
         }
       }
     }
@@ -3188,7 +3272,7 @@ public:
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getAsType();
     if (const auto *ET = T->getAs<EnumType>())
-      VisitEnumType(ET);
+      VisitTagType(ET);
     else
       Visit(T);
   }
@@ -3196,7 +3280,7 @@ public:
   void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>())
-      VisitEnumType(ET);
+      VisitTagType(ET);
   }
 
   void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
@@ -3207,7 +3291,7 @@ public:
       if (NonTypeTemplateParmDecl *TemplateParam =
               dyn_cast<NonTypeTemplateParmDecl>(P))
         if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
-          VisitEnumType(ET);
+          VisitTagType(ET);
     }
   }
 
@@ -3268,7 +3352,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   // Emit diagnostics for SYCL device kernels only
   if (LangOpts.SYCLIsDevice)
-    KernelNameTypeVisitor.Visit(KernelNameType);
+    KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
@@ -3393,9 +3477,13 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       calculateKernelNameType(Context, KernelCallerFunc), KernelName,
       StableName, KernelCallerFunc);
 
+  SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
+
   KernelObjVisitor Visitor{*this};
-  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header);
-  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header);
+  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
+                           int_footer);
+  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
+                            int_footer);
 
   if (ParmVarDecl *KernelHandlerArg =
           getSyclKernelHandlerArg(KernelCallerFunc)) {
@@ -3517,6 +3605,9 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLIntelUseStallEnableClusters:
         case attr::Kind::SYCLIntelLoopFuse:
+        case attr::Kind::SYCLIntelFPGAMaxConcurrency:
+        case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
+        case attr::Kind::SYCLIntelFPGAInitiationInterval:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
@@ -3550,21 +3641,28 @@ void Sema::MarkDevice(void) {
 // SYCL device specific diagnostics implementation
 // -----------------------------------------------------------------------------
 
-Sema::SemaDiagnosticBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
-                                                       unsigned DiagID) {
+Sema::SemaDiagnosticBuilder
+Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
+                           DeviceDiagnosticReason Reason) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
-  SemaDiagnosticBuilder::Kind DiagKind = [this, FD] {
+  SemaDiagnosticBuilder::Kind DiagKind = [this, FD, Reason] {
     if (DiagnosingSYCLKernel)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
+    if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted) {
+      // Skip the diagnostic if we know it won't be emitted.
+      if ((getEmissionReason(FD) & Reason) ==
+          Sema::DeviceDiagnosticReason::None)
+        return SemaDiagnosticBuilder::K_Nop;
+
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
+    }
     return SemaDiagnosticBuilder::K_Deferred;
   }();
-  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this);
+  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this, Reason);
 }
 
 bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
@@ -3585,11 +3683,12 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   SemaDiagnosticBuilder::Kind DiagKind = SemaDiagnosticBuilder::K_Nop;
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
-
-  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Sema::KernelCallUndefinedFunction;
-  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
-                    Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
+                        diag::note_previous_decl, Caller, *this,
+                        DeviceDiagnosticReason::Sycl)
       << Callee;
 
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
@@ -4121,7 +4220,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "\n";
 }
 
-bool SYCLIntegrationHeader::emit(const StringRef &IntHeaderName) {
+bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
     return false;
   int IntHeaderFD = 0;
@@ -4193,79 +4292,148 @@ void SYCLIntegrationHeader::setCallsThisGroup(bool B) {
   K->FreeFunctionCalls.CallsThisGroup = B;
 }
 
-SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
-                                             bool _UnnamedLambdaSupport,
+SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
                                              Sema &_S)
     : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
+
+void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
+  // Step 1: ensure that this is of the correct type-spec-constant template
+  // specialization).
+  if (!Util::isSyclSpecIdType(VD->getType()))
+    return;
+  // Step 2: ensure that this is a static member, or a namespace-scope.
+  // Note that isLocalVarDeclorParm excludes thread-local and static-local
+  // intentionally, as there is no way to 'spell' one of those in the
+  // specialization. We just don't generate the specialization for those, and
+  // let an error happen during host compilation.
+  if (!VD->hasGlobalStorage() || VD->isLocalVarDeclOrParm())
+    return;
+  // Step 3: Add to SpecConstants collection.
+  SpecConstants.push_back(VD);
+}
+
+// Post-compile integration header support.
+bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
+  if (IntHeaderName.empty())
+    return false;
+  int IntHeaderFD = 0;
+  std::error_code EC =
+      llvm::sys::fs::openFileForWrite(IntHeaderName, IntHeaderFD);
+  if (EC) {
+    llvm::errs() << "Error: " << EC.message() << "\n";
+    // compilation will fail on absent include file - don't need to fail here
+    return false;
+  }
+  llvm::raw_fd_ostream Out(IntHeaderFD, true /*close in destructor*/);
+  return emit(Out);
+}
+
+void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
+  // FIXME: Figure out the spec-constant unique name here.
+  // Note that this changes based on the linkage of the variable.
+  // We typically want to use the __builtin_unique_stable_name for the variable
+  // (or the newer-equivilent for values, see the JIRA), but we also have to
+  // figure out if this has internal or external linkage.  In external-case this
+  // should be the same as the the unique-name.  However, this isn't the case
+  // with local-linkage, where we want to put the driver-provided random-value
+  // ahead of it, so that we make sure it is unique across translation units.
+  // This name should come from the yet implemented__builtin_unique_stable_name
+  // feature that accepts variables and gives the mangling for that.
+  O << "";
+}
+
+bool SYCLIntegrationFooter::emit(raw_ostream &O) {
+  PrintingPolicy Policy{S.getLangOpts()};
+  Policy.adjustForCPlusPlusFwdDecl();
+  Policy.SuppressTypedefs = true;
+  Policy.SuppressUnwrittenScope = true;
+
+  for (const VarDecl *D : SpecConstants) {
+    O << "template<>\n";
+    O << "inline const char *get_spec_constant_symbolic_ID<";
+    // Emit the FQN for this, but we probably need to do some funny-business for
+    // anonymous namespaces.
+    D->printQualifiedName(O, Policy);
+    O << ">() {\n";
+    O << "  return \"";
+    emitSpecIDName(O, D);
+    O << "\";\n";
+    O << "}\n";
+  }
+
+  O << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+  return true;
+}
 
 // -----------------------------------------------------------------------------
 // Utility class methods
 // -----------------------------------------------------------------------------
 
-bool Util::isSyclAccessorType(const QualType &Ty) {
+bool Util::isSyclAccessorType(QualType Ty) {
   return isSyclType(Ty, "accessor", true /*Tmpl*/);
 }
 
-bool Util::isSyclSamplerType(const QualType &Ty) {
-  return isSyclType(Ty, "sampler");
-}
+bool Util::isSyclSamplerType(QualType Ty) { return isSyclType(Ty, "sampler"); }
 
-bool Util::isSyclStreamType(const QualType &Ty) {
-  return isSyclType(Ty, "stream");
-}
+bool Util::isSyclStreamType(QualType Ty) { return isSyclType(Ty, "stream"); }
 
-bool Util::isSyclHalfType(const QualType &Ty) {
-  const StringRef &Name = "half";
+bool Util::isSyclHalfType(QualType Ty) {
   std::array<DeclContextDesc, 5> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "detail"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "half_impl"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "detail"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "half_impl"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "half")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclSpecConstantType(const QualType &Ty) {
-  const StringRef &Name = "spec_constant";
+bool Util::isSyclSpecConstantType(QualType Ty) {
   std::array<DeclContextDesc, 5> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "spec_constant")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclKernelHandlerType(const QualType &Ty) {
-  const StringRef &Name = "kernel_handler";
+bool Util::isSyclSpecIdType(QualType Ty) {
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, Name}};
+      Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "specialization_id")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclBufferLocationType(const QualType &Ty) {
-  const StringRef &PropertyName = "buffer_location";
-  const StringRef &InstanceName = "instance";
+bool Util::isSyclKernelHandlerType(QualType Ty) {
+  std::array<DeclContextDesc, 3> Scopes = {
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "kernel_handler")};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isSyclBufferLocationType(QualType Ty) {
   std::array<DeclContextDesc, 6> Scopes = {
-      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "INTEL"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, PropertyName},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
-                            InstanceName}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "INTEL"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "instance")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
+bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
   Decl::Kind ClassDeclKind =
       Tmpl ? Decl::Kind::ClassTemplateSpecialization : Decl::Kind::CXXRecord;
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{ClassDeclKind, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(ClassDeclKind, Name)};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
@@ -4279,18 +4447,18 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
     return false;
 
   std::array<DeclContextDesc, 2> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl")};
   return matchContext(DC, Scopes);
 }
 
-bool Util::isAccessorPropertyListType(const QualType &Ty) {
-  const StringRef &Name = "accessor_property_list";
+bool Util::isAccessorPropertyListType(QualType Ty) {
   std::array<DeclContextDesc, 4> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "accessor_property_list")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
@@ -4302,17 +4470,17 @@ bool Util::matchContext(const DeclContext *Ctx,
   StringRef Name = "";
 
   for (const auto &Scope : llvm::reverse(Scopes)) {
-    clang::Decl::Kind DK = Ctx->getDeclKind();
+    Decl::Kind DK = Ctx->getDeclKind();
     if (DK != Scope.first)
       return false;
 
     switch (DK) {
-    case clang::Decl::Kind::ClassTemplateSpecialization:
+    case Decl::Kind::ClassTemplateSpecialization:
       // ClassTemplateSpecializationDecl inherits from CXXRecordDecl
-    case clang::Decl::Kind::CXXRecord:
+    case Decl::Kind::CXXRecord:
       Name = cast<CXXRecordDecl>(Ctx)->getName();
       break;
-    case clang::Decl::Kind::Namespace:
+    case Decl::Kind::Namespace:
       Name = cast<NamespaceDecl>(Ctx)->getName();
       break;
     default:
@@ -4325,7 +4493,7 @@ bool Util::matchContext(const DeclContext *Ctx,
   return Ctx->isTranslationUnit();
 }
 
-bool Util::matchQualifiedTypeName(const QualType &Ty,
+bool Util::matchQualifiedTypeName(QualType Ty,
                                   ArrayRef<Util::DeclContextDesc> Scopes) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
 

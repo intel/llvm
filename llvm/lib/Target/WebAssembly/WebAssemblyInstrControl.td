@@ -30,6 +30,8 @@ def : Pat<(brcond (i32 (setne I32:$cond, 0)), bb:$dst),
           (BR_IF bb_op:$dst, I32:$cond)>;
 def : Pat<(brcond (i32 (seteq I32:$cond, 0)), bb:$dst),
           (BR_UNLESS bb_op:$dst, I32:$cond)>;
+def : Pat<(brcond (i32 (xor bool_node:$cond, (i32 1))), bb:$dst),
+          (BR_UNLESS bb_op:$dst, I32:$cond)>;
 
 // A list of branch targets enclosed in {} and separated by comma.
 // Used by br_table only.
@@ -153,7 +155,7 @@ defm CATCH : I<(outs I32:$dst), (ins event_op:$tag),
                [(set I32:$dst,
                  (WebAssemblycatch (WebAssemblywrapper texternalsym:$tag)))],
                "catch   \t$dst, $tag", "catch   \t$tag", 0x07>;
-defm CATCH_ALL : NRI<(outs), (ins), [], "catch_all", 0x05>;
+defm CATCH_ALL : NRI<(outs), (ins), [], "catch_all", 0x19>;
 }
 
 // Delegating an exception: delegate

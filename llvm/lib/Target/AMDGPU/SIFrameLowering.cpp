@@ -135,9 +135,7 @@ static void buildPrologSpill(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
         .addReg(SpillReg, RegState::Kill)
         .addReg(SPReg)
         .addImm(Offset)
-        .addImm(0) // glc
-        .addImm(0) // slc
-        .addImm(0) // dlc
+        .addImm(0) // cpol
         .addMemOperand(MMO);
       return;
     }
@@ -147,10 +145,8 @@ static void buildPrologSpill(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
       .addReg(ScratchRsrcReg)
       .addReg(SPReg)
       .addImm(Offset)
-      .addImm(0) // glc
-      .addImm(0) // slc
+      .addImm(0) // cpol
       .addImm(0) // tfe
-      .addImm(0) // dlc
       .addImm(0) // swz
       .addMemOperand(MMO);
     return;
@@ -178,9 +174,7 @@ static void buildPrologSpill(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
         .addReg(SpillReg, RegState::Kill)
         .addReg(OffsetReg, HasOffsetReg ? RegState::Kill : 0)
         .addImm(0) // offset
-        .addImm(0) // glc
-        .addImm(0) // slc
-        .addImm(0) // dlc
+        .addImm(0) // cpol
         .addMemOperand(MMO);
 
     if (!HasOffsetReg) {
@@ -202,10 +196,8 @@ static void buildPrologSpill(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
           .addReg(ScratchRsrcReg)
           .addReg(SPReg)
           .addImm(0) // offset
-          .addImm(0) // glc
-          .addImm(0) // slc
+          .addImm(0) // cpol
           .addImm(0) // tfe
-          .addImm(0) // dlc
           .addImm(0) // swz
           .addMemOperand(MMO);
     } else {
@@ -219,10 +211,8 @@ static void buildPrologSpill(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
           .addReg(ScratchRsrcReg)
           .addReg(SPReg)
           .addImm(0) // offset
-          .addImm(0) // glc
-          .addImm(0) // slc
+          .addImm(0) // cpol
           .addImm(0) // tfe
-          .addImm(0) // dlc
           .addImm(0) // swz
           .addMemOperand(MMO);
 
@@ -254,9 +244,7 @@ static void buildEpilogReload(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
               TII->get(AMDGPU::SCRATCH_LOAD_DWORD_SADDR), SpillReg)
         .addReg(SPReg)
         .addImm(Offset)
-        .addImm(0) // glc
-        .addImm(0) // slc
-        .addImm(0) // dlc
+        .addImm(0) // cpol
         .addMemOperand(MMO);
       return;
     }
@@ -272,9 +260,7 @@ static void buildEpilogReload(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
             SpillReg)
         .addReg(OffsetReg, RegState::Kill)
         .addImm(0)
-        .addImm(0) // glc
-        .addImm(0) // slc
-        .addImm(0) // dlc
+        .addImm(0) // cpol
         .addMemOperand(MMO);
     return;
   }
@@ -285,10 +271,8 @@ static void buildEpilogReload(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
       .addReg(ScratchRsrcReg)
       .addReg(SPReg)
       .addImm(Offset)
-      .addImm(0) // glc
-      .addImm(0) // slc
+      .addImm(0) // cpol
       .addImm(0) // tfe
-      .addImm(0) // dlc
       .addImm(0) // swz
       .addMemOperand(MMO);
     return;
@@ -308,10 +292,8 @@ static void buildEpilogReload(const GCNSubtarget &ST, LivePhysRegs &LiveRegs,
     .addReg(ScratchRsrcReg)
     .addReg(SPReg)
     .addImm(0)
-    .addImm(0) // glc
-    .addImm(0) // slc
+    .addImm(0) // cpol
     .addImm(0) // tfe
-    .addImm(0) // dlc
     .addImm(0) // swz
     .addMemOperand(MMO);
 }
@@ -407,8 +389,7 @@ void SIFrameLowering::emitEntryFunctionFlatScratchInit(
     BuildMI(MBB, I, DL, LoadDwordX2, FlatScrInit)
         .addReg(FlatScrInit)
         .addImm(EncodedOffset) // offset
-        .addImm(0)             // glc
-        .addImm(0)             // dlc
+        .addImm(0)             // cpol
         .addMemOperand(MMO);
 
     // Mask the offset in [47:0] of the descriptor
@@ -704,8 +685,7 @@ void SIFrameLowering::emitEntryFunctionScratchRsrcRegSetup(
     BuildMI(MBB, I, DL, LoadDwordX4, ScratchRsrcReg)
       .addReg(Rsrc01)
       .addImm(EncodedOffset) // offset
-      .addImm(0) // glc
-      .addImm(0) // dlc
+      .addImm(0) // cpol
       .addReg(ScratchRsrcReg, RegState::ImplicitDefine)
       .addMemOperand(MMO);
   } else if (ST.isMesaGfxShader(Fn) || !PreloadedScratchRsrcReg) {
@@ -739,8 +719,7 @@ void SIFrameLowering::emitEntryFunctionScratchRsrcRegSetup(
         BuildMI(MBB, I, DL, LoadDwordX2, Rsrc01)
           .addReg(MFI->getImplicitBufferPtrUserSGPR())
           .addImm(0) // offset
-          .addImm(0) // glc
-          .addImm(0) // dlc
+          .addImm(0) // cpol
           .addMemOperand(MMO)
           .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
 
@@ -859,6 +838,13 @@ static Register buildScratchExecCopy(LivePhysRegs &LiveRegs,
   return ScratchExecCopy;
 }
 
+// A StackID of SGPRSpill implies that this is a spill from SGPR to VGPR.
+// Otherwise we are spilling to memory.
+static bool spilledToMemory(const MachineFunction &MF, int SaveIndex) {
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  return MFI.getStackID(SaveIndex) != TargetStackID::SGPRSpill;
+}
+
 void SIFrameLowering::emitPrologue(MachineFunction &MF,
                                    MachineBasicBlock &MBB) const {
   SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
@@ -890,23 +876,8 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
   // turn on all lanes before doing the spill to memory.
   Register ScratchExecCopy;
 
-  bool HasFPSaveIndex = FuncInfo->FramePointerSaveIndex.hasValue();
-  bool SpillFPToMemory = false;
-  // A StackID of SGPRSpill implies that this is a spill from SGPR to VGPR.
-  // Otherwise we are spilling the FP to memory.
-  if (HasFPSaveIndex) {
-    SpillFPToMemory = MFI.getStackID(*FuncInfo->FramePointerSaveIndex) !=
-                      TargetStackID::SGPRSpill;
-  }
-
-  bool HasBPSaveIndex = FuncInfo->BasePointerSaveIndex.hasValue();
-  bool SpillBPToMemory = false;
-  // A StackID of SGPRSpill implies that this is a spill from SGPR to VGPR.
-  // Otherwise we are spilling the BP to memory.
-  if (HasBPSaveIndex) {
-    SpillBPToMemory = MFI.getStackID(*FuncInfo->BasePointerSaveIndex) !=
-                      TargetStackID::SGPRSpill;
-  }
+  Optional<int> FPSaveIndex = FuncInfo->FramePointerSaveIndex;
+  Optional<int> BPSaveIndex = FuncInfo->BasePointerSaveIndex;
 
   for (const SIMachineFunctionInfo::SGPRSpillVGPRCSR &Reg
          : FuncInfo->getSGPRSpillVGPRs()) {
@@ -922,8 +893,9 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
                      Reg.FI.getValue());
   }
 
-  if (HasFPSaveIndex && SpillFPToMemory) {
-    assert(!MFI.isDeadObjectIndex(FuncInfo->FramePointerSaveIndex.getValue()));
+  if (FPSaveIndex && spilledToMemory(MF, *FPSaveIndex)) {
+    const int FramePtrFI = *FPSaveIndex;
+    assert(!MFI.isDeadObjectIndex(FramePtrFI));
 
     if (!ScratchExecCopy)
       ScratchExecCopy = buildScratchExecCopy(LiveRegs, MF, MBB, MBBI, true);
@@ -937,12 +909,12 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
         .addReg(FramePtrReg);
 
     buildPrologSpill(ST, LiveRegs, MBB, MBBI, TII, TmpVGPR,
-                     FuncInfo->getScratchRSrcReg(), StackPtrReg,
-                     FuncInfo->FramePointerSaveIndex.getValue());
+                     FuncInfo->getScratchRSrcReg(), StackPtrReg, FramePtrFI);
   }
 
-  if (HasBPSaveIndex && SpillBPToMemory) {
-    assert(!MFI.isDeadObjectIndex(*FuncInfo->BasePointerSaveIndex));
+  if (BPSaveIndex && spilledToMemory(MF, *BPSaveIndex)) {
+    const int BasePtrFI = *BPSaveIndex;
+    assert(!MFI.isDeadObjectIndex(BasePtrFI));
 
     if (!ScratchExecCopy)
       ScratchExecCopy = buildScratchExecCopy(LiveRegs, MF, MBB, MBBI, true);
@@ -956,8 +928,7 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
         .addReg(BasePtrReg);
 
     buildPrologSpill(ST, LiveRegs, MBB, MBBI, TII, TmpVGPR,
-                     FuncInfo->getScratchRSrcReg(), StackPtrReg,
-                     *FuncInfo->BasePointerSaveIndex);
+                     FuncInfo->getScratchRSrcReg(), StackPtrReg, BasePtrFI);
   }
 
   if (ScratchExecCopy) {
@@ -970,17 +941,16 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   // In this case, spill the FP to a reserved VGPR.
-  if (HasFPSaveIndex && !SpillFPToMemory) {
-    const int FI = FuncInfo->FramePointerSaveIndex.getValue();
-    assert(!MFI.isDeadObjectIndex(FI));
+  if (FPSaveIndex && !spilledToMemory(MF, *FPSaveIndex)) {
+    const int FramePtrFI = *FPSaveIndex;
+    assert(!MFI.isDeadObjectIndex(FramePtrFI));
 
-    assert(MFI.getStackID(FI) == TargetStackID::SGPRSpill);
+    assert(MFI.getStackID(FramePtrFI) == TargetStackID::SGPRSpill);
     ArrayRef<SIMachineFunctionInfo::SpilledReg> Spill =
-        FuncInfo->getSGPRToVGPRSpills(FI);
+        FuncInfo->getSGPRToVGPRSpills(FramePtrFI);
     assert(Spill.size() == 1);
 
     // Save FP before setting it up.
-    // FIXME: This should respect spillSGPRToVGPR;
     BuildMI(MBB, MBBI, DL, TII->get(AMDGPU::V_WRITELANE_B32), Spill[0].VGPR)
         .addReg(FramePtrReg)
         .addImm(Spill[0].Lane)
@@ -988,8 +958,8 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   // In this case, spill the BP to a reserved VGPR.
-  if (HasBPSaveIndex && !SpillBPToMemory) {
-    const int BasePtrFI = *FuncInfo->BasePointerSaveIndex;
+  if (BPSaveIndex && !spilledToMemory(MF, *BPSaveIndex)) {
+    const int BasePtrFI = *BPSaveIndex;
     assert(!MFI.isDeadObjectIndex(BasePtrFI));
 
     assert(MFI.getStackID(BasePtrFI) == TargetStackID::SGPRSpill);
@@ -998,7 +968,6 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
     assert(Spill.size() == 1);
 
     // Save BP before setting it up.
-    // FIXME: This should respect spillSGPRToVGPR;
     BuildMI(MBB, MBBI, DL, TII->get(AMDGPU::V_WRITELANE_B32), Spill[0].VGPR)
         .addReg(BasePtrReg)
         .addImm(Spill[0].Lane)
@@ -1043,7 +1012,7 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
     }
   }
 
-  if (TRI.needsStackRealignment(MF)) {
+  if (TRI.hasStackRealignment(MF)) {
     HasFP = true;
     const unsigned Alignment = MFI.getMaxAlign().value();
 
@@ -1128,19 +1097,8 @@ void SIFrameLowering::emitEpilogue(MachineFunction &MF,
   const Register BasePtrReg =
       TRI.hasBasePointer(MF) ? TRI.getBaseRegister() : Register();
 
-  bool HasFPSaveIndex = FuncInfo->FramePointerSaveIndex.hasValue();
-  bool SpillFPToMemory = false;
-  if (HasFPSaveIndex) {
-    SpillFPToMemory = MFI.getStackID(*FuncInfo->FramePointerSaveIndex) !=
-                      TargetStackID::SGPRSpill;
-  }
-
-  bool HasBPSaveIndex = FuncInfo->BasePointerSaveIndex.hasValue();
-  bool SpillBPToMemory = false;
-  if (HasBPSaveIndex) {
-    SpillBPToMemory = MFI.getStackID(*FuncInfo->BasePointerSaveIndex) !=
-                      TargetStackID::SGPRSpill;
-  }
+  Optional<int> FPSaveIndex = FuncInfo->FramePointerSaveIndex;
+  Optional<int> BPSaveIndex = FuncInfo->BasePointerSaveIndex;
 
   if (RoundedSize != 0 && hasFP(MF)) {
     BuildMI(MBB, MBBI, DL, TII->get(AMDGPU::S_SUB_U32), StackPtrReg)
@@ -1162,10 +1120,10 @@ void SIFrameLowering::emitEpilogue(MachineFunction &MF,
   }
 
   Register ScratchExecCopy;
-  if (HasFPSaveIndex) {
-    const int FI = FuncInfo->FramePointerSaveIndex.getValue();
-    assert(!MFI.isDeadObjectIndex(FI));
-    if (SpillFPToMemory) {
+  if (FPSaveIndex) {
+    const int FramePtrFI = *FPSaveIndex;
+    assert(!MFI.isDeadObjectIndex(FramePtrFI));
+    if (spilledToMemory(MF, FramePtrFI)) {
       if (!ScratchExecCopy)
         ScratchExecCopy = buildScratchExecCopy(LiveRegs, MF, MBB, MBBI, false);
 
@@ -1174,14 +1132,14 @@ void SIFrameLowering::emitEpilogue(MachineFunction &MF,
       if (!TempVGPR)
         report_fatal_error("failed to find free scratch register");
       buildEpilogReload(ST, LiveRegs, MBB, MBBI, TII, TempVGPR,
-                        FuncInfo->getScratchRSrcReg(), StackPtrReg, FI);
+                        FuncInfo->getScratchRSrcReg(), StackPtrReg, FramePtrFI);
       BuildMI(MBB, MBBI, DL, TII->get(AMDGPU::V_READFIRSTLANE_B32), FramePtrReg)
           .addReg(TempVGPR, RegState::Kill);
     } else {
       // Reload from VGPR spill.
-      assert(MFI.getStackID(FI) == TargetStackID::SGPRSpill);
+      assert(MFI.getStackID(FramePtrFI) == TargetStackID::SGPRSpill);
       ArrayRef<SIMachineFunctionInfo::SpilledReg> Spill =
-          FuncInfo->getSGPRToVGPRSpills(FI);
+          FuncInfo->getSGPRToVGPRSpills(FramePtrFI);
       assert(Spill.size() == 1);
       BuildMI(MBB, MBBI, DL, TII->get(AMDGPU::V_READLANE_B32), FramePtrReg)
           .addReg(Spill[0].VGPR)
@@ -1189,10 +1147,10 @@ void SIFrameLowering::emitEpilogue(MachineFunction &MF,
     }
   }
 
-  if (HasBPSaveIndex) {
-    const int BasePtrFI = *FuncInfo->BasePointerSaveIndex;
+  if (BPSaveIndex) {
+    const int BasePtrFI = *BPSaveIndex;
     assert(!MFI.isDeadObjectIndex(BasePtrFI));
-    if (SpillBPToMemory) {
+    if (spilledToMemory(MF, BasePtrFI)) {
       if (!ScratchExecCopy)
         ScratchExecCopy = buildScratchExecCopy(LiveRegs, MF, MBB, MBBI, false);
 
@@ -1311,7 +1269,13 @@ void SIFrameLowering::determineCalleeSaves(MachineFunction &MF,
   const SIRegisterInfo *TRI = ST.getRegisterInfo();
 
   // Ignore the SGPRs the default implementation found.
-  SavedVGPRs.clearBitsNotInMask(TRI->getAllVGPRRegMask());
+  SavedVGPRs.clearBitsNotInMask(TRI->getAllVectorRegMask());
+
+  // Do not save AGPRs prior to GFX90A because there was no easy way to do so.
+  // In gfx908 there was do AGPR loads and stores and thus spilling also
+  // require a temporary VGPR.
+  if (!ST.hasGFX90AInsts())
+    SavedVGPRs.clearBitsInMask(TRI->getAllAGPRRegMask());
 
   // hasFP only knows about stack objects that already exist. We're now
   // determining the stack slots that will be created, so we have to predict
@@ -1366,7 +1330,7 @@ void SIFrameLowering::determineCalleeSavesSGPR(MachineFunction &MF,
   SavedRegs.reset(MFI->getStackPtrOffsetReg());
 
   const BitVector AllSavedRegs = SavedRegs;
-  SavedRegs.clearBitsInMask(TRI->getAllVGPRRegMask());
+  SavedRegs.clearBitsInMask(TRI->getAllVectorRegMask());
 
   // If clearing VGPRs changed the mask, we will have some CSR VGPR spills.
   const bool HaveAnyCSRVGPR = SavedRegs != AllSavedRegs;
@@ -1481,8 +1445,9 @@ bool SIFrameLowering::hasFP(const MachineFunction &MF) const {
   }
 
   return frameTriviallyRequiresSP(MFI) || MFI.isFrameAddressTaken() ||
-    MF.getSubtarget<GCNSubtarget>().getRegisterInfo()->needsStackRealignment(MF) ||
-    MF.getTarget().Options.DisableFramePointerElim(MF);
+         MF.getSubtarget<GCNSubtarget>().getRegisterInfo()->hasStackRealignment(
+             MF) ||
+         MF.getTarget().Options.DisableFramePointerElim(MF);
 }
 
 // This is essentially a reduced version of hasFP for entry functions. Since the

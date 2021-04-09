@@ -107,8 +107,14 @@
 // so large that the offset can't be encoded in the immediate fields of loads
 // or stores.
 //
+// Outgoing function arguments must be at the bottom of the stack frame when
+// calling another function. If we do not have variable-sized stack objects, we
+// can allocate a "reserved call frame" area at the bottom of the local
+// variable area, large enough for all outgoing calls. If we do have VLAs, then
+// the stack pointer must be decremented and incremented around each call to
+// make space for the arguments below the VLAs.
+//
 // FIXME: also explain the redzone concept.
-// FIXME: also explain the concept of reserved call frames.
 //
 //===----------------------------------------------------------------------===//
 
@@ -246,7 +252,7 @@ bool AArch64FrameLowering::homogeneousPrologEpilog(
   // Bail on stack adjustment needed on return for simplicity.
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
-  if (MFI.hasVarSizedObjects() || RegInfo->needsStackRealignment(MF))
+  if (MFI.hasVarSizedObjects() || RegInfo->hasStackRealignment(MF))
     return false;
   if (Exit && getArgumentPopSize(MF, *Exit))
     return false;
@@ -325,16 +331,20 @@ static StackOffset getSVEStackSize(const MachineFunction &MF) {
 bool AArch64FrameLowering::canUseRedZone(const MachineFunction &MF) const {
   if (!EnableRedZone)
     return false;
+
   // Don't use the red zone if the function explicitly asks us not to.
   // This is typically used for kernel code.
-  if (MF.getFunction().hasFnAttribute(Attribute::NoRedZone))
+  const AArch64Subtarget &Subtarget = MF.getSubtarget<AArch64Subtarget>();
+  const unsigned RedZoneSize =
+      Subtarget.getTargetLowering()->getRedZoneSize(MF.getFunction());
+  if (!RedZoneSize)
     return false;
 
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
   uint64_t NumBytes = AFI->getLocalStackSize();
 
-  return !(MFI.hasCalls() || hasFP(MF) || NumBytes > 128 ||
+  return !(MFI.hasCalls() || hasFP(MF) || NumBytes > RedZoneSize ||
            getSVEStackSize(MF));
 }
 
@@ -342,7 +352,6 @@ bool AArch64FrameLowering::canUseRedZone(const MachineFunction &MF) const {
 /// pointer register.
 bool AArch64FrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  const AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
   const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
   // Win64 EH requires a frame pointer if funclets are present, as the locals
   // are accessed off the frame pointer in both the parent function and the
@@ -354,7 +363,7 @@ bool AArch64FrameLowering::hasFP(const MachineFunction &MF) const {
     return true;
   if (MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken() ||
       MFI.hasStackMap() || MFI.hasPatchPoint() ||
-      RegInfo->needsStackRealignment(MF))
+      RegInfo->hasStackRealignment(MF))
     return true;
   // With large callframes around we may need to use FP to access the scavenging
   // emergency spillslot.
@@ -366,14 +375,6 @@ bool AArch64FrameLowering::hasFP(const MachineFunction &MF) const {
   // DefaultSafeSPDisplacement is fine as we only emergency spill GP regs.
   if (!MFI.isMaxCallFrameSizeComputed() ||
       MFI.getMaxCallFrameSize() > DefaultSafeSPDisplacement)
-    return true;
-  // If there are both SVE and non-SVE objects on the stack, make the frame
-  // pointer available since it may be more performant to use it.
-  uint64_t CalleeStackSize = AFI->isCalleeSavedStackSizeComputed()
-                                 ? AFI->getCalleeSavedStackSize()
-                                 : 0;
-  uint64_t NonSVEStackSize = MFI.getStackSize() - CalleeStackSize;
-  if (AFI->getStackSizeSVE() && NonSVEStackSize)
     return true;
 
   return false;
@@ -615,7 +616,7 @@ bool AArch64FrameLowering::canUseAsPrologue(
   const AArch64RegisterInfo *RegInfo = Subtarget.getRegisterInfo();
 
   // Don't need a scratch register if we're not going to re-align the stack.
-  if (!RegInfo->needsStackRealignment(*MF))
+  if (!RegInfo->hasStackRealignment(*MF))
     return true;
   // Otherwise, we can use any block as long as it has a scratch register
   // available.
@@ -677,7 +678,7 @@ bool AArch64FrameLowering::shouldCombineCSRLocalStackBump(
   if (MFI.hasVarSizedObjects())
     return false;
 
-  if (RegInfo->needsStackRealignment(MF))
+  if (RegInfo->hasStackRealignment(MF))
     return false;
 
   // This isn't strictly necessary, but it simplifies things a bit since the
@@ -1374,7 +1375,7 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   if (NumBytes) {
     // Alignment is required for the parent frame, not the funclet
     const bool NeedsRealignment =
-        !IsFunclet && RegInfo->needsStackRealignment(MF);
+        !IsFunclet && RegInfo->hasStackRealignment(MF);
     unsigned scratchSPReg = AArch64::SP;
 
     if (NeedsRealignment) {
@@ -1970,29 +1971,29 @@ StackOffset AArch64FrameLowering::resolveFrameOffsetReference(
   // right thing for the emergency spill slot.
   bool UseFP = false;
   if (AFI->hasStackFrame() && !isSVE) {
+    // We shouldn't prefer using the FP when there is an SVE area
+    // in between the FP and the non-SVE locals/spills.
+    PreferFP &= !SVEStackSize;
+
     // Note: Keeping the following as multiple 'if' statements rather than
     // merging to a single expression for readability.
     //
     // Argument access should always use the FP.
     if (isFixed) {
       UseFP = hasFP(MF);
-    } else if (isCSR && RegInfo->needsStackRealignment(MF)) {
+    } else if (isCSR && RegInfo->hasStackRealignment(MF)) {
       // References to the CSR area must use FP if we're re-aligning the stack
       // since the dynamically-sized alignment padding is between the SP/BP and
       // the CSR area.
       assert(hasFP(MF) && "Re-aligned stack must have frame pointer");
       UseFP = true;
-    } else if (hasFP(MF) && !RegInfo->needsStackRealignment(MF)) {
+    } else if (hasFP(MF) && !RegInfo->hasStackRealignment(MF)) {
       // If the FPOffset is negative and we're producing a signed immediate, we
       // have to keep in mind that the available offset range for negative
       // offsets is smaller than for positive ones. If an offset is available
       // via the FP and the SP, use whichever is closest.
       bool FPOffsetFits = !ForSimm || FPOffset >= -256;
       PreferFP |= Offset > -FPOffset;
-
-      // The FP offset will not fit if there is an SVE area in the way.
-      if (SVEStackSize && FPOffset < 0)
-        FPOffsetFits = false;
 
       if (MFI.hasVarSizedObjects()) {
         // If we have variable sized objects, we can use either FP or BP, as the
@@ -2028,9 +2029,10 @@ StackOffset AArch64FrameLowering::resolveFrameOffsetReference(
     }
   }
 
-  assert(((isFixed || isCSR) || !RegInfo->needsStackRealignment(MF) || !UseFP) &&
-         "In the presence of dynamic stack pointer realignment, "
-         "non-argument/CSR objects cannot be accessed through the frame pointer");
+  assert(
+      ((isFixed || isCSR) || !RegInfo->hasStackRealignment(MF) || !UseFP) &&
+      "In the presence of dynamic stack pointer realignment, "
+      "non-argument/CSR objects cannot be accessed through the frame pointer");
 
   if (isSVE) {
     StackOffset FPOffset =
@@ -2040,10 +2042,9 @@ StackOffset AArch64FrameLowering::resolveFrameOffsetReference(
         StackOffset::get(MFI.getStackSize() - AFI->getCalleeSavedStackSize(),
                          ObjectOffset);
     // Always use the FP for SVE spills if available and beneficial.
-    if (hasFP(MF) &&
-        (SPOffset.getFixed() ||
-         FPOffset.getScalable() < SPOffset.getScalable() ||
-         RegInfo->needsStackRealignment(MF))) {
+    if (hasFP(MF) && (SPOffset.getFixed() ||
+                      FPOffset.getScalable() < SPOffset.getScalable() ||
+                      RegInfo->hasStackRealignment(MF))) {
       FrameReg = RegInfo->getFrameRegister(MF);
       return FPOffset;
     }

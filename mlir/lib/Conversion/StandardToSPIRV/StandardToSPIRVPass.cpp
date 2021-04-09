@@ -32,12 +32,14 @@ void ConvertStandardToSPIRVPass::runOnOperation() {
 
   auto targetAttr = spirv::lookupTargetEnvOrDefault(module);
   std::unique_ptr<ConversionTarget> target =
-      spirv::SPIRVConversionTarget::get(targetAttr);
+      SPIRVConversionTarget::get(targetAttr);
 
   SPIRVTypeConverter typeConverter(targetAttr);
-  OwningRewritePatternList patterns;
-  populateStandardToSPIRVPatterns(context, typeConverter, patterns);
-  populateBuiltinFuncToSPIRVPatterns(context, typeConverter, patterns);
+  RewritePatternSet patterns(context);
+  populateStandardToSPIRVPatterns(typeConverter, patterns);
+  populateTensorToSPIRVPatterns(typeConverter,
+                                /*byteCountThreshold=*/64, patterns);
+  populateBuiltinFuncToSPIRVPatterns(typeConverter, patterns);
 
   if (failed(applyPartialConversion(module, *target, std::move(patterns))))
     return signalPassFailure();

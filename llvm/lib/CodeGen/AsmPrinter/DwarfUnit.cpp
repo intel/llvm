@@ -1313,9 +1313,6 @@ void DwarfUnit::constructSubrangeDIE(DIE &Buffer, const DISubrange *SR,
   // Count == -1 then the array is unbounded and we do not emit
   // DW_AT_lower_bound and DW_AT_count attributes.
   int64_t DefaultLowerBound = getDefaultLowerBound();
-  int64_t Count = -1;
-  if (auto *CI = SR->getCount().dyn_cast<ConstantInt*>())
-    Count = CI->getSExtValue();
 
   auto AddBoundTypeEntry = [&](dwarf::Attribute Attr,
                                DISubrange::BoundType Bound) -> void {
@@ -1329,19 +1326,18 @@ void DwarfUnit::constructSubrangeDIE(DIE &Buffer, const DISubrange *SR,
       DwarfExpr.addExpression(BE);
       addBlock(DW_Subrange, Attr, DwarfExpr.finalize());
     } else if (auto *BI = Bound.dyn_cast<ConstantInt *>()) {
-      if (Attr != dwarf::DW_AT_lower_bound || DefaultLowerBound == -1 ||
-          BI->getSExtValue() != DefaultLowerBound)
+      if (Attr == dwarf::DW_AT_count) {
+        if (BI->getSExtValue() != -1)
+          addUInt(DW_Subrange, Attr, None, BI->getSExtValue());
+      } else if (Attr != dwarf::DW_AT_lower_bound || DefaultLowerBound == -1 ||
+                 BI->getSExtValue() != DefaultLowerBound)
         addSInt(DW_Subrange, Attr, dwarf::DW_FORM_sdata, BI->getSExtValue());
     }
   };
 
   AddBoundTypeEntry(dwarf::DW_AT_lower_bound, SR->getLowerBound());
 
-  if (auto *CV = SR->getCount().dyn_cast<DIVariable*>()) {
-    if (auto *CountVarDIE = getDIE(CV))
-      addDIEEntry(DW_Subrange, dwarf::DW_AT_count, *CountVarDIE);
-  } else if (Count != -1)
-    addUInt(DW_Subrange, dwarf::DW_AT_count, None, Count);
+  AddBoundTypeEntry(dwarf::DW_AT_count, SR->getCount());
 
   AddBoundTypeEntry(dwarf::DW_AT_upper_bound, SR->getUpperBound());
 
@@ -1363,7 +1359,9 @@ void DwarfUnit::constructGenericSubrangeDIE(DIE &Buffer,
       if (auto *VarDIE = getDIE(BV))
         addDIEEntry(DwGenericSubrange, Attr, *VarDIE);
     } else if (auto *BE = Bound.dyn_cast<DIExpression *>()) {
-      if (BE->isSignedConstant()) {
+      if (BE->isConstant() &&
+          DIExpression::SignedOrUnsignedConstant::SignedConstant ==
+              *BE->isConstant()) {
         if (Attr != dwarf::DW_AT_lower_bound || DefaultLowerBound == -1 ||
             static_cast<int64_t>(BE->getElement(1)) != DefaultLowerBound)
           addSInt(DwGenericSubrange, Attr, dwarf::DW_FORM_sdata,
@@ -1531,10 +1529,9 @@ void DwarfUnit::constructEnumTypeDIE(DIE &Buffer, const DICompositeType *CTy) {
 }
 
 void DwarfUnit::constructContainingTypeDIEs() {
-  for (auto CI = ContainingTypeMap.begin(), CE = ContainingTypeMap.end();
-       CI != CE; ++CI) {
-    DIE &SPDie = *CI->first;
-    const DINode *D = CI->second;
+  for (auto &P : ContainingTypeMap) {
+    DIE &SPDie = *P.first;
+    const DINode *D = P.second;
     if (!D)
       continue;
     DIE *NDie = getDIE(D);
@@ -1702,13 +1699,10 @@ DIE *DwarfUnit::getOrCreateStaticMemberDIE(const DIDerivedType *DT) {
 
 void DwarfUnit::emitCommonHeader(bool UseOffsets, dwarf::UnitType UT) {
   // Emit size of content not including length itself
-  if (!DD->useSectionsAsReferences()) {
-    StringRef Prefix = isDwoUnit() ? "debug_info_dwo_" : "debug_info_";
-    MCSymbol *BeginLabel = Asm->createTempSymbol(Prefix + "start");
-    EndLabel = Asm->createTempSymbol(Prefix + "end");
-    Asm->emitDwarfUnitLength(EndLabel, BeginLabel, "Length of Unit");
-    Asm->OutStreamer->emitLabel(BeginLabel);
-  } else
+  if (!DD->useSectionsAsReferences())
+    EndLabel = Asm->emitDwarfUnitLength(
+        isDwoUnit() ? "debug_info_dwo" : "debug_info", "Length of Unit");
+  else
     Asm->emitDwarfUnitLength(getHeaderSize() + getUnitDie().getSize(),
                              "Length of Unit");
 

@@ -57,8 +57,8 @@ public:
   int getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
                           Type *Ty, TTI::TargetCostKind CostKind);
 
-  unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands,
-                       TTI::TargetCostKind CostKind);
+  InstructionCost getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                              TTI::TargetCostKind CostKind);
 
   TTI::PopcntSupportKind getPopcntSupport(unsigned TyWidth);
   bool isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
@@ -93,7 +93,7 @@ public:
   unsigned getNumberOfRegisters(unsigned ClassID) const;
   unsigned getRegisterClassForType(bool Vector, Type *Ty = nullptr) const;
   const char* getRegisterClassName(unsigned ClassID) const;
-  unsigned getRegisterBitWidth(bool Vector) const;
+  TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const;
   unsigned getCacheLineSize() const override;
   unsigned getPrefetchDistance() const override;
   unsigned getMaxInterleaveFactor(unsigned VF);
@@ -107,7 +107,8 @@ public:
       TTI::OperandValueProperties Opd2PropInfo = TTI::OP_None,
       ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
       const Instruction *CxtI = nullptr);
-  int getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index, Type *SubTp);
+  int getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, ArrayRef<int> Mask,
+                     int Index, Type *SubTp);
   int getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                        TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
                        const Instruction *I = nullptr);
@@ -126,8 +127,8 @@ public:
       Align Alignment, unsigned AddressSpace,
       TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
       bool UseMaskForCond = false, bool UseMaskForGaps = false);
-  unsigned getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
-                                 TTI::TargetCostKind CostKind);
+  InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                        TTI::TargetCostKind CostKind);
 
   /// @}
 };

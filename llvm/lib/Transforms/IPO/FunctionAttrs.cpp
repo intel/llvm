@@ -79,6 +79,7 @@ STATISTIC(NumNoRecurse, "Number of functions marked as norecurse");
 STATISTIC(NumNoUnwind, "Number of functions marked as nounwind");
 STATISTIC(NumNoFree, "Number of functions marked as nofree");
 STATISTIC(NumWillReturn, "Number of functions marked as willreturn");
+STATISTIC(NumNoSync, "Number of functions marked as nosync");
 
 static cl::opt<bool> EnableNonnullArgPropagation(
     "enable-nonnull-arg-prop", cl::init(true), cl::Hidden,
@@ -1266,6 +1267,9 @@ static bool InstrBreaksNoFree(Instruction &I, const SCCNodeSet &SCCNodes) {
   if (!CB)
     return false;
 
+  if (CB->hasFnAttr(Attribute::NoFree))
+    return false;
+
   Function *Callee = CB->getCalledFunction();
   if (!Callee)
     return true;
@@ -1452,8 +1456,7 @@ static bool functionWillReturn(const Function &F) {
   // If there are no loops, then the function is willreturn if all calls in
   // it are willreturn.
   return all_of(instructions(F), [](const Instruction &I) {
-    const auto *CB = dyn_cast<CallBase>(&I);
-    return !CB || CB->hasFnAttr(Attribute::WillReturn);
+    return I.willReturn();
   });
 }
 
@@ -1467,6 +1470,28 @@ static bool addWillReturn(const SCCNodeSet &SCCNodes) {
 
     F->setWillReturn();
     NumWillReturn++;
+    Changed = true;
+  }
+
+  return Changed;
+}
+
+// Infer the nosync attribute.  For the moment, the inference is trivial
+// and relies on the readnone attribute already being infered.  This will
+// be replaced with a more robust implementation in the near future.
+static bool addNoSyncAttr(const SCCNodeSet &SCCNodes) {
+  bool Changed = false;
+
+  for (Function *F : SCCNodes) {
+    if (!F || F->hasNoSync())
+      continue;
+
+    // readnone + not convergent implies nosync
+    if (!F->doesNotAccessMemory() || F->isConvergent())
+      continue;
+
+    F->setNoSync();
+    NumNoSync++;
     Changed = true;
   }
 
@@ -1527,6 +1552,8 @@ static bool deriveAttrsInPostOrder(ArrayRef<Function *> Functions,
     Changed |= inferAttrsFromFunctionBodies(Nodes.SCCNodes);
     Changed |= addNoRecurseAttrs(Nodes.SCCNodes);
   }
+
+  Changed |= addNoSyncAttr(Nodes.SCCNodes);
 
   return Changed;
 }

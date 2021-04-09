@@ -192,33 +192,6 @@ inline int getSPIRVElementSize(int ImageChannelType, int ImageChannelOrder) {
   }
 }
 
-#ifdef __SYCL_EXPLICIT_SIMD__
-// TODO all the opencl_image1d_buffer* stuff below is not used anymore and is
-// left temporarily to avoid ABI breaking changes - field of this type is
-// temporarily present in the accessor class.
-template <access::mode AccessMode> struct opencl_image1d_buffer_type;
-
-// OpenCL types used only when compiling DPCPP ESIMD kernels
-#define __SYCL_IMAGE_BUFFER_TY_DEFINE(AccessMode, AMSuffix)                    \
-  template <> struct opencl_image1d_buffer_type<access::mode::AccessMode> {    \
-    using type = __ocl_image1d_buffer_##AMSuffix##_t;                          \
-  }
-
-__SYCL_IMAGE_BUFFER_TY_DEFINE(read, ro);
-__SYCL_IMAGE_BUFFER_TY_DEFINE(write, wo);
-__SYCL_IMAGE_BUFFER_TY_DEFINE(discard_write, wo);
-__SYCL_IMAGE_BUFFER_TY_DEFINE(read_write, rw);
-
-template <> struct opencl_image1d_buffer_type<access::mode::atomic> {
-  // static_assert(false && "atomic access not supported for image1d
-  // buffers");
-  // TODO this should be disabled; currently there is instantiation of this
-  // class happenning even if atomic access not used - using dummy type
-  // definition for now.
-  using type = unsigned int;
-};
-#endif // __SYCL_EXPLICIT_SIMD__
-
 template <int Dimensions, access::mode AccessMode, access::target AccessTarget>
 struct opencl_image_type;
 

@@ -776,6 +776,11 @@ bool LLParser::parseNamedMetadata() {
           Lex.getStrVal() == "DIExpression") {
         if (parseDIExpression(N, /*IsDistinct=*/false))
           return true;
+        // DIArgLists should only appear inline in a function, as they may
+        // contain LocalAsMetadata arguments which require a function context.
+      } else if (Lex.getKind() == lltok::MetadataVar &&
+                 Lex.getStrVal() == "DIArgList") {
+        return tokError("found DIArgList outside of function");
       } else if (parseToken(lltok::exclaim, "Expected '!' here") ||
                  parseMDNodeID(N)) {
         return true;
@@ -1336,6 +1341,14 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
       B.addAllocSizeAttr(ElemSizeArg, NumElemsArg);
       continue;
     }
+    case lltok::kw_vscale_range: {
+      unsigned MinValue, MaxValue;
+      // inAttrGrp doesn't matter; we only support vscale_range(a[, b])
+      if (parseVScaleRangeArguments(MinValue, MaxValue))
+        return true;
+      B.addVScaleRangeAttr(MinValue, MaxValue);
+      continue;
+    }
     case lltok::kw_alwaysinline: B.addAttribute(Attribute::AlwaysInline); break;
     case lltok::kw_argmemonly: B.addAttribute(Attribute::ArgMemOnly); break;
     case lltok::kw_builtin: B.addAttribute(Attribute::Builtin); break;
@@ -1723,6 +1736,13 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
       B.addPreallocatedAttr(Ty);
       continue;
     }
+    case lltok::kw_inalloca: {
+      Type *Ty;
+      if (parseInalloca(Ty))
+        return true;
+      B.addInAllocaAttr(Ty);
+      continue;
+    }
     case lltok::kw_dereferenceable: {
       uint64_t Bytes;
       if (parseOptionalDerefAttrBytes(lltok::kw_dereferenceable, Bytes))
@@ -1744,7 +1764,6 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
       B.addByRefAttr(Ty);
       continue;
     }
-    case lltok::kw_inalloca:        B.addAttribute(Attribute::InAlloca); break;
     case lltok::kw_inreg:           B.addAttribute(Attribute::InReg); break;
     case lltok::kw_nest:            B.addAttribute(Attribute::Nest); break;
     case lltok::kw_noundef:
@@ -1801,6 +1820,7 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_shadowcallstack:
     case lltok::kw_strictfp:
     case lltok::kw_uwtable:
+    case lltok::kw_vscale_range:
       HaveError |=
           error(Lex.getLoc(), "invalid use of function-only attribute");
       break;
@@ -1910,6 +1930,7 @@ bool LLParser::parseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_shadowcallstack:
     case lltok::kw_strictfp:
     case lltok::kw_uwtable:
+    case lltok::kw_vscale_range:
       HaveError |=
           error(Lex.getLoc(), "invalid use of function-only attribute");
       break;
@@ -2350,6 +2371,29 @@ bool LLParser::parseAllocSizeArguments(unsigned &BaseSizeArg,
   return false;
 }
 
+bool LLParser::parseVScaleRangeArguments(unsigned &MinValue,
+                                         unsigned &MaxValue) {
+  Lex.Lex();
+
+  auto StartParen = Lex.getLoc();
+  if (!EatIfPresent(lltok::lparen))
+    return error(StartParen, "expected '('");
+
+  if (parseUInt32(MinValue))
+    return true;
+
+  if (EatIfPresent(lltok::comma)) {
+    if (parseUInt32(MaxValue))
+      return true;
+  } else
+    MaxValue = MinValue;
+
+  auto EndParen = Lex.getLoc();
+  if (!EatIfPresent(lltok::rparen))
+    return error(EndParen, "expected ')'");
+  return false;
+}
+
 /// parseScopeAndOrdering
 ///   if isAtomic: ::= SyncScope? AtomicOrdering
 ///   else: ::=
@@ -2654,6 +2698,12 @@ bool LLParser::parseRequiredTypeAttr(Type *&Result, lltok::Kind AttrName) {
 ///   ::= preallocated(<ty>)
 bool LLParser::parsePreallocated(Type *&Result) {
   return parseRequiredTypeAttr(Result, lltok::kw_preallocated);
+}
+
+/// parseInalloca
+///   ::= inalloca(<ty>)
+bool LLParser::parseInalloca(Type *&Result) {
+  return parseRequiredTypeAttr(Result, lltok::kw_inalloca);
 }
 
 /// parseByRef
@@ -4666,11 +4716,6 @@ bool LLParser::parseDISubrange(MDNode *&Result, bool IsDistinct) {
   Metadata *LowerBound = nullptr;
   Metadata *UpperBound = nullptr;
   Metadata *Stride = nullptr;
-  if (count.isMDSignedField())
-    Count = ConstantAsMetadata::get(ConstantInt::getSigned(
-        Type::getInt64Ty(Context), count.getMDSignedValue()));
-  else if (count.isMDField())
-    Count = count.getMDFieldValue();
 
   auto convToMetadata = [&](MDSignedOrMDField Bound) -> Metadata * {
     if (Bound.isMDSignedField())
@@ -4681,6 +4726,7 @@ bool LLParser::parseDISubrange(MDNode *&Result, bool IsDistinct) {
     return nullptr;
   };
 
+  Count = convToMetadata(count);
   LowerBound = convToMetadata(lowerBound);
   UpperBound = convToMetadata(upperBound);
   Stride = convToMetadata(stride);
@@ -5297,6 +5343,36 @@ bool LLParser::parseDIExpression(MDNode *&Result, bool IsDistinct) {
   return false;
 }
 
+bool LLParser::parseDIArgList(MDNode *&Result, bool IsDistinct) {
+  return parseDIArgList(Result, IsDistinct, nullptr);
+}
+/// ParseDIArgList:
+///   ::= !DIArgList(i32 7, i64 %0)
+bool LLParser::parseDIArgList(MDNode *&Result, bool IsDistinct,
+                              PerFunctionState *PFS) {
+  assert(PFS && "Expected valid function state");
+  assert(Lex.getKind() == lltok::MetadataVar && "Expected metadata type name");
+  Lex.Lex();
+
+  if (parseToken(lltok::lparen, "expected '(' here"))
+    return true;
+
+  SmallVector<ValueAsMetadata *, 4> Args;
+  if (Lex.getKind() != lltok::rparen)
+    do {
+      Metadata *MD;
+      if (parseValueAsMetadata(MD, "expected value-as-metadata operand", PFS))
+        return true;
+      Args.push_back(dyn_cast<ValueAsMetadata>(MD));
+    } while (EatIfPresent(lltok::comma));
+
+  if (parseToken(lltok::rparen, "expected ')' here"))
+    return true;
+
+  Result = GET_OR_DISTINCT(DIArgList, (Context, Args));
+  return false;
+}
+
 /// parseDIGlobalVariableExpression:
 ///   ::= !DIGlobalVariableExpression(var: !0, expr: !1)
 bool LLParser::parseDIGlobalVariableExpression(MDNode *&Result,
@@ -5407,8 +5483,14 @@ bool LLParser::parseValueAsMetadata(Metadata *&MD, const Twine &TypeMsg,
 bool LLParser::parseMetadata(Metadata *&MD, PerFunctionState *PFS) {
   if (Lex.getKind() == lltok::MetadataVar) {
     MDNode *N;
-    if (parseSpecializedMDNode(N))
+    // DIArgLists are a special case, as they are a list of ValueAsMetadata and
+    // so parsing this requires a Function State.
+    if (Lex.getStrVal() == "DIArgList") {
+      if (parseDIArgList(N, false, PFS))
+        return true;
+    } else if (parseSpecializedMDNode(N)) {
       return true;
+    }
     MD = N;
     return false;
   }

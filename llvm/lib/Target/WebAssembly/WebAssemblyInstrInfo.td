@@ -26,10 +26,6 @@ def HasSIMD128 :
     Predicate<"Subtarget->hasSIMD128()">,
     AssemblerPredicate<(all_of FeatureSIMD128), "simd128">;
 
-def HasUnimplementedSIMD128 :
-    Predicate<"Subtarget->hasUnimplementedSIMD128()">,
-    AssemblerPredicate<(all_of FeatureUnimplementedSIMD128), "unimplemented-simd128">;
-
 def HasAtomics :
     Predicate<"Subtarget->hasAtomics()">,
     AssemblerPredicate<(all_of FeatureAtomics), "atomics">;
@@ -197,6 +193,11 @@ let OperandType = "OPERAND_TYPEINDEX" in
 def TypeIndex : Operand<i32>;
 
 } // OperandNamespace = "WebAssembly"
+
+// TODO: Find more places to use this.
+def bool_node : PatLeaf<(i32 I32:$cond), [{
+  return CurDAG->computeKnownBits(SDValue(N, 0)).countMinLeadingZeros() == 31;
+}]>;
 
 //===----------------------------------------------------------------------===//
 // WebAssembly Register to Stack instruction mapping

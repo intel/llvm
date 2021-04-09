@@ -295,6 +295,23 @@ class kernel_handler {
   void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
 };
 
+template <typename T> class specialization_id {
+public:
+  using value_type = T;
+
+  template <class... Args>
+  explicit constexpr specialization_id(Args &&...args)
+      : MDefaultValue(args...) {}
+
+  specialization_id(const specialization_id &rhs) = delete;
+  specialization_id(specialization_id &&rhs) = delete;
+  specialization_id &operator=(const specialization_id &rhs) = delete;
+  specialization_id &operator=(specialization_id &&rhs) = delete;
+
+private:
+  T MDefaultValue;
+};
+
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTask
