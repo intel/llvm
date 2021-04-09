@@ -92,6 +92,11 @@ practical cases.
 `assert(expr)` macro ends up in call to `__devicelib_assert_fail`. This function
 is part of [Device library extension](extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst#cl_intel_devicelib_cassert).
 
+Format of assert failure message, printed to `stderr` is the following:
+```
+<file>:<line>: <function>: global id: [<gid0>,<gid1>,<gid2>], local id: [<lid0>,<lid1>,<lid2>] Assertion `<expr>` failed.
+```
+
 Implementation of this function is supplied by Native Device Compiler for
 safe approach or by DPCPP Compiler for fallback one.
 
