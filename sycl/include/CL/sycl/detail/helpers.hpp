@@ -16,9 +16,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 
-#if __cpp_lib_bit_cast
-#include <bit>
-#endif
 #include <memory>
 #include <stdexcept>
 #include <type_traits>

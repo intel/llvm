@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <type_traits>
+
 #if __cpp_lib_bit_cast
 #include <bit>
 #endif
@@ -17,7 +19,7 @@ namespace sycl {
 
 // forward decl
 namespace detail {
-inline void memcpy(void *Dst, const void *Src, size_t Size);
+inline void memcpy(void *Dst, const void *Src, std::size_t Size);
 }
 
 // sycl::bit_cast ( no longer sycl::detail::bit_cast )
