@@ -78,7 +78,7 @@ public:
     // on the correct constructor in some build configurations.  We need to
     // figure that out before reverting this to use the StringLiteral
     // constructor.
-    return DeclContextDesc{K, StringRef{Str, N}};
+    return DeclContextDesc{K, StringRef{Str, N - 1}};
   }
 
   static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
