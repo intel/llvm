@@ -179,7 +179,7 @@ struct pi_device_binary_struct {
 };
 
 ```
-Each property set is represent by the following struct:
+Each property set is represented by the following struct:
 ```
 // Named array of properties.
 struct _pi_device_binary_property_set_struct {
