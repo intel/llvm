@@ -6,19 +6,29 @@ feature.
 ## Background
 Sometimes users want to link device code dynamically at run time. One possible
 use case for such linkage - providing device functions via shared libraries.
-Simple source example:
+Example:
 ```
-// App:
+// app.cpp
+SYCL_EXTERNAL int LibDeviceFunc(int i);
+class KernelName;
+/* ... */
+Q.submit([&](cl::sycl::handler &CGH) {
+CGH.parallel_for<KernelName>(/* ... */ [=](sycl::item i) {
+  out[i] = LibDeviceFunc(i);
+}); /* ... */
+std::cout << out[i] << “ “;
 
-CGH.parallel_for<app_kernel>(/* ... */ {
-  library_function();
-});
-
-
-// Shared library:
-SYCL_EXTERNAL void library_function() {
-  // do something
+// lib.cpp
+int SYCL_EXTERNAL LibDeviceFunc(int i) {
+  return i * 2;
 }
+
+// Commands
+clang++ -fsycl lib.cpp -shared -o helpers.so
+clang++ -fsycl app.cpp -lhelpers -o a.out
+./a.out
+Output: 0 2 4 6…
+
 ```
 It is possible to manually create `sycl::program` in both app and shared
 library, then use `link` SYCL API to get a single program and launch kernels
@@ -31,7 +41,9 @@ provided by user. Example:
 // a.cpp
 SYCL_EXTERNAL void foo();
 ...
-parallel_for([]() { foo(); });
+Q.submit([&](cl::sycl::handler &CGH) {
+CGH.parallel_for([]() { foo(); });
+});
 
 // b.cpp
 /*no SYCL_EXTERNAL*/ void foo() { ... }
@@ -43,7 +55,7 @@ image with definition of `foo` to the fat object via special option.
 The main purpose of this feature is to provide a mechanism which allows to
 link device code dynamically at runtime.
 
-## Requrements:
+## Requirements:
 User's device code that consists of some device API (`SYCL_EXTERNAL` functions),
 is compiled into some form and it is not linked statically with device code of
 application. It can be a shared library that contains some device code or a
@@ -54,7 +66,7 @@ For this combination the following statements must be true:
 
 - `SYCL_EXTERNAL` functions defined in dynamically linked code can be called
   (directly or indirectly) from device code of the application.
-- Function pointers taken in application ashould work inside the dynamically
+- Function pointers taken in application should work inside the dynamically
   linked code.
 - Specific code changes are not required, i.e. the mechanism of linking works
   as close as possible to regular shared libraries.
@@ -62,10 +74,8 @@ For this combination the following statements must be true:
 ## Design
 The overall idea:
 
-- Each device image is supplied with a list of imported symbol names
-  through device image properties mechanism
-- `SYCL_EXTERNAL` functions are arranged into separate device images supplied
-  with a list of exported symbol names
+- Each device image is supplied with a list of imported and exported symbol
+  names through device image properties mechanism
 - Before compiling a device image DPC++ RT will check if device image has a list
   of imported symbols and if it has, then RT will search for device images which
   define required symbols using lists of exported symbols.
@@ -77,72 +87,72 @@ Next sections describe details of changes in each component.
 
 ### DPC++ front-end changes
 
-DPC++ front-end generates `module-id` attribute on each `SYCL_EXTERNAL` function.
-It was generated only on kernels earlier. There are two reasons to start
-generating this attribute on `SYCL_EXTERNAL` functions:
-
-- Later in pipeline, this attribute will be used by `sycl-post-link` tool to
-  separate `SYCL_EXTERNAL` functions from non-`SYCL_EXTERNAL` functions with
-  external linkage.
-- `module-id` attribute also contains information about source file where the
-  function comes from. This information will be used to perform device code
-  split on device images that contain only exported functions.
+Now during device code split process `SYCL_EXTERNAL` functions are
+considered as entry points (as well as kernels).
+For this purpose DPC++ front-end generates `module-id` attribute on each
+`SYCL_EXTERNAL` function.
 
 ### sycl-post-link changes
 
-To support dynamic device linkage, `sycl-post-link` performs 3 main tasks:
-- Arranges `SYCL_EXTERNAL` functions into a separate device image(s)
+To support dynamic linking of device code , `sycl-post-link` performs 2 main
+tasks:
 - Supplies device images containing exports with an information about exported
   symbols
-- Supplies each device image with an information about imported symbols
+- Supplies device images with an information about imported symbols
 
-`sycl-post-link` outlines `SYCL_EXTERNAL` functions with all their reachable
-dependencies (functions with definitions called from `SYCL_EXTERNAL` ones)
-into a separate device image(s) in order to create minimal self-contained
-device images that can be linked from the user's app. There are several
-notable moments though.
+In addition, `SYCL_EXTERNAL` functions as well as kernels are considered as entry
+points during device code split.
+If device code split is enabled `SYCL_EXTERNAL` functions defined in shared
+libraries and used within it can be duplicated.
+Example:
+```
+// Shared library
 
-If a `SYCL_EXTERNAL` function is used within a kernel defined in a shared
-library, it will be duplicated: one instance will be stored in the kernel's
-device image and the function won't exported from this device image, while the
-other will be stored in a special device image for other `SYCL_EXTERNAL`
-functions and will be marked as exported there. Such duplication is need for
-two reasons:
+// A.cpp
+SYCL_EXTERNAL int LibDeviceFunc(int i) {
+  return i * 2;
+}
+
+// B.cpp
+class LibKernel;
+/* ... */ 
+Q.submit([&](cl::sycl::handler &CGH) {
+CGH.parallel_for<LibKernel>(/* ... */ [=](sycl::item i) {
+  out[i] = LibDeviceFunc(i);
+} /* ... */ 
+```
+And if user requested per-source device code split, then for this shared library
+`sycl-post-link` will create two device images and both of them will define
+`LibDeviceFunc` function. However `LibDeviceFunc` won't be exported from device
+image that corresponds to source file `B.cpp` and it will be exported only from
+device image that corresponds to source file where `LibDeviceFunc` was defined,
+i.e. `A.cpp`.
+
+Such duplication is needed for two reasons:
 - We aim to make device images with kernels self-contained so no JIT linker
   invocations would be needed if we have definitions of all called functions.
-  Also note that if AOT is requested, it would be impossible to link anything
-  at runtime.
 - We could export `SYCL_EXTERNAL` functions from device images with kernels,
   but it would mean that when user's app calls `SYCL_EXTERNAL` function, it has
-  to link a whole kernel and all its dependencies - not only it increases the
-  amount of unnecessary linked code, but might also lead to build errors if the
-  kernel uses some features, which are not supported by target device (and they
-  are not used in the `SYCL_EXTERNAL` function).
-Besides separating `SYCL_EXTERNAL` functions from kernels, `sycl-post-link`
-can also distribute those functions into separate device images if device code
-split is requested. This is done by grouping them using `module-id` attribute.
-Non-`SYCL_EXTERNAL` functions used by `SYCL_EXTERNAL` functions with different
-`module-id` attributes are copied to device images corresponding to those
-`SYCL_EXTERNAL` functions to make them self-contained.
+  to link a whole kernel and all its dependencies - so we leave a possibility
+  for user to arrange code on per-source basis.
+
+Non-`SYCL_EXTERNAL` functions used by `SYCL_EXTERNAL` functions are copied to
+device images corresponding to those `SYCL_EXTERNAL` functions to make them
+self-contained.
 In case one `SYCL_EXTERNAL` function uses another `SYCL_EXTERNAL` function
-with different `module-id` attribute, the second one is not copied to the
-device image with the first function, but dependency between those device images
-is recorder instead.
+with different value in `sycl-module-id` attribute, the second one is not copied
+to the device image with the first function, but dependency between those device
+images is recorded instead.
 
-After `SYCL_EXTERNAL` functions are arranged into a separate device image(s),
-all non-`SYCL_EXTERNAL` functions and `SYCL_EXTERNAL` functions left in device
-images with kernels marked with internal linkage to avoid multiple definition
-errors during runtime linking.
-Device images with `SYCL_EXTERNAL` functions will also get a list of names
-of exported functions attached to them through device image properties
-(described below).
-
-**NOTE**: If device code split is enabled, it seems reasonable to perform
-exports arrangement before device code split procedure.
+After device code split, all non-`SYCL_EXTERNAL` functions and copied
+`SYCL_EXTERNAL` functions left in device images with kernels marked with
+internal linkage to avoid multiple definition errors during runtime linking.
+After that `sycl-post-link` records list of names of exported functions, i.e.
+functions with `sycl-module-id` attribute and external linkage.
 
 In order to collect information about imported symbols `sycl-post-link` looks
-through LLVM IR and for each declared but not defined symbol records its name,
-except the following cases:
+through LLVM IR and for each declared but not defined symbol and  records its
+name, except the following cases:
 - Declarations with `__` prefix in demangled name are not recorded as imported
   functions
   - Declarations with `__spirv_*` prefix should not be recorded as dependencies
@@ -154,7 +164,7 @@ except the following cases:
     starting with `__` by forward-declaring them in DPC++ code
 
 **NOTE**: If device code split is enabled, imports collection is performed after
-split and it is performed on splitted images.
+split and it is performed on separated images.
 
 All collected information is attached to a device image via properties
 mechanism.
@@ -239,40 +249,139 @@ module (.exe/.so/.dll).
 `std::unordered_map` allows to search and access its elements with constant-time
 complexity.
 
-Before compilation of device image to execute a kernel RT checks if the image
-contains any import information in its properies and if it does, then RT
+Before compilation of device image, to execute a kernel RT checks if the image
+contains any import information in its properties and if it does, then RT
 performs device images collection in order to resolve dependencies.
 
-Ids of all needed symbol sets are found. This is done by iterating through
+Ids of all needed symbol sets are found by iterating through
 `m_SymbolSets` map, i.e. iterating through all available OS modules without
 predefined order and searching for first unresolved symbol in list of imports
-set of target device image. Once device image that contains first symbol is
-met, remaining exported symbols are checked in found image and if
+of target device image. Once device image that contains first symbol is
+met, remaining exported symbols are checked in found image. If
 they match some imported symbols then these matched symbols will be marked as
-resolved. The procedure repeats until all imported symbols are resolved.
-For each found symbol set Id program cache is checked in case if
-necessary set of `SYCL_EXTERNAL` functions has been compiled and if it is true,
-then compiled device image will be re-used for linking.
-Otherwise device image containing required symbols set will be compiled and
-stored in cache.
+resolved. The procedure repeats until all imported symbols are marked as
+resolved.
 
 #### Program caching
 
-Existing support for device code caching is re-used to cache programs created
-from device images with SYCL external functions and linked device images with
-imports information.
+Existing support for device code caching can be re-used to cache
+dynamically linked programs with slight changes.
 
 ##### In-memory cache
 
-Programs that contain only `SYCL_EXTERNAL` functions will be cached only in
-compiled state, so they can be linked with other programs during dependency
-resolution.
+The existing mechanism of caching can be re-used in presence of dynamic
+linking. Example:
+```
+// Application
+SYCL_EXTERNAL void LibFunc1();
+SYCL_EXTERNAL void LibFunc2();
 
-The existing mechanism of caching is not changed for programs with
-imports information. They are stored in cache after they compiled and linked
-with programs that provide their dependencies. To identify linked programs
-Id of "main" set of symbols (i.e. the one which actually contain kernels) will
-be used.
+Q.submit([&](cl::sycl::handler &CGH) {
+CGH.parallel_for<InternalKernel>( ... )
+}); // 1. Device Image is compiled and linked into a program and saved in cache
+    // 2. Prepared program is used to enqueue kernel
+
+Q.submit([&](cl::sycl::handler &CGH) {
+handler.parallel_for([] { LibFunc1(); }); // Prepared program is used to enqueue kernel
+});
+
+// Library
+SYCL_EXTERNAL void LibFunc1() {
+// ...
+}
+
+```
+In current cache structure the programs map's key consists of four components:
+kernel set id, specialization constants values, the device this program is built
+for, build options id. In this example Id of kernel set where application's
+kernels can be used to access program cache. However when shared library
+defines kernels and these kernels are run by the application unchanged cache
+structure may lead to double compilation of the same code. Example:
+```
+// Application
+SYCL_EXTERNAL void LibFunc();
+
+Q.submit([&](cl::sycl::handler &CGH) {
+handler.parallel_for([] { LibFunc(); });  // Device image for library is compiled
+                                          // and linked together with device
+                                          // image for application, i.e.
+                                          // LibFunc1 and ExternalKernel exist
+                                          // in prepared state
+});
+// ...
+EnqueueLibraryKernel(Q); // If cache mechanism is not changed, this line will
+                         // lead to second compilation of ExternalKernel and
+                         // LibFunc1
+
+// Library
+SYCL_EXTERNAL void LibFunc1() {
+// ...
+}
+
+EnqueueLibraryKernel(queue) {
+  queue.submit(parallel_for<ExternalKernel>(...));
+}
+```
+Such case can be optimized by bringing nesting into cache keys structure.
+Kernel set id can be found for each kernel using its name and OS module it is
+coming from. In presence of dynamic linking resulting program can be combined
+out of device images which come from different OS modules. So, it should be
+possible to find needed program by kernel name and any OS module that was
+involved in this program. The new mapping structure is:
+```
+{kernel name} =>
+  {OSModuleHandle, spec const, opts, dev} => program
+```
+I.e. each kernel name is mapped to a set of tuples that consists of OS module,
+spec constant values, JIT compiler options, device. Then concrete tuple is
+mapped to a program object.
+Example:
+```
+// Application
+// OSModule = 1
+
+SYCL_EXTERNAL void LibFunc();
+queue.submit(parallel_for<InternalKernel>( ... ));
+
+Q.submit([&](cl::sycl::handler &CGH) {
+CGH.parallel_for([] { LibFunc(); });
+});
+
+EnqueueLibraryKernel(q);
+
+// Library
+// OSModule = 2
+
+SYCL_EXTERNAL lib1_func();
+
+EnqueueLibraryKernel(queue) {
+  queue.submit(parallel_for<ExternalKernel>(...));
+}
+
+Program cache will have the following structure:
+ "InternalKernel" =>
+   {1, ...} => program 1
+ "ExternalKernel" =>
+   {1, ...} => program 1
+   {2, ...} => program 1
+```
+However the library code will be compiled twice if kernel from the library
+was enqueued before kernels from the application, i.e. in such case:
+```
+// Application
+SYCL_EXTERNAL void LibFunc();
+
+EnqueueLibraryKernel(Q); // First, library code is compiled alone since it
+                         // doesn't have any dependencies
+// ...
+Q.submit([&](cl::sycl::handler &CGH) {
+handler.parallel_for([] { LibFunc(); });  // Second, library code is compiled
+                                          // and linked together with code of
+                                          // the application
+});
+```
+
+The program caching mechanism is re-used without changes.
 
 ##### Persistent cache
 
@@ -281,8 +390,8 @@ of dynamic linking support. One of the identifiers for built image hash is
 hash made out of device image used as input for the JIT compilation.
 In case when "main" image have imports information, device image hash should be
 created from all device images that are necessary to build it, i.e. hash out
-of "main" device image and set of 'SYCL_EXTERNAL'-only images that define all
-symbols imported by "main device image.
+of "main" device image and set of images that define all
+symbols imported by "main" device image.
 
 ## Corner cases and limitations
 
