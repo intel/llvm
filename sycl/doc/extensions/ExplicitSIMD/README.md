@@ -86,7 +86,6 @@ program behavior if violated.
 ##### Unsupported standard SYCL APIs:
 - Local accessors
 - Most of image APIs
-- Specialization constants
 - Memory access through a raw pointer returned by `sycl::accessor::get_pointer()`
 
 ##### Other restrictions:
