@@ -53,15 +53,14 @@ void test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems) {
   // Check correctness.
   auto Out = OutBuf.template get_access<access::mode::read>();
   T ComputedOut = *(Out.get_pointer());
-  T MaxDiff = 3 * std::numeric_limits<T>::epsilon() *
+  T MaxDiff = 4 * std::numeric_limits<T>::epsilon() *
               std::fabs(ComputedOut + CorrectOut);
-  if (std::fabs(static_cast<T>(ComputedOut - CorrectOut)) > MaxDiff) {
-    std::cout << "NWItems = " << NWItems << ", WGSize = " << WGSize << "\n";
-    std::cout << "Computed value: " << ComputedOut
+  T CompDiff = std::fabs(static_cast<T>(ComputedOut - CorrectOut));
+  if (CompDiff > MaxDiff) {
+    std::cerr << "NWItems = " << NWItems << ", WGSize = " << WGSize << "\n";
+    std::cerr << "Computed value: " << ComputedOut
               << ", Expected value: " << CorrectOut << ", MaxDiff = " << MaxDiff
-              << "\n";
-    if (IsSYCL2020Mode)
-      std::cout << std::endl;
+              << ", ComputedDiff = " << CompDiff << std::endl;
     assert(0 && "Wrong value.");
   }
 }
