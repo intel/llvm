@@ -763,7 +763,7 @@ Release notes for the commit range ba404be..24726df
     BEs to perform additional optimizations [fdcaeae] [08f8656]
   - Added partial support for [Host task with interop capabilities extension](https://github.com/codeplaysoftware/standards-proposals/blob/master/host_task/host_task.md) [ae3fd5c]
   - Added support for [SYCL_INTEL_bitcast](doc/extensions/Bitcast/SYCL_INTEL_bitcast.asciidoc)
-    as a `sycl::detail::bit_cast` [e3da4ef]
+    as a `sycl::bit_cast` [e3da4ef]
   - Introduced the Level Zero plugin which enables SYCL working on top of Level0
     API. Interoperability is not supportet yet [d32da99]
   - Implemented [parallel_for simplification extension](doc/extensions/ParallelForSimpification) [13fe9fb]
