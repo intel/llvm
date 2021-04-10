@@ -4196,8 +4196,10 @@ static bool ContainsWrapperAction(const Action *A) {
 // Put together an external compiler compilation call which is used instead
 // of the clang invocation for the host compile of an offload compilation.
 void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
-    const InputInfo &Output, const InputInfoList &Inputs,
-    const llvm::opt::ArgList &TCArgs, const Tool *T) const {
+                                     const InputInfo &Output,
+                                     const InputInfoList &Inputs,
+                                     const llvm::opt::ArgList &TCArgs,
+                                     const Tool *T) const {
 
   // The Host compilation step that occurs here is constructed based on the
   // input from the user.  This consists of the compiler to call and the
@@ -4294,7 +4296,8 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   }
 
   // Add the integration header.
-  StringRef Header = TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
+  StringRef Header =
+      TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
   if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
       !Header.empty()) {
     HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
@@ -4320,7 +4323,8 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
       HostCompileArgs.push_back(TCArgs.MakeArgString(A));
   }
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
-      TCArgs.MakeArgString(ExecPath), HostCompileArgs, None);
+                                       TCArgs.MakeArgString(ExecPath),
+                                       HostCompileArgs, None);
 
   C.addCommand(std::move(Cmd));
 }
