@@ -4195,6 +4195,18 @@ static bool ContainsWrapperAction(const Action *A) {
 
 // Put together an external compiler compilation call which is used instead
 // of the clang invocation for the host compile of an offload compilation.
+// Enabling command line:  clang++ -fsycl -fsycl-host-compiler=<HostExe>
+//                         <ClangOpts> -fsycl-host-compiler-options=<HostOpts>
+// Any <ClangOpts> used which are phase limiting (preprocessing, assembly,
+// object generation) are specifically handled here by specifying the
+// equivalent phase limiting option(s).
+// It is expected that any user <HostOpts> options passed will be placed
+// after any implied options set here.  This will have overriding behaviors
+// for any options which are considered to be evaluated from left to right.
+// Specifying any <HostOpts> option which conficts any of the implied options
+// will result in undefined behavior.  Potential conflicting options:
+//  * Output specification options (-o, -Fo, -Fa, etc)
+//  * Phase limiting options (-E, -c, -P, etc)
 void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
                                      const InputInfo &Output,
                                      const InputInfoList &Inputs,
@@ -4223,13 +4235,17 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   //  Header Input:        -include <file>        | -FI <file>
   //
   // The options used are determined by the compiler name and target triple.
-  auto *HostArg = TCArgs.getLastArg(options::OPT_fsycl_host_compiler_EQ);
-  assert(HostArg && "Expected host compiler designation.");
+  auto *HostCompilerDefArg =
+      TCArgs.getLastArg(options::OPT_fsycl_host_compiler_EQ);
+  assert(HostCompilerDefArg && "Expected host compiler designation.");
 
   bool IsMSVCHostCompiler = false;
   bool OutputAdded = false;
-  StringRef CompilerName = llvm::sys::path::stem(HostArg->getValue());
-  IsMSVCHostCompiler = CompilerName.contains("cl");
+  StringRef CompilerName =
+      llvm::sys::path::stem(HostCompilerDefArg->getValue());
+  // FIXME: Consider requiring user input to specify a compatibility class
+  // to determine the type of host compiler being used.
+  IsMSVCHostCompiler = CompilerName.endswith("cl");
 
   auto addMSVCOutputFile = [&](StringRef Opt) {
     SmallString<128> OutOpt(Opt);
@@ -4237,10 +4253,11 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     HostCompileArgs.push_back(TCArgs.MakeArgString(OutOpt));
     OutputAdded = true;
   };
+  // FIXME: Reuse existing toolchains which are already supported to put
+  // together the options.
   if (isa<PreprocessJobAction>(JA)) {
     if (IsMSVCHostCompiler) {
       // Check the output file, if it is 'stdout' we want to use -E.
-      llvm::errs() << "output string is " << Output.getAsString() << '\n';
       if (StringRef(Output.getFilename()).equals("-")) {
         HostCompileArgs.push_back("-E");
         OutputAdded = true;
@@ -4279,8 +4296,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
 
   // Add default header search directories.
   SmallString<128> BaseDir(C.getDriver().Dir);
-  llvm::sys::path::append(BaseDir, "..");
-  llvm::sys::path::append(BaseDir, "include");
+  llvm::sys::path::append(BaseDir, "..", "include");
   SmallString<128> SYCLDir(BaseDir);
   llvm::sys::path::append(SYCLDir, "sycl");
   HostCompileArgs.push_back("-I");
@@ -4305,8 +4321,8 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   }
 
   SmallString<128> ExecPath;
-  if (HostArg) {
-    ExecPath = HostArg->getValue();
+  if (HostCompilerDefArg) {
+    ExecPath = HostCompilerDefArg->getValue();
     if (ExecPath == llvm::sys::path::stem(ExecPath))
       ExecPath = TC.GetProgramPath(ExecPath.c_str());
   }

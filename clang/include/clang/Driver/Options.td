@@ -2519,8 +2519,8 @@ def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Path to libspirv library">;
 def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, HelpText<"Disable check for libspirv">;
 def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
-  Flags<[CoreOption]>, HelpText<"Specify the compiler binary to use during "
-  "host compilation during SYCL offload compiles.">;
+  Flags<[CoreOption]>, HelpText<"Specify C++ compiler binary to perform host "
+  "compilation with during SYCL offload compiles.">;
 def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=">,
   Flags<[CoreOption]>, HelpText<"When performing the host compilation with "
   "-fsycl-host-compiler specified, us the given options during that compile. "
