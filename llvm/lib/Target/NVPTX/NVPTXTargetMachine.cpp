@@ -304,8 +304,10 @@ void NVPTXPassConfig::addIRPasses() {
   const NVPTXSubtarget &ST = *getTM<NVPTXTargetMachine>().getSubtargetImpl();
   addPass(createNVVMReflectPass(ST.getSmVersion()));
 
-  addPass(createGlobalOffsetPass());
+  // FIXME: should the target triple check be done by the pass itself?
+  // See createNVPTXLowerArgsPass as an example
   if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA) {
+    addPass(createGlobalOffsetPass());
     addPass(createLocalAccessorToSharedMemoryPass());
   }
 
