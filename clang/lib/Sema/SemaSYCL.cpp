@@ -681,6 +681,10 @@ public:
     return CollectedAttributes;
   }
 
+  llvm::SmallPtrSetImpl<FunctionDecl *> &GetDeviceFunctions() {
+    return DeviceFunctions;
+  }
+
   ~SingleDeviceFunctionTracker() {
     Parent.AddSingleFunction(DeviceFunctions, RecursiveFunctions);
   }
@@ -3795,8 +3799,8 @@ void Sema::MarkDevices() {
     // kernel at a time.
     SingleDeviceFunctionTracker T{Tracker, SYCLKernel};
 
-    CheckSYCL2020Attributes(*this, T.getSYCLKernel(), T.getKernelBody(),
-                            T.getDeviceFunctions());
+    CheckSYCL2020Attributes(*this, T.GetSYCLKernel(), T.GetKernelBody(),
+                            T.GetDeviceFunctions());
     for (auto *A : T.GetCollectedAttributes())
       PropagateAndDiagnoseDeviceAttr(*this, T, A, T.GetSYCLKernel(),
                                      T.GetKernelBody());

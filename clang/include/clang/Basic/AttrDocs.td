@@ -453,16 +453,16 @@ def NoMergeDocs : Documentation {
   let Category = DocCatStmt;
   let Content = [{
 If a statement is marked ``nomerge`` and contains call expressions, those call
-expressions inside the statement will not be merged during optimization. This 
+expressions inside the statement will not be merged during optimization. This
 attribute can be used to prevent the optimizer from obscuring the source
 location of certain calls. For example, it will prevent tail merging otherwise
 identical code sequences that raise an exception or terminate the program. Tail
 merging normally reduces the precision of source location information, making
 stack traces less useful for debugging. This attribute gives the user control
-over the tradeoff between code size and debug information precision. 
+over the tradeoff between code size and debug information precision.
 
-``nomerge`` attribute can also be used as function attribute to prevent all 
-calls to the specified function from merging. It has no effect on indirect 
+``nomerge`` attribute can also be used as function attribute to prevent all
+calls to the specified function from merging. It has no effect on indirect
 calls.
   }];
 }
@@ -2544,11 +2544,11 @@ argument to **clEnqueueNDRangeKernel** (in OpenCL) or to
 generated code appropriately for the kernel to which attribute is applied.
 
 While semantic of this attribute is the same between OpenCL and SYCL,
-spelling is a bit different: 
+spelling is a bit different:
 
 SYCL 1.2.1 describes ``[[cl::reqd_work_group_size(X, Y, Z)]]`` spelling: this
-attribute is legal on device functions and is propagated down to any caller of 
-those device functions, such that the kernel attributes are the sum of all 
+attribute is legal on device functions and is propagated down to any caller of
+those device functions, such that the kernel attributes are the sum of all
 attributes of all device functions called in this kernel.
 See section 6.7 Attributes for more details.
 
@@ -4353,9 +4353,9 @@ This attribute can be used in both OpenCL and SYCL.
 
 OpenCL documentation:
 The optional attribute intel_reqd_sub_group_size can be used to indicate that
-the kernel must be compiled and executed with the specified subgroup size. When
+the kernel must be compiled and executed with the specified sub group size. When
 this attribute is present, get_max_sub_group_size() is guaranteed to return the
-specified integer value. This is important for the correctness of many subgroup
+specified integer value. This is important for the correctness of many sub group
 algorithms, and in some cases may be used by the compiler to generate more optimal
 code. See `cl_intel_required_subgroup_size
 <https://www.khronos.org/registry/OpenCL/extensions/intel/cl_intel_required_subgroup_size.txt>`
@@ -4370,7 +4370,8 @@ The ``[[intel::sub_group_size(n)]]`` attribute has the same effect as the other
 attribute spellings, except that it follows the SYCL 2020 Attribute Rules. See
  the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
 
-This attribute is mutually exclusive with ``[[intel::named_sub_group_size(NAME)]]``.
+This attribute is mutually exclusive with ``[[intel::named_sub_group_size(NAME)]]``
+and ``[[intel::sycl_explicit_simd]]``.
 
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
@@ -4400,8 +4401,8 @@ def IntelNamedSubGroupSizeDocs : Documentation {
   let Content = [{
 The ``[[intel::named_sub_group_size(NAME)]]`` attribute works similar to
 ``[[intel::sub_group_size(N)]]`` attribute in that it defines the specific
-subgroup size for the kernel. The ``[[intel::named_sub_group_size(NAME)]]`` form
-accepts a required parameter of either ``automatic`` or ``primary``.
+sub group size for the kernel. The ``[[intel::named_sub_group_size(NAME)]]``
+form accepts a required parameter of either ``automatic`` or ``primary``.
 
 ``automatic`` specifies that the implementation is free to select any of the
 valid sub-group sizes associated with the device to which the kernel is
@@ -4410,7 +4411,8 @@ device's primary sub-group size as reported by
 ``info::device::primary_sub_group_size``.
 
 This attribute may not be combined with ``[[intel::sub_group_size(N)]]``, as
-the two attributes have different meanings.
+the two attributes have different meanings. It is also mutually exclusive with
+``[[intel::sycl_explicit_simd]]``.
 
 In addition to the attributes, a default sub-group size strategy may be
 specified by the ``-fsycl-default-sub-group-size`` command line option, which
@@ -4628,7 +4630,7 @@ Whether a particular pointer may be "null" is an important concern when working
 with pointers in the C family of languages. The various nullability attributes
 indicate whether a particular pointer can be null or not, which makes APIs more
 expressive and can help static analysis tools identify bugs involving null
-pointers. Clang supports several kinds of nullability attributes: the 
+pointers. Clang supports several kinds of nullability attributes: the
 ``nonnull`` and ``returns_nonnull`` attributes indicate which function or
 method parameters and result types can never be null, while nullability type
 qualifiers indicate which pointer types can be null (``_Nullable``) or cannot
@@ -4794,7 +4796,7 @@ memory is not available rather than returning a null pointer:
 The ``returns_nonnull`` attribute implies that returning a null pointer is
 undefined behavior, which the optimizer may take advantage of. The ``_Nonnull``
 type qualifier indicates that a pointer cannot be null in a more general manner
-(because it is part of the type system) and does not imply undefined behavior, 
+(because it is part of the type system) and does not imply undefined behavior,
 making it more widely applicable
 }];
 }
@@ -6615,15 +6617,15 @@ def CFGuardDocs : Documentation {
   let Content = [{
 Code can indicate CFG checks are not wanted with the ``__declspec(guard(nocf))``
 attribute. This directs the compiler to not insert any CFG checks for the entire
-function. This approach is typically used only sparingly in specific situations 
-where the programmer has manually inserted "CFG-equivalent" protection. The 
-programmer knows that they are calling through some read-only function table 
-whose address is obtained through read-only memory references and for which the 
-index is masked to the function table limit. This approach may also be applied 
-to small wrapper functions that are not inlined and that do nothing more than 
-make a call through a function pointer. Since incorrect usage of this directive 
-can compromise the security of CFG, the programmer must be very careful using 
-the directive. Typically, this usage is limited to very small functions that 
+function. This approach is typically used only sparingly in specific situations
+where the programmer has manually inserted "CFG-equivalent" protection. The
+programmer knows that they are calling through some read-only function table
+whose address is obtained through read-only memory references and for which the
+index is masked to the function table limit. This approach may also be applied
+to small wrapper functions that are not inlined and that do nothing more than
+make a call through a function pointer. Since incorrect usage of this directive
+can compromise the security of CFG, the programmer must be very careful using
+the directive. Typically, this usage is limited to very small functions that
 only call one function.
 
 `Control Flow Guard documentation <https://docs.microsoft.com/en-us/windows/win32/secbp/pe-metadata>`

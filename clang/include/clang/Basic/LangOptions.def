@@ -425,7 +425,7 @@ LANGOPT(ArmSveVectorBits, 32, 0, "SVE vector size in bits")
 
 ENUM_LANGOPT(DefaultSubGroupSizeType, SubGroupSizeType, 2,
              SubGroupSizeType::None,
-             "Strategy via which sub-group is assigned for SYCL kernel "
+             "Strategy via which sub group is assigned for SYCL kernel "
              "types if not overridden via attributes")
 
 VALUE_LANGOPT(DefaultSubGroupSize, 32, 0,

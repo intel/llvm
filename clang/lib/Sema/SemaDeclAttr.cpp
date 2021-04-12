@@ -3142,11 +3142,6 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E) {
-  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(*this, D, CI))
-    return;
-  if (checkAttrMutualExclusion<SYCLSimdAttr>(*this, D, CI))
-    return;
-
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
@@ -3187,11 +3182,6 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
 IntelReqdSubGroupSizeAttr *
 Sema::MergeIntelReqdSubGroupSizeAttr(Decl *D,
                                      const IntelReqdSubGroupSizeAttr &A) {
-  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(*this, D, A))
-    return nullptr;
-  if (checkAttrMutualExclusion<SYCLSimdAttr>(*this, D, A))
-    return nullptr;
-
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<IntelReqdSubGroupSizeAttr>()) {
@@ -3219,11 +3209,6 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
 IntelNamedSubGroupSizeAttr *
 Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
                                       const IntelNamedSubGroupSizeAttr &A) {
-  if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(*this, D, A))
-    return nullptr;
-  if (checkAttrMutualExclusion<SYCLSimdAttr>(*this, D, A))
-    return nullptr;
-
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<IntelNamedSubGroupSizeAttr>()) {
@@ -3239,11 +3224,6 @@ Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
 
 static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
                                          const ParsedAttr &AL) {
-  if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(S, D, AL))
-    return;
-  if (checkAttrMutualExclusion<SYCLSimdAttr>(S, D, AL))
-    return;
-
   StringRef SizeStr;
   SourceLocation Loc;
   if (AL.isArgIdent(0)) {
@@ -3260,24 +3240,6 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
     S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
   }
   D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
-}
-
-SYCLSimdAttr *Sema::MergeSYCLSimdAttr(Decl *D, const SYCLSimdAttr &A) {
-  if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(*this, D, A))
-    return nullptr;
-  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(*this, D, A))
-    return nullptr;
-
-  return A.clone(Context);
-}
-
-static void handleSYCLSimdAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (checkAttrMutualExclusion<IntelReqdSubGroupSizeAttr>(S, D, AL))
-    return;
-  if (checkAttrMutualExclusion<IntelNamedSubGroupSizeAttr>(S, D, AL))
-    return;
-
-  handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
 }
 
 void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
@@ -9144,7 +9106,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleSYCLKernelAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLSimd:
-    handleSYCLSimdAttr(S, D, AL);
+    handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);

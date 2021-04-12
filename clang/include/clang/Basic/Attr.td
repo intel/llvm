@@ -1213,6 +1213,7 @@ def SYCLSimd : InheritableAttr {
   let Subjects = SubjectList<[Function, GlobalVar]>;
   let Documentation = [SYCLSimdDocs];
   let SupportsNonconformingLambdaSyntax = 1;
+  let SimpleHandler = 1;
 }
 
 // Available in SYCL explicit SIMD extension. Binds a file scope private
@@ -1441,7 +1442,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let SupportsNonconformingLambdaSyntax = 1;
   let Accessors =
-      [Accessor<"isSYCL2020Spelling", [CXX11<"intel", "sub_group_size">]>];
+    [Accessor<"isSYCL2020Spelling", [CXX11<"intel", "sub_group_size">]>];
 }
 
 def IntelNamedSubGroupSize : InheritableAttr {
@@ -1453,6 +1454,9 @@ def IntelNamedSubGroupSize : InheritableAttr {
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let SupportsNonconformingLambdaSyntax = 1;
 }
+
+def : MutualExclusions<
+          [IntelReqdSubGroupSize, IntelNamedSubGroupSize, SYCLSimd]>;
 
 // This attribute is both a type attribute, and a declaration attribute (for
 // parameter variables).
