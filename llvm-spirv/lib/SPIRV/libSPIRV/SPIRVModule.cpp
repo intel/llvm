@@ -44,7 +44,6 @@
 #include "SPIRVExtInst.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
-#include "SPIRVMemAliasingINTEL.h"
 #include "SPIRVNameMapEnum.h"
 #include "SPIRVStream.h"
 #include "SPIRVType.h"
@@ -444,15 +443,6 @@ public:
   SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy, SPIRVValue *Value,
                                        SPIRVValue *ExpectedValue,
                                        SPIRVBasicBlock *BB) override;
-  template <typename AliasingInstType>
-  SPIRVEntry *getOrAddMemAliasingINTELInst(std::vector<SPIRVId> Args,
-                                           llvm::MDNode *MD);
-  SPIRVEntry *getOrAddAliasDomainDeclINTELInst(std::vector<SPIRVId> Args,
-                                               llvm::MDNode *MD) override;
-  SPIRVEntry *getOrAddAliasScopeDeclINTELInst(std::vector<SPIRVId> Args,
-                                              llvm::MDNode *MD) override;
-  SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
-                                                  llvm::MDNode *MD) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -497,8 +487,6 @@ private:
   typedef std::unordered_map<std::string, SPIRVString *> SPIRVStringMap;
   typedef std::map<SPIRVTypeStruct *, std::vector<std::pair<unsigned, SPIRVId>>>
       SPIRVUnknownStructFieldMap;
-  typedef std::vector<SPIRVEntry *> SPIRVAliasInstMDVec;
-  typedef std::unordered_map<llvm::MDNode *, SPIRVEntry *> SPIRVAliasInstMDMap;
 
   SPIRVForwardPointerVec ForwardPointerVec;
   SPIRVTypeVec TypeVec;
@@ -526,8 +514,6 @@ private:
   std::map<unsigned, SPIRVTypeInt *> IntTypeMap;
   std::map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
-  SPIRVAliasInstMDVec AliasInstMDVec;
-  SPIRVAliasInstMDMap AliasInstMDMap;
 
   void layoutEntry(SPIRVEntry *Entry);
 };
@@ -625,8 +611,7 @@ SPIRVConstant *SPIRVModuleImpl::getLiteralAsConstant(unsigned Literal) {
 
 void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
   auto OC = E->getOpCode();
-  int IntOC = static_cast<int>(OC);
-  switch (IntOC) {
+  switch (OC) {
   case OpString:
     addTo(StringVec, E);
     break;
@@ -652,12 +637,6 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
   }
   case OpAsmTargetINTEL: {
     addTo(AsmTargetVec, E);
-    break;
-  }
-  case internal::OpAliasDomainDeclINTEL:
-  case internal::OpAliasScopeDeclINTEL:
-  case internal::OpAliasScopeListDeclINTEL: {
-    addTo(AliasInstMDVec, E);
     break;
   }
   case OpAsmINTEL: {
@@ -1607,38 +1586,6 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
                         BB);
 }
 
-// Create AliasDomainDeclINTEL/AliasScopeDeclINTEL/AliasScopeListDeclINTEL
-// instructions
-template <typename AliasingInstType>
-SPIRVEntry *SPIRVModuleImpl::getOrAddMemAliasingINTELInst(
-    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
-  assert(MD && "noalias/alias.scope metadata can't be null");
-  // Don't duplicate aliasing instruction. For that use a map with a MDNode key
-  if (AliasInstMDMap.find(MD) != AliasInstMDMap.end())
-    return AliasInstMDMap[MD];
-  SPIRVEntry *AliasInst = add(new AliasingInstType(this, getId(), Args));
-  AliasInstMDMap.emplace(std::make_pair(MD, AliasInst));
-  return AliasInst;
-}
-
-// Create AliasDomainDeclINTEL instruction
-SPIRVEntry *SPIRVModuleImpl::getOrAddAliasDomainDeclINTELInst(
-    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
-  return getOrAddMemAliasingINTELInst<SPIRVAliasDomainDeclINTEL>(Args, MD);
-}
-
-// Create AliasScopeDeclINTEL instruction
-SPIRVEntry *SPIRVModuleImpl::getOrAddAliasScopeDeclINTELInst(
-    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
-  return getOrAddMemAliasingINTELInst<SPIRVAliasScopeDeclINTEL>(Args, MD);
-}
-
-// Create AliasScopeListDeclINTEL instruction
-SPIRVEntry *SPIRVModuleImpl::getOrAddAliasScopeListDeclINTELInst(
-    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
-  return getOrAddMemAliasingINTELInst<SPIRVAliasScopeListDeclINTEL>(Args, MD);
-}
-
 SPIRVInstruction *SPIRVModuleImpl::addVariable(
     SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
     SPIRVValue *Initializer, const std::string &Name,
@@ -1810,11 +1757,6 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
       }
     if (!IsEntryPoint)
       M.getEntry(I)->encodeName(O);
-  }
-
-  if (M.isAllowedToUseExtension(
-        ExtensionID::SPV_INTEL_memory_access_aliasing)) {
-    O << SPIRVNL() << MI.AliasInstMDVec;
   }
 
   O << MI.MemberNameVec << MI.DecGroupVec << MI.DecorateSet << MI.GroupDecVec

@@ -43,8 +43,6 @@
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVEntry.h"
 
-#include "llvm/IR/Metadata.h"
-
 #include <iostream>
 #include <set>
 #include <string>
@@ -454,12 +452,6 @@ public:
                                                SPIRVValue *Value,
                                                SPIRVValue *ExpectedValue,
                                                SPIRVBasicBlock *BB) = 0;
-  virtual SPIRVEntry *getOrAddAliasDomainDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
-  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
-  virtual SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 
