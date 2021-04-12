@@ -304,9 +304,8 @@ void NVPTXPassConfig::addIRPasses() {
   const NVPTXSubtarget &ST = *getTM<NVPTXTargetMachine>().getSubtargetImpl();
   addPass(createNVVMReflectPass(ST.getSmVersion()));
 
-  if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA &&
-      getTM<NVPTXTargetMachine>().getTargetTriple().getEnvironment() == Triple::SYCLDevice) {
-    addPass(createGlobalOffsetPass());
+  addPass(createGlobalOffsetPass());
+  if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA) {
     addPass(createLocalAccessorToSharedMemoryPass());
   }
 
