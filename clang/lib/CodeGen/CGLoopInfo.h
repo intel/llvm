@@ -142,7 +142,7 @@ struct LoopAttributes {
 
   /// Value for llvm.loop.intel.loopcount_average metadata.
   unsigned SYCLIntelFPGALoopCountAverage;
- 
+
   /// llvm.unroll.
   unsigned UnrollCount;
 
