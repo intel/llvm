@@ -74,13 +74,17 @@ public:
   // for this spec const should be.
   struct SpecConstDescT {
     unsigned int ID = 0;
-    unsigned int BlobOffset = 0;
-    unsigned int Offset = 0;
+    unsigned int CompositeOffset = 0;
     unsigned int Size = 0;
+    unsigned int BlobOffset = 0;
     bool IsSet = false;
   };
 
   bool has_specialization_constant(const char *SpecName) const noexcept {
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
     return MSpecConstSymMap.count(SpecName) != 0;
   }
 
@@ -91,12 +95,17 @@ public:
     // JIT compiler.
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
 
-    std::vector<SpecConstDescT> &Descs = MSpecConstSymMap[SpecName];
+    if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
+      return;
+
+    std::vector<SpecConstDescT> &Descs =
+        MSpecConstSymMap[std::string{SpecName}];
     for (SpecConstDescT &Desc : Descs) {
       Desc.IsSet = true;
       MSpecConstsBlob.reserve(MSpecConstsBlob.size() + Desc.Size);
       std::memcpy(MSpecConstsBlob.data() + Desc.BlobOffset,
-                  static_cast<const char *>(Value) + Desc.Offset, Desc.Size);
+                  static_cast<const char *>(Value) + Desc.CompositeOffset,
+                  Desc.Size);
     }
   }
 
@@ -108,16 +117,17 @@ public:
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
 
     // operator[] can't be used here, since it's not marked as const
-    const std::vector<SpecConstDescT> &Descs = MSpecConstSymMap.at(SpecName);
+    const std::vector<SpecConstDescT> &Descs =
+        MSpecConstSymMap.at(std::string{SpecName});
     for (const SpecConstDescT &Desc : Descs) {
 
-      std::memcpy(static_cast<char *>(ValueRet) + Desc.Offset,
+      std::memcpy(static_cast<char *>(ValueRet) + Desc.CompositeOffset,
                   MSpecConstsBlob.data() + Desc.BlobOffset, Desc.Size);
     }
   }
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept {
-    if (MSpecConstSymMap.count(SpecName) == 0)
+    if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
       return false;
 
     // Lock the mutex to prevent when one thread in the middle of writing a
@@ -125,7 +135,8 @@ public:
     // JIT compiler.
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
 
-    const std::vector<SpecConstDescT> &Descs = MSpecConstSymMap.at(SpecName);
+    const std::vector<SpecConstDescT> &Descs =
+        MSpecConstSymMap.at(std::string{SpecName});
     return Descs.front().IsSet;
   }
 
@@ -153,7 +164,7 @@ public:
     return MSpecConstsBlob;
   }
 
-  const std::map<const char *, std::vector<SpecConstDescT>> &
+  const std::map<std::string, std::vector<SpecConstDescT>> &
   get_spec_const_data_ref() const noexcept {
     return MSpecConstSymMap;
   }
@@ -185,16 +196,23 @@ private:
         // constant, (which might be a member of the composite); offset, which
         // is used to calculate location of scalar member within the composite
         // or zero for scalar spec constants; size of a spec constant
-        assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % 3 == 0 &&
+        constexpr size_t NumElements = 3;
+        assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) %
+                       NumElements ==
+                   0 &&
                "unexpected layout of composite spec const descriptors");
         auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
         auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
                                                             Descriptors.size());
         unsigned BlobOffset = 0;
         while (It != End) {
-          MSpecConstSymMap[SCName].push_back(SpecConstDescT{
-              /*ID*/ It[0], BlobOffset, /*Offset*/ It[1], It[2]});
+          // The map is not locked here because updateSpecConstSymMap() is only
+          // supposed to be called from c'tor.
+          MSpecConstSymMap[std::string{SCName}].push_back(
+              SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
+                             /*Size*/ It[2], BlobOffset});
           BlobOffset += /*Size*/ It[2];
+          It += NumElements;
         }
       }
     }
@@ -216,10 +234,9 @@ private:
   // Binary blob which can have values of all specialization constants in the
   // image
   std::vector<unsigned char> MSpecConstsBlob;
-  // Contains list of spec ID + their offsets in the MSpecConstsBlob
-  // std::vector<SpecConstDescT> MSpecConstDescs;
-
-  std::map<const char *, std::vector<SpecConstDescT>> MSpecConstSymMap;
+  // Contains map of spec const names to their descriptions + offsets in
+  // the MSpecConstsBlob
+  std::map<std::string, std::vector<SpecConstDescT>> MSpecConstSymMap;
 };
 
 } // namespace detail
