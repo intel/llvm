@@ -173,8 +173,8 @@ protected:
   void set_specialization_constant_impl(const char *SpecName,
                                         void *Value) noexcept;
 
-  void get_specialization_constant_impl(const char *SpecName,
-                                        void *Value) const noexcept;
+  void get_specialization_constant_impl(const char *SpecName, void *Value) const
+      noexcept;
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
