@@ -841,8 +841,10 @@ void _pi_queue::adjustBatchSizeForPartialBatch(pi_uint32 PartialBatchSize) {
 
 pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
                                         ze_fence_handle_t ZeFence,
-                                        bool IsBlocking,
+                                        pi_event Event, bool IsBlocking,
                                         bool OKToBatchCommand) {
+  this->LastCommandEvent = Event;
+
   if (OKToBatchCommand && this->isBatchingAllowed()) {
     if (this->ZeOpenCommandList != nullptr &&
         this->ZeOpenCommandList != ZeCommandList)
@@ -906,7 +908,7 @@ pi_result _pi_queue::executeOpenCommandList() {
     this->ZeOpenCommandListFence = nullptr;
     this->ZeOpenCommandListSize = 0;
 
-    return executeCommandList(OpenList, OpenListFence);
+    return executeCommandList(OpenList, OpenListFence, this->LastCommandEvent);
   }
 
   return PI_SUCCESS;
@@ -974,9 +976,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
       }
     }
 
-    // For in-order queues, every command should be executed once after the
+    // For in-order queues, every command should be executed only after the
     // previous command has finished. The event associated with the last
-    // enqued command is added into the waitlist to ensure in-order semantics.
+    // enqueued command is added into the waitlist to ensure in-order semantics.
     if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
@@ -3846,11 +3848,10 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
-  Queue->LastCommandEvent = *Event;
-
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, false, true))
+  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, *Event,
+                                           false, true))
     return Res;
 
   return PI_SUCCESS;
@@ -4407,11 +4408,9 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-    Queue->LastCommandEvent = *Event;
-
     // Execute command list asynchronously as the event will be used
     // to track down its completion.
-    return Queue->executeCommandList(ZeCommandList, ZeFence);
+    return Queue->executeCommandList(ZeCommandList, ZeFence, *Event);
   }
 
   // If wait-list is empty, then this particular command should wait until
@@ -4471,11 +4470,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
           (ZeCommandList, ZeEvent, (*Event)->WaitList.Length,
            (*Event)->WaitList.ZeEventList));
 
-  Queue->LastCommandEvent = *Event;
-
   // Execute command list asynchronously as the event will be used
   // to track down its completion.
-  return Queue->executeCommandList(ZeCommandList, ZeFence);
+  return Queue->executeCommandList(ZeCommandList, ZeFence, *Event);
 }
 
 static bool piHostCopyablePtr(pi_queue Queue, const void *Ptr) {
@@ -4592,10 +4589,8 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
-  Queue->LastCommandEvent = *Event;
-
-  if (auto Res =
-          Queue->executeCommandList(ZeCommandList, ZeFence, BlockingWrite))
+  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, *Event,
+                                           BlockingWrite))
     return Res;
 
   return PI_SUCCESS;
@@ -4691,9 +4686,8 @@ static pi_result enqueueMemCopyRectHelper(
   zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
 
-  Queue->LastCommandEvent = *Event;
-
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, Blocking))
+  if (auto Res =
+          Queue->executeCommandList(ZeCommandList, ZeFence, *Event, Blocking))
     return Res;
 
   return PI_SUCCESS;
@@ -4838,11 +4832,9 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
           pi_cast<pi_uint64>(ZeEvent));
   printZeEventList(WaitList);
 
-  Queue->LastCommandEvent = *Event;
-
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence))
+  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, *Event))
     return Res;
 
   return PI_SUCCESS;
@@ -5161,9 +5153,8 @@ static pi_result enqueueMemImageCommandHelper(
     return PI_INVALID_OPERATION;
   }
 
-  Queue->LastCommandEvent = *Event;
-
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, IsBlocking))
+  if (auto Res =
+          Queue->executeCommandList(ZeCommandList, ZeFence, *Event, IsBlocking))
     return Res;
 
   return PI_SUCCESS;
@@ -5705,9 +5696,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  Queue->LastCommandEvent = *Event;
-
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, false))
+  if (auto Res =
+          Queue->executeCommandList(ZeCommandList, ZeFence, *Event, false))
     return Res;
 
   return PI_SUCCESS;
@@ -5764,13 +5754,11 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   ZE_CALL(zeCommandListAppendMemAdvise,
           (ZeCommandList, Queue->Device->ZeDevice, Ptr, Length, ZeAdvice));
 
-  Queue->LastCommandEvent = *Event;
-
   // TODO: Level Zero does not have a completion "event" with the advise API,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  Queue->executeCommandList(ZeCommandList, ZeFence, false);
+  Queue->executeCommandList(ZeCommandList, ZeFence, *Event, false);
   return PI_SUCCESS;
 }
 
