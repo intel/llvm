@@ -608,11 +608,10 @@ MDNode *LoopInfo::createMetadata(
   if (Attrs.SYCLIntelFPGALoopControlAvgEnable) {
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.intel.loopcount_average"),
-        ConstantAsMetadata::get(
-            ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
-                             Attrs.SYCLIntelFPGALoopCountAverage))};
+        ConstantAsMetadata::get(ConstantInt::get(
+            llvm::Type::getInt32Ty(Ctx), Attrs.SYCLIntelFPGALoopCountAverage))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
-   }
+  }
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
   return createFullUnrollMetadata(Attrs, LoopProperties, HasUserTransforms);
@@ -631,8 +630,8 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLSpeculatedIterationsEnable(false),
       SYCLSpeculatedIterationsNIterations(0), SYCLIntelFPGALoopCountAverage(0),
       UnrollCount(0), UnrollAndJamCount(0),
-      DistributeEnable(LoopAttributes::Unspecified),
-      PipelineDisabled(false), PipelineInitiationInterval(0), SYCLNofusionEnable(false),
+      DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
+      PipelineInitiationInterval(0), SYCLNofusionEnable(false),
       MustProgress(false) {}
 
 void LoopAttributes::clear() {

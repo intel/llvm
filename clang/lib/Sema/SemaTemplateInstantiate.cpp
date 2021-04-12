@@ -1627,7 +1627,7 @@ TemplateInstantiator::TransformSYCLIntelFPGALoopControlAvgAttr(
   Expr *TransformedExpr =
       getDerived().TransformExpr(LCA->getNTripCount()).get();
   return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopControlAvgAttr>(
-       *LCA, TransformedExpr);
+      *LCA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
