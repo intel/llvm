@@ -53,7 +53,7 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   // Host device availability should depend on the forced type
-  bool includeHost;
+  bool includeHost = false;
   // If SYCL_DEVICE_FILTER is set, we don't automatically include it.
   // We will check if host devices are specified in the filter below.
   if (FilterList)
