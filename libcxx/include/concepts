@@ -67,9 +67,9 @@ namespace std {
   template<class T, class... Args>
     concept constructible_from = see below;
 
-  // [concept.defaultconstructible], concept default_constructible
+  // [concept.default.init], concept default_initializable
   template<class T>
-    concept default_constructible = see below;
+    concept default_initializable = see below;
 
   // [concept.moveconstructible], concept move_constructible
   template<class T>
@@ -78,11 +78,6 @@ namespace std {
   // [concept.copyconstructible], concept copy_constructible
   template<class T>
     concept copy_constructible = see below;
-
-  // [concepts.compare], comparison concepts
-  // [concept.boolean], concept boolean
-  template<class B>
-    concept boolean = see below;
 
   // [concept.equalitycomparable], concept equality_comparable
   template<class T>
@@ -326,7 +321,7 @@ concept swappable = requires(_Tp& __a, _Tp& __b) { ranges::swap(__a, __b); };
 
 template<class _Tp, class _Up>
 concept swappable_with =
-  common_reference_with<_Tp&, _Up&> &&
+  common_reference_with<_Tp, _Up> &&
   requires(_Tp&& __t, _Up&& __u) {
     ranges::swap(_VSTD::forward<_Tp>(__t), _VSTD::forward<_Tp>(__t));
     ranges::swap(_VSTD::forward<_Up>(__u), _VSTD::forward<_Up>(__u));

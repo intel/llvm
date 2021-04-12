@@ -893,8 +893,12 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
       error(arg->getSpelling() + ": expected a positive integer, but got '" +
             arg->getValue() + "'");
     parallel::strategy = hardware_concurrency(threads);
-    // FIXME: use this to configure ThinLTO concurrency too
+    config->thinLTOJobs = v;
   }
+  if (auto *arg = args.getLastArg(OPT_thinlto_jobs_eq))
+    config->thinLTOJobs = arg->getValue();
+  if (!get_threadpool_strategy(config->thinLTOJobs))
+    error("--thinlto-jobs: invalid job count: " + config->thinLTOJobs);
 
   config->entry = symtab->addUndefined(args.getLastArgValue(OPT_e, "_main"),
                                        /*file=*/nullptr,
@@ -909,6 +913,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
 
   config->mapFile = args.getLastArgValue(OPT_map);
   config->outputFile = args.getLastArgValue(OPT_o, "a.out");
+  config->astPaths = args.getAllArgValues(OPT_add_ast_path);
   config->headerPad = args::getHex(args, OPT_headerpad, /*Default=*/32);
   config->headerPadMaxInstallNames =
       args.hasArg(OPT_headerpad_max_install_names);
@@ -1022,18 +1027,19 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   if (args.hasArg(OPT_v)) {
     message(getLLDVersion());
     message(StringRef("Library search paths:") +
-            (config->librarySearchPaths.size()
-                 ? "\n\t" + join(config->librarySearchPaths, "\n\t")
-                 : ""));
+            (config->librarySearchPaths.empty()
+                 ? ""
+                 : "\n\t" + join(config->librarySearchPaths, "\n\t")));
     message(StringRef("Framework search paths:") +
-            (config->frameworkSearchPaths.size()
-                 ? "\n\t" + join(config->frameworkSearchPaths, "\n\t")
-                 : ""));
+            (config->frameworkSearchPaths.empty()
+                 ? ""
+                 : "\n\t" + join(config->frameworkSearchPaths, "\n\t")));
   }
 
   config->progName = argsArr[0];
 
-  config->timeTraceEnabled = args.hasArg(OPT_time_trace);
+  config->timeTraceEnabled = args.hasArg(
+      OPT_time_trace, OPT_time_trace_granularity_eq, OPT_time_trace_file_eq);
   config->timeTraceGranularity =
       args::getInteger(args, OPT_time_trace_granularity_eq, 500);
 
@@ -1052,17 +1058,22 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
 
     // Now that all dylibs have been loaded, search for those that should be
     // re-exported.
-    for (const Arg *arg : args.filtered(OPT_sub_library, OPT_sub_umbrella)) {
-      config->hasReexports = true;
-      StringRef searchName = arg->getValue();
-      std::vector<StringRef> extensions;
-      if (arg->getOption().getID() == OPT_sub_library)
-        extensions = {".dylib", ".tbd"};
-      else
-        extensions = {".tbd"};
-      if (!markReexport(searchName, extensions))
-        error(arg->getSpelling() + " " + searchName +
-              " does not match a supplied dylib");
+    {
+      auto reexportHandler = [](const Arg *arg,
+                                const std::vector<StringRef> &extensions) {
+        config->hasReexports = true;
+        StringRef searchName = arg->getValue();
+        if (!markReexport(searchName, extensions))
+          error(arg->getSpelling() + " " + searchName +
+                " does not match a supplied dylib");
+      };
+      std::vector<StringRef> extensions = {".tbd"};
+      for (const Arg *arg : args.filtered(OPT_sub_umbrella))
+        reexportHandler(arg, extensions);
+
+      extensions.push_back(".dylib");
+      for (const Arg *arg : args.filtered(OPT_sub_library))
+        reexportHandler(arg, extensions);
     }
 
     // Parse LTO options.
