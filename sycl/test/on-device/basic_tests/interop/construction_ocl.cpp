@@ -65,7 +65,7 @@ int main() {
   assert(Err == CL_SUCCESS);
 
   auto Kernel = sycl::make_kernel<BE>(NativeKer, Ctx);
-  assert(Kernel.get_info<sycl::info::kernel::name>() == "_");
+  assert(Kernel.get_info<sycl::info::kernel::num_args>() == 0);
 
   return 0;
 }
