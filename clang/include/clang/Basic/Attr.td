@@ -1954,8 +1954,7 @@ def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
 def SYCLIntelFPGALoopControlAvg : StmtAttr {
-  let Spellings = [CXX11<"intelfpga","loop_control_avg">,
-                   CXX11<"intel","loop_control_avg">];
+  let Spellings = [CXX11<"intel","loop_control_avg">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NTripCount">];

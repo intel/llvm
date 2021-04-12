@@ -68,11 +68,6 @@ void foo_deprecated() {
   // expected-note@+1 {{did you mean to use 'intel::speculated_iterations' instead?}}
   [[intelfpga::speculated_iterations(6)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-
-  // expected-warning@+2 {{attribute 'intelfpga::loop_control_avg' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::loop_control_avg' instead?}}
-  [[intelfpga::loop_control_avg(6)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
 }
 
 // Test for incorrect number of arguments for Intel FPGA loop attributes
@@ -360,6 +355,11 @@ void loop_attrs_compatibility() {
   // no diagnostics are expected
   [[intel::disable_loop_pipelining]]
   [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // no diagnostics are expected
+  [[intel::disable_loop_pipelining]]
+  [[intel::loop_control_avg(8)]]
+  for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
