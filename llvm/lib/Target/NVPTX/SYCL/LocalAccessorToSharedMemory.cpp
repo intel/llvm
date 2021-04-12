@@ -48,7 +48,9 @@ public:
     // Access `nvvm.annotations` to determine which functions are kernel entry
     // points.
     auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
-    assert(NvvmMetadata && "IR compiled to PTX must have nvvm.annotations");
+    if (!NvvmMetadata)
+      return false;
+
     for (auto MetadataNode : NvvmMetadata->operands()) {
       if (MetadataNode->getNumOperands() != 3)
         continue;
