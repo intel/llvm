@@ -97,7 +97,7 @@ public:
 
   std::pair<const MachineOperand *, int> isOMod(const MachineInstr &MI) const;
   bool tryFoldOMod(MachineInstr &MI);
-  bool tryFoldRegSeqence(MachineInstr &MI);
+  bool tryFoldRegSequence(MachineInstr &MI);
   bool tryFoldLCSSAPhi(MachineInstr &MI);
   bool tryFoldLoad(MachineInstr &MI);
 
@@ -489,7 +489,7 @@ static bool isUseSafeToFold(const SIInstrInfo *TII,
   //return !MI.hasRegisterImplicitUseOperand(UseMO.getReg());
 }
 
-// Find a def of the UseReg, check if it is a reg_seqence and find initializers
+// Find a def of the UseReg, check if it is a reg_sequence and find initializers
 // for each subreg, tracking it to foldable inline immediate if possible.
 // Returns true on success.
 static bool getRegSeqInit(
@@ -1406,6 +1406,18 @@ bool SIFoldOperands::tryFoldClamp(MachineInstr &MI) {
 
 static int getOModValue(unsigned Opc, int64_t Val) {
   switch (Opc) {
+  case AMDGPU::V_MUL_F64_e64: {
+    switch (Val) {
+    case 0x3fe0000000000000: // 0.5
+      return SIOutMods::DIV2;
+    case 0x4000000000000000: // 2.0
+      return SIOutMods::MUL2;
+    case 0x4010000000000000: // 4.0
+      return SIOutMods::MUL4;
+    default:
+      return SIOutMods::NONE;
+    }
+  }
   case AMDGPU::V_MUL_F32_e64: {
     switch (static_cast<uint32_t>(Val)) {
     case 0x3f000000: // 0.5
@@ -1442,11 +1454,13 @@ std::pair<const MachineOperand *, int>
 SIFoldOperands::isOMod(const MachineInstr &MI) const {
   unsigned Op = MI.getOpcode();
   switch (Op) {
+  case AMDGPU::V_MUL_F64_e64:
   case AMDGPU::V_MUL_F32_e64:
   case AMDGPU::V_MUL_F16_e64: {
     // If output denormals are enabled, omod is ignored.
     if ((Op == AMDGPU::V_MUL_F32_e64 && MFI->getMode().FP32OutputDenormals) ||
-        (Op == AMDGPU::V_MUL_F16_e64 && MFI->getMode().FP64FP16OutputDenormals))
+        ((Op == AMDGPU::V_MUL_F64_e64 || Op == AMDGPU::V_MUL_F16_e64) &&
+         MFI->getMode().FP64FP16OutputDenormals))
       return std::make_pair(nullptr, SIOutMods::NONE);
 
     const MachineOperand *RegOp = nullptr;
@@ -1472,11 +1486,13 @@ SIFoldOperands::isOMod(const MachineInstr &MI) const {
 
     return std::make_pair(RegOp, OMod);
   }
+  case AMDGPU::V_ADD_F64_e64:
   case AMDGPU::V_ADD_F32_e64:
   case AMDGPU::V_ADD_F16_e64: {
     // If output denormals are enabled, omod is ignored.
     if ((Op == AMDGPU::V_ADD_F32_e64 && MFI->getMode().FP32OutputDenormals) ||
-        (Op == AMDGPU::V_ADD_F16_e64 && MFI->getMode().FP64FP16OutputDenormals))
+        ((Op == AMDGPU::V_ADD_F64_e64 || Op == AMDGPU::V_ADD_F16_e64) &&
+         MFI->getMode().FP64FP16OutputDenormals))
       return std::make_pair(nullptr, SIOutMods::NONE);
 
     // Look through the DAGCombiner canonicalization fmul x, 2 -> fadd x, x
@@ -1528,7 +1544,7 @@ bool SIFoldOperands::tryFoldOMod(MachineInstr &MI) {
 
 // Try to fold a reg_sequence with vgpr output and agpr inputs into an
 // instruction which can take an agpr. So far that means a store.
-bool SIFoldOperands::tryFoldRegSeqence(MachineInstr &MI) {
+bool SIFoldOperands::tryFoldRegSequence(MachineInstr &MI) {
   assert(MI.isRegSequence());
   auto Reg = MI.getOperand(0).getReg();
 
@@ -1741,7 +1757,7 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
 
       tryFoldInst(TII, &MI);
 
-      if (MI.isRegSequence() && tryFoldRegSeqence(MI))
+      if (MI.isRegSequence() && tryFoldRegSequence(MI))
         continue;
 
       if (MI.isPHI() && tryFoldLCSSAPhi(MI))

@@ -1,9 +1,9 @@
-// RUN: %clangxx -fsycl -fsycl-explicit-simd %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
 // Check that the code compiles with -O0 and -g
-// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -fsycl-explicit-simd -O0
-// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -fsycl-explicit-simd -O0 -g
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -O0
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -O0 -g
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/esimd.hpp>

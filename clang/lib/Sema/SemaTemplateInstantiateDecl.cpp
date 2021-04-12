@@ -1341,6 +1341,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   if (Var->isStaticLocal())
     SemaRef.CheckStaticLocalForDllExport(Var);
 
+  SemaRef.addSyclVarDecl(Var);
   return Var;
 }
 

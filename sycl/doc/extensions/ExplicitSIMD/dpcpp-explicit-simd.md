@@ -74,10 +74,14 @@ void sycl_device_f(sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X
 ```
 
 ## Implementation restrictions
+
 Current ESP implementation does not support using certain standard SYCL features
 inside explicit SIMD kernels and functions. Most of them will be eventually
 dropped. What's not supported today:
-- Mixing `[[intel::sycl_explicit_simd]]` kernels with SYCL kernels in a single source
+- Explicit SIMD kernels can co-exist with regular SYCL kernels in the same
+  translation unit and in the same program. However, interoperability between
+  them is not yet supported, e.g. currently it's not allowed to invoke an ESIMD
+  kernel from a regular SYCL kernel and vice-versa.
 - Local accessors. Local memory is allocated and accessed via explicit
 device-side API
 - 2D and 3D accessors
@@ -85,7 +89,6 @@ device-side API
 - `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
 done via explicit APIs; e.g. `sycl::intel::gpu::block_store(acc, offset)`
 - Few others (to be documented)
-
 
 ## Core Explicit SIMD programming APIs
 
@@ -110,8 +113,8 @@ standard subscript operator ```[]```, which returns by value.
 
 For simd type object, Explicit SIMD supports the following simd vector operations:
 - Unary operators: ++ (*pre-/post-increment*), -- (*pre-/post-decrement*)
-- Binary operators: +, -, *, /, &, |, ^
-- Compound assignments: +=, -=, *=, /=, &=, |=, ^=
+- Binary operators: +, -, *, /, &, |, ^, <<, >>
+- Compound assignments: +=, -=, *=, /=, &=, |=, ^=, <<=, >>=
 - Compare operators: >, >=, <, <=, ==, !=
 
 These are all element-wise operations, which apply a specified operation to the
@@ -502,7 +505,6 @@ int main(void) {
 - Section covering 2D use cases
 - A bridge from `std::simd` to `sycl::intel::gpu::simd`
 - Describe `simd_view` class restrictions
-- Support intermixing SYCL and ESIMD kernels in the same source.
 - Support OpenCL and L0 interop for ESIMD kernels
 - Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-explicit-simd option
 - Add example showing the mapping between an ND-range and the number of

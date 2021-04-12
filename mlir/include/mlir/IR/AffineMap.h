@@ -113,6 +113,22 @@ public:
   bool isMinorIdentityWithBroadcasting(
       SmallVectorImpl<unsigned> *broadcastedDims = nullptr) const;
 
+  /// Return true if this affine map can be converted to a minor identity with
+  /// broadcast by doing a permute. Return a permutation (there may be
+  /// several) to apply to get to a minor identity with broadcasts.
+  /// Ex:
+  ///  * (d0, d1, d2) -> (0, d1) maps to minor identity (d1, 0 = d2) with
+  ///  perm = [1, 0] and broadcast d2
+  ///  * (d0, d1, d2) -> (d0, 0) cannot be mapped to a minor identity by
+  ///  permutation + broadcast
+  ///  * (d0, d1, d2, d3) -> (0, d1, d3) maps to minor identity (d1, 0 = d2, d3)
+  ///  with perm = [1, 0, 2] and broadcast d2
+  ///  * (d0, d1) -> (d1, 0, 0, d0) maps to minor identity (d0, d1) with extra
+  ///  leading broadcat dimensions. The map returned would be (0, 0, d0, d1)
+  ///  with perm = [3, 0, 1, 2]
+  bool isPermutationOfMinorIdentityWithBroadcasting(
+      SmallVectorImpl<unsigned> &permutedDims) const;
+
   /// Returns true if this affine map is an empty map, i.e., () -> ().
   bool isEmpty() const;
 
@@ -324,12 +340,22 @@ AffineMap simplifyAffineMap(AffineMap map);
 /// Drop the dims that are not used.
 AffineMap compressUnusedDims(AffineMap map);
 
+/// Drop the dims that are not used by any of the individual maps in `maps`.
+/// Asserts that all maps in `maps` are normalized to the same number of
+/// dims and symbols.
+SmallVector<AffineMap> compressUnusedDims(ArrayRef<AffineMap> maps);
+
 /// Drop the dims that are not listed in `unusedDims`.
 AffineMap compressDims(AffineMap map,
                        const llvm::SmallDenseSet<unsigned> &unusedDims);
 
 /// Drop the symbols that are not used.
 AffineMap compressUnusedSymbols(AffineMap map);
+
+/// Drop the symbols that are not used by any of the individual maps in `maps`.
+/// Asserts that all maps in `maps` are normalized to the same number of
+/// dims and symbols.
+SmallVector<AffineMap> compressUnusedSymbols(ArrayRef<AffineMap> maps);
 
 /// Drop the symbols that are not listed in `unusedSymbols`.
 AffineMap compressSymbols(AffineMap map,
