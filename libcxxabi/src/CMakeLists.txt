@@ -56,8 +56,6 @@ if (MSVC_IDE OR XCODE)
   endif()
 endif()
 
-include_directories("${LIBCXXABI_LIBCXX_INCLUDES}")
-
 # stdlib_stdexcept.cpp depends on libc++ internals.
 include_directories("${LIBCXXABI_LIBCXX_PATH}")
 
@@ -178,7 +176,7 @@ endif()
 # Build the shared library.
 if (LIBCXXABI_ENABLE_SHARED)
   add_library(cxxabi_shared SHARED ${LIBCXXABI_SOURCES} ${LIBCXXABI_HEADERS})
-  target_link_libraries(cxxabi_shared PRIVATE ${LIBCXXABI_SHARED_LIBRARIES} ${LIBCXXABI_LIBRARIES})
+  target_link_libraries(cxxabi_shared PRIVATE cxx-headers ${LIBCXXABI_SHARED_LIBRARIES} ${LIBCXXABI_LIBRARIES})
   if (TARGET pstl::ParallelSTL)
     target_link_libraries(cxxabi_shared PUBLIC pstl::ParallelSTL)
   endif()
@@ -245,7 +243,7 @@ endif()
 # Build the static library.
 if (LIBCXXABI_ENABLE_STATIC)
   add_library(cxxabi_static STATIC ${LIBCXXABI_SOURCES} ${LIBCXXABI_HEADERS})
-  target_link_libraries(cxxabi_static PRIVATE ${LIBCXXABI_STATIC_LIBRARIES} ${LIBCXXABI_LIBRARIES})
+  target_link_libraries(cxxabi_static PRIVATE cxx-headers ${LIBCXXABI_STATIC_LIBRARIES} ${LIBCXXABI_LIBRARIES})
   if (TARGET pstl::ParallelSTL)
     target_link_libraries(cxxabi_static PUBLIC pstl::ParallelSTL)
   endif()
@@ -313,8 +311,8 @@ add_custom_target(cxxabi DEPENDS ${LIBCXXABI_BUILD_TARGETS})
 
 if (LIBCXXABI_INSTALL_LIBRARY)
   install(TARGETS ${LIBCXXABI_INSTALL_TARGETS}
-    LIBRARY DESTINATION ${LIBCXXABI_INSTALL_PREFIX}${LIBCXXABI_INSTALL_LIBRARY_DIR} COMPONENT cxxabi
-    ARCHIVE DESTINATION ${LIBCXXABI_INSTALL_PREFIX}${LIBCXXABI_INSTALL_LIBRARY_DIR} COMPONENT cxxabi
+    LIBRARY DESTINATION ${LIBCXXABI_INSTALL_LIBRARY_DIR} COMPONENT cxxabi
+    ARCHIVE DESTINATION ${LIBCXXABI_INSTALL_LIBRARY_DIR} COMPONENT cxxabi
     )
 endif()
 

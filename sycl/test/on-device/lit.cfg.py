@@ -225,10 +225,6 @@ if gpu_count > 0:
     if platform.system() == "Linux":
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu,host ".format(SYCL_PLUGIN=backend)
         gpu_check_on_linux_substitute = "| FileCheck %s"
-    # ESIMD-specific setup. Requires OpenCL for now.
-    esimd_run_substitute = " env SYCL_DEVICE_FILTER=opencl:gpu,host SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen"
-    config.substitutions.append( ('%ESIMD_RUN_PLACEHOLDER',  esimd_run_substitute) )
-    config.substitutions.append( ('%clangxx-esimd',  "clang++ -fsycl-explicit-simd" ) )
 else:
     lit_config.warning("GPU device not found")
 
