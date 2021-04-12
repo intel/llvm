@@ -74,53 +74,58 @@ public:
   // for this spec const should be.
   struct SpecConstDescT {
     unsigned int ID = 0;
+    unsigned int BlobOffset = 0;
     unsigned int Offset = 0;
+    unsigned int Size = 0;
     bool IsSet = false;
   };
 
   bool has_specialization_constant(const char *SpecName) const noexcept {
-    if (MSpecConstSymMap.count(SpecName) == 0)
-      return false;
-
-    unsigned SpecID = MSpecConstSymMap.at(SpecName);
-    return std::any_of(MSpecConstDescs.begin(), MSpecConstDescs.end(),
-                       [SpecID](const SpecConstDescT &SpecConstDesc) {
-                         return SpecConstDesc.ID == SpecID;
-                       });
+    return MSpecConstSymMap.count(SpecName) == 0;
   }
 
   void set_specialization_constant_raw_value(const char *SpecName,
-                                             const void *Value,
-                                             size_t ValueSize) noexcept {
-    unsigned SpecID = MSpecConstSymMap[SpecName];
-    for (SpecConstDescT &SpecConstDesc : MSpecConstDescs)
-      if (SpecConstDesc.ID == SpecID) {
-        SpecConstDesc.IsSet = true;
-        // Lock the mutex to prevent when one thread in the middle of writing a
-        // new value while another thread is reading the value to pass it to
-        // JIT compiler.
-        const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-        std::memcpy(MSpecConstsBlob.data() + SpecConstDesc.Offset, Value,
-                    ValueSize);
-        return;
-      }
+                                             const void *Value) noexcept {
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+
+    std::vector<SpecConstDescT> &Descs = MSpecConstSymMap[SpecName];
+    for (SpecConstDescT &Desc : Descs) {
+      Desc.IsSet = true;
+      std::memcpy(MSpecConstsBlob.data() + Desc.BlobOffset,
+                  static_cast<const char *>(Value) + Desc.Offset, Desc.Size);
+    }
   }
 
   void get_specialization_constant_raw_value(const char *SpecName,
-                                             void *ValueRet,
-                                             size_t ValueSize) const noexcept {
+                                             void *ValueRet) const noexcept {
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+
     // operator[] can't be used here, since it's not marked as const
-    unsigned SpecID = MSpecConstSymMap.at(SpecName);
-    for (const SpecConstDescT &SpecConstDesc : MSpecConstDescs)
-      if (SpecConstDesc.ID == SpecID) {
-        // Lock the mutex to prevent when one thread in the middle of writing a
-        // new value while another thread is reading the value to pass it to
-        // JIT compiler.
-        const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-        std::memcpy(ValueRet, MSpecConstsBlob.data() + SpecConstDesc.Offset,
-                    ValueSize);
-        return;
-      }
+    const std::vector<SpecConstDescT> &Descs = MSpecConstSymMap.at(SpecName);
+    for (const SpecConstDescT &Desc : Descs) {
+
+      std::memcpy(static_cast<char *>(ValueRet) + Desc.Offset,
+                  MSpecConstsBlob.data() + Desc.BlobOffset, Desc.Size);
+    }
+  }
+
+  bool is_specialization_constant_set(const char *SpecName) const noexcept {
+    if (MSpecConstSymMap.count(SpecName) == 0)
+      return false;
+
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+
+    const std::vector<SpecConstDescT> &Descs = MSpecConstSymMap.at(SpecName);
+    return Descs.front().IsSet;
   }
 
   bundle_state get_state() const noexcept { return MState; }
@@ -147,8 +152,9 @@ public:
     return MSpecConstsBlob;
   }
 
-  std::vector<SpecConstDescT> &get_spec_const_offsets_ref() noexcept {
-    return MSpecConstDescs;
+  const std::map<const char *, std::vector<SpecConstDescT>> &
+  get_spec_const_data_ref() const noexcept {
+    return MSpecConstSymMap;
   }
 
   ~device_image_impl() {
@@ -162,29 +168,33 @@ public:
 private:
   void updateSpecConstSymMap() {
     if (MBinImage) {
-      const pi_device_binary_struct &RawImg = MBinImage->getRawData();
-      const auto &PropSetsBegin = RawImg.PropertySetsBegin;
-      const auto &PropSetsEnd = RawImg.PropertySetsEnd;
-      const auto &SpecConstMap = std::find_if(
-          PropSetsBegin, PropSetsEnd,
-          [](const _pi_device_binary_property_set_struct &Set) {
-            return strcmp(Set.Name, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP) == 0;
-          });
+      const pi::DeviceBinaryImage::PropertyRange &SCRange =
+          MBinImage->getSpecConstants();
+      using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
 
-      if (SpecConstMap != PropSetsEnd) {
-        const auto &PropsBegin = SpecConstMap->PropertiesBegin;
-        const auto &PropsEnd = SpecConstMap->PropertiesEnd;
+      for (SCItTy SCIt : SCRange) {
+        const char *SCName = (*SCIt)->Name;
 
-        std::for_each(
-            PropsBegin, PropsEnd,
-            [&](const _pi_device_binary_property_struct &Prop) {
-              MSpecConstSymMap[Prop.Name] =
-                  *static_cast<unsigned *>(Prop.ValAddr);
-              MSpecConstDescs.push_back(SpecConstDescT{
-                  *static_cast<unsigned *>(Prop.ValAddr),       // ID
-                  *(static_cast<unsigned *>(Prop.ValAddr) + 1), // Offset
-                  false});
-            });
+        pi::ByteArray Descriptors =
+            pi::DeviceBinaryProperty(*SCIt).asByteArray();
+        assert(Descriptors.size() > 8 && "Unexpected property size");
+
+        // Expected layout is vector of 3-component tuples (flattened into a
+        // vector of scalars), where each tuple consists of: ID of a scalar spec
+        // constant, (which might be a member of the composite); offset, which
+        // is used to calculate location of scalar member within the composite
+        // or zero for scalar spec constants; size of a spec constant
+        assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % 3 == 0 &&
+               "unexpected layout of composite spec const descriptors");
+        auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
+        auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
+                                                            Descriptors.size());
+        unsigned BlobOffset = 0;
+        while (It != End) {
+          MSpecConstSymMap[SCName].push_back(SpecConstDescT{
+              /*ID*/ It[0], BlobOffset, /*Offset*/ It[1], It[2]});
+          BlobOffset += /*Size*/ It[2];
+        }
       }
     }
   }
@@ -206,9 +216,9 @@ private:
   // image
   std::vector<unsigned char> MSpecConstsBlob;
   // Contains list of spec ID + their offsets in the MSpecConstsBlob
-  std::vector<SpecConstDescT> MSpecConstDescs;
+  // std::vector<SpecConstDescT> MSpecConstDescs;
 
-  std::map<const char *, unsigned> MSpecConstSymMap;
+  std::map<const char *, std::vector<SpecConstDescT>> MSpecConstSymMap;
 };
 
 } // namespace detail

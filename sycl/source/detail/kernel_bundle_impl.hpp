@@ -247,26 +247,28 @@ public:
   }
 
   void set_specialization_constant_raw_value(const char *SpecName,
-                                             const void *Value,
-                                             size_t ValueSize) {
+                                             const void *Value) noexcept {
     for (const device_image_plain &DeviceImage : MDeviceImages)
       getSyclObjImpl(DeviceImage)
-          ->set_specialization_constant_raw_value(SpecName, Value, ValueSize);
+          ->set_specialization_constant_raw_value(SpecName, Value);
   }
 
   void get_specialization_constant_raw_value(const char *SpecName,
-                                             void *ValueRet,
-                                             size_t ValueSize) const {
+                                             void *ValueRet) const noexcept {
     for (const device_image_plain &DeviceImage : MDeviceImages)
       if (getSyclObjImpl(DeviceImage)->has_specialization_constant(SpecName)) {
         getSyclObjImpl(DeviceImage)
-            ->get_specialization_constant_raw_value(SpecName, ValueRet,
-                                                    ValueSize);
+            ->get_specialization_constant_raw_value(SpecName, ValueRet);
         return;
       }
+  }
 
-    throw sycl::runtime_error("Specialization constant not found",
-                              PI_INVALID_VALUE);
+  bool is_specialization_constant_set(const char *SpecName) const noexcept {
+    return std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
+                       [SpecName](const device_image_plain &DeviceImage) {
+                         return getSyclObjImpl(DeviceImage)
+                             ->is_specialization_constant_set(SpecName);
+                       });
   }
 
   const device_image_plain *begin() const { return &MDeviceImages.front(); }

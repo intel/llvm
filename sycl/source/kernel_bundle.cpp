@@ -88,16 +88,19 @@ bool kernel_bundle_plain::has_specialization_constant_impl(
   return impl->has_specialization_constant(SpecName);
 }
 
-void kernel_bundle_plain::set_specialization_constant_impl(const char *SpecName,
-                                                           void *Value,
-                                                           size_t Size) {
-  impl->set_specialization_constant_raw_value(SpecName, Value, Size);
+void kernel_bundle_plain::set_specialization_constant_impl(
+    const char *SpecName, void *Value) noexcept {
+  impl->set_specialization_constant_raw_value(SpecName, Value);
 }
 
-void kernel_bundle_plain::get_specialization_constant_impl(const char *SpecName,
-                                                           void *Value,
-                                                           size_t Size) const {
-  impl->get_specialization_constant_raw_value(SpecName, Value, Size);
+void kernel_bundle_plain::get_specialization_constant_impl(
+    const char *SpecName, void *Value) const noexcept {
+  impl->get_specialization_constant_raw_value(SpecName, Value);
+}
+
+bool kernel_bundle_plain::is_specialization_constant_set(
+    const char *SpecName) const noexcept {
+  return impl->is_specialization_constant_set(SpecName);
 }
 
 ////////////////////////////

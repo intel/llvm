@@ -170,11 +170,13 @@ protected:
 
   bool has_specialization_constant_impl(const char *SpecName) const noexcept;
 
-  void set_specialization_constant_impl(const char *SpecName, void *Value,
-                                        size_t Size);
+  void set_specialization_constant_impl(const char *SpecName,
+                                        void *Value) noexcept;
 
-  void get_specialization_constant_impl(const char *SpecName, void *Value,
-                                        size_t Size) const;
+  void get_specialization_constant_impl(const char *SpecName,
+                                        void *Value) const noexcept;
+
+  bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
   detail::KernelBundleImplPtr impl;
 };
@@ -266,11 +268,8 @@ public:
             typename = detail::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
-    using SCType =
-        typename std::remove_reference_t<decltype(SpecName)>::value_type;
-
     const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
-    set_specialization_constant_impl(SpecSymName, &Value, sizeof(SCType));
+    set_specialization_constant_impl(SpecSymName, &Value);
   }
 
   /// \returns the value of the specialization constant whose address is
@@ -278,15 +277,18 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
+    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    if (!is_specialization_constant_set(SpecSymName))
+      return SpecName.getDefaultValue();
+
     using SCType =
         typename std::remove_reference_t<decltype(SpecName)>::value_type;
 
-    SCType RetValue;
+    std::array<char *, sizeof(SCType)> RetValue;
 
-    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
-    get_specialization_constant_impl(SpecSymName, &RetValue, sizeof(SCType));
+    get_specialization_constant_impl(SpecSymName, RetValue.data());
 
-    return RetValue;
+    return *reinterpret_cast<SCType *>(RetValue.data());
   }
 #endif
 
