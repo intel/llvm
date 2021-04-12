@@ -1,0 +1,277 @@
+SPV_INTEL_memory_access_aliasing
+================================
+
+Name Strings
+------------
+
+SPV_INTEL_memory_access_aliasing
+
+Contact
+-------
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+Contributors
+------------
+
+- Dmitry Sidorov, Intel
+- Alexey Sotkin, Intel
+
+Notice
+------
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+Status
+------
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2021-02-15
+| Revision           | A
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification, Version 1.5
+Revision 5.
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension adds *AliasDomainDeclINTEL*, *AliasScopeINTEL* and
+*AliasScopeListDeclINTEL* instructions that serve a purpose to
+specify aliasing scopes within which annotated memory accesses don't alias.
+Results of these instructios are used by *AliasScopeINTEL* and *NoAliasINTEL*
+decorations and Memory Operands mask to annotate memory access instructions.
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
+
+----
+OpExtension "SPV_INTEL_memory_access_aliasing"
+----
+
+New Capabilities
+----------------
+This extension introduces a new capability:
+
+----
+MemoryAccessAliasingINTEL
+----
+
+New instructions
+----------------
+
+Instructions added under the *MemoryAccessAliasingINTEL* capability:
+
+----
+AliasDomainDeclINTEL
+AliasScopeDeclINTEL
+AliasScopeListDeclINTEL
+----
+
+New Decorations
+---------------
+Decorations added under the *MemoryAccessAliasingINTEL* capability:
+
+----
+AliasScopeINTEL
+NoAliasINTEL
+----
+
+Token Number Assignments
+------------------------
+[width="45%",cols="30,15"]
+|=================================
+| MemoryAccessAliasingINTEL | 5910
+| AliasDomainDeclINTEL      | 5911
+| AliasScopeDeclINTEL       | 5912
+| AliasScopeListDeclINTEL   | 5913
+| AliasScopeINTEL           | 5914
+| NoAliasINTEL              | 5915
+|=================================
+
+Modifications to the SPIR-V Specification, Version 1.5
+------------------------------------------------------
+
+Modifications 2.4 Logical Layout of a Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Insert an extra item before "8. All annotation instructions"
+
+8. Optional _AliasDomainDeclINTEL_, _AliasScopeDeclINTEL_ and _AliasScopeDeclINTEL_
+instructions.
+
+
+Capabilities
+~~~~~~~~~~~~
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Depends On
+| 5910 | *MemoryAccessAliasingINTEL* +
+Allow to use _AliasDomainDeclINTEL_, _AliasScopeDeclINTEL_ and
+_AliasScopeListDeclINTEL_ instructions, _AliasScopeINTEL_ and _NoAliasINTEL_ and
+_AliasScopeINTELMask_ and _NoAliasINTELMask_ memory operands.
+decorations |
+|====
+--
+
+Instructions
+~~~~~~~~~~~~
+
+[cols="4", width="100%"]
+|=====
+3+^|*OpAliasDomainDeclINTEL* +
+The instruction declares an aliasing domain.
+
+The _Result_ is used by _AliasScopeDeclINTEL_ instruction to form aliasing
+scope. When evaluating an aliasing query if two memory access instructions that
+have _AliasScopeINTELMask_ and _NoAliasINTELMask_ memory operands or decorated
+with _AliasScopeINTEL_ and _NoAliasINTEL_ decorations and if for some domain,
+the set of scopes with that domain in one instruction’s aliasing scope list is a
+subset of (or equal to) the set of scopes for that domain in another
+instruction’s noalias list, then the two memory accesses are assumed not to
+alias.
+
+
+Optional <id> _Name_ parameter is used to specify an unique domain in global
+scope. If this rule is violated in runtime - behaviour is undefined.
+| Capability:
+*MemoryAccessAliasingINTEL*
+
+| 3 | 5911 | <id> _Result_ | optional <id> _Name_
+|=====
+
+[cols="5", width="100%"]
+|=====
+4+^|*OpAliasScopeDeclINTEL* +
+The instruction declares an aliasing scope.
+
+The _Result_ is used by _AliasScopeListDeclINTEL_ instruction to form aliasing
+scope list.
+
+<id> _AliasDomain_ parameter specifies aliasing domain within this aliasing
+scope.
+
+Optional <id> _Name_ parameter is used to specify an unique domain in
+global scope.
+| Capability:
+*MemoryAccessAliasingINTEL*
+
+| 4 | 5912 | <id> _Result_ | <id> _AliasDomain_ | optional <id> _Name_
+|=====
+
+[cols="4", width="100%"]
+|=====
+3+^|*OpAliasScopeListDeclINTEL* +
+The instruction declares a list of aliasing scopes.
+
+The _Result_ is used by _AliasScopeINTEL_ and _NoAliasINTEL_ decorations and
+_AliasScopeINTELMask_ and _NoAliasINTELMask_ memory operands.
+
+<id> _AliasScope1_, ... , <id> _AliasScopeN_ parameters specifies aliasing
+scopes that form aliasing list of scopes.
+| Capability:
+*MemoryAccessAliasingINTEL*
+
+| 3+ | 5913 | <id> _Result_ | <id> _AliasSope1_, <id> _AliasScope2_, ... , <id> _AliasScopeN_
+|=====
+
+Decorations
+~~~~~~~~~~~
+
+Modify Section 3.20 "Decoration", adding these rows to Decoration table:
+
+--
+[options="header"]
+|====
+2+^| Decoration 2+^| Extra Operands ^| Enabling Capabilities
+| 5914 | *AliasScopeINTEL* +
+Can only be applied to _OpFunctionCall_ and _Atomic_ instructions. Has
+_Aliasing Scopes List_ <id> operand pointing to a result of
+_AliasScopeListDeclINTEL_ instruction, that specifies a set of aliasing scopes for
+the memory access instruction. Another memory access instruction that has
+_NoAliasINTELMask_ memory operand or decorated with _NoAliasINTEL_ is assumed not to
+alias with the current memory access instruction. If this rule is violated in
+runtime - behaviour is undefined.
+2+| <id> _Aliasing Scopes List_ | *MemoryAccessAliasingINTEL*
+| 5915 | *NoAliasINTEL* +
+Can only be applied to _OpFunctionCall_ and _Atomic_ instructions. Has
+_Aliasing Scopes List_ <id> operand pointing on a result of
+_AliasScopeListDeclINTEL_ instruction, that specifies a set of alisasing scopes in
+which memory access instruction is assumed to be not aliased with any other
+memory instructions with intersecting aliasing scopes. If this assumption is
+violated in runtime - behaviour is undefined.
+
+2+| <id> _Aliasing Scopes List_ | *MemoryAccessAliasingINTEL*
+|====
+--
+
+Memory Operands
+~~~~~~~~~~~~~~~
+
+Modify Section 3.26 "Memory Operands", adding these rows to Memory Operands
+table:
+
+--
+|====
+2+^| Memory Operands | Extra Operands | Enabling Capabilities
+| 0x10000 | *AliasScopeINTELMask* +
+Defines aliasing rules for memory access in the current aliasing scope. Another
+memory access instruction that has _NoAliasINTELMask_ memory operand or decorated
+with _NoAliasINTEL_ is assumed not to alias with the current memory access
+instruction. If this rule is violated in runtime - behaviour is undefined.
+This mask is mutually exclusive with _NoAliasINTELMask_.
+| <id> _Aliasing Scopes List_ |
+*MemoryAccessAliasingINTEL*
+| 0x20000 | *NoAliasINTELMask* +
+Defines aliasing rules for memory access in the current aliasing scope.
+Assume that the memory access doesn't alias with any other memory accesses with
+aliasing scopes in _Aliasing Scopes List_ intersecting with the current one.
+If this rule is violated in runtime - behaviour is undefined.
+This mask is mutually exclusive with _AliasScopeINTELMask_.
+| <id> _Aliasing Scopes List_ |
+*MemoryAccessAliasingINTEL*
+--
+
+Issues
+------
+
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2021-02-15|Dmitry Sidorov|Initial revision
+|========================================
+
