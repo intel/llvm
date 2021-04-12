@@ -768,6 +768,9 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
   DIFile *File = getFile(Ops[SourceIdx]);
   auto *Entity = transDebugInst<DINode>(BM->get<SPIRVExtInst>(Ops[EntityIdx]));
   if (Ops[TagIdx] == SPIRVDebug::ImportedModule) {
+    if (!Entity)
+      return Builder.createImportedModule(
+          Scope, static_cast<DIImportedEntity *>(nullptr), File, Line);
     if (DIImportedEntity *IE = dyn_cast<DIImportedEntity>(Entity))
       return Builder.createImportedModule(Scope, IE, File, Line);
     if (DINamespace *NS = dyn_cast<DINamespace>(Entity))
