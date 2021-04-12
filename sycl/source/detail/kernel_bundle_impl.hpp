@@ -264,7 +264,7 @@ public:
   }
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept {
-    return std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
+    return std::any_of(MDeviceImages.begin(), MDeviceImages.end(),
                        [SpecName](const device_image_plain &DeviceImage) {
                          return getSyclObjImpl(DeviceImage)
                              ->is_specialization_constant_set(SpecName);
