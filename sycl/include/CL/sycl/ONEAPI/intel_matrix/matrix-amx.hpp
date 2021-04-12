@@ -196,48 +196,49 @@ public:
   joint_matrix(Group sg) {}
 };
 
-template <typename T> class submatrix {
-public:
-  _tile1024i tile;
-  short rows, cols;
-};
+} // namespace matrix
+
+namespace detail {
+
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout>
-__SYCL_ALWAYS_INLINE static typename std::enable_if<
-    (NumRows > tile_size) || (NumCols * sizeof(T) / 4 > tile_size), void>::type
-submatrix_load(detail::submatrix<T> &sub_m,
-               joint_matrix<Group, T, NumRows, NumCols, Layout> jm,
-               uint32_t row, uint32_t col, size_t stride, matrix_layout layout,
-               bool shouldreload) {
+          matrix::matrix_layout Layout>
+inline __SYCL_ALWAYS_INLINE static
+    typename std::enable_if<(NumRows > matrix::tile_size) ||
+                                (NumCols * sizeof(T) / 4 > matrix::tile_size),
+                            void>::type
+    submatrix_load(detail::submatrix<T> &sub_m,
+                   matrix::joint_matrix<Group, T, NumRows, NumCols, Layout> jm,
+                   uint32_t row, uint32_t col, size_t stride,
+                   matrix::matrix_layout layout, bool shouldreload) {
   uint32_t offset = (row * stride + col);
   T *ptr = (T *)jm.raw_storage;
   ptr += offset;
   stride *= sizeof(T);
-  sub_m.rows = tile_size;
-  sub_m.cols = tile_size * 4;
+  sub_m.rows = matrix::tile_size;
+  sub_m.cols = matrix::tile_size * 4;
   sub_m.tile =
-      tileloadd64_internal(sub_m.rows, sub_m.cols, (char *)ptr, stride);
+      matrix::tileloadd64_internal(sub_m.rows, sub_m.cols, (char *)ptr, stride);
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout>
-__SYCL_ALWAYS_INLINE static
-    typename std::enable_if<(NumRows <= tile_size) &&
-                                (NumCols * sizeof(T) / 4 <= tile_size),
+          matrix::matrix_layout Layout>
+inline __SYCL_ALWAYS_INLINE static
+    typename std::enable_if<(NumRows <= matrix::tile_size) &&
+                                (NumCols * sizeof(T) / 4 <= matrix::tile_size),
                             void>::type
     submatrix_load(detail::submatrix<T> &sub_m,
-                   joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
+                   matrix::joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
                    uint32_t row, uint32_t col, size_t stride,
-                   matrix_layout layout, bool shouldreload) {
+                   matrix::matrix_layout layout, bool shouldreload) {
   if (shouldreload) {
-    // Force sub_m.tile's shape to be tile_size * tile_size * 4
-    int8_t NewjmC[tile_size * tile_size * 4];
-    tilestored64_internal(NumRows, NumCols * sizeof(T), (char *)NewjmC,
-                          tile_size * 4, jm.tile);
-    sub_m.rows = tile_size;
-    sub_m.cols = tile_size * 4;
-    sub_m.tile = tileloadd64_internal(sub_m.rows, sub_m.cols, (char *)NewjmC,
-                                      tile_size * 4);
+    // Force sub_m.tile's shape to be matrix::tile_size * matrix::tile_size * 4
+    int8_t NewjmC[matrix::tile_size * matrix::tile_size * 4];
+    matrix::tilestored64_internal(NumRows, NumCols * sizeof(T), (char *)NewjmC,
+                                  matrix::tile_size * 4, jm.tile);
+    sub_m.rows = matrix::tile_size;
+    sub_m.cols = matrix::tile_size * 4;
+    sub_m.tile = matrix::tileloadd64_internal(
+        sub_m.rows, sub_m.cols, (char *)NewjmC, matrix::tile_size * 4);
     return;
   }
   sub_m.rows = NumRows;
@@ -246,62 +247,70 @@ __SYCL_ALWAYS_INLINE static
 }
 
 // This handles cases where T1 is int8, T2 is int32.
-__SYCL_ALWAYS_INLINE static void
+inline __SYCL_ALWAYS_INLINE static void
 submatrix_mad(detail::submatrix<int8_t> &sub_ma,
               detail::submatrix<int8_t> &sub_mb,
               detail::submatrix<int32_t> &sub_mc) {
-  sub_mc.tile = tdpbssd_internal(sub_mc.rows, sub_mc.cols, sub_ma.cols,
-                                 sub_mc.tile, sub_ma.tile, sub_mb.tile);
+  sub_mc.tile = matrix::tdpbssd_internal(sub_mc.rows, sub_mc.cols, sub_ma.cols,
+                                         sub_mc.tile, sub_ma.tile, sub_mb.tile);
 }
 
 // This handles cases where T1 is int16(bfloat16), T2 is float.
-__SYCL_ALWAYS_INLINE static void
+inline __SYCL_ALWAYS_INLINE static void
 submatrix_mad(detail::submatrix<unsigned short> &sub_ma,
               detail::submatrix<unsigned short> &sub_mb,
               detail::submatrix<float> &sub_mc) {
-  sub_mc.tile = tdpbf16ps_internal(sub_mc.rows, sub_mc.cols, sub_ma.cols,
-                                   sub_mc.tile, sub_ma.tile, sub_mb.tile);
+  sub_mc.tile =
+      matrix::tdpbf16ps_internal(sub_mc.rows, sub_mc.cols, sub_ma.cols,
+                                 sub_mc.tile, sub_ma.tile, sub_mb.tile);
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols>
-__SYCL_ALWAYS_INLINE static typename std::enable_if<
-    (NumRows > tile_size) || (NumCols * sizeof(T) / 4 > tile_size), void>::type
-submatrix_store(detail::submatrix<T> &sub_m,
-                joint_matrix<Group, T, NumRows, NumCols> &jm, uint32_t row,
-                uint32_t col, size_t stride, matrix_layout layout,
-                bool shouldreload) {
+inline __SYCL_ALWAYS_INLINE static
+    typename std::enable_if<(NumRows > matrix::tile_size) ||
+                                (NumCols * sizeof(T) / 4 > matrix::tile_size),
+                            void>::type
+    submatrix_store(detail::submatrix<T> &sub_m,
+                    matrix::joint_matrix<Group, T, NumRows, NumCols> &jm,
+                    uint32_t row, uint32_t col, size_t stride,
+                    matrix::matrix_layout layout, bool shouldreload) {
   uint32_t offset = (row * stride + col);
   T *ptr = (T *)jm.raw_storage;
   ptr += offset;
   stride *= sizeof(T);
-  tilestored64_internal(sub_m.rows, sub_m.cols, (char *)ptr, stride,
-                        sub_m.tile);
+  matrix::tilestored64_internal(sub_m.rows, sub_m.cols, (char *)ptr, stride,
+                                sub_m.tile);
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols>
-__SYCL_ALWAYS_INLINE static
-    typename std::enable_if<(NumRows <= tile_size) &&
-                                (NumCols * sizeof(T) / 4 <= tile_size),
+inline __SYCL_ALWAYS_INLINE static
+    typename std::enable_if<(NumRows <= matrix::tile_size) &&
+                                (NumCols * sizeof(T) / 4 <= matrix::tile_size),
                             void>::type
     submatrix_store(detail::submatrix<T> &sub_m,
-                    joint_matrix<Group, T, NumRows, NumCols> &jm, uint32_t row,
-                    uint32_t col, size_t stride, matrix_layout layout,
-                    bool shouldreload) {
+                    matrix::joint_matrix<Group, T, NumRows, NumCols> &jm,
+                    uint32_t row, uint32_t col, size_t stride,
+                    matrix::matrix_layout layout, bool shouldreload) {
   if (shouldreload) {
-    int8_t NewjmC[tile_size * tile_size * 4];
-    tilestored64_internal(tile_size, tile_size * 4, (char *)NewjmC,
-                          tile_size * 4, sub_m.tile);
-    jm.tile = tileloadd64_internal(NumRows, NumCols * sizeof(T), (char *)NewjmC,
-                                   tile_size * 4);
+    int8_t NewjmC[matrix::tile_size * matrix::tile_size * 4];
+    matrix::tilestored64_internal(matrix::tile_size, matrix::tile_size * 4,
+                                  (char *)NewjmC, matrix::tile_size * 4,
+                                  sub_m.tile);
+    jm.tile = matrix::tileloadd64_internal(
+        NumRows, NumCols * sizeof(T), (char *)NewjmC, matrix::tile_size * 4);
     return;
   }
   jm.tile = sub_m.tile;
 }
 
+} // namespace detail
+
+namespace matrix {
+
 // This handles cases where matrix can't be accommodated by a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-__SYCL_ALWAYS_INLINE typename std::enable_if<
+inline __SYCL_ALWAYS_INLINE typename std::enable_if<
     (NumRows > tile_size) || (NumCols * sizeof(T) / 4 > tile_size), void>::type
 joint_matrix_load(Group sg,
                   joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
@@ -321,7 +330,7 @@ joint_matrix_load(Group sg,
 // This handles cases where matrix can be put into a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-__SYCL_ALWAYS_INLINE
+inline __SYCL_ALWAYS_INLINE
     typename std::enable_if<(NumRows <= tile_size) &&
                                 (NumCols * sizeof(T) / 4 <= tile_size),
                             void>::type
@@ -339,7 +348,7 @@ __SYCL_ALWAYS_INLINE
 // This handles cases where matrix can't be accommodated by a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-__SYCL_ALWAYS_INLINE typename std::enable_if<
+inline __SYCL_ALWAYS_INLINE typename std::enable_if<
     (NumRows > tile_size) || (NumCols * sizeof(T) / 4 > tile_size), void>::type
 joint_matrix_store(Group sg,
                    joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
@@ -358,7 +367,7 @@ joint_matrix_store(Group sg,
 // This handles cases where matrix can be put into a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-__SYCL_ALWAYS_INLINE
+inline __SYCL_ALWAYS_INLINE
     typename std::enable_if<(NumRows <= tile_size) &&
                                 (NumCols * sizeof(T) / 4 <= tile_size),
                             void>::type
@@ -377,7 +386,7 @@ template <typename Group, typename T1, typename T2, size_t NumRowsA,
           size_t NumColsA, size_t NumRowsB, size_t NumColsB, size_t NumRowsC,
           size_t NumColsC, matrix_layout LayoutA, matrix_layout LayoutB,
           matrix_layout LayoutC>
-__SYCL_ALWAYS_INLINE typename std::enable_if<
+inline __SYCL_ALWAYS_INLINE typename std::enable_if<
     ((std::is_same<T1, int8_t>::value && std::is_same<T2, int32_t>::value) ||
      (std::is_same<T1, unsigned short>::value &&
       std::is_same<T2, float>::value)) &&

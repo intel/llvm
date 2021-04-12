@@ -1,4 +1,4 @@
-// RUN: %clangxx -mamx-bf16 -mamx-int8 -mavx512bw -mavx512vbmi -fsycl -O2 %s -o %t.out
+// RUN: %clangxx -march=sapphirerapids -fsycl -O2 %s -o %t.out
 #include <CL/sycl.hpp>
 #include <array>
 #include <assert.h>
