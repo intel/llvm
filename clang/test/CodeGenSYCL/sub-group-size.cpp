@@ -6,6 +6,6 @@
 using namespace cl::sycl;
 
 void default_behavior() {
-  kernel_single_task<class Kernel1>([]() {
+  kernel_single_task<class Kernel1>([]() /*[[intel::reqd_sub_group_size(10)]]*/ {
   });
 }

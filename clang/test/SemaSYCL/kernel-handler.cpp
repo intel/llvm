@@ -39,6 +39,7 @@ int main() {
 // NONATIVESUPPORT-NEXT: InitListExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// NONATIVESUPPORT-NEXT: SYCLKernelAttr
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: DeclStmt
@@ -74,6 +75,7 @@ int main() {
 // NONATIVESUPPORT-NEXT: InitListExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// NONATIVESUPPORT-NEXT: SYCLKernelAttr
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: DeclStmt
@@ -115,6 +117,7 @@ int main() {
 // NATIVESUPPORT-NEXT: InitListExpr
 // NATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// NATIVESUPPORT-NEXT: SYCLKernelAttr
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NATIVESUPPORT-NEXT: DeclStmt

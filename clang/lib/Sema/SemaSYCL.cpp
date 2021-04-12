@@ -558,8 +558,6 @@ public:
       if (const FunctionDecl *Def = FD->getDefinition())
         Diagnoser.CheckBody(Def->getBody());
   }
-
-
 };
 
 // This type does the heavy lifting for the management of device functions,
@@ -2297,6 +2295,14 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
+
+    // Make sure that this is marked as a kernel so that the code-gen can make
+    // decisions based on that. We cannot add this earlier, otherwise the call
+    // to TransformStmt in replaceWithLocalClone can diagnose something that got
+    // diagnosed on the actual kernel.
+    KernelObjClone->addAttr(
+        SYCLKernelAttr::CreateImplicit(SemaRef.getASTContext()));
+
     return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
   }
 
@@ -3636,10 +3642,19 @@ static void CheckSYCL2020Attributes(
     Sema &S, FunctionDecl *SYCLKernel, FunctionDecl *KernelBody,
     const llvm::SmallPtrSetImpl<FunctionDecl *> &CalledFuncs) {
 
-  // If the kernel has a body, we should get the attributes for the kernel from
-  // there instead, so that we get the functor object.
-  if (KernelBody)
+  if (KernelBody) {
+    // Make sure the kernel itself has all the 2020 attributes, since we don't
+    // do propagation of these.
+    if (auto *A = KernelBody->getAttr<IntelReqdSubGroupSizeAttr>())
+      if (A->isSYCL2020Spelling())
+        SYCLKernel->addAttr(A);
+    if (auto *A = KernelBody->getAttr<IntelNamedSubGroupSizeAttr>())
+      SYCLKernel->addAttr(A);
+
+    // If the kernel has a body, we should get the attributes for the kernel from
+    // there instead, so that we get the functor object.
     SYCLKernel = KernelBody;
+  }
 
   for (auto *FD : CalledFuncs) {
     if (FD == SYCLKernel || FD == KernelBody)
@@ -3647,10 +3662,9 @@ static void CheckSYCL2020Attributes(
     for (auto *Attr : FD->attrs()) {
       switch (Attr->getKind()) {
       case attr::Kind::IntelReqdSubGroupSize:
-        if (const auto *A = cast<IntelReqdSubGroupSizeAttr>(Attr))
-          // Pre SYCL2020 spellings handled during collection.
-          if (!A->isSYCL2020Spelling())
-            break;
+        // Pre SYCL2020 spellings handled during collection.
+        if (!cast<IntelReqdSubGroupSizeAttr>(Attr)->isSYCL2020Spelling())
+          break;
         LLVM_FALLTHROUGH;
       case attr::Kind::IntelNamedSubGroupSize:
         CheckSYCL2020SubGroupSizes(S, SYCLKernel, FD);

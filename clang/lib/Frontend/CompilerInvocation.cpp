@@ -3516,7 +3516,6 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   case LangOptions::SubGroupSizeType::None:
     break;
   }
-
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,

@@ -39,6 +39,7 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}}'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>'
 // CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>':'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: SYCLKernelAttr
 
 // Check that accessor field of the wrapper object is initialized using __init method
 // CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
