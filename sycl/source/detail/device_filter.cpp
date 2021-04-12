@@ -156,8 +156,13 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
 
 bool device_filter_list::containsHost() {
   for (const device_filter &Filter : FilterList) {
-    if (Filter.Backend == backend::host ||
-        Filter.DeviceType == info::device_type::host) {
+    if (((Filter.Backend == backend::host) &&
+         (Filter.DeviceType == info::device_type::host ||
+          Filter.DeviceType == info::device_type::all)) ||
+        ((Filter.Backend == backend::all) &&
+         (Filter.DeviceType == info::device_type::host))) {
+      // SYCL RT never creates more than one HOST device.
+      // All device numbers other than 0 are rejected.
       if (!Filter.HasDeviceNum || Filter.DeviceNum == 0)
         return true;
     }
