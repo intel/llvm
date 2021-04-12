@@ -12,7 +12,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-#include "bit_cast.hpp"
+#include <CL/sycl/bit_cast.hpp>
 #include <exception>
 #include <functional>
 #include <memory>
