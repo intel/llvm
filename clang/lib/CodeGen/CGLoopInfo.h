@@ -140,10 +140,10 @@ struct LoopAttributes {
   /// Value for llvm.loop.intel.speculated.iterations.count metadata.
   unsigned SYCLSpeculatedIterationsNIterations;
 
-   /// Value for llvm.loop.intel.loopcount_average metadata.
+  /// Value for llvm.loop.intel.loopcount_average metadata.
   unsigned SYCLIntelFPGALoopCountAverage;
  
-   /// llvm.unroll.
+  /// llvm.unroll.
   unsigned UnrollCount;
 
   /// llvm.unroll.

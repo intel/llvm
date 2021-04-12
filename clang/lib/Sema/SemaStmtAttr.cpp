@@ -572,8 +572,8 @@ static void CheckForIncompatibleSYCLLoopAttributes(
                                                                          Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGASpeculatedIterationsAttr>(
       S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGALoopControlAvgAttr>(
-      S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGALoopControlAvgAttr>(S,
+                                                                        Attrs);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
                                         SYCLIntelFPGAMaxInterleavingAttr>(
