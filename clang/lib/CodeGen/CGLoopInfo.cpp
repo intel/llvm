@@ -605,11 +605,11 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  if (Attrs.SYCLIntelFPGALoopControlAvgEnable) {
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.intel.loopcount_average"),
-        ConstantAsMetadata::get(ConstantInt::get(
-            llvm::Type::getInt32Ty(Ctx), Attrs.SYCLIntelFPGALoopCountAverage))};
+  if (Attrs.SYCLIntelFPGALoopControlAverageEnable) {
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.loopcount_average"),
+                        ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx),
+                            Attrs.SYCLIntelFPGALoopControlAverage))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
@@ -628,11 +628,11 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
       SYCLMaxInterleavingEnable(false), SYCLMaxInterleavingNInvocations(0),
       SYCLSpeculatedIterationsEnable(false),
-      SYCLSpeculatedIterationsNIterations(0), SYCLIntelFPGALoopCountAverage(0),
-      UnrollCount(0), UnrollAndJamCount(0),
-      DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
-      PipelineInitiationInterval(0), SYCLNofusionEnable(false),
-      MustProgress(false) {}
+      SYCLSpeculatedIterationsNIterations(0),
+      SYCLIntelFPGALoopControlAverageEnable(false), UnrollCount(0),
+      UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
+      PipelineDisabled(false), PipelineInitiationInterval(0),
+      SYCLNofusionEnable(false), MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -651,7 +651,7 @@ void LoopAttributes::clear() {
   SYCLMaxInterleavingNInvocations = 0;
   SYCLSpeculatedIterationsEnable = false;
   SYCLSpeculatedIterationsNIterations = 0;
-  SYCLIntelFPGALoopCountAverage = 0;
+  SYCLIntelFPGALoopControlAverageEnable = false;
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -689,7 +689,8 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLMaxInterleavingNInvocations == 0 &&
       Attrs.SYCLSpeculatedIterationsEnable == false &&
       Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
-      Attrs.SYCLIntelFPGALoopCountAverage == 0 && Attrs.UnrollCount == 0 &&
+      Attrs.SYCLIntelFPGALoopControlAverageEnable == 0 &&
+      Attrs.UnrollCount == 0 &&
       Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
       Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
@@ -1043,9 +1044,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     if (const auto *IntelFPGALoopControlAvg =
             dyn_cast<SYCLIntelFPGALoopControlAvgAttr>(A)) {
       setSYCLIntelFPGALoopControlAvgEnable();
-      setSYCLIntelFPGALoopCountAverage(IntelFPGALoopControlAvg->getNTripCount()
-                                           ->getIntegerConstantExpr(Ctx)
-                                           ->getSExtValue());
+      setSYCLIntelFPGALoopControlAverage(IntelFPGALoopControlAvg->getNTripCount()
+              ->getIntegerConstantExpr(Ctx)
+              ->getSExtValue());
     }
 
     if (const auto *IntelFPGALoopCoalesce =

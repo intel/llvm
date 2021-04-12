@@ -14,6 +14,8 @@
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MI_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_SI:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_SI_2:[0-9]+]]
+// CHECK: br label %for.cond, !llvm.loop ![[MD_LCA:[0-9]+]]
+// CHECK: br label %for.cond2, !llvm.loop ![[MD_LCA_1:[0-9]+]]
 
 void disable_loop_pipelining() {
   int a[10];
@@ -109,6 +111,19 @@ void speculated_iterations() {
       a[i] = 0;
 }
 
+template <int A>
+void loop_control_avg() {
+  int a[10];
+  // CHECK: ![[MD_LCA]] = distinct !{![[MD_LCA]], ![[MP:[0-9]+]], ![[MD_lca:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_lca]] = !{!"llvm.loop.intel.loopcount_average", i32 12}
+  [[intel::loop_control_avg(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_LCA_1]] = distinct !{![[MD_LCA_1]], ![[MP:[0-9]+]], ![[MD_lca_1:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_lca_1]] = !{!"llvm.loop.intel.loopcount_average", i32 4}
+  [[intel::loop_control_avg(4)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
@@ -123,6 +138,7 @@ int main() {
     loop_coalesce<2>();
     max_interleaving<3>();
     speculated_iterations<4>();
+    loop_control_avg<12>();
   });
   return 0;
 }

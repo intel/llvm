@@ -114,10 +114,14 @@ struct LoopAttributes {
   /// Flag for llvm.loop.max_concurrency.count metadata.
   bool SYCLMaxConcurrencyEnable;
 
-  bool SYCLIntelFPGALoopControlAvgEnable;
-
   /// Value for llvm.loop.max_concurrency.count metadata.
   unsigned SYCLMaxConcurrencyNThreads;
+
+  /// Flag for llvm.loop.intel.loopcount_average metadata.
+  bool SYCLIntelFPGALoopControlAverageEnable;
+
+  /// Value for llvm.loop.intel.loopcount_average metadata.
+  unsigned SYCLIntelFPGALoopControlAverage;
 
   /// Flag for llvm.loop.coalesce metadata.
   bool SYCLLoopCoalesceEnable;
@@ -139,9 +143,6 @@ struct LoopAttributes {
 
   /// Value for llvm.loop.intel.speculated.iterations.count metadata.
   unsigned SYCLSpeculatedIterationsNIterations;
-
-  /// Value for llvm.loop.intel.loopcount_average metadata.
-  unsigned SYCLIntelFPGALoopCountAverage;
 
   /// llvm.unroll.
   unsigned UnrollCount;
@@ -374,16 +375,6 @@ public:
     StagedAttrs.SYCLMaxConcurrencyNThreads = C;
   }
 
-  /// Set flag of loop_control_avg for the next loop pushed.
-  void setSYCLIntelFPGALoopControlAvgEnable() {
-    StagedAttrs.SYCLIntelFPGALoopCountAverage = true;
-  }
-  /// Set value of loop control count average for the next
-  /// loop pushed.
-  void setSYCLIntelFPGALoopCountAverage(unsigned C) {
-    StagedAttrs.SYCLIntelFPGALoopCountAverage = C;
-  }
-
   /// Set flag of loop_coalesce for the next loop pushed.
   void setSYCLLoopCoalesceEnable() {
     StagedAttrs.SYCLLoopCoalesceEnable = true;
@@ -418,6 +409,17 @@ public:
   void setSYCLSpeculatedIterationsNIterations(unsigned C) {
     StagedAttrs.SYCLSpeculatedIterationsNIterations = C;
   }
+
+  /// Set flag of loop_control_avg for the next loop pushed.
+  void setSYCLIntelFPGALoopControlAvgEnable() {
+    StagedAttrs.SYCLIntelFPGALoopControlAverageEnable = true;
+  }
+
+  /// Set value of loop control average for the next loop pushed.
+  void setSYCLIntelFPGALoopControlAverage(unsigned C) {
+    StagedAttrs.SYCLIntelFPGALoopControlAverage = C;
+  }
+  
 
   /// Set the unroll count for the next loop pushed.
   void setUnrollCount(unsigned C) { StagedAttrs.UnrollCount = C; }
