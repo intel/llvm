@@ -62,7 +62,11 @@ public:
   }
 
   bool has_specialization_constants() const noexcept {
-    return !MSpecConstsBlob.empty();
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+    return !MSpecConstSymMap.empty();
   }
 
   bool all_specialization_constant_native() const noexcept {

@@ -34,6 +34,7 @@ int main() {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
 
+  assert(KernelBundle.contains_specialization_constants() == true);
   assert(KernelBundle.has_specialization_constant<SpecConst1>() == false);
   assert(KernelBundle.has_specialization_constant<SpecConst2>() == true);
   KernelBundle.set_specialization_constant<SpecConst2>(1.f);
