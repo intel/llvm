@@ -10,12 +10,19 @@
 
 #pragma once
 
+#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 
-namespace __esimd {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace INTEL {
+namespace gpu {
+namespace detail {
 
-/// Constant in number of bytes.
-enum { BYTE = 1, WORD = 2, DWORD = 4, QWORD = 8, OWORD = 16, GRF = 32 };
+/// ESIMD intrinsic operand size in bytes.
+struct OperandSize {
+  enum { BYTE = 1, WORD = 2, DWORD = 4, QWORD = 8, OWORD = 16, GRF = 32 };
+};
 
 /// Compute next power of 2 of a constexpr with guaranteed compile-time
 /// evaluation.
@@ -65,20 +72,6 @@ static ESIMD_INLINE constexpr bool isPowerOf2(unsigned int n,
   return (n & (n - 1)) == 0 && n <= limit;
 }
 
-} // namespace __esimd
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace INTEL {
-namespace gpu {
-
-constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
-  // encoding requires 2^ElemsPerAddrEncoded
-  return (1 << ElemsPerAddrEncoded);
-}
-
-namespace detail {
-
 /// type traits
 template <typename T> struct is_esimd_vector {
   static const bool value = false;
@@ -88,7 +81,7 @@ struct is_esimd_vector<sycl::INTEL::gpu::simd<T, N>> {
   static const bool value = true;
 };
 template <typename T, int N>
-struct is_esimd_vector<sycl::INTEL::gpu::vector_type<T, N>> {
+struct is_esimd_vector<sycl::INTEL::gpu::detail::vector_type<T, N>> {
   static const bool value = true;
 };
 
@@ -106,7 +99,7 @@ struct is_dword_type
                            typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T, int N>
-struct is_dword_type<sycl::INTEL::gpu::vector_type<T, N>> {
+struct is_dword_type<sycl::INTEL::gpu::detail::vector_type<T, N>> {
   static const bool value = is_dword_type<T>::value;
 };
 
@@ -125,7 +118,7 @@ struct is_word_type
                            typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T, int N>
-struct is_word_type<sycl::INTEL::gpu::vector_type<T, N>> {
+struct is_word_type<sycl::INTEL::gpu::detail::vector_type<T, N>> {
   static const bool value = is_word_type<T>::value;
 };
 
@@ -142,7 +135,7 @@ struct is_byte_type
                            typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T, int N>
-struct is_byte_type<sycl::INTEL::gpu::vector_type<T, N>> {
+struct is_byte_type<sycl::INTEL::gpu::detail::vector_type<T, N>> {
   static const bool value = is_byte_type<T>::value;
 };
 
@@ -185,7 +178,7 @@ struct is_qword_type
                            typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T, int N>
-struct is_qword_type<sycl::INTEL::gpu::vector_type<T, N>> {
+struct is_qword_type<sycl::INTEL::gpu::detail::vector_type<T, N>> {
   static const bool value = is_qword_type<T>::value;
 };
 
@@ -196,7 +189,7 @@ struct is_qword_type<sycl::INTEL::gpu::simd<T, N>> {
 
 // Extends to ESIMD vector types.
 template <typename T, int N>
-struct is_fp_or_dword_type<sycl::INTEL::gpu::vector_type<T, N>> {
+struct is_fp_or_dword_type<sycl::INTEL::gpu::detail::vector_type<T, N>> {
   static const bool value = is_fp_or_dword_type<T>::value;
 };
 
@@ -210,7 +203,7 @@ template <typename T> struct simd_type {
   using type = sycl::INTEL::gpu::simd<T, 1>;
 };
 template <typename T, int N>
-struct simd_type<sycl::INTEL::gpu::vector_type<T, N>> {
+struct simd_type<sycl::INTEL::gpu::detail::vector_type<T, N>> {
   using type = sycl::INTEL::gpu::simd<T, N>;
 };
 

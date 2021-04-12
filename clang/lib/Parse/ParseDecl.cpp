@@ -162,15 +162,19 @@ void Parser::ParseAttributes(unsigned WhichAttrKinds,
 ///    ',' or ')' are ignored, otherwise they produce a parse error.
 ///
 /// We follow the C++ model, but don't allow junk after the identifier.
-void Parser::ParseGNUAttributes(ParsedAttributes &attrs,
-                                SourceLocation *endLoc,
-                                LateParsedAttrList *LateAttrs,
-                                Declarator *D) {
+void Parser::ParseGNUAttributes(ParsedAttributesWithRange &Attrs,
+                                SourceLocation *EndLoc,
+                                LateParsedAttrList *LateAttrs, Declarator *D) {
   assert(Tok.is(tok::kw___attribute) && "Not a GNU attribute list!");
+
+  SourceLocation StartLoc = Tok.getLocation(), Loc;
+
+  if (!EndLoc)
+    EndLoc = &Loc;
 
   while (Tok.is(tok::kw___attribute)) {
     SourceLocation AttrTokLoc = ConsumeToken();
-    unsigned OldNumAttrs = attrs.size();
+    unsigned OldNumAttrs = Attrs.size();
     unsigned OldNumLateAttrs = LateAttrs ? LateAttrs->size() : 0;
 
     if (ExpectAndConsume(tok::l_paren, diag::err_expected_lparen_after,
@@ -198,14 +202,14 @@ void Parser::ParseGNUAttributes(ParsedAttributes &attrs,
       SourceLocation AttrNameLoc = ConsumeToken();
 
       if (Tok.isNot(tok::l_paren)) {
-        attrs.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0,
+        Attrs.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0,
                      ParsedAttr::AS_GNU);
         continue;
       }
 
       // Handle "parameterized" attributes
       if (!LateAttrs || !isAttributeLateParsed(*AttrName)) {
-        ParseGNUAttributeArgs(AttrName, AttrNameLoc, attrs, endLoc, nullptr,
+        ParseGNUAttributeArgs(AttrName, AttrNameLoc, Attrs, EndLoc, nullptr,
                               SourceLocation(), ParsedAttr::AS_GNU, D);
         continue;
       }
@@ -238,8 +242,8 @@ void Parser::ParseGNUAttributes(ParsedAttributes &attrs,
     SourceLocation Loc = Tok.getLocation();
     if (ExpectAndConsume(tok::r_paren))
       SkipUntil(tok::r_paren, StopAtSemi);
-    if (endLoc)
-      *endLoc = Loc;
+    if (EndLoc)
+      *EndLoc = Loc;
 
     // If this was declared in a macro, attach the macro IdentifierInfo to the
     // parsed attribute.
@@ -251,8 +255,8 @@ void Parser::ParseGNUAttributes(ParsedAttributes &attrs,
           Lexer::getSourceText(ExpansionRange, SM, PP.getLangOpts());
       IdentifierInfo *MacroII = PP.getIdentifierInfo(FoundName);
 
-      for (unsigned i = OldNumAttrs; i < attrs.size(); ++i)
-        attrs[i].setMacroIdentifier(MacroII, ExpansionRange.getBegin());
+      for (unsigned i = OldNumAttrs; i < Attrs.size(); ++i)
+        Attrs[i].setMacroIdentifier(MacroII, ExpansionRange.getBegin());
 
       if (LateAttrs) {
         for (unsigned i = OldNumLateAttrs; i < LateAttrs->size(); ++i)
@@ -260,6 +264,8 @@ void Parser::ParseGNUAttributes(ParsedAttributes &attrs,
       }
     }
   }
+
+  Attrs.Range = SourceRange(StartLoc, *EndLoc);
 }
 
 /// Determine whether the given attribute has an identifier argument.
@@ -1607,7 +1613,30 @@ void Parser::DiagnoseProhibitedAttributes(
 }
 
 void Parser::ProhibitCXX11Attributes(ParsedAttributesWithRange &Attrs,
-                                     unsigned DiagID) {
+                                     unsigned DiagID, bool DiagnoseEmptyAttrs) {
+
+  if (DiagnoseEmptyAttrs && Attrs.empty() && Attrs.Range.isValid()) {
+    // An attribute list has been parsed, but it was empty.
+    // This is the case for [[]].
+    const auto &LangOpts = getLangOpts();
+    auto &SM = PP.getSourceManager();
+    Token FirstLSquare;
+    Lexer::getRawToken(Attrs.Range.getBegin(), FirstLSquare, SM, LangOpts);
+
+    if (FirstLSquare.is(tok::l_square)) {
+      llvm::Optional<Token> SecondLSquare =
+          Lexer::findNextToken(FirstLSquare.getLocation(), SM, LangOpts);
+
+      if (SecondLSquare && SecondLSquare->is(tok::l_square)) {
+        // The attribute range starts with [[, but is empty. So this must
+        // be [[]], which we are supposed to diagnose because
+        // DiagnoseEmptyAttrs is true.
+        Diag(Attrs.Range.getBegin(), DiagID) << Attrs.Range;
+        return;
+      }
+    }
+  }
+
   for (const ParsedAttr &AL : Attrs) {
     if (!AL.isCXX11Attribute() && !AL.isC2xAttribute())
       continue;
@@ -4631,7 +4660,8 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
   // or opaque-enum-declaration anywhere.
   if (IsElaboratedTypeSpecifier && !getLangOpts().MicrosoftExt &&
       !getLangOpts().ObjC) {
-    ProhibitAttributes(attrs);
+    ProhibitCXX11Attributes(attrs, diag::err_attributes_not_allowed,
+                            /*DiagnoseEmptyAttrs=*/true);
     if (BaseType.isUsable())
       Diag(BaseRange.getBegin(), diag::ext_enum_base_in_type_specifier)
           << (AllowEnumSpecifier == AllowDefiningTypeSpec::Yes) << BaseRange;

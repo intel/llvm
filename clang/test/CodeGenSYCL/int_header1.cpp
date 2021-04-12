@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
 // CHECK:template <> struct KernelInfo<class KernelName> {
@@ -8,10 +8,7 @@
 // CHECK:template <> struct KernelInfo<::nm1::KernelName3<::nm1::KernelName1>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName4<::nm1::nm2::KernelName0>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName4<::nm1::KernelName1>> {
-// CHECK:template <> struct KernelInfo<::nm1::KernelName3<KernelName5>> {
-// CHECK:template <> struct KernelInfo<::nm1::KernelName4<KernelName7>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName8<::nm1::nm2::C>> {
-// CHECK:template <> struct KernelInfo<::TmplClassInAnonNS<ClassInAnonNS>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName9<char>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName3<const volatile ::nm1::KernelName3<const volatile char>>> {
 
@@ -19,7 +16,7 @@
 // integration header when the kernel name class is expressed in different
 // forms.
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 template <typename KernelName, typename KernelType>
 __attribute__((sycl_kernel)) void kernel_single_task(const KernelType &kernelFunc) {
@@ -110,27 +107,10 @@ struct MyWrapper {
     kernel_single_task<nm1::KernelName4<nm1::KernelName1>>(
       [=]() { acc.use(); });
 
-    // TIPI
-    // an incomplete template specialization class with incomplete class as
-    // argument forward-declared "in-place"
-    kernel_single_task<nm1::KernelName3<class KernelName5>>(
-      [=]() { acc.use(); });
-
-    // TDPI
-    // a defined template specialization class with incomplete class as
-    // argument forward-declared "in-place"
-    kernel_single_task<nm1::KernelName4<class KernelName7>>(
-      [=]() { acc.use(); });
-
     // TPITD
     // a defined template pack specialization class with defined class
     // as argument declared in a namespace at translation unit scope
     kernel_single_task<nm1::KernelName8<nm1::nm2::C>>(
-      [=]() { acc.use(); });
-
-    // kernel name type is a templated class, both the top-level class and the
-    // template argument are declared in the anonymous namespace
-    kernel_single_task<TmplClassInAnonNS<class ClassInAnonNS>>(
       [=]() { acc.use(); });
 
     // Kernel name type is a templated specialization class with empty template pack argument

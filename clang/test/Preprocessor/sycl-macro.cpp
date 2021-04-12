@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 %s -E -dM | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-ID %s
 // RUN: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-host -sycl-std=2017 -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD %s
 // RUN: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-device -sycl-std=2017 -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD %s
 // RUN: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-device -sycl-std=2020 -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-2020 %s
@@ -26,3 +27,4 @@
 // CHECK-MSVC: #define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 
 // CHECK-NO-SYCL_FIT_IN_INT-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
+// CHECK-SYCL-ID:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1

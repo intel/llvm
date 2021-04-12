@@ -18,6 +18,8 @@ namespace sycl {
 namespace INTEL {
 namespace gpu {
 
+using namespace sycl::INTEL::gpu::detail;
+
 /// The simd vector class.
 ///
 /// This is a wrapper class for llvm vector values. Additionally this class
@@ -29,7 +31,7 @@ namespace gpu {
 template <typename Ty, int N> class simd {
 public:
   /// The underlying builtin data type.
-  using vector_type = vector_type_t<Ty, N>;
+  using vector_type = detail::vector_type_t<Ty, N>;
 
   /// The element type of this simd object.
   using element_type = Ty;
