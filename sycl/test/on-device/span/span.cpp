@@ -3,11 +3,10 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <numeric>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
-
+using namespace sycl;
 
 void testSpanCapture() {
     // This test creates spans that are backed by USM.
@@ -101,4 +100,6 @@ void testSpanOnDevice(){
 int main(){
     testSpanCapture();
     testSpanOnDevice();
+
+    return 0;
 }

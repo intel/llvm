@@ -49,7 +49,7 @@ macro(add_sycl_unittest test_dirname link_variant)
   # CXX_STANDARD_REQUIRED makes CXX_STANDARD a hard requirement.
   set_target_properties(${test_dirname}
     PROPERTIES
-      CXX_STANDARD 14
+      CXX_STANDARD 17
       CXX_STANDARD_REQUIRED ON
     )
 endmacro()
