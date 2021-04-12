@@ -81,7 +81,7 @@ public:
   };
 
   bool has_specialization_constant(const char *SpecName) const noexcept {
-    return MSpecConstSymMap.count(SpecName) == 0;
+    return MSpecConstSymMap.count(SpecName) != 0;
   }
 
   void set_specialization_constant_raw_value(const char *SpecName,
@@ -94,6 +94,7 @@ public:
     std::vector<SpecConstDescT> &Descs = MSpecConstSymMap[SpecName];
     for (SpecConstDescT &Desc : Descs) {
       Desc.IsSet = true;
+      MSpecConstsBlob.reserve(MSpecConstsBlob.size() + Desc.Size);
       std::memcpy(MSpecConstsBlob.data() + Desc.BlobOffset,
                   static_cast<const char *>(Value) + Desc.Offset, Desc.Size);
     }
