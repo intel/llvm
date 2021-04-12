@@ -4458,7 +4458,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_MEMADVISE, queue));
+          _pi_event::make_native(PI_COMMAND_TYPE_USER, queue));
       event_ptr->start();
     }
 
