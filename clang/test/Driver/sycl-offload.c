@@ -921,3 +921,9 @@
 // CHK-POST-LINK-OPT-LEVEL-O3: sycl-post-link{{.*}} "-O3"
 // CHK-POST-LINK-OPT-LEVEL-Os: sycl-post-link{{.*}} "-Os"
 // CHK-POST-LINK-OPT-LEVEL-Oz: sycl-post-link{{.*}} "-Oz"
+
+// Verify header search dirs are added with -fsycl
+// RUN: %clang -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
+// RUN: %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
+// CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
+// CHECK-HEADER-DIR: clang{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"{{.*}} "-fsycl-is-host"
