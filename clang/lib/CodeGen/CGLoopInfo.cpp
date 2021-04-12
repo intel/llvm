@@ -690,9 +690,8 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLSpeculatedIterationsEnable == false &&
       Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
       Attrs.SYCLIntelFPGALoopCountAverageEnable == 0 &&
-      Attrs.UnrollCount == 0 &&
-      Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
-      Attrs.PipelineInitiationInterval == 0 &&
+      Attrs.UnrollCount == 0 && Attrs.UnrollAndJamCount == 0 &&
+      !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
@@ -1041,10 +1040,10 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
                                         ->getSExtValue());
     }
 
-    if (const auto *IntelFPGALoopControlAvg =
+    if (const auto *IntelFPGALoopCountAvg =
             dyn_cast<SYCLIntelFPGALoopCountAvgAttr>(A)) {
       setSYCLIntelFPGALoopCountAvgEnable();
-      setSYCLIntelFPGALoopControlAverage(IntelFPGALoopControlAvg->getNTripCount()
+      setSYCLIntelFPGALoopControlAverage(IntelFPGALoopCountAvg->getNTripCount()
               ->getIntegerConstantExpr(Ctx)
               ->getSExtValue());
     }

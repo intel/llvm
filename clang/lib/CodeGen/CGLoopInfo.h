@@ -419,7 +419,6 @@ public:
   void setSYCLIntelFPGALoopControlAverage(unsigned C) {
     StagedAttrs.SYCLIntelFPGALoopControlAverage = C;
   }
-  
 
   /// Set the unroll count for the next loop pushed.
   void setUnrollCount(unsigned C) { StagedAttrs.UnrollCount = C; }

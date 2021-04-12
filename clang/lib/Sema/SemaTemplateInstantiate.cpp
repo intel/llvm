@@ -1093,8 +1093,7 @@ namespace {
     const SYCLIntelFPGASpeculatedIterationsAttr *
     TransformSYCLIntelFPGASpeculatedIterationsAttr(
         const SYCLIntelFPGASpeculatedIterationsAttr *SI);
-    const SYCLIntelFPGALoopCountAvgAttr *
-    TransformSYCLIntelFPGALoopCountAvgAttr(
+    const SYCLIntelFPGALoopCountAvgAttr *TransformSYCLIntelFPGALoopCountAvgAttr(
         const SYCLIntelFPGALoopCountAvgAttr *SI);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
