@@ -29,7 +29,7 @@ env:
 jobs:
   clang-format-and-tidy:
     name: clang-format & clang-tidy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
