@@ -147,16 +147,6 @@ public:
   bool postProcessOCLBuiltinWithArrayArguments(Function *F,
                                                StringRef DemangledName);
 
-  /// \brief Post-process OpImageSampleExplicitLod.
-  ///   sampled_image = __spirv_SampledImage__(image, sampler);
-  ///   return __spirv_ImageSampleExplicitLod__(sampled_image, image_operands,
-  ///                                           ...);
-  /// =>
-  ///   read_image(image, sampler, ...)
-  /// \return transformed call instruction.
-  Instruction *postProcessOCLReadImage(SPIRVInstruction *BI, CallInst *CI,
-                                       const std::string &DemangledName);
-
   /// \brief Post-process OpImageWrite.
   ///   return write_image(image, coord, color, image_operands, ...);
   /// =>

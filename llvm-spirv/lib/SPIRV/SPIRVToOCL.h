@@ -113,6 +113,9 @@ public:
   ///   => wait_group_events(NumEvents, EventsList)
   void visitCallGroupWaitEvents(CallInst *CI, Op OC);
 
+  /// Transform __spirv_ImageSampleExplicitLod__{ReturnType} to read_imade
+  void visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);

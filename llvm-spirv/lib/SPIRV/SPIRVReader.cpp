@@ -692,6 +692,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
   if (isSubgroupAvcINTELInstructionOpCode(OpCode) ||
       isIntelSubgroupOpCode(OpCode))
     return true;
+  if (OpCode == OpImageSampleExplicitLod || OpCode == OpSampledImage)
+    return false;
   if (OCLSPIRVBuiltinMap::rfind(OpCode, nullptr)) {
     // Not every spirv opcode which is placed in OCLSPIRVBuiltinMap is
     // translated directly to OCL builtin. Some of them are translated
@@ -1280,60 +1282,6 @@ static char getTypeSuffix(Type *T) {
     Suffix = 'i';
 
   return Suffix;
-}
-
-// ToDo: Handle unsigned integer return type. May need spec change.
-Instruction *SPIRVToLLVM::postProcessOCLReadImage(SPIRVInstruction *BI,
-                                                  CallInst *CI,
-                                                  const std::string &FuncName) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  StringRef ImageTypeName;
-  bool IsDepthImage = false;
-  if (isOCLImageType(
-          (cast<CallInst>(CI->getOperand(0)))->getArgOperand(0)->getType(),
-          &ImageTypeName))
-    IsDepthImage = ImageTypeName.contains("_depth_");
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, llvm::Type *&RetTy) {
-        CallInst *CallSampledImg = cast<CallInst>(Args[0]);
-        auto Img = CallSampledImg->getArgOperand(0);
-        assert(isOCLImageType(Img->getType()));
-        auto Sampler = CallSampledImg->getArgOperand(1);
-        Args[0] = Img;
-        Args.insert(Args.begin() + 1, Sampler);
-        if (Args.size() > 4) {
-          ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
-          ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
-          // Drop "Image Operands" argument.
-          Args.erase(Args.begin() + 3, Args.begin() + 4);
-          // If the image operand is LOD and its value is zero, drop it too.
-          if (ImOp && LodVal && LodVal->isNullValue() &&
-              ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
-            Args.erase(Args.begin() + 3, Args.end());
-        }
-        if (CallSampledImg->hasOneUse()) {
-          CallSampledImg->replaceAllUsesWith(
-              UndefValue::get(CallSampledImg->getType()));
-          CallSampledImg->dropAllReferences();
-          CallSampledImg->eraseFromParent();
-        }
-        Type *T = CI->getType();
-        if (auto VT = dyn_cast<VectorType>(T))
-          T = VT->getElementType();
-        RetTy = IsDepthImage ? T : CI->getType();
-        return std::string(kOCLBuiltinName::SampledReadImage) +
-               getTypeSuffix(T);
-      },
-      [=](CallInst *NewCI) -> Instruction * {
-        if (IsDepthImage)
-          return InsertElementInst::Create(
-              UndefValue::get(FixedVectorType::get(NewCI->getType(), 4)), NewCI,
-              getSizet(M, 0), "", NewCI->getParent());
-        return NewCI;
-      },
-      &Attrs);
 }
 
 CallInst *
@@ -3119,8 +3067,6 @@ SPIRVToLLVM::transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
     return CastInst::Create(Instruction::Trunc, CI, transType(BI->getType()),
                             "cvt", BB);
   }
-  if (OC == OpImageSampleExplicitLod)
-    return postProcessOCLReadImage(BI, CI, DemangledName);
   if (OC == OpImageWrite) {
     return postProcessOCLWriteImage(BI, CI, DemangledName);
   }
@@ -3496,6 +3442,9 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
     if (OC == OpConvertUToF || OC == OpSatConvertUToS)
       IsRetSigned = true;
   }
+
+  if (OC == OpImageSampleExplicitLod)
+    AddRetTypePostfix = true;
 
   if (AddRetTypePostfix) {
     const Type *RetTy =
