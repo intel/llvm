@@ -3502,8 +3502,21 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
       LangOptions::SignReturnAddressKeyKind::BKey)
     GenerateArg(Args, OPT_msign_return_address_key_EQ, "b_key", SA);
 
-  if (Opts.DeclareSPIRVBuiltins)
-    GenerateArg(Args, OPT_fdeclare_spirv_builtins, SA);
+  switch (Opts.getDefaultSubGroupSizeType()) {
+  case LangOptions::SubGroupSizeType::Auto:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size, "automatic", SA);
+    break;
+  case LangOptions::SubGroupSizeType::Primary:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size, "primary", SA);
+    break;
+  case LangOptions::SubGroupSizeType::Integer:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size,
+                Twine(Opts.DefaultSubGroupSize), SA);
+    break;
+  case LangOptions::SubGroupSizeType::None:
+    break;
+  }
+
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
@@ -3615,8 +3628,6 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       }
     }
   }
-
-  Opts.DeclareSPIRVBuiltins = Args.hasArg(OPT_fdeclare_spirv_builtins);
 
   // These need to be parsed now. They are used to set OpenCL defaults.
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);

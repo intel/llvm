@@ -7536,6 +7536,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (IsMemberSpecialization && !NewVD->isInvalidDecl())
     CompleteMemberSpecialization(NewVD, Previous);
 
+  addSyclVarDecl(NewVD);
   return NewVD;
 }
 
