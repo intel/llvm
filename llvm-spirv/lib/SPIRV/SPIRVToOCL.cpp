@@ -93,6 +93,14 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     visitCallSPIRVCvtBuiltin(&CI, OC, DemangledName);
     return;
   }
+  if (OC == OpGroupAsyncCopy) {
+    visitCallAsyncWorkGroupCopy(&CI, OC);
+    return;
+  }
+  if (OC == OpGroupWaitEvents) {
+    visitCallGroupWaitEvents(&CI, OC);
+    return;
+  }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
@@ -525,6 +533,32 @@ void SPIRVToOCL::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
             !(isa<IntegerType>(SrcTy) && isa<IntegerType>(DstTy)))
           CastBuiltInName += DemangledName.substr(Loc, 4).str();
         return CastBuiltInName;
+      },
+      &Attrs);
+}
+
+void SPIRVToOCL::visitCallAsyncWorkGroupCopy(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // First argument of AsyncWorkGroupCopy instruction is Scope, OCL
+        // built-in async_work_group_strided_copy doesn't have this argument
+        Args.erase(Args.begin());
+        return OCLSPIRVBuiltinMap::rmap(OC);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCL::visitCallGroupWaitEvents(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // First argument of GroupWaitEvents instruction is Scope, OCL
+        // built-in wait_group_events doesn't have this argument
+        Args.erase(Args.begin());
+        return OCLSPIRVBuiltinMap::rmap(OC);
       },
       &Attrs);
 }

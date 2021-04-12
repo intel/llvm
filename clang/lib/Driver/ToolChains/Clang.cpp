@@ -4357,10 +4357,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fsycl-is-device");
     CmdArgs.push_back("-fdeclare-spirv-builtins");
 
-    if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
-                     false))
-      CmdArgs.push_back("-fsycl-explicit-simd");
-
     // Default value for FPGA is false, for all other targets is true.
     if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
                       options::OPT_fno_sycl_early_optimizations,
@@ -4530,8 +4526,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   } else {
     assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
            "Invalid action for clang tool.");
-    if (JA.getType() == types::TY_Nothing ||
-        JA.getType() == types::TY_SYCL_Header) {
+    if (JA.getType() == types::TY_Nothing) {
       CmdArgs.push_back("-fsyntax-only");
     } else if (JA.getType() == types::TY_LLVM_IR ||
                JA.getType() == types::TY_LTO_IR) {
@@ -6660,25 +6655,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Add any options that are needed specific to SYCL offload while
     // performing the host side compilation.
     if (!IsSYCLOffloadDevice) {
-      // Host-side SYCL compilation receives the integration header file as
-      // Inputs[1].  Include the header with -include
-      if (SYCLDeviceInput) {
-        const char *IntHeaderPath =
-            Args.MakeArgString(SYCLDeviceInput->getFilename());
+      // Add the integration header option to generate the header.
+      StringRef Header = D.getIntegrationHeader(Input.getBaseInput());
+      if (types::getPreprocessedType(InputType) != types::TY_INVALID &&
+          !Header.empty()) {
         CmdArgs.push_back("-include");
-        CmdArgs.push_back(IntHeaderPath);
+        CmdArgs.push_back(Args.MakeArgString(Header));
         // When creating dependency information, filter out the generated
         // header file.
         CmdArgs.push_back("-dependency-filter");
-        CmdArgs.push_back(IntHeaderPath);
+        CmdArgs.push_back(Args.MakeArgString(Header));
       }
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
-
-      if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
-                       false))
-        CmdArgs.push_back("-fsycl-explicit-simd");
 
       if (!D.IsCLMode()) {
         // SYCL library is guaranteed to work correctly only with dynamic
@@ -6691,12 +6681,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
     }
-    if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
-      // Generating a SYCL Header
-      SmallString<128> HeaderOpt("-fsycl-int-header=");
-      HeaderOpt += Output.getFilename();
-      CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
+    if (IsSYCLOffloadDevice) {
+      // Add the integration header option to generate the header.
+      StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
+      if (!Header.empty()) {
+        SmallString<128> HeaderOpt("-fsycl-int-header=");
+        HeaderOpt.append(Header);
+        CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
+      }
     }
+
     if (Args.hasArg(options::OPT_fsycl_unnamed_lambda))
       CmdArgs.push_back("-fsycl-unnamed-lambda");
 
@@ -8316,8 +8310,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
     }
-    // Temporary disable SPV_INTEL_optnone until some targets support it.
-    ExtArg += ",-SPV_INTEL_optnone";
+    // Temporary disable SPV_INTEL_optnone & SPV_KHR_linkonce_odr until some
+    // targets support it.
+    ExtArg += ",-SPV_INTEL_optnone,-SPV_KHR_linkonce_odr";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
