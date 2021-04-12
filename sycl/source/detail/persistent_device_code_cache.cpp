@@ -126,8 +126,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
  */
 std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
-    const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
-    RT::PiProgram &NativePrg) {
+    const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
 
   if (!isImageCached(Img))
     return {};
