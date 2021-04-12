@@ -118,8 +118,7 @@ vector_class<platform> platform_impl::get_platforms() {
     }
   }
 
-  // The host platform should always be available unless SYCL_DEVICE_FILTER is
-  // set.
+  // The host platform should always be available unless not allowed by the SYCL_DEVICE_FILTER
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   if (!FilterList || FilterList->backendCompatible(backend::host))
