@@ -2950,7 +2950,7 @@ max_concurrency, initiation_interval, or ivdep.
   }];
 }
 
-def SYCLIntelFPGALoopControlAvgAttrDocs : Documentation {
+def SYCLIntelFPGALoopCountAvgAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loo_control_avg";
   let Content = [{
@@ -2962,12 +2962,12 @@ the optimization is beneficial.
 
   void foo() {
     int a[10];
-    [[intel::loop_control_avg(40)] for (int i = 0; i < 10; ++i) a[i] = 0;
+    [[intel::loop_count_avg(40)] for (int i = 0; i < 10; ++i) a[i] = 0;
   }
 
   template<int N>
   void bar() {
-    [[intel::loop_control_avg(N)]] for(;;) { }
+    [[intel::loop_count_avg(N)]] for(;;) { }
   }
 
   }];

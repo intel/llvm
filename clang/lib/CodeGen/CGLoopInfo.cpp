@@ -605,7 +605,7 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  if (Attrs.SYCLIntelFPGALoopControlAverageEnable) {
+  if (Attrs.SYCLIntelFPGALoopCountAverageEnable) {
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.loopcount_average"),
                         ConstantAsMetadata::get(ConstantInt::get(
                             llvm::Type::getInt32Ty(Ctx),
@@ -629,7 +629,7 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLMaxInterleavingEnable(false), SYCLMaxInterleavingNInvocations(0),
       SYCLSpeculatedIterationsEnable(false),
       SYCLSpeculatedIterationsNIterations(0),
-      SYCLIntelFPGALoopControlAverageEnable(false), UnrollCount(0),
+      SYCLIntelFPGALoopCountAverageEnable(false), UnrollCount(0),
       UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
       PipelineDisabled(false), PipelineInitiationInterval(0),
       SYCLNofusionEnable(false), MustProgress(false) {}
@@ -651,7 +651,7 @@ void LoopAttributes::clear() {
   SYCLMaxInterleavingNInvocations = 0;
   SYCLSpeculatedIterationsEnable = false;
   SYCLSpeculatedIterationsNIterations = 0;
-  SYCLIntelFPGALoopControlAverageEnable = false;
+  SYCLIntelFPGALoopCountAverageEnable = false;
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -689,7 +689,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLMaxInterleavingNInvocations == 0 &&
       Attrs.SYCLSpeculatedIterationsEnable == false &&
       Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
-      Attrs.SYCLIntelFPGALoopControlAverageEnable == 0 &&
+      Attrs.SYCLIntelFPGALoopCountAverageEnable == 0 &&
       Attrs.UnrollCount == 0 &&
       Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
       Attrs.PipelineInitiationInterval == 0 &&
@@ -1042,8 +1042,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     }
 
     if (const auto *IntelFPGALoopControlAvg =
-            dyn_cast<SYCLIntelFPGALoopControlAvgAttr>(A)) {
-      setSYCLIntelFPGALoopControlAvgEnable();
+            dyn_cast<SYCLIntelFPGALoopCountAvgAttr>(A)) {
+      setSYCLIntelFPGALoopCountAvgEnable();
       setSYCLIntelFPGALoopControlAverage(IntelFPGALoopControlAvg->getNTripCount()
               ->getIntegerConstantExpr(Ctx)
               ->getSExtValue());

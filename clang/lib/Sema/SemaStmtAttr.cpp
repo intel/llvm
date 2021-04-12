@@ -572,7 +572,7 @@ static void CheckForIncompatibleSYCLLoopAttributes(
                                                                          Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGASpeculatedIterationsAttr>(
       S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGALoopControlAvgAttr>(S,
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGALoopCountAvgAttr>(S,
                                                                         Attrs);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
@@ -718,8 +718,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
   case ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations:
     return handleIntelFPGALoopAttr<SYCLIntelFPGASpeculatedIterationsAttr>(S, St,
                                                                           A);
-  case ParsedAttr::AT_SYCLIntelFPGALoopControlAvg:
-    return handleIntelFPGALoopAttr<SYCLIntelFPGALoopControlAvgAttr>(S, St, A);
+  case ParsedAttr::AT_SYCLIntelFPGALoopCountAvg:
+    return handleIntelFPGALoopAttr<SYCLIntelFPGALoopCountAvgAttr>(S, St, A);
   case ParsedAttr::AT_OpenCLUnrollHint:
   case ParsedAttr::AT_LoopUnrollHint:
     return handleLoopUnrollHint(S, St, A, Range);

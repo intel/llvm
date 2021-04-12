@@ -118,7 +118,7 @@ struct LoopAttributes {
   unsigned SYCLMaxConcurrencyNThreads;
 
   /// Flag for llvm.loop.intel.loopcount_average metadata.
-  bool SYCLIntelFPGALoopControlAverageEnable;
+  bool SYCLIntelFPGALoopCountAverageEnable;
 
   /// Value for llvm.loop.intel.loopcount_average metadata.
   unsigned SYCLIntelFPGALoopControlAverage;
@@ -411,8 +411,8 @@ public:
   }
 
   /// Set flag of loop_control_avg for the next loop pushed.
-  void setSYCLIntelFPGALoopControlAvgEnable() {
-    StagedAttrs.SYCLIntelFPGALoopControlAverageEnable = true;
+  void setSYCLIntelFPGALoopCountAvgEnable() {
+    StagedAttrs.SYCLIntelFPGALoopCountAverageEnable = true;
   }
 
   /// Set value of loop control average for the next loop pushed.

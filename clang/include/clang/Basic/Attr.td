@@ -1953,14 +1953,14 @@ def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
 def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
-def SYCLIntelFPGALoopControlAvg : StmtAttr {
-  let Spellings = [CXX11<"intel","loop_control_avg">];
+def SYCLIntelFPGALoopCountAvg : StmtAttr {
+  let Spellings = [CXX11<"intel","loop_count_avg">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NTripCount">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let Documentation = [SYCLIntelFPGALoopControlAvgAttrDocs];
+  let Documentation = [SYCLIntelFPGALoopCountAvgAttrDocs];
 }
 
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
