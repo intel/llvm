@@ -56,10 +56,15 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
   bool includeHost = false;
   // If SYCL_DEVICE_FILTER is set, we don't automatically include it.
   // We will check if host devices are specified in the filter below.
-  if (FilterList)
-    includeHost = FilterList->containsHost();
-  else
+  if (FilterList) {
+    if (deviceType != info::device_type::host &&
+        deviceType != info::device_type::all)
+      includeHost = false;
+    else
+      includeHost = FilterList->containsHost();
+  } else {
     includeHost = detail::match_types(deviceType, info::device_type::host);
+  }
   info::device_type forced_type = detail::get_forced_type();
   // Exclude devices which do not match requested device type
   if (detail::match_types(deviceType, forced_type)) {
