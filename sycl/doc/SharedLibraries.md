@@ -50,7 +50,7 @@ CGH.parallel_for([]() { foo(); });
 ```
 We have a `SYCL_EXTERNAL` function `foo` called from a kernel, but the
 application defined only host version of this function. Then user adds device
-image with definition of `foo` to the fat object via special option.
+image with definition of `foo` to the fat object via special compiler option (like `-fsycl-add-targets`).
 
 The main purpose of this feature is to provide a mechanism which allows to
 link device code dynamically at runtime.
@@ -59,7 +59,7 @@ link device code dynamically at runtime.
 User's device code that consists of some device API (`SYCL_EXTERNAL` functions),
 is compiled into some form and it is not linked statically with device code of
 application. It can be a shared library that contains some device code or a
-separate device image supplied with property information. This code is linked
+separate device image supplied with properties attached. This code is linked
 dynamically at run time with device code of a user's application in order to
 resolve dependencies.
 For this combination the following statements must be true:
@@ -121,7 +121,7 @@ CGH.parallel_for<LibKernel>(/* ... */ [=](sycl::item i) {
   out[i] = LibDeviceFunc(i);
 } /* ... */ 
 ```
-And if user requested per-source device code split, then for this shared library
+If user requested per-source device code split, then for this shared library
 `sycl-post-link` will create two device images and both of them will define
 `LibDeviceFunc` function. However `LibDeviceFunc` won't be exported from device
 image that corresponds to source file `B.cpp` and it will be exported only from
@@ -138,7 +138,7 @@ Such duplication is needed for two reasons:
 
 Non-`SYCL_EXTERNAL` functions used by `SYCL_EXTERNAL` functions are copied to
 device images corresponding to those `SYCL_EXTERNAL` functions to make them
-self-contained.
+self-contained - in the same way as it is done when splitting kernels across device images.
 In case one `SYCL_EXTERNAL` function uses another `SYCL_EXTERNAL` function
 with different value in `sycl-module-id` attribute, the second one is not copied
 to the device image with the first function, but dependency between those device
@@ -151,13 +151,13 @@ After that `sycl-post-link` records list of names of exported functions, i.e.
 functions with `sycl-module-id` attribute and external linkage.
 
 In order to collect information about imported symbols `sycl-post-link` looks
-through LLVM IR and for each declared but not defined symbol and  records its
+through LLVM IR and for each declared but not defined symbol records its
 name, except the following cases:
 - Declarations with `__` prefix in demangled name are not recorded as imported
   functions
   - Declarations with `__spirv_*` prefix should not be recorded as dependencies
-  since they represent SPIR-V operations and will be transformed to SPIR-V
-  instructions during LLVM->SPIR-V translation.
+    since they represent SPIR-V operations and will be transformed to SPIR-V
+    instructions during LLVM->SPIR-V translation.
 - Based on some attributes (which could be defined later) we may want to avoid
   listing some functions as imported ones
   - This is needed to have possibility to call device-specific builtins not
@@ -214,7 +214,7 @@ links them together using PI API.
 
 #### Device images collection
 
-DPC++ Runtime class named ProgramManager stores device images using following
+DPC++ Runtime class named `ProgramManager` stores device images using following
 data structure:
 ```
 /// Keeps all available device executable images added via \ref addImages.
@@ -234,10 +234,10 @@ Assume each device image represents some combination of symbols and different
 device images may contain only exactly the same or not overlapping combination
 of symbols. If it is not so, there can be two cases:
   - Symbols are the same. In this case it doesn't matter which device image is
-  taken to use duplicated symbol
+    taken to use duplicated symbol
   - Symbols are not the same. In this case ODR violation takes place, such
-  situation leads to undefined behaviour. For more details refer to
-  [ODR violations](#ODR-violations) section.
+    situation leads to undefined behaviour. For more details refer to
+    [ODR violations](#ODR-violations) section.
 
 Each combination of symbols is assigned with an Id number - symbol set Id.
 A combination of symbols can exist in different formats (i.e. SPIR-V/AOT
@@ -302,19 +302,19 @@ structure may lead to double compilation of the same code. Example:
 SYCL_EXTERNAL void LibFunc();
 
 Q.submit([&](cl::sycl::handler &CGH) {
-handler.parallel_for([] { LibFunc(); });  // Device image for library is compiled
-                                          // and linked together with device
-                                          // image for application, i.e.
-                                          // LibFunc1 and ExternalKernel exist
-                                          // in prepared state
+  handler.parallel_for([] { LibFunc(); });  // Device image for library is compiled
+                                            // and linked together with device
+                                            // image for application, i.e.
+                                            // LibFunc1 and ExternalKernel exist
+                                            // in prepared state
 });
 // ...
 EnqueueLibraryKernel(Q); // If cache mechanism is not changed, this line will
                          // lead to second compilation of ExternalKernel and
-                         // LibFunc1
+                         // LibFunc
 
 // Library
-SYCL_EXTERNAL void LibFunc1() {
+SYCL_EXTERNAL void LibFunc() {
 // ...
 }
 
@@ -344,7 +344,7 @@ SYCL_EXTERNAL void LibFunc();
 queue.submit(parallel_for<InternalKernel>( ... ));
 
 Q.submit([&](cl::sycl::handler &CGH) {
-CGH.parallel_for([] { LibFunc(); });
+  CGH.parallel_for([] { LibFunc(); });
 });
 
 EnqueueLibraryKernel(q);
@@ -352,7 +352,7 @@ EnqueueLibraryKernel(q);
 // Library
 // OSModule = 2
 
-SYCL_EXTERNAL lib1_func();
+SYCL_EXTERNAL LibFunc();
 
 EnqueueLibraryKernel(queue) {
   queue.submit(parallel_for<ExternalKernel>(...));
@@ -375,9 +375,9 @@ EnqueueLibraryKernel(Q); // First, library code is compiled alone since it
                          // doesn't have any dependencies
 // ...
 Q.submit([&](cl::sycl::handler &CGH) {
-handler.parallel_for([] { LibFunc(); });  // Second, library code is compiled
-                                          // and linked together with code of
-                                          // the application
+  handler.parallel_for([] { LibFunc(); });  // Second, library code is compiled
+                                            // and linked together with code of
+                                            // the application
 });
 ```
 
