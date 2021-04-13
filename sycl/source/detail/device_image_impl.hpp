@@ -191,6 +191,9 @@ private:
           MBinImage->getSpecConstants();
       using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
 
+      // This variable is used to calculate spec constant value offset in a
+      // flat byte array.
+      unsigned BlobOffset = 0;
       for (SCItTy SCIt : SCRange) {
         const char *SCName = (*SCIt)->Name;
 
@@ -211,7 +214,6 @@ private:
         auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
         auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
                                                             Descriptors.size());
-        unsigned BlobOffset = 0;
         while (It != End) {
           // The map is not locked here because updateSpecConstSymMap() is only
           // supposed to be called from c'tor.
@@ -221,8 +223,8 @@ private:
           BlobOffset += /*Size*/ It[2];
           It += NumElements;
         }
-        MSpecConstsBlob.resize(BlobOffset);
       }
+      MSpecConstsBlob.resize(BlobOffset);
     }
   }
 
