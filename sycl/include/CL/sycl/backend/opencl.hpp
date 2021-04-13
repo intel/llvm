@@ -9,12 +9,12 @@
 
 #pragma once
 
-#include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/backend.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/cl.h>
-#include <CL/sycl/backend.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -136,9 +136,9 @@ T make(const context &Context,
 } // namespace opencl
 
 template <>
-kernel
-make_kernel<backend::opencl>(const interop<backend::opencl, kernel>::type &BackendObject,
-            const context &TargetContext) {
+kernel make_kernel<backend::opencl>(
+    const interop<backend::opencl, kernel>::type &BackendObject,
+    const context &TargetContext) {
   return opencl::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
                              TargetContext);
 }

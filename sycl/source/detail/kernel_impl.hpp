@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>

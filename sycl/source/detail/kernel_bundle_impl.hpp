@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <detail/device_image_impl.hpp>

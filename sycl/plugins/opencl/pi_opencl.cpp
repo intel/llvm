@@ -482,7 +482,8 @@ pi_result piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
 }
 
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                            pi_context, pi_program, bool, pi_kernel *piKernel) {
+                                            pi_context, pi_program, bool,
+                                            pi_kernel *piKernel) {
   assert(piKernel != nullptr);
   *piKernel = reinterpret_cast<pi_kernel>(nativeHandle);
   return PI_SUCCESS;

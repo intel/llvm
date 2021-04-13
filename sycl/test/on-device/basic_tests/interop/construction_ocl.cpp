@@ -57,9 +57,10 @@ int main() {
   auto KB =
       sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
   auto KernelIDs = KB.get_kernel_ids();
-  auto It = std::find_if(KernelIDs.begin(), KernelIDs.end(), [](const sycl::kernel_id &ID) {
-    return std::string{ID.get_name()} == "_";
-  });
+  auto It = std::find_if(KernelIDs.begin(), KernelIDs.end(),
+                         [](const sycl::kernel_id &ID) {
+                           return std::string{ID.get_name()} == "_";
+                         });
   assert(It != KernelIDs.end());
 
   Err = clBuildProgram(OclProg, 1, &NativeDev, "", nullptr, nullptr);

@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
-#include <detail/kernel_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -56,7 +56,8 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                             ContextImpl->get_async_handler(), backend::opencl);
 }
 
-__SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext) {
+__SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
+                                 const context &TargetContext) {
   const auto &Plugin = pi::getPlugin<backend::opencl>();
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
   // Create PI kernel first.
