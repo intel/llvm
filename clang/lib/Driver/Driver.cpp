@@ -1374,19 +1374,24 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (checkForOffloadStaticLib(*C, *TranslatedArgs))
     setOffloadStaticLibSeen();
 
-  // Determine FPGA emulation status.
-  ArgStringList TargetArgs;
-  C->getDefaultToolChain().TranslateBackendTargetArgs(*TranslatedArgs,
-                                                      TargetArgs);
-  for (StringRef ArgString : TargetArgs) {
-    if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
-      unsetFPGAEmulationMode();
-      break;
-    }
-  }
-
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
+
+  // Determine FPGA emulation status.
+  if (C->hasOffloadToolChain<Action::OFK_SYCL>()) {
+    auto SYCLTCRange = C->getOffloadToolChains<Action::OFK_SYCL>();
+    ArgStringList TargetArgs;
+    const ToolChain *TC = SYCLTCRange.first->second;
+    const toolchains::SYCLToolChain *SYCLTC =
+                static_cast<const toolchains::SYCLToolChain *>(TC);
+    SYCLTC->TranslateBackendTargetArgs(*TranslatedArgs, TargetArgs);
+    for (StringRef ArgString : TargetArgs) {
+      if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
+        setFPGAEmulationMode(false);
+        break;
+      }
+    }
+  }
 
   // Construct the list of abstract actions to perform for this compilation. On
   // MachO targets this uses the driver-driver and universal actions.

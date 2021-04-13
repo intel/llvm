@@ -644,7 +644,7 @@ private:
   /// FPGA Emulation Mode.  By default, this is true due to the fact that
   /// an external option setting is required to target hardware.
   bool FPGAEmulationMode = true;
-  void unsetFPGAEmulationMode() { FPGAEmulationMode = false; }
+  void setFPGAEmulationMode(bool Mode) { FPGAEmulationMode = Mode; }
 
   /// Returns true if an offload static library is found.
   bool checkForOffloadStaticLib(Compilation &C,
