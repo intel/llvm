@@ -173,6 +173,7 @@ public:
 
   void adjust(LangOptions &Opts) override {
     TargetInfo::adjust(Opts);
+    // FIXME: Needed for compiling SYCL to PTX.
     TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }
 

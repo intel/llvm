@@ -38,7 +38,8 @@ public:
 
   bool runOnModule(Module &M) override {
     // Invariant: This pass is only intended to operate on SYCL kernels being
-    // compiled to the `nvptx{,64}-nvidia-cuda-sycldevice` triple.
+    // compiled to the `nvptx{,64}-nvidia-cuda` triple.
+    // TODO: make sure that non-SYCL kernels are not impacted.
     if (skipModule(M))
       return false;
 
