@@ -106,7 +106,6 @@ public:
         MSpecConstSymMap[std::string{SpecName}];
     for (SpecConstDescT &Desc : Descs) {
       Desc.IsSet = true;
-      MSpecConstsBlob.reserve(MSpecConstsBlob.size() + Desc.Size);
       std::memcpy(MSpecConstsBlob.data() + Desc.BlobOffset,
                   static_cast<const char *>(Value) + Desc.CompositeOffset,
                   Desc.Size);
@@ -115,6 +114,7 @@ public:
 
   void get_specialization_constant_raw_value(const char *SpecName,
                                              void *ValueRet) const noexcept {
+    assert(is_specialization_constant_set(SpecName));
     // Lock the mutex to prevent when one thread in the middle of writing a
     // new value while another thread is reading the value to pass it to
     // JIT compiler.
@@ -131,13 +131,12 @@ public:
   }
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept {
-    if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
-      return false;
-
     // Lock the mutex to prevent when one thread in the middle of writing a
     // new value while another thread is reading the value to pass it to
     // JIT compiler.
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+    if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
+      return false;
 
     const std::vector<SpecConstDescT> &Descs =
         MSpecConstSymMap.at(std::string{SpecName});
@@ -171,6 +170,10 @@ public:
   const std::map<std::string, std::vector<SpecConstDescT>> &
   get_spec_const_data_ref() const noexcept {
     return MSpecConstSymMap;
+  }
+
+  std::mutex &get_spec_const_data_lock() noexcept {
+    return MSpecConstAccessMtx;
   }
 
   ~device_image_impl() {
@@ -218,6 +221,7 @@ private:
           BlobOffset += /*Size*/ It[2];
           It += NumElements;
         }
+        MSpecConstsBlob.resize(BlobOffset);
       }
     }
   }

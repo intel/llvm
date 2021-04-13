@@ -10,9 +10,14 @@
 class Kernel1Name;
 class Kernel2Name;
 
+struct TestStruct {
+  int a;
+  int b;
+};
+
 const static sycl::specialization_id<int> SpecConst1{42};
-const static sycl::specialization_id<float> SpecConst2{42.f};
-const static sycl::specialization_id<double> SpecConst3{42.f};
+const static sycl::specialization_id<int> SpecConst2{42};
+const static sycl::specialization_id<TestStruct> SpecConst3{TestStruct{42, 42}};
 const static sycl::specialization_id<short> SpecConst4{42};
 
 int main() {
@@ -37,35 +42,34 @@ int main() {
   assert(KernelBundle.contains_specialization_constants() == true);
   assert(KernelBundle.has_specialization_constant<SpecConst1>() == false);
   assert(KernelBundle.has_specialization_constant<SpecConst2>() == true);
-  KernelBundle.set_specialization_constant<SpecConst2>(1.f);
+  KernelBundle.set_specialization_constant<SpecConst2>(1);
   {
     auto ExecBundle = sycl::build(KernelBundle);
-    sycl::buffer<float, 1> Buf{sycl::range{1}};
-    sycl::event Evt = Q.submit([&](sycl::handler &CGH) {
+    sycl::buffer<int, 1> Buf{sycl::range{1}};
+    Q.submit([&](sycl::handler &CGH) {
       CGH.use_kernel_bundle(ExecBundle);
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class Kernel3Name>([=](sycl::kernel_handler KH) {
         Acc[0] = KH.get_specialization_constant<SpecConst2>();
       });
     });
-    Evt.wait();
     auto Acc = Buf.get_access<sycl::access::mode::read>();
-    assert(std::fabs(Acc[0] - 1.f) <= 0.01);
+    assert(Acc[0] == 1);
   }
 
   {
-    sycl::buffer<double, 1> Buf{sycl::range{1}};
-    sycl::event Evt = Q.submit([&](sycl::handler &CGH) {
+    sycl::buffer<TestStruct, 1> Buf{sycl::range{1}};
+    Q.submit([&](sycl::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
-      CGH.set_specialization_constant<SpecConst3>(0.f);
+      CGH.set_specialization_constant<SpecConst3>(TestStruct{1, 2});
       const auto SC = CGH.get_specialization_constant<SpecConst4>();
+      assert(SC == 42);
       CGH.single_task<class Kernel4Name>([=](sycl::kernel_handler KH) {
         Acc[0] = KH.get_specialization_constant<SpecConst3>();
       });
     });
-    Evt.wait();
     auto Acc = Buf.get_access<sycl::access::mode::read>();
-    assert(std::fabs(Acc[0]) <= 0.01);
+    assert(Acc[0].a == 1 && Acc[0].b == 2);
   }
 
   return 0;
