@@ -6,7 +6,8 @@ feature.
 ## Background
 Sometimes users want to link device code dynamically at run time. One possible
 use case for such linkage - providing device functions via shared libraries.
-The example below shows how device function `LibDeviceFunc` can be dynamically linked to a SYCL app:
+The example below shows how device function `LibDeviceFunc` can be dynamically
+linked to a SYCL app:
 ```
 // app.cpp
 SYCL_EXTERNAL int LibDeviceFunc(int i);
@@ -39,18 +40,19 @@ Another possible scenario - use functions defined in a pre-compiled device image
 provided by the user. Example:
 ```
 // a.cpp
-SYCL_EXTERNAL void foo();
+SYCL_EXTERNAL void LibDeviceFunc();
 ...
 Q.submit([&](cl::sycl::handler &CGH) {
-CGH.parallel_for([]() { foo(); });
+CGH.parallel_for([]() { LibDeviceFunc(); });
 });
 
 // b.cpp
-/*no SYCL_EXTERNAL*/ void foo() { ... }
+/*no SYCL_EXTERNAL*/ void LibDeviceFunc() { ... }
 ```
 We have a `SYCL_EXTERNAL` function `foo` called from a kernel, but the
 application defined only host version of this function. Then user adds device
-image with definition of `foo` to the fat object via special compiler option (like `-fsycl-add-targets`).
+image with definition of `foo` to the fat object via special compiler option
+(like `-fsycl-add-targets`).
 
 The main purpose of this feature is to provide a mechanism which allows to
 link device code dynamically at runtime, such as in the scenarios above.
@@ -64,23 +66,36 @@ dynamically at run time with device code of a user's application in order to
 resolve dependencies.
 For this combination the following statements must be true:
 
-- `SYCL_EXTERNAL` functions defined in dynamically linked code can be called
-  (directly or indirectly) from device code of the application.
-- Function pointers taken in application should work inside the dynamically
-  linked code.
+The presented dynamic device code linkage mechanism must:
+
+- Allow to represent the actual dynamically linked code as a device binary image
+  which can be:
+  - Embedded into a host shared object by standard SYCL compiler driver
+    invocation
+  - Embedded into a host binary or shared object using manual invocations of
+    SYCL tools such as `clang-offload-wrapper` and linker
+- Must not assume the actual format of the device code - e.g. that it is SPIR-V
+  or native device binary
+- Provide automatic runtime resolution of `SYCL_EXTERNAL` function references
+  within the SYCL app to their definitions (if found) within any suitable
+  dynamically linked device binary image
+- Support pointers to `SYCL_EXTERNAL` functions across the dynamic linkage
+  boundaries within the device code - taking a pointer, call through a pointer.
 - Specific code changes are not required, i.e. the mechanism of linking works
-  as close as possible to regular shared libraries.
+  as close as possible to host shared libraries.
 
 ## Design
 The overall idea:
 
 - Each device image is supplied with a list of imported and exported symbol
   names through device image properties mechanism
-- Before compiling a device image DPC++ RT will check if device image has a list
-  of imported symbols and if it has, then RT will search for device images which
-  define required symbols using lists of exported symbols.
+- Before JIT-compiling a device image DPC++ RT will check if device image has a
+  list of imported symbols and if it has, then RT will search for device images
+  which define required symbols using lists of exported symbols.
   - Besides symbol names, additional attributes are taken into account (like
     device image format: SPIR-V or device asm)
+  - No logical binding between host module and export/import lists, i.e.
+    resolution is performed w/o regard to containing host modules
 - Actual linking is performed by underlying backend (OpenCL/L0/etc.)
 
 Next sections describe details of changes in each component.
@@ -211,56 +226,40 @@ corresponding set has the name `SYCL/exported symbols`.
 DPC++ RT performs *device images collection* task by grouping all device
 images required to execute a kernel based on the list of exports/imports and
 links them together using PI API.
+This native device image is then added to the cache to avoid symbol resolution,
+compilation, and linking for any future attempts to invoke kernels from this
+device image.
 
-#### Device images collection
+#### Device images collection and linking
 
-DPC++ Runtime class named `ProgramManager` stores device images using following
-data structure:
-```
-/// Keeps all available device executable images added via \ref addImages.
-/// Organizes the images as a map from a kernel set id to the vector of images
-/// containing kernels from that set.
-/// Access must be guarded by the \ref Sync::getGlobalLock()
-std::unordered_map<SymbolSetId,
-                   std::unique_ptr<std::vector<RTDeviceBinaryImageUPtr>>>
-    m_DeviceImages;
+Device images collection and linking is performed by DPC++ Runtime class named
+`ProgramManager`.
 
-using StrToKSIdMap = std::unordered_map<string_class, SymbolSetId>;
-/// Maps names of kernels from a specific OS module (.exe .dll) to their set
-/// id (the sets are disjoint).
-std::unordered_map<OSModuleHandle, SymbolSetId> m_SymbolSets;
-```
-Assume each device image represents some combination of symbols and different
-device images may contain only exactly the same or not overlapping combination
-of symbols. If it is not so, there can be two cases:
-  - Symbols are the same. In this case it doesn't matter which device image is
-    taken to use duplicated symbol
-  - Symbols are not the same. In this case ODR violation takes place, such
-    situation leads to undefined behaviour. For more details refer to
-    [ODR violations](#ODR-violations) section.
+When the program manager gets a request to JIT compile a device image(program)
+it examines its list of imported symbols and finds device images which exports
+those symbols, then links requested device image and images found together.
 
-Each combination of symbols is assigned with an Id number - symbol set Id.
-A combination of symbols can exist in different formats (i.e. SPIR-V/AOT
-compiled binary and etc).
-`m_DeviceImages` maps an Id number to an array with device images which represent
-the same combination of symbols in different formats.
-`m_SymbolSets` contains mapping from symbol name to symbol set Id for each OS
-module (.exe/.so/.dll).
-`std::unordered_map` allows to search and access its elements with constant-time
-complexity.
-
-Before compilation of device image, to execute a kernel RT checks if the image
-contains any import information in its properties and if it does, then RT
-performs device images collection in order to resolve dependencies.
-
-Ids of all needed symbol sets are found by iterating through
-`m_SymbolSets` map, i.e. iterating through all available OS modules without
-predefined order and searching for first unresolved symbol in list of imports
-of target device image. Once device image that contains first symbol is
+All needed device images are found by iterating through all available OS modules
+without predefined order and searching for first unresolved symbol in list of
+imports of target device image. Once device image that contains first symbol is
 met, remaining exported symbols are checked in found image. If
 they match some imported symbols then these matched symbols will be marked as
 resolved. The procedure repeats until all imported symbols are marked as
-resolved.
+resolved. In case all available device images are viewed, but some imported
+symbols remain unresolved, exception will be thrown.
+
+The following assumption is made: each device image represents some combination
+of defined symbols (kernels or `SYCL_EXTERNAL` functions) and different
+device images may contain only exactly the same or not overlapping combination
+of defined symbols. If this assumption is not correct, there can be two cases:
+  - Same symbols have the same definitions. In this case it doesn't matter which
+    device image is taken to use duplicated symbol
+  - Same symbols have different definitions. In this case ODR violation takes
+    place, such situation leads to undefined behaviour. For more details refer
+    to [ODR violations](#ODR-violations) section.
+
+So, it is valid to pick the met first device image which defines required symbol
+during search.
 
 #### Program caching
 
@@ -270,11 +269,11 @@ dynamically linked programs with slight changes.
 ##### In-memory cache
 
 The existing mechanism of caching can be re-used in presence of dynamic
-linking. Example:
+linking. Example of code when caching mechanism is successfully re-used for
+dynamically linked code:
 ```
 // Application
-SYCL_EXTERNAL void LibFunc1();
-SYCL_EXTERNAL void LibFunc2();
+SYCL_EXTERNAL void LibFunc();
 
 Q.submit([&](cl::sycl::handler &CGH) {
 CGH.parallel_for<InternalKernel>( ... )
@@ -282,11 +281,11 @@ CGH.parallel_for<InternalKernel>( ... )
     // 2. Prepared program is used to enqueue kernel
 
 Q.submit([&](cl::sycl::handler &CGH) {
-handler.parallel_for([] { LibFunc1(); }); // Prepared program is used to enqueue kernel
+handler.parallel_for([] { LibFunc(); }); // Prepared program is used to enqueue kernel
 });
 
 // Library
-SYCL_EXTERNAL void LibFunc1() {
+SYCL_EXTERNAL void LibFunc() {
 // ...
 }
 
@@ -296,7 +295,8 @@ kernel set id, specialization constants values, the device this program is built
 for, build options id. In this example Id of kernel set where application's
 kernels can be used to access program cache. However when shared library
 defines kernels and these kernels are run by the application unchanged cache
-structure may lead to double compilation of the same code. Example:
+structure may lead to double compilation of the same code. Example of code
+that leads to double compilation of library code:
 ```
 // Application
 SYCL_EXTERNAL void LibFunc();
@@ -333,9 +333,13 @@ involved in this program. The new mapping structure is:
   {OSModuleHandle, spec const, opts, dev} => program
 ```
 I.e. each kernel name is mapped to a set of tuples that consists of OS module,
-spec constant values, JIT compiler options, device. Then concrete tuple is
-mapped to a program object.
-Example:
+spec constant values, JIT compiler options and device. Then concrete tuple is
+mapped to a program object. Several tuples can be mapped to a same program
+object, they are created during process of compilation and symbols resolution
+for concrete device image. When some program is made through linking of several
+device images that come from different OS modules, for each OS module in cache
+will be created a tuple with corresponding OS module id.
+Example of modified cache structure when dynamic linking is involved:
 ```
 // Application
 // OSModule = 1
@@ -381,7 +385,7 @@ Q.submit([&](cl::sycl::handler &CGH) {
 });
 ```
 
-The program caching mechanism is re-used without changes.
+The kernel caching mechanism is re-used without changes.
 
 ##### Persistent cache
 
@@ -396,8 +400,8 @@ symbols imported by "main" device image.
 ## Corner cases and limitations
 
 It is not guaranteed that behaviour of host shared libraries and device shared
-libraries will always match. There are several cases when it can occur, the
-next sections will cover details of such cases.
+libraries will always match. There are several cases when behaviours don't match,
+the next sections will cover details of such cases.
 
 ### ODR violations
 
