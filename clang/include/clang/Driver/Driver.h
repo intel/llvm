@@ -645,7 +645,7 @@ private:
   /// an external option setting is required to target hardware.
   bool FPGAEmulationMode = true;
   void setFPGAEmulationMode(bool IsEmulation) {
-      FPGAEmulationMode = IsEmulation;
+    FPGAEmulationMode = IsEmulation;
   }
 
   /// Returns true if an offload static library is found.
