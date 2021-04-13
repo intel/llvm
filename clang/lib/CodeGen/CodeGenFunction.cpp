@@ -592,7 +592,7 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                                                llvm::Function *Fn)
 {
-  if (!FD->hasAttr<OpenCLKernelAttr>())
+  if (!FD->hasAttr<OpenCLKernelAttr>() && !FD->hasAttr<SYCLDeviceAttr>())
     return;
 
   // TODO Module identifier is not reliable for this purpose since two modules
@@ -602,7 +602,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   llvm::LLVMContext &Context = getLLVMContext();
 
-  CGM.GenOpenCLArgMetadata(Fn, FD, this);
+  if (FD->hasAttr<OpenCLKernelAttr>())
+    CGM.GenOpenCLArgMetadata(Fn, FD, this);
 
   if (const VecTypeHintAttr *A = FD->getAttr<VecTypeHintAttr>()) {
     QualType HintQTy = A->getTypeHint();

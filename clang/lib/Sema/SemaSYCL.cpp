@@ -1937,6 +1937,13 @@ public:
     KernelDecl->setType(FuncType);
     KernelDecl->setParams(Params);
 
+    // Make sure that this is marked as a kernel so that the code-gen can make
+    // decisions based on that. We cannot add this earlier, otherwise the call
+    // to TransformStmt in replaceWithLocalClone can diagnose something that got
+    // diagnosed on the actual kernel.
+    KernelDecl->addAttr(
+        SYCLKernelAttr::CreateImplicit(SemaRef.getASTContext()));
+
     SemaRef.addSyclDeviceDecl(KernelDecl);
   }
 
@@ -2295,13 +2302,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
-
-    // Make sure that this is marked as a kernel so that the code-gen can make
-    // decisions based on that. We cannot add this earlier, otherwise the call
-    // to TransformStmt in replaceWithLocalClone can diagnose something that got
-    // diagnosed on the actual kernel.
-    KernelObjClone->addAttr(
-        SYCLKernelAttr::CreateImplicit(SemaRef.getASTContext()));
 
     return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
   }
@@ -3651,8 +3651,8 @@ static void CheckSYCL2020Attributes(
     if (auto *A = KernelBody->getAttr<IntelNamedSubGroupSizeAttr>())
       SYCLKernel->addAttr(A);
 
-    // If the kernel has a body, we should get the attributes for the kernel from
-    // there instead, so that we get the functor object.
+    // If the kernel has a body, we should get the attributes for the kernel
+    // from there instead, so that we get the functor object.
     SYCLKernel = KernelBody;
   }
 
