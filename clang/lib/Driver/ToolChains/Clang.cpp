@@ -4239,13 +4239,15 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
       TCArgs.getLastArg(options::OPT_fsycl_host_compiler_EQ);
   assert(HostCompilerDefArg && "Expected host compiler designation.");
 
-  bool IsMSVCHostCompiler = false;
   bool OutputAdded = false;
   StringRef CompilerName =
       llvm::sys::path::stem(HostCompilerDefArg->getValue());
   // FIXME: Consider requiring user input to specify a compatibility class
   // to determine the type of host compiler being used.
-  IsMSVCHostCompiler = CompilerName.endswith("cl");
+  SmallVector<StringRef, 4> MSVCCompilers = {"cl", "clang-cl", "icl"};
+  bool IsMSVCHostCompiler =
+      std::find(MSVCCompilers.begin(), MSVCCompilers.end(), CompilerName) !=
+      MSVCCompilers.end();
 
   auto addMSVCOutputFile = [&](StringRef Opt) {
     SmallString<128> OutOpt(Opt);
