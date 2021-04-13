@@ -1383,7 +1383,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     ArgStringList TargetArgs;
     const ToolChain *TC = SYCLTCRange.first->second;
     const toolchains::SYCLToolChain *SYCLTC =
-                static_cast<const toolchains::SYCLToolChain *>(TC);
+        static_cast<const toolchains::SYCLToolChain *>(TC);
     SYCLTC->TranslateBackendTargetArgs(*TranslatedArgs, TargetArgs);
     for (StringRef ArgString : TargetArgs) {
       if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
