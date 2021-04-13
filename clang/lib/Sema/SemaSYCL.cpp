@@ -3626,6 +3626,13 @@ static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
 
   // Else this doesn't have an attribute, which can only be caused by this being
   // an undefined SYCL_EXTERNAL, and the kernel has an attribute that conflicts.
+  if (const auto *A = SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    // Don't diagnose this if the kernel got its size from the 'old' attribute
+    // spelling.
+    if (!A->isSYCL2020Spelling())
+      return;
+  }
+
   assert(KernelAttrLoc.isValid() && "Kernel doesn't have attribute either?");
   S.Diag(FD->getLocation(), diag::err_sycl_mismatch_group_size)
       << /*undefined SYCL_EXTERNAL*/ 1;

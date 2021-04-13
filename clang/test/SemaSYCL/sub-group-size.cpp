@@ -142,3 +142,10 @@ void calls_kernel_5() {
 
   });
 }
+
+// Don't diag with the old sub-group-size.
+void calls_kernel_6() {
+  sycl::kernel_single_task<class Kernel6>([]() [[intel::reqd_sub_group_size(10)]] { // #Kernel6
+    NoAttrExternalNotDefined();
+  });
+}
