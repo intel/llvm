@@ -10,8 +10,8 @@
 
 // 4.5 C++ Standard library classes required for the interface
 
-#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/bit_cast.hpp>
+#include <CL/sycl/detail/defines.hpp>
 
 #include <exception>
 #include <functional>
@@ -67,7 +67,7 @@ template <class T> using hash_class = std::hash<T>;
 using exception_ptr_class = std::exception_ptr;
 
 template <typename T, typename... ArgsT>
-unique_ptr_class<T> make_unique_ptr(ArgsT &&... Args) {
+unique_ptr_class<T> make_unique_ptr(ArgsT &&...Args) {
   return unique_ptr_class<T>(new T(std::forward<ArgsT>(Args)...));
 }
 
