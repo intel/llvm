@@ -4218,7 +4218,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   // options that will be used during the compilation.
   ArgStringList HostCompileArgs;
   const InputInfo &InputFile = Inputs.front();
-  const auto &TC = getToolChain();
+  const ToolChain &TC = getToolChain();
 
   // Input file.
   HostCompileArgs.push_back(InputFile.getFilename());
@@ -4235,7 +4235,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   //  Header Input:        -include <file>        | -FI <file>
   //
   // The options used are determined by the compiler name and target triple.
-  auto *HostCompilerDefArg =
+  Arg *HostCompilerDefArg =
       TCArgs.getLastArg(options::OPT_fsycl_host_compiler_EQ);
   assert(HostCompilerDefArg && "Expected host compiler designation.");
 
@@ -4272,7 +4272,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     if (IsMSVCHostCompiler)
       addMSVCOutputFile("-Fo");
   } else {
-    assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
+    assert((isa<CompileJobAction, BackendJobAction>(JA)) &&
            "Invalid action for external host compilation tool.");
     if (JA.getType() == types::TY_PP_Asm) {
       if (IsMSVCHostCompiler) {
@@ -4327,16 +4327,17 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
       ExecPath = TC.GetProgramPath(ExecPath.c_str());
   }
 
-  // Add any user specified arguments
-  if (auto *Arg =
+  // Add any user-specified arguments.
+  if (Arg *HostCompilerOptsArg =
           TCArgs.getLastArg(options::OPT_fsycl_host_compiler_options_EQ)) {
     SmallVector<const char *, 8> TargetArgs;
     llvm::BumpPtrAllocator BPA;
     llvm::StringSaver S(BPA);
     // Tokenize the string.
-    llvm::cl::TokenizeGNUCommandLine(Arg->getValue(), S, TargetArgs);
-    for (auto A : TargetArgs)
-      HostCompileArgs.push_back(TCArgs.MakeArgString(A));
+    llvm::cl::TokenizeGNUCommandLine(HostCompilerOptsArg->getValue(), S,
+                                     TargetArgs);
+    llvm::transform(TargetArgs, std::back_inserter(HostCompileArgs),
+                    [&TCArgs](StringRef A) { return TCArgs.MakeArgString(A); });
   }
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
                                        TCArgs.MakeArgString(ExecPath),
