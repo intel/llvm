@@ -6,7 +6,7 @@ feature.
 ## Background
 Sometimes users want to link device code dynamically at run time. One possible
 use case for such linkage - providing device functions via shared libraries.
-Example:
+The example below shows how device function `LibDeviceFunc` can be dynamically linked to a SYCL app:
 ```
 // app.cpp
 SYCL_EXTERNAL int LibDeviceFunc(int i);
@@ -35,8 +35,8 @@ library, then use `link` SYCL API to get a single program and launch kernels
 using it. But it is not user-friendly and it is very different from regular
 C/C++ workflow.
 
-Another possible scenario - use functions defined in pre-compiled device image
-provided by user. Example:
+Another possible scenario - use functions defined in a pre-compiled device image
+provided by the user. Example:
 ```
 // a.cpp
 SYCL_EXTERNAL void foo();
@@ -53,7 +53,7 @@ application defined only host version of this function. Then user adds device
 image with definition of `foo` to the fat object via special compiler option (like `-fsycl-add-targets`).
 
 The main purpose of this feature is to provide a mechanism which allows to
-link device code dynamically at runtime.
+link device code dynamically at runtime, such as in the scenarios above.
 
 ## Requirements:
 User's device code that consists of some device API (`SYCL_EXTERNAL` functions),
