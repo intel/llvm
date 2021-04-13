@@ -34,7 +34,7 @@ static constexpr size_t ChunkCutOff = SlabMinSize / 2;
 // The largest size which is allocated via the allocator.
 // Allocations with size > CutOff bypass the USM allocator and
 // go directly to the runtime.
-static constexpr size_t CutOff = 1024 * 1024; // 1MB
+static constexpr size_t CutOff = (size_t)1 << 31; // 2GB
 
 // Unfortunately we cannot deduce the size of the array, so every change
 // to the number of buckets should be reflected here.
