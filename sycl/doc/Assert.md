@@ -105,12 +105,12 @@ linked against fallback implementation of `__devicelib_assert_fail`. Hence,
 Native Device Compilers should prefer their implementation instead of the one
 provided in incoming SPIR-V/LLVM IR binary.
 
-Limitations for user:
- - DPCPP RT, Low-level RT and device state is unknown after throwing of "assert"
-   asynchronous exception;
- - "assert" asynchronous exception might not be recoverable;
- - there might not be guarantees on enqueueing commands (kernel, copy, etc.) to
-   same queue/context: guarantees may vary with device/Low-level RT.
+Limitations for user after catching the "assert" asynchronous exception:
+ - When using GPU device and the kernel hangs/crashes the subsequent enqueues
+   will fail;
+When using CPU devices the user can proceed with enqueues to the same
+device/queue/context.
+DPCPP Runtime remains in valid state after "assert" exception been thrown.
 
 
 ### Safe approach
