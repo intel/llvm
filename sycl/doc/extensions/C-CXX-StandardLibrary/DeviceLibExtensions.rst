@@ -33,6 +33,8 @@ Example of a message:
 .. code:
    foo.cpp:42: void foo(int): global id: [0,0,0], local id: [0,0,0] Assertion `buf[wiID] == 0 && "Invalid value"` failed.
 
+See also: [assert extension](../Assert/SYCL_ONEAPI_ASSERT.asciidoc)
+
 cl_intel_devicelib_math
 ==========================
 

@@ -1,0 +1,131 @@
+= SYCL_EXT_ONEAPI_ASSERT
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Notice
+IMPORTANT: This specification is a draft.
+
+Copyright (c) 2021-2021 Intel Corporation. All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 3.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Introduction
+This extension adds the ability for device code to call the C++ `assert()`
+macro. The behavior of `assert()` in device code is similar to its behavior in
+host code. If the asserted condition is false, a message is printed to `stderr`
+and then the program typically aborts. The mechanism for aborting the program is
+different, though. Whereas the host version calls `std::abort()`, the device
+version causes an asynchronous SYCL `exception` with the
+`errc::ext_oneapi_assert` error code to be thrown. The application can catch
+this exception like any other asynchronous exception that is thrown from an
+executing kernel. The numeric value of this enumeration element is defined by
+implementation.
+
+
+Catching the asynchronous exception with `sycl::errc::ext_oneapi_assert` error
+code means that assert failure had happened in device code during kernel
+execution and the assert message is already printed to `stderr`. Format of the
+assert message is the following:
+```
+<file>:<line>: <function>: global id: [<gid0>,<gid1>,<gid2>], local id: [<lid0>,<lid1>,<lid2>] Assertion `<expr>` failed.
+```
+
+It is unspecified whether a failing `assert()` returns to its caller before the
+kernel terminates. If a failing call returns, the device code may need to
+continue execution without deadlocking for the assertion message to be printed
+or for the exception to be thrown.
+
+The contents of the exception's `e.what()` string is unspecified. Since the
+assertion message is already printed to `stderr` by the time the exception is
+thrown, the `e.what()` string may not include the location of the failing
+assertion.
+
+The `assert()` macro is defined in system include headers, not in SYCL headers.
+On most of systems it is `<cassert>` and/or `<assert.h>` header files.
+The user can can disable assertions in device code by defining the `NDEBUG`
+preprocessor macro at the point when `<sycl.hpp>` and `<cassert>/<assert.h>`
+are included.
+
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro `SYCL_EXT_ONEAPI_ASSERT` to
+one of the values defined in the table below. Applications can test for the
+existence of this macro to determine if the implementation supports this
+feature, or applications can test the macro’s value to determine which of the
+extension’s APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-04-08|Sergey Kanaev, Gregory M Lueck |*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
