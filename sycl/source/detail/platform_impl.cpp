@@ -123,7 +123,8 @@ vector_class<platform> platform_impl::get_platforms() {
     }
   }
 
-  // The host platform should always be available unless not allowed by the SYCL_DEVICE_FILTER
+  // The host platform should always be available unless not allowed by the
+  // SYCL_DEVICE_FILTER
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   if (!FilterList || FilterList->backendCompatible(backend::host))
@@ -305,13 +306,17 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
   int InsertIDx = 0;
   int DeviceNum = 0;
   for (RT::PiDevice Device : PiDevices) {
-    // Since device type is not determined yet, we use string search for
-    // a known word in the device name information.
-    string_class DeviceName =
-        sycl::detail::get_device_info<string_class, info::device::name>::get(
-            Device, Plugin);
-    std::transform(DeviceName.begin(), DeviceName.end(), DeviceName.begin(),
-                   ::tolower);
+    RT::PiDeviceType PiDevType;
+    info::device_type DeviceType = info::device_type::all;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
+                                            sizeof(RT::PiDeviceType),
+                                            &PiDevType, nullptr);
+    if (PiDevType == PI_DEVICE_TYPE_ACC)
+      DeviceType = info::device_type::accelerator;
+    else if (PiDevType == PI_DEVICE_TYPE_CPU)
+      DeviceType = info::device_type::cpu;
+    else if (PiDevType == PI_DEVICE_TYPE_GPU)
+      DeviceType = info::device_type::gpu;
 
     for (const device_filter &Filter : FilterList->get()) {
       backend FilterBackend = Filter.Backend;
@@ -325,26 +330,7 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
             PiDevices[InsertIDx++] = Device;
             break;
           }
-        } else if (FilterDevType == info::device_type::gpu &&
-                   DeviceName.find("graphics") != std::string::npos) {
-          if (!Filter.HasDeviceNum || DeviceNum == Filter.DeviceNum) {
-            PiDevices[InsertIDx++] = Device;
-            break;
-          }
-        } else if (FilterDevType == info::device_type::cpu &&
-                   DeviceName.find("cpu") != std::string::npos) {
-          if (!Filter.HasDeviceNum || DeviceNum == Filter.DeviceNum) {
-            PiDevices[InsertIDx++] = Device;
-            break;
-          }
-        } else if (FilterDevType == info::device_type::accelerator &&
-                   DeviceName.find("fpga") != std::string::npos) {
-          if (!Filter.HasDeviceNum || DeviceNum == Filter.DeviceNum) {
-            PiDevices[InsertIDx++] = Device;
-            break;
-          }
-        } else if (FilterDevType == info::device_type::host &&
-                   DeviceName.find("host") != std::string::npos) {
+        } else if (FilterDevType == DeviceType) {
           if (!Filter.HasDeviceNum || DeviceNum == Filter.DeviceNum) {
             PiDevices[InsertIDx++] = Device;
             break;
