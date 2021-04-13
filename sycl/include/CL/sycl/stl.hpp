@@ -11,8 +11,8 @@
 // 4.5 C++ Standard library classes required for the interface
 
 #include <CL/sycl/detail/defines.hpp>
-
 #include <CL/sycl/bit_cast.hpp>
+
 #include <exception>
 #include <functional>
 #include <memory>
