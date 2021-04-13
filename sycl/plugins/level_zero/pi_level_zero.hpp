@@ -431,13 +431,15 @@ struct _pi_queue : _pi_object {
   // The "IsBlocking" tells if the wait for completion is required.
   // The "ZeFence" passed is used to track when the command list passed
   // has completed execution on the device and can be reused.
+  // The Event parameter is the pi_event that the last command in the command
+  // list will signal upon its completion.
   // If OKToBatchCommand is true, then this command list may be executed
   // immediately, or it may be left open for other future command to be
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
   pi_result executeCommandList(ze_command_list_handle_t ZeCommandList,
-                               ze_fence_handle_t ZeFence,
+                               ze_fence_handle_t ZeFence, pi_event Event,
                                bool IsBlocking = false,
                                bool OKToBatchCommand = false);
 

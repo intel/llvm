@@ -28,9 +28,9 @@ int main() {
 }
 
 // Check test_kernel_handler parameters
-// NONATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, char *)'
+// NONATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, __global char *)'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer 'char *'
+// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
 // Check declaration and initialization of kernel object local clone
 // NONATIVESUPPORT-NEXT: CompoundStmt
@@ -49,8 +49,9 @@ int main() {
 // NONATIVESUPPORT-NEXT: CXXMemberCallExpr {{.*}} 'void'
 // NONATIVESUPPORT-NEXT: MemberExpr {{.*}} 'void (char *)' lvalue .__init_specialization_constants_buffer
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'sycl::kernel_handler' lvalue Var {{.*}} 'kh'
-// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' 'char *'
+// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <AddressSpaceConversion>
+// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '__global char *'
 // NONATIVESUPPORT-NEXT: CompoundStmt
 // NONATIVESUPPORT-NEXT: CXXOperatorCallExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::kernel_handler) const' <FunctionToPointerDecay>
@@ -63,9 +64,9 @@ int main() {
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'sycl::kernel_handler' lvalue Var {{.*}} 'kh' 'sycl::kernel_handler'
 
 // Check test_pfwg_kernel_handler parameters
-// NONATIVESUPPORT: FunctionDecl {{.*}}test_pfwg_kernel_handler{{.*}} 'void (int, char *)'
+// NONATIVESUPPORT: FunctionDecl {{.*}}test_pfwg_kernel_handler{{.*}} 'void (int, __global char *)'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer 'char *'
+// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
 // Check declaration and initialization of kernel object local clone
 // NONATIVESUPPORT-NEXT: CompoundStmt
@@ -84,8 +85,9 @@ int main() {
 // NONATIVESUPPORT-NEXT: CXXMemberCallExpr {{.*}} 'void'
 // NONATIVESUPPORT-NEXT: MemberExpr {{.*}} 'void (char *)' lvalue .__init_specialization_constants_buffer
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'sycl::kernel_handler' lvalue Var {{.*}} 'kh'
-// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' 'char *'
+// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <AddressSpaceConversion>
+// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '__global char *'
 // NONATIVESUPPORT-NEXT: CompoundStmt
 // NONATIVESUPPORT-NEXT: ExprWithCleanups
 // NONATIVESUPPORT-NEXT: CXXOperatorCallExpr
