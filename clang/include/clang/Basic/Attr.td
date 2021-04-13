@@ -1455,8 +1455,8 @@ def IntelNamedSubGroupSize : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
-def : MutualExclusions<
-          [IntelReqdSubGroupSize, IntelNamedSubGroupSize, SYCLSimd]>;
+def :
+  MutualExclusions<[IntelReqdSubGroupSize, IntelNamedSubGroupSize, SYCLSimd]>;
 
 // This attribute is both a type attribute, and a declaration attribute (for
 // parameter variables).

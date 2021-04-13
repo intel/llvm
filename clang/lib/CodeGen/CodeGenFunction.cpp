@@ -676,8 +676,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   // SCYL2020 doesn't propagate attributes, so don't put it in an intermediate
   // location.
   if (IsKernelOrDevice) {
-    if (const IntelNamedSubGroupSizeAttr *A =
-            FD->getAttr<IntelNamedSubGroupSizeAttr>()) {
+    if (const auto *A = FD->getAttr<IntelNamedSubGroupSizeAttr>()) {
       llvm::Metadata *AttrMDArgs[] = {llvm::MDString::get(
           Context, A->getType() == IntelNamedSubGroupSizeAttr::Primary
                        ? "primary"

@@ -3574,7 +3574,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 // attributes, then the global settings.
 static std::pair<LangOptions::SubGroupSizeType, int64_t>
 CalcEffectiveSubGroup(ASTContext &Ctx, const LangOptions &LO,
-                      FunctionDecl *FD) {
+                      const FunctionDecl *FD) {
   if (const auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     int64_t Val = getIntExprValue(A->getValue(), Ctx);
     return {LangOptions::SubGroupSizeType::Integer, Val};
@@ -3591,7 +3591,7 @@ CalcEffectiveSubGroup(ASTContext &Ctx, const LangOptions &LO,
           static_cast<uint64_t>(LO.DefaultSubGroupSize)};
 }
 
-static SourceLocation GetSubGroupLoc(FunctionDecl *FD) {
+static SourceLocation GetSubGroupLoc(const FunctionDecl *FD) {
   if (const auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
     return A->getLocation();
   if (const auto *A = FD->getAttr<IntelNamedSubGroupSizeAttr>())
@@ -3600,7 +3600,7 @@ static SourceLocation GetSubGroupLoc(FunctionDecl *FD) {
 }
 
 static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
-                                       FunctionDecl *FD) {
+                                       const FunctionDecl *FD) {
   // If they are the same, no error.
   if (CalcEffectiveSubGroup(S.Context, S.getLangOpts(), SYCLKernel) ==
       CalcEffectiveSubGroup(S.Context, S.getLangOpts(), FD))
