@@ -2571,7 +2571,7 @@ pi_result piMemRelease(pi_mem Mem) {
     } else {
       auto Buf = static_cast<_pi_buffer *>(Mem);
       if (!Buf->isSubBuffer()) {
-        piextUSMFree(Mem->Context, Mem->getZeHandle());
+        PI_CALL(piextUSMFree(Mem->Context, Mem->getZeHandle()));
       }
     }
     delete Mem;
@@ -5407,10 +5407,10 @@ static bool ShouldUseUSMAllocator() {
 
 static const bool UseUSMAllocator = ShouldUseUSMAllocator();
 
-pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
-                             pi_device Device,
-                             pi_usm_mem_properties *Properties, size_t Size,
-                             pi_uint32 Alignment) {
+static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
+                                    pi_device Device,
+                                    pi_usm_mem_properties *Properties,
+                                    size_t Size, pi_uint32 Alignment) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
@@ -5432,10 +5432,10 @@ pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
-                             pi_device Device,
-                             pi_usm_mem_properties *Properties, size_t Size,
-                             pi_uint32 Alignment) {
+static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
+                                    pi_device Device,
+                                    pi_usm_mem_properties *Properties,
+                                    size_t Size, pi_uint32 Alignment) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
@@ -5459,9 +5459,9 @@ pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
-                           pi_usm_mem_properties *Properties, size_t Size,
-                           pi_uint32 Alignment) {
+static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
+                                  pi_usm_mem_properties *Properties,
+                                  size_t Size, pi_uint32 Alignment) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   // Check that incorrect bits are not set in the properties.
@@ -5481,7 +5481,7 @@ pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result USMFreeImpl(pi_context Context, void *Ptr) {
+static pi_result USMFreeImpl(pi_context Context, void *Ptr) {
   ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
   return PI_SUCCESS;
 }
@@ -5609,6 +5609,9 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
     return USMHostAllocImpl(ResultPtr, Context, Properties, Size, Alignment);
   }
 
+  // There is a single allocator for Host USM allocations, so we don't need to
+  // find the allocator depending on context as we do for Shared and Device
+  // allocations.
   try {
     *ResultPtr = Context->HostMemAllocContext->allocate(Size, Alignment);
   } catch (const UsmAllocationException &Ex) {

@@ -206,7 +206,9 @@ struct _pi_context : _pi_object {
       // NOTE: one must additionally call initialize() to complete
       // PI context creation.
     }
-    // Create USM allocator context for host
+    // Create USM allocator context for host. Device and Shared USM allocations
+    // are device-specific. Host allocations are not device-dependent therefore
+    // we don't need a map with device as key.
     HostMemAllocContext = new USMAllocContext(
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
   }
