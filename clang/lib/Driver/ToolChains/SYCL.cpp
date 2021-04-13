@@ -705,10 +705,14 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) {
+  // Add ../include/sycl and ../include (in that order)
   SmallString<128> P(Driver.getInstalledDir());
   llvm::sys::path::append(P, "..");
   llvm::sys::path::append(P, "include");
-  llvm::sys::path::append(P, "sycl");
+  SmallString<128> SYCLP(P);
+  llvm::sys::path::append(SYCLP, "sycl");
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(SYCLP));
   CC1Args.push_back("-internal-isystem");
   CC1Args.push_back(DriverArgs.MakeArgString(P));
 }
