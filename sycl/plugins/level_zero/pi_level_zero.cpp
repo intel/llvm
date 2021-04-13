@@ -4083,6 +4083,9 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
   // Submit dependent open command lists for execution, if any
   for (uint32_t I = 0; I < NumEvents; I++) {
+    if (EventList[I]->DeferredHostCopy)
+      continue;
+
     auto Queue = EventList[I]->Queue;
 
     // Lock automatically releases when this goes out of scope.
