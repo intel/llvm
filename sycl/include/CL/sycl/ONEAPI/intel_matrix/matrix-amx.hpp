@@ -211,13 +211,13 @@ inline __SYCL_ALWAYS_INLINE static
                    uint32_t row, uint32_t col, size_t stride,
                    matrix::matrix_layout layout, bool shouldreload) {
   uint32_t offset = (row * stride + col);
-  T *ptr = (T *)jm.raw_storage;
+  T *ptr = reinterpret_cast<T *>(jm.raw_storage);
   ptr += offset;
   stride *= sizeof(T);
   sub_m.rows = matrix::tile_size;
   sub_m.cols = matrix::tile_size * 4;
-  sub_m.tile =
-      matrix::tileloadd64_internal(sub_m.rows, sub_m.cols, (char *)ptr, stride);
+  sub_m.tile = matrix::tileloadd64_internal(
+      sub_m.rows, sub_m.cols, reinterpret_cast<char *>(ptr), stride);
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -233,12 +233,14 @@ inline __SYCL_ALWAYS_INLINE static
   if (shouldreload) {
     // Force sub_m.tile's shape to be matrix::tile_size * matrix::tile_size * 4
     int8_t NewjmC[matrix::tile_size * matrix::tile_size * 4];
-    matrix::tilestored64_internal(NumRows, NumCols * sizeof(T), (char *)NewjmC,
+    matrix::tilestored64_internal(NumRows, NumCols * sizeof(T),
+                                  reinterpret_cast<char *>(NewjmC),
                                   matrix::tile_size * 4, jm.tile);
     sub_m.rows = matrix::tile_size;
     sub_m.cols = matrix::tile_size * 4;
-    sub_m.tile = matrix::tileloadd64_internal(
-        sub_m.rows, sub_m.cols, (char *)NewjmC, matrix::tile_size * 4);
+    sub_m.tile = matrix::tileloadd64_internal(sub_m.rows, sub_m.cols,
+                                              reinterpret_cast<char *>(NewjmC),
+                                              matrix::tile_size * 4);
     return;
   }
   sub_m.rows = NumRows;
@@ -275,10 +277,11 @@ inline __SYCL_ALWAYS_INLINE static
                     uint32_t row, uint32_t col, size_t stride,
                     matrix::matrix_layout layout, bool shouldreload) {
   uint32_t offset = (row * stride + col);
-  T *ptr = (T *)jm.raw_storage;
+  T *ptr = reinterpret_cast<T *>(jm.raw_storage);
   ptr += offset;
   stride *= sizeof(T);
-  matrix::tilestored64_internal(sub_m.rows, sub_m.cols, (char *)ptr, stride,
+  matrix::tilestored64_internal(sub_m.rows, sub_m.cols,
+                                reinterpret_cast<char *>(ptr), stride,
                                 sub_m.tile);
 }
 
@@ -294,10 +297,11 @@ inline __SYCL_ALWAYS_INLINE static
   if (shouldreload) {
     int8_t NewjmC[matrix::tile_size * matrix::tile_size * 4];
     matrix::tilestored64_internal(matrix::tile_size, matrix::tile_size * 4,
-                                  (char *)NewjmC, matrix::tile_size * 4,
-                                  sub_m.tile);
-    jm.tile = matrix::tileloadd64_internal(
-        NumRows, NumCols * sizeof(T), (char *)NewjmC, matrix::tile_size * 4);
+                                  reinterpret_cast<char *>(NewjmC),
+                                  matrix::tile_size * 4, sub_m.tile);
+    jm.tile = matrix::tileloadd64_internal(NumRows, NumCols * sizeof(T),
+                                           reinterpret_cast<char *>(NewjmC),
+                                           matrix::tile_size * 4);
     return;
   }
   jm.tile = sub_m.tile;
@@ -319,8 +323,9 @@ joint_matrix_load(Group sg,
   T *mem = src.get();
   // memcpy from mem to jm.raw_storage
   for (int i = 0; i < NumRows; ++i) {
-    char *srcptr = (char *)mem + i * stride * sizeof(T);
-    char *dstptr = (char *)jm.raw_storage + i * jm.stride * sizeof(T);
+    char *srcptr = reinterpret_cast<char *>(mem) + i * stride * sizeof(T);
+    char *dstptr =
+        reinterpret_cast<char *>(jm.raw_storage) + i * jm.stride * sizeof(T);
     // TODO: we may reformat layout.
     memcpy(dstptr, srcptr, NumCols * sizeof(T));
   }
@@ -340,8 +345,9 @@ inline __SYCL_ALWAYS_INLINE
                       matrix_layout layout) {
   T *mem = src.get();
   // tileload happens!
-  jm.tile = tileloadd64_internal(NumRows, NumCols * sizeof(T), (char *)mem,
-                                 stride * sizeof(T));
+  jm.tile =
+      tileloadd64_internal(NumRows, NumCols * sizeof(T),
+                           reinterpret_cast<char *>(mem), stride * sizeof(T));
   jm.layout = layout;
 }
 
@@ -356,8 +362,9 @@ joint_matrix_store(Group sg,
                    matrix_layout layout) {
   T *mem = dst.get();
   for (int i = 0; i < NumRows; ++i) {
-    char *dstptr = (char *)mem + i * stride * sizeof(T);
-    char *srcptr = (char *)jm.raw_storage + i * jm.stride * sizeof(T);
+    char *dstptr = reinterpret_cast<char *>(mem) + i * stride * sizeof(T);
+    char *srcptr =
+        reinterpret_cast<char *>(jm.raw_storage) + i * jm.stride * sizeof(T);
     // TODO: we may reformat layout.
     memcpy(dstptr, srcptr, NumCols * sizeof(T));
   }
@@ -377,8 +384,9 @@ inline __SYCL_ALWAYS_INLINE
                        matrix_layout layout) {
   T *mem = dst.get();
   // tilestore happens!
-  tilestored64_internal(NumRows, NumCols * sizeof(T), (char *)mem,
-                        stride * sizeof(T), jm.tile);
+  tilestored64_internal(NumRows, NumCols * sizeof(T),
+                        reinterpret_cast<char *>(mem), stride * sizeof(T),
+                        jm.tile);
   return;
 }
 

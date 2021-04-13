@@ -5,7 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // ===--------------------------------------------------------------------=== //
-/// -DAMX will enable joint_matrix feature for AMX
+/// Currently, this is the compilation command line needed to invoke AMX unit of
+/// Sapphire Rapids CPU: clang++ -fsycl -march=sapphirerapids
+/// fsycl-targets="spir64_x86_64-uknown-linux-sycldevice" -O2 main.cpp
+///
 ///
 // ===--------------------------------------------------------------------=== //
 
