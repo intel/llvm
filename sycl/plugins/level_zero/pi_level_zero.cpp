@@ -3858,15 +3858,19 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   return PI_SUCCESS;
 }
 
-pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
+pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context, pi_program, bool,
                                             pi_kernel *) {
   die("Unsupported operation");
   return PI_SUCCESS;
 }
 
-pi_result piextKernelGetNativeHandle(pi_kernel kernel,
-                                     pi_native_handle *nativeHandle) {
-  die("Unsupported operation");
+pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
+                                     pi_native_handle *NativeHandle) {
+  PI_ASSERT(Kernel, PI_INVALID_KERNEL);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+
+  auto *ZeKernel = pi_cast<ze_kernel_handle_t*>(NativeHandle);
+  *ZeKernel = Kernel->ZeKernel;
   return PI_SUCCESS;
 }
 

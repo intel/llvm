@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include "CL/sycl/detail/pi.hpp"
-#include "detail/plugin.hpp"
+#include <CL/sycl/detail/pi.hpp>
+#include <detail/plugin.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.h>
@@ -147,7 +147,7 @@ public:
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const plugin &Plugin = ContextImplPtr->getPlugin();
 
-    pi_native_handle NativeProgram;
+    pi_native_handle NativeProgram = 0;
     Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
                                                         &NativeProgram);
 

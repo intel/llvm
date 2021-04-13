@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "CL/sycl/detail/pi.h"
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
@@ -189,9 +189,10 @@ public:
   pi_native_handle getNative() const {
     const plugin &Plugin = MContext->getPlugin();
 
-    Plugin.call<PiApiKind::piKernelRetain>(MKernel);
+    if (Plugin.getBackend() == backend::opencl)
+      Plugin.call<PiApiKind::piKernelRetain>(MKernel);
 
-    pi_native_handle NativeKernel;
+    pi_native_handle NativeKernel = 0;
     Plugin.call<PiApiKind::piextKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     return NativeKernel;

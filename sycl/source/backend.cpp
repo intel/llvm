@@ -191,19 +191,6 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
 
   return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
 }
-
-kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
-                   backend Backend) {
-  const auto &Plugin = getPlugin(Backend);
-  const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  // Create PI kernel first.
-  pi::PiKernel PiKernel = nullptr;
-  Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiKernel);
-  // Construct the SYCL queue from PI queue.
-  return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(PiKernel, ContextImpl));
-}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

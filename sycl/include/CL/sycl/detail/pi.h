@@ -35,10 +35,11 @@
 //   pi_device_binary_property_set PropertySetsEnd;
 // 2. A number of types needed to define pi_device_binary_property_set added.
 // 3. Added new ownership argument to piextContextCreateWithNativeHandle.
+// 4. Add interoperability interfaces for kernel.
 //
 #include "CL/cl.h"
 #define _PI_H_VERSION_MAJOR 3
-#define _PI_H_VERSION_MINOR 4
+#define _PI_H_VERSION_MINOR 5
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1251,9 +1252,12 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
 ///
 /// \param nativeHandle is the native handle to create PI kernel from.
 /// \param context is the PI context of the kernel.
+/// \param program is the PI program, that contains this kernel.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+/// the native handle, if it can.
 /// \param kernel is the PI kernel created from the native handle.
 __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_kernel *kernel);
+    pi_native_handle nativeHandle, pi_context context, pi_program program, bool ownNativeHandle, pi_kernel *kernel);
 
 /// Gets the native handle of a PI kernel object.
 ///

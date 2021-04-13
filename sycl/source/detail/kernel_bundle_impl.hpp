@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "CL/sycl/detail/pi.h"
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
@@ -286,17 +286,6 @@ public:
     return MDeviceImages.empty()
                ? bundle_state::input
                : detail::getSyclObjImpl(MDeviceImages[0])->get_state();
-  }
-
-  std::vector<pi_native_handle> getNative() const {
-    std::vector<pi_native_handle> Handles;
-    Handles.reserve(MDeviceImages.size());
-
-    std::transform(
-        MDeviceImages.begin(), MDeviceImages.end(), Handles.begin(),
-        [](const device_image_plain &Img) { return Img.getNative(); });
-
-    return Handles;
   }
 
 private:

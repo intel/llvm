@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include "CL/sycl/detail/defines_elementary.hpp"
 #include <CL/sycl/ONEAPI/experimental/spec_constant.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/export.hpp>
