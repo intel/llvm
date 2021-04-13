@@ -998,8 +998,14 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   }
 
   // Allocate static local memory in SYCL kernel scope for each allocation call.
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice) {
+    // Group local memory pass depends on inlining. Turn it on even in case if
+    // all llvm passes or SYCL early optimizations are disabled.
+    // FIXME: Remove this workaround when dependency on inlining is eliminated.
+    if (CodeGenOpts.DisableLLVMPasses)
+      PerModulePasses.add(createAlwaysInlinerLegacyPass(false));
     PerModulePasses.add(createSYCLLowerWGLocalMemoryLegacyPass());
+  }
 
   switch (Action) {
   case Backend_EmitNothing:
