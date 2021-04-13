@@ -2952,11 +2952,12 @@ max_concurrency, initiation_interval, or ivdep.
 
 def SYCLIntelFPGALoopCountAvgAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "intel::loo_control_avg";
+  let Heading = "intel::loop_count_avg";
   let Content = [{
-This attribute applies to a loop. Its purpose is to pass to the optimizer the
-average trip count of a loop. This will allow the optimizer to figure out if
-the optimization is beneficial.
+The "loop_count" pragma specifies the minimum, maximum, or average number of
+iterations for a for loop. In addition, a list of commonly occurring values
+can be specified to help the compiler generate multiple versions and perform
+complete unrolling.
 
 .. code-block:: c++
 
