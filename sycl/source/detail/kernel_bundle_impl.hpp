@@ -248,6 +248,8 @@ public:
 
   void set_specialization_constant_raw_value(const char *SpecName,
                                              const void *Value) noexcept {
+    // TODO add support for specialization constants, that are missing in any
+    // device image.
     for (const device_image_plain &DeviceImage : MDeviceImages)
       getSyclObjImpl(DeviceImage)
           ->set_specialization_constant_raw_value(SpecName, Value);
