@@ -63,6 +63,15 @@ specify aliasing scopes within which annotated memory accesses don't alias.
 Results of these instructios are used by *AliasScopeINTEL* and *NoAliasINTEL*
 decorations and Memory Operands mask to annotate memory access instructions.
 
+When evaluating an aliasing query if two memory access instructions that
+have *AliasScopeINTELMask* and *NoAliasINTELMask* memory operands (one for each
+instruction) or decorated with *AliasScopeINTEL* and *NoAliasINTEL* decorations
+(one for each instruction) and if for some domain, the set of scopes with that
+domain in one instruction’s aliasing scope list is a subset of (or equal to) the
+set of scopes for that domain in another instruction’s noalias list, then the
+two memory accesses are assumed not to alias. If this assumption is violated in
+runtime - the behaviour is undefined.
+
 Extension Name
 --------------
 
@@ -151,17 +160,10 @@ Instructions
 The instruction declares an aliasing domain.
 
 The _Result_ is used by _AliasScopeDeclINTEL_ instruction to form aliasing
-scope. When evaluating an aliasing query if two memory access instructions that
-have _AliasScopeINTELMask_ and _NoAliasINTELMask_ memory operands or decorated
-with _AliasScopeINTEL_ and _NoAliasINTEL_ decorations and if for some domain,
-the set of scopes with that domain in one instruction’s aliasing scope list is a
-subset of (or equal to) the set of scopes for that domain in another
-instruction’s noalias list, then the two memory accesses are assumed not to
-alias.
-
+scope.
 
 Optional <id> _Name_ parameter is used to specify an unique domain in global
-scope. If this rule is violated in runtime - behaviour is undefined.
+scope.
 | Capability:
 *MemoryAccessAliasingINTEL*
 
@@ -213,22 +215,24 @@ Modify Section 3.20 "Decoration", adding these rows to Decoration table:
 |====
 2+^| Decoration 2+^| Extra Operands ^| Enabling Capabilities
 | 5914 | *AliasScopeINTEL* +
-Can only be applied to _OpFunctionCall_ and _Atomic_ instructions. Has
+Can only be applied to _OpFunctionCall_ and _Atomic_ instruction. Has
 _Aliasing Scopes List_ <id> operand pointing to a result of
-_AliasScopeListDeclINTEL_ instruction, that specifies a set of aliasing scopes for
-the memory access instruction. Another memory access instruction that has
-_NoAliasINTELMask_ memory operand or decorated with _NoAliasINTEL_ is assumed not to
-alias with the current memory access instruction. If this rule is violated in
-runtime - behaviour is undefined.
+_AliasScopeListDeclINTEL_ instruction, that specifies a set of aliasing scopes
+in which memory access instruction is assumed to be not aliased with any other
+memory instructions with intersecting aliasing scopes in case if these
+accesses are decorated with _NoAliasINTEL_ decoration or have _NoAliasINTELMask_
+memory operand.
+This decoration is mutually exclusive with _NoAliasINTEL_ decoration.
 2+| <id> _Aliasing Scopes List_ | *MemoryAccessAliasingINTEL*
 | 5915 | *NoAliasINTEL* +
 Can only be applied to _OpFunctionCall_ and _Atomic_ instructions. Has
 _Aliasing Scopes List_ <id> operand pointing on a result of
-_AliasScopeListDeclINTEL_ instruction, that specifies a set of alisasing scopes in
-which memory access instruction is assumed to be not aliased with any other
-memory instructions with intersecting aliasing scopes. If this assumption is
-violated in runtime - behaviour is undefined.
-
+_AliasScopeListDeclINTEL_ instruction, that specifies a set of alisasing scopes
+in which memory access instruction is assumed to be not aliased with any other
+memory instructions with intersecting aliasing scopes in case if these
+accesses are decorated with _AliasScopeINTEL_ decoration or have
+_AliasScopeINTELMask_ memory operand.
+This decoration is mutually exclusive with _AliasScopeINTEL_ decoration.
 2+| <id> _Aliasing Scopes List_ | *MemoryAccessAliasingINTEL*
 |====
 --
@@ -243,18 +247,20 @@ table:
 |====
 2+^| Memory Operands | Extra Operands | Enabling Capabilities
 | 0x10000 | *AliasScopeINTELMask* +
-Defines aliasing rules for memory access in the current aliasing scope. Another
-memory access instruction that has _NoAliasINTELMask_ memory operand or decorated
-with _NoAliasINTEL_ is assumed not to alias with the current memory access
-instruction. If this rule is violated in runtime - behaviour is undefined.
+Defines aliasing rules for memory access in the current aliasing scope.
+Assume that the memory access doesn't alias with any other memory accesses with
+aliasing scopes in _Aliasing Scopes List_ intersecting with the current one in
+case if these accesses have _NoAliasINTELMask_ memory operand or are
+decorated with _NoAliasINTEL_ decoration.
 This mask is mutually exclusive with _NoAliasINTELMask_.
 | <id> _Aliasing Scopes List_ |
 *MemoryAccessAliasingINTEL*
 | 0x20000 | *NoAliasINTELMask* +
 Defines aliasing rules for memory access in the current aliasing scope.
 Assume that the memory access doesn't alias with any other memory accesses with
-aliasing scopes in _Aliasing Scopes List_ intersecting with the current one.
-If this rule is violated in runtime - behaviour is undefined.
+aliasing scopes in _Aliasing Scopes List_ intersecting with the current one in
+case if these accesses have _AliasScopeINTELMask_ memory operand or are
+decorated with _AliasScopeINTEL_ decoration.
 This mask is mutually exclusive with _AliasScopeINTELMask_.
 | <id> _Aliasing Scopes List_ |
 *MemoryAccessAliasingINTEL*
