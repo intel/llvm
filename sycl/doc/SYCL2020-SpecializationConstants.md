@@ -118,15 +118,16 @@ composite specialization constants do not have separate ID and can only be set
 by setting value to each member of a composite, which means that we have `1:n`
 mapping between SYCL identifiers and numeric IDs of specialization constants.
 
-4. When AOT compilation is used or target is a CUDA device (where NVPTX
-intermediate representation is used), we need to somehow emulate support for
-specialization constants.
+4. When AOT compilation is used or the target device does not use SPIR-V as the
+device code format (for example, CUDA device, where NVPTX intermediate
+representation is used), we need to somehow emulate support for specialization
+constants.
 
 ## Design
 
 As stated above, native specialization constants support is based on
-corresponding SPIR-V functionality, while emulation is supposed to be
-implemented through transforming specialization constants into kernel arguments.
+corresponding SPIR-V functionality, while emulation is implemented through
+transforming specialization constants into kernel arguments.
 
 In DPC++ Headers/DPC++ RT we don't know a lot of necessary information about
 specialization constants, like: which numeric ID is used for particular
