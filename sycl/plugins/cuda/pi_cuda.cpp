@@ -4471,6 +4471,8 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
     }
   } catch (pi_result err) {
     result = err;
+  } catch (...) {
+    result = PI_ERROR_UNKNOWN;
   }
   return result;
 }
