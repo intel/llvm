@@ -4738,15 +4738,15 @@ public:
   bool updateInputForFPGA(Action *&A, const Arg *InputArg,
                           DerivedArgList &Args) {
     std::string InputName = InputArg->getAsString(Args);
-    bool IsFPGAEmulation = C.getDriver().isFPGAEmulationMode();
+    const Driver &D = C.getDriver();
+    bool IsFPGAEmulation = D.isFPGAEmulationMode();
     // Only check for FPGA device information when using fpga SubArch.
     if (A->getType() == types::TY_Object && isObjectFile(InputName))
       return true;
 
-    auto ArchiveTypeMismatch = [&](bool EmitDiag) {
+    auto ArchiveTypeMismatch = [&D, &InputName](bool EmitDiag) {
       if (EmitDiag)
-        C.getDriver().Diag(clang::diag::warn_drv_mismatch_fpga_archive)
-            << InputName;
+        D.Diag(clang::diag::warn_drv_mismatch_fpga_archive) << InputName;
     };
     // Type FPGA aoco is a special case for static archives
     if (A->getType() == types::TY_FPGA_AOCO) {
@@ -4762,13 +4762,13 @@ public:
         {types::TY_FPGA_AOCX_EMU, true},
         {types::TY_FPGA_AOCR_EMU, true}};
     for (const auto &ArchiveType : FPGAAOCTypes) {
-      bool binaryFound = hasFPGABinary(C, InputName, ArchiveType.first);
-      if (binaryFound && ArchiveType.second == IsFPGAEmulation) {
+      bool BinaryFound = hasFPGABinary(C, InputName, ArchiveType.first);
+      if (BinaryFound && ArchiveType.second == IsFPGAEmulation) {
         // Binary matches check and emulation type, we keep this one.
         A = C.MakeAction<InputAction>(*InputArg, ArchiveType.first);
         return true;
       }
-      ArchiveTypeMismatch(binaryFound && ArchiveType.second != IsFPGAEmulation);
+      ArchiveTypeMismatch(BinaryFound && ArchiveType.second != IsFPGAEmulation);
     }
     return true;
   }

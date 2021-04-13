@@ -707,9 +707,6 @@ void SYCLToolChain::AddImpliedTargetArgs(
   CmdArgs.push_back(Args.MakeArgString(BeOpt));
 }
 
-// TODO: There are 'customization' uses of this that will need to be
-// adjusted before we can remove and use the added equivalent function
-// in ToolChain.cpp.
 void SYCLToolChain::TranslateBackendTargetArgs(
     const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
   // Handle -Xs flags.
