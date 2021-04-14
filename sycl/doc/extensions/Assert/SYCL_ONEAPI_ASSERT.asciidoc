@@ -82,7 +82,7 @@ assertion.
 
 The `assert()` macro is defined in system include headers, not in SYCL headers.
 On most of systems it is `<cassert>` and/or `<assert.h>` header files.
-The user can can disable assertions in device code by defining the `NDEBUG`
+The user can disable assertions in device code by defining the `NDEBUG`
 preprocessor macro prior to including either of `<sycl.hpp>` and
 `<cassert>/<assert.h>`.
 
