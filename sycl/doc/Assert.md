@@ -188,7 +188,120 @@ The following sequence of events describes how user code gets notified:
       and checks assert buffer for assert information throws exception
 
 
-#### Storing accessor metadata and writing assert failure to buffer
+#### Online-linking fallback `__devicelib_assert_fail`
+
+Online linking against fallback implementation of `__devicelib_assert_fail` is
+performed only when assertion is enabled.
+
+In DPCPP headers one can see if assert is enabled with status of `NDEBUG` macro
+with `#ifdef`'s. This allows to add implicit buffer argument to kernel
+invocation. Here "implicit" means "implicit to the user".
+
+When in DPCPP Runtime Library this knowledge is obtained from device binary
+image descriptor's property sets.
+
+Each device image is supplied with an array of property sets:
+```c++
+struct pi_device_binary_struct {
+  //...
+  // Array of property sets
+  pi_device_binary_property_set PropertySetsBegin;
+  pi_device_binary_property_set PropertySetsEnd;
+};
+```
+Each property set is represented by the following struct:
+```c++
+// Named array of properties.
+struct _pi_device_binary_property_set_struct {
+  char *Name;                                // the name
+  pi_device_binary_property PropertiesBegin; // array start
+  pi_device_binary_property PropertiesEnd;   // array end
+};
+```
+It contains name of property set and array of properties. Each property is
+represented by the following struct:
+```c++
+struct _pi_device_binary_property_struct {
+  char *Name;       // null-terminated property name
+  void *ValAddr;    // address of property value
+  uint32_t Type;    // _pi_property_type
+  uint64_t ValSize; // size of property value in bytes
+};
+```
+
+Whenever `isAssertEnabled` property set is present, this specific device image
+was built with `NDEBUG` macro undefined and it requires fallback implementation
+of `__devicelib_assert_fail` (i.e. if Device-side Runtime doesn't support it).
+
+Any properties in `isAssertEnabled` property set are ignored.
+
+The property set is added to device binary descriptor whenever at least single
+translation unit was compiled with assertions enabled i.e. `NDEBUG` undefined.
+
+
+##### Compiling with assert enabled/disabled
+
+Consider the following two use-case:
+```c++
+// impl.cpp
+using namespace sycl;
+int calculus(int X) {
+  assert(X && "Invalid value");
+  return X * 2;
+}
+
+void enqueueKernel(queue &Q, buffer &B) {
+  Q.submit([](handler &H) {
+    auto Acc = B.get_access<read_write>(H);
+    H.parallel_for(/* range */, [](item It) {
+      assert(Acc[It]);
+      // ...
+    });
+  });
+}
+
+// main.cpp
+// ...
+using namespace sycl;
+
+SYCL_EXTERNAL int calculus(int);
+void enqueueKernel(queue&, buffer&);
+
+void workload() {
+  queue Q;
+  buffer B;
+
+  Q.submit([](handler &H) {
+    auto Acc = B.get_access<read_write>(H);
+    H.parallel_for(/* range */, [](item It) {
+      int X = calculus(0); // should fail assertion
+      assert(X && "Nil in result");
+      Acc[It] = X;
+    });
+  });
+
+  enqueueKernel(Q, B);
+  ...
+}
+```
+
+These two files are compiled into a single binary application. There are four
+states of definedness of `NDEBUG` macro available:
+
+| # | `impl.cpp` | `main.cpp` |
+| - | ---------- | ---------- |
+| 1 | defined    | defined    |
+| 2 | defined    | undefined  |
+| 3 | undefined  | defined    |
+| 4 | undefined  | undefined  |
+
+States of definedness of `NDEBUG` macro defines the set of assertions which can
+fail. Having assertions enabled in at least one translation unit with device
+code requires for `isAssertEnabled` property set being present in device image
+descriptor structure.
+
+
+### Storing accessor metadata and writing assert failure to buffer
 
 Both storing of accessor metadata and writing assert failure is performed with
 help of built-ins. Implementations of these builtins are substituted by
