@@ -83,43 +83,47 @@ int main() {
   /*Check LSU interface*/
   {
 
-      {
-          auto *out_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
-          auto *in_ptr  = cl::sycl::malloc_host<int>(1, Queue.get_context());
-          Queue.submit([&](sycl::handler& cgh) {
-              cgh.single_task<class HostAnnotation>([=]() {
-                  cl::sycl::host_ptr<int> input_ptr(in_ptr);
-                  cl::sycl::host_ptr<int> output_ptr(out_ptr);
-                  intelfpga::lsu_body<int, cl::sycl::access::address_space::global_host_space>(input_ptr,output_ptr); 
-              });
-          });
-      }
-      {
-          auto *out_ptr = cl::sycl::malloc_device<int>(1, Queue);
-          auto *in_ptr  = cl::sycl::malloc_device<int>(1, Queue);
-          Queue.submit([&](sycl::handler& cgh) {
-              cgh.single_task<class DeviceAnnotation>([=]() {
-                  cl::sycl::device_ptr<int> input_ptr(in_ptr);
-                  cl::sycl::device_ptr<int> output_ptr(out_ptr);
-                  intelfpga::lsu_body<int, cl::sycl::access::address_space::global_device_space>(input_ptr,output_ptr); 
-              });
-          });
-      }
-      {
-          cl::sycl::buffer<int, 1> output_buffer(1);
-          cl::sycl::buffer<int, 1> input_buffer(1);
-          Queue.submit([&](sycl::handler& cgh) {
-              auto output_accessor =
-                  output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
-              auto input_accessor =
-                  input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
-            cgh.single_task<class AccessorAnnotation>([=]() {
-                auto input_ptr = input_accessor.get_pointer();
-                auto output_ptr = output_accessor.get_pointer();
-                intelfpga::lsu_body<>(input_ptr,output_ptr); 
-            });
-          });
-      }
+    {
+      auto *out_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
+      auto *in_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
+      Queue.submit([&](sycl::handler &cgh) {
+        cgh.single_task<class HostAnnotation>([=]() {
+          cl::sycl::host_ptr<int> input_ptr(in_ptr);
+          cl::sycl::host_ptr<int> output_ptr(out_ptr);
+          intelfpga::lsu_body<
+              int, cl::sycl::access::address_space::global_host_space>(
+              input_ptr, output_ptr);
+        });
+      });
+    }
+    {
+      auto *out_ptr = cl::sycl::malloc_device<int>(1, Queue);
+      auto *in_ptr = cl::sycl::malloc_device<int>(1, Queue);
+      Queue.submit([&](sycl::handler &cgh) {
+        cgh.single_task<class DeviceAnnotation>([=]() {
+          cl::sycl::device_ptr<int> input_ptr(in_ptr);
+          cl::sycl::device_ptr<int> output_ptr(out_ptr);
+          intelfpga::lsu_body<
+              int, cl::sycl::access::address_space::global_device_space>(
+              input_ptr, output_ptr);
+        });
+      });
+    }
+    {
+      cl::sycl::buffer<int, 1> output_buffer(1);
+      cl::sycl::buffer<int, 1> input_buffer(1);
+      Queue.submit([&](sycl::handler &cgh) {
+        auto output_accessor =
+            output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+        auto input_accessor =
+            input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+        cgh.single_task<class AccessorAnnotation>([=]() {
+          auto input_ptr = input_accessor.get_pointer();
+          auto output_ptr = output_accessor.get_pointer();
+          intelfpga::lsu_body<>(input_ptr, output_ptr);
+        });
+      });
+    }
   }
 
   return 0;
