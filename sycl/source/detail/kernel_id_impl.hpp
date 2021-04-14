@@ -14,8 +14,16 @@ namespace detail {
 
 // Used for sorting vector of kernel_id's
 struct LessByNameComp {
-  bool operator()(const sycl::kernel_id &LHS, const sycl::kernel_id &RHS) {
+  bool operator()(const sycl::kernel_id &LHS,
+                  const sycl::kernel_id &RHS) const {
     return std::strcmp(LHS.get_name(), RHS.get_name()) < 0;
+  }
+};
+
+struct EqualByNameComp {
+  bool operator()(const sycl::kernel_id &LHS,
+                  const sycl::kernel_id &RHS) const {
+    return strcmp(LHS.get_name(), RHS.get_name()) == 0;
   }
 };
 

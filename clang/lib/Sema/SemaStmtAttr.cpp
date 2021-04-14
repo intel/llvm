@@ -407,9 +407,22 @@ static Attr *handleUnlikely(Sema &S, Stmt *St, const ParsedAttr &A,
   return ::new (S.Context) UnlikelyAttr(S.Context, A);
 }
 
+#define WANT_STMT_MERGE_LOGIC
+#include "clang/Sema/AttrParsedAttrImpl.inc"
+#undef WANT_STMT_MERGE_LOGIC
+
 static void
 CheckForIncompatibleAttributes(Sema &S,
                                const SmallVectorImpl<const Attr *> &Attrs) {
+  // The vast majority of attributed statements will only have one attribute
+  // on them, so skip all of the checking in the common case.
+  if (Attrs.size() < 2)
+    return;
+
+  // First, check for the easy cases that are table-generated for us.
+  if (!DiagnoseMutualExclusions(S, Attrs))
+    return;
+
   // There are 6 categories of loop hints attributes: vectorize, interleave,
   // unroll, unroll_and_jam, pipeline and distribute. Except for distribute they
   // come in two variants: a state form and a numeric form.  The state form
@@ -532,33 +545,6 @@ CheckForDuplicationSYCLLoopAttribute(Sema &S,
   }
 }
 
-/// Diagnose mutually exclusive attributes when present on a given
-/// declaration. Returns true if diagnosed.
-template <typename LoopAttrT, typename LoopAttrT2>
-static void CheckMutualExclusionSYCLLoopAttribute(
-    Sema &S, const SmallVectorImpl<const Attr *> &Attrs) {
-  std::pair<bool, bool> SeenAttrs;
-  const Attr *FirstSeen = nullptr;
-
-  for (const auto *I : Attrs) {
-    // Remember the first attribute of the problematic type so that we can
-    // potentially diagnose it later.
-    if (!FirstSeen && isa<LoopAttrT, LoopAttrT2>(I))
-      FirstSeen = I;
-
-    // Remember if we've seen either of the attribute types.
-    if (isa<LoopAttrT>(I))
-      SeenAttrs.first = true;
-    else if (isa<LoopAttrT2>(I))
-      SeenAttrs.second = true;
-
-    // If we've seen both of the attribute types, then diagnose them both.
-    if (SeenAttrs.first && SeenAttrs.second)
-      S.Diag(I->getLocation(), diag::err_attributes_are_not_compatible)
-          << FirstSeen << I;
-  }
-}
-
 static void CheckForIncompatibleSYCLLoopAttributes(
     Sema &S, const SmallVectorImpl<const Attr *> &Attrs) {
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAInitiationIntervalAttr>(
@@ -573,21 +559,6 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGASpeculatedIterationsAttr>(
       S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
-  CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
-                                        SYCLIntelFPGAMaxInterleavingAttr>(
-      S, Attrs);
-  CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
-                                        SYCLIntelFPGASpeculatedIterationsAttr>(
-      S, Attrs);
-  CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
-                                        SYCLIntelFPGAInitiationIntervalAttr>(
-      S, Attrs);
-  CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
-                                        SYCLIntelFPGAIVDepAttr>(S, Attrs);
-  CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
-                                        SYCLIntelFPGAMaxConcurrencyAttr>(S,
-                                                                         Attrs);
-
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGANofusionAttr>(S, Attrs);
 }

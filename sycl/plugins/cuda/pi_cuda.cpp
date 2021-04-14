@@ -4455,9 +4455,32 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                         pi_event *event) {
   assert(queue != nullptr);
   assert(ptr != nullptr);
-  // TODO implement a mapping to cuMemAdvise once the expected behaviour
-  // of piextUSMEnqueueMemAdvise is detailed in the USM extension
-  return cuda_piEnqueueEventsWait(queue, 0, nullptr, event);
+
+  pi_result result = PI_SUCCESS;
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(queue->get_context());
+
+    if (event) {
+      event_ptr = std::unique_ptr<_pi_event>(
+          _pi_event::make_native(PI_COMMAND_TYPE_USER, queue));
+      event_ptr->start();
+    }
+
+    result = PI_CHECK_ERROR(
+        cuMemAdvise((CUdeviceptr)ptr, length, (CUmem_advise)advice,
+                    queue->get_context()->get_device()->get()));
+    if (event) {
+      result = event_ptr->record();
+      *event = event_ptr.release();
+    }
+  } catch (pi_result err) {
+    result = err;
+  } catch (...) {
+    result = PI_ERROR_UNKNOWN;
+  }
+  return result;
 }
 
 /// API to query information about USM allocated pointers

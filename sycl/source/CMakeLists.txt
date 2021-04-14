@@ -138,6 +138,7 @@ set(SYCL_SOURCES
     "detail/queue_impl.cpp"
     "detail/online_compiler/online_compiler.cpp"
     "detail/os_util.cpp"
+    "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
