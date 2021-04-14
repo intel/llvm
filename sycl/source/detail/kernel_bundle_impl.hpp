@@ -51,6 +51,13 @@ public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage)
       : MContext(Ctx), MDevices(Devs) {
+    bool HasMissingDevice = std::any_of(MDevices.begin(), MDevices.end(), [&Ctx](const device &Dev) {
+      const std::vector<device> &CtxDevs = Ctx.get_devices();
+      const auto It = std::find(CtxDevs.begin(), CtxDevs.end(), Dev);
+      return It != CtxDevs.end();
+    });
+    if (HasMissingDevice)
+      throw sycl::runtime_error("Some of the devices do not belong to the context", PI_INVALID_CONTEXT);
     MDeviceImages.push_back(DevImage);
   }
 

@@ -27,7 +27,6 @@
 #include <level_zero/zes_api.h>
 #include <level_zero/zet_api.h>
 
-#include "CL/sycl/detail/pi.h"
 #include "usm_allocator.hpp"
 
 namespace {
