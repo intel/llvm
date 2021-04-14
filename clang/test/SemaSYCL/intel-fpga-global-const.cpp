@@ -24,12 +24,8 @@
 //expected-note@-2{{previous attribute is here}}
 
 // Merging of incompatible attributes.
-// FIXME: Diagnostic order isn't correct, this isn't what we'd want here but
-// this is an upstream issue. Merge function is calling here
-// checkAttrMutualExclusion() function that has backwards diagnostic behavior.
-// This should be fixed into upstream.
-//expected-error@+2{{'max_replicates' and 'fpga_register' attributes are not compatible}}
-//expected-note@+2{{conflicting attribute is here}}
+//expected-error@+3{{'fpga_register' and 'max_replicates' attributes are not compatible}}
+//expected-note@+1{{conflicting attribute is here}}
 [[intel::max_replicates(12)]] extern const int var_max_replicates_2;
 [[intel::fpga_register]] const int var_max_replicates_2 =0;
 
@@ -57,11 +53,7 @@
 //expected-note@-2{{previous attribute is here}}
 
 // Merging of incompatible attributes.
-// FIXME: Diagnostic order isn't correct, this isn't what we'd want here but
-// this is an upstream issue. Merge function is calling here
-// checkAttrMutualExclusion() function that has backwards diagnostic behavior.
-// This should be fixed into upstream.
-//expected-error@+2{{'force_pow2_depth' and 'fpga_register' attributes are not compatible}}
-//expected-note@+2{{conflicting attribute is here}}
+//expected-error@+3{{'fpga_register' and 'force_pow2_depth' attributes are not compatible}}
+//expected-note@+1{{conflicting attribute is here}}
 [[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth_2;
 [[intel::fpga_register]] const int var_force_pow2_depth_2 =0;

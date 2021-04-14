@@ -2174,7 +2174,9 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       "x86_64-manbo-linux-gnu", "x86_64-linux-gnu",
       "x86_64-slackware-linux", "x86_64-unknown-linux",
       "x86_64-amazon-linux",    "x86_64-linux-android"};
-  static const char *const X32LibDirs[] = {"/libx32"};
+  static const char *const X32Triples[] = {"x86_64-linux-gnux32",
+                                           "x86_64-pc-linux-gnux32"};
+  static const char *const X32LibDirs[] = {"/libx32", "/lib"};
   static const char *const X86LibDirs[] = {"/lib32", "/lib"};
   static const char *const X86Triples[] = {
       "i586-linux-gnu",     "i686-linux-gnu",
@@ -2405,17 +2407,19 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     TripleAliases.append(begin(AVRTriples), end(AVRTriples));
     break;
   case llvm::Triple::x86_64:
-    LibDirs.append(begin(X86_64LibDirs), end(X86_64LibDirs));
-    TripleAliases.append(begin(X86_64Triples), end(X86_64Triples));
-    // x32 is always available when x86_64 is available, so adding it as
-    // secondary arch with x86_64 triples
     if (TargetTriple.getEnvironment() == llvm::Triple::GNUX32) {
-      BiarchLibDirs.append(begin(X32LibDirs), end(X32LibDirs));
+      LibDirs.append(begin(X32LibDirs), end(X32LibDirs));
+      TripleAliases.append(begin(X32Triples), end(X32Triples));
+      BiarchLibDirs.append(begin(X86_64LibDirs), end(X86_64LibDirs));
       BiarchTripleAliases.append(begin(X86_64Triples), end(X86_64Triples));
     } else {
-      BiarchLibDirs.append(begin(X86LibDirs), end(X86LibDirs));
-      BiarchTripleAliases.append(begin(X86Triples), end(X86Triples));
+      LibDirs.append(begin(X86_64LibDirs), end(X86_64LibDirs));
+      TripleAliases.append(begin(X86_64Triples), end(X86_64Triples));
+      BiarchLibDirs.append(begin(X32LibDirs), end(X32LibDirs));
+      BiarchTripleAliases.append(begin(X32Triples), end(X32Triples));
     }
+    BiarchLibDirs.append(begin(X86LibDirs), end(X86LibDirs));
+    BiarchTripleAliases.append(begin(X86Triples), end(X86Triples));
     break;
   case llvm::Triple::x86:
     LibDirs.append(begin(X86LibDirs), end(X86LibDirs));
@@ -2425,6 +2429,8 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       TripleAliases.append(begin(X86Triples), end(X86Triples));
       BiarchLibDirs.append(begin(X86_64LibDirs), end(X86_64LibDirs));
       BiarchTripleAliases.append(begin(X86_64Triples), end(X86_64Triples));
+      BiarchLibDirs.append(begin(X32LibDirs), end(X32LibDirs));
+      BiarchTripleAliases.append(begin(X32Triples), end(X32Triples));
     }
     break;
   case llvm::Triple::m68k:
@@ -2834,15 +2840,6 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   }
 }
 
-static void addMultilibsFilePaths(const Driver &D, const MultilibSet &Multilibs,
-                                  const Multilib &Multilib,
-                                  StringRef InstallPath,
-                                  ToolChain::path_list &Paths) {
-  if (const auto &PathsCallback = Multilibs.filePathsCallback())
-    for (const auto &Path : PathsCallback(Multilib))
-      addPathIfExists(D, InstallPath + Path, Paths);
-}
-
 void Generic_GCC::PushPPaths(ToolChain::path_list &PPaths) {
   // Cross-compiling binutils and GCC installations (vanilla and openSUSE at
   // least) put various tools in a triple-prefixed directory off of the parent
@@ -2869,12 +2866,13 @@ void Generic_GCC::AddMultilibPaths(const Driver &D,
     const std::string &LibPath =
         std::string(GCCInstallation.getParentLibPath());
 
-    // Add toolchain / multilib specific file paths.
-    addMultilibsFilePaths(D, Multilibs, SelectedMultilib,
-                          GCCInstallation.getInstallPath(), Paths);
-
     // Sourcery CodeBench MIPS toolchain holds some libraries under
     // a biarch-like suffix of the GCC installation.
+    if (const auto &PathsCallback = Multilibs.filePathsCallback())
+      for (const auto &Path : PathsCallback(SelectedMultilib))
+        addPathIfExists(D, GCCInstallation.getInstallPath() + Path, Paths);
+
+    // Add lib/gcc/$triple/$version, with an optional /multilib suffix.
     addPathIfExists(
         D, GCCInstallation.getInstallPath() + SelectedMultilib.gccSuffix(),
         Paths);
@@ -2920,19 +2918,7 @@ void Generic_GCC::AddMultiarchPaths(const Driver &D,
                                     const std::string &SysRoot,
                                     const std::string &OSLibDir,
                                     path_list &Paths) {
-  // Try walking via the GCC triple path in case of biarch or multiarch GCC
-  // installations with strange symlinks.
   if (GCCInstallation.isValid()) {
-    // Add the 'other' biarch variant path
-    Multilib BiarchSibling;
-    if (GCCInstallation.getBiarchSibling(BiarchSibling)) {
-      addPathIfExists(
-          D, GCCInstallation.getInstallPath() + BiarchSibling.gccSuffix(),
-                      Paths);
-    }
-
-    // See comments above on the multilib variant for details of why this is
-    // included even from outside the sysroot.
     const std::string &LibPath =
         std::string(GCCInstallation.getParentLibPath());
     const llvm::Triple &GCCTriple = GCCInstallation.getTriple();
@@ -2940,11 +2926,6 @@ void Generic_GCC::AddMultiarchPaths(const Driver &D,
     addPathIfExists(
         D, LibPath + "/../" + GCCTriple.str() + "/lib" + Multilib.osSuffix(),
                     Paths);
-
-    // See comments above on the multilib variant for details of why this is
-    // only included from within the sysroot.
-    if (StringRef(LibPath).startswith(SysRoot))
-      addPathIfExists(D, LibPath, Paths);
   }
 }
 
@@ -2969,8 +2950,8 @@ void Generic_GCC::AddMultilibIncludeArgs(const ArgList &DriverArgs,
 
 void Generic_GCC::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
                                                ArgStringList &CC1Args) const {
-  if (DriverArgs.hasArg(options::OPT_nostdlibinc) ||
-      DriverArgs.hasArg(options::OPT_nostdincxx))
+  if (DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdincxx,
+                        options::OPT_nostdlibinc))
     return;
 
   switch (GetCXXStdlibType(DriverArgs)) {
@@ -2984,32 +2965,13 @@ void Generic_GCC::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
   }
 }
 
-static std::string DetectLibcxxIncludePath(llvm::vfs::FileSystem &vfs,
-                                           StringRef base) {
-  std::error_code EC;
-  int MaxVersion = 0;
-  std::string MaxVersionString;
-  for (llvm::vfs::directory_iterator LI = vfs.dir_begin(base, EC), LE;
-       !EC && LI != LE; LI = LI.increment(EC)) {
-    StringRef VersionText = llvm::sys::path::filename(LI->path());
-    int Version;
-    if (VersionText[0] == 'v' &&
-        !VersionText.slice(1, StringRef::npos).getAsInteger(10, Version)) {
-      if (Version > MaxVersion) {
-        MaxVersion = Version;
-        MaxVersionString = std::string(VersionText);
-      }
-    }
-  }
-  return MaxVersion ? (base + "/" + MaxVersionString).str() : "";
-}
-
 void
 Generic_GCC::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
                                    llvm::opt::ArgStringList &CC1Args) const {
   auto AddIncludePath = [&](std::string Path) {
-    std::string IncludePath = DetectLibcxxIncludePath(getVFS(), Path);
-    if (IncludePath.empty() || !getVFS().exists(IncludePath))
+    std::string Version = detectLibcxxVersion(Path);
+    std::string IncludePath = Path + "/c++/" + Version;
+    if (Version.empty() || !getVFS().exists(IncludePath))
       return false;
     addSystemInclude(DriverArgs, CC1Args, IncludePath);
     return true;
@@ -3017,15 +2979,15 @@ Generic_GCC::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
   // Android never uses the libc++ headers installed alongside the toolchain,
   // which are generally incompatible with the NDK libraries anyway.
   if (!getTriple().isAndroid())
-    if (AddIncludePath(getDriver().Dir + "/../include/c++"))
+    if (AddIncludePath(getDriver().Dir + "/../include"))
       return;
   // If this is a development, non-installed, clang, libcxx will
   // not be found at ../include/c++ but it likely to be found at
   // one of the following two locations:
   std::string SysRoot = computeSysRoot();
-  if (AddIncludePath(SysRoot + "/usr/local/include/c++"))
+  if (AddIncludePath(SysRoot + "/usr/local/include"))
     return;
-  if (AddIncludePath(SysRoot + "/usr/include/c++"))
+  if (AddIncludePath(SysRoot + "/usr/include"))
     return;
 }
 
@@ -3089,9 +3051,13 @@ Generic_GCC::addGCCLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
           TripleStr, Multilib.includeSuffix(), DriverArgs, CC1Args))
     return true;
   // Detect Debian g++-multiarch-incdir.diff.
+  StringRef DebianMultiarch =
+      GCCInstallation.getTriple().getArch() == llvm::Triple::x86
+          ? "i386-linux-gnu"
+          : TripleStr;
   if (addLibStdCXXIncludePaths(LibDir.str() + "/../include/c++/" + Version.Text,
-                               TripleStr, Multilib.includeSuffix(), DriverArgs,
-                               CC1Args, /*Debian=*/true))
+                               DebianMultiarch, Multilib.includeSuffix(),
+                               DriverArgs, CC1Args, /*Debian=*/true))
     return true;
 
   // Otherwise, fall back on a bunch of options which don't use multiarch

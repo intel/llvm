@@ -252,6 +252,12 @@ public:
 #endif
       Decoder >> Literals;
   }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    if (getLinkageType() == SPIRVLinkageTypeKind::LinkageTypeLinkOnceODR)
+      return ExtensionID::SPV_KHR_linkonce_odr;
+    return {};
+  }
 };
 
 class SPIRVMemberDecorate : public SPIRVDecorateGeneric {

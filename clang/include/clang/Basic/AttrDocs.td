@@ -2869,7 +2869,7 @@ This attribute applies to a loop or a function. It indicates that the
 loop/function should allow no more than N threads or iterations to execute it
 simultaneously. N must be a non negative integer. '0' indicates the
 max_concurrency case to be unbounded. Cannot be applied multiple times to the
-same loop.
+same loop or function, or in conjunction with ``disable_loop_pipelining``.
 
 .. code-block:: c++
 
@@ -2935,17 +2935,18 @@ def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
 This attribute applies to a loop or a function. Takes no arguments and
 disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
-function in conjunction with max_interleaving, speculated_iterations,
-max_concurrency, initiation_interval, or ivdep.
+function, or in conjunction with ``max_interleaving``,
+``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
+or ``ivdep``.
 
 .. code-block:: c++
 
   void foo() {
     int var = 0;
-    [[intel::disable_loop_pipelining] for (int i = 0; i < 10; ++i) var++;
+    [[intel::disable_loop_pipelining]] for (int i = 0; i < 10; ++i) var++;
   }
 
-  [[intel::disable_loop_pipelining] void foo1() { }
+  [[intel::disable_loop_pipelining]] void foo1() { }
 
   }];
 }
@@ -4045,7 +4046,7 @@ supported in C++.
 By default, a reference is considered to refer to its referenced object, a
 pointer is considered to refer to its pointee, a ``std::initializer_list<T>``
 is considered to refer to its underlying array, and aggregates (arrays and
-simple ``struct``s) are considered to refer to all objects that their
+simple ``struct``\s) are considered to refer to all objects that their
 transitive subobjects refer to.
 
 Clang warns if it is able to detect that an object or reference refers to

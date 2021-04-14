@@ -31,6 +31,9 @@
 // % 1 = bitcast<16 x i32> * % 0 to %
 // "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" *
 //
+// It is OK not to rewrite a function (for example, when its address is taken)
+// since it does not affect correctness. But that may lead to vector backend
+// not being able to hold the value in GRF and generate memory references.
 //
 // Change in global variables:
 //
@@ -255,7 +258,9 @@ PreservedAnalyses ESIMDLowerVecArgPass::run(Module &M,
 
   SmallVector<Function *, 10> functions;
   for (auto &F : M) {
-    functions.push_back(&F);
+    // Skip functions that are used through function pointers.
+    if (!F.hasAddressTaken())
+      functions.push_back(&F);
   }
 
   for (auto F : functions) {
