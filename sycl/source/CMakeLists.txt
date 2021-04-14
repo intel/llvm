@@ -31,7 +31,6 @@ function(add_sycl_rt_library LIB_NAME)
   if (ARG_COMPILE_OPTIONS)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
-  target_compile_options(${LIB_OBJ_NAME} PRIVATE -ggdb -O0)
 
   #To-Do: Remove dependency on icd loader and opencl headers.
   add_dependencies(${LIB_OBJ_NAME}
