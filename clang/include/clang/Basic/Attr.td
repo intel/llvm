@@ -1966,6 +1966,9 @@ def SYCLIntelFPGALoopCountAvg : StmtAttr {
   let Documentation = [SYCLIntelFPGALoopCountAvgAttrDocs];
 }
 
+def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
+                        SYCLIntelFPGADisableLoopPipelining]>;
+
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
   let Spellings = [CXX11<"intelfpga","max_interleaving">,
                    CXX11<"intel","max_interleaving">];
