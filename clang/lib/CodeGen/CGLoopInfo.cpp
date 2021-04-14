@@ -1044,8 +1044,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
             dyn_cast<SYCLIntelFPGALoopCountAvgAttr>(A)) {
       setSYCLIntelFPGALoopCountAvgEnable();
       setSYCLIntelFPGALoopControlAverage(IntelFPGALoopCountAvg->getNTripCount()
-                                              ->getIntegerConstantExpr(Ctx)
-                                              ->getSExtValue());
+                                             ->getIntegerConstantExpr(Ctx)
+                                             ->getSExtValue());
     }
 
     if (const auto *IntelFPGALoopCoalesce =
