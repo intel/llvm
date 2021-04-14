@@ -2110,7 +2110,8 @@ public:
       return;
 
     StringRef Name = "_arg__specialization_constants_buffer";
-    addParam(Name, Context.getPointerType(Context.CharTy));
+    addParam(Name, Context.getPointerType(Context.getAddrSpaceQualType(
+                       Context.CharTy, LangAS::opencl_global)));
   }
 
   void setBody(CompoundStmt *KB) { KernelDecl->setBody(KB); }

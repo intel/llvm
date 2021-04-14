@@ -13,6 +13,7 @@
 #include <CL/sycl/ONEAPI/filter_selector.hpp>
 #include <CL/sycl/ONEAPI/function_pointer.hpp>
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
+#include <CL/sycl/ONEAPI/intel_matrix/matrix.hpp>
 #include <CL/sycl/ONEAPI/reduction.hpp>
 #include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/accessor.hpp>

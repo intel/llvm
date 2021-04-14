@@ -1970,6 +1970,13 @@ def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
 }
 def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
                         SYCLIntelFPGADisableLoopPipelining]>;
+def : MutualExclusions<[SYCLIntelFPGAIVDep,
+                        SYCLIntelFPGADisableLoopPipelining]>;
+def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
+                        SYCLIntelFPGADisableLoopPipelining]>;
+
+def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
+                        SYCLIntelFPGADisableLoopPipelining]>;
 
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
   let Spellings = [CXX11<"intelfpga","max_interleaving">,
@@ -1981,6 +1988,8 @@ def SYCLIntelFPGAMaxInterleaving : StmtAttr {
   let HasCustomTypeTransform = 1;
   let Documentation = [SYCLIntelFPGAMaxInterleavingAttrDocs];
 }
+def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
+                        SYCLIntelFPGAMaxInterleaving]>;
 
 def SYCLIntelFPGASpeculatedIterations : StmtAttr {
   let Spellings = [CXX11<"intelfpga","speculated_iterations">,
@@ -1992,6 +2001,8 @@ def SYCLIntelFPGASpeculatedIterations : StmtAttr {
   let HasCustomTypeTransform = 1;
   let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
 }
+def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
+                        SYCLIntelFPGASpeculatedIterations]>;
 
 def SYCLIntelFPGANofusion : StmtAttr {
   let Spellings = [CXX11<"intel","nofusion">];
