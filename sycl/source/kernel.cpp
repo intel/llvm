@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl/detail/pi.h"
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
 #include <detail/kernel_impl.hpp>
