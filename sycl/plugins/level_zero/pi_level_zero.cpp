@@ -111,10 +111,63 @@ static pi_result mapError(ze_result_t ZeResult) {
 // This will count the calls to Level-Zero
 static std::map<std::string, int> *ZeCallCount = nullptr;
 
+#if 0
+static int ZECallArgumentNumber;
+static std::vector<std::string> ZECallArguments;
+char ZECallArgString[1024];
+static void GetParams(std::string &Parms) {
+  size_t start;
+  size_t end = 0;
+  ZECallArguments.clear();
+  while ((start = Parms.find_first_not_of(',', end)) != std::string::npos) {
+    end = Parms.find(',', start);
+    ZECallArguments.push_back(Parms.substr(start, end - start));
+  }
+}
+template <typename T> static void GetArg(T p) {
+  strcat(ZECallArgString, ZECallArguments[ZECallArgumentNumber].c_str());
+  strcat(ZECallArgString, "=");
+  std::ostringstream Value;
+  Value << p;
+  strcat(ZECallArgString, Value.str().c_str());
+  ++ZECallArgumentNumber;
+}
+template <> void GetArg<std::nullptr_t>(std::nullptr_t p) {
+  strcat(ZECallArgString, ZECallArguments[ZECallArgumentNumber].c_str());
+  strcat(ZECallArgString, "=nullptr");
+  ++ZECallArgumentNumber;
+}
+template <typename T> static void GetArgs1(T p) { GetArg(p); }
+template <typename T, class... Types>
+static void GetArgs1(T p, Types... args) {
+  GetArg(p);
+  strcat(ZECallArgString, ", ");
+  GetArgs1(args...);
+}
+template <class... Types> static void GetArgs(Types... args) {
+  sprintf(ZECallArgString, "(");
+  ZECallArgumentNumber = 0;
+  GetArgs1(args...);
+  strcat(ZECallArgString, ")\n");
+}
+
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
     ze_result_t ZeResult = ZeName ZeArgs;                                      \
+    std::string s = #ZeArgs;                                                   \
+    GetParams(s);                                                              \
+    GetArgs ZeArgs;                                                            \
+    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, ZECallArgString, true))       \
+      return mapError(Result);                                                 \
+  }
+#endif
+
+// Trace a call to Level-Zero RT
+#define ZE_CALL(ZeName, ZeArgs)                                                \
+  {                                                                            \
+    ze_result_t ZeResult = ZeName ZeArgs;                                      \
+    std::string s = #ZeArgs;                                                   \
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return mapError(Result);                                                 \
   }
@@ -629,6 +682,10 @@ pi_result _pi_queue::resetCommandListFenceEntry(
 
   return PI_SUCCESS;
 }
+
+static const bool DeferHostCopy = [] {
+  return true; // std::getenv("SYCL_PI_DEFER_HOST_COPY") != nullptr;
+}();
 
 // Maximum Number of Command Lists that can be created.
 // This Value is initialized to 20000, but can be changed by the user
@@ -3997,47 +4054,49 @@ static pi_result cleanupAfterEvent(pi_event Event) {
   // any of the Event's data members that need to be read/reset as
   // part of the cleanup operations.
   {
-    auto Queue = Event->Queue;
+    if (!Event->DeferredHostCopy) {
+      auto Queue = Event->Queue;
 
-    // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    // Cleanup the command list associated with the event if it hasn't
-    // been cleaned up already.
-    auto EventCommandList = Event->ZeCommandList;
+      // Cleanup the command list associated with the event if it hasn't
+      // been cleaned up already.
+      auto EventCommandList = Event->ZeCommandList;
 
-    if (EventCommandList) {
-      // Event has been signalled: If the fence for the associated command list
-      // is signalled, then reset the fence and command list and add them to the
-      // available list for reuse in PI calls.
-      if (Queue->RefCount > 0) {
-        auto it = Queue->ZeCommandListFenceMap.find(EventCommandList);
-        if (it == Queue->ZeCommandListFenceMap.end()) {
-          die("Missing command-list completition fence");
-        }
-        ze_result_t ZeResult =
+      if (EventCommandList) {
+        // Event has been signalled: If the fence for the associated command list
+        // is signalled, then reset the fence and command list and add them to the
+        // available list for reuse in PI calls.
+        if (Queue->RefCount > 0) {
+          auto it = Queue->ZeCommandListFenceMap.find(EventCommandList);
+          if (it == Queue->ZeCommandListFenceMap.end()) {
+            die("Missing command-list completition fence");
+          }
+          ze_result_t ZeResult =
             ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-        if (ZeResult == ZE_RESULT_SUCCESS) {
-          Queue->resetCommandListFenceEntry(*it, true);
-          Event->ZeCommandList = nullptr;
+          if (ZeResult == ZE_RESULT_SUCCESS) {
+            Queue->resetCommandListFenceEntry(*it, true);
+            Event->ZeCommandList = nullptr;
+          }
         }
       }
-    }
 
-    // Release the kernel associated with this event if there is one.
-    if (Event->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
+      // Release the kernel associated with this event if there is one.
+      if (Event->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
         Event->CommandData) {
-      PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
-      Event->CommandData = nullptr;
-    }
+        PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
+        Event->CommandData = nullptr;
+      }
 
-    // If this event was the LastCommandEvent in the queue, being used
-    // to make sure that commands were executed in-order, remove this.
-    // If we don't do this, the event can get released and freed leaving
-    // a dangling pointer to this event.  It could also cause unneeded
-    // already finished events to show up in the wait list.
-    if (Queue->LastCommandEvent == Event) {
-      Queue->LastCommandEvent = nullptr;
+      // If this event was the LastCommandEvent in the queue, being used
+      // to make sure that commands were executed in-order, remove this.
+      // If we don't do this, the event can get released and freed leaving
+      // a dangling pointer to this event.  It could also cause unneeded
+      // already finished events to show up in the wait list.
+      if (Queue->LastCommandEvent == Event) {
+        Queue->LastCommandEvent = nullptr;
+      }
     }
 
     if (!Event->CleanedUp) {
@@ -4103,7 +4162,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
     // If event comes from a deferred copy on an integrated device, then do
     // sync, memcpy, and signaling on the host.
-    if (EventList[I]->DeferredHostCopy) {
+    if (EventList[I]->DeferredHostCopy && EventList[I]->CopyPending) {
       zePrint("FOUND A DEFERRED HOST COPY\n");
       for (pi_uint32 J = 0; J < EventList[I]->CopyWaitList.Length; J++) {
         zePrint("FOUND SOMETHING IN ITS LIST\n");
@@ -4135,14 +4194,15 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
                EventList[I]->CopySize);
         EventList[I]->CopyPending = false;
       }
-      ZE_CALL(zeEventHostSignal, (ZeEvent));
-    } else {
-      ZE_CALL(zeHostSynchronize, (ZeEvent));
 
-      // NOTE: we are cleaning up after the event here to free resources
-      // sooner in case run-time is not calling piEventRelease soon enough.
-      cleanupAfterEvent(EventList[I]);
+      ZE_CALL(zeEventHostSignal, (ZeEvent));
     }
+
+    ZE_CALL(zeHostSynchronize, (ZeEvent));
+
+    // NOTE: we are cleaning up after the event here to free resources
+    // sooner in case run-time is not calling piEventRelease soon enough.
+    cleanupAfterEvent(EventList[I]);
   }
 
   return PI_SUCCESS;
@@ -4564,7 +4624,7 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
     return Res;
   ZeEvent = (*Event)->ZeEvent;
 
-  if (HostCopy && !BlockingWrite) {
+  if (DeferHostCopy && HostCopy && !BlockingWrite) {
     (*Event)->DeferredHostCopy = true;
     (*Event)->CopyWaitList = TmpWaitList;
     (*Event)->CopySrc = Src;
