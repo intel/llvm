@@ -88,7 +88,7 @@ preprocessor macro prior to including either of `<sycl.hpp>` and
 
 Following is an example use-case:
 
-#[source]
+[source]
 ----
 #include <cassert>
 #include <sycl/sycl.hpp>

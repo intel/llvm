@@ -97,10 +97,11 @@ practical cases.
 `assert(expr)` macro ends up in call to `__devicelib_assert_fail`. This function
 is part of [Device library extension](extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst#cl_intel_devicelib_cassert).
 
-Format of assert failure message, printed to `stderr` is the following:
-```
-<file>:<line>: <function>: global id: [<gid0>,<gid1>,<gid2>], local id: [<lid0>,<lid1>,<lid2>] Assertion `<expr>` failed.
-```
+The format of the assert message is unspecified, but it will always include the
+text of the failing expression, the values of the standard macros `__FILE__` and
+`__LINE__`, and the value of the standard variable `__func__`. If the failing
+assert comes from an `nd_range` `parallel_for` it will also include the global
+ID and the local ID of the failing work item.
 
 Implementation of this function is supplied by Native Device Compiler for
 safe approach or by DPCPP Compiler for fallback one.
@@ -246,7 +247,7 @@ translation unit was compiled with assertions enabled i.e. `NDEBUG` undefined.
 
 ##### Compiling with assert enabled/disabled
 
-Consider the following two use-case:
+Consider the following example sources:
 ```c++
 // impl.cpp
 using namespace sycl;
