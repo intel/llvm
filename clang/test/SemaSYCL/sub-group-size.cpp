@@ -2,6 +2,12 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=primary -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,integer %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary %s
 
+// Validate the semantic analysis checks for the interaction betwen the
+// named_sub_group_size and sub_group_size attributes. These are not able to be
+// combined, and require that they only be applied to non-sycl-kernel/
+// non-sycl-device functions if they match the kernel they are being called
+// from.
+
 #include "Inputs/sycl.hpp"
 
 // expected-error@+2 {{'named_sub_group_size' and 'sub_group_size' attributes are not compatible}}
