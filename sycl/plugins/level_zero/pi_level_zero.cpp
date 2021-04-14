@@ -114,7 +114,7 @@ static std::map<std::string, int> *ZeCallCount = nullptr;
 #if 0
 static int ZECallArgumentNumber;
 static std::vector<std::string> ZECallArguments;
-char ZECallArgString[1024];
+char ZECAS[1024];
 static void GetParams(std::string &Parms) {
   size_t start;
   size_t end = 0;
@@ -125,30 +125,30 @@ static void GetParams(std::string &Parms) {
   }
 }
 template <typename T> static void GetArg(T p) {
-  strcat(ZECallArgString, ZECallArguments[ZECallArgumentNumber].c_str());
-  strcat(ZECallArgString, "=");
+  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
+  strcat(ZECAS, "=");
   std::ostringstream Value;
   Value << p;
-  strcat(ZECallArgString, Value.str().c_str());
+  strcat(ZECAS, Value.str().c_str());
   ++ZECallArgumentNumber;
 }
 template <> void GetArg<std::nullptr_t>(std::nullptr_t p) {
-  strcat(ZECallArgString, ZECallArguments[ZECallArgumentNumber].c_str());
-  strcat(ZECallArgString, "=nullptr");
+  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
+  strcat(ZECAS, "=nullptr");
   ++ZECallArgumentNumber;
 }
 template <typename T> static void GetArgs1(T p) { GetArg(p); }
 template <typename T, class... Types>
 static void GetArgs1(T p, Types... args) {
   GetArg(p);
-  strcat(ZECallArgString, ", ");
+  strcat(ZECAS, ", ");
   GetArgs1(args...);
 }
 template <class... Types> static void GetArgs(Types... args) {
-  sprintf(ZECallArgString, "(");
+  sprintf(ZECAS, "(");
   ZECallArgumentNumber = 0;
   GetArgs1(args...);
-  strcat(ZECallArgString, ")\n");
+  strcat(ZECAS, ")\n");
 }
 
 // Trace a call to Level-Zero RT
@@ -158,7 +158,7 @@ template <class... Types> static void GetArgs(Types... args) {
     std::string s = #ZeArgs;                                                   \
     GetParams(s);                                                              \
     GetArgs ZeArgs;                                                            \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, ZECallArgString, true))       \
+    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, ZECAS, true))         \
       return mapError(Result);                                                 \
   }
 #endif
@@ -4065,16 +4065,16 @@ static pi_result cleanupAfterEvent(pi_event Event) {
       auto EventCommandList = Event->ZeCommandList;
 
       if (EventCommandList) {
-        // Event has been signalled: If the fence for the associated command list
-        // is signalled, then reset the fence and command list and add them to the
-        // available list for reuse in PI calls.
+        // Event has been signalled: If the fence for the associated command
+        // list is signalled, then reset the fence and command list and add them
+        // to the available list for reuse in PI calls.
         if (Queue->RefCount > 0) {
           auto it = Queue->ZeCommandListFenceMap.find(EventCommandList);
           if (it == Queue->ZeCommandListFenceMap.end()) {
             die("Missing command-list completition fence");
           }
           ze_result_t ZeResult =
-            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+              ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
           if (ZeResult == ZE_RESULT_SUCCESS) {
             Queue->resetCommandListFenceEntry(*it, true);
             Event->ZeCommandList = nullptr;
@@ -4084,7 +4084,7 @@ static pi_result cleanupAfterEvent(pi_event Event) {
 
       // Release the kernel associated with this event if there is one.
       if (Event->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
-        Event->CommandData) {
+          Event->CommandData) {
         PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
         Event->CommandData = nullptr;
       }
