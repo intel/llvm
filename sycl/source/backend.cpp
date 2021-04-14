@@ -160,11 +160,14 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
 
   std::vector<device> Devices;
   Devices.reserve(ProgramDevices.size());
-  std::transform(ProgramDevices.begin(), ProgramDevices.end(),
-                 std::back_inserter(Devices), [&Plugin](const auto &Dev) {
-                   auto DeviceImpl = std::make_shared<device_impl>(Dev, Plugin);
-                   return createSyclObjFromImpl<device>(DeviceImpl);
-                 });
+  std::transform(
+      ProgramDevices.begin(), ProgramDevices.end(), std::back_inserter(Devices),
+      [&Plugin](const auto &Dev) {
+        auto Platform =
+            detail::platform_impl::getPlatformFromPiDevice(Dev, Plugin);
+        auto DeviceImpl = Platform->getOrMakeDeviceImpl(Dev, Platform);
+        return createSyclObjFromImpl<device>(DeviceImpl);
+      });
 
   // Unlike SYCL, other backends, like OpenCL or Level Zero, may not support
   // getting kernel IDs before executable is built. The SYCL Runtime workarounds
