@@ -266,10 +266,12 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   DICompositeType *CT = nullptr;
   switch (Ops[TagIdx]) {
   case SPIRVDebug::Class:
-    CT = Builder.createClassType(
-        ParentScope, Name, File, LineNo, Size, Align, 0, Flags, DerivedFrom,
-        DINodeArray() /*elements*/, nullptr /*VTableHolder*/,
-        nullptr /*TemplateParams*/, Identifier);
+    // TODO: should be replaced with createClassType, when bug with creating
+    // ClassType with llvm::dwarf::DW_TAG_struct_type tag will be fixed
+    CT = Builder.createReplaceableCompositeType(
+        llvm::dwarf::DW_TAG_class_type, Name, ParentScope, File, LineNo, 0,
+        Size, Align, Flags, Identifier);
+    CT = llvm::MDNode::replaceWithDistinct(llvm::TempDICompositeType(CT));
     break;
   case SPIRVDebug::Structure:
     CT = Builder.createStructType(ParentScope, Name, File, LineNo, Size, Align,
