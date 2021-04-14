@@ -108,12 +108,19 @@ provided in incoming SPIR-V/LLVM IR binary.
 Limitations for user after catching the "assert" asynchronous exception:
  - When using GPU device and the kernel hangs/crashes the subsequent enqueues
    will fail;
+
 When using CPU devices the user can proceed with enqueues to the same
 device/queue/context.
 DPCPP Runtime remains in valid state after "assert" exception been thrown.
 
 
-### Safe approach
+### Current violation
+
+While throwing an asynchronous exception is quite an extensible way, for the
+time being DPCPP Runtime merely calls `abort()`.
+
+
+## Safe approach
 
 This is the preferred approach and implementations should use it when possible.
 It guarantees assertion failure notification delivery to the host regardless of
@@ -135,6 +142,20 @@ OpenCL backend and `zeEventQueryStatus` for Level-Zero backend.
 Refer to [OpenCL](extensions/Assert/opencl.md) and [Level-Zero](extensions/Assert/level-zero.md)
 extensions.
 
+The following sequence of events describes how user code gets notified:
+ - Device side:
+   1. Assert fails in device-code in kernel
+      // It's not defined if GPU thread stops execution
+      // Other GPU threads are left untouched
+   2. Specialized version of `__devicelib_assert_fail` is called
+   3. Device immediately signals to host (Low-Level Runtime)
+ - Host side:
+   1. The assert failure gets detected by Low-Level Runtime
+   2. Low-Level Runtime sets event status
+   3. Upon call to `sycl::queue::wait_and_throw()` or
+      `sycl::event::wait_and_throw()` DPCPP Runtime checks event status and
+      throws "assert" exception
+
 
 ### Fallback approach
 
@@ -154,6 +175,20 @@ information.
 
 DPCPP Runtime checks contents of the assert buffer for assert failure flag after
 kernel finishes.
+
+The following sequence of events describes how user code gets notified:
+ - Device side:
+   1. Assert fails in device-code in kernel
+   2. Fallback version of `__devicelib_assert_fail` is called
+   3. Assert information is stored into assert buffer
+   4. Kernel continues running
+ - Host side:
+   1. Upon call to `sycl::queue::wait_and_throw()` or
+      `sycl::event::wait_and_throw()` DPCPP Runtime waits until kernel finishes
+      and checks assert buffer for assert information throws exception
+
+
+#### Storing accessor metadata and writing assert failure to buffer
 
 Both storing of accessor metadata and writing assert failure is performed with
 help of built-ins. Implementations of these builtins are substituted by
