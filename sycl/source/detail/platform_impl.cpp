@@ -293,7 +293,8 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
 
 // Filter out the devices that are not compatible with SYCL_DEVICE_FILTER.
 // All three entries (backend:device_type:device_num) are optional.
-// The missing entries are constructed using '*', which means 'any' | 'all'.
+// The missing entries are constructed using '*', which means 'any' | 'all'
+// by the device_filter constructor.
 // This function matches devices in the order of backend, device_type, and
 // device_num.
 static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
@@ -307,16 +308,12 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
   int DeviceNum = 0;
   for (RT::PiDevice Device : PiDevices) {
     RT::PiDeviceType PiDevType;
-    info::device_type DeviceType = info::device_type::all;
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
                                             sizeof(RT::PiDeviceType),
                                             &PiDevType, nullptr);
-    if (PiDevType == PI_DEVICE_TYPE_ACC)
-      DeviceType = info::device_type::accelerator;
-    else if (PiDevType == PI_DEVICE_TYPE_CPU)
-      DeviceType = info::device_type::cpu;
-    else if (PiDevType == PI_DEVICE_TYPE_GPU)
-      DeviceType = info::device_type::gpu;
+    // Assumption here is that there is 1-to-1 mapping between PiDevType and
+    // Sycl device type for GPU, CPU, and ACC.
+    info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
 
     for (const device_filter &Filter : FilterList->get()) {
       backend FilterBackend = Filter.Backend;
