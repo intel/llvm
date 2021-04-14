@@ -678,12 +678,19 @@ property_set {
 ### DPC++ Compiler: front-end
 
 DPC++ FE is responsible for several things related to specialization constants:
-1. Handling of `kernel_handler` SYCL kernel function argument.
-2. Communicating to DPC++ RT which kernel argument should be used for passing
-   buffer with specialization constants values when they are emulated.
-3. Communicating to DPC++ RT mapping between `specialization_id`s and
-   corresponding symbolic IDs through integration footer.
-4. It provides `__builtin_unique_ID` implementation.
+
+While transforming SYCL kernel function into an OpenCL kernel, DPC++ FE should
+- Handle `kernel_handler` argument: it is not captured by lambda and therefore
+  should be separately handled in DPC++ FE
+- Communicate to DPC++ RT which kernel argument should be used for passing
+  a buffer with specialization constant values when they are emulated.
+
+DPC++ FE provides implementation of `__builtin_unique_ID` built-in function and
+it also populates special integration footer with the content required by DPC++
+RT for access to right device image properties describing specialization
+constants.
+
+#### SYCL Kernel function transformations
 
 `kernel_handler` is defined by SYCL 2020 specification as interface for
 retrieving specialization constant values in SYCL kernel functions, but it
@@ -743,21 +750,46 @@ integration header mechanism, i.e. it is added as new entry to
 `kernel_signatures` structure there with parameter kind set to a new
 enumeration value `kernel_param_kind_t::kind_specialization_constants_buffer`.
 
-Those were descriptions of tasks (1) and (2) of DPC++ FE. Task (3) is to help
-DPC++ RT to connect user-provided `specialization_id` variable with
-corresponding symbolic ID of a specialization constant when
-`handler::set_specialization_constant` is invoked.
+#### `__builtin_unique_ID`
 
-As noted above, we can't use regular integration header here, because in general
-case, `specialization_id` variables can't be forward-declared. Therefore, we are
-using integration footer approach, which for the following code snippet:
+This built-in is used to generate unique identifiers for specialization
+constants, which are used in communication between the compiler and the runtime.
+
+`__builtin_unique_ID` is defined as follows: it accepts a variable and returns
+a C-string (`const char *`), which:
+- if the input variable has external linkage, the string must be the same in all
+  translation units that pass this same variable to the built-in.
+- if the input variable has internal linkage, the string must be unique across
+  all translation units.
+- return string must be the same if the built-in was called twice for the same
+  variable within a single translation unit (regardless of its linkage type).
+
+#### Integration footer generation
+
+Note: we could have used `__builtin_unique_ID` directly in DPC++ Headers, but
+this would break compilation of those with a third-party C++ 17-compatible
+compiler, which is unaware of this built-in function. Therefore, the compiler
+generates a header file, which includes _the result_ of calling
+`__builtin_unique_ID` function and it is included into the user's program. By
+doing so we can still use this non-standard built-in function and preserve
+support for third-party host compilers.
+
+However, as noted above, we can't use regular integration header here, because
+in general case, `specialization_id` variables can't be forward-declared.
+Therefore, we are using _integration footer_ approach, i.e. we generate a header
+file which must be included at the end of a translation unit.
+
+For the following code snippet:
 ```
 struct A {
   float a, b;
 };
 
 constexpr specialization_id<int> id_int;
-constexpr specialization_id<A> id_A;
+struct Wraper {
+public:
+  static constexpr specialization_id<A> id_A;
+};
 constexpr inline specialization_id<double> id_double;
 constexpr inline specialization_id<float> id_float;
 // ...
@@ -767,20 +799,19 @@ constexpr inline specialization_id<float> id_float;
   // ...
   [=](kernel_handler h) {
     h.get_specialization_constant<id_int>();
-    h.get_specialization_constant<id_A>();
+    h.get_specialization_constant<Wrapper::id_A>();
   }
 }
 ```
 
-Will look like:
+The integration footer will look like:
 
 ```
 namespace detail {
-// generic declaration
-template<auto &SpecName>
-inline const char *get_spec_constant_symbolic_ID();
+// Note: we do not declare `get_spec_constant_symbolic_ID` here and assume that
+// it is declared in some other header which was already included.
 
-// specializations for each specialization constant:
+// specializations for each specialization constant (for each `specialization_id`):
 // we can refer to all those specialization_id variables, because integration
 // footer was _appended_ to the user-provided translation unit
 template<>
@@ -789,8 +820,8 @@ inline const char *get_spec_constant_symbolic_ID<id_int>() {
 }
 
 template<>
-inline const char *get_spec_constant_symbolic_ID<id_A>() {
-  return "result of __builtin_unique_ID(id_A) encoded here";
+inline const char *get_spec_constant_symbolic_ID<Wrapper::id_A>() {
+  return "result of __builtin_unique_ID(Wrapper::id_A) encoded here";
 }
 
 template<>
@@ -814,19 +845,97 @@ definition of `specialization_id` object regardless of its uses within SYCL
 kernel functions: those IDs are used by DPC++ RT as well even for those spec
 constants, which are never accessed on device.
 
-NOTE: By direct using `__builtin_unique_ID` in DPC++ Headers we could avoid
-generating integration footer at all, but since the host part of the program can
-be compiled with a third-party C++ 17-compatible compiler, which is unaware of
-the clang-specific built-ins, it can result in build errors.
 
-`__builtin_unique_ID` is defined as follows: it accepts a variable and returns
-a C-string (`const char *`), which:
-- if the variable has external linkage, the string must be consistent in all
-  translation units that reference this same variable.
-- if the variable has internal linkage, the string must be unique across all
-  translation units.
-- return string must be the same if the built-in was called twice for the same
-  variable within a single translation unit.
+##### Ambiguous references to specialization_id
+
+There are valid C++ code examples, where references to `specialization_id`
+variables could be ambiguous if they just referenced from a global namespace
+like shown above. For example:
+
+```
+constexpr sycl::specialization_id<int> same_name{1};
+
+/* application code that references "::same_name" */
+
+namespace {
+  constexpr sycl::specialization_id<int> same_name{2}:
+  /* application code that referenes ::(unnamed)::same_name */
+  namespace {
+    constexpr sycl::specialization_id<int> same_name{3}:
+    /* application code that referenes ::(unnamed)::(unnamed)::same_name */
+  }
+}
+
+/* application code that references "::same_name" */
+```
+
+In that case we can't use `same_name` for specializing
+`get_spec_constant_symbolic_ID`, because it would be ambiguous reference.
+However, we can do the following trick:
+
+```
+// Content of integration footer for the example above
+
+// For unambiguous references we can generate regular specialization
+template<>
+inline const char *get_spec_constant_symbolic_ID<::same_name>() {
+  return "result of __builtin_unique_ID(::same_name) encoded here";
+}
+
+// For ambiguous references we generate 'shim' functions, which allows us to
+// get an address of a variable within a (possible nested) anonymous namespace
+// without spelling it.
+namespace {
+  namespace __sycl_detail {
+    // This helper is need to get addresses of variables defined within
+    // anonymous namespace.
+    // It is generated for each specialization_id within an anonymous namespace
+    // if there is the same specialization_id defined in global namespace
+    static constexpr decltype(spec_name) __spec_id_shim_0() {
+      // address of ::(unnamed)::same_name;
+      return spec_name;
+    }
+  }
+}
+namespace sycl {
+  namespace detail {
+    // By using 'shim' function were are able to unambiguously refer to a
+    // variable within an anonymous namespace
+    template<>
+    inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_0()>() {
+      return "unique id for ::(unnamed)::same_name";
+    }
+  }
+}
+namespace {
+  namespace {
+    namespace __sycl_detail {
+      static constexpr decltype(same_name) &spec_id_shim_1() {
+        // address of ::(unnamed)::(unnamed)::same_name;
+        return same_name;
+      }
+    }
+  }
+
+  namespace __sycl_detail {
+    // Sometimes we need a 'shim', which points to another 'shim' in order to
+    // "extract" a variable from an anonymous namespace unambiguosly
+    static constexpr decltype(__sycl_detail::__spec_id_shim_1()) &__spec_id_shim_2() {
+      // still address of ::(unnamed)::(unnamed)::same_name;
+      return __sycl_detail::__spec_id_shim_1();
+    }
+  }
+}
+namespace sycl {
+  namespace detail {
+    template<>
+    inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_2()>() {
+      return "unique id for ::(unnamed)::(unnamed)::same_name";
+    }
+  }
+}
+
+```
 
 ### DPC++ runtime
 
