@@ -14,16 +14,21 @@ compile time.
 
 ## Use-case example
 
-```
+```c++
+#include <cassert>
+#include <sycl/sycl.hpp>
+
 using namespace sycl;
 auto ErrorHandler = [] (exception_list Exs) {
-  for (exception_ptr const& E : Exs) {
+  for (std::exception_ptr const& E : Exs) {
     try {
       std::rethrow_exception(E);
     }
-    catch (event_error const& Ex) {
-      std::cout << “Exception - ” << Ex.what(); // assertion failed
-      std::abort();
+    catch (const exception& Ex) {
+      if (Ex.code() == errc::ext_oneapi_assert) {
+        std::cout << “Exception - ” << Ex.what(); // assertion failed
+        std::abort();
+      }
     }
   }
 };
