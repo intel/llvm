@@ -244,6 +244,9 @@ Any properties in `isAssertEnabled` property set are ignored.
 The property set is added to device binary descriptor whenever at least single
 translation unit was compiled with assertions enabled i.e. `NDEBUG` undefined.
 
+The property set is added by `sycl-post-link` tool depending on module metadata.
+Metadata is provided by Clang frontend. Metadata name is `is_assert_enabled`.
+
 
 ##### Compiling with assert enabled/disabled
 
