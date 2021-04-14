@@ -93,8 +93,6 @@ __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle);
-__SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
-                                 const context &TargetContext);
 
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
@@ -134,14 +132,5 @@ T make(const context &Context,
 }
 
 } // namespace opencl
-
-template <>
-kernel make_kernel<backend::opencl>(
-    const interop<backend::opencl, kernel>::type &BackendObject,
-    const context &TargetContext) {
-  return opencl::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
-                             TargetContext);
-}
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

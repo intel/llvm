@@ -1252,13 +1252,9 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
 ///
 /// \param nativeHandle is the native handle to create PI kernel from.
 /// \param context is the PI context of the kernel.
-/// \param program is the PI program, that contains this kernel.
-/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
-/// the native handle, if it can.
 /// \param kernel is the PI kernel created from the native handle.
 __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_program program,
-    bool ownNativeHandle, pi_kernel *kernel);
+    pi_native_handle nativeHandle, pi_context context, pi_kernel *kernel);
 
 /// Gets the native handle of a PI kernel object.
 ///

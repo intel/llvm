@@ -16,7 +16,6 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel.hpp>
 
-#include <algorithm>
 #include <cassert>
 #include <memory>
 #include <vector>
@@ -303,12 +302,13 @@ public:
         ReturnValue;
     ReturnValue.reserve(std::distance(begin(), end()));
 
-    std::transform(begin(), end(), ReturnValue.begin(),
-                   [](const device_image<State> &DevImg) {
-                     return detail::pi::cast<typename backend_traits<
-                         Backend>::template return_type<kernel_bundle<State>>>(
-                         DevImg.getNative());
-                   });
+    for (const device_image<State> &DevImg : *this) {
+      ReturnValue.push_back(
+          detail::pi::cast<typename backend_traits<
+              Backend>::template return_type<kernel_bundle<State>>>(
+              DevImg.getNative()));
+    }
+
     return ReturnValue;
   }
 

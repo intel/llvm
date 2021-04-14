@@ -51,9 +51,9 @@ int main() {
   (void)Sampler;
 
   cl_kernel ClKernel;
-  // expected-warning@+1 {{'kernel' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-warning@+1 {{'kernel' is deprecated: OpenCL interop constructors are deprecated, use make_kernel() instead}}
   sycl::kernel Kernel{ClKernel, Ctx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-warning@+1 {{'get' is deprecated: OpenCL interop get() functions are deprecated, use get_native() instead}}
   (void)Kernel.get();
 
   // expected-warning@+1 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}

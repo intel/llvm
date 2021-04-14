@@ -46,28 +46,23 @@ int main() {
   auto NewBuf = sycl::make_buffer<BE, char>(NativeBuf, Ctx);
   assert(NewBuf.get_range()[0] == 128);
 
-  const char *ProgSrc = "kernel _() {}";
+  const char *ProgSrc = "kernel void _() {}";
   cl_int Err;
 
   cl_program OclProg =
       clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
-  if (Err != CL_SUCCESS)
-    return -1;
+  assert(Err == CL_SUCCESS && "Program creation failed");
 
   auto KB =
       sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
   auto KernelIDs = KB.get_kernel_ids();
-  auto It = std::find_if(KernelIDs.begin(), KernelIDs.end(),
-                         [](const sycl::kernel_id &ID) {
-                           return std::string{ID.get_name()} == "_";
-                         });
-  assert(It != KernelIDs.end());
+  assert(KernelIDs.empty());
 
   Err = clBuildProgram(OclProg, 1, &NativeDev, "", nullptr, nullptr);
-  assert(Err == CL_SUCCESS);
+  assert(Err == CL_SUCCESS && "Program build failed");
 
   cl_kernel NativeKer = clCreateKernel(OclProg, "_", &Err);
-  assert(Err == CL_SUCCESS);
+  assert(Err == CL_SUCCESS && "Kernel creation failed");
 
   auto Kernel = sycl::make_kernel<BE>(NativeKer, Ctx);
   assert(Kernel.get_info<sycl::info::kernel::num_args>() == 0);

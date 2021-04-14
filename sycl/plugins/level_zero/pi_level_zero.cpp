@@ -3859,7 +3859,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 }
 
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
-                                            pi_program, bool, pi_kernel *) {
+                                            pi_kernel *) {
   die("Unsupported operation");
   return PI_SUCCESS;
 }

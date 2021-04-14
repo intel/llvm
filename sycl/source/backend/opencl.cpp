@@ -55,19 +55,6 @@ __SYCL_EXPORT queue make_queue(const context &Context,
   return detail::make_queue(NativeHandle, Context,
                             ContextImpl->get_async_handler(), backend::opencl);
 }
-
-__SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
-                                 const context &TargetContext) {
-  const auto &Plugin = pi::getPlugin<backend::opencl>();
-  const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  // Create PI kernel first.
-  pi::PiKernel PiKernel = nullptr;
-  Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), nullptr, false, &PiKernel);
-  // Construct the SYCL queue from PI queue.
-  return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(PiKernel, ContextImpl));
-}
 } // namespace opencl
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

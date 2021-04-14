@@ -158,38 +158,37 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     }
   }
 
-  size_t NumKernels = 0;
-  Plugin.call<PiApiKind::piProgramGetInfo>(
-      PiProgram, PI_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
-      nullptr);
-  std::vector<const char *> KernelNames;
-  KernelNames.resize(NumKernels);
-  Plugin.call<PiApiKind::piProgramGetInfo>(
-      PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, NumKernels, KernelNames.data(),
-      nullptr);
-
-  std::vector<kernel_id> KernelIDs;
-  KernelIDs.reserve(NumKernels);
-
-  std::transform(KernelNames.begin(), KernelNames.end(), KernelIDs.begin(),
-                 [](const char *Name) {
-                   auto KernelIDImpl = std::make_shared<kernel_id_impl>(Name);
-                   return createSyclObjFromImpl<kernel_id>(KernelIDImpl);
-                 });
-
   std::vector<device> Devices;
   Devices.reserve(ProgramDevices.size());
-  std::transform(ProgramDevices.begin(), ProgramDevices.end(), Devices.begin(),
-                 [&Plugin](const auto &Dev) {
+  std::transform(ProgramDevices.begin(), ProgramDevices.end(),
+                 std::back_inserter(Devices), [&Plugin](const auto &Dev) {
                    auto DeviceImpl = std::make_shared<device_impl>(Dev, Plugin);
                    return createSyclObjFromImpl<device>(DeviceImpl);
                  });
 
+  // Unlike SYCL, other backends, like OpenCL or Level Zero, may not support
+  // getting kernel IDs before executable is built. The SYCL Runtime workarounds
+  // this by pre-building the device image and extracting kernel info. We can't
+  // do the same to user images, since they may contain references to undefined
+  // symbols (e.g. when kernel_bundle is supposed to be joined with another).
+  std::vector<kernel_id> KernelIDs{};
   auto DevImgImpl = std::make_shared<device_image_impl>(
       nullptr, TargetContext, Devices, State, KernelIDs, PiProgram);
   device_image_plain DevImg{DevImgImpl};
 
   return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
+}
+kernel make_kernel(pi_native_handle NativeHandle,
+                   const context &TargetContext) {
+  const auto &Plugin = pi::getPlugin<backend::opencl>();
+  const auto &ContextImpl = getSyclObjImpl(TargetContext);
+  // Create PI kernel first.
+  pi::PiKernel PiKernel = nullptr;
+  Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
+      NativeHandle, ContextImpl->getHandleRef(), &PiKernel);
+  // Construct the SYCL queue from PI queue.
+  return detail::createSyclObjFromImpl<kernel>(
+      std::make_shared<kernel_impl>(PiKernel, ContextImpl));
 }
 } // namespace detail
 } // namespace sycl
