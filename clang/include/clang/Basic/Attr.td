@@ -1963,6 +1963,7 @@ def SYCLIntelFPGALoopCountAvg : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NTripCount">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let HasCustomTypeTransform = 1;
   let Documentation = [SYCLIntelFPGALoopCountAvgAttrDocs];
 }
 
