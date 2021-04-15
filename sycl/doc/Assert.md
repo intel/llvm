@@ -5,9 +5,8 @@
 Using the standard C++ `assert` API ("assertions") is an important debugging
 technique widely used by developers. This document describes the design of
 supporting assertions within SYCL device code.
-The basic approach we chose is delivering device-side assertions as host-side
-asynchronous exceptions, which allows further extensibility, such as better
-error handling or potential recovery.
+The basic approach we chose is delivering device-side assertions as call to
+`std::abort()` at host-side.
 
 As usual, device-side assertions can be disabled by defining `NDEBUG` macro at
 compile time.
@@ -19,42 +18,30 @@ compile time.
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-auto ErrorHandler = [] (exception_list Exs) {
-  for (std::exception_ptr const& E : Exs) {
-    try {
-      std::rethrow_exception(E);
-    }
-    catch (const exception& Ex) {
-      if (Ex.code() == errc::ext_oneapi_assert) {
-        std::cout << “Exception - ” << Ex.what(); // assertion failed
-        std::abort();
-      }
-    }
-  }
-};
 
 void user_func(item<2> Item) {
   assert((Item[0] % 2) && “Nil”);
 }
 
 int main() {
-  queue Q(ErrorHandler);
-  q.submit([&] (handler& CGH) {
+  queue Q;
+  Q.submit([&] (handler& CGH) {
     CGH.parallel_for<class TheKernel>(range<2>{N, M}, [=](item<2> It) {
       do_smth();
       user_func(It);
       do_smth_else();
     });
   });
-  Q.wait_and_throw();
+  Q.wait();
   std::cout << “One shouldn’t see this message.“;
   return 0;
 }
 ```
 
 In this use-case every work-item with even X dimension will trigger assertion
-failure. Assertion failure should be reported via asynchronous exceptions with
-[`assert` error code](extensions/Assert/SYCL_INTEL_assert_exception.asciidoc).
+failure. Assertion failure should be trigger a call to `std::abort()` at host as
+described in
+[extension](extensions/Assert/SYCL_INTEL_ASSERT.asciidoc).
 Even though multiple failures of the same or different assertions can happen in
 multiple workitems, implementation is required to deliver only one. The
 assertion failure message is printed to `stderr` by DPCPP Runtime.
@@ -69,7 +56,7 @@ From user's point of view there are the following requirements:
 
 | # | Title | Description | Importance |
 | - | ----- | ----------- | ---------- |
-| 1 | Handle assertion failure | Signal about assertion failure via SYCL asynchronous exception | Must have |
+| 1 | Abort DPC++ application | Abort host application when assert function is called and print a message about assertion | Must have |
 | 2 | Print assert message | Assert function should print message to stderr at host | Must have |
 | 3 | Stop under debugger | When debugger is attached, break at assertion point | Highly desired |
 | 4 | Reliability | Assert failure should be reported regardless of kernel deadlock | Highly desired |
@@ -110,20 +97,6 @@ NB: Due to lack of support of online linking in Level-Zero, the application is
 linked against fallback implementation of `__devicelib_assert_fail`. Hence,
 Native Device Compilers should prefer their implementation instead of the one
 provided in incoming SPIR-V/LLVM IR binary.
-
-Limitations for user after catching the "assert" asynchronous exception:
- - When using GPU device and the kernel hangs/crashes the subsequent enqueues
-   will fail;
-
-When using CPU devices the user can proceed with enqueues to the same
-device/queue/context.
-DPCPP Runtime remains in valid state after "assert" exception been thrown.
-
-
-### Current violation
-
-While throwing an asynchronous exception is quite an extensible way, for the
-time being DPCPP Runtime merely calls `abort()`.
 
 
 ## Safe approach
