@@ -188,11 +188,11 @@ cpu_check_on_linux_substitute = ""
 if getDeviceCount("cpu")[0]:
     found_at_least_one_device = True
     lit_config.note("Found available CPU device")
-    cpu_run_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:cpu ".format(SYCL_PLUGIN=backend)
+    cpu_run_substitute = "env SYCL_DEVICE_FILTER=cpu,host "
     cpu_check_substitute = "| FileCheck %s"
     config.available_features.add('cpu')
     if platform.system() == "Linux":
-        cpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:cpu ".format(SYCL_PLUGIN=backend)
+        cpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER=cpu,host "
         cpu_check_on_linux_substitute = "| FileCheck %s"
 else:
     lit_config.warning("CPU device not found")
@@ -214,7 +214,7 @@ level_zero = False
 if gpu_count > 0:
     found_at_least_one_device = True
     lit_config.note("Found available GPU device")
-    gpu_run_substitute = " env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=backend)
+    gpu_run_substitute = " env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu,host ".format(SYCL_PLUGIN=backend)
     gpu_check_substitute = "| FileCheck %s"
     config.available_features.add('gpu')
     if cuda:
@@ -223,7 +223,7 @@ if gpu_count > 0:
        config.available_features.add('level_zero')
 
     if platform.system() == "Linux":
-        gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=backend)
+        gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu,host ".format(SYCL_PLUGIN=backend)
         gpu_check_on_linux_substitute = "| FileCheck %s"
 else:
     lit_config.warning("GPU device not found")
@@ -238,7 +238,7 @@ acc_check_substitute = ""
 if getDeviceCount("accelerator")[0]:
     found_at_least_one_device = True
     lit_config.note("Found available accelerator device")
-    acc_run_substitute = " env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:acc ".format(SYCL_PLUGIN=backend)
+    acc_run_substitute = " env SYCL_DEVICE_FILTER=acc "
     acc_check_substitute = "| FileCheck %s"
     config.available_features.add('accelerator')
 else:
