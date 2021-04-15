@@ -1,4 +1,5 @@
 // RUN: %clangxx -march=sapphirerapids -fsycl -O2 %s -o %t.out
+#ifdef SYCL_EXT_ONEAPI_MATRIX
 #include <CL/sycl.hpp>
 #include <iostream>
 
@@ -119,6 +120,7 @@ void matrix_multiply_ref(int32_t *A_mem, int32_t *B_mem, int32_t *C_mem, int M,
 }
 
 int main() {
+
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
       A[i][j] = i+2*j;
@@ -167,3 +169,4 @@ int main() {
     std::cout << "\n";
   }
 }
+#endif
