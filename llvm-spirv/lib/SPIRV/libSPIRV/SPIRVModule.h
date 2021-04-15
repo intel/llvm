@@ -511,6 +511,11 @@ public:
     return TranslationOpts.shouldReplaceLLVMFmulAddWithOpenCLMad();
   }
 
+  bool shouldPreserveOCLKernelArgTypeMetadataThroughString() const noexcept {
+    return TranslationOpts
+        .shouldPreserveOCLKernelArgTypeMetadataThroughString();
+  }
+
   SPIRVExtInstSetKind getDebugInfoEIS() const {
     switch (TranslationOpts.getDebugInfoEIS()) {
     case DebugInfoEIS::SPIRV_Debug:
