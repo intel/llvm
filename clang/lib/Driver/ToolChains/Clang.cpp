@@ -4241,6 +4241,9 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   bool OutputAdded = false;
   StringRef CompilerName =
       llvm::sys::path::stem(HostCompilerDefArg->getValue());
+  if (CompilerName.empty())
+    TC.getDriver().Diag(diag::err_drv_missing_arg_mtp)
+        << HostCompilerDefArg->getAsString(TCArgs);
   // FIXME: Consider requiring user input to specify a compatibility class
   // to determine the type of host compiler being used.
   SmallVector<StringRef, 4> MSVCCompilers = {"cl", "clang-cl", "icl"};
@@ -4327,7 +4330,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   SmallString<128> ExecPath;
   if (HostCompilerDefArg) {
     ExecPath = HostCompilerDefArg->getValue();
-    if (ExecPath == llvm::sys::path::stem(ExecPath))
+    if (!ExecPath.empty() && ExecPath == llvm::sys::path::stem(ExecPath))
       ExecPath = TC.GetProgramPath(ExecPath.c_str());
   }
 
