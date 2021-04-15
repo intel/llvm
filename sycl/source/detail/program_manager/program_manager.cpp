@@ -406,13 +406,15 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     // variable
     if (!CompileOptsEnv) {
       CompileOpts += Img.getCompileOptions();
-      pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
+    }
 
-      if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
-        if (!CompileOpts.empty())
-          CompileOpts += " ";
-        CompileOpts += "-vc-codegen";
-      }
+    // The -vc-codegen option is always preserved for ESIMD kernels, regardless
+    // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
+    pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
+    if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+      if (!CompileOpts.empty())
+        CompileOpts += " ";
+      CompileOpts += "-vc-codegen";
     }
 
     // Update only if link options are not overwritten by environment variable
