@@ -48,6 +48,9 @@ constexpr char SPIRV_GET_SPEC_CONST_COMPOSITE[] =
 // associated information) encountered in the module
 constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 
+constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
+    "SYCL_SPEC_CONST_DEFAULT_VAL";
+
 void AssertRelease(bool Cond, const char *Msg) {
   if (!Cond)
     report_fatal_error((Twine("SpecConstants.cpp: ") + Msg).str().c_str());
@@ -213,6 +216,17 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   for (unsigned I = 0; I < FT->getNumParams(); ++I)
     Res += manglePrimitiveType(FT->getParamType(I));
   return Res;
+}
+
+void setSpecConstDefaultValueMetadata(Instruction *I, StringRef SymID,
+                                      Value *Default) {
+  LLVMContext &Ctx = I->getContext();
+  SmallVector<Metadata *, 4> MDOperands;
+  MDOperands.push_back(MDString::get(Ctx, SymID));
+  MDOperands.push_back(ConstantAsMetadata::get(cast<Constant>(Default)));
+
+  MDNode *Entry = MDNode::get(Ctx, MDOperands);
+  I->setMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING, Entry);
 }
 
 /// Recursively iterates over a composite type in order to collect information
@@ -543,7 +557,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // specialization constants is passed as a 3rd argument of intrinsic.
           Value *RTBuffer =
               IsComposite ? CI->getArgOperand(3) : CI->getArgOperand(2);
-
           // Add the string literal to a "spec const string literal ID" ->
           // "offset" map, uniquing the integer offsets if this is new
           // literal.
@@ -583,6 +596,13 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc", CI);
 
           Replacement = new LoadInst(SCTy, BitCast, "load", CI);
+
+          Value *GlobVar = (IsComposite ? CI->getOperand(2) : CI->getOperand(1))
+                               ->stripPointerCasts();
+          Value *DefaultValue =
+              cast<GlobalVariable>(GlobVar)->getInitializer()->getOperand(0);
+
+          setSpecConstDefaultValueMetadata(Load, SymID, DefaultValue);
         } else {
           // Replace the intrinsic with default C++ value for the spec constant
           // type.
@@ -624,7 +644,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 }
 
 bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
-                                                    SpecIDMapTy &IDMap) {
+                                                    SpecIDMapTy &IDMap, std::vector<char> *v) {
   NamedMDNode *MD = M.getOrInsertNamedMetadata(SPEC_CONST_MD_STRING);
   if (!MD)
     return false;
@@ -635,6 +655,26 @@ bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
     return static_cast<unsigned>(C->getUniqueInteger().getZExtValue());
   };
+
+      //   const MDNode *N = I.getMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
+      // if (N) {
+      //   const auto *MDSym = cast<MDString>(N->getOperand(0));
+      //   const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(1));
+
+      //   const auto *Constant = MDInt->getValue();
+      //   if (auto IntConst = dyn_cast<ConstantInt>(Constant)) {
+      //     auto Val = IntConst->getValue().getZExtValue();
+
+      //     char *a_begin = reinterpret_cast<char *>(&Val);
+      //     copy_n(a_begin, IntConst->getType()->getScalarSizeInBits() / CHAR_BIT,
+      //            back_inserter(*v));
+
+      //   } else if (auto FPConst = dyn_cast<ConstantFP>(Constant)) {
+      //     auto Val = FPConst->getValue();
+      //     // How to get correct float/double value?
+      //   }
+      //   // else if Composite type OR use the handling above in recursive
+      //   // collection of struct scalars
 
   for (const auto *Node : MD->operands()) {
     StringRef ID = cast<MDString>(Node->getOperand(0).get())->getString();

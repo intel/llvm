@@ -421,6 +421,22 @@ static string_vector saveDeviceImageProperty(
             TmpSpecIDMap);
       }
     }
+    if (ImgPSInfo.DoSpecConst) { //} && ImgPSInfo.SetSpecConstAtRT) {
+      if (ImgPSInfo.SpecConstsMet) {
+        // extract spec constant maps per each module
+        SpecIDMapTy TmpSpecIDMap;
+        std::vector<char> vec;
+        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
+                                                       TmpSpecIDMap, &vec);
+        using SpecDefaultMapTy = std::map<StringRef, std::vector<char>>;
+        SpecDefaultMapTy TmpSpecDefaultMap;
+
+        TmpSpecDefaultMap["all"] = vec;
+        PropSet.add(
+            llvm::util::PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
+            TmpSpecDefaultMap);
+      }
+    }
     if (ImgPSInfo.EmitKernelParamInfo) {
       // extract kernel parameter optimization info per module
       ModuleAnalysisManager MAM;

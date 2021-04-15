@@ -185,6 +185,8 @@ public:
       "SYCL/specialization constants";
   static constexpr char SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS[] =
       "SYCL/composite specialization constants";
+  static constexpr char SYCL_SPEC_CONSTANTS_DEFAULT_VALUES[] =
+      "SYCL/specialization constants default values";
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
