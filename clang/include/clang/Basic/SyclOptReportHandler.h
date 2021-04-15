@@ -31,7 +31,7 @@ private:
 
     OptReportInfo(llvm::StringRef ArgName, std::string ArgType,
                   SourceLocation ArgLoc)
-         : KernelArgName(ArgName), KernelArgType(ArgType), KernelArgLoc(ArgLoc) {
+        : KernelArgName(ArgName), KernelArgType(ArgType), KernelArgLoc(ArgLoc) {
     }
   };
   llvm::DenseMap<const FunctionDecl *, SmallVector<OptReportInfo, 4>> Map;
