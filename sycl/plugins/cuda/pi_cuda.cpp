@@ -326,8 +326,6 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
       isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
       queue_{queue}, context_{context} {
 
-  assert(type != PI_COMMAND_TYPE_USER);
-
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
 
   PI_CHECK_ERROR(cuEventCreate(
