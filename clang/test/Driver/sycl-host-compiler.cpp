@@ -19,6 +19,10 @@
 // RUN:  | FileCheck -check-prefix=HOST_OPTIONS %s
 // HOST_OPTIONS: g++{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}} "-DFOO" "-DBAR"
 
+// RUN: %clang_cl -fsycl -fsycl-host-compiler=cl -fsycl-host-compiler-options="/DFOO /DBAR /O2" %s -### 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_OPTIONS_CL %s
+// HOST_OPTIONS_CL: cl{{.*}} "-Fo[[HOSTOBJ:.+\.obj]]"{{.*}} "/DFOO" "/DBAR" "/O2"
+
 /// preprocessing
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS %s
