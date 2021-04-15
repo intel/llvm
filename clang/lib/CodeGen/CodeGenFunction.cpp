@@ -1494,11 +1494,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       llvm::OptimizationRemark Remark("sycl", "Region", DL,
                                       &Fn->getEntryBlock());
       Remark << "Argument " << llvm::ore::NV("Argument", count++)
-             << " for function kernel: " 
+             << " for function kernel: "
              << llvm::ore::NV(ORI.KernelArgName.empty() ? "&" : "") << " "
-             << Fn->getName() << "." 
+             << Fn->getName() << "."
              << llvm::ore::NV(ORI.KernelArgName.empty() ? " "
-                                                        : ORI.KernelArgName)           
+                                                        : ORI.KernelArgName)
              << "(" << ORI.KernelArgType << ")";
       ORE.emit(Remark);
     }
