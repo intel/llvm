@@ -157,10 +157,8 @@ The following sequence of events describes how user code gets notified:
    3. Device immediately signals to host (Low-Level Runtime)
  - Host side:
    1. The assert failure gets detected by Low-Level Runtime
-   2. Low-Level Runtime sets event status
-   3. Upon call to `sycl::queue::wait_and_throw()` or
-      `sycl::event::wait_and_throw()` DPCPP Runtime checks event status and
-      throws "assert" exception
+   2. Low-Level Runtime prints assert failure message to `stderr`
+   3. Low-Level Runtime calls `abort()`
 
 
 ### Fallback approach
@@ -189,9 +187,11 @@ The following sequence of events describes how user code gets notified:
    3. Assert information is stored into assert buffer
    4. Kernel continues running
  - Host side:
-   1. Upon call to `sycl::queue::wait_and_throw()` or
-      `sycl::event::wait_and_throw()` DPCPP Runtime waits until kernel finishes
-      and checks assert buffer for assert information throws exception
+   1. A distinct thread is launched no later than the point of enqueue of the of
+      kernel with assertions
+   2. This thread polls the enqueued kernels for finish and checks the assert
+      buffer for assert data
+   3. If assert data is present DPCPP Runtime calls `abort()`
 
 
 #### Online-linking fallback `__devicelib_assert_fail`

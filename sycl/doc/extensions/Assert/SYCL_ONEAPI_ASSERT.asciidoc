@@ -52,18 +52,8 @@ products.
 This extension adds the ability for device code to call the C++ `assert()`
 macro. The behavior of `assert()` in device code is similar to its behavior in
 host code. If the asserted condition is false, a message is printed to `stderr`
-and then the program typically aborts. The mechanism for aborting the program is
-different, though. Whereas the host version calls `std::abort()`, the device
-version causes an asynchronous SYCL `exception` with the
-`errc::ext_oneapi_assert` error code to be thrown. The application can catch
-this exception like any other asynchronous exception that is thrown from an
-executing kernel. The numeric value of this enumeration element is defined by
-implementation.
+and then the program aborts with `std::abort()`.
 
-
-Catching the asynchronous exception with `sycl::errc::ext_oneapi_assert` error
-code means that assert failure had happened in device code during kernel
-execution and the assert message is already printed to `stderr`.
 The format of the assert message is unspecified, but it will always include the
 text of the failing expression, the values of the standard macros `__FILE__` and
 `__LINE__`, and the value of the standard variable `__func__`. If the failing
@@ -73,12 +63,7 @@ ID and the local ID of the failing work item.
 It is unspecified whether a failing `assert()` returns to its caller before the
 kernel terminates. If a failing call returns, the device code may need to
 continue execution without deadlocking for the assertion message to be printed
-or for the exception to be thrown.
-
-The contents of the exception's `e.what()` string is unspecified. Since the
-assertion message is already printed to `stderr` by the time the exception is
-thrown, the `e.what()` string may not include the location of the failing
-assertion.
+or for `std::abort()` to be called.
 
 The `assert()` macro is defined in system include headers, not in SYCL headers.
 On most of systems it is `<cassert>` and/or `<assert.h>` header files.
@@ -94,34 +79,21 @@ Following is an example use-case:
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-auto ErrorHandler = [] (exception_list Exs) {
-  for (std::exception_ptr const& E : Exs) {
-    try {
-      std::rethrow_exception(E);
-    }
-    catch (const exception& Ex) {
-      if (Ex.code() == errc::ext_oneapi_assert) {
-        std::cout << “Exception - ” << Ex.what(); // assertion failed
-        std::abort();
-      }
-    }
-  }
-};
 
 void user_func(item<2> Item) {
-  assert( (Item[0] % 2) && “Nil”);
+  assert((Item[0] % 2) && “Nil”);
 }
 
 int main() {
-  queue Q(ErrorHandler);
-  q.submit([&] (handler& CGH) {
+  queue Q;
+  Q.submit([&] (handler& CGH) {
     CGH.parallel_for<class TheKernel>(range<2>{N, M}, [=](item<2> It) {
       do_smth();
       user_func(It);
       do_smth_else();
     });
   });
-  Q.wait_and_throw();
+  Q.wait();
   std::cout << “One shouldn’t see this message.“;
   return 0;
 }
