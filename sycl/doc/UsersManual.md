@@ -238,6 +238,10 @@ and not recommended to use in production environment.
     expected that the options used here are compatible with the compiler
     specified via -fsycl-host-compiler=<arg>.
 
+    NOTE: Using -fsycl-host-compiler-options to pass any kind of phase limiting
+    options (e.g. -c, -E, -S) may interfere with the expected output set during
+    the host compilation.  Doing so is considered undefined behavior.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.

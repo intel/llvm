@@ -2523,7 +2523,7 @@ def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
   "compilation with during SYCL offload compiles.">;
 def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=">,
   Flags<[CoreOption]>, HelpText<"When performing the host compilation with "
-  "-fsycl-host-compiler specified, us the given options during that compile. "
+  "-fsycl-host-compiler specified, use the given options during that compile. "
   "Options are expected to be a quoted list of space separated options.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;

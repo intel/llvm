@@ -4210,8 +4210,7 @@ static bool ContainsWrapperAction(const Action *A) {
 void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
                                      const InputInfo &Output,
                                      const InputInfoList &Inputs,
-                                     const llvm::opt::ArgList &TCArgs,
-                                     const Tool *T) const {
+                                     const llvm::opt::ArgList &TCArgs) const {
 
   // The Host compilation step that occurs here is constructed based on the
   // input from the user.  This consists of the compiler to call and the
@@ -4224,7 +4223,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   HostCompileArgs.push_back(InputFile.getFilename());
 
   // When performing the host compilation, we are expecting to only be
-  // creating intermediate files.  These being preprocessed, assembly or
+  // creating intermediate files, namely preprocessor output, assembly or
   // object files.
   // We are making assumptions in regards to what options are used to
   // generate these intermediate files.
@@ -4257,6 +4256,9 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   };
   // FIXME: Reuse existing toolchains which are already supported to put
   // together the options.
+  // FIXME: For any potential obscure host compilers that do not use the
+  // 'standard' set of options, we should provide a user interface that allows
+  // users to override the implied options.
   if (isa<PreprocessJobAction>(JA)) {
     if (IsMSVCHostCompiler) {
       // Check the output file, if it is 'stdout' we want to use -E.
@@ -4341,6 +4343,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     llvm::transform(TargetArgs, std::back_inserter(HostCompileArgs),
                     [&TCArgs](StringRef A) { return TCArgs.MakeArgString(A); });
   }
+  const Tool *T = TC.SelectTool(JA);
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
                                        TCArgs.MakeArgString(ExecPath),
                                        HostCompileArgs, None);
@@ -4381,11 +4384,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           IsHeaderModulePrecompile || Inputs.size() == 1) &&
          "Unable to handle multiple inputs.");
 
-  // Perform the host compilation using an external compiler if the user
+  // Perform the SYCL host compilation using an external compiler if the user
   // requested.
   if (Args.hasArg(options::OPT_fsycl_host_compiler_EQ) && IsSYCL &&
       !IsSYCLOffloadDevice) {
-    ConstructHostCompilerJob(C, JA, Output, Inputs, Args, this);
+    ConstructHostCompilerJob(C, JA, Output, Inputs, Args);
     return;
   }
 
