@@ -1592,14 +1592,14 @@ SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueKHRInst(SPIRVValue *Condition,
-                                                          SPIRVBasicBlock *BB) {
+                                                        SPIRVBasicBlock *BB) {
   return addInstruction(new SPIRVAssumeTrueKHR(Condition->getId(), BB), BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,
-                                                      SPIRVValue *Value,
-                                                      SPIRVValue *ExpectedValue,
-                                                      SPIRVBasicBlock *BB) {
+                                                    SPIRVValue *Value,
+                                                    SPIRVValue *ExpectedValue,
+                                                    SPIRVBasicBlock *BB) {
   return addInstruction(SPIRVInstTemplateBase::create(
                             OpExpectKHR, ResultTy, getId(),
                             getVec(Value->getId(), ExpectedValue->getId()), BB,
