@@ -41,6 +41,13 @@
 //
 // Some code so that we can build an offload executable from this file.
 //
+#ifdef _WIN32
+__declspec(allocate("omp_offloading_entries$A"))
+char __start_omp_offloading_entries = 1;
+__declspec(allocate("omp_offloading_entries$B"))
+char __stop_omp_offloading_entries = 1;
+#endif
+
 void __tgt_register_lib(void *desc) {}
 void __tgt_unregister_lib(void *desc) {}
 
