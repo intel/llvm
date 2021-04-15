@@ -434,10 +434,13 @@ class SYCLIntegrationFooter {
 public:
   SYCLIntegrationFooter(Sema &S) : S(S) {}
   bool emit(StringRef MainSrc);
+  void addVarDecl(const VarDecl *VD);
 
 private:
   bool emit(raw_ostream &O);
   Sema &S;
+  llvm::SmallVector<const VarDecl *> SpecConstants;
+  void emitSpecIDName(raw_ostream &O, const VarDecl *VD);
 };
 
 /// Tracks expected type during expression parsing, for use in code completion.
@@ -10272,6 +10275,8 @@ public:
                                 Expr *E);
   IntelReqdSubGroupSizeAttr *
   MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
+  IntelNamedSubGroupSizeAttr *
+  MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
   void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E);
   SYCLIntelNumSimdWorkItemsAttr *
@@ -13162,6 +13167,11 @@ public:
     return *SyclIntFooter.get();
   }
 
+  void addSyclVarDecl(VarDecl *VD) {
+    if (LangOpts.SYCLIsDevice && !LangOpts.SYCLIntFooter.empty())
+      getSyclIntegrationFooter().addVarDecl(VD);
+  }
+
   enum SYCLRestrictKind {
     KernelGlobalVariable,
     KernelRTTI,
@@ -13182,7 +13192,7 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
-  void MarkDevice();
+  void MarkDevices();
 
   /// Emit a diagnostic about the given attribute having a deprecated name, and
   /// also emit a fixit hint to generate the new attribute name.

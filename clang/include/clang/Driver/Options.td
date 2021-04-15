@@ -5559,8 +5559,10 @@ def finclude_default_header : Flag<["-"], "finclude-default-header">,
   HelpText<"Include default header file for OpenCL">;
 def fdeclare_opencl_builtins : Flag<["-"], "fdeclare-opencl-builtins">,
   HelpText<"Add OpenCL builtin function declarations (experimental)">;
-def fdeclare_spirv_builtins : Flag<["-"], "fdeclare-spirv-builtins">,
-  HelpText<"Add SPIR-V builtin function declarations (experimental)">;
+def fdeclare_spirv_builtins
+    : Flag<["-"], "fdeclare-spirv-builtins">,
+      HelpText<"Add SPIR-V builtin function declarations (experimental)">,
+      MarshallingInfoFlag<LangOpts<"DeclareSPIRVBuiltins">>;
 
 def fpreserve_vec3_type : Flag<["-"], "fpreserve-vec3-type">,
   HelpText<"Preserve 3-component vector type">,
@@ -5698,6 +5700,11 @@ def fsycl_int_footer : Separate<["-"], "fsycl-int-footer">,
   MarshallingInfoString<LangOpts<"SYCLIntFooter">>;
 def fsycl_int_footer_EQ : Joined<["-"], "fsycl-int-footer=">,
   Alias<fsycl_int_footer>;
+def fsycl_unique_prefix_EQ
+    : Joined<["-"], "fsycl-unique-prefix=">,
+      HelpText<"A unique prefix for this translation unit across devices, used "
+               "to generate a unique name for local variables.">,
+      MarshallingInfoString<LangOpts<"SYCLUniquePrefix">>;
 def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params">,
   HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,
   MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;
@@ -5720,6 +5727,14 @@ def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
   NormalizedValuesScope<"LangOptions">,
   MarshallingInfoEnum<LangOpts<"SYCLVersion">, "SYCL_None">,
   ShouldParseIf<!strconcat(fsycl_is_device.KeyPath, "||", fsycl_is_host.KeyPath)>;
+
+def fsycl_default_sub_group_size
+    : Separate<["-"], "fsycl-default-sub-group-size">,
+      HelpText<"Set the default sub group size for SYCL kernels">,
+      Flags<[CC1Option]>;
+def fsycl_default_sub_group_size_EQ
+    : Joined<["-"], "fsycl-default-sub-group-size=">,
+      Alias<fsycl_default_sub_group_size>, Flags<[CC1Option]>;
 
 defm cuda_approx_transcendentals : BoolFOption<"cuda-approx-transcendentals",
   LangOpts<"CUDADeviceApproxTranscendentals">, DefaultFalse,

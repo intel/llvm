@@ -11317,6 +11317,11 @@ def note_spelling_suggestion : Note<
   "did you mean to use %0 instead?">;
 def warn_attribute_requires_non_negative_integer_argument :
   Warning<warn_impcast_integer_sign.Text>, InGroup<AcceptedAttributes>;
+def err_sycl_mismatch_group_size
+    : Error<"%select{kernel-called|undefined 'SYCL_EXTERNAL'}0 function must "
+            "have a sub group size that matches the size specified for the "
+            "kernel">;
+def note_sycl_kernel_declared_here : Note<"kernel declared here">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<
