@@ -74,6 +74,7 @@ The presented dynamic device code linkage mechanism must:
     invocation
   - Embedded into a host binary or shared object using manual invocations of
     SYCL tools such as `clang-offload-wrapper` and linker
+  - Loaded into memory via special API
 - Must not assume the actual format of the device code - e.g. that it is SPIR-V
   or native device binary
 - Provide automatic runtime resolution of `SYCL_EXTERNAL` function references
@@ -97,6 +98,8 @@ The overall idea:
   - No logical binding between host module and export/import lists, i.e.
     resolution is performed w/o regard to containing host modules
 - Actual linking is performed by underlying backend (OpenCL/L0/etc.)
+  - Underlying backend is the backend used by the SYCL RT to perform JIT
+    compilation of the program with symbols that need dynamic resolution.
 
 Next sections describe details of changes in each component.
 
@@ -257,6 +260,9 @@ of defined symbols. If this assumption is not correct, there can be two cases:
   - Same symbols have different definitions. In this case ODR violation takes
     place, such situation leads to undefined behaviour. For more details refer
     to [ODR violations](#ODR-violations) section.
+    - The situation when two device images of different formats define the same
+      symbols with two different definitions is not considered as ODR violation.
+      In this case the suitable device image will be picked.
 
 So, it is valid to pick the met first device image which defines required symbol
 during search.
