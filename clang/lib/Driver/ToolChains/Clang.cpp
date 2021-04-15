@@ -4394,6 +4394,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       HeaderOpt.append(Header);
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
+
+    // Forward -fsycl-default-sub-group-size if in SYCL mode.
+    Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
   }
 
   if (IsSYCL) {
