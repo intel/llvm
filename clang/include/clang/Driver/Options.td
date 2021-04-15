@@ -5728,6 +5728,14 @@ def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
   MarshallingInfoEnum<LangOpts<"SYCLVersion">, "SYCL_None">,
   ShouldParseIf<!strconcat(fsycl_is_device.KeyPath, "||", fsycl_is_host.KeyPath)>;
 
+def fsycl_default_sub_group_size
+    : Separate<["-"], "fsycl-default-sub-group-size">,
+      HelpText<"Set the default sub group size for SYCL kernels">,
+      Flags<[CC1Option]>;
+def fsycl_default_sub_group_size_EQ
+    : Joined<["-"], "fsycl-default-sub-group-size=">,
+      Alias<fsycl_default_sub_group_size>, Flags<[CC1Option]>;
+
 defm cuda_approx_transcendentals : BoolFOption<"cuda-approx-transcendentals",
   LangOpts<"CUDADeviceApproxTranscendentals">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Use">, NegFlag<SetFalse, [], "Don't use">,

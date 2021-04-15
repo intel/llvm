@@ -134,6 +134,9 @@ def err_drv_invalid_Xsycl_frontend_with_args : Error<
   "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
 def err_drv_bad_fpga_device_count : Error<
   "More than one FPGA specific device binary found in input objects">;
+def warn_drv_mismatch_fpga_archive : Warning<
+  "FPGA archive '%0' does not contain matching emulation/hardware expectancy">,
+  InGroup<SyclFPGAMismatch>;
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
