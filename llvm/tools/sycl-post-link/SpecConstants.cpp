@@ -214,37 +214,6 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   return Res;
 }
 
-void setSpecConstSymIDMetadata(Instruction *I, StringRef SymID,
-                               ArrayRef<unsigned> IntIDs) {
-  LLVMContext &Ctx = I->getContext();
-  SmallVector<Metadata *, 4> MDOperands;
-  MDOperands.push_back(MDString::get(Ctx, SymID));
-  for (unsigned ID : IntIDs)
-    MDOperands.push_back(
-        ConstantAsMetadata::get(ConstantInt::get(Ctx, APInt(32, ID))));
-  MDNode *Entry = MDNode::get(Ctx, MDOperands);
-  I->setMetadata(SPEC_CONST_SYM_ID_MD_STRING, Entry);
-}
-
-std::pair<StringRef, std::vector<SpecConstantDescriptor>>
-getScalarSpecConstMetadata(const Instruction *I) {
-  const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
-  if (!N)
-    return std::make_pair("", std::vector<SpecConstantDescriptor>{});
-  const auto *MDSym = cast<MDString>(N->getOperand(0));
-  const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(1));
-  unsigned ID = static_cast<unsigned>(
-      cast<ConstantInt>(MDInt->getValue())->getValue().getZExtValue());
-  std::vector<SpecConstantDescriptor> Res(1);
-  Res[0].ID = ID;
-  // We need to add an additional byte if the type size is not evenly
-  // divisible by eight, which might be the case for i1, i.e. booleans
-  Res[0].Size = I->getType()->getPrimitiveSizeInBits() / 8 +
-                (I->getType()->getPrimitiveSizeInBits() % 8 != 0);
-  Res[0].Offset = 0;
-  return std::make_pair(MDSym->getString(), Res);
-}
-
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
@@ -293,27 +262,6 @@ void collectCompositeElementsInfoRecursive(
     Result[Index++] = Desc;
     Offset += Desc.Size;
   }
-}
-
-std::pair<StringRef, std::vector<SpecConstantDescriptor>>
-getCompositeSpecConstMetadata(const Instruction *I) {
-  const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
-  if (!N)
-    return std::make_pair("", std::vector<SpecConstantDescriptor>{});
-  const auto *MDSym = cast<MDString>(N->getOperand(0));
-
-  std::vector<SpecConstantDescriptor> Result(N->getNumOperands() - 1);
-  unsigned Index = 0, Offset = 0;
-  collectCompositeElementsInfoRecursive(*I->getModule(), I->getType(), Index,
-                                        Offset, Result);
-
-  for (unsigned I = 1; I < N->getNumOperands(); ++I) {
-    const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(I));
-    unsigned ID = static_cast<unsigned>(
-        cast<ConstantInt>(MDInt->getValue())->getValue().getZExtValue());
-    Result[I - 1].ID = ID;
-  }
-  return std::make_pair(MDSym->getString(), Result);
 }
 
 MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
@@ -546,6 +494,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // (because of composite types) and therefore, we need to ajudst
           // NextID according to the actual amount of emitted spec constants.
           NextID += IDs.size();
+
+          // Generate necessary metadata which later will be pulled by
+          // sycl-post-link and transformed into device image properties
           SCMetadata[SymID] = generateSpecConstantMetadata(
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
@@ -558,21 +509,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         } else {
           CI->replaceAllUsesWith(SPIRVCall);
         }
-
-        // Mark the instruction with <symbolic_id, int_ids...> list for later
-        // recollection by collectSpecConstantMetadata method.
-//        setSpecConstSymIDMetadata(SPIRVCall, SymID, IDs);
-        // Example of the emitted call when spec constant is integer:
-        // %6 = call i32 @_Z20__spirv_SpecConstantii(i32 0, i32 0), \
-        //                                          !SYCL_SPEC_CONST_SYM_ID !22
-        // !22 = {!"string-id", i32 0}
-        // Example of the emitted call when spec constant is vector consisting
-        // of two integers:
-        // %1 = call i32 @_Z20__spirv_SpecConstantii(i32 3, i32 0)
-        // %2 = call i32 @_Z20__spirv_SpecConstantii(i32 4, i32 0)
-        // %3 = call <2 x i32> @_Z29__spirv_SpecConstantCompositeii(i32 \
-        //          %1, i32 %2), !SYCL_SPEC_CONST_SYM_ID !23
-        // !23 = {!"string-id-2", i32 3, i32 4}
       } else {
         // 2a. Spec constant must be resolved at compile time - replace the
         // intrinsic with the actual value for spec constant.
