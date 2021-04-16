@@ -425,7 +425,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   StringMap<MDNode *> SCMetadata;
 
   // Iterate through all declarations of instances of function template
-  // template <typename T> T __sycl_getSpecConstantValue(const char *ID)
+  // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
   // intrinsic to find its calls and lower them depending on the SetValAtRT
   // setting (see below).
   bool IRModified = false;
@@ -449,7 +449,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
     IRModified = IRModified || (SCIntrCalls.size() > 0);
 
     for (auto *CI : SCIntrCalls) {
-      // 1. Find the symbolic ID (string literal) passed as the actual argument
+      // 1. Find the Symbolic ID (string literal) passed as the actual argument
       // to the intrinsic - this should always be possible, as only string
       // literals are passed to it in the SYCL RT source code, and application
       // code can't use this intrinsic directly.
@@ -471,9 +471,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
-        // to a "spec const string literal ID" -> "integer ID" map or
-        // "composite spec const string literal ID" -> "vector of integer IDs"
-        // map, uniquing the integer IDs if this is new literal
+        // to a "spec const string literal ID" -> "vector of integer IDs" map,
+        // uniquing the integer IDs if this is a new literal
         auto Ins =
             IDMap.insert(std::make_pair(SymID, SmallVector<unsigned, 1>{}));
         bool IsNewSpecConstant = Ins.second;
@@ -489,7 +488,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         Replacement = emitSpecConstantRecursive(SCTy, CI, IDs);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
-          // (because of composite types) and therefore, we need to ajudst
+          // (because of composite types) and therefore, we need to adjust
           // NextID according to the actual amount of emitted spec constants.
           NextID += IDs.size();
 
@@ -499,14 +498,16 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
       } else {
-        // 2a. Spec constant must be resolved at compile time - replace the
-        // intrinsic with the actual value for spec constant.
+        // 2a. For SYCL 2020: spec constant will be passed as kernel argument;
+        // For older proposal against SYCL 1.2.1 spec constant must be resolved
+        // at compile time - replace the intrinsic with the actual value for
+        // spec constant.
         bool Is2020Intrinsic =
             F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
             F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
 
         if (Is2020Intrinsic) {
-          // Handle SYCL2020 version of intrinsic - replace it with a load from
+          // Handle SYCL 2020 version of intrinsic - replace it with a load from
           // the pointer to the specialization constant value.
           // A pointer to a single RT-buffer with all the values of
           // specialization constants is passed as a 3rd argument of intrinsic.
@@ -568,19 +569,24 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         CI->replaceAllUsesWith(Replacement);
       }
 
-      for (auto *I : DelInsts) {
-        assert(I->getNumUses() == 0 && "removing live instruction");
+      for (auto *I : DelInsts)
         I->removeFromParent();
-        I->deleteValue();
-      }
     }
   }
 
+  // Emit metadata about encountered specializaiton constants. This metadata
+  // is later queried by sycl-post-link in order to be converted into device
+  // image properties.
+  // Generated metadata looks like:
+  // !sycl.specialization-constants = !{!1, !2, ... for each spec constant}
+  // !1 = !{!"SymbolicID1", i32 1, i32 0, i32 4, i32 2, i32 4, i32 8}
+  // !2 = !{!"SymbolicID2", i32 3, i32 0, i32 4}
+  // The format is [Symbolic ID, list of triplets: numeric ID, offset, size]
+  // For more infor about meaning of those triplets see comments about
+  // SpecConstantDescriptor structure in SpecConstants.h
   NamedMDNode *MD = M.getOrInsertNamedMetadata(SPEC_CONST_MD_STRING);
-
-  for (const auto &P : SCMetadata) {
+  for (const auto &P : SCMetadata)
     MD->addOperand(P.second);
-  }
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
