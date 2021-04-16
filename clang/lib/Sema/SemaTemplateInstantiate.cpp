@@ -1093,8 +1093,8 @@ namespace {
     const SYCLIntelFPGASpeculatedIterationsAttr *
     TransformSYCLIntelFPGASpeculatedIterationsAttr(
         const SYCLIntelFPGASpeculatedIterationsAttr *SI);
-    const SYCLIntelFPGALoopCountAvgAttr *TransformSYCLIntelFPGALoopCountAvgAttr(
-        const SYCLIntelFPGALoopCountAvgAttr *SI);
+    const SYCLIntelFPGALoopCountAttr *TransformSYCLIntelFPGALoopCountAttr(
+        const SYCLIntelFPGALoopCountAttr *SI);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1620,12 +1620,12 @@ TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
           *SI, TransformedExpr);
 }
 
-const SYCLIntelFPGALoopCountAvgAttr *
-TemplateInstantiator::TransformSYCLIntelFPGALoopCountAvgAttr(
-    const SYCLIntelFPGALoopCountAvgAttr *LCA) {
+const SYCLIntelFPGALoopCountAttr *
+TemplateInstantiator::TransformSYCLIntelFPGALoopCountAttr(
+    const SYCLIntelFPGALoopCountAttr *LCA) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(LCA->getNTripCount()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCountAvgAttr>(
+  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCountAttr>(
       *LCA, TransformedExpr);
 }
 

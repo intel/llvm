@@ -118,10 +118,12 @@ struct LoopAttributes {
   unsigned SYCLMaxConcurrencyNThreads;
 
   /// Flag for llvm.loop.intel.loopcount_average metadata.
-  bool SYCLIntelFPGALoopCountAverageEnable;
+  bool SYCLIntelFPGALoopCountEnable;
 
   /// Value for llvm.loop.intel.loopcount_average metadata.
-  unsigned SYCLIntelFPGALoopControlAverage;
+  unsigned SYCLIntelFPGALoopCount;
+
+  const char *SYCLIntelFPGALoopCountVariation;
 
   /// Flag for llvm.loop.coalesce metadata.
   bool SYCLLoopCoalesceEnable;
@@ -411,13 +413,18 @@ public:
   }
 
   /// Set flag of loop_control_avg for the next loop pushed.
-  void setSYCLIntelFPGALoopCountAvgEnable() {
-    StagedAttrs.SYCLIntelFPGALoopCountAverageEnable = true;
+  void setSYCLIntelFPGALoopCountEnable() {
+    StagedAttrs.SYCLIntelFPGALoopCountEnable = true;
   }
 
   /// Set value of loop control average for the next loop pushed.
-  void setSYCLIntelFPGALoopControlAverage(unsigned C) {
-    StagedAttrs.SYCLIntelFPGALoopControlAverage = C;
+  void setSYCLIntelFPGALoopCount(unsigned C) {
+    StagedAttrs.SYCLIntelFPGALoopCount = C;
+  }
+
+  /// Set value of loop control average for the next loop pushed.
+  void setSYCLIntelFPGALoopCountVariation(const char *var) {
+    StagedAttrs.SYCLIntelFPGALoopCountVariation = var;
   }
 
   /// Set the unroll count for the next loop pushed.

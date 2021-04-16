@@ -427,7 +427,7 @@ void max_concurrency_dependent() {
 }
 
 template<int A, int B, int C>
-void loop_count_avg_dependent() {
+void loop_count_control_dependent() {
   int a[10];
 
   //expected-error@+1{{'loop_count_avg' attribute requires a non-negative integral compile time constant expression}}
@@ -460,8 +460,8 @@ int main() {
       max_concurrency_dependent<1, 4, -2>();
       //expected-note@-1 +{{in instantiation of function template specialization}}
 
-     loop_count_avg_dependent<3, 2, -1>();
-      //expected-note@-1{{in instantiation of function template specialization 'loop_count_avg_dependent<3, 2, -1>' requested here}}
+     loop_count_control_dependent<3, 2, -1>();
+      //expected-note@-1{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}
 });
   });
 

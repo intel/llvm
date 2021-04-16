@@ -112,14 +112,14 @@ void speculated_iterations() {
 }
 
 template <int A>
-void loop_count_avg() {
+void loop_count_control() {
   int a[10];
   // CHECK: ![[MD_LCA]] = distinct !{![[MD_LCA]], ![[MP:[0-9]+]], ![[MD_lca:[0-9]+]]}
-  // CHECK-NEXT: ![[MD_lca]] = !{!"llvm.loop.intel.loopcount_average", i32 12}
+  // CHECK-NEXT: ![[MD_lca]] = !{!"llvm.loop.intel.loopcount_avg", i32 12}
   [[intel::loop_count_avg(A)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // CHECK: ![[MD_LCA_1]] = distinct !{![[MD_LCA_1]], ![[MP:[0-9]+]], ![[MD_lca_1:[0-9]+]]}
-  // CHECK-NEXT: ![[MD_lca_1]] = !{!"llvm.loop.intel.loopcount_average", i32 4}
+  // CHECK-NEXT: ![[MD_lca_1]] = !{!"llvm.loop.intel.loopcount_avg", i32 4}
   [[intel::loop_count_avg(4)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
@@ -138,7 +138,7 @@ int main() {
     loop_coalesce<2>();
     max_interleaving<3>();
     speculated_iterations<4>();
-    loop_count_avg<12>();
+    loop_count_control<12>();
   });
   return 0;
 }

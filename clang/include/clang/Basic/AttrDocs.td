@@ -2951,9 +2951,9 @@ or ``ivdep``.
   }];
 }
 
-def SYCLIntelFPGALoopCountAvgAttrDocs : Documentation {
+def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "intel::loop_count_avg";
+  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg";
   let Content = [{
 The "loop_count" pragma specifies the minimum, maximum, or average number of
 iterations for a for loop. In addition, a list of commonly occurring values
@@ -2964,7 +2964,12 @@ complete unrolling.
 
   void foo() {
     int a[10];
-    [[intel::loop_count_avg(40)] for (int i = 0; i < 10; ++i) a[i] = 0;
+    [[intel::loop_count_min(40)] for (int i = 0; i < 10; ++i) a[i] = 0;
+  }
+
+  void foo() {
+    int a[10];
+    [[intel::loop_count_max(40)] for (int i = 0; i < 10; ++i) a[i] = 0;
   }
 
   template<int N>
