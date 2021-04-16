@@ -855,8 +855,11 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
   // from this queue that are currently executing.  This is intended to gets
   // kernels started as soon as possible when there are no kernels from this
   // queue awaiting execution, while allowing batching to occur when there
-  // are kernels already executing.
-  if (OKToBatchCommand && this->isBatchingAllowed() && !CurrentlyEmpty) {
+  // are kernels already executing. Also, if we are using fixed size batching,
+  // as indicated by !UseDynamicBatching, then just ignore CurrentlyEmpty
+  // as we want to strictly follow the batching the user specified.
+  if (OKToBatchCommand && this->isBatchingAllowed() &&
+      (!UseDynamicBatching || !CurrentlyEmpty)) {
     if (this->ZeOpenCommandList != nullptr &&
         this->ZeOpenCommandList != ZeCommandList)
       die("executeCommandList: ZeOpenCommandList should be equal to"
