@@ -62,7 +62,6 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/IR/Statepoint.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
@@ -397,9 +396,7 @@ void GVN::ValueTable::add(Value *V, uint32_t num) {
 }
 
 uint32_t GVN::ValueTable::lookupOrAddCall(CallInst *C) {
-  // The gc.relocate specific check is to simplify migration under PR49607, and
-  // is to be removed once complete.
-  if (AA->doesNotAccessMemory(C) || isa<GCRelocateInst>(C)) {
+  if (AA->doesNotAccessMemory(C)) {
     Expression exp = createExpr(C);
     uint32_t e = assignExpNewValueNum(exp).first;
     valueNumbering[C] = e;
@@ -1134,6 +1131,81 @@ void GVN::AnalyzeLoadAvailability(LoadInst *Load, LoadDepVect &Deps,
          "post condition violation");
 }
 
+void GVN::eliminatePartiallyRedundantLoad(
+    LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
+    MapVector<BasicBlock *, Value *> &AvailableLoads) {
+  for (const auto &AvailableLoad : AvailableLoads) {
+    BasicBlock *UnavailableBlock = AvailableLoad.first;
+    Value *LoadPtr = AvailableLoad.second;
+
+    auto *NewLoad =
+        new LoadInst(Load->getType(), LoadPtr, Load->getName() + ".pre",
+                     Load->isVolatile(), Load->getAlign(), Load->getOrdering(),
+                     Load->getSyncScopeID(), UnavailableBlock->getTerminator());
+    NewLoad->setDebugLoc(Load->getDebugLoc());
+    if (MSSAU) {
+      auto *MSSA = MSSAU->getMemorySSA();
+      // Get the defining access of the original load or use the load if it is a
+      // MemoryDef (e.g. because it is volatile). The inserted loads are
+      // guaranteed to load from the same definition.
+      auto *LoadAcc = MSSA->getMemoryAccess(Load);
+      auto *DefiningAcc =
+          isa<MemoryDef>(LoadAcc) ? LoadAcc : LoadAcc->getDefiningAccess();
+      auto *NewAccess = MSSAU->createMemoryAccessInBB(
+          NewLoad, DefiningAcc, NewLoad->getParent(),
+          MemorySSA::BeforeTerminator);
+      if (auto *NewDef = dyn_cast<MemoryDef>(NewAccess))
+        MSSAU->insertDef(NewDef, /*RenameUses=*/true);
+      else
+        MSSAU->insertUse(cast<MemoryUse>(NewAccess), /*RenameUses=*/true);
+    }
+
+    // Transfer the old load's AA tags to the new load.
+    AAMDNodes Tags;
+    Load->getAAMetadata(Tags);
+    if (Tags)
+      NewLoad->setAAMetadata(Tags);
+
+    if (auto *MD = Load->getMetadata(LLVMContext::MD_invariant_load))
+      NewLoad->setMetadata(LLVMContext::MD_invariant_load, MD);
+    if (auto *InvGroupMD = Load->getMetadata(LLVMContext::MD_invariant_group))
+      NewLoad->setMetadata(LLVMContext::MD_invariant_group, InvGroupMD);
+    if (auto *RangeMD = Load->getMetadata(LLVMContext::MD_range))
+      NewLoad->setMetadata(LLVMContext::MD_range, RangeMD);
+    if (auto *AccessMD = Load->getMetadata(LLVMContext::MD_access_group))
+      if (LI &&
+          LI->getLoopFor(Load->getParent()) == LI->getLoopFor(UnavailableBlock))
+        NewLoad->setMetadata(LLVMContext::MD_access_group, AccessMD);
+
+    // We do not propagate the old load's debug location, because the new
+    // load now lives in a different BB, and we want to avoid a jumpy line
+    // table.
+    // FIXME: How do we retain source locations without causing poor debugging
+    // behavior?
+
+    // Add the newly created load.
+    ValuesPerBlock.push_back(
+        AvailableValueInBlock::get(UnavailableBlock, NewLoad));
+    MD->invalidateCachedPointerInfo(LoadPtr);
+    LLVM_DEBUG(dbgs() << "GVN INSERTED " << *NewLoad << '\n');
+  }
+
+  // Perform PHI construction.
+  Value *V = ConstructSSAForLoadSet(Load, ValuesPerBlock, *this);
+  Load->replaceAllUsesWith(V);
+  if (isa<PHINode>(V))
+    V->takeName(Load);
+  if (Instruction *I = dyn_cast<Instruction>(V))
+    I->setDebugLoc(Load->getDebugLoc());
+  if (V->getType()->isPtrOrPtrVectorTy())
+    MD->invalidateCachedPointerInfo(V);
+  markInstructionForDeletion(Load);
+  ORE->emit([&]() {
+    return OptimizationRemark(DEBUG_TYPE, "LoadPRE", Load)
+           << "load eliminated by PRE";
+  });
+}
+
 bool GVN::PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
                          UnavailBlkVect &UnavailableBlocks) {
   // Okay, we have *some* definitions of the value.  This means that the value
@@ -1352,9 +1424,9 @@ bool GVN::PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
   // and using PHI construction to get the value in the other predecessors, do
   // it.
   LLVM_DEBUG(dbgs() << "GVN REMOVING PRE LOAD: " << *Load << '\n');
-  LLVM_DEBUG(if (!NewInsts.empty()) dbgs()
-             << "INSERTED " << NewInsts.size() << " INSTS: " << *NewInsts.back()
-             << '\n');
+  LLVM_DEBUG(if (!NewInsts.empty()) dbgs() << "INSERTED " << NewInsts.size()
+                                           << " INSTS: " << *NewInsts.back()
+                                           << '\n');
 
   // Assign value numbers to the new instructions.
   for (Instruction *I : NewInsts) {
@@ -1370,76 +1442,7 @@ bool GVN::PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
     VN.lookupOrAdd(I);
   }
 
-  for (const auto &PredLoad : PredLoads) {
-    BasicBlock *UnavailablePred = PredLoad.first;
-    Value *LoadPtr = PredLoad.second;
-
-    auto *NewLoad =
-        new LoadInst(Load->getType(), LoadPtr, Load->getName() + ".pre",
-                     Load->isVolatile(), Load->getAlign(), Load->getOrdering(),
-                     Load->getSyncScopeID(), UnavailablePred->getTerminator());
-    NewLoad->setDebugLoc(Load->getDebugLoc());
-    if (MSSAU) {
-      auto *MSSA = MSSAU->getMemorySSA();
-      // Get the defining access of the original load or use the load if it is a
-      // MemoryDef (e.g. because it is volatile). The inserted loads are
-      // guaranteed to load from the same definition.
-      auto *LoadAcc = MSSA->getMemoryAccess(Load);
-      auto *DefiningAcc =
-          isa<MemoryDef>(LoadAcc) ? LoadAcc : LoadAcc->getDefiningAccess();
-      auto *NewAccess = MSSAU->createMemoryAccessInBB(
-          NewLoad, DefiningAcc, NewLoad->getParent(),
-          MemorySSA::BeforeTerminator);
-      if (auto *NewDef = dyn_cast<MemoryDef>(NewAccess))
-        MSSAU->insertDef(NewDef, /*RenameUses=*/true);
-      else
-        MSSAU->insertUse(cast<MemoryUse>(NewAccess), /*RenameUses=*/true);
-    }
-
-    // Transfer the old load's AA tags to the new load.
-    AAMDNodes Tags;
-    Load->getAAMetadata(Tags);
-    if (Tags)
-      NewLoad->setAAMetadata(Tags);
-
-    if (auto *MD = Load->getMetadata(LLVMContext::MD_invariant_load))
-      NewLoad->setMetadata(LLVMContext::MD_invariant_load, MD);
-    if (auto *InvGroupMD = Load->getMetadata(LLVMContext::MD_invariant_group))
-      NewLoad->setMetadata(LLVMContext::MD_invariant_group, InvGroupMD);
-    if (auto *RangeMD = Load->getMetadata(LLVMContext::MD_range))
-      NewLoad->setMetadata(LLVMContext::MD_range, RangeMD);
-    if (auto *AccessMD = Load->getMetadata(LLVMContext::MD_access_group))
-      if (LI &&
-          LI->getLoopFor(Load->getParent()) == LI->getLoopFor(UnavailablePred))
-        NewLoad->setMetadata(LLVMContext::MD_access_group, AccessMD);
-
-    // We do not propagate the old load's debug location, because the new
-    // load now lives in a different BB, and we want to avoid a jumpy line
-    // table.
-    // FIXME: How do we retain source locations without causing poor debugging
-    // behavior?
-
-    // Add the newly created load.
-    ValuesPerBlock.push_back(AvailableValueInBlock::get(UnavailablePred,
-                                                        NewLoad));
-    MD->invalidateCachedPointerInfo(LoadPtr);
-    LLVM_DEBUG(dbgs() << "GVN INSERTED " << *NewLoad << '\n');
-  }
-
-  // Perform PHI construction.
-  Value *V = ConstructSSAForLoadSet(Load, ValuesPerBlock, *this);
-  Load->replaceAllUsesWith(V);
-  if (isa<PHINode>(V))
-    V->takeName(Load);
-  if (Instruction *I = dyn_cast<Instruction>(V))
-    I->setDebugLoc(Load->getDebugLoc());
-  if (V->getType()->isPtrOrPtrVectorTy())
-    MD->invalidateCachedPointerInfo(V);
-  markInstructionForDeletion(Load);
-  ORE->emit([&]() {
-    return OptimizationRemark(DEBUG_TYPE, "LoadPRE", Load)
-           << "load eliminated by PRE";
-  });
+  eliminatePartiallyRedundantLoad(Load, ValuesPerBlock, PredLoads);
   ++NumPRELoad;
   return true;
 }
@@ -1605,9 +1608,7 @@ static bool hasUsersIn(Value *V, BasicBlock *BB) {
   return false;
 }
 
-bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
-  assert(IntrinsicI->getIntrinsicID() == Intrinsic::assume &&
-         "This function can only be called with llvm.assume intrinsic");
+bool GVN::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
   Value *V = IntrinsicI->getArgOperand(0);
 
   if (ConstantInt *Cond = dyn_cast<ConstantInt>(V)) {
@@ -2173,6 +2174,9 @@ bool GVN::processInstruction(Instruction *I) {
   if (Value *V = SimplifyInstruction(I, {DL, TLI, DT, AC})) {
     bool Changed = false;
     if (!I->use_empty()) {
+      // Simplification can cause a special instruction to become not special.
+      // For example, devirtualization to a willreturn function.
+      ICF->removeUsersOf(I);
       I->replaceAllUsesWith(V);
       Changed = true;
     }
@@ -2188,9 +2192,8 @@ bool GVN::processInstruction(Instruction *I) {
     }
   }
 
-  if (IntrinsicInst *IntrinsicI = dyn_cast<IntrinsicInst>(I))
-    if (IntrinsicI->getIntrinsicID() == Intrinsic::assume)
-      return processAssumeIntrinsic(IntrinsicI);
+  if (auto *Assume = dyn_cast<AssumeInst>(I))
+    return processAssumeIntrinsic(Assume);
 
   if (LoadInst *Load = dyn_cast<LoadInst>(I)) {
     if (processLoad(Load))
@@ -2468,6 +2471,8 @@ bool GVN::performScalarPREInsertion(Instruction *Instr, BasicBlock *Pred,
   Instr->insertBefore(Pred->getTerminator());
   Instr->setName(Instr->getName() + ".pre");
   Instr->setDebugLoc(Instr->getDebugLoc());
+
+  ICF->insertInstructionTo(Instr, Pred);
 
   unsigned Num = VN.lookupOrAdd(Instr);
   VN.add(Instr, Num);

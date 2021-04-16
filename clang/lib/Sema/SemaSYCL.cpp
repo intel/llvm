@@ -345,8 +345,9 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
 
   llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
     // FIXME: Make this list self-adapt as new SYCL attributes are added.
-    return isa<IntelReqdSubGroupSizeAttr, ReqdWorkGroupSizeAttr,
-               SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
+    return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
+               ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
+               SYCLIntelNumSimdWorkItemsAttr,
                SYCLIntelSchedulerTargetFmaxMhzAttr,
                SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
                SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
@@ -676,6 +677,10 @@ public:
 
   llvm::SmallVectorImpl<Attr *> &GetCollectedAttributes() {
     return CollectedAttributes;
+  }
+
+  llvm::SmallPtrSetImpl<FunctionDecl *> &GetDeviceFunctions() {
+    return DeviceFunctions;
   }
 
   ~SingleDeviceFunctionTracker() {
@@ -1932,6 +1937,13 @@ public:
     KernelDecl->setType(FuncType);
     KernelDecl->setParams(Params);
 
+    // Make sure that this is marked as a kernel so that the code-gen can make
+    // decisions based on that. We cannot add this earlier, otherwise the call
+    // to TransformStmt in replaceWithLocalClone can diagnose something that got
+    // diagnosed on the actual kernel.
+    KernelDecl->addAttr(
+        SYCLKernelAttr::CreateImplicit(SemaRef.getASTContext()));
+
     SemaRef.addSyclDeviceDecl(KernelDecl);
   }
 
@@ -2291,6 +2303,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
+
     return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
   }
 
@@ -3558,12 +3571,136 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   }
 }
 
-static void PropagateAndDiagnoseDeviceAttr(Sema &S, Attr *A,
-                                           FunctionDecl *SYCLKernel,
-                                           FunctionDecl *KernelBody) {
+// Figure out the sub-group for the this function.  First we check the
+// attributes, then the global settings.
+static std::pair<LangOptions::SubGroupSizeType, int64_t>
+CalcEffectiveSubGroup(ASTContext &Ctx, const LangOptions &LO,
+                      const FunctionDecl *FD) {
+  if (const auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    int64_t Val = getIntExprValue(A->getValue(), Ctx);
+    return {LangOptions::SubGroupSizeType::Integer, Val};
+  }
+
+  if (const auto *A = FD->getAttr<IntelNamedSubGroupSizeAttr>()) {
+    if (A->getType() == IntelNamedSubGroupSizeAttr::Primary)
+      return {LangOptions::SubGroupSizeType::Primary, 0};
+    return {LangOptions::SubGroupSizeType::Auto, 0};
+  }
+
+  // Return the global settings.
+  return {LO.getDefaultSubGroupSizeType(),
+          static_cast<uint64_t>(LO.DefaultSubGroupSize)};
+}
+
+static SourceLocation GetSubGroupLoc(const FunctionDecl *FD) {
+  if (const auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
+    return A->getLocation();
+  if (const auto *A = FD->getAttr<IntelNamedSubGroupSizeAttr>())
+    return A->getLocation();
+  return SourceLocation{};
+}
+
+static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
+                                       const FunctionDecl *FD) {
+  // If they are the same, no error.
+  if (CalcEffectiveSubGroup(S.Context, S.getLangOpts(), SYCLKernel) ==
+      CalcEffectiveSubGroup(S.Context, S.getLangOpts(), FD))
+    return;
+
+  // Else we need to figure out why they don't match.
+  SourceLocation FDAttrLoc = GetSubGroupLoc(FD);
+  SourceLocation KernelAttrLoc = GetSubGroupLoc(SYCLKernel);
+
+  if (FDAttrLoc.isValid()) {
+    // This side was caused by an attribute.
+    S.Diag(FDAttrLoc, diag::err_sycl_mismatch_group_size)
+        << /*kernel called*/ 0;
+
+    if (KernelAttrLoc.isValid()) {
+      S.Diag(KernelAttrLoc, diag::note_conflicting_attribute);
+    } else {
+      // Kernel is 'default'.
+      S.Diag(SYCLKernel->getLocation(), diag::note_sycl_kernel_declared_here);
+    }
+    return;
+  }
+
+  // Else this doesn't have an attribute, which can only be caused by this being
+  // an undefined SYCL_EXTERNAL, and the kernel has an attribute that conflicts.
+  if (const auto *A = SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    // Don't diagnose this if the kernel got its size from the 'old' attribute
+    // spelling.
+    if (!A->isSYCL2020Spelling())
+      return;
+  }
+
+  assert(KernelAttrLoc.isValid() && "Kernel doesn't have attribute either?");
+  S.Diag(FD->getLocation(), diag::err_sycl_mismatch_group_size)
+      << /*undefined SYCL_EXTERNAL*/ 1;
+  S.Diag(KernelAttrLoc, diag::note_conflicting_attribute);
+}
+
+// Check SYCL2020 Attributes.  2020 attributes don't propogate, they are only
+// valid if they match the attribute on the kernel. Note that this is a slight
+// difference from what the spec says, which says these attributes are only
+// valid on SYCL Kernels and SYCL_EXTERNAL, but we felt that for
+// self-documentation purposes that it would be nice to be able to repeat these
+// on subsequent functions.
+static void CheckSYCL2020Attributes(
+    Sema &S, FunctionDecl *SYCLKernel, FunctionDecl *KernelBody,
+    const llvm::SmallPtrSetImpl<FunctionDecl *> &CalledFuncs) {
+
+  if (KernelBody) {
+    // Make sure the kernel itself has all the 2020 attributes, since we don't
+    // do propagation of these.
+    if (auto *A = KernelBody->getAttr<IntelReqdSubGroupSizeAttr>())
+      if (A->isSYCL2020Spelling())
+        SYCLKernel->addAttr(A);
+    if (auto *A = KernelBody->getAttr<IntelNamedSubGroupSizeAttr>())
+      SYCLKernel->addAttr(A);
+
+    // If the kernel has a body, we should get the attributes for the kernel
+    // from there instead, so that we get the functor object.
+    SYCLKernel = KernelBody;
+  }
+
+  for (auto *FD : CalledFuncs) {
+    if (FD == SYCLKernel || FD == KernelBody)
+      continue;
+    for (auto *Attr : FD->attrs()) {
+      switch (Attr->getKind()) {
+      case attr::Kind::IntelReqdSubGroupSize:
+        // Pre SYCL2020 spellings handled during collection.
+        if (!cast<IntelReqdSubGroupSizeAttr>(Attr)->isSYCL2020Spelling())
+          break;
+        LLVM_FALLTHROUGH;
+      case attr::Kind::IntelNamedSubGroupSize:
+        CheckSYCL2020SubGroupSizes(S, SYCLKernel, FD);
+        break;
+      case attr::Kind::SYCLDevice:
+        // If a SYCL_EXTERNAL function is not defined in this TU, its necessary
+        // that it has a compatible sub-group-size. Don't diagnose if it has a
+        // sub-group attribute, we can count on the other checks to catch this.
+        if (!FD->isDefined() && !FD->hasAttr<IntelReqdSubGroupSizeAttr>() &&
+            !FD->hasAttr<IntelNamedSubGroupSizeAttr>())
+          CheckSYCL2020SubGroupSizes(S, SYCLKernel, FD);
+        break;
+      default:
+        break;
+      }
+    }
+  }
+}
+
+static void PropagateAndDiagnoseDeviceAttr(
+    Sema &S, const SingleDeviceFunctionTracker &Tracker, Attr *A,
+    FunctionDecl *SYCLKernel, FunctionDecl *KernelBody) {
   switch (A->getKind()) {
   case attr::Kind::IntelReqdSubGroupSize: {
     auto *Attr = cast<IntelReqdSubGroupSizeAttr>(A);
+
+    if (Attr->isSYCL2020Spelling())
+      break;
     const auto *KBSimdAttr =
         KernelBody ? KernelBody->getAttr<SYCLSimdAttr>() : nullptr;
     if (auto *Existing = SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
@@ -3658,6 +3795,9 @@ static void PropagateAndDiagnoseDeviceAttr(Sema &S, Attr *A,
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
     SYCLKernel->addAttr(A);
     break;
+  case attr::Kind::IntelNamedSubGroupSize:
+    // Nothing to do here, handled in the SYCL2020 spelling.
+    break;
   // TODO: vec_len_hint should be handled here
   default:
     // Seeing this means that CollectPossibleKernelAttributes was
@@ -3681,8 +3821,10 @@ void Sema::MarkDevices() {
     // kernel at a time.
     SingleDeviceFunctionTracker T{Tracker, SYCLKernel};
 
+    CheckSYCL2020Attributes(*this, T.GetSYCLKernel(), T.GetKernelBody(),
+                            T.GetDeviceFunctions());
     for (auto *A : T.GetCollectedAttributes())
-      PropagateAndDiagnoseDeviceAttr(*this, A, T.GetSYCLKernel(),
+      PropagateAndDiagnoseDeviceAttr(*this, T, A, T.GetSYCLKernel(),
                                      T.GetKernelBody());
   }
 }
