@@ -641,6 +641,13 @@ private:
 
   void setOffloadStaticLibSeen() { OffloadStaticLibSeen = true; }
 
+  /// FPGA Emulation Mode.  By default, this is true due to the fact that
+  /// an external option setting is required to target hardware.
+  bool FPGAEmulationMode = true;
+  void setFPGAEmulationMode(bool IsEmulation) {
+    FPGAEmulationMode = IsEmulation;
+  }
+
   /// Returns true if an offload static library is found.
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
@@ -689,6 +696,10 @@ public:
   const std::string getFPGATempDepFile(const std::string &FileName) const {
     return FPGATempDepFiles[FileName];
   }
+
+  /// isFPGAEmulationMode - Compilation mode is determined to be used for
+  /// FPGA Emulation.  This is only used for SYCL offloading to FPGA device.
+  bool isFPGAEmulationMode() const { return FPGAEmulationMode; };
 
   /// addIntegrationFiles - Add the integration files that will be populated
   /// by the device compilation and used by the host compile.

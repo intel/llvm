@@ -25,10 +25,14 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   #TODO: Replace ExternalProject with FetchContent for better maintainance and
   #      cmake files simplification
   include(ExternalProject)
-
+  if (WIN32)
+    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.0.16)
+  else()
+    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.2.3)
+  endif()
   ExternalProject_Add(level-zero-loader
     GIT_REPOSITORY    https://github.com/oneapi-src/level-zero.git
-    GIT_TAG           v1.0.16
+    GIT_TAG           ${LEVEL_ZERO_LOADER_SOURCE_VERSION}
     UPDATE_DISCONNECTED ${SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${LEVEL_ZERO_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_build"

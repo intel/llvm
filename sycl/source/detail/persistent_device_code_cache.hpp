@@ -174,8 +174,7 @@ public:
   static std::vector<std::vector<char>>
   getItemFromDisc(const device &Device, const RTDeviceBinaryImage &Img,
                   const SerializedObj &SpecConsts,
-                  const std::string &BuildOptionsString,
-                  RT::PiProgram &NativePrg);
+                  const std::string &BuildOptionsString);
 
   /* Stores build program in persisten cache
    */
