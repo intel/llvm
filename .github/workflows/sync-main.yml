@@ -2,10 +2,11 @@ name: automatic sync main branch from llvm-project to llvm
 
 on:
   schedule:
-  - cron: '*/10 * * * *'
+  - cron: '0 */1 * * *'
 jobs:
   sync:
     runs-on: ubuntu-latest
+    if: github.repository == 'intel/llvm'
     steps:
       - uses: actions/checkout@v2
         with:

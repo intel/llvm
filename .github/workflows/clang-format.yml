@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Get clang-format first
-      run: sudo apt-get install -yqq clang-format-9
+      run: sudo apt-get install -yqq clang-format
 
     - uses: actions/checkout@v2
       with:

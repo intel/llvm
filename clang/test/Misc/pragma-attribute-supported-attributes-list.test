@@ -70,6 +70,7 @@
 // CHECK-NEXT: IBAction (SubjectMatchRule_objc_method_is_instance)
 // CHECK-NEXT: IFunc (SubjectMatchRule_function)
 // CHECK-NEXT: InitPriority (SubjectMatchRule_variable)
+// CHECK-NEXT: IntelNamedSubGroupSize (SubjectMatchRule_function)
 // CHECK-NEXT: IntelReqdSubGroupSize (SubjectMatchRule_function)
 // CHECK-NEXT: InternalLinkage (SubjectMatchRule_variable, SubjectMatchRule_function, SubjectMatchRule_record)
 // CHECK-NEXT: LTOVisibilityPublic (SubjectMatchRule_record)

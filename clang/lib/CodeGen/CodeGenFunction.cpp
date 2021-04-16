@@ -591,7 +591,7 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                                                llvm::Function *Fn)
 {
-  if (!FD->hasAttr<OpenCLKernelAttr>())
+  if (!FD->hasAttr<OpenCLKernelAttr>() && !FD->hasAttr<SYCLDeviceAttr>())
     return;
 
   // TODO Module identifier is not reliable for this purpose since two modules
@@ -601,7 +601,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   llvm::LLVMContext &Context = getLLVMContext();
 
-  CGM.GenOpenCLArgMetadata(Fn, FD, this);
+  if (FD->hasAttr<OpenCLKernelAttr>())
+    CGM.GenOpenCLArgMetadata(Fn, FD, this);
 
   if (const VecTypeHintAttr *A = FD->getAttr<VecTypeHintAttr>()) {
     QualType HintQTy = A->getTypeHint();
@@ -647,15 +648,52 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const IntelReqdSubGroupSizeAttr *A =
-          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-    const auto *CE = dyn_cast<ConstantExpr>(A->getValue());
+  bool IsKernelOrDevice =
+      FD->hasAttr<SYCLKernelAttr>() || FD->hasAttr<SYCLDeviceAttr>();
+  const IntelReqdSubGroupSizeAttr *ReqSubGroup =
+      FD->getAttr<IntelReqdSubGroupSizeAttr>();
+
+  // To support the SYCL 2020 spelling with no propagation, only emit for
+  // kernel-or-device when that spelling, fall-back to old behavior.
+  if (ReqSubGroup && (IsKernelOrDevice || !ReqSubGroup->isSYCL2020Spelling())) {
+    const auto *CE = dyn_cast<ConstantExpr>(ReqSubGroup->getValue());
     assert(CE && "Not an integer constant expression");
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("intel_reqd_sub_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
+  } else if (IsKernelOrDevice &&
+             CGM.getLangOpts().getDefaultSubGroupSizeType() ==
+                 LangOptions::SubGroupSizeType::Integer) {
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(CGM.getLangOpts().DefaultSubGroupSize))};
+    Fn->setMetadata("intel_reqd_sub_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
+  // SCYL2020 doesn't propagate attributes, so don't put it in an intermediate
+  // location.
+  if (IsKernelOrDevice) {
+    if (const auto *A = FD->getAttr<IntelNamedSubGroupSizeAttr>()) {
+      llvm::Metadata *AttrMDArgs[] = {llvm::MDString::get(
+          Context, A->getType() == IntelNamedSubGroupSizeAttr::Primary
+                       ? "primary"
+                       : "automatic")};
+      Fn->setMetadata("intel_reqd_sub_group_size",
+                      llvm::MDNode::get(Context, AttrMDArgs));
+    } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
+               LangOptions::SubGroupSizeType::Auto) {
+      llvm::Metadata *AttrMDArgs[] = {
+          llvm::MDString::get(Context, "automatic")};
+      Fn->setMetadata("intel_reqd_sub_group_size",
+                      llvm::MDNode::get(Context, AttrMDArgs));
+    } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
+               LangOptions::SubGroupSizeType::Primary) {
+      llvm::Metadata *AttrMDArgs[] = {llvm::MDString::get(Context, "primary")};
+      Fn->setMetadata("intel_reqd_sub_group_size",
+                      llvm::MDNode::get(Context, AttrMDArgs));
+    }
   }
 
   if (FD->hasAttr<SYCLSimdAttr>()) {

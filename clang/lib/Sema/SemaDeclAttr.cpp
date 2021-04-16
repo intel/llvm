@@ -3208,6 +3208,42 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
   S.AddIntelReqdSubGroupSize(D, AL, E);
 }
 
+IntelNamedSubGroupSizeAttr *
+Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
+                                      const IntelNamedSubGroupSizeAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelNamedSubGroupSizeAttr>()) {
+    if (DeclAttr->getType() != A.getType()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+    }
+    return nullptr;
+  }
+
+  return IntelNamedSubGroupSizeAttr::Create(Context, A.getType(), A);
+}
+
+static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
+                                         const ParsedAttr &AL) {
+  StringRef SizeStr;
+  SourceLocation Loc;
+  if (AL.isArgIdent(0)) {
+    IdentifierLoc *IL = AL.getArgAsIdent(0);
+    SizeStr = IL->Ident->getName();
+    Loc = IL->Loc;
+  } else if (!S.checkStringLiteralArgumentAttr(AL, 0, SizeStr, &Loc)) {
+    return;
+  }
+
+  IntelNamedSubGroupSizeAttr::SubGroupSizeType SizeType;
+  if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(SizeStr,
+                                                                SizeType)) {
+    S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
+  }
+  D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
+}
+
 void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
                                             const AttributeCommonInfo &CI,
                                             Expr *E) {
@@ -9215,6 +9251,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleIntelReqdSubGroupSize(S, D, AL);
+    break;
+  case ParsedAttr::AT_IntelNamedSubGroupSize:
+    handleIntelNamedSubGroupSize(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
     handleSYCLIntelNumSimdWorkItemsAttr(S, D, AL);
