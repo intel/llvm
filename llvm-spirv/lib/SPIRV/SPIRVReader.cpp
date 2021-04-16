@@ -320,6 +320,7 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     Func->setCallingConv(CallingConv::SPIR_FUNC);
     Func->addFnAttr(Attribute::NoUnwind);
     Func->addFnAttr(Attribute::ReadNone);
+    Func->addFnAttr(Attribute::WillReturn);
   }
 
   // Collect instructions in these containers to remove them later.
