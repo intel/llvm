@@ -187,7 +187,7 @@ public:
 
   /// Transform mem_fence to __spirv_MemoryBarrier.
   /// mem_fence(flag) => __spirv_MemoryBarrier(Workgroup, map(flag))
-  void visitCallMemFence(CallInst *CI);
+  void visitCallMemFence(CallInst *CI, StringRef DemangledName);
 
   void visitCallNDRange(CallInst *CI, StringRef DemangledName);
 
@@ -441,7 +441,7 @@ void OCLToSPIRV::visitCallInst(CallInst &CI) {
   if (DemangledName == kOCLBuiltinName::MemFence ||
       DemangledName == kOCLBuiltinName::ReadMemFence ||
       DemangledName == kOCLBuiltinName::WriteMemFence) {
-    visitCallMemFence(&CI);
+    visitCallMemFence(&CI, DemangledName);
     return;
   }
   if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0) {
@@ -686,11 +686,15 @@ void OCLToSPIRV::visitCallAtomicWorkItemFence(CallInst *CI) {
   transMemoryBarrier(CI, getAtomicWorkItemFenceLiterals(CI));
 }
 
-void OCLToSPIRV::visitCallMemFence(CallInst *CI) {
+void OCLToSPIRV::visitCallMemFence(CallInst *CI, StringRef DemangledName) {
+  OCLMemOrderKind MO = StringSwitch<OCLMemOrderKind>(DemangledName)
+                           .Case(kOCLBuiltinName::ReadMemFence, OCLMO_acquire)
+                           .Case(kOCLBuiltinName::WriteMemFence, OCLMO_release)
+                           .Default(OCLMO_acq_rel); // kOCLBuiltinName::MemFence
   transMemoryBarrier(
       CI,
       std::make_tuple(cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue(),
-                      OCLMO_relaxed, OCLMS_work_group));
+                      MO, OCLMS_work_group));
 }
 
 void OCLToSPIRV::transMemoryBarrier(CallInst *CI,

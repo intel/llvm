@@ -79,11 +79,9 @@ static bool dictionaryAttrSort(ArrayRef<NamedAttribute> value,
       storage.assign(value.begin(), value.end());
     // Check to see they are sorted already.
     bool isSorted = llvm::is_sorted(value);
-    if (!isSorted) {
-      // If not, do a general sort.
+    // If not, do a general sort.
+    if (!isSorted)
       llvm::array_pod_sort(storage.begin(), storage.end());
-      value = storage;
-    }
     return !isSorted;
   }
   return false;
@@ -695,7 +693,7 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
            "expected attribute value to have element type");
     if (eltType.isa<FloatType>())
       intVal = values[i].cast<FloatAttr>().getValue().bitcastToAPInt();
-    else if (eltType.isa<IntegerType>())
+    else if (eltType.isa<IntegerType, IndexType>())
       intVal = values[i].cast<IntegerAttr>().getValue();
     else
       llvm_unreachable("unexpected element type");

@@ -1634,6 +1634,7 @@ int main(int argc, const char **argv) {
                                      .Case("hip", true)
                                      .Case("sycl", true)
                                      .Case("fpga", true)
+                                     .Case("hipv4", true)
                                      .Default(false);
 
     bool TripleIsValid = !Triple.empty();
