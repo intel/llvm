@@ -322,9 +322,9 @@ pi_result cuda_piEventRetain(pi_event event);
 /// \endcond
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
-    : commandType_{type}, refCount_{1}, isCompleted_{false}, isRecorded_{false},
-      isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
-      queue_{queue}, context_{context} {
+    : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
+      isRecorded_{false}, isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr},
+      evQueued_{nullptr}, queue_{queue}, context_{context} {
 
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
 
@@ -365,6 +365,23 @@ pi_result _pi_event::start() {
 
   isStarted_ = true;
   return result;
+}
+
+bool _pi_event::is_completed() const noexcept {
+  if (!isRecorded_) {
+    return false;
+  }
+  if (!hasBeenWaitedOn_) {
+    const CUresult ret = cuEventQuery(evEnd_);
+    if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_READY) {
+      PI_CHECK_ERROR(ret);
+      return false;
+    }
+    if (ret == CUDA_ERROR_NOT_READY) {
+      return false;
+    }
+  }
+  return true;
 }
 
 pi_uint64 _pi_event::get_queued_time() const {
@@ -428,7 +445,7 @@ pi_result _pi_event::wait() {
   pi_result retErr;
   try {
     retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
-    isCompleted_ = true;
+    hasBeenWaitedOn_ = true;
   } catch (pi_result error) {
     retErr = error;
   }
