@@ -423,7 +423,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     RT::PiProgram NativePrg;
 
     auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
-        Device, Img, SpecConsts, CompileOpts + LinkOpts, NativePrg);
+        Device, Img, SpecConsts, CompileOpts + LinkOpts);
     if (BinProg.size()) {
       // TODO: Build for multiple devices once supported by program manager
       NativePrg = createBinaryProgram(ContextImpl, Device,

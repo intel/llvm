@@ -29,7 +29,8 @@ std::tuple<Ts...> get_tuple_tail_impl(const std::tuple<T, Ts...> &Tuple,
 
 template <typename T, typename... Ts>
 std::tuple<Ts...> get_tuple_tail(const std::tuple<T, Ts...> &Tuple) {
-  return get_tuple_tail_impl(Tuple, std::make_index_sequence<sizeof...(Ts)>());
+  return sycl::detail::get_tuple_tail_impl(
+      Tuple, std::make_index_sequence<sizeof...(Ts)>());
 }
 
 template <typename... Ts> constexpr tuple<Ts...> make_tuple(Ts... Args) {
@@ -127,7 +128,7 @@ template <typename T, typename... Ts> struct tuple<T, Ts...> {
 
   // required to convert std::tuple to inner tuple in user-provided functor
   tuple(const std::tuple<T, Ts...> &RHS)
-      : holder(std::get<0>(RHS)), next(get_tuple_tail(RHS)) {}
+      : holder(std::get<0>(RHS)), next(sycl::detail::get_tuple_tail(RHS)) {}
 
   // Convert to std::tuple with the same template arguments.
   operator std::tuple<T, Ts...>() const {
@@ -157,7 +158,7 @@ template <typename T, typename... Ts> struct tuple<T, Ts...> {
   template <typename UT, typename... UTs>
   tuple &operator=(const std::tuple<UT, UTs...> &RHS) {
     holder.value = std::get<0>(RHS);
-    next = get_tuple_tail(RHS);
+    next = sycl::detail::get_tuple_tail(RHS);
     return *this;
   }
 

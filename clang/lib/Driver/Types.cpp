@@ -236,6 +236,8 @@ bool types::isFPGA(ID Id) {
   case TY_FPGA_AOCR:
   case TY_FPGA_AOCX:
   case TY_FPGA_AOCO:
+  case TY_FPGA_AOCR_EMU:
+  case TY_FPGA_AOCX_EMU:
     return true;
   }
 }
