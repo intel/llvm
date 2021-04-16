@@ -430,6 +430,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   StringMap<SmallVector<unsigned, 1>> IDMap;
   StringMap<unsigned> OffsetMap;
 
+  StringMap<MDNode *> SCMetadata;
+
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_getSpecConstantValue(const char *ID)
   // intrinsic to find its calls and lower them depending on the SetValAtRT
@@ -543,8 +545,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // literal.
           auto Ins = OffsetMap.insert(std::make_pair(SymID, NextOffset));
           bool IsNewSpecConstant = Ins.second;
-          auto CurrentOffset = Ins.first->second;
+          unsigned CurrentOffset = Ins.first->second;
           if (IsNewSpecConstant) {
+            unsigned Size = 0;
             if (IsComposite) {
               // When handling elements of a structure, we do not use manually
               // calculated offsets (which are sum of sizes of all previously
@@ -557,9 +560,22 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               // values is the same for the host and the device.
               const StructLayout *SL =
                   M.getDataLayout().getStructLayout(StructTy);
-              NextOffset += SL->getSizeInBytes();
+              Size = SL->getSizeInBytes();
             } else
-              NextOffset += SCTy->getScalarSizeInBits() / CHAR_BIT;
+              Size = SCTy->getScalarSizeInBits() / CHAR_BIT;
+
+            SmallVector<Metadata *, 4> MDOps;
+            MDOps.push_back(MDString::get(M.getContext(), SymID));
+            MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
+                Type::getInt32Ty(M.getContext()), APInt(32, NextID))));
+            MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
+                Type::getInt32Ty(M.getContext()), APInt(32, 0))));
+            MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
+                Type::getInt32Ty(M.getContext()), APInt(32, Size))));
+            SCMetadata[SymID] = MDNode::get(M.getContext(), MDOps);
+
+            ++NextID;
+            NextOffset += Size;
           }
 
           Type *Int8Ty = Type::getInt8Ty(CI->getContext());
@@ -596,6 +612,13 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       }
     }
   }
+
+  NamedMDNode *MD = M.getOrInsertNamedMetadata("sycl.specialization-constants");
+
+  for (const auto &P : SCMetadata) {
+    MD->addOperand(P.second);
+  }
+
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
