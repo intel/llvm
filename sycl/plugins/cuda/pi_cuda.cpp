@@ -3501,12 +3501,10 @@ static pi_result commonEnqueueMemBufferCopyRect(
   assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
   assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
 
-  src_row_pitch = (!src_row_pitch) ? region->width_bytes : src_row_pitch;
-  src_slice_pitch = (!src_slice_pitch) ? (region->height_scalar * src_row_pitch)
-                                       : src_slice_pitch;
-  dst_row_pitch = (!dst_row_pitch) ? region->width_bytes : dst_row_pitch;
-  dst_slice_pitch = (!dst_slice_pitch) ? (region->height_scalar * dst_row_pitch)
-                                       : dst_slice_pitch;
+  assert(region->height_scalar == 1 || src_row_pitch > 0);
+  assert(region->depth_scalar == 1 || src_slice_pitch > 0);
+  assert(region->height_scalar == 1 || dst_row_pitch > 0);
+  assert(region->depth_scalar == 1 || dst_slice_pitch > 0);
 
   CUDA_MEMCPY3D params = {0};
 
@@ -3523,7 +3521,8 @@ static pi_result commonEnqueueMemBufferCopyRect(
   params.srcY = src_offset->y_scalar;
   params.srcZ = src_offset->z_scalar;
   params.srcPitch = src_row_pitch;
-  params.srcHeight = src_slice_pitch / src_row_pitch;
+  params.srcHeight =
+      region->depth_scalar > 1 ? src_slice_pitch / src_row_pitch : 0;
 
   params.dstMemoryType = dst_type;
   params.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
@@ -3534,7 +3533,8 @@ static pi_result commonEnqueueMemBufferCopyRect(
   params.dstY = dst_offset->y_scalar;
   params.dstZ = dst_offset->z_scalar;
   params.dstPitch = dst_row_pitch;
-  params.dstHeight = dst_slice_pitch / dst_row_pitch;
+  params.dstHeight =
+      region->depth_scalar > 1 ? dst_slice_pitch / dst_row_pitch : 0;
 
   return PI_CHECK_ERROR(cuMemcpy3DAsync(&params, cu_stream));
 }
