@@ -300,6 +300,56 @@ static const char *makeExeName(Compilation &C, StringRef Name) {
   return C.getArgs().MakeArgString(ExeName);
 }
 
+void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
+    Compilation &C, const JobAction &JA, const InputInfo &Output,
+    const InputInfoList &Inputs, const ArgList &Args) const {
+  // Construct opencl-aot command. This is used for FPGA AOT compilations
+  // when performing emulation.  Input file will be a SPIR-V binary which
+  // will be compiled to an aocx file.
+  InputInfoList ForeachInputs;
+  InputInfoList FPGADepFiles;
+  StringRef CreatedReportName;
+  ArgStringList CmdArgs{"-device=fpga_fast_emu"};
+
+  for (const auto &II : Inputs) {
+    if (II.getType() == types::TY_TempAOCOfilelist ||
+        II.getType() == types::TY_FPGA_Dependencies ||
+        II.getType() == types::TY_FPGA_Dependencies_List)
+      continue;
+    if (II.getType() == types::TY_Tempfilelist)
+      ForeachInputs.push_back(II);
+    CmdArgs.push_back(
+        C.getArgs().MakeArgString("-spv=" + Twine(II.getFilename())));
+  }
+  CmdArgs.push_back(
+      C.getArgs().MakeArgString("-ir=" + Twine(Output.getFilename())));
+
+  StringRef ForeachExt = "aocx";
+  if (Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
+    if (A->getValue() == StringRef("early"))
+      ForeachExt = "aocr";
+
+  // Add any implied arguments before user defined arguments.
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  llvm::Triple CPUTriple("spir64_x86_64");
+  TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs);
+  // Add the target args passed in
+  TC.TranslateBackendTargetArgs(Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+
+  SmallString<128> ExecPath(
+      getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
+  const char *Exec = C.getArgs().MakeArgString(ExecPath);
+  auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
+                                       Exec, CmdArgs, None);
+  if (!ForeachInputs.empty())
+    constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
+                                this, ForeachExt);
+  else
+    C.addCommand(std::move(Cmd));
+}
+
 void SYCL::fpga::BackendCompiler::ConstructJob(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Inputs, const ArgList &Args,
@@ -307,6 +357,19 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
           getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
          "Unsupported target");
+
+  // Grab the -Xsycl-target* options.
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  ArgStringList TargetArgs;
+  TC.TranslateBackendTargetArgs(Args, TargetArgs);
+
+  // When performing emulation compilations for FPGA AOT, we want to use
+  // opencl-aot instead of aoc.
+  if (C.getDriver().isFPGAEmulationMode()) {
+    constructOpenCLAOTCommand(C, JA, Output, Inputs, Args);
+    return;
+  }
 
   InputInfoList ForeachInputs;
   InputInfoList FPGADepFiles;
@@ -414,11 +477,14 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   if (!ReportOptArg.empty())
     CmdArgs.push_back(C.getArgs().MakeArgString(
         Twine("-output-report-folder=") + ReportOptArg));
+
+  // Add any implied arguments before user defined arguments.
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+
   // Add -Xsycl-target* options.
-  const toolchains::SYCLToolChain &TC =
-      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
     Args.ClaimAllArgs(options::OPT_reuse_exe_EQ);
@@ -461,6 +527,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(
@@ -493,6 +560,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(
@@ -603,9 +671,9 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
   }
 }
 
-static void addImpliedArgs(const llvm::Triple &Triple,
-                           const llvm::opt::ArgList &Args,
-                           llvm::opt::ArgStringList &CmdArgs) {
+void SYCLToolChain::AddImpliedTargetArgs(
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
   //  FPGA and default device:  -g -cl-opt-disable
@@ -641,9 +709,6 @@ static void addImpliedArgs(const llvm::Triple &Triple,
 
 void SYCLToolChain::TranslateBackendTargetArgs(
     const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
-  // Add any implied arguments before user defined arguments.
-  addImpliedArgs(getTriple(), Args, CmdArgs);
-
   // Handle -Xs flags.
   for (auto *A : Args) {
     // When parsing the target args, the -Xs<opt> type option applies to all
@@ -705,10 +770,14 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) {
+  // Add ../include/sycl and ../include (in that order)
   SmallString<128> P(Driver.getInstalledDir());
   llvm::sys::path::append(P, "..");
   llvm::sys::path::append(P, "include");
-  llvm::sys::path::append(P, "sycl");
+  SmallString<128> SYCLP(P);
+  llvm::sys::path::append(SYCLP, "sycl");
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(SYCLP));
   CC1Args.push_back("-internal-isystem");
   CC1Args.push_back(DriverArgs.MakeArgString(P));
 }

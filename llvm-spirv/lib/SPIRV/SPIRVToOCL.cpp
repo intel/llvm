@@ -101,6 +101,10 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     visitCallGroupWaitEvents(&CI, OC);
     return;
   }
+  if (OC == OpImageSampleExplicitLod) {
+    visitCallSPIRVImageSampleExplicitLodBuiltIn(&CI, OC);
+    return;
+  }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
@@ -561,6 +565,77 @@ void SPIRVToOCL::visitCallGroupWaitEvents(CallInst *CI, Op OC) {
         return OCLSPIRVBuiltinMap::rmap(OC);
       },
       &Attrs);
+}
+
+static char getTypeSuffix(Type *T) {
+  char Suffix;
+
+  Type *ST = T->getScalarType();
+  if (ST->isHalfTy())
+    Suffix = 'h';
+  else if (ST->isFloatTy())
+    Suffix = 'f';
+  else
+    Suffix = 'i';
+
+  return Suffix;
+}
+
+// TODO: Handle unsigned integer return type. May need spec change.
+void SPIRVToOCL::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
+                                                             Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  StringRef ImageTypeName;
+  bool IsDepthImage = false;
+  if (isOCLImageType(
+          (cast<CallInst>(CI->getOperand(0)))->getArgOperand(0)->getType(),
+          &ImageTypeName))
+    IsDepthImage = ImageTypeName.contains("_depth_");
+
+  auto ModifyArguments = [=](CallInst *, std::vector<Value *> &Args,
+                             llvm::Type *&RetTy) {
+    CallInst *CallSampledImg = cast<CallInst>(Args[0]);
+    auto Img = CallSampledImg->getArgOperand(0);
+    assert(isOCLImageType(Img->getType()));
+    auto Sampler = CallSampledImg->getArgOperand(1);
+    Args[0] = Img;
+    Args.insert(Args.begin() + 1, Sampler);
+    if (Args.size() > 4) {
+      ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
+      ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
+      // Drop "Image Operands" argument.
+      Args.erase(Args.begin() + 3, Args.begin() + 4);
+      // If the image operand is LOD and its value is zero, drop it too.
+      if (ImOp && LodVal && LodVal->isNullValue() &&
+          ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
+        Args.erase(Args.begin() + 3, Args.end());
+    }
+    if (CallSampledImg->hasOneUse()) {
+      CallSampledImg->replaceAllUsesWith(
+          UndefValue::get(CallSampledImg->getType()));
+      CallSampledImg->dropAllReferences();
+      CallSampledImg->eraseFromParent();
+    }
+    Type *T = CI->getType();
+    if (auto VT = dyn_cast<VectorType>(T))
+      T = VT->getElementType();
+    RetTy = IsDepthImage ? T : CI->getType();
+    return std::string(kOCLBuiltinName::SampledReadImage) + getTypeSuffix(T);
+  };
+
+  auto ModifyRetTy = [=](CallInst *NewCI) -> Instruction * {
+    if (IsDepthImage) {
+      auto Ins = InsertElementInst::Create(
+          UndefValue::get(FixedVectorType::get(NewCI->getType(), 4)), NewCI,
+          getSizet(M, 0));
+      Ins->insertAfter(NewCI);
+      return Ins;
+    }
+    return NewCI;
+  };
+
+  mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
 }
 
 void SPIRVToOCL::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {

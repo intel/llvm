@@ -3206,6 +3206,42 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
   S.AddIntelReqdSubGroupSize(D, AL, E);
 }
 
+IntelNamedSubGroupSizeAttr *
+Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
+                                      const IntelNamedSubGroupSizeAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelNamedSubGroupSizeAttr>()) {
+    if (DeclAttr->getType() != A.getType()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+    }
+    return nullptr;
+  }
+
+  return IntelNamedSubGroupSizeAttr::Create(Context, A.getType(), A);
+}
+
+static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
+                                         const ParsedAttr &AL) {
+  StringRef SizeStr;
+  SourceLocation Loc;
+  if (AL.isArgIdent(0)) {
+    IdentifierLoc *IL = AL.getArgAsIdent(0);
+    SizeStr = IL->Ident->getName();
+    Loc = IL->Loc;
+  } else if (!S.checkStringLiteralArgumentAttr(AL, 0, SizeStr, &Loc)) {
+    return;
+  }
+
+  IntelNamedSubGroupSizeAttr::SubGroupSizeType SizeType;
+  if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(SizeStr,
+                                                                SizeType)) {
+    S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
+  }
+  D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
+}
+
 void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
                                             const AttributeCommonInfo &CI,
                                             Expr *E) {
@@ -3307,12 +3343,6 @@ static void handleUseStallEnableClustersAttr(Sema &S, Decl *D,
 static void handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Decl *D,
                                                          const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
-
-  // [[intel::disable_loop_pipelining] and [[intel::initiation_interval()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<SYCLIntelFPGAInitiationIntervalAttr>(S, D, A))
-    return;
-
   D->addAttr(::new (S.Context)
                  SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A));
 }
@@ -3355,12 +3385,6 @@ void Sema::AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
     }
   }
 
-  // [[intel::disable_loop_pipelining] and [[intel::initiation_interval()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>(*this, D,
-                                                                       CI))
-    return;
-
   D->addAttr(::new (Context)
                  SYCLIntelFPGAInitiationIntervalAttr(Context, CI, E));
 }
@@ -3384,12 +3408,6 @@ Sema::MergeSYCLIntelFPGAInitiationIntervalAttr(
       }
     }
   }
-
-  // [[intel::initiation_interval()]] and [[intel::disable_loop_pipelining]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<SYCLIntelFPGADisableLoopPipeliningAttr>(*this, D,
-                                                                       A))
-    return nullptr;
 
   return ::new (Context)
       SYCLIntelFPGAInitiationIntervalAttr(Context, A, A.getIntervalExpr());
@@ -5802,17 +5820,11 @@ static void handleSYCLIntelNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
   S.AddSYCLIntelNoGlobalWorkOffsetAttr(D, A, E);
 }
 
-/// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
-/// One but not both can be specified
-/// Both are incompatible with the __register__ attribute.
-template <typename AttrType, typename IncompatAttrType>
+/// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]]
+/// attributes.
+template <typename AttrType>
 static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   checkForDuplicateAttribute<AttrType>(S, D, A);
-  if (checkAttrMutualExclusion<IncompatAttrType>(S, D, A))
-    return;
-
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
-    return;
 
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
@@ -5867,28 +5879,10 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     if (!MA->isImplicit() &&
         checkAttrMutualExclusion<IntelFPGAMemoryAttr>(S, D, Attr))
       InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGADoublePumpAttr>(S, D, Attr))
-    InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGASinglePumpAttr>(S, D, Attr))
-    InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGABankWidthAttr>(S, D, Attr))
-    InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGAPrivateCopiesAttr>(S, D, Attr))
-    InCompat = true;
   if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>())
     if (!NBA->isImplicit() &&
         checkAttrMutualExclusion<IntelFPGANumBanksAttr>(S, D, Attr))
       InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGAMaxReplicatesAttr>(S, D, Attr))
-    InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGASimpleDualPortAttr>(S, D, Attr))
-    InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGAMergeAttr>(S, D, Attr))
-    InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGABankBitsAttr>(S, D, Attr))
-    InCompat = true;
-  if (checkAttrMutualExclusion<IntelFPGAForcePow2DepthAttr>(S, D, Attr))
-    InCompat = true;
 
   return InCompat;
 }
@@ -5925,9 +5919,6 @@ static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
 static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
                                               const ParsedAttr &AL) {
   checkForDuplicateAttribute<IntelFPGASimpleDualPortAttr>(S, D, AL);
-
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, AL))
-    return;
 
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
@@ -5973,11 +5964,6 @@ void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
     }
   }
 
-  // [[intel::fpga_register]] and [[intel::max_replicates()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
-    return;
-
   // If the declaration does not have an [[intel::fpga_memory]]
   // attribute, this creates one as an implicit attribute.
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
@@ -6004,10 +5990,6 @@ Sema::MergeIntelFPGAMaxReplicatesAttr(Decl *D,
       }
     }
   }
-  // [[intel::fpga_register]] and [[intel::max_replicates()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, A))
-    return nullptr;
 
   return ::new (Context) IntelFPGAMaxReplicatesAttr(Context, A, A.getValue());
 }
@@ -6025,9 +6007,6 @@ static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
 /// This is incompatible with the register attribute.
 static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   checkForDuplicateAttribute<IntelFPGAMergeAttr>(S, D, AL);
-
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, AL))
-    return;
 
   SmallVector<StringRef, 2> Results;
   for (int I = 0; I < 2; I++) {
@@ -6064,9 +6043,6 @@ static void handleIntelFPGABankBitsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   checkForDuplicateAttribute<IntelFPGABankBitsAttr>(S, D, A);
 
   if (!A.checkAtLeastNumArgs(S, 1))
-    return;
-
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
     return;
 
   SmallVector<Expr *, 8> Args;
@@ -6176,11 +6152,6 @@ void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
     }
   }
 
-  // [[intel::fpga_register]] and [[intel::private_copies()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
-    return;
-
   // If the declaration does not have [[intel::memory]]
   // attribute, this creates default implicit memory.
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
@@ -6234,11 +6205,6 @@ void Sema::AddIntelFPGAForcePow2DepthAttr(Decl *D,
     }
   }
 
-  // [[intel::fpga_register]] and [[intel::force_pow2_depth()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
-    return;
-
   // If the declaration does not have an [[intel::fpga_memory]]
   // attribute, this creates one as an implicit attribute.
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
@@ -6265,11 +6231,6 @@ Sema::MergeIntelFPGAForcePow2DepthAttr(Decl *D,
       }
     }
   }
-
-  // [[intel::fpga_register]] and [[intel::force_pow2_depth()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, A))
-    return nullptr;
 
   return ::new (Context) IntelFPGAForcePow2DepthAttr(Context, A, A.getValue());
 }
@@ -6367,12 +6328,6 @@ SYCLIntelFPGAMaxConcurrencyAttr *Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
     }
     return nullptr;
   }
-  // FIXME
-  // max_concurrency and disable_component_pipelining attributes can't be
-  // applied to the same function. Upcoming patch needs to have this code
-  // added to it:
-  // if (checkAttrMutualExclusion<IntelDisableComponentPipeline>(S, D, AL))
-  //  return;
 
   return ::new (Context)
       SYCLIntelFPGAMaxConcurrencyAttr(Context, A, A.getNThreadsExpr());
@@ -6412,12 +6367,6 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
 static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
                                                   const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
-  // FIXME
-  // max_concurrency and disable_component_pipelining attributes can't be
-  // applied to the same function. Upcoming patch needs to have this code
-  // added to it:
-  // if (checkAttrMutualExclusion<IntelDisableComponentPipeline>(S, D, AL))
-  //  return;
 
   Expr *E = A.getArgAsExpr(0);
   S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
@@ -9301,6 +9250,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleIntelReqdSubGroupSize(S, D, AL);
     break;
+  case ParsedAttr::AT_IntelNamedSubGroupSize:
+    handleIntelNamedSubGroupSize(S, D, AL);
+    break;
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
     handleSYCLIntelNumSimdWorkItemsAttr(S, D, AL);
     break;
@@ -9329,10 +9281,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleVecTypeHint(S, D, AL);
     break;
   case ParsedAttr::AT_InitPriority:
-    if (S.Context.getTargetInfo().getTriple().isOSAIX())
-      llvm::report_fatal_error(
-          "'init_priority' attribute is not yet supported on AIX");
-    else
       handleInitPriorityAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Packed:
@@ -9571,12 +9519,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 
   // Intel FPGA specific attributes
   case ParsedAttr::AT_IntelFPGADoublePump:
-    handleIntelFPGAPumpAttr<IntelFPGADoublePumpAttr, IntelFPGASinglePumpAttr>(
-        S, D, AL);
+    handleIntelFPGAPumpAttr<IntelFPGADoublePumpAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGASinglePump:
-    handleIntelFPGAPumpAttr<IntelFPGASinglePumpAttr, IntelFPGADoublePumpAttr>(
-        S, D, AL);
+    handleIntelFPGAPumpAttr<IntelFPGASinglePumpAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGAMemory:
     handleIntelFPGAMemoryAttr(S, D, AL);

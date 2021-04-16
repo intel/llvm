@@ -3502,8 +3502,20 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
       LangOptions::SignReturnAddressKeyKind::BKey)
     GenerateArg(Args, OPT_msign_return_address_key_EQ, "b_key", SA);
 
-  if (Opts.DeclareSPIRVBuiltins)
-    GenerateArg(Args, OPT_fdeclare_spirv_builtins, SA);
+  switch (Opts.getDefaultSubGroupSizeType()) {
+  case LangOptions::SubGroupSizeType::Auto:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size, "automatic", SA);
+    break;
+  case LangOptions::SubGroupSizeType::Primary:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size, "primary", SA);
+    break;
+  case LangOptions::SubGroupSizeType::Integer:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size,
+                Twine(Opts.DefaultSubGroupSize), SA);
+    break;
+  case LangOptions::SubGroupSizeType::None:
+    break;
+  }
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
@@ -3594,7 +3606,27 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     }
   }
 
-  Opts.DeclareSPIRVBuiltins = Args.hasArg(OPT_fdeclare_spirv_builtins);
+  // Parse SYCL Default Sub group size.
+  if (const Arg *A = Args.getLastArg(OPT_fsycl_default_sub_group_size)) {
+    StringRef Value = A->getValue();
+    Opts.setDefaultSubGroupSizeType(
+        llvm::StringSwitch<LangOptions::SubGroupSizeType>(Value)
+            .Case("automatic", LangOptions::SubGroupSizeType::Auto)
+            .Case("primary", LangOptions::SubGroupSizeType::Primary)
+            .Default(LangOptions::SubGroupSizeType::Integer));
+
+    if (Opts.getDefaultSubGroupSizeType() ==
+        LangOptions::SubGroupSizeType::Integer) {
+      int64_t IntResult;
+      if (!Value.getAsInteger(10, IntResult)) {
+        Opts.DefaultSubGroupSize = IntResult;
+      } else {
+        Diags.Report(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+        Opts.setDefaultSubGroupSizeType(LangOptions::SubGroupSizeType::None);
+      }
+    }
+  }
 
   // These need to be parsed now. They are used to set OpenCL defaults.
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);

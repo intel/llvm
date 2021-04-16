@@ -113,8 +113,8 @@ standard subscript operator ```[]```, which returns by value.
 
 For simd type object, Explicit SIMD supports the following simd vector operations:
 - Unary operators: ++ (*pre-/post-increment*), -- (*pre-/post-decrement*)
-- Binary operators: +, -, *, /, &, |, ^
-- Compound assignments: +=, -=, *=, /=, &=, |=, ^=
+- Binary operators: +, -, *, /, &, |, ^, <<, >>
+- Compound assignments: +=, -=, *=, /=, &=, |=, ^=, <<=, >>=
 - Compare operators: >, >=, <, <=, ==, !=
 
 These are all element-wise operations, which apply a specified operation to the
