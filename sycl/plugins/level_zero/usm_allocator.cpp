@@ -23,6 +23,21 @@
 #include <CL/sycl/detail/spinlock.hpp>
 #include <iostream>
 
+// USM allocations are a mimimum of 64KB in size even when a smaller size is
+// requested. The implementation distinguishes between allocations of size
+// ChunkCutOff (32KB) and those that are larger.
+// Allocation requests smaller than ChunkCutoff use chunks taken from a single
+// 64KB USM allocation. Thus, for example, for 8-byte allocations, only 1 in
+// ~8000 requests results in a new USM allocation. Freeing results only in a
+// chunk of a larger 64KB allocation to be marked as available and no real
+// return to the system. An allocation is returned to the system only when all
+// chunks in a 64KB allocation are freed by the program.
+// Allocations larger than ChunkCutOff use a separate USM allocation for each
+// request. These are subject to "pooling". That is, when such an allocation is
+// freed by the program it is retained in a pool. The pool is available for
+// future allocations, which means there are fewer actual USM
+// allocations/deallocations.
+
 namespace settings {
 // Minimum allocation size that will be requested from the system.
 static constexpr size_t SlabMinSize = 64 * 1024; // 64KB
@@ -88,16 +103,16 @@ static constexpr BucketsArrayType BucketSizes = generateBucketSizes();
 static_assert((SlabMinSize & (SlabMinSize - 1)) == 0,
               "SlabMinSize must be a power of 2");
 
-static size_t MaxPoolableSize = 1;
-static size_t Capacity = 4;
-static size_t MaxPoolSize = 256;
-static size_t CurPoolSize = 0;
-
 // Protects the capacity checking of the pool.
 static sycl::detail::SpinLock PoolLock;
 
 static class SetLimits {
 public:
+  size_t MaxPoolableSize = 1;
+  size_t Capacity = 4;
+  size_t MaxPoolSize = 256;
+  size_t CurPoolSize = 0;
+
   SetLimits() {
     // Parse optional parameters of this form (applicable to each context):
     // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_SETTINGS=[<MaxPoolableSize>][,[<Capacity>][,[<MaxPoolSize>]]]
@@ -132,7 +147,7 @@ public:
     MaxPoolableSize *= (1 << 20);
     MaxPoolSize *= (1 << 20);
   }
-} UsmPoolSettings;
+} USMPoolSettings;
 } // namespace settings
 
 // Aligns the pointer down to the specified alignment
@@ -465,7 +480,7 @@ auto Bucket::getAvailFullSlab() -> decltype(AvailableSlabs.begin()) {
   } else {
     // If a slab was available in the pool then note that the current pooled
     // size has reduced by the size of this slab.
-    settings::CurPoolSize -= Size;
+    settings::USMPoolSettings.CurPoolSize -= Size;
   }
 
   return AvailableSlabs.begin();
@@ -566,10 +581,10 @@ void Bucket::onFreeChunk(Slab &Slab) {
 bool Bucket::CanPool() {
   std::lock_guard<sycl::detail::SpinLock> Lock{settings::PoolLock};
   size_t NewFreeSlabsInBucket = AvailableSlabs.size() + 1;
-  if (settings::Capacity >= NewFreeSlabsInBucket) {
-    size_t NewPoolSize = settings::CurPoolSize + Size;
-    if (settings::MaxPoolSize >= NewPoolSize) {
-      settings::CurPoolSize = NewPoolSize;
+  if (settings::USMPoolSettings.Capacity >= NewFreeSlabsInBucket) {
+    size_t NewPoolSize = settings::USMPoolSettings.CurPoolSize + Size;
+    if (settings::USMPoolSettings.MaxPoolSize >= NewPoolSize) {
+      settings::USMPoolSettings.CurPoolSize = NewPoolSize;
       return true;
     }
   }
@@ -582,7 +597,7 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size) {
   if (Size == 0)
     return nullptr;
 
-  if (Size > settings::MaxPoolableSize) {
+  if (Size > settings::USMPoolSettings.MaxPoolableSize) {
     return getMemHandle().allocate(Size);
   }
 
@@ -605,7 +620,7 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, size_t Alignment) {
 
   // Check if requested allocation size is within pooling limit.
   // If not, just request aligned pointer from the system.
-  if (AlignedSize > settings::MaxPoolableSize) {
+  if (AlignedSize > settings::USMPoolSettings.MaxPoolableSize) {
     return getMemHandle().allocate(Size, Alignment);
   }
 
