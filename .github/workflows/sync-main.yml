@@ -6,6 +6,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    if: github.repository == 'intel/llvm'
     steps:
       - uses: actions/checkout@v2
         with:
