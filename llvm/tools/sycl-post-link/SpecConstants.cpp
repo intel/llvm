@@ -664,32 +664,29 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
 bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
                                                     SpecIDMapTy &IDMap) {
-  bool Met = false;
+  NamedMDNode *MD = M.getOrInsertNamedMetadata("sycl.specialization-constants");
+  if (!MD)
+    return false;
 
-  for (Function &F : M) {
-    if (F.isDeclaration())
-      continue;
-    SmallVector<CallInst *, 32> SCIntrCalls;
+  auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
+                                             unsigned OpNo) -> unsigned {
+    Constant *C = cast<ConstantAsMetadata>(*N->getOperand(OpNo)).getValue();
+    return static_cast<unsigned>(C->getUniqueInteger().getZExtValue());
+  };
 
-    for (Instruction &I : instructions(F)) {
-      auto *CI = dyn_cast<CallInst>(&I);
-      Function *Callee = nullptr;
-      if (!CI || CI->isIndirectCall() || !(Callee = CI->getCalledFunction()))
-        continue;
-
-      std::pair<StringRef, std::vector<SpecConstantDescriptor>> Res;
-      if (Callee->getName().contains(SPIRV_GET_SPEC_CONST_COMPOSITE)) {
-        Res = getCompositeSpecConstMetadata(CI);
-      } else if (Callee->getName().contains(SPIRV_GET_SPEC_CONST_VAL)) {
-        Res = getScalarSpecConstMetadata(CI);
-      }
-
-      if (!Res.first.empty()) {
-        IDMap[Res.first] = Res.second;
-        Met = true;
-      }
+  for (const auto *Node : MD->operands()) {
+    StringRef ID = cast<MDString>(*Node->getOperand(0)).getString();
+    assert((Node->getNumOperands() - 1) % 3 == 0 &&
+           "Unexpected amount of operands");
+    std::vector<SpecConstantDescriptor> Descs;
+    for (unsigned I = 1; I < Node->getNumOperands(); I += 3) {
+      Descs[I].ID = ExtractIntegerFromMDNodeOperand(Node, I + 0);
+      Descs[I].Offset = ExtractIntegerFromMDNodeOperand(Node, I + 1);
+      Descs[I].Size = ExtractIntegerFromMDNodeOperand(Node, I + 2);
     }
+
+    IDMap[ID] = Descs;
   }
 
-  return Met;
+  return true;
 }
