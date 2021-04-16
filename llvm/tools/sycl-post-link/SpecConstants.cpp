@@ -248,7 +248,7 @@ getScalarSpecConstMetadata(const Instruction *I) {
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
-    const Module *M, Type *Ty, unsigned &Index, unsigned &Offset,
+    const Module &M, Type *Ty, unsigned &Index, unsigned &Offset,
     std::vector<SpecConstantDescriptor> &Result) {
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
@@ -259,7 +259,7 @@ void collectCompositeElementsInfoRecursive(
                                             Offset, Result);
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
-    const StructLayout *SL = M->getDataLayout().getStructLayout(StructTy);
+    const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
       auto *ElTy = StructTy->getElementType(I);
       // When handling elements of a structure, we do not use manually
@@ -304,7 +304,7 @@ getCompositeSpecConstMetadata(const Instruction *I) {
 
   std::vector<SpecConstantDescriptor> Result(N->getNumOperands() - 1);
   unsigned Index = 0, Offset = 0;
-  collectCompositeElementsInfoRecursive(I->getModule(), I->getType(), Index,
+  collectCompositeElementsInfoRecursive(*I->getModule(), I->getType(), Index,
                                         Offset, Result);
 
   for (unsigned I = 1; I < N->getNumOperands(); ++I) {
@@ -314,6 +314,53 @@ getCompositeSpecConstMetadata(const Instruction *I) {
     Result[I - 1].ID = ID;
   }
   return std::make_pair(MDSym->getString(), Result);
+}
+
+MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
+                                     Type *SCTy, ArrayRef<unsigned> IDs,
+                                     bool IsNativeSpecConstant) {
+  SmallVector<Metadata *, 16> MDOps;
+  LLVMContext &Ctx = M.getContext();
+  auto *Int32Ty = Type::getInt32Ty(Ctx);
+
+  // First element is always Symbolic ID
+  MDOps.push_back(MDString::get(Ctx, SymbolicID));
+
+  if (IsNativeSpecConstant) {
+    std::vector<SpecConstantDescriptor> Result(IDs.size());
+    unsigned Index = 0, Offset = 0;
+    collectCompositeElementsInfoRecursive(M, SCTy, Index, Offset, Result);
+
+    for (unsigned I = 0; I < Result.size(); ++I) {
+      MDOps.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(Int32Ty, APInt(32, IDs[I]))));
+      MDOps.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].Offset))));
+      MDOps.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].Size))));
+    }
+  } else {
+    assert(IDs.size() == 1 &&
+           "There must be a single ID for emulated spec constant");
+    MDOps.push_back(ConstantAsMetadata::get(
+        Constant::getIntegerValue(Int32Ty, APInt(32, IDs[0]))));
+    // Second element is always zero here
+    MDOps.push_back(ConstantAsMetadata::get(
+        Constant::getIntegerValue(Int32Ty, APInt(32, 0))));
+
+    unsigned Size = 0;
+    if (auto *StructTy = dyn_cast<StructType>(SCTy)) {
+      const auto *SL = M.getDataLayout().getStructLayout(StructTy);
+      Size = SL->getSizeInBytes();
+    } else
+      Size = SCTy->getScalarSizeInBits() / CHAR_BIT;
+
+    MDOps.push_back(ConstantAsMetadata::get(
+        Constant::getIntegerValue(Int32Ty, APInt(32, Size))));
+  }
+
+
+  return MDNode::get(Ctx, MDOps);
 }
 
 Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
@@ -499,6 +546,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // (because of composite types) and therefore, we need to ajudst
           // NextID according to the actual amount of emitted spec constants.
           NextID += IDs.size();
+          SCMetadata[SymID] = generateSpecConstantMetadata(
+              M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
 
         if (IsComposite) {
@@ -512,7 +561,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
         // Mark the instruction with <symbolic_id, int_ids...> list for later
         // recollection by collectSpecConstantMetadata method.
-        setSpecConstSymIDMetadata(SPIRVCall, SymID, IDs);
+//        setSpecConstSymIDMetadata(SPIRVCall, SymID, IDs);
         // Example of the emitted call when spec constant is integer:
         // %6 = call i32 @_Z20__spirv_SpecConstantii(i32 0, i32 0), \
         //                                          !SYCL_SPEC_CONST_SYM_ID !22
@@ -554,25 +603,16 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               // encountered elements), but instead rely on data provided for us
               // by DataLayout, because the structure can be unpacked, i.e.
               // padded in order to ensure particular alignment of its elements.
-              auto *StructTy = cast<StructType>(
-                  CI->getArgOperand(0)->getType()->getPointerElementType());
               // We rely on the fact that the StructLayout of spec constant RT
               // values is the same for the host and the device.
               const StructLayout *SL =
-                  M.getDataLayout().getStructLayout(StructTy);
+                  M.getDataLayout().getStructLayout(cast<StructType>(SCTy));
               Size = SL->getSizeInBytes();
             } else
               Size = SCTy->getScalarSizeInBits() / CHAR_BIT;
 
-            SmallVector<Metadata *, 4> MDOps;
-            MDOps.push_back(MDString::get(M.getContext(), SymID));
-            MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
-                Type::getInt32Ty(M.getContext()), APInt(32, NextID))));
-            MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
-                Type::getInt32Ty(M.getContext()), APInt(32, 0))));
-            MDOps.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
-                Type::getInt32Ty(M.getContext()), APInt(32, Size))));
-            SCMetadata[SymID] = MDNode::get(M.getContext(), MDOps);
+            SCMetadata[SymID] = generateSpecConstantMetadata(
+                M, SymID, SCTy, NextID, /* is native spec constant */ false);
 
             ++NextID;
             NextOffset += Size;
