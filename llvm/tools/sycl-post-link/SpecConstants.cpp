@@ -42,10 +42,9 @@ constexpr char SPIRV_GET_SPEC_CONST_VAL[] = "__spirv_SpecConstant";
 constexpr char SPIRV_GET_SPEC_CONST_COMPOSITE[] =
     "__spirv_SpecConstantComposite";
 
-// Metadata ID string added to calls to __spirv_SpecConstant to record the
-// original symbolic spec constant ID. For composite spec constants it contains
-// IDs of all scalar spec constants included into a composite
-constexpr char SPEC_CONST_SYM_ID_MD_STRING[] = "SYCL_SPEC_CONST_SYM_ID";
+// Name of the metadata which holds a list of all specialization constants (with
+// associated information) encountered in the module
+constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 
 void AssertRelease(bool Cond, const char *Msg) {
   if (!Cond)
@@ -424,7 +423,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   unsigned NextOffset = 0;
   StringMap<SmallVector<unsigned, 1>> IDMap;
   StringMap<unsigned> OffsetMap;
-
   StringMap<MDNode *> SCMetadata;
 
   // Iterate through all declarations of instances of function template
@@ -579,7 +577,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
     }
   }
 
-  NamedMDNode *MD = M.getOrInsertNamedMetadata("sycl.specialization-constants");
+  NamedMDNode *MD = M.getOrInsertNamedMetadata(SPEC_CONST_MD_STRING);
 
   for (const auto &P : SCMetadata) {
     MD->addOperand(P.second);
@@ -590,7 +588,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
 bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
                                                     SpecIDMapTy &IDMap) {
-  NamedMDNode *MD = M.getOrInsertNamedMetadata("sycl.specialization-constants");
+  NamedMDNode *MD = M.getOrInsertNamedMetadata(SPEC_CONST_MD_STRING);
   if (!MD)
     return false;
 
