@@ -211,8 +211,11 @@ public:
 
   size_t getNumAllocated() const { return NumAllocated; }
 
-  void *getFreeChunk();
-  void *getFullSlab();
+  // Get pointer to allocation that is one piece of this slab.
+  void *getChunk();
+
+  // Get pointer to allocation that is this entire slab.
+  void *getSlab();
 
   void *getPtr() const { return MemPtr; }
   void *getEnd() const {
@@ -250,17 +253,25 @@ public:
   Bucket(size_t Sz, USMAllocContext::USMAllocImpl &AllocCtx)
       : Size{Sz}, OwnAllocCtx{AllocCtx} {}
 
+  // Get pointer to allocation that is one piece of an available slab in this
+  // bucket.
   void *getChunk();
+
+  // Get pointer to allocation that is a full slab in this bucket.
   void *getSlab();
 
   size_t getSize() const { return Size; }
 
+  // Free an allocation that is one piece of a slab in this bucket.
   void freeChunk(void *Ptr, Slab &Slab);
+
+  // Free an allocation that is a full slab in this bucket.
   void freeSlab(void *Ptr, Slab &Slab);
 
   SystemMemory &getMemHandle();
   USMAllocContext::USMAllocImpl &getUsmAllocCtx() { return OwnAllocCtx; }
 
+  // Check whether an allocation to be freed can be placed in the pool.
   bool CanPool();
 
 private:
@@ -352,7 +363,7 @@ size_t Slab::FindFirstAvailableChunkIdx() const {
   return static_cast<size_t>(-1);
 }
 
-void *Slab::getFreeChunk() {
+void *Slab::getChunk() {
   assert(NumAllocated != Chunks.size());
 
   const size_t ChunkIdx = FindFirstAvailableChunkIdx();
@@ -370,7 +381,7 @@ void *Slab::getFreeChunk() {
   return FreeChunk;
 }
 
-void *Slab::getFullSlab() { return getPtr(); }
+void *Slab::getSlab() { return getPtr(); }
 
 Bucket &Slab::getBucket() { return bucket; }
 const Bucket &Slab::getBucket() const { return bucket; }
@@ -464,7 +475,7 @@ void *Bucket::getSlab() {
   std::lock_guard<std::mutex> Lg(BucketLock);
 
   auto SlabIt = getAvailFullSlab();
-  auto *FreeSlab = (*SlabIt)->getFullSlab();
+  auto *FreeSlab = (*SlabIt)->getSlab();
   auto It =
       UnavailableSlabs.insert(UnavailableSlabs.begin(), std::move(*SlabIt));
   AvailableSlabs.erase(SlabIt);
@@ -500,7 +511,7 @@ void *Bucket::getChunk() {
   std::lock_guard<std::mutex> Lg(BucketLock);
 
   auto SlabIt = getAvailSlab();
-  auto *FreeChunk = (*SlabIt)->getFreeChunk();
+  auto *FreeChunk = (*SlabIt)->getChunk();
 
   // If the slab is full, move it to unavailable slabs and update its iterator
   if (!((*SlabIt)->hasAvail())) {
@@ -552,7 +563,6 @@ void Bucket::onFreeChunk(Slab &Slab) {
   }
 }
 
-// Check whether an allocation to be freed can be placed in the pool.
 bool Bucket::CanPool() {
   std::lock_guard<sycl::detail::SpinLock> Lock{settings::PoolLock};
   size_t NewFreeSlabsInBucket = AvailableSlabs.size() + 1;
