@@ -470,6 +470,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         SCTy = PtrTy->getElementType();
       }
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
+      Value *Replacement = nullptr;
 
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
@@ -488,7 +489,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
-        auto *SPIRVCall = emitSpecConstantRecursive(SCTy, CI, IDs);
+        Replacement = emitSpecConstantRecursive(SCTy, CI, IDs);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to ajudst
@@ -500,19 +501,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           SCMetadata[SymID] = generateSpecConstantMetadata(
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
-
-        if (IsComposite) {
-          // __sycl_getCompositeSpecConstant returns through argument, so, the
-          // only thing we need to do here is to store into a memory pointed by
-          // that argument
-          new StoreInst(SPIRVCall, CI->getArgOperand(0), CI);
-        } else {
-          CI->replaceAllUsesWith(SPIRVCall);
-        }
       } else {
         // 2a. Spec constant must be resolved at compile time - replace the
         // intrinsic with the actual value for spec constant.
-        Value *Val = nullptr;
         bool Is2020Intrinsic =
             F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
             F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
@@ -563,22 +554,21 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           BitCastInst *BitCast = new BitCastInst(
               GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc", CI);
 
-          LoadInst *Load = new LoadInst(SCTy, BitCast, "load", CI);
-          Val = Load;
+          Replacement = new LoadInst(SCTy, BitCast, "load", CI);
         } else {
           // Replace the intrinsic with default C++ value for the spec constant
           // type.
-          Val = getDefaultCPPValue(SCTy);
+          Replacement = getDefaultCPPValue(SCTy);
         }
+      }
 
-        if (IsComposite) {
-          // __sycl_getCompositeSpecConstant returns through argument, so, the
-          // only thing we need to do here is to store into a memory pointed
-          // by that argument
-          new StoreInst(Val, CI->getArgOperand(0), CI);
-        } else {
-          CI->replaceAllUsesWith(Val);
-        }
+      if (IsComposite) {
+        // __sycl_getCompositeSpecConstant returns through argument, so, the
+        // only thing we need to do here is to store into a memory pointed
+        // by that argument
+        new StoreInst(Replacement, CI->getArgOperand(0), CI);
+      } else {
+        CI->replaceAllUsesWith(Replacement);
       }
 
       for (auto *I : DelInsts) {
