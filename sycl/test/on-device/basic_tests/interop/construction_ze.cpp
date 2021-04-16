@@ -12,11 +12,28 @@ constexpr auto BE = sycl::backend::level_zero;
 int main() {
   sycl::device Dev{sycl::default_selector{}};
 
+  sycl::queue Q{Dev};
+
+  if (0) {
+    Q.submit([](sycl::handler &CGH) { CGH.single_task<class T>([] {}); });
+  }
+
   sycl::platform Plt = Dev.get_platform();
   auto NativePlt = Plt.get_native<BE>();
 
   sycl::platform NewPlt = sycl::make_platform<BE>(NativePlt);
   assert(NewPlt == Plt);
+
+  sycl::context Ctx{Dev};
+  sycl::kernel_bundle KB =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+  auto NativeModules = KB.get_native<BE>();
+  assert(NativeModules.size() == 1);
+
+  auto NewKB = sycl::make_kernel_bundle<BE, sycl::bundle_state::executable>(
+      NativeModules[0], Ctx);
+  auto KernelIDs = NewKB.get_kernel_ids();
+  assert(KernelIDs.empty());
 
   return 0;
 }

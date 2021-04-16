@@ -144,6 +144,7 @@ public:
   }
 
   pi_native_handle getNative() const {
+    assert(MProgram);
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const plugin &Plugin = ContextImplPtr->getPlugin();
 
