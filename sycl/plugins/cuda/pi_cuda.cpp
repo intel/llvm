@@ -3833,9 +3833,10 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR array_desc) {
   case CU_AD_FORMAT_SIGNED_INT32:
   case CU_AD_FORMAT_FLOAT:
     return 4;
+  default:
+    cl::sycl::detail::pi::die("Invalid image format.");
+    return 0;
   }
-  cl::sycl::detail::pi::die("Invalid iamge format.");
-  return 0;
 }
 
 /// General ND memory copy operation for images (where N > 1).
