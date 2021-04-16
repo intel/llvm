@@ -303,7 +303,8 @@ shareOutputViaLocalMem(Instruction &I, BasicBlock &BBa, BasicBlock &BBb,
   Bld.CreateStore(&I, WGLocal);
   // 3) Generate a load in the "worker" BB of the value stored by the leader
   Bld.SetInsertPoint(&BBb.front());
-  auto *WGVal = Bld.CreateLoad(WGLocal, "wg_val_" + Twine(I.getName()));
+  auto *WGValT = WGLocal->getType()->getPointerElementType();
+  auto *WGVal = Bld.CreateLoad(WGValT, WGLocal, "wg_val_" + Twine(I.getName()));
   // 4) Finally, replace usages of I outside the scope
   for (auto *U : Users)
     U->replaceUsesOfWith(&I, WGVal);
@@ -416,7 +417,8 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
 
     if (!Loc2Shadow)
       std::swap(Src, Dst);
-    Value *LocalVal = Builder.CreateLoad(Src, "mat_ld");
+    auto *SrcT = Src->getType()->getPointerElementType();
+    Value *LocalVal = Builder.CreateLoad(SrcT, Src, "mat_ld");
     Builder.CreateStore(LocalVal, Dst);
   }
 }
