@@ -306,7 +306,6 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
         Constant::getIntegerValue(Int32Ty, APInt(32, Size))));
   }
 
-
   return MDNode::get(Ctx, MDOps);
 }
 
@@ -594,15 +593,16 @@ bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
 
   auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
                                              unsigned OpNo) -> unsigned {
-    Constant *C = cast<ConstantAsMetadata>(*N->getOperand(OpNo)).getValue();
+    Constant *C =
+        cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
     return static_cast<unsigned>(C->getUniqueInteger().getZExtValue());
   };
 
   for (const auto *Node : MD->operands()) {
-    StringRef ID = cast<MDString>(*Node->getOperand(0)).getString();
+    StringRef ID = cast<MDString>(Node->getOperand(0).get())->getString();
     assert((Node->getNumOperands() - 1) % 3 == 0 &&
            "Unexpected amount of operands");
-    std::vector<SpecConstantDescriptor> Descs;
+    std::vector<SpecConstantDescriptor> Descs((Node->getNumOperands() - 1) / 3);
     for (unsigned I = 1; I < Node->getNumOperands(); I += 3) {
       Descs[I].ID = ExtractIntegerFromMDNodeOperand(Node, I + 0);
       Descs[I].Offset = ExtractIntegerFromMDNodeOperand(Node, I + 1);
