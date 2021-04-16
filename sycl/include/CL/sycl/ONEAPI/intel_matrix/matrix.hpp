@@ -14,7 +14,9 @@
 
 #pragma once
 
-#ifdef SYCL_EXT_ONEAPI_MATRIX
+#include <CL/sycl/feature_test.hpp>
+
+#if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #if defined(__AMXTILE__) && defined(__AMXINT8__) && defined(__AMXBF16__)
 #include <CL/sycl/ONEAPI/intel_matrix/matrix-amx.hpp>
 #endif
