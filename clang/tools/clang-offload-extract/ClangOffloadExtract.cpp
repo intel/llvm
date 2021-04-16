@@ -26,7 +26,7 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
-#define IMGAGE_INFO_SECTION_NAME ".tgtimg"
+#define IMAGE_INFO_SECTION_NAME ".tgtimg"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -101,7 +101,7 @@ int main(int argc, const char **argv) {
       reportError(NameOrErr.takeError());
       return 1;
     }
-    if (*NameOrErr != IMGAGE_INFO_SECTION_NAME)
+    if (*NameOrErr != IMAGE_INFO_SECTION_NAME)
       continue;
 
     // This is the section we are looking for.
