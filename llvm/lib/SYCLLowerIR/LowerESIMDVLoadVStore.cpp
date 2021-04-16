@@ -89,7 +89,8 @@ PreservedAnalyses ESIMDLowerLoadStorePass::run(Function &F,
       if (GenXIntrinsic::isVStore(&Inst))
         Builder.CreateStore(Inst.getOperand(0), Inst.getOperand(1));
       else {
-        auto LI = Builder.CreateLoad(Inst.getOperand(0), Inst.getName());
+        auto *PtrTy = Inst.getOperand(0)->getType()->getPointerElementType();
+        auto LI = Builder.CreateLoad(PtrTy, Inst.getOperand(0), Inst.getName());
         LI->setDebugLoc(Inst.getDebugLoc());
         Inst.replaceAllUsesWith(LI);
       }

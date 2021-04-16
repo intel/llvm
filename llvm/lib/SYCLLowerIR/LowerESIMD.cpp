@@ -730,7 +730,8 @@ static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   if (GVTS.find(CI.getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
-  auto LI = Builder.CreateLoad(CI.getArgOperand(0), CI.getName());
+  auto *PtrTy = CI.getArgOperand(0)->getType()->getPointerElementType();
+  auto LI = Builder.CreateLoad(PtrTy, CI.getArgOperand(0), CI.getName());
   LI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(LI);
   return true;
