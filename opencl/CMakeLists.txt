@@ -26,6 +26,10 @@ add_library(OpenCL-Headers ALIAS Headers)
 # Set OPENCL_ICD_LOADER_HEADERS_DIR, as prerequisite for ICD build
 set(OPENCL_ICD_LOADER_HEADERS_DIR ${OpenCL_INCLUDE_DIRS} CACHE PATH "Path to OpenCL Headers")
 
+# LLVM build sets this OFF by default, but we need OpenCL to be built as shared
+# library.
+set(BUILD_SHARED_LIBS ON)
+
 if(NOT OpenCL_LIBRARY)
   message(STATUS "Will fetch OpenCL ICD Loader from github.com")
 

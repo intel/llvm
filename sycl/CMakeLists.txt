@@ -71,10 +71,7 @@ set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
 set(SYCL_INCLUDE_DEPLOY_DIR ${CMAKE_INSTALL_PREFIX}/${SYCL_INCLUDE_DIR})
 
-# LLVM build sets this OFF by default, but we need OpenCL to be built as shared
-# library.
-set(BUILD_SHARED_LIBS ON)
-# second argument is not used, it's required since first arg is not a real
+# Second argument is not used, it's required since first arg is not a real
 # subdirectory
 add_subdirectory(../opencl ${CMAKE_CURRENT_BINARY_DIR}/opencl_deps)
 
