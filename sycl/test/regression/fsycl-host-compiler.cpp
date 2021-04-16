@@ -1,4 +1,4 @@
-// RUN: %clang++ -fsycl -fsycl-host-compiler=g++ -o %t1.exe %s
+// RUN: %clang++ -fsycl -fsycl-host-compiler=g++ -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK" -o %t1.exe %s
 // RUN: %RUN_ON_HOST %t1.exe
 // REQUIRES: system-linux
 //==------- fsycl-host-compiler.cpp - external host compiler test ----------==//
@@ -12,6 +12,10 @@
 // Uses -fsycl-host-compiler=<compiler> on a simple test, requires 'g++'
 
 #include <CL/sycl.hpp>
+
+#ifndef DEFINE_CHECK
+#error predefined macro not set
+#endif // DEFINE_CHECK
 
 using namespace cl::sycl;
 
