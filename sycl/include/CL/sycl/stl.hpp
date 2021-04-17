@@ -11,6 +11,7 @@
 // 4.5 C++ Standard library classes required for the interface
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/sycl_span.hpp>
 
 #include <exception>
 #include <functional>
