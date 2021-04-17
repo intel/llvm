@@ -11,6 +11,8 @@
 #pragma once
 
 #include <CL/sycl/INTEL/esimd/detail/esimd_intrin.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_memory_intrin.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_sycl_util.hpp>
 #include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -480,6 +482,47 @@ public:
     }
   }
 
+  /// @name Memory operations
+  /// TODO NOTE: These APIs do not support cache hint specification yet, as this
+  /// is WIP. Later addition of hints is not expected to break code using these
+  /// APIs.
+  ///
+  /// @{
+
+  /// Copy a contiguous block of data from memory into this simd object.
+  /// The amount of memory copied equals the total size of vector elements in
+  /// this object.
+  /// @param addr the memory address to copy from. Must be a pointer to the
+  /// global address space, otherwise behavior is undefined.
+  ESIMD_INLINE void copy_from(const Ty *const addr) SYCL_ESIMD_FUNCTION;
+
+  /// Copy a contiguous block of data from memory into this simd object.
+  /// The amount of memory copied equals the total size of vector elements in
+  /// this object.
+  /// Source memory location is represented via a global accessor and offset.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from.
+  template <typename AccessorT>
+  ESIMD_INLINE __ESIMD_ENABLE_IF_ACCESSOR(AccessorT, can_read, global_buffer,
+                                          void)
+      copy_from(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// @param addr the memory address to copy to. Must be a pointer to the
+  /// global address space, otherwise behavior is undefined.
+  ESIMD_INLINE void copy_to(Ty *addr) SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// Destination memory location is represented via a global accessor and
+  /// offset.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from.
+  template <typename AccessorT>
+  ESIMD_INLINE __ESIMD_ENABLE_IF_ACCESSOR(AccessorT, can_write, global_buffer,
+                                          void)
+      copy_to(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+
+  /// @} // Memory operations
 private:
   // The underlying data for this vector.
   vector_type M_data;
@@ -496,6 +539,84 @@ private:
 template <typename U, typename T, int n>
 ESIMD_INLINE simd<U, n> convert(simd<T, n> val) {
   return __builtin_convertvector(val.data(), detail::vector_type_t<U, n>);
+}
+
+// ----------- Outlined implementations of esimd class APIs.
+
+template <typename T, int N> void simd<T, N>::copy_from(const T *const addr) {
+  constexpr unsigned Sz = sizeof(T) * N;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+
+  uintptr_t AddrVal = reinterpret_cast<uintptr_t>(addr);
+  *this =
+      __esimd_flat_block_read_unaligned<T, N, CacheHint::None, CacheHint::None>(
+          AddrVal);
+}
+
+template <typename T, int N>
+template <typename AccessorT>
+__ESIMD_ENABLE_IF_ACCESSOR(AccessorT, can_read, global_buffer, void)
+simd<T, N>::copy_from(AccessorT acc, uint32_t offset) {
+  constexpr unsigned Sz = sizeof(T) * N;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+#if defined(__SYCL_DEVICE_ONLY__)
+  auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
+  *this = __esimd_block_read<T, N>(surf_ind, offset);
+#else
+  *this = __esimd_block_read<T, N>(acc, offset);
+#endif // __SYCL_DEVICE_ONLY__
+}
+
+template <typename T, int N> void simd<T, N>::copy_to(T *addr) {
+  constexpr unsigned Sz = sizeof(T) * N;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+
+  uintptr_t AddrVal = reinterpret_cast<uintptr_t>(addr);
+  __esimd_flat_block_write<T, N, CacheHint::None, CacheHint::None>(AddrVal,
+                                                                   data());
+}
+
+template <typename T, int N>
+template <typename AccessorT>
+__ESIMD_ENABLE_IF_ACCESSOR(AccessorT, can_write, global_buffer, void)
+simd<T, N>::copy_to(AccessorT acc, uint32_t offset) {
+  constexpr unsigned Sz = sizeof(T) * N;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+
+#if defined(__SYCL_DEVICE_ONLY__)
+  auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
+  __esimd_block_write<T, N>(surf_ind, offset >> 4, data());
+#else
+  __esimd_block_write<T, N>(acc, offset >> 4, data());
+#endif // __SYCL_DEVICE_ONLY__
 }
 
 } // namespace gpu
@@ -516,4 +637,5 @@ std::ostream &operator<<(std::ostream &OS,
   OS << "}";
   return OS;
 }
+
 #endif
