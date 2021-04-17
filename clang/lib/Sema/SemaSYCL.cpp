@@ -3188,10 +3188,7 @@ public:
 };
 
 class SyclKernelIntFooterCreator : public SyclKernelFieldHandler {
-#ifdef __clang__
-  [[maybe_unused]]
-#endif
-  SYCLIntegrationFooter &Footer;
+  LLVM_ATTRIBUTE_UNUSED SYCLIntegrationFooter &Footer;
 
 public:
   SyclKernelIntFooterCreator(Sema &S, SYCLIntegrationFooter &F)

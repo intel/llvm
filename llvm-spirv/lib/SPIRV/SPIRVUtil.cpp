@@ -1720,10 +1720,7 @@ public:
 private:
   OCLExtOpKind ExtOpId;
   ArrayRef<Type *> ArgTys;
-#ifdef __clang__
-  [[maybe_unused]]
-#endif
-  Type *RetTy;
+  LLVM_MAYBE_UNUSED Type *RetTy;
 };
 } // namespace
 
