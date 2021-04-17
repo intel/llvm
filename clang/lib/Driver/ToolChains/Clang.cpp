@@ -50,6 +50,8 @@
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Support/YAMLParser.h"
 
+#include <fstream>
+
 using namespace clang::driver;
 using namespace clang::driver::tools;
 using namespace clang;
@@ -8741,4 +8743,25 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       CmdArgs, Inputs));
+}
+
+void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
+                                const InputInfo &Output,
+                                const InputInfoList &Inputs,
+                                const llvm::opt::ArgList &TCArgs,
+                                const char *LinkingOutput) const {
+  const InputInfo &Input(Inputs[0]);
+  // Copy the input file to the output file
+  llvm::sys::fs::copy_file(Input.getFilename(), Output.getFilename());
+  StringRef Footer(C.getDriver().getIntegrationFooter(Input.getBaseInput()));
+  if (!Footer.empty()) {
+    // Append the Integration Footer to the output file.
+    std::ofstream OutFile(Output.getFilename(), std::ios_base::binary |
+                                                    std::ios_base::app |
+                                                    std::ios_base::ate);
+    std::ifstream FooterFile(Footer.str(), std::ios_base::binary);
+    OutFile << FooterFile.rdbuf();
+    OutFile.close();
+    FooterFile.close();
+  }
 }

@@ -715,6 +715,9 @@ public:
   StringRef getIntegrationFooter(StringRef FileName) const {
     return IntegrationFileList[FileName].second;
   }
+  /// createAppendedFooterInput - Create new source file.
+  void createAppendedFooterInput(Action *&Input, Compilation &C,
+                                 const llvm::opt::ArgList &Args) const;
 };
 
 /// \return True if the last defined optimization level is -Ofast.
