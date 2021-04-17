@@ -181,8 +181,8 @@ struct __is_span_compatible_container<
         // remove_pointer_t<decltype(data(cont))>(*)[] is convertible to
         // ElementType(*)[]
         typename std::enable_if<
-            std::is_convertible_v<std::remove_pointer_t<decltype(data(
-                                      std::declval<_Tp &>()))> (*)[],
+            std::is_convertible_v<std::remove_pointer_t<decltype(
+                                      data(std::declval<_Tp &>()))> (*)[],
                                   _ElementType (*)[]>,
             std::nullptr_t>::type>> : public std::true_type {};
 
@@ -273,30 +273,30 @@ public:
   //  ~span() noexcept = default;
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
-  first() const noexcept {
+  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> first() const 
+      noexcept {
     static_assert(_Count <= _Extent, "Count out of range in span::first()");
     return span<element_type, _Count>{data(), _Count};
   }
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
-  last() const noexcept {
+  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> last() const 
+      noexcept {
     static_assert(_Count <= _Extent, "Count out of range in span::last()");
     return span<element_type, _Count>{data() + size() - _Count, _Count};
   }
 
   _SYCLSPAN_INLINE_VISIBILITY
-  constexpr span<element_type, dynamic_extent>
-  first(size_type __count) const noexcept {
+  constexpr span<element_type, dynamic_extent> first(size_type __count) const
+      noexcept {
     _SYCLSPAN_ASSERT(__count <= size(),
                      "Count out of range in span::first(count)");
     return {data(), __count};
   }
 
   _SYCLSPAN_INLINE_VISIBILITY
-  constexpr span<element_type, dynamic_extent>
-  last(size_type __count) const noexcept {
+  constexpr span<element_type, dynamic_extent> last(size_type __count) const
+      noexcept {
     _SYCLSPAN_ASSERT(__count <= size(),
                      "Count out of range in span::last(count)");
     return {data() + size() - __count, __count};
@@ -319,8 +319,8 @@ public:
 
   _SYCLSPAN_INLINE_VISIBILITY
   constexpr span<element_type, dynamic_extent>
-  subspan(size_type __offset,
-          size_type __count = dynamic_extent) const noexcept {
+  subspan(size_type __offset, size_type __count = dynamic_extent) const
+      noexcept {
     _SYCLSPAN_ASSERT(__offset <= size(),
                      "Offset out of range in span::subspan(offset, count)");
     _SYCLSPAN_ASSERT(__count <= size() || __count == dynamic_extent,
@@ -470,30 +470,30 @@ public:
   //    ~span() noexcept = default;
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
-  first() const noexcept {
+  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> first() const
+      noexcept {
     _SYCLSPAN_ASSERT(_Count <= size(), "Count out of range in span::first()");
     return span<element_type, _Count>{data(), _Count};
   }
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
-  last() const noexcept {
+  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> last() const
+      noexcept {
     _SYCLSPAN_ASSERT(_Count <= size(), "Count out of range in span::last()");
     return span<element_type, _Count>{data() + size() - _Count, _Count};
   }
 
   _SYCLSPAN_INLINE_VISIBILITY
-  constexpr span<element_type, dynamic_extent>
-  first(size_type __count) const noexcept {
+  constexpr span<element_type, dynamic_extent> first(size_type __count) const
+      noexcept {
     _SYCLSPAN_ASSERT(__count <= size(),
                      "Count out of range in span::first(count)");
     return {data(), __count};
   }
 
   _SYCLSPAN_INLINE_VISIBILITY
-  constexpr span<element_type, dynamic_extent>
-  last(size_type __count) const noexcept {
+  constexpr span<element_type, dynamic_extent> last(size_type __count) const
+      noexcept {
     _SYCLSPAN_ASSERT(__count <= size(),
                      "Count out of range in span::last(count)");
     return {data() + size() - __count, __count};
@@ -511,8 +511,8 @@ public:
   }
 
   constexpr span<element_type, dynamic_extent> _SYCLSPAN_INLINE_VISIBILITY
-  subspan(size_type __offset,
-          size_type __count = dynamic_extent) const noexcept {
+  subspan(size_type __offset, size_type __count = dynamic_extent) const
+      noexcept {
     _SYCLSPAN_ASSERT(__offset <= size(),
                      "Offset out of range in span::subspan(offset, count)");
     _SYCLSPAN_ASSERT(__count <= size() || __count == dynamic_extent,
@@ -600,15 +600,15 @@ as_writable_bytes(span<_Tp, _Extent> __s) noexcept
 }
 
 //  Deduction guides
-template <class _Tp, size_t _Sz> span(_Tp (&)[_Sz]) -> span<_Tp, _Sz>;
+template <class _Tp, size_t _Sz> span(_Tp (&)[_Sz])->span<_Tp, _Sz>;
 
-template <class _Tp, size_t _Sz> span(std::array<_Tp, _Sz> &) -> span<_Tp, _Sz>;
+template <class _Tp, size_t _Sz> span(std::array<_Tp, _Sz> &)->span<_Tp, _Sz>;
 
 template <class _Tp, size_t _Sz>
-span(const std::array<_Tp, _Sz> &) -> span<const _Tp, _Sz>;
+span(const std::array<_Tp, _Sz> &)->span<const _Tp, _Sz>;
 
 template <class _Container>
-span(_Container &) -> span<typename _Container::value_type>;
+span(_Container &)->span<typename _Container::value_type>;
 
 template <class _Container>
 span(const _Container &) -> span<const typename _Container::value_type>;
