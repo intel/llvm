@@ -3188,6 +3188,9 @@ public:
 };
 
 class SyclKernelIntFooterCreator : public SyclKernelFieldHandler {
+#ifdef __clang__
+  [[maybe_unused]]
+#endif
   SYCLIntegrationFooter &Footer;
 
 public:
