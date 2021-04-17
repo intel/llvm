@@ -65,7 +65,7 @@ static bool hasBcmp(const Triple &TT) {
   return TT.isOSFreeBSD() || TT.isOSSolaris();
 }
 
-static bool isCallingConvCCompatible(CallingConv::ID CC, Triple TT,
+static bool isCallingConvCCompatible(CallingConv::ID CC, StringRef TT,
                                      FunctionType *FuncTy) {
   switch (CC) {
   default:
@@ -78,7 +78,7 @@ static bool isCallingConvCCompatible(CallingConv::ID CC, Triple TT,
 
     // The iOS ABI diverges from the standard in some cases, so for now don't
     // try to simplify those calls.
-    if (TT.isiOS())
+    if (Triple(TT).isiOS())
       return false;
 
     if (!FuncTy->getReturnType()->isPointerTy() &&
@@ -98,13 +98,13 @@ static bool isCallingConvCCompatible(CallingConv::ID CC, Triple TT,
 
 bool TargetLibraryInfoImpl::isCallingConvCCompatible(CallBase *CI) {
   return ::isCallingConvCCompatible(CI->getCallingConv(),
-                                    Triple(CI->getModule()->getTargetTriple()),
+                                    CI->getModule()->getTargetTriple(),
                                     CI->getFunctionType());
 }
 
 bool TargetLibraryInfoImpl::isCallingConvCCompatible(Function *F) {
   return ::isCallingConvCCompatible(F->getCallingConv(),
-                                    Triple(F->getParent()->getTargetTriple()),
+                                    F->getParent()->getTargetTriple(),
                                     F->getFunctionType());
 }
 

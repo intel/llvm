@@ -37118,8 +37118,12 @@ static SDValue canonicalizeShuffleWithBinOps(SDValue N, SelectionDAG &DAG,
         SDValue Op10 = peekThroughOneUseBitcasts(N1.getOperand(0));
         SDValue Op01 = peekThroughOneUseBitcasts(N0.getOperand(1));
         SDValue Op11 = peekThroughOneUseBitcasts(N1.getOperand(1));
-        if ((IsMergeableWithShuffle(Op00) && IsMergeableWithShuffle(Op10)) ||
-            (IsMergeableWithShuffle(Op01) && IsMergeableWithShuffle(Op11))) {
+        // Ensure the total number of shuffles doesn't increase by folding this
+        // shuffle through to the source ops.
+        if (((IsMergeableWithShuffle(Op00) && IsMergeableWithShuffle(Op10)) ||
+             (IsMergeableWithShuffle(Op01) && IsMergeableWithShuffle(Op11))) ||
+            ((IsMergeableWithShuffle(Op00) || IsMergeableWithShuffle(Op10)) &&
+             (IsMergeableWithShuffle(Op01) || IsMergeableWithShuffle(Op11)))) {
           SDValue LHS, RHS;
           Op00 = DAG.getBitcast(ShuffleVT, Op00);
           Op10 = DAG.getBitcast(ShuffleVT, Op10);
@@ -42347,7 +42351,7 @@ static SDValue combineSetCCMOVMSK(SDValue EFLAGS, X86::CondCode &CC,
     }
     // PMOVMSKB(PACKSSBW(LO(X), HI(X)))
     // -> PMOVMSKB(BITCAST_v32i8(X)) & 0xAAAAAAAA.
-    if (CmpBits == 16 && Subtarget.hasInt256() &&
+    if (CmpBits >= 16 && Subtarget.hasInt256() &&
         VecOp0.getOpcode() == ISD::EXTRACT_SUBVECTOR &&
         VecOp1.getOpcode() == ISD::EXTRACT_SUBVECTOR &&
         VecOp0.getOperand(0) == VecOp1.getOperand(0) &&
@@ -42371,7 +42375,7 @@ static SDValue combineSetCCMOVMSK(SDValue EFLAGS, X86::CondCode &CC,
   // MOVMSK(SHUFFLE(X,u)) -> MOVMSK(X) iff every element is referenced.
   SmallVector<int, 32> ShuffleMask;
   SmallVector<SDValue, 2> ShuffleInputs;
-  if (NumElts == CmpBits &&
+  if (NumElts <= CmpBits &&
       getTargetShuffleInputs(peekThroughBitcasts(Vec), ShuffleInputs,
                              ShuffleMask, DAG) &&
       ShuffleInputs.size() == 1 && !isAnyZeroOrUndef(ShuffleMask) &&
@@ -48224,21 +48228,18 @@ static SDValue combineSetCC(SDNode *N, SelectionDAG &DAG,
       if (SDValue AndN = MatchAndCmpEq(RHS, LHS))
         return DAG.getSetCC(DL, VT, AndN, DAG.getConstant(0, DL, OpVT), CC);
 
-      // cmpeq(trunc(logic(x)),0) --> cmpeq(logic(x),0)
-      // cmpne(trunc(logic(x)),0) --> cmpne(logic(x),0)
+      // cmpeq(trunc(x),0) --> cmpeq(x,0)
+      // cmpne(trunc(x),0) --> cmpne(x,0)
       // iff x upper bits are zero.
-      // TODO: Remove the logic-op only limit?
       // TODO: Add support for RHS to be truncate as well?
       if (LHS.getOpcode() == ISD::TRUNCATE &&
           LHS.getOperand(0).getScalarValueSizeInBits() >= 32 &&
           isNullConstant(RHS) && !DCI.isBeforeLegalize()) {
-        unsigned LHSOpc = LHS.getOperand(0).getOpcode();
         EVT SrcVT = LHS.getOperand(0).getValueType();
         APInt UpperBits = APInt::getBitsSetFrom(SrcVT.getScalarSizeInBits(),
                                                 OpVT.getScalarSizeInBits());
         const TargetLowering &TLI = DAG.getTargetLoweringInfo();
-        if ((LHSOpc == ISD::AND || LHSOpc == ISD::OR || LHSOpc == ISD::XOR) &&
-            DAG.MaskedValueIsZero(LHS.getOperand(0), UpperBits) &&
+        if (DAG.MaskedValueIsZero(LHS.getOperand(0), UpperBits) &&
             TLI.isTypeLegal(LHS.getOperand(0).getValueType()))
           return DAG.getSetCC(DL, VT, LHS.getOperand(0),
                               DAG.getConstant(0, DL, SrcVT), CC);
@@ -48820,15 +48821,28 @@ static SDValue combineCMP(SDNode *N, SelectionDAG &DAG) {
     }
   }
 
-  // Look for a truncate with a single use.
-  if (Op.getOpcode() != ISD::TRUNCATE || !Op.hasOneUse())
+  // Look for a truncate.
+  if (Op.getOpcode() != ISD::TRUNCATE)
     return SDValue();
 
+  SDValue Trunc = Op;
   Op = Op.getOperand(0);
 
-  // Arithmetic op can only have one use.
-  if (!Op.hasOneUse())
-    return SDValue();
+  // See if we can compare with zero against the truncation source,
+  // which should help using the Z flag from many ops. Only do this for
+  // i32 truncated op to prevent partial-reg compares of promoted ops.
+  EVT OpVT = Op.getValueType();
+  APInt UpperBits =
+      APInt::getBitsSetFrom(OpVT.getSizeInBits(), VT.getSizeInBits());
+  if (OpVT == MVT::i32 && DAG.MaskedValueIsZero(Op, UpperBits) &&
+      onlyZeroFlagUsed(SDValue(N, 0))) {
+    return DAG.getNode(X86ISD::CMP, dl, MVT::i32, Op,
+                       DAG.getConstant(0, dl, OpVT));
+  }
+
+  // After this the truncate and arithmetic op must have a single use.
+  if (!Trunc.hasOneUse() || !Op.hasOneUse())
+      return SDValue();
 
   unsigned NewOpc;
   switch (Op.getOpcode()) {

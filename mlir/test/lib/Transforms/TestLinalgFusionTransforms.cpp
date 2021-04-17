@@ -55,6 +55,19 @@ static void fillFusionPatterns(MLIRContext *context,
   patterns.add<LinalgTileAndFusePattern<MatmulOp>>(
       context, dependenceGraph,
       LinalgTilingOptions().setTileSizes({32, 64, 16}).setLoopType(LoopType),
+      LinalgFusionOptions().setIndicesToFuse({2}),
+      LinalgTransformationFilter(Identifier::get("out_fusion", context),
+                                 Identifier::get("after_out_fusion", context)),
+      LinalgTransformationFilter(
+          ArrayRef<Identifier>(),
+          Identifier::get("after_out_fusion_producer", context)),
+      LinalgTransformationFilter(
+          ArrayRef<Identifier>(),
+          Identifier::get("after_out_fusion_original", context)));
+
+  patterns.add<LinalgTileAndFusePattern<MatmulOp>>(
+      context, dependenceGraph,
+      LinalgTilingOptions().setTileSizes({32, 64, 16}).setLoopType(LoopType),
       LinalgFusionOptions().setIndicesToFuse({1}),
       LinalgTransformationFilter(Identifier::get("rhs_fusion", context),
                                  Identifier::get("after_rhs_fusion", context)),
@@ -126,10 +139,6 @@ static LogicalResult fuseLinalgOpsGreedily(FuncOp f) {
   // Save original Linalg ops, we only want to make a pass over those.
   SmallVector<LinalgOp, 8> linalgOps;
   f.walk([&](LinalgOp op) {
-    // TODO: remove hasIndexSemantics check once index ops are supported.
-    if (op.hasIndexSemantics())
-      return;
-
     // TODO: support multi-results.
     if (op->getNumResults() <= 1)
       linalgOps.push_back(op);

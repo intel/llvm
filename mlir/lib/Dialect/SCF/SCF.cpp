@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/MathExtras.h"
@@ -578,6 +579,140 @@ struct SimplifyTrivialLoops : public OpRewritePattern<ForOp> {
   }
 };
 
+/// Perform a replacement of one iter OpOperand of an scf.for to the
+/// `replacement` value which is expected to be the source of a tensor.cast.
+/// tensor.cast ops are inserted inside the block to account for the type cast.
+static ForOp replaceTensorCastForOpIterArg(PatternRewriter &rewriter,
+                                           OpOperand &operand,
+                                           Value replacement) {
+  Type oldType = operand.get().getType(), newType = replacement.getType();
+  assert(oldType.isa<RankedTensorType>() && newType.isa<RankedTensorType>() &&
+         "expected ranked tensor types");
+
+  // 1. Create new iter operands, exactly 1 is replaced.
+  ForOp forOp = cast<ForOp>(operand.getOwner());
+  assert(operand.getOperandNumber() >= forOp.getNumControlOperands() &&
+         "expected an iter OpOperand");
+  if (operand.get().getType() == replacement.getType())
+    return forOp;
+  SmallVector<Value> newIterOperands;
+  for (OpOperand &opOperand : forOp.getIterOpOperands()) {
+    if (opOperand.getOperandNumber() == operand.getOperandNumber()) {
+      newIterOperands.push_back(replacement);
+      continue;
+    }
+    newIterOperands.push_back(opOperand.get());
+  }
+
+  // 2. Create the new forOp shell.
+  scf::ForOp newForOp = rewriter.create<scf::ForOp>(
+      forOp.getLoc(), forOp.lowerBound(), forOp.upperBound(), forOp.step(),
+      newIterOperands);
+  Block &newBlock = newForOp.region().front();
+  SmallVector<Value, 4> newBlockTransferArgs(newBlock.getArguments().begin(),
+                                             newBlock.getArguments().end());
+
+  // 3. Inject an incoming cast op at the beginning of the block for the bbArg
+  // corresponding to the `replacement` value.
+  OpBuilder::InsertionGuard g(rewriter);
+  rewriter.setInsertionPoint(&newBlock, newBlock.begin());
+  BlockArgument newRegionIterArg = newForOp.getRegionIterArgForOpOperand(
+      newForOp->getOpOperand(operand.getOperandNumber()));
+  Value castIn = rewriter.create<tensor::CastOp>(newForOp.getLoc(), oldType,
+                                                 newRegionIterArg);
+  newBlockTransferArgs[newRegionIterArg.getArgNumber()] = castIn;
+
+  // 4. Steal the old block ops, mapping to the newBlockTransferArgs.
+  Block &oldBlock = forOp.region().front();
+  rewriter.mergeBlocks(&oldBlock, &newBlock, newBlockTransferArgs);
+
+  // 5. Inject an outgoing cast op at the end of the block and yield it instead.
+  auto clonedYieldOp = cast<scf::YieldOp>(newBlock.getTerminator());
+  rewriter.setInsertionPoint(clonedYieldOp);
+  unsigned yieldIdx =
+      newRegionIterArg.getArgNumber() - forOp.getNumInductionVars();
+  Value castOut = rewriter.create<tensor::CastOp>(
+      newForOp.getLoc(), newType, clonedYieldOp.getOperand(yieldIdx));
+  SmallVector<Value> newYieldOperands = clonedYieldOp.getOperands();
+  newYieldOperands[yieldIdx] = castOut;
+  rewriter.create<scf::YieldOp>(newForOp.getLoc(), newYieldOperands);
+  rewriter.eraseOp(clonedYieldOp);
+
+  // 6. Inject an outgoing cast op after the forOp.
+  rewriter.setInsertionPointAfter(newForOp);
+  SmallVector<Value> newResults = newForOp.getResults();
+  newResults[yieldIdx] = rewriter.create<tensor::CastOp>(
+      newForOp.getLoc(), oldType, newResults[yieldIdx]);
+
+  return newForOp;
+}
+
+/// Fold scf.for iter_arg/result pairs that go through incoming/ougoing
+/// a tensor.cast op pair so as to pull the tensor.cast inside the scf.for:
+///
+/// ```
+///   %0 = tensor.cast %t0 : tensor<32x1024xf32> to tensor<?x?xf32>
+///   %1 = scf.for %i = %c0 to %c1024 step %c32 iter_args(%iter_t0 = %0)
+///      -> (tensor<?x?xf32>) {
+///     %2 = call @do(%iter_t0) : (tensor<?x?xf32>) -> tensor<?x?xf32>
+///     scf.yield %2 : tensor<?x?xf32>
+///   }
+///   %2 = tensor.cast %1 : tensor<?x?xf32> to tensor<32x1024xf32>
+///   use_of(%2)
+/// ```
+///
+/// folds into:
+///
+/// ```
+///   %0 = scf.for %arg2 = %c0 to %c1024 step %c32 iter_args(%arg3 = %arg0)
+///       -> (tensor<32x1024xf32>) {
+///     %2 = tensor.cast %arg3 : tensor<32x1024xf32> to tensor<?x?xf32>
+///     %3 = call @do(%2) : (tensor<?x?xf32>) -> tensor<?x?xf32>
+///     %4 = tensor.cast %3 : tensor<?x?xf32> to tensor<32x1024xf32>
+///     scf.yield %4 : tensor<32x1024xf32>
+///   }
+///   use_of(%0)
+/// ```
+struct ForOpTensorCastFolder : public OpRewritePattern<ForOp> {
+  using OpRewritePattern<ForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ForOp op,
+                                PatternRewriter &rewriter) const override {
+    for (auto it : llvm::zip(op.getIterOpOperands(), op.getResults())) {
+      OpOperand &iterOpOperand = std::get<0>(it);
+      auto incomingCast = iterOpOperand.get().getDefiningOp<tensor::CastOp>();
+      if (!incomingCast)
+        continue;
+      if (!std::get<1>(it).hasOneUse())
+        continue;
+      auto outgoingCastOp =
+          dyn_cast<tensor::CastOp>(*std::get<1>(it).user_begin());
+      if (!outgoingCastOp)
+        continue;
+
+      // Must be a tensor.cast op pair with matching types.
+      if (outgoingCastOp.getResult().getType() !=
+          incomingCast.source().getType())
+        continue;
+
+      // Create a new ForOp with that iter operand replaced.
+      auto newForOp = replaceTensorCastForOpIterArg(rewriter, iterOpOperand,
+                                                    incomingCast.source());
+
+      // Insert outgoing cast and use it to replace the corresponding result.
+      rewriter.setInsertionPointAfter(newForOp);
+      SmallVector<Value> replacements = newForOp.getResults();
+      unsigned returnIdx =
+          iterOpOperand.getOperandNumber() - op.getNumControlOperands();
+      replacements[returnIdx] = rewriter.create<tensor::CastOp>(
+          op.getLoc(), incomingCast.dest().getType(), replacements[returnIdx]);
+      rewriter.replaceOp(op, replacements);
+      return success();
+    }
+    return failure();
+  }
+};
+
 /// Canonicalize the iter_args of an scf::ForOp that involve a tensor_load and
 /// for which only the last loop iteration is actually visible outside of the
 /// loop. The canonicalization looks for a pattern such as:
@@ -706,7 +841,7 @@ struct LastTensorLoadCanonicalization : public OpRewritePattern<ForOp> {
 void ForOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                         MLIRContext *context) {
   results.add<ForOpIterArgsFolder, SimplifyTrivialLoops,
-              LastTensorLoadCanonicalization>(context);
+              LastTensorLoadCanonicalization, ForOpTensorCastFolder>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1239,10 +1374,36 @@ struct CollapseSingleIterationLoops : public OpRewritePattern<ParallelOp> {
         newSteps.push_back(step);
       }
     }
-    // Exit if all or none of the loop dimensions perform a single iteration.
-    if (newLowerBounds.size() == 0 ||
-        newLowerBounds.size() == op.lowerBound().size())
+    // Exit if none of the loop dimensions perform a single iteration.
+    if (newLowerBounds.size() == op.lowerBound().size())
       return failure();
+
+    if (newLowerBounds.empty()) {
+      // All of the loop dimensions perform a single iteration. Inline
+      // loop body and nested ReduceOp's
+      SmallVector<Value> results;
+      results.reserve(op.initVals().size());
+      for (auto &bodyOp : op.getLoopBody().front().without_terminator()) {
+        auto reduce = dyn_cast<ReduceOp>(bodyOp);
+        if (!reduce) {
+          rewriter.clone(bodyOp, mapping);
+          continue;
+        }
+        Block &reduceBlock = reduce.reductionOperator().front();
+        auto initValIndex = results.size();
+        mapping.map(reduceBlock.getArgument(0), op.initVals()[initValIndex]);
+        mapping.map(reduceBlock.getArgument(1),
+                    mapping.lookupOrDefault(reduce.operand()));
+        for (auto &reduceBodyOp : reduceBlock.without_terminator())
+          rewriter.clone(reduceBodyOp, mapping);
+
+        auto result = mapping.lookupOrDefault(
+            cast<ReduceReturnOp>(reduceBlock.getTerminator()).result());
+        results.push_back(result);
+      }
+      rewriter.replaceOp(op, results);
+      return success();
+    }
     // Replace the parallel loop by lower-dimensional parallel loop.
     auto newOp =
         rewriter.create<ParallelOp>(op.getLoc(), newLowerBounds, newUpperBounds,

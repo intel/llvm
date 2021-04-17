@@ -6707,7 +6707,7 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     }
     if (Caller->hasAttr<AnyX86InterruptAttr>() &&
         ((!FDecl || !FDecl->hasAttr<AnyX86NoCallerSavedRegistersAttr>()))) {
-      Diag(Fn->getExprLoc(), diag::err_anyx86_interrupt_regsave);
+      Diag(Fn->getExprLoc(), diag::warn_anyx86_interrupt_regsave);
       if (FDecl)
         Diag(FDecl->getLocation(), diag::note_callee_decl) << FDecl;
     }
@@ -6974,9 +6974,12 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
             diag::err_array_incomplete_or_sizeless_type,
             SourceRange(LParenLoc, LiteralExpr->getSourceRange().getEnd())))
       return ExprError();
-    if (literalType->isVariableArrayType())
-      return ExprError(Diag(LParenLoc, diag::err_variable_object_no_init)
-        << SourceRange(LParenLoc, LiteralExpr->getSourceRange().getEnd()));
+    if (literalType->isVariableArrayType()) {
+      if (!tryToFixVariablyModifiedVarType(TInfo, literalType, LParenLoc,
+                                           diag::err_variable_object_no_init)) {
+        return ExprError();
+      }
+    }
   } else if (!literalType->isDependentType() &&
              RequireCompleteType(LParenLoc, literalType,
                diag::err_typecheck_decl_incomplete_type,
