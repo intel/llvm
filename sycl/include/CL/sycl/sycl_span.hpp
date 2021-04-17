@@ -273,14 +273,14 @@ public:
   //  ~span() noexcept = default;
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> first() const 
+  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> first() const
       noexcept {
     static_assert(_Count <= _Extent, "Count out of range in span::first()");
     return span<element_type, _Count>{data(), _Count};
   }
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> last() const 
+  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> last() const
       noexcept {
     static_assert(_Count <= _Extent, "Count out of range in span::last()");
     return span<element_type, _Count>{data() + size() - _Count, _Count};
@@ -611,7 +611,7 @@ template <class _Container>
 span(_Container &)->span<typename _Container::value_type>;
 
 template <class _Container>
-span(const _Container &) -> span<const typename _Container::value_type>;
+span(const _Container &)->span<const typename _Container::value_type>;
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
