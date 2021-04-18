@@ -3188,11 +3188,11 @@ public:
 };
 
 class SyclKernelIntFooterCreator : public SyclKernelFieldHandler {
-  LLVM_ATTRIBUTE_UNUSED SYCLIntegrationFooter &Footer;
+  SYCLIntegrationFooter &Footer;
 
 public:
   SyclKernelIntFooterCreator(Sema &S, SYCLIntegrationFooter &F)
-      : SyclKernelFieldHandler(S), Footer(F) {}
+      : SyclKernelFieldHandler(S), Footer(F) {(void)Footer;}
 };
 
 } // namespace
