@@ -127,9 +127,8 @@ event handler::finalize() {
   }
 
   unique_ptr_class<detail::CG> CommandGroup;
-  switch (MCGType) {
+  switch (static_cast<detail::CG::CGTYPE>(getType())) {
   case detail::CG::KERNEL:
-  case detail::CG::KERNEL_V1:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
@@ -203,6 +202,10 @@ event handler::finalize() {
                         "explicit memory operation.",
                         PI_INVALID_OPERATION);
   }
+
+  if (!CommandGroup)
+    throw runtime_error("Internal Error. Command group cannot be constructed.",
+                        PI_INVALID_OPERATION);
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
