@@ -1049,8 +1049,6 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       setSYCLIntelFPGALoopCount(IntelFPGALoopCountAvg->getNTripCount()
                                     ->getIntegerConstantExpr(Ctx)
                                     ->getSExtValue());
-      SYCLIntelFPGALoopCountAttr::CountKind K =
-          IntelFPGALoopCountAvg->getCountKind();
       const char *var =
           IntelFPGALoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
           : IntelFPGALoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
