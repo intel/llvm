@@ -569,8 +569,10 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         CI->replaceAllUsesWith(Replacement);
       }
 
-      for (auto *I : DelInsts)
+      for (auto *I : DelInsts) {
         I->removeFromParent();
+        I->deleteValue();
+      }
     }
   }
 
