@@ -233,6 +233,44 @@ This native device image is then added to the cache to avoid symbol resolution,
 compilation, and linking for any future attempts to invoke kernels from this
 device image.
 
+#### DPC++ runtime plugin interface (PI) changes
+
+Before creating a program the function `piextDeviceSelectBinary` is used to
+choose the most appropriate device image. It is possible that not all backends
+have possibility to link device images of particular format at run-time. So,
+in presence of dynamic linking the `piextDeviceSelectBinary` function should be
+extended, so it chooses the appropriate device image
+based on additional attributes of device images, such as:
+- List of imports (if present)
+- Device image format
+- Runtime linking support in corresponding backend
+
+Example: the backend doesn't have support of native binaries linking at
+run-time but linking of SPIR-V device images is supported,
+the AOT-compiled device image with required kernel have imports
+information attached which effectively means that this device image needs runtime
+linking, but since native binaries linking is not supported, the image with
+SPIR-V format will be chosen (or an error emitted if there is no other device
+images).
+To link several device images together `piProgramLink` API will be used.
+Depending on concrete plugin implementation and set of device image formats that
+can be linked at run-time, `piProgramLink` API may receive device images in
+different states as inputs (including SPIR-V and native code) with a limitation
+that all inputs should have the same format.
+
+##### Support of runtime linking in backends
+
+- The initial design will support dynamic linking of device code in SPIR-V
+  format on OpenCL backend:
+  - OpenCL plugin will use the existing OpenCL `clLinkProgram()` API to online
+  link the SPIR-V modules together.
+- The initial design will support dynamic linking of device code in native code
+  format on the Level Zero backend:
+  - L0 plugin will use the existing Level Zero `zeModuleDynamicLink()` API to do
+  the linking.
+
+In the future support may be extended to different formats.
+
 #### Device images collection and linking
 
 Device images collection and linking is performed by DPC++ Runtime class named
@@ -244,11 +282,13 @@ those symbols, then links requested device image and images found together.
 
 All needed device images are found by iterating through all available OS modules
 without predefined order and searching for first unresolved symbol in list of
-imports of target device image. Once device image that contains first symbol is
-met, remaining exported symbols are checked in found image. If
-they match some imported symbols then these matched symbols will be marked as
-resolved. The procedure repeats until all imported symbols are marked as
-resolved. In case all available device images are viewed, but some imported
+imports of target device image. During search device image format is taken
+into account, i.e. only device images that have the same format as target device
+image will be considered as suitable ones. Once suitable device image that
+contains first symbol is met, remaining exported symbols are checked in found
+image. If they match some imported symbols then these matched symbols will be
+marked as resolved. The procedure repeats until all imported symbols are marked
+as resolved. In case all available device images are viewed, but some imported
 symbols remain unresolved, exception will be thrown.
 
 The following assumption is made: each device image represents some combination
