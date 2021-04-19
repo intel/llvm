@@ -253,7 +253,7 @@ symbols remain unresolved, exception will be thrown.
 
 The following assumption is made: each device image represents some combination
 of defined symbols (kernels or `SYCL_EXTERNAL` functions) and different
-device images may contain only exactly the same or not overlapping combination
+device images either contain exactly the same symbols or not overlapping list
 of defined symbols. If this assumption is not correct, there can be two cases:
   - Same symbols have the same definitions. In this case it doesn't matter which
     device image is taken to use duplicated symbol
