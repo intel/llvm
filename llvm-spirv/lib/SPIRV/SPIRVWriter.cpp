@@ -1873,7 +1873,7 @@ bool LLVMToSPIRVBase::transAlign(Value *V, SPIRVValue *BV) {
 
 // Apply aliasing decorations to instructions annotated with aliasing metadata.
 // Do it for any instruction but loads and stores.
-void LLVMToSPIRV::transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV) {
+void LLVMToSPIRVBase::transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV) {
   if (!BM->isAllowedToUseExtension(
          ExtensionID::SPV_INTEL_memory_access_aliasing))
     return;

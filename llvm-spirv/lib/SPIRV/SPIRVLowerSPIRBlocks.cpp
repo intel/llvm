@@ -338,7 +338,7 @@ private:
       LLVM_DEBUG(dbgs() << "[lowerReturnBlock] inline " << F->getName()
                         << '\n');
 
-      auto GetAssumptionCache = [&ACT](Function &F) -> AssumptionCache & {
+      auto GetAssumptionCache = [&](Function &F) -> AssumptionCache & {
         return *getAssumptionCache(F);
       };
       InlineFunctionInfo IFI(CG, GetAssumptionCache);
