@@ -45,6 +45,7 @@
 #include "SPIRVInstruction.h"
 #include "SPIRVInternal.h"
 #include "SPIRVMDBuilder.h"
+#include "SPIRVMemAliasingINTEL.h"
 #include "SPIRVModule.h"
 #include "SPIRVToLLVMDbgTran.h"
 #include "SPIRVType.h"
@@ -64,6 +65,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
@@ -1458,6 +1460,58 @@ static void replaceOperandWithAnnotationIntrinsicCallResult(Value *&V) {
   }
 }
 
+// Translate aliasing memory access masks for SPIRVLoad and SPIRVStore
+// instructions. These masks are mapped on alias.scope and noalias
+// metadata in LLVM. Translation of optional string operand isn't yet supported
+// in the translator.
+template <typename SPIRVInstType>
+void SPIRVToLLVM::transAliasingMemAccess(SPIRVInstType *BI, Instruction *I) {
+  static_assert(std::is_same<SPIRVInstType, SPIRVStore>::value ||
+                std::is_same<SPIRVInstType, SPIRVLoad>::value,
+                "Only stores and loads can be aliased by memory access mask");
+  bool IsAliasScope = BI->SPIRVMemoryAccess::isAliasScope();
+  bool IsNoAlias = BI->SPIRVMemoryAccess::isNoAlias();
+  if (!(IsAliasScope || IsNoAlias))
+    return;
+  uint32_t AliasMDKind = IsAliasScope ? LLVMContext::MD_alias_scope
+                                      : LLVMContext::MD_noalias;
+  SPIRVId AliasListId = BI->SPIRVMemoryAccess::getAliasing();
+  addMemAliasMetadata(I, AliasListId, AliasMDKind);
+}
+
+// Create and apply alias.scope/noalias metadata
+void SPIRVToLLVM::addMemAliasMetadata(Instruction *I, SPIRVId AliasListId,
+                                      uint32_t AliasMDKind) {
+  SPIRVAliasScopeListDeclINTEL *AliasList =
+      BM->get<SPIRVAliasScopeListDeclINTEL>(AliasListId);
+  std::vector<SPIRVId> AliasScopeIds = AliasList->getArguments();
+  MDBuilder MDB(*Context);
+  SmallVector<Metadata *, 4> MDScopes;
+  for (const auto ScopeId : AliasScopeIds) {
+    SPIRVAliasScopeDeclINTEL *AliasScope =
+        BM->get<SPIRVAliasScopeDeclINTEL>(ScopeId);
+    std::vector<SPIRVId> AliasDomainIds = AliasScope->getArguments();
+    // Currently we expect exactly one argument for aliasing scope
+    // instruction.
+    // TODO: add translation of string scope and domain operand.
+    assert(AliasDomainIds.size() == 1 &&
+           "AliasScopeDeclINTEL must have exactly one argument");
+    SPIRVId AliasDomainId = AliasDomainIds[0];
+    // Create and store unique domain and scope metadata
+    MDAliasDomainMap.emplace(AliasDomainId,
+                             MDB.createAnonymousAliasScopeDomain());
+    MDAliasScopeMap.emplace(ScopeId, MDB.createAnonymousAliasScope(
+                                         MDAliasDomainMap[AliasDomainId]));
+    MDScopes.emplace_back(MDAliasScopeMap[ScopeId]);
+  }
+  // Create and store unique alias.scope/noalias metadata
+  MDAliasListMap.emplace(
+      AliasListId,
+      MDNode::concatenate(I->getMetadata(LLVMContext::MD_alias_scope),
+                          MDNode::get(*Context, MDScopes)));
+  I->setMetadata(AliasMDKind, MDAliasListMap[AliasListId]);
+}
+
 /// For instructions, this function assumes they are created in order
 /// and appended to the given basic block. An instruction may use a
 /// instruction from another BB which has not been translated. Such
@@ -1855,6 +1909,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       SI = new StoreInst(Src, Dst, isVolatile, Align(AlignValue), BB);
     if (BS->SPIRVMemoryAccess::isNonTemporal())
       transNonTemporalMetadata(SI);
+    transAliasingMemAccess<SPIRVStore>(BS, SI);
     return mapValue(BV, SI);
   }
 
@@ -1877,6 +1932,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     }
     if (BL->SPIRVMemoryAccess::isNonTemporal())
       transNonTemporalMetadata(LI);
+    transAliasingMemAccess<SPIRVLoad>(BL, LI);
     return mapValue(BV, LI);
   }
 
@@ -3698,6 +3754,32 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
   }
 }
 
+// Translate aliasing decorations applied to instructions. These decorations
+// are mapped on alias.scope and noalias metadata in LLVM. Translation of
+// optional string operand isn't yet supported in the translator.
+void SPIRVToLLVM::transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V) {
+  if (!BV->isInst())
+    return;
+  Instruction *Inst = dyn_cast<Instruction>(V);
+  if (!Inst)
+    return;
+  std::vector<SPIRVId> AliasListIds;
+  uint32_t AliasMDKind;
+  if (BV->hasDecorateId(internal::DecorationAliasScopeINTEL)) {
+    AliasMDKind = LLVMContext::MD_alias_scope;
+    AliasListIds =
+        BV->getDecorationIdLiterals(internal::DecorationAliasScopeINTEL);
+  } else if (BV->hasDecorateId(internal::DecorationNoAliasINTEL)) {
+    AliasMDKind = LLVMContext::MD_noalias;
+    AliasListIds =
+        BV->getDecorationIdLiterals(internal::DecorationNoAliasINTEL);
+  } else
+    return;
+  assert(AliasListIds.size() == 1 &&
+         "Memory aliasing decorations must have one argument");
+  addMemAliasMetadata(Inst, AliasListIds[0], AliasMDKind);
+}
+
 // Having UserSemantic decoration on Function is against the spec, but we allow
 // this for various purposes (like prototyping new features when we need to
 // attach some information on function and propagate that through SPIR-V and
@@ -3749,6 +3831,7 @@ bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
     return false;
 
   transIntelFPGADecorations(BV, V);
+  transMemAliasingINTELDecorations(BV, V);
 
   DbgTran->transDbgInfo(BV, V);
   return true;
