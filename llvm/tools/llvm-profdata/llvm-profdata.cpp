@@ -251,7 +251,8 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
   auto Reader = std::move(ReaderOrErr.get());
   bool IsIRProfile = Reader->isIRLevelProfile();
   bool HasCSIRProfile = Reader->hasCSIRLevelProfile();
-  if (WC->Writer.setIsIRLevelProfile(IsIRProfile, HasCSIRProfile)) {
+  if (Error E = WC->Writer.setIsIRLevelProfile(IsIRProfile, HasCSIRProfile)) {
+    consumeError(std::move(E));
     WC->Errors.emplace_back(
         make_error<StringError>(
             "Merge IR generated profile with Clang generated profile.",
@@ -305,7 +306,7 @@ static void writeInstrProfile(StringRef OutputFilename,
                               InstrProfWriter &Writer) {
   std::error_code EC;
   raw_fd_ostream Output(OutputFilename.data(), EC,
-                        OutputFormat == PF_Text ? sys::fs::OF_Text
+                        OutputFormat == PF_Text ? sys::fs::OF_TextWithCRLF
                                                 : sys::fs::OF_None);
   if (EC)
     exitWithErrorCode(EC, OutputFilename);
@@ -1930,7 +1931,7 @@ static int overlap_main(int argc, const char *argv[]) {
   cl::ParseCommandLineOptions(argc, argv, "LLVM profile data overlap tool\n");
 
   std::error_code EC;
-  raw_fd_ostream OS(Output.data(), EC, sys::fs::OF_Text);
+  raw_fd_ostream OS(Output.data(), EC, sys::fs::OF_TextWithCRLF);
   if (EC)
     exitWithErrorCode(EC, Output);
 
@@ -2456,7 +2457,7 @@ static int show_main(int argc, const char *argv[]) {
   }
 
   std::error_code EC;
-  raw_fd_ostream OS(OutputFilename.data(), EC, sys::fs::OF_Text);
+  raw_fd_ostream OS(OutputFilename.data(), EC, sys::fs::OF_TextWithCRLF);
   if (EC)
     exitWithErrorCode(EC, OutputFilename);
 

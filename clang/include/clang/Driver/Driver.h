@@ -157,16 +157,16 @@ public:
   std::string HostBits, HostMachine, HostSystem, HostRelease;
 
   /// The file to log CC_PRINT_PROC_STAT_FILE output to, if enabled.
-  const char *CCPrintStatReportFilename;
+  std::string CCPrintStatReportFilename;
 
   /// The file to log CC_PRINT_OPTIONS output to, if enabled.
-  const char *CCPrintOptionsFilename;
+  std::string CCPrintOptionsFilename;
 
   /// The file to log CC_PRINT_HEADERS output to, if enabled.
-  const char *CCPrintHeadersFilename;
+  std::string CCPrintHeadersFilename;
 
   /// The file to log CC_LOG_DIAGNOSTICS output to, if enabled.
-  const char *CCLogDiagnosticsFilename;
+  std::string CCLogDiagnosticsFilename;
 
   /// A list of inputs and their types for the given arguments.
   typedef SmallVector<std::pair<types::ID, const llvm::opt::Arg *>, 16>
@@ -641,12 +641,24 @@ private:
 
   void setOffloadStaticLibSeen() { OffloadStaticLibSeen = true; }
 
+  /// FPGA Emulation Mode.  By default, this is true due to the fact that
+  /// an external option setting is required to target hardware.
+  bool FPGAEmulationMode = true;
+  void setFPGAEmulationMode(bool IsEmulation) {
+    FPGAEmulationMode = IsEmulation;
+  }
+
   /// Returns true if an offload static library is found.
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
 
   /// Track filename used for the FPGA dependency info.
   mutable llvm::StringMap<const std::string> FPGATempDepFiles;
+
+  /// A list of inputs and their corresponding integration headers. These
+  /// files are generated during the device compilation and are consumed
+  /// by the host compilation.
+  mutable llvm::StringMap<StringRef> IntegrationFileList;
 
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
@@ -683,6 +695,20 @@ public:
   /// an FPGA object.
   const std::string getFPGATempDepFile(const std::string &FileName) const {
     return FPGATempDepFiles[FileName];
+  }
+
+  /// isFPGAEmulationMode - Compilation mode is determined to be used for
+  /// FPGA Emulation.  This is only used for SYCL offloading to FPGA device.
+  bool isFPGAEmulationMode() const { return FPGAEmulationMode; };
+
+  /// addIntegrationFiles - Add the integration files that will be populated
+  /// by the device compilation and used by the host compile.
+  void addIntegrationFiles(StringRef IntHeaderName, StringRef FileName) const {
+    IntegrationFileList.insert({FileName, IntHeaderName});
+  }
+  /// getIntegrationHeader - Get the integration header file
+  StringRef getIntegrationHeader(StringRef FileName) const {
+    return IntegrationFileList[FileName];
   }
 };
 

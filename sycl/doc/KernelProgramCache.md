@@ -172,15 +172,8 @@ three sources of build options:
 
 ## Cache configuration
 
-There is set of configuration parameters which can be set as environment variables or parameters in `sycl.conf`  and affect cache behavior:
-| Environment variable | Values | Description |
-| -------------------- | ------ | ----------- |
-| `SYCL_CACHE_DIR`| Path | Path to persistent cache root directory. Default values are `%AppData%\Intel\sycl_program_cache` for Windows and `$HOME/intel/sycl_program_cache` on Linux. |
-| `SYCL_CACHE_ENABLED` | ON, OFF | Switches persistent cache switch  on or off. Default value is ON. |
-| `SYCL_CACHE_MAX_SIZE` | Positive integer | Cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
-| `SYCL_CACHE_THRESHOLD` | Positive integer | Cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
-| `SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE` | Positive integer | Minimum size of device code image in kilobytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it. Default value is 0 to cache all images. |
-| `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in megabytes which is cached. Too big kernels may overload disk too fast. Default value is 0 to cache all images. |
+The environment variables which affect cache behavior are described in
+[EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md).
 
 ## Implementation details
 

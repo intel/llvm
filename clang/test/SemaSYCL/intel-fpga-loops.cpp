@@ -75,10 +75,10 @@ void boo() {
   // expected-error@+1 {{duplicate argument to 'ivdep'; attribute requires one or both of a safelen and array}}
   [[intel::ivdep(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-warning@+1 {{'initiation_interval' attribute takes at least 1 argument; attribute ignored}}
+  // expected-error@+1 {{'initiation_interval' attribute takes one argument}}
   [[intel::initiation_interval]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'initiation_interval' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'initiation_interval' attribute takes one argument}}
   [[intel::initiation_interval(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'max_concurrency' attribute takes one argument}}
@@ -104,16 +104,16 @@ void boo() {
   // expected-error@+1 {{'loop_coalesce' attribute takes no more than 1 argument}}
   [[intel::loop_coalesce(2, 3)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-warning@+1 {{'max_interleaving' attribute takes at least 1 argument; attribute ignored}}
+  // expected-error@+1 {{'max_interleaving' attribute takes one argument}}
   [[intel::max_interleaving]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_interleaving' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'max_interleaving' attribute takes one argument}}
   [[intel::max_interleaving(2, 4)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-warning@+1 {{'speculated_iterations' attribute takes at least 1 argument; attribute ignored}}
+  // expected-error@+1 {{'speculated_iterations' attribute takes one argument}}
   [[intel::speculated_iterations]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'speculated_iterations' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'speculated_iterations' attribute takes one argument}}
   [[intel::speculated_iterations(1, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'nofusion' attribute takes no arguments}}
@@ -313,23 +313,28 @@ void loop_attrs_compatibility() {
   [[intel::disable_loop_pipelining]]
   [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+2 {{'disable_loop_pipelining' and 'max_interleaving' attributes are not compatible}}
+  // expected-error@+3 {{'max_interleaving' and 'disable_loop_pipelining' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
   [[intel::disable_loop_pipelining]]
   [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+2 {{'speculated_iterations' and 'disable_loop_pipelining' attributes are not compatible}}
+  // expected-error@+3 {{'disable_loop_pipelining' and 'speculated_iterations' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
   [[intel::speculated_iterations(0)]]
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+2 {{'disable_loop_pipelining' and 'max_concurrency' attributes are not compatible}}
+  // expected-error@+3 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
   [[intel::disable_loop_pipelining]]
   [[intel::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+2 {{'initiation_interval' and 'disable_loop_pipelining' attributes are not compatible}}
+  // expected-error@+3 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
   [[intel::initiation_interval(10)]]
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+2 {{'disable_loop_pipelining' and 'ivdep' attributes are not compatible}}
+  // expected-error@+3 {{'ivdep' and 'disable_loop_pipelining' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
   [[intel::disable_loop_pipelining]]
   [[intel::ivdep]] for (int i = 0; i != 10; ++i)
       a[i] = 0;

@@ -5,13 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===--------------------------------------------------------------------===//
-//
+/// \file
 /// This contains common combine transformations that may be used in a combine
 /// pass,or by the target elsewhere.
 /// Targets can pick individual opcode transformations from the helper or use
 /// tryCombine which invokes all transformations. All of the transformations
 /// return true if the MachineInstruction changed and false otherwise.
-//
+///
 //===--------------------------------------------------------------------===//
 
 #ifndef LLVM_CODEGEN_GLOBALISEL_COMBINERHELPER_H
@@ -491,8 +491,6 @@ public:
   /// bswap.
   bool matchLoadOrCombine(MachineInstr &MI,
                           std::function<void(MachineIRBuilder &)> &MatchInfo);
-  bool applyLoadOrCombine(MachineInstr &MI,
-                          std::function<void(MachineIRBuilder &)> &MatchInfo);
 
   bool matchExtendThroughPhis(MachineInstr &MI, MachineInstr *&ExtMI);
   bool applyExtendThroughPhis(MachineInstr &MI, MachineInstr *&ExtMI);
@@ -506,6 +504,12 @@ public:
   void applyExtractAllEltsFromBuildVector(
       MachineInstr &MI,
       SmallVectorImpl<std::pair<Register, MachineInstr *>> &MatchInfo);
+
+  /// Use a function which takes in a MachineIRBuilder to perform a combine.
+  bool applyBuildFn(MachineInstr &MI,
+                    std::function<void(MachineIRBuilder &)> &MatchInfo);
+  bool matchFunnelShiftToRotate(MachineInstr &MI);
+  void applyFunnelShiftToRotate(MachineInstr &MI);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

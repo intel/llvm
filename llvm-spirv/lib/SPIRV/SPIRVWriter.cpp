@@ -604,10 +604,8 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       if (!isa<MDString>(BufferLocation->getOperand(ArgNo)) &&
           !isa<MDNode>(BufferLocation->getOperand(ArgNo)))
         LocID = getMDOperandAsInt(BufferLocation, ArgNo);
-      if (LocID >= 0) {
-        BM->addCapability(CapabilityFPGABufferLocationINTEL);
+      if (LocID >= 0)
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
-      }
     }
   }
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
@@ -728,17 +726,14 @@ void LLVMToSPIRV::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (MDNode *StallEnable = F->getMetadata(kSPIR2MD::StallEnable)) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_fpga_cluster_attributes)) {
-      if (getMDOperandAsInt(StallEnable, 0)) {
-        BM->addCapability(CapabilityFPGAClusterAttributesINTEL);
+      if (getMDOperandAsInt(StallEnable, 0))
         BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
-      }
     }
   }
   if (MDNode *LoopFuse = F->getMetadata(kSPIR2MD::LoopFuse)) {
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_loop_fuse)) {
       size_t Depth = getMDOperandAsInt(LoopFuse, 0);
       size_t Independent = getMDOperandAsInt(LoopFuse, 1);
-      BM->addCapability(CapabilityLoopFuseINTEL);
       BF->addDecorate(
           new SPIRVDecorateFuseLoopsInFunctionINTEL(BF, Depth, Independent));
     }
@@ -2120,8 +2115,12 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::log2:
   case Intrinsic::maximum:
   case Intrinsic::maxnum:
+  case Intrinsic::smax:
+  case Intrinsic::umax:
   case Intrinsic::minimum:
   case Intrinsic::minnum:
+  case Intrinsic::smin:
+  case Intrinsic::umin:
   case Intrinsic::nearbyint:
   case Intrinsic::pow:
   case Intrinsic::powi:
@@ -2337,6 +2336,27 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
                                   transValue(II->getArgOperand(1), BB)};
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
+  }
+  case Intrinsic::umin:
+  case Intrinsic::umax:
+  case Intrinsic::smin:
+  case Intrinsic::smax: {
+    Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
+    SPIRVValue *FirstArgVal = transValue(II->getArgOperand(0), BB);
+    SPIRVValue *SecondArgVal = transValue(II->getArgOperand(1), BB);
+
+    Op OC = (II->getIntrinsicID() == Intrinsic::smin)
+                ? OpSLessThan
+                : ((II->getIntrinsicID() == Intrinsic::smax)
+                       ? OpSGreaterThan
+                       : ((II->getIntrinsicID() == Intrinsic::umin)
+                              ? OpULessThan
+                              : OpUGreaterThan));
+    if (auto *VecTy = dyn_cast<VectorType>(II->getArgOperand(0)->getType()))
+      BoolTy = VectorType::get(BoolTy, VecTy->getElementCount());
+    SPIRVValue *Cmp =
+        BM->addCmpInst(OC, transType(BoolTy), FirstArgVal, SecondArgVal, BB);
+    return BM->addSelectInst(Cmp, FirstArgVal, SecondArgVal, BB);
   }
   case Intrinsic::fma: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
@@ -2991,7 +3011,6 @@ void LLVMToSPIRV::transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO) {
   SPIRVValue *SV = transValue(V, nullptr);
   assert(SV && "Failed to process OCL PipeStorage object");
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_io_pipes)) {
-    BM->addCapability(CapabilityIOPipesINTEL);
     unsigned ID = getMDOperandAsInt(IO, 0);
     SV->addDecorate(DecorationIOPipeStorageINTEL, ID);
   }
@@ -3867,6 +3886,9 @@ LLVMToSPIRV::transLinkageType(const GlobalValue *GV) {
     return SPIRVLinkageTypeKind::LinkageTypeImport;
   if (GV->hasInternalLinkage() || GV->hasPrivateLinkage())
     return spv::internal::LinkageTypeInternal;
+  if (GV->hasLinkOnceODRLinkage())
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_linkonce_odr))
+      return SPIRVLinkageTypeKind::LinkageTypeLinkOnceODR;
   return SPIRVLinkageTypeKind::LinkageTypeExport;
 }
 

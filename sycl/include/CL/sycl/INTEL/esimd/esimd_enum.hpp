@@ -48,6 +48,8 @@ using uint = unsigned int;
 #define ESIMD_INLINE inline __attribute__((always_inline))
 
 // Enums
+// TODO FIXME convert the two enums below to nested enum or class enum to
+// remove enum values from the global namespace
 enum { GENX_NOSAT = 0, GENX_SAT };
 
 enum ChannelMaskType {

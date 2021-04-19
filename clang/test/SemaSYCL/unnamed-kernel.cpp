@@ -1,6 +1,10 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-unnamed-lambda -fsyntax-only -Wno-sycl-2017-compat -verify %s
-#include "Inputs/sycl.hpp"
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -verify %s
+
+// This test verifies that an error is thrown when kernel names are declared within function/class scope
+// and if kernel names are empty.
+
+#include "sycl.hpp"
 
 #ifdef __SYCL_UNNAMED_LAMBDA__
 // expected-no-diagnostics
@@ -33,8 +37,7 @@ public:
   void test() {
     cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@#KernelSingleTask {{'InvalidKernelName1' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{'InvalidKernelName1' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
     // expected-note@+4{{in instantiation of function template specialization}}
 #endif
     class InvalidKernelName1 {};
@@ -43,8 +46,7 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<InvalidKernelName2>' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{'InvalidKernelName2' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<InvalidKernelName2>' should be globally visible}}
     // expected-note@+4{{in instantiation of function template specialization}}
 #endif
     class InvalidKernelName2 {};
@@ -53,8 +55,7 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -62,8 +63,7 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{'MyWrapper::InvalidKernelName3' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -76,8 +76,7 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{type 'std::max_align_t' cannot be in the "std" namespace}}
+    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name, 'std::(anonymous)' is declared in the 'std' namespace}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -86,8 +85,7 @@ public:
 
     using InvalidAlias = InvalidKernelName4;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -96,16 +94,14 @@ public:
 
     using InvalidAlias1 = InvalidKernelName5;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{'MyWrapper::InvalidKernelName5' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
     });
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{'InvalidKernelName1' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -117,8 +113,7 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error-re@#KernelSingleTask {{'(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is an invalid kernel name type}}
-  // expected-note@#KernelSingleTask {{unnamed type used in a SYCL kernel name}}
+  // expected-error-re@#KernelSingleTask {{unnamed lambda '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' used}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });

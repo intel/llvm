@@ -2869,7 +2869,7 @@ This attribute applies to a loop or a function. It indicates that the
 loop/function should allow no more than N threads or iterations to execute it
 simultaneously. N must be a non negative integer. '0' indicates the
 max_concurrency case to be unbounded. Cannot be applied multiple times to the
-same loop.
+same loop or function, or in conjunction with ``disable_loop_pipelining``.
 
 .. code-block:: c++
 
@@ -2935,17 +2935,18 @@ def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
 This attribute applies to a loop or a function. Takes no arguments and
 disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
-function in conjunction with max_interleaving, speculated_iterations,
-max_concurrency, initiation_interval, or ivdep.
+function, or in conjunction with ``max_interleaving``,
+``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
+or ``ivdep``.
 
 .. code-block:: c++
 
   void foo() {
     int var = 0;
-    [[intel::disable_loop_pipelining] for (int i = 0; i < 10; ++i) var++;
+    [[intel::disable_loop_pipelining]] for (int i = 0; i < 10; ++i) var++;
   }
 
-  [[intel::disable_loop_pipelining] void foo1() { }
+  [[intel::disable_loop_pipelining]] void foo1() { }
 
   }];
 }
@@ -4045,7 +4046,7 @@ supported in C++.
 By default, a reference is considered to refer to its referenced object, a
 pointer is considered to refer to its pointee, a ``std::initializer_list<T>``
 is considered to refer to its underlying array, and aggregates (arrays and
-simple ``struct``s) are considered to refer to all objects that their
+simple ``struct``\s) are considered to refer to all objects that their
 transitive subobjects refer to.
 
 Clang warns if it is able to detect that an object or reference refers to
@@ -4353,9 +4354,9 @@ This attribute can be used in both OpenCL and SYCL.
 
 OpenCL documentation:
 The optional attribute intel_reqd_sub_group_size can be used to indicate that
-the kernel must be compiled and executed with the specified subgroup size. When
+the kernel must be compiled and executed with the specified sub group size. When
 this attribute is present, get_max_sub_group_size() is guaranteed to return the
-specified integer value. This is important for the correctness of many subgroup
+specified integer value. This is important for the correctness of many sub group
 algorithms, and in some cases may be used by the compiler to generate more optimal
 code. See `cl_intel_required_subgroup_size
 <https://www.khronos.org/registry/OpenCL/extensions/intel/cl_intel_required_subgroup_size.txt>`
@@ -4365,6 +4366,13 @@ SYCL documentation:
 The [[intel::reqd_sub_group_size(n)]] attribute indicates that the kernel must
 be compiled and executed with a sub-group of size n. The value of n must be set
 to a sub-group size supported by the device, or device compilation will fail.
+
+The ``[[intel::sub_group_size(n)]]`` attribute has the same effect as the other
+attribute spellings, except that it follows the SYCL 2020 Attribute Rules. See
+ the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
+
+This attribute is mutually exclusive with ``[[intel::named_sub_group_size(NAME)]]``
+and ``[[intel::sycl_explicit_simd]]``.
 
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
@@ -4387,6 +4395,47 @@ as in the examples below:
 
 See Sub-groups for NDRange Parallelism proposal in sycl/doc/extensions/sub_group_ndrange/sub_group_ndrange.md
   }];
+}
+
+def IntelNamedSubGroupSizeDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``[[intel::named_sub_group_size(NAME)]]`` attribute works similar to
+``[[intel::sub_group_size(N)]]`` attribute in that it defines the specific
+sub group size for the kernel. The ``[[intel::named_sub_group_size(NAME)]]``
+form accepts a required parameter of either ``automatic`` or ``primary``.
+
+``automatic`` specifies that the implementation is free to select any of the
+valid sub-group sizes associated with the device to which the kernel is
+submitted.  ``primary`` specifies that the implementation should select the
+device's primary sub-group size as reported by
+``info::device::primary_sub_group_size``.
+
+This attribute may not be combined with ``[[intel::sub_group_size(N)]]``, as
+the two attributes have different meanings. It is also mutually exclusive with
+``[[intel::sycl_explicit_simd]]``.
+
+In addition to the attributes, a default sub-group size strategy may be
+specified by the ``-fsycl-default-sub-group-size`` command line option, which
+accepts either ``automatic``, ``primary``, or a default size as an integer.
+These values match and have the same behavior as the ``automatic``, ``primary``,
+and ``[[intel::sub_group_size(N)]]`` values respectively.
+
+SYCL 2020 Attribute Rules:
+SYCL 2020 specifies that kernel-type attributes should only be specified on the
+kernel or a ``SYCL_EXTERNAL`` function. This implementation permits these
+attributes to appear on all function declarations for the purposes of
+self-documenting declarations. However, these attributes must match the kernel's
+sub-group size as configured by the command line, or via an attribute
+specifically.
+
+In addition to the SYCL 2020 Attribute Rules, this attribute and the
+``[[intel::sub_group_size(N)]]`` attribute also require that any
+``SYCL_EXTERNAL`` functions defined in a different translation unit must have a
+matching sub-group size specification, so ``SYCL_EXTERNAL`` functions not
+defined in this translation unit must also have a matching sub-group
+specification to the kernel function that calls it.
+}];
 }
 
 def OpenCLAccessDocs : Documentation {

@@ -1088,7 +1088,8 @@ unsigned DWARFLinker::DIECloner::cloneAddressAttribute(
 
   if (AttrSpec.Attr == dwarf::DW_AT_low_pc) {
     if (Die.getTag() == dwarf::DW_TAG_inlined_subroutine ||
-        Die.getTag() == dwarf::DW_TAG_lexical_block)
+        Die.getTag() == dwarf::DW_TAG_lexical_block ||
+        Die.getTag() == dwarf::DW_TAG_label) {
       // The low_pc of a block or inline subroutine might get
       // relocated because it happens to match the low_pc of the
       // enclosing subprogram. To prevent issues with that, always use
@@ -1097,7 +1098,7 @@ unsigned DWARFLinker::DIECloner::cloneAddressAttribute(
                   ? Info.OrigLowPc
                   : Addr) +
              Info.PCOffset;
-    else if (Die.getTag() == dwarf::DW_TAG_compile_unit) {
+    } else if (Die.getTag() == dwarf::DW_TAG_compile_unit) {
       Addr = Unit.getLowPc();
       if (Addr == std::numeric_limits<uint64_t>::max())
         return 0;
@@ -1421,20 +1422,12 @@ DIE *DWARFLinker::DIECloner::cloneDIE(const DWARFDie &InputDIE,
       Flags |= TF_SkipPC;
   }
 
-  bool Copied = false;
   for (const auto &AttrSpec : Abbrev->attributes()) {
     if (LLVM_LIKELY(!Update) &&
         shouldSkipAttribute(AttrSpec, Die->getTag(), Info.InDebugMap,
                             Flags & TF_SkipPC, Flags & TF_InFunctionScope)) {
       DWARFFormValue::skipValue(AttrSpec.Form, Data, &Offset,
                                 U.getFormParams());
-      // FIXME: dsymutil-classic keeps the old abbreviation around
-      // even if it's not used. We can remove this (and the copyAbbrev
-      // helper) as soon as bit-for-bit compatibility is not a goal anymore.
-      if (!Copied) {
-        copyAbbrev(*InputDIE.getAbbreviationDeclarationPtr(), Unit.hasODR());
-        Copied = true;
-      }
       continue;
     }
 
@@ -1793,6 +1786,9 @@ void DWARFLinker::emitAcceleratorEntriesForUnit(CompileUnit &Unit) {
   case AccelTableKind::Dwarf:
     emitDwarfAcceleratorEntriesForUnit(Unit);
     break;
+  case AccelTableKind::Pub:
+    emitPubAcceleratorEntriesForUnit(Unit);
+    break;
   case AccelTableKind::Default:
     llvm_unreachable("The default must be updated to a concrete value.");
     break;
@@ -1806,13 +1802,11 @@ void DWARFLinker::emitAppleAcceleratorEntriesForUnit(CompileUnit &Unit) {
                             Namespace.Die->getOffset() + Unit.getStartOffset());
 
   /// Add names.
-  TheDwarfEmitter->emitPubNamesForUnit(Unit);
   for (const auto &Pubname : Unit.getPubnames())
     AppleNames.addName(Pubname.Name,
                        Pubname.Die->getOffset() + Unit.getStartOffset());
 
   /// Add types.
-  TheDwarfEmitter->emitPubTypesForUnit(Unit);
   for (const auto &Pubtype : Unit.getPubtypes())
     AppleTypes.addName(
         Pubtype.Name, Pubtype.Die->getOffset() + Unit.getStartOffset(),
@@ -1836,6 +1830,11 @@ void DWARFLinker::emitDwarfAcceleratorEntriesForUnit(CompileUnit &Unit) {
   for (const auto &Pubtype : Unit.getPubtypes())
     DebugNames.addName(Pubtype.Name, Pubtype.Die->getOffset(),
                        Pubtype.Die->getTag(), Unit.getUniqueID());
+}
+
+void DWARFLinker::emitPubAcceleratorEntriesForUnit(CompileUnit &Unit) {
+  TheDwarfEmitter->emitPubNamesForUnit(Unit);
+  TheDwarfEmitter->emitPubTypesForUnit(Unit);
 }
 
 /// Read the frame info stored in the object, and emit the
@@ -1902,12 +1901,7 @@ void DWARFLinker::patchFrameInfoForObject(const DWARFFile &File,
     auto IteratorInserted = EmittedCIEs.insert(
         std::make_pair(CIEData, TheDwarfEmitter->getFrameSectionSize()));
     // If there is no CIE yet for this ID, emit it.
-    if (IteratorInserted.second ||
-        // FIXME: dsymutil-classic only caches the last used CIE for
-        // reuse. Mimic that behavior for now. Just removing that
-        // second half of the condition and the LastCIEOffset variable
-        // makes the code DTRT.
-        LastCIEOffset != IteratorInserted.first->getValue()) {
+    if (IteratorInserted.second) {
       LastCIEOffset = TheDwarfEmitter->getFrameSectionSize();
       IteratorInserted.first->getValue() = LastCIEOffset;
       TheDwarfEmitter->emitCIE(CIEData);
@@ -1922,21 +1916,6 @@ void DWARFLinker::patchFrameInfoForObject(const DWARFFile &File,
                              FrameData.substr(InputOffset, FDERemainingBytes));
     InputOffset += FDERemainingBytes;
   }
-}
-
-void DWARFLinker::DIECloner::copyAbbrev(
-    const DWARFAbbreviationDeclaration &Abbrev, bool HasODR) {
-  DIEAbbrev Copy(dwarf::Tag(Abbrev.getTag()),
-                 dwarf::Form(Abbrev.hasChildren()));
-
-  for (const auto &Attr : Abbrev.attributes()) {
-    uint16_t Form = Attr.Form;
-    if (HasODR && isODRAttribute(Attr.Attr))
-      Form = dwarf::DW_FORM_ref_addr;
-    Copy.AddAttribute(dwarf::Attribute(Attr.Attr), dwarf::Form(Form));
-  }
-
-  Linker.assignAbbrev(Copy);
 }
 
 uint32_t DWARFLinker::DIECloner::hashFullyQualifiedName(DWARFDie DIE,
@@ -2543,6 +2522,9 @@ bool DWARFLinker::link() {
         break;
       case AccelTableKind::Dwarf:
         TheDwarfEmitter->emitDebugNames(DebugNames);
+        break;
+      case AccelTableKind::Pub:
+        // Already emitted by emitPubAcceleratorEntriesForUnit.
         break;
       case AccelTableKind::Default:
         llvm_unreachable("Default should have already been resolved.");

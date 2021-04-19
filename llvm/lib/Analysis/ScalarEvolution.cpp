@@ -5664,18 +5664,22 @@ getRangeForUnknownRecurrence(const SCEVUnknown *U) {
   if (!P)
     return CR;
 
+  // Make sure that no Phi input comes from an unreachable block. Otherwise,
+  // even the values that are not available in these blocks may come from them,
+  // and this leads to false-positive recurrence test.
+  for (auto *Pred : predecessors(P->getParent()))
+    if (!DT.isReachableFromEntry(Pred))
+      return CR;
+
   BinaryOperator *BO;
   Value *Start, *Step;
   if (!matchSimpleRecurrence(P, BO, Start, Step))
     return CR;
 
-  // If we found a recurrence, we must be in a loop -- unless we're
-  // in unreachable code where dominance collapses.  Note that BO might
-  // be in some subloop of L, and that's completely okay.
+  // If we found a recurrence in reachable code, we must be in a loop. Note
+  // that BO might be in some subloop of L, and that's completely okay.
   auto *L = LI.getLoopFor(P->getParent());
-  if (!L)
-    return CR;
-  assert(L->getHeader() == P->getParent());
+  assert(L && L->getHeader() == P->getParent());
   if (!L->contains(BO->getParent()))
     // NOTE: This bailout should be an assert instead.  However, asserting
     // the condition here exposes a case where LoopFusion is querying SCEV

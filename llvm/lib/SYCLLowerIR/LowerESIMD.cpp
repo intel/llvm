@@ -730,7 +730,7 @@ static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   if (GVTS.find(CI.getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
-  auto LI = Builder.CreateLoad(CI.getArgOperand(0), CI.getName());
+  auto LI = Builder.CreateLoad(CI.getType(), CI.getArgOperand(0), CI.getName());
   LI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(LI);
   return true;
@@ -813,6 +813,12 @@ static Instruction *generateVectorGenXForSpirv(ExtractElementInst *EEI,
   Instruction *ExtrI = ExtractElementInst::Create(
       IntrI, ConstantInt::get(I32Ty, ExtractIndex), ExtractName, EEI);
   Instruction *CastI = addCastInstIfNeeded(EEI, ExtrI);
+  if (EEI->getDebugLoc()) {
+    IntrI->setDebugLoc(EEI->getDebugLoc());
+    ExtrI->setDebugLoc(EEI->getDebugLoc());
+    // It's OK if ExtrI and CastI is the same instruction
+    CastI->setDebugLoc(EEI->getDebugLoc());
+  }
   return CastI;
 }
 
@@ -839,6 +845,11 @@ static Instruction *generateGenXForSpirv(ExtractElementInst *EEI,
   Instruction *IntrI =
       IntrinsicInst::Create(NewFDecl, {}, IntrinName + Suff.str(), EEI);
   Instruction *CastI = addCastInstIfNeeded(EEI, IntrI);
+  if (EEI->getDebugLoc()) {
+    IntrI->setDebugLoc(EEI->getDebugLoc());
+    // It's OK if IntrI and CastI is the same instruction
+    CastI->setDebugLoc(EEI->getDebugLoc());
+  }
   return CastI;
 }
 
@@ -1093,6 +1104,8 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);
+  if (CI.getDebugLoc())
+    NewCI->setDebugLoc(CI.getDebugLoc());
   NewCI = addCastInstIfNeeded(&CI, NewCI);
   CI.replaceAllUsesWith(NewCI);
   CI.eraseFromParent();

@@ -115,6 +115,13 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
     return rewriter.create<mlir::MulFOp>(loc, resultTypes, args);
   }
 
+  // tosa::ReciprocalOp
+  if (isa<tosa::ReciprocalOp>(op) && elementTy.isa<FloatType>()) {
+    auto one =
+        rewriter.create<mlir::ConstantOp>(loc, FloatAttr::get(elementTy, 1));
+    return rewriter.create<mlir::DivFOp>(loc, resultTypes, one, args[0]);
+  }
+
   if (isa<tosa::MulOp>(op) && elementTy.isa<IntegerType>()) {
     Value a = args[0];
     Value b = args[1];
@@ -325,6 +332,16 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
                                      rewriter);
   }
 
+  // tosa::SigmoidOp
+  if (isa<tosa::SigmoidOp>(op) && elementTy.isa<FloatType>()) {
+    auto one =
+        rewriter.create<mlir::ConstantOp>(loc, FloatAttr::get(elementTy, 1));
+    auto negate = rewriter.create<mlir::NegFOp>(loc, resultTypes, args[0]);
+    auto exp = rewriter.create<mlir::math::ExpOp>(loc, resultTypes, negate);
+    auto added = rewriter.create<mlir::AddFOp>(loc, resultTypes, exp, one);
+    return rewriter.create<mlir::DivFOp>(loc, resultTypes, one, added);
+  }
+
   // tosa::CastOp
   if (isa<tosa::CastOp>(op)) {
     Type srcTy = elementTy;
@@ -497,6 +514,12 @@ static Attribute createInitialValueForReduceOp(Operation *op, Type elementTy,
     return rewriter.getIntegerAttr(
         elementTy, APInt::getSignedMinValue(elementTy.getIntOrFloatBitWidth()));
 
+  if (isa<tosa::ReduceAllOp>(op) && elementTy.isInteger(1))
+    return rewriter.getIntegerAttr(elementTy, APInt::getAllOnesValue(1));
+
+  if (isa<tosa::ReduceAnyOp>(op) && elementTy.isInteger(1))
+    return rewriter.getIntegerAttr(elementTy, APInt::getNullValue(1));
+
   if (isa<tosa::ArgMaxOp>(op) && elementTy.isa<FloatType>())
     return rewriter.getFloatAttr(
         elementTy, APFloat::getLargest(
@@ -556,6 +579,12 @@ static Value createLinalgBodyCalculationForReduceOp(Operation *op,
     return rewriter.create<mlir::SelectOp>(loc, predicate, args[0], args[1]);
   }
 
+  if (isa<tosa::ReduceAllOp>(op) && elementTy.isInteger(1))
+    return rewriter.create<mlir::AndOp>(loc, args);
+
+  if (isa<tosa::ReduceAnyOp>(op) && elementTy.isInteger(1))
+    return rewriter.create<mlir::OrOp>(loc, args);
+
   return {};
 }
 
@@ -596,6 +625,8 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
                                       : getParallelIteratorTypeName());
     if (axis != i)
       dstExprs.push_back(mlir::getAffineDimExpr(i, rewriter.getContext()));
+    else
+      dstExprs.push_back(rewriter.getAffineConstantExpr(0));
   }
 
   bool didEncounterError = false;
@@ -1199,6 +1230,22 @@ public:
           "Pad converter requires static shaped input / padding values.");
     }
 
+    Attribute constantAttr;
+    if (elementTy.isa<FloatType>())
+      constantAttr = rewriter.getFloatAttr(elementTy, 0.0);
+    else if (elementTy.isa<IntegerType>() && !padOp.quantization_info())
+      constantAttr = rewriter.getIntegerAttr(elementTy, 0);
+    else if (elementTy.isa<IntegerType>() && padOp.quantization_info()) {
+      auto value = padOp.quantization_info().getValue().input_zp().getValue();
+      constantAttr = rewriter.getIntegerAttr(elementTy, value.getZExtValue());
+    }
+
+    if (!constantAttr) {
+      return rewriter.notifyMatchFailure(
+          padOp,
+          "tosa.pad to linalg lowering encountered an unknown element type");
+    }
+
     Value lowIndex = rewriter.create<ConstantOp>(loc, rewriter.getIndexAttr(0));
     Value highIndex =
         rewriter.create<ConstantOp>(loc, rewriter.getIndexAttr(1));
@@ -1223,22 +1270,6 @@ public:
 
       lowValues.push_back(lowVal);
       highValues.push_back(highVal);
-    }
-
-    Attribute constantAttr;
-    if (elementTy.isa<FloatType>())
-      constantAttr = rewriter.getFloatAttr(elementTy, 0.0);
-    else if (elementTy.isa<IntegerType>() && !padOp.quantization_info())
-      constantAttr = rewriter.getIntegerAttr(elementTy, 0);
-    else if (elementTy.isa<IntegerType>() && padOp.quantization_info()) {
-      auto value = padOp.quantization_info().getValue().input_zp().getValue();
-      constantAttr = rewriter.getIntegerAttr(elementTy, value.getZExtValue());
-    }
-
-    if (!constantAttr) {
-      return rewriter.notifyMatchFailure(
-          padOp,
-          "tosa.pad to linalg lowering encountered an unknown element type");
     }
 
     Value constant = rewriter.create<ConstantOp>(loc, constantAttr);
@@ -1376,16 +1407,261 @@ public:
   }
 };
 
+// Lowerings the TableOp to a series of gathers and numerica operations. This
+// includes interpolation between the high/low values. For the I8 varient, this
+// simplifies to a single gather operation.
+class TableConverter : public OpRewritePattern<tosa::TableOp> {
+public:
+  using OpRewritePattern<tosa::TableOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tosa::TableOp op,
+                                PatternRewriter &rewriter) const final {
+    auto loc = op.getLoc();
+    Value input = op.input();
+    Value table = op.table();
+    auto inputTy = input.getType().cast<ShapedType>();
+    auto tableTy = table.getType().cast<ShapedType>();
+    auto resultTy = op.getType().cast<ShapedType>();
+
+    if (!inputTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "require input type to have static shape");
+
+    auto inputElementTy = inputTy.getElementType();
+    auto tableElementTy = tableTy.getElementType();
+    auto resultElementTy = resultTy.getElementType();
+
+    auto initTensor =
+        rewriter
+            .create<linalg::InitTensorOp>(loc, ArrayRef<Value>{},
+                                          resultTy.getShape(), resultElementTy)
+            .result();
+
+    SmallVector<AffineMap, 2> affineMaps = {
+        rewriter.getMultiDimIdentityMap(resultTy.getRank()),
+        rewriter.getMultiDimIdentityMap(resultTy.getRank())};
+
+    auto genericOp = rewriter.create<linalg::GenericOp>(
+        loc, resultTy, ValueRange({input}), ValueRange{initTensor}, affineMaps,
+        getNParallelLoopsAttrs(resultTy.getRank()));
+    rewriter.replaceOp(op, genericOp.getResult(0));
+
+    {
+      OpBuilder::InsertionGuard regionGuard(rewriter);
+      Block *block =
+          rewriter.createBlock(&genericOp.region(), genericOp.region().end(),
+                               TypeRange({inputElementTy, resultElementTy}));
+
+      auto inputValue = block->getArgument(0);
+      rewriter.setInsertionPointToStart(block);
+      if (inputElementTy.isInteger(8) && tableElementTy.isInteger(8) &&
+          resultElementTy.isInteger(8)) {
+        Value index = rewriter.create<IndexCastOp>(loc, rewriter.getIndexType(),
+                                                   inputValue);
+        Value extract =
+            rewriter.create<tensor::ExtractOp>(loc, table, ValueRange{index});
+        rewriter.create<linalg::YieldOp>(loc, extract);
+        return success();
+      }
+
+      if (inputElementTy.isInteger(16) && tableElementTy.isInteger(16) &&
+          resultElementTy.isInteger(32)) {
+        Value extend = rewriter.create<SignExtendIOp>(
+            loc, rewriter.getI32Type(), inputValue);
+
+        auto offset =
+            rewriter.create<ConstantOp>(loc, rewriter.getI32IntegerAttr(32768));
+        auto seven =
+            rewriter.create<ConstantOp>(loc, rewriter.getI32IntegerAttr(7));
+        auto one =
+            rewriter.create<ConstantOp>(loc, rewriter.getI32IntegerAttr(1));
+        auto b1111111 =
+            rewriter.create<ConstantOp>(loc, rewriter.getI32IntegerAttr(127));
+
+        // Compute the index and fractional part from the input value:
+        // value = value + 32768
+        // index = value >> 7;
+        // fraction = 0x01111111 & value
+        auto extendAdd = rewriter.create<AddIOp>(loc, extend, offset);
+        Value index =
+            rewriter.create<UnsignedShiftRightOp>(loc, extendAdd, seven);
+        Value fraction = rewriter.create<mlir::AndOp>(loc, extendAdd, b1111111);
+
+        // Extract the base and next values from the table.
+        // base = (int32_t) table[index];
+        // next = (int32_t) table[index + 1];
+        Value indexPlusOne = rewriter.create<AddIOp>(loc, index, one);
+
+        index =
+            rewriter.create<IndexCastOp>(loc, rewriter.getIndexType(), index);
+        indexPlusOne = rewriter.create<IndexCastOp>(
+            loc, rewriter.getIndexType(), indexPlusOne);
+
+        Value base =
+            rewriter.create<tensor::ExtractOp>(loc, table, ValueRange{index});
+        Value next = rewriter.create<tensor::ExtractOp>(
+            loc, table, ValueRange{indexPlusOne});
+
+        base = rewriter.create<SignExtendIOp>(loc, rewriter.getI32Type(), base);
+        next = rewriter.create<SignExtendIOp>(loc, rewriter.getI32Type(), next);
+
+        // Use the fractional part to interpolate between the input values:
+        // result = (base << 7) + (next - base) * fraction
+        Value baseScaled = rewriter.create<ShiftLeftOp>(loc, base, seven);
+        Value diff = rewriter.create<SubIOp>(loc, next, base);
+        Value diffScaled = rewriter.create<MulIOp>(loc, diff, fraction);
+        Value result = rewriter.create<AddIOp>(loc, baseScaled, diffScaled);
+
+        rewriter.create<linalg::YieldOp>(loc, result);
+
+        return success();
+      }
+    }
+
+    return rewriter.notifyMatchFailure(
+        op, "unable to create body for tosa.table op");
+  }
+};
+
+class MaxPool2dConverter : public OpRewritePattern<tosa::MaxPool2dOp> {
+public:
+  using OpRewritePattern<tosa::MaxPool2dOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tosa::MaxPool2dOp op,
+                                PatternRewriter &rewriter) const final {
+    Location loc = op.getLoc();
+    Value input = op.input();
+    ShapedType inputTy = input.getType().cast<ShapedType>();
+    Type inElementTy = inputTy.getElementType();
+
+    ShapedType resultTy = op.getType().cast<ShapedType>();
+    Type outElementTy = inputTy.getElementType();
+    int64_t rank = inputTy.getRank();
+
+    if (!inputTy.hasStaticShape())
+      return failure();
+
+    // Determine what the initial value needs to be for the max pool op.
+    Attribute initialAttr;
+    if (outElementTy.isF32())
+      initialAttr = rewriter.getFloatAttr(
+          outElementTy,
+          APFloat::getLargest(
+              outElementTy.cast<FloatType>().getFloatSemantics(), true));
+
+    if (outElementTy.isa<IntegerType>())
+      initialAttr = rewriter.getIntegerAttr(
+          outElementTy,
+          APInt::getSignedMinValue(outElementTy.getIntOrFloatBitWidth()));
+
+    if (!initialAttr)
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported initial value for tosa.maxpool_2d op");
+
+    Value initialValue = rewriter.create<ConstantOp>(loc, initialAttr);
+
+    SmallVector<int64_t> kernel, stride, pad;
+    getValuesFromIntArrayAttribute(op.kernel(), kernel);
+    getValuesFromIntArrayAttribute(op.stride(), stride);
+    getValuesFromIntArrayAttribute(op.pad(), pad);
+
+    Attribute strideAttr = rewriter.getI64VectorAttr(stride);
+    Attribute dilationAttr = rewriter.getI64VectorAttr({1, 1});
+
+    // If non-zero padding we need to pad the input
+    if (llvm::any_of(pad, [](int64_t v) { return v != 0; })) {
+      SmallVector<int64_t, 4> paddedShape;
+      for (int64_t i = 0; i < rank; i++)
+        paddedShape.push_back(inputTy.getDimSize(i));
+
+      paddedShape[1] += pad[0] + pad[1];
+      paddedShape[2] += pad[2] + pad[3];
+
+      OpFoldResult zeroIndex = rewriter.getIndexAttr(0);
+      OpFoldResult heightLowPadIndex = rewriter.getIndexAttr(pad[0]);
+      OpFoldResult heightHighPadIndex = rewriter.getIndexAttr(pad[1]);
+      OpFoldResult widthLowPadIndex = rewriter.getIndexAttr(pad[2]);
+      OpFoldResult widthHighPadIndex = rewriter.getIndexAttr(pad[3]);
+
+      SmallVector<OpFoldResult, 4> lowIndices = {zeroIndex, heightLowPadIndex,
+                                                 widthLowPadIndex, zeroIndex};
+      SmallVector<OpFoldResult, 4> highIndices = {zeroIndex, heightHighPadIndex,
+                                                  widthHighPadIndex, zeroIndex};
+
+      input = linalg::PadTensorOp::createPadScalarOp(
+                  RankedTensorType::get(paddedShape, inElementTy), input,
+                  initialValue, lowIndices, highIndices, loc, rewriter)
+                  .result();
+    }
+
+    Value initTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, resultTy.getShape(), resultTy.getElementType());
+
+    Value filledInitTensor =
+        rewriter.create<linalg::FillOp>(loc, initTensor, initialValue).result();
+
+    Value fakeWindowDims =
+        rewriter.create<linalg::InitTensorOp>(loc, kernel, outElementTy);
+
+    auto createOp = [&](auto *typePtr) -> linalg::LinalgOp {
+      return cast<linalg::LinalgOp>(
+          rewriter
+              .create<std::remove_pointer_t<decltype(typePtr)>>(
+                  loc, ArrayRef<Type>{resultTy},
+                  ValueRange{input, fakeWindowDims}, filledInitTensor,
+                  dilationAttr, strideAttr)
+              .getOperation());
+    };
+
+    if (inElementTy.isF32()) {
+      linalg::LinalgOp poolingOp =
+          createOp(static_cast<linalg::PoolingNHWCMaxFOp *>(nullptr));
+      rewriter.replaceOp(op, poolingOp->getResult(0));
+      return success();
+    }
+
+    if (inElementTy.isInteger(8)) {
+      linalg::LinalgOp poolingOp =
+          createOp(static_cast<linalg::PoolingNHWCMaxI8Op *>(nullptr));
+      rewriter.replaceOp(op, poolingOp->getResult(0));
+      return success();
+    }
+
+    if (inElementTy.isInteger(16)) {
+      linalg::LinalgOp poolingOp =
+          createOp(static_cast<linalg::PoolingNHWCMaxI16Op *>(nullptr));
+      rewriter.replaceOp(op, poolingOp->getResult(0));
+      return success();
+    }
+
+    if (inElementTy.isInteger(32)) {
+      linalg::LinalgOp poolingOp =
+          createOp(static_cast<linalg::PoolingNHWCMaxI32Op *>(nullptr));
+      rewriter.replaceOp(op, poolingOp->getResult(0));
+      return success();
+    }
+
+    return failure();
+  }
+};
+
 } // namespace
 
 void mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(
     RewritePatternSet *patterns) {
   patterns->add<
-      PointwiseConverter<tosa::AddOp>, PointwiseConverter<tosa::SubOp>,
-      PointwiseConverter<tosa::MulOp>, PointwiseConverter<tosa::NegateOp>,
-      PointwiseConverter<tosa::PowOp>, PointwiseConverter<tosa::RsqrtOp>,
-      PointwiseConverter<tosa::LogOp>, PointwiseConverter<tosa::ExpOp>,
-      PointwiseConverter<tosa::AbsOp>, PointwiseConverter<tosa::TanhOp>,
+      // clang-format off
+      PointwiseConverter<tosa::AddOp>,
+      PointwiseConverter<tosa::SubOp>,
+      PointwiseConverter<tosa::MulOp>,
+      PointwiseConverter<tosa::NegateOp>,
+      PointwiseConverter<tosa::PowOp>,
+      PointwiseConverter<tosa::ReciprocalOp>,
+      PointwiseConverter<tosa::RsqrtOp>,
+      PointwiseConverter<tosa::LogOp>,
+      PointwiseConverter<tosa::ExpOp>,
+      PointwiseConverter<tosa::AbsOp>,
+      PointwiseConverter<tosa::TanhOp>,
       PointwiseConverter<tosa::BitwiseAndOp>,
       PointwiseConverter<tosa::BitwiseOrOp>,
       PointwiseConverter<tosa::BitwiseNotOp>,
@@ -1393,19 +1669,39 @@ void mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(
       PointwiseConverter<tosa::LogicalAndOp>,
       PointwiseConverter<tosa::LogicalNotOp>,
       PointwiseConverter<tosa::LogicalOrOp>,
-      PointwiseConverter<tosa::LogicalXorOp>, PointwiseConverter<tosa::CastOp>,
+      PointwiseConverter<tosa::LogicalXorOp>,
+      PointwiseConverter<tosa::CastOp>,
       PointwiseConverter<tosa::LogicalLeftShiftOp>,
       PointwiseConverter<tosa::LogicalRightShiftOp>,
-      PointwiseConverter<tosa::SelectOp>, PointwiseConverter<tosa::GreaterOp>,
+      PointwiseConverter<tosa::SelectOp>,
+      PointwiseConverter<tosa::GreaterOp>,
       PointwiseConverter<tosa::GreaterEqualOp>,
-      PointwiseConverter<tosa::MaximumOp>, PointwiseConverter<tosa::MinimumOp>,
-      PointwiseConverter<tosa::CeilOp>, PointwiseConverter<tosa::FloorOp>,
-      PointwiseConverter<tosa::ClampOp>, PointwiseConverter<tosa::ReluNOp>,
+      PointwiseConverter<tosa::MaximumOp>,
+      PointwiseConverter<tosa::MinimumOp>,
+      PointwiseConverter<tosa::CeilOp>,
+      PointwiseConverter<tosa::FloorOp>,
+      PointwiseConverter<tosa::ClampOp>,
+      PointwiseConverter<tosa::ReluNOp>,
+      PointwiseConverter<tosa::SigmoidOp>,
       IdentityNConverter<tosa::IdentityOp>,
-      IdentityNConverter<tosa::IdentityNOp>, ReduceConverter<tosa::ReduceMinOp>,
-      ReduceConverter<tosa::ReduceMaxOp>, ReduceConverter<tosa::ReduceSumOp>,
-      ReduceConverter<tosa::ReduceProdOp>, ArgMaxConverter, ConcatConverter, PadConverter,
-      ReshapeConverter, RescaleConverter, ReverseConverter, TileConverter,
-      TransposeConverter, MatMulConverter, FullyConnectedConverter>(
-        patterns->getContext());
+      IdentityNConverter<tosa::IdentityNOp>,
+      ReduceConverter<tosa::ReduceAllOp>,
+      ReduceConverter<tosa::ReduceAnyOp>,
+      ReduceConverter<tosa::ReduceMinOp>,
+      ReduceConverter<tosa::ReduceMaxOp>,
+      ReduceConverter<tosa::ReduceSumOp>,
+      ReduceConverter<tosa::ReduceProdOp>,
+      ArgMaxConverter,
+      ConcatConverter,
+      PadConverter,
+      ReshapeConverter,
+      RescaleConverter,
+      ReverseConverter,
+      TableConverter,
+      TileConverter,
+      TransposeConverter,
+      MatMulConverter,
+      MaxPool2dConverter,
+      FullyConnectedConverter>(patterns->getContext());
+      // clang-format on
 }

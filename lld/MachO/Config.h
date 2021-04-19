@@ -16,9 +16,9 @@
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/VersionTuple.h"
-#include "llvm/TextAPI/MachO/Architecture.h"
-#include "llvm/TextAPI/MachO/Platform.h"
-#include "llvm/TextAPI/MachO/Target.h"
+#include "llvm/TextAPI/Architecture.h"
+#include "llvm/TextAPI/Platform.h"
+#include "llvm/TextAPI/Target.h"
 
 #include <vector>
 
@@ -48,6 +48,12 @@ enum class UndefinedSymbolTreatment {
   warning,
   suppress,
   dynamic_lookup,
+};
+
+struct SegmentProtection {
+  llvm::StringRef name;
+  uint32_t maxProt;
+  uint32_t initProt;
 };
 
 class SymbolPatterns {
@@ -81,16 +87,18 @@ struct Configuration {
   bool searchDylibsFirst = false;
   bool saveTemps = false;
   bool adhocCodesign = false;
+  bool emitFunctionStarts = false;
   bool timeTraceEnabled = false;
   uint32_t headerPad;
   uint32_t dylibCompatibilityVersion = 0;
   uint32_t dylibCurrentVersion = 0;
-  uint32_t timeTraceGranularity = 0;
+  uint32_t timeTraceGranularity = 500;
   std::string progName;
   llvm::StringRef installName;
   llvm::StringRef mapFile;
   llvm::StringRef outputFile;
   llvm::StringRef ltoObjPath;
+  llvm::StringRef thinLTOJobs;
   bool demangle = false;
   llvm::MachO::Target target;
   PlatformInfo platformInfo;
@@ -102,7 +110,11 @@ struct Configuration {
   std::vector<llvm::StringRef> librarySearchPaths;
   std::vector<llvm::StringRef> frameworkSearchPaths;
   std::vector<llvm::StringRef> runtimePaths;
+  std::vector<std::string> astPaths;
   std::vector<Symbol *> explicitUndefineds;
+  // There are typically very few custom segmentProtections, so use a vector
+  // instead of a map.
+  std::vector<SegmentProtection> segmentProtections;
 
   llvm::DenseMap<llvm::StringRef, SymbolPriorityEntry> priorities;
   SectionRenameMap sectionRenameMap;
