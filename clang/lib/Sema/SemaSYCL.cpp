@@ -4549,7 +4549,8 @@ void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
 }
 
 template <typename Before, typename After>
-static void PrintNSHelper(Before B, After A, raw_ostream &O, const DeclContext *DC) {
+static void PrintNSHelper(Before B, After A, raw_ostream &O,
+                          const DeclContext *DC) {
   if (DC->isTranslationUnit())
     return;
 
