@@ -305,7 +305,7 @@ public:
   template <size_t _Offset, size_t _Count = dynamic_extent>
   _SYCLSPAN_INLINE_VISIBILITY constexpr auto subspan() const noexcept
       -> span<element_type,
-              _Count != dynamic_extent ? _Count : _Extent - _Offset> {
+              (_Count != dynamic_extent ? _Count : _Extent - _Offset)> {
     static_assert(_Offset <= _Extent, "Offset out of range in span::subspan()");
     static_assert(_Count == dynamic_extent || _Count <= _Extent - _Offset,
                   "Offset + count out of range in span::subspan()");
