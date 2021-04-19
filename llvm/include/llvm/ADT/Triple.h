@@ -100,10 +100,7 @@ public:
     wasm64,         // WebAssembly with 64-bit pointers
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
-    fpga_aoco,      // Intel FPGA: unlinked object file
-    fpga_aocr,      // Intel FPGA: linked early image
-    fpga_aocx,      // Intel FPGA: linked image
-    fpga_dep,       // Intel FPGA: dependency file
+    fpga,           // Intel FPGA
     ve,             // NEC SX-Aurora Vector Engine
     LastArchType = ve
   };

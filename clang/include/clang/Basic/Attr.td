@@ -1213,6 +1213,7 @@ def SYCLSimd : InheritableAttr {
   let Subjects = SubjectList<[Function, GlobalVar]>;
   let Documentation = [SYCLSimdDocs];
   let SupportsNonconformingLambdaSyntax = 1;
+  let SimpleHandler = 1;
 }
 
 // Available in SYCL explicit SIMD extension. Binds a file scope private
@@ -1431,14 +1432,31 @@ def LoopUnrollHint : StmtAttr {
 }
 
 def IntelReqdSubGroupSize: InheritableAttr {
-  let Spellings = [GNU<"intel_reqd_sub_group_size">,
-                   CXX11<"intel", "reqd_sub_group_size">];
+  let Spellings = [
+    GNU<"intel_reqd_sub_group_size">, CXX11<"intel", "reqd_sub_group_size">,
+    CXX11<"intel", "sub_group_size"> // SYCL2020 spelling.
+  ];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let SupportsNonconformingLambdaSyntax = 1;
+  let Accessors =
+    [Accessor<"isSYCL2020Spelling", [CXX11<"intel", "sub_group_size">]>];
 }
+
+def IntelNamedSubGroupSize : InheritableAttr {
+  let Spellings = [CXX11<"intel", "named_sub_group_size">];
+  let Args = [EnumArgument<"Type", "SubGroupSizeType", ["automatic", "primary"],
+                           ["Automatic", "Primary"]>];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [IntelNamedSubGroupSizeDocs];
+  let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let SupportsNonconformingLambdaSyntax = 1;
+}
+
+def :
+  MutualExclusions<[IntelReqdSubGroupSize, IntelNamedSubGroupSize, SYCLSimd]>;
 
 // This attribute is both a type attribute, and a declaration attribute (for
 // parameter variables).

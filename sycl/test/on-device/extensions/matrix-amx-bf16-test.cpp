@@ -1,5 +1,6 @@
 // RUN: %clangxx -march=sapphirerapids -fsycl -O2 %s -o %t.out
 #include <CL/sycl.hpp>
+#if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #include <iostream>
 
 using namespace cl::sycl;
@@ -182,3 +183,4 @@ int main() {
     std::cout << "\n";
   }
 }
+#endif

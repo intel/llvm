@@ -2623,6 +2623,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.mergeEnforceTCBLeafAttr(D, *TCBLA);
   else if (const auto *A = dyn_cast<IntelReqdSubGroupSizeAttr>(Attr))
     NewAttr = S.MergeIntelReqdSubGroupSizeAttr(D, *A);
+  else if (const auto *A = dyn_cast<IntelNamedSubGroupSizeAttr>(Attr))
+    NewAttr = S.MergeIntelNamedSubGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(Attr))
     NewAttr = S.MergeSYCLIntelNumSimdWorkItemsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(Attr))
@@ -9862,7 +9864,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     if (II && II->isStr(getCudaConfigureFuncName()) &&
         !NewFD->isInvalidDecl() &&
         NewFD->getDeclContext()->getRedeclContext()->isTranslationUnit()) {
-      if (!R->getAs<FunctionType>()->getReturnType()->isScalarType())
+      if (!R->castAs<FunctionType>()->getReturnType()->isScalarType())
         Diag(NewFD->getLocation(), diag::err_config_scalar_return)
             << getCudaConfigureFuncName();
       Context.setcudaConfigureCallDecl(NewFD);

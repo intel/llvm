@@ -411,6 +411,21 @@ std::error_code copy_file(const Twine &From, int ToFD);
 ///          platform-specific error_code.
 std::error_code resize_file(int FD, uint64_t Size);
 
+/// Resize \p FD to \p Size before mapping \a mapped_file_region::readwrite. On
+/// non-Windows, this calls \a resize_file(). On Windows, this is a no-op,
+/// since the subsequent mapping (via \c CreateFileMapping) automatically
+/// extends the file.
+inline std::error_code resize_file_before_mapping_readwrite(int FD,
+                                                            uint64_t Size) {
+#ifdef _WIN32
+  (void)FD;
+  (void)Size;
+  return std::error_code();
+#else
+  return resize_file(FD, Size);
+#endif
+}
+
 /// Compute an MD5 hash of a file's contents.
 ///
 /// @param FD Input file descriptor.
@@ -742,24 +757,34 @@ enum OpenFlags : unsigned {
   OF_None = 0,
   F_None = 0, // For compatibility
 
-  /// The file should be opened in text mode on platforms that make this
-  /// distinction.
+  /// The file should be opened in text mode on platforms like z/OS that make
+  /// this distinction.
   OF_Text = 1,
   F_Text = 1, // For compatibility
 
+  /// The file should use a carriage linefeed '\r\n'. This flag should only be
+  /// used with OF_Text. Only makes a difference on Windows.
+  OF_CRLF = 2,
+
+  /// The file should be opened in text mode and use a carriage linefeed '\r\n'.
+  /// This flag has the same functionality as OF_Text on z/OS but adds a
+  /// carriage linefeed on Windows.
+  OF_TextWithCRLF = OF_Text | OF_CRLF,
+
   /// The file should be opened in append mode.
-  OF_Append = 2,
-  F_Append = 2, // For compatibility
+  OF_Append = 4,
+  F_Append = 4, // For compatibility
 
   /// Delete the file on close. Only makes a difference on windows.
-  OF_Delete = 4,
+  OF_Delete = 8,
 
   /// When a child process is launched, this file should remain open in the
   /// child process.
-  OF_ChildInherit = 8,
+  OF_ChildInherit = 16,
 
-  /// Force files Atime to be updated on access. Only makes a difference on windows.
-  OF_UpdateAtime = 16,
+  /// Force files Atime to be updated on access. Only makes a difference on
+  /// Windows.
+  OF_UpdateAtime = 32,
 };
 
 /// Create a potentially unique file name but does not create it.
