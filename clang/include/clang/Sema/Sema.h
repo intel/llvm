@@ -13425,8 +13425,7 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
                    ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving ||
                A.getParsedKind() ==
                    ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations ||
-               A.getParsedKind() ==
-                   ParsedAttr::AT_SYCLIntelFPGALoopCount) {
+               A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCount) {
       if (Val < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << A.getAttrName() << /* non-negative */ 1;

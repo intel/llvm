@@ -244,7 +244,7 @@ static Attr *handleIntelFPGAIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
 }
 
 static SYCLIntelFPGALoopCountAttr *
-  handleIntelFPGALoopCountAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
+handleIntelFPGALoopCountAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
   Expr *E = A.getArgAsExpr(0);
   if (E && !E->isInstantiationDependent()) {
     Optional<llvm::APSInt> ArgVal =
