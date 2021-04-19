@@ -91,3 +91,10 @@ attributes #0 = { uwtable mustprogress "denormal-fp-math"="preserve-sign,preserv
 attributes #1 = { argmemonly nofree nosync nounwind willreturn }
 attributes #2 = { "denormal-fp-math"="preserve-sign,preserve-sign" "denormal-fp-math-f32"="ieee,ieee" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="true" "use-soft-float"="false" }
 attributes #3 = { nounwind }
+
+; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]]}
+;
+; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
+; CHECK: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z9id_doubleEE", i32 0, i32 0, i32 8}
+; CHECK: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 3, i32 0, i32 24
+; CHECK: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 2, i32 0, i32 24}
