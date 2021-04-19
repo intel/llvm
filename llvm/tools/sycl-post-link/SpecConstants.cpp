@@ -612,9 +612,9 @@ bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
            "Unexpected amount of operands");
     std::vector<SpecConstantDescriptor> Descs((Node->getNumOperands() - 1) / 3);
     for (unsigned I = 1; I < Node->getNumOperands(); I += 3) {
-      Descs[I].ID = ExtractIntegerFromMDNodeOperand(Node, I + 0);
-      Descs[I].Offset = ExtractIntegerFromMDNodeOperand(Node, I + 1);
-      Descs[I].Size = ExtractIntegerFromMDNodeOperand(Node, I + 2);
+      Descs[I - 1].ID = ExtractIntegerFromMDNodeOperand(Node, I + 0);
+      Descs[I - 1].Offset = ExtractIntegerFromMDNodeOperand(Node, I + 1);
+      Descs[I - 1].Size = ExtractIntegerFromMDNodeOperand(Node, I + 2);
     }
 
     IDMap[ID] = Descs;
