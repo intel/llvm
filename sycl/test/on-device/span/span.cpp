@@ -21,7 +21,7 @@ void testSpanCapture() {
 
   // span from a vector
   // We will create a vector, backed by a USM allocator. And a span from that.
-  typedef usm_allocator<int, usm::alloc::shared> vec_alloc;
+  using vec_alloc = usm_allocator<int, usm::alloc::shared>;
   // Create allocator for device associated with q
   vec_alloc myAlloc(Q);
   // Create std vector with the allocator
@@ -31,14 +31,14 @@ void testSpanCapture() {
   vecUSM_span[0] += 100; // 101  modify first value using span affordance.
 
   // span from USM memory
-  int *usm_data = malloc_shared<int>(4, Q);
+  auto *usm_data = malloc_shared<int>(4, Q);
   sycl::span<int> usm_span(usm_data, 4);
   std::iota(usm_span.begin(), usm_span.end(), 1);
   usm_span[0] += 100; // 101 modify first value using span affordance.
 
   event E = Q.submit([&](handler &cgh) {
     auto span_read_acc = SpanRead.get_access<access::mode::write>(cgh);
-    cgh.single_task<class hi>([=]() {
+    cgh.single_task<class hi>([=] {
       // read from the spans.
       span_read_acc[0] = vecUSM_span[0];
       span_read_acc[1] = usm_span[0];
@@ -78,7 +78,7 @@ void testSpanOnDevice() {
 
   event E = Q.submit([&](handler &cgh) {
     auto span_read_acc = SpanRead.get_access<access::mode::write>(cgh);
-    cgh.single_task<class ha>([=]() {
+    cgh.single_task<class ha>([=] {
       // create a span on device, pass it to function that modifies it
       // read values back out.
       int a[]{1, 2, 3, 4};

@@ -12,7 +12,7 @@
 
 /*
     Derived from libcxx span.
-    Original _LIBCPP macros replaced with _SYCLSPAN to avoid collisions.
+    Original _LIBCPP macros replaced with _SYCL_SPAN to avoid collisions.
 
 
     span synopsis
