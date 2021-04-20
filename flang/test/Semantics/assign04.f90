@@ -8,7 +8,7 @@ subroutine s1
   type(t(1, 2)) :: x
   !ERROR: Assignment to constant 'x%k' is not allowed
   x%k = 4
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Assignment to constant 'x%l' is not allowed
   x%l = 3
 end
 
@@ -126,7 +126,7 @@ real function f9() result(r)
   f9 = 1.0
 end
 
-!ERROR: No explicit type declared for 'n'
+!ERROR: No explicit type declared for dummy argument 'n'
 subroutine s10(a, n)
   implicit none
   real a(n)

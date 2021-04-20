@@ -87,7 +87,7 @@ a SYCL object that encapsulates a corresponding Level-Zero object:
 |-------------|:------------|
 |``` make<platform>(ze_driver_handle_t);```|Constructs a SYCL platform instance from a Level-Zero ```ze_driver_handle_t```.|
 |``` make<device>(const platform &, ze_device_handle_t);```|Constructs a SYCL device instance from a Level-Zero ```ze_device_handle_t```. The platform argument gives a SYCL platform, encapsulating a Level-Zero driver supporting the passed Level-Zero device.|
-|``` make<context>(const vector_class<device> &, ze_context_handle_t);```| Constructs a SYCL context instance from a Level-Zero ```ze_context_handle_t```. The context is created against the devices passed in. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver.|
+|``` make<context>(const vector_class<device> &, ze_context_handle_t, ownership = transfer);```| Constructs a SYCL context instance from a Level-Zero ```ze_context_handle_t```. The context is created against the devices passed in. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver. The ```ownership``` argument specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.|
 |``` make<queue>(const context &, ze_command_queue_handle_t);```| Constructs a SYCL queue instance from a Level-Zero ```ze_command_queue_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context.|
 |``` make<program>(const context &, ze_module_handle_t);```| Constructs a SYCL program instance from a Level-Zero ```ze_module_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through [```zeModuleDynamicLink```](https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t)), and thus the SYCL program is created in the "linked" state.|
 
@@ -96,23 +96,43 @@ NOTE: We shall consider adding other interoperability as needed, if possible.
 ### 4.4 Level-Zero handles' ownership and thread-safety
         
 The Level-Zero runtime doesn't do reference-counting of its objects, so it is crucial to adhere to these
-practices of how Level-Zero handles are manged.
+practices of how Level-Zero handles are managed. By default, the ownership is transferred to the SYCL runtime, but
+some interoparability API supports overriding this behavior and keep the ownership in the application.
+Use this enumeration for explicit specification of the ownership:
+``` C++
+namespace sycl {
+namespace level_zero {
+
+enum class ownership { transfer, keep };
+
+} // namesace level_zero
+} // namespace sycl
+```
                 
-#### 4.4.1 SYCL runtime takes ownership
+#### 4.4.1 SYCL runtime takes ownership (default)
                 
 Whenever the application creates a SYCL object from the corresponding Level-Zero handle via one of the ```make<T>()``` functions,
-the SYCL runtime takes ownership of the Level-Zero handle. The application must not use the Level-Zero handle after
-the last host copy of the SYCL object is destroyed (as described in the core SYCL specification under
-"Common reference semantics"), and the application must not destroy the Level-Zero handle itself.
+the SYCL runtime takes ownership of the Level-Zero handle, if no explicit ```ownership::keep``` was specified.
+The application must not use the Level-Zero handle after the last host copy of the SYCL object is destroyed (
+as described in the core SYCL specification under "Common reference semantics"), and the application must not
+destroy the Level-Zero handle itself.
+
+#### 4.4.2 Application keeps ownership (explicit)
+
+If SYCL object is created with an interoperability API explicitly asking to keep the native handle ownership in the application with
+```ownership::keep``` then the SYCL runtime does not take the ownership and will not destroy the Level-Zero handle at the destruction of the SYCL object.
+The application is responsible for destroying the native handle when it no longer needs it, but it must not destroy the
+handle before the last host copy of the SYCL object is destroyed (as described in the core SYCL specification under
+"Common reference semantics").
                                                                 
-#### 4.4.2 SYCL runtime assumes ownership
+#### 4.4.3 Obtaining native handle does not change ownership
 
-The application may call the ```get_native<T>()``` member function of a SYCL object to retrieve the underlying Level-Zero handle,
-however, the SYCL runtime continues to retain ownership of this handle. The application must not use this handle after
-the last host copy of the SYCL object is destroyed (as described in the core SYCL specification under
-"Common reference semantics"), and the application must not destroy the Level-Zero handle.
+The application may call the ```get_native<T>()``` member function of a SYCL object to retrieve the underlying Level-Zero handle.
+Doing so does not change the ownership of the the Level-Zero handle.  Therefore, the application may not use this
+handle after the last host copy of the SYCL object is destroyed (as described in the core SYCL specification under
+"Common reference semantics") unless the SYCL object was created by the application with ```ownership::keep```.
 
-#### 4.4.3 Considerations for multi-threaded environment
+#### 4.4.4 Considerations for multi-threaded environment
 
 The Level-Zero API is not thread-safe, refer to <https://spec.oneapi.com/level-zero/latest/core/INTRO.html#multithreading-and-concurrency>.
 Applications must make sure that the Level-Zero handles themselves aren't used simultaneously from different threads.
@@ -123,4 +143,5 @@ the application should not attempt further direct use of those handles.
 |Rev|Date|Author|Changes|
 |-------------|:------------|:------------|:------------|
 |1|2021-01-26|Sergey Maslov|Initial public working draft
+|2|2021-02-22|Sergey Maslov|Introduced explicit ownership for context
 

@@ -56,10 +56,10 @@ def FuncExtNone                          : FunctionExtension<"">;
 // TODO: Create a QualTypeFromASTContext.
 //       To fully make sense here, this class should represent
 //       the QualType only. How the QualType is accessed should be separated.
-class QualType<string _Name, bit _IsAbstract=0, bit _IsSigned=0> {
+class QualType<string _TypeExpr, bit _IsAbstract=0, bit _IsSigned=0> {
   // Name of the field or function in a clang::ASTContext
   // E.g. Name="IntTy" for the int type, and "getIntPtrType()" for an intptr_t
-  string Name = _Name;
+  string TypeExpr = _TypeExpr;
   // Some QualTypes in this file represent an abstract type for which there is
   // no corresponding AST QualType, e.g. a GenType or an `image2d_t` type
   // without access qualifiers.
@@ -90,11 +90,11 @@ class IntList<string _Name, list<int> _List> {
 // Basic data types (int, float, image2d_t, ...).
 // Its child classes can represent concrete types (e.g. VectorType) or
 // abstract types (e.g. GenType).
-class Type<string _Name, QualType _QTName> {
+class Type<string _Name, QualType _QTExpr> {
   // Name of the Type.
   string Name = _Name;
   // QualType associated with this type.
-  QualType QTName = _QTName;
+  QualType QTExpr = _QTExpr;
   // Size of the vector (if applicable).
   int VecWidth = 1;
   // Size of the element in bits.
@@ -142,7 +142,7 @@ class FPType<string _Name, QualType _QTName, int _Size> : FundamentalType<_Name,
   let IsFloat = 1;
 }
 
-class CompoundType<Type _Ty> : Type<_Ty.Name, _Ty.QTName> {
+class CompoundType<Type _Ty> : Type<_Ty.Name, _Ty.QTExpr> {
   // Inherited fields
   let VecWidth = _Ty.VecWidth;
   let ElementSize = _Ty.ElementSize;
@@ -159,7 +159,7 @@ class CompoundType<Type _Ty> : Type<_Ty.Name, _Ty.QTName> {
 }
 
 // Vector types (e.g. int2, int3, int16, float8, ...).
-class VectorType<Type _Ty, int _VecWidth> : Type<_Ty.Name, _Ty.QTName> {
+class VectorType<Type _Ty, int _VecWidth> : Type<_Ty.Name, _Ty.QTExpr> {
   let VecWidth = _VecWidth;
   let AccessQualifier = "";
   // Inherited fields
@@ -196,7 +196,7 @@ class VolatileType<Type _Ty> : CompoundType<_Ty> {
 
 // Image types (e.g. image2d).
 class ImageType<Type _Ty, string _AccessQualifier> :
-    Type<_Ty.Name, QualType<_Ty.QTName.Name#_AccessQualifier#"Ty", 0>> {
+    Type<_Ty.Name, QualType<_Ty.QTExpr.TypeExpr # _AccessQualifier # "Ty", 0>> {
   let VecWidth = 0;
   let AccessQualifier = _AccessQualifier;
   // Inherited fields
@@ -302,26 +302,26 @@ class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
 //===----------------------------------------------------------------------===//
 
 // OpenCL v1.0/1.2/2.0 s6.1.1: Built-in Scalar Data Types.
-def Bool      : IntType<"bool",   QualType<"BoolTy">, 1>;
-def TrueChar  : IntType<"_char",      QualType<"CharTy", 0, 1>, 8>;
-def Char      : IntType<"char",      QualType<"SignedCharTy", 0, 1>, 8>;
-def SChar     : IntType<"schar",     QualType<"SignedCharTy", 0, 1>, 8>;
-def UChar     : UIntType<"uchar",     QualType<"UnsignedCharTy">, 8>;
-def Short     : IntType<"short",     QualType<"ShortTy", 0, 1>, 16>;
-def UShort    : UIntType<"ushort",    QualType<"UnsignedShortTy">, 16>;
-def Int       : IntType<"int",       QualType<"IntTy", 0, 1>, 32>;
-def UInt      : UIntType<"uint",      QualType<"UnsignedIntTy">, 32>;
-def Long      : IntType<"long",      QualType<"getIntTypeForBitwidth(64, true)", 0, 1>, 64>;
-def ULong     : UIntType<"ulong",     QualType<"getIntTypeForBitwidth(64, false)">, 64>;
-def Float     : FPType<"float",     QualType<"FloatTy">, 32>;
-def Double    : FPType<"double",    QualType<"DoubleTy">, 64>;
+def Bool      : IntType<"bool",   QualType<"Context.BoolTy">, 1>;
+def TrueChar  : IntType<"_char",      QualType<"Context.CharTy", 0, 1>, 8>;
+def Char      : IntType<"char",      QualType<"Context.SignedCharTy", 0, 1>, 8>;
+def SChar     : IntType<"schar",     QualType<"Context.SignedCharTy", 0, 1>, 8>;
+def UChar     : UIntType<"uchar",     QualType<"Context.UnsignedCharTy">, 8>;
+def Short     : IntType<"short",     QualType<"Context.ShortTy", 0, 1>, 16>;
+def UShort    : UIntType<"ushort",    QualType<"Context.UnsignedShortTy">, 16>;
+def Int       : IntType<"int",       QualType<"Context.IntTy", 0, 1>, 32>;
+def UInt      : UIntType<"uint",      QualType<"Context.UnsignedIntTy">, 32>;
+def Long      : IntType<"long",      QualType<"Context.getIntTypeForBitwidth(64, true)", 0, 1>, 64>;
+def ULong     : UIntType<"ulong",     QualType<"Context.getIntTypeForBitwidth(64, false)">, 64>;
+def Float     : FPType<"float",     QualType<"Context.FloatTy">, 32>;
+def Double    : FPType<"double",    QualType<"Context.DoubleTy">, 64>;
 def Half      : FPType<"half",      QualTypeFromFunction<"GetFloat16Type">, 16>;
-def Void      : Type<"void",      QualType<"VoidTy">>;
+def Void      : Type<"void",      QualType<"Context.VoidTy">>;
 // FIXME: ensure this is portable...
-def Size      : Type<"size_t",    QualType<"getSizeType()">>;
+def Size      : Type<"size_t",    QualType<"Context.getSizeType()">>;
 
-def Sampler               : Type<"sampler_t", QualType<"OCLSamplerTy">>;
-def Event                 : Type<"event_t", QualType<"OCLEventTy">>;
+def Sampler               : Type<"sampler_t", QualType<"Context.OCLSamplerTy">>;
+def Event                 : Type<"event_t", QualType<"Context.OCLEventTy">>;
 
 //===----------------------------------------------------------------------===//
 //                 Definitions of gentype variants

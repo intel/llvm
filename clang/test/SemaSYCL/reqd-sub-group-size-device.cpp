@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -9,6 +9,14 @@ queue q;
 [[intel::reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
 [[intel::reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
+
+// No diagnostic is emitted because the arguments match.
+[[intel::reqd_sub_group_size(12)]] void bar();
+[[intel::reqd_sub_group_size(12)]] void bar() {} // OK
+
+// Diagnostic is emitted because the arguments mismatch.
+[[intel::reqd_sub_group_size(12)]] void quux(); // expected-note {{previous attribute is here}}
+[[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
 
 class Functor16 {
 public:

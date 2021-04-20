@@ -250,6 +250,7 @@ SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>::init() {
   add(Attribute::ReadOnly, FunctionControlConstMask);
   add(Attribute::AlwaysInline, FunctionControlInlineMask);
   add(Attribute::NoInline, FunctionControlDontInlineMask);
+  add(Attribute::OptimizeNone, internal::FunctionControlOptNoneINTELMask);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>
     SPIRSPIRVFuncCtlMaskMap;
@@ -941,7 +942,19 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
 /// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
 /// manner
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
-                                           ArrayRef<Type *> ArgTys);
+                                           ArrayRef<Type *> ArgTys,
+                                           Type *RetTy = nullptr);
+
+/// Mangle a function in SPIR-V friendly IR manner
+/// \param UniqName full unmangled name of the SPIR-V built-in function that
+/// contains possible postfixes that depend not on opcode but on decorations or
+/// return type, for example __spirv_UConvert_Rint_sat.
+/// \param OC opcode of corresponding built-in instruction. Used to gather info
+/// for unsigned/constant arguments.
+/// \param Types of arguments of SPIR-V built-in function
+/// \return IA64 mangled name.
+std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
+                                           spv::Op OC, ArrayRef<Type *> ArgTys);
 
 /// Remove cast from a value.
 Value *removeCast(Value *V);

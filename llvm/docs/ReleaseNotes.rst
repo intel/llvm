@@ -51,11 +51,15 @@ Non-comprehensive list of changes in this release
 
    Makes programs 10x faster by doing Special New Thing.
 
+* Windows Control-flow Enforcement Technology: the ``-ehcontguard`` option now
+  emits valid unwind entrypoints which are validated when the context is being
+  set during exception handling.
 
 Changes to the LLVM IR
 ----------------------
 
-* ...
+* The ``inalloca`` attribute now has a mandatory type field, similar
+  to ``byval`` and ``sret``.
 
 
 Changes to building LLVM
@@ -112,6 +116,13 @@ Changes to the Go bindings
 --------------------------
 
 
+Changes to the FastISel infrastructure
+--------------------------------------
+
+* FastISel no longer tracks killed registers, and instead leaves this to the
+  register allocator. This means that ``hasTrivialKill()`` is removed, as well
+  as the ``OpNIsKill`` parameters to the ``fastEmit_*()`` family of functions.
+
 Changes to the DAG infrastructure
 ---------------------------------
 
@@ -123,6 +134,12 @@ During this release ...
 
 Changes to the LLVM tools
 ---------------------------------
+
+* The options ``--build-id-link-{dir,input,output}`` have been deleted.
+  (`D96310 <https://reviews.llvm.org/D96310>`_)
+
+* Support for in-order processors has been added to ``llvm-mca``.
+  (`D94928 <https://reviews.llvm.org/D94928>`_)
 
 Changes to LLDB
 ---------------------------------

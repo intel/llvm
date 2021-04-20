@@ -445,15 +445,15 @@ public:
     bool hasReg() { return VGPR != 0;}
   };
 
-  struct SGPRSpillVGPRCSR {
+  struct SGPRSpillVGPR {
     // VGPR used for SGPR spills
     Register VGPR;
 
-    // If the VGPR is a CSR, the stack slot used to save/restore it in the
-    // prolog/epilog.
+    // If the VGPR is is used for SGPR spills in a non-entrypoint function, the
+    // stack slot used to save/restore it in the prolog/epilog.
     Optional<int> FI;
 
-    SGPRSpillVGPRCSR(Register V, Optional<int> F) : VGPR(V), FI(F) {}
+    SGPRSpillVGPR(Register V, Optional<int> F) : VGPR(V), FI(F) {}
   };
 
   struct VGPRSpillToAGPR {
@@ -470,7 +470,7 @@ private:
   // frameindex key.
   DenseMap<int, std::vector<SpilledReg>> SGPRToVGPRSpills;
   unsigned NumVGPRSpillLanes = 0;
-  SmallVector<SGPRSpillVGPRCSR, 2> SpillVGPRs;
+  SmallVector<SGPRSpillVGPR, 2> SpillVGPRs;
 
   DenseMap<int, VGPRSpillToAGPR> VGPRToAGPRSpills;
 
@@ -479,6 +479,10 @@ private:
 
   // VGPRs used for AGPR spills.
   SmallVector<MCPhysReg, 32> SpillVGPR;
+
+  // Emergency stack slot. Sometimes, we create this before finalizing the stack
+  // frame, so save it here and add it to the RegScavenger later.
+  Optional<int> ScavengeFI;
 
 public: // FIXME
   /// If this is set, an SGPR used for save/restore of the register used for the
@@ -505,9 +509,7 @@ public:
       ArrayRef<SpilledReg>() : makeArrayRef(I->second);
   }
 
-  ArrayRef<SGPRSpillVGPRCSR> getSGPRSpillVGPRs() const {
-    return SpillVGPRs;
-  }
+  ArrayRef<SGPRSpillVGPR> getSGPRSpillVGPRs() const { return SpillVGPRs; }
 
   void setSGPRSpillVGPRs(Register NewVGPR, Optional<int> newFI, int Index) {
     SpillVGPRs[Index].VGPR = NewVGPR;
@@ -537,6 +539,8 @@ public:
   bool reserveVGPRforSGPRSpills(MachineFunction &MF);
   bool allocateVGPRSpillToAGPR(MachineFunction &MF, int FI, bool isAGPRtoVGPR);
   void removeDeadFrameIndices(MachineFrameInfo &MFI);
+
+  int getScavengeFI(MachineFrameInfo &MFI, const SIRegisterInfo &TRI);
 
   bool hasCalculatedTID() const { return TIDReg != 0; };
   Register getTIDReg() const { return TIDReg; };

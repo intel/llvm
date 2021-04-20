@@ -1,13 +1,13 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 // Test that checkes template parameter support for 'num_simd_work_items' attribute on sycl device.
 
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+3{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-// expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
-// expected-error@+1{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+// expected-error@+3{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+// expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+// expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 [[intel::num_simd_work_items(Ty{})]] void func() {}
 
 struct S {};
@@ -60,13 +60,25 @@ template <int N>
 // expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 [[intel::num_simd_work_items(N)]] void func3() {}
 
+template <int N>
+[[intel::num_simd_work_items(4)]] void func4(); // expected-note {{previous attribute is here}}
+
+template <int N>
+[[intel::num_simd_work_items(N)]] void func4() {} // expected-warning {{attribute 'num_simd_work_items' is already applied with different arguments}}
+
 int check() {
-  // no error expected
+  // no error expected.
   func3<8>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
+  //expected-note@+1 {{in instantiation of function template specialization 'func4<6>' requested here}}
+  func4<6>();
   return 0;
 }
+
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::num_simd_work_items(2)]]
+[[intel::num_simd_work_items(2)]] void func5() {}
 
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
 // CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 0 N
@@ -75,3 +87,9 @@ int check() {
 // CHECK: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
+
+// CHECK: FunctionDecl {{.*}} {{.*}} func5 'void ()'
+// CHECK: SYCLIntelNumSimdWorkItemsAttr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 2
+// CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}

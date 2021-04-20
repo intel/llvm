@@ -34,7 +34,7 @@ public:
 static WasmYAML::Limits makeLimits(const wasm::WasmLimits &Limits) {
   WasmYAML::Limits L;
   L.Flags = Limits.Flags;
-  L.Initial = Limits.Initial;
+  L.Minimum = Limits.Minimum;
   L.Maximum = Limits.Maximum;
   return L;
 }
@@ -327,11 +327,11 @@ ErrorOr<WasmYAML::Object *> WasmDumper::dump() {
       auto ElemSec = std::make_unique<WasmYAML::ElemSection>();
       for (auto &Segment : Obj.elements()) {
         WasmYAML::ElemSegment Seg;
-        Seg.TableIndex = Segment.TableIndex;
+        Seg.Flags = Segment.Flags;
+        Seg.TableNumber = Segment.TableNumber;
+        Seg.ElemKind = Segment.ElemKind;
         Seg.Offset = Segment.Offset;
-        for (auto &Func : Segment.Functions) {
-          Seg.Functions.push_back(Func);
-        }
+        append_range(Seg.Functions, Segment.Functions);
         ElemSec->Segments.push_back(Seg);
       }
       S = std::move(ElemSec);

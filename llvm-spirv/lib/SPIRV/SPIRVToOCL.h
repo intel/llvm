@@ -46,12 +46,12 @@
 #include <string>
 
 namespace SPIRV {
-class SPIRVToOCL : public ModulePass, public InstVisitor<SPIRVToOCL> {
-protected:
-  SPIRVToOCL(char &ID) : ModulePass(ID), M(nullptr), Ctx(nullptr) {}
 
+class SPIRVToOCLBase : public InstVisitor<SPIRVToOCLBase> {
 public:
-  virtual bool runOnModule(Module &M) = 0;
+  SPIRVToOCLBase() : M(nullptr), Ctx(nullptr) {}
+
+  virtual bool runSPIRVToOCL(Module &M) = 0;
 
   void visitCallInst(CallInst &CI);
 
@@ -98,6 +98,24 @@ public:
   ///  intel_sub_group_media_block_write
   void visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC);
 
+  /// Transform __spirv_*Convert_R{ReturnType}{_sat}{_rtp|_rtn|_rtz|_rte} to
+  /// convert_{ReturnType}_{sat}{_rtp|_rtn|_rtz|_rte}
+  /// example:  <2 x i8> __spirv_SatConvertUToS(<2 x i32>) =>
+  ///   convert_uchar2_sat(int2)
+  void visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC, StringRef DemangledName);
+
+  /// Transform
+  ///   __spirv_AsyncGroupCopy(ScopeWorkGroup, dst, src, n, stride, event)
+  ///   => async_work_group_strided_copy(dst, src, n, stride, event)
+  void visitCallAsyncWorkGroupCopy(CallInst *CI, Op OC);
+
+  /// Transform __spirv_GroupWaitEvents(Scope, NumEvents, EventsList)
+  ///   => wait_group_events(NumEvents, EventsList)
+  void visitCallGroupWaitEvents(CallInst *CI, Op OC);
+
+  /// Transform __spirv_ImageSampleExplicitLod__{ReturnType} to read_imade
+  void visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
@@ -139,7 +157,6 @@ public:
   /// using separate maps for OpenCL 1.2 and OpenCL 2.0
   virtual Instruction *mutateAtomicName(CallInst *CI, Op OC) = 0;
 
-private:
   /// Transform uniform group opcode to corresponding OpenCL function name,
   /// example: GroupIAdd(Reduce) => group_iadd => work_group_reduce_add |
   /// sub_group_reduce_add
@@ -155,8 +172,16 @@ private:
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
 
-protected:
   Module *M;
   LLVMContext *Ctx;
 };
+
+class SPIRVToOCLLegacy : public ModulePass {
+protected:
+  SPIRVToOCLLegacy(char &ID) : ModulePass(ID) {}
+
+public:
+  virtual bool runOnModule(Module &M) = 0;
+};
+
 } // namespace SPIRV

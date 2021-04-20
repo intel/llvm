@@ -42,7 +42,7 @@ func @indexed_generic_vector(%operand: memref<50xf32>, %result: memref<50xf32>) 
 // TILE-25n0:     %[[OUT:.*]] = addf %[[IN]], %[[NEW_I_FLOAT]] : f32
 
 // TILE-0n25-LABEL: func @indexed_generic_vector
-// TILE-0n25-NOT: scf.for %[[J:.*]] = {{.*}} step %[[C25]]
+// TILE-0n25-NOT: scf.for %[[J:.*]] = {{.*}} step %
 // TILE-0n25: linalg.indexed_generic
 
 #combined_indices_trait = {
@@ -54,10 +54,10 @@ func @indexed_generic_vector(%operand: memref<50xf32>, %result: memref<50xf32>) 
   ],
   iterator_types = ["parallel", "parallel"]
 }
-func @indexed_generic_matrix(%operand: memref<50x100xf32>, %result: memref<50x100xf32>) {
+func @indexed_generic_matrix(%operand: memref<50x99xf32>, %result: memref<50x50xf32>) {
   linalg.indexed_generic #combined_indices_trait
-     ins(%operand : memref<50x100xf32>)
-    outs(%result : memref<50x100xf32>) {
+     ins(%operand : memref<50x99xf32>)
+    outs(%result : memref<50x50xf32>) {
     ^bb0(%i: index, %j: index, %operand_in: f32, %result_in: f32):
       %i_int = index_cast %i: index to i32
       %i_float = sitofp %i_int : i32 to f32

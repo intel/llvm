@@ -289,6 +289,11 @@ namespace pi {
   std::terminate();
 }
 
+// Reports error messages
+void cuPrint(const char *Message) {
+  std::cerr << "pi_print: " << Message << std::endl;
+}
+
 void assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);
@@ -317,11 +322,9 @@ pi_result cuda_piEventRetain(pi_event event);
 /// \endcond
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
-    : commandType_{type}, refCount_{1}, isCompleted_{false}, isRecorded_{false},
-      isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
-      queue_{queue}, context_{context} {
-
-  assert(type != PI_COMMAND_TYPE_USER);
+    : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
+      isRecorded_{false}, isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr},
+      evQueued_{nullptr}, queue_{queue}, context_{context} {
 
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
 
@@ -362,6 +365,23 @@ pi_result _pi_event::start() {
 
   isStarted_ = true;
   return result;
+}
+
+bool _pi_event::is_completed() const noexcept {
+  if (!isRecorded_) {
+    return false;
+  }
+  if (!hasBeenWaitedOn_) {
+    const CUresult ret = cuEventQuery(evEnd_);
+    if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_READY) {
+      PI_CHECK_ERROR(ret);
+      return false;
+    }
+    if (ret == CUDA_ERROR_NOT_READY) {
+      return false;
+    }
+  }
+  return true;
 }
 
 pi_uint64 _pi_event::get_queued_time() const {
@@ -425,7 +445,7 @@ pi_result _pi_event::wait() {
   pi_result retErr;
   try {
     retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
-    isCompleted_ = true;
+    hasBeenWaitedOn_ = true;
   } catch (pi_result error) {
     retErr = error;
   }
@@ -1693,6 +1713,7 @@ pi_result cuda_piextContextGetNativeHandle(pi_context context,
 pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                   pi_uint32 num_devices,
                                                   const pi_device *devices,
+                                                  bool ownNativeHandle,
                                                   pi_context *context) {
   cl::sycl::detail::pi::die(
       "Creation of PI context from native handle not implemented");
@@ -2649,8 +2670,9 @@ pi_result cuda_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
                                            const char **strings,
                                            const size_t *lengths,
                                            pi_program *program) {
-  cl::sycl::detail::pi::die("cuda_piclProgramCreateWithSource not implemented");
-  return {};
+  cl::sycl::detail::pi::cuPrint(
+      "cuda_piclProgramCreateWithSource not implemented");
+  return PI_INVALID_OPERATION;
 }
 
 /// Loads the images from a PI program into a CUmodule that can be
@@ -3828,9 +3850,10 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR array_desc) {
   case CU_AD_FORMAT_SIGNED_INT32:
   case CU_AD_FORMAT_FLOAT:
     return 4;
+  default:
+    cl::sycl::detail::pi::die("Invalid image format.");
+    return 0;
   }
-  cl::sycl::detail::pi::die("Invalid iamge format.");
-  return 0;
 }
 
 /// General ND memory copy operation for images (where N > 1).
@@ -4442,9 +4465,32 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                         pi_event *event) {
   assert(queue != nullptr);
   assert(ptr != nullptr);
-  // TODO implement a mapping to cuMemAdvise once the expected behaviour
-  // of piextUSMEnqueueMemAdvise is detailed in the USM extension
-  return cuda_piEnqueueEventsWait(queue, 0, nullptr, event);
+
+  pi_result result = PI_SUCCESS;
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(queue->get_context());
+
+    if (event) {
+      event_ptr = std::unique_ptr<_pi_event>(
+          _pi_event::make_native(PI_COMMAND_TYPE_USER, queue));
+      event_ptr->start();
+    }
+
+    result = PI_CHECK_ERROR(
+        cuMemAdvise((CUdeviceptr)ptr, length, (CUmem_advise)advice,
+                    queue->get_context()->get_device()->get()));
+    if (event) {
+      result = event_ptr->record();
+      *event = event_ptr.release();
+    }
+  } catch (pi_result err) {
+    result = err;
+  } catch (...) {
+    result = PI_ERROR_UNKNOWN;
+  }
+  return result;
 }
 
 /// API to query information about USM allocated pointers

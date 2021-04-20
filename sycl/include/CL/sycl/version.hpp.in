@@ -7,3 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #cmakedefine __SYCL_COMPILER_VERSION ${__SYCL_COMPILER_VERSION}
+#define __LIBSYCL_MAJOR_VERSION ${SYCL_MAJOR_VERSION}
+#define __LIBSYCL_MINOR_VERSION ${SYCL_MINOR_VERSION}
+#define __LIBSYCL_PATCH_VERSION ${SYCL_PATCH_VERSION}

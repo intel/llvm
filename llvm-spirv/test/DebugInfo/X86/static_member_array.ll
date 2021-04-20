@@ -20,7 +20,7 @@
 ; CHECK: DW_TAG_member
 ; CHECK: DW_TAG_member
 ; CHECK-NEXT:   DW_AT_name {{.*}} "smem"
-; CHECK-NEXT:   DW_AT_type {{.*}} {0x[[GENERIC:[0-9]+]]}
+; CHECK-NEXT:   DW_AT_type {{.*}} {0x[[GENERIC:[0-9a-f]+]]}
 ;
 ; CHECK: 0x[[GENERIC]]: DW_TAG_array_type
 ; CHECK-NOT:  DW_TAG
@@ -31,7 +31,7 @@
 ;
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_specification {{.*}}"smem"
-; CHECK-NEXT: DW_AT_type {{.*}} {0x[[SPECIFIC:[0-9]+]]}
+; CHECK-NEXT: DW_AT_type {{.*}} {0x[[SPECIFIC:[0-9a-f]+]]}
 ;
 ; CHECK: 0x[[SPECIFIC]]: DW_TAG_array_type
 ; CHECK-NOT:  DW_TAG

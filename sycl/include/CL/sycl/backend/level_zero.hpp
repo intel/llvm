@@ -49,14 +49,34 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
   using type = char *;
 };
 
+namespace detail {
+template <> struct InteropFeatureSupportMap<backend::level_zero> {
+  static constexpr bool MakePlatform = true;
+  static constexpr bool MakeDevice = false;
+  static constexpr bool MakeContext = false;
+  static constexpr bool MakeQueue = false;
+  static constexpr bool MakeEvent = false;
+  static constexpr bool MakeBuffer = false;
+  static constexpr bool MakeKernel = false;
+};
+} // namespace detail
+
 namespace level_zero {
 
-// Implementation of various "make" functions resides in libsycl.so
+// Since Level-Zero is not doing any reference counting itself, we have to
+// be explicit about the ownership of the native handles used in the
+// interop functions below.
+//
+enum class ownership { transfer, keep };
+
+// Implementation of various "make" functions resides in libsycl.so and thus
+// their interface needs to be backend agnostic.
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  pi_native_handle NativeHandle);
 __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
-                                   pi_native_handle NativeHandle);
+                                   pi_native_handle NativeHandle,
+                                   bool keep_ownership = false);
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
 __SYCL_EXPORT queue make_queue(const context &Context,
@@ -82,11 +102,17 @@ T make(const platform &Platform,
 ///        created SYCL context. Provided devices and native context handle must
 ///        be associated with the same platform.
 /// \param Interop is a Level Zero native context handle.
+/// \param Ownership (optional) specifies who will assume ownership of the
+///        native context handle. Default is that SYCL RT does, so it destroys
+///        the native handle when the created SYCL object goes out of life.
+///
 template <typename T, typename std::enable_if<
                           std::is_same<T, context>::value>::type * = nullptr>
 T make(const vector_class<device> &DeviceList,
-       typename interop<backend::level_zero, T>::type Interop) {
-  return make_context(DeviceList, detail::pi::cast<pi_native_handle>(Interop));
+       typename interop<backend::level_zero, T>::type Interop,
+       ownership Ownership = ownership::transfer) {
+  return make_context(DeviceList, detail::pi::cast<pi_native_handle>(Interop),
+                      Ownership == ownership::keep);
 }
 
 // Construction of SYCL program.

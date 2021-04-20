@@ -11,6 +11,26 @@
 #ifdef __SPIR__
 
 DEVICE_EXTERN_C
+int abs(int x) { return __devicelib_abs(x); }
+
+DEVICE_EXTERN_C
+long int labs(long int x) { return __devicelib_labs(x); }
+
+DEVICE_EXTERN_C
+long long int llabs(long long int x) { return __devicelib_llabs(x); }
+
+DEVICE_EXTERN_C
+div_t div(int x, int y) { return __devicelib_div(x, y); }
+
+DEVICE_EXTERN_C
+ldiv_t ldiv(long int x, long int y) { return __devicelib_ldiv(x, y); }
+
+DEVICE_EXTERN_C
+lldiv_t lldiv(long long int x, long long int y) {
+  return __devicelib_lldiv(x, y);
+}
+
+DEVICE_EXTERN_C
 float scalbnf(float x, int n) { return __devicelib_scalbnf(x, n); }
 
 DEVICE_EXTERN_C

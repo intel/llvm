@@ -43,17 +43,17 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
-class SPIRVLowerBool : public ModulePass, public InstVisitor<SPIRVLowerBool> {
+
+class SPIRVLowerBoolBase : public InstVisitor<SPIRVLowerBoolBase> {
 public:
-  SPIRVLowerBool() : ModulePass(ID), Context(nullptr) {
-    initializeSPIRVLowerBoolPass(*PassRegistry::getPassRegistry());
-  }
+  SPIRVLowerBoolBase() : Context(nullptr) {}
   void replace(Instruction *I, Instruction *NewI) {
     NewI->takeName(I);
     I->replaceAllUsesWith(NewI);
@@ -77,29 +77,38 @@ public:
       replace(&I, Cmp);
     }
   }
-  void handleCastInstructions(Instruction &I) {
+  void handleExtInstructions(Instruction &I) {
     auto Op = I.getOperand(0);
     if (isBoolType(Op->getType())) {
       auto Opcode = I.getOpcode();
-      auto Ty = (Opcode == Instruction::ZExt || Opcode == Instruction::SExt)
-                    ? I.getType()
-                    : Type::getInt32Ty(*Context);
+      auto Ty = I.getType();
       auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
       auto One = getScalarOrVectorConstantInt(
           Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
       assert(Zero && One && "Couldn't create constant int");
       auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      if (Opcode == Instruction::ZExt || Opcode == Instruction::SExt)
-        replace(&I, Sel);
-      else if (Opcode == Instruction::UIToFP || Opcode == Instruction::SIToFP)
-        I.setOperand(0, Sel);
+      replace(&I, Sel);
     }
   }
-  virtual void visitZExtInst(ZExtInst &I) { handleCastInstructions(I); }
-  virtual void visitSExtInst(SExtInst &I) { handleCastInstructions(I); }
+  void handleCastInstructions(Instruction &I) {
+    auto Op = I.getOperand(0);
+    auto *OpTy = Op->getType();
+    if (isBoolType(OpTy)) {
+      Type *Ty = Type::getInt32Ty(*Context);
+      if (auto VT = dyn_cast<FixedVectorType>(OpTy))
+        Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
+      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
+      auto One = getScalarOrVectorConstantInt(Ty, 1, false);
+      assert(Zero && One && "Couldn't create constant int");
+      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
+      I.setOperand(0, Sel);
+    }
+  }
+  virtual void visitZExtInst(ZExtInst &I) { handleExtInstructions(I); }
+  virtual void visitSExtInst(SExtInst &I) { handleExtInstructions(I); }
   virtual void visitUIToFPInst(UIToFPInst &I) { handleCastInstructions(I); }
   virtual void visitSIToFPInst(SIToFPInst &I) { handleCastInstructions(I); }
-  bool runOnModule(Module &M) override {
+  bool runLowerBool(Module &M) {
     Context = &M.getContext();
     visit(M);
 
@@ -107,16 +116,36 @@ public:
     return true;
   }
 
-  static char ID;
-
 private:
   LLVMContext *Context;
 };
 
-char SPIRVLowerBool::ID = 0;
+class SPIRVLowerBoolPass : public llvm::PassInfoMixin<SPIRVLowerBoolPass>,
+                           public SPIRVLowerBoolBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runLowerBool(M) ? llvm::PreservedAnalyses::none()
+                           : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVLowerBoolLegacy : public ModulePass, public SPIRVLowerBoolBase {
+public:
+  SPIRVLowerBoolLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerBoolLegacyPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnModule(Module &M) override { return runLowerBool(M); }
+
+  static char ID;
+};
+
+char SPIRVLowerBoolLegacy::ID = 0;
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVLowerBool, "spvbool",
+INITIALIZE_PASS(SPIRVLowerBoolLegacy, "spvbool",
                 "Lower instructions with bool operands", false, false)
 
-ModulePass *llvm::createSPIRVLowerBool() { return new SPIRVLowerBool(); }
+ModulePass *llvm::createSPIRVLowerBoolLegacy() {
+  return new SPIRVLowerBoolLegacy();
+}

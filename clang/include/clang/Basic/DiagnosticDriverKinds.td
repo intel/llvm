@@ -134,6 +134,9 @@ def err_drv_invalid_Xsycl_frontend_with_args : Error<
   "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
 def err_drv_bad_fpga_device_count : Error<
   "More than one FPGA specific device binary found in input objects">;
+def warn_drv_mismatch_fpga_archive : Warning<
+  "FPGA archive '%0' does not contain matching emulation/hardware expectancy">,
+  InGroup<SyclFPGAMismatch>;
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
@@ -220,9 +223,6 @@ def warn_drv_yc_multiple_inputs_clang_cl : Warning<
   "support for '/Yc' with more than one source file not implemented yet; flag ignored">,
   InGroup<ClangClPch>;
 
-def err_drv_dllexport_inlines_and_fallback : Error<
-  "option '/Zc:dllexportInlines-' is ABI-changing and not compatible with '/fallback'">;
-
 def err_drv_invalid_value : Error<"invalid value '%1' in '%0'">;
 def err_drv_invalid_int_value : Error<"invalid integral value '%1' in '%0'">;
 def err_drv_invalid_value_with_suggestion : Error<"invalid value '%1' in '%0','%2'">;
@@ -283,8 +283,9 @@ def warn_drv_sycl_offload_target_duplicate : Warning<
   "The SYCL offloading target '%0' is similar to target '%1' already specified - will be ignored.">,
   InGroup<SyclTarget>;
 def err_drv_omp_offload_target_missingbcruntime : Error<
-  "No library '%0' found in the default clang lib directory or in LIBRARY_PATH. Please use --libomptarget-nvptx-bc-path to specify nvptx bitcode library.">;
+  "No library '%0' found in the default clang lib directory or in LIBRARY_PATH. Please use --libomptarget-%1-bc-path to specify %1 bitcode library.">;
 def err_drv_omp_offload_target_bcruntime_not_found : Error<"Bitcode library '%0' does not exist.">;
+def err_drv_omp_offload_target_cuda_version_not_support : Error<"NVPTX target requires CUDA 9.2 or above. CUDA %0 is detected.">;
 def warn_drv_omp_offload_target_duplicate : Warning<
   "The OpenMP offloading target '%0' is similar to target '%1' already specified - will be ignored.">,
   InGroup<OpenMPTarget>;
@@ -367,6 +368,10 @@ def warn_drv_object_size_disabled_O0 : Warning<
   InGroup<InvalidCommandLineArgument>, DefaultWarnNoWerror;
 def warn_drv_deprecated_option : Warning<
   "option '%0' is deprecated, use '%1' directly instead">, InGroup<Deprecated>;
+def warn_ignoring_verify_debuginfo_preserve_export : Warning<
+  "ignoring -fverify-debuginfo-preserve-export=%0 because "
+  "-fverify-debuginfo-preserve wasn't enabled">,
+  InGroup<UnusedCommandLineArgument>;
 def err_invalid_branch_protection: Error <
   "invalid branch protection option '%0' in '%1'">;
 def err_invalid_sls_hardening : Error<
@@ -414,9 +419,6 @@ def err_drv_modules_validate_once_requires_timestamp : Error<
 def err_test_module_file_extension_format : Error<
   "-ftest-module-file-extension argument '%0' is not of the required form "
   "'blockname:major:minor:hashed:user info'">;
-
-def warn_drv_invoking_fallback : Warning<"falling back to %0">,
-  InGroup<Fallback>;
 
 def warn_slash_u_filename : Warning<"'/U%0' treated as the '/U' option">,
   InGroup<DiagGroup<"slash-u-filename">>;
@@ -559,4 +561,11 @@ def err_drv_invalid_object_mode : Error<"OBJECT_MODE setting %0 is not recognize
 
 def err_aix_default_altivec_abi : Error<
   "The default Altivec ABI on AIX is not yet supported, use '-mabi=vec-extabi' for the extended Altivec ABI">;
+
+def note_cc1_round_trip_original : Note<"Original arguments in round-trip: %0">;
+def note_cc1_round_trip_generated : Note<"Generated arguments #%0 in round-trip: %1">;
+def remark_cc1_round_trip_generated : Remark<"Generated arguments #%0 in round-trip: %1">, InGroup<RoundTripCC1Args>;
+def err_cc1_round_trip_fail_then_ok : Error<"Original arguments parse failed, then succeeded in round-trip">;
+def err_cc1_round_trip_ok_then_fail : Error<"Generated arguments parse failed in round-trip">;
+def err_cc1_round_trip_mismatch : Error<"Generated arguments do not match in round-trip">;
 }

@@ -119,6 +119,13 @@ mlirContextGetNumLoadedDialects(MlirContext context);
 MLIR_CAPI_EXPORTED MlirDialect mlirContextGetOrLoadDialect(MlirContext context,
                                                            MlirStringRef name);
 
+/// Returns whether the given fully-qualified operation (i.e.
+/// 'dialect.operation') is registered with the context. This will return true
+/// if the dialect is loaded and the operation is registered within the
+/// dialect.
+MLIR_CAPI_EXPORTED bool mlirContextIsRegisteredOperation(MlirContext context,
+                                                         MlirStringRef name);
+
 //===----------------------------------------------------------------------===//
 // Dialect API.
 //===----------------------------------------------------------------------===//
@@ -322,6 +329,9 @@ static inline bool mlirOperationIsNull(MlirOperation op) { return !op.ptr; }
 MLIR_CAPI_EXPORTED bool mlirOperationEqual(MlirOperation op,
                                            MlirOperation other);
 
+/// Gets the context this operation is associated with
+MLIR_CAPI_EXPORTED MlirContext mlirOperationGetContext(MlirOperation op);
+
 /// Gets the name of the operation as an identifier.
 MLIR_CAPI_EXPORTED MlirIdentifier mlirOperationGetName(MlirOperation op);
 
@@ -467,6 +477,9 @@ static inline bool mlirBlockIsNull(MlirBlock block) { return !block.ptr; }
 /// perform deep comparison.
 MLIR_CAPI_EXPORTED bool mlirBlockEqual(MlirBlock block, MlirBlock other);
 
+/// Returns the closest surrounding operation that contains this block.
+MLIR_CAPI_EXPORTED MlirOperation mlirBlockGetParentOperation(MlirBlock);
+
 /// Returns the block immediately following the given block in its parent
 /// region.
 MLIR_CAPI_EXPORTED MlirBlock mlirBlockGetNextInRegion(MlirBlock block);
@@ -504,6 +517,11 @@ mlirBlockInsertOwnedOperationBefore(MlirBlock block, MlirOperation reference,
 
 /// Returns the number of arguments of the block.
 MLIR_CAPI_EXPORTED intptr_t mlirBlockGetNumArguments(MlirBlock block);
+
+/// Appends an argument of the specified type to the block. Returns the newly
+/// added argument.
+MLIR_CAPI_EXPORTED MlirValue mlirBlockAddArgument(MlirBlock block,
+                                                  MlirType type);
 
 /// Returns `pos`-th argument of the block.
 MLIR_CAPI_EXPORTED MlirValue mlirBlockGetArgument(MlirBlock block,
@@ -629,6 +647,9 @@ MLIR_CAPI_EXPORTED MlirNamedAttribute mlirNamedAttributeGet(MlirIdentifier name,
 /// Gets an identifier with the given string value.
 MLIR_CAPI_EXPORTED MlirIdentifier mlirIdentifierGet(MlirContext context,
                                                     MlirStringRef str);
+
+/// Returns the context associated with this identifier
+MLIR_CAPI_EXPORTED MlirContext mlirIdentifierGetContext(MlirIdentifier);
 
 /// Checks whether two identifiers are the same.
 MLIR_CAPI_EXPORTED bool mlirIdentifierEqual(MlirIdentifier ident,

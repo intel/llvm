@@ -178,15 +178,19 @@ class XCOFFObjectWriter : public MCObjectWriter {
   CsectGroup FuncDSCsects;
   CsectGroup TOCCsects;
   CsectGroup BSSCsects;
+  CsectGroup TDataCsects;
+  CsectGroup TBSSCsects;
 
   // The Predefined sections.
   Section Text;
   Section Data;
   Section BSS;
+  Section TData;
+  Section TBSS;
 
   // All the XCOFF sections, in the order they will appear in the section header
   // table.
-  std::array<Section *const, 3> Sections{{&Text, &Data, &BSS}};
+  std::array<Section *const, 5> Sections{{&Text, &Data, &BSS, &TData, &TBSS}};
 
   CsectGroup &getCsectGroup(const MCSectionXCOFF *MCSec);
 
@@ -250,7 +254,11 @@ XCOFFObjectWriter::XCOFFObjectWriter(
       Data(".data", XCOFF::STYP_DATA, /* IsVirtual */ false,
            CsectGroups{&DataCsects, &FuncDSCsects, &TOCCsects}),
       BSS(".bss", XCOFF::STYP_BSS, /* IsVirtual */ true,
-          CsectGroups{&BSSCsects}) {}
+          CsectGroups{&BSSCsects}),
+      TData(".tdata", XCOFF::STYP_TDATA, /* IsVirtual */ false,
+            CsectGroups{&TDataCsects}),
+      TBSS(".tbss", XCOFF::STYP_TBSS, /* IsVirtual */ true,
+           CsectGroups{&TBSSCsects}) {}
 
 void XCOFFObjectWriter::reset() {
   // Clear the mappings we created.
@@ -297,6 +305,16 @@ CsectGroup &XCOFFObjectWriter::getCsectGroup(const MCSectionXCOFF *MCSec) {
            "Mapping invalid csect. CSECT with bss storage class must be "
            "common type.");
     return BSSCsects;
+  case XCOFF::XMC_TL:
+    assert(XCOFF::XTY_SD == MCSec->getCSectType() &&
+           "Mapping invalid csect. CSECT with tdata storage class must be "
+           "an initialized csect.");
+    return TDataCsects;
+  case XCOFF::XMC_UL:
+    assert(XCOFF::XTY_CM == MCSec->getCSectType() &&
+           "Mapping invalid csect. CSECT with tbss storage class must be "
+           "an uninitialized csect.");
+    return TBSSCsects;
   case XCOFF::XMC_TC0:
     assert(XCOFF::XTY_SD == MCSec->getCSectType() &&
            "Only an initialized csect can contain TOC-base.");
@@ -493,9 +511,11 @@ void XCOFFObjectWriter::writeSections(const MCAssembler &Asm,
 
     // There could be a gap (without corresponding zero padding) between
     // sections.
-    assert(CurrentAddressLocation <= Section->Address &&
+    assert(((CurrentAddressLocation <= Section->Address) ||
+            (Section->Flags == XCOFF::STYP_TDATA) ||
+            (Section->Flags == XCOFF::STYP_TBSS)) &&
            "CurrentAddressLocation should be less than or equal to section "
-           "address.");
+           "address if the section is not TData or TBSS.");
 
     CurrentAddressLocation = Section->Address;
 
@@ -713,6 +733,30 @@ void XCOFFObjectWriter::writeRelocations() {
 }
 
 void XCOFFObjectWriter::writeSymbolTable(const MCAsmLayout &Layout) {
+  // Write symbol 0 as C_FILE.
+  // FIXME: support 64-bit C_FILE symbol.
+  //
+  // n_name. The n_name of a C_FILE symbol is the source filename when no
+  // auxiliary entries are present. The source filename is alternatively
+  // provided by an auxiliary entry, in which case the n_name of the C_FILE
+  // symbol is `.file`.
+  // FIXME: add the real source filename.
+  writeSymbolName(".file");
+  // n_value. The n_value of a C_FILE symbol is its symbol table index.
+  W.write<uint32_t>(0);
+  // n_scnum. N_DEBUG is a reserved section number for indicating a special
+  // symbolic debugging symbol.
+  W.write<int16_t>(XCOFF::ReservedSectionNum::N_DEBUG);
+  // n_type. The n_type field of a C_FILE symbol encodes the source language and
+  // CPU version info; zero indicates no info.
+  W.write<uint16_t>(0);
+  // n_sclass. The C_FILE symbol provides source file-name information,
+  // source-language ID and CPU-version ID information and some other optional
+  // infos.
+  W.write<uint8_t>(XCOFF::C_FILE);
+  // n_numaux. No aux entry for now.
+  W.write<uint8_t>(0);
+
   for (const auto &Csect : UndefinedCsects) {
     writeSymbolTableEntryForControlSection(
         Csect, XCOFF::ReservedSectionNum::N_UNDEF, Csect.MCCsect->getStorageClass());
@@ -785,9 +829,8 @@ void XCOFFObjectWriter::finalizeSectionInfo() {
 }
 
 void XCOFFObjectWriter::assignAddressesAndIndices(const MCAsmLayout &Layout) {
-  // The first symbol table entry is for the file name. We are not emitting it
-  // yet, so start at index 0.
-  uint32_t SymbolTableIndex = 0;
+  // The first symbol table entry (at index 0) is for the file name.
+  uint32_t SymbolTableIndex = 1;
 
   // Calculate indices for undefined symbols.
   for (auto &Csect : UndefinedCsects) {
@@ -805,6 +848,7 @@ void XCOFFObjectWriter::assignAddressesAndIndices(const MCAsmLayout &Layout) {
   uint32_t Address = 0;
   // Section indices are 1-based in XCOFF.
   int32_t SectionIndex = 1;
+  bool HasTDataSection = false;
 
   for (auto *Section : Sections) {
     const bool IsEmpty =
@@ -819,6 +863,16 @@ void XCOFFObjectWriter::assignAddressesAndIndices(const MCAsmLayout &Layout) {
     SectionCount++;
 
     bool SectionAddressSet = false;
+    // Reset the starting address to 0 for TData section.
+    if (Section->Flags == XCOFF::STYP_TDATA) {
+      Address = 0;
+      HasTDataSection = true;
+    }
+    // Reset the starting address to 0 for TBSS section if the object file does
+    // not contain TData Section.
+    if ((Section->Flags == XCOFF::STYP_TBSS) && !HasTDataSection)
+      Address = 0;
+
     for (auto *Group : Section->Groups) {
       if (Group->empty())
         continue;

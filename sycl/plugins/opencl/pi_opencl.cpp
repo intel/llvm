@@ -536,10 +536,13 @@ pi_result piContextCreate(const pi_context_properties *properties,
 pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
                                              pi_uint32 num_devices,
                                              const pi_device *devices,
+                                             bool ownNativeHandle,
                                              pi_context *piContext) {
   (void)num_devices;
   (void)devices;
+  (void)ownNativeHandle;
   assert(piContext != nullptr);
+  assert(ownNativeHandle == false);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
   return PI_SUCCESS;
 }

@@ -21,7 +21,7 @@ add_llvm_tool(sycl-post-link
   sycl-post-link.cpp
   SPIRKernelParamOptInfo.cpp
   SpecConstants.cpp
-
+  SYCLDeviceLibReqMask.cpp
   ADDITIONAL_HEADER_DIRS
   ${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include
   ${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include

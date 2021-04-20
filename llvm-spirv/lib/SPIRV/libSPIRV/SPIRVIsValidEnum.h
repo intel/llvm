@@ -136,6 +136,7 @@ inline bool isValid(spv::LinkageType V) {
   switch (LT) {
   case LinkageTypeExport:
   case LinkageTypeImport:
+  case LinkageTypeLinkOnceODR:
   case internal::LinkageTypeInternal:
     return true;
   default:
@@ -279,6 +280,7 @@ inline bool isValidFunctionControlMask(SPIRVWord Mask) {
   ValidMask |= FunctionControlDontInlineMask;
   ValidMask |= FunctionControlPureMask;
   ValidMask |= FunctionControlConstMask;
+  ValidMask |= internal::FunctionControlOptNoneINTELMask;
 
   return (Mask & ~ValidMask) == 0;
 }

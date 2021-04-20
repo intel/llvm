@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64 -verify -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -verify -Wno-sycl-2017-compat -fsyntax-only %s
 
 thread_local const int prohobit_ns_scope = 0;
 thread_local int prohobit_ns_scope2 = 0;

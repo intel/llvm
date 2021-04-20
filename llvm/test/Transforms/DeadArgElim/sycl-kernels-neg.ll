@@ -2,16 +2,29 @@
 ; RUN: opt < %s -deadargelim -S | FileCheck %s
 ; RUN: opt < %s -deadargelim-sycl -S | FileCheck %s
 
+target triple = "spir64-unknown-unknown-sycldevice"
+
 ; This test ensures dead arguments are not eliminated
 ; from a global function that is not a SPIR kernel.
 
 ; CHECK-NOT:    !spir_kernel_omit_args
 
-target triple = "spir64-unknown-unknown-sycldevice"
-
 define weak_odr void @NotASpirKernel(float %arg1, float %arg2) {
 ; CHECK-LABEL: define {{[^@]+}}@NotASpirKernel
-; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]])
+; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) {
+; CHECK-NEXT:    call void @foo(float [[ARG1]])
+; CHECK-NEXT:    ret void
+;
+  call void @foo(float %arg1)
+  ret void
+}
+
+; This test ensures dead arguments are not eliminated
+; from an ESIMD kernel.
+
+define weak_odr void @ESIMDKernel(float %arg1, float %arg2) !sycl_explicit_simd !0 {
+; CHECK-LABEL: define {{[^@]+}}@ESIMDKernel
+; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) !sycl_explicit_simd !0 {
 ; CHECK-NEXT:    call void @foo(float [[ARG1]])
 ; CHECK-NEXT:    ret void
 ;
@@ -20,3 +33,5 @@ define weak_odr void @NotASpirKernel(float %arg1, float %arg2) {
 }
 
 declare void @foo(float %arg)
+
+!0 = !{}

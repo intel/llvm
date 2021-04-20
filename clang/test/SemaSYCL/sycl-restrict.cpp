@@ -1,11 +1,11 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 \
+// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -Wno-return-type -verify     \
 // RUN:  -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 \
+// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -fno-sycl-allow-func-ptr     \
 // RUN:  -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only      \
 // RUN:  -std=c++17 %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 \
+// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -DALLOW_FP=1                 \
 // RUN:  -fsycl-allow-func-ptr -Wno-return-type -verify                    \
 // RUN:  -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
@@ -384,6 +384,10 @@ int moar_globals = 5;
 }
 }
 
+template<const auto &T>
+int uses_global(){}
+
+
 int addInt(int n, int m) {
   return n + m;
 }
@@ -400,6 +404,9 @@ int use2(a_type ab, a_type *abp) {
     return 0;
   if (ab.fm()) // expected-note {{called by 'use2'}}
     return 0;
+
+  // No error, as this is not in an evaluated context.
+  (void)(uses_global<another_global>() + uses_global<ns::glob>());
 
   return another_global; // expected-error {{SYCL kernel cannot use a non-const global variable}}
 

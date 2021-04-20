@@ -126,7 +126,7 @@ bool types::isAcceptedByClang(ID Id) {
 
   case TY_Asm:
   case TY_C: case TY_PP_C:
-  case TY_CL:
+  case TY_CL: case TY_CLCXX:
   case TY_CUDA: case TY_PP_CUDA:
   case TY_CUDA_DEVICE:
   case TY_HIP:
@@ -160,6 +160,8 @@ bool types::isObjC(ID Id) {
     return true;
   }
 }
+
+bool types::isOpenCL(ID Id) { return Id == TY_CL || Id == TY_CLCXX; }
 
 bool types::isCXX(ID Id) {
   switch (Id) {
@@ -234,6 +236,8 @@ bool types::isFPGA(ID Id) {
   case TY_FPGA_AOCR:
   case TY_FPGA_AOCX:
   case TY_FPGA_AOCO:
+  case TY_FPGA_AOCR_EMU:
+  case TY_FPGA_AOCX_EMU:
     return true;
   }
 }
@@ -270,6 +274,7 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("cc", TY_CXX)
       .Case("CC", TY_CXX)
       .Case("cl", TY_CL)
+      .Case("clcpp", TY_CLCXX)
       .Case("cp", TY_CXX)
       .Case("cu", TY_CUDA)
       .Case("hh", TY_CXXHeader)
@@ -350,12 +355,10 @@ types::getCompilationPhases(const clang::driver::Driver &Driver,
   // Filter to compiler mode. When the compiler is run as a preprocessor then
   // compilation is not an option.
   // -S runs the compiler in Assembly listing mode.
-  // -test-io is used by Flang to run InputOutputTest action
   if (Driver.CCCIsCPP() || DAL.getLastArg(options::OPT_E) ||
       DAL.getLastArg(options::OPT__SLASH_EP) ||
       DAL.getLastArg(options::OPT_M, options::OPT_MM) ||
-      DAL.getLastArg(options::OPT__SLASH_P) ||
-      DAL.getLastArg(options::OPT_test_io))
+      DAL.getLastArg(options::OPT__SLASH_P))
     LastPhase = phases::Preprocess;
 
   // --precompile only runs up to precompilation.
@@ -422,6 +425,7 @@ ID types::lookupHeaderTypeForSourceType(ID Id) {
   case types::TY_ObjCXX:
     return types::TY_ObjCXXHeader;
   case types::TY_CL:
+  case types::TY_CLCXX:
     return types::TY_CLHeader;
   }
 }

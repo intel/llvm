@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -triple x86_64-pc-linux-gnu -fsyntax-only -verify %s -DSYCLHOST
+// RUN: %clang_cc1 -fsycl-is-host -triple x86_64-pc-linux-gnu -fsyntax-only -verify %s -DSYCLHOST
 // RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fsyntax-only -verify %s
 
 #ifdef SYCLHOST

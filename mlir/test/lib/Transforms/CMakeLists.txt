@@ -9,14 +9,17 @@ add_mlir_library(MLIRTestTransforms
   TestConvertCallOp.cpp
   TestConvertGPUKernelToCubin.cpp
   TestConvertGPUKernelToHsaco.cpp
+  TestDataLayoutQuery.cpp
   TestDominance.cpp
   TestDynamicPipeline.cpp
+  TestComposeSubView.cpp
   TestLoopFusion.cpp
   TestGpuMemoryPromotion.cpp
   TestGpuParallelLoopMapping.cpp
   TestGpuRewrite.cpp
   TestInlining.cpp
   TestLinalgCodegenStrategy.cpp
+  TestLinalgElementwiseFusion.cpp
   TestLinalgFusionTransforms.cpp
   TestLinalgHoisting.cpp
   TestLinalgTransforms.cpp
@@ -26,6 +29,7 @@ add_mlir_library(MLIRTestTransforms
   TestLoopUnrolling.cpp
   TestNumberOfExecutions.cpp
   TestOpaqueLoc.cpp
+  TestPolynomialApproximation.cpp
   TestMemRefBoundCheck.cpp
   TestMemRefDependenceCheck.cpp
   TestMemRefStrideCalculation.cpp
@@ -46,22 +50,25 @@ add_mlir_library(MLIRTestTransforms
   MLIRAnalysis
   MLIREDSC
   MLIRGPU
+  MLIRGPU
   MLIRGPUToGPURuntimeTransforms
   MLIRLinalg
   MLIRLinalgTransforms
+  MLIRLLVMToLLVMIRTranslation
+  MLIRMathTransforms
   MLIRNVVMIR
-  MLIRSCF
-  MLIRSCFTransforms
-  MLIRGPU
+  MLIRNVVMToLLVMIRTranslation
   MLIRPass
   MLIRROCDLIR
+  MLIRROCDLToLLVMIRTranslation
+  MLIRSCF
+  MLIRSCFTransforms
   MLIRStandardOpsTransforms
-  MLIRTargetNVVMIR
-  MLIRTargetROCDLIR
+  MLIRTargetLLVMIRExport
   MLIRTestDialect
   MLIRTransformUtils
-  MLIRVectorToSCF
   MLIRVector
+  MLIRVectorToSCF
   )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../Dialect/Test)

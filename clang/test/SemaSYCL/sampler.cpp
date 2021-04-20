@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -S -fsycl -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -ast-dump -sycl-std=2020 %s | FileCheck %s
+// RUN: %clang_cc1 -S -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -ast-dump -sycl-std=2020 %s | FileCheck %s
 
 // This test checks if the compiler correctly initializes the SYCL Sampler object when passed as a kernel argument.
 

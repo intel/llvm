@@ -145,6 +145,19 @@ private:
   bool RemoveDeadArgumentsFromCallers(Function &Fn);
 };
 
+class DeadArgumentEliminationSYCLPass
+    : public PassInfoMixin<DeadArgumentEliminationSYCLPass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
+    return Impl.run(M, MAM);
+  }
+
+private:
+  DeadArgumentEliminationPass Impl =
+      DeadArgumentEliminationPass(/* ShouldHackArguemtns */ false,
+                                  /* CheckSpirKernels */ true);
+};
+
 } // end namespace llvm
 
 #endif // LLVM_TRANSFORMS_IPO_DEADARGUMENTELIMINATION_H

@@ -239,6 +239,9 @@ public:
   void operator&=(const FastMathFlags &OtherFlags) {
     Flags &= OtherFlags.Flags;
   }
+  void operator|=(const FastMathFlags &OtherFlags) {
+    Flags |= OtherFlags.Flags;
+  }
 };
 
 /// Utility class for floating point operations which can have
@@ -568,6 +571,17 @@ public:
   bool accumulateConstantOffset(
       const DataLayout &DL, APInt &Offset,
       function_ref<bool(Value &, APInt &)> ExternalAnalysis = nullptr) const;
+
+  static bool accumulateConstantOffset(
+      Type *SourceType, ArrayRef<const Value *> Index, const DataLayout &DL,
+      APInt &Offset,
+      function_ref<bool(Value &, APInt &)> ExternalAnalysis = nullptr);
+
+  /// Collect the offset of this GEP as a map of Values to their associated
+  /// APInt multipliers, as well as a total Constant Offset.
+  bool collectOffset(const DataLayout &DL, unsigned BitWidth,
+                     SmallDenseMap<Value *, APInt, 8> &VariableOffsets,
+                     APInt &ConstantOffset) const;
 };
 
 class PtrToIntOperator

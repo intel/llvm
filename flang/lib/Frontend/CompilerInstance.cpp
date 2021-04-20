@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Frontend/CompilerInstance.h"
+#include "flang/Common/Fortran-features.h"
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Frontend/TextDiagnosticPrinter.h"
 #include "flang/Parser/parsing.h"
@@ -25,7 +26,6 @@ CompilerInstance::CompilerInstance()
       allSources_(new Fortran::parser::AllSources()),
       allCookedSources_(new Fortran::parser::AllCookedSources(*allSources_)),
       parsing_(new Fortran::parser::Parsing(*allCookedSources_)) {
-
   // TODO: This is a good default during development, but ultimately we should
   // give the user the opportunity to specify this.
   allSources_->set_encoding(Fortran::parser::Encoding::UTF_8);
@@ -112,7 +112,7 @@ std::unique_ptr<llvm::raw_pwrite_stream> CompilerInstance::CreateOutputFile(
   if (!os) {
     osFile = outputFilePath;
     os.reset(new llvm::raw_fd_ostream(osFile, error,
-        (binary ? llvm::sys::fs::OF_None : llvm::sys::fs::OF_Text)));
+        (binary ? llvm::sys::fs::OF_None : llvm::sys::fs::OF_TextWithCRLF)));
     if (error)
       return nullptr;
   }
@@ -144,16 +144,14 @@ bool CompilerInstance::ExecuteAction(FrontendAction &act) {
   invoc.SetDefaultFortranOpts();
   // Update the fortran options based on user-based input.
   invoc.setFortranOpts();
+  // Set the encoding to read all input files in based on user input.
+  allSources_->set_encoding(invoc.fortranOpts().encoding);
+  // Create the semantics context and set semantic options.
+  invoc.setSemanticsOpts(*this->allCookedSources_);
 
   // Run the frontend action `act` for every input file.
   for (const FrontendInputFile &fif : frontendOpts().inputs_) {
     if (act.BeginSourceFile(*this, fif)) {
-      // Switch between fixed and free form format based on the input file
-      // extension. Ideally we should have all Fortran options set before
-      // entering this loop (i.e. processing any input files). However, we
-      // can't decide between fixed and free form based on the file extension
-      // earlier than this.
-      invoc.fortranOpts().isFixedForm = fif.IsFixedForm();
       if (llvm::Error err = act.Execute()) {
         consumeError(std::move(err));
       }

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-explicit-simd -fsycl-is-device -internal-isystem %S/Inputs -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s
 
 // This test checks that

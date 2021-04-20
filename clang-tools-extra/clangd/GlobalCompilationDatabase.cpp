@@ -34,6 +34,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <mutex>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -41,21 +42,6 @@
 namespace clang {
 namespace clangd {
 namespace {
-
-// Variant of parent_path that operates only on absolute paths.
-PathRef absoluteParent(PathRef Path) {
-  assert(llvm::sys::path::is_absolute(Path));
-#if defined(_WIN32)
-  // llvm::sys says "C:\" is absolute, and its parent is "C:" which is relative.
-  // This unhelpful behavior seems to have been inherited from boost.
-  if (llvm::sys::path::relative_path(Path).empty()) {
-    return PathRef();
-  }
-#endif
-  PathRef Result = llvm::sys::path::parent_path(Path);
-  assert(Result.empty() || llvm::sys::path::is_absolute(Result));
-  return Result;
-}
 
 // Runs the given action on all parent directories of filename, starting from
 // deepest directory and going up to root. Stops whenever action succeeds.
@@ -395,20 +381,6 @@ DirectoryBasedGlobalCompilationDatabase::getCompileCommand(PathRef File) const {
   return None;
 }
 
-// For platforms where paths are case-insensitive (but case-preserving),
-// we need to do case-insensitive comparisons and use lowercase keys.
-// FIXME: Make Path a real class with desired semantics instead.
-//        This class is not the only place this problem exists.
-// FIXME: Mac filesystems default to case-insensitive, but may be sensitive.
-
-static std::string maybeCaseFoldPath(PathRef Path) {
-#if defined(_WIN32) || defined(__APPLE__)
-  return Path.lower();
-#else
-  return std::string(Path);
-#endif
-}
-
 std::vector<DirectoryBasedGlobalCompilationDatabase::DirectoryCache *>
 DirectoryBasedGlobalCompilationDatabase::getDirectoryCaches(
     llvm::ArrayRef<llvm::StringRef> Dirs) const {
@@ -567,7 +539,10 @@ public:
   }
 
   ~BroadcastThread() {
-    ShouldStop.store(true, std::memory_order_release);
+    {
+      std::lock_guard<std::mutex> Lock(Mu);
+      ShouldStop.store(true, std::memory_order_release);
+    }
     CV.notify_all();
     Thread.join();
   }

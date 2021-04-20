@@ -36,11 +36,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case avr:            return "avr";
   case bpfeb:          return "bpfeb";
   case bpfel:          return "bpfel";
-  case fpga_aoco:      return "fpga_aoco";
-  case fpga_aocr:      return "fpga_aocr";
-  case fpga_aocx:      return "fpga_aocx";
-  case fpga_dep:
-    return "fpga_dep";
+  case fpga:           return "fpga";
   case csky:           return "csky";
   case hexagon:        return "hexagon";
   case hsail64:        return "hsail64";
@@ -49,6 +45,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case lanai:          return "lanai";
   case le32:           return "le32";
   case le64:           return "le64";
+  case m68k:           return "m68k";
   case mips64:         return "mips64";
   case mips64el:       return "mips64el";
   case mips:           return "mips";
@@ -110,6 +107,8 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case ppc:
   case ppcle:       return "ppc";
 
+  case m68k:        return "m68k";
+
   case mips:
   case mipsel:
   case mips64:
@@ -158,11 +157,7 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case riscv32:
   case riscv64:     return "riscv";
 
-  case fpga_aoco:
-  case fpga_aocr:
-  case fpga_aocx:
-  case fpga_dep:
-    return "fpga";
+  case fpga:        return "fpga";
 
   case ve:          return "ve";
   case csky:        return "csky";
@@ -260,6 +255,7 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case MuslEABI: return "musleabi";
   case MuslEABIHF: return "musleabihf";
   case SYCLDevice: return "sycldevice";
+  case MuslX32: return "muslx32";
   case Simulator: return "simulator";
   }
 
@@ -294,6 +290,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("armeb", armeb)
     .Case("avr", avr)
     .StartsWith("bpf", BPFArch)
+    .Case("m68k", m68k)
     .Case("mips", mips)
     .Case("mipsel", mipsel)
     .Case("mips64", mips64)
@@ -338,10 +335,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("wasm64", wasm64)
     .Case("renderscript32", renderscript32)
     .Case("renderscript64", renderscript64)
-    .Case("fpga_aoco", fpga_aoco)
-    .Case("fpga_aocr", fpga_aocr)
-    .Case("fpga_aocx", fpga_aocx)
-    .Case("fpga_dep", fpga_dep)
+    .Case("fpga", fpga)
     .Case("ve", ve)
     .Case("csky", csky)
     .Default(UnknownArch);
@@ -436,6 +430,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("thumb", Triple::thumb)
     .Case("thumbeb", Triple::thumbeb)
     .Case("avr", Triple::avr)
+    .Case("m68k", Triple::m68k)
     .Case("msp430", Triple::msp430)
     .Cases("mips", "mipseb", "mipsallegrex", "mipsisa32r6",
            "mipsr6", Triple::mips)
@@ -471,10 +466,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("lanai", Triple::lanai)
     .Case("renderscript32", Triple::renderscript32)
     .Case("renderscript64", Triple::renderscript64)
-    .Case("fpga_aoco", Triple::fpga_aoco)
-    .Case("fpga_aocr", Triple::fpga_aocr)
-    .Case("fpga_aocx", Triple::fpga_aocx)
-    .Case("fpga_dep", Triple::fpga_dep)
+    .StartsWith("fpga", Triple::fpga)
     .Case("shave", Triple::shave)
     .Case("ve", Triple::ve)
     .Case("wasm32", Triple::wasm32)
@@ -500,6 +492,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
     .Case("apple", Triple::Apple)
     .Case("pc", Triple::PC)
     .Case("scei", Triple::SCEI)
+    .Case("sie", Triple::SCEI)
     .Case("fsl", Triple::Freescale)
     .Case("ibm", Triple::IBM)
     .Case("img", Triple::ImaginationTechnologies)
@@ -571,6 +564,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("android", Triple::Android)
       .StartsWith("musleabihf", Triple::MuslEABIHF)
       .StartsWith("musleabi", Triple::MuslEABI)
+      .StartsWith("muslx32", Triple::MuslX32)
       .StartsWith("musl", Triple::Musl)
       .StartsWith("msvc", Triple::MSVC)
       .StartsWith("itanium", Triple::Itanium)
@@ -730,10 +724,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::avr:
   case Triple::bpfeb:
   case Triple::bpfel:
-  case Triple::fpga_aoco:
-  case Triple::fpga_aocr:
-  case Triple::fpga_aocx:
-  case Triple::fpga_dep:
+  case Triple::fpga:
   case Triple::csky:
   case Triple::hexagon:
   case Triple::hsail64:
@@ -742,6 +733,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::lanai:
   case Triple::le32:
   case Triple::le64:
+  case Triple::m68k:
   case Triple::mips64:
   case Triple::mips64el:
   case Triple::mips:
@@ -1309,16 +1301,14 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::arc:
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
-  case llvm::Triple::fpga_aoco:
-  case llvm::Triple::fpga_aocr:
-  case llvm::Triple::fpga_aocx:
-  case llvm::Triple::fpga_dep:
+  case llvm::Triple::fpga:
   case llvm::Triple::csky:
   case llvm::Triple::hexagon:
   case llvm::Triple::hsail:
   case llvm::Triple::kalimba:
   case llvm::Triple::lanai:
   case llvm::Triple::le32:
+  case llvm::Triple::m68k:
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
   case llvm::Triple::nvptx:
@@ -1397,16 +1387,14 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::arc:
   case Triple::arm:
   case Triple::armeb:
-  case Triple::fpga_aoco:
-  case Triple::fpga_aocr:
-  case Triple::fpga_aocx:
-  case Triple::fpga_dep:
+  case Triple::fpga:
   case Triple::csky:
   case Triple::hexagon:
   case Triple::hsail:
   case Triple::kalimba:
   case Triple::lanai:
   case Triple::le32:
+  case Triple::m68k:
   case Triple::mips:
   case Triple::mipsel:
   case Triple::nvptx:
@@ -1455,14 +1443,12 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::UnknownArch:
   case Triple::arc:
   case Triple::avr:
-  case Triple::fpga_aoco:
-  case Triple::fpga_aocr:
-  case Triple::fpga_aocx:
-  case Triple::fpga_dep:
+  case Triple::fpga:
   case Triple::csky:
   case Triple::hexagon:
   case Triple::kalimba:
   case Triple::lanai:
+  case Triple::m68k:
   case Triple::msp430:
   case Triple::r600:
   case Triple::shave:
@@ -1587,6 +1573,7 @@ Triple Triple::getLittleEndianArchVariant() const {
   case Triple::lanai:
   case Triple::sparcv9:
   case Triple::systemz:
+  case Triple::m68k:
 
   // ARM is intentionally unsupported here, changing the architecture would
   // drop any arch suffixes.
@@ -1749,6 +1736,8 @@ StringRef Triple::getARMCPUForArch(StringRef MArch) const {
   case llvm::Triple::NetBSD:
     if (!MArch.empty() && MArch == "v6")
       return "arm1176jzf-s";
+    if (!MArch.empty() && MArch == "v7")
+      return "cortex-a8";
     break;
   case llvm::Triple::Win32:
     // FIXME: this is invalid for WindowsCE

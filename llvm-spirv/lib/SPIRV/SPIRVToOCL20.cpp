@@ -43,12 +43,9 @@
 
 namespace SPIRV {
 
-class SPIRVToOCL20 : public SPIRVToOCL {
+class SPIRVToOCL20Base : public SPIRVToOCLBase {
 public:
-  SPIRVToOCL20() : SPIRVToOCL(ID) {
-    initializeSPIRVToOCL20Pass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
+  bool runSPIRVToOCL(Module &M) override;
 
   /// Transform __spirv_MemoryBarrier to atomic_work_item_fence.
   ///   __spirv_MemoryBarrier(scope, sema) =>
@@ -82,13 +79,33 @@ public:
   /// Transform __spirv_OpAtomicCompareExchange/Weak into
   /// compare_exchange_strong/weak_explicit
   Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
+};
 
+class SPIRVToOCL20Pass : public llvm::PassInfoMixin<SPIRVToOCL20Pass>,
+                         public SPIRVToOCL20Base {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+  }
+};
+
+class SPIRVToOCL20Legacy : public SPIRVToOCLLegacy, public SPIRVToOCL20Base {
+public:
+  SPIRVToOCL20Legacy() : SPIRVToOCLLegacy(ID) {
+    initializeSPIRVToOCL20LegacyPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnModule(Module &M) override;
   static char ID;
 };
 
-char SPIRVToOCL20::ID = 0;
+char SPIRVToOCL20Legacy::ID = 0;
 
-bool SPIRVToOCL20::runOnModule(Module &Module) {
+bool SPIRVToOCL20Legacy::runOnModule(Module &Module) {
+  return SPIRVToOCL20Base::runSPIRVToOCL(Module);
+}
+bool SPIRVToOCL20Base::runSPIRVToOCL(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
   visit(*M);
@@ -105,7 +122,7 @@ bool SPIRVToOCL20::runOnModule(Module &Module) {
   return true;
 }
 
-void SPIRVToOCL20::visitCallSPIRVMemoryBarrier(CallInst *CI) {
+void SPIRVToOCL20Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -127,7 +144,7 @@ void SPIRVToOCL20::visitCallSPIRVMemoryBarrier(CallInst *CI) {
       &Attrs);
 }
 
-void SPIRVToOCL20::visitCallSPIRVControlBarrier(CallInst *CI) {
+void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Attrs = Attrs.addAttribute(CI->getContext(), AttributeList::FunctionIndex,
                              Attribute::Convergent);
@@ -153,7 +170,7 @@ void SPIRVToOCL20::visitCallSPIRVControlBarrier(CallInst *CI) {
       &Attrs);
 }
 
-Instruction *SPIRVToOCL20::mutateAtomicName(CallInst *CI, Op OC) {
+Instruction *SPIRVToOCL20Base::mutateAtomicName(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
@@ -163,7 +180,8 @@ Instruction *SPIRVToOCL20::mutateAtomicName(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-Instruction *SPIRVToOCL20::visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) {
+Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
+                                                           Op OC) {
   CallInst *CIG = mutateCommonAtomicArguments(CI, OC);
 
   Instruction *NewCI = nullptr;
@@ -183,7 +201,7 @@ Instruction *SPIRVToOCL20::visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) {
   return NewCI;
 }
 
-Instruction *SPIRVToOCL20::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
+Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
@@ -204,7 +222,7 @@ Instruction *SPIRVToOCL20::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-CallInst *SPIRVToOCL20::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
+CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
 
@@ -242,7 +260,8 @@ CallInst *SPIRVToOCL20::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-Instruction *SPIRVToOCL20::visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) {
+Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
+                                                            Op OC) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Instruction *PInsertBefore = CI;
@@ -289,7 +308,9 @@ Instruction *SPIRVToOCL20::visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) {
 
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVToOCL20, "spvtoocl20",
+INITIALIZE_PASS(SPIRVToOCL20Legacy, "spvtoocl20",
                 "Translate SPIR-V builtins to OCL 2.0 builtins", false, false)
 
-ModulePass *llvm::createSPIRVToOCL20() { return new SPIRVToOCL20(); }
+ModulePass *llvm::createSPIRVToOCL20Legacy() {
+  return new SPIRVToOCL20Legacy();
+}

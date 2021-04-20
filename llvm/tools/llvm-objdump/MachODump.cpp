@@ -129,6 +129,12 @@ cl::opt<bool> objdump::DataInCode(
     cl::cat(MachOCat));
 
 cl::opt<bool>
+    objdump::FunctionStarts("function-starts",
+                            cl::desc("Print the function starts table for "
+                                     "Mach-O objects (requires --macho)"),
+                            cl::cat(MachOCat));
+
+cl::opt<bool>
     objdump::LinkOptHints("link-opt-hints",
                           cl::desc("Print the linker optimization hints for "
                                    "Mach-O objects (requires --macho)"),
@@ -460,7 +466,7 @@ static void printRelocationTargetName(const MachOObjectFile *O,
 
   if (isExtern) {
     symbol_iterator SI = O->symbol_begin();
-    advance(SI, Val);
+    std::advance(SI, Val);
     S = unwrapOrError(SI->getName(), FileName);
   } else {
     section_iterator SI = O->section_begin();
@@ -472,7 +478,7 @@ static void printRelocationTargetName(const MachOObjectFile *O,
     uint32_t I = Val - 1;
     while (I != 0 && SI != O->section_end()) {
       --I;
-      advance(SI, 1);
+      std::advance(SI, 1);
     }
     if (SI == O->section_end()) {
       Fmt << Val << " (?,?)";
@@ -1100,6 +1106,43 @@ static void PrintRelocations(const MachOObjectFile *O, const bool verbose) {
         }
       }
     }
+  }
+}
+
+static void PrintFunctionStarts(MachOObjectFile *O) {
+  uint64_t BaseSegmentAddress = 0;
+  for (const MachOObjectFile::LoadCommandInfo &Command : O->load_commands()) {
+    if (Command.C.cmd == MachO::LC_SEGMENT) {
+      MachO::segment_command SLC = O->getSegmentLoadCommand(Command);
+      if (StringRef(SLC.segname) == "__TEXT") {
+        BaseSegmentAddress = SLC.vmaddr;
+        break;
+      }
+    } else if (Command.C.cmd == MachO::LC_SEGMENT_64) {
+      MachO::segment_command_64 SLC = O->getSegment64LoadCommand(Command);
+      if (StringRef(SLC.segname) == "__TEXT") {
+        BaseSegmentAddress = SLC.vmaddr;
+        break;
+      }
+    }
+  }
+
+  SmallVector<uint64_t, 8> FunctionStarts;
+  for (const MachOObjectFile::LoadCommandInfo &LC : O->load_commands()) {
+    if (LC.C.cmd == MachO::LC_FUNCTION_STARTS) {
+      MachO::linkedit_data_command FunctionStartsLC =
+          O->getLinkeditDataLoadCommand(LC);
+      O->ReadULEB128s(FunctionStartsLC.dataoff, FunctionStarts);
+      break;
+    }
+  }
+
+  for (uint64_t S : FunctionStarts) {
+    uint64_t Addr = BaseSegmentAddress + S;
+    if (O->is64Bit())
+      outs() << format("%016" PRIx64, Addr) << "\n";
+    else
+      outs() << format("%08" PRIx32, static_cast<uint32_t>(Addr)) << "\n";
   }
 }
 
@@ -1910,8 +1953,8 @@ static void ProcessMachO(StringRef Name, MachOObjectFile *MachOOF,
   // UniversalHeaders or ArchiveHeaders.
   if (Disassemble || Relocations || PrivateHeaders || ExportsTrie || Rebase ||
       Bind || SymbolTable || LazyBind || WeakBind || IndirectSymbols ||
-      DataInCode || LinkOptHints || DylibsUsed || DylibId || ObjcMetaData ||
-      (!FilterSections.empty())) {
+      DataInCode || FunctionStarts || LinkOptHints || DylibsUsed || DylibId ||
+      ObjcMetaData || (!FilterSections.empty())) {
     if (!NoLeadingHeaders) {
       outs() << Name;
       if (!ArchiveMemberName.empty())
@@ -1966,6 +2009,8 @@ static void ProcessMachO(StringRef Name, MachOObjectFile *MachOOF,
     PrintIndirectSymbols(MachOOF, !NonVerbose);
   if (DataInCode)
     PrintDataInCodeTable(MachOOF, !NonVerbose);
+  if (FunctionStarts)
+    PrintFunctionStarts(MachOOF);
   if (LinkOptHints)
     PrintLinkOptHints(MachOOF);
   if (Relocations)
@@ -7160,17 +7205,15 @@ static void emitComments(raw_svector_ostream &CommentStream,
   // Get the default information for printing a comment.
   StringRef CommentBegin = MAI.getCommentString();
   unsigned CommentColumn = MAI.getCommentColumn();
-  bool IsFirst = true;
+  ListSeparator LS("\n");
   while (!Comments.empty()) {
-    if (!IsFirst)
-      FormattedOS << '\n';
+    FormattedOS << LS;
     // Emit a line of comments.
     FormattedOS.PadToColumn(CommentColumn);
     size_t Position = Comments.find('\n');
     FormattedOS << CommentBegin << ' ' << Comments.substr(0, Position);
     // Move after the newline character.
     Comments = Comments.substr(Position + 1);
-    IsFirst = false;
   }
   FormattedOS.flush();
 
@@ -8007,12 +8050,23 @@ static void printCompressedSecondLevelUnwindPage(
   (void)Kind;
   assert(Kind == 3 && "kind for a compressed 2nd level index should be 3");
 
+  uint32_t NumCommonEncodings = CommonEncodings.size();
   uint16_t EntriesStart = readNext<uint16_t>(PageData, Pos);
   uint16_t NumEntries = readNext<uint16_t>(PageData, Pos);
 
-  uint16_t EncodingsStart = readNext<uint16_t>(PageData, Pos);
-  readNext<uint16_t>(PageData, Pos);
-  StringRef PageEncodings = PageData.substr(EncodingsStart, StringRef::npos);
+  uint16_t PageEncodingsStart = readNext<uint16_t>(PageData, Pos);
+  uint16_t NumPageEncodings = readNext<uint16_t>(PageData, Pos);
+  SmallVector<uint32_t, 64> PageEncodings;
+  if (NumPageEncodings) {
+    outs() << "      Page encodings: (count = " << NumPageEncodings << ")\n";
+    Pos = PageEncodingsStart;
+    for (unsigned i = 0; i < NumPageEncodings; ++i) {
+      uint32_t Encoding = readNext<uint32_t>(PageData, Pos);
+      PageEncodings.push_back(Encoding);
+      outs() << "        encoding[" << (i + NumCommonEncodings)
+             << "]: " << format("0x%08" PRIx32, Encoding) << '\n';
+    }
+  }
 
   Pos = EntriesStart;
   for (unsigned i = 0; i < NumEntries; ++i) {
@@ -8021,12 +8075,10 @@ static void printCompressedSecondLevelUnwindPage(
     uint32_t EncodingIdx = Entry >> 24;
 
     uint32_t Encoding;
-    if (EncodingIdx < CommonEncodings.size())
+    if (EncodingIdx < NumCommonEncodings)
       Encoding = CommonEncodings[EncodingIdx];
     else
-      Encoding = read<uint32_t>(PageEncodings,
-                                sizeof(uint32_t) *
-                                    (EncodingIdx - CommonEncodings.size()));
+      Encoding = PageEncodings[EncodingIdx - NumCommonEncodings];
 
     outs() << "      [" << i << "]: "
            << "function offset=" << format("0x%08" PRIx32, FunctionOffset)
@@ -10287,30 +10339,16 @@ static void printMachOExportsTrie(const object::MachOObjectFile *Obj) {
                        Entry.address() + BaseSegmentAddress);
     outs() << Entry.name();
     if (WeakDef || ThreadLocal || Resolver || Abs) {
-      bool NeedsComma = false;
+      ListSeparator LS;
       outs() << " [";
-      if (WeakDef) {
-        outs() << "weak_def";
-        NeedsComma = true;
-      }
-      if (ThreadLocal) {
-        if (NeedsComma)
-          outs() << ", ";
-        outs() << "per-thread";
-        NeedsComma = true;
-      }
-      if (Abs) {
-        if (NeedsComma)
-          outs() << ", ";
-        outs() << "absolute";
-        NeedsComma = true;
-      }
-      if (Resolver) {
-        if (NeedsComma)
-          outs() << ", ";
-        outs() << format("resolver=0x%08llX", Entry.other());
-        NeedsComma = true;
-      }
+      if (WeakDef)
+        outs() << LS << "weak_def";
+      if (ThreadLocal)
+        outs() << LS << "per-thread";
+      if (Abs)
+        outs() << LS << "absolute";
+      if (Resolver)
+        outs() << LS << format("resolver=0x%08llX", Entry.other());
       outs() << "]";
     }
     if (ReExport) {

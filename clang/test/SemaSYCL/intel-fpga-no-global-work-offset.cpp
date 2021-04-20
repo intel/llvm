@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-return-type -Wno-sycl-2017-compat -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-return-type -Wno-sycl-2017-compat -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -41,18 +41,27 @@ int main() {
     h.single_task<class test_kernel4>(
         []() [[intel::no_global_work_offset(-1)]]{});
 
-    // expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+    // Ignore duplicate attribute.
     h.single_task<class test_kernel5>(
+    // CHECK:       SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+        []() [[intel::no_global_work_offset,
+               intel::no_global_work_offset]]{}); // OK
+
+    // expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+    h.single_task<class test_kernel6>(
         []() [[intel::no_global_work_offset("foo")]]{});
 
-    h.single_task<class test_kernel6>([]() {
+    h.single_task<class test_kernel7>([]() {
       // expected-error@+1{{'no_global_work_offset' attribute only applies to functions}}
       [[intel::no_global_work_offset(1)]] int a;
     });
 
-    // expected-warning@+2{{attribute 'no_global_work_offset' is already applied}}
-    h.single_task<class test_kernel7>(
-        []() [[intel::no_global_work_offset(0), intel::no_global_work_offset(1)]]{});
+    h.single_task<class test_kernel8>(
+        []() [[intel::no_global_work_offset(0),      // expected-note {{previous attribute is here}}
+	       intel::no_global_work_offset(1)]]{});  // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
   });
   return 0;
 }

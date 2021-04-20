@@ -10,8 +10,26 @@
 #define __LIBDEVICE_DEVICE_MATH_H__
 
 #include "device.h"
-
 #ifdef __SPIR__
+#include <cstdlib>
+
+DEVICE_EXTERN_C
+int __devicelib_abs(int x);
+
+DEVICE_EXTERN_C
+long int __devicelib_labs(long int x);
+
+DEVICE_EXTERN_C
+long long int __devicelib_llabs(long long int x);
+
+DEVICE_EXTERN_C
+div_t __devicelib_div(int x, int y);
+
+DEVICE_EXTERN_C
+ldiv_t __devicelib_ldiv(long int x, long int y);
+
+DEVICE_EXTERN_C
+lldiv_t __devicelib_lldiv(long long int x, long long int y);
 
 DEVICE_EXTERN_C
 double __devicelib_log(double x);

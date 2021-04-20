@@ -38,8 +38,9 @@ using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::Pair;
-using testing::SizeIs;
+using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
+using testing::UnorderedElementsAreArray;
 
 ::testing::Matcher<const Diag &> WithFix(::testing::Matcher<Fix> FixMatcher) {
   return Field(&Diag::Fixes, ElementsAre(FixMatcher));
@@ -134,7 +135,7 @@ o]]();
   auto TU = TestTU::withCode(Test.code());
   TU.ClangTidyProvider = addTidyChecks("google-explicit-constructor");
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       ElementsAre(
           // This range spans lines.
           AllOf(Diag(Test.range("typo"),
@@ -172,14 +173,14 @@ o]]();
 TEST(DiagnosticsTest, FlagsMatter) {
   Annotations Test("[[void]] main() {} // error-ok");
   auto TU = TestTU::withCode(Test.code());
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(AllOf(Diag(Test.range(), "'main' must return 'int'"),
                                 WithFix(Fix(Test.range(), "int",
                                             "change 'void' to 'int'")))));
   // Same code built as C gets different diagnostics.
   TU.Filename = "Plain.c";
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       ElementsAre(AllOf(
           Diag(Test.range(), "return type of 'main' is not 'int'"),
           WithFix(Fix(Test.range(), "int", "change return type to 'int'")))));
@@ -191,7 +192,7 @@ TEST(DiagnosticsTest, DiagnosticPreamble) {
   )cpp");
 
   auto TU = TestTU::withCode(Test.code());
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(::testing::AllOf(
                   Diag(Test.range(), "'not-found.h' file not found"),
                   DiagSource(Diag::Clang), DiagName("pp_file_not_found"))));
@@ -208,7 +209,7 @@ TEST(DiagnosticsTest, DeduplicatedClangTidyDiagnostics) {
                                        "hicpp-uppercase-literal-suffix");
   // Verify that we filter out the duplicated diagnostic message.
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(::testing::AllOf(
           Diag(Test.range(),
                "floating point literal has suffix 'f', which is not uppercase"),
@@ -228,7 +229,7 @@ TEST(DiagnosticsTest, DeduplicatedClangTidyDiagnostics) {
   // The check doesn't handle template instantiations which ends up emitting
   // duplicated messages, verify that we deduplicate them.
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(::testing::AllOf(
           Diag(Test.range(),
                "floating point literal has suffix 'f', which is not uppercase"),
@@ -253,7 +254,7 @@ TEST(DiagnosticsTest, ClangTidy) {
                                        "modernize-deprecated-headers,"
                                        "modernize-use-trailing-return-type");
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(
           AllOf(Diag(Test.range("deprecated"),
                      "inclusion of deprecated C++ header 'assert.h'; consider "
@@ -295,7 +296,7 @@ TEST(DiagnosticsTest, ClangTidyEOF) {
   TU.AdditionalFiles["a.h"] = TU.AdditionalFiles["b.h"] = "";
   TU.ClangTidyProvider = addTidyChecks("llvm-include-order");
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       Contains(AllOf(Diag(Test.range(), "#includes are not sorted properly"),
                      DiagSource(Diag::ClangTidy),
                      DiagName("llvm-include-order"))));
@@ -313,7 +314,7 @@ TEST(DiagnosticTest, TemplatesInHeaders) {
   TestTU TU = TestTU::withCode(Main.code());
   TU.HeaderCode = Header.code().str();
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       ElementsAre(AllOf(
           Diag(Main.range(), "in template: base specifier must name a class"),
           WithNote(Diag(Header.range(), "error occurred here"),
@@ -339,7 +340,7 @@ TEST(DiagnosticTest, MakeUnique) {
     }
     }
   )cpp";
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range(),
                        "in template: "
@@ -367,7 +368,7 @@ TEST(DiagnosticTest, NoMultipleDiagnosticInFlight) {
   TestTU TU = TestTU::withCode(Main.code());
   TU.ClangTidyProvider = addTidyChecks("modernize-loop-convert");
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(::testing::AllOf(
           Diag(Main.range(), "use range-based for loop instead"),
           DiagSource(Diag::ClangTidy), DiagName("modernize-loop-convert"))));
@@ -383,14 +384,14 @@ TEST(DiagnosticTest, RespectsDiagnosticConfig) {
   )cpp");
   auto TU = TestTU::withCode(Main.code());
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       ElementsAre(Diag(Main.range(), "use of undeclared identifier 'unknown'"),
                   Diag(Main.range("ret"),
                        "void function 'x' should not return a value")));
   Config Cfg;
   Cfg.Diagnostics.Suppress.insert("return-type");
   WithContextValue WithCfg(Config::Key, std::move(Cfg));
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(Diag(Main.range(),
                                "use of undeclared identifier 'unknown'")));
 }
@@ -412,7 +413,7 @@ TEST(DiagnosticTest, ClangTidySuppressionComment) {
   TestTU TU = TestTU::withCode(Main.code());
   TU.ClangTidyProvider = addTidyChecks("bugprone-integer-division");
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(::testing::AllOf(
           Diag(Main.range(), "result of integer division used in a floating "
                              "point context; possible loss of precision"),
@@ -430,7 +431,7 @@ TEST(DiagnosticTest, ClangTidyWarningAsError) {
   TU.ClangTidyProvider =
       addTidyChecks("bugprone-integer-division", "bugprone-integer-division");
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(::testing::AllOf(
           Diag(Main.range(), "result of integer division used in a floating "
                              "point context; possible loss of precision"),
@@ -449,7 +450,7 @@ TEST(DiagnosticTest, LongFixMessages) {
   )cpp");
   TestTU TU = TestTU::withCode(Source.code());
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       ElementsAre(WithFix(Fix(
           Source.range(),
           "somereallyreallyreallyreallyreallyreallyreallyreallylongidentifier",
@@ -465,7 +466,7 @@ n]] = 10; // error-ok
     }
   )cpp");
   TU.Code = std::string(Source.code());
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(WithFix(
                   Fix(Source.range(), "ident", "change 'ide\\…' to 'ident'"))));
 }
@@ -480,7 +481,7 @@ TEST(DiagnosticTest, ClangTidySuppressionCommentTrumpsWarningAsError) {
   TestTU TU = TestTU::withCode(Main.code());
   TU.ClangTidyProvider =
       addTidyChecks("bugprone-integer-division", "bugprone-integer-division");
-  EXPECT_THAT(TU.build().getDiagnostics(), UnorderedElementsAre());
+  EXPECT_THAT(*TU.build().getDiagnostics(), UnorderedElementsAre());
 }
 
 TEST(DiagnosticTest, ClangTidyNoLiteralDataInMacroToken) {
@@ -495,7 +496,7 @@ TEST(DiagnosticTest, ClangTidyNoLiteralDataInMacroToken) {
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
   TU.ClangTidyProvider = addTidyChecks("bugprone-bad-signal-to-kill-thread");
-  EXPECT_THAT(TU.build().getDiagnostics(), UnorderedElementsAre()); // no-crash
+  EXPECT_THAT(*TU.build().getDiagnostics(), UnorderedElementsAre()); // no-crash
 }
 
 TEST(DiagnosticTest, ElseAfterReturnRange) {
@@ -512,7 +513,7 @@ TEST(DiagnosticTest, ElseAfterReturnRange) {
   TestTU TU = TestTU::withCode(Main.code());
   TU.ClangTidyProvider = addTidyChecks("llvm-else-after-return");
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       ElementsAre(Diag(Main.range(), "do not use 'else' after 'return'")));
 }
 
@@ -531,7 +532,7 @@ TEST(DiagnosticsTest, Preprocessor) {
     #endif
     )cpp");
   EXPECT_THAT(
-      TestTU::withCode(Test.code()).build().getDiagnostics(),
+      *TestTU::withCode(Test.code()).build().getDiagnostics(),
       ElementsAre(Diag(Test.range(), "use of undeclared identifier 'b'")));
 }
 
@@ -541,7 +542,7 @@ TEST(DiagnosticsTest, IgnoreVerify) {
   )cpp");
   TU.ExtraArgs.push_back("-Xclang");
   TU.ExtraArgs.push_back("-verify");
-  EXPECT_THAT(TU.build().getDiagnostics(), IsEmpty());
+  EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
 }
 
 // Recursive main-file include is diagnosed, and doesn't crash.
@@ -551,7 +552,7 @@ TEST(DiagnosticsTest, RecursivePreamble) {
     int symbol;
   )cpp");
   TU.Filename = "foo.h";
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(DiagName("pp_including_mainfile_in_preamble")));
   EXPECT_THAT(TU.build().getLocalTopLevelDecls(), SizeIs(1));
 }
@@ -564,7 +565,7 @@ TEST(DiagnosticsTest, RecursivePreamblePragmaOnce) {
     int symbol;
   )cpp");
   TU.Filename = "foo.h";
-  EXPECT_THAT(TU.build().getDiagnostics(), IsEmpty());
+  EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
   EXPECT_THAT(TU.build().getLocalTopLevelDecls(), SizeIs(1));
 }
 
@@ -580,7 +581,7 @@ TEST(DiagnosticsTest, RecursivePreambleIfndefGuard) {
   )cpp");
   TU.Filename = "foo.h";
   // FIXME: should be no errors here.
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(DiagName("pp_including_mainfile_in_preamble")));
   EXPECT_THAT(TU.build().getLocalTopLevelDecls(), SizeIs(1));
 }
@@ -597,7 +598,7 @@ TEST(DiagnosticsTest, InsideMacros) {
       return $bar[[TEN]];
     }
     )cpp");
-  EXPECT_THAT(TestTU::withCode(Test.code()).build().getDiagnostics(),
+  EXPECT_THAT(*TestTU::withCode(Test.code()).build().getDiagnostics(),
               ElementsAre(Diag(Test.range("foo"),
                                "cannot initialize return object of type "
                                "'int *' with an rvalue of type 'int'"),
@@ -613,7 +614,7 @@ TEST(DiagnosticsTest, NoFixItInMacro) {
     [[Define]](main) // error-ok
   )cpp");
   auto TU = TestTU::withCode(Test.code());
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(AllOf(Diag(Test.range(), "'main' must return 'int'"),
                                 Not(WithFix(_)))));
 }
@@ -624,7 +625,7 @@ TEST(ClangdTest, MSAsm) {
   llvm::InitializeAllTargetInfos(); // As in ClangdMain
   auto TU = TestTU::withCode("void fn() { __asm { cmp cl,64 } }");
   TU.ExtraArgs = {"-fms-extensions"};
-  EXPECT_THAT(TU.build().getDiagnostics(), IsEmpty());
+  EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
 }
 
 TEST(DiagnosticsTest, ToLSP) {
@@ -770,6 +771,10 @@ void test(ns::X *x, ns::X& ref_x) {
 }
 
 ns::X $return[[func]]() {}
+
+class T {
+  ns::X $field[[x]];
+};
   )cpp");
   auto TU = TestTU::withCode(Test.code());
   TU.ExtraArgs.push_back("-std=c++17");
@@ -778,58 +783,65 @@ ns::X $return[[func]]() {}
   TU.ExternalIndex = Index.get();
 
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
-      UnorderedElementsAre(
-          AllOf(Diag(Test.range("nested"),
-                     "incomplete type 'ns::X' named in nested name specifier"),
-                DiagName("incomplete_nested_name_spec"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("base"), "base class has incomplete type"),
-                DiagName("incomplete_base_class"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("access"),
-                     "member access into incomplete type 'ns::X'"),
-                DiagName("incomplete_member_access"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(
-              Diag(Test.range("type"),
+      *TU.build().getDiagnostics(),
+      UnorderedElementsAreArray(
+          {AllOf(Diag(Test.range("nested"),
+                      "incomplete type 'ns::X' named in nested name specifier"),
+                 DiagName("incomplete_nested_name_spec"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("base"), "base class has incomplete type"),
+                 DiagName("incomplete_base_class"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("access"),
+                      "member access into incomplete type 'ns::X'"),
+                 DiagName("incomplete_member_access"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(
+               Diag(
+                   Test.range("type"),
                    "incomplete type 'ns::X' where a complete type is required"),
-              DiagName("incomplete_type"),
-              WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                          "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("incomplete"),
-                     "variable has incomplete type 'ns::X'"),
-                DiagName("typecheck_decl_incomplete_type"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(
-              Diag(Test.range("tag"), "incomplete definition of type 'ns::X'"),
-              DiagName("typecheck_incomplete_tag"),
-              WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                          "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(
-              Diag(Test.range("use"), "invalid use of incomplete type 'ns::X'"),
-              DiagName("invalid_incomplete_type_use"),
-              WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                          "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("sizeof"), "invalid application of 'sizeof' to "
-                                           "an incomplete type 'ns::X'"),
-                DiagName("sizeof_alignof_incomplete_or_sizeless_type"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("for"),
-                     "cannot use incomplete type 'ns::X' as a range"),
-                DiagName("for_range_incomplete_type"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X"))),
-          AllOf(Diag(Test.range("return"),
-                     "incomplete result type 'ns::X' in function definition"),
-                DiagName("func_def_incomplete_result"),
-                WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
-                            "Add include \"x.h\" for symbol ns::X")))));
+               DiagName("incomplete_type"),
+               WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                           "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("incomplete"),
+                      "variable has incomplete type 'ns::X'"),
+                 DiagName("typecheck_decl_incomplete_type"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(
+               Diag(Test.range("tag"), "incomplete definition of type 'ns::X'"),
+               DiagName("typecheck_incomplete_tag"),
+               WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                           "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("use"),
+                      "invalid use of incomplete type 'ns::X'"),
+                 DiagName("invalid_incomplete_type_use"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("sizeof"),
+                      "invalid application of 'sizeof' to "
+                      "an incomplete type 'ns::X'"),
+                 DiagName("sizeof_alignof_incomplete_or_sizeless_type"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("for"),
+                      "cannot use incomplete type 'ns::X' as a range"),
+                 DiagName("for_range_incomplete_type"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("return"),
+                      "incomplete result type 'ns::X' in function definition"),
+                 DiagName("func_def_incomplete_result"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X"))),
+           AllOf(Diag(Test.range("field"), "field has incomplete type 'ns::X'"),
+                 DiagName("field_incomplete_or_sizeless"),
+                 WithFix(Fix(Test.range("insert"), "#include \"x.h\"\n",
+                             "Add include \"x.h\" for symbol ns::X")))}))
+      << Test.code();
 }
 
 TEST(IncludeFixerTest, NoSuggestIncludeWhenNoDefinitionInHeader) {
@@ -856,7 +868,7 @@ int main() {
       MemIndex::build(std::move(Slab).build(), RefSlab(), RelationSlab());
   TU.ExternalIndex = Index.get();
 
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Test.range("base"), "base class has incomplete type"),
                   Diag(Test.range("access"),
@@ -889,7 +901,7 @@ using Type = ns::$template[[Foo]]<int>;
   TU.ExternalIndex = Index.get();
 
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(
           AllOf(Diag(Test.range("unqualified1"), "unknown type name 'X'"),
                 DiagName("unknown_typename"),
@@ -934,7 +946,7 @@ void foo() {
        SymbolWithHeader{"na::nb::X", "unittest:///b.h", "\"b.h\""}});
   TU.ExternalIndex = Index.get();
 
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(AllOf(
                   Diag(Test.range("unqualified"), "unknown type name 'X'"),
                   DiagName("unknown_typename"),
@@ -955,7 +967,7 @@ TEST(IncludeFixerTest, NoCrashMemebrAccess) {
   TU.ExternalIndex = Index.get();
 
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(Diag(Test.range(), "no member named 'xy' in 'X'")));
 }
 
@@ -990,7 +1002,7 @@ void bar(X *x) {
   TU.ExternalIndex = Index.get();
 
   auto Parsed = TU.build();
-  for (const auto &D : Parsed.getDiagnostics()) {
+  for (const auto &D : *Parsed.getDiagnostics()) {
     if (D.Fixes.size() != 1) {
       ADD_FAILURE() << "D.Fixes.size() != 1";
       continue;
@@ -1015,7 +1027,7 @@ void g() {  ns::$[[scope]]::X_Y();  }
   TU.ExternalIndex = Index.get();
 
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(AllOf(
           Diag(Test.range(), "no member named 'scope' in namespace 'ns'"),
           DiagName("no_member"),
@@ -1043,7 +1055,7 @@ void f() {
   TU.ExternalIndex = Index.get();
 
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       UnorderedElementsAre(
           AllOf(
               Diag(Test.range("q1"), "use of undeclared identifier 'clangd'; "
@@ -1086,7 +1098,7 @@ namespace c {
       SymbolWithHeader{"a::X", "unittest:///x.h", "\"x.h\""});
   TU.ExternalIndex = Index.get();
 
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(AllOf(
                   Diag(Test.range(), "no type named 'X' in namespace 'a'"),
                   DiagName("typename_nested_not_found"),
@@ -1112,7 +1124,7 @@ TEST(IncludeFixerTest, NoCrashOnTemplateInstantiations) {
   TU.ExternalIndex = Index.get();
 
   EXPECT_THAT(
-      TU.build().getDiagnostics(),
+      *TU.build().getDiagnostics(),
       ElementsAre(Diag(Test.range(), "use of undeclared identifier 'a'")));
 }
 
@@ -1123,7 +1135,7 @@ TEST(DiagsInHeaders, DiagInsideHeader) {
   Annotations Header("[[no_type_spec]]; // error-ok");
   TestTU TU = TestTU::withCode(Main.code());
   TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(AllOf(
                   Diag(Main.range(), "in included file: C++ requires a "
                                      "type specifier for all declarations"),
@@ -1137,7 +1149,7 @@ TEST(DiagsInHeaders, DiagInTransitiveInclude) {
   TestTU TU = TestTU::withCode(Main.code());
   TU.AdditionalFiles = {{"a.h", "#include \"b.h\""},
                         {"b.h", "no_type_spec; // error-ok"}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range(), "in included file: C++ requires a "
                                      "type specifier for all declarations")));
@@ -1151,7 +1163,7 @@ TEST(DiagsInHeaders, DiagInMultipleHeaders) {
   TestTU TU = TestTU::withCode(Main.code());
   TU.AdditionalFiles = {{"a.h", "no_type_spec; // error-ok"},
                         {"b.h", "no_type_spec; // error-ok"}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range("a"), "in included file: C++ requires a type "
                                         "specifier for all declarations"),
@@ -1168,7 +1180,7 @@ TEST(DiagsInHeaders, PreferExpansionLocation) {
   TU.AdditionalFiles = {
       {"a.h", "#include \"b.h\"\n"},
       {"b.h", "#ifndef X\n#define X\nno_type_spec; // error-ok\n#endif"}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(Diag(Main.range(),
                                         "in included file: C++ requires a type "
                                         "specifier for all declarations")));
@@ -1186,7 +1198,7 @@ TEST(DiagsInHeaders, PreferExpansionLocationMacros) {
       {"a.h", "#include \"c.h\"\n"},
       {"b.h", "#include \"c.h\"\n"},
       {"c.h", "#ifndef X\n#define X\nno_type_spec; // error-ok\n#endif"}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range(), "in included file: C++ requires a "
                                      "type specifier for all declarations")));
@@ -1215,7 +1227,7 @@ TEST(DiagsInHeaders, LimitDiagsOutsideMainFile) {
       no_type_spec_9;
       no_type_spec_10;
       #endif)cpp"}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range(), "in included file: C++ requires a "
                                      "type specifier for all declarations")));
@@ -1230,7 +1242,7 @@ TEST(DiagsInHeaders, OnlyErrorOrFatal) {
     int x = 5/0;)cpp");
   TestTU TU = TestTU::withCode(Main.code());
   TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(AllOf(
                   Diag(Main.range(), "in included file: C++ requires "
                                      "a type specifier for all declarations"),
@@ -1248,7 +1260,7 @@ TEST(DiagsInHeaders, OnlyDefaultErrorOrFatal) {
   TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
   // promote warnings to errors.
   TU.ExtraArgs = {"-Werror", "-Wunused"};
-  EXPECT_THAT(TU.build().getDiagnostics(), IsEmpty());
+  EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
 }
 
 TEST(DiagsInHeaders, FromNonWrittenSources) {
@@ -1261,7 +1273,7 @@ TEST(DiagsInHeaders, FromNonWrittenSources) {
   TestTU TU = TestTU::withCode(Main.code());
   TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
   TU.ExtraArgs = {"-DFOO=NOOO"};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(AllOf(
                   Diag(Main.range(),
                        "in included file: use of undeclared identifier 'NOOO'"),
@@ -1279,7 +1291,7 @@ TEST(DiagsInHeaders, ErrorFromMacroExpansion) {
   X;)cpp");
   TestTU TU = TestTU::withCode(Main.code());
   TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range(), "in included file: use of undeclared "
                                      "identifier 'foo'; did you mean 'fo'?")));
@@ -1296,7 +1308,7 @@ TEST(DiagsInHeaders, ErrorFromMacroArgument) {
   X(foo);)cpp");
   TestTU TU = TestTU::withCode(Main.code());
   TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
-  EXPECT_THAT(TU.build().getDiagnostics(),
+  EXPECT_THAT(*TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range(), "in included file: use of undeclared "
                                      "identifier 'foo'; did you mean 'fo'?")));
@@ -1308,7 +1320,7 @@ TEST(IgnoreDiags, FromNonWrittenInclude) {
   TU.AdditionalFiles = {{"a.h", "void main();"}};
   // The diagnostic "main must return int" is from the header, we don't attempt
   // to render it in the main file as there is no written location there.
-  EXPECT_THAT(TU.build().getDiagnostics(), UnorderedElementsAre());
+  EXPECT_THAT(*TU.build().getDiagnostics(), UnorderedElementsAre());
 }
 
 TEST(ToLSPDiag, RangeIsInMain) {

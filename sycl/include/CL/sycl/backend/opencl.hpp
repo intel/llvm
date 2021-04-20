@@ -11,6 +11,7 @@
 
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/cl.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -36,6 +37,8 @@ template <> struct interop<backend::opencl, program> {
   using type = cl_program;
 };
 
+template <> struct interop<backend::opencl, event> { using type = cl_event; };
+
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
                                          access::target::global_buffer,
@@ -49,6 +52,23 @@ struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
                                          access::placeholder::false_t>> {
   using type = cl_mem;
 };
+
+template <typename DataT, int Dimensions, typename AllocatorT>
+struct interop<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+  using type = cl_mem;
+};
+
+namespace detail {
+template <> struct InteropFeatureSupportMap<backend::opencl> {
+  static constexpr bool MakePlatform = true;
+  static constexpr bool MakeDevice = true;
+  static constexpr bool MakeContext = true;
+  static constexpr bool MakeQueue = true;
+  static constexpr bool MakeEvent = true;
+  static constexpr bool MakeBuffer = true;
+  static constexpr bool MakeKernel = true;
+};
+} // namespace detail
 
 namespace opencl {
 

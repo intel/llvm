@@ -15,6 +15,7 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
 
 #include <algorithm>
@@ -116,6 +117,8 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
 cl_context context::get() const { return impl->get(); }
 
 bool context::is_host() const { return impl->is_host(); }
+
+backend context::get_backend() const noexcept { return getImplBackend(impl); }
 
 platform context::get_platform() const {
   return impl->get_info<info::context::platform>();

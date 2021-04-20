@@ -31,7 +31,7 @@ This document describes an extension which introduces a library of sub-group fun
 
 == Notice
 
-Copyright (c) 2020 Intel Corporation.  All rights reserved.
+Copyright (c) 2020-2021 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -55,6 +55,7 @@ This extension is written against the SYCL 1.2.1 specification, Revision 6 and t
 
 - +SYCL_INTEL_group_algorithms+
 - +SYCL_INTEL_sub_group+
+- +SYCL_INTEL_math_array+
 
 == Overview
 
@@ -82,9 +83,9 @@ It additionally introduces a number of functions that are currently specific to 
 
 === Data Types
 
-All functions are supported for the fundamental scalar types supported by SYCL and instances of the SYCL +vec+ class. The fundamental scalar types (as defined in Section 6.5 of the SYCL 1.2.1 specification) are: +bool+, +char+, +signed char+, +unsigned char+, +short int+, +unsigned short int+, +int+, +unsigned int+, +long int+, +unsigned long int+, +long long int+, +unsigned long long int+, +size_t+, +float+, +double+, +half+.
+All functions are supported for the fundamental scalar types supported by SYCL and instances of the SYCL +vec+ and +marray+ classes. The fundamental scalar types (as defined in Section 6.5 of the SYCL 1.2.1 specification) are: +bool+, +char+, +signed char+, +unsigned char+, +short int+, +unsigned short int+, +int+, +unsigned int+, +long int+, +unsigned long int+, +long long int+, +unsigned long long int+, +size_t+, +float+, +double+, +half+.
 
-Functions with arguments of type +vec<T,N>+ are applied component-wise: they are semantically equivalent to N calls to a scalar function of type +T+.
+Functions with arguments of type +vec<T,N>+ or +marray<T,N>+ are applied component-wise: they are semantically equivalent to N calls to a scalar function of type +T+.
 
 === Functions
 
@@ -134,17 +135,28 @@ The load and store sub-group functions enable developers to assert that all work
 |===
 |Function|Description
 
-|+template <typename T, access::address_space Space> T load(sub_group sg, const multi_ptr<T,Space> src)+
-|Load contiguous data from _src_.  Returns one element per work-item, corresponding to the memory location at _src_ + +get_local_id()+. The value of _src_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+.
+|+template <typename T> T load(sub_group sg, const T *src)+
+|Load contiguous data from _src_.  Returns one element per work-item, corresponding to the memory location at _src_ + +get_local_id()+. The value of _src_ must be the same for all work-items in the sub-group. The address space information is deduced automatically. Only pointers to global and local address spaces are valid. Passing a pointer to other address spaces will cause the run time assertion. +T+ must be a _NumericType_.
 
-|+template <int N, typename T, access::address_space Space> vec<T,N> load(sub_group sg, const multi_ptr<T,Space> src)+
-|Load contiguous data from _src_.  Returns _N_ elements per work-item, corresponding to the _N_ memory locations at _src_ + +i+ * +get_max_local_range()+ + +get_local_id()+ for +i+ between 0 and _N_. The value of _src_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+.
+|+template <typename T, access::address_space Space> T load(sub_group sg, const multi_ptr<T,Space> src)+
+|Load contiguous data from _src_.  Returns one element per work-item, corresponding to the memory location at _src_ + +get_local_id()+. The value of _src_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+. +T+ must be a _NumericType_.
+
+|+template <int N, typename T, access::address_space Space> __unspecified__ load(sub_group sg, const multi_ptr<T,Space> src)+
+|Load contiguous data from _src_.  Returns _N_ elements per work-item, corresponding to the _N_ memory locations at _src_ + +i+ * +get_max_local_range()+ + +get_local_id()+ for +i+ between 0 and _N_. The return type is implicitly convertible to +vec<T,N>+ (if +T+ is compatible with the +vec+ interface) and to +marray<T,N>+. The value of _src_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+.  +T+ must be a _NumericType_.
+
+|+template <typename T> void store(sub_group sg, T *dst, const T& x)+
+|Store contiguous data to _dst_.  The value of _x_ from each work-item is written to the memory location at _dst_ + +get_local_id()+. The value of _dst_ must be the same for all work-items in the sub-group. The address space information is deduced automatically. Only pointers to global and local address spaces are valid. Passing a pointer to other address spaces will cause the run time assertion. +T+ must be a _NumericType_.
 
 |+template <typename T, access::address_space Space> void store(sub_group sg, multi_ptr<T,Space> dst, const T& x)+
-|Store contiguous data to _dst_.  The value of _x_ from each work-item is written to the memory location at _dst_ + +get_local_id()+. The value of _dst_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+.
+|Store contiguous data to _dst_.  The value of _x_ from each work-item is written to the memory location at _dst_ + +get_local_id()+. The value of _dst_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+. +T+ must be a _NumericType_.
 
 |+template <int N, typename T, access::address_space Space> void store(sub_group sg, multi_ptr<T,Space> dst, const vec<T,N>& x)+
-|Store contiguous data to _dst_.  The _N_ elements from each work-item are written to the memory locations at _dst_ + +i+ * +get_max_local_range()+ + +get_local_id()+ for +i+ between 0 and _N_.  The value of _dst_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+.
+|Store contiguous data to _dst_.  The _N_ elements from each work-item are written to the memory locations at _dst_ + +i+ * +get_max_local_range()+ + +get_local_id()+ for +i+ between 0 and _N_.  The value of _dst_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+. +T+ must be a _NumericType_.
+
+|+template <int N, typename T, access::address_space Space> void store(sub_group sg, multi_ptr<T,Space> dst, const marray<T,N>& x)+
+|Store contiguous data to _dst_.  The _N_ elements from each work-item are written to the memory locations at _dst_ + +i+ * +get_max_local_range()+ + +get_local_id()+ for +i+ between 0 and _N_.  The value of _dst_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+. +T+ must be a _NumericType_.
+|===
+
 |===
 
 == Issues
@@ -165,6 +177,8 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-03-16|John Pennycook|*Initial public working draft*
+|2|2021-02-26|Vladimir Lazarev|*Add load/store method for raw pointers*
+|3|2021-04-06|John Pennycook|*Use sycl::marray in place of sycl::vec for load/store*
 |========================================
 
 //************************************************************************

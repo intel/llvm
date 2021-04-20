@@ -1029,9 +1029,10 @@ RegisterInfoEmitter::runMCDesc(raw_ostream &OS, CodeGenTarget &Target,
     ArrayRef<const CodeGenRegister*> Roots = RegBank.getRegUnit(i).getRoots();
     assert(!Roots.empty() && "All regunits must have a root register.");
     assert(Roots.size() <= 2 && "More than two roots not supported yet.");
-    OS << "  { " << getQualifiedName(Roots.front()->TheDef);
-    for (unsigned r = 1; r != Roots.size(); ++r)
-      OS << ", " << getQualifiedName(Roots[r]->TheDef);
+    OS << "  { ";
+    ListSeparator LS;
+    for (const CodeGenRegister *R : Roots)
+      OS << LS << getQualifiedName(R->TheDef);
     OS << " },\n";
   }
   OS << "};\n\n";
@@ -1083,12 +1084,15 @@ RegisterInfoEmitter::runMCDesc(raw_ostream &OS, CodeGenTarget &Target,
 
   for (const auto &RC : RegisterClasses) {
     assert(isInt<8>(RC.CopyCost) && "Copy cost too large.");
+    uint32_t RegSize = 0;
+    if (RC.RSI.isSimple())
+      RegSize = RC.RSI.getSimple().RegSize;
     OS << "  { " << RC.getName() << ", " << RC.getName() << "Bits, "
-       << RegClassStrings.get(RC.getName()) << ", "
-       << RC.getOrder().size() << ", sizeof(" << RC.getName() << "Bits), "
-       << RC.getQualifiedName() + "RegClassID" << ", "
-       << RC.CopyCost << ", "
-       << ( RC.Allocatable ? "true" : "false" ) << " },\n";
+       << RegClassStrings.get(RC.getName()) << ", " << RC.getOrder().size()
+       << ", sizeof(" << RC.getName() << "Bits), "
+       << RC.getQualifiedName() + "RegClassID"
+       << ", " << RegSize << ", " << RC.CopyCost << ", "
+       << (RC.Allocatable ? "true" : "false") << " },\n";
   }
 
   OS << "};\n\n";
@@ -1441,19 +1445,52 @@ RegisterInfoEmitter::runTargetDesc(raw_ostream &OS, CodeGenTarget &Target,
 
   // Emit extra information about registers.
   const std::string &TargetName = std::string(Target.getName());
-  OS << "\nstatic const TargetRegisterInfoDesc "
-     << TargetName << "RegInfoDesc[] = { // Extra Descriptors\n";
-  OS << "  { 0, false },\n";
-
   const auto &Regs = RegBank.getRegisters();
-  for (const auto &Reg : Regs) {
-    OS << "  { ";
-    OS << Reg.CostPerUse << ", "
-       << ( AllocatableRegs.count(Reg.TheDef) != 0 ? "true" : "false" )
-       << " },\n";
-  }
-  OS << "};\n";      // End of register descriptors...
+  unsigned NumRegCosts = 1;
+  for (const auto &Reg : Regs)
+    NumRegCosts = std::max((size_t)NumRegCosts, Reg.CostPerUse.size());
 
+  std::vector<unsigned> AllRegCostPerUse;
+  llvm::BitVector InAllocClass(Regs.size() + 1, false);
+  AllRegCostPerUse.insert(AllRegCostPerUse.end(), NumRegCosts, 0);
+
+  // Populate the vector RegCosts with the CostPerUse list of the registers
+  // in the order they are read. Have at most NumRegCosts entries for
+  // each register. Fill with zero for values which are not explicitly given.
+  for (const auto &Reg : Regs) {
+    auto Costs = Reg.CostPerUse;
+    AllRegCostPerUse.insert(AllRegCostPerUse.end(), Costs.begin(), Costs.end());
+    if (NumRegCosts > Costs.size())
+      AllRegCostPerUse.insert(AllRegCostPerUse.end(),
+                              NumRegCosts - Costs.size(), 0);
+
+    if (AllocatableRegs.count(Reg.TheDef))
+      InAllocClass.set(Reg.EnumValue);
+  }
+
+  // Emit the cost values as a 1D-array after grouping them by their indices,
+  // i.e. the costs for all registers corresponds to index 0, 1, 2, etc.
+  // Size of the emitted array should be NumRegCosts * (Regs.size() + 1).
+  OS << "\nstatic const uint8_t "
+     << "CostPerUseTable[] = { \n";
+  for (unsigned int I = 0; I < NumRegCosts; ++I) {
+    for (unsigned J = I, E = AllRegCostPerUse.size(); J < E; J += NumRegCosts)
+      OS << AllRegCostPerUse[J] << ", ";
+  }
+  OS << "};\n\n";
+
+  OS << "\nstatic const bool "
+     << "InAllocatableClassTable[] = { \n";
+  for (unsigned I = 0, E = InAllocClass.size(); I < E; ++I) {
+    OS << (InAllocClass[I] ? "true" : "false") << ", ";
+  }
+  OS << "};\n\n";
+
+  OS << "\nstatic const TargetRegisterInfoDesc " << TargetName
+     << "RegInfoDesc = { // Extra Descriptors\n";
+  OS << "CostPerUseTable, " << NumRegCosts << ", "
+     << "InAllocatableClassTable";
+  OS << "};\n\n"; // End of register descriptors...
 
   std::string ClassName = Target.getName().str() + "GenRegisterInfo";
 
@@ -1513,10 +1550,11 @@ RegisterInfoEmitter::runTargetDesc(raw_ostream &OS, CodeGenTarget &Target,
 
   EmitRegMappingTables(OS, Regs, true);
 
-  OS << ClassName << "::\n" << ClassName
+  OS << ClassName << "::\n"
+     << ClassName
      << "(unsigned RA, unsigned DwarfFlavour, unsigned EHFlavour,\n"
         "      unsigned PC, unsigned HwMode)\n"
-     << "  : TargetRegisterInfo(" << TargetName << "RegInfoDesc"
+     << "  : TargetRegisterInfo(&" << TargetName << "RegInfoDesc"
      << ", RegisterClasses, RegisterClasses+" << RegisterClasses.size() << ",\n"
      << "             SubRegIndexNameTable, SubRegIndexLaneMaskTable,\n"
      << "             ";
@@ -1679,7 +1717,10 @@ void RegisterInfoEmitter::debugDump(raw_ostream &OS) {
 
   for (const CodeGenRegister &R : RegBank.getRegisters()) {
     OS << "Register " << R.getName() << ":\n";
-    OS << "\tCostPerUse: " << R.CostPerUse << '\n';
+    OS << "\tCostPerUse: ";
+    for (const auto &Cost : R.CostPerUse)
+      OS << Cost << " ";
+    OS << '\n';
     OS << "\tCoveredBySubregs: " << R.CoveredBySubRegs << '\n';
     OS << "\tHasDisjunctSubRegs: " << R.HasDisjunctSubRegs << '\n';
     for (std::pair<CodeGenSubRegIndex*,CodeGenRegister*> P : R.getSubRegs()) {

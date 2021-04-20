@@ -8,23 +8,15 @@
 
 # CHECK:      (__TEXT,__text) section
 # CHECK-NEXT: _main:
-# CHECK-NEXT: movq	{{.*}}(%rip), %rax ## literal pool symbol address: _foo
-# CHECK-NEXT: movq	{{.*}}(%rip), %rax ## literal pool symbol address: _bar
-# CHECK-NEXT: movq	{{.*}}(%rip), %rax ## literal pool symbol address: _foo_tlv
-# CHECK-NEXT: movq	{{.*}}(%rip), %rax ## literal pool symbol address: _bar_tlv
-# CHECK-NEXT: callq	{{.*}} ## symbol stub for: _foo_fn
-# CHECK-NEXT: callq	{{.*}} ## symbol stub for: _bar_fn
+# CHECK-NEXT: movq  {{.*}}(%rip), %rax ## literal pool symbol address: _foo
+# CHECK-NEXT: movq  {{.*}}(%rip), %rax ## literal pool symbol address: _bar
+# CHECK-NEXT: movq  {{.*}}(%rip), %rax ## literal pool symbol address: _foo_tlv
+# CHECK-NEXT: movq  {{.*}}(%rip), %rax ## literal pool symbol address: _bar_tlv
+# CHECK-NEXT: callq {{.*}} ## symbol stub for: _foo_fn
+# CHECK-NEXT: callq {{.*}} ## symbol stub for: _bar_fn
 # CHECK-NEXT: retq
 
 # CHECK:      Indirect symbols for (__TEXT,__stubs) 2 entries
-# CHECK-NEXT: address            index name
-# CHECK-NEXT: _bar_fn
-# CHECK-NEXT: _foo_fn
-# CHECK-NEXT: Indirect symbols for (__DATA,__thread_ptrs) 2 entries
-# CHECK-NEXT: address            index name
-# CHECK-NEXT: _bar_tlv
-# CHECK-NEXT: _foo_tlv
-# CHECK-NEXT: Indirect symbols for (__DATA,__la_symbol_ptr) 2 entries
 # CHECK-NEXT: address            index name
 # CHECK-NEXT: _bar_fn
 # CHECK-NEXT: _foo_fn
@@ -33,6 +25,14 @@
 # CHECK-NEXT: _bar
 # CHECK-NEXT: _foo
 # CHECK-NEXT: _stub_binder
+# CHECK-NEXT: Indirect symbols for (__DATA,__la_symbol_ptr) 2 entries
+# CHECK-NEXT: address            index name
+# CHECK-NEXT: _bar_fn
+# CHECK-NEXT: _foo_fn
+# CHECK-NEXT: Indirect symbols for (__DATA,__thread_ptrs) 2 entries
+# CHECK-NEXT: address            index name
+# CHECK-NEXT: _bar_tlv
+# CHECK-NEXT: _foo_tlv
 
 #--- libfoo.s
 

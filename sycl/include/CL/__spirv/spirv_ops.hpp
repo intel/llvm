@@ -10,9 +10,9 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
 
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__
@@ -91,12 +91,20 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
   extern SYCL_EXTERNAL Type __spirv_AtomicUMin(                                \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
+#define __SPIRV_ATOMIC_FMIN(AS, Type)                                          \
+  extern SYCL_EXTERNAL Type __spirv_AtomicFMinEXT(                             \
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_SMAX(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicSMax(                                \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_UMAX(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicUMax(                                \
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
+#define __SPIRV_ATOMIC_FMAX(AS, Type)                                          \
+  extern SYCL_EXTERNAL Type __spirv_AtomicFMaxEXT(                             \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
 #define __SPIRV_ATOMIC_AND(AS, Type)                                           \
@@ -114,6 +122,8 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
 
 #define __SPIRV_ATOMIC_FLOAT(AS, Type)                                         \
   __SPIRV_ATOMIC_FADD(AS, Type)                                                \
+  __SPIRV_ATOMIC_FMIN(AS, Type)                                                \
+  __SPIRV_ATOMIC_FMAX(AS, Type)                                                \
   __SPIRV_ATOMIC_LOAD(AS, Type)                                                \
   __SPIRV_ATOMIC_STORE(AS, Type)                                               \
   __SPIRV_ATOMIC_EXCHANGE(AS, Type)
@@ -138,21 +148,30 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
   __SPIRV_ATOMIC_UMAX(AS, Type)
 
 // Helper atomic operations which select correct signed/unsigned version
-// of atomic min/max based on the signed-ness of the type
+// of atomic min/max based on the type
 #define __SPIRV_ATOMIC_MINMAX(AS, Op)                                          \
   template <typename T>                                                        \
-  typename std::enable_if<std::is_signed<T>::value, T>::type                   \
+  typename cl::sycl::detail::enable_if_t<                                      \
+      std::is_integral<T>::value && std::is_signed<T>::value, T>               \
       __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
                          __spv::MemorySemanticsMask::Flag Semantics,           \
                          T Value) {                                            \
     return __spirv_AtomicS##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if<!std::is_signed<T>::value, T>::type                  \
+  typename cl::sycl::detail::enable_if_t<                                      \
+      std::is_integral<T>::value && !std::is_signed<T>::value, T>              \
       __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
                          __spv::MemorySemanticsMask::Flag Semantics,           \
                          T Value) {                                            \
     return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
+  }                                                                            \
+  template <typename T>                                                        \
+  typename cl::sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>  \
+      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
+                         __spv::MemorySemanticsMask::Flag Semantics,           \
+                         T Value) {                                            \
+    return __spirv_AtomicF##Op##EXT(Ptr, Memory, Semantics, Value);            \
   }
 
 #define __SPIRV_ATOMICS(macro, Arg)                                            \
@@ -169,6 +188,30 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Min)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
+
+extern SYCL_EXTERNAL __attribute__((opencl_global)) void *
+__spirv_GenericCastToPtrExplicit_ToGlobal(const void *Ptr,
+                                          __spv::StorageClass::Flag S) noexcept;
+
+extern SYCL_EXTERNAL __attribute__((opencl_local)) void *
+__spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
+                                         __spv::StorageClass::Flag S) noexcept;
+
+template <typename dataT>
+extern __attribute__((opencl_global)) dataT *
+__spirv_GenericCastToPtrExplicit_ToGlobal(
+    const void *Ptr, __spv::StorageClass::Flag S) noexcept {
+  return (__attribute__((opencl_global))
+          dataT *)__spirv_GenericCastToPtrExplicit_ToGlobal(Ptr, S);
+}
+
+template <typename dataT>
+extern __attribute__((opencl_local)) dataT *
+__spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
+                                         __spv::StorageClass::Flag S) noexcept {
+  return (__attribute__((opencl_local))
+          dataT *)__spirv_GenericCastToPtrExplicit_ToLocal(Ptr, S);
+}
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT
@@ -279,12 +322,13 @@ extern SYCL_EXTERNAL ap_int<Wout> __spirv_ArbitraryFloatCastINTEL(
 
 template <int WA, int Wout>
 extern SYCL_EXTERNAL ap_int<Wout> __spirv_ArbitraryFloatCastFromIntINTEL(
-    ap_int<WA> A, int32_t Mout, int32_t EnableSubnormals = 0,
-    int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
+    ap_int<WA> A, int32_t Mout, bool FromSign = false,
+    int32_t EnableSubnormals = 0, int32_t RoundingMode = 0,
+    int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int Wout>
 extern SYCL_EXTERNAL ap_int<Wout> __spirv_ArbitraryFloatCastToIntINTEL(
-    ap_int<WA> A, int32_t MA, int32_t EnableSubnormals = 0,
+    ap_int<WA> A, int32_t MA, bool ToSign = false, int32_t EnableSubnormals = 0,
     int32_t RoundingMode = 0, int32_t RoundingAccuracy = 0) noexcept;
 
 template <int WA, int WB, int Wout>

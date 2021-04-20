@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2017 -DSYCL2017 %s
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -DSYCL2020 %s
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -Wno-sycl-strict -DNODIAG %s
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -Wno-sycl-strict -DNODIAG %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2017 -DSYCL2017 %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -DSYCL2020 %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -Wno-sycl-strict -DNODIAG %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -Wno-sycl-strict -DNODIAG %s
 
 #include "sycl.hpp"
 
@@ -15,7 +15,7 @@ int simple_add(int i) {
 int main() {
   queue q;
 #if defined(SYCL2020)
-  // expected-warning@Inputs/sycl.hpp:301 {{Passing kernel functions by value is deprecated in SYCL 2020}}
+  // expected-warning@#KernelSingleTask2017 {{Passing kernel functions by value is deprecated in SYCL 2020}}
   // expected-note@+3 {{in instantiation of function template specialization}}
 #endif
   q.submit([&](handler &h) {
@@ -23,7 +23,7 @@ int main() {
   });
 
 #if defined(SYCL2017)
-  // expected-warning@Inputs/sycl.hpp:296 {{Passing of kernel functions by reference is a SYCL 2020 extension}}
+  // expected-warning@#KernelSingleTask {{Passing of kernel functions by reference is a SYCL 2020 extension}}
   // expected-note@+3 {{in instantiation of function template specialization}}
 #endif
   q.submit([&](handler &h) {

@@ -24,24 +24,27 @@
 
 using namespace llvm;
 
-using ScalarSpecIDMapTy = std::map<StringRef, unsigned>;
-// Represents an element of a composite speciailization constant - at SYCL RT
-// level composite specialization constants are being represented as a single
-// byte-array, while at SPIR-V level they are represented by a number of scalar
-// specialization constants.
-struct CompositeSpecConstElementDescriptor {
+// Represents either an element of a composite speciailization constant or a
+// single scalar specialization constant - at SYCL RT level composite
+// specialization constants are being represented as a single byte-array, while
+// at SPIR-V level they are represented by a number of scalar specialization
+// constants.
+// The same representation is re-used for scalar specialization constants in
+// order to unify they processing with composite ones.
+struct SpecConstantDescriptor {
   // Encodes ID of a scalar specialization constants which is a leaf of some
   // composite specialization constant.
   unsigned ID;
   // Encodes offset from the beginning of composite, where scalar resides, i.e.
   // location of the scalar value within a byte-array containing the whole
-  // composite specialization constant.
+  // composite specialization constant. If descriptor is used to represent a
+  // whole scalar specialization constant instead of an element of a composite,
+  // this field should be contain zero.
   unsigned Offset;
   // Encodes size of scalar specialization constant.
   unsigned Size;
 };
-using CompositeSpecIDMapTy =
-    std::map<StringRef, std::vector<CompositeSpecConstElementDescriptor>>;
+using SpecIDMapTy = std::map<StringRef, std::vector<SpecConstantDescriptor>>;
 
 class SpecConstantsPass : public PassInfoMixin<SpecConstantsPass> {
 public:
@@ -57,9 +60,7 @@ public:
   // constants and
   // "spec constant name" -> vector<"spec constant int ID"> map for composite
   // spec constants
-  static bool collectSpecConstantMetadata(Module &M,
-                                          ScalarSpecIDMapTy &ScalarIDMap,
-                                          CompositeSpecIDMapTy &CompositeIDMap);
+  static bool collectSpecConstantMetadata(Module &M, SpecIDMapTy &IDMap);
 
 private:
   bool SetValAtRT;

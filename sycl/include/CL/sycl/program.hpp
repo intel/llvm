@@ -356,6 +356,11 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
+  /// Returns the backend associated with this program.
+  ///
+  /// \return the backend associated with this program.
+  backend get_backend() const noexcept;
+
   /// Gets the native handle of the SYCL platform.
   ///
   /// \return a native handle, the type of which defined by the backend.

@@ -29,7 +29,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 12
+  LLVM_VERSION: 13
 
 jobs:
   build_and_test:
@@ -64,6 +64,7 @@ jobs:
           mkdir build && cd build
           cmake ${{ github.workspace }} \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_FLAGS="-Werror" \
             -DLLVM_INCLUDE_TESTS=ON \
             -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${{ env.LLVM_VERSION }}/build/utils/lit/lit.py" \
             -G "Unix Makefiles"

@@ -273,6 +273,8 @@ void queue_impl::initHostTaskAndEventCallbackThreadPool() {
 
 pi_native_handle queue_impl::getNative() const {
   const detail::plugin &Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
   pi_native_handle Handle{};
   Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle);
   return Handle;

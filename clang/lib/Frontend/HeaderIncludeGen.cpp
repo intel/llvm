@@ -101,7 +101,7 @@ void clang::AttachHeaderIncludeGen(Preprocessor &PP,
     std::error_code EC;
     llvm::raw_fd_ostream *OS = new llvm::raw_fd_ostream(
         OutputPath.str(), EC,
-        llvm::sys::fs::OF_Append | llvm::sys::fs::OF_Text);
+        llvm::sys::fs::OF_Append | llvm::sys::fs::OF_TextWithCRLF);
     if (EC) {
       PP.getDiagnostics().Report(clang::diag::warn_fe_cc_print_header_failure)
           << EC.message();
@@ -119,7 +119,7 @@ void clang::AttachHeaderIncludeGen(Preprocessor &PP,
   // as sanitizer blacklists. It's only important for cl.exe compatibility,
   // the GNU way to generate rules is -M / -MM / -MD / -MMD.
   for (const auto &Header : DepOpts.ExtraDeps)
-    PrintHeaderInfo(OutputFile, Header, ShowDepth, 2, MSStyle);
+    PrintHeaderInfo(OutputFile, Header.first, ShowDepth, 2, MSStyle);
   PP.addPPCallbacks(std::make_unique<HeaderIncludesCallback>(
       &PP, ShowAllHeaders, OutputFile, DepOpts, OwnsOutputFile, ShowDepth,
       MSStyle));

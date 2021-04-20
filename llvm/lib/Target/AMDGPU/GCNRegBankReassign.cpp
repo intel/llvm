@@ -42,11 +42,17 @@
 #include "llvm/InitializePasses.h"
 
 using namespace llvm;
+using namespace AMDGPU;
 
 static cl::opt<unsigned> VerifyStallCycles("amdgpu-verify-regbanks-reassign",
   cl::desc("Verify stall cycles in the regbanks reassign pass"),
   cl::value_desc("0|1|2"),
   cl::init(0), cl::Hidden);
+
+// Threshold to keep compile time reasonable.
+static cl::opt<unsigned> VRegThresh("amdgpu-regbanks-reassign-threshold",
+  cl::desc("Max number of vregs to run the regbanks reassign pass"),
+  cl::init(100000), cl::Hidden);
 
 #define DEBUG_TYPE "amdgpu-regbanks-reassign"
 
@@ -130,7 +136,8 @@ public:
   static char ID;
 
 public:
-  GCNRegBankReassign() : MachineFunctionPass(ID) {
+  GCNRegBankReassign(RegBankReassignMode Mode = RM_BOTH)
+    : MachineFunctionPass(ID), Mode(Mode) {
     initializeGCNRegBankReassignPass(*PassRegistry::getPassRegistry());
   }
 
@@ -161,6 +168,8 @@ private:
   LiveRegMatrix *LRM;
 
   LiveIntervals *LIS;
+
+  RegBankReassignMode Mode;
 
   unsigned MaxNumVGPRs;
 
@@ -388,7 +397,11 @@ GCNRegBankReassign::analyzeInst(const MachineInstr &MI, Register Reg,
   unsigned StallCycles = 0;
   unsigned UsedBanks = 0;
 
-  if (MI.isDebugValue())
+  if (MI.isMetaInstruction())
+    return std::make_pair(StallCycles, UsedBanks);
+
+  if (!(Mode & RM_SGPR) &&
+      MI.getDesc().TSFlags & (SIInstrFlags::SMRD | SIInstrFlags::SALU))
     return std::make_pair(StallCycles, UsedBanks);
 
   RegsUsed.reset();
@@ -404,6 +417,8 @@ GCNRegBankReassign::analyzeInst(const MachineInstr &MI, Register Reg,
 
     // Do not compute stalls for AGPRs
     if (TRI->hasAGPRs(RC))
+      continue;
+    if ((Mode != RM_BOTH) && !(Mode & (TRI->hasVGPRs(RC) ? RM_VGPR : RM_SGPR)))
       continue;
 
     // Do not compute stalls if sub-register covers all banks
@@ -807,6 +822,19 @@ bool GCNRegBankReassign::runOnMachineFunction(MachineFunction &MF) {
     return false;
 
   MRI = &MF.getRegInfo();
+
+  LLVM_DEBUG(dbgs() << "=== RegBanks reassign analysis on function "
+                    << MF.getName() << '\n'
+                    << ((Mode & RM_VGPR) ? "VGPR " : "")
+                    << ((Mode & RM_SGPR) ? "SGPR " : "") << "mode\n"
+                    << "NumVirtRegs = " << MRI->getNumVirtRegs() << "\n\n");
+
+  if (MRI->getNumVirtRegs() > VRegThresh) {
+    LLVM_DEBUG(dbgs() << "NumVirtRegs > " << VRegThresh
+                      << " threshold, skipping function.\n\n");
+    return false;
+  }
+
   TRI = ST->getRegisterInfo();
   MLI = &getAnalysis<MachineLoopInfo>();
   VRM = &getAnalysis<VirtRegMap>();
@@ -825,9 +853,6 @@ bool GCNRegBankReassign::runOnMachineFunction(MachineFunction &MF) {
                          // Not a tight bound
                          AMDGPU::SReg_32RegClass.getNumRegs() / 2 + 1;
   RegsUsed.resize(NumRegBanks);
-
-  LLVM_DEBUG(dbgs() << "=== RegBanks reassign analysis on function " << MF.getName()
-               << '\n');
 
   unsigned StallCycles = collectCandidates(MF);
   NumStallsDetected += StallCycles;
@@ -867,4 +892,9 @@ bool GCNRegBankReassign::runOnMachineFunction(MachineFunction &MF) {
   RegsUsed.clear();
 
   return CyclesSaved > 0;
+}
+
+MachineFunctionPass *
+llvm::createGCNRegBankReassignPass(RegBankReassignMode Mode) {
+  return new GCNRegBankReassign(Mode);
 }

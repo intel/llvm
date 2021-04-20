@@ -70,7 +70,7 @@ struct Config {
   enum class BackgroundPolicy { Build, Skip };
   /// Describes an external index configuration.
   struct ExternalIndexSpec {
-    enum { File, Server } Kind;
+    enum { None, File, Server } Kind;
     /// This is one of:
     /// - Address of a clangd-index-server, in the form of "ip:port".
     /// - Absolute path to an index produced by clangd-indexer.
@@ -106,6 +106,13 @@ struct Config {
     // ::). All nested namespaces are affected as well.
     std::vector<std::string> FullyQualifiedNamespaces;
   } Style;
+
+  /// Configures code completion feature.
+  struct {
+    /// Whether code completion includes results that are not visible in current
+    /// scopes.
+    bool AllScopes = true;
+  } Completion;
 };
 
 } // namespace clangd

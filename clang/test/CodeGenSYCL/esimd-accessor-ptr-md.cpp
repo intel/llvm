@@ -1,6 +1,13 @@
-// RUN: %clang_cc1 -fsycl -fsycl-explicit-simd -fsycl-is-device \
+// TODO: previously code generation and ESIMD lowering was
+// a part of the same %clang_cc1 invocation, but now it is
+// separate. So, we can split this test into 2, where one
+// will be testing code generation and the second ESIMD lowering.
+//
+// RUN: %clang_cc1 -fsycl-is-device \
 // RUN:   -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice \
-// RUN:   -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN:   -disable-llvm-passes -emit-llvm %s -o %t
+// RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 // This test checks
 // 1) proper metadata generation for accessors used in ESIMD

@@ -56,7 +56,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     getPlugin().call<PiApiKind::piContextCreate>(
         Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
 #else
-    cl::sycl::detail::pi::die("CUDA support was not enabled at compilation time");
+    cl::sycl::detail::pi::die(
+        "CUDA support was not enabled at compilation time");
 #endif
   } else {
     getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
@@ -96,12 +97,17 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getPlugin() will be the same as the Plugin passed. This should be taken
   // care of when creating device object.
-  getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  //
+  // TODO: Move this backend-specific retain of the context to SYCL-2020 style
+  //       make_context<backend::opencl> interop, when that is created.
+  if (getPlugin().getBackend() == cl::sycl::backend::opencl) {
+    getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  }
   MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
-  if (MHostContext || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+  if (MHostContext) {
     throw invalid_object_error(
         "This instance of context doesn't support OpenCL interoperability.",
         PI_INVALID_CONTEXT);
@@ -153,8 +159,8 @@ KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;
 }
 
-bool
-context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
+bool context_impl::hasDevice(
+    shared_ptr_class<detail::device_impl> Device) const {
   for (auto D : MDevices)
     if (getSyclObjImpl(D) == Device)
       return true;
@@ -163,6 +169,8 @@ context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
 
 pi_native_handle context_impl::getNative() const {
   auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piContextRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

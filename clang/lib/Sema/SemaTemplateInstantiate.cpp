@@ -1460,6 +1460,11 @@ static ExprResult TransformUniqueStableName(TemplateInstantiator &TI,
     if (SubExpr.isInvalid())
       return ExprError();
 
+    SubExpr = TI.getSema().CheckPlaceholderExpr(SubExpr.get());
+
+    if (SubExpr.isInvalid())
+      return ExprError();
+
     if (!TI.getDerived().AlwaysRebuild() && SubExpr.get() == E->getExpr())
       return E;
 
@@ -3539,7 +3544,8 @@ Sema::InstantiateClassMembers(SourceLocation PointOfInstantiation,
             Instantiation->getTemplateInstantiationPattern();
         DeclContext::lookup_result Lookup =
             ClassPattern->lookup(Field->getDeclName());
-        FieldDecl *Pattern = cast<FieldDecl>(Lookup.front());
+        FieldDecl *Pattern = Lookup.find_first<FieldDecl>();
+        assert(Pattern);
         InstantiateInClassInitializer(PointOfInstantiation, Field, Pattern,
                                       TemplateArgs);
       }

@@ -25,9 +25,10 @@
 #include "clang/Basic/ABI.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Module.h"
-#include "clang/Basic/SanitizerBlacklist.h"
+#include "clang/Basic/NoSanitizeList.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/XRayLists.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -72,7 +73,6 @@ class VarDecl;
 class LangOptions;
 class CodeGenOptions;
 class HeaderSearchOptions;
-class PreprocessorOptions;
 class DiagnosticsEngine;
 class AnnotateAttr;
 class CXXDestructorDecl;
@@ -104,17 +104,17 @@ enum ForDefinition_t : bool {
   ForDefinition = true
 };
 
-struct OrderGlobalInits {
+struct OrderGlobalInitsOrStermFinalizers {
   unsigned int priority;
   unsigned int lex_order;
-  OrderGlobalInits(unsigned int p, unsigned int l)
+  OrderGlobalInitsOrStermFinalizers(unsigned int p, unsigned int l)
       : priority(p), lex_order(l) {}
 
-  bool operator==(const OrderGlobalInits &RHS) const {
+  bool operator==(const OrderGlobalInitsOrStermFinalizers &RHS) const {
     return priority == RHS.priority && lex_order == RHS.lex_order;
   }
 
-  bool operator<(const OrderGlobalInits &RHS) const {
+  bool operator<(const OrderGlobalInitsOrStermFinalizers &RHS) const {
     return std::tie(priority, lex_order) <
            std::tie(RHS.priority, RHS.lex_order);
   }
@@ -211,6 +211,9 @@ struct ObjCEntrypoints {
 
   /// void clang.arc.use(...);
   llvm::Function *clang_arc_use;
+
+  /// void clang.arc.noop.use(...);
+  llvm::Function *clang_arc_noop_use;
 };
 
 /// This class records statistics on instrumentation based profiling.
@@ -309,6 +312,7 @@ private:
   const TargetInfo &Target;
   std::unique_ptr<CGCXXABI> ABI;
   llvm::LLVMContext &VMContext;
+  std::string ModuleNameHash = "";
 
   std::unique_ptr<CodeGenTBAA> TBAA;
 
@@ -460,7 +464,8 @@ private:
   /// that we don't re-emit the initializer.
   llvm::DenseMap<const Decl*, unsigned> DelayedCXXInitPosition;
 
-  typedef std::pair<OrderGlobalInits, llvm::Function*> GlobalInitData;
+  typedef std::pair<OrderGlobalInitsOrStermFinalizers, llvm::Function *>
+      GlobalInitData;
 
   struct GlobalInitPriorityCmp {
     bool operator()(const GlobalInitData &LHS,
@@ -476,9 +481,25 @@ private:
   /// Global destructor functions and arguments that need to run on termination.
   /// When UseSinitAndSterm is set, it instead contains sterm finalizer
   /// functions, which also run on unloading a shared library.
-  std::vector<
-      std::tuple<llvm::FunctionType *, llvm::WeakTrackingVH, llvm::Constant *>>
+  typedef std::tuple<llvm::FunctionType *, llvm::WeakTrackingVH,
+                     llvm::Constant *>
+      CXXGlobalDtorsOrStermFinalizer_t;
+  SmallVector<CXXGlobalDtorsOrStermFinalizer_t, 8>
       CXXGlobalDtorsOrStermFinalizers;
+
+  typedef std::pair<OrderGlobalInitsOrStermFinalizers, llvm::Function *>
+      StermFinalizerData;
+
+  struct StermFinalizerPriorityCmp {
+    bool operator()(const StermFinalizerData &LHS,
+                    const StermFinalizerData &RHS) const {
+      return LHS.first.priority < RHS.first.priority;
+    }
+  };
+
+  /// Global variables with sterm finalizers whose order of initialization is
+  /// set by init_priority attribute.
+  SmallVector<StermFinalizerData, 8> PrioritizedCXXStermFinalizers;
 
   /// The complete set of modules that has been imported.
   llvm::SetVector<clang::Module *> ImportedModules;
@@ -590,6 +611,8 @@ public:
 
   /// Return true iff an Objective-C runtime has been configured.
   bool hasObjCRuntime() { return !!ObjCRuntime; }
+
+  const std::string &getModuleNameHash() const { return ModuleNameHash; }
 
   /// Return a reference to the configured OpenCL runtime.
   CGOpenCLRuntime &getOpenCLRuntime() {
@@ -1069,6 +1092,9 @@ public:
   /// Add a global to a list to be added to the llvm.compiler.used metadata.
   void addCompilerUsedGlobal(llvm::GlobalValue *GV);
 
+  /// Add a global to a list to be added to the llvm.compiler.used metadata.
+  void addUsedOrCompilerUsedGlobal(llvm::GlobalValue *GV);
+
   /// Add a destructor and object to add to the C++ global destructor function.
   void AddCXXDtorEntry(llvm::FunctionCallee DtorFn, llvm::Constant *Object) {
     CXXGlobalDtorsOrStermFinalizers.emplace_back(DtorFn.getFunctionType(),
@@ -1085,6 +1111,14 @@ public:
   void AddCXXStermFinalizerToGlobalDtor(llvm::Function *StermFinalizer,
                                         int Priority) {
     AddGlobalDtor(StermFinalizer, Priority);
+  }
+
+  void AddCXXPrioritizedStermFinalizerEntry(llvm::Function *StermFinalizer,
+                                            int Priority) {
+    OrderGlobalInitsOrStermFinalizers Key(Priority,
+                                          PrioritizedCXXStermFinalizers.size());
+    PrioritizedCXXStermFinalizers.push_back(
+        std::make_pair(Key, StermFinalizer));
   }
 
   /// Create or return a runtime function declaration with the specified type
@@ -1282,12 +1316,11 @@ public:
   /// annotations are emitted during finalization of the LLVM code.
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
 
-  bool isInSanitizerBlacklist(SanitizerMask Kind, llvm::Function *Fn,
-                              SourceLocation Loc) const;
+  bool isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
+                          SourceLocation Loc) const;
 
-  bool isInSanitizerBlacklist(llvm::GlobalVariable *GV, SourceLocation Loc,
-                              QualType Ty,
-                              StringRef Category = StringRef()) const;
+  bool isInNoSanitizeList(llvm::GlobalVariable *GV, SourceLocation Loc,
+                          QualType Ty, StringRef Category = StringRef()) const;
 
   /// Imbue XRay attributes to a function, applying the always/never attribute
   /// lists in the process. Returns true if we did imbue attributes this way,
@@ -1387,6 +1420,10 @@ public:
   void CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
                                           llvm::Function *F);
 
+  /// Whether this function's return type has no side effects, and thus may
+  /// be trivially discarded if it is unused.
+  bool MayDropFunctionReturn(const ASTContext &Context, QualType ReturnType);
+
   /// Returns whether this module needs the "all-vtables" type identifier.
   bool NeedAllVtablesTypeId() const;
 
@@ -1437,6 +1474,10 @@ public:
                                            LValueBaseInfo *BaseInfo = nullptr,
                                            TBAAAccessInfo *TBAAInfo = nullptr);
   bool stopAutoInit();
+
+  /// Print the postfix for externalized static variable for single source
+  /// offloading languages CUDA and HIP.
+  void printPostfixForExternalizedStaticVar(llvm::raw_ostream &OS) const;
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(

@@ -41,6 +41,7 @@ public:
   ///
   /// \param ClEvent is a valid instance of OpenCL cl_event.
   /// \param SyclContext is an instance of SYCL context.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   event(cl_event ClEvent, const context &SyclContext);
 
   event(const event &rhs) = default;
@@ -58,6 +59,7 @@ public:
   /// Returns a valid OpenCL event interoperability handle.
   ///
   /// \return a valid instance of OpenCL cl_event.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   cl_event get() const;
 
   /// Checks if this event is a SYCL host event.
@@ -118,12 +120,18 @@ public:
   typename info::param_traits<info::event_profiling, param>::return_type
   get_profiling_info() const;
 
+  /// Returns the backend associated with this platform.
+  ///
+  /// \return the backend associated with this platform
+  backend get_backend() const noexcept;
+
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   auto get_native() const -> typename interop<BackendName, event>::type {
-    return static_cast<typename interop<BackendName, event>::type>(getNative());
+    return reinterpret_cast<typename interop<BackendName, event>::type>(
+        getNative());
   }
 
 private:

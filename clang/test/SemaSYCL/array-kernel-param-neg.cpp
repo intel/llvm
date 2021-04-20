@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fcxx-exceptions -sycl-std=2020 -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fcxx-exceptions -sycl-std=2020 -verify -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // an array of non-trivially copyable structs as SYCL kernel parameter or

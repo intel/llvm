@@ -17,7 +17,7 @@ if (NOT OpenCL_INCLUDE_DIRS)
     set(OpenCL_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc")
     ExternalProject_Add(opencl-headers
             GIT_REPOSITORY https://github.com/KhronosGroup/OpenCL-Headers.git
-            GIT_TAG origin/master
+            GIT_TAG 23710f1b99186065c1768fc3098ba681adc0f253
             SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc"
             CONFIGURE_COMMAND ""
             BUILD_COMMAND ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${CMAKE_CURRENT_BINARY_DIR}/inc/CL
@@ -48,7 +48,7 @@ if (NOT OpenCL_LIBRARIES)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/icd_build)
     ExternalProject_Add(opencl-icd
             GIT_REPOSITORY https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-            GIT_TAG v2020.06.16
+            GIT_TAG 5f8249691ec8c25775789498951f8e9eb62c201d
             SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/icd"
             BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
             CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}

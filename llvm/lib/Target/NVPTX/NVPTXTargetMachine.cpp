@@ -236,7 +236,9 @@ void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
                                PassBuilder::OptimizationLevel Level) {
         FunctionPassManager FPM(DebugPassManager);
         FPM.addPass(NVVMReflectPass(Subtarget.getSmVersion()));
-        FPM.addPass(NVVMIntrRangePass(Subtarget.getSmVersion()));
+        // FIXME: NVVMIntrRangePass is causing numerical discrepancies,
+        // investigate and re-enable.
+        // FPM.addPass(NVVMIntrRangePass(Subtarget.getSmVersion()));
         PM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
       });
 }
@@ -302,8 +304,9 @@ void NVPTXPassConfig::addIRPasses() {
   const NVPTXSubtarget &ST = *getTM<NVPTXTargetMachine>().getSubtargetImpl();
   addPass(createNVVMReflectPass(ST.getSmVersion()));
 
-  if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA &&
-      getTM<NVPTXTargetMachine>().getTargetTriple().getEnvironment() == Triple::SYCLDevice) {
+  // FIXME: should the target triple check be done by the pass itself?
+  // See createNVPTXLowerArgsPass as an example
+  if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA) {
     addPass(createGlobalOffsetPass());
     addPass(createLocalAccessorToSharedMemoryPass());
   }

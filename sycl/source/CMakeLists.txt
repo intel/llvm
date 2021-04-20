@@ -61,6 +61,8 @@ function(add_sycl_rt_library LIB_NAME)
     endif()
   endif()
 
+  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+
   target_include_directories(
     ${LIB_OBJ_NAME}
     PRIVATE
@@ -102,6 +104,7 @@ set(SYCL_SOURCES
     "${sycl_inc_dir}/CL/sycl.hpp"
     "backend/opencl.cpp"
     "backend/level_zero.cpp"
+    "backend.cpp"
     "detail/accessor_impl.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
@@ -134,6 +137,7 @@ set(SYCL_SOURCES
     "detail/queue_impl.cpp"
     "detail/online_compiler/online_compiler.cpp"
     "detail/os_util.cpp"
+    "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
@@ -161,6 +165,7 @@ set(SYCL_SOURCES
     "interop_handle.cpp"
     "interop_handler.cpp"
     "kernel.cpp"
+    "kernel_bundle.cpp"
     "platform.cpp"
     "program.cpp"
     "queue.cpp"

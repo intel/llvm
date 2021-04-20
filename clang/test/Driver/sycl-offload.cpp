@@ -22,5 +22,12 @@
 // RUN:  %clang -### -fsycl -E %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // RUN:  %clang -### -fsycl -S %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // RUN:  %clang -### -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
-// CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl" "-fsycl-is-device"
-// CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl" "-fsycl-is-host"
+// CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
+// CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-host"
+
+/// Check that -fcoverage-mapping is disabled for device
+// RUN: %clang -### -fsycl -fprofile-instr-generate -fcoverage-mapping -target x86_64-unknown-linux-gnu -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK_COVERAGE_MAPPING %s
+// CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-fprofile-instrument=clang"
+// CHECK_COVERAGE_MAPPING-NOT: "-fcoverage-mapping"
+// CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-fprofile-instrument=clang"{{.*}} "-fcoverage-mapping"{{.*}}

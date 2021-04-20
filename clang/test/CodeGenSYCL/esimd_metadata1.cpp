@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice \
-// RUN:   -fsycl -fsycl-is-device -fsycl-explicit-simd -S -emit-llvm %s -o - | \
+// RUN:   -fsycl-is-device -S -emit-llvm %s -o - | \
 // RUN:   FileCheck %s
 
 // The test checks that:
@@ -16,6 +16,9 @@ void kernel(const Func &f) __attribute__((sycl_kernel)) {
 void bar() {
   kernel<class MyKernel>([=]() __attribute__((sycl_explicit_simd)){});
   // CHECK: define {{.*}}spir_kernel void @_ZTSZ3barvE8MyKernel() {{.*}} !sycl_explicit_simd ![[EMPTY:[0-9]+]] !intel_reqd_sub_group_size ![[REQD_SIZE:[0-9]+]]
+
+  kernel<class MyEsimdKernel>([=]() [[intel::sycl_explicit_simd]]{});
+  // CHECK: define {{.*}}spir_kernel void @_ZTSZ3barvE13MyEsimdKernel() {{.*}} !sycl_explicit_simd ![[EMPTY:[0-9]+]] !intel_reqd_sub_group_size ![[REQD_SIZE]]
 }
 
 // CHECK: !spirv.Source = !{[[LANG:![0-9]+]]}
