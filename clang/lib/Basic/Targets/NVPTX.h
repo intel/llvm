@@ -171,6 +171,12 @@ public:
     return CCCR_Warning;
   }
 
+  void adjust(LangOptions &Opts) override {
+    TargetInfo::adjust(Opts);
+    // FIXME: Needed for compiling SYCL to PTX.
+    TLSSupported = TLSSupported || Opts.SYCLIsDevice;
+  }
+
   bool hasExtIntType() const override { return true; }
 };
 } // namespace targets

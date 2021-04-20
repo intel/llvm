@@ -4172,7 +4172,8 @@ static void updateModuleTimestamp(ModuleFile &MF) {
   // Overwrite the timestamp file contents so that file's mtime changes.
   std::string TimestampFilename = MF.getTimestampFilename();
   std::error_code EC;
-  llvm::raw_fd_ostream OS(TimestampFilename, EC, llvm::sys::fs::OF_Text);
+  llvm::raw_fd_ostream OS(TimestampFilename, EC,
+                          llvm::sys::fs::OF_TextWithCRLF);
   if (EC)
     return;
   OS << "Timestamp file\n";
@@ -11999,6 +12000,9 @@ OMPClause *OMPClauseReader::readClause() {
   case llvm::omp::OMPC_affinity:
     C = OMPAffinityClause::CreateEmpty(Context, Record.readInt());
     break;
+  case llvm::omp::OMPC_filter:
+    C = new (Context) OMPFilterClause();
+    break;
 #define OMP_CLAUSE_NO_CLASS(Enum, Str)                                         \
   case llvm::omp::Enum:                                                        \
     break;
@@ -12968,6 +12972,12 @@ void OMPClauseReader::VisitOMPOrderClause(OMPOrderClause *C) {
   C->setKind(Record.readEnum<OpenMPOrderClauseKind>());
   C->setLParenLoc(Record.readSourceLocation());
   C->setKindKwLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPFilterClause(OMPFilterClause *C) {
+  VisitOMPClauseWithPreInit(C);
+  C->setThreadID(Record.readSubExpr());
+  C->setLParenLoc(Record.readSourceLocation());
 }
 
 OMPTraitInfo *ASTRecordReader::readOMPTraitInfo() {

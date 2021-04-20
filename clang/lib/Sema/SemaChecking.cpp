@@ -3409,20 +3409,27 @@ bool Sema::CheckAMDGCNBuiltinFunctionCall(unsigned BuiltinID,
   if (!ArgExpr->EvaluateAsInt(ArgResult, Context))
     return Diag(ArgExpr->getExprLoc(), diag::err_typecheck_expect_int)
            << ArgExpr->getType();
-  int ord = ArgResult.Val.getInt().getZExtValue();
+  auto Ord = ArgResult.Val.getInt().getZExtValue();
 
   // Check valididty of memory ordering as per C11 / C++11's memody model.
-  switch (static_cast<llvm::AtomicOrderingCABI>(ord)) {
+  // Only fence needs check. Atomic dec/inc allow all memory orders.
+  if (!llvm::isValidAtomicOrderingCABI(Ord))
+    return Diag(ArgExpr->getBeginLoc(),
+                diag::warn_atomic_op_has_invalid_memory_order)
+           << ArgExpr->getSourceRange();
+  switch (static_cast<llvm::AtomicOrderingCABI>(Ord)) {
+  case llvm::AtomicOrderingCABI::relaxed:
+  case llvm::AtomicOrderingCABI::consume:
+    if (BuiltinID == AMDGPU::BI__builtin_amdgcn_fence)
+      return Diag(ArgExpr->getBeginLoc(),
+                  diag::warn_atomic_op_has_invalid_memory_order)
+             << ArgExpr->getSourceRange();
+    break;
   case llvm::AtomicOrderingCABI::acquire:
   case llvm::AtomicOrderingCABI::release:
   case llvm::AtomicOrderingCABI::acq_rel:
   case llvm::AtomicOrderingCABI::seq_cst:
     break;
-  default: {
-    return Diag(ArgExpr->getBeginLoc(),
-                diag::warn_atomic_op_has_invalid_memory_order)
-           << ArgExpr->getSourceRange();
-  }
   }
 
   Arg = TheCall->getArg(ScopeIndex);
@@ -3447,12 +3454,18 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
   Features.split(ReqFeatures, ',');
 
   // Check if each required feature is included
-  for (auto &I : ReqFeatures) {
-    if (TI.hasFeature(I))
+  for (StringRef F : ReqFeatures) {
+    if (TI.hasFeature(F))
       continue;
+
+    // If the feature is 64bit, alter the string so it will print better in
+    // the diagnostic.
+    if (F == "64bit")
+      F = "RV64";
+
     // Convert features like "zbr" and "experimental-zbr" to "Zbr".
-    I.consume_front("experimental-");
-    std::string FeatureStr = I.str();
+    F.consume_front("experimental-");
+    std::string FeatureStr = F.str();
     FeatureStr[0] = std::toupper(FeatureStr[0]);
 
     // Error message
@@ -5070,7 +5083,8 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
   case AtomicExpr::AO__atomic_add_fetch:
   case AtomicExpr::AO__atomic_sub_fetch:
     IsAddSub = true;
-    LLVM_FALLTHROUGH;
+    Form = Arithmetic;
+    break;
   case AtomicExpr::AO__c11_atomic_fetch_and:
   case AtomicExpr::AO__c11_atomic_fetch_or:
   case AtomicExpr::AO__c11_atomic_fetch_xor:
@@ -5085,6 +5099,8 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
   case AtomicExpr::AO__atomic_or_fetch:
   case AtomicExpr::AO__atomic_xor_fetch:
   case AtomicExpr::AO__atomic_nand_fetch:
+    Form = Arithmetic;
+    break;
   case AtomicExpr::AO__c11_atomic_fetch_min:
   case AtomicExpr::AO__c11_atomic_fetch_max:
   case AtomicExpr::AO__opencl_atomic_fetch_min:
@@ -5177,10 +5193,24 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
 
   // For an arithmetic operation, the implied arithmetic must be well-formed.
   if (Form == Arithmetic) {
-    // gcc does not enforce these rules for GNU atomics, but we do so for sanity.
-    if (IsAddSub && !ValType->isIntegerType()
-        && !ValType->isPointerType()) {
-      Diag(ExprRange.getBegin(), diag::err_atomic_op_needs_atomic_int_or_ptr)
+    // gcc does not enforce these rules for GNU atomics, but we do so for
+    // sanity.
+    auto IsAllowedValueType = [&](QualType ValType) {
+      if (ValType->isIntegerType())
+        return true;
+      if (ValType->isPointerType())
+        return true;
+      if (!ValType->isFloatingType())
+        return false;
+      // LLVM Parser does not allow atomicrmw with x86_fp80 type.
+      if (ValType->isSpecificBuiltinType(BuiltinType::LongDouble) &&
+          &Context.getTargetInfo().getLongDoubleFormat() ==
+              &llvm::APFloat::x87DoubleExtended())
+        return false;
+      return true;
+    };
+    if (IsAddSub && !IsAllowedValueType(ValType)) {
+      Diag(ExprRange.getBegin(), diag::err_atomic_op_needs_atomic_int_ptr_or_fp)
           << IsC11 << Ptr->getType() << Ptr->getSourceRange();
       return ExprError();
     }
@@ -5307,7 +5337,9 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
         // passed by address. For the rest, GNU uses by-address and C11 uses
         // by-value.
         assert(Form != Load);
-        if (Form == Init || (Form == Arithmetic && ValType->isIntegerType()))
+        if (Form == Arithmetic && ValType->isPointerType())
+          Ty = Context.getPointerDiffType();
+        else if (Form == Init || Form == Arithmetic)
           Ty = ValType;
         else if (Form == Copy || Form == Xchg) {
           if (IsPassedByAddress) {
@@ -5316,9 +5348,7 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
                                  ExprRange.getBegin());
           }
           Ty = ByValType;
-        } else if (Form == Arithmetic)
-          Ty = Context.getPointerDiffType();
-        else {
+        } else {
           Expr *ValArg = APIOrderedArgs[i];
           // The value pointer is always dereferenced, a nullptr is undefined.
           CheckNonNullArgument(*this, ValArg, ExprRange.getBegin());

@@ -322,11 +322,9 @@ pi_result cuda_piEventRetain(pi_event event);
 /// \endcond
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
-    : commandType_{type}, refCount_{1}, isCompleted_{false}, isRecorded_{false},
-      isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
-      queue_{queue}, context_{context} {
-
-  assert(type != PI_COMMAND_TYPE_USER);
+    : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
+      isRecorded_{false}, isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr},
+      evQueued_{nullptr}, queue_{queue}, context_{context} {
 
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
 
@@ -367,6 +365,23 @@ pi_result _pi_event::start() {
 
   isStarted_ = true;
   return result;
+}
+
+bool _pi_event::is_completed() const noexcept {
+  if (!isRecorded_) {
+    return false;
+  }
+  if (!hasBeenWaitedOn_) {
+    const CUresult ret = cuEventQuery(evEnd_);
+    if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_READY) {
+      PI_CHECK_ERROR(ret);
+      return false;
+    }
+    if (ret == CUDA_ERROR_NOT_READY) {
+      return false;
+    }
+  }
+  return true;
 }
 
 pi_uint64 _pi_event::get_queued_time() const {
@@ -430,7 +445,7 @@ pi_result _pi_event::wait() {
   pi_result retErr;
   try {
     retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
-    isCompleted_ = true;
+    hasBeenWaitedOn_ = true;
   } catch (pi_result error) {
     retErr = error;
   }
@@ -3841,9 +3856,10 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR array_desc) {
   case CU_AD_FORMAT_SIGNED_INT32:
   case CU_AD_FORMAT_FLOAT:
     return 4;
+  default:
+    cl::sycl::detail::pi::die("Invalid image format.");
+    return 0;
   }
-  cl::sycl::detail::pi::die("Invalid iamge format.");
-  return 0;
 }
 
 /// General ND memory copy operation for images (where N > 1).

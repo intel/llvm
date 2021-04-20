@@ -29,6 +29,8 @@ using namespace sycl::INTEL::gpu::detail;
 ///
 /// \ingroup sycl_esimd
 template <typename Ty, int N> class simd {
+  template <typename, typename> friend class simd_view;
+
 public:
   /// The underlying builtin data type.
   using vector_type = detail::vector_type_t<Ty, N>;

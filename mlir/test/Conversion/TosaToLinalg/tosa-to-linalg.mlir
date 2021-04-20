@@ -830,3 +830,96 @@ func @argmax(%arg0 : tensor<3x2xi32>, %arg1 : tensor<6xf32>) -> () {
 
   return
 }
+
+// -----
+
+// CHECK-LABEL: @table8
+func @table8(%arg0: tensor<6xi8>, %arg1: tensor<513xi8>) -> () {
+  // CHECK: %[[INIT:.+]] = linalg.init_tensor [6]
+  // CHECK: %[[GENERIC:.+]] = linalg.generic {indexing_maps = [#map, #map], iterator_types = ["parallel"]} ins(%arg0 : tensor<6xi8>) outs(%[[INIT]] : tensor<6xi8>)
+  // CHECK: ^bb0(%[[ARG_IN:.+]]: i8, %[[ARG_INIT:.+]]: i8)
+  // CHECK:   %[[CAST:.+]] = index_cast %[[ARG_IN]]
+  // CHECK:   %[[EXTRACT:.+]] = tensor.extract %arg1[%[[CAST]]]
+  // CHECK:   linalg.yield %[[EXTRACT]]
+  %0 = "tosa.table"(%arg0, %arg1)  : (tensor<6xi8>, tensor<513xi8>)  -> (tensor<6xi8>)
+  return
+}
+
+// CHECK-LABEL: @table16
+func @table16(%arg0: tensor<6xi16>, %arg1: tensor<513xi16>) -> () {
+  // CHECK: %[[INIT:.+]] = linalg.init_tensor [6]
+  // CHECK: %[[GENERIC:.+]] = linalg.generic {indexing_maps = [#map, #map], iterator_types = ["parallel"]} ins(%arg0 : tensor<6xi16>) outs(%[[INIT]] : tensor<6xi32>)
+  // CHECK: ^bb0(%arg2: i16, %arg3: i32)
+  // CHECK: %[[EXT_IN:.+]] = sexti %arg2
+  // CHECK: %[[C32768:.+]] = constant 32768
+  // CHECK: %[[C7:.+]] = constant 7
+  // CHECK: %[[C1:.+]] = constant 1
+  // CHECK: %[[C127:.+]] = constant 127
+  // CHECK: %[[INADD:.+]] = addi %[[EXT_IN]], %[[C32768]]
+  // CHECK: %[[IDX:.+]] = shift_right_unsigned %[[INADD]], %[[C7]]
+  // CHECK: %[[FRACTION:.+]] = and %[[INADD]], %[[C127]]
+  // CHECK: %[[IDXPLUS1:.+]] = addi %[[IDX]], %[[C1]]
+  // CHECK: %[[IDX_CAST:.+]] = index_cast %[[IDX]]
+  // CHECK: %[[IDXPLUS1_CAST:.+]] = index_cast %[[IDXPLUS1]]
+  // CHECK: %[[BASE:.+]] = tensor.extract %arg1[%[[IDX_CAST]]]
+  // CHECK: %[[NEXT:.+]] = tensor.extract %arg1[%[[IDXPLUS1_CAST]]]
+  // CHECK: %[[BASE_EXT:.+]] = sexti %[[BASE]]
+  // CHECK: %[[NEXT_EXT:.+]] = sexti %[[NEXT]]
+  // CHECK: %[[BASE_MUL:.+]] = shift_left %[[BASE_EXT]], %[[C7]]
+  // CHECK: %[[DIFF:.+]] = subi %[[NEXT_EXT]], %[[BASE_EXT]]
+  // CHECK: %[[DIFF_MUL:.+]] = muli %[[DIFF]], %[[FRACTION]]
+  // CHECK: %[[RESULT:.+]] = addi %[[BASE_MUL]], %[[DIFF_MUL]]
+  // CHECK: linalg.yield %[[RESULT]]
+  %0 = "tosa.table"(%arg0, %arg1)  : (tensor<6xi16>, tensor<513xi16>)  -> (tensor<6xi32>)
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @max_pool
+func @max_pool(%arg0: tensor<1x6x34x62xf32>) -> () {
+  // CHECK-DAG: [[CONST:%.+]] = constant -3.40282347E+38
+  // CHECK-DAG: [[INIT:%.+]] = linalg.init_tensor [1, 4, 32, 62]
+  // CHECK-DAG: [[FILL:%.+]] = linalg.fill([[INIT]], [[CONST]])
+  // CHECK-DAG: [[KERNEL:%.+]] = linalg.init_tensor [3, 3]
+  // CHECK: linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%arg0, [[KERNEL]] : tensor<1x6x34x62xf32>, tensor<3x3xf32>) outs([[FILL]] : tensor<1x4x32x62xf32>)
+  %0 = "tosa.max_pool2d"(%arg0) {pad = [0, 0, 0, 0], kernel = [3, 3], stride = [1, 1]} : (tensor<1x6x34x62xf32>)  -> (tensor<1x4x32x62xf32>)
+  return
+}
+
+// CHECK-LABEL: @max_pool_padded
+func @max_pool_padded(%arg0: tensor<1x6x34x62xf32>) -> () {
+  // CHECK-DAG: [[CONST:%.+]] = constant -3.40282347E+38 : f32
+  // CHECK-DAG: [[PAD:%.+]] = linalg.pad_tensor %arg0 low[0, 0, 0, 0] high[0, 0, 1, 0]
+  // CHECK-DAG:   linalg.yield [[CONST]]
+  // CHECK-DAG: [[INIT:%.+]] = linalg.init_tensor [1, 4, 33, 62]
+  // CHECK-DAG: [[FILL:%.+]] = linalg.fill([[INIT]], [[CONST]])
+  // CHECK-DAG: [[KERNEL:%.+]] = linalg.init_tensor [3, 3]
+  // CHECK: linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins([[PAD]], [[KERNEL]] : tensor<1x6x35x62xf32>, tensor<3x3xf32>) outs([[FILL]] : tensor<1x4x33x62xf32>)
+  %0 = "tosa.max_pool2d"(%arg0) {pad = [0, 0, 0, 1], kernel = [3, 3], stride = [1, 1]} : (tensor<1x6x34x62xf32>)  -> (tensor<1x4x33x62xf32>)
+  return
+}
+
+// CHECK-LABEL: @max_pool_i8
+func @max_pool_i8(%arg0: tensor<1x6x34x62xi8>) -> () {
+  // CHECK: constant -128
+  // CHECK: linalg.pooling_nhwc_i8_max
+  %0 = "tosa.max_pool2d"(%arg0) {pad = [0, 0, 0, 0], kernel = [3, 3], stride = [1, 1]} : (tensor<1x6x34x62xi8>)  -> (tensor<1x4x32x62xi8>)
+  return
+}
+
+// CHECK-LABEL: @max_pool_i16
+func @max_pool_i16(%arg0: tensor<1x6x34x62xi16>) -> () {
+  // CHECK: constant -32768
+  // CHECK: linalg.pooling_nhwc_i16_max
+  %0 = "tosa.max_pool2d"(%arg0) {pad = [0, 0, 0, 0], kernel = [3, 3], stride = [1, 1]} : (tensor<1x6x34x62xi16>)  -> (tensor<1x4x32x62xi16>)
+  return
+}
+
+// CHECK-LABEL: @max_pool_i32
+func @max_pool_i32(%arg0: tensor<1x6x34x62xi32>) -> () {
+  // CHECK: constant -2147483648
+  // CHECK: linalg.pooling_nhwc_i32_max
+  %0 = "tosa.max_pool2d"(%arg0) {pad = [0, 0, 0, 0], kernel = [3, 3], stride = [1, 1]} : (tensor<1x6x34x62xi32>)  -> (tensor<1x4x32x62xi32>)
+  return
+}

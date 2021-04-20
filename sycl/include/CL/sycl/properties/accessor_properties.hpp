@@ -52,7 +52,7 @@ struct buffer_location {
 } // namespace property
 #if __cplusplus > 201402L
 template <int A>
-inline constexpr property::buffer_location::instance<A> buffer_location;
+inline constexpr property::buffer_location::instance<A> buffer_location{};
 #endif
 } // namespace INTEL
 namespace ONEAPI {

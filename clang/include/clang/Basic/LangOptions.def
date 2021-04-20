@@ -309,6 +309,8 @@ LANGOPT(ObjCSubscriptingLegacyRuntime         , 1, 0, "Subscripting support in l
 BENIGN_LANGOPT(CompatibilityQualifiedIdBlockParamTypeChecking, 1, 0,
                "compatibility mode for type checking block parameters "
                "involving qualified id types")
+LANGOPT(ObjCDisableDirectMethodsForTesting, 1, 0,
+        "Disable recognition of objc_direct methods")
 LANGOPT(CFProtectionBranch , 1, 0, "Control-Flow Branch Protection enabled")
 LANGOPT(FakeAddressSpaceMap , 1, 0, "OpenCL fake address space map")
 ENUM_LANGOPT(AddressSpaceMapMangling , AddrSpaceMapMangling, 2, ASMM_Target, "OpenCL address space map mangling mode")
@@ -422,6 +424,14 @@ LANGOPT(RelativeCXXABIVTables, 1, 0,
         "Use an ABI-incompatible v-table layout that uses relative references")
 
 LANGOPT(ArmSveVectorBits, 32, 0, "SVE vector size in bits")
+
+ENUM_LANGOPT(DefaultSubGroupSizeType, SubGroupSizeType, 2,
+             SubGroupSizeType::None,
+             "Strategy via which sub group is assigned for SYCL kernel "
+             "types if not overridden via attributes")
+
+VALUE_LANGOPT(DefaultSubGroupSize, 32, 0,
+              "If DefaultSubGroupSizeType is Integer contains the value")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

@@ -521,9 +521,10 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
 static unsigned getOptimizationLevel(ArgList &Args, InputKind IK,
                                      DiagnosticsEngine &Diags) {
   unsigned DefaultOpt = llvm::CodeGenOpt::None;
-  if ((IK.getLanguage() == Language::OpenCL ||
-       IK.getLanguage() == Language::OpenCLCXX) &&
-      !Args.hasArg(OPT_cl_opt_disable) || Args.hasArg(OPT_fsycl_is_device))
+  if (((IK.getLanguage() == Language::OpenCL ||
+        IK.getLanguage() == Language::OpenCLCXX) &&
+       !Args.hasArg(OPT_cl_opt_disable)) ||
+      Args.hasArg(OPT_fsycl_is_device))
     DefaultOpt = llvm::CodeGenOpt::Default;
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
@@ -3502,6 +3503,20 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
       LangOptions::SignReturnAddressKeyKind::BKey)
     GenerateArg(Args, OPT_msign_return_address_key_EQ, "b_key", SA);
 
+  switch (Opts.getDefaultSubGroupSizeType()) {
+  case LangOptions::SubGroupSizeType::Auto:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size, "automatic", SA);
+    break;
+  case LangOptions::SubGroupSizeType::Primary:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size, "primary", SA);
+    break;
+  case LangOptions::SubGroupSizeType::Integer:
+    GenerateArg(Args, OPT_fsycl_default_sub_group_size,
+                Twine(Opts.DefaultSubGroupSize), SA);
+    break;
+  case LangOptions::SubGroupSizeType::None:
+    break;
+  }
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
@@ -3588,6 +3603,28 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
         // User has passed an invalid value to the flag, this is an error
         Diags.Report(diag::err_drv_invalid_value)
             << A->getAsString(Args) << A->getValue();
+      }
+    }
+  }
+
+  // Parse SYCL Default Sub group size.
+  if (const Arg *A = Args.getLastArg(OPT_fsycl_default_sub_group_size)) {
+    StringRef Value = A->getValue();
+    Opts.setDefaultSubGroupSizeType(
+        llvm::StringSwitch<LangOptions::SubGroupSizeType>(Value)
+            .Case("automatic", LangOptions::SubGroupSizeType::Auto)
+            .Case("primary", LangOptions::SubGroupSizeType::Primary)
+            .Default(LangOptions::SubGroupSizeType::Integer));
+
+    if (Opts.getDefaultSubGroupSizeType() ==
+        LangOptions::SubGroupSizeType::Integer) {
+      int64_t IntResult;
+      if (!Value.getAsInteger(10, IntResult)) {
+        Opts.DefaultSubGroupSize = IntResult;
+      } else {
+        Diags.Report(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+        Opts.setDefaultSubGroupSizeType(LangOptions::SubGroupSizeType::None);
       }
     }
   }

@@ -457,7 +457,7 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     // sophisticated tradeoffs for guards considering potential for check
     // widening, but for now we keep things simple.
     if ((II->getIntrinsicID() == Intrinsic::assume &&
-         isAssumeWithEmptyBundle(*II)) ||
+         isAssumeWithEmptyBundle(cast<AssumeInst>(*II))) ||
         II->getIntrinsicID() == Intrinsic::experimental_guard) {
       if (ConstantInt *Cond = dyn_cast<ConstantInt>(II->getArgOperand(0)))
         return !Cond->isZero();
@@ -738,12 +738,15 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
   SmallVector<DominatorTree::UpdateType, 32> Updates;
 
   if (DTU) {
-    for (BasicBlock *PredPredBB : predecessors(PredBB)) {
+    SmallPtrSet<BasicBlock *, 2> PredsOfPredBB(pred_begin(PredBB),
+                                               pred_end(PredBB));
+    Updates.reserve(Updates.size() + 2 * PredsOfPredBB.size() + 1);
+    for (BasicBlock *PredOfPredBB : PredsOfPredBB)
       // This predecessor of PredBB may already have DestBB as a successor.
-      if (!llvm::is_contained(successors(PredPredBB), DestBB))
-        Updates.push_back({DominatorTree::Insert, PredPredBB, DestBB});
-      Updates.push_back({DominatorTree::Delete, PredPredBB, PredBB});
-    }
+      if (PredOfPredBB != PredBB)
+        Updates.push_back({DominatorTree::Insert, PredOfPredBB, DestBB});
+    for (BasicBlock *PredOfPredBB : PredsOfPredBB)
+      Updates.push_back({DominatorTree::Delete, PredOfPredBB, PredBB});
     Updates.push_back({DominatorTree::Delete, PredBB, DestBB});
   }
 
@@ -1072,14 +1075,15 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
   SmallVector<DominatorTree::UpdateType, 32> Updates;
   if (DTU) {
     // All predecessors of BB will be moved to Succ.
-    SmallSetVector<BasicBlock *, 8> Predecessors(pred_begin(BB), pred_end(BB));
-    Updates.reserve(Updates.size() + 2 * Predecessors.size());
-    for (auto *Predecessor : Predecessors) {
+    SmallPtrSet<BasicBlock *, 8> PredsOfBB(pred_begin(BB), pred_end(BB));
+    SmallPtrSet<BasicBlock *, 8> PredsOfSucc(pred_begin(Succ), pred_end(Succ));
+    Updates.reserve(Updates.size() + 2 * PredsOfBB.size() + 1);
+    for (auto *PredOfBB : PredsOfBB)
       // This predecessor of BB may already have Succ as a successor.
-      if (!llvm::is_contained(successors(Predecessor), Succ))
-        Updates.push_back({DominatorTree::Insert, Predecessor, Succ});
-      Updates.push_back({DominatorTree::Delete, Predecessor, BB});
-    }
+      if (!PredsOfSucc.contains(PredOfBB))
+        Updates.push_back({DominatorTree::Insert, PredOfBB, Succ});
+    for (auto *PredOfBB : PredsOfBB)
+      Updates.push_back({DominatorTree::Delete, PredOfBB, BB});
     Updates.push_back({DominatorTree::Delete, BB, Succ});
   }
 
@@ -1812,17 +1816,26 @@ void llvm::salvageDebugInfoForDbgValues(
         is_contained(DIILocation, &I) &&
         "DbgVariableIntrinsic must use salvaged instruction as its location");
     unsigned LocNo = std::distance(DIILocation.begin(), find(DIILocation, &I));
-
-    DIExpression *DIExpr =
-        salvageDebugInfoImpl(I, DII->getExpression(), StackValue, LocNo);
+    SmallVector<Value *, 4> AdditionalValues;
+    DIExpression *SalvagedExpr = salvageDebugInfoImpl(
+        I, DII->getExpression(), StackValue, LocNo, AdditionalValues);
 
     // salvageDebugInfoImpl should fail on examining the first element of
     // DbgUsers, or none of them.
-    if (!DIExpr)
+    if (!SalvagedExpr)
       break;
 
     DII->replaceVariableLocationOp(&I, I.getOperand(0));
-    DII->setExpression(DIExpr);
+    if (AdditionalValues.empty()) {
+      DII->setExpression(SalvagedExpr);
+    } else if (isa<DbgValueInst>(DII)) {
+      DII->addVariableLocationOps(AdditionalValues, SalvagedExpr);
+    } else {
+      // Do not salvage using DIArgList for dbg.addr/dbg.declare, as it is
+      // currently only valid for stack value expressions.
+      Value *Undef = UndefValue::get(I.getOperand(0)->getType());
+      DII->replaceVariableLocationOp(I.getOperand(0), Undef);
+    }
     LLVM_DEBUG(dbgs() << "SALVAGE: " << *DII << '\n');
     Salvaged = true;
   }
@@ -1837,12 +1850,27 @@ void llvm::salvageDebugInfoForDbgValues(
 }
 
 bool getSalvageOpsForGEP(GetElementPtrInst *GEP, const DataLayout &DL,
-                         SmallVectorImpl<uint64_t> &Opcodes) {
+                         uint64_t CurrentLocOps,
+                         SmallVectorImpl<uint64_t> &Opcodes,
+                         SmallVectorImpl<Value *> &AdditionalValues) {
   unsigned BitWidth = DL.getIndexSizeInBits(GEP->getPointerAddressSpace());
-  // Rewrite a constant GEP into a DIExpression.
+  // Rewrite a GEP into a DIExpression.
+  SmallDenseMap<Value *, APInt, 8> VariableOffsets;
   APInt ConstantOffset(BitWidth, 0);
-  if (!GEP->accumulateConstantOffset(DL, ConstantOffset))
+  if (!GEP->collectOffset(DL, BitWidth, VariableOffsets, ConstantOffset))
     return false;
+  if (!VariableOffsets.empty() && !CurrentLocOps) {
+    Opcodes.insert(Opcodes.begin(), {dwarf::DW_OP_LLVM_arg, 0});
+    CurrentLocOps = 1;
+  }
+  for (auto Offset : VariableOffsets) {
+    AdditionalValues.push_back(Offset.first);
+    assert(Offset.second.isStrictlyPositive() &&
+           "Expected strictly positive multiplier for offset.");
+    Opcodes.append({dwarf::DW_OP_LLVM_arg, CurrentLocOps++, dwarf::DW_OP_constu,
+                    Offset.second.getZExtValue(), dwarf::DW_OP_mul,
+                    dwarf::DW_OP_plus});
+  }
   DIExpression::appendOffset(Opcodes, ConstantOffset.getSExtValue());
   return true;
 }
@@ -1877,23 +1905,35 @@ uint64_t getDwarfOpForBinOp(Instruction::BinaryOps Opcode) {
   }
 }
 
-bool getSalvageOpsForBinOp(BinaryOperator *BI,
-                           SmallVectorImpl<uint64_t> &Opcodes) {
-  // Rewrite binary operations with constant integer operands.
+bool getSalvageOpsForBinOp(BinaryOperator *BI, uint64_t CurrentLocOps,
+                           SmallVectorImpl<uint64_t> &Opcodes,
+                           SmallVectorImpl<Value *> &AdditionalValues) {
+  // Handle binary operations with constant integer operands as a special case.
   auto *ConstInt = dyn_cast<ConstantInt>(BI->getOperand(1));
-  if (!ConstInt || ConstInt->getBitWidth() > 64)
+  // Values wider than 64 bits cannot be represented within a DIExpression.
+  if (ConstInt && ConstInt->getBitWidth() > 64)
     return false;
-  uint64_t Val = ConstInt->getSExtValue();
+
   Instruction::BinaryOps BinOpcode = BI->getOpcode();
-  // Add or Sub Instructions with a constant operand can potentially be
-  // simplified.
-  if (BinOpcode == Instruction::Add || BinOpcode == Instruction::Sub) {
-    uint64_t Offset = BinOpcode == Instruction::Add ? Val : -int64_t(Val);
-    DIExpression::appendOffset(Opcodes, Offset);
-    return true;
+  // Push any Constant Int operand onto the expression stack.
+  if (ConstInt) {
+    uint64_t Val = ConstInt->getSExtValue();
+    // Add or Sub Instructions with a constant operand can potentially be
+    // simplified.
+    if (BinOpcode == Instruction::Add || BinOpcode == Instruction::Sub) {
+      uint64_t Offset = BinOpcode == Instruction::Add ? Val : -int64_t(Val);
+      DIExpression::appendOffset(Opcodes, Offset);
+      return true;
+    }
+    Opcodes.append({dwarf::DW_OP_constu, Val});
+  } else {
+    if (!CurrentLocOps) {
+      Opcodes.append({dwarf::DW_OP_LLVM_arg, 0});
+      CurrentLocOps = 1;
+    }
+    Opcodes.append({dwarf::DW_OP_LLVM_arg, CurrentLocOps});
+    AdditionalValues.push_back(BI->getOperand(1));
   }
-  // Add constant int operand to expression stack.
-  Opcodes.append({dwarf::DW_OP_constu, Val});
 
   // Add salvaged binary operator to expression stack, if it has a valid
   // representation in a DIExpression.
@@ -1905,9 +1945,11 @@ bool getSalvageOpsForBinOp(BinaryOperator *BI,
   return true;
 }
 
-DIExpression *llvm::salvageDebugInfoImpl(Instruction &I,
-                                         DIExpression *SrcDIExpr,
-                                         bool WithStackValue, unsigned LocNo) {
+DIExpression *
+llvm::salvageDebugInfoImpl(Instruction &I, DIExpression *SrcDIExpr,
+                           bool WithStackValue, unsigned LocNo,
+                           SmallVectorImpl<Value *> &AdditionalValues) {
+  uint64_t CurrentLocOps = SrcDIExpr->getNumLocationOperands();
   auto &M = *I.getModule();
   auto &DL = M.getDataLayout();
 
@@ -1921,7 +1963,7 @@ DIExpression *llvm::salvageDebugInfoImpl(Instruction &I,
   };
 
   // initializer-list helper for applying operators to the source DIExpression.
-  auto applyOps = [&](ArrayRef<uint64_t> Opcodes) -> DIExpression * {
+  auto applyOps = [&](ArrayRef<uint64_t> Opcodes) {
     SmallVector<uint64_t, 8> Ops(Opcodes.begin(), Opcodes.end());
     return doSalvage(Ops);
   };
@@ -1947,15 +1989,15 @@ DIExpression *llvm::salvageDebugInfoImpl(Instruction &I,
 
   SmallVector<uint64_t, 8> Ops;
   if (auto *GEP = dyn_cast<GetElementPtrInst>(&I)) {
-    if (getSalvageOpsForGEP(GEP, DL, Ops))
+    if (getSalvageOpsForGEP(GEP, DL, CurrentLocOps, Ops, AdditionalValues))
       return doSalvage(Ops);
   } else if (auto *BI = dyn_cast<BinaryOperator>(&I)) {
-    if (getSalvageOpsForBinOp(BI, Ops))
+    if (getSalvageOpsForBinOp(BI, CurrentLocOps, Ops, AdditionalValues))
       return doSalvage(Ops);
   }
-    // *Not* to do: we should not attempt to salvage load instructions,
-    // because the validity and lifetime of a dbg.value containing
-    // DW_OP_deref becomes difficult to analyze. See PR40628 for examples.
+  // *Not* to do: we should not attempt to salvage load instructions,
+  // because the validity and lifetime of a dbg.value containing
+  // DW_OP_deref becomes difficult to analyze. See PR40628 for examples.
   return nullptr;
 }
 

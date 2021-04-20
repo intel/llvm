@@ -12,7 +12,9 @@ namespace sycl {
 
 // Feature test macro definitions
 
+// TODO: Move these feature-test macros to compiler driver.
 #define SYCL_EXT_INTEL_DEVICE_INFO 1
+#define SYCL_EXT_ONEAPI_MATRIX 1
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

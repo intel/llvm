@@ -615,6 +615,12 @@ Init *ListInit::convertInitializerTo(RecTy *Ty) const {
 }
 
 Init *ListInit::convertInitListSlice(ArrayRef<unsigned> Elements) const {
+  if (Elements.size() == 1) {
+    if (Elements[0] >= size())
+      return nullptr;
+    return getElement(Elements[0]);
+  }
+
   SmallVector<Init*, 8> Vals;
   Vals.reserve(Elements.size());
   for (unsigned Element : Elements) {

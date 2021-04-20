@@ -1048,7 +1048,7 @@ public:
   }
 
   template <auto &SpecName>
-  typename std::remove_reference_t<decltype(SpecName)>::type
+  typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =

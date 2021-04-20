@@ -29,6 +29,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/Statepoint.h"
 
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
@@ -113,6 +114,23 @@ void DbgVariableIntrinsic::replaceVariableLocationOp(unsigned OpIdx,
   for (unsigned Idx = 0; Idx < getNumVariableLocationOps(); ++Idx)
     MDs.push_back(Idx == OpIdx ? NewOperand
                                : getAsMetadata(getVariableLocationOp(Idx)));
+  setArgOperand(
+      0, MetadataAsValue::get(getContext(), DIArgList::get(getContext(), MDs)));
+}
+
+void DbgVariableIntrinsic::addVariableLocationOps(ArrayRef<Value *> NewValues,
+                                                  DIExpression *NewExpr) {
+  assert(NewExpr->hasAllLocationOps(getNumVariableLocationOps() +
+                                    NewValues.size()) &&
+         "NewExpr for debug variable intrinsic does not reference every "
+         "location operand.");
+  assert(!is_contained(NewValues, nullptr) && "New values must be non-null");
+  setArgOperand(2, MetadataAsValue::get(getContext(), NewExpr));
+  SmallVector<ValueAsMetadata *, 4> MDs;
+  for (auto *VMD : location_ops())
+    MDs.push_back(getAsMetadata(VMD));
+  for (auto *VMD : NewValues)
+    MDs.push_back(getAsMetadata(VMD));
   setArgOperand(
       0, MetadataAsValue::get(getContext(), DIArgList::get(getContext(), MDs)));
 }
@@ -411,4 +429,35 @@ unsigned BinaryOpIntrinsic::getNoWrapKind() const {
     return OverflowingBinaryOperator::NoSignedWrap;
   else
     return OverflowingBinaryOperator::NoUnsignedWrap;
+}
+
+const GCStatepointInst *GCProjectionInst::getStatepoint() const {
+  const Value *Token = getArgOperand(0);
+
+  // This takes care both of relocates for call statepoints and relocates
+  // on normal path of invoke statepoint.
+  if (!isa<LandingPadInst>(Token))
+    return cast<GCStatepointInst>(Token);
+
+  // This relocate is on exceptional path of an invoke statepoint
+  const BasicBlock *InvokeBB =
+    cast<Instruction>(Token)->getParent()->getUniquePredecessor();
+
+  assert(InvokeBB && "safepoints should have unique landingpads");
+  assert(InvokeBB->getTerminator() &&
+         "safepoint block should be well formed");
+
+  return cast<GCStatepointInst>(InvokeBB->getTerminator());
+}
+
+Value *GCRelocateInst::getBasePtr() const {
+  if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
+    return *(Opt->Inputs.begin() + getBasePtrIndex());
+  return *(getStatepoint()->arg_begin() + getBasePtrIndex());
+}
+
+Value *GCRelocateInst::getDerivedPtr() const {
+  if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
+    return *(Opt->Inputs.begin() + getDerivedPtrIndex());
+  return *(getStatepoint()->arg_begin() + getDerivedPtrIndex());
 }

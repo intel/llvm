@@ -521,7 +521,7 @@ static void addAnnotationRemarksPass(ModulePassManager &MPM) {
 // Helper to check if the current compilation phase is preparing for LTO
 static bool isLTOPreLink(ThinOrFullLTOPhase Phase) {
   return Phase == ThinOrFullLTOPhase::ThinLTOPreLink ||
-         Phase == ThinOrFullLTOPhase::ThinLTOPreLink;
+         Phase == ThinOrFullLTOPhase::FullLTOPreLink;
 }
 
 // TODO: Investigate the cost/benefit of tail call elimination on debugging.
@@ -1068,10 +1068,12 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // Create an early function pass manager to cleanup the output of the
   // frontend.
   FunctionPassManager EarlyFPM(DebugLogging);
+  // Lower llvm.expect to metadata before attempting transforms.
+  // Compare/branch metadata may alter the behavior of passes like SimplifyCFG.
+  EarlyFPM.addPass(LowerExpectIntrinsicPass());
   EarlyFPM.addPass(SimplifyCFGPass());
   EarlyFPM.addPass(SROA());
   EarlyFPM.addPass(EarlyCSEPass());
-  EarlyFPM.addPass(LowerExpectIntrinsicPass());
   if (PTO.Coroutines)
     EarlyFPM.addPass(CoroEarlyPass());
   if (Level == OptimizationLevel::O3)

@@ -838,20 +838,20 @@ static void handleAssertExclusiveLockAttr(Sema &S, Decl *D,
 ///
 /// AttrArgNo is used to actually retrieve the argument, so it's base-0.
 template <typename AttrInfo>
-static bool checkParamIsIntegerType(Sema &S, const FunctionDecl *FD,
-                                    const AttrInfo &AI, unsigned AttrArgNo) {
+static bool checkParamIsIntegerType(Sema &S, const Decl *D, const AttrInfo &AI,
+                                    unsigned AttrArgNo) {
   assert(AI.isArgExpr(AttrArgNo) && "Expected expression argument");
   Expr *AttrArg = AI.getArgAsExpr(AttrArgNo);
   ParamIdx Idx;
-  if (!checkFunctionOrMethodParameterIndex(S, FD, AI, AttrArgNo + 1, AttrArg,
+  if (!checkFunctionOrMethodParameterIndex(S, D, AI, AttrArgNo + 1, AttrArg,
                                            Idx))
     return false;
 
-  const ParmVarDecl *Param = FD->getParamDecl(Idx.getASTIndex());
-  if (!Param->getType()->isIntegerType() && !Param->getType()->isCharType()) {
+  QualType ParamTy = getFunctionOrMethodParamType(D, Idx.getASTIndex());
+  if (!ParamTy->isIntegerType() && !ParamTy->isCharType()) {
     SourceLocation SrcLoc = AttrArg->getBeginLoc();
     S.Diag(SrcLoc, diag::err_attribute_integers_only)
-        << AI << Param->getSourceRange();
+        << AI << getFunctionOrMethodParamRange(D, Idx.getASTIndex());
     return false;
   }
   return true;
@@ -861,8 +861,10 @@ static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 2))
     return;
 
-  const auto *FD = cast<FunctionDecl>(D);
-  if (!FD->getReturnType()->isPointerType()) {
+  assert(isFunctionOrMethod(D) && hasFunctionProto(D));
+
+  QualType RetTy = getFunctionOrMethodResultType(D);
+  if (!RetTy->isPointerType()) {
     S.Diag(AL.getLoc(), diag::warn_attribute_return_pointers_only) << AL;
     return;
   }
@@ -872,7 +874,7 @@ static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Parameter indices are 1-indexed, hence Index=1
   if (!checkPositiveIntArgument(S, AL, SizeExpr, SizeArgNoVal, /*Idx=*/1))
     return;
-  if (!checkParamIsIntegerType(S, FD, AL, /*AttrArgNo=*/0))
+  if (!checkParamIsIntegerType(S, D, AL, /*AttrArgNo=*/0))
     return;
   ParamIdx SizeArgNo(SizeArgNoVal, D);
 
@@ -883,7 +885,7 @@ static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     // Parameter indices are 1-based, hence Index=2
     if (!checkPositiveIntArgument(S, AL, NumberExpr, Val, /*Idx=*/2))
       return;
-    if (!checkParamIsIntegerType(S, FD, AL, /*AttrArgNo=*/1))
+    if (!checkParamIsIntegerType(S, D, AL, /*AttrArgNo=*/1))
       return;
     NumberArgNo = ParamIdx(Val, D);
   }
@@ -3204,6 +3206,42 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
                                         const ParsedAttr &AL) {
   Expr *E = AL.getArgAsExpr(0);
   S.AddIntelReqdSubGroupSize(D, AL, E);
+}
+
+IntelNamedSubGroupSizeAttr *
+Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
+                                      const IntelNamedSubGroupSizeAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelNamedSubGroupSizeAttr>()) {
+    if (DeclAttr->getType() != A.getType()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+    }
+    return nullptr;
+  }
+
+  return IntelNamedSubGroupSizeAttr::Create(Context, A.getType(), A);
+}
+
+static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
+                                         const ParsedAttr &AL) {
+  StringRef SizeStr;
+  SourceLocation Loc;
+  if (AL.isArgIdent(0)) {
+    IdentifierLoc *IL = AL.getArgAsIdent(0);
+    SizeStr = IL->Ident->getName();
+    Loc = IL->Loc;
+  } else if (!S.checkStringLiteralArgumentAttr(AL, 0, SizeStr, &Loc)) {
+    return;
+  }
+
+  IntelNamedSubGroupSizeAttr::SubGroupSizeType SizeType;
+  if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(SizeStr,
+                                                                SizeType)) {
+    S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
+  }
+  D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
 }
 
 void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
@@ -9214,6 +9252,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleIntelReqdSubGroupSize(S, D, AL);
     break;
+  case ParsedAttr::AT_IntelNamedSubGroupSize:
+    handleIntelNamedSubGroupSize(S, D, AL);
+    break;
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
     handleSYCLIntelNumSimdWorkItemsAttr(S, D, AL);
     break;
@@ -9242,10 +9283,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleVecTypeHint(S, D, AL);
     break;
   case ParsedAttr::AT_InitPriority:
-    if (S.Context.getTargetInfo().getTriple().isOSAIX())
-      llvm::report_fatal_error(
-          "'init_priority' attribute is not yet supported on AIX");
-    else
       handleInitPriorityAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Packed:
