@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "CL/sycl/ONEAPI/accessor_property_list.hpp"
+#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
@@ -250,76 +250,98 @@ public:
     combine(Partial);
   }
 
+private:
+  template <access::address_space Space>
+  static constexpr memory_scope getMemoryScope() {
+    return Space == access::address_space::local_space
+               ? memory_scope::work_group
+               : memory_scope::device;
+  }
+
+public:
   /// Atomic ADD operation: *ReduVarPtr += MValue;
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsPlus<T, _BinaryOperation>::value>
+              (IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value ||
+               IsReduOptForAtomic64Add<T, _BinaryOperation>::value) &&
+              sycl::detail::IsPlus<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
+    atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+        *multi_ptr<T, Space>(ReduVarPtr))
         .fetch_add(MValue);
   }
 
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsBitOR<T, _BinaryOperation>::value>
+              sycl::detail::IsBitOR<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
+    atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+        *multi_ptr<T, Space>(ReduVarPtr))
         .fetch_or(MValue);
   }
 
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsBitXOR<T, _BinaryOperation>::value>
+              sycl::detail::IsBitXOR<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
+    atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+        *multi_ptr<T, Space>(ReduVarPtr))
         .fetch_xor(MValue);
   }
 
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsBitAND<T, _BinaryOperation>::value>
+              sycl::detail::IsBitAND<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
+    atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+        *multi_ptr<T, Space>(ReduVarPtr))
         .fetch_and(MValue);
   }
 
   /// Atomic MIN operation: *ReduVarPtr = ONEAPI::minimum(*ReduVarPtr, MValue);
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsMinimum<T, _BinaryOperation>::value>
+              sycl::detail::IsMinimum<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
+    atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+        *multi_ptr<T, Space>(ReduVarPtr))
         .fetch_min(MValue);
   }
 
   /// Atomic MAX operation: *ReduVarPtr = ONEAPI::maximum(*ReduVarPtr, MValue);
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
+  template <access::address_space Space = access::address_space::global_space,
+            typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsMaximum<T, _BinaryOperation>::value>
+              sycl::detail::IsMaximum<T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
+    atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+        *multi_ptr<T, Space>(ReduVarPtr))
         .fetch_max(MValue);
-  }
-
-  /// Atomic ADD operation: for floating point using atomic_ref
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              IsReduOptForAtomic64Add<T, _BinaryOperation>::value>
-  atomic_combine(_T *ReduVarPtr) const {
-
-    atomic_ref<T, sycl::ONEAPI::memory_order::relaxed,
-               sycl::ONEAPI::memory_scope::device,
-               access::address_space::global_space>(
-        *global_ptr<T>(ReduVarPtr)) += MValue;
   }
 
   T MValue;
@@ -361,8 +383,6 @@ public:
                ONEAPI::accessor_property_list<>>;
   static constexpr int accessor_dim = Dims;
   static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
-  using local_accessor_type =
-      accessor<T, buffer_dim, access::mode::read_write, access::target::local>;
 
   static constexpr bool has_atomic_add_float64 =
       IsReduOptForAtomic64Add<T, BinaryOperation>::value;
@@ -612,8 +632,15 @@ public:
 #endif
   }
 
-  static local_accessor_type getReadWriteLocalAcc(size_t Size, handler &CGH) {
-    return local_accessor_type(Size, CGH);
+  /// Creates and returns a local accessor with the \p Size elements.
+  /// By default the local accessor elements are of the same type as the
+  /// elements processed by the reduction, but may it be altered by specifying
+  /// \p _T explicitly if need an accessor with elements of different type.
+  template <typename _T = result_type>
+  static accessor<_T, buffer_dim, access::mode::read_write,
+                  access::target::local>
+  getReadWriteLocalAcc(size_t Size, handler &CGH) {
+    return {Size, CGH};
   }
 
   accessor<T, buffer_dim, access::mode::read>
@@ -684,6 +711,16 @@ public:
     MOutBufPtr = std::make_shared<buffer<T, 1>>(RWReduVal.get(), range<1>(1));
     CGH.addReduction(MOutBufPtr);
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+  }
+
+  accessor<int, 1, access::mode::read_write, access::target::global_buffer,
+           access::placeholder::false_t>
+  getReadWriteAccessorToInitializedGroupsCounter(handler &CGH) {
+    auto CounterMem = std::make_shared<int>(0);
+    CGH.addReduction(CounterMem);
+    auto CounterBuf = std::make_shared<buffer<int, 1>>(CounterMem.get(), 1);
+    CGH.addReduction(CounterBuf);
+    return {*CounterBuf, CGH};
   }
 
   bool hasUserDiscardWriteAccessor() { return MDWAcc != nullptr; }
@@ -779,6 +816,217 @@ struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
                                        T3> {
   using name = sycl::detail::auto_name;
 };
+
+/// Called in device code. This function iterates through the index space
+/// \p Range using stride equal to the global range specified in \p NdId,
+/// which gives much better performance than using stride equal to 1.
+/// For each of the index the given \p F function/functor is called and
+/// the reduction value hold in \p Reducer is accumulated in those calls.
+template <typename KernelFunc, int Dims, typename ReducerT>
+void reductionLoop(const range<Dims> &Range, ReducerT &Reducer,
+                   const nd_item<1> &NdId, KernelFunc &F) {
+  size_t Start = NdId.get_global_id(0);
+  size_t End = Range.size();
+  size_t Stride = NdId.get_global_range(0);
+  for (size_t I = Start; I < End; I += Stride)
+    F(sycl::detail::getDelinearizedId(Range, I), Reducer);
+}
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+std::enable_if_t<Reduction::has_fast_atomics>
+reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
+               const nd_range<1> &NDRange, Reduction &Redu) {
+  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
+  auto GroupSum = Reduction::getReadWriteLocalAcc(1, CGH);
+  using Name =
+      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
+                                                Reduction::is_usm, false>::name;
+  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+    // Call user's functions. Reducer.MValue gets initialized there.
+    typename Reduction::reducer_type Reducer;
+    reductionLoop(Range, Reducer, NDId, KernelFunc);
+
+    GroupSum[0] = Reducer.getIdentity();
+    sycl::detail::workGroupBarrier();
+    Reducer.template atomic_combine<access::address_space::local_space>(
+        &GroupSum[0]);
+
+    sycl::detail::workGroupBarrier();
+    if (NDId.get_local_id(0) == 0) {
+      Reducer.MValue = GroupSum[0];
+      Reducer.template atomic_combine(Reduction::getOutPointer(Out));
+    }
+  });
+}
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+std::enable_if_t<!Reduction::has_fast_atomics && Reduction::has_fast_reduce>
+reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
+               const nd_range<1> &NDRange, Reduction &Redu) {
+  size_t WGSize = NDRange.get_local_range().size();
+  size_t NWorkGroups = NDRange.get_group_range().size();
+
+  bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
+  auto PartialSums = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
+  auto Out =
+      (NWorkGroups == 1) ? PartialSums : Redu.getWriteAccForPartialReds(1, CGH);
+  auto NWorkGroupsFinished =
+      Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
+  auto DoReducePartialSumsInLastWG =
+      Reduction::template getReadWriteLocalAcc<int>(1, CGH);
+
+  using Name =
+      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
+                                                Reduction::is_usm, false>::name;
+  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+    // Call user's functions. Reducer.MValue gets initialized there.
+    typename Reduction::reducer_type Reducer;
+    reductionLoop(Range, Reducer, NDId, KernelFunc);
+
+    DoReducePartialSumsInLastWG[0] = 0;
+    sycl::detail::workGroupBarrier();
+
+    typename Reduction::binary_operation BOp;
+    auto Group = NDId.get_group();
+    Reducer.MValue = reduce_over_group(Group, Reducer.MValue, BOp);
+
+    size_t LID = NDId.get_local_id(0);
+    if (LID == 0) {
+      if (NWorkGroups == 1 && IsUpdateOfUserVar)
+        Reducer.MValue = BOp(Reducer.MValue, *Reduction::getOutPointer(Out));
+      // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
+      Reduction::getOutPointer(PartialSums)[NDId.get_group_linear_id()] =
+          Reducer.MValue;
+
+      auto NFinished =
+          atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                     access::address_space::global_space>(
+              NWorkGroupsFinished[0]);
+      if (++NFinished == NWorkGroups && NWorkGroups > 1)
+        DoReducePartialSumsInLastWG[0] = 1;
+    }
+
+    sycl::detail::workGroupBarrier();
+    if (DoReducePartialSumsInLastWG[0]) {
+      auto LocalSum = Reducer.getIdentity();
+      for (size_t I = LID; I < NWorkGroups; I += WGSize)
+        LocalSum = BOp(LocalSum, PartialSums[I]);
+      Reducer.MValue = reduce_over_group(Group, LocalSum, BOp);
+
+      if (LID == 0) {
+        if (IsUpdateOfUserVar)
+          Reducer.MValue = BOp(Reducer.MValue, *Reduction::getOutPointer(Out));
+        Reduction::getOutPointer(Out)[0] = Reducer.MValue;
+      }
+    }
+  });
+}
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+std::enable_if_t<!Reduction::has_fast_atomics && !Reduction::has_fast_reduce>
+reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
+               const nd_range<1> &NDRange, Reduction &Redu) {
+  size_t WGSize = NDRange.get_local_range().size();
+  size_t NWorkGroups = NDRange.get_group_range().size();
+
+  bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
+  auto PartialSums = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
+  auto Out =
+      (NWorkGroups == 1) ? PartialSums : Redu.getWriteAccForPartialReds(1, CGH);
+  auto LocalReds = Reduction::getReadWriteLocalAcc(WGSize + 1, CGH);
+  auto NWorkGroupsFinished =
+      Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
+  auto DoReducePartialSumsInLastWG =
+      Reduction::template getReadWriteLocalAcc<int>(1, CGH);
+
+  auto Identity = Redu.getIdentity();
+  auto BOp = Redu.getBinaryOperation();
+  using Name =
+      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
+                                                Reduction::is_usm, false>::name;
+  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+    // Call user's functions. Reducer.MValue gets initialized there.
+    typename Reduction::reducer_type Reducer(Identity, BOp);
+    reductionLoop(Range, Reducer, NDId, KernelFunc);
+
+    // Copy the element to local memory to prepare it for tree-reduction.
+    size_t LID = NDId.get_local_linear_id();
+    LocalReds[LID] = Reducer.MValue;
+    LocalReds[WGSize] = Identity;
+    DoReducePartialSumsInLastWG[0] = 0;
+    sycl::detail::workGroupBarrier();
+
+    // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
+    // LocalReds[WGSize] accumulates last/odd elements when the step
+    // of tree-reduction loop is not even.
+    size_t PrevStep = WGSize;
+    for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+      if (LID < CurStep)
+        LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+      else if (LID == CurStep && (PrevStep & 0x1))
+        LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+      sycl::detail::workGroupBarrier();
+      PrevStep = CurStep;
+    }
+
+    if (LID == 0) {
+      auto V = BOp(LocalReds[0], LocalReds[WGSize]);
+      if (NWorkGroups == 1 && IsUpdateOfUserVar)
+        V = BOp(V, *Reduction::getOutPointer(Out));
+      // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
+      Reduction::getOutPointer(PartialSums)[NDId.get_group_linear_id()] = V;
+
+      auto NFinished =
+          atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                     access::address_space::global_space>(
+              NWorkGroupsFinished[0]);
+      if (++NFinished == NWorkGroups && NWorkGroups > 1)
+        DoReducePartialSumsInLastWG[0] = 1;
+    }
+
+    sycl::detail::workGroupBarrier();
+    if (DoReducePartialSumsInLastWG[0]) {
+      auto LocalSum = Identity;
+      for (size_t I = LID; I < NWorkGroups; I += WGSize)
+        LocalSum = BOp(LocalSum, Reduction::getOutPointer(PartialSums)[I]);
+      LocalReds[LID] = LocalSum;
+      LocalReds[WGSize] = Identity;
+      sycl::detail::workGroupBarrier();
+
+      size_t PrevStep = WGSize;
+      for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+        if (LID < CurStep)
+          LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+        else if (LID == CurStep && (PrevStep & 0x1))
+          LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+        sycl::detail::workGroupBarrier();
+        PrevStep = CurStep;
+      }
+      if (LID == 0) {
+        auto V = BOp(LocalReds[0], LocalReds[WGSize]);
+        if (IsUpdateOfUserVar)
+          V = BOp(V, *Reduction::getOutPointer(Out));
+        Reduction::getOutPointer(Out)[0] = V;
+      }
+    }
+  });
+}
+
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
+                size_t MaxWGSize, uint32_t NumEUThreads, Reduction &Redu) {
+  size_t NWorkItems = Range.size();
+  size_t WGSize = std::min(NWorkItems, MaxWGSize);
+  size_t NWorkGroups = NWorkItems / WGSize;
+  if (NWorkItems % WGSize)
+    NWorkGroups++;
+  size_t MaxNWorkGroups = NumEUThreads;
+  NWorkGroups = std::min(NWorkGroups, MaxNWorkGroups);
+  size_t NDRItems = NWorkGroups * WGSize;
+  nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
+
+  reduCGFuncImpl<KernelName>(CGH, KernelFunc, Range, NDRange, Redu);
+}
 
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
