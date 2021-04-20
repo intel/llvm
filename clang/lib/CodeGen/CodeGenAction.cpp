@@ -1040,7 +1040,7 @@ struct OptRecordFileRAII {
                     BackendConsumer &BC)
       : Ctx(Ctx) {
     CompilerInstance &CI = CGA.getCompilerInstance();
-    auto &CodeGenOpts = CI.getCodeGenOpts();
+    CodeGenOptions &CodeGenOpts = CI.getCodeGenOpts();
 
     OldDiagnosticHandler = Ctx.getDiagnosticHandler();
 

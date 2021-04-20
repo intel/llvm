@@ -41,13 +41,13 @@ public:
                      std::string ArgType, SourceLocation ArgLoc) {
     Map[FD].emplace_back(ArgName, ArgType, ArgLoc);
   }
-  SmallVector<OptReportInfo, 4> &getInfo(const FunctionDecl *FD) {
+  SmallVector<OptReportInfo, 4> &GetInfo(const FunctionDecl *FD) {
     auto It = Map.find(FD);
     assert(It != Map.end());
     return It->second;
   }
 
-  bool HasOptReportInfo(const FunctionDecl *FD) {
+  bool HasOptReportInfo(const FunctionDecl *FD) const {
     return Map.find(FD) != Map.end();
   }
 };

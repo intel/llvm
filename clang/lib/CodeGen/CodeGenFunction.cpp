@@ -1525,12 +1525,12 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   SyclOptReportHandler &OptReportHandler = CGM.getDiags().OptReportHandler;
   if (OptReportHandler.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
-    int count = 0;
-    for (auto &ORI : OptReportHandler.getInfo(FD)) {
+    int Count = 0;
+    for (auto &ORI : OptReportHandler.GetInfo(FD)) {
       llvm::DiagnosticLocation DL = SourceLocToDebugLoc(ORI.KernelArgLoc);
       llvm::OptimizationRemark Remark("sycl", "Region", DL,
                                       &Fn->getEntryBlock());
-      Remark << "Argument " << llvm::ore::NV("Argument", count++)
+      Remark << "Argument " << llvm::ore::NV("Argument", Count++)
              << " for function kernel: "
              << llvm::ore::NV(ORI.KernelArgName.empty() ? "&" : "") << " "
              << Fn->getName() << "."
