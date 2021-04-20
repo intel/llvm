@@ -74,11 +74,9 @@ struct is_sycl_accessor_with
               (is_sycl_accessor<T>::target == AccessTarget),
           std::true_type, std::false_type> {};
 
-#define __ESIMD_ENABLE_IF_ACCESSOR(T, acc_capability, acc_target, ret_type)    \
-  sycl::detail::enable_if_t<detail::is_sycl_accessor_with<                     \
-                                T, detail::accessor_mode_cap::acc_capability,  \
-                                sycl::access::target::acc_target>::value,      \
-                            ret_type>
+template <typename T, accessor_mode_cap_val_t Capability, sycl::access::target AccessTarget, typename RetT>
+using EnableIfAccessor =
+sycl::detail::enable_if_t<detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value, RetT>;
 
 } // namespace detail
 } // namespace gpu
