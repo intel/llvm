@@ -166,14 +166,14 @@ template <typename T>
 static void FilterAttributeList(ArrayRef<const Attr *> Attrs,
                     SmallVectorImpl<const T *> &FilteredAttrs) {
 
-  llvm::transform(Attrs, std::back_inserter(FilteredAttrs), [](const Attr *A) {
-    if (const auto *Cast = dyn_cast_or_null<const T>(A))
-      return Cast->isDependent() ? nullptr : Cast;
-    return static_cast<const T*>(nullptr);
-  });
+  llvm::transform(Attrs, std::back_inserter(FilteredAttrs),
+                  [](const Attr *A) -> const T * {
+                    if (const auto *Cast = dyn_cast<T>(A))
+                      return Cast->isDependent() ? nullptr : Cast;
+                    return nullptr;
+                  });
   FilteredAttrs.erase(
-      std::remove(FilteredAttrs.begin(), FilteredAttrs.end(),
-                  static_cast<const T*>(nullptr)),
+      std::remove(FilteredAttrs.begin(), FilteredAttrs.end(), nullptr),
       FilteredAttrs.end());
 }
 

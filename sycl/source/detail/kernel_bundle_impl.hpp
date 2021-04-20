@@ -338,33 +338,39 @@ public:
                        });
   }
 
-  bool has_specialization_constant(unsigned int SpecID) const noexcept {
+  bool has_specialization_constant(const char *SpecName) const noexcept {
     return std::any_of(MDeviceImages.begin(), MDeviceImages.end(),
-                       [SpecID](const device_image_plain &DeviceImage) {
+                       [SpecName](const device_image_plain &DeviceImage) {
                          return getSyclObjImpl(DeviceImage)
-                             ->has_specialization_constant(SpecID);
+                             ->has_specialization_constant(SpecName);
                        });
   }
 
-  void set_specialization_constant_raw_value(unsigned int SpecID,
-                                             const void *Value,
-                                             size_t ValueSize) {
+  void set_specialization_constant_raw_value(const char *SpecName,
+                                             const void *Value) noexcept {
+    // TODO add support for specialization constants, that are missing in any
+    // device image.
     for (const device_image_plain &DeviceImage : MDeviceImages)
       getSyclObjImpl(DeviceImage)
-          ->set_specialization_constant_raw_value(SpecID, Value, ValueSize);
+          ->set_specialization_constant_raw_value(SpecName, Value);
   }
 
-  const void *get_specialization_constant_raw_value(unsigned int SpecID,
-                                                    void *ValueRet,
-                                                    size_t ValueSize) const {
+  void get_specialization_constant_raw_value(const char *SpecName,
+                                             void *ValueRet) const noexcept {
     for (const device_image_plain &DeviceImage : MDeviceImages)
-      if (getSyclObjImpl(DeviceImage)->has_specialization_constant(SpecID)) {
+      if (getSyclObjImpl(DeviceImage)->has_specialization_constant(SpecName)) {
         getSyclObjImpl(DeviceImage)
-            ->get_specialization_constant_raw_value(SpecID, ValueRet,
-                                                    ValueSize);
+            ->get_specialization_constant_raw_value(SpecName, ValueRet);
+        return;
       }
+  }
 
-    return nullptr;
+  bool is_specialization_constant_set(const char *SpecName) const noexcept {
+    return std::any_of(MDeviceImages.begin(), MDeviceImages.end(),
+                       [SpecName](const device_image_plain &DeviceImage) {
+                         return getSyclObjImpl(DeviceImage)
+                             ->is_specialization_constant_set(SpecName);
+                       });
   }
 
   const device_image_plain *begin() const { return &MDeviceImages.front(); }
