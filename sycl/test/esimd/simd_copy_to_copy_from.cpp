@@ -13,16 +13,11 @@
 using namespace sycl::INTEL::gpu;
 using namespace cl::sycl;
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_DEVICE_ATTR __attribute__((sycl_device))
-#else
-#define __SYCL_DEVICE_ATTR
-#endif // __SYCL_DEVICE_ONLY__
-
 // --- Postive tests.
 
-void kernel1(accessor<int, 1, access::mode::read_write,
-                      access::target::global_buffer> &buf) __SYCL_DEVICE_ATTR {
+SYCL_EXTERNAL void kernel1(
+    accessor<int, 1, access::mode::read_write, access::target::global_buffer>
+        &buf) SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   simd<int, 32> v0;
   v0.copy_from(buf, 0);
@@ -30,7 +25,7 @@ void kernel1(accessor<int, 1, access::mode::read_write,
   v0.copy_to(buf, 0);
 }
 
-void kernel2(int *ptr) __SYCL_DEVICE_ATTR {
+SYCL_EXTERNAL void kernel2(int *ptr) SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   simd<int, 32> v0;
   v0.copy_from(ptr);
@@ -41,8 +36,9 @@ void kernel2(int *ptr) __SYCL_DEVICE_ATTR {
 // --- Negative tests.
 
 // Incompatible target.
-void kernel3(accessor<int, 1, access::mode::read_write, access::target::local>
-                 &buf) __SYCL_DEVICE_ATTR {
+SYCL_EXTERNAL void
+kernel3(accessor<int, 1, access::mode::read_write, access::target::local> &buf)
+    SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   simd<int, 32> v0;
   // expected-error@+3 {{no matching member function for call to 'copy_from'}}
@@ -57,9 +53,9 @@ void kernel3(accessor<int, 1, access::mode::read_write, access::target::local>
 }
 
 // Incompatible mode (write).
-void kernel4(
+SYCL_EXTERNAL void kernel4(
     accessor<int, 1, access::mode::write, access::target::global_buffer> &buf)
-    __SYCL_DEVICE_ATTR {
+    SYCL_ESIMD_FUNCTION {
   simd<int, 32> v;
   // expected-error@+3 {{no matching member function for call to 'copy_from'}}
   // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:513 {{}}
@@ -68,8 +64,9 @@ void kernel4(
 }
 
 // Incompatible mode (read).
-void kernel5(accessor<int, 1, access::mode::read, access::target::global_buffer>
-                 &buf) __SYCL_DEVICE_ATTR {
+SYCL_EXTERNAL void kernel5(
+    accessor<int, 1, access::mode::read, access::target::global_buffer> &buf)
+    SYCL_ESIMD_FUNCTION {
   simd<int, 32> v(0, 1);
   // expected-error@+3 {{no matching member function for call to 'copy_to'}}
   // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:497 {{}}
