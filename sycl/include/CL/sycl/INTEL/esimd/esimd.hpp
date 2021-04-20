@@ -503,8 +503,9 @@ public:
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from.
   template <typename AccessorT>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read, sycl::access::target::global_buffer, void>
-      copy_from(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
+                                sycl::access::target::global_buffer, void>
+  copy_from(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// @param addr the memory address to copy to. Must be a pointer to the
@@ -517,8 +518,9 @@ public:
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from.
   template <typename AccessorT>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write, sycl::access::target::global_buffer, void>
-    copy_to(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
+                                sycl::access::target::global_buffer, void>
+  copy_to(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
 
   /// @} // Memory operations
 private:
@@ -560,7 +562,8 @@ template <typename T, int N> void simd<T, N>::copy_from(const T *const addr) {
 
 template <typename T, int N>
 template <typename AccessorT>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read, sycl::access::target::global_buffer, void>
+ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
+                              sycl::access::target::global_buffer, void>
 simd<T, N>::copy_from(AccessorT acc, uint32_t offset) {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -597,7 +600,8 @@ template <typename T, int N> void simd<T, N>::copy_to(T *addr) {
 
 template <typename T, int N>
 template <typename AccessorT>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write, sycl::access::target::global_buffer, void>
+ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
+                              sycl::access::target::global_buffer, void>
 simd<T, N>::copy_to(AccessorT acc, uint32_t offset) {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,

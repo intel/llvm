@@ -8,8 +8,9 @@
 using namespace sycl::INTEL::gpu;
 using namespace cl::sycl;
 
-SYCL_EXTERNAL void kernel1(accessor<int, 1, access::mode::read_write,
-                      access::target::global_buffer> &buf) SYCL_ESIMD_FUNCTION {
+SYCL_EXTERNAL void kernel1(
+    accessor<int, 1, access::mode::read_write, access::target::global_buffer>
+        &buf) SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   // expected-warning@+2 {{deprecated}}
   // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:188 {{}}
