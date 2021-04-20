@@ -98,8 +98,8 @@ static bool allocaWGLocalMemory(Module &M) {
 
   assert(ALMFunc->isDeclaration() && "should have declaration only");
 
-  for (User *U : ALMFunc->users()) {
-    auto *CI = cast<CallInst>(U);
+  for (auto U = ALMFunc->user_begin(), UE = ALMFunc->user_end(); U != UE;) {
+    auto *CI = cast<CallInst>(*U++);
     lowerAllocaLocalMemCall(CI, M);
   }
 
