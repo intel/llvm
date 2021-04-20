@@ -1569,17 +1569,22 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     const std::vector<unsigned char> &SpecConstsBlob =
         InputImpl->get_spec_const_blob_ref();
 
-    std::vector<device_image_impl::SpecConstDescT> &SpecConstOffsets =
-        InputImpl->get_spec_const_offsets_ref();
+    {
+      std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
+      const std::map<std::string,
+                     std::vector<device_image_impl::SpecConstDescT>>
+          &SpecConstData = InputImpl->get_spec_const_data_ref();
 
-    unsigned int PrevOffset = 0;
-    for (const device_image_impl::SpecConstDescT &SpecIDDesc :
-         SpecConstOffsets) {
-
-      Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
-          NativePrg, SpecIDDesc.ID, SpecIDDesc.Offset - PrevOffset,
-          SpecConstsBlob.data() + SpecIDDesc.Offset);
-      PrevOffset = SpecIDDesc.Offset;
+      for (const auto &DescPair : SpecConstData) {
+        for (const device_image_impl::SpecConstDescT &SpecIDDesc :
+             DescPair.second) {
+          if (SpecIDDesc.IsSet) {
+            Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+                NativePrg, SpecIDDesc.ID, SpecIDDesc.Size,
+                SpecConstsBlob.data() + SpecIDDesc.BlobOffset);
+          }
+        }
+      }
     }
 
     ProgramPtr ProgramManaged(
