@@ -37,11 +37,11 @@ void testSpanCapture() {
   usm_span[0] += 100; // 101 modify first value using span affordance.
 
   event E = Q.submit([&](handler &cgh) {
-    auto span_read_acc = SpanRead.get_access<access::mode::write>(cgh);
+    auto can_read_from_span_acc = SpanRead.get_access<access::mode::write>(cgh);
     cgh.single_task<class hi>([=] {
       // read from the spans.
-      span_read_acc[0] = vecUSM_span[0];
-      span_read_acc[1] = usm_span[0];
+      can_read_from_span_acc[0] = vecUSM_span[0];
+      can_read_from_span_acc[1] = usm_span[0];
 
       // write to the spans
       vecUSM_span[1] += 1000;
@@ -51,15 +51,18 @@ void testSpanCapture() {
   E.wait();
 
   // check out the read operations, should have gotten 101 from each
-  auto span_read_acc = SpanRead.get_access<access::mode::read>();
+  auto can_read_from_span_acc = SpanRead.get_access<access::mode::read>();
   for (int i = 0; i < numReadTests; i++) {
-    assert(span_read_acc[i] == 101 && "read check should have gotten 100");
+    assert(can_read_from_span_acc[i] == 101 &&
+           "read check should have gotten 100");
   }
 
   // were the spans successfully modified via write?
   assert(vecUSM_span[1] == 1002 &&
          "vecUSM_span write check should have gotten 1001");
   assert(usm_span[1] == 1002 && "usm_span write check should have gotten 1001");
+
+  free(usm_data, Q);
 }
 
 void set_all_span_values(sycl::span<int> container, int v) {
@@ -77,7 +80,7 @@ void testSpanOnDevice() {
   buffer<int, 1> SpanRead(NumberOfReadTestsRange);
 
   event E = Q.submit([&](handler &cgh) {
-    auto span_read_acc = SpanRead.get_access<access::mode::write>(cgh);
+    auto can_read_from_span_acc = SpanRead.get_access<access::mode::write>(cgh);
     cgh.single_task<class ha>([=] {
       // create a span on device, pass it to function that modifies it
       // read values back out.
@@ -85,15 +88,16 @@ void testSpanOnDevice() {
       sycl::span<int> a_span{a};
       set_all_span_values(a_span, 10);
       for (int i = 0; i < numReadTests; i++)
-        span_read_acc[i] = a_span[i];
+        can_read_from_span_acc[i] = a_span[i];
     });
   });
   E.wait();
 
   // check out the read operations, should have gotten 10 from each
-  auto span_read_acc = SpanRead.get_access<access::mode::read>();
+  auto can_read_from_span_acc = SpanRead.get_access<access::mode::read>();
   for (int i = 0; i < numReadTests; i++) {
-    assert(span_read_acc[i] == 10 && "read check should have gotten 10");
+    assert(can_read_from_span_acc[i] == 10 &&
+           "read check should have gotten 10");
   }
 }
 
