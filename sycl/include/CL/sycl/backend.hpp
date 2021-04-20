@@ -88,7 +88,7 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
-                                 const context &TargetContext);
+                                 const context &TargetContext, backend Backend);
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
                    bundle_state State, backend Backend);
@@ -164,7 +164,7 @@ make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
   return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
-                             TargetContext);
+                             TargetContext, Backend);
 }
 
 template <backend Backend, bundle_state State>
