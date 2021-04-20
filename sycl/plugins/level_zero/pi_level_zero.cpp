@@ -843,9 +843,23 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
                                         ze_fence_handle_t ZeFence,
                                         pi_event Event, bool IsBlocking,
                                         bool OKToBatchCommand) {
+  // If the current LastCommandEvent is the nullptr, then it means
+  // either that no command has ever been issued to the queue
+  // or it means that the LastCommandEvent has been signalled and
+  // therefore that this Queue is idle.
+  bool CurrentlyEmpty = this->LastCommandEvent == nullptr;
+
   this->LastCommandEvent = Event;
 
-  if (OKToBatchCommand && this->isBatchingAllowed()) {
+  // Batch if allowed to, but don't batch if we know there are no kernels
+  // from this queue that are currently executing.  This is intended to gets
+  // kernels started as soon as possible when there are no kernels from this
+  // queue awaiting execution, while allowing batching to occur when there
+  // are kernels already executing. Also, if we are using fixed size batching,
+  // as indicated by !UseDynamicBatching, then just ignore CurrentlyEmpty
+  // as we want to strictly follow the batching the user specified.
+  if (OKToBatchCommand && this->isBatchingAllowed() &&
+      (!UseDynamicBatching || !CurrentlyEmpty)) {
     if (this->ZeOpenCommandList != nullptr &&
         this->ZeOpenCommandList != ZeCommandList)
       die("executeCommandList: ZeOpenCommandList should be equal to"
