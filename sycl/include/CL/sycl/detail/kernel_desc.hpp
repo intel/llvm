@@ -59,8 +59,12 @@ template <class Name> struct SpecConstantInfo {
 #if __cplusplus >= 201703L
 // Translates SYCL 2020 specialization constant type to its name.
 template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
+#ifdef SYCL_LANGUAGE_VERSION
   return __builtin_unique_stable_name(
       specialization_id_name_generator<SpecName>);
+#else
+  return "";
+#endif
 }
 #endif
 
