@@ -111,10 +111,8 @@ bool TypeSetByHwMode::insert(const ValueTypeByHwMode &VVT) {
   bool ContainsDefault = false;
   MVT DT = MVT::Other;
 
-  SmallDenseSet<unsigned, 4> Modes;
   for (const auto &P : VVT) {
     unsigned M = P.first;
-    Modes.insert(M);
     // Make sure there exists a set for each specific mode from VVT.
     Changed |= getOrCreate(M).insert(P.second).second;
     // Cache VVT's default mode.
@@ -128,7 +126,7 @@ bool TypeSetByHwMode::insert(const ValueTypeByHwMode &VVT) {
   // modes in "this" that do not exist in VVT.
   if (ContainsDefault)
     for (auto &I : *this)
-      if (!Modes.count(I.first))
+      if (!VVT.hasMode(I.first))
         Changed |= I.second.insert(DT).second;
 
   return Changed;
@@ -224,7 +222,7 @@ bool TypeSetByHwMode::operator==(const TypeSetByHwMode &VTS) const {
   if (HaveDefault != VTSHaveDefault)
     return false;
 
-  SmallDenseSet<unsigned, 4> Modes;
+  SmallSet<unsigned, 4> Modes;
   for (auto &I : *this)
     Modes.insert(I.first);
   for (const auto &I : VTS)
@@ -468,7 +466,8 @@ bool TypeInfer::EnforceSmallerThan(TypeSetByHwMode &Small,
 
   assert(Small.hasDefault() && Big.hasDefault());
 
-  std::vector<unsigned> Modes = union_modes(Small, Big);
+  SmallVector<unsigned, 4> Modes;
+  union_modes(Small, Big, Modes);
 
   // 1. Only allow integer or floating point types and make sure that
   //    both sides are both integer or both floating point.
@@ -575,7 +574,9 @@ bool TypeInfer::EnforceVectorEltTypeIs(TypeSetByHwMode &Vec,
   if (Elem.empty())
     Changed |= EnforceScalar(Elem);
 
-  for (unsigned M : union_modes(Vec, Elem)) {
+  SmallVector<unsigned, 4> Modes;
+  union_modes(Vec, Elem, Modes);
+  for (unsigned M : Modes) {
     TypeSetByHwMode::SetType &V = Vec.get(M);
     TypeSetByHwMode::SetType &E = Elem.get(M);
 
@@ -583,7 +584,7 @@ bool TypeInfer::EnforceVectorEltTypeIs(TypeSetByHwMode &Vec,
     Changed |= berase_if(E, isVector);  // Vector = !scalar
     assert(!V.empty() && !E.empty());
 
-    SmallSet<MVT,4> VT, ST;
+    MachineValueTypeSet VT, ST;
     // Collect element types from the "vector" set.
     for (MVT T : V)
       VT.insert(T.getVectorElementType());
@@ -658,7 +659,9 @@ bool TypeInfer::EnforceVectorSubVectorTypeIs(TypeSetByHwMode &Vec,
   if (Sub.empty())
     Changed |= EnforceVector(Sub);
 
-  for (unsigned M : union_modes(Vec, Sub)) {
+  SmallVector<unsigned, 4> Modes;
+  union_modes(Vec, Sub, Modes);
+  for (unsigned M : Modes) {
     TypeSetByHwMode::SetType &S = Sub.get(M);
     TypeSetByHwMode::SetType &V = Vec.get(M);
 
@@ -698,7 +701,9 @@ bool TypeInfer::EnforceSameNumElts(TypeSetByHwMode &V, TypeSetByHwMode &W) {
     return !Lengths.count(T.isVector() ? T.getVectorNumElements() : 0);
   };
 
-  for (unsigned M : union_modes(V, W)) {
+  SmallVector<unsigned, 4> Modes;
+  union_modes(V, W, Modes);
+  for (unsigned M : Modes) {
     TypeSetByHwMode::SetType &VS = V.get(M);
     TypeSetByHwMode::SetType &WS = W.get(M);
 
@@ -743,7 +748,9 @@ bool TypeInfer::EnforceSameSize(TypeSetByHwMode &A, TypeSetByHwMode &B) {
     return !Sizes.count(T.getSizeInBits());
   };
 
-  for (unsigned M : union_modes(A, B)) {
+  SmallVector<unsigned, 4> Modes;
+  union_modes(A, B, Modes);
+  for (unsigned M : Modes) {
     TypeSetByHwMode::SetType &AS = A.get(M);
     TypeSetByHwMode::SetType &BS = B.get(M);
     TypeSizeSet AN, BN;
@@ -2023,10 +2030,13 @@ void TreePatternNode::InlinePatternFragments(
       if (ChildAlternatives[i].empty())
         return;
 
-      for (const auto &NewChild : ChildAlternatives[i])
-        assert((Child->getPredicateCalls().empty() ||
-                NewChild->getPredicateCalls() == Child->getPredicateCalls()) &&
-               "Non-empty child predicate clobbered!");
+      assert((Child->getPredicateCalls().empty() ||
+              llvm::all_of(ChildAlternatives[i],
+                           [&](const TreePatternNodePtr &NewChild) {
+                             return NewChild->getPredicateCalls() ==
+                                    Child->getPredicateCalls();
+                           })) &&
+             "Non-empty child predicate clobbered!");
     }
 
     // The end result is an all-pairs construction of the resultant pattern.
@@ -3083,14 +3093,14 @@ CodeGenDAGPatterns::CodeGenDAGPatterns(RecordKeeper &R,
   ParsePatternFragments(/*OutFrags*/true);
   ParsePatterns();
 
+  // Generate variants.  For example, commutative patterns can match
+  // multiple ways.  Add them to PatternsToMatch as well.
+  GenerateVariants();
+
   // Break patterns with parameterized types into a series of patterns,
   // where each one has a fixed type and is predicated on the conditions
   // of the associated HW mode.
   ExpandHwModeBasedTypes();
-
-  // Generate variants.  For example, commutative patterns can match
-  // multiple ways.  Add them to PatternsToMatch as well.
-  GenerateVariants();
 
   // Infer instruction flags.  For example, we can detect loads,
   // stores, and side effects in many cases by examining an

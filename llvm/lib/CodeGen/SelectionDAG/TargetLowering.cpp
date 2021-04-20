@@ -53,7 +53,7 @@ bool TargetLowering::isInTailCallPosition(SelectionDAG &DAG, SDNode *Node,
   const Function &F = DAG.getMachineFunction().getFunction();
 
   // First, check if tail calls have been disabled in this function.
-  if (F.getFnAttribute("disable-tail-calls").getValueAsString() == "true")
+  if (F.getFnAttribute("disable-tail-calls").getValueAsBool())
     return false;
 
   // Conservatively require the attributes of the call to match those of
@@ -7715,6 +7715,12 @@ static SDValue clampDynamicVectorIndex(SelectionDAG &DAG,
   EVT IdxVT = Idx.getValueType();
   unsigned NElts = VecVT.getVectorMinNumElements();
   if (VecVT.isScalableVector()) {
+    // If this is a constant index and we know the value is less than the
+    // minimum number of elements then it's safe to return Idx.
+    if (auto *IdxCst = dyn_cast<ConstantSDNode>(Idx))
+      if (IdxCst->getZExtValue() < NElts)
+        return Idx;
+
     SDValue VS = DAG.getVScale(dl, IdxVT,
                                APInt(IdxVT.getFixedSizeInBits(),
                                      NElts));
