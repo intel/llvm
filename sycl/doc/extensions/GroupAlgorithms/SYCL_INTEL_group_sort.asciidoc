@@ -56,29 +56,37 @@ value to determine which of the extension's APIs the implementation supports.
 
 ==== Sorter
 
-Sorter is a special type that encapsulates a sorting algorithm.
-Sorter may contain parameters that help to get better performance.
-Those sort data provided to the `operator()`
+Sorter is a special type that encapsulates a sorting algorithm. Sorter may contain parameters
+that help to get better performance. Data for sorting are provided to the `operator()`
 that should contain an implementation of a sorting algorithm.
-Sorters must have a template
-argument representing binary comparison function object and must define
-`compare_type` as an alias for such comparison object.
 Semantics of `operator()` is following:
 
 [source,c++]
 ----
-// to call by joint_sort
 template<typename Group, typename Ptr>
 void operator()(Group g, Ptr begin, Ptr end);
 
-// and/or to call by sort_over_group
 template<typename Group, typename T>
 T operator()(Group g, T val);
-
 ----
-_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
 
-_Preconditions_: `first`, `last` must be the same for all work-items in the group.
+At least one overload for `operator()` is required.
+
+Table. `operator()` for Sorters.
+|===
+|`operator()`|Description
+
+|`template<typename Group, typename Ptr>
+void operator()(Group g, Ptr begin, Ptr end);`
+|Implements a sorting algorithm that calls by `joint_sort`.
+Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
+`begin`, `end` must be the same for all work-items in the group.
+
+|`template<typename Group, typename T>
+T operator()(Group g, T val);`
+|Implements a sorting algorithm that calls by `sort_over_group`.
+Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
+|===
 
 Example of custom Sorter:
 [source,c++]
@@ -86,8 +94,7 @@ Example of custom Sorter:
 template<typename Compare>
 class bubble_sort{
 public:
-  using compare_type = Compare;
-  compare_type comp;
+  Compare comp;
 
   template<typename Group, typename Ptr>
   void operator()(Group g, Ptr begin, Ptr end){
@@ -103,6 +110,22 @@ public:
 ----
 
 ==== Predefined Sorters
+
+`radix_order` is a `enum` that defines the sorting order when `radix_sorter` is used.
+Only ascending and descending orders are applicable.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+  enum radix_order {
+    ascending,
+    descending
+  };
+
+}
+----
+
 SYCL provides the following predefined classes:
 
 [source,c++]
@@ -112,8 +135,6 @@ namespace sycl::ext::oneapi {
   template<typename Compare = std::less<>>
   class default_sorter {
   public:
-    using compare_type = Compare;
-
     default_sorter(Compare comp = Compare());
 
     template<typename Group, typename Ptr>
@@ -123,11 +144,9 @@ namespace sycl::ext::oneapi {
     T operator()(Group g, T val);
   };
 
-  template<typename T, typename Compare = std::less<T>, unsigned int BitsPerPass = 4>
+  template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
   class radix_sorter {
   public:
-    using compare_type = Compare;
-
     radix_sorter(const std::bitset<sizeof(T) * CHAR_BIT> mask =
                  std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max()));
 
@@ -152,10 +171,8 @@ using `Compare` as the binary comparison function object.
 
 |`template<typename T, typename Compare = std::less<T>, unsigned int BitsPerPass = 4>
 radix_sorter`
-|Use radix sort as a sorting method. `Compare` is used as the binary comparison
-function object. The method can provide better runtime performance.
-Only arithmetic types as `T` and `std::less`, `std::greater` as `Compare`
-can be passed to radix_sorter.
+|Use radix sort as a sorting method. `Order` specify the sorting order.
+Only arithmetic types as `T` can be passed to radix_sorter.
 `BitsPerPass` is a number of bits that values are split by.
 For example, if a sequence of `int32_t` is sorted using `BitsPerPass == 4` then one
 pass of the radix sort algorithm considers only 4 bits. The number of passes is `32/4=8`.
@@ -177,7 +194,7 @@ Table. Member functions of the `default_sorter` class.
 void operator()(Group g, Ptr begin, Ptr end)`
 |Implements a default sorting algorithm. It's callable by the `joint_sort` algorithm.
 
-_Complexity_: Let `N` be `last - first`. `O(Nlog^2(N))` comparisons.
+_Complexity_: Let `N` be `end - begin`. `O(Nlog^2(N))` comparisons.
 
 |`template<typename Group, typename T>
 T operator()(Group g, T val)`
@@ -208,29 +225,6 @@ void operator()(Group g, Ptr begin, Ptr end)`
 T operator()(Group g, T val)`
 |Implements the radix sort algorithm. It's callable by the `sort_over_group` algorithm.
 |===
-
-==== Sorter type trait
-
-[source,c++]
-----
-namespace sycl::ext::oneapi {
-  template<typename T>
-  class is_sorter;
-
-  template<typename T>
-  inline constexpr bool is_sorter_v = is_sorter<T>::value;
-}
-----
-
-The `is_sorter` type trait is used to determine which Sorters are supported
-by `joint_sort` and `sort_over_group` functions, and to control when sorting
-functions participate in overload resolution.
-
-`is_sorter<T>` is `std::true_type` if `T` contains a member type named `compare_type` and
-`std::­false_type` otherwise. A SYCL implementation may introduce additional
-specializations of `is_sorter<T>` for implementation-defined Sorters. If an application
-defines a customer Sorter `S`, it should ensure that `S` contains a member type named
-`compare_type` and the `operator()` member function or provide a specialization `is_sorter<S>`.
 
 ==== Sort
 The sort function from the {cpp} standard sorts elements with respect to
@@ -296,7 +290,7 @@ determined by their linear id.
 
 _Complexity_: Let `N` be the work group size. `O(Nlog^2(N))`` comparisons.
 
-2._Mandates_: `comp` must satisfy the requirements of `Compare` from
+5._Mandates_: `comp` must satisfy the requirements of `Compare` from
 the {cpp} standard.
 
 _Returns_: The value returned on work-item `i` is the value in position `i`
