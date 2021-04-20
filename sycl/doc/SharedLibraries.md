@@ -264,6 +264,7 @@ that all inputs should have the same format.
   format on OpenCL backend:
   - OpenCL plugin will use the existing OpenCL `clLinkProgram()` API to online
   link the SPIR-V modules together.
+  - The design requires a new Level Zero API to online link SPIR-V modules.
 - The initial design will support dynamic linking of device code in native code
   format on the Level Zero backend:
   - L0 plugin will use the existing Level Zero `zeModuleDynamicLink()` API to do
