@@ -305,11 +305,14 @@ _Complexity_: Let `N` be the work group size. `O(Nlog^2(N))`` comparisons.
 
 == Issues
 
-. Sort function can have interfaces with static arrays in private memory
-as well. The concern is that it needs to check the performance gain of such
-interfaces more closely.
+. Sort function can have interfaces with static arrays in private memory as well.
+The concern is that it can require changes for other group algortihms as well since sort
+basing on private memory is not very useful if other algorithms in the chain use local
+memory only.
 . It can be a separate proposal for key-value sorting basing on Projections.
 It needs to be investigated what is the response for that.
+. Sorter trait can be useful if there are Finder, Reducer or other objects
+will be added to the Spec to be used with other Group algorithms, e.g. find, reduce.
 
 == Revision History
 
