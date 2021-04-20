@@ -29,11 +29,25 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+namespace detail {
+template <backend Backend, typename T> struct BackendInput {
+  // TODO replace usage of interop with specializations.
+  using type = typename interop<Backend, T>::type;
+};
+
+template <backend Backend, typename T> struct BackendReturn {
+  // TODO replace usage of interop with specializations.
+  using type = typename interop<Backend, T>::type;
+};
+} // namespace detail
+
 template <backend Backend> class backend_traits {
 public:
-  template <class T> using input_type = typename interop<Backend, T>::type;
+  template <class T>
+  using input_type = typename detail::BackendInput<Backend, T>::type;
 
-  template <class T> using return_type = typename interop<Backend, T>::type;
+  template <class T>
+  using return_type = typename detail::BackendReturn<Backend, T>::type;
 
   // TODO define errc once SYCL2020-style exceptions are supported.
 };

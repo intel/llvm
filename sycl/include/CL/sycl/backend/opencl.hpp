@@ -23,12 +23,6 @@ template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
 };
 
-template <bundle_state S> struct interop<backend::opencl, kernel_bundle<S>> {
-  using type = cl_program;
-};
-
-template <> struct interop<backend::opencl, kernel> { using type = cl_kernel; };
-
 template <> struct interop<backend::opencl, device> {
   using type = cl_device_id;
 };
@@ -67,6 +61,24 @@ struct interop<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
 };
 
 namespace detail {
+template <bundle_state State>
+struct BackendInput<backend::opencl, kernel_bundle<State>> {
+  using type = cl_program;
+};
+
+template <bundle_state State>
+struct BackendReturn<backend::opencl, kernel_bundle<State>> {
+  using type = cl_program;
+};
+
+template <> struct BackendInput<backend::opencl, kernel> {
+  using type = cl_kernel;
+};
+
+template <> struct BackendReturn<backend::opencl, kernel> {
+  using type = cl_kernel;
+};
+
 template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = true;

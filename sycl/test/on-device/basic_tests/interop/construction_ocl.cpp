@@ -49,23 +49,112 @@ int main() {
   const char *ProgSrc = "kernel void _() {}";
   cl_int Err;
 
-  cl_program OclProg =
-      clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
-  assert(Err == CL_SUCCESS && "Program creation failed");
+  // Program in state NONE
+  {
+    cl_program OclProg =
+        clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
+    assert(Err == CL_SUCCESS && "Program creation failed");
 
-  auto KB =
-      sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
-  auto KernelIDs = KB.get_kernel_ids();
-  assert(KernelIDs.empty());
+    auto KB =
+        sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
+    auto KernelIDs = KB.get_kernel_ids();
+    assert(KernelIDs.empty());
 
-  Err = clBuildProgram(OclProg, 1, &NativeDev, "", nullptr, nullptr);
-  assert(Err == CL_SUCCESS && "Program build failed");
+    cl_program OclProg2 =
+        clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
+    assert(Err == CL_SUCCESS && "Program creation failed");
 
-  cl_kernel NativeKer = clCreateKernel(OclProg, "_", &Err);
-  assert(Err == CL_SUCCESS && "Kernel creation failed");
+    auto KB2 =
+        sycl::make_kernel_bundle<BE, sycl::bundle_state::object>(OclProg2, Ctx);
+    auto KernelIDs2 = KB2.get_kernel_ids();
+    assert(KernelIDs2.empty());
 
-  auto Kernel = sycl::make_kernel<BE>(NativeKer, Ctx);
-  assert(Kernel.get_info<sycl::info::kernel::num_args>() == 0);
+    cl_program OclProg3 =
+        clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
+    assert(Err == CL_SUCCESS && "Program creation failed");
+
+    auto KB3 = sycl::make_kernel_bundle<BE, sycl::bundle_state::executable>(
+        OclProg3, Ctx);
+    auto KernelIDs3 = KB3.get_kernel_ids();
+    assert(KernelIDs3.empty());
+  }
+
+  // Compiled program
+  {
+    cl_program OclProg =
+        clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
+    assert(Err == CL_SUCCESS && "Program creation failed");
+
+    Err = clCompileProgram(OclProg, 1, &NativeDev, "", 0, nullptr, nullptr,
+                           nullptr, nullptr);
+    assert(Err == CL_SUCCESS && "Program compile failed");
+
+    auto KB =
+        sycl::make_kernel_bundle<BE, sycl::bundle_state::object>(OclProg, Ctx);
+    auto KernelIDs = KB.get_kernel_ids();
+    assert(KernelIDs.empty());
+
+    bool StateMismatch = false;
+    try {
+      auto KB2 =
+          sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
+    } catch (sycl::runtime_error Ex) {
+      StateMismatch = true;
+    }
+    assert(StateMismatch);
+
+    cl_program OclProg3 =
+        clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
+    assert(Err == CL_SUCCESS && "Program creation failed");
+
+    Err = clCompileProgram(OclProg3, 1, &NativeDev, "", 0, nullptr, nullptr,
+                           nullptr, nullptr);
+    assert(Err == CL_SUCCESS && "Program compile failed");
+
+    auto KB3 = sycl::make_kernel_bundle<BE, sycl::bundle_state::executable>(
+        OclProg3, Ctx);
+    auto KernelIDs3 = KB3.get_kernel_ids();
+    assert(KernelIDs3.empty());
+  }
+
+  // Linked program
+  {
+    cl_program OclProg =
+        clCreateProgramWithSource(NativeCtx, 1, &ProgSrc, nullptr, &Err);
+    assert(Err == CL_SUCCESS && "Program creation failed");
+
+    Err = clBuildProgram(OclProg, 1, &NativeDev, "", nullptr, nullptr);
+    assert(Err == CL_SUCCESS && "Program build failed");
+
+    auto KB = sycl::make_kernel_bundle<BE, sycl::bundle_state::executable>(
+        OclProg, Ctx);
+    auto KernelIDs = KB.get_kernel_ids();
+    assert(KernelIDs.empty());
+
+    cl_kernel NativeKer = clCreateKernel(OclProg, "_", &Err);
+    assert(Err == CL_SUCCESS && "Kernel creation failed");
+
+    auto Kernel = sycl::make_kernel<BE>(NativeKer, Ctx);
+    assert(Kernel.get_info<sycl::info::kernel::num_args>() == 0);
+
+    bool StateMismatch = false;
+    try {
+      auto KB2 =
+          sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
+    } catch (sycl::runtime_error Ex) {
+      StateMismatch = true;
+    }
+    assert(StateMismatch);
+
+    StateMismatch = false;
+    try {
+      auto KB3 = sycl::make_kernel_bundle<BE, sycl::bundle_state::object>(
+          OclProg, Ctx);
+    } catch (sycl::runtime_error Ex) {
+      StateMismatch = true;
+    }
+    assert(StateMismatch);
+  }
 
   return 0;
 }

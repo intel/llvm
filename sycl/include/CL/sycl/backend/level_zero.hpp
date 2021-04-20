@@ -35,15 +35,6 @@ template <> struct interop<backend::level_zero, program> {
   using type = ze_module_handle_t;
 };
 
-template <bundle_state State>
-struct interop<backend::level_zero, kernel_bundle<State>> {
-  using type = ze_module_handle_t;
-};
-
-template <> struct interop<backend::level_zero, kernel> {
-  using type = ze_kernel_handle_t;
-};
-
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
                                              access::target::global_buffer,
@@ -59,6 +50,10 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
 };
 
 namespace detail {
+template <> class BackendReturn<backend::level_zero, kernel> {
+  using type = ze_kernel_handle_t;
+};
+
 template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = false;
@@ -67,7 +62,7 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakeEvent = false;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
-  static constexpr bool MakeKernelBundle = true;
+  static constexpr bool MakeKernelBundle = false;
 };
 } // namespace detail
 
