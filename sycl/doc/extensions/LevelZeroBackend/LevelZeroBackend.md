@@ -141,12 +141,29 @@ the application should not attempt further direct use of those handles.
 
 ## 5 Level-Zero additional functionality
 
-### 5.1 Free Memory query
-Level Zero contains a library for system resource management called Sysman.  
-Sysman allows programmers to query the amount of free, or unallocated, 
-memory in a device.  This extension provides a new device information
-descriptor specific to Level-Zero Backends that allows DPC++ programs to query
-the amount of free memory for a given device. The new descriptor is as follows: 
+### 5.1 Device Information Descriptors
+The Level Zero backend provides the following device information descriptors
+that an application can use to query information about a Level Zero device.
+Applications use these queries via the `device::get_backend_info<>()` member
+function as shown in the example below (which illustrates the `free_memory`
+query):
+
+``` C++
+sycl::queue Queue;
+auto Device = Queue.get_device();
+
+size_t freeMemory =
+  Device.get_backend_info<sycl::ext::oneapi::level_zero::info::device::free_memory>();
+```
+
+New descriptors added as part of this specification are found in the table below:
+
+| Descriptor | Description |
+| ---------- | ----------- |
+| `sycl::ext::oneapi::level_zero::info::device::free_memory` | Returns the number of bytes of free memory for the device. |
+
+
+#### 5.1.1 Free Memory Query Details
 
 ``` C++
 namespace sycl{
@@ -166,15 +183,6 @@ struct free_memory {
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
-```
-
-The new struct ```free_memory``` is used in conjuction with the ```get_backend_info()``` method of the ```device``` class in SYCL 2020.  The query will return the number of bytes of free memory for that device.
-
-``` C++
-sycl::queue Queue;
-auto Device = Queue.get_device();
-
-uint64_t freeMemory = Device.get_backend_info<sycl::ext::oneapi::info::device::free_memory>();
 ```
 
 ## Revision History
