@@ -7332,7 +7332,8 @@ TreeTransform<Derived>::TransformAttributedStmt(AttributedStmt *S,
   for (const auto *I : S->getAttrs()) {
     const Attr *R = getDerived().TransformAttr(I);
     AttrsChanged |= (I != R);
-    Attrs.push_back(R);
+    if (R)
+      Attrs.push_back(R);
   }
 
   StmtResult SubStmt = getDerived().TransformStmt(S->getSubStmt(), SDK);
@@ -7341,6 +7342,11 @@ TreeTransform<Derived>::TransformAttributedStmt(AttributedStmt *S,
 
   if (SubStmt.get() == S->getSubStmt() && !AttrsChanged)
     return S;
+
+  // If transforming the attributes failed for all of the attributes in the
+  // statement, don't make an AttributedStmt without attributes.
+  if (Attrs.empty())
+    return SubStmt;
 
   return getDerived().RebuildAttributedStmt(S->getAttrLoc(), Attrs,
                                             SubStmt.get());

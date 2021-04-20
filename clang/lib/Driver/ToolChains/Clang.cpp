@@ -8297,9 +8297,10 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
     }
-    // Temporary disable SPV_INTEL_optnone & SPV_KHR_linkonce_odr until some
-    // targets support it.
-    ExtArg += ",-SPV_INTEL_optnone,-SPV_KHR_linkonce_odr";
+    // Temporary disable SPV_INTEL_optnone & SPV_KHR_linkonce_odr &
+    // SPV_INTEL_memory_access_aliasinguntil some targets support it.
+    ExtArg += ",-SPV_INTEL_optnone,-SPV_KHR_linkonce_odr"
+              ",-SPV_INTEL_memory_access_aliasing";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
