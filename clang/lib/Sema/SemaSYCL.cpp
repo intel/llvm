@@ -4548,8 +4548,8 @@ void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
   O << "";
 }
 
-template <typename Before, typename After>
-static void PrintNSHelper(Before B, After A, raw_ostream &O,
+template <typename BeforeFn, typename AfterFn>
+static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
                           const DeclContext *DC) {
   if (DC->isTranslationUnit())
     return;
@@ -4563,71 +4563,72 @@ static void PrintNSHelper(Before B, After A, raw_ostream &O,
   // can appear in a linkage decl, but not a record decl, so we don't have to
   // worry about the names getting messed up from that.  We handle record-decls
   // later when printing the name of the thing.
-  if (const auto *NS = dyn_cast<NamespaceDecl>(CurDecl))
-    B(O, NS);
+  const auto *NS = dyn_cast<NamespaceDecl>(CurDecl);
+  if (NS)
+    Before(OS, NS);
 
   if (CurDecl->getDeclContext())
-    PrintNSHelper(B, A, O, CurDecl->getDeclContext());
+    PrintNSHelper(Before, After, OS, CurDecl->getDeclContext());
 
-  if (const auto *NS = dyn_cast<NamespaceDecl>(CurDecl))
-    A(O, NS);
+  if (NS)
+    After(OS, NS);
 }
 
-static void PrintNamespaces(raw_ostream &O, const DeclContext *DC) {
-  PrintNSHelper([](raw_ostream &O, const NamespaceDecl *NS) {},
-                [](raw_ostream &O, const NamespaceDecl *NS) {
+static void PrintNamespaces(raw_ostream &OS, const DeclContext *DC) {
+  PrintNSHelper([](raw_ostream &OS, const NamespaceDecl *NS) {},
+                [](raw_ostream &OS, const NamespaceDecl *NS) {
                   if (NS->isInline())
-                    O << "inline ";
-                  O << "namespace ";
+                    OS << "inline ";
+                  OS << "namespace ";
                   if (!NS->isAnonymousNamespace())
-                    O << NS->getName() << " ";
-                  O << "{\n";
+                    OS << NS->getName() << " ";
+                  OS << "{\n";
                 },
-                O, DC);
+                OS, DC);
 }
 
-static void PrintNSClosingBraces(raw_ostream &O, const DeclContext *DC) {
+static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
   PrintNSHelper(
-      [](raw_ostream &O, const NamespaceDecl *NS) {
-        O << "} // ";
+      [](raw_ostream &OS, const NamespaceDecl *NS) {
+        OS << "} // ";
         if (NS->isInline())
-          O << "inline ";
+          OS << "inline ";
 
-        O << "namespace ";
+        OS << "namespace ";
         if (!NS->isAnonymousNamespace())
-          O << NS->getName();
+          OS << NS->getName();
 
-        O << '\n';
+        OS << '\n';
       },
-      [](raw_ostream &O, const NamespaceDecl *NS) {}, O, DC);
+      [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
 }
 
-static std::string EmitSpecIdShim(raw_ostream &O, unsigned &ShimCounter,
+static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
                                   const std::string &LastShim,
                                   const NamespaceDecl *AnonNS) {
   std::string NewShimName =
       "__sycl_detail::__spec_id_shim_" + std::to_string(ShimCounter) + "()";
   // Print opening-namespace
-  PrintNamespaces(O, Decl::castToDeclContext(AnonNS));
-  O << "namespace __sycl_detail {\n";
-  O << "static constexpr decltype(" << LastShim << ") &__spec_id_shim_"
-    << ShimCounter << "() {\n";
-  O << "  return " << LastShim << ";\n";
-  O << "}\n";
-  O << "} // namespace __sycl_detail \n";
-  PrintNSClosingBraces(O, Decl::castToDeclContext(AnonNS));
+  PrintNamespaces(OS, Decl::castToDeclContext(AnonNS));
+  OS << "namespace __sycl_detail {\n";
+  OS << "static constexpr decltype(" << LastShim << ") &__spec_id_shim_"
+     << ShimCounter << "() {\n";
+  OS << "  return " << LastShim << ";\n";
+  OS << "}\n";
+  OS << "} // namespace __sycl_detail \n";
+  PrintNSClosingBraces(OS, Decl::castToDeclContext(AnonNS));
 
   ++ShimCounter;
   return std::move(NewShimName);
 }
 
 // Emit the list of shims required for a DeclContext, calls itself recursively.
-static std::string EmitSpecIdShims(raw_ostream &O, unsigned &ShimCounter,
-                                   const DeclContext *DC,
-                                   std::string NameForLastShim) {
+static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
+                            const DeclContext *DC,
+                            std::string &NameForLastShim) {
   if (DC->isTranslationUnit()) {
     NameForLastShim = "::" + NameForLastShim;
-    return std::move(NameForLastShim);
+    return;
   }
 
   const auto *CurDecl = cast<Decl>(DC)->getCanonicalDecl();
@@ -4638,7 +4639,7 @@ static std::string EmitSpecIdShims(raw_ostream &O, unsigned &ShimCounter,
   } else if (const auto *ND = dyn_cast<NamespaceDecl>(CurDecl)) {
     if (ND->isAnonymousNamespace()) {
       // Print current shim, reset 'name for last shim'.
-      NameForLastShim = EmitSpecIdShim(O, ShimCounter, NameForLastShim, ND);
+      NameForLastShim = EmitSpecIdShim(OS, ShimCounter, NameForLastShim, ND);
     } else {
       NameForLastShim = ND->getNameAsString() + "::" + NameForLastShim;
     }
@@ -4653,22 +4654,22 @@ static std::string EmitSpecIdShims(raw_ostream &O, unsigned &ShimCounter,
         "Unhandled decl type");
   }
 
-  return EmitSpecIdShims(O, ShimCounter, CurDecl->getDeclContext(),
-                         NameForLastShim);
+  EmitSpecIdShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim);
 }
 
 // Emit the list of shims required for a variable declaration.
 // Returns a string containing the FQN of the 'top most' shim, including its
 // function call parameters.
-static std::string EmitSpecIdShims(raw_ostream &O, unsigned &ShimCounter,
+static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
                                    const VarDecl *VD) {
   assert(VD->isInAnonymousNamespace() &&
          "Function assumes this is in an anonymous namespace");
   std::string RelativeName = VD->getNameAsString();
-  return EmitSpecIdShims(O, ShimCounter, VD->getDeclContext(), RelativeName);
+  EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
+  return std::move(RelativeName);
 }
 
-bool SYCLIntegrationFooter::emit(raw_ostream &O) {
+bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   PrintingPolicy Policy{S.getLangOpts()};
   Policy.adjustForCPlusPlusFwdDecl();
   Policy.SuppressTypedefs = true;
@@ -4680,33 +4681,33 @@ bool SYCLIntegrationFooter::emit(raw_ostream &O) {
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
     if (VD->isInAnonymousNamespace()) {
-      std::string TopShim = EmitSpecIdShims(O, ShimCounter, VD);
-      O << "namespace sycl {\n";
-      O << "namespace detail {\n";
-      O << "template<>\n";
-      O << "inline const char *get_spec_constant_symbolic_ID<" << TopShim
-        << ">() {\n";
-      O << "  return " << TopShim << ";\n";
-      O << "}\n";
-      O << "} // namespace detail\n";
-      O << "} // namespace sycl\n";
+      std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+      OS << "namespace sycl {\n";
+      OS << "namespace detail {\n";
+      OS << "template<>\n";
+      OS << "inline const char *get_spec_constant_symbolic_ID<" << TopShim
+         << ">() {\n";
+      OS << "  return " << TopShim << ";\n";
+      OS << "}\n";
+      OS << "} // namespace detail\n";
+      OS << "} // namespace sycl\n";
     } else {
-      O << "namespace sycl {\n";
-      O << "namespace detail {\n";
-      O << "template<>\n";
-      O << "inline const char *get_spec_constant_symbolic_ID<::";
-      VD->printQualifiedName(O, Policy);
-      O << ">() {\n";
-      O << "  return \"";
-      emitSpecIDName(O, VD);
-      O << "\";\n";
-      O << "}\n";
-      O << "} // namespace detail\n";
-      O << "} // namespace sycl\n";
+      OS << "namespace sycl {\n";
+      OS << "namespace detail {\n";
+      OS << "template<>\n";
+      OS << "inline const char *get_spec_constant_symbolic_ID<::";
+      VD->printQualifiedName(OS, Policy);
+      OS << ">() {\n";
+      OS << "  return \"";
+      emitSpecIDName(OS, VD);
+      OS << "\";\n";
+      OS << "}\n";
+      OS << "} // namespace detail\n";
+      OS << "} // namespace sycl\n";
     }
   }
 
-  O << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+  OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
   return true;
 }
 
