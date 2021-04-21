@@ -16,6 +16,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -332,13 +333,16 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
 }
 
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
-                              Instruction *InsertBefore) {
+                              Instruction *InsertBefore,
+                              Constant *DefaultValue) {
   Function *F = InsertBefore->getFunction();
   // Generate arguments needed by the SPIRV version of the intrinsic
   // - integer constant ID:
   Value *ID = ConstantInt::get(Type::getInt32Ty(F->getContext()), NumericID);
   // - default value:
-  Value *Def = getDefaultCPPValue(Ty);
+  //   For SYCL 2020 we have it provided by user for us, but for older version
+  //   of specialization constants we use default C++ value based on type.
+  Value *Def = DefaultValue ? DefaultValue : getDefaultCPPValue(Ty);
   // ... Now replace the call with SPIRV intrinsic version.
   Value *Args[] = {ID, Def};
   return emitCall(Ty, SPIRV_GET_SPEC_CONST_VAL, Args, InsertBefore);
@@ -379,33 +383,38 @@ Instruction *emitSpecConstantComposite(Type *Ty,
 /// encountered scalars and assigns them IDs (or re-uses existing ones).
 Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
                                            SmallVectorImpl<unsigned> &IDs,
-                                           unsigned &Index) {
+                                           unsigned &Index,
+                                           Constant *DefaultValue) {
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
     if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
       // scalar elements, starting with the second one.
       IDs.push_back(IDs.back() + 1);
     }
-    return emitSpecConstant(IDs[Index++], Ty, InsertBefore);
+    return emitSpecConstant(IDs[Index++], Ty, InsertBefore, DefaultValue);
   }
 
   SmallVector<Instruction *, 8> Elements;
-  auto LoopIteration = [&](Type *Ty) {
+  auto LoopIteration = [&](Type *Ty, unsigned LocalIndex) {
+    // Select corresponding element of the default value if it was provided
+    Constant *Def =
+        DefaultValue ? DefaultValue->getAggregateElement(LocalIndex) : nullptr;
     Elements.push_back(
-        emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index));
+        emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index, Def));
   };
 
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
-      LoopIteration(ArrTy->getElementType());
+      LoopIteration(ArrTy->getElementType(), I);
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+    unsigned I = 0;
     for (Type *ElTy : StructTy->elements()) {
-      LoopIteration(ElTy);
+      LoopIteration(ElTy, I++);
     }
   } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     for (size_t I = 0; I < VecTy->getNumElements(); ++I) {
-      LoopIteration(VecTy->getElementType());
+      LoopIteration(VecTy->getElementType(), I);
     }
   } else {
     llvm_unreachable("Unexpected spec constant type");
@@ -416,9 +425,11 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
 
 /// Wrapper intended to hide IsFirstElement argument from the caller
 Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
-                                       SmallVectorImpl<unsigned> &IDs) {
+                                       SmallVectorImpl<unsigned> &IDs,
+                                       Constant *DefaultValue) {
   unsigned Index = 0;
-  return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index);
+  return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index,
+                                       DefaultValue);
 }
 
 } // namespace
@@ -462,6 +473,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       bool IsComposite =
           F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) ||
           F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
+      // SYCL 2020 specialization constants provide more functionality so they
+      // use separate intrinsic with additional arguments.
+      bool Is2020Intrinsic =
+          F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
+          F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
 
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
@@ -485,13 +501,31 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         auto &IDs = Ins.first->second;
         if (IsNewSpecConstant) {
           // For any spec constant type there will be always at least one ID
-          // generatedA.
+          // generated.
           IDs.push_back(NextID);
+        }
+
+        Constant *DefaultValue = nullptr;
+        if (Is2020Intrinsic) {
+          // For SYCL 2020, there is a mechanism to specify the default value.
+          // It is stored as an initializer of a global variable referenced by
+          // the second argument of the intrinsic.
+          auto *GV = dyn_cast<GlobalVariable>(
+              CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
+          if (GV) {
+            auto *Initializer = GV->getInitializer();
+            assert(isa<ConstantAggregate>(Initializer) &&
+                   "expected specialization_id instance");
+            // specialization_id structure contains a single field which is the
+            // default value of corresponding specialization constant.
+            DefaultValue = Initializer->getAggregateElement(0u);
+          }
         }
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
-        auto *SPIRVCall = emitSpecConstantRecursive(SCTy, CI, IDs);
+        auto *SPIRVCall =
+            emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to ajudst
@@ -526,10 +560,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         // 2a. Spec constant must be resolved at compile time - replace the
         // intrinsic with the actual value for spec constant.
         Value *Val = nullptr;
-        bool Is2020Intrinsic =
-            F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
-            F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
-
         if (Is2020Intrinsic) {
           // Handle SYCL2020 version of intrinsic - replace it with a load from
           // the pointer to the specialization constant value.
