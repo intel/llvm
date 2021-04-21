@@ -4498,7 +4498,7 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // Step 1: ensure that this is of the correct type-spec-constant template
   // specialization).
   if (!Util::isSyclSpecIdType(VD->getType())) {
-    // handle the case where this could be a deduced type, such as a deduction
+    // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
     // rest of this file, is called during Sema instead of after it. We will
     // also have to filter out after deduction later.
@@ -4561,14 +4561,14 @@ static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
 
   // We are intentionally skipping linkage decls and record decls.  Namespaces
   // can appear in a linkage decl, but not a record decl, so we don't have to
-  // worry about the names getting messed up from that.  We handle record-decls
+  // worry about the names getting messed up from that.  We handle record decls
   // later when printing the name of the thing.
   const auto *NS = dyn_cast<NamespaceDecl>(CurDecl);
   if (NS)
     Before(OS, NS);
 
-  if (CurDecl->getDeclContext())
-    PrintNSHelper(Before, After, OS, CurDecl->getDeclContext());
+  if (const DeclContext *NewDC = CurDecl->getDeclContext())
+    PrintNSHelper(Before, After, OS, NewDC);
 
   if (NS)
     After(OS, NS);
@@ -4649,9 +4649,8 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
     // qualified name, so there is nothing to do here. At one point we should
     // probably convince ourselves that this is entire list and remove this
     // comment.
-    assert(
-        (isa<LinkageSpecDecl>(CurDecl) || isa<ExternCContextDecl>(CurDecl)) &&
-        "Unhandled decl type");
+    assert((isa<LinkageSpecDecl, ExternCContextDecl>(CurDecl)) &&
+           "Unhandled decl type");
   }
 
   EmitSpecIdShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim);
@@ -4688,9 +4687,6 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << "inline const char *get_spec_constant_symbolic_ID<" << TopShim
          << ">() {\n";
       OS << "  return " << TopShim << ";\n";
-      OS << "}\n";
-      OS << "} // namespace detail\n";
-      OS << "} // namespace sycl\n";
     } else {
       OS << "namespace sycl {\n";
       OS << "namespace detail {\n";
@@ -4701,10 +4697,10 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << "  return \"";
       emitSpecIDName(OS, VD);
       OS << "\";\n";
-      OS << "}\n";
-      OS << "} // namespace detail\n";
-      OS << "} // namespace sycl\n";
     }
+    OS << "}\n";
+    OS << "} // namespace detail\n";
+    OS << "} // namespace sycl\n";
   }
 
   OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
