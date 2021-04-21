@@ -243,6 +243,42 @@ static Attr *handleIntelFPGAIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
       NumArgs == 2 ? A.getArgAsExpr(1) : nullptr);
 }
 
+static void
+CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
+                                         ArrayRef<const Attr *> Attrs) {
+   // Create a list of SYCLIntelFPGALoopCount attributes only.
+   SmallVector<const SYCLIntelFPGALoopCountAttr *, 8> OnlyLoopCountAttrs;
+   llvm::transform(
+       Attrs, std::back_inserter(OnlyLoopCountAttrs), [](const Attr *A) {
+         return dyn_cast_or_null<const SYCLIntelFPGALoopCountAttr>(A);
+       });
+   OnlyLoopCountAttrs.erase(
+      std::remove(OnlyLoopCountAttrs.begin(), OnlyLoopCountAttrs.end(),
+                  static_cast<const SYCLIntelFPGALoopCountAttr*>(nullptr)),
+      OnlyLoopCountAttrs.end());
+   if (OnlyLoopCountAttrs.empty())
+     return;
+
+  unsigned int MinCount, MaxCount, AvgCount = 0;
+  for (const auto *A : OnlyLoopCountAttrs) {
+    const SYCLIntelFPGALoopCountAttr *At =
+        dyn_cast<SYCLIntelFPGALoopCountAttr>(A);
+    switch (At->getCountKind()) {
+    case SYCLIntelFPGALoopCountAttr::CountKind::loop_count_min:
+      MinCount++;
+      break;
+    case SYCLIntelFPGALoopCountAttr::CountKind::loop_count_max:
+      MaxCount++;
+      break;
+    case SYCLIntelFPGALoopCountAttr::CountKind::loop_count_avg:
+      AvgCount++;
+      break;
+    }
+    if (MinCount > 1 || MaxCount > 1 || AvgCount >1 )
+    S.Diag(A->getLocation(), diag::err_sycl_loop_attr_duplication) << 1 << A;
+  }
+}
+
 static SYCLIntelFPGALoopCountAttr *
 handleIntelFPGALoopCountAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
   Expr *E = A.getArgAsExpr(0);
@@ -582,7 +618,7 @@ static void CheckForIncompatibleSYCLLoopAttributes(
                                                                          Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGASpeculatedIterationsAttr>(
       S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGALoopCountAttr>(S, Attrs);
+  CheckForDuplicateSYCLIntelLoopCountAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGANofusionAttr>(S, Attrs);

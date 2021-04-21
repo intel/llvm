@@ -19,6 +19,7 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/ADT/DenseMap.h"
 
 namespace llvm {
 class BasicBlock;
@@ -117,13 +118,14 @@ struct LoopAttributes {
   /// Value for llvm.loop.max_concurrency.count metadata.
   unsigned SYCLMaxConcurrencyNThreads;
 
-  /// Flag for llvm.loop.intel.loopcount_average metadata.
+  /// Flag for llvm.loop.intel.loopcount metadata.
   bool SYCLIntelFPGALoopCountEnable;
 
-  /// Value for llvm.loop.intel.loopcount_average metadata.
-  unsigned SYCLIntelFPGALoopCount;
+  /// Value for llvm.loop.intel.loopcount value metadata.
+  llvm::SmallVector<unsigned int, 2> SYCLIntelFPGALoopCountValue;
 
-  const char *SYCLIntelFPGALoopCountVariation;
+  /// Value for llvm.loop.intel.loopcount variant(min/max/avg) metadata.
+  llvm::SmallVector<const char *, 2> SYCLIntelFPGALoopCountVariant;
 
   /// Flag for llvm.loop.coalesce metadata.
   bool SYCLLoopCoalesceEnable;
@@ -412,19 +414,19 @@ public:
     StagedAttrs.SYCLSpeculatedIterationsNIterations = C;
   }
 
-  /// Set flag of loop_control_avg for the next loop pushed.
+  /// Set flag of loopcount for the next loop pushed.
   void setSYCLIntelFPGALoopCountEnable() {
     StagedAttrs.SYCLIntelFPGALoopCountEnable = true;
   }
 
-  /// Set value of loop control average for the next loop pushed.
-  void setSYCLIntelFPGALoopCount(unsigned C) {
-    StagedAttrs.SYCLIntelFPGALoopCount = C;
+  /// Set value of loopcount value for the next loop pushed.
+  void setSYCLIntelFPGALoopCountValue(unsigned C) {
+    StagedAttrs.SYCLIntelFPGALoopCountValue.push_back(C);
   }
 
-  /// Set value of loop control average for the next loop pushed.
-  void setSYCLIntelFPGALoopCountVariation(const char *var) {
-    StagedAttrs.SYCLIntelFPGALoopCountVariation = var;
+  /// Set value of loopcount variant for the next loop pushed.
+  void setSYCLIntelFPGALoopCountVariant(const char *var) {
+    StagedAttrs.SYCLIntelFPGALoopCountVariant.push_back(var);
   }
 
   /// Set the unroll count for the next loop pushed.

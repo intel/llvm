@@ -606,11 +606,14 @@ MDNode *LoopInfo::createMetadata(
   }
 
   if (Attrs.SYCLIntelFPGALoopCountEnable) {
+    for (int i = 0; i < Attrs.SYCLIntelFPGALoopCountVariant.size(); i++) {
     Metadata *Vals[] = {
-        MDString::get(Ctx, Attrs.SYCLIntelFPGALoopCountVariation),
-        ConstantAsMetadata::get(ConstantInt::get(
-            llvm::Type::getInt32Ty(Ctx), Attrs.SYCLIntelFPGALoopCount))};
+        MDString::get(Ctx, Attrs.SYCLIntelFPGALoopCountVariant[i]),
+        ConstantAsMetadata::get(
+            ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
+                             Attrs.SYCLIntelFPGALoopCountValue[i]))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
+    }
   }
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
@@ -629,11 +632,11 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLMaxInterleavingEnable(false), SYCLMaxInterleavingNInvocations(0),
       SYCLSpeculatedIterationsEnable(false),
       SYCLSpeculatedIterationsNIterations(0),
-      SYCLIntelFPGALoopCountEnable(false),
-      SYCLIntelFPGALoopCountVariation(nullptr), UnrollCount(0),
-      UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
-      PipelineDisabled(false), PipelineInitiationInterval(0),
-      SYCLNofusionEnable(false), MustProgress(false) {}
+      SYCLIntelFPGALoopCountEnable(false), SYCLIntelFPGALoopCountValue(0),
+      SYCLIntelFPGALoopCountVariant(0), UnrollCount(0), UnrollAndJamCount(0),
+      DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
+      PipelineInitiationInterval(0), SYCLNofusionEnable(false),
+      MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -653,7 +656,8 @@ void LoopAttributes::clear() {
   SYCLSpeculatedIterationsEnable = false;
   SYCLSpeculatedIterationsNIterations = 0;
   SYCLIntelFPGALoopCountEnable = false;
-  SYCLIntelFPGALoopCountVariation = nullptr;
+  SYCLIntelFPGALoopCountVariant.clear();
+  SYCLIntelFPGALoopCountValue.clear();
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -692,7 +696,8 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLSpeculatedIterationsEnable == false &&
       Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
       Attrs.SYCLIntelFPGALoopCountEnable == 0 &&
-      Attrs.SYCLIntelFPGALoopCountVariation == nullptr &&
+      Attrs.SYCLIntelFPGALoopCountVariant.empty() &&
+      Attrs.SYCLIntelFPGALoopCountValue.empty() &&
       Attrs.UnrollCount == 0 && Attrs.UnrollAndJamCount == 0 &&
       !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
@@ -1046,7 +1051,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     if (const auto *IntelFPGALoopCountAvg =
             dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
       setSYCLIntelFPGALoopCountEnable();
-      setSYCLIntelFPGALoopCount(IntelFPGALoopCountAvg->getNTripCount()
+      setSYCLIntelFPGALoopCountValue(IntelFPGALoopCountAvg->getNTripCount()
                                     ->getIntegerConstantExpr(Ctx)
                                     ->getSExtValue());
       const char *var = IntelFPGALoopCountAvg->isMax()
@@ -1054,7 +1059,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
                             : IntelFPGALoopCountAvg->isMin()
                                   ? "llvm.loop.intel.loopcount_min"
                                   : "llvm.loop.intel.loopcount_avg";
-      setSYCLIntelFPGALoopCountVariation(var);
+      setSYCLIntelFPGALoopCountVariant(var);
     }
 
     if (const auto *IntelFPGALoopCoalesce =
