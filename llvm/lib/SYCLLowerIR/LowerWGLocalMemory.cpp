@@ -86,9 +86,6 @@ static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   Value *GVPtr =
       Builder.CreatePointerCast(LocalMemArrayGV, Builder.getInt8PtrTy(LocalAS));
   CI->replaceAllUsesWith(GVPtr);
-
-  assert(CI->use_empty() && "removing live instruction");
-  CI->eraseFromParent();
 }
 
 static bool allocaWGLocalMemory(Module &M) {
@@ -98,9 +95,16 @@ static bool allocaWGLocalMemory(Module &M) {
 
   assert(ALMFunc->isDeclaration() && "should have declaration only");
 
-  for (auto U = ALMFunc->user_begin(), UE = ALMFunc->user_end(); U != UE;) {
-    auto *CI = cast<CallInst>(*U++);
+  SmallVector<CallInst *, 4> DelCalls;
+  for (User *U : ALMFunc->users()) {
+    auto *CI = cast<CallInst>(U);
     lowerAllocaLocalMemCall(CI, M);
+    DelCalls.push_back(CI);
+  }
+
+  for (auto *CI : DelCalls) {
+    assert(CI->use_empty() && "removing live instruction");
+    CI->eraseFromParent();
   }
 
   // Remove __sycl_allocateLocalMemory declaration.
