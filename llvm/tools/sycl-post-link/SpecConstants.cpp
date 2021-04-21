@@ -513,8 +513,10 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           auto *GV = dyn_cast<GlobalVariable>(
               CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
           if (GV) {
+            assert(GV->hasInitializer() && "expected initializer");
             auto *Initializer = GV->getInitializer();
-            assert(isa<ConstantAggregate>(Initializer) &&
+            assert((isa<ConstantAggregate>(Initializer) ||
+                    Initializer->isZeroValue()) &&
                    "expected specialization_id instance");
             // specialization_id structure contains a single field which is the
             // default value of corresponding specialization constant.
