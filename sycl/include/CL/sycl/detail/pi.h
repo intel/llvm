@@ -53,6 +53,7 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <cstdint>
+#include <array>
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,6 +65,8 @@ using pi_uint64 = uint64_t;
 using pi_bool = pi_uint32;
 using pi_bitfield = pi_uint64;
 using pi_native_handle = uintptr_t;
+using pi_byte_array = std::array<std::byte, 16>;
+
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -278,6 +281,8 @@ typedef enum {
       CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
   PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT =
       CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL,
+  // Intel UUID extension.
+  PI_DEVICE_INFO_UUID = CL_DEVICE_UUID_KHR,
   // These are Intel-specific extensions.
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,

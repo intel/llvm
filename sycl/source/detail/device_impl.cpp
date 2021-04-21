@@ -297,6 +297,11 @@ bool device_impl::has(aspect Aspect) const {
                MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_device_info_uuid:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_UUID,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;

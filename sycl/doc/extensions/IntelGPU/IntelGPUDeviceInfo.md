@@ -11,7 +11,40 @@ This proposal details what is required to provide this information as a SYCL ext
 
 The Feature Test Macro will be defined as:
 
-    #define SYCL_EXT_INTEL_DEVICE_INFO 1
+    #define SYCL_EXT_INTEL_DEVICE_INFO 2
+
+
+# Device UUID #
+
+A new device descriptor will be added which will provide the device Universal Unique ID (UUID).
+
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| info\:\:device\:\:ext\_intel\_device\_info\_uuid | std\:\:array\<std\:\:byte\, 16\> | For Level Zero BE, returns the device UUID|
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_device\_info\_uuid, will be added.
+
+## Error Condition ##
+
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_device\_info\_uuid.
+
+
+## Example Usage ##
+
+The PCI address can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_device_info_uuid)) {
+      auto BDF = dev.get_info<info::device::ext_intel_device_info_uuid>();
+    }
+
 
 
 # PCI Address #

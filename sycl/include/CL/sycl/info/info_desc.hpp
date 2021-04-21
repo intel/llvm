@@ -131,7 +131,8 @@ enum class device : cl_device_info {
   usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
   usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
-
+  // uuid extension
+  ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
   // intel extensions
   ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
   ext_intel_gpu_eu_count = PI_DEVICE_INFO_GPU_EU_COUNT,

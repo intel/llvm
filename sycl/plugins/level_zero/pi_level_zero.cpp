@@ -1656,6 +1656,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(Device->Platform);
   case PI_DEVICE_INFO_VENDOR_ID:
     return ReturnValue(pi_uint32{Device->ZeDeviceProperties.vendorId});
+  case PI_DEVICE_INFO_UUID:
+    return ReturnValue(Device->ZeDeviceProperties.uuid.id);
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension

@@ -1045,42 +1045,50 @@ get_device_info_host<info::device::ext_intel_pci_address>() {
       PI_INVALID_DEVICE);
 }
 template <>
-inline cl_uint get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
+inline pi_uint32 get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
   throw runtime_error("Obtaining the EU count is not supported on HOST device",
                       PI_INVALID_DEVICE);
 }
 template <>
-inline cl_uint
+inline pi_uint32
 get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
   throw runtime_error(
       "Obtaining the EU SIMD width is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 template <>
-inline cl_uint get_device_info_host<info::device::ext_intel_gpu_slices>() {
+inline pi_uint32 get_device_info_host<info::device::ext_intel_gpu_slices>() {
   throw runtime_error(
       "Obtaining the number of slices is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 template <>
-inline cl_uint
+inline pi_uint32
 get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
   throw runtime_error("Obtaining the number of subslices per slice is not "
                       "supported on HOST device",
                       PI_INVALID_DEVICE);
 }
 template <>
-inline cl_uint
+inline pi_uint32
 get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
   throw runtime_error(
       "Obtaining the EU count per subslice is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 template <>
-inline cl_ulong
+inline pi_uint64
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+
+template <>
+inline pi_byte_array
+get_device_info_host<info::device::ext_intel_device_info_uuid>() {
+  throw runtime_error(
+      "Obtaining the device uuid is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 
