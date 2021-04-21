@@ -178,8 +178,8 @@ public:
       Plugin.call<PiApiKind::piMemBufferCreate>(
           detail::getSyclObjImpl(MContext)->getHandleRef(),
           PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_USE,
-          MSpecConstsBlob.size(), MSpecConstsBlob.data(),
-          &MSpecConstsBuffer, nullptr);
+          MSpecConstsBlob.size(), MSpecConstsBlob.data(), &MSpecConstsBuffer,
+          nullptr);
     }
     return MSpecConstsBuffer;
   }
