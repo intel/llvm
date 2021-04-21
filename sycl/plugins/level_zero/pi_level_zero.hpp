@@ -130,6 +130,16 @@ public:
       : USMMemoryAllocBase(Ctx, Dev) {}
 };
 
+// Allocation routines for host memory type
+class USMHostMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+
+public:
+  USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
+};
+
 struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
              bool isSubDevice = false)
@@ -196,6 +206,11 @@ struct _pi_context : _pi_object {
       // NOTE: one must additionally call initialize() to complete
       // PI context creation.
     }
+    // Create USM allocator context for host. Device and Shared USM allocations
+    // are device-specific. Host allocations are not device-dependent therefore
+    // we don't need a map with device as key.
+    HostMemAllocContext = new USMAllocContext(
+        std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
   }
 
   // Initialize the PI context.
@@ -260,10 +275,12 @@ struct _pi_context : _pi_object {
   pi_result decrementAliveEventsInPool(ze_event_pool_handle_t pool);
 
   // Store USM allocator context(internal allocator structures)
-  // for USM shared/host and device allocations. There is 1 allocator context
+  // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
   std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
+  // Store the host allocator context. It does not depend on any device.
+  USMAllocContext *HostMemAllocContext;
 
 private:
   // Following member variables are used to manage assignment of events
