@@ -607,12 +607,12 @@ MDNode *LoopInfo::createMetadata(
 
   if (Attrs.SYCLIntelFPGALoopCountEnable) {
     for (int i = 0; i < Attrs.SYCLIntelFPGALoopCountVariant.size(); i++) {
-    Metadata *Vals[] = {
-        MDString::get(Ctx, Attrs.SYCLIntelFPGALoopCountVariant[i]),
-        ConstantAsMetadata::get(
-            ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
-                             Attrs.SYCLIntelFPGALoopCountValue[i]))};
-    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+      Metadata *Vals[] = {
+          MDString::get(Ctx, Attrs.SYCLIntelFPGALoopCountVariant[i]),
+          ConstantAsMetadata::get(
+              ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
+                               Attrs.SYCLIntelFPGALoopCountValue[i]))};
+      LoopProperties.push_back(MDNode::get(Ctx, Vals));
     }
   }
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
@@ -697,9 +697,9 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
       Attrs.SYCLIntelFPGALoopCountEnable == 0 &&
       Attrs.SYCLIntelFPGALoopCountVariant.empty() &&
-      Attrs.SYCLIntelFPGALoopCountValue.empty() &&
-      Attrs.UnrollCount == 0 && Attrs.UnrollAndJamCount == 0 &&
-      !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
+      Attrs.SYCLIntelFPGALoopCountValue.empty() && Attrs.UnrollCount == 0 &&
+      Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
+      Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
@@ -1052,13 +1052,12 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
             dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
       setSYCLIntelFPGALoopCountEnable();
       setSYCLIntelFPGALoopCountValue(IntelFPGALoopCountAvg->getNTripCount()
-                                    ->getIntegerConstantExpr(Ctx)
-                                    ->getSExtValue());
-      const char *var = IntelFPGALoopCountAvg->isMax()
-                            ? "llvm.loop.intel.loopcount_max"
-                            : IntelFPGALoopCountAvg->isMin()
-                                  ? "llvm.loop.intel.loopcount_min"
-                                  : "llvm.loop.intel.loopcount_avg";
+                                         ->getIntegerConstantExpr(Ctx)
+                                         ->getSExtValue());
+      const char *var =
+          IntelFPGALoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
+          : IntelFPGALoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
+                                           : "llvm.loop.intel.loopcount_avg";
       setSYCLIntelFPGALoopCountVariant(var);
     }
 

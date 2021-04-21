@@ -15,11 +15,11 @@
 #define LLVM_CLANG_LIB_CODEGEN_CGLOOPINFO_H
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/ADT/DenseMap.h"
 
 namespace llvm {
 class BasicBlock;

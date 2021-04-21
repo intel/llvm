@@ -246,18 +246,18 @@ static Attr *handleIntelFPGAIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
 static void
 CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
                                          ArrayRef<const Attr *> Attrs) {
-   // Create a list of SYCLIntelFPGALoopCount attributes only.
-   SmallVector<const SYCLIntelFPGALoopCountAttr *, 8> OnlyLoopCountAttrs;
-   llvm::transform(
-       Attrs, std::back_inserter(OnlyLoopCountAttrs), [](const Attr *A) {
-         return dyn_cast_or_null<const SYCLIntelFPGALoopCountAttr>(A);
-       });
-   OnlyLoopCountAttrs.erase(
+  // Create a list of SYCLIntelFPGALoopCount attributes only.
+  SmallVector<const SYCLIntelFPGALoopCountAttr *, 8> OnlyLoopCountAttrs;
+  llvm::transform(
+      Attrs, std::back_inserter(OnlyLoopCountAttrs), [](const Attr *A) {
+        return dyn_cast_or_null<const SYCLIntelFPGALoopCountAttr>(A);
+      });
+  OnlyLoopCountAttrs.erase(
       std::remove(OnlyLoopCountAttrs.begin(), OnlyLoopCountAttrs.end(),
-                  static_cast<const SYCLIntelFPGALoopCountAttr*>(nullptr)),
+                  static_cast<const SYCLIntelFPGALoopCountAttr *>(nullptr)),
       OnlyLoopCountAttrs.end());
-   if (OnlyLoopCountAttrs.empty())
-     return;
+  if (OnlyLoopCountAttrs.empty())
+    return;
 
   unsigned int MinCount = 0;
   unsigned int MaxCount = 0;
@@ -276,8 +276,8 @@ CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
       AvgCount++;
       break;
     }
-    if (MinCount > 1 || MaxCount > 1 || AvgCount >1 )
-    S.Diag(A->getLocation(), diag::err_sycl_loop_attr_duplication) << 1 << A;
+    if (MinCount > 1 || MaxCount > 1 || AvgCount > 1)
+      S.Diag(A->getLocation(), diag::err_sycl_loop_attr_duplication) << 1 << A;
   }
 }
 
