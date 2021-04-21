@@ -2027,9 +2027,9 @@ pi_result piDevicePartition(pi_device Device,
           return Result;
         }
         OutDevices[I] = PiSubDevice.get();
-        Platform->PiDevicesCache.push_back(std::move(PiSubDevice));
         // save pointers to sub-devices for quick retrieval in the future.
-        Device->SubDevices.push_back(Dev);
+        Device->SubDevices.push_back(PiSubDevice.get());
+        Platform->PiDevicesCache.push_back(std::move(PiSubDevice));
       }
     }
     delete[] ZeSubdevices;
