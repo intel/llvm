@@ -366,6 +366,12 @@ void loop_attrs_compatibility() {
   [[intel::loop_count_avg(8)]]
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
+  [[intel::loop_count_min(8)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intel::loop_count_max(8)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 template<int A, int B, int C>
@@ -435,9 +441,29 @@ void loop_count_control_dependent() {
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
+  //expected-error@+1{{'loop_count_min' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count_min(C)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  //expected-error@+1{{'loop_count_max' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count_max(C)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
   [[intel::loop_count_avg(A)]]
   //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_avg'}}
   [[intel::loop_count_avg(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::loop_count_min(A)]]
+  //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_min'}}
+  [[intel::loop_count_min(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::loop_count_max(A)]]
+  //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_max'}}
+  [[intel::loop_count_max(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
 }
