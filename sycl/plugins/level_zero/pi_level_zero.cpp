@@ -3749,16 +3749,18 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   if (GlobalWorkOffset != NULL) {
     uint32_t Count = 0;
-    ZE_CALL(zeDriverGetExtensionProperties, (Queue->Device->Platform->ZeDriver,
-                                             &Count, nullptr));
+    ZE_CALL(zeDriverGetExtensionProperties,
+            (Queue->Device->Platform->ZeDriver, &Count, nullptr));
+
     if (Count == 0) {
       zePrint("No extensions supported on this driver\n");
       return PI_INVALID_VALUE;
     }
 
     std::vector<ze_driver_extension_properties_t> Extensions(Count);
-    ZE_CALL(zeDriverGetExtensionProperties, (Queue->Device->Platform->ZeDriver,
-                                             &Count, Extensions.data()));
+    ZE_CALL(zeDriverGetExtensionProperties,
+            (Queue->Device->Platform->ZeDriver, &Count, Extensions.data()));
+
     bool ExtensionFound = false;
     for (uint32_t i = 0; i < Extensions.size(); i++) {
       if (strncmp(Extensions[i].name, ZE_GLOBAL_OFFSET_EXP_NAME,
@@ -3769,6 +3771,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
         }
       }
     }
+
     if (ExtensionFound == false) {
       zePrint("No global offset extension found on this driver\n");
       return PI_INVALID_VALUE;
