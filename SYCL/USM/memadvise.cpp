@@ -29,6 +29,7 @@ int main() {
   queue q;
   auto dev = q.get_device();
   auto ctxt = q.get_context();
+  const int mem_advice = ((dev.get_backend() == backend::cuda) ? 1 : 0);
   if (!dev.get_info<info::device::usm_shared_allocations>())
     return 0;
 
@@ -36,7 +37,7 @@ int main() {
   if (s_head == nullptr) {
     return -1;
   }
-  q.mem_advise(s_head, sizeof(Node), (pi_mem_advice)0);
+  q.mem_advise(s_head, sizeof(Node), (pi_mem_advice)mem_advice);
   Node *s_cur = s_head;
 
   for (int i = 0; i < numNodes; i++) {
@@ -47,7 +48,7 @@ int main() {
       if (s_cur->pNext == nullptr) {
         return -1;
       }
-      q.mem_advise(s_cur->pNext, sizeof(Node), (pi_mem_advice)0);
+      q.mem_advise(s_cur->pNext, sizeof(Node), (pi_mem_advice)mem_advice);
     } else {
       s_cur->pNext = nullptr;
     }
