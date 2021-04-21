@@ -125,7 +125,6 @@ template<class Container>
 */
 
 #include <array> // for array
-#include <cassert>
 #include <cstddef>     // for byte
 #include <iterator>    // for iterators
 #include <type_traits> // for remove_cv, etc
@@ -139,7 +138,9 @@ namespace sycl {
 // byte is unsigned char at sycl/image.hpp:58
 using byte = unsigned char;
 
-#define _SYCLSPAN_ASSERT(x, m) assert(x &&m)
+// asserts suppressed for device compatibility.
+// TODO: enable
+#define _SYCLSPAN_ASSERT(x, m) ((void)0)
 
 inline constexpr size_t dynamic_extent = SIZE_MAX;
 template <typename _Tp, size_t _Extent = dynamic_extent> class span;
