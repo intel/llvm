@@ -28,8 +28,6 @@ SYCL_EXTERNAL void init_vc_sycl(int x) {
   vc = x;
 }
 
-SYCL_EXTERNAL void foo() {}
-
 void kernel_call() {
   queue q;
   q.submit([&](cl::sycl::handler &cgh) {
@@ -38,7 +36,6 @@ void kernel_call() {
                                    // ESIMD kernel is allowed to use ESIMD
                                    // global
                                    vc = 0;
-                                   foo();
                                    func_that_uses_esimd_glob();
                                  });
   });

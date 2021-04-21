@@ -64,11 +64,11 @@
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, M>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, M>
 __esimd_rdregion(__SIGD::vector_type_t<T, N> Input, uint16_t Offset);
 
 template <typename T, int N, int M, int ParentWidth = 0>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, M>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, M>
 __esimd_rdindirect(__SIGD::vector_type_t<T, N> Input,
                    __SIGD::vector_type_t<uint16_t, M> Offset);
 
@@ -121,13 +121,13 @@ __esimd_rdindirect(__SIGD::vector_type_t<T, N> Input,
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, N>
 __esimd_wrregion(__SIGD::vector_type_t<T, N> OldVal,
                  __SIGD::vector_type_t<T, M> NewVal, uint16_t Offset,
                  sycl::INTEL::gpu::mask_type_t<M> Mask = 1);
 
 template <typename T, int N, int M, int ParentWidth = 0>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, N>
 __esimd_wrindirect(__SIGD::vector_type_t<T, N> OldVal,
                    __SIGD::vector_type_t<T, M> NewVal,
                    __SIGD::vector_type_t<uint16_t, M> Offset,
@@ -217,7 +217,7 @@ readRegion(const __SIGD::vector_type_t<BT, BN> &Base, std::pair<T, U> Region) {
 // optimization on simd object
 //
 template <typename T, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, N>
 __esimd_vload(const __SIGD::vector_type_t<T, N> *ptr);
 
 // vstore
@@ -225,21 +225,24 @@ __esimd_vload(const __SIGD::vector_type_t<T, N> *ptr);
 // map to the backend vstore intrinsic, used by compiler to control
 // optimization on simd object
 template <typename T, int N>
-SYCL_EXTERNAL void __esimd_vstore(__SIGD::vector_type_t<T, N> *ptr,
-                                  __SIGD::vector_type_t<T, N> vals);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
+__esimd_vstore(__SIGD::vector_type_t<T, N> *ptr,
+               __SIGD::vector_type_t<T, N> vals);
 
 template <typename T, int N>
-SYCL_EXTERNAL uint16_t __esimd_any(__SIGD::vector_type_t<T, N> src);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint16_t
+__esimd_any(__SIGD::vector_type_t<T, N> src);
 
 template <typename T, int N>
-SYCL_EXTERNAL uint16_t __esimd_all(__SIGD::vector_type_t<T, N> src);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint16_t
+__esimd_all(__SIGD::vector_type_t<T, N> src);
 
 #ifndef __SYCL_DEVICE_ONLY__
 
 // Implementations of ESIMD intrinsics for the SYCL host device
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, M>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, M>
 __esimd_rdregion(__SIGD::vector_type_t<T, N> Input, uint16_t Offset) {
   uint16_t EltOffset = Offset / sizeof(T);
   assert(Offset % sizeof(T) == 0);
@@ -258,7 +261,7 @@ __esimd_rdregion(__SIGD::vector_type_t<T, N> Input, uint16_t Offset) {
 }
 
 template <typename T, int N, int M, int ParentWidth>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, M>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, M>
 __esimd_rdindirect(__SIGD::vector_type_t<T, N> Input,
                    __SIGD::vector_type_t<uint16_t, M> Offset) {
   __SIGD::vector_type_t<T, M> Result;
@@ -273,7 +276,7 @@ __esimd_rdindirect(__SIGD::vector_type_t<T, N> Input,
 
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, N>
 __esimd_wrregion(__SIGD::vector_type_t<T, N> OldVal,
                  __SIGD::vector_type_t<T, M> NewVal, uint16_t Offset,
                  sycl::INTEL::gpu::mask_type_t<M> Mask) {
@@ -296,7 +299,7 @@ __esimd_wrregion(__SIGD::vector_type_t<T, N> OldVal,
 }
 
 template <typename T, int N, int M, int ParentWidth>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, N>
 __esimd_wrindirect(__SIGD::vector_type_t<T, N> OldVal,
                    __SIGD::vector_type_t<T, M> NewVal,
                    __SIGD::vector_type_t<uint16_t, M> Offset,
