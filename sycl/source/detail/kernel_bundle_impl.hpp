@@ -281,6 +281,43 @@ public:
   kernel
   get_kernel(const kernel_id &KernelID,
              const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
+    // TODO: remove this workaround after AOT binaries contain kernel IDs by
+    // default
+    bool HasKernelIdProp = false;
+    for (const auto &DeviceImage : MDeviceImages) {
+      if (!getSyclObjImpl(DeviceImage)->get_kernel_ids().empty()) {
+        HasKernelIdProp = true;
+      }
+    }
+    if (!HasKernelIdProp) {
+      for (const auto &DeviceImage : MDeviceImages) {
+        size_t Size;
+        const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+        if (nullptr == getSyclObjImpl(DeviceImage)->get_program_ref()) {
+          continue;
+        }
+        Plugin.call<PiApiKind::piProgramGetInfo>(
+            getSyclObjImpl(DeviceImage)->get_program_ref(),
+            PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
+        std::string RawResult(Size, ' ');
+        Plugin.call<PiApiKind::piProgramGetInfo>(
+            getSyclObjImpl(DeviceImage)->get_program_ref(),
+            PI_PROGRAM_INFO_KERNEL_NAMES, RawResult.size(), &RawResult[0],
+            nullptr);
+        // Get rid of the null terminator
+        RawResult.pop_back();
+        std::vector<std::string> KernelNames(split_string(RawResult, ';'));
+        std::vector<kernel_id> KernelIDs;
+        for (const auto &KernelName : KernelNames) {
+          KernelIDs.push_back(detail::createSyclObjFromImpl<kernel_id>(
+              std::make_shared<detail::kernel_id_impl>(KernelName)));
+        }
+
+        std::sort(KernelIDs.begin(), KernelIDs.end(), detail::LessByNameComp{});
+
+        getSyclObjImpl(DeviceImage)->set_kernel_ids(KernelIDs);
+      }
+    }
 
     auto It = std::find_if(MDeviceImages.begin(), MDeviceImages.end(),
                            [&KernelID](const device_image_plain &DeviceImage) {
@@ -373,7 +410,11 @@ public:
                        });
   }
 
-  const device_image_plain *begin() const { return &MDeviceImages.front(); }
+  const device_image_plain *begin() const {
+    assert(!MDeviceImages.empty() && "MDeviceImages can't be empty");
+    // UB in case MDeviceImages is empty
+    return &MDeviceImages.front();
+  }
 
   const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
 

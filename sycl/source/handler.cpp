@@ -57,6 +57,10 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (!KernelBundleImpPtr && Insert) {
     KernelBundleImpPtr = detail::getSyclObjImpl(
         get_kernel_bundle<bundle_state::input>(MQueue->get_context()));
+    if (KernelBundleImpPtr->empty()) {
+      KernelBundleImpPtr = detail::getSyclObjImpl(
+          get_kernel_bundle<bundle_state::executable>(MQueue->get_context()));
+    }
 
     detail::ExtendedMemberT EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
@@ -336,9 +340,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
-    throw cl::sycl::feature_not_supported(
-        "SYCL2020 specialization constants are not yet fully supported",
-        PI_INVALID_OPERATION);
+    MArgs.emplace_back(
+        kernel_param_kind_t::kind_specialization_constants_buffer, Ptr, Size,
+        Index + IndexShift);
     break;
   }
   }
