@@ -180,8 +180,8 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout>
 struct joint_matrix<
     Group, T, NumRows, NumCols, Layout,
-    typename std::enable_if_t<(NumRows <= tile_size) &&
-                              (NumCols * sizeof(T) / 4 <= tile_size)>> {
+    typename std::enable_if<(NumRows <= tile_size) &&
+                            (NumCols * sizeof(T) / 4 <= tile_size)>::type> {
 public:
   static constexpr size_t trows = (NumRows + tile_size - 1) / tile_size;
   // tcols: Num of tiles in column.
@@ -206,9 +206,9 @@ using namespace experimental;
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix::matrix_layout Layout>
 inline __SYCL_ALWAYS_INLINE static
-    typename std::enable_if_t<(NumRows > matrix::tile_size) ||
-                                  (NumCols * sizeof(T) / 4 > matrix::tile_size),
-                              void>
+    typename std::enable_if<(NumRows > matrix::tile_size) ||
+                                (NumCols * sizeof(T) / 4 > matrix::tile_size),
+                            void>::type
     submatrix_load(detail::submatrix<T> &sub_m,
                    matrix::joint_matrix<Group, T, NumRows, NumCols, Layout> jm,
                    uint32_t row, uint32_t col, size_t stride,
@@ -226,10 +226,9 @@ inline __SYCL_ALWAYS_INLINE static
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix::matrix_layout Layout>
 inline __SYCL_ALWAYS_INLINE static
-    typename std::enable_if_t<(NumRows <= matrix::tile_size) &&
-                                  (NumCols * sizeof(T) / 4 <=
-                                   matrix::tile_size),
-                              void>
+    typename std::enable_if<(NumRows <= matrix::tile_size) &&
+                                (NumCols * sizeof(T) / 4 <= matrix::tile_size),
+                            void>::type
     submatrix_load(detail::submatrix<T> &sub_m,
                    matrix::joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
                    uint32_t row, uint32_t col, size_t stride,
@@ -274,9 +273,9 @@ submatrix_mad(detail::submatrix<unsigned short> &sub_ma,
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols>
 inline __SYCL_ALWAYS_INLINE static
-    typename std::enable_if_t<(NumRows > matrix::tile_size) ||
-                                  (NumCols * sizeof(T) / 4 > matrix::tile_size),
-                              void>
+    typename std::enable_if<(NumRows > matrix::tile_size) ||
+                                (NumCols * sizeof(T) / 4 > matrix::tile_size),
+                            void>::type
     submatrix_store(detail::submatrix<T> &sub_m,
                     matrix::joint_matrix<Group, T, NumRows, NumCols> &jm,
                     uint32_t row, uint32_t col, size_t stride,
@@ -292,10 +291,9 @@ inline __SYCL_ALWAYS_INLINE static
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols>
 inline __SYCL_ALWAYS_INLINE static
-    typename std::enable_if_t<(NumRows <= matrix::tile_size) &&
-                                  (NumCols * sizeof(T) / 4 <=
-                                   matrix::tile_size),
-                              void>
+    typename std::enable_if<(NumRows <= matrix::tile_size) &&
+                                (NumCols * sizeof(T) / 4 <= matrix::tile_size),
+                            void>::type
     submatrix_store(detail::submatrix<T> &sub_m,
                     matrix::joint_matrix<Group, T, NumRows, NumCols> &jm,
                     uint32_t row, uint32_t col, size_t stride,
@@ -320,8 +318,8 @@ namespace experimental::matrix {
 // This handles cases where matrix can't be accommodated by a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-inline __SYCL_ALWAYS_INLINE typename std::enable_if_t<
-    (NumRows > tile_size) || (NumCols * sizeof(T) / 4 > tile_size), void>
+inline __SYCL_ALWAYS_INLINE typename std::enable_if<
+    (NumRows > tile_size) || (NumCols * sizeof(T) / 4 > tile_size), void>::type
 joint_matrix_load(Group sg,
                   joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
                   multi_ptr<T, Space> src, size_t stride,
@@ -341,12 +339,14 @@ joint_matrix_load(Group sg,
 // This handles cases where matrix can be put into a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-inline __SYCL_ALWAYS_INLINE typename std::enable_if_t<
-    (NumRows <= tile_size) && (NumCols * sizeof(T) / 4 <= tile_size), void>
-joint_matrix_load(Group sg,
-                  joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
-                  multi_ptr<T, Space> src, size_t stride,
-                  matrix_layout layout) {
+inline __SYCL_ALWAYS_INLINE
+    typename std::enable_if<(NumRows <= tile_size) &&
+                                (NumCols * sizeof(T) / 4 <= tile_size),
+                            void>::type
+    joint_matrix_load(Group sg,
+                      joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
+                      multi_ptr<T, Space> src, size_t stride,
+                      matrix_layout layout) {
   T *mem = src.get();
   // tileload happens!
   jm.tile =
@@ -358,8 +358,8 @@ joint_matrix_load(Group sg,
 // This handles cases where matrix can't be accommodated by a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-inline __SYCL_ALWAYS_INLINE typename std::enable_if_t<
-    (NumRows > tile_size) || (NumCols * sizeof(T) / 4 > tile_size), void>
+inline __SYCL_ALWAYS_INLINE typename std::enable_if<
+    (NumRows > tile_size) || (NumCols * sizeof(T) / 4 > tile_size), void>::type
 joint_matrix_store(Group sg,
                    joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
                    multi_ptr<T, Space> dst, size_t stride,
@@ -378,12 +378,14 @@ joint_matrix_store(Group sg,
 // This handles cases where matrix can be put into a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-inline __SYCL_ALWAYS_INLINE typename std::enable_if_t<
-    (NumRows <= tile_size) && (NumCols * sizeof(T) / 4 <= tile_size), void>
-joint_matrix_store(Group sg,
-                   joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
-                   multi_ptr<T, Space> dst, size_t stride,
-                   matrix_layout layout) {
+inline __SYCL_ALWAYS_INLINE
+    typename std::enable_if<(NumRows <= tile_size) &&
+                                (NumCols * sizeof(T) / 4 <= tile_size),
+                            void>::type
+    joint_matrix_store(Group sg,
+                       joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
+                       multi_ptr<T, Space> dst, size_t stride,
+                       matrix_layout layout) {
   T *mem = dst.get();
   // tilestore happens!
   tilestored64_internal(NumRows, NumCols * sizeof(T),
@@ -396,14 +398,14 @@ template <typename Group, typename T1, typename T2, size_t NumRowsA,
           size_t NumColsA, size_t NumRowsB, size_t NumColsB, size_t NumRowsC,
           size_t NumColsC, matrix_layout LayoutA, matrix_layout LayoutB,
           matrix_layout LayoutC>
-inline __SYCL_ALWAYS_INLINE typename std::enable_if_t<
+inline __SYCL_ALWAYS_INLINE typename std::enable_if<
     ((std::is_same<T1, int8_t>::value && std::is_same<T2, int32_t>::value) ||
      (std::is_same<T1, unsigned short>::value &&
       std::is_same<T2, float>::value)) &&
         (LayoutA == matrix_layout::row_major) &&
         (LayoutB == matrix_layout::packed_b) &&
         (LayoutC == matrix_layout::row_major),
-    void>
+    void>::type
 joint_matrix_mad(Group sg,
                  joint_matrix<Group, T1, NumRowsA, NumColsA, LayoutA> &jmA,
                  joint_matrix<Group, T1, NumRowsB, NumColsB, LayoutB> &jmB,
