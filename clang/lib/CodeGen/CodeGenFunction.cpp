@@ -1525,18 +1525,19 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   SyclOptReportHandler &OptReportHandler = CGM.getDiags().OptReportHandler;
   if (OptReportHandler.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
-    int Count = 0;
-    for (auto &ORI : OptReportHandler.GetInfo(FD)) {
-      llvm::DiagnosticLocation DL = SourceLocToDebugLoc(ORI.KernelArgLoc);
+    for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
+      llvm::DiagnosticLocation DL =
+          SourceLocToDebugLoc(ORI.value().KernelArgLoc);
       llvm::OptimizationRemark Remark("sycl", "Region", DL,
                                       &Fn->getEntryBlock());
-      Remark << "Argument " << llvm::ore::NV("Argument", Count++)
+      Remark << "Argument " << llvm::ore::NV("Argument", ORI.index())
              << " for function kernel: "
-             << llvm::ore::NV(ORI.KernelArgName.empty() ? "&" : "") << " "
-             << Fn->getName() << "."
-             << llvm::ore::NV(ORI.KernelArgName.empty() ? " "
-                                                        : ORI.KernelArgName)
-             << "(" << ORI.KernelArgType << ")";
+             << llvm::ore::NV(ORI.value().KernelArgName.empty() ? "&" : "")
+             << " " << Fn->getName() << "."
+             << llvm::ore::NV(ORI.value().KernelArgName.empty()
+                                  ? " "
+                                  : ORI.value().KernelArgName)
+             << "(" << ORI.value().KernelArgType << ")";
       ORE.emit(Remark);
     }
   }

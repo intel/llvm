@@ -17,7 +17,6 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/IR/Instructions.h"
-
 #include <assert.h>
 
 using namespace clang;
