@@ -30,3 +30,4 @@ fpga_reg(T t) {
 } // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
