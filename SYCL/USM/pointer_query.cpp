@@ -4,8 +4,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
 
-// XFAIL: cuda
-
 //==-------------- pointer_query.cpp - Pointer Query test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
