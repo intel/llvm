@@ -109,4 +109,29 @@ constexpr sycl::specialization_id same_name{208};
 }
 } // namespace
 
+namespace outer::inline inner {
+namespace {
+constexpr sycl::specialization_id same_name{209};
+// CHECK: namespace outer {
+// CHECK-NEXT: namespace inner {
+// CHECK-NEXT: namespace {
+// CHECK-NEXT: namespace __sycl_detail {
+// CHECK-NEXT: static constexpr decltype(same_name) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: return same_name;
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace __sycl_detail
+// CHECK-NEXT: } // namespace
+// CHECK-NEXT: } // inline namespace inner
+// CHECK-NEXT: } // namespace outer
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: template<>
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: return ::outer::inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: }
+// CHECK-NEXT: // namespace detail
+// CHECK-NEXT: // namespace sycl
+}
+}
+
 // CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
