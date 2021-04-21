@@ -46,12 +46,12 @@
 #include <string>
 
 namespace SPIRV {
-class SPIRVToOCL : public ModulePass, public InstVisitor<SPIRVToOCL> {
-protected:
-  SPIRVToOCL(char &ID) : ModulePass(ID), M(nullptr), Ctx(nullptr) {}
 
+class SPIRVToOCLBase : public InstVisitor<SPIRVToOCLBase> {
 public:
-  virtual bool runOnModule(Module &M) override = 0;
+  SPIRVToOCLBase() : M(nullptr), Ctx(nullptr) {}
+
+  virtual bool runSPIRVToOCL(Module &M) = 0;
 
   void visitCallInst(CallInst &CI);
 
@@ -157,7 +157,6 @@ public:
   /// using separate maps for OpenCL 1.2 and OpenCL 2.0
   virtual Instruction *mutateAtomicName(CallInst *CI, Op OC) = 0;
 
-private:
   /// Transform uniform group opcode to corresponding OpenCL function name,
   /// example: GroupIAdd(Reduce) => group_iadd => work_group_reduce_add |
   /// sub_group_reduce_add
@@ -173,116 +172,16 @@ private:
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
 
-protected:
   Module *M;
   LLVMContext *Ctx;
 };
 
-class SPIRVToOCL12 : public SPIRVToOCL {
+class SPIRVToOCLLegacy : public ModulePass {
+protected:
+  SPIRVToOCLLegacy(char &ID) : ModulePass(ID) {}
+
 public:
-  SPIRVToOCL12() : SPIRVToOCL(ID) {
-    initializeSPIRVToOCL12Pass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
-
-  /// Transform __spirv_MemoryBarrier to atomic_work_item_fence.
-  ///   __spirv_MemoryBarrier(scope, sema) =>
-  ///       atomic_work_item_fence(flag(sema), order(sema), map(scope))
-  void visitCallSPIRVMemoryBarrier(CallInst *CI) override;
-
-  /// Transform __spirv_ControlBarrier to barrier.
-  ///   __spirv_ControlBarrier(execScope, memScope, sema) =>
-  ///       barrier(flag(sema))
-  void visitCallSPIRVControlBarrier(CallInst *CI) override;
-
-  /// Transform __spirv_OpAtomic functions. It firstly conduct generic
-  /// mutations for all builtins and then mutate some of them seperately
-  Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) override;
-
-  /// Transform __spirv_OpAtomicIIncrement / OpAtomicIDecrement to
-  /// atomic_inc / atomic_dec
-  Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
-
-  /// Transform __spirv_OpAtomicUMin/SMin/UMax/SMax into
-  /// atomic_min/atomic_max, as there is no distinction in OpenCL 1.2
-  /// between signed and unsigned version of those functions
-  Instruction *visitCallSPIRVAtomicUMinUMax(CallInst *CI, Op OC);
-
-  /// Transform __spirv_OpAtomicLoad to atomic_add(*ptr, 0)
-  Instruction *visitCallSPIRVAtomicLoad(CallInst *CI);
-
-  /// Transform __spirv_OpAtomicStore to atomic_xchg(*ptr, value)
-  Instruction *visitCallSPIRVAtomicStore(CallInst *CI);
-
-  /// Transform __spirv_OpAtomicFlagClear to atomic_xchg(*ptr, 0)
-  /// with ignoring the result
-  Instruction *visitCallSPIRVAtomicFlagClear(CallInst *CI);
-
-  /// Transform __spirv_OpAtomicFlagTestAndTest to
-  /// (bool)atomic_xchg(*ptr, 1)
-  Instruction *visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI);
-
-  /// Transform __spirv_OpAtomicCompareExchange and
-  /// __spirv_OpAtomicCompareExchangeWeak into atomic_cmpxchg. There is no
-  /// weak version of function in OpenCL 1.2
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
-
-  /// Conduct generic mutations for all atomic builtins
-  CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
-
-  /// Transform atomic builtin name into correct ocl-dependent name
-  Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
-
-  /// Transform SPIR-V atomic instruction opcode into OpenCL 1.2 builtin name.
-  /// Depending on the type, the return name starts with "atomic_" for 32-bit
-  /// types or with "atom_" for 64-bit types, as specified by
-  /// cl_khr_int64_base_atomics and cl_khr_int64_extended_atomics extensions.
-  std::string mapAtomicName(Op OC, Type *Ty);
-
-  static char ID;
-};
-
-class SPIRVToOCL20 : public SPIRVToOCL {
-public:
-  SPIRVToOCL20() : SPIRVToOCL(ID) {
-    initializeSPIRVToOCL20Pass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override;
-
-  /// Transform __spirv_MemoryBarrier to atomic_work_item_fence.
-  ///   __spirv_MemoryBarrier(scope, sema) =>
-  ///       atomic_work_item_fence(flag(sema), order(sema), map(scope))
-  void visitCallSPIRVMemoryBarrier(CallInst *CI) override;
-
-  /// Transform __spirv_ControlBarrier to work_group_barrier/sub_group_barrier.
-  /// If execution scope is ScopeWorkgroup:
-  ///    __spirv_ControlBarrier(execScope, memScope, sema) =>
-  ///         work_group_barrier(flag(sema), map(memScope))
-  /// Otherwise:
-  ///    __spirv_ControlBarrier(execScope, memScope, sema) =>
-  ///         sub_group_barrier(flag(sema), map(memScope))
-  void visitCallSPIRVControlBarrier(CallInst *CI) override;
-
-  /// Transform __spirv_Atomic* to atomic_*.
-  ///   __spirv_Atomic*(atomic_op, scope, sema, ops, ...) =>
-  ///      atomic_*(generic atomic_op, ops, ..., order(sema), map(scope))
-  Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) override;
-
-  /// Transform __spirv_OpAtomicIIncrement / OpAtomicIDecrement to
-  /// atomic_fetch_add_explicit / atomic_fetch_sub_explicit
-  Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
-
-  /// Conduct generic mutations for all atomic builtins
-  CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
-
-  /// Transform atomic builtin name into correct ocl-dependent name
-  Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
-
-  /// Transform __spirv_OpAtomicCompareExchange/Weak into
-  /// compare_exchange_strong/weak_explicit
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
-
-  static char ID;
+  virtual bool runOnModule(Module &M) = 0;
 };
 
 } // namespace SPIRV
