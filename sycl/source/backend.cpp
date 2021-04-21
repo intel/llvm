@@ -188,7 +188,7 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
   // Create PI kernel first.
   pi::PiKernel PiKernel = nullptr;
   Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiKernel);
+      NativeHandle, ContextImpl->getHandleRef(), false, &PiKernel);
 
   if (Backend == backend::opencl)
     Plugin.call<PiApiKind::piKernelRetain>(PiKernel);
