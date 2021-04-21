@@ -5,13 +5,13 @@
 // >> device compilation...
 // RUN: %clangxx -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -Wno-sycl-strict
+// RUN: %clangxx -std=c++17 %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -Wno-sycl-strict
 //
 // >> ---- compile src2
 // >> device compilation...
 // RUN: %clangxx -DB_CPP=1 -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx -DB_CPP=1 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -Wno-sycl-strict
+// RUN: %clangxx -DB_CPP=1 -std=c++17 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -Wno-sycl-strict
 //
 // >> ---- bundle .o with .spv
 // >> run bundler

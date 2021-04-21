@@ -3,7 +3,7 @@
 // UNSUPPORTED: cuda
 // CUDA does not support SPIR-V.
 // RUN: %clangxx -fsycl-device-only -Xclang -fenable-sycl-dae -Xclang -fsycl-int-header=int_header.h %s -c -o device_code.bc -Wno-sycl-strict
-// RUN: %clangxx %include_option int_header.h %debug_option -c %s -o host_code.o %sycl_options -Wno-sycl-strict
+// RUN: %clangxx -std=c++17 %include_option int_header.h %debug_option -c %s -o host_code.o %sycl_options -Wno-sycl-strict
 // RUN: llvm-link -o=linked_device_code.bc device_code.bc
 // RUN: sycl-post-link -emit-param-info linked_device_code.bc
 // RUN: llvm-spirv -o linked_device_code.spv linked_device_code.bc
