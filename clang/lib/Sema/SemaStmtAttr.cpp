@@ -259,7 +259,9 @@ CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
    if (OnlyLoopCountAttrs.empty())
      return;
 
-  unsigned int MinCount, MaxCount, AvgCount = 0;
+  unsigned int MinCount = 0;
+  unsigned int MaxCount = 0;
+  unsigned int AvgCount = 0;
   for (const auto *A : OnlyLoopCountAttrs) {
     const SYCLIntelFPGALoopCountAttr *At =
         dyn_cast<SYCLIntelFPGALoopCountAttr>(A);
