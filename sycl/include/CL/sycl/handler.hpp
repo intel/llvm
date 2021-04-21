@@ -2224,7 +2224,7 @@ private:
   shared_ptr_class<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
   /// Use getType and setType methods to access this variable unless
-  /// manupulations with version are required
+  /// manipulations with version are required
   detail::CG::CGTYPE MCGType = detail::CG::NONE;
   /// Pointer to the source host memory or accessor(depending on command type).
   void *MSrcPtr = nullptr;

@@ -127,7 +127,7 @@ event handler::finalize() {
   }
 
   unique_ptr_class<detail::CG> CommandGroup;
-  switch (static_cast<detail::CG::CGTYPE>(getType())) {
+  switch (getType()) {
   case detail::CG::KERNEL:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
@@ -204,8 +204,9 @@ event handler::finalize() {
   }
 
   if (!CommandGroup)
-    throw runtime_error("Internal Error. Command group cannot be constructed.",
-                        PI_INVALID_OPERATION);
+    throw sycl::runtime_error(
+        "Internal Error. Command group cannot be constructed.",
+        PI_INVALID_OPERATION);
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
