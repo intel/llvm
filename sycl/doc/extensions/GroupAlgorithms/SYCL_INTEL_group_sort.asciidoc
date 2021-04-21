@@ -8,6 +8,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
+:stem:
 
 :blank: pass:[ +]
 
@@ -35,8 +36,7 @@ SYCL specification refer to that revision.
 
 == Introduction
 
-This extension introduces sorting functions to the group algorithms library,
-Sorter objects and Sorter type traits.
+This extension introduces sorting functions to the group algorithms library and Sorter objects.
 
 == Feature test macro
 
@@ -118,7 +118,7 @@ Only ascending and descending orders are applicable.
 ----
 namespace sycl::ext::oneapi {
 
-  enum radix_order {
+  enum class radix_order {
     ascending,
     descending
   };
@@ -153,7 +153,7 @@ namespace sycl::ext::oneapi {
     template<typename Group, typename Ptr>
     void operator()(Group g, Ptr begin, Ptr end);
 
-    template<typename Group, typename T>
+    template<typename Group>
     T operator()(Group g, T val);
   };
 
@@ -169,7 +169,7 @@ default_sorter`
 |Use a default sorting method based on an implementation-defined heuristic
 using `Compare` as the binary comparison function object.
 
-|`template<typename T, typename Compare = std::less<T>, unsigned int BitsPerPass = 4>
+|`template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
 radix_sorter`
 |Use radix sort as a sorting method. `Order` specify the sorting order.
 Only arithmetic types as `T` can be passed to radix_sorter.
@@ -194,13 +194,13 @@ Table. Member functions of the `default_sorter` class.
 void operator()(Group g, Ptr begin, Ptr end)`
 |Implements a default sorting algorithm. It's callable by the `joint_sort` algorithm.
 
-_Complexity_: Let `N` be `end - begin`. `O(Nlog^2(N))` comparisons.
+_Complexity_: Let `N` be `end - begin`:stem:[O(N \times log_2(N))] comparisons.
 
 |`template<typename Group, typename T>
 T operator()(Group g, T val)`
 |Implements a default sorting algorithm. It's callable by the `sort_over_group` algorithm.
 
-_Complexity_: Let `N` be the work group size. `O(Nlog^2(N))` comparisons.
+_Complexity_: Let `N` be the work group size:stem:[O(N \times log_2(N))] comparisons.
 |===
 
 Table. Constructors of the `radix_sorter` class.
@@ -263,14 +263,14 @@ namespace sycl::ext::oneapi {
 ----
 
 _Constraints_: All functions are available only if `sycl::is_group_v<std::decay_t<Group>>`
-is true and `sycl::ext::oneapi::is_sorter_v<std::decay_t<Sorter>>` is true.
+is true and `Sorter` is a SYCL Sorter.
 
 _Preconditions_: `first`, `last` must be the same for all work-items in the group.
 
-1._Effects_: Sort the elements in the range `[first, last_)`.
+1._Effects_: Sort the elements in the range `[first, last)`.
 Elements are compared by the `operator<`.
 
-_Complexity_: Let `N` be `last - first`. `O(Nlog^2(N))` comparisons.
+_Complexity_: Let `N` be `last - first`:stem:[O(N \times log_2(N))] comparisons.
 
 2._Mandates_: `comp` must satisfy the requirements of `Compare` from
 the {cpp} standard.
@@ -278,7 +278,7 @@ the {cpp} standard.
 _Effects_: Sort the elements in the range `[first, last)` with respect to the
 binary comparison function object `comp`.
 
-_Complexity_: Let `N` be `last - first`. `O(Nlog^2(N))` comparisons.
+_Complexity_: Let `N` be `last - first`:stem:[O(N \times log_2(N))] comparisons.
 
 3._Effects_: Equivalent to: `sorter(g, first, last)`.
 
@@ -288,7 +288,7 @@ of the ordered range resulting from sorting `val` from all work-items in the
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
-_Complexity_: Let `N` be the work group size. `O(Nlog^2(N))`` comparisons.
+_Complexity_: Let `N` be the work group size:stem:[O(N \times log_2(N))] comparisons.
 
 5._Mandates_: `comp` must satisfy the requirements of `Compare` from
 the {cpp} standard.
@@ -299,7 +299,7 @@ of the ordered range resulting from sorting `val` from all work-items in the
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
-_Complexity_: Let `N` be the work group size. `O(Nlog^2(N))`` comparisons.
+_Complexity_: Let `N` be the work group size:stem:[O(N \times log_2(N))] comparisons.
 
 6._Effects_: Equivalent to: `return sorter(g, val)`.
 
