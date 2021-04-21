@@ -378,14 +378,12 @@ joint_matrix_store(Group sg,
 // This handles cases where matrix can be put into a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, access::address_space Space>
-inline __SYCL_ALWAYS_INLINE
-    typename std::enable_if_t<(NumRows <= tile_size) &&
-                                  (NumCols * sizeof(T) / 4 <= tile_size),
-                              void>::type
-    joint_matrix_store(Group sg,
-                       joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
-                       multi_ptr<T, Space> dst, size_t stride,
-                       matrix_layout layout) {
+inline __SYCL_ALWAYS_INLINE typename std::enable_if_t<
+    (NumRows <= tile_size) && (NumCols * sizeof(T) / 4 <= tile_size), void>
+joint_matrix_store(Group sg,
+                   joint_matrix<Group, T, NumRows, NumCols, Layout> &jm,
+                   multi_ptr<T, Space> dst, size_t stride,
+                   matrix_layout layout) {
   T *mem = dst.get();
   // tilestore happens!
   tilestored64_internal(NumRows, NumCols * sizeof(T),
