@@ -1,4 +1,4 @@
-// RUN: %clang_cl -fsycl -fsycl-host-compiler=cl -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK -std=c++17" /Fe%t1.exe %s
+// RUN: %clang_cl -fsycl -fsycl-host-compiler=cl -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK /std:c++17" /Fe%t1.exe %s
 // RUN: %RUN_ON_HOST %t1.exe
 // REQUIRES: system-windows
 //
