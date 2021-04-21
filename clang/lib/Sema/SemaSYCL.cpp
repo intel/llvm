@@ -1769,7 +1769,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
     SemaRef.getDiagnostics().OptReportHandler.AddKernelArgs(
-        KernelDecl, FD->getName(), FieldTy.getAsString(), FD->getLocation());
+        KernelDecl, FD->getName().data(), FieldTy.getAsString(),
+        FD->getLocation());
     addParam(newParamDesc, FieldTy);
   }
 

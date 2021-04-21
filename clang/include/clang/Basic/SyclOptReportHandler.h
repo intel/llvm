@@ -25,11 +25,11 @@ class FunctionDecl;
 class SyclOptReportHandler {
 private:
   struct OptReportInfo {
-    StringRef KernelArgName;
+    std::string KernelArgName;
     std::string KernelArgType;
     SourceLocation KernelArgLoc;
 
-    OptReportInfo(llvm::StringRef ArgName, std::string ArgType,
+    OptReportInfo(std::string ArgName, std::string ArgType,
                   SourceLocation ArgLoc)
         : KernelArgName(ArgName), KernelArgType(ArgType), KernelArgLoc(ArgLoc) {
     }
@@ -37,7 +37,7 @@ private:
   llvm::DenseMap<const FunctionDecl *, SmallVector<OptReportInfo, 4>> Map;
 
 public:
-  void AddKernelArgs(const FunctionDecl *FD, StringRef ArgName,
+  void AddKernelArgs(const FunctionDecl *FD, std::string ArgName,
                      std::string ArgType, SourceLocation ArgLoc) {
     Map[FD].emplace_back(ArgName, ArgType, ArgLoc);
   }
