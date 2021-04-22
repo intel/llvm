@@ -49,20 +49,21 @@ CGH.parallel_for([]() { LibDeviceFunc(); });
 // b.cpp
 /*no SYCL_EXTERNAL*/ void LibDeviceFunc() { ... }
 ```
-We have a `SYCL_EXTERNAL` function `foo` called from a kernel, but the
+We have a `SYCL_EXTERNAL` function `LibDeviceFunc` called from a kernel, but the
 application defined only host version of this function. Then user adds device
-image with definition of `foo` to the fat object via special compiler option
-(like `-fsycl-add-targets`).
+image with definition of `LibDeviceFunc` to the fat object via special compiler
+option (like `-fsycl-add-targets`).
 
-The main purpose of this feature is to provide a mechanism which allows to
-link device code dynamically at runtime, such as in the scenarios above.
+The main purpose of this feature is to provide a user-friendly mechanism which
+allows to link device code dynamically at runtime, such as in the scenarios
+above.
 
 ## Requirements:
 User's device code that consists of some device API (`SYCL_EXTERNAL` functions),
 is compiled into some form and it is not linked statically with device code of
-application. It can be a shared library that contains some device code or a
+application. It can be a shared library with embedded device image or a
 separate device image supplied with properties attached. This code is linked
-dynamically at run time with device code of a user's application in order to
+dynamically at run time with device image of a user's application in order to
 resolve dependencies.
 For this combination the following statements must be true:
 
@@ -75,8 +76,8 @@ The presented dynamic device code linkage mechanism must:
   - Embedded into a host binary or shared object using manual invocations of
     SYCL tools such as `clang-offload-wrapper` and linker
   - Loaded into memory via special API
-- Must not assume the actual format of the device code - e.g. that it is SPIR-V
-  or native device binary
+- Allow different format for device code - e.g. it can be SPIR-V or native
+  device binary
 - Provide automatic runtime resolution of `SYCL_EXTERNAL` function references
   within the SYCL app to their definitions (if found) within any suitable
   dynamically linked device binary image
@@ -94,7 +95,7 @@ The overall idea:
   list of imported symbols and if it has, then RT will search for device images
   which define required symbols using lists of exported symbols.
   - Besides symbol names, additional attributes are taken into account (like
-    device image format: SPIR-V or device asm)
+    device image format: SPIR-V or native device binary)
   - No logical binding between host module and export/import lists, i.e.
     resolution is performed w/o regard to containing host modules
 - Actual linking is performed by underlying backend (OpenCL/L0/etc.)
