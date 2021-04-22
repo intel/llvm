@@ -42,9 +42,9 @@ Revision: 1
 
 == Dependencies
 
-This extension is written against the OpenCL Specification Version 1.0, Revision 48.
+This extension is written against the OpenCL Specification Version 1.2, Revision 19.
 
-This extension requires OpenCL 1.0 or later.
+This extension requires OpenCL 1.2 or later.
 
 == Overview
 

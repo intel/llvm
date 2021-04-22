@@ -55,10 +55,10 @@ host code. If the asserted condition is false, a message is printed to `stderr`
 and then the program aborts with `std::abort()`.
 
 The format of the assert message is unspecified, but it will always include the
-text of the failing expression, the values of the standard macros `__FILE__` and
-`__LINE__`, and the value of the standard variable `__func__`. If the failing
-assert comes from an `nd_range` `parallel_for` it will also include the global
-ID and the local ID of the failing work item.
+text of the failing expression, the values of the standard macros `+__FILE__+`
+and `+__LINE__+`, and the value of the standard variable `+__func__+`. If the
+failing assert comes from an `nd_range` `parallel_for` it will also include the
+global ID and the local ID of the failing work item.
 
 It is unspecified whether a failing `assert()` returns to its caller before the
 kernel terminates. If a failing call returns, the device code may need to

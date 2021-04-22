@@ -43,8 +43,9 @@ failure. Assertion failure should be trigger a call to `std::abort()` at host as
 described in
 [extension](extensions/Assert/SYCL_INTEL_ASSERT.asciidoc).
 Even though multiple failures of the same or different assertions can happen in
-multiple workitems, implementation is required to deliver only one. The
-assertion failure message is printed to `stderr` by DPCPP Runtime.
+multiple workitems, implementation is required to deliver at least one
+assertion. The assertion failure message is printed to `stderr` by DPCPP
+Runtime.
 
 When multiple kernels are enqueued and more than one fail at assertion, at least
 single assertion should be reported.
@@ -93,10 +94,9 @@ ID and the local ID of the failing work item.
 Implementation of this function is supplied by Native Device Compiler for
 safe approach or by DPCPP Compiler for fallback one.
 
-NB: Due to lack of support of online linking in Level-Zero, the application is
-linked against fallback implementation of `__devicelib_assert_fail`. Hence,
-Native Device Compilers should prefer their implementation instead of the one
-provided in incoming SPIR-V/LLVM IR binary.
+In order to distinguish which implementation to use, DPCPP Runtime checks for
+`cl_intel_devicelib_cassert` extension. If the extension isn't available, then
+fallback implementation is used.
 
 
 ## Safe approach
@@ -111,15 +111,6 @@ between the device code and the Low-Level Runtime from the SYCL device compiler
 and runtime. The Low-Level Runtime is responsible for:
  - detecting if assert failure took place;
  - flushing assert message to `stderr` on host.
-
-When detected, Low-level Runtime reports assert failure to DPCPP Runtime
-via events objects. To achieve this, information about assert failure should be
-propagated from device-side to SYCL Runtime. This should be performed via calls
-to `piEventGetInfo`. This Plugin Interface call "lowers" to `clGetEventInfo` for
-OpenCL backend and `zeEventQueryStatus` for Level-Zero backend.
-
-Refer to [OpenCL](extensions/Assert/opencl.md) and [Level-Zero](extensions/Assert/level-zero.md)
-extensions.
 
 The following sequence of events describes how user code gets notified:
  - Device side:
@@ -142,13 +133,14 @@ Device-side Runtime and Native Device Compiler. Neither it does from Low-level
 Runtime.
 
 Within this approach, a dedicated assert buffer is allocated and implicit kernel
-argument is introduced. The argument is an accessor with `discard_read_write`
-or `discard_write` access mode. Accessor metadata is stored to program scope
-variable. This allows to refer to the accessor without modifying each and every
-user's function. Fallback implementation of `__devicelib_assert_fail` restores
-accessor metadata from program scope variable and writes assert information to
-the assert buffer. Atomic operations are used in order to not overwrite existing
-information.
+argument is introduced. The argument is an accessor that has either
+`access_mode::read_write` or `access_mode::write` access mode and was
+constructed with the `property::no_init property`. Accessor metadata is stored
+to program scope variable. This allows to refer to the accessor without
+modifying each and every user's function. Fallback implementation of
+`__devicelib_assert_fail` restores accessor metadata from program scope variable
+and writes assert information to the assert buffer. Atomic operations are used
+in order to not overwrite existing information.
 
 DPCPP Runtime checks contents of the assert buffer for assert failure flag after
 kernel finishes.
@@ -160,8 +152,8 @@ The following sequence of events describes how user code gets notified:
    3. Assert information is stored into assert buffer
    4. Kernel continues running
  - Host side:
-   1. A distinct thread is launched no later than the point of enqueue of the of
-      kernel with assertions
+   1. A distinct thread is launched no later than the point of enqueue of the
+      first kernel with assertions
    2. This thread polls the enqueued kernels for finish and checks the assert
       buffer for assert data
    3. If assert data is present DPCPP Runtime calls `abort()`
@@ -170,7 +162,8 @@ The following sequence of events describes how user code gets notified:
 #### Online-linking fallback `__devicelib_assert_fail`
 
 Online linking against fallback implementation of `__devicelib_assert_fail` is
-performed only when assertion is enabled.
+performed only when assertion is enabled and Device-side Runtime doesn't provide
+implementation of `__devicelib_assert_fail`.
 
 In DPCPP headers one can see if assert is enabled with status of `NDEBUG` macro
 with `#ifdef`'s. This allows to add implicit buffer argument to kernel
@@ -208,16 +201,16 @@ struct _pi_device_binary_property_struct {
 };
 ```
 
-Whenever `isAssertEnabled` property set is present, this specific device image
-was built with `NDEBUG` macro undefined and it requires fallback implementation
-of `__devicelib_assert_fail` (i.e. if Device-side Runtime doesn't support it).
+There's no need for a whole new property set so we reuse `SYCL/misc properties`
+property set. Whenever `isAssertEnabled` property is present, this specific
+device image was built with `NDEBUG` macro undefined and it requires fallback
+implementation of `__devicelib_assert_fail` (i.e. if Device-side Runtime doesn't
+support it).
 
-Any properties in `isAssertEnabled` property set are ignored.
-
-The property set is added to device binary descriptor whenever at least single
+The property is added to device binary descriptor whenever at least single
 translation unit was compiled with assertions enabled i.e. `NDEBUG` undefined.
 
-The property set is added by `sycl-post-link` tool depending on module metadata.
+The property is added by `sycl-post-link` tool depending on module metadata.
 Metadata is provided by Clang frontend. Metadata name is `is_assert_enabled`.
 
 
@@ -283,7 +276,7 @@ code requires for `isAssertEnabled` property set being present in device image
 descriptor structure.
 
 
-### Storing accessor metadata and writing assert failure to buffer
+#### Storing accessor metadata and writing assert failure to buffer
 
 Both storing of accessor metadata and writing assert failure is performed with
 help of built-ins. Implementations of these builtins are substituted by
