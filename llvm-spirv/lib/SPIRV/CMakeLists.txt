@@ -39,6 +39,7 @@ add_llvm_library(LLVMSPIRVLib
     Analysis
     BitWriter
     Core
+    Demangle
     IRReader
     Linker
     Support

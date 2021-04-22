@@ -443,6 +443,26 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
                                             SPIRAddressSpace::SPIRAS_Global));
   }
 
+  case internal::OpTypeJointMatrixINTEL: {
+    auto MT = static_cast<SPIRVTypeJointMatrixINTEL *>(T);
+    auto R = static_cast<SPIRVConstant *>(MT->getRows())->getZExtIntValue();
+    auto C = static_cast<SPIRVConstant *>(MT->getColumns())->getZExtIntValue();
+    if (BM->getForceJointMatrix() == false) {
+      return mapType(T,
+                     FixedVectorType::get(transType(MT->getElemType()), R * C));
+    }
+    std::stringstream SS;
+    SS << kSPIRVTypeName::PostfixDelim;
+    SS << transTypeToOCLTypeName(MT->getElemType());
+    auto L = static_cast<SPIRVConstant *>(MT->getLayout())->getZExtIntValue();
+    auto S = static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue();
+    SS << kSPIRVTypeName::PostfixDelim << R << kSPIRVTypeName::PostfixDelim << C
+       << kSPIRVTypeName::PostfixDelim << L << kSPIRVTypeName::PostfixDelim
+       << S;
+    std::string Name = getSPIRVTypeName(kSPIRVTypeName::MatrixINTEL, SS.str());
+    return mapType(T, getOrCreateOpaquePtrType(M, Name));
+  }
+
   default: {
     auto OC = T->getOpCode();
     if (isOpaqueGenericTypeOpCode(OC) || isSubgroupAvcINTELTypeOpCode(OC))
@@ -2437,6 +2457,130 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         BV, Builder.CreateIntrinsic(Intrinsic::arithmetic_fence, RetTy, Val));
   }
 
+  case internal::OpJointMatrixLoadINTEL: {
+    SPIRVJointMatrixLoadINTEL *ML =
+        static_cast<SPIRVJointMatrixLoadINTEL *>(BV);
+
+    if (BM->getForceJointMatrix()) {
+      // Translate to SPIR-V friendly representation
+      return mapValue(BV, transSPIRVBuiltinFromInst(ML, BB));
+    }
+    // LLVM represenation:
+    // declare <vectorty>
+    // @llvm.experimental.matrix.load.*(ptrty %Ptr, i64 %Stride,
+    //                                  i1 <IsVolatile>, i32 <Rows>,
+    //                                  i32 <Columns>,
+    //                                  metadata !"<Matrix layout>",
+    //                                  metadata !"<Memory layout>",
+    //                                  metadata !"<Matrix scope>")
+    std::vector<SPIRVValue *> BArgs = ML->getOperands();
+    enum SPVIdx { Pointer, Stride, Layout, Scope, MemOp };
+    bool isVolatile =
+        static_cast<SPIRVConstant *>(BArgs[MemOp])->getZExtIntValue();
+    auto *MatTy = static_cast<SPIRVTypeJointMatrixINTEL *>(ML->getType());
+    std::vector<Value *> Args = {
+        transValue(BArgs[Pointer], BB->getParent(), BB),
+        transValue(BArgs[Stride], BB->getParent(), BB),
+        ConstantInt::getBool(Type::getInt1Ty(*Context), isVolatile),
+        transValue(MatTy->getRows(), BB->getParent(), BB),
+        transValue(MatTy->getColumns(), BB->getParent(), BB),
+        map2MDString<internal::InternalJointMatrixLayout>(*Context,
+                                                          BArgs[Layout]),
+        map2MDString<internal::InternalJointMatrixLayout>(*Context,
+                                                          MatTy->getLayout()),
+        map2MDString<spv::Scope>(*Context, BArgs[Scope])};
+
+    std::vector<Type *> Types = {transType(ML->getType()), // Matrix type
+                                 Args[0]->getType()};      // pointer type
+    IRBuilder<> Builder(BB);
+    auto *Call = Builder.CreateIntrinsic(Intrinsic::experimental_matrix_load,
+                                         Types, Args);
+    return mapValue(BV, Call);
+  }
+
+  case internal::OpJointMatrixStoreINTEL: {
+    SPIRVJointMatrixStoreINTEL *MS =
+        static_cast<SPIRVJointMatrixStoreINTEL *>(BV);
+    if (BM->getForceJointMatrix())
+      return mapValue(BV, transSPIRVBuiltinFromInst(MS, BB));
+
+    std::vector<SPIRVValue *> BArgs = MS->getOperands();
+    enum SPVIdx { Pointer, Object, Stride, Layout, Scope, MemOp };
+    // LLVM representation:
+    // declare void
+    // @llvm.experimental.matrix.store.*(vectorty %Matrix, ptrty %Ptr,
+    //                                   i64 %Stride, i1 <IsVolatile>,
+    //                                   i32 <Rows>, i32 <Cols>,
+    //                                   metadata <Matrix layout>,
+    //                                   metadata <Memory layout>,
+    //                                   metadata <Matrix Scope>);
+    auto *MatTy =
+        static_cast<SPIRVTypeJointMatrixINTEL *>(BArgs[Object]->getType());
+    bool isVolatile =
+        static_cast<SPIRVConstant *>(BArgs[MemOp])->getZExtIntValue();
+
+    std::vector<Value *> Args = {
+        transValue(BArgs[Object], BB->getParent(), BB),
+        transValue(BArgs[Pointer], BB->getParent(), BB),
+        transValue(BArgs[Stride], BB->getParent(), BB),
+        ConstantInt::getBool(Type::getInt1Ty(*Context), isVolatile),
+        transValue(MatTy->getRows(), BB->getParent(), BB),
+        transValue(MatTy->getColumns(), BB->getParent(), BB),
+        map2MDString<internal::InternalJointMatrixLayout>(*Context,
+                                                          MatTy->getLayout()),
+        map2MDString<internal::InternalJointMatrixLayout>(*Context,
+                                                          BArgs[Layout]),
+        map2MDString<spv::Scope>(*Context, BArgs[Scope])};
+
+    // ovreloadable types
+    std::vector<Type *> Types = {Args[0]->getType(),  // Matrix
+                                 Args[1]->getType()}; // Ptr
+    IRBuilder<> Builder(BB);
+    auto *Call = Builder.CreateIntrinsic(Intrinsic::experimental_matrix_store,
+                                         Types, Args);
+    return mapValue(BV, Call);
+  }
+
+  case internal::OpJointMatrixMadINTEL: {
+    SPIRVJointMatrixMadINTEL *MM = static_cast<SPIRVJointMatrixMadINTEL *>(BV);
+    if (BM->getForceJointMatrix())
+      return mapValue(BV, transSPIRVBuiltinFromInst(MM, BB));
+
+    std::vector<SPIRVValue *> BArgs = MM->getOperands();
+    enum SPVIdx { A, B, C, Scope };
+    // declare vectorty
+    // @llvm.experimental.matrix.mad.*(vectorty %A, metadata <Matrix A layout>,
+    //                                 vectorty %B, metadata <Matrix B layout>,
+    //                                 vectorty %C, metadata <Matrix C layout>,
+    //                                 i32 %M, i32 %K, i32 %N, metadata <Scope>
+    auto *ATy = static_cast<SPIRVTypeJointMatrixINTEL *>(BArgs[A]->getType());
+    auto *BTy = static_cast<SPIRVTypeJointMatrixINTEL *>(BArgs[B]->getType());
+    auto *CTy = static_cast<SPIRVTypeJointMatrixINTEL *>(BArgs[C]->getType());
+    std::vector<Value *> Args = {
+        transValue(BArgs[A], BB->getParent(), BB),
+        map2MDString<internal::InternalJointMatrixLayout>(*Context,
+                                                          ATy->getLayout()),
+        transValue(BArgs[B], BB->getParent(), BB),
+        map2MDString<internal::InternalJointMatrixLayout>(*Context,
+                                                          BTy->getLayout()),
+        transValue(BArgs[C], BB->getParent(), BB),
+        map2MDString<internal::InternalJointMatrixLayout>(*Context,
+                                                          CTy->getLayout()),
+        transValue(ATy->getRows(), BB->getParent(), BB),
+        transValue(BTy->getRows(), BB->getParent(), BB),
+        transValue(CTy->getColumns(), BB->getParent(), BB),
+        map2MDString<spv::Scope>(*Context, BArgs[Scope])};
+
+    // ovreloadable types
+    std::vector<Type *> Types = {transType(MM->getType()), // return type
+                                 Args[0]->getType(),       // vector A
+                                 Args[2]->getType()};      // vector B
+    IRBuilder<> Builder(BB);
+    auto *Call = Builder.CreateIntrinsic(Intrinsic::experimental_matrix_mad,
+                                         Types, Args);
+    return mapValue(BV, Call);
+  }
+
   default: {
     auto OC = BV->getOpCode();
     if (isSPIRVCmpInstTransToLLVMInst(static_cast<SPIRVInstruction *>(BV)))
@@ -3099,7 +3243,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   bool AddRetTypePostfix = false;
   if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize ||
       OC == OpImageRead || OC == OpSubgroupImageBlockReadINTEL ||
-      OC == OpSubgroupBlockReadINTEL)
+      OC == OpSubgroupBlockReadINTEL || OC == internal::OpJointMatrixLoadINTEL)
     AddRetTypePostfix = true;
 
   bool IsRetSigned = false;

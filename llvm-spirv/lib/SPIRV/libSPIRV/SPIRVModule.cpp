@@ -244,6 +244,9 @@ public:
   SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
+  SPIRVTypeJointMatrixINTEL *addMatrixINTELType(SPIRVType *, SPIRVValue *,
+                                                SPIRVValue *, SPIRVValue *,
+                                                SPIRVValue *) override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -897,6 +900,15 @@ SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
                                                 SPIRVWord CompCount) {
   return addType(new SPIRVTypeVector(this, getId(), CompType, CompCount));
 }
+
+SPIRVTypeJointMatrixINTEL *
+SPIRVModuleImpl::addMatrixINTELType(SPIRVType *CompType, SPIRVValue *Scope,
+                                    SPIRVValue *Rows, SPIRVValue *Layout,
+                                    SPIRVValue *Cols) {
+  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Scope,
+                                               Rows, Layout, Cols));
+}
+
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {
   return addType(new SPIRVTypeOpaqueGeneric(TheOpCode, this, getId()));
 }

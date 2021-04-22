@@ -143,6 +143,11 @@ static cl::opt<bool>
         cl::desc("Preserve OpenCL kernel_arg_type and kernel_arg_type_qual "
                  "metadata through OpString"));
 
+static cl::opt<bool>
+    ForceJointMatrix("spirv-force-joint-matrix", cl::init(false),
+                     cl::desc("Translate joint matrix types and instructions "
+                              "from SPIR-V to SPIR-V friendly LLVM IR"));
+
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
@@ -586,6 +591,14 @@ int main(int Ac, char **Av) {
                 "affects translation from SPIR-V to LLVM IR";
     } else {
       Opts.setDesiredBIsRepresentation(BIsRepresentation);
+    }
+  }
+  if (ForceJointMatrix) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-force-joint-matrix option ignored as it only "
+                "affects translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setForceJointMatrix(true);
     }
   }
 

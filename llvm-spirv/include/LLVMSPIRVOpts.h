@@ -180,6 +180,10 @@ public:
     PreserveOCLKernelArgTypeMetadataThroughString = Value;
   }
 
+  void setForceJointMatrix(bool Value) noexcept { ForceJointMatrix = Value; }
+
+  bool getForceJointMatrix() const noexcept { return ForceJointMatrix; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -220,6 +224,10 @@ private:
   // Add a workaround to preserve OpenCL kernel_arg_type and
   // kernel_arg_type_qual metadata through OpString
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
+
+  // In SPIR-V to LLVM IR translation, emit joint matrices and operations on
+  // them in SPIR-V friendly format.
+  bool ForceJointMatrix = false;
 };
 
 } // namespace SPIRV

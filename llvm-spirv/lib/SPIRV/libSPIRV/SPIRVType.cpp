@@ -265,4 +265,18 @@ void SPIRVTypeForwardPointer::decode(std::istream &I) {
   SPIRVId PointerId;
   Decoder >> PointerId >> SC;
 }
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL(
+    SPIRVModule *M, SPIRVId TheId, SPIRVType *ElemType, SPIRVValue *Rows,
+    SPIRVValue *Columns, SPIRVValue *Layout, SPIRVValue *Scope)
+    : SPIRVType(M, FixedWC, OC, TheId), ElemType(ElemType), Rows(Rows),
+      Columns(Columns), Layout(Layout), Scope(Scope) {}
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL()
+    : SPIRVType(OC), ElemType(nullptr), Rows(nullptr), Columns(nullptr),
+      Layout(nullptr), Scope(nullptr) {}
+
+_SPIRV_IMP_ENCDEC6(SPIRVTypeJointMatrixINTEL, Id, ElemType, Rows, Columns,
+                   Layout, Scope)
+
 } // namespace SPIRV

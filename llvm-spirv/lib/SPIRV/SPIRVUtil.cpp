@@ -52,6 +52,7 @@
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -148,7 +149,12 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed) {
     Ss << mapLLVMTypeToOCLType(EleTy, Signed) << Size;
     return Ss.str();
   }
-  return "invalid_type";
+  // Just mangle the type
+  BuiltinFuncMangleInfo MangleInfo;
+  std::string MangledName =
+      mangleBuiltin("", const_cast<Type *>(Ty), &MangleInfo);
+  // Remove "_Z0"(3 characters) from the front of the name
+  return MangledName.erase(0, 3);
 }
 
 std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed) {
@@ -2120,5 +2126,17 @@ std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
   SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
 }
+
+template <typename T>
+MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
+  if (V->getOpCode() != OpConstant)
+    return nullptr;
+  uint64_t Const = static_cast<SPIRVConstant *>(V)->getZExtIntValue();
+  std::string Str = SPIRVMap<T, std::string>::map(static_cast<T>(Const));
+  return MetadataAsValue::get(C, MDString::get(C, Str));
+}
+template MetadataAsValue *
+map2MDString<internal::InternalJointMatrixLayout>(LLVMContext &, SPIRVValue *);
+template MetadataAsValue *map2MDString<spv::Scope>(LLVMContext &, SPIRVValue *);
 
 } // namespace SPIRV

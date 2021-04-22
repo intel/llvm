@@ -555,7 +555,37 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(Type *T) {
     return mapType(T, BM->addQueueType());
   else if (TN == kSPIRVTypeName::PipeStorage)
     return mapType(T, BM->addPipeStorageType());
-  else
+  else if (TN == kSPIRVTypeName::MatrixINTEL) {
+    Type *ElemTy = nullptr;
+    StringRef Ty{Postfixes[0]};
+    auto NumBits = llvm::StringSwitch<unsigned>(Ty)
+                       .Case("char", 8)
+                       .Case("short", 16)
+                       .Case("int", 32)
+                       .Case("long", 64)
+                       .Default(0);
+    if (NumBits)
+      ElemTy = IntegerType::get(M->getContext(), NumBits);
+    else if (Ty == "half")
+      ElemTy = Type::getHalfTy(M->getContext());
+    else if (Ty == "float")
+      ElemTy = Type::getFloatTy(M->getContext());
+    else if (Ty == "double")
+      ElemTy = Type::getDoubleTy(M->getContext());
+    else
+      llvm_unreachable("Unexpected type for matrix!");
+    ConstantInt *A[4] = {};
+    for (size_t i = 1; i < Postfixes.size(); i++) {
+      StringRef Postfix{Postfixes[i]};
+      unsigned long long N = 0;
+      consumeUnsignedInteger(Postfix, 10, N);
+      A[i - 1] = getUInt32(M, N);
+    }
+    return mapType(
+        T, BM->addMatrixINTELType(transType(ElemTy), transConstant(A[0]),
+                                  transConstant(A[1]), transConstant(A[2]),
+                                  transConstant(A[3])));
+  } else
     return mapType(T,
                    BM->addOpaqueGenericType(SPIRVOpaqueTypeOpCodeMap::map(TN)));
 }
