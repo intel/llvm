@@ -1522,7 +1522,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   // Emit the standard function prologue.
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
 
-  SyclOptReportHandler &OptReportHandler = CGM.getDiags().OptReportHandler;
+  SyclOptReportHandler &OptReportHandler =
+      CGM.getDiags().getSYCLOptReportHandler();
   if (OptReportHandler.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
     for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
