@@ -346,11 +346,9 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
     // FIXME: Make this list self-adapt as new SYCL attributes are added.
     return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-               ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-               SYCLIntelNumSimdWorkItemsAttr,
-               SYCLIntelSchedulerTargetFmaxMhzAttr,
+               ReqdWorkGroupSizeAttr, SYCLIntelNumSimdWorkItemsAttr,
                SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
+               SYCLSimdAttr>(A);
   });
 
   // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
@@ -372,6 +370,9 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
+                 SYCLIntelKernelArgsRestrictAttr,
+                 SYCLIntelNoGlobalWorkOffsetAttr,
+                 SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelFPGAInitiationIntervalAttr>(A);
     });
   }

@@ -53,10 +53,7 @@ int main() {
 #ifndef TRIGGER_ERROR
     // CHECK-LABEL:  FunctionDecl {{.*}} main 'int ()'
     // CHECK:  `-FunctionDecl {{.*}}test_kernel1 'void ()'
-    // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NOT:   SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
     // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4

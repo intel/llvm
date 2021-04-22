@@ -46,7 +46,7 @@ void invoke_foo2() {
   // CHECK-LABEL:  FunctionDecl {{.*}} invoke_foo2 'void ()'
   // CHECK:        `-FunctionDecl {{.*}}KernelName 'void ()'
   // CHECK:        -IntelReqdSubGroupSizeAttr {{.*}}
-  // CHECK:        `-SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+  // CHECK-NOT:    `-SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
   parallel_for<class KernelName>([]() {});
 #else
   parallel_for<class KernelName>([]() {}); // expected-error 3 {{conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function}}

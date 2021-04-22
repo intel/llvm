@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -16,8 +16,7 @@ public:
   [[intel::no_global_work_offset(SIZE)]] void operator()() const {}
 };
 
-template <int N>
-[[intel::no_global_work_offset(N)]] void func() {}
+[[intel::no_global_work_offset(1)]] void func() {}
 
 int main() {
   q.submit([&](handler &h) {
@@ -33,9 +32,9 @@ int main() {
     Functor<1> f;
     h.single_task<class kernel_name4>(f);
 
-    h.single_task<class kernel_name5>([]() {
-      func<1>();
-    });
+    // Test attribute is not propagated.
+    h.single_task<class kernel_name5>(
+        []() { func(); });
   });
   return 0;
 }
@@ -44,6 +43,6 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !no_global_work_offset ![[NUM5]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} ![[NUM4:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !no_global_work_offset ![[NUM5]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} !no_global_work_offset ![[NUM5]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} ![[NUM5]]
 // CHECK-NOT: ![[NUM4]]  = !{i32 0}
 // CHECK: ![[NUM5]] = !{}

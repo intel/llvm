@@ -2418,7 +2418,8 @@ attribute was applied. This effect is equivalent to annotating restrict on
 **all** kernel pointer arguments in an OpenCL or SPIR-V kernel.
 
 If ``intel::kernel_args_restrict`` is applied to a function called from a device
-kernel, the attribute is not ignored and it is propagated to the kernel.
+kernel, the attribute is ignored and it is not propagated to the kernel to
+match with new SYCL 2020 spec.
 
 The attribute forms an unchecked assertion, in that implementations
 do not need to check/confirm the pre-condition in any way. If a user applies
@@ -2711,6 +2712,10 @@ device operation, guiding the FPGA backend to insert the appropriate number of
 registers to break-up the combinational logic circuit, and thereby controlling
 the length of the longest combinational path.
 
+If ``intel::scheduler_target_fmax_mhz`` is applied to a function called from a
+device kernel, the attribute is ignored and it is not propagated to the kernel
+to match with new SYCL 2020 spec.
+
 .. code-block:: c++
 
   [[intel::scheduler_target_fmax_mhz(4)]] void foo() {}
@@ -2740,6 +2745,10 @@ Applies to a device function/lambda function or function call operator (of a
 function object). If 1, compiler doesn't use the global work offset values for
 the device function. Valid values are 0 and 1. If used without argument, value
 of 1 is set implicitly.
+
+If ``intel::no_global_work_offset`` is applied to a function called from a
+device kernel, the attribute is ignored and it is not propagated to the kernel
+to match with new SYCL 2020 spec.
 
 .. code-block:: c++
 

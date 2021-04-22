@@ -27,7 +27,7 @@ int main() {
       []() [[intel::kernel_args_restrict]] {});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-  // CHECK:       SYCLIntelKernelArgsRestrictAttr
+  // CHECK-NOT:   SYCLIntelKernelArgsRestrictAttr
   kernel<class test_kernel3>(
       []() { func_do_not_ignore(); });
 }
