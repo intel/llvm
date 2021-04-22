@@ -3,9 +3,8 @@
 #if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #include <iostream>
 
-using namespace cl::sycl;
-using namespace cl::sycl::intel;
-using namespace cl::sycl::ext::intel::matrix;
+using namespace sycl::intel;
+using namespace sycl::ext::intel::experimental::matrix;
 
 #define TILE_SZ 16
 #define TM (3 * TILE_SZ-1)
