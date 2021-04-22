@@ -10,9 +10,11 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/backend.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/cl.h>
+#include <CL/sycl/kernel_bundle.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -59,6 +61,24 @@ struct interop<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
 };
 
 namespace detail {
+template <bundle_state State>
+struct BackendInput<backend::opencl, kernel_bundle<State>> {
+  using type = cl_program;
+};
+
+template <bundle_state State>
+struct BackendReturn<backend::opencl, kernel_bundle<State>> {
+  using type = cl_program;
+};
+
+template <> struct BackendInput<backend::opencl, kernel> {
+  using type = cl_kernel;
+};
+
+template <> struct BackendReturn<backend::opencl, kernel> {
+  using type = cl_kernel;
+};
+
 template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = true;
@@ -67,6 +87,7 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = true;
   static constexpr bool MakeKernel = true;
+  static constexpr bool MakeKernelBundle = true;
 };
 } // namespace detail
 

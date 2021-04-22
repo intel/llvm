@@ -11,6 +11,7 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <detail/device_image_impl.hpp>
@@ -82,6 +83,18 @@ public:
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, State);
+  }
+
+  // Interop constructor
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+                     device_image_plain &DevImage)
+      : MContext(Ctx), MDevices(Devs) {
+    if (!checkAllDevicesAreInContext(Devs, Ctx))
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Not all devices are associated with the context or "
+          "vector of devices is empty");
+    MDeviceImages.push_back(DevImage);
   }
 
   // Matches sycl::build and sycl::compile
