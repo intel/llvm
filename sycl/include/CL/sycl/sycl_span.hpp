@@ -125,7 +125,7 @@ template<class Container>
 */
 
 #include <array>       // for array
-#include <cassert>
+#include <cassert>     // for assert
 #include <cstddef>     // for byte
 #include <iterator>    // for iterators
 #include <type_traits> // for remove_cv, etc
@@ -144,7 +144,7 @@ using byte = unsigned char;
 #if defined(__SYCL_DEVICE_ONLY__)
 #define _SYCL_SPAN_ASSERT(x, m) ((void)0)
 #else
-#define _SYCL_SPAN_ASSERT(x, m) assert(x && m)
+#define _SYCL_SPAN_ASSERT(x, m) assert((x && m))
 #endif
 
 inline constexpr size_t dynamic_extent = SIZE_MAX;
@@ -285,8 +285,8 @@ public:
   }
 
   template <size_t _Count>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
-  last() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> last() const
+      noexcept {
     static_assert(_Count <= _Extent, "Count out of range in span::last()");
     return span<element_type, _Count>{data() + size() - _Count, _Count};
   }
@@ -483,8 +483,8 @@ public:
   }
 
   template <size_t _Count>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
-  last() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> last() const
+      noexcept {
     _SYCL_SPAN_ASSERT(_Count <= size(), "Count out of range in span::last()");
     return span<element_type, _Count>{data() + size() - _Count, _Count};
   }
@@ -517,8 +517,8 @@ public:
   }
 
   constexpr span<element_type, dynamic_extent> _SYCL_SPAN_INLINE_VISIBILITY
-  subspan(size_type __offset,
-          size_type __count = dynamic_extent) const noexcept {
+  subspan(size_type __offset, size_type __count = dynamic_extent) const
+      noexcept {
     _SYCL_SPAN_ASSERT(__offset <= size(),
                       "Offset out of range in span::subspan(offset, count)");
     _SYCL_SPAN_ASSERT(__count <= size() || __count == dynamic_extent,
