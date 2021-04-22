@@ -2492,6 +2492,12 @@ pi_result cuda_piEnqueueNativeKernel(
   return {};
 }
 
+pi_result cuda_piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
+                                                 pi_kernel *) {
+  sycl::detail::pi::die("Unsupported operation");
+  return PI_SUCCESS;
+}
+
 /// \TODO Not implemented
 pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
                                 const pi_image_format *image_format,
@@ -3318,6 +3324,28 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+}
+
+/// Enqueues a wait on the given CUstream for all specified events (See
+/// \ref enqueueEventWait.) If the events list is empty, the enqueued wait will
+/// wait on all previous events in the queue.
+/// TODO: Implement this.
+///
+/// \param[in] command_queue A valid PI queue.
+/// \param[in] num_events_in_wait_list Number of events in event_wait_list.
+/// \param[in] event_wait_list Events to wait on.
+/// \param[out] event Event for when all events in event_wait_list have finished
+/// or, if event_wait_list is empty, when all previous events in the queue have
+/// finished.
+///
+/// \return TBD
+pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                              pi_uint32 num_events_in_wait_list,
+                                              const pi_event *event_wait_list,
+                                              pi_event *event) {
+  cl::sycl::detail::pi::die(
+      "cuda_piEnqueueEventsWaitWithBarrier not implemented");
+  return {};
 }
 
 /// Gets the native CUDA handle of a PI event object
@@ -4584,7 +4612,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
           &value, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)ptr));
       pi_platform platform;
-      result = cuda_piPlatformsGet(0, &platform, nullptr);
+      result = cuda_piPlatformsGet(1, &platform, nullptr);
       pi_device device = platform->devices_[value].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
@@ -4689,6 +4717,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRelease, cuda_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, cuda_piKernelSetExecInfo)
   _PI_CL(piextKernelSetArgPointer, cuda_piextKernelSetArgPointer)
+  _PI_CL(piextKernelCreateWithNativeHandle,
+         cuda_piextKernelCreateWithNativeHandle)
   // Event
   _PI_CL(piEventCreate, cuda_piEventCreate)
   _PI_CL(piEventGetInfo, cuda_piEventGetInfo)
@@ -4710,6 +4740,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueKernelLaunch, cuda_piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, cuda_piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, cuda_piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, cuda_piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, cuda_piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, cuda_piEnqueueMemBufferReadRect)
   _PI_CL(piEnqueueMemBufferWrite, cuda_piEnqueueMemBufferWrite)

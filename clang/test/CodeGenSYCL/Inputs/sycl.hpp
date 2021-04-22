@@ -321,6 +321,10 @@ private:
   T MDefaultValue;
 };
 
+#if __cplusplus >= 201703L
+template<typename T> specialization_id(T) -> specialization_id<T>;
+#endif // C++17.
+
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTask

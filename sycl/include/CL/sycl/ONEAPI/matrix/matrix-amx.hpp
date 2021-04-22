@@ -46,6 +46,7 @@ public:
   short rows, cols;
 };
 
+// TODO: we are adding it this way until sycl::dynamic_extent gets implemented.
 constexpr size_t dynamic_extent = std::numeric_limits<size_t>::max();
 
 template <typename T> struct elems_per_dword {
@@ -62,7 +63,7 @@ ELEMS_PER_DWORD(unsigned short, 2)
 
 } // namespace detail
 
-namespace matrix {
+namespace experimental::matrix {
 using namespace cl::sycl;
 using namespace cl::sycl::ONEAPI;
 
@@ -196,9 +197,11 @@ public:
   joint_matrix(Group sg) {}
 };
 
-} // namespace matrix
+} // namespace experimental::matrix
 
 namespace detail {
+
+using namespace experimental;
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix::matrix_layout Layout>
@@ -231,7 +234,8 @@ inline __SYCL_ALWAYS_INLINE static
                    uint32_t row, uint32_t col, size_t stride,
                    matrix::matrix_layout layout, bool shouldreload) {
   if (shouldreload) {
-    // Force sub_m.tile's shape to be matrix::tile_size * matrix::tile_size * 4
+    // Force sub_m.tile's shape to be matrix::tile_size *
+    // matrix::tile_size * 4
     int8_t NewjmC[matrix::tile_size * matrix::tile_size * 4];
     matrix::tilestored64_internal(NumRows, NumCols * sizeof(T),
                                   reinterpret_cast<char *>(NewjmC),
@@ -309,7 +313,7 @@ inline __SYCL_ALWAYS_INLINE static
 
 } // namespace detail
 
-namespace matrix {
+namespace experimental::matrix {
 
 // This handles cases where matrix can't be accommodated by a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -439,7 +443,7 @@ joint_matrix_mad(Group sg,
   return;
 }
 
-} // namespace matrix
+} // namespace experimental::matrix
 } // namespace intel
 } // namespace ext
 } // namespace sycl

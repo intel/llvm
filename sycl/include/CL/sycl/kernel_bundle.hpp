@@ -11,6 +11,8 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel.hpp>
 
@@ -20,6 +22,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+// Forward declaration
+template <backend Backend> class backend_traits;
 
 enum class bundle_state : char { input = 0, object = 1, executable = 2 };
 
@@ -80,6 +84,8 @@ public:
   bool has_kernel(const kernel_id &KernelID) const noexcept;
 
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
+
+  pi_native_handle getNative() const;
 
 protected:
   detail::DeviceImageImplPtr impl;
@@ -301,6 +307,25 @@ public:
   /// \returns an iterator to the last device image kernel_bundle contains
   device_image_iterator end() const {
     return reinterpret_cast<device_image_iterator>(kernel_bundle_plain::end());
+  }
+
+  template <backend Backend>
+  std::vector<typename backend_traits<Backend>::template return_type<
+      kernel_bundle<State>>>
+  get_native() {
+    std::vector<typename backend_traits<Backend>::template return_type<
+        kernel_bundle<State>>>
+        ReturnValue;
+    ReturnValue.reserve(std::distance(begin(), end()));
+
+    for (const device_image<State> &DevImg : *this) {
+      ReturnValue.push_back(
+          detail::pi::cast<typename backend_traits<
+              Backend>::template return_type<kernel_bundle<State>>>(
+              DevImg.getNative()));
+    }
+
+    return ReturnValue;
   }
 
 private:

@@ -36,7 +36,8 @@ enum class program_state { none = 0, compiled = 1, linked = 2 };
 /// \sa queue
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT program {
+class __SYCL_EXPORT __SYCL2020_DEPRECATED(
+    "program class is deprecated, use kernel_bundle instead") program {
 public:
   program() = delete;
 
