@@ -125,12 +125,13 @@ template<class Container>
 */
 
 #include <array>       // for array
+#include <cassert>
 #include <cstddef>     // for byte
 #include <iterator>    // for iterators
 #include <type_traits> // for remove_cv, etc
 
-#define _SYCLSPAN_TEMPLATE_VIS
-#define _SYCLSPAN_INLINE_VISIBILITY inline
+#define _SYCL_SPAN_TEMPLATE_VIS
+#define _SYCL_SPAN_INLINE_VISIBILITY inline
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -140,7 +141,11 @@ using byte = unsigned char;
 
 // asserts suppressed for device compatibility.
 // TODO: enable
-#define _SYCLSPAN_ASSERT(x, m) ((void)0)
+#if defined(__SYCL_DEVICE_ONLY__)
+#define _SYCL_SPAN_ASSERT(x, m) ((void)0)
+#else
+#define _SYCL_SPAN_ASSERT(x, m) assert(x && m)
+#endif
 
 inline constexpr size_t dynamic_extent = SIZE_MAX;
 template <typename _Tp, size_t _Extent = dynamic_extent> class span;
@@ -186,7 +191,7 @@ struct __is_span_compatible_container<
                                   _ElementType (*)[]>,
             std::nullptr_t>::type>> : public std::true_type {};
 
-template <typename _Tp, size_t _Extent> class _SYCLSPAN_TEMPLATE_VIS span {
+template <typename _Tp, size_t _Extent> class _SYCL_SPAN_TEMPLATE_VIS span {
 public:
   //  constants and types
   using element_type = _Tp;
@@ -205,30 +210,30 @@ public:
   // [span.cons], span constructors, copy, assignment, and destructor
   template <size_t _Sz = _Extent,
             std::enable_if_t<_Sz == 0, std::nullptr_t> = nullptr>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span() noexcept : __data{nullptr} {}
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span() noexcept : __data{nullptr} {}
 
   constexpr span(const span &) noexcept = default;
   constexpr span &operator=(const span &) noexcept = default;
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr explicit span(pointer __ptr,
-                                                      size_type __count)
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __ptr,
+                                                       size_type __count)
       : __data{__ptr} {
     (void)__count;
-    _SYCLSPAN_ASSERT(_Extent == __count,
-                     "size mismatch in span's constructor (ptr, len)");
+    _SYCL_SPAN_ASSERT(_Extent == __count,
+                      "size mismatch in span's constructor (ptr, len)");
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr explicit span(pointer __f, pointer __l)
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __f, pointer __l)
       : __data{__f} {
     (void)__l;
-    _SYCLSPAN_ASSERT(_Extent == distance(__f, __l),
-                     "size mismatch in span's constructor (ptr, ptr)");
+    _SYCL_SPAN_ASSERT(_Extent == distance(__f, __l),
+                      "size mismatch in span's constructor (ptr, ptr)");
   }
 
   template <class _OtherElementType,
             std::enable_if_t<std::is_convertible_v<_OtherElementType (*)[],
                                                    element_type (*)[]>,
                              std::nullptr_t> = nullptr>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       std::array<_OtherElementType, _Extent> &__arr) noexcept
       : __data{__arr.data()} {}
 
@@ -237,33 +242,33 @@ public:
       std::enable_if_t<std::is_convertible_v<const _OtherElementType (*)[],
                                              element_type (*)[]>,
                        std::nullptr_t> = nullptr>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       const std::array<_OtherElementType, _Extent> &__arr) noexcept
       : __data{__arr.data()} {}
 
   template <class _Container>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr explicit span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
       _Container &__c,
       std::enable_if_t<__is_span_compatible_container<_Container, _Tp>::value,
                        std::nullptr_t> = nullptr)
       : __data{std::data(__c)} {
-    _SYCLSPAN_ASSERT(_Extent == std::size(__c),
-                     "size mismatch in span's constructor (range)");
+    _SYCL_SPAN_ASSERT(_Extent == std::size(__c),
+                      "size mismatch in span's constructor (range)");
   }
 
   template <class _Container>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr explicit span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
       const _Container &__c,
       std::enable_if_t<
           __is_span_compatible_container<const _Container, _Tp>::value,
           std::nullptr_t> = nullptr)
       : __data{std::data(__c)} {
-    _SYCLSPAN_ASSERT(_Extent == std::size(__c),
-                     "size mismatch in span's constructor (range)");
+    _SYCL_SPAN_ASSERT(_Extent == std::size(__c),
+                      "size mismatch in span's constructor (range)");
   }
 
   template <class _OtherElementType>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       const span<_OtherElementType, _Extent> &__other,
       std::enable_if_t<
           std::is_convertible_v<_OtherElementType (*)[], element_type (*)[]>,
@@ -273,37 +278,37 @@ public:
   //  ~span() noexcept = default;
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> first() const
-      noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
+  first() const noexcept {
     static_assert(_Count <= _Extent, "Count out of range in span::first()");
     return span<element_type, _Count>{data(), _Count};
   }
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> last() const
-      noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
+  last() const noexcept {
     static_assert(_Count <= _Extent, "Count out of range in span::last()");
     return span<element_type, _Count>{data() + size() - _Count, _Count};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY
+  _SYCL_SPAN_INLINE_VISIBILITY
   constexpr span<element_type, dynamic_extent> first(size_type __count) const
       noexcept {
-    _SYCLSPAN_ASSERT(__count <= size(),
-                     "Count out of range in span::first(count)");
+    _SYCL_SPAN_ASSERT(__count <= size(),
+                      "Count out of range in span::first(count)");
     return {data(), __count};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY
+  _SYCL_SPAN_INLINE_VISIBILITY
   constexpr span<element_type, dynamic_extent> last(size_type __count) const
       noexcept {
-    _SYCLSPAN_ASSERT(__count <= size(),
-                     "Count out of range in span::last(count)");
+    _SYCL_SPAN_ASSERT(__count <= size(),
+                      "Count out of range in span::last(count)");
     return {data() + size() - __count, __count};
   }
 
   template <size_t _Offset, size_t _Count = dynamic_extent>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr auto subspan() const noexcept
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr auto subspan() const noexcept
       -> span<element_type,
               (_Count != dynamic_extent ? _Count : _Extent - _Offset)> {
     static_assert(_Offset <= _Extent, "Offset out of range in span::subspan()");
@@ -317,73 +322,73 @@ public:
                        _Count == dynamic_extent ? size() - _Offset : _Count};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY
+  _SYCL_SPAN_INLINE_VISIBILITY
   constexpr span<element_type, dynamic_extent>
   subspan(size_type __offset, size_type __count = dynamic_extent) const
       noexcept {
-    _SYCLSPAN_ASSERT(__offset <= size(),
-                     "Offset out of range in span::subspan(offset, count)");
-    _SYCLSPAN_ASSERT(__count <= size() || __count == dynamic_extent,
-                     "Count out of range in span::subspan(offset, count)");
+    _SYCL_SPAN_ASSERT(__offset <= size(),
+                      "Offset out of range in span::subspan(offset, count)");
+    _SYCL_SPAN_ASSERT(__count <= size() || __count == dynamic_extent,
+                      "Count out of range in span::subspan(offset, count)");
     if (__count == dynamic_extent)
       return {data() + __offset, size() - __offset};
-    _SYCLSPAN_ASSERT(
+    _SYCL_SPAN_ASSERT(
         __count <= size() - __offset,
         "Offset + count out of range in span::subspan(offset, count)");
     return {data() + __offset, __count};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr size_type size() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr size_type size() const noexcept {
     return _Extent;
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr size_type size_bytes() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr size_type size_bytes() const noexcept {
     return _Extent * sizeof(element_type);
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr bool empty() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr bool empty() const noexcept {
     return _Extent == 0;
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr reference
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reference
   operator[](size_type __idx) const noexcept {
-    _SYCLSPAN_ASSERT(__idx < size(), "span<T,N>[] index out of bounds");
+    _SYCL_SPAN_ASSERT(__idx < size(), "span<T,N>[] index out of bounds");
     return __data[__idx];
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr reference front() const noexcept {
-    _SYCLSPAN_ASSERT(!empty(), "span<T, N>::front() on empty span");
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reference front() const noexcept {
+    _SYCL_SPAN_ASSERT(!empty(), "span<T, N>::front() on empty span");
     return __data[0];
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr reference back() const noexcept {
-    _SYCLSPAN_ASSERT(!empty(), "span<T, N>::back() on empty span");
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reference back() const noexcept {
+    _SYCL_SPAN_ASSERT(!empty(), "span<T, N>::back() on empty span");
     return __data[size() - 1];
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr pointer data() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr pointer data() const noexcept {
     return __data;
   }
 
   // [span.iter], span iterator support
-  _SYCLSPAN_INLINE_VISIBILITY constexpr iterator begin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr iterator begin() const noexcept {
     return iterator(data());
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr iterator end() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr iterator end() const noexcept {
     return iterator(data() + size());
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr rev_iterator rbegin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr rev_iterator rbegin() const noexcept {
     return rev_iterator(end());
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr rev_iterator rend() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr rev_iterator rend() const noexcept {
     return rev_iterator(begin());
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)>
+  _SYCL_SPAN_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)>
   __as_bytes() const noexcept {
     return span<const byte, _Extent * sizeof(element_type)>{
         reinterpret_cast<const byte *>(data()), size_bytes()};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY span<byte, _Extent * sizeof(element_type)>
+  _SYCL_SPAN_INLINE_VISIBILITY span<byte, _Extent * sizeof(element_type)>
   __as_writable_bytes() const noexcept {
     return span<byte, _Extent * sizeof(element_type)>{
         reinterpret_cast<byte *>(data()), size_bytes()};
@@ -393,7 +398,8 @@ private:
   pointer __data;
 };
 
-template <typename _Tp> class _SYCLSPAN_TEMPLATE_VIS span<_Tp, dynamic_extent> {
+template <typename _Tp>
+class _SYCL_SPAN_TEMPLATE_VIS span<_Tp, dynamic_extent> {
 private:
 public:
   //  constants and types
@@ -411,19 +417,19 @@ public:
   static constexpr size_type extent = dynamic_extent;
 
   // [span.cons], span constructors, copy, assignment, and destructor
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span() noexcept
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span() noexcept
       : __data{nullptr}, __size{0} {}
 
   constexpr span(const span &) noexcept = default;
   constexpr span &operator=(const span &) noexcept = default;
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(pointer __ptr, size_type __count)
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __ptr, size_type __count)
       : __data{__ptr}, __size{__count} {}
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(pointer __f, pointer __l)
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __f, pointer __l)
       : __data{__f}, __size{static_cast<size_t>(distance(__f, __l))} {}
 
   template <size_t _Sz>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       element_type (&__arr)[_Sz]) noexcept
       : __data{__arr}, __size{_Sz} {}
 
@@ -431,7 +437,7 @@ public:
             std::enable_if_t<std::is_convertible_v<_OtherElementType (*)[],
                                                    element_type (*)[]>,
                              std::nullptr_t> = nullptr>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       std::array<_OtherElementType, _Sz> &__arr) noexcept
       : __data{__arr.data()}, __size{_Sz} {}
 
@@ -440,19 +446,19 @@ public:
       std::enable_if_t<std::is_convertible_v<const _OtherElementType (*)[],
                                              element_type (*)[]>,
                        std::nullptr_t> = nullptr>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       const std::array<_OtherElementType, _Sz> &__arr) noexcept
       : __data{__arr.data()}, __size{_Sz} {}
 
   template <class _Container>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       _Container &__c,
       std::enable_if_t<__is_span_compatible_container<_Container, _Tp>::value,
                        std::nullptr_t> = nullptr)
       : __data{std::data(__c)}, __size{(size_type)std::size(__c)} {}
 
   template <class _Container>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       const _Container &__c,
       std::enable_if_t<
           __is_span_compatible_container<const _Container, _Tp>::value,
@@ -460,7 +466,7 @@ public:
       : __data{std::data(__c)}, __size{(size_type)std::size(__c)} {}
 
   template <class _OtherElementType, size_t _OtherExtent>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       const span<_OtherElementType, _OtherExtent> &__other,
       std::enable_if_t<
           std::is_convertible_v<_OtherElementType (*)[], element_type (*)[]>,
@@ -470,111 +476,111 @@ public:
   //    ~span() noexcept = default;
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> first() const
-      noexcept {
-    _SYCLSPAN_ASSERT(_Count <= size(), "Count out of range in span::first()");
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
+  first() const noexcept {
+    _SYCL_SPAN_ASSERT(_Count <= size(), "Count out of range in span::first()");
     return span<element_type, _Count>{data(), _Count};
   }
 
   template <size_t _Count>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count> last() const
-      noexcept {
-    _SYCLSPAN_ASSERT(_Count <= size(), "Count out of range in span::last()");
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
+  last() const noexcept {
+    _SYCL_SPAN_ASSERT(_Count <= size(), "Count out of range in span::last()");
     return span<element_type, _Count>{data() + size() - _Count, _Count};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY
+  _SYCL_SPAN_INLINE_VISIBILITY
   constexpr span<element_type, dynamic_extent> first(size_type __count) const
       noexcept {
-    _SYCLSPAN_ASSERT(__count <= size(),
-                     "Count out of range in span::first(count)");
+    _SYCL_SPAN_ASSERT(__count <= size(),
+                      "Count out of range in span::first(count)");
     return {data(), __count};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY
+  _SYCL_SPAN_INLINE_VISIBILITY
   constexpr span<element_type, dynamic_extent> last(size_type __count) const
       noexcept {
-    _SYCLSPAN_ASSERT(__count <= size(),
-                     "Count out of range in span::last(count)");
+    _SYCL_SPAN_ASSERT(__count <= size(),
+                      "Count out of range in span::last(count)");
     return {data() + size() - __count, __count};
   }
 
   template <size_t _Offset, size_t _Count = dynamic_extent>
-  _SYCLSPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
   subspan() const noexcept {
-    _SYCLSPAN_ASSERT(_Offset <= size(),
-                     "Offset out of range in span::subspan()");
-    _SYCLSPAN_ASSERT(_Count == dynamic_extent || _Count <= size() - _Offset,
-                     "Offset + count out of range in span::subspan()");
+    _SYCL_SPAN_ASSERT(_Offset <= size(),
+                      "Offset out of range in span::subspan()");
+    _SYCL_SPAN_ASSERT(_Count == dynamic_extent || _Count <= size() - _Offset,
+                      "Offset + count out of range in span::subspan()");
     return span<element_type, _Count>{
         data() + _Offset, _Count == dynamic_extent ? size() - _Offset : _Count};
   }
 
-  constexpr span<element_type, dynamic_extent> _SYCLSPAN_INLINE_VISIBILITY
-  subspan(size_type __offset, size_type __count = dynamic_extent) const
-      noexcept {
-    _SYCLSPAN_ASSERT(__offset <= size(),
-                     "Offset out of range in span::subspan(offset, count)");
-    _SYCLSPAN_ASSERT(__count <= size() || __count == dynamic_extent,
-                     "count out of range in span::subspan(offset, count)");
+  constexpr span<element_type, dynamic_extent> _SYCL_SPAN_INLINE_VISIBILITY
+  subspan(size_type __offset,
+          size_type __count = dynamic_extent) const noexcept {
+    _SYCL_SPAN_ASSERT(__offset <= size(),
+                      "Offset out of range in span::subspan(offset, count)");
+    _SYCL_SPAN_ASSERT(__count <= size() || __count == dynamic_extent,
+                      "count out of range in span::subspan(offset, count)");
     if (__count == dynamic_extent)
       return {data() + __offset, size() - __offset};
-    _SYCLSPAN_ASSERT(
+    _SYCL_SPAN_ASSERT(
         __count <= size() - __offset,
         "Offset + count out of range in span::subspan(offset, count)");
     return {data() + __offset, __count};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr size_type size() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr size_type size() const noexcept {
     return __size;
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr size_type size_bytes() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr size_type size_bytes() const noexcept {
     return __size * sizeof(element_type);
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr bool empty() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr bool empty() const noexcept {
     return __size == 0;
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr reference
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reference
   operator[](size_type __idx) const noexcept {
-    _SYCLSPAN_ASSERT(__idx < size(), "span<T>[] index out of bounds");
+    _SYCL_SPAN_ASSERT(__idx < size(), "span<T>[] index out of bounds");
     return __data[__idx];
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr reference front() const noexcept {
-    _SYCLSPAN_ASSERT(!empty(), "span<T>[].front() on empty span");
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reference front() const noexcept {
+    _SYCL_SPAN_ASSERT(!empty(), "span<T>[].front() on empty span");
     return __data[0];
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr reference back() const noexcept {
-    _SYCLSPAN_ASSERT(!empty(), "span<T>[].back() on empty span");
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reference back() const noexcept {
+    _SYCL_SPAN_ASSERT(!empty(), "span<T>[].back() on empty span");
     return __data[size() - 1];
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY constexpr pointer data() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr pointer data() const noexcept {
     return __data;
   }
 
   // [span.iter], span iterator support
-  _SYCLSPAN_INLINE_VISIBILITY constexpr iterator begin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr iterator begin() const noexcept {
     return iterator(data());
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr iterator end() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr iterator end() const noexcept {
     return iterator(data() + size());
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr rev_iterator rbegin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr rev_iterator rbegin() const noexcept {
     return rev_iterator(end());
   }
-  _SYCLSPAN_INLINE_VISIBILITY constexpr rev_iterator rend() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr rev_iterator rend() const noexcept {
     return rev_iterator(begin());
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY span<const byte, dynamic_extent>
+  _SYCL_SPAN_INLINE_VISIBILITY span<const byte, dynamic_extent>
   __as_bytes() const noexcept {
     return {reinterpret_cast<const byte *>(data()), size_bytes()};
   }
 
-  _SYCLSPAN_INLINE_VISIBILITY span<byte, dynamic_extent>
+  _SYCL_SPAN_INLINE_VISIBILITY span<byte, dynamic_extent>
   __as_writable_bytes() const noexcept {
     return {reinterpret_cast<byte *>(data()), size_bytes()};
   }
@@ -586,13 +592,13 @@ private:
 
 //  as_bytes & as_writable_bytes
 template <class _Tp, size_t _Extent>
-_SYCLSPAN_INLINE_VISIBILITY auto as_bytes(span<_Tp, _Extent> __s) noexcept
+_SYCL_SPAN_INLINE_VISIBILITY auto as_bytes(span<_Tp, _Extent> __s) noexcept
     -> decltype(__s.__as_bytes()) {
   return __s.__as_bytes();
 }
 
 template <class _Tp, size_t _Extent>
-_SYCLSPAN_INLINE_VISIBILITY auto
+_SYCL_SPAN_INLINE_VISIBILITY auto
 as_writable_bytes(span<_Tp, _Extent> __s) noexcept
     -> std::enable_if_t<!std::is_const_v<_Tp>,
                         decltype(__s.__as_writable_bytes())> {
