@@ -718,37 +718,44 @@ public:
   SPIRVTypeFunction(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheReturnType,
                     const std::vector<SPIRVType *> &TheParameterTypes)
       : SPIRVType(M, 3 + TheParameterTypes.size(), OpTypeFunction, TheId),
-        ReturnType(TheReturnType), ParamTypeVec(TheParameterTypes) {
+        ReturnType(TheReturnType) {
+    for (const SPIRVType *T : TheParameterTypes) {
+      ParamTypeIdVec.push_back(T->getId());
+    }
     validate();
   }
   // Incomplete constructor
   SPIRVTypeFunction() : SPIRVType(OpTypeFunction), ReturnType(NULL) {}
 
   SPIRVType *getReturnType() const { return ReturnType; }
-  SPIRVWord getNumParameters() const { return ParamTypeVec.size(); }
-  SPIRVType *getParameterType(unsigned I) const { return ParamTypeVec[I]; }
+  SPIRVWord getNumParameters() const { return ParamTypeIdVec.size(); }
+  SPIRVType *getParameterType(unsigned I) const {
+    return static_cast<SPIRVType *>(getEntry(ParamTypeIdVec[I]));
+  }
+
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
-    std::vector<SPIRVEntry *> Operands(1 + ParamTypeVec.size(), ReturnType);
-    std::copy(ParamTypeVec.begin(), ParamTypeVec.end(), ++Operands.begin());
+    std::vector<SPIRVEntry *> Operands = {ReturnType};
+    for (SPIRVId I : ParamTypeIdVec)
+      Operands.push_back(getEntry(I));
     return Operands;
   }
 
 protected:
-  _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeVec)
+  _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeIdVec)
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVType::setWordCount(WordCount);
-    ParamTypeVec.resize(WordCount - 3);
+    ParamTypeIdVec.resize(WordCount - 3);
   }
   void validate() const override {
     SPIRVEntry::validate();
     ReturnType->validate();
-    for (auto T : ParamTypeVec)
-      T->validate();
+    for (auto I : ParamTypeIdVec)
+      getEntry(I)->validate();
   }
 
 private:
-  SPIRVType *ReturnType;                 // Return Type
-  std::vector<SPIRVType *> ParamTypeVec; // Parameter Types
+  SPIRVType *ReturnType;               // Return Type
+  std::vector<SPIRVId> ParamTypeIdVec; // Parameter Type Ids
 };
 
 class SPIRVTypeOpaqueGeneric : public SPIRVType {
