@@ -8601,12 +8601,23 @@ static void handleOpenCLAccessAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) OpenCLAccessAttr(S.Context, AL));
 }
 
-static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+typedef void MangleContext::*Callback(const CXXRecordDecl *Lambda);
+static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL, MangleContext &MC) {
   // The 'sycl_kernel' attribute applies only to function templates.
   const auto *FD = cast<FunctionDecl>(D);
   const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
   assert(FT && "Function template is expected");
 
+  const CXXRecordDecl *Lambda;
+  if (KernelParamTy->isReferenceType())
+    Lambda = KernelParamTy->getPointeeCXXRecordDecl();
+  else
+    Lambda = KernelParamTy->getAsCXXRecordDecl();
+  QualType KernelNameType = FD->getTemplateSpecializationArgs()->get(0).getAsType();
+  SmallString<256> Result;
+  llvm::raw_svector_ostream Out(Result);
+
+  MC.mangleTypeName(KernelNameType, Lambda, MangleContext::markKernelNamingLambdas, Out);  
   // Function template must have at least two template parameters so it
   // can be used in OpenCL kernel generation.
   const TemplateParameterList *TL = FT->getTemplateParameters();
@@ -8900,6 +8911,7 @@ static bool IsDeclLambdaCallOperator(Decl *D) {
 /// silently ignore it if a GNU attribute.
 static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
                                  const ParsedAttr &AL,
+                                 MangleContext &MC,
                                  bool IncludeCXX11Attributes) {
   if (AL.isInvalid() || AL.getKind() == ParsedAttr::IgnoredAttribute)
     return;
@@ -9067,7 +9079,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleEnumExtensibilityAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLKernel:
-    handleSYCLKernelAttr(S, D, AL);
+    handleSYCLKernelAttr(S, D, AL, MC);
     break;
   case ParsedAttr::AT_SYCLSimd:
     handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
@@ -9624,6 +9636,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 /// attribute list to the specified decl, ignoring any type attributes.
 void Sema::ProcessDeclAttributeList(Scope *S, Decl *D,
                                     const ParsedAttributesView &AttrList,
+                                    MangleContext &MC,
                                     bool IncludeCXX11Attributes) {
   if (AttrList.empty())
     return;
@@ -9873,7 +9886,7 @@ void Sema::ProcessDeclAttributes(Scope *S, Decl *D, const Declarator &PD) {
   //   int *__attr__(x)** D;
   // when X is a decl attribute.
   for (unsigned i = 0, e = PD.getNumTypeObjects(); i != e; ++i)
-    ProcessDeclAttributeList(S, D, PD.getTypeObject(i).getAttrs(),
+    ProcessDeclAttributeList(S, D, PD.getTypeObject(i).getAttrs(), nullptr,
                              /*IncludeCXX11Attributes=*/false);
 
   // Finally, apply any attributes on the decl itself.

@@ -170,7 +170,7 @@ public:
   typedef void (CXXRecordDecl::*pfnCallback)(CXXRecordDecl *Lambda);
   virtual void mangleTypeName(QualType T, CXXRecordDecl *pThat, pfnCallback pFn, raw_ostream &) = 0;
   typedef void (MangleContext::*ManglerCallback)(CXXRecordDecl *Lambda);
-  virtual void mangleTypeName(QualType T, CXXRecordDecl *Lambda, ManglerCallback Function, raw_ostream &) = 0; 
+  virtual void mangleTypeName(QualType T, const CXXRecordDecl *Lambda, ManglerCallback Function, raw_ostream &) = 0; 
 
   /// @}
 };

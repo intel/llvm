@@ -4449,7 +4449,7 @@ public:
   void ProcessDeclAttributeDelayed(Decl *D,
                                    const ParsedAttributesView &AttrList);
   void ProcessDeclAttributeList(Scope *S, Decl *D, const ParsedAttributesView &AL,
-                             bool IncludeCXX11Attributes = true);
+                MangleContext *MC = nullptr, bool IncludeCXX11Attributes = true);
   bool ProcessAccessDeclAttributeList(AccessSpecDecl *ASDecl,
                                    const ParsedAttributesView &AttrList);
 

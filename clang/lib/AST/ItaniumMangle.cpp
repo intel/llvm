@@ -169,7 +169,7 @@ public:
   typedef void (CXXRecordDecl::*Callback)(CXXRecordDecl *Lambda);
   void mangleTypeName(QualType T, CXXRecordDecl *Lambda, Callback Function, raw_ostream &) override;
 
-  typedef void (MangleContext::*ManglerCallback)(CXXRecordDecl *Lambda);
+  typedef void (MangleContext::*ManglerCallback)(const CXXRecordDecl *Lambda);
   void mangleTypeName(QualType T, CXXRecordDecl *Lambda, ManglerCallback Function, raw_ostream &) override;
   void markKernelNamingLambdas(CXXRecordDecl *Lambda);
   void mangleCXXCtorComdat(const CXXConstructorDecl *D, raw_ostream &) override;
@@ -6328,8 +6328,8 @@ void ItaniumMangleContextImpl::mangleCXXRTTIName(QualType Ty,
   Mangler.mangleType(Ty);
 }
 
-typedef void (MangleContext::*ManglerCallback)(CXXRecordDecl *Lambda);
-void mangleTypeName(QualType T, CXXRecordDecl *Lambda, ManglerCallback Function, raw_ostream &Out) {
+typedef void (MangleContext::*ManglerCallback)(const CXXRecordDecl *Lambda);
+void mangleTypeName(QualType T, const CXXRecordDecl *Lambda, ManglerCallback Function, raw_ostream &Out) {
   *Function(Lambda);
   mangleCXXRTTIName(Ty, Out); 
 }
