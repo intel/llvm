@@ -864,7 +864,7 @@ static Instruction *foldNoWrapAdd(BinaryOperator &Add,
 Instruction *InstCombinerImpl::foldAddWithConstant(BinaryOperator &Add) {
   Value *Op0 = Add.getOperand(0), *Op1 = Add.getOperand(1);
   Constant *Op1C;
-  if (!match(Op1, m_Constant(Op1C)))
+  if (!match(Op1, m_ImmConstant(Op1C)))
     return nullptr;
 
   if (Instruction *NV = foldBinOpIntoSelectOrPhi(Add))
@@ -900,6 +900,12 @@ Instruction *InstCombinerImpl::foldAddWithConstant(BinaryOperator &Add) {
   const APInt *C;
   if (!match(Op1, m_APInt(C)))
     return nullptr;
+
+  // (X | Op01C) + Op1C --> X + (Op01C + Op1C) iff the `or` is actually an `add`
+  Constant *Op01C;
+  if (match(Op0, m_Or(m_Value(X), m_ImmConstant(Op01C))) &&
+      haveNoCommonBitsSet(X, Op01C, DL, &AC, &Add, &DT))
+    return BinaryOperator::CreateAdd(X, ConstantExpr::getAdd(Op01C, Op1C));
 
   // (X | C2) + C --> (X | C2) ^ C2 iff (C2 == -C)
   const APInt *C2;
@@ -1726,12 +1732,13 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
   if (Instruction *R = factorizeMathWithShlOps(I, Builder))
     return R;
 
-  if (Constant *C = dyn_cast<Constant>(Op0)) {
+  Constant *C;
+  if (match(Op0, m_ImmConstant(C))) {
     Value *X;
     Constant *C2;
 
     // C-(X+C2) --> (C-C2)-X
-    if (match(Op1, m_Add(m_Value(X), m_Constant(C2))))
+    if (match(Op1, m_Add(m_Value(X), m_ImmConstant(C2))))
       return BinaryOperator::CreateSub(ConstantExpr::getSub(C, C2), X);
   }
 
@@ -1799,6 +1806,12 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
     Value *XZ = Builder.CreateAdd(X, Z);
     Value *YW = Builder.CreateAdd(Y, Op1);
     return BinaryOperator::CreateSub(XZ, YW);
+  }
+
+  // ((X - Y) - Op1)  -->  X - (Y + Op1)
+  if (match(Op0, m_OneUse(m_Sub(m_Value(X), m_Value(Y))))) {
+    Value *Add = Builder.CreateAdd(Y, Op1);
+    return BinaryOperator::CreateSub(X, Add);
   }
 
   auto m_AddRdx = [](Value *&Vec) {

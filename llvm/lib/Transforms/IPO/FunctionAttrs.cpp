@@ -79,6 +79,7 @@ STATISTIC(NumNoRecurse, "Number of functions marked as norecurse");
 STATISTIC(NumNoUnwind, "Number of functions marked as nounwind");
 STATISTIC(NumNoFree, "Number of functions marked as nofree");
 STATISTIC(NumWillReturn, "Number of functions marked as willreturn");
+STATISTIC(NumNoSync, "Number of functions marked as nosync");
 
 static cl::opt<bool> EnableNonnullArgPropagation(
     "enable-nonnull-arg-prop", cl::init(true), cl::Hidden,
@@ -1266,6 +1267,9 @@ static bool InstrBreaksNoFree(Instruction &I, const SCCNodeSet &SCCNodes) {
   if (!CB)
     return false;
 
+  if (CB->hasFnAttr(Attribute::NoFree))
+    return false;
+
   Function *Callee = CB->getCalledFunction();
   if (!Callee)
     return true;
@@ -1472,6 +1476,103 @@ static bool addWillReturn(const SCCNodeSet &SCCNodes) {
   return Changed;
 }
 
+// Return true if this is an atomic which has an ordering stronger than
+// unordered.  Note that this is different than the predicate we use in
+// Attributor.  Here we chose to be conservative and consider monotonic
+// operations potentially synchronizing.  We generally don't do much with
+// monotonic operations, so this is simply risk reduction.
+static bool isOrderedAtomic(Instruction *I) {
+  if (!I->isAtomic())
+    return false;
+
+  if (auto *FI = dyn_cast<FenceInst>(I))
+    // All legal orderings for fence are stronger than monotonic.
+    return FI->getSyncScopeID() != SyncScope::SingleThread;
+  else if (isa<AtomicCmpXchgInst>(I) || isa<AtomicRMWInst>(I))
+    return true;
+  else if (auto *SI = dyn_cast<StoreInst>(I))
+    return !SI->isUnordered();
+  else if (auto *LI = dyn_cast<LoadInst>(I))
+    return !LI->isUnordered();
+  else {
+    llvm_unreachable("unknown atomic instruction?");
+  }
+}
+
+static bool InstrBreaksNoSync(Instruction &I, const SCCNodeSet &SCCNodes) {
+  // Volatile may synchronize
+  if (I.isVolatile())
+    return true;
+
+  // An ordered atomic may synchronize.  (See comment about on monotonic.)
+  if (isOrderedAtomic(&I))
+    return true;
+
+  auto *CB = dyn_cast<CallBase>(&I);
+  if (!CB)
+    // Non call site cases covered by the two checks above
+    return false;
+
+  if (CB->hasFnAttr(Attribute::NoSync))
+    return false;
+
+  // readnone + not convergent implies nosync
+  // (This is needed to initialize inference from declarations which aren't
+  //  explicitly nosync, but are readnone and not convergent.)
+  if (CB->hasFnAttr(Attribute::ReadNone) &&
+      !CB->hasFnAttr(Attribute::Convergent))
+    return false;
+
+  // Non volatile memset/memcpy/memmoves are nosync
+  // NOTE: Only intrinsics with volatile flags should be handled here.  All
+  // others should be marked in Intrinsics.td.
+  if (auto *MI = dyn_cast<MemIntrinsic>(&I))
+    if (!MI->isVolatile())
+      return false;
+
+  // Speculatively assume in SCC.
+  if (Function *Callee = CB->getCalledFunction())
+    if (SCCNodes.contains(Callee))
+      return false;
+
+  return true;
+}
+
+// Infer the nosync attribute.
+static bool addNoSyncAttr(const SCCNodeSet &SCCNodes) {
+  AttributeInferer AI;
+  AI.registerAttrInference(AttributeInferer::InferenceDescriptor{
+      Attribute::NoSync,
+      // Skip already marked functions.
+      [](const Function &F) { return F.hasNoSync(); },
+      // Instructions that break nosync assumption.
+      [&SCCNodes](Instruction &I) {
+        return InstrBreaksNoSync(I, SCCNodes);
+      },
+      [](Function &F) {
+        LLVM_DEBUG(dbgs()
+                   << "Adding nosync attr to fn " << F.getName() << "\n");
+        F.setNoSync();
+        ++NumNoSync;
+      },
+      /* RequiresExactDefinition= */ true});
+  bool Changed = AI.run(SCCNodes);
+
+  // readnone + not convergent implies nosync
+  // (This is here so that we don't have to duplicate the function local
+  //  memory reasoning of the readnone analysis.)
+  for (Function *F : SCCNodes) {
+    if (!F || F->hasNoSync())
+      continue;
+    if (!F->doesNotAccessMemory() || F->isConvergent())
+      continue;
+    F->setNoSync();
+    NumNoSync++;
+    Changed = true;
+  }
+  return Changed;
+}
+
 static SCCNodesResult createSCCNodeSet(ArrayRef<Function *> Functions) {
   SCCNodesResult Res;
   Res.HasUnknownCall = false;
@@ -1526,6 +1627,8 @@ static bool deriveAttrsInPostOrder(ArrayRef<Function *> Functions,
     Changed |= inferAttrsFromFunctionBodies(Nodes.SCCNodes);
     Changed |= addNoRecurseAttrs(Nodes.SCCNodes);
   }
+
+  Changed |= addNoSyncAttr(Nodes.SCCNodes);
 
   return Changed;
 }

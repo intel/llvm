@@ -896,7 +896,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*desc=*/[{
         Return the indexing maps within the current operation.
       }],
-      /*retTy=*/"SmallVector<AffineMap, 4>",
+      /*retTy=*/"SmallVector<AffineMap>",
       /*methodName=*/"getIndexingMaps",
       /*args=*/(ins),
       /*methodBody=*/"",
@@ -933,6 +933,20 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
+        Return the input indexing maps.
+      }],
+      /*retTy=*/"SmallVector<AffineMap>",
+      /*methodName=*/"getInputIndexingMaps",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        auto maps = $_op.getIndexingMaps();
+        return SmallVector<AffineMap>{maps.begin(),
+                                      maps.begin() + $_op.getNumInputs()};
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return the output indexing map at index `i`.
       }],
       /*retTy=*/"AffineMap",
@@ -942,6 +956,20 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*defaultImplementation=*/[{
         assert(i < $_op.getNumOutputs());
         return getIndexingMaps()[i + $_op.getNumInputs()];
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the output indexing maps.
+      }],
+      /*retTy=*/"SmallVector<AffineMap>",
+      /*methodName=*/"getOutputIndexingMaps",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        auto maps = $_op.getIndexingMaps();
+        return SmallVector<AffineMap>{maps.begin() + $_op.getNumInputs(),
+                                      maps.begin() + $_op.getNumShapedOperands()};
       }]
     >,
     InterfaceMethod<
@@ -998,7 +1026,16 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         return $_op.getLibraryCallName();
       }]
     >,
-
+    InterfaceMethod<
+      /*desc=*/[{
+         Return whether the op accesses the iteration indices.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasIndexSemantics",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/""
+    >,
     //===------------------------------------------------------------------===//
     // Linalg generalization hooks.
     //===------------------------------------------------------------------===//
@@ -1087,18 +1124,20 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return the position in the results of the affine map computed
-        by getLoopsToShapesMap() that represents the shape of the
-        result value at a dimension.
+        Return the range of position in the result of the affine map
+        computed by getLoopsToShapesMap() which correspond to the
+        AffineExprs used to access the outputs of the operation.
       }],
-      /*retTy=*/"Optional<unsigned>",
-      /*methodName=*/"getResultValueDimPositionInLoopsToShapeMap",
-      /*args=*/(ins "unsigned":$resultIdx, "unsigned":$dim),
+      /*retTy=*/"std::pair<unsigned, unsigned>",
+      /*methodName=*/"getResultsPositionInLoopsToShapeMap",
+      /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        if (resultIdx >= getNumOutputs()) return {};
-        return getOperandDimPositionInLoopsToShapeMap(
-            getNumInputs() + resultIdx, dim);
+        return
+          {*getOperandDimPositionInLoopsToShapeMap(getNumInputs(), 0),
+           (*getOperandDimPositionInLoopsToShapeMap
+                 (getNumInputs() + getNumOutputs() - 1,
+                  getOutputShapedType(getNumOutputs()-1).getRank() - 1)) + 1};
       }]
     >,
     InterfaceMethod<
@@ -1226,8 +1265,8 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
 
     /// Returns the value that expresses the shape of the output in terms of
     /// shape of the input operands where possible
-    Optional<Value> inferResultDimFromInputShapes
-      (OpBuilder &b, Location loc, unsigned resultIdx, unsigned im);
+    LogicalResult reifyReturnTypeShapesPerResultDim(OpBuilder &b,
+        SmallVectorImpl<SmallVector<Value>> &reifiedReturnShapes);
 
     //========================================================================//
     // Helper functions to mutate the `operand_segment_sizes` attribute.

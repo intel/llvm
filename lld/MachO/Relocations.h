@@ -36,11 +36,10 @@ enum class RelocAttrBits {
   BRANCH = 1 << 8,     // Value is branch target
   GOT = 1 << 9,        // References a symbol in the Global Offset Table
   TLV = 1 << 10,       // References a thread-local symbol
-  DYSYM8 = 1 << 11,    // Requires DySym width to be 8 bytes
-  LOAD = 1 << 12,      // Relaxable indirect load
-  POINTER = 1 << 13,   // Non-relaxable indirect load (pointer is taken)
-  UNSIGNED = 1 << 14,  // *_UNSIGNED relocs
-  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue*/ (1 << 15) - 1),
+  LOAD = 1 << 11,      // Relaxable indirect load
+  POINTER = 1 << 12,   // Non-relaxable indirect load (pointer is taken)
+  UNSIGNED = 1 << 13,  // *_UNSIGNED relocs
+  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue*/ (1 << 14) - 1),
 };
 // Note: SUBTRACTOR always pairs with UNSIGNED (a delta between two symbols).
 
@@ -56,7 +55,7 @@ struct Reloc {
   uint8_t length = 0;
   // The offset from the start of the subsection that this relocation belongs
   // to.
-  uint32_t offset = 0;
+  uint64_t offset = 0;
   // Adding this offset to the address of the referent symbol or subsection
   // gives the destination that this relocation refers to.
   int64_t addend = 0;

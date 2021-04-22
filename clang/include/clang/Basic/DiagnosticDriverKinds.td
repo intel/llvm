@@ -106,6 +106,8 @@ def err_drv_use_of_Z_option : Error<
   "unsupported use of internal gcc -Z option '%0'">;
 def err_drv_output_argument_with_multiple_files : Error<
   "cannot specify -o when generating multiple output files">;
+def err_drv_output_type_with_host_compiler : Error<
+  "unsupported output type when using external host compiler">;
 def err_drv_out_file_argument_with_multiple_sources : Error<
   "cannot specify '%0%1' when compiling multiple source files">;
 def err_no_external_assembler : Error<
@@ -134,6 +136,9 @@ def err_drv_invalid_Xsycl_frontend_with_args : Error<
   "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
 def err_drv_bad_fpga_device_count : Error<
   "More than one FPGA specific device binary found in input objects">;
+def warn_drv_mismatch_fpga_archive : Warning<
+  "FPGA archive '%0' does not contain matching emulation/hardware expectancy">,
+  InGroup<SyclFPGAMismatch>;
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;

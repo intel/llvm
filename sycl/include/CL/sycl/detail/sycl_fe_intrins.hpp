@@ -37,13 +37,12 @@ SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
 // are not available.
 template <typename T>
 SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(const char *SymbolicID,
-                                                      void *DefaultValue,
-                                                      void *RTBuffer);
+                                                      const void *DefaultValue,
+                                                      const void *RTBuffer);
 
 template <typename T>
-SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(const char *SymbolicID,
-                                                         void *DefaultValue,
-                                                         void *RTBuffer);
+SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(
+    const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
 
 // Request a fixed-size allocation in local address space at kernel scope.
 extern "C" SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *

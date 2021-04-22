@@ -320,10 +320,12 @@ void PassManagerBuilder::populateFunctionPassManager(
 
   addInitialAliasAnalysisPasses(FPM);
 
+  // Lower llvm.expect to metadata before attempting transforms.
+  // Compare/branch metadata may alter the behavior of passes like SimplifyCFG.
+  FPM.add(createLowerExpectIntrinsicPass());
   FPM.add(createCFGSimplificationPass());
   FPM.add(createSROAPass());
   FPM.add(createEarlyCSEPass());
-  FPM.add(createLowerExpectIntrinsicPass());
 }
 
 // Do PGO instrumentation generation or use pass as the option specified.
@@ -435,6 +437,10 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
     MPM.add(createLoopInstSimplifyPass());
     MPM.add(createLoopSimplifyCFGPass());
   }
+  // Try to remove as much code from the loop header as possible,
+  // to reduce amount of IR that will have to be duplicated.
+  // TODO: Investigate promotion cap for O1.
+  MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
   // Rotate Loop - disable header duplication at -Oz
   MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, PrepareForLTO));
   // TODO: Investigate promotion cap for O1.

@@ -681,7 +681,9 @@ public:
   bool isAbstract() const;
 
 protected:
-  GenericDetails &GetGenericDetails();
+  Symbol &GetGenericSymbol() {
+    return DEREF(genericInfo_.top().symbol);
+  }
   // Add to generic the symbol for the subprogram with the same name
   void CheckGenericProcedures(Symbol &);
 
@@ -2235,7 +2237,7 @@ const DeclTypeSpec *ScopeHandler::GetImplicitType(
     if (const DerivedTypeSpec * derived{type->AsDerived()}) {
       // Resolve any forward-referenced derived type; a quick no-op else.
       auto &instantiatable{*const_cast<DerivedTypeSpec *>(derived)};
-      instantiatable.Instantiate(currScope(), context());
+      instantiatable.Instantiate(currScope());
     }
   }
   return type;
@@ -2681,9 +2683,6 @@ bool InterfaceVisitor::isGeneric() const {
 bool InterfaceVisitor::isAbstract() const {
   return !genericInfo_.empty() && GetGenericInfo().isAbstract;
 }
-GenericDetails &InterfaceVisitor::GetGenericDetails() {
-  return GetGenericInfo().symbol->get<GenericDetails>();
-}
 
 void InterfaceVisitor::AddSpecificProcs(
     const std::list<parser::Name> &names, ProcedureKind kind) {
@@ -2885,7 +2884,9 @@ void SubprogramVisitor::Post(const parser::ImplicitPart &) {
   if (funcInfo_.parsedType) {
     messageHandler().set_currStmtSource(funcInfo_.source);
     if (const auto *type{ProcessTypeSpec(*funcInfo_.parsedType, true)}) {
-      funcInfo_.resultSymbol->SetType(*type);
+      if (!context().HasError(funcInfo_.resultSymbol)) {
+        funcInfo_.resultSymbol->SetType(*type);
+      }
     }
   }
   funcInfo_ = {};
@@ -2945,11 +2946,16 @@ void SubprogramVisitor::Post(const parser::FunctionStmt &stmt) {
     funcResultName = &name;
   }
   // add function result to function scope
-  EntityDetails funcResultDetails;
-  funcResultDetails.set_funcResult(true);
-  funcInfo_.resultSymbol =
-      &MakeSymbol(*funcResultName, std::move(funcResultDetails));
-  details.set_result(*funcInfo_.resultSymbol);
+  if (details.isFunction()) {
+    CHECK(context().HasError(currScope().symbol()));
+  } else {
+    // add function result to function scope
+    EntityDetails funcResultDetails;
+    funcResultDetails.set_funcResult(true);
+    funcInfo_.resultSymbol =
+        &MakeSymbol(*funcResultName, std::move(funcResultDetails));
+    details.set_result(*funcInfo_.resultSymbol);
+  }
 
   // C1560.
   if (funcInfo_.resultName && funcInfo_.resultName->source == name.source) {
@@ -3223,7 +3229,13 @@ Symbol &SubprogramVisitor::PushSubprogramScope(
       MakeExternal(*symbol);
     }
     if (isGeneric()) {
-      GetGenericDetails().AddSpecificProc(*symbol, name.source);
+      Symbol &genericSymbol{GetGenericSymbol()};
+      if (genericSymbol.has<GenericDetails>()) {
+        genericSymbol.get<GenericDetails>().AddSpecificProc(
+            *symbol, name.source);
+      } else {
+        CHECK(context().HasError(genericSymbol));
+      }
     }
     set_inheritFromParent(false);
   }
@@ -3919,7 +3931,7 @@ void DeclarationVisitor::Post(const parser::DerivedTypeSpec &x) {
     } else {
       auto restorer{
           GetFoldingContext().messages().SetLocation(currStmtSource().value())};
-      derived.Instantiate(currScope(), context());
+      derived.Instantiate(currScope());
     }
     SetDeclTypeSpec(type);
   }
@@ -6815,7 +6827,7 @@ void ResolveNamesVisitor::FinishSpecificationParts(const ProgramTree &node) {
 void ResolveNamesVisitor::FinishDerivedTypeInstantiation(Scope &scope) {
   CHECK(scope.IsDerivedType() && !scope.symbol());
   if (DerivedTypeSpec * spec{scope.derivedTypeSpec()}) {
-    spec->Instantiate(currScope(), context());
+    spec->Instantiate(currScope());
     const Symbol &origTypeSymbol{spec->typeSymbol()};
     if (const Scope * origTypeScope{origTypeSymbol.scope()}) {
       CHECK(origTypeScope->IsDerivedType() &&

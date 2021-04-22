@@ -97,8 +97,8 @@ public:
     return 31;
   }
 
-  unsigned getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
-                                 TTI::TargetCostKind CostKind);
+  InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                        TTI::TargetCostKind CostKind);
 
   TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
     switch (K) {
@@ -139,7 +139,8 @@ public:
   int getExtractWithExtendCost(unsigned Opcode, Type *Dst, VectorType *VecTy,
                                unsigned Index);
 
-  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
+  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind,
+                          const Instruction *I = nullptr);
 
   int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
 

@@ -62,8 +62,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
                      .Default(32);
   }
 
-  // FIXME: Needed for compiling SYCL to PTX.
-  TLSSupported = Triple.getEnvironment() == llvm::Triple::SYCLDevice;
+  TLSSupported = false;
   VLASupported = false;
   AddrSpaceMap = &NVPTXAddrSpaceMap;
   GridValues = llvm::omp::NVPTXGpuGridValues;

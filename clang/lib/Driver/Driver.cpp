@@ -136,14 +136,13 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
     : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
       SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone), LTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
-      DriverTitle(Title), CCPrintStatReportFilename(nullptr),
-      CCPrintOptionsFilename(nullptr), CCPrintHeadersFilename(nullptr),
-      CCLogDiagnosticsFilename(nullptr), CCCPrintBindings(false),
-      CCPrintOptions(false), CCPrintHeaders(false), CCLogDiagnostics(false),
-      CCGenDiagnostics(false), CCPrintProcessStats(false),
-      TargetTriple(TargetTriple), CCCGenericGCCName(""), Saver(Alloc),
-      CheckInputsExist(true), GenReproducer(false),
-      SuppressMissingInputWarning(false) {
+      DriverTitle(Title), CCPrintStatReportFilename(), CCPrintOptionsFilename(),
+      CCPrintHeadersFilename(), CCLogDiagnosticsFilename(),
+      CCCPrintBindings(false), CCPrintOptions(false), CCPrintHeaders(false),
+      CCLogDiagnostics(false), CCGenDiagnostics(false),
+      CCPrintProcessStats(false), TargetTriple(TargetTriple),
+      CCCGenericGCCName(""), Saver(Alloc), CheckInputsExist(true),
+      GenReproducer(false), SuppressMissingInputWarning(false) {
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS)
     this->VFS = llvm::vfs::getRealFileSystem();
@@ -1377,6 +1376,22 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
+
+  // Determine FPGA emulation status.
+  if (C->hasOffloadToolChain<Action::OFK_SYCL>()) {
+    auto SYCLTCRange = C->getOffloadToolChains<Action::OFK_SYCL>();
+    ArgStringList TargetArgs;
+    const ToolChain *TC = SYCLTCRange.first->second;
+    const toolchains::SYCLToolChain *SYCLTC =
+        static_cast<const toolchains::SYCLToolChain *>(TC);
+    SYCLTC->TranslateBackendTargetArgs(*TranslatedArgs, TargetArgs);
+    for (StringRef ArgString : TargetArgs) {
+      if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
+        setFPGAEmulationMode(false);
+        break;
+      }
+    }
+  }
 
   // Construct the list of abstract actions to perform for this compilation. On
   // MachO targets this uses the driver-driver and universal actions.
@@ -3854,17 +3869,10 @@ class OffloadingActionBuilder final {
         }
       }
 
-      // FIXME: This adds the integration header generation pass before the
-      // Host compilation pass so the Host can use the header generated.  This
-      // can be improved upon to where the header generation and spv generation
-      // is done in the same step.  Currently, its not too efficient.
-      // The host depends on the generated integrated header from the device
-      // compilation.
+      // Device compilation generates LLVM BC.
       if (CurPhase == phases::Compile) {
         bool SYCLDeviceOnly = Args.hasArg(options::OPT_fsycl_device_only);
         for (Action *&A : SYCLDeviceActions) {
-          DeviceCompilerInput =
-              C.MakeAction<CompileJobAction>(A, types::TY_SYCL_Header);
           types::ID OutputType = types::TY_LLVM_BC;
           if (SYCLDeviceOnly) {
             if (Args.hasArg(options::OPT_S))
@@ -3879,6 +3887,7 @@ class OffloadingActionBuilder final {
             }
           }
           A = C.MakeAction<CompileJobAction>(A, OutputType);
+          DeviceCompilerInput = A;
         }
         const auto *TC = ToolChains.front();
         const char *BoundArch = nullptr;
@@ -4217,11 +4226,13 @@ class OffloadingActionBuilder final {
             Action *FPGAAOTAction;
             constexpr char COL_CODE[] = "Code";
             constexpr char COL_ZERO[] = "0";
-            if (Input->getType() == types::TY_FPGA_AOCR)
+            if (Input->getType() == types::TY_FPGA_AOCR ||
+                Input->getType() == types::TY_FPGA_AOCR_EMU)
               // Generate AOCX/AOCR
               FPGAAOTAction =
                   C.MakeAction<BackendCompileJobAction>(Input, FPGAOutType);
-            else if (Input->getType() == types::TY_FPGA_AOCX)
+            else if (Input->getType() == types::TY_FPGA_AOCX ||
+                     Input->getType() == types::TY_FPGA_AOCX_EMU)
               FPGAAOTAction = Input;
             else
               llvm_unreachable("Unexpected FPGA input type.");
@@ -4570,9 +4581,15 @@ class OffloadingActionBuilder final {
           (SYCLLinkTargets || (WrapDeviceOnlyBinary && !SYCLfpgaTriple));
 
       // Set the FPGA output type based on command line (-fsycl-link).
-      if (auto * A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ))
+      if (auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
         FPGAOutType = (A->getValue() == StringRef("early"))
-                         ? types::TY_FPGA_AOCR : types::TY_FPGA_AOCX;
+                          ? types::TY_FPGA_AOCR
+                          : types::TY_FPGA_AOCX;
+        if (C.getDriver().isFPGAEmulationMode())
+          FPGAOutType = (A->getValue() == StringRef("early"))
+                            ? types::TY_FPGA_AOCR_EMU
+                            : types::TY_FPGA_AOCX_EMU;
+      }
 
       // Populate FPGA static archives that could contain dep files to be
       // incorporated into the aoc compilation
@@ -4716,6 +4733,46 @@ public:
     return C.MakeAction<OffloadAction>(HDep, DDeps);
   }
 
+  // Update Input action to reflect FPGA device archive specifics based
+  // on archive contents.
+  bool updateInputForFPGA(Action *&A, const Arg *InputArg,
+                          DerivedArgList &Args) {
+    std::string InputName = InputArg->getAsString(Args);
+    const Driver &D = C.getDriver();
+    bool IsFPGAEmulation = D.isFPGAEmulationMode();
+    // Only check for FPGA device information when using fpga SubArch.
+    if (A->getType() == types::TY_Object && isObjectFile(InputName))
+      return true;
+
+    auto ArchiveTypeMismatch = [&D, &InputName](bool EmitDiag) {
+      if (EmitDiag)
+        D.Diag(clang::diag::warn_drv_mismatch_fpga_archive) << InputName;
+    };
+    // Type FPGA aoco is a special case for static archives
+    if (A->getType() == types::TY_FPGA_AOCO) {
+      if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
+        return false;
+      A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCO);
+      return true;
+    }
+
+    SmallVector<std::pair<types::ID, bool>, 4> FPGAAOCTypes = {
+        {types::TY_FPGA_AOCX, false},
+        {types::TY_FPGA_AOCR, false},
+        {types::TY_FPGA_AOCX_EMU, true},
+        {types::TY_FPGA_AOCR_EMU, true}};
+    for (const auto &ArchiveType : FPGAAOCTypes) {
+      bool BinaryFound = hasFPGABinary(C, InputName, ArchiveType.first);
+      if (BinaryFound && ArchiveType.second == IsFPGAEmulation) {
+        // Binary matches check and emulation type, we keep this one.
+        A = C.MakeAction<InputAction>(*InputArg, ArchiveType.first);
+        return true;
+      }
+      ArchiveTypeMismatch(BinaryFound && ArchiveType.second != IsFPGAEmulation);
+    }
+    return true;
+  }
+
   /// Generate an action that adds a host dependence to a device action. The
   /// results will be kept in this action builder. Return true if an error was
   /// found.
@@ -4726,7 +4783,8 @@ public:
       return true;
 
     // An FPGA AOCX input does not have a host dependence to the unbundler
-    if (HostAction->getType() == types::TY_FPGA_AOCX)
+    if (HostAction->getType() == types::TY_FPGA_AOCX ||
+        HostAction->getType() == types::TY_FPGA_AOCX_EMU)
       return false;
 
     // If we are supporting bundling/unbundling and the current action is an
@@ -4741,7 +4799,6 @@ public:
         !InputArg->getOption().hasFlag(options::LinkerInput) &&
         (!types::isSrcFile(HostAction->getType()) ||
          HostAction->getType() == types::TY_PP_HIP)) {
-      std::string InputName = InputArg->getAsString(Args);
       ActionList HostActionList;
       Action *A(HostAction);
       // Only check for FPGA device information when using fpga SubArch.
@@ -4750,22 +4807,13 @@ public:
         HasFPGATarget |= TI->second->getTriple().getSubArch() ==
                          llvm::Triple::SPIRSubArch_fpga;
       bool isArchive = !(HostAction->getType() == types::TY_Object &&
-                         isObjectFile(InputName));
+                         isObjectFile(InputArg->getAsString(Args)));
       if (!HasFPGATarget && isArchive &&
           HostAction->getType() == types::TY_FPGA_AOCO)
         // Archive with Non-FPGA target with AOCO type should not be unbundled.
         return false;
-      if (HasFPGATarget && isArchive) {
-        // Type FPGA aoco is a special case for -foffload-static-lib.
-        if (HostAction->getType() == types::TY_FPGA_AOCO) {
-          if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
-            return false;
-          A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCO);
-        } else if (hasFPGABinary(C, InputName, types::TY_FPGA_AOCX))
-          A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCX);
-        else if (hasFPGABinary(C, InputName, types::TY_FPGA_AOCR))
-          A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCR);
-      }
+      if (HasFPGATarget && !updateInputForFPGA(A, InputArg, Args))
+        return false;
       auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(A);
       UnbundlingHostAction->registerDependentActionInfo(
           C.getSingleOffloadToolChain<Action::OFK_Host>(),
@@ -4802,7 +4850,8 @@ public:
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
         (HasFPGATarget && ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
                             HostAction->getType() == types::TY_Object) ||
-                           HostAction->getType() == types::TY_FPGA_AOCX)))
+                           HostAction->getType() == types::TY_FPGA_AOCX ||
+                           HostAction->getType() == types::TY_FPGA_AOCX_EMU)))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
         HostAction = UA->getInputs().back();
 
@@ -5113,6 +5162,21 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   handleArguments(C, Args, Inputs, Actions);
 
+  // When compiling for -fsycl, generate the integration header files that
+  // will be used during the compilation.
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    for (auto &I : Inputs) {
+      if (!types::isSrcFile(I.first))
+        continue;
+      std::string SrcFileName(I.second->getAsString(Args));
+      std::string TmpFileNameHeader = C.getDriver().GetTemporaryPath(
+          llvm::sys::path::stem(SrcFileName).str() + "-header", "h");
+      StringRef TmpFileHeader =
+          C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
+      addIntegrationFiles(TmpFileHeader, SrcFileName);
+    }
+  }
+
   // Builder to be used to build offloading actions.
   OffloadingActionBuilder OffloadBuilder(C, Args, Inputs);
 
@@ -5237,8 +5301,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       continue;
     // FPGA AOCX/AOCR files are archives, but we do not want to unbundle them
     // here as they have already been unbundled and processed for linking.
+    // TODO: The multiple binary checks for FPGA types getting a little out
+    // of hand. Improve this by doing a single scan of the args and holding
+    // that in a data structure for reference.
     if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX) ||
-        hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR))
+        hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR) ||
+        hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX_EMU) ||
+        hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR_EMU))
       continue;
     // For offload-static-libs we add an unbundling action for each static
     // archive which produces list files with extracted objects. Device lists
@@ -5271,7 +5340,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     };
     if (auto *IA = dyn_cast<InputAction>(LI)) {
       if (IA->getType() == types::TY_FPGA_AOCR ||
-          IA->getType() == types::TY_FPGA_AOCX) {
+          IA->getType() == types::TY_FPGA_AOCX ||
+          IA->getType() == types::TY_FPGA_AOCR_EMU ||
+          IA->getType() == types::TY_FPGA_AOCX_EMU) {
         // Add to unbundler.
         UnbundlerInput = LI;
       } else {
@@ -5596,7 +5667,7 @@ void Driver::BuildJobs(Compilation &C) const {
       else
         LinkingOutput = getDefaultImageName();
 
-      if (!CCPrintStatReportFilename) {
+      if (CCPrintStatReportFilename.empty()) {
         using namespace llvm;
         // Human readable output.
         outs() << sys::path::filename(Cmd.getExecutable()) << ": "
@@ -5619,7 +5690,7 @@ void Driver::BuildJobs(Compilation &C) const {
             << '\n';
         Out.flush();
         std::error_code EC;
-        llvm::raw_fd_ostream OS(CCPrintStatReportFilename, EC,
+        llvm::raw_fd_ostream OS(CCPrintStatReportFilename.c_str(), EC,
                                 llvm::sys::fs::OF_Append |
                                     llvm::sys::fs::OF_Text);
         if (EC)
@@ -6241,7 +6312,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
             TI = types::TY_TempAOCOfilelist;
             Ext = "txt";
           }
-          if (JA->getType() == types::TY_FPGA_AOCR)
+          if (JA->getType() == types::TY_FPGA_AOCR ||
+              JA->getType() == types::TY_FPGA_AOCR_EMU)
             // AOCR files are always unbundled into a list file.
             TI = types::TY_Tempfilelist;
         } else if (EffectiveTriple.getSubArch() !=
@@ -6791,11 +6863,6 @@ void Driver::generatePrefixedToolNames(
   // FIXME: Needs a better variable than TargetTriple
   Names.emplace_back((TargetTriple + "-" + Tool).str());
   Names.emplace_back(Tool);
-
-  // Allow the discovery of tools prefixed with LLVM's default target triple.
-  std::string DefaultTargetTriple = llvm::sys::getDefaultTargetTriple();
-  if (DefaultTargetTriple != TargetTriple)
-    Names.emplace_back((DefaultTargetTriple + "-" + Tool).str());
 }
 
 static bool ScanDirForExecutable(SmallString<128> &Dir, StringRef Name) {

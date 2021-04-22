@@ -868,6 +868,19 @@ PyBlock PyOperation::getBlock() {
   return PyBlock{std::move(parentOperation), block};
 }
 
+py::object PyOperation::getCapsule() {
+  return py::reinterpret_steal<py::object>(mlirPythonOperationToCapsule(get()));
+}
+
+py::object PyOperation::createFromCapsule(py::object capsule) {
+  MlirOperation rawOperation = mlirPythonCapsuleToOperation(capsule.ptr());
+  if (mlirOperationIsNull(rawOperation))
+    throw py::error_already_set();
+  MlirContext rawCtxt = mlirOperationGetContext(rawOperation);
+  return forOperation(PyMlirContext::forContext(rawCtxt), rawOperation)
+      .releaseObject();
+}
+
 py::object PyOperation::create(
     std::string name, llvm::Optional<std::vector<PyType *>> results,
     llvm::Optional<std::vector<PyValue *>> operands,
@@ -1752,7 +1765,12 @@ void mlir::python::populateIRCore(py::module &m) {
           },
           [](PyMlirContext &self, bool value) {
             mlirContextSetAllowUnregisteredDialects(self.get(), value);
-          });
+          })
+      .def("is_registered_operation",
+           [](PyMlirContext &self, std::string &name) {
+             return mlirContextIsRegisteredOperation(
+                 self.get(), MlirStringRef{name.data(), name.size()});
+           });
 
   //----------------------------------------------------------------------------
   // Mapping of PyDialectDescriptor
@@ -2026,6 +2044,9 @@ void mlir::python::populateIRCore(py::module &m) {
                   py::arg("successors") = py::none(), py::arg("regions") = 0,
                   py::arg("loc") = py::none(), py::arg("ip") = py::none(),
                   kOperationCreateDocstring)
+      .def_property_readonly(MLIR_PYTHON_CAPI_PTR_ATTR,
+                             &PyOperation::getCapsule)
+      .def(MLIR_PYTHON_CAPI_FACTORY_ATTR, &PyOperation::createFromCapsule)
       .def_property_readonly("name",
                              [](PyOperation &self) {
                                MlirOperation operation = self.get();

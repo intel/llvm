@@ -35,9 +35,11 @@
 //   pi_device_binary_property_set PropertySetsEnd;
 // 2. A number of types needed to define pi_device_binary_property_set added.
 // 3. Added new ownership argument to piextContextCreateWithNativeHandle.
+// 4. Add interoperability interfaces for kernel.
 //
+#include "CL/cl.h"
 #define _PI_H_VERSION_MAJOR 3
-#define _PI_H_VERSION_MINOR 4
+#define _PI_H_VERSION_MINOR 5
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -47,7 +49,7 @@
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
-#include <CL/cl_ext_intel.h>
+#include <CL/cl_ext.h>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <cstdint>
@@ -125,7 +127,8 @@ typedef enum {
 typedef enum {
   PI_PROGRAM_BUILD_INFO_STATUS = CL_PROGRAM_BUILD_STATUS,
   PI_PROGRAM_BUILD_INFO_OPTIONS = CL_PROGRAM_BUILD_OPTIONS,
-  PI_PROGRAM_BUILD_INFO_LOG = CL_PROGRAM_BUILD_LOG
+  PI_PROGRAM_BUILD_INFO_LOG = CL_PROGRAM_BUILD_LOG,
+  PI_PROGRAM_BUILD_INFO_BINARY_TYPE = CL_PROGRAM_BINARY_TYPE
 } _pi_program_build_info;
 
 typedef enum {
@@ -134,6 +137,14 @@ typedef enum {
   PI_PROGRAM_BUILD_STATUS_SUCCESS = CL_BUILD_SUCCESS,
   PI_PROGRAM_BUILD_STATUS_IN_PROGRESS = CL_BUILD_IN_PROGRESS
 } _pi_program_build_status;
+
+typedef enum {
+  PI_PROGRAM_BINARY_TYPE_NONE = CL_PROGRAM_BINARY_TYPE_NONE,
+  PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT =
+      CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT,
+  PI_PROGRAM_BINARY_TYPE_LIBRARY = CL_PROGRAM_BINARY_TYPE_LIBRARY,
+  PI_PROGRAM_BINARY_TYPE_EXECUTABLE = CL_PROGRAM_BINARY_TYPE_EXECUTABLE
+} _pi_program_binary_type;
 
 // NOTE: this is made 64-bit to match the size of cl_device_type to
 // make the translation to OpenCL transparent.
@@ -1235,6 +1246,25 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
                                             pi_kernel_exec_info value_name,
                                             size_t param_value_size,
                                             const void *param_value);
+
+/// Creates PI kernel object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI kernel from.
+/// \param context is the PI context of the kernel.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
+/// \param kernel is the PI kernel created from the native handle.
+__SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_kernel *kernel);
+
+/// Gets the native handle of a PI kernel object.
+///
+/// \param kernel is the PI kernel to get the native handle of.
+/// \param nativeHandle is the native handle of kernel.
+__SYCL_EXPORT pi_result
+piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 
 //
 // Events

@@ -10,8 +10,8 @@
 #include "InputInfo.h"
 #include "ToolChains/Arch/ARM.h"
 #include "ToolChains/Clang.h"
-#include "ToolChains/InterfaceStubs.h"
 #include "ToolChains/Flang.h"
+#include "ToolChains/InterfaceStubs.h"
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Config/config.h"
@@ -33,6 +33,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -956,6 +957,29 @@ void ToolChain::addExternCSystemIncludeIfExists(const ArgList &DriverArgs,
   }
 }
 
+std::string ToolChain::detectLibcxxVersion(StringRef IncludePath) const {
+  std::error_code EC;
+  int MaxVersion = 0;
+  std::string MaxVersionString;
+  SmallString<128> Path(IncludePath);
+  llvm::sys::path::append(Path, "c++");
+  for (llvm::vfs::directory_iterator LI = getVFS().dir_begin(Path, EC), LE;
+       !EC && LI != LE; LI = LI.increment(EC)) {
+    StringRef VersionText = llvm::sys::path::filename(LI->path());
+    int Version;
+    if (VersionText[0] == 'v' &&
+        !VersionText.slice(1, StringRef::npos).getAsInteger(10, Version)) {
+      if (Version > MaxVersion) {
+        MaxVersion = Version;
+        MaxVersionString = std::string(VersionText);
+      }
+    }
+  }
+  if (!MaxVersion)
+    return "";
+  return MaxVersionString;
+}
+
 void ToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
                                              ArgStringList &CC1Args) const {
   // Header search paths should be handled by each of the subclasses.
@@ -974,7 +998,8 @@ void ToolChain::AddClangCXXStdlibIsystemArgs(
     const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args) const {
   DriverArgs.ClaimAllArgs(options::OPT_stdlibxx_isystem);
-  if (!DriverArgs.hasArg(options::OPT_nostdincxx))
+  if (!DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdincxx,
+                         options::OPT_nostdlibinc))
     for (const auto &P :
          DriverArgs.getAllArgValues(options::OPT_stdlibxx_isystem))
       addSystemInclude(DriverArgs, CC1Args, P);

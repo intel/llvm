@@ -318,9 +318,9 @@ int PPCTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
   return PPCTTIImpl::getIntImmCost(Imm, Ty, CostKind);
 }
 
-unsigned
-PPCTTIImpl::getUserCost(const User *U, ArrayRef<const Value *> Operands,
-                        TTI::TargetCostKind CostKind) {
+InstructionCost PPCTTIImpl::getUserCost(const User *U,
+                                        ArrayRef<const Value *> Operands,
+                                        TTI::TargetCostKind CostKind) {
   // We already implement getCastInstrCost and getMemoryOpCost where we perform
   // the vector adjustment there.
   if (isa<CastInst>(U) || isa<LoadInst>(U) || isa<StoreInst>(U))
@@ -1000,11 +1000,12 @@ int PPCTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp,
                               nullptr);
 }
 
-int PPCTTIImpl::getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind) {
+int PPCTTIImpl::getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind,
+                               const Instruction *I) {
   if (CostKind != TTI::TCK_RecipThroughput)
     return Opcode == Instruction::PHI ? 0 : 1;
   // Branches are assumed to be predicted.
-  return CostKind == TTI::TCK_RecipThroughput ? 0 : 1;
+  return 0;
 }
 
 int PPCTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
@@ -1209,8 +1210,9 @@ int PPCTTIImpl::getInterleavedMemoryOpCost(
   return Cost;
 }
 
-unsigned PPCTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
-                                           TTI::TargetCostKind CostKind) {
+InstructionCost
+PPCTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                  TTI::TargetCostKind CostKind) {
   return BaseT::getIntrinsicInstrCost(ICA, CostKind);
 }
 

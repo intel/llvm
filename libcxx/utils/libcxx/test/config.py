@@ -209,8 +209,6 @@ class Configuration(object):
         flags = []
         compile_flags = []
         link_flags = _prefixed_env_list('LIB', '-L')
-        for path in _split_env_var('LIB'):
-            self.add_path(self.exec_env, path)
         return CXXCompiler(self, clang_path, flags=flags,
                            compile_flags=compile_flags,
                            link_flags=link_flags)
@@ -334,9 +332,9 @@ class Configuration(object):
 
     def configure_compile_flags_header_includes(self):
         support_path = os.path.join(self.libcxx_src_root, 'test', 'support')
-        self.configure_config_site_header()
         if self.cxx_stdlib_under_test != 'libstdc++' and \
-           not self.target_info.is_windows():
+           not self.target_info.is_windows() and \
+           not self.target_info.is_zos():
             self.cxx.compile_flags += [
                 '-include', os.path.join(support_path, 'nasty_macros.h')]
         if self.cxx_stdlib_under_test == 'msvc':
@@ -351,32 +349,18 @@ class Configuration(object):
                                          'set_windows_crt_report_mode.h')
             ]
         cxx_headers = self.get_lit_conf('cxx_headers')
-        if cxx_headers == '' or (cxx_headers is None
-                                 and self.cxx_stdlib_under_test != 'libc++'):
+        if cxx_headers is None and self.cxx_stdlib_under_test != 'libc++':
             self.lit_config.note('using the system cxx headers')
             return
         self.cxx.compile_flags += ['-nostdinc++']
-        if cxx_headers is None:
-            cxx_headers = os.path.join(self.libcxx_src_root, 'include')
         if not os.path.isdir(cxx_headers):
-            self.lit_config.fatal("cxx_headers='%s' is not a directory."
-                                  % cxx_headers)
+            self.lit_config.fatal("cxx_headers='{}' is not a directory.".format(cxx_headers))
         self.cxx.compile_flags += ['-I' + cxx_headers]
         if self.libcxx_obj_root is not None:
             cxxabi_headers = os.path.join(self.libcxx_obj_root, 'include',
                                           'c++build')
             if os.path.isdir(cxxabi_headers):
                 self.cxx.compile_flags += ['-I' + cxxabi_headers]
-
-    def configure_config_site_header(self):
-        # Check for a possible __config_site in the build directory. We
-        # use this if it exists.
-        if self.libcxx_obj_root is None:
-            return
-        config_site_header = os.path.join(self.libcxx_obj_root, '__config_site')
-        if not os.path.isfile(config_site_header):
-            return
-        self.cxx.compile_flags += ['-include', config_site_header]
 
     def configure_link_flags(self):
         # Configure library path
@@ -472,8 +456,10 @@ class Configuration(object):
             self.cxx.link_flags += ['-lcxxrt']
         elif cxx_abi == 'vcruntime':
             debug_suffix = 'd' if self.debug_build else ''
+            # This matches the set of libraries linked in the toplevel
+            # libcxx CMakeLists.txt if building targeting msvc.
             self.cxx.link_flags += ['-l%s%s' % (lib, debug_suffix) for lib in
-                                    ['vcruntime', 'ucrt', 'msvcrt']]
+                                    ['vcruntime', 'ucrt', 'msvcrt', 'msvcprt']]
         elif cxx_abi == 'none' or cxx_abi == 'default':
             if self.target_info.is_windows():
                 debug_suffix = 'd' if self.debug_build else ''

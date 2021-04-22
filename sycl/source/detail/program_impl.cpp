@@ -489,7 +489,7 @@ void program_impl::create_pi_program_with_kernel_name(
   const device FirstDevice = get_devices()[0];
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
       Module, KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
-  MProgram = PM.createPIProgram(Img, get_context(), FirstDevice);
+  MProgram = PM.createPIProgram(Img, get_context(), {FirstDevice});
 }
 
 template <>

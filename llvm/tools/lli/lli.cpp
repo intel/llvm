@@ -99,7 +99,7 @@ namespace {
 
   cl::opt<JITKind> UseJITKind(
       "jit-kind", cl::desc("Choose underlying JIT kind."),
-      cl::init(JITKind::MCJIT),
+      cl::init(JITKind::Orc),
       cl::values(clEnumValN(JITKind::MCJIT, "mcjit", "MCJIT"),
                  clEnumValN(JITKind::Orc, "orc", "Orc JIT"),
                  clEnumValN(JITKind::OrcLazy, "orc-lazy",
@@ -228,7 +228,7 @@ namespace {
       cl::desc("Do not resolve lli process symbols in JIT'd code"),
       cl::init(false));
 
-  enum class LLJITPlatform { DetectHost, GenericIR, MachO };
+  enum class LLJITPlatform { Inactive, DetectHost, GenericIR, MachO };
 
   cl::opt<LLJITPlatform>
       Platform("lljit-platform", cl::desc("Platform to use with LLJIT"),
@@ -238,7 +238,9 @@ namespace {
                           clEnumValN(LLJITPlatform::GenericIR, "GenericIR",
                                      "Use LLJITGenericIRPlatform"),
                           clEnumValN(LLJITPlatform::MachO, "MachO",
-                                     "Use LLJITMachOPlatform")),
+                                     "Use LLJITMachOPlatform"),
+                          clEnumValN(LLJITPlatform::Inactive, "Inactive",
+                                     "Disable platform support explicitly")),
                cl::Hidden);
 
   enum class DumpKind {
@@ -789,7 +791,8 @@ static std::function<void(Module &)> createDebugDumper() {
   case DumpKind::DumpModsToDisk:
     return [](Module &M) {
       std::error_code EC;
-      raw_fd_ostream Out(M.getModuleIdentifier() + ".ll", EC, sys::fs::OF_Text);
+      raw_fd_ostream Out(M.getModuleIdentifier() + ".ll", EC,
+                         sys::fs::OF_TextWithCRLF);
       if (EC) {
         errs() << "Couldn't open " << M.getModuleIdentifier()
                << " for dumping.\nError:" << EC.message() << "\n";
@@ -924,6 +927,9 @@ int runOrcJIT(const char *ProgName) {
     case LLJITPlatform::MachO:
       Builder.setPlatformSetUp(orc::setUpMachOPlatform);
       ExitOnErr(orc::enableObjCRegistration("libobjc.dylib"));
+      break;
+    case LLJITPlatform::Inactive:
+      Builder.setPlatformSetUp(orc::setUpInactivePlatform);
       break;
     default:
       llvm_unreachable("Unrecognized platform value");

@@ -80,11 +80,16 @@ public:
     return cast_or_null<DIType>(N->getOperand(I));
   }
 
-  class iterator : std::iterator<std::input_iterator_tag, DIType *,
-                                 std::ptrdiff_t, void, DIType *> {
+  class iterator {
     MDNode::op_iterator I = nullptr;
 
   public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = DIType *;
+    using difference_type = std::ptrdiff_t;
+    using pointer = void;
+    using reference = DIType *;
+
     iterator() = default;
     explicit iterator(MDNode::op_iterator I) : I(I) {}
 
@@ -335,10 +340,9 @@ public:
 
   Metadata *getRawStride() const { return getOperand(3).get(); }
 
-  typedef PointerUnion<ConstantInt*, DIVariable*> CountType;
   typedef PointerUnion<ConstantInt *, DIVariable *, DIExpression *> BoundType;
 
-  CountType getCount() const;
+  BoundType getCount() const;
 
   BoundType getLowerBound() const;
 
@@ -2011,6 +2015,8 @@ public:
 
   StringRef getName() const { return getStringOperand(2); }
   StringRef getLinkageName() const { return getStringOperand(3); }
+  /// Only used by clients of CloneFunction, and only right after the cloning.
+  void replaceLinkageName(MDString *LN) { replaceOperandWith(3, LN); }
 
   DISubroutineType *getType() const {
     return cast_or_null<DISubroutineType>(getRawType());
@@ -2583,11 +2589,20 @@ public:
     return Elements[I];
   }
 
-  /// Determine whether this represents a standalone constant value.
-  bool isConstant() const;
+  enum SignedOrUnsignedConstant { SignedConstant, UnsignedConstant };
+  /// Determine whether this represents a constant value, if so
+  // return it's sign information.
+  llvm::Optional<SignedOrUnsignedConstant> isConstant() const;
 
-  /// Determine whether this represents a standalone signed constant value.
-  bool isSignedConstant() const;
+  /// Return the number of unique location operands referred to (via
+  /// DW_OP_LLVM_arg) in this expression; this is not necessarily the number of
+  /// instances of DW_OP_LLVM_arg within the expression.
+  /// For example, for the expression:
+  ///   (DW_OP_LLVM_arg 0, DW_OP_LLVM_arg 1, DW_OP_plus,
+  ///    DW_OP_LLVM_arg 0, DW_OP_mul)
+  /// This function would return 2, as there are two unique location operands
+  /// (0 and 1).
+  uint64_t getNumLocationOperands() const;
 
   using element_iterator = ArrayRef<uint64_t>::iterator;
 
@@ -2629,11 +2644,16 @@ public:
   };
 
   /// An iterator for expression operands.
-  class expr_op_iterator
-      : public std::iterator<std::input_iterator_tag, ExprOperand> {
+  class expr_op_iterator {
     ExprOperand Op;
 
   public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = ExprOperand;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
     expr_op_iterator() = default;
     explicit expr_op_iterator(element_iterator I) : Op(I) {}
 
@@ -2730,6 +2750,10 @@ public:
   /// If this is a constant offset, extract it. If there is no expression,
   /// return true with an offset of zero.
   bool extractIfOffset(int64_t &Offset) const;
+
+  /// Returns true iff this DIExpression contains at least one instance of
+  /// `DW_OP_LLVM_arg, n` for all n in [0, N).
+  bool hasAllLocationOps(unsigned N) const;
 
   /// Checks if the last 4 elements of the expression are DW_OP_constu <DWARF
   /// Address Space> DW_OP_swap DW_OP_xderef and extracts the <DWARF Address

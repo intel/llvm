@@ -967,6 +967,16 @@ void StmtPrinter::VisitOMPInteropDirective(OMPInteropDirective *Node) {
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPDispatchDirective(OMPDispatchDirective *Node) {
+  Indent() << "#pragma omp dispatch";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPMaskedDirective(OMPMaskedDirective *Node) {
+  Indent() << "#pragma omp masked";
+  PrintOMPExecutableDirective(Node);
+}
+
 //===----------------------------------------------------------------------===//
 //  Expr printing methods.
 //===----------------------------------------------------------------------===//

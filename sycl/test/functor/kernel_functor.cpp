@@ -3,6 +3,7 @@
 // RUN: %RUN_ON_HOST %t.out
 
 //==--- kernel_functor.cpp - Functors as SYCL kernel test ------------------==//
+// This test illustrates defining kernels as named function objects (functors)
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,27 +19,6 @@ constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 constexpr auto sycl_global_buffer = cl::sycl::access::target::global_buffer;
 
 // Case 1:
-// - functor class is defined in an anonymous namespace
-// - the '()' operator:
-//   * does not have parameters (to be used in 'single_task').
-//   * has the 'const' qualifier
-namespace {
-class Functor1 {
-public:
-  Functor1(
-      int X_,
-      cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> &Acc_)
-      : X(X_), Acc(Acc_) {}
-
-  void operator()() const { Acc[0] += X; }
-
-private:
-  int X;
-  cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> Acc;
-};
-}
-
-// Case 2:
 // - functor class is defined in a namespace
 // - the '()' operator:
 //   * does not have parameters (to be used in 'single_task').
@@ -60,7 +40,7 @@ private:
 };
 }
 
-// Case 3:
+// Case 2:
 // - functor class is templated and defined in the translation unit scope
 // - the '()' operator:
 //   * has a parameter of type cl::sycl::id<1> (to be used in 'parallel_for').
@@ -78,7 +58,7 @@ private:
   cl::sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> Acc;
 };
 
-// Case 4:
+// Case 3:
 // - functor class is templated and defined in the translation unit scope
 // - the '()' operator:
 //   * has a parameter of type cl::sycl::id<1> (to be used in 'parallel_for').
@@ -103,12 +83,6 @@ int foo(int X) {
     cl::sycl::queue Q;
     cl::sycl::buffer<int, 1> Buf(A, 1);
 
-    Q.submit([&](cl::sycl::handler &cgh) {
-      auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
-      Functor1 F(X, Acc);
-
-      cgh.single_task(F);
-    });
     Q.submit([&](cl::sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
       ns::Functor2 F(X, Acc);
@@ -167,7 +141,7 @@ template <typename T> T bar(T X) {
 int main() {
   const int Res1 = foo(10);
   const int Res2 = bar(10);
-  const int Gold1 = 40;
+  const int Gold1 = 30;
   const int Gold2 = 80;
 
   assert(Res1 == Gold1);

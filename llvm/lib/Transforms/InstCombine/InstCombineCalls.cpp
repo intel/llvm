@@ -522,18 +522,24 @@ static Instruction *foldCtpop(IntrinsicInst &II, InstCombinerImpl &IC) {
     return CallInst::Create(F, {X, IC.Builder.getFalse()});
   }
 
+  KnownBits Known(BitWidth);
+  IC.computeKnownBits(Op0, Known, 0, &II);
+
+  // If all bits are zero except for exactly one fixed bit, then the result
+  // must be 0 or 1, and we can get that answer by shifting to LSB:
+  // ctpop (X & 32) --> (X & 32) >> 5
+  if ((~Known.Zero).isPowerOf2())
+    return BinaryOperator::CreateLShr(
+        Op0, ConstantInt::get(Ty, (~Known.Zero).exactLogBase2()));
+
   // FIXME: Try to simplify vectors of integers.
   auto *IT = dyn_cast<IntegerType>(Ty);
   if (!IT)
     return nullptr;
 
-  KnownBits Known(BitWidth);
-  IC.computeKnownBits(Op0, Known, 0, &II);
-
+  // Add range metadata since known bits can't completely reflect what we know.
   unsigned MinCount = Known.countMinPopulation();
   unsigned MaxCount = Known.countMaxPopulation();
-
-  // Add range metadata since known bits can't completely reflect what we know.
   if (IT->getBitWidth() != 1 && !II.getMetadata(LLVMContext::MD_range)) {
     Metadata *LowAndHigh[] = {
         ConstantAsMetadata::get(ConstantInt::get(IT, MinCount)),
@@ -839,6 +845,12 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
       return CastInst::Create(Instruction::ZExt, NarrowAbs, II->getType());
     }
 
+    // Match a complicated way to check if a number is odd/even:
+    // abs (srem X, 2) --> and X, 1
+    const APInt *C;
+    if (match(IIOperand, m_SRem(m_Value(X), m_APInt(C))) && *C == 2)
+      return BinaryOperator::CreateAnd(X, ConstantInt::get(II->getType(), 1));
+
     break;
   }
   case Intrinsic::umax:
@@ -897,6 +909,31 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
         Value *InvMaxMin = Builder.CreateBinaryIntrinsic(InvID, X, NotC);
         return BinaryOperator::CreateNot(InvMaxMin);
       }
+    }
+
+    // smax(X, -X) --> abs(X)
+    // smin(X, -X) --> -abs(X)
+    // umax(X, -X) --> -abs(X)
+    // umin(X, -X) --> abs(X)
+    if (isKnownNegation(I0, I1)) {
+      // We can choose either operand as the input to abs(), but if we can
+      // eliminate the only use of a value, that's better for subsequent
+      // transforms/analysis.
+      if (I0->hasOneUse() && !I1->hasOneUse())
+        std::swap(I0, I1);
+
+      // This is some variant of abs(). See if we can propagate 'nsw' to the abs
+      // operation and potentially its negation.
+      bool IntMinIsPoison = isKnownNegation(I0, I1, /* NeedNSW */ true);
+      Value *Abs = Builder.CreateBinaryIntrinsic(
+          Intrinsic::abs, I0,
+          ConstantInt::getBool(II->getContext(), IntMinIsPoison));
+
+      // We don't have a "nabs" intrinsic, so negate if needed based on the
+      // max/min operation.
+      if (IID == Intrinsic::smin || IID == Intrinsic::umax)
+        Abs = Builder.CreateNeg(Abs, "nabs", /* NUW */ false, IntMinIsPoison);
+      return replaceInstUsesWith(CI, Abs);
     }
 
     break;
@@ -1545,8 +1582,8 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     /// argument and remove the assume if it becomes useless.
     /// always returns nullptr for use as a return values.
     auto RemoveConditionFromAssume = [&](Instruction *Assume) -> Instruction * {
-      assert(isa<IntrinsicInst>(Assume));
-      if (isAssumeWithEmptyBundle(*cast<IntrinsicInst>(II)))
+      assert(isa<AssumeInst>(Assume));
+      if (isAssumeWithEmptyBundle(*cast<AssumeInst>(II)))
         return eraseInstFromFunction(CI);
       replaceUse(II->getOperandUse(0), ConstantInt::getTrue(II->getContext()));
       return nullptr;
@@ -1603,7 +1640,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     if (EnableKnowledgeRetention &&
         match(IIOperand, m_Cmp(Pred, m_Value(A), m_Zero())) &&
         Pred == CmpInst::ICMP_NE && A->getType()->isPointerTy()) {
-      if (IntrinsicInst *Replacement = buildAssumeFromKnowledge(
+      if (auto *Replacement = buildAssumeFromKnowledge(
               {RetainedKnowledge{Attribute::NonNull, 0, A}}, Next, &AC, &DT)) {
 
         Replacement->insertBefore(Next);
@@ -1635,7 +1672,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
           /// the offset.
           RetainedKnowledge RK{Attribute::Alignment,
                                (unsigned)MinAlign(Offset, AlignMask + 1), A};
-          if (IntrinsicInst *Replacement =
+          if (auto *Replacement =
                   buildAssumeFromKnowledge(RK, Next, &AC, &DT)) {
 
             Replacement->insertAfter(II);
@@ -1650,13 +1687,16 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     if (EnableKnowledgeRetention && II->hasOperandBundles()) {
       for (unsigned Idx = 0; Idx < II->getNumOperandBundles(); Idx++) {
         auto &BOI = II->bundle_op_info_begin()[Idx];
-        RetainedKnowledge RK = llvm::getKnowledgeFromBundle(*II, BOI);
+        RetainedKnowledge RK =
+          llvm::getKnowledgeFromBundle(cast<AssumeInst>(*II), BOI);
         if (BOI.End - BOI.Begin > 2)
           continue; // Prevent reducing knowledge in an align with offset since
                     // extracting a RetainedKnowledge form them looses offset
                     // information
-        RetainedKnowledge CanonRK = llvm::simplifyRetainedKnowledge(
-            II, RK, &getAssumptionCache(), &getDominatorTree());
+        RetainedKnowledge CanonRK =
+          llvm::simplifyRetainedKnowledge(cast<AssumeInst>(II), RK,
+                                          &getAssumptionCache(),
+                                          &getDominatorTree());
         if (CanonRK == RK)
           continue;
         if (!CanonRK) {
@@ -1682,12 +1722,12 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     // then this one is redundant, and should be removed.
     KnownBits Known(1);
     computeKnownBits(IIOperand, Known, 0, II);
-    if (Known.isAllOnes() && isAssumeWithEmptyBundle(*II))
+    if (Known.isAllOnes() && isAssumeWithEmptyBundle(cast<AssumeInst>(*II)))
       return eraseInstFromFunction(*II);
 
     // Update the cache of affected values for this assumption (we might be
     // here because we just simplified the condition).
-    AC.updateAffectedValues(II);
+    AC.updateAffectedValues(cast<AssumeInst>(II));
     break;
   }
   case Intrinsic::experimental_guard: {
@@ -2118,9 +2158,14 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
       return &Call;
     }
 
-    // If the call and callee calling conventions don't match, this call must
-    // be unreachable, as the call is undefined.
-    if (CalleeF->getCallingConv() != Call.getCallingConv() &&
+    // If the call and callee calling conventions don't match, and neither one
+    // of the calling conventions is compatible with C calling convention
+    // this call must be unreachable, as the call is undefined.
+    if ((CalleeF->getCallingConv() != Call.getCallingConv() &&
+         !(CalleeF->getCallingConv() == llvm::CallingConv::C &&
+           TargetLibraryInfoImpl::isCallingConvCCompatible(&Call)) &&
+         !(Call.getCallingConv() == llvm::CallingConv::C &&
+           TargetLibraryInfoImpl::isCallingConvCCompatible(CalleeF))) &&
         // Only do this for calls to a function with a body.  A prototype may
         // not actually end up matching the implementation's calling conv for a
         // variety of reasons (e.g. it may be written in assembly).

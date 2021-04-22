@@ -521,7 +521,7 @@ static void addAnnotationRemarksPass(ModulePassManager &MPM) {
 // Helper to check if the current compilation phase is preparing for LTO
 static bool isLTOPreLink(ThinOrFullLTOPhase Phase) {
   return Phase == ThinOrFullLTOPhase::ThinLTOPreLink ||
-         Phase == ThinOrFullLTOPhase::ThinLTOPreLink;
+         Phase == ThinOrFullLTOPhase::FullLTOPreLink;
 }
 
 // TODO: Investigate the cost/benefit of tail call elimination on debugging.
@@ -569,6 +569,11 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
   // implications on the outer loop.
   LPM1.addPass(LoopInstSimplifyPass());
   LPM1.addPass(LoopSimplifyCFGPass());
+
+  // Try to remove as much code from the loop header as possible,
+  // to reduce amount of IR that will have to be duplicated.
+  // TODO: Investigate promotion cap for O1.
+  LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap));
 
   LPM1.addPass(LoopRotatePass(/* Disable header duplication */ true,
                               isLTOPreLink(Phase)));
@@ -737,6 +742,11 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // implications on the outer loop.
   LPM1.addPass(LoopInstSimplifyPass());
   LPM1.addPass(LoopSimplifyCFGPass());
+
+  // Try to remove as much code from the loop header as possible,
+  // to reduce amount of IR that will have to be duplicated.
+  // TODO: Investigate promotion cap for O1.
+  LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap));
 
   // Disable header duplication in loop rotation at -Oz.
   LPM1.addPass(
@@ -1058,10 +1068,12 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // Create an early function pass manager to cleanup the output of the
   // frontend.
   FunctionPassManager EarlyFPM(DebugLogging);
+  // Lower llvm.expect to metadata before attempting transforms.
+  // Compare/branch metadata may alter the behavior of passes like SimplifyCFG.
+  EarlyFPM.addPass(LowerExpectIntrinsicPass());
   EarlyFPM.addPass(SimplifyCFGPass());
   EarlyFPM.addPass(SROA());
   EarlyFPM.addPass(EarlyCSEPass());
-  EarlyFPM.addPass(LowerExpectIntrinsicPass());
   if (PTO.Coroutines)
     EarlyFPM.addPass(CoroEarlyPass());
   if (Level == OptimizationLevel::O3)

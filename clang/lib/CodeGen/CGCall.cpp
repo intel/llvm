@@ -2296,7 +2296,7 @@ void CodeGenModule::ConstructAttributeList(
   // Attach attributes to inalloca argument.
   if (IRFunctionArgs.hasInallocaArg()) {
     llvm::AttrBuilder Attrs;
-    Attrs.addAttribute(llvm::Attribute::InAlloca);
+    Attrs.addInAllocaAttr(FI.getArgStruct());
     ArgAttrs[IRFunctionArgs.getInallocaArgNo()] =
         llvm::AttributeSet::get(getLLVMContext(), Attrs);
   }
@@ -2771,7 +2771,8 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
         if (Arg->getType().isRestrictQualified() ||
             (CurCodeDecl &&
              CurCodeDecl->hasAttr<SYCLIntelKernelArgsRestrictAttr>() &&
-             Arg->getType()->isPointerType()))
+             Arg->getType()->isPointerType()) ||
+            (Arg->hasAttr<RestrictAttr>() && Arg->getType()->isPointerType()))
           AI->addAttr(llvm::Attribute::NoAlias);
       }
 

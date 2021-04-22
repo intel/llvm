@@ -19,7 +19,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFUnit.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/TextAPI/MachO/TextAPIReader.h"
+#include "llvm/TextAPI/TextAPIReader.h"
 
 #include <map>
 #include <vector>
@@ -47,9 +47,13 @@ enum class RefState : uint8_t;
 extern std::unique_ptr<llvm::TarWriter> tar;
 
 // If .subsections_via_symbols is set, each InputSection will be split along
-// symbol boundaries. The keys of a SubsectionMap represent the offsets of
-// each subsection from the start of the original pre-split InputSection.
-using SubsectionMap = std::map<uint32_t, InputSection *>;
+// symbol boundaries. The field offset represents the offset of the subsection
+// from the start of the original pre-split InputSection.
+struct SubsectionEntry {
+  uint64_t offset;
+  InputSection *isec;
+};
+using SubsectionMap = std::vector<SubsectionEntry>;
 
 class InputFile {
 public:
@@ -97,15 +101,20 @@ public:
 
   llvm::DWARFUnit *compileUnit = nullptr;
   const uint32_t modTime;
-  ArrayRef<llvm::MachO::section_64> sectionHeaders;
   std::vector<InputSection *> debugSections;
 
 private:
-  void parseSections(ArrayRef<llvm::MachO::section_64>);
-  void parseSymbols(ArrayRef<lld::structs::nlist_64> nList, const char *strtab,
+  template <class LP> void parse();
+  template <class Section> void parseSections(ArrayRef<Section>);
+  template <class LP>
+  void parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
+                    ArrayRef<typename LP::nlist> nList, const char *strtab,
                     bool subsectionsViaSymbols);
-  Symbol *parseNonSectionSymbol(const structs::nlist_64 &sym, StringRef name);
-  void parseRelocations(const llvm::MachO::section_64 &, SubsectionMap &);
+  template <class NList>
+  Symbol *parseNonSectionSymbol(const NList &sym, StringRef name);
+  template <class Section>
+  void parseRelocations(ArrayRef<Section> sectionHeaders, const Section &,
+                        SubsectionMap &);
   void parseDebugInfo();
 };
 
@@ -126,7 +135,7 @@ public:
   // the root dylib to ensure symbols in the child library are correctly bound
   // to the root. On the other hand, if a dylib is being directly loaded
   // (through an -lfoo flag), then `umbrella` should be a nullptr.
-  explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella = nullptr,
+  explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
                      bool isBundleLoader = false);
 
   explicit DylibFile(const llvm::MachO::InterfaceFile &interface,
@@ -148,6 +157,9 @@ public:
   // implemented in the bundle. When used like this, it is very similar
   // to a Dylib, so we re-used the same class to represent it.
   bool isBundleLoader;
+
+private:
+  template <class LP> void parse(DylibFile *umbrella = nullptr);
 };
 
 // .a file
@@ -176,11 +188,9 @@ extern llvm::SetVector<InputFile *> inputFiles;
 
 llvm::Optional<MemoryBufferRef> readFile(StringRef path);
 
-template <class CommandType = llvm::MachO::load_command>
-const CommandType *findCommand(const llvm::MachO::mach_header_64 *hdr,
-                               uint32_t type) {
-  const uint8_t *p = reinterpret_cast<const uint8_t *>(hdr) +
-                     sizeof(llvm::MachO::mach_header_64);
+template <class CommandType = llvm::MachO::load_command, class Header>
+const CommandType *findCommand(const Header *hdr, uint32_t type) {
+  const uint8_t *p = reinterpret_cast<const uint8_t *>(hdr) + sizeof(Header);
 
   for (uint32_t i = 0, n = hdr->ncmds; i < n; ++i) {
     auto *cmd = reinterpret_cast<const CommandType *>(p);

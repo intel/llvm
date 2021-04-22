@@ -18,6 +18,7 @@
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
 #include <detail/program_impl.hpp>
@@ -496,14 +497,9 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   }
 
   // Do not add redundant event dependencies for in-order queues.
-  // TODO temporarily disabled with Level Zero since the enqueued operations
-  // that are implemented directly in the plugin (e.g. map/unmap) do not satisfy
-  // in-order queue requirements.
-  if (WorkerQueue->is_host() ||
-      WorkerQueue->getPlugin().getBackend() != backend::level_zero)
-    if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->has_property<property::queue::in_order>())
-      return;
+  if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
+      WorkerQueue->has_property<property::queue::in_order>())
+    return;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
@@ -1695,6 +1691,12 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
                                                        Arg.MSize, Arg.MPtr);
       break;
     }
+    case kernel_param_kind_t::kind_specialization_constants_buffer: {
+      throw cl::sycl::feature_not_supported(
+          "SYCL2020 specialization constants are not yet fully supported",
+          PI_INVALID_OPERATION);
+      break;
+    }
     }
     ++NextTrueIndex;
   }
@@ -1903,6 +1905,9 @@ cl_int ExecCGCommand::enqueueImp() {
       return CL_SUCCESS;
     }
 
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr =
+        ExecKernel->getKernelBundle();
+
     // Run OpenCL kernel
     sycl::context Context = MQueue->get_context();
     RT::PiKernel Kernel = nullptr;
@@ -1910,7 +1915,31 @@ cl_int ExecCGCommand::enqueueImp() {
     RT::PiProgram Program = nullptr;
     bool KnownProgram = true;
 
-    if (nullptr != ExecKernel->MSyclKernel) {
+    std::shared_ptr<kernel_impl> SyclKernelImpl;
+    // Use kernel_bundle is available
+    if (KernelBundleImplPtr) {
+
+      std::shared_ptr<kernel_id_impl> KernelIDImpl =
+          std::make_shared<kernel_id_impl>(ExecKernel->MKernelName);
+
+      kernel SyclKernel = KernelBundleImplPtr->get_kernel(
+          detail::createSyclObjFromImpl<kernel_id>(KernelIDImpl),
+          KernelBundleImplPtr);
+
+      SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+
+      Kernel = SyclKernelImpl->getHandleRef();
+
+      std::shared_ptr<device_image_impl> DeviceImageImpl =
+          SyclKernelImpl->getDeviceImage();
+
+      Program = DeviceImageImpl->get_program_ref();
+
+      std::tie(Kernel, KernelMutex) =
+          detail::ProgramManager::getInstance().getOrCreateKernel(
+              KernelBundleImplPtr->get_context(), ExecKernel->MKernelName,
+              /*PropList=*/{}, Program);
+    } else if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
              Context);
       Kernel = ExecKernel->MSyclKernel->getHandleRef();

@@ -163,7 +163,8 @@ public:
       ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
       const Instruction *CxtI = nullptr);
 
-  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
+  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind,
+                          const Instruction *I = nullptr);
 
   bool isInlineAsmSourceOfDivergence(const CallInst *CI,
                                      ArrayRef<unsigned> Indices = {}) const;
@@ -214,8 +215,8 @@ public:
       bool IsPairwise,
       TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput);
 
-  int getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
-                            TTI::TargetCostKind CostKind);
+  InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                        TTI::TargetCostKind CostKind);
   int getMinMaxReductionCost(
     VectorType *Ty, VectorType *CondTy, bool IsPairwiseForm, bool IsUnsigned,
     TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput);
@@ -253,7 +254,8 @@ public:
   bool isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes, Align Alignment,
                                     unsigned AddrSpace) const;
   unsigned getMaxInterleaveFactor(unsigned VF);
-  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
+  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind,
+                          const Instruction *I = nullptr);
   int getVectorInstrCost(unsigned Opcode, Type *ValTy, unsigned Index);
 };
 

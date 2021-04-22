@@ -483,6 +483,18 @@ void OMPClauseProfiler::VisitOMPDetachClause(const OMPDetachClause *C) {
     Profiler->VisitStmt(Evt);
 }
 
+void OMPClauseProfiler::VisitOMPNovariantsClause(const OMPNovariantsClause *C) {
+  VistOMPClauseWithPreInit(C);
+  if (C->getCondition())
+    Profiler->VisitStmt(C->getCondition());
+}
+
+void OMPClauseProfiler::VisitOMPNocontextClause(const OMPNocontextClause *C) {
+  VistOMPClauseWithPreInit(C);
+  if (C->getCondition())
+    Profiler->VisitStmt(C->getCondition());
+}
+
 void OMPClauseProfiler::VisitOMPDefaultClause(const OMPDefaultClause *C) { }
 
 void OMPClauseProfiler::VisitOMPProcBindClause(const OMPProcBindClause *C) { }
@@ -555,6 +567,12 @@ void OMPClauseProfiler::VisitOMPUseClause(const OMPUseClause *C) {
 void OMPClauseProfiler::VisitOMPDestroyClause(const OMPDestroyClause *C) {
   if (C->getInteropVar())
     Profiler->VisitStmt(C->getInteropVar());
+}
+
+void OMPClauseProfiler::VisitOMPFilterClause(const OMPFilterClause *C) {
+  VistOMPClauseWithPreInit(C);
+  if (C->getThreadID())
+    Profiler->VisitStmt(C->getThreadID());
 }
 
 template<typename T>
@@ -1141,6 +1159,14 @@ void StmtProfiler::VisitOMPTargetTeamsDistributeSimdDirective(
 }
 
 void StmtProfiler::VisitOMPInteropDirective(const OMPInteropDirective *S) {
+  VisitOMPExecutableDirective(S);
+}
+
+void StmtProfiler::VisitOMPDispatchDirective(const OMPDispatchDirective *S) {
+  VisitOMPExecutableDirective(S);
+}
+
+void StmtProfiler::VisitOMPMaskedDirective(const OMPMaskedDirective *S) {
   VisitOMPExecutableDirective(S);
 }
 

@@ -2593,6 +2593,17 @@ void ASTStmtReader::VisitOMPInteropDirective(OMPInteropDirective *D) {
   VisitOMPExecutableDirective(D);
 }
 
+void ASTStmtReader::VisitOMPDispatchDirective(OMPDispatchDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+  D->setTargetCallLoc(Record.readSourceLocation());
+}
+
+void ASTStmtReader::VisitOMPMaskedDirective(OMPMaskedDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+}
+
 //===----------------------------------------------------------------------===//
 // ASTReader Implementation
 //===----------------------------------------------------------------------===//
@@ -3510,6 +3521,16 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_OMP_INTEROP_DIRECTIVE:
       S = OMPInteropDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
+    case STMT_OMP_DISPATCH_DIRECTIVE:
+      S = OMPDispatchDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
+    case STMT_OMP_MASKED_DIRECTIVE:
+      S = OMPMaskedDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 

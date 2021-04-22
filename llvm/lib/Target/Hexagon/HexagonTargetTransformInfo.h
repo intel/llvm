@@ -110,8 +110,8 @@ public:
                                             ArrayRef<Type *> Tys);
   unsigned getCallInstrCost(Function *F, Type *RetTy, ArrayRef<Type*> Tys,
                             TTI::TargetCostKind CostKind);
-  unsigned getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
-                                 TTI::TargetCostKind CostKind);
+  InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                        TTI::TargetCostKind CostKind);
   unsigned getAddressComputationCost(Type *Tp, ScalarEvolution *SE,
             const SCEV *S);
   unsigned getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
@@ -153,7 +153,8 @@ public:
                             const Instruction *I = nullptr);
   unsigned getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
 
-  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind) {
+  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind,
+                          const Instruction *I = nullptr) {
     return 1;
   }
 
@@ -162,8 +163,8 @@ public:
 
   /// @}
 
-  int getUserCost(const User *U, ArrayRef<const Value *> Operands,
-                  TTI::TargetCostKind CostKind);
+  InstructionCost getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                              TTI::TargetCostKind CostKind);
 
   // Hexagon specific decision to generate a lookup table.
   bool shouldBuildLookupTables() const;

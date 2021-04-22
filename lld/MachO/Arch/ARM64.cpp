@@ -28,12 +28,12 @@ namespace {
 struct ARM64 : TargetInfo {
   ARM64();
 
-  int64_t getEmbeddedAddend(MemoryBufferRef, const section_64 &,
+  int64_t getEmbeddedAddend(MemoryBufferRef, uint64_t offset,
                             const relocation_info) const override;
   void relocateOne(uint8_t *loc, const Reloc &, uint64_t va,
                    uint64_t pc) const override;
 
-  void writeStub(uint8_t *buf, const macho::Symbol &) const override;
+  void writeStub(uint8_t *buf, const Symbol &) const override;
   void writeStubHelperHeader(uint8_t *buf) const override;
   void writeStubHelperEntry(uint8_t *buf, const DylibSymbol &,
                             uint64_t entryAddr) const override;
@@ -55,8 +55,8 @@ struct ARM64 : TargetInfo {
 const RelocAttrs &ARM64::getRelocAttrs(uint8_t type) const {
   static const std::array<RelocAttrs, 11> relocAttrsArray{{
 #define B(x) RelocAttrBits::x
-      {"UNSIGNED", B(UNSIGNED) | B(ABSOLUTE) | B(EXTERN) | B(LOCAL) |
-                       B(DYSYM8) | B(BYTE4) | B(BYTE8)},
+      {"UNSIGNED",
+       B(UNSIGNED) | B(ABSOLUTE) | B(EXTERN) | B(LOCAL) | B(BYTE4) | B(BYTE8)},
       {"SUBTRACTOR", B(SUBTRAHEND) | B(BYTE4) | B(BYTE8)},
       {"BRANCH26", B(PCREL) | B(EXTERN) | B(BRANCH) | B(BYTE4)},
       {"PAGE21", B(PCREL) | B(EXTERN) | B(BYTE4)},
@@ -77,7 +77,7 @@ const RelocAttrs &ARM64::getRelocAttrs(uint8_t type) const {
   return relocAttrsArray[type];
 }
 
-int64_t ARM64::getEmbeddedAddend(MemoryBufferRef mb, const section_64 &sec,
+int64_t ARM64::getEmbeddedAddend(MemoryBufferRef mb, uint64_t offset,
                                  const relocation_info rel) const {
   if (rel.r_type != ARM64_RELOC_UNSIGNED &&
       rel.r_type != ARM64_RELOC_SUBTRACTOR) {
@@ -88,7 +88,7 @@ int64_t ARM64::getEmbeddedAddend(MemoryBufferRef mb, const section_64 &sec,
   }
 
   auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
-  const uint8_t *loc = buf + sec.offset + rel.r_address;
+  const uint8_t *loc = buf + offset + rel.r_address;
   switch (rel.r_length) {
   case 2:
     return static_cast<int32_t>(read32le(loc));
@@ -217,11 +217,12 @@ static constexpr uint32_t stubCode[] = {
     0xd61f0200, // 08: br    x16
 };
 
-void ARM64::writeStub(uint8_t *buf8, const macho::Symbol &sym) const {
+void ARM64::writeStub(uint8_t *buf8, const Symbol &sym) const {
   auto *buf32 = reinterpret_cast<uint32_t *>(buf8);
   uint64_t pcPageBits =
       pageBits(in.stubs->addr + sym.stubsIndex * sizeof(stubCode));
-  uint64_t lazyPointerVA = in.lazyPointers->addr + sym.stubsIndex * WordSize;
+  uint64_t lazyPointerVA =
+      in.lazyPointers->addr + sym.stubsIndex * LP64::wordSize;
   buf32[0] = encodePage21({&sym, "stub"}, stubCode[0],
                           pageBits(lazyPointerVA) - pcPageBits);
   buf32[1] = encodePageOff12(stubCode[1], lazyPointerVA);
@@ -249,7 +250,7 @@ void ARM64::writeStubHelperHeader(uint8_t *buf8) const {
   buf32[1] = encodePageOff12(stubHelperHeaderCode[1], loaderVA);
   buf32[2] = stubHelperHeaderCode[2];
   uint64_t binderVA =
-      in.got->addr + in.stubHelper->stubBinder->gotIndex * WordSize;
+      in.got->addr + in.stubHelper->stubBinder->gotIndex * LP64::wordSize;
   buf32[3] = encodePage21(d, stubHelperHeaderCode[3],
                           pageBits(binderVA) - pcPageBits(3));
   buf32[4] = encodePageOff12(stubHelperHeaderCode[4], binderVA);
@@ -291,7 +292,7 @@ void ARM64::relaxGotLoad(uint8_t *loc, uint8_t type) const {
   write32le(loc, instruction);
 }
 
-ARM64::ARM64() {
+ARM64::ARM64() : TargetInfo(LP64()) {
   cpuType = CPU_TYPE_ARM64;
   cpuSubtype = CPU_SUBTYPE_ARM64_ALL;
 
