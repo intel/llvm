@@ -1,9 +1,10 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
-// Issue #106: Disable on Linux until flaky failures are fixed
-// REQUIRES: TEMPORARY_DISABLED
-// UNSUPPORTED: windows
+// Issue #106: The test failing sporadically on OpenCL platform due to
+// processing OCL_ICD_FILENAMES debug environment variable which causes
+// extra memory allocation on device creation.
+// UNSUPPORTED: windows, opencl
 //
 //==-----memory-consumption.cpp - SYCL memory consumption basic test ------==//
 //
