@@ -323,13 +323,29 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   for (unsigned I = 0; I < Args.size(); ++I) {
     ArgTys[I] = Args[I]->getType();
   }
+  bool IsBoolSpecConst = RetTy->isIntegerTy(1);
+  if (IsBoolSpecConst) {
+    // By some reason, clang emits booleans within structures as i8, while
+    // outside structures it uses i1: it leads to generation of SPIR-V
+    // intrinsics like i1 _Z20__spirv_SpecConstantia(i32, i8) and the translator
+    // fails on assertion about type mismatch between return type and type of
+    // the second argument.
+    // In order to avoid that, let's generate SPIR-V intrinsic with i8 return
+    // type and emit additional trunc instruction to have the rest of module
+    // consistent.
+    RetTy = Type::getInt8Ty(RetTy->getContext());
+  }
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   std::string FunctionName = mangleFuncItanium(BaseFunctionName, FT);
   Module *M = InsertBefore->getFunction()->getParent();
   FunctionCallee FC = M->getOrInsertFunction(FunctionName, FT);
   assert(FC.getCallee() && "SPIRV intrinsic creation failed");
-  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
-  return Call;
+  Instruction *Ret = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  if (IsBoolSpecConst) {
+    Ret = CastInst::CreateTruncOrBitCast(
+        Ret, Type::getInt1Ty(RetTy->getContext()), "tobool", InsertBefore);
+  }
+  return Ret;
 }
 
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
