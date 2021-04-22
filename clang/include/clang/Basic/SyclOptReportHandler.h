@@ -31,17 +31,17 @@ private:
 
     OptReportInfo(std::string ArgName, std::string ArgType,
                   SourceLocation ArgLoc)
-        : KernelArgName(ArgName), KernelArgType(ArgType), KernelArgLoc(ArgLoc) {
-    }
+        : KernelArgName(std::move(ArgName)), KernelArgType(std::move(ArgType)),
+          KernelArgLoc(ArgLoc) {}
   };
-  llvm::DenseMap<const FunctionDecl *, SmallVector<OptReportInfo, 4>> Map;
+  llvm::DenseMap<const FunctionDecl *, SmallVector<OptReportInfo>> Map;
 
 public:
   void AddKernelArgs(const FunctionDecl *FD, std::string ArgName,
                      std::string ArgType, SourceLocation ArgLoc) {
     Map[FD].emplace_back(ArgName, ArgType, ArgLoc);
   }
-  SmallVector<OptReportInfo, 4> &GetInfo(const FunctionDecl *FD) {
+  SmallVector<OptReportInfo> &GetInfo(const FunctionDecl *FD) {
     auto It = Map.find(FD);
     assert(It != Map.end());
     return It->second;

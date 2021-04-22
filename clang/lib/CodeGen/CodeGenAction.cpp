@@ -1038,11 +1038,10 @@ struct OptRecordFileRAII {
 
   OptRecordFileRAII(CodeGenAction &CGA, llvm::LLVMContext &Ctx,
                     BackendConsumer &BC)
-      : Ctx(Ctx) {
+      : Ctx(Ctx), OldDiagnosticHandler(Ctx.getDiagnosticHandler()) {
+
     CompilerInstance &CI = CGA.getCompilerInstance();
     CodeGenOptions &CodeGenOpts = CI.getCodeGenOpts();
-
-    OldDiagnosticHandler = Ctx.getDiagnosticHandler();
 
     Ctx.setDiagnosticHandler(
         std::make_unique<ClangDiagnosticHandler>(CodeGenOpts, &BC));
