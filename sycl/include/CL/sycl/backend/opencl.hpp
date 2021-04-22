@@ -53,6 +53,13 @@ struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
   using type = cl_mem;
 };
 
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
+                                         access::target::image,
+                                         access::placeholder::false_t>> {
+  using type = cl_mem;
+};
+
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct interop<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
   using type = cl_mem;
