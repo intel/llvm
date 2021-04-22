@@ -281,7 +281,7 @@ public:
   void freeChunk(void *Ptr, Slab &Slab);
 
   // Free an allocation that is a full slab in this bucket.
-  void freeSlab(void *Ptr, Slab &Slab);
+  void freeSlab(Slab &Slab);
 
   SystemMemory &getMemHandle();
   USMAllocContext::USMAllocImpl &getUsmAllocCtx() { return OwnAllocCtx; }
@@ -498,7 +498,7 @@ void *Bucket::getSlab() {
   return FreeSlab;
 }
 
-void Bucket::freeSlab(void *Ptr, Slab &Slab) {
+void Bucket::freeSlab(Slab &Slab) {
   std::lock_guard<std::mutex> Lg(BucketLock);
   auto SlabIter = Slab.getIterator();
   assert(SlabIter != UnavailableSlabs.end());
@@ -671,7 +671,7 @@ void USMAllocContext::USMAllocImpl::deallocate(void *Ptr) {
       if (Bucket.getSize() <= settings::ChunkCutOff) {
         Bucket.freeChunk(Ptr, Slab);
       } else {
-        Bucket.freeSlab(Ptr, Slab);
+        Bucket.freeSlab(Slab);
       }
       return;
     }
