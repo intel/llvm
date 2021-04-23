@@ -4339,8 +4339,8 @@ class OffloadingActionBuilder final {
         ActionList WrapperInputs;
         // post link is not optional - even if not splitting, always need to
         // process specialization constants
-        types::ID PostLinkOutType = isNVPTX ? types::TY_LLVM_BC
-                                            : types::TY_Tempfiletable;
+        types::ID PostLinkOutType =
+            isNVPTX ? types::TY_LLVM_BC : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
             FullDeviceLinkAction, PostLinkOutType);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
@@ -4358,9 +4358,8 @@ class OffloadingActionBuilder final {
           // single column w/o title fits TY_Tempfilelist format
           ExtractIRFilesAction->addExtractColumnTform(COL_CODE,
                                                       false /*drop titles*/);
-          Action *BuildCodeAction =
-              C.MakeAction<SPIRVTranslatorJobAction>(ExtractIRFilesAction,
-                                                     types::TY_Tempfilelist);
+          Action *BuildCodeAction = C.MakeAction<SPIRVTranslatorJobAction>(
+              ExtractIRFilesAction, types::TY_Tempfilelist);
 
           // After the Link, wrap the files before the final host link
           if (isSpirvAOT) {
