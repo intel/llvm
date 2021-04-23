@@ -65,7 +65,7 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
     F.setMetadata("sycl_explicit_simd", llvm::MDNode::get(F.getContext(), {}));
 
   // Set the function attribute expected by the vector backend compiler.
-  if (const auto *A = FD.getAttr<SYCLIntelESimdWidenAttr>())
+  if (const auto *A = FD.getAttr<SYCLIntelESimdVectorizeAttr>())
     if (const auto *DeclExpr = dyn_cast<ConstantExpr>(A->getValue())) {
       SmallString<2> Str;
       DeclExpr->getResultAsAPSInt().toString(Str);

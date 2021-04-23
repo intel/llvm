@@ -1239,15 +1239,15 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-// The attribute denotes that it is a function written in SIMT fashion, which
-// is used in ESIMD context and needs to be widened by a vector backend compiler.
+// The attribute denotes that it is a function written in a scalar fashion, which
+// is used in ESIMD context and needs to be vectorized by a vector backend compiler.
 // For now, this attribute will be used only in internal implementation of
 // specific public ESIMD APIs. It is not supposed to be used directly in the
 // user code, hence it is undocumented.
 // The argument of the attribute specifies the number of SIMD lanes, for which
-// the function should be widened.
-def SYCLIntelESimdWiden : InheritableAttr {
-  let Spellings = [CXX11<"intel", "sycl_esimd_widen">];
+// the function should be vectorized.
+def SYCLIntelESimdVectorize : InheritableAttr {
+  let Spellings = [CXX11<"intel", "sycl_esimd_vectorize">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let LangOpts = [SYCLIsDevice];
