@@ -4,14 +4,16 @@
 /// enabling with -fsycl-host-compiler
 // RUN: %clangxx -fsycl -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER %s
-// HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]"
-// HOST_COMPILER: g++{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}} "-include" "[[INTHEADER]]"
+// HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
+// HOST_COMPILER: g++{{.*}} "-E" "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[TMPII:.+\.ii]]"{{.*}} "-include" "[[INTHEADER]]"
+// HOST_COMPILER: g++{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}}
 // HOST_COMPILER: ld{{.*}} "[[HOSTOBJ]]"
 
 // RUN: %clang_cl -fsycl -fsycl-host-compiler=/some/dir/cl %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_CL %s
-// HOST_COMPILER_CL: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]"
-// HOST_COMPILER_CL: cl{{.*}} "-Fo[[HOSTOBJ:.+\.obj]]"{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-FI" "[[INTHEADER]]"
+// HOST_COMPILER_CL: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
+// HOST_COMPILER_CL: cl{{.*}} "-P" "-Fi[[TMPII:.+\.ii]]"{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-FI" "[[INTHEADER]]"
+// HOST_COMPILER_CL: cl{{.*}} "-Fo[[HOSTOBJ:.+\.obj]]"{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}}
 // HOST_COMPILER_CL: link{{.*}} "[[HOSTOBJ]]"
 
 /// check for additional host options

@@ -236,19 +236,20 @@
 // CHK-FPGA-LINK-SRC: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
 // CHK-FPGA-LINK-SRC: 4: compiler, {3}, ir, (device-sycl)
 // CHK-FPGA-LINK-SRC: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {4}, c++-cpp-output
-// CHK-FPGA-LINK-SRC: 6: compiler, {5}, ir, (host-sycl)
-// CHK-FPGA-LINK-SRC: 7: backend, {6}, assembler, (host-sycl)
-// CHK-FPGA-LINK-SRC: 8: assembler, {7}, object, (host-sycl)
-// CHK-FPGA-LINK-SRC: 9: clang-offload-wrapper, {8}, ir, (host-sycl)
-// CHK-FPGA-LINK-SRC: 10: backend, {9}, assembler, (host-sycl)
-// CHK-FPGA-LINK-SRC: 11: assembler, {10}, object, (host-sycl)
-// CHK-FPGA-LINK-SRC: 12: linker, {11}, archive, (host-sycl)
-// CHK-FPGA-LINK-SRC: 13: linker, {4}, ir, (device-sycl)
-// CHK-FPGA-LINK-SRC: 14: sycl-post-link, {13}, ir, (device-sycl)
-// CHK-FPGA-LINK-SRC: 15: llvm-spirv, {14}, spirv, (device-sycl)
-// CHK-FPGA-LINK-SRC: 16: backend-compiler, {15}, fpga_aocr_emu, (device-sycl)
-// CHK-FPGA-LINK-SRC: 17: clang-offload-wrapper, {16}, object, (device-sycl)
-// CHK-FPGA-LINK-SRC: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {12}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {17}, archive
+// CHK-FPGA-LINK-SRC: 6: append-footer, {5}, c++-cpp-output, (host-sycl)
+// CHK-FPGA-LINK-SRC: 7: compiler, {6}, ir, (host-sycl)
+// CHK-FPGA-LINK-SRC: 8: backend, {7}, assembler, (host-sycl)
+// CHK-FPGA-LINK-SRC: 9: assembler, {8}, object, (host-sycl)
+// CHK-FPGA-LINK-SRC: 10: clang-offload-wrapper, {9}, ir, (host-sycl)
+// CHK-FPGA-LINK-SRC: 11: backend, {10}, assembler, (host-sycl)
+// CHK-FPGA-LINK-SRC: 12: assembler, {11}, object, (host-sycl)
+// CHK-FPGA-LINK-SRC: 13: linker, {12}, archive, (host-sycl)
+// CHK-FPGA-LINK-SRC: 14: linker, {4}, ir, (device-sycl)
+// CHK-FPGA-LINK-SRC: 15: sycl-post-link, {14}, ir, (device-sycl)
+// CHK-FPGA-LINK-SRC: 16: llvm-spirv, {15}, spirv, (device-sycl)
+// CHK-FPGA-LINK-SRC: 17: backend-compiler, {16}, fpga_aocr_emu, (device-sycl)
+// CHK-FPGA-LINK-SRC: 18: clang-offload-wrapper, {17}, object, (device-sycl)
+// CHK-FPGA-LINK-SRC: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {13}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {18}, archive
 
 /// -fintelfpga with -reuse-exe=
 // RUN:  touch %t.cpp
