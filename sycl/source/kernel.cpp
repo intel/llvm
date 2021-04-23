@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
 #include <detail/kernel_impl.hpp>
@@ -116,6 +117,8 @@ kernel::get_sub_group_info(
 #undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
+
+pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

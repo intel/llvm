@@ -27,6 +27,7 @@
 #include "flang/Version.inc"
 #include "llvm/Support/Errno.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
@@ -395,6 +396,16 @@ int printVersion() {
   return exitStatus;
 }
 
+// Generate the path to look for intrinsic modules
+static std::string getIntrinsicDir() {
+  // TODO: Find a system independent API
+  llvm::SmallString<128> driverPath;
+  driverPath.assign(llvm::sys::fs::getMainExecutable(nullptr, nullptr));
+  llvm::sys::path::remove_filename(driverPath);
+  driverPath.append("/../include/flang/");
+  return std::string(driverPath);
+}
+
 int main(int argc, char *const argv[]) {
 
   atexit(CleanUpAtExit);
@@ -430,6 +441,10 @@ int main(int argc, char *const argv[]) {
 
   std::vector<std::string> fortranSources, otherSources;
   bool anyFiles{false};
+
+  // Add the default intrinsic module directory to the list of search
+  // directories
+  driver.searchDirectories.push_back(getIntrinsicDir());
 
   while (!args.empty()) {
     std::string arg{std::move(args.front())};
@@ -496,8 +511,14 @@ int main(int argc, char *const argv[]) {
     } else if (arg == "-fopenmp") {
       options.features.Enable(Fortran::common::LanguageFeature::OpenMP);
       predefinitions.emplace_back("_OPENMP", "201511");
-    } else if (arg == "-Werror") {
-      driver.warningsAreErrors = true;
+    } else if (arg.find("-W") != std::string::npos) {
+      if (arg == "-Werror")
+        driver.warningsAreErrors = true;
+      else {
+        // Only -Werror is supported currently
+        llvm::errs() << "Only `-Werror` is supported currently.\n";
+        return EXIT_FAILURE;
+      }
     } else if (arg == "-ed") {
       options.features.Enable(Fortran::common::LanguageFeature::OldDebugLines);
     } else if (arg == "-E") {
@@ -543,6 +564,13 @@ int main(int argc, char *const argv[]) {
       options.instrumentedParse = true;
     } else if (arg == "-fdebug-no-semantics") {
       driver.debugNoSemantics = true;
+    } else if (arg == "-fdebug-unparse-no-sema") {
+      driver.debugNoSemantics = true;
+      driver.dumpUnparse = true;
+    } else if (arg == "-fdebug-dump-parse-tree-no-sema") {
+      driver.debugNoSemantics = true;
+      driver.dumpParseTree = true;
+      driver.syntaxOnly = true;
     } else if (arg == "-funparse" || arg == "-fdebug-unparse") {
       driver.dumpUnparse = true;
     } else if (arg == "-funparse-with-symbols" ||
@@ -603,8 +631,11 @@ int main(int argc, char *const argv[]) {
     } else if (arg == "-module-suffix") {
       driver.moduleFileSuffix = args.front();
       args.pop_front();
-    } else if (arg == "-intrinsic-module-directory") {
-      driver.searchDirectories.push_back(args.front());
+    } else if (arg == "-intrinsic-module-directory" ||
+        arg == "-fintrinsic-modules-path") {
+      // prepend to the list of search directories
+      driver.searchDirectories.insert(
+          driver.searchDirectories.begin(), args.front());
       args.pop_front();
     } else if (arg == "-futf-8") {
       driver.encoding = Fortran::parser::Encoding::UTF_8;

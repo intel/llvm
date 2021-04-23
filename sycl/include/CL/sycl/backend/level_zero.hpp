@@ -50,6 +50,10 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
 };
 
 namespace detail {
+template <> class BackendReturn<backend::level_zero, kernel> {
+  using type = ze_kernel_handle_t;
+};
+
 template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = false;
@@ -58,6 +62,7 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakeEvent = false;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
+  static constexpr bool MakeKernelBundle = false;
 };
 } // namespace detail
 

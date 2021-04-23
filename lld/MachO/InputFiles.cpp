@@ -66,8 +66,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
-#include "llvm/TextAPI/MachO/Architecture.h"
-#include "llvm/TextAPI/MachO/InterfaceFile.h"
+#include "llvm/TextAPI/Architecture.h"
+#include "llvm/TextAPI/InterfaceFile.h"
 
 using namespace llvm;
 using namespace llvm::MachO;
@@ -153,11 +153,12 @@ Optional<MemoryBufferRef> macho::readFile(StringRef path) {
 InputFile::InputFile(Kind kind, const InterfaceFile &interface)
     : id(idCount++), fileKind(kind), name(saver.save(interface.getPath())) {}
 
-void ObjFile::parseSections(ArrayRef<section_64> sections) {
+template <class Section>
+void ObjFile::parseSections(ArrayRef<Section> sections) {
   subsections.reserve(sections.size());
   auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
 
-  for (const section_64 &sec : sections) {
+  for (const Section &sec : sections) {
     InputSection *isec = make<InputSection>();
     isec->file = this;
     isec->name =
@@ -195,13 +196,17 @@ void ObjFile::parseSections(ArrayRef<section_64> sections) {
 // same location as an offset relative to the start of the containing
 // subsection.
 static InputSection *findContainingSubsection(SubsectionMap &map,
-                                              uint32_t *offset) {
-  auto it = std::prev(map.upper_bound(*offset));
-  *offset -= it->first;
-  return it->second;
+                                              uint64_t *offset) {
+  auto it = std::prev(llvm::upper_bound(
+      map, *offset, [](uint64_t value, SubsectionEntry subsecEntry) {
+        return value < subsecEntry.offset;
+      }));
+  *offset -= it->offset;
+  return it->isec;
 }
 
-static bool validateRelocationInfo(InputFile *file, const section_64 &sec,
+template <class Section>
+static bool validateRelocationInfo(InputFile *file, const Section &sec,
                                    relocation_info rel) {
   const RelocAttrs &relocAttrs = target->getRelocAttrs(rel.r_type);
   bool valid = true;
@@ -232,8 +237,9 @@ static bool validateRelocationInfo(InputFile *file, const section_64 &sec,
   return valid;
 }
 
-void ObjFile::parseRelocations(const section_64 &sec,
-                               SubsectionMap &subsecMap) {
+template <class Section>
+void ObjFile::parseRelocations(ArrayRef<Section> sectionHeaders,
+                               const Section &sec, SubsectionMap &subsecMap) {
   auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
   ArrayRef<relocation_info> relInfos(
       reinterpret_cast<const relocation_info *>(buf + sec.reloff), sec.nreloc);
@@ -276,7 +282,7 @@ void ObjFile::parseRelocations(const section_64 &sec,
     if (relInfo.r_address & R_SCATTERED)
       fatal("TODO: Scattered relocations not supported");
 
-    int64_t embeddedAddend = target->getEmbeddedAddend(mb, sec, relInfo);
+    int64_t embeddedAddend = target->getEmbeddedAddend(mb, sec.offset, relInfo);
     assert(!(embeddedAddend && pairedAddend));
     int64_t totalAddend = pairedAddend + embeddedAddend;
     Reloc r;
@@ -289,8 +295,8 @@ void ObjFile::parseRelocations(const section_64 &sec,
       r.addend = totalAddend;
     } else {
       SubsectionMap &referentSubsecMap = subsections[relInfo.r_symbolnum - 1];
-      const section_64 &referentSec = sectionHeaders[relInfo.r_symbolnum - 1];
-      uint32_t referentOffset;
+      const Section &referentSec = sectionHeaders[relInfo.r_symbolnum - 1];
+      uint64_t referentOffset;
       if (relInfo.r_pcrel) {
         // The implicit addend for pcrel section relocations is the pcrel offset
         // in terms of the addresses in the input file. Here we adjust it so
@@ -326,9 +332,10 @@ void ObjFile::parseRelocations(const section_64 &sec,
   }
 }
 
-static macho::Symbol *createDefined(const structs::nlist_64 &sym,
-                                    StringRef name, InputSection *isec,
-                                    uint32_t value) {
+template <class NList>
+static macho::Symbol *createDefined(const NList &sym, StringRef name,
+                                    InputSection *isec, uint64_t value,
+                                    uint64_t size) {
   // Symbol scope is determined by sym.n_type & (N_EXT | N_PEXT):
   // N_EXT: Global symbols
   // N_EXT | N_PEXT: Linkage unit (think: dylib) scoped
@@ -338,10 +345,11 @@ static macho::Symbol *createDefined(const structs::nlist_64 &sym,
 
   if (sym.n_type & (N_EXT | N_PEXT)) {
     assert((sym.n_type & N_EXT) && "invalid input");
-    return symtab->addDefined(name, isec->file, isec, value,
+    return symtab->addDefined(name, isec->file, isec, value, size,
                               sym.n_desc & N_WEAK_DEF, sym.n_type & N_PEXT);
   }
-  return make<Defined>(name, isec->file, isec, value, sym.n_desc & N_WEAK_DEF,
+  return make<Defined>(name, isec->file, isec, value, size,
+                       sym.n_desc & N_WEAK_DEF,
                        /*isExternal=*/false, /*isPrivateExtern=*/false);
 }
 
@@ -373,18 +381,21 @@ static bool hasCompatVersion(const InputFile *input,
 
 // Absolute symbols are defined symbols that do not have an associated
 // InputSection. They cannot be weak.
-static macho::Symbol *createAbsolute(const structs::nlist_64 &sym,
-                                     InputFile *file, StringRef name) {
+template <class NList>
+static macho::Symbol *createAbsolute(const NList &sym, InputFile *file,
+                                     StringRef name) {
   if (sym.n_type & (N_EXT | N_PEXT)) {
     assert((sym.n_type & N_EXT) && "invalid input");
-    return symtab->addDefined(name, file, nullptr, sym.n_value,
+    return symtab->addDefined(name, file, nullptr, sym.n_value, /*size=*/0,
                               /*isWeakDef=*/false, sym.n_type & N_PEXT);
   }
-  return make<Defined>(name, file, nullptr, sym.n_value, /*isWeakDef=*/false,
+  return make<Defined>(name, file, nullptr, sym.n_value, /*size=*/0,
+                       /*isWeakDef=*/false,
                        /*isExternal=*/false, /*isPrivateExtern=*/false);
 }
 
-macho::Symbol *ObjFile::parseNonSectionSymbol(const structs::nlist_64 &sym,
+template <class NList>
+macho::Symbol *ObjFile::parseNonSectionSymbol(const NList &sym,
                                               StringRef name) {
   uint8_t type = sym.n_type & N_TYPE;
   switch (type) {
@@ -408,83 +419,83 @@ macho::Symbol *ObjFile::parseNonSectionSymbol(const structs::nlist_64 &sym,
   }
 }
 
-void ObjFile::parseSymbols(ArrayRef<structs::nlist_64> nList,
+template <class LP>
+void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
+                           ArrayRef<typename LP::nlist> nList,
                            const char *strtab, bool subsectionsViaSymbols) {
-  // resize(), not reserve(), because we are going to create N_ALT_ENTRY symbols
-  // out-of-sequence.
+  using NList = typename LP::nlist;
+
+  // Groups indices of the symbols by the sections that contain them.
+  std::vector<std::vector<uint32_t>> symbolsBySection(subsections.size());
   symbols.resize(nList.size());
-  std::vector<size_t> altEntrySymIdxs;
-
-  for (size_t i = 0, n = nList.size(); i < n; ++i) {
-    const structs::nlist_64 &sym = nList[i];
+  for (uint32_t i = 0; i < nList.size(); ++i) {
+    const NList &sym = nList[i];
     StringRef name = strtab + sym.n_strx;
-
-    if ((sym.n_type & N_TYPE) != N_SECT) {
+    if ((sym.n_type & N_TYPE) == N_SECT) {
+      SubsectionMap &subsecMap = subsections[sym.n_sect - 1];
+      // parseSections() may have chosen not to parse this section.
+      if (subsecMap.empty())
+        continue;
+      symbolsBySection[sym.n_sect - 1].push_back(i);
+    } else {
       symbols[i] = parseNonSectionSymbol(sym, name);
-      continue;
     }
+  }
 
-    const section_64 &sec = sectionHeaders[sym.n_sect - 1];
-    SubsectionMap &subsecMap = subsections[sym.n_sect - 1];
-
-    // parseSections() may have chosen not to parse this section.
+  // Calculate symbol sizes and create subsections by splitting the sections
+  // along symbol boundaries.
+  for (size_t i = 0; i < subsections.size(); ++i) {
+    SubsectionMap &subsecMap = subsections[i];
     if (subsecMap.empty())
       continue;
 
-    uint64_t offset = sym.n_value - sec.addr;
+    std::vector<uint32_t> &symbolIndices = symbolsBySection[i];
+    llvm::sort(symbolIndices, [&](uint32_t lhs, uint32_t rhs) {
+      return nList[lhs].n_value < nList[rhs].n_value;
+    });
+    uint64_t sectionAddr = sectionHeaders[i].addr;
 
-    // If the input file does not use subsections-via-symbols, all symbols can
-    // use the same subsection. Otherwise, we must split the sections along
-    // symbol boundaries.
-    if (!subsectionsViaSymbols) {
-      symbols[i] = createDefined(sym, name, subsecMap[0], offset);
-      continue;
+    // We populate subsecMap by repeatedly splitting the last (highest address)
+    // subsection.
+    SubsectionEntry subsecEntry = subsecMap.back();
+    for (size_t j = 0; j < symbolIndices.size(); ++j) {
+      uint32_t symIndex = symbolIndices[j];
+      const NList &sym = nList[symIndex];
+      StringRef name = strtab + sym.n_strx;
+      InputSection *isec = subsecEntry.isec;
+
+      uint64_t subsecAddr = sectionAddr + subsecEntry.offset;
+      uint64_t symbolOffset = sym.n_value - subsecAddr;
+      uint64_t symbolSize =
+          j + 1 < symbolIndices.size()
+              ? nList[symbolIndices[j + 1]].n_value - sym.n_value
+              : isec->data.size() - symbolOffset;
+      // There are 3 cases where we do not need to create a new subsection:
+      //   1. If the input file does not use subsections-via-symbols.
+      //   2. Multiple symbols at the same address only induce one subsection.
+      //   3. Alternative entry points do not induce new subsections.
+      if (!subsectionsViaSymbols || symbolOffset == 0 ||
+          sym.n_desc & N_ALT_ENTRY) {
+        symbols[symIndex] =
+            createDefined(sym, name, isec, symbolOffset, symbolSize);
+        continue;
+      }
+
+      auto *nextIsec = make<InputSection>(*isec);
+      nextIsec->data = isec->data.slice(symbolOffset);
+      isec->data = isec->data.slice(0, symbolOffset);
+
+      // By construction, the symbol will be at offset zero in the new
+      // subsection.
+      symbols[symIndex] =
+          createDefined(sym, name, nextIsec, /*value=*/0, symbolSize);
+      // TODO: ld64 appears to preserve the original alignment as well as each
+      // subsection's offset from the last aligned address. We should consider
+      // emulating that behavior.
+      nextIsec->align = MinAlign(isec->align, sym.n_value);
+      subsecMap.push_back({sym.n_value - sectionAddr, nextIsec});
+      subsecEntry = subsecMap.back();
     }
-
-    // nList entries aren't necessarily arranged in address order. Therefore,
-    // we can't create alt-entry symbols at this point because a later symbol
-    // may split its section, which may affect which subsection the alt-entry
-    // symbol is assigned to. So we need to handle them in a second pass below.
-    if (sym.n_desc & N_ALT_ENTRY) {
-      altEntrySymIdxs.push_back(i);
-      continue;
-    }
-
-    // Find the subsection corresponding to the greatest section offset that is
-    // <= that of the current symbol. The subsection that we find either needs
-    // to be used directly or split in two.
-    uint32_t firstSize = offset;
-    InputSection *firstIsec = findContainingSubsection(subsecMap, &firstSize);
-
-    if (firstSize == 0) {
-      // Alias of an existing symbol, or the first symbol in the section. These
-      // are handled by reusing the existing section.
-      symbols[i] = createDefined(sym, name, firstIsec, 0);
-      continue;
-    }
-
-    // We saw a symbol definition at a new offset. Split the section into two
-    // subsections. The new symbol uses the second subsection.
-    auto *secondIsec = make<InputSection>(*firstIsec);
-    secondIsec->data = firstIsec->data.slice(firstSize);
-    firstIsec->data = firstIsec->data.slice(0, firstSize);
-    // TODO: ld64 appears to preserve the original alignment as well as each
-    // subsection's offset from the last aligned address. We should consider
-    // emulating that behavior.
-    secondIsec->align = MinAlign(firstIsec->align, offset);
-
-    subsecMap[offset] = secondIsec;
-    // By construction, the symbol will be at offset zero in the new section.
-    symbols[i] = createDefined(sym, name, secondIsec, 0);
-  }
-
-  for (size_t idx : altEntrySymIdxs) {
-    const structs::nlist_64 &sym = nList[idx];
-    StringRef name = strtab + sym.n_strx;
-    SubsectionMap &subsecMap = subsections[sym.n_sect - 1];
-    uint32_t off = sym.n_value - sectionHeaders[sym.n_sect - 1].addr;
-    InputSection *subsec = findContainingSubsection(subsecMap, &off);
-    symbols[idx] = createDefined(sym, name, subsec, off);
   }
 }
 
@@ -503,9 +514,20 @@ OpaqueFile::OpaqueFile(MemoryBufferRef mb, StringRef segName,
 ObjFile::ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName)
     : InputFile(ObjKind, mb), modTime(modTime) {
   this->archiveName = std::string(archiveName);
+  if (target->wordSize == 8)
+    parse<LP64>();
+  else
+    parse<ILP32>();
+}
+
+template <class LP> void ObjFile::parse() {
+  using Header = typename LP::mach_header;
+  using SegmentCommand = typename LP::segment_command;
+  using Section = typename LP::section;
+  using NList = typename LP::nlist;
 
   auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
-  auto *hdr = reinterpret_cast<const mach_header_64 *>(mb.getBufferStart());
+  auto *hdr = reinterpret_cast<const Header *>(mb.getBufferStart());
 
   Architecture arch = getArchitectureFromCpuType(hdr->cputype, hdr->cpusubtype);
   if (arch != config->target.Arch) {
@@ -528,28 +550,29 @@ ObjFile::ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName)
     parseLCLinkerOption(this, c->count, data);
   }
 
-  if (const load_command *cmd = findCommand(hdr, LC_SEGMENT_64)) {
-    auto *c = reinterpret_cast<const segment_command_64 *>(cmd);
-    sectionHeaders = ArrayRef<section_64>{
-        reinterpret_cast<const section_64 *>(c + 1), c->nsects};
+  ArrayRef<Section> sectionHeaders;
+  if (const load_command *cmd = findCommand(hdr, LP::segmentLCType)) {
+    auto *c = reinterpret_cast<const SegmentCommand *>(cmd);
+    sectionHeaders =
+        ArrayRef<Section>{reinterpret_cast<const Section *>(c + 1), c->nsects};
     parseSections(sectionHeaders);
   }
 
   // TODO: Error on missing LC_SYMTAB?
   if (const load_command *cmd = findCommand(hdr, LC_SYMTAB)) {
     auto *c = reinterpret_cast<const symtab_command *>(cmd);
-    ArrayRef<structs::nlist_64> nList(
-        reinterpret_cast<const structs::nlist_64 *>(buf + c->symoff), c->nsyms);
+    ArrayRef<NList> nList(reinterpret_cast<const NList *>(buf + c->symoff),
+                          c->nsyms);
     const char *strtab = reinterpret_cast<const char *>(buf) + c->stroff;
     bool subsectionsViaSymbols = hdr->flags & MH_SUBSECTIONS_VIA_SYMBOLS;
-    parseSymbols(nList, strtab, subsectionsViaSymbols);
+    parseSymbols<LP>(sectionHeaders, nList, strtab, subsectionsViaSymbols);
   }
 
   // The relocations may refer to the symbols, so we parse them after we have
   // parsed all the symbols.
   for (size_t i = 0, n = subsections.size(); i < n; ++i)
     if (!subsections[i].empty())
-      parseRelocations(sectionHeaders[i], subsections[i]);
+      parseRelocations(sectionHeaders, sectionHeaders[i], subsections[i]);
 
   parseDebugInfo();
 }
@@ -660,8 +683,16 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
   if (umbrella == nullptr)
     umbrella = this;
 
+  if (target->wordSize == 8)
+    parse<LP64>(umbrella);
+  else
+    parse<ILP32>(umbrella);
+}
+
+template <class LP> void DylibFile::parse(DylibFile *umbrella) {
+  using Header = typename LP::mach_header;
   auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
-  auto *hdr = reinterpret_cast<const mach_header_64 *>(mb.getBufferStart());
+  auto *hdr = reinterpret_cast<const Header *>(mb.getBufferStart());
 
   // Initialize dylibName.
   if (const load_command *cmd = findCommand(hdr, LC_ID_DYLIB)) {
@@ -698,8 +729,7 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
     return;
   }
 
-  const uint8_t *p =
-      reinterpret_cast<const uint8_t *>(hdr) + sizeof(mach_header_64);
+  const uint8_t *p = reinterpret_cast<const uint8_t *>(hdr) + sizeof(Header);
   for (uint32_t i = 0, n = hdr->ncmds; i < n; ++i) {
     auto *cmd = reinterpret_cast<const load_command *>(p);
     p += cmd->cmdsize;
@@ -857,7 +887,7 @@ static macho::Symbol *createBitcodeSymbol(const lto::InputFile::Symbol &objSym,
   }
 
   return symtab->addDefined(name, &file, /*isec=*/nullptr, /*value=*/0,
-                            objSym.isWeak(), isPrivateExtern);
+                            /*size=*/0, objSym.isWeak(), isPrivateExtern);
 }
 
 BitcodeFile::BitcodeFile(MemoryBufferRef mbref)
@@ -870,3 +900,6 @@ BitcodeFile::BitcodeFile(MemoryBufferRef mbref)
   for (const lto::InputFile::Symbol &objSym : obj->symbols())
     symbols.push_back(createBitcodeSymbol(objSym, *this));
 }
+
+template void ObjFile::parse<LP64>();
+template void DylibFile::parse<LP64>(DylibFile *umbrella);

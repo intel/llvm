@@ -170,7 +170,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     // Memory movement operations should be omitted for discard access modes.
     detail::Command *MemoryMove =
         MS.insertMemoryMove(Record, &DiscardReq, DefaultHostQueue);
-    EXPECT_EQ(MemoryMove, nullptr);
+    EXPECT_TRUE(MemoryMove == nullptr);
     // The current context for the record should still be modified.
     EXPECT_EQ(Record->MCurContext, DefaultHostQueue->getContextImplPtr());
   }

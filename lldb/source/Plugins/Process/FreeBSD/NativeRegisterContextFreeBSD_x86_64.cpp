@@ -260,7 +260,7 @@ NativeRegisterContextFreeBSD_x86_64::NativeRegisterContextFreeBSD_x86_64(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
     : NativeRegisterContextRegisterInfo(
           native_thread, CreateRegisterInfoInterface(target_arch)),
-      m_regset_offsets({0}) {
+      NativeRegisterContextDBReg_x86(native_thread), m_regset_offsets({0}) {
   assert(m_gpr.size() == GetRegisterInfoInterface().GetGPRSize());
   std::array<uint32_t, MaxRegSet + 1> first_regnos;
 
@@ -651,6 +651,12 @@ NativeRegisterContextFreeBSD_x86_64::GetYMMSplitReg(uint32_t reg) {
   auto *ymmreg = reinterpret_cast<struct ymmacc *>(m_xsave.data() + offset);
 
   return YMMSplitPtr{&fpreg->sv_xmm[reg_index], &ymmreg[reg_index]};
+}
+
+llvm::Error NativeRegisterContextFreeBSD_x86_64::ClearDBRegs() {
+  uint64_t zero = 0;
+  RegisterValue dr7{zero};
+  return WriteRegister(GetDR(7), dr7).ToError();
 }
 
 #endif // defined(__x86_64__)

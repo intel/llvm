@@ -147,7 +147,7 @@ void AMDGPUInstPrinter::printFlatOffset(const MCInst *MI, unsigned OpNo,
 
     const MCInstrDesc &Desc = MII.get(MI->getOpcode());
     bool IsFlatSeg = !(Desc.TSFlags &
-        (SIInstrFlags::IsFlatGlobal | SIInstrFlags::IsFlatScratch));
+                       (SIInstrFlags::FlatGlobal | SIInstrFlags::FlatScratch));
 
     if (IsFlatSeg) { // Unsigned offset
       printU16ImmDecOperand(MI, OpNo, O);
@@ -362,22 +362,30 @@ void AMDGPUInstPrinter::printRegOperand(unsigned RegNo, raw_ostream &O,
 }
 
 void AMDGPUInstPrinter::printVOPDst(const MCInst *MI, unsigned OpNo,
-                                    const MCSubtargetInfo &STI, raw_ostream &O) {
+                                    const MCSubtargetInfo &STI,
+                                    raw_ostream &O) {
+  auto Opcode = MI->getOpcode();
+  auto Flags = MII.get(Opcode).TSFlags;
+
   if (OpNo == 0) {
-    if (MII.get(MI->getOpcode()).TSFlags & SIInstrFlags::VOP3)
-      O << "_e64 ";
-    else if (MII.get(MI->getOpcode()).TSFlags & SIInstrFlags::DPP)
-      O << "_dpp ";
-    else if (MII.get(MI->getOpcode()).TSFlags & SIInstrFlags::SDWA)
-      O << "_sdwa ";
-    else
-      O << "_e32 ";
+    if (Flags & SIInstrFlags::VOP3) {
+      if (!getVOP3IsSingle(Opcode))
+        O << "_e64";
+    } else if (Flags & SIInstrFlags::DPP) {
+      O << "_dpp";
+    } else if (Flags & SIInstrFlags::SDWA) {
+      O << "_sdwa";
+    } else if (((Flags & SIInstrFlags::VOP1) && !getVOP1IsSingle(Opcode)) ||
+               ((Flags & SIInstrFlags::VOP2) && !getVOP2IsSingle(Opcode))) {
+      O << "_e32";
+    }
+    O << " ";
   }
 
   printOperand(MI, OpNo, STI, O);
 
   // Print default vcc/vcc_lo operand.
-  switch (MI->getOpcode()) {
+  switch (Opcode) {
   default: break;
 
   case AMDGPU::V_ADD_CO_CI_U32_e32_gfx10:
@@ -873,7 +881,7 @@ void AMDGPUInstPrinter::printDPPCtrl(const MCInst *MI, unsigned OpNo,
   } else if ((Imm >= DppCtrl::ROW_SHARE_FIRST) &&
              (Imm <= DppCtrl::ROW_SHARE_LAST)) {
     if (AMDGPU::isGFX90A(STI)) {
-      O << " row_newbcast:";
+      O << "row_newbcast:";
     } else if (AMDGPU::isGFX10Plus(STI)) {
       O << "row_share:";
     } else {

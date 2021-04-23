@@ -1245,7 +1245,7 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
                              &*Builder.GetInsertPoint());
           // This dbg.declare is for the main function entry point.  It
           // will be deleted in all coro-split functions.
-          coro::salvageDebugInfo(DbgPtrAllocaCache, DDI);
+          coro::salvageDebugInfo(DbgPtrAllocaCache, DDI, Shape.ReuseFrameSlot);
         }
       }
 
@@ -1356,77 +1356,6 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
     }
   }
   return FramePtr;
-}
-
-// Sets the unwind edge of an instruction to a particular successor.
-static void setUnwindEdgeTo(Instruction *TI, BasicBlock *Succ) {
-  if (auto *II = dyn_cast<InvokeInst>(TI))
-    II->setUnwindDest(Succ);
-  else if (auto *CS = dyn_cast<CatchSwitchInst>(TI))
-    CS->setUnwindDest(Succ);
-  else if (auto *CR = dyn_cast<CleanupReturnInst>(TI))
-    CR->setUnwindDest(Succ);
-  else
-    llvm_unreachable("unexpected terminator instruction");
-}
-
-// Replaces all uses of OldPred with the NewPred block in all PHINodes in a
-// block.
-static void updatePhiNodes(BasicBlock *DestBB, BasicBlock *OldPred,
-                           BasicBlock *NewPred, PHINode *Until = nullptr) {
-  unsigned BBIdx = 0;
-  for (BasicBlock::iterator I = DestBB->begin(); isa<PHINode>(I); ++I) {
-    PHINode *PN = cast<PHINode>(I);
-
-    // We manually update the LandingPadReplacement PHINode and it is the last
-    // PHI Node. So, if we find it, we are done.
-    if (Until == PN)
-      break;
-
-    // Reuse the previous value of BBIdx if it lines up.  In cases where we
-    // have multiple phi nodes with *lots* of predecessors, this is a speed
-    // win because we don't have to scan the PHI looking for TIBB.  This
-    // happens because the BB list of PHI nodes are usually in the same
-    // order.
-    if (PN->getIncomingBlock(BBIdx) != OldPred)
-      BBIdx = PN->getBasicBlockIndex(OldPred);
-
-    assert(BBIdx != (unsigned)-1 && "Invalid PHI Index!");
-    PN->setIncomingBlock(BBIdx, NewPred);
-  }
-}
-
-// Uses SplitEdge unless the successor block is an EHPad, in which case do EH
-// specific handling.
-static BasicBlock *ehAwareSplitEdge(BasicBlock *BB, BasicBlock *Succ,
-                                    LandingPadInst *OriginalPad,
-                                    PHINode *LandingPadReplacement) {
-  auto *PadInst = Succ->getFirstNonPHI();
-  if (!LandingPadReplacement && !PadInst->isEHPad())
-    return SplitEdge(BB, Succ);
-
-  auto *NewBB = BasicBlock::Create(BB->getContext(), "", BB->getParent(), Succ);
-  setUnwindEdgeTo(BB->getTerminator(), NewBB);
-  updatePhiNodes(Succ, BB, NewBB, LandingPadReplacement);
-
-  if (LandingPadReplacement) {
-    auto *NewLP = OriginalPad->clone();
-    auto *Terminator = BranchInst::Create(Succ, NewBB);
-    NewLP->insertBefore(Terminator);
-    LandingPadReplacement->addIncoming(NewLP, NewBB);
-    return NewBB;
-  }
-  Value *ParentPad = nullptr;
-  if (auto *FuncletPad = dyn_cast<FuncletPadInst>(PadInst))
-    ParentPad = FuncletPad->getParentPad();
-  else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(PadInst))
-    ParentPad = CatchSwitch->getParentPad();
-  else
-    llvm_unreachable("handling for other EHPads not implemented yet");
-
-  auto *NewCleanupPad = CleanupPadInst::Create(ParentPad, {}, "", NewBB);
-  CleanupReturnInst::Create(NewCleanupPad, Succ, NewBB);
-  return NewBB;
 }
 
 // Moves the values in the PHIs in SuccBB that correspong to PredBB into a new
@@ -2144,7 +2073,7 @@ static void collectFrameAllocas(Function &F, coro::Shape &Shape,
 
 void coro::salvageDebugInfo(
     SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> &DbgPtrAllocaCache,
-    DbgDeclareInst *DDI) {
+    DbgDeclareInst *DDI, bool ReuseFrameSlot) {
   Function *F = DDI->getFunction();
   IRBuilder<> Builder(F->getContext());
   auto InsertPt = F->getEntryBlock().getFirstInsertionPt();
@@ -2172,10 +2101,15 @@ void coro::salvageDebugInfo(
     } else if (auto *StInst = dyn_cast<StoreInst>(Storage)) {
       Storage = StInst->getOperand(0);
     } else if (auto *GEPInst = dyn_cast<GetElementPtrInst>(Storage)) {
-      Expr = llvm::salvageDebugInfoImpl(*GEPInst, Expr,
-                                        /*WithStackValue=*/false, 0);
-      if (!Expr)
-        return;
+      SmallVector<Value *> AdditionalValues;
+      DIExpression *SalvagedExpr = llvm::salvageDebugInfoImpl(
+          *GEPInst, Expr,
+          /*WithStackValue=*/false, 0, AdditionalValues);
+      // Debug declares cannot currently handle additional location
+      // operands.
+      if (!SalvagedExpr || !AdditionalValues.empty())
+        break;
+      Expr = SalvagedExpr;
       Storage = GEPInst->getOperand(0);
     } else if (auto *BCInst = dyn_cast<llvm::BitCastInst>(Storage))
       Storage = BCInst->getOperand(0);
@@ -2189,28 +2123,34 @@ void coro::salvageDebugInfo(
   // is available throughout the function when producing unoptimized
   // code. Extending the lifetime this way is correct because the
   // variable has been declared by a dbg.declare intrinsic.
-  if (auto Arg = dyn_cast_or_null<llvm::Argument>(Storage)) {
-    auto &Cached = DbgPtrAllocaCache[Storage];
-    if (!Cached) {
-      Cached = Builder.CreateAlloca(Storage->getType(), 0, nullptr,
-                                    Arg->getName() + ".debug");
-      Builder.CreateStore(Storage, Cached);
+  //
+  // Avoid to create the alloca would be eliminated by optimization
+  // passes and the corresponding dbg.declares would be invalid.
+  if (!ReuseFrameSlot && !EnableReuseStorageInFrame)
+    if (auto *Arg = dyn_cast<llvm::Argument>(Storage)) {
+      auto &Cached = DbgPtrAllocaCache[Storage];
+      if (!Cached) {
+        Cached = Builder.CreateAlloca(Storage->getType(), 0, nullptr,
+                                      Arg->getName() + ".debug");
+        Builder.CreateStore(Storage, Cached);
+      }
+      Storage = Cached;
+      // FIXME: LLVM lacks nuanced semantics to differentiate between
+      // memory and direct locations at the IR level. The backend will
+      // turn a dbg.declare(alloca, ..., DIExpression()) into a memory
+      // location. Thus, if there are deref and offset operations in the
+      // expression, we need to add a DW_OP_deref at the *start* of the
+      // expression to first load the contents of the alloca before
+      // adjusting it with the expression.
+      if (Expr && Expr->isComplex())
+        Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
     }
-    Storage = Cached;
-    // FIXME: LLVM lacks nuanced semantics to differentiate between
-    // memory and direct locations at the IR level. The backend will
-    // turn a dbg.declare(alloca, ..., DIExpression()) into a memory
-    // location. Thus, if there are deref and offset operations in the
-    // expression, we need to add a DW_OP_deref at the *start* of the
-    // expression to first load the contents of the alloca before
-    // adjusting it with the expression.
-    if (Expr && Expr->isComplex())
-      Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
-  }
   DDI->replaceVariableLocationOp(OriginalStorage, Storage);
   DDI->setExpression(Expr);
-  if (auto *InsertPt = dyn_cast_or_null<Instruction>(Storage))
+  if (auto *InsertPt = dyn_cast<Instruction>(Storage))
     DDI->moveAfter(InsertPt);
+  else if (isa<Argument>(Storage))
+    DDI->moveAfter(F->getEntryBlock().getFirstNonPHI());
 }
 
 void coro::buildCoroutineFrame(Function &F, Shape &Shape) {

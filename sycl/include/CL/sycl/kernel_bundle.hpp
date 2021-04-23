@@ -11,6 +11,8 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel.hpp>
 
@@ -20,6 +22,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+// Forward declaration
+template <backend Backend> class backend_traits;
 
 enum class bundle_state : char { input = 0, object = 1, executable = 2 };
 
@@ -80,6 +84,8 @@ public:
   bool has_kernel(const kernel_id &KernelID) const noexcept;
 
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
+
+  pi_native_handle getNative() const;
 
 protected:
   detail::DeviceImageImplPtr impl;
@@ -158,22 +164,6 @@ public:
   bool native_specialization_constant() const noexcept;
 
 protected:
-  // \returns true if the kernel_bundle has the specialization constant with
-  // specified ID
-  bool has_specialization_constant(unsigned int SpecID) const noexcept;
-
-  // Sets the specialization constant with specified ID to the value pointed by
-  // Value + ValueSize
-  void set_specialization_constant_raw_value(unsigned int SpecID,
-                                             const void *Value,
-                                             size_t ValueSize);
-
-  // \returns pointer to the value of the specialization constant with specified
-  // ID
-  void get_specialization_constant_raw_value(unsigned int SpecID,
-                                             void *ValueRet,
-                                             size_t ValueSize) const;
-
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
   kernel get_kernel(const kernel_id &KernelID) const;
@@ -183,6 +173,16 @@ protected:
 
   // \returns an iterator to the last device image kernel_bundle contains
   const device_image_plain *end() const;
+
+  bool has_specialization_constant_impl(const char *SpecName) const noexcept;
+
+  void set_specialization_constant_impl(const char *SpecName,
+                                        void *Value) noexcept;
+
+  void get_specialization_constant_impl(const char *SpecName, void *Value) const
+      noexcept;
+
+  bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
   detail::KernelBundleImplPtr impl;
 };
@@ -263,9 +263,8 @@ public:
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
-    assert(false && "has_specialization_constant is not implemented yet");
-    unsigned int SpecID = 0; // TODO: Convert SpecName to a numeric ID
-    return kernel_bundle_plain::has_specialization_constant(SpecID);
+    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    return has_specialization_constant_impl(SpecSymName);
   }
 
   /// Sets the value of the specialization constant whose address is SpecName
@@ -274,24 +273,28 @@ public:
   template <auto &SpecName, bundle_state _State = State,
             typename = detail::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
-      typename std::remove_reference_t<decltype(SpecName)>::type Value) {
-    assert(false && "set_specialization_constant is not implemented yet");
-    unsigned int SpecID = 0; // TODO: Convert SpecName to a numeric ID
-    return kernel_bundle_plain::set_specialization_constant_raw_value(
-        SpecID, &Value, sizeof(Value));
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
+    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    set_specialization_constant_impl(SpecSymName, &Value);
   }
 
-  /// The value of the specialization constant whose address is SpecName for
-  /// this kernel bundle.
+  /// \returns the value of the specialization constant whose address is
+  /// SpecName for this kernel bundle.
   template <auto &SpecName>
-  typename std::remove_reference_t<decltype(SpecName)>::type
+  typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
-    assert(false && "get_specialization_constant is not implemented yet");
-    unsigned int SpecID = 0; // TODO: Convert SpecName to a numeric ID
-    typename std::remove_reference_t<decltype(SpecName)>::type Value;
-    kernel_bundle_plain::get_specialization_constant_raw_value(
-        SpecID, (void *)&Value, sizeof(Value));
-    return Value;
+    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    if (!is_specialization_constant_set(SpecSymName))
+      return SpecName.getDefaultValue();
+
+    using SCType =
+        typename std::remove_reference_t<decltype(SpecName)>::value_type;
+
+    std::array<char *, sizeof(SCType)> RetValue;
+
+    get_specialization_constant_impl(SpecSymName, RetValue.data());
+
+    return *reinterpret_cast<SCType *>(RetValue.data());
   }
 #endif
 
@@ -304,6 +307,25 @@ public:
   /// \returns an iterator to the last device image kernel_bundle contains
   device_image_iterator end() const {
     return reinterpret_cast<device_image_iterator>(kernel_bundle_plain::end());
+  }
+
+  template <backend Backend>
+  std::vector<typename backend_traits<Backend>::template return_type<
+      kernel_bundle<State>>>
+  get_native() {
+    std::vector<typename backend_traits<Backend>::template return_type<
+        kernel_bundle<State>>>
+        ReturnValue;
+    ReturnValue.reserve(std::distance(begin(), end()));
+
+    for (const device_image<State> &DevImg : *this) {
+      ReturnValue.push_back(
+          detail::pi::cast<typename backend_traits<
+              Backend>::template return_type<kernel_bundle<State>>>(
+              DevImg.getNative()));
+    }
+
+    return ReturnValue;
   }
 
 private:
@@ -352,6 +374,7 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx,
                                        const std::vector<device> &Devs) {
   detail::KernelBundleImplPtr Impl =
       detail::get_kernel_bundle_impl(Ctx, Devs, State);
+
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
 
@@ -430,7 +453,6 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx,
             detail::createSyclObjFromImpl<sycl::device_image<State>>(DevImg));
       };
 
-  std::vector<kernel_id> EmptyKernelIDs;
   detail::KernelBundleImplPtr Impl =
       detail::get_kernel_bundle_impl(Ctx, Devs, State, SelectorWrapper);
 
@@ -448,12 +470,14 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx, SelectorT Selector) {
 
 namespace detail {
 
-bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                            bundle_state State);
+__SYCL_EXPORT bool has_kernel_bundle_impl(const context &Ctx,
+                                          const std::vector<device> &Devs,
+                                          bundle_state State);
 
-bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                            const std::vector<kernel_id> &kernelIds,
-                            bundle_state State);
+__SYCL_EXPORT bool
+has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const std::vector<kernel_id> &kernelIds,
+                       bundle_state State);
 } // namespace detail
 
 /// \returns true if the following is true:
@@ -515,9 +539,8 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 
 namespace detail {
 
-std::shared_ptr<detail::kernel_bundle_impl>
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
-
 }
 
 /// \returns a new kernel bundle that represents the union of all the device
@@ -525,9 +548,10 @@ join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 template <sycl::bundle_state State>
 sycl::kernel_bundle<State>
 join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
+  // Convert kernel_bundle<State> to impls to abstract template parameter away
   std::vector<detail::KernelBundleImplPtr> KernelBundleImpls;
   KernelBundleImpls.reserve(Bundles.size());
-  for (sycl::kernel_bundle<State> &Bundle : Bundles)
+  for (const sycl::kernel_bundle<State> &Bundle : Bundles)
     KernelBundleImpls.push_back(detail::getSyclObjImpl(Bundle));
 
   std::shared_ptr<detail::kernel_bundle_impl> Impl =
@@ -541,7 +565,7 @@ join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
 
 namespace detail {
 
-std::shared_ptr<detail::kernel_bundle_impl>
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
              const std::vector<device> &Devs, const property_list &PropList);
 }
@@ -570,8 +594,12 @@ compile(const kernel_bundle<bundle_state::input> &InputBundle,
 /////////////////////////
 
 namespace detail {
-std::vector<sycl::device> find_device_intersection(
+__SYCL_EXPORT std::vector<sycl::device> find_device_intersection(
     const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles);
+
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+          const std::vector<device> &Devs, const property_list &PropList);
 }
 
 /// \returns a new kernel_bundle which contains the device images from the
@@ -579,9 +607,14 @@ std::vector<sycl::device> find_device_intersection(
 /// state bundle_state::executable The new bundle represents all of the kernels
 /// in ObjectBundles that are compatible with at least one of the devices in
 /// Devs.
-kernel_bundle<bundle_state::executable>
+inline kernel_bundle<bundle_state::executable>
 link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-     const std::vector<device> &Devs, const property_list &PropList = {});
+     const std::vector<device> &Devs, const property_list &PropList = {}) {
+  detail::KernelBundleImplPtr Impl =
+      detail::link_impl(ObjectBundles, Devs, PropList);
+  return detail::createSyclObjFromImpl<
+      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+}
 
 inline kernel_bundle<bundle_state::executable>
 link(const kernel_bundle<bundle_state::object> &ObjectBundle,
@@ -609,13 +642,24 @@ link(const kernel_bundle<bundle_state::object> &ObjectBundle,
 // build API
 /////////////////////////
 
+namespace detail {
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
+           const std::vector<device> &Devs, const property_list &PropList);
+}
+
 /// \returns a new kernel_bundle which contains device images that are
 /// translated into one ore more new device images of state
 /// bundle_state::executable. The new bundle represents all of the kernels in
 /// InputBundle that are compatible with at least one of the devices in Devs.
-kernel_bundle<bundle_state::executable>
+inline kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
-      const std::vector<device> &Devs, const property_list &PropList = {});
+      const std::vector<device> &Devs, const property_list &PropList = {}) {
+  detail::KernelBundleImplPtr Impl =
+      detail::build_impl(InputBundle, Devs, PropList);
+  return detail::createSyclObjFromImpl<
+      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+}
 
 inline kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
@@ -625,3 +669,30 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace std {
+template <> struct hash<cl::sycl::kernel_id> {
+  size_t operator()(const cl::sycl::kernel_id &KernelID) const {
+    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::kernel_id_impl>>()(
+        cl::sycl::detail::getSyclObjImpl(KernelID));
+  }
+};
+
+template <cl::sycl::bundle_state State>
+struct hash<cl::sycl::device_image<State>> {
+  size_t operator()(const cl::sycl::device_image<State> &DeviceImage) const {
+    return hash<
+        cl::sycl::shared_ptr_class<cl::sycl::detail::device_image_impl>>()(
+        cl::sycl::detail::getSyclObjImpl(DeviceImage));
+  }
+};
+
+template <cl::sycl::bundle_state State>
+struct hash<cl::sycl::kernel_bundle<State>> {
+  size_t operator()(const cl::sycl::kernel_bundle<State> &KernelBundle) const {
+    return hash<
+        cl::sycl::shared_ptr_class<cl::sycl::detail::kernel_bundle_impl>>()(
+        cl::sycl::detail::getSyclObjImpl(KernelBundle));
+  }
+};
+} // namespace std

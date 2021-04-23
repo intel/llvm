@@ -112,6 +112,10 @@ function check-cxx-benchmarks() {
     ${NINJA} -vC "${BUILD_DIR}" check-cxx-benchmarks
 }
 
+# Print the version of a few tools to aid diagnostics in some cases
+cmake --version
+${NINJA} --version
+
 case "${BUILDER}" in
 check-format)
     clean
@@ -127,6 +131,17 @@ check-format)
         | tee ${BUILD_DIR}/clang-format.patch
     # Check if the diff is empty, fail otherwise.
     ! grep -q '^--- a' ${BUILD_DIR}/clang-format.patch
+;;
+check-generated-output)
+    clean
+    echo "+++ Checking the output of the generated scripts"
+    mkdir -p ${BUILD_DIR}
+    python3 libcxx/utils/generate_feature_test_macro_components.py
+    python3 libcxx/utils/generate_header_inclusion_tests.py
+    python3 libcxx/utils/generate_header_tests.py
+    git diff | tee ${BUILD_DIR}/generated_output.patch
+    # Check if the diffs are empty, fail otherwise.
+    ! grep -q '^--- a' ${BUILD_DIR}/generated_output.patch
 ;;
 generic-cxx03)
     export CC=clang
@@ -295,7 +310,7 @@ x86_64-apple-system-backdeployment-*)
 
     if [[ "${OSX_ROOTS}" == "" ]]; then
         echo "--- Downloading previous macOS dylibs"
-        PREVIOUS_DYLIBS_URL="http://lab.llvm.org:8080/roots/libcxx-roots.tar.gz"
+        PREVIOUS_DYLIBS_URL="https://dl.dropboxusercontent.com/s/liu4fmc53qzlfly/libcxx-roots.tar.gz"
         OSX_ROOTS="${BUILD_DIR}/macos-roots"
         mkdir -p "${OSX_ROOTS}"
         curl "${PREVIOUS_DYLIBS_URL}" | tar -xz --strip-components=1 -C "${OSX_ROOTS}"
@@ -353,6 +368,28 @@ unified-standalone)
 
     check-cxx-cxxabi
 ;;
+runtimes-build)
+    export CC=clang
+    export CXX=clang++
+
+    clean
+
+    echo "--- Generating CMake"
+    cmake -S "${MONOREPO_ROOT}/llvm" \
+          -B "${BUILD_DIR}" \
+          -GNinja \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+          -DLLVM_ENABLE_PROJECTS="clang" \
+          -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" \
+          -DLLVM_RUNTIME_TARGETS="x86_64-unknown-linux-gnu"
+
+    echo "+++ Running the libc++ and libc++abi tests"
+    ${NINJA} -C "${BUILD_DIR}" check-runtimes
+
+    echo "--- Installing libc++ and libc++abi to a fake location"
+    ${NINJA} -C "${BUILD_DIR}" install-cxx install-cxxabi
+;;
 legacy-standalone)
     export CC=clang
     export CXX=clang++
@@ -377,8 +414,11 @@ legacy-standalone)
           -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
           -DLLVM_PATH="${MONOREPO_ROOT}/llvm" \
           -DLIBCXXABI_LIBCXX_PATH="${MONOREPO_ROOT}/libcxx" \
-          -DLIBCXXABI_LIBCXX_INCLUDES="${MONOREPO_ROOT}/libcxx/include" \
+          -DLIBCXXABI_LIBCXX_INCLUDES="${BUILD_DIR}/libcxx/include/c++/v1" \
           -DLIBCXXABI_LIBCXX_LIBRARY_PATH="${BUILD_DIR}/libcxx/lib"
+
+    echo "+++ Generating libc++ headers"
+    ${NINJA} -vC "${BUILD_DIR}/libcxx" generate-cxx-headers
 
     echo "+++ Building libc++abi"
     ${NINJA} -vC "${BUILD_DIR}/libcxxabi" cxxabi
@@ -425,6 +465,49 @@ armv7-noexceptions)
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv7Thumb-noexceptions.cmake"
     check-cxx-cxxabi
+;;
+generic-win)
+    clean
+    # TODO: The CI runner doesn't have bash in the path currently, and it's
+    # needed for running tests. Once it's available out of the box, remove this.
+    export PATH="$PATH:/c/Program Files/Git/usr/bin"
+
+    # TODO: Clang-cl in MSVC configurations don't have access to compiler_rt
+    # builtins helpers for int128 division. See
+    # https://reviews.llvm.org/D91139#2429595 for a comment about longterm
+    # intent for handling the issue. In the meantime, define
+    # -D_LIBCPP_HAS_NO_INT128 (both when building the library itself and
+    # when building tests) to allow enabling filesystem for running tests,
+    # even if it uses a non-permanent ABI.
+
+    # TODO: The CI runner currently uses Clang 11, which doesn't implicitly
+    # link in oldnames.lib (which is needed for some tests) when compiling
+    # with the plain "clang" driver, as the tests do (as opposed to using
+    # the "clang-cl" driver for compiling). When the CI runner runs
+    # Clang 12, the "-loldnames" option can be dropped.
+
+    # TODO: Currently, building with the experimental library breaks running
+    # tests (the test linking look for the c++experimental library with the
+    # wrong name, and the statically linked c++experimental can't be linked
+    # correctly when libc++ visibility attributes indicate dllimport linkage
+    # anyway), thus just disable the experimental library. Remove this
+    # setting when cmake and the test driver does the right thing automatically.
+
+    echo "--- Generating CMake"
+    cmake -S "${MONOREPO_ROOT}/libcxx" \
+          -B "${BUILD_DIR}" \
+          -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DCMAKE_C_COMPILER=clang-cl \
+          -DCMAKE_CXX_COMPILER=clang-cl \
+          -DLLVM_LIT_ARGS="-sv --show-unsupported --xunit-xml-output test-results.xml" \
+          -DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=NO \
+          -DLIBCXX_ENABLE_FILESYSTEM=YES \
+          -DCMAKE_CXX_FLAGS="-D_LIBCPP_HAS_NO_INT128" \
+          -DLIBCXX_TEST_COMPILER_FLAGS="-D_LIBCPP_HAS_NO_INT128" \
+          -DLIBCXX_TEST_LINKER_FLAGS="-loldnames"
+    echo "+++ Running the libc++ tests"
+    ${NINJA} -vC "${BUILD_DIR}" check-cxx
 ;;
 *)
     echo "${BUILDER} is not a known configuration"

@@ -387,13 +387,56 @@ def Shape_JoinOp : Shape_Op<"join", [Commutative]> {
     used to return an error to the user upon mismatch of dimensions.
 
     ```mlir
-    %c = shape.join %a, %b, error="<reason>" : !shape.shape
+    %c = shape.join %a, %b, error="<reason>" : !shape.shape, !shape.shape -> !shape.shape
     ```
   }];
 
   let arguments = (ins Shape_ShapeOrSizeType:$arg0, Shape_ShapeOrSizeType:$arg1,
                    OptionalAttr<StrAttr>:$error);
   let results = (outs Shape_ShapeOrSizeType:$result);
+
+  let assemblyFormat = [{
+    $arg0 `,` $arg1 (`,` `error` `=` $error^)? attr-dict `:`
+      type($arg0) `,` type($arg1) `->` type($result)
+  }];
+}
+
+def Shape_MaxOp : Shape_Op<"max", [Commutative, NoSideEffect]> {
+  let summary = "Elementwise maximum";
+  let description = [{
+    Computes the elementwise maximum of two sizes or shapes with equal ranks.
+    If either operand is an error, then an error will be propagated to the
+    result. If the input types mismatch or the ranks do not match, then the
+    result is an error.
+  }];
+
+  let arguments = (ins Shape_ShapeOrSizeType:$lhs, Shape_ShapeOrSizeType:$rhs);
+  let results = (outs Shape_ShapeOrSizeType:$result);
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs) `->` type($result)
+  }];
+
+  let hasFolder = 1;
+}
+
+def Shape_MinOp : Shape_Op<"min", [Commutative, NoSideEffect]> {
+  let summary = "Elementwise minimum";
+  let description = [{
+    Computes the elementwise minimum of two sizes or shapes with equal ranks.
+    If either operand is an error, then an error will be propagated to the
+    result. If the input types mismatch or the ranks do not match, then the
+    result is an error.
+  }];
+
+  let arguments = (ins Shape_ShapeOrSizeType:$lhs, Shape_ShapeOrSizeType:$rhs);
+  let results = (outs Shape_ShapeOrSizeType:$result);
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs) `->` type($result)
+  }];
+
+  let hasFolder = 1;
 }
 
 def Shape_MulOp : Shape_Op<"mul", [Commutative, NoSideEffect]> {
@@ -705,6 +748,12 @@ def Shape_AssumingAllOp : Shape_Op<"assuming_all", [Commutative, NoSideEffect]> 
   let arguments = (ins Variadic<Shape_WitnessType>:$inputs);
   let results = (outs Shape_WitnessType:$result);
 
+  // Only needed while tablegen is unable to generate this for ops with variadic
+  // arguments.
+  let builders = [
+    OpBuilder<(ins "ValueRange":$inputs)>,
+  ];
+
   let assemblyFormat = "$inputs attr-dict";
 
   let hasFolder = 1;
@@ -901,7 +950,7 @@ def Shape_CstrRequireOp : Shape_Op<"cstr_require", []> {
 
 def Shape_FunctionLibraryOp : Shape_Op<"function_library",
     [AffineScope, IsolatedFromAbove, NoRegionArguments, SymbolTable, Symbol,
-     SingleBlockImplicitTerminator<"ShapeFunctionLibraryTerminatorOp">]> {
+     NoTerminator, SingleBlock]> {
   let summary = "Represents shape functions and corresponding ops";
   let description = [{
     Represents a list of shape functions and the ops whose shape transfer
@@ -936,21 +985,6 @@ def Shape_FunctionLibraryOp : Shape_Op<"function_library",
 
   let printer = [{ ::print(p, *this); }];
   let parser = [{ return ::parse$cppClass(parser, result); }];
-}
-
-//===----------------------------------------------------------------------===//
-// ShapeFunctionLibraryTerminatorOp
-//===----------------------------------------------------------------------===//
-
-def ShapeFunctionLibraryTerminatorOp : Shape_Op<"fn_lib_terminator",
-    [Terminator, HasParent<"FunctionLibraryOp">]> {
-  let summary = "A pseudo op that marks the end of a shape function library";
-  let description = [{
-    `shape_fn_lib_terminator` is a special pseudo terminator operation for the
-    shape function library. It has no semantic meaning beyond keeping the body
-    well-formed.
-  }];
-  let assemblyFormat = "attr-dict";
 }
 
 #endif // SHAPE_OPS

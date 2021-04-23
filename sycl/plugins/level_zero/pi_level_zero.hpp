@@ -130,6 +130,16 @@ public:
       : USMMemoryAllocBase(Ctx, Dev) {}
 };
 
+// Allocation routines for host memory type
+class USMHostMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+
+public:
+  USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
+};
+
 struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
              bool isSubDevice = false)
@@ -196,6 +206,11 @@ struct _pi_context : _pi_object {
       // NOTE: one must additionally call initialize() to complete
       // PI context creation.
     }
+    // Create USM allocator context for host. Device and Shared USM allocations
+    // are device-specific. Host allocations are not device-dependent therefore
+    // we don't need a map with device as key.
+    HostMemAllocContext = new USMAllocContext(
+        std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
   }
 
   // Initialize the PI context.
@@ -260,10 +275,12 @@ struct _pi_context : _pi_object {
   pi_result decrementAliveEventsInPool(ze_event_pool_handle_t pool);
 
   // Store USM allocator context(internal allocator structures)
-  // for USM shared/host and device allocations. There is 1 allocator context
+  // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
   std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
+  // Store the host allocator context. It does not depend on any device.
+  USMAllocContext *HostMemAllocContext;
 
 private:
   // Following member variables are used to manage assignment of events
@@ -330,6 +347,12 @@ struct _pi_queue : _pi_object {
   // from a pi_queue API call.  No other mutexes/locking should be
   // needed/used for the queue data structures.
   std::mutex PiQueueMutex;
+
+  // Keeps track of the event associated with the last enqueued command into
+  // this queue. this is used to add dependency with the last command to add
+  // in-order semantics and updated with the latest event each time a new
+  // command is enqueued.
+  pi_event LastCommandEvent = nullptr;
 
   // Open command list field for batching commands into this queue.
   ze_command_list_handle_t ZeOpenCommandList = {nullptr};
@@ -410,13 +433,15 @@ struct _pi_queue : _pi_object {
   // The "IsBlocking" tells if the wait for completion is required.
   // The "ZeFence" passed is used to track when the command list passed
   // has completed execution on the device and can be reused.
+  // The Event parameter is the pi_event that the last command in the command
+  // list will signal upon its completion.
   // If OKToBatchCommand is true, then this command list may be executed
   // immediately, or it may be left open for other future command to be
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
   pi_result executeCommandList(ze_command_list_handle_t ZeCommandList,
-                               ze_fence_handle_t ZeFence,
+                               ze_fence_handle_t ZeFence, pi_event Event,
                                bool IsBlocking = false,
                                bool OKToBatchCommand = false);
 

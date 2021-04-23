@@ -53,6 +53,11 @@ and not recommended to use in production environment.
     Enables/Disables unnamed SYCL lambda kernels support.
     Disabled by default.
 
+**`-f[no-]sycl-explicit-simd`** [DEPRECATED]
+
+    The option was used to enable/disable SYCL explicit SIMD extension.
+    Not used anymore.
+
 ## Optimization options
 
 **`-f[no-]sycl-early-optimizations`**
@@ -216,6 +221,26 @@ and not recommended to use in production environment.
     the following: "x86_64", "fpga", "gen", or "all". Specifying "all" is the
     same as specifying -fsycl-help with no argument and emits help for all
     backends.
+
+**`-fsycl-host-compiler=<arg>`**
+
+    Informs the compiler driver that the host compilation step that is performed
+    as part of the greater compilation flow will be performed by the compiler
+    <arg>.  It is expected that <arg> is the compiler to be called, either by
+    name (in which the PATH will be used to discover it) or a fully qualified
+    directory with compiler to invoke.  This option is only useful when -fsycl
+    is provided on the command line.
+
+**`-fsycl-host-compiler-options="opts"`**
+
+    Passes along the space separated quoted "opts" string as option arguments
+    to the compiler specified with the -fsycl-host-compiler=<arg> option.  It is
+    expected that the options used here are compatible with the compiler
+    specified via -fsycl-host-compiler=<arg>.
+
+    NOTE: Using -fsycl-host-compiler-options to pass any kind of phase limiting
+    options (e.g. -c, -E, -S) may interfere with the expected output set during
+    the host compilation.  Doing so is considered undefined behavior.
 
 # Example: SYCL device code compilation
 

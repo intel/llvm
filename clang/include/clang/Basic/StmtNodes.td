@@ -276,3 +276,5 @@ def OMPTargetTeamsDistributeParallelForDirective : StmtNode<OMPLoopDirective>;
 def OMPTargetTeamsDistributeParallelForSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPTargetTeamsDistributeSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPInteropDirective : StmtNode<OMPExecutableDirective>;
+def OMPDispatchDirective : StmtNode<OMPExecutableDirective>;
+def OMPMaskedDirective : StmtNode<OMPExecutableDirective>;

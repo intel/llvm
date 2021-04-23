@@ -1238,6 +1238,10 @@ void SelectionDAGBuilder::resolveDanglingDebugInfo(const Value *V,
 }
 
 void SelectionDAGBuilder::salvageUnresolvedDbgValue(DanglingDebugInfo &DDI) {
+  // TODO: For the variadic implementation, instead of only checking the fail
+  // state of `handleDebugValue`, we need know specifically which values were
+  // invalid, so that we attempt to salvage only those values when processing
+  // a DIArgList.
   assert(!DDI.getDI()->hasArgList() &&
          "Not implemented for variadic dbg_values");
   Value *V = DDI.getDI()->getValue(0);
@@ -1261,16 +1265,21 @@ void SelectionDAGBuilder::salvageUnresolvedDbgValue(DanglingDebugInfo &DDI) {
   while (isa<Instruction>(V)) {
     Instruction &VAsInst = *cast<Instruction>(V);
     // Temporary "0", awaiting real implementation.
-    DIExpression *NewExpr = salvageDebugInfoImpl(VAsInst, Expr, StackValue, 0);
+    SmallVector<Value *, 4> AdditionalValues;
+    DIExpression *SalvagedExpr =
+        salvageDebugInfoImpl(VAsInst, Expr, StackValue, 0, AdditionalValues);
 
     // If we cannot salvage any further, and haven't yet found a suitable debug
     // expression, bail out.
-    if (!NewExpr)
+    // TODO: If AdditionalValues isn't empty, then the salvage can only be
+    // represented with a DBG_VALUE_LIST, so we give up. When we have support
+    // here for variadic dbg_values, remove that condition.
+    if (!SalvagedExpr || !AdditionalValues.empty())
       break;
 
     // New value and expr now represent this debuginfo.
     V = VAsInst.getOperand(0);
-    Expr = NewExpr;
+    Expr = SalvagedExpr;
 
     // Some kind of simplification occurred: check whether the operand of the
     // salvaged debug expression can be encoded in this DAG.
@@ -1302,8 +1311,8 @@ bool SelectionDAGBuilder::handleDebugValue(ArrayRef<const Value *> Values,
                                            bool IsVariadic) {
   if (Values.empty())
     return true;
-  SDDbgValue::LocOpVector LocationOps;
-  SDDbgValue::SDNodeVector Dependencies;
+  SmallVector<SDDbgOperand> LocationOps;
+  SmallVector<SDNode *> Dependencies;
   for (const Value *V : Values) {
     // Constant value.
     if (isa<ConstantInt>(V) || isa<ConstantFP>(V) || isa<UndefValue>(V) ||
@@ -1331,7 +1340,6 @@ bool SelectionDAGBuilder::handleDebugValue(ArrayRef<const Value *> Values,
       // Only emit func arg dbg value for non-variadic dbg.values for now.
       if (!IsVariadic && EmitFuncArgumentDbgValue(V, Var, Expr, dl, false, N))
         return true;
-      Dependencies.push_back(N.getNode());
       if (auto *FISDN = dyn_cast<FrameIndexSDNode>(N.getNode())) {
         // Construct a FrameIndexDbgValue for FrameIndexSDNodes so we can
         // describe stack slot locations.
@@ -1343,6 +1351,7 @@ bool SelectionDAGBuilder::handleDebugValue(ArrayRef<const Value *> Values,
         //   dbg.value(i32* %px, !"int x", !DIExpression(DW_OP_deref))
         //
         // Both describe the direct values of their associated variables.
+        Dependencies.push_back(N.getNode());
         LocationOps.emplace_back(SDDbgOperand::fromFrameIdx(FISDN->getIndex()));
         continue;
       }

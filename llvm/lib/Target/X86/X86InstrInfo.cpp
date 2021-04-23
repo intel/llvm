@@ -3972,8 +3972,10 @@ inline static bool isRedundantFlagInstr(const MachineInstr &FlagI,
 
 /// Check whether the definition can be converted
 /// to remove a comparison against zero.
-inline static bool isDefConvertible(const MachineInstr &MI, bool &NoSignFlag) {
+inline static bool isDefConvertible(const MachineInstr &MI, bool &NoSignFlag,
+                                    bool &ClearsOverflowFlag) {
   NoSignFlag = false;
+  ClearsOverflowFlag = false;
 
   switch (MI.getOpcode()) {
   default: return false;
@@ -4008,21 +4010,6 @@ inline static bool isDefConvertible(const MachineInstr &MI, bool &NoSignFlag) {
   case X86::ADD16rr:   case X86::ADD8rr:   case X86::ADD64rm:
   case X86::ADD32rm:   case X86::ADD16rm:  case X86::ADD8rm:
   case X86::INC64r:    case X86::INC32r:   case X86::INC16r: case X86::INC8r:
-  case X86::AND64ri32: case X86::AND64ri8: case X86::AND32ri:
-  case X86::AND32ri8:  case X86::AND16ri:  case X86::AND16ri8:
-  case X86::AND8ri:    case X86::AND64rr:  case X86::AND32rr:
-  case X86::AND16rr:   case X86::AND8rr:   case X86::AND64rm:
-  case X86::AND32rm:   case X86::AND16rm:  case X86::AND8rm:
-  case X86::XOR64ri32: case X86::XOR64ri8: case X86::XOR32ri:
-  case X86::XOR32ri8:  case X86::XOR16ri:  case X86::XOR16ri8:
-  case X86::XOR8ri:    case X86::XOR64rr:  case X86::XOR32rr:
-  case X86::XOR16rr:   case X86::XOR8rr:   case X86::XOR64rm:
-  case X86::XOR32rm:   case X86::XOR16rm:  case X86::XOR8rm:
-  case X86::OR64ri32:  case X86::OR64ri8:  case X86::OR32ri:
-  case X86::OR32ri8:   case X86::OR16ri:   case X86::OR16ri8:
-  case X86::OR8ri:     case X86::OR64rr:   case X86::OR32rr:
-  case X86::OR16rr:    case X86::OR8rr:    case X86::OR64rm:
-  case X86::OR32rm:    case X86::OR16rm:   case X86::OR8rm:
   case X86::ADC64ri32: case X86::ADC64ri8: case X86::ADC32ri:
   case X86::ADC32ri8:  case X86::ADC16ri:  case X86::ADC16ri8:
   case X86::ADC8ri:    case X86::ADC64rr:  case X86::ADC32rr:
@@ -4037,16 +4024,6 @@ inline static bool isDefConvertible(const MachineInstr &MI, bool &NoSignFlag) {
   case X86::SAR8r1:    case X86::SAR16r1:  case X86::SAR32r1:case X86::SAR64r1:
   case X86::SHR8r1:    case X86::SHR16r1:  case X86::SHR32r1:case X86::SHR64r1:
   case X86::SHL8r1:    case X86::SHL16r1:  case X86::SHL32r1:case X86::SHL64r1:
-  case X86::ANDN32rr:  case X86::ANDN32rm:
-  case X86::ANDN64rr:  case X86::ANDN64rm:
-  case X86::BLSI32rr:  case X86::BLSI32rm:
-  case X86::BLSI64rr:  case X86::BLSI64rm:
-  case X86::BLSMSK32rr:case X86::BLSMSK32rm:
-  case X86::BLSMSK64rr:case X86::BLSMSK64rm:
-  case X86::BLSR32rr:  case X86::BLSR32rm:
-  case X86::BLSR64rr:  case X86::BLSR64rm:
-  case X86::BZHI32rr:  case X86::BZHI32rm:
-  case X86::BZHI64rr:  case X86::BZHI64rm:
   case X86::LZCNT16rr: case X86::LZCNT16rm:
   case X86::LZCNT32rr: case X86::LZCNT32rm:
   case X86::LZCNT64rr: case X86::LZCNT64rm:
@@ -4056,6 +4033,30 @@ inline static bool isDefConvertible(const MachineInstr &MI, bool &NoSignFlag) {
   case X86::TZCNT16rr: case X86::TZCNT16rm:
   case X86::TZCNT32rr: case X86::TZCNT32rm:
   case X86::TZCNT64rr: case X86::TZCNT64rm:
+    return true;
+  case X86::AND64ri32:   case X86::AND64ri8:  case X86::AND32ri:
+  case X86::AND32ri8:    case X86::AND16ri:   case X86::AND16ri8:
+  case X86::AND8ri:      case X86::AND64rr:   case X86::AND32rr:
+  case X86::AND16rr:     case X86::AND8rr:    case X86::AND64rm:
+  case X86::AND32rm:     case X86::AND16rm:   case X86::AND8rm:
+  case X86::XOR64ri32:   case X86::XOR64ri8:  case X86::XOR32ri:
+  case X86::XOR32ri8:    case X86::XOR16ri:   case X86::XOR16ri8:
+  case X86::XOR8ri:      case X86::XOR64rr:   case X86::XOR32rr:
+  case X86::XOR16rr:     case X86::XOR8rr:    case X86::XOR64rm:
+  case X86::XOR32rm:     case X86::XOR16rm:   case X86::XOR8rm:
+  case X86::OR64ri32:    case X86::OR64ri8:   case X86::OR32ri:
+  case X86::OR32ri8:     case X86::OR16ri:    case X86::OR16ri8:
+  case X86::OR8ri:       case X86::OR64rr:    case X86::OR32rr:
+  case X86::OR16rr:      case X86::OR8rr:     case X86::OR64rm:
+  case X86::OR32rm:      case X86::OR16rm:    case X86::OR8rm:
+  case X86::ANDN32rr:    case X86::ANDN32rm:
+  case X86::ANDN64rr:    case X86::ANDN64rm:
+  case X86::BLSI32rr:    case X86::BLSI32rm:
+  case X86::BLSI64rr:    case X86::BLSI64rm:
+  case X86::BLSMSK32rr:  case X86::BLSMSK32rm:
+  case X86::BLSMSK64rr:  case X86::BLSMSK64rm:
+  case X86::BLSR32rr:    case X86::BLSR32rm:
+  case X86::BLSR64rr:    case X86::BLSR64rm:
   case X86::BLCFILL32rr: case X86::BLCFILL32rm:
   case X86::BLCFILL64rr: case X86::BLCFILL64rm:
   case X86::BLCI32rr:    case X86::BLCI32rm:
@@ -4070,16 +4071,23 @@ inline static bool isDefConvertible(const MachineInstr &MI, bool &NoSignFlag) {
   case X86::BLSFILL64rr: case X86::BLSFILL64rm:
   case X86::BLSIC32rr:   case X86::BLSIC32rm:
   case X86::BLSIC64rr:   case X86::BLSIC64rm:
+  case X86::BZHI32rr:    case X86::BZHI32rm:
+  case X86::BZHI64rr:    case X86::BZHI64rm:
   case X86::T1MSKC32rr:  case X86::T1MSKC32rm:
   case X86::T1MSKC64rr:  case X86::T1MSKC64rm:
   case X86::TZMSK32rr:   case X86::TZMSK32rm:
   case X86::TZMSK64rr:   case X86::TZMSK64rm:
+    // These instructions clear the overflow flag just like TEST.
+    // FIXME: These are not the only instructions in this switch that clear the
+    // overflow flag.
+    ClearsOverflowFlag = true;
     return true;
   case X86::BEXTR32rr:   case X86::BEXTR64rr:
   case X86::BEXTR32rm:   case X86::BEXTR64rm:
   case X86::BEXTRI32ri:  case X86::BEXTRI32mi:
   case X86::BEXTRI64ri:  case X86::BEXTRI64mi:
-    // BEXTR doesn't update the sign flag so we can't use it.
+    // BEXTR doesn't update the sign flag so we can't use it. It does clear
+    // the overflow flag, but that's not useful without the sign flag.
     NoSignFlag = true;
     return true;
   }
@@ -4199,8 +4207,9 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
   // right way.
   bool ShouldUpdateCC = false;
   bool NoSignFlag = false;
+  bool ClearsOverflowFlag = false;
   X86::CondCode NewCC = X86::COND_INVALID;
-  if (IsCmpZero && !isDefConvertible(*MI, NoSignFlag)) {
+  if (IsCmpZero && !isDefConvertible(*MI, NoSignFlag, ClearsOverflowFlag)) {
     // Scan forward from the use until we hit the use we're looking for or the
     // compare instruction.
     for (MachineBasicBlock::iterator J = MI;; ++J) {
@@ -4312,11 +4321,15 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
       default: break;
       case X86::COND_A: case X86::COND_AE:
       case X86::COND_B: case X86::COND_BE:
+        // CF is used, we can't perform this optimization.
+        return false;
       case X86::COND_G: case X86::COND_GE:
       case X86::COND_L: case X86::COND_LE:
       case X86::COND_O: case X86::COND_NO:
-        // CF and OF are used, we can't perform this optimization.
-        return false;
+        // If OF is used, the instruction needs to clear it like CmpZero does.
+        if (!ClearsOverflowFlag)
+          return false;
+        break;
       case X86::COND_S: case X86::COND_NS:
         // If SF is used, but the instruction doesn't update the SF, then we
         // can't do the optimization.
@@ -5701,7 +5714,7 @@ X86InstrInfo::foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
   Align Alignment = MFI.getObjectAlign(FrameIndex);
   // If the function stack isn't realigned we don't want to fold instructions
   // that need increased alignment.
-  if (!RI.needsStackRealignment(MF))
+  if (!RI.hasStackRealignment(MF))
     Alignment =
         std::min(Alignment, Subtarget.getFrameLowering()->getStackAlign());
   if (Ops.size() == 2 && Ops[0] == 0 && Ops[1] == 1) {
@@ -6085,15 +6098,16 @@ MachineInstr *X86InstrInfo::foldMemoryOperandImpl(
 
     // x86-32 PIC requires a PIC base register for constant pools.
     unsigned PICBase = 0;
-    if (MF.getTarget().isPositionIndependent()) {
-      if (Subtarget.is64Bit())
-        PICBase = X86::RIP;
-      else
-        // FIXME: PICBase = getGlobalBaseReg(&MF);
-        // This doesn't work for several reasons.
-        // 1. GlobalBaseReg may have been spilled.
-        // 2. It may not be live at MI.
-        return nullptr;
+    // Since we're using Small or Kernel code model, we can always use
+    // RIP-relative addressing for a smaller encoding.
+    if (Subtarget.is64Bit()) {
+      PICBase = X86::RIP;
+    } else if (MF.getTarget().isPositionIndependent()) {
+      // FIXME: PICBase = getGlobalBaseReg(&MF);
+      // This doesn't work for several reasons.
+      // 1. GlobalBaseReg may have been spilled.
+      // 2. It may not be live at MI.
+      return nullptr;
     }
 
     // Create a constant-pool entry.

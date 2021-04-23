@@ -127,7 +127,14 @@ def adjust_icmp_imm : GICombineRule <
   (apply [{ applyAdjustICmpImmAndPred(*${root}, ${matchinfo}, B, Observer); }])
 >;
 
-def icmp_lowering : GICombineGroup<[adjust_icmp_imm]>;
+def swap_icmp_operands : GICombineRule <
+  (defs root:$root),
+  (match (wip_match_opcode G_ICMP):$root,
+          [{ return trySwapICmpOperands(*${root}, MRI); }]),
+  (apply [{ applySwapICmpOperands(*${root}, Observer); }])
+>;
+
+def icmp_lowering : GICombineGroup<[adjust_icmp_imm, swap_icmp_operands]>;
 
 def extractvecelt_pairwise_add_matchdata : GIDefMatchData<"std::tuple<unsigned, LLT, Register>">;
 def extractvecelt_pairwise_add : GICombineRule<
@@ -154,6 +161,14 @@ def build_vector_to_dup : GICombineRule<
 
 def build_vector_lowering : GICombineGroup<[build_vector_to_dup]>;
 
+def bitfield_extract_from_sext_inreg : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$info),
+  (match (wip_match_opcode G_SEXT_INREG):$root,
+    [{ return matchBitfieldExtractFromSExtInReg(*${root}, MRI, ${info}); }]),
+  (apply [{ return Helper.applyBuildFn(*${root}, ${info}); }])>;
+
+def form_bitfield_extract : GICombineGroup<[bitfield_extract_from_sext_inreg]>;
+
 // Post-legalization combines which should happen at all optimization levels.
 // (E.g. ones that facilitate matching for the selector) For example, matching
 // pseudos.
@@ -172,6 +187,7 @@ def AArch64PostLegalizerCombinerHelper
                         hoist_logic_op_with_same_opcode_hands,
                         redundant_and, xor_of_and_with_same_reg,
                         extractvecelt_pairwise_add, redundant_or,
-                        mul_const, redundant_sext_inreg]> {
+                        mul_const, redundant_sext_inreg,
+                        form_bitfield_extract]> {
   let DisableRuleOption = "aarch64postlegalizercombiner-disable-rule";
 }

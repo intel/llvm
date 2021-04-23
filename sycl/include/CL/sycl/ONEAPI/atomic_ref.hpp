@@ -94,16 +94,16 @@ struct bit_equal<T, typename detail::enable_if_t<std::is_integral<T>::value>> {
 
 template <> struct bit_equal<float> {
   bool operator()(const float &lhs, const float &rhs) {
-    auto LhsInt = detail::bit_cast<uint32_t>(lhs);
-    auto RhsInt = detail::bit_cast<uint32_t>(rhs);
+    auto LhsInt = sycl::bit_cast<uint32_t>(lhs);
+    auto RhsInt = sycl::bit_cast<uint32_t>(rhs);
     return LhsInt == RhsInt;
   }
 };
 
 template <> struct bit_equal<double> {
   bool operator()(const double &lhs, const double &rhs) {
-    auto LhsInt = detail::bit_cast<uint64_t>(lhs);
-    auto RhsInt = detail::bit_cast<uint64_t>(rhs);
+    auto LhsInt = sycl::bit_cast<uint64_t>(lhs);
+    auto RhsInt = sycl::bit_cast<uint64_t>(rhs);
     return LhsInt == RhsInt;
   }
 };

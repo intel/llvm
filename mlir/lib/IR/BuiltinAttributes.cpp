@@ -79,11 +79,9 @@ static bool dictionaryAttrSort(ArrayRef<NamedAttribute> value,
       storage.assign(value.begin(), value.end());
     // Check to see they are sorted already.
     bool isSorted = llvm::is_sorted(value);
-    if (!isSorted) {
-      // If not, do a general sort.
+    // If not, do a general sort.
+    if (!isSorted)
       llvm::array_pod_sort(storage.begin(), storage.end());
-      value = storage;
-    }
     return !isSorted;
   }
   return false;
@@ -302,6 +300,19 @@ LogicalResult OpaqueAttr::verify(function_ref<InFlightDiagnostic()> emitError,
                                  Type type) {
   if (!Dialect::isValidNamespace(dialect.strref()))
     return emitError() << "invalid dialect namespace '" << dialect << "'";
+
+  // Check that the dialect is actually registered.
+  MLIRContext *context = dialect.getContext();
+  if (!context->allowsUnregisteredDialects() &&
+      !context->getLoadedDialect(dialect.strref())) {
+    return emitError()
+           << "#" << dialect << "<\"" << attrData << "\"> : " << type
+           << " attribute created with unregistered dialect. If this is "
+              "intended, please call allowUnregisteredDialects() on the "
+              "MLIRContext, or use -allow-unregistered-dialect with "
+              "mlir-opt";
+  }
+
   return success();
 }
 
@@ -682,7 +693,7 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
            "expected attribute value to have element type");
     if (eltType.isa<FloatType>())
       intVal = values[i].cast<FloatAttr>().getValue().bitcastToAPInt();
-    else if (eltType.isa<IntegerType>())
+    else if (eltType.isa<IntegerType, IndexType>())
       intVal = values[i].cast<IntegerAttr>().getValue();
     else
       llvm_unreachable("unexpected element type");

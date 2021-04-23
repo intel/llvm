@@ -581,8 +581,9 @@ foreach name = ["half_divide", "half_powr",
 foreach name = ["abs"] in {
   def : Builtin<name, [AI2UGenTypeN, AIGenTypeN], Attr.Const>;
 }
-foreach name = ["clz", "popcount"] in {
-  def : Builtin<name, [AIGenTypeN, AIGenTypeN], Attr.Const>;
+def : Builtin<"clz", [AIGenTypeN, AIGenTypeN], Attr.Const>;
+let MinVersion = CL12 in {
+  def : Builtin<"popcount", [AIGenTypeN, AIGenTypeN], Attr.Const>;
 }
 let MinVersion = CL20 in {
   foreach name = ["ctz"] in {
@@ -1445,11 +1446,11 @@ let Extension = FuncExtKhrMipmapImage in {
       }
       foreach name = ["read_imagei"] in {
         def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 4>, VectorType<Float, 4>], Attr.Pure>;
-        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
       }
       foreach name = ["read_imageui"] in {
         def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 4>, VectorType<Float, 4>], Attr.Pure>;
-        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
       }
     }
     foreach imgTy = [Image1dArray] in {
@@ -1482,8 +1483,8 @@ let Extension = FuncExtKhrMipmapImage in {
     }
     foreach imgTy = [Image2dArrayDepth] in {
       foreach name = ["read_imagef"] in {
-        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
-        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+        def : Builtin<name, [Float, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+        def : Builtin<name, [Float, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
       }
     }
   }

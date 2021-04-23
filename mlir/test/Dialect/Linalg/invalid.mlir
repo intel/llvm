@@ -24,6 +24,41 @@ func @yield_parent(%arg0: memref<?xf32, affine_map<(i)[off]->(off + i)>>) {
 
 // -----
 
+func @index_parent() {
+  // expected-error @+1 {{op expected parent op with LinalgOp interface}}
+  linalg.index 0 : index
+}
+
+// -----
+
+func @index_dim_lower_than_number_of_loops(%arg0: memref<f32>) {
+  // expected-error @+6 {{op expected dim (2) to be lower than the number of loops (0) of the enclosing LinalgOp}}
+  linalg.generic {
+      indexing_maps =  [ affine_map<() -> ()> ],
+      iterator_types = []}
+      outs(%arg0 : memref<f32>) {
+    ^bb(%0: f32):
+      linalg.index 2 : index
+      linalg.yield %0 : f32
+  }
+}
+
+// -----
+
+func @index_dim_negative(%arg0: memref<f32>) {
+  // expected-error @+6 {{op attribute 'dim' failed to satisfy constraint: 64-bit signless integer attribute whose minimum value is 0}}
+  linalg.generic {
+      indexing_maps =  [ affine_map<() -> ()> ],
+      iterator_types = []}
+      outs(%arg0 : memref<f32>) {
+    ^bb(%0: f32):
+      linalg.index -1 : index
+      linalg.yield %0 : f32
+  }
+}
+
+// -----
+
 func @generic_no_region(%arg0: memref<f32>) {
   // expected-error @+5 {{expected '{' to begin a region}}
   linalg.generic {
@@ -702,4 +737,24 @@ func @illegal_fill_tensor_with_memref_return
   // expected-error @+1 {{expected type of operand #0 ('tensor<?x?xf32>') to match type of corresponding result ('memref<?x?xf32>')}}
   %0 = linalg.fill(%arg0, %arg1) : tensor<?x?xf32>, f32 -> memref<?x?xf32>
   return %0 : memref<?x?xf32>
+}
+
+// -----
+
+func @invalid_static_matmul(%arg0: memref<2x4xf32>, %arg1: memref<3x4xf32>, %arg2: memref<2x4xf32>) {
+  // expected-error @+1 {{inferred shaped operand #1 has shape's dimension #0 to be 4, but found 3}}
+  linalg.matmul ins(%arg0, %arg1 : memref<2x4xf32>, memref<3x4xf32>)
+                      outs(%arg2 :memref<2x4xf32>)
+  return
+}
+
+// -----
+
+func @invalid_static_2d_conv(%input : memref<1x3x4x2xf32>, %filter: memref<3x2x2x1xf32>, %output: memref<1x2x3x1xf32>) {
+  // expected-error @+1 {{inferred shaped operand #0 has shape's dimension #1 to be greater than or equal to 4, but found 3}}
+  linalg.conv_2d_input_nhwc_filter_hwcf
+    { dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>}
+    ins(%input, %filter : memref<1x3x4x2xf32>, memref<3x2x2x1xf32>)
+    outs(%output : memref<1x2x3x1xf32>)
+  return
 }

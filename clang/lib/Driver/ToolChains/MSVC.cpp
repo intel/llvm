@@ -190,13 +190,15 @@ findVCToolChainViaEnvironment(llvm::vfs::FileSystem &VFS, std::string &Path,
       if (IsBin) {
         llvm::StringRef ParentPath = llvm::sys::path::parent_path(TestPath);
         llvm::StringRef ParentFilename = llvm::sys::path::filename(ParentPath);
-        if (ParentFilename == "VC") {
+        if (ParentFilename.equals_lower("VC")) {
           Path = std::string(ParentPath);
           VSLayout = MSVCToolChain::ToolsetLayout::OlderVS;
           return true;
         }
-        if (ParentFilename == "x86ret" || ParentFilename == "x86chk"
-          || ParentFilename == "amd64ret" || ParentFilename == "amd64chk") {
+        if (ParentFilename.equals_lower("x86ret") ||
+            ParentFilename.equals_lower("x86chk") ||
+            ParentFilename.equals_lower("amd64ret") ||
+            ParentFilename.equals_lower("amd64chk")) {
           Path = std::string(ParentPath);
           VSLayout = MSVCToolChain::ToolsetLayout::DevDivInternal;
           return true;
@@ -215,7 +217,7 @@ findVCToolChainViaEnvironment(llvm::vfs::FileSystem &VFS, std::string &Path,
         for (llvm::StringRef Prefix : ExpectedPrefixes) {
           if (It == End)
             goto NotAToolChain;
-          if (!It->startswith(Prefix))
+          if (!It->startswith_lower(Prefix))
             goto NotAToolChain;
           ++It;
         }
@@ -389,6 +391,11 @@ void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
   if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
       Args.hasArg(options::OPT_fintelfpga))
     CmdArgs.push_back("/IGNORE:4221");
+
+  // Suppress multiple section warning LNK4078
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    CmdArgs.push_back("/IGNORE:4078");
+
   CmdArgs.push_back(
       C.getArgs().MakeArgString(Twine("-OUT:") + Output.getFilename()));
 
@@ -428,8 +435,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-defaultlib:oldnames");
   }
 
-  if (!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&
-      Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {
+  if ((!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&
+       Args.hasArg(options::OPT_fsycl) &&
+       !Args.hasArg(options::OPT_nolibsycl)) ||
+      Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
     if (Args.hasArg(options::OPT__SLASH_MDd))
       CmdArgs.push_back("-defaultlib:sycld.lib");
     else
@@ -442,6 +451,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   for (const auto *A : Args.filtered(options::OPT_foffload_whole_static_lib_EQ))
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-wholearchive:") + A->getValue()));
+
+  // Suppress multiple section warning LNK4078
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    CmdArgs.push_back("/IGNORE:4078");
 
   // If the VC environment hasn't been configured (perhaps because the user
   // did not run vcvarsall), try to build a consistent link environment.  If

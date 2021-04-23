@@ -23,6 +23,9 @@ def color_diagnostics_eq: Joined<["--"], "color-diagnostics=">,
 def threads_eq : Joined<["--"], "threads=">,
     HelpText<"Number of threads. '1' disables multi-threading. By default all available hardware threads are used">,
     Group<grp_lld>;
+def thinlto_jobs_eq : Joined<["--"], "thinlto-jobs=">,
+    HelpText<"Number of ThinLTO jobs. Default to --threads=">,
+    Group<grp_lld>;
 def reproduce: Separate<["--"], "reproduce">,
     Group<grp_lld>;
 def reproduce_eq: Joined<["--"], "reproduce=">,
@@ -39,9 +42,9 @@ def no_lto_legacy_pass_manager : Flag<["--"], "no-lto-legacy-pass-manager">,
     HelpText<"Use the new pass manager in LLVM">,
     Group<grp_lld>;
 def time_trace: Flag<["--"], "time-trace">, HelpText<"Record time trace">;
-def time_trace_granularity: Flag<["--"], "time-trace-granularity">,
+def time_trace_granularity_eq: Joined<["--"], "time-trace-granularity=">,
     HelpText<"Minimum time granularity (in microseconds) traced by time profiler">;
-def time_trace_file_eq: Flag<["--"], "time-trace-file=">, HelpText<"Specify time trace output file">;
+def time_trace_file_eq: Joined<["--"], "time-trace-file=">, HelpText<"Specify time trace output file">;
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
 // dated 2018-03-07 and cross checked with ld64 source code in repo
@@ -186,7 +189,6 @@ def segcreate : MultiArg<["-"], "segcreate", 3>,
     MetaVarName<"<segment> <section> <file>">,
     Alias<sectcreate>,
     HelpText<"Alias for -sectcreate">,
-    Flags<[HelpHidden]>,
     Group<grp_content>;
 def filelist : Separate<["-"], "filelist">,
     MetaVarName<"<file>">,
@@ -332,13 +334,11 @@ def dylib_install_name : Separate<["-"], "dylib_install_name">,
     MetaVarName<"<name>">,
     Alias<install_name>,
     HelpText<"Alias for -install_name">,
-    Flags<[HelpHidden]>,
     Group<grp_dylib>;
 def dylinker_install_name : Separate<["-"], "dylinker_install_name">,
     MetaVarName<"<name>">,
     Alias<install_name>,
     HelpText<"Alias for -install_name">,
-    Flags<[HelpHidden]>,
     Group<grp_dylib>;
 def mark_dead_strippable_dylib : Flag<["-"], "mark_dead_strippable_dylib">,
     HelpText<"Mark output dylib as dead-strippable: When a client links against it but does not use any of its symbols, the dylib will not be added to the client's list of needed dylibs">,
@@ -478,7 +478,6 @@ def why_load : Flag<["-"], "why_load">,
 def whyload : Flag<["-"], "whyload">,
     Alias<why_load>,
     HelpText<"Alias for -why_load">,
-    Flags<[HelpHidden]>,
     Group<grp_introspect>;
 def why_live : Separate<["-"], "why_live">,
     MetaVarName<"<symbol>">,
@@ -512,7 +511,7 @@ def save_temps : Flag<["-"], "save-temps">,
     HelpText<"Save intermediate LTO compilation results">,
     Group<grp_introspect>;
 
-def grp_symtab : OptionGroup<"symtab">, HelpText<"SYMBOL TABLE OPTIMIZATIONS">;
+def grp_symtab : OptionGroup<"symtab">, HelpText<"SYMBOL TABLE">;
 
 def S : Flag<["-"], "S">,
     HelpText<"Strip debug information (STABS or DWARF) from the output">,
@@ -536,6 +535,10 @@ def oso_prefix : Separate<["-"], "oso_prefix">,
     MetaVarName<"<path>">,
     HelpText<"Remove the prefix <path> from OSO symbols in the debug map">,
     Flags<[HelpHidden]>,
+    Group<grp_symtab>;
+def add_ast_path : Separate<["-"], "add_ast_path">,
+    MetaVarName<"<path>">,
+    HelpText<"AST paths will be emitted as STABS">,
     Group<grp_symtab>;
 
 def grp_bitcode : OptionGroup<"bitcode">, HelpText<"BITCODE BUILD FLOW">;
@@ -772,8 +775,7 @@ def stack_addr : Separate<["-"], "stack_addr">,
     Group<grp_rare>;
 def segprot : MultiArg<["-"], "segprot", 3>,
     MetaVarName<"<segment> <max> <init>">,
-    HelpText<"Specifies the <max> and <init> virtual memory protection of <segment> as r/w/x/-seg_addr_table path Specify hex base addresses and dylib install names on successive lines in <path>. This option is obsolete">,
-    Flags<[HelpHidden]>,
+    HelpText<"Specifies the <max> and <init> virtual memory protection of <segment> as r/w/x/-seg_addr_table path">,
     Group<grp_rare>;
 def segs_read_write_addr : Separate<["-"], "segs_read_write_addr">,
     MetaVarName<"<address>">,
@@ -866,8 +868,7 @@ def interposable_list : Separate<["-"], "interposable_list">,
     Flags<[HelpHidden]>,
     Group<grp_rare>;
 def no_function_starts : Flag<["-"], "no_function_starts">,
-    HelpText<"Do not creates a compressed table of function start addresses">,
-    Flags<[HelpHidden]>,
+    HelpText<"Do not create a table of function start addresses">,
     Group<grp_rare>;
 def no_objc_category_merging : Flag<["-"], "no_objc_category_merging">,
     HelpText<"Do not merge Objective-C categories into their classes">,
@@ -1095,10 +1096,6 @@ def slow_stubs : Flag<["-"], "slow_stubs">,
 
 def grp_undocumented : OptionGroup<"undocumented">, HelpText<"UNDOCUMENTED">;
 
-def add_ast_path : Flag<["-"], "add_ast_path">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
-    Group<grp_undocumented>;
 def add_linker_option : Flag<["-"], "add_linker_option">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,

@@ -1151,14 +1151,14 @@ Matrix FlatAffineConstraints::getBoundedDirections() const {
 
 bool eqInvolvesSuffixDims(const FlatAffineConstraints &fac, unsigned eqIndex,
                           unsigned numDims) {
-  for (unsigned e = fac.getNumDimIds(), j = e - numDims; j < e; ++j)
+  for (unsigned e = fac.getNumIds(), j = e - numDims; j < e; ++j)
     if (fac.atEq(eqIndex, j) != 0)
       return true;
   return false;
 }
 bool ineqInvolvesSuffixDims(const FlatAffineConstraints &fac,
                             unsigned ineqIndex, unsigned numDims) {
-  for (unsigned e = fac.getNumDimIds(), j = e - numDims; j < e; ++j)
+  for (unsigned e = fac.getNumIds(), j = e - numDims; j < e; ++j)
     if (fac.atIneq(ineqIndex, j) != 0)
       return true;
   return false;
@@ -2128,13 +2128,22 @@ LogicalResult FlatAffineConstraints::addSliceBounds(ArrayRef<Value> values,
       continue;
     }
 
-    if (lbMap && failed(addLowerOrUpperBound(pos, lbMap, operands, /*eq=*/false,
-                                             /*lower=*/true)))
-      return failure();
-
-    if (ubMap && failed(addLowerOrUpperBound(pos, ubMap, operands, /*eq=*/false,
-                                             /*lower=*/false)))
-      return failure();
+    // If lower or upper bound maps are null or provide no results, it implies
+    // that the source loop was not at all sliced, and the entire loop will be a
+    // part of the slice.
+    if (lbMap && lbMap.getNumResults() != 0 && ubMap &&
+        ubMap.getNumResults() != 0) {
+      if (failed(addLowerOrUpperBound(pos, lbMap, operands, /*eq=*/false,
+                                      /*lower=*/true)))
+        return failure();
+      if (failed(addLowerOrUpperBound(pos, ubMap, operands, /*eq=*/false,
+                                      /*lower=*/false)))
+        return failure();
+    } else {
+      auto loop = getForInductionVarOwner(values[i]);
+      if (failed(this->addAffineForOpDomain(loop)))
+        return failure();
+    }
   }
   return success();
 }

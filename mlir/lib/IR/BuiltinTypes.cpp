@@ -201,6 +201,19 @@ LogicalResult OpaqueType::verify(function_ref<InFlightDiagnostic()> emitError,
                                  Identifier dialect, StringRef typeData) {
   if (!Dialect::isValidNamespace(dialect.strref()))
     return emitError() << "invalid dialect namespace '" << dialect << "'";
+
+  // Check that the dialect is actually registered.
+  MLIRContext *context = dialect.getContext();
+  if (!context->allowsUnregisteredDialects() &&
+      !context->getLoadedDialect(dialect.strref())) {
+    return emitError()
+           << "`!" << dialect << "<\"" << typeData << "\">"
+           << "` type created with unregistered dialect. If this is "
+              "intended, please call allowUnregisteredDialects() on the "
+              "MLIRContext, or use -allow-unregistered-dialect with "
+              "mlir-opt";
+  }
+
   return success();
 }
 
@@ -379,7 +392,7 @@ LogicalResult VectorType::verify(function_ref<InFlightDiagnostic()> emitError,
     return emitError() << "vector types must have at least one dimension";
 
   if (!isValidElementType(elementType))
-    return emitError() << "vector elements must be int or float type";
+    return emitError() << "vector elements must be int/index/float type";
 
   if (any_of(shape, [](int64_t i) { return i <= 0; }))
     return emitError() << "vector types must have positive constant sizes";
@@ -428,10 +441,12 @@ bool TensorType::isValidElementType(Type type) {
 
 LogicalResult
 RankedTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
-                         ArrayRef<int64_t> shape, Type elementType) {
+                         ArrayRef<int64_t> shape, Type elementType,
+                         Attribute encoding) {
   for (int64_t s : shape)
     if (s < -1)
       return emitError() << "invalid tensor dimension size";
+  // TODO: verify contents of encoding attribute.
   return checkTensorElementType(emitError, elementType);
 }
 

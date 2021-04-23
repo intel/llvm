@@ -21,6 +21,7 @@
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -393,22 +394,27 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   if (LinkOptsEnv) {
     LinkOpts = LinkOptsEnv;
   }
+  SerializedObj SpecConsts;
+  if (Prg)
+    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   auto BuildF = [this, &M, &KSId, &Context, &Device, Prg, &CompileOpts,
-                 &LinkOpts, &JITCompilationIsRequired] {
+                 &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     const RTDeviceBinaryImage &Img =
         getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
     // Update only if compile options are not overwritten by environment
     // variable
     if (!CompileOptsEnv) {
       CompileOpts += Img.getCompileOptions();
-      pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
+    }
 
-      if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
-        if (!CompileOpts.empty())
-          CompileOpts += " ";
-        CompileOpts += "-vc-codegen";
-      }
+    // The -vc-codegen option is always preserved for ESIMD kernels, regardless
+    // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
+    pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
+    if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+      if (!CompileOpts.empty())
+        CompileOpts += " ";
+      CompileOpts += "-vc-codegen";
     }
 
     // Update only if link options are not overwritten by environment variable
@@ -416,19 +422,32 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       LinkOpts += Img.getLinkOptions();
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
-    if (Prg)
-      flushSpecConstants(*Prg, NativePrg, &Img);
+    RT::PiProgram NativePrg;
+
+    auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
+        Device, Img, SpecConsts, CompileOpts + LinkOpts);
+    if (BinProg.size()) {
+      // TODO: Build for multiple devices once supported by program manager
+      NativePrg = createBinaryProgram(ContextImpl, Device,
+                                      (const unsigned char *)BinProg[0].data(),
+                                      BinProg[0].size());
+    } else {
+      NativePrg = createPIProgram(Img, Context, Device);
+      if (Prg)
+        flushSpecConstants(*Prg, NativePrg, &Img);
+    }
+
     ProgramPtr ProgramManaged(
         NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
-    // Pre-compiled programs are supposed to be already linked.
+    // Pre-compiled programs (after AOT compilation or read from persitent
+    // cache) are supposed to be already linked.
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+    if (!BinProg.size() && Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
@@ -441,12 +460,13 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
     }
+
+    // Save program to persistent cache if it is not there
+    if (!BinProg.size())
+      PersistentDeviceCodeCache::putItemToDisc(
+          Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
     return BuiltProgram.release();
   };
-
-  SerializedObj SpecConsts;
-  if (Prg)
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Device)->getHandleRef();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
@@ -1141,7 +1161,7 @@ ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
   return {};
 }
 
-static bundle_state getBinImageState(RTDeviceBinaryImage *BinImage) {
+static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
   auto IsAOTBinary = [](const char *Format) {
     return (
         (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
@@ -1178,9 +1198,9 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 }
 
 std::vector<device_image_plain>
-ProgramManager::getSYCLDeviceImages(const context &Ctx,
-                                    const std::vector<device> &Devs,
-                                    bundle_state TargetState) {
+ProgramManager::getSYCLDeviceImagesWithCompatibleState(
+    const context &Ctx, const std::vector<device> &Devs,
+    bundle_state TargetState) {
 
   // Collect raw device images
   std::vector<RTDeviceBinaryImage *> BinImages;
@@ -1188,55 +1208,492 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
     std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
     for (auto &ImagesSets : m_DeviceImages) {
       auto &ImagesUPtrs = *ImagesSets.second.get();
-      for (auto &ImageUPtr : ImagesUPtrs)
+      for (auto &ImageUPtr : ImagesUPtrs) {
+        const RTDeviceBinaryImage *BinImage = ImageUPtr.get();
+        const bundle_state ImgState = getBinImageState(BinImage);
+
+        // Ignore images with incompatible state. Image is considered compatible
+        // with a target state if an image is already in the target state or can
+        // be brought to target state by compiling/linking/building.
+        //
+        // Example: an image in "executable" state is not compatible with
+        // "input" target state - there is no operation to convert the image it
+        // to "input" state. An image in "input" state is compatible with
+        // "executable" target state because it can be built to get into
+        // "executable" state.
+        if (ImgState > TargetState)
+          continue;
+
         BinImages.push_back(ImageUPtr.get());
+      }
     }
   }
+  // TODO: Add a diagnostic on multiple device images with conflicting kernel
+  // names, and remove OSModuleHandle usage, as conflicting kernel names will be
+  // an error.
 
+  // TODO: Cache device_image objects
   // Create SYCL device image from those that have compatible state and at least
   // one device
   std::vector<device_image_plain> SYCLDeviceImages;
   for (RTDeviceBinaryImage *BinImage : BinImages) {
     const bundle_state ImgState = getBinImageState(BinImage);
-    // Ignore images with incompatible state. Image is considered compatible
-    // with a target state if an image is already in the target state or can be
-    // brought to target state by compiling/linking/building.
-    //
-    // Example: an image in "executable" state is not compatbile with "input"
-    // target state - there is no operation to convert the image it to "input"
-    // state.
-    // An image in "input" state is compatible with "executable" target state
-    // because it can be built to get into "executable" state.
-    if (ImgState > TargetState)
-      continue;
 
-    for (const sycl::device &Dev : Devs)
-      if (compatibleWithDevice(BinImage, Dev)) {
-        DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
-            BinImage, Ctx, Devs, ImgState);
+    for (const sycl::device &Dev : Devs) {
+      if (!compatibleWithDevice(BinImage, Dev))
+        continue;
 
-        SYCLDeviceImages.push_back(
-            createSyclObjFromImpl<device_image_plain>(Impl));
-        break;
+      // TODO: Cache kernel_ids
+      std::vector<sycl::kernel_id> KernelIDs;
+      // Collect kernel names for the image
+      pi_device_binary DevBin =
+          const_cast<pi_device_binary>(&BinImage->getRawData());
+      for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
+           EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
+
+        std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+
+        KernelIDs.push_back(
+            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl));
       }
-  }
+      // device_image_impl expects kernel ids to be sorted for fast search
+      std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
 
-  // Make it so that SYCL device images have required state by compiling or
-  // linking them if needed
-  switch (TargetState) {
-  case bundle_state::input:
-    // Do nothing as the check above should make sure that resulting images are
-    // in input state already
-    break;
-  case bundle_state::object:
-    assert(false && "Not implemented yet");
-    break;
-  case bundle_state::executable:
-    assert(false && "Not implemented yet");
-    break;
+      DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
+          BinImage, Ctx, Devs, ImgState, KernelIDs, /*PIProgram=*/nullptr);
+
+      SYCLDeviceImages.push_back(
+          createSyclObjFromImpl<device_image_plain>(Impl));
+      break;
+    }
   }
 
   return SYCLDeviceImages;
+}
+
+void ProgramManager::bringSYCLDeviceImagesToState(
+    std::vector<device_image_plain> &DeviceImages, bundle_state TargetState) {
+
+  for (device_image_plain &DevImage : DeviceImages) {
+    const bundle_state DevImageState = getSyclObjImpl(DevImage)->get_state();
+
+    switch (TargetState) {
+    case bundle_state::input:
+      // Do nothing since there is no state which can be upgraded to the input.
+      assert(DevImageState == bundle_state::input);
+      break;
+    case bundle_state::object:
+      if (DevImageState == bundle_state::input) {
+        DevImage = compile(DevImage, getSyclObjImpl(DevImage)->get_devices(),
+                           /*PropList=*/{});
+        break;
+      }
+      // Device image is expected to be object state then.
+      assert(DevImageState == bundle_state::object);
+      break;
+    case bundle_state::executable: {
+      switch (DevImageState) {
+      case bundle_state::input:
+        DevImage = build(DevImage, getSyclObjImpl(DevImage)->get_devices(),
+                         /*PropList=*/{});
+        break;
+      case bundle_state::object: {
+        std::vector<device_image_plain> LinkedDevImages =
+            link({DevImage}, getSyclObjImpl(DevImage)->get_devices(),
+                 /*PropList=*/{});
+        // Since only one device image is passed here one output device image is
+        // expected
+        assert(LinkedDevImages.size() == 1 && "Expected one linked image here");
+        DevImage = LinkedDevImages[0];
+        break;
+      }
+      case bundle_state::executable:
+        // Device image is already in the desired state.
+        break;
+      }
+      break;
+    }
+    }
+  }
+}
+
+std::vector<device_image_plain>
+ProgramManager::getSYCLDeviceImages(const context &Ctx,
+                                    const std::vector<device> &Devs,
+                                    bundle_state TargetState) {
+  // Collect device images with compatible state
+  std::vector<device_image_plain> DeviceImages =
+      getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
+  // Brind device images with compatible state to desired state
+  bringSYCLDeviceImagesToState(DeviceImages, TargetState);
+  return DeviceImages;
+}
+
+std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
+    const context &Ctx, const std::vector<device> &Devs,
+    const DevImgSelectorImpl &Selector, bundle_state TargetState) {
+  // Collect device images with compatible state
+  std::vector<device_image_plain> DeviceImages =
+      getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
+
+  // Filter out images that are rejected by Selector
+  auto It = std::remove_if(DeviceImages.begin(), DeviceImages.end(),
+                           [&Selector](const device_image_plain &Image) {
+                             return !Selector(getSyclObjImpl(Image));
+                           });
+  DeviceImages.erase(It, DeviceImages.end());
+
+  // The spec says that the function should not call online compiler or linker
+  // to translate device images into target state
+  return DeviceImages;
+}
+
+std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
+    const context &Ctx, const std::vector<device> &Devs,
+    const std::vector<kernel_id> &KernelIDs, bundle_state TargetState) {
+  // Collect device images with compatible state
+  std::vector<device_image_plain> DeviceImages =
+      getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
+
+  // Filter out images that have no kernel_ids specified
+  auto It = std::remove_if(DeviceImages.begin(), DeviceImages.end(),
+                           [&KernelIDs](const device_image_plain &Image) {
+                             return std::none_of(
+                                 KernelIDs.begin(), KernelIDs.end(),
+                                 [&Image](const sycl::kernel_id &KernelID) {
+                                   return Image.has_kernel(KernelID);
+                                 });
+                           });
+
+  DeviceImages.erase(It, DeviceImages.end());
+
+  // Brind device images with compatible state to desired state
+  bringSYCLDeviceImagesToState(DeviceImages, TargetState);
+  return DeviceImages;
+}
+
+device_image_plain
+ProgramManager::compile(const device_image_plain &DeviceImage,
+                        const std::vector<device> &Devs,
+                        const property_list &) {
+
+  // TODO: Extract compile options from property list once the Spec clarifies
+  // how they can be passed.
+
+  // TODO: Probably we could have cached compiled device images.
+  const std::shared_ptr<device_image_impl> &InputImpl =
+      getSyclObjImpl(DeviceImage);
+
+  const detail::plugin &Plugin =
+      getSyclObjImpl(InputImpl->get_context())->getPlugin();
+
+  // TODO: Add support for creating non-SPIRV programs from multiple devices.
+  if (InputImpl->get_bin_image_ref()->getFormat() !=
+          PI_DEVICE_BINARY_TYPE_SPIRV &&
+      Devs.size() > 1)
+    sycl::runtime_error(
+        "Creating a program from AOT binary for multiple device is not "
+        "supported",
+        PI_INVALID_OPERATION);
+
+  // Device is not used when creating program from SPIRV, so passing only one
+  // device is OK.
+  RT::PiProgram Prog = createPIProgram(*InputImpl->get_bin_image_ref(),
+                                       InputImpl->get_context(), Devs[0]);
+
+  DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
+      InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
+      bundle_state::object, InputImpl->get_kernel_ids_ref(), Prog);
+
+  std::vector<pi_device> PIDevices;
+  PIDevices.reserve(Devs.size());
+  for (const device &Dev : Devs)
+    PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+
+  // TODO: Set spec constatns here.
+
+  // TODO: Handle zero sized Device list.
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
+      ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
+      PIDevices.data(),
+      /*options=*/nullptr,
+      /*num_input_headers=*/0, /*input_headers=*/nullptr,
+      /*header_include_names=*/nullptr,
+      /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
+  if (Error != PI_SUCCESS)
+    throw sycl::exception(
+        make_error_code(errc::build),
+        getProgramBuildLog(ObjectImpl->get_program_ref(),
+                           getSyclObjImpl(ObjectImpl->get_context())));
+
+  return createSyclObjFromImpl<device_image_plain>(ObjectImpl);
+}
+
+std::vector<device_image_plain>
+ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
+                     const std::vector<device> &Devs,
+                     const property_list &PropList) {
+  (void)PropList;
+
+  std::vector<pi_program> PIPrograms;
+  PIPrograms.reserve(DeviceImages.size());
+  for (const device_image_plain &DeviceImage : DeviceImages)
+    PIPrograms.push_back(getSyclObjImpl(DeviceImage)->get_program_ref());
+
+  std::vector<pi_device> PIDevices;
+  PIDevices.reserve(Devs.size());
+  for (const device &Dev : Devs)
+    PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+
+  const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
+  const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
+
+  const detail::plugin &Plugin = ContextImpl->getPlugin();
+
+  RT::PiProgram LinkedProg = nullptr;
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+      ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
+      /*options=*/nullptr, PIPrograms.size(), PIPrograms.data(),
+      /*pfn_notify=*/nullptr,
+      /*user_data=*/nullptr, &LinkedProg);
+
+  if (Error != PI_SUCCESS) {
+    const string_class ErrorMsg =
+        LinkedProg ? getProgramBuildLog(LinkedProg, ContextImpl)
+                   : "Online link operation failed";
+    throw sycl::exception(make_error_code(errc::build), ErrorMsg);
+  }
+
+  std::vector<kernel_id> KernelIDs;
+  for (const device_image_plain &DeviceImage : DeviceImages) {
+    // Duplicates are not expected here, otherwise piProgramLink should fail
+    KernelIDs.insert(KernelIDs.end(),
+                     getSyclObjImpl(DeviceImage)->get_kernel_ids().begin(),
+                     getSyclObjImpl(DeviceImage)->get_kernel_ids().end());
+  }
+  // device_image_impl expects kernel ids to be sorted for fast search
+  std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
+
+  DeviceImageImplPtr ExecutableImpl =
+      std::make_shared<detail::device_image_impl>(
+          /*BinImage=*/nullptr, Context, Devs, bundle_state::object,
+          std::move(KernelIDs), LinkedProg);
+
+  // TODO: Make multiple sets of device images organized by devices they are
+  // compiled for.
+  return {createSyclObjFromImpl<device_image_plain>(ExecutableImpl)};
+}
+
+// The function duplicates most of the code from existing getBuiltPIProgram.
+// The differences are:
+// Different API - uses different objects to extract required info
+// Supports caching of a program built for multiple devices
+device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
+                                         const std::vector<device> &Devs,
+                                         const property_list &PropList) {
+  (void)PropList;
+
+  const std::shared_ptr<device_image_impl> &InputImpl =
+      getSyclObjImpl(DeviceImage);
+
+  const context Context = InputImpl->get_context();
+
+  const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
+
+  using PiProgramT = KernelProgramCache::PiProgramT;
+  using ProgramCacheT = KernelProgramCache::ProgramCacheT;
+
+  KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
+
+  auto AcquireF = [](KernelProgramCache &Cache) {
+    return Cache.acquireCachedPrograms();
+  };
+  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
+    return LockedCache.get();
+  };
+
+  std::string CompileOpts;
+  std::string LinkOpts;
+  // Build options are overridden if environment variables are present.
+  // Environment variables are not changed during program lifecycle so it
+  // is reasonable to use static here to read them only once.
+  static const char *CompileOptsEnv =
+      SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  if (CompileOptsEnv)
+    CompileOpts = CompileOptsEnv;
+
+  static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  if (LinkOptsEnv) {
+    LinkOpts = LinkOptsEnv;
+  }
+
+  const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
+  const RTDeviceBinaryImage &Img = *ImgPtr;
+
+  // TODO: Unify this code with getBuiltPIProgram
+  auto BuildF = [this, &Context, Img, &Devs, &CompileOpts, &LinkOpts,
+                 &InputImpl] {
+    // Update only if compile options are not overwritten by environment
+    // variable
+    if (!CompileOptsEnv) {
+      CompileOpts += Img.getCompileOptions();
+      pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
+
+      if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+        if (!CompileOpts.empty())
+          CompileOpts += " ";
+        CompileOpts += "-vc-codegen";
+      }
+    }
+
+    // Update only if link options are not overwritten by environment variable
+    if (!LinkOptsEnv)
+      LinkOpts += Img.getLinkOptions();
+    ContextImplPtr ContextImpl = getSyclObjImpl(Context);
+    const detail::plugin &Plugin = ContextImpl->getPlugin();
+
+    // TODO: Add support for creating non-SPIRV programs from multiple devices.
+    if (InputImpl->get_bin_image_ref()->getFormat() !=
+            PI_DEVICE_BINARY_TYPE_SPIRV &&
+        Devs.size() > 1)
+      sycl::runtime_error(
+          "Creating a program from AOT binary for multiple device is not "
+          "supported",
+          PI_INVALID_OPERATION);
+
+    // Device is not used when creating program from SPIRV, so passing only one
+    // device is OK.
+    RT::PiProgram NativePrg = createPIProgram(Img, Context, Devs[0]);
+
+    const std::vector<unsigned char> &SpecConstsBlob =
+        InputImpl->get_spec_const_blob_ref();
+
+    {
+      std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
+      const std::map<std::string,
+                     std::vector<device_image_impl::SpecConstDescT>>
+          &SpecConstData = InputImpl->get_spec_const_data_ref();
+
+      for (const auto &DescPair : SpecConstData) {
+        for (const device_image_impl::SpecConstDescT &SpecIDDesc :
+             DescPair.second) {
+          if (SpecIDDesc.IsSet) {
+            Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+                NativePrg, SpecIDDesc.ID, SpecIDDesc.Size,
+                SpecConstsBlob.data() + SpecIDDesc.BlobOffset);
+          }
+        }
+      }
+    }
+
+    ProgramPtr ProgramManaged(
+        NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
+
+    // Link a fallback implementation of device libraries if they are not
+    // supported by a device compiler.
+    // Pre-compiled programs are supposed to be already linked.
+    // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
+    // no fallback device library will be linked.
+    uint32_t DeviceLibReqMask = 0;
+    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+        !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
+      DeviceLibReqMask = getDeviceLibReqMask(Img);
+
+    ProgramPtr BuiltProgram =
+        build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
+              getRawSyclObjImpl(Devs[0])->getHandleRef(),
+              ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+
+    {
+      std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+      NativePrograms[BuiltProgram.get()] = &Img;
+    }
+
+    return BuiltProgram.release();
+  };
+
+  SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
+
+  const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
+  // TODO: Throw SYCL2020 style exception
+  auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
+      Cache,
+      std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
+                     std::make_pair(PiDevice, CompileOpts + LinkOpts)),
+      AcquireF, GetF, BuildF);
+
+  RT::PiProgram ResProgram = BuildResult->Ptr.load();
+
+  // Cache supports key with once device only, but here we have multiple
+  // devices a program is built for, so add the program to the cache for all
+  // other devices.
+  auto CacheOtherDevices = [ResProgram]() { return ResProgram; };
+
+  // The program for device "0" is already added to the cache during the first
+  // call to getOrBuild, so starting with "1"
+  for (size_t Idx = 1; Idx < Devs.size(); ++Idx) {
+    const RT::PiDevice PiDeviceAdd =
+        getRawSyclObjImpl(Devs[Idx])->getHandleRef();
+
+    getOrBuild<PiProgramT, compile_program_error>(
+        Cache,
+        std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
+                       std::make_pair(PiDeviceAdd, CompileOpts + LinkOpts)),
+        AcquireF, GetF, CacheOtherDevices);
+  }
+
+  // devive_image_impl shares ownership of PIProgram with, at least, program
+  // cache. The ref counter will be descremented in the destructor of
+  // device_image_impl
+  const detail::plugin &Plugin = ContextImpl->getPlugin();
+  Plugin.call<PiApiKind::piProgramRetain>(ResProgram);
+
+  DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
+      InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
+      InputImpl->get_kernel_ids_ref(), ResProgram);
+
+  return createSyclObjFromImpl<device_image_plain>(ExecImpl);
+}
+
+std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
+    const context &Context, const string_class &KernelName,
+    const property_list &PropList, RT::PiProgram Program) {
+
+  (void)PropList;
+
+  const ContextImplPtr Ctx = getSyclObjImpl(Context);
+
+  using PiKernelT = KernelProgramCache::PiKernelT;
+  using KernelCacheT = KernelProgramCache::KernelCacheT;
+  using KernelByNameT = KernelProgramCache::KernelByNameT;
+
+  KernelProgramCache &Cache = Ctx->getKernelProgramCache();
+
+  auto AcquireF = [](KernelProgramCache &Cache) {
+    return Cache.acquireKernelsPerProgramCache();
+  };
+  auto GetF =
+      [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
+    return LockedCache.get()[Program];
+  };
+  auto BuildF = [&Program, &KernelName, &Ctx] {
+    PiKernelT *Result = nullptr;
+
+    const detail::plugin &Plugin = Ctx->getPlugin();
+    Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
+                                           &Result);
+
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(Result, PI_USM_INDIRECT_ACCESS,
+                                                sizeof(pi_bool), &PI_TRUE);
+
+    return Result;
+  };
+
+  auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
+      Cache, KernelName, AcquireF, GetF, BuildF);
+  return std::make_pair(BuildResult->Ptr.load(),
+                        &(BuildResult->MBuildResultMutex));
 }
 
 } // namespace detail

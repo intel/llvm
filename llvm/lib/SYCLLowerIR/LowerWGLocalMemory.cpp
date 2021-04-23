@@ -52,12 +52,14 @@ ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
   return new SYCLLowerWGLocalMemoryLegacy();
 }
 
-// Static local memory allocation should be allowed only in a scope of a kernel
-// (not a device function) and shouldn't be called inside loop or if statement
+// TODO: It should be checked that __sycl_allocateLocalMemory (or its source
+// form - group_local_memory) does not occur:
+//  - in a function (other than user lambda/functor)
+//  - in a loop
+//  - in a non-convergent control flow
 // to make it consistent with OpenCL restriction.
-// TODO: Relax that restriction for SYCL or modify this pass to move allocation
-// of memory up to a kernel scope at the beginning for each nested device
-// function call, loop or if statement.
+// But LLVM pass is not the best place to diagnose these cases.
+// Error checking should be done in the front-end compiler.
 static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   assert(CI);
 
@@ -86,9 +88,6 @@ static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   Value *GVPtr =
       Builder.CreatePointerCast(LocalMemArrayGV, Builder.getInt8PtrTy(LocalAS));
   CI->replaceAllUsesWith(GVPtr);
-
-  assert(CI->use_empty() && "removing live instruction");
-  CI->eraseFromParent();
 }
 
 static bool allocaWGLocalMemory(Module &M) {
@@ -98,9 +97,16 @@ static bool allocaWGLocalMemory(Module &M) {
 
   assert(ALMFunc->isDeclaration() && "should have declaration only");
 
+  SmallVector<CallInst *, 4> DelCalls;
   for (User *U : ALMFunc->users()) {
     auto *CI = cast<CallInst>(U);
     lowerAllocaLocalMemCall(CI, M);
+    DelCalls.push_back(CI);
+  }
+
+  for (auto *CI : DelCalls) {
+    assert(CI->use_empty() && "removing live instruction");
+    CI->eraseFromParent();
   }
 
   // Remove __sycl_allocateLocalMemory declaration.

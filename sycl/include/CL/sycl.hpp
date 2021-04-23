@@ -13,6 +13,7 @@
 #include <CL/sycl/ONEAPI/filter_selector.hpp>
 #include <CL/sycl/ONEAPI/function_pointer.hpp>
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
+#include <CL/sycl/ONEAPI/matrix/matrix.hpp>
 #include <CL/sycl/ONEAPI/reduction.hpp>
 #include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/accessor.hpp>
@@ -35,6 +36,7 @@
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
+#include <CL/sycl/kernel_handler.hpp>
 #include <CL/sycl/marray.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -48,6 +50,7 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/reduction.hpp>
 #include <CL/sycl/sampler.hpp>
+#include <CL/sycl/specialization_id.hpp>
 #include <CL/sycl/stream.hpp>
 #include <CL/sycl/types.hpp>
 #include <CL/sycl/usm.hpp>

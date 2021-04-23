@@ -243,16 +243,6 @@ MemDepResult MemoryDependenceResults::getCallDependencyFrom(
   return MemDepResult::getNonFuncLocal();
 }
 
-static bool isVolatile(Instruction *Inst) {
-  if (auto *LI = dyn_cast<LoadInst>(Inst))
-    return LI->isVolatile();
-  if (auto *SI = dyn_cast<StoreInst>(Inst))
-    return SI->isVolatile();
-  if (auto *AI = dyn_cast<AtomicCmpXchgInst>(Inst))
-    return AI->isVolatile();
-  return false;
-}
-
 MemDepResult MemoryDependenceResults::getPointerDependencyFrom(
     const MemoryLocation &MemLoc, bool isLoad, BasicBlock::iterator ScanIt,
     BasicBlock *BB, Instruction *QueryInst, unsigned *Limit) {
@@ -467,9 +457,9 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
         MemoryLocation Loc;
         /*ModRefInfo MR =*/ GetLocation(II, Loc, TLI);
         AliasResult R = BatchAA.alias(Loc, MemLoc);
-        if (R == NoAlias)
+        if (R == AliasResult::NoAlias)
           continue;
-        if (R == MustAlias)
+        if (R == AliasResult::MustAlias)
           return MemDepResult::getDef(II);
         if (ID == Intrinsic::masked_load)
           continue;
@@ -491,7 +481,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
         if (!QueryInst)
           // Original QueryInst *may* be volatile
           return MemDepResult::getClobber(LI);
-        if (isVolatile(QueryInst))
+        if (QueryInst->isVolatile())
           // Ordering required if QueryInst is itself volatile
           return MemDepResult::getClobber(LI);
         // Otherwise, volatile doesn't imply any special ordering
@@ -515,11 +505,11 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       AliasResult R = BatchAA.alias(LoadLoc, MemLoc);
 
       if (isLoad) {
-        if (R == NoAlias)
+        if (R == AliasResult::NoAlias)
           continue;
 
         // Must aliased loads are defs of each other.
-        if (R == MustAlias)
+        if (R == AliasResult::MustAlias)
           return MemDepResult::getDef(Inst);
 
 #if 0 // FIXME: Temporarily disabled. GVN is cleverly rewriting loads
@@ -529,7 +519,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
 
         // If we have a partial alias, then return this as a clobber for the
         // client to handle.
-        if (R == PartialAlias)
+        if (R == AliasResult::PartialAlias)
           return MemDepResult::getClobber(Inst);
 #endif
 
@@ -539,7 +529,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       }
 
       // Stores don't depend on other no-aliased accesses.
-      if (R == NoAlias)
+      if (R == AliasResult::NoAlias)
         continue;
 
       // Stores don't alias loads from read-only memory.
@@ -585,9 +575,9 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       // If we found a pointer, check if it could be the same as our pointer.
       AliasResult R = BatchAA.alias(StoreLoc, MemLoc);
 
-      if (R == NoAlias)
+      if (R == AliasResult::NoAlias)
         continue;
-      if (R == MustAlias)
+      if (R == AliasResult::MustAlias)
         return MemDepResult::getDef(Inst);
       if (isInvariantLoad)
         continue;
@@ -882,7 +872,7 @@ void MemoryDependenceResults::getNonLocalPointerDependency(
     }
     return false;
   };
-  if (isVolatile(QueryInst) || isOrdered(QueryInst)) {
+  if (QueryInst->isVolatile() || isOrdered(QueryInst)) {
     Result.push_back(NonLocalDepResult(FromBB, MemDepResult::getUnknown(),
                                        const_cast<Value *>(Loc.Ptr)));
     return;

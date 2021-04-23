@@ -18,6 +18,7 @@ namespace llvm {
 class FunctionPass;
 class GCNTargetMachine;
 class ImmutablePass;
+class MachineFunctionPass;
 class ModulePass;
 class Pass;
 class Target;
@@ -50,7 +51,6 @@ FunctionPass *createSIAnnotateControlFlowPass();
 FunctionPass *createSIFoldOperandsPass();
 FunctionPass *createSIPeepholeSDWAPass();
 FunctionPass *createSILowerI1CopiesPass();
-FunctionPass *createSIAddIMGInitPass();
 FunctionPass *createSIShrinkInstructionsPass();
 FunctionPass *createSILoadStoreOptimizerPass();
 FunctionPass *createSIWholeQuadModePass();
@@ -73,6 +73,16 @@ ModulePass *createAMDGPUPropagateAttributesLatePass(const TargetMachine *);
 FunctionPass *createAMDGPURewriteOutArgumentsPass();
 ModulePass *createAMDGPULowerModuleLDSPass();
 FunctionPass *createSIModeRegisterPass();
+
+namespace AMDGPU {
+enum RegBankReassignMode {
+  RM_VGPR = 1,
+  RM_SGPR = 2,
+  RM_BOTH = RM_VGPR | RM_SGPR
+};
+}
+MachineFunctionPass *
+createGCNRegBankReassignPass(AMDGPU::RegBankReassignMode Mode);
 
 struct AMDGPUSimplifyLibCallsPass : PassInfoMixin<AMDGPUSimplifyLibCallsPass> {
   AMDGPUSimplifyLibCallsPass(TargetMachine &TM) : TM(TM) {}
@@ -221,9 +231,6 @@ extern char &AMDGPUSimplifyLibCallsID;
 
 void initializeAMDGPUUseNativeCallsPass(PassRegistry &);
 extern char &AMDGPUUseNativeCallsID;
-
-void initializeSIAddIMGInitPass(PassRegistry &);
-extern char &SIAddIMGInitID;
 
 void initializeAMDGPUPerfHintAnalysisPass(PassRegistry &);
 extern char &AMDGPUPerfHintAnalysisID;

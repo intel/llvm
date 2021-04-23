@@ -24,6 +24,9 @@ namespace gpu {
 ///
 /// \ingroup sycl_esimd
 template <typename BaseTy, typename RegionTy> class simd_view {
+  template <typename, int> friend class simd;
+  template <typename, typename> friend class simd_view;
+
 public:
   static_assert(!is_simd_view_v<BaseTy>::value);
   // Deduce the corresponding value type from its region type.
@@ -34,7 +37,8 @@ public:
   using value_type = simd<typename ShapeTy::element_type, length>;
 
   /// The underlying builtin value type
-  using vector_type = vector_type_t<typename ShapeTy::element_type, length>;
+  using vector_type =
+      detail::vector_type_t<typename ShapeTy::element_type, length>;
 
   /// The region type of this class.
   using region_type = RegionTy;
@@ -43,31 +47,17 @@ public:
   /// type of the base object type.
   using element_type = typename ShapeTy::element_type;
 
-  // TODO @rolandschulz
-  // {quote}
-  // Why is this and the next constructor public ? Those should only be called
-  // internally by e.g.select, correct ?
-  // {/quote}
-  //
   /// @{
   /// Constructors.
+
+private:
   simd_view(BaseTy &Base, RegionTy Region) : M_base(Base), M_region(Region) {}
   simd_view(BaseTy &&Base, RegionTy Region) : M_base(Base), M_region(Region) {}
 
-  // TODO @rolandschulz
-  // {quote}
-  // Is this intentional not a correct copy constructor (would need to be const
-  // for that)? I believe we agreed that simd_view would have a deleted copy and
-  // move constructor.Why are they suddenly back ?
-  // {/quote}
-  // TODO @kbobrovs
-  // copy constructor is still incorrect (no 'const'), move constructor is still
-  // present.
-  //
-  // Disallow copy constructor for simd_view.
-  simd_view(simd_view &Other) = delete;
-  simd_view(simd_view &&Other)
-      : M_base(Other.M_base), M_region(Other.M_region) {}
+public:
+  // Disallow copy and move constructors for simd_view.
+  simd_view(const simd_view &Other) = delete;
+  simd_view(simd_view &&Other) = delete;
   /// @}
 
   /// Conversion to simd type.

@@ -104,6 +104,15 @@ struct buffer_location {
 } // namespace INTEL
 
 namespace ONEAPI {
+namespace property {
+// Compile time known accessor property
+struct no_alias {
+  template <bool> class instance {};
+};
+} // namespace property
+} // namespace ONEAPI
+
+namespace ONEAPI {
 template <typename... properties>
 class accessor_property_list {};
 } // namespace ONEAPI
@@ -294,6 +303,27 @@ public:
 class kernel_handler {
   void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
 };
+
+template <typename T> class specialization_id {
+public:
+  using value_type = T;
+
+  template <class... Args>
+  explicit constexpr specialization_id(Args &&...args)
+      : MDefaultValue(args...) {}
+
+  specialization_id(const specialization_id &rhs) = delete;
+  specialization_id(specialization_id &&rhs) = delete;
+  specialization_id &operator=(const specialization_id &rhs) = delete;
+  specialization_id &operator=(specialization_id &&rhs) = delete;
+
+private:
+  T MDefaultValue;
+};
+
+#if __cplusplus >= 201703L
+template<typename T> specialization_id(T) -> specialization_id<T>;
+#endif // C++17.
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>

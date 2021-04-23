@@ -68,6 +68,39 @@ let TargetPrefix = "riscv" in {
 } // TargetPrefix = "riscv"
 
 //===----------------------------------------------------------------------===//
+// Bitmanip (Bit Manipulation) Extension
+
+let TargetPrefix = "riscv" in {
+
+  class BitManipGPRIntrinsics
+      : Intrinsic<[llvm_any_ty],
+                  [LLVMMatchType<0>],
+                  [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
+  class BitManipGPRGPRIntrinsics
+      : Intrinsic<[llvm_any_ty],
+                  [LLVMMatchType<0>, LLVMMatchType<0>],
+                  [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
+
+  // Zbb
+  def int_riscv_orc_b : BitManipGPRIntrinsics;
+
+  // Zbc
+  def int_riscv_clmul  : BitManipGPRGPRIntrinsics;
+  def int_riscv_clmulh : BitManipGPRGPRIntrinsics;
+  def int_riscv_clmulr : BitManipGPRGPRIntrinsics;
+
+  // Zbr
+  def int_riscv_crc32_b : BitManipGPRIntrinsics;
+  def int_riscv_crc32_h : BitManipGPRIntrinsics;
+  def int_riscv_crc32_w : BitManipGPRIntrinsics;
+  def int_riscv_crc32_d : BitManipGPRIntrinsics;
+  def int_riscv_crc32c_b : BitManipGPRIntrinsics;
+  def int_riscv_crc32c_h : BitManipGPRIntrinsics;
+  def int_riscv_crc32c_w : BitManipGPRIntrinsics;
+  def int_riscv_crc32c_d : BitManipGPRIntrinsics;
+} // TargetPrefix = "riscv"
+
+//===----------------------------------------------------------------------===//
 // Vectors
 
 class RISCVVIntrinsic {
@@ -291,6 +324,21 @@ let TargetPrefix = "riscv" in {
                    [IntrNoMem]>, RISCVVIntrinsic {
     let SplatOperand = 3;
   }
+  // For destination vector type is the same as first source vector. The
+  // second source operand must match the destination type or be an XLen scalar.
+  // Input: (vector_in, vector_in/scalar_in, vl)
+  class RISCVBinaryAAShiftNoMask
+        : Intrinsic<[llvm_anyvector_ty],
+                    [LLVMMatchType<0>, llvm_any_ty, llvm_anyint_ty],
+                    [IntrNoMem]>, RISCVVIntrinsic;
+  // For destination vector type is the same as first source vector (with mask).
+  // The second source operand must match the destination type or be an XLen scalar.
+  // Input: (maskedoff, vector_in, vector_in/scalar_in, mask, vl)
+  class RISCVBinaryAAShiftMask
+       : Intrinsic<[llvm_anyvector_ty],
+                   [LLVMMatchType<0>, LLVMMatchType<0>, llvm_any_ty,
+                    LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty],
+                   [IntrNoMem]>, RISCVVIntrinsic;
   // For destination vector type is NOT the same as first source vector.
   // Input: (vector_in, vector_in/scalar_in, vl)
   class RISCVBinaryABXNoMask
@@ -308,6 +356,21 @@ let TargetPrefix = "riscv" in {
                     [IntrNoMem]>, RISCVVIntrinsic {
     let SplatOperand = 3;
   }
+  // For destination vector type is NOT the same as first source vector. The
+  // second source operand must match the destination type or be an XLen scalar.
+  // Input: (vector_in, vector_in/scalar_in, vl)
+  class RISCVBinaryABShiftNoMask
+        : Intrinsic<[llvm_anyvector_ty],
+                    [llvm_anyvector_ty, llvm_any_ty, llvm_anyint_ty],
+                    [IntrNoMem]>, RISCVVIntrinsic;
+  // For destination vector type is NOT the same as first source vector (with mask).
+  // The second source operand must match the destination type or be an XLen scalar.
+  // Input: (maskedoff, vector_in, vector_in/scalar_in, mask, vl)
+  class RISCVBinaryABShiftMask
+        : Intrinsic<[llvm_anyvector_ty],
+                    [LLVMMatchType<0>, llvm_anyvector_ty, llvm_any_ty,
+                     LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty],
+                    [IntrNoMem]>, RISCVVIntrinsic;
   // For binary operations with V0 as input.
   // Input: (vector_in, vector_in/scalar_in, V0, vl)
   class RISCVBinaryWithV0
@@ -393,24 +456,39 @@ let TargetPrefix = "riscv" in {
     let SplatOperand = 3;
   }
   // For Saturating binary operations.
-  // The destination vector type is NOT the same as first source vector.
+  // The destination vector type is the same as first source vector.
+  // The second source operand matches the destination type or is an XLen scalar.
   // Input: (vector_in, vector_in/scalar_in, vl)
-  class RISCVSaturatingBinaryABXNoMask
+  class RISCVSaturatingBinaryAAShiftNoMask
+        : Intrinsic<[llvm_anyvector_ty],
+                    [LLVMMatchType<0>, llvm_any_ty, llvm_anyint_ty],
+                    [IntrNoMem, IntrHasSideEffects]>, RISCVVIntrinsic;
+  // For Saturating binary operations with mask.
+  // The destination vector type is the same as first source vector.
+  // The second source operand matches the destination type or is an XLen scalar.
+  // Input: (maskedoff, vector_in, vector_in/scalar_in, mask, vl)
+  class RISCVSaturatingBinaryAAShiftMask
+        : Intrinsic<[llvm_anyvector_ty],
+                    [LLVMMatchType<0>, LLVMMatchType<0>, llvm_any_ty,
+                     LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty],
+                    [IntrNoMem, IntrHasSideEffects]>, RISCVVIntrinsic;
+  // For Saturating binary operations.
+  // The destination vector type is NOT the same as first source vector.
+  // The second source operand matches the destination type or is an XLen scalar.
+  // Input: (vector_in, vector_in/scalar_in, vl)
+  class RISCVSaturatingBinaryABShiftNoMask
         : Intrinsic<[llvm_anyvector_ty],
                     [llvm_anyvector_ty, llvm_any_ty, llvm_anyint_ty],
-                    [IntrNoMem, IntrHasSideEffects]>, RISCVVIntrinsic {
-    let SplatOperand = 2;
-  }
+                    [IntrNoMem, IntrHasSideEffects]>, RISCVVIntrinsic;
   // For Saturating binary operations with mask.
   // The destination vector type is NOT the same as first source vector (with mask).
+  // The second source operand matches the destination type or is an XLen scalar.
   // Input: (maskedoff, vector_in, vector_in/scalar_in, mask, vl)
-  class RISCVSaturatingBinaryABXMask
+  class RISCVSaturatingBinaryABShiftMask
         : Intrinsic<[llvm_anyvector_ty],
                     [LLVMMatchType<0>, llvm_anyvector_ty, llvm_any_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty],
-                    [IntrNoMem, IntrHasSideEffects]>, RISCVVIntrinsic {
-    let SplatOperand = 3;
-  }
+                    [IntrNoMem, IntrHasSideEffects]>, RISCVVIntrinsic;
   class RISCVTernaryAAAXNoMask
         : Intrinsic<[llvm_anyvector_ty],
                     [LLVMMatchType<0>, LLVMMatchType<0>, llvm_anyint_ty,
@@ -470,15 +548,15 @@ let TargetPrefix = "riscv" in {
   // Output: (scalar type)
   // Input: (vector_in, vl)
   class RISCVMaskUnarySOutNoMask
-        : Intrinsic<[llvm_anyint_ty],
-                    [llvm_anyvector_ty, LLVMMatchType<0>],
+        : Intrinsic<[LLVMMatchType<1>],
+                    [llvm_anyvector_ty, llvm_anyint_ty],
                     [IntrNoMem]>, RISCVVIntrinsic;
   // For unary operations with scalar type output with mask
   // Output: (scalar type)
   // Input: (vector_in, mask, vl)
   class RISCVMaskUnarySOutMask
-        : Intrinsic<[llvm_anyint_ty],
-                    [llvm_anyvector_ty, LLVMMatchType<1>, LLVMMatchType<0>],
+        : Intrinsic<[LLVMMatchType<1>],
+                    [llvm_anyvector_ty, LLVMMatchType<0>, llvm_anyint_ty],
                     [IntrNoMem]>, RISCVVIntrinsic;
   // For destination vector type is NOT the same as source vector.
   // Input: (vector_in, vl)
@@ -725,6 +803,12 @@ let TargetPrefix = "riscv" in {
     def "int_riscv_" # NAME : RISCVBinaryAAXNoMask;
     def "int_riscv_" # NAME # "_mask" : RISCVBinaryAAXMask;
   }
+  // Like RISCVBinaryAAX, but the second operand is used a shift amount so it
+  // must be a vector or an XLen scalar.
+  multiclass RISCVBinaryAAShift {
+    def "int_riscv_" # NAME : RISCVBinaryAAShiftNoMask;
+    def "int_riscv_" # NAME # "_mask" : RISCVBinaryAAShiftMask;
+  }
   multiclass RISCVRGatherVV {
     def "int_riscv_" # NAME : RISCVRGatherVVNoMask;
     def "int_riscv_" # NAME # "_mask" : RISCVRGatherVVMask;
@@ -743,6 +827,12 @@ let TargetPrefix = "riscv" in {
     def "int_riscv_" # NAME : RISCVBinaryABXNoMask;
     def "int_riscv_" # NAME # "_mask" : RISCVBinaryABXMask;
   }
+  // Like RISCVBinaryABX, but the second operand is used a shift amount so it
+  // must be a vector or an XLen scalar.
+  multiclass RISCVBinaryABShift {
+    def "int_riscv_" # NAME : RISCVBinaryABShiftNoMask;
+    def "int_riscv_" # NAME # "_mask" : RISCVBinaryABShiftMask;
+  }
   multiclass RISCVBinaryWithV0 {
     def "int_riscv_" # NAME : RISCVBinaryWithV0;
   }
@@ -756,9 +846,13 @@ let TargetPrefix = "riscv" in {
     def "int_riscv_" # NAME : RISCVSaturatingBinaryAAXNoMask;
     def "int_riscv_" # NAME # "_mask" : RISCVSaturatingBinaryAAXMask;
   }
-  multiclass RISCVSaturatingBinaryABX {
-    def "int_riscv_" # NAME : RISCVSaturatingBinaryABXNoMask;
-    def "int_riscv_" # NAME # "_mask" : RISCVSaturatingBinaryABXMask;
+  multiclass RISCVSaturatingBinaryAAShift {
+    def "int_riscv_" # NAME : RISCVSaturatingBinaryAAShiftNoMask;
+    def "int_riscv_" # NAME # "_mask" : RISCVSaturatingBinaryAAShiftMask;
+  }
+  multiclass RISCVSaturatingBinaryABShift {
+    def "int_riscv_" # NAME : RISCVSaturatingBinaryABShiftNoMask;
+    def "int_riscv_" # NAME # "_mask" : RISCVSaturatingBinaryABShiftMask;
   }
   multiclass RISCVTernaryAAAX {
     def "int_riscv_" # NAME : RISCVTernaryAAAXNoMask;
@@ -880,12 +974,12 @@ let TargetPrefix = "riscv" in {
   defm vor : RISCVBinaryAAX;
   defm vxor : RISCVBinaryAAX;
 
-  defm vsll : RISCVBinaryAAX;
-  defm vsrl : RISCVBinaryAAX;
-  defm vsra : RISCVBinaryAAX;
+  defm vsll : RISCVBinaryAAShift;
+  defm vsrl : RISCVBinaryAAShift;
+  defm vsra : RISCVBinaryAAShift;
 
-  defm vnsrl : RISCVBinaryABX;
-  defm vnsra : RISCVBinaryABX;
+  defm vnsrl : RISCVBinaryABShift;
+  defm vnsra : RISCVBinaryABShift;
 
   defm vmseq : RISCVCompare;
   defm vmsne : RISCVCompare;
@@ -1023,11 +1117,11 @@ let TargetPrefix = "riscv" in {
 
   defm vsmul : RISCVSaturatingBinaryAAX;
 
-  defm vssrl : RISCVSaturatingBinaryAAX;
-  defm vssra : RISCVSaturatingBinaryAAX;
+  defm vssrl : RISCVSaturatingBinaryAAShift;
+  defm vssra : RISCVSaturatingBinaryAAShift;
 
-  defm vnclipu : RISCVSaturatingBinaryABX;
-  defm vnclip : RISCVSaturatingBinaryABX;
+  defm vnclipu : RISCVSaturatingBinaryABShift;
+  defm vnclip : RISCVSaturatingBinaryABShift;
 
   defm vmfeq : RISCVCompare;
   defm vmfne : RISCVCompare;
