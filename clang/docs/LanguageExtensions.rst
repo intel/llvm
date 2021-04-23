@@ -2404,6 +2404,40 @@ argument.
   int *pb =__builtin_preserve_access_index(&v->c[3].b);
   __builtin_preserve_access_index(v->j);
 
+``__builtin_sycl_unique_stable_name``
+-------------------------------------
+
+``__builtin_sycl_unique_stable_name()`` is a builtin that takes a type and
+produces a string literal containing a unique name for the type that is stable
+across split compilations, mainly to support SYCL/Data Parallel C++ language.
+
+In cases where the split compilation needs to share a unique token for a type
+across the boundary (such as in an offloading situation), this name can be used
+for lookup purposes, such as in the SYCL Integration Header.
+
+The value of this builtin is computed entirely at compile time, so it can be
+used in constant expressions. This value encodes lambda functions based on a
+stable numbering order in which they appear in their local declaration contexts.
+Once this builtin is evaluated in a constexpr context, it is erroneous to use
+it in an instantiation which changes its value.
+
+In order to produce the unique name, the current implementation of the bultin
+uses Itanium mangling even if the host compilation uses a different name
+mangling scheme at runtime. The mangler marks all the lambdas required to name
+the SYCL kernel and emits a stable local ordering of the respective lambdas,
+starting from ``10000``. The initial value of ``10000`` serves as an obvious
+differentiator from ordinary lambda mangling numbers but does not serve any
+other purpose and may change in the future. The resulting pattern is
+demanglable. When non-lambda types are passed to the builtin, the mangler emits
+their usual pattern without any special treatment.
+
+**Syntax**:
+
+.. code-block:: c
+
+  // Computes a unique stable name for the given type.
+  constexpr const char * __builtin_sycl_unique_stable_name( type-id );
+
 Multiprecision Arithmetic Builtins
 ----------------------------------
 
