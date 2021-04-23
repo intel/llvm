@@ -17,13 +17,6 @@
 #include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
-//
-// test smaller input size
-// test 8x16 block size
-//
-#define DIM_SIZE (1 << 13)
-#define SQUARE_SZ (DIM_SIZE * DIM_SIZE + 16)
-
 #define WIDTH 16
 #define HEIGHT 16
 
@@ -43,8 +36,7 @@ void InitializeSquareMatrix(float *matrix, size_t const Dim,
   }
 }
 
-bool CheckResults(float *out, float *in) {
-  unsigned int n = DIM_SIZE;
+bool CheckResults(float *out, float *in, unsigned n) {
   for (unsigned int i = 0; i < n; i++) {
     for (unsigned int j = 0; j < n; j++) {
       if ((5 <= i) && (i < n - 5) && (5 <= j) && (j < n - 5)) {
@@ -81,7 +73,14 @@ bool CheckResults(float *out, float *in) {
   return true;
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+  if (argc > 2) {
+    std::cerr << "Usage: stencil.exe [dim_size]" << std::endl;
+    exit(1);
+  }
+  // Default dimension size is 1024
+  const unsigned DIM_SIZE = (argc == 2) ? atoi(argv[1]) : 1 << 10;
+  const unsigned SQUARE_SZ = DIM_SIZE * DIM_SIZE + 16;
   uint range_width =
       (DIM_SIZE - 10) / WIDTH + (((DIM_SIZE - 10) % WIDTH == 0) ? 0 : 1);
   uint range_height =
@@ -184,7 +183,7 @@ int main(void) {
   }
 
   // check result
-  bool passed = CheckResults(outputMatrix, inputMatrix);
+  bool passed = CheckResults(outputMatrix, inputMatrix, DIM_SIZE);
   if (passed) {
     std::cout << "PASSED" << std::endl;
   } else {
