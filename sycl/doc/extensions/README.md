@@ -38,6 +38,7 @@ DPC++ extensions status:
 | [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
 | [ITT annotations support](ITTAnnotations/ITTAnnotations.rst) | Supported | |
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
+| [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
 
 Legend:
 
