@@ -31,6 +31,14 @@ clang++ -fsycl app.cpp -lhelpers -o a.out
 Output: 0 2 4 6…
 
 ```
+The first invocation of `clang++` driver will create a "fat" shared library
+which contains both host code and device code. The second invocation of
+`clang++` driver will create a "fat" application binary that also contains
+embedded device code. Host part of the application and library will be linked
+automatically by standard C++ toolchain and system linker, while linking of
+device part of the application and library requires new functionality which is
+described in this document.
+
 It is possible to manually create `sycl::program` in both app and shared
 library, then use `link` SYCL API to get a single program and launch kernels
 using it. But it is not user-friendly and it is very different from regular
@@ -69,13 +77,24 @@ For this combination the following statements must be true:
 
 The presented dynamic device code linkage mechanism must:
 
-- Allow to represent the actual dynamically linked code as a device binary image
-  which can be:
-  - Embedded into a host shared object by standard SYCL compiler driver
-    invocation
-  - Embedded into a host binary or shared object using manual invocations of
-    SYCL tools such as `clang-offload-wrapper` and linker
-  - Loaded into memory via special API
+- Allow to link device code represented as device binary image dynamically at
+  runtime with other device binary images. In order to use this functionality
+  the user can create and supply device binary image to DPC++ Runtime library
+  via following ways:
+  - Create a "fat" shared library by standard SYCL compiler driver invocation
+  - Supply host binary or shared object with device binary image using manual
+    invocations of SYCL tools such as `clang-offload-wrapper` and linker
+  - Load device binary image into memory via dlopen-like API
+    - This is a TODO item, since SYCL standard doesn't define such API yet.
+    Example how such API may look like:
+    ```
+    // suppose, mylib.spv defines SYCL_EXTERNAL function foo, then this call:
+    device_image img = device_dlopen("mylib.spv");
+    // will make foo available for dynamic symbol resolution. If any subsequent
+    // JIT compilations try to compile device code with external reference to
+    // foo, it can now be resolved following the resolution mechanism described
+    // in this doc, and JIT compilation will succeed.
+    ```
 - Allow different format for device code - e.g. it can be SPIR-V or native
   device binary
 - Provide automatic runtime resolution of `SYCL_EXTERNAL` function references
@@ -91,16 +110,21 @@ The overall idea:
 
 - Each device image is supplied with a list of imported and exported symbol
   names through device image properties mechanism
-- Before JIT-compiling a device image DPC++ RT will check if device image has a
-  list of imported symbols and if it has, then RT will search for device images
-  which define required symbols using lists of exported symbols.
+- In order to create a program executable from device image DPC++ RT will check
+  if this device image has a list of imported symbols and if it has, then RT
+  will search for device images which define required symbols using lists of
+  exported symbols.
   - Besides symbol names, additional attributes are taken into account (like
     device image format: SPIR-V or native device binary)
   - No logical binding between host module and export/import lists, i.e.
     resolution is performed w/o regard to containing host modules
+- All found device images are used to create program objects and then these
+  programs are linked together.
 - Actual linking is performed by underlying backend (OpenCL/L0/etc.)
-  - Underlying backend is the backend used by the SYCL RT to perform JIT
-    compilation of the program with symbols that need dynamic resolution.
+  - Underlying backend is the backend used by DPC++ RT to create program
+    from device binary image, perform JIT compilation (if required for chosen
+    device image format) and linking with other programs in order to resolve
+    symbols.
 
 Next sections describe details of changes in each component.
 
@@ -157,7 +181,8 @@ Such duplication is needed for two reasons:
 
 Non-`SYCL_EXTERNAL` functions used by `SYCL_EXTERNAL` functions are copied to
 device images corresponding to those `SYCL_EXTERNAL` functions to make them
-self-contained - in the same way as it is done when splitting kernels across device images.
+self-contained - in the same way as it is done when splitting kernels across
+device images.
 In case one `SYCL_EXTERNAL` function uses another `SYCL_EXTERNAL` function
 with different value in `sycl-module-id` attribute, the second one is not copied
 to the device image with the first function, but dependency between those device
@@ -228,45 +253,46 @@ corresponding set has the name `SYCL/exported symbols`.
 ### DPC++ runtime changes
 
 DPC++ RT performs *device images collection* task by grouping all device
-images required to execute a kernel based on the list of exports/imports and
-links them together using PI API.
-This native device image is then added to the cache to avoid symbol resolution,
-compilation, and linking for any future attempts to invoke kernels from this
-device image.
+images required to execute a kernel based on the list of exports/imports, creates
+programs using collected images and links them together using PI API.
+Resulting program is then added to the cache to avoid repetition of symbol
+resolution, compilation, and linking processes for any future attempts to invoke
+kernels defined by this program.
 
 #### DPC++ runtime plugin interface (PI) changes
 
 Before creating a program the function `piextDeviceSelectBinary` is used to
-choose the most appropriate device image. It is possible that not all backends
-have possibility to link device images of particular format at run-time. So,
-in presence of dynamic linking the `piextDeviceSelectBinary` function should be
-extended, so it chooses the appropriate device image
-based on additional attributes of device images, such as:
+choose the most appropriate device image. Device image may have SPIR-V or native
+binary code format.
+It is possible that not all backends have possibility to link programs made from
+device images of some format at runtime. So, in presence of dynamic linking the
+`piextDeviceSelectBinary` function should be extended, so it chooses the
+appropriate device image based on additional attributes of device images, such
+as:
 - List of imports (if present)
 - Device image format
 - Runtime linking support in corresponding backend
 
 Example: the backend doesn't have support of native binaries linking at
-run-time but linking of SPIR-V device images is supported,
-the AOT-compiled device image with required kernel have imports
-information attached which effectively means that this device image needs runtime
-linking, but since native binaries linking is not supported, the image with
-SPIR-V format will be chosen (or an error emitted if there is no other device
-images).
+run-time but linking of SPIR-V is supported, the AOT-compiled device image with
+required kernel have imports information attached which effectively means that
+this device image needs runtime linking, but since native binaries linking is
+not supported, the image with SPIR-V format will be chosen (or an error emitted
+if there is no other device images).
 To link several device images together `piProgramLink` API will be used.
 Depending on concrete plugin implementation and set of device image formats that
-can be linked at run-time, `piProgramLink` API may receive device images in
-different states as inputs (including SPIR-V and native code) with a limitation
-that all inputs should have the same format.
+can be linked at run-time, `piProgramLink` API may receive programs made from
+device images in different formats as inputs (including SPIR-V and native code)
+with a limitation that used images should have the same format.
 
 ##### Support of runtime linking in backends
 
-- The initial design will support dynamic linking of device code in SPIR-V
+- The initial implementation will support dynamic linking of device code in SPIR-V
   format on OpenCL backend:
   - OpenCL plugin will use the existing OpenCL `clLinkProgram()` API to online
   link the SPIR-V modules together.
   - The design requires a new Level Zero API to online link SPIR-V modules.
-- The initial design will support dynamic linking of device code in native code
+- The initial implementation will support dynamic linking of device code in native code
   format on the Level Zero backend:
   - L0 plugin will use the existing Level Zero `zeModuleDynamicLink()` API to do
   the linking.
@@ -275,12 +301,13 @@ In the future support may be extended to different formats.
 
 #### Device images collection and linking
 
-Device images collection and linking is performed by DPC++ Runtime class named
-`ProgramManager`.
+Device images collection and linking of programs is performed by DPC++ Runtime
+class named `ProgramManager`.
 
-When the program manager gets a request to JIT compile a device image(program)
-it examines its list of imported symbols and finds device images which exports
-those symbols, then links requested device image and images found together.
+When the program manager gets a request to create a program object using device
+image, it examines its list of imported symbols and finds device images which
+export those symbols, then program manager creates programs for each required
+device image and links them all together.
 
 All needed device images are found by iterating through all available OS modules
 without predefined order and searching for first unresolved symbol in list of
@@ -325,7 +352,7 @@ SYCL_EXTERNAL void LibFunc();
 
 Q.submit([&](cl::sycl::handler &CGH) {
 CGH.parallel_for<InternalKernel>( ... )
-}); // 1. Device Image is compiled and linked into a program and saved in cache
+}); // 1. Program is compiled, linked and saved in cache
     // 2. Prepared program is used to enqueue kernel
 
 Q.submit([&](cl::sycl::handler &CGH) {
@@ -350,9 +377,9 @@ that leads to double compilation of library code:
 SYCL_EXTERNAL void LibFunc();
 
 Q.submit([&](cl::sycl::handler &CGH) {
-  handler.parallel_for([] { LibFunc(); });  // Device image for library is compiled
+  handler.parallel_for([] { LibFunc(); });  // Device code for library is compiled
                                             // and linked together with device
-                                            // image for application, i.e.
+                                            // code for application, i.e.
                                             // LibFunc1 and ExternalKernel exist
                                             // in prepared state
 });
@@ -385,8 +412,9 @@ spec constant values, JIT compiler options and device. Then concrete tuple is
 mapped to a program object. Several tuples can be mapped to a same program
 object, they are created during process of compilation and symbols resolution
 for concrete device image. When some program is made through linking of several
-device images that come from different OS modules, for each OS module in cache
-will be created a tuple with corresponding OS module id.
+programs created from device images that come from different OS modules,
+for each OS module in cache will be created a tuple with corresponding OS module
+id.
 Example of modified cache structure when dynamic linking is involved:
 ```
 // Application
@@ -472,7 +500,7 @@ undefined behaviour, however it is possible to run and compile this example on
 Linux and Windows. Whereas on Linux only function `b()` from library libB is
 called, on Windows both versions of function `b()` are used.
 Most of backends online linkers act like static linkers, i.e. just merge
-device images with each other, so it is not possible to correctly imitate
+device code from different programs, so it is not possible to correctly imitate
 Windows behaviour in device code linking because attempts to do it will result
 in multiple definition errors.
 
