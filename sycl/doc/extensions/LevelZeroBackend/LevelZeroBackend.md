@@ -156,14 +156,12 @@ size_t freeMemory =
   Device.get_backend_info<sycl::ext::oneapi::level_zero::info::device::free_memory>();
 ```
 
-New descriptors added as part of this specification are found in the table below:
+New descriptors added as part of this specification are described in the table below and in the subsequent synopsis.
 
 | Descriptor | Description |
 | ---------- | ----------- |
 | `sycl::ext::oneapi::level_zero::info::device::free_memory` | Returns the number of bytes of free memory for the device. |
 
-
-#### 5.1.1 Free Memory Query Details
 
 ``` C++
 namespace sycl{
