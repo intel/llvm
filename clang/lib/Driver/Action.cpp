@@ -514,8 +514,8 @@ void FileTableTformJobAction::addRenameColumnTform(StringRef From,
 
 void AppendFooterJobAction::anchor() {}
 
-AppendFooterJobAction::AppendFooterJobAction(Action *Input)
-    : JobAction(AppendFooterJobClass, Input, Input->getType()) {}
+AppendFooterJobAction::AppendFooterJobAction(Action *Input, types::ID Type)
+    : JobAction(AppendFooterJobClass, Input, Type) {}
 
 void StaticLibJobAction::anchor() {}
 

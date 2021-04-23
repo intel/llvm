@@ -8750,18 +8750,26 @@ void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
                                 const InputInfoList &Inputs,
                                 const llvm::opt::ArgList &TCArgs,
                                 const char *LinkingOutput) const {
-  const InputInfo &Input(Inputs[0]);
-  // Copy the input file to the output file
-  llvm::sys::fs::copy_file(Input.getFilename(), Output.getFilename());
-  StringRef Footer(C.getDriver().getIntegrationFooter(Input.getBaseInput()));
+  ArgStringList CmdArgs;
+
+  // Input File
+  addArgs(CmdArgs, TCArgs, {Inputs[0].getFilename()});
+
+  // Integration Footer
+  StringRef Footer(
+      C.getDriver().getIntegrationFooter(Inputs[0].getBaseInput()));
   if (!Footer.empty()) {
-    // Append the Integration Footer to the output file.
-    std::ofstream OutFile(Output.getFilename(), std::ios_base::binary |
-                                                    std::ios_base::app |
-                                                    std::ios_base::ate);
-    std::ifstream FooterFile(Footer.str(), std::ios_base::binary);
-    OutFile << FooterFile.rdbuf();
-    OutFile.close();
-    FooterFile.close();
+    SmallString<128> AppendOpt("--append=");
+    AppendOpt.append(Footer);
+    addArgs(CmdArgs, TCArgs, {AppendOpt});
   }
+
+  SmallString<128> OutputOpt("--output=");
+  OutputOpt.append(Output.getFilename());
+  addArgs(CmdArgs, TCArgs, {OutputOpt});
+
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, None));
 }

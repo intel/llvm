@@ -251,7 +251,7 @@ public:
 class LLVM_LIBRARY_VISIBILITY AppendFooter final : public Tool {
 public:
   AppendFooter(const ToolChain &TC)
-      : Tool("Append Footer to source", "append-footer", TC) {}
+      : Tool("Append Footer to source", "append-file", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool hasGoodDiagnostics() const override { return true; }

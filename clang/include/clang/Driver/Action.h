@@ -812,7 +812,7 @@ class AppendFooterJobAction : public JobAction {
   void anchor() override;
 
 public:
-  AppendFooterJobAction(Action *Input);
+  AppendFooterJobAction(Action *Input, types::ID Type);
 
   static bool classof(const Action *A) {
     return A->getKind() == AppendFooterJobClass;

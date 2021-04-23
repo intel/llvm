@@ -5553,9 +5553,13 @@ Action *Driver::ConstructPhaseAction(
     if (Args.hasArg(options::OPT_fsycl) &&
         TargetDeviceOffloadKind == Action::OFK_None) {
       // Performing a host compilation with -fsycl.  Append the integrated
-      // footer to the source before we compile it.
-      auto *AppendFooter = C.MakeAction<AppendFooterJobAction>(Input);
-      return C.MakeAction<CompileJobAction>(AppendFooter, types::TY_LLVM_BC);
+      // footer to the preprocessed source file.  We then add another
+      // preprocessed step so the new file is considered a full compilation.
+      auto *AppendFooter =
+          C.MakeAction<AppendFooterJobAction>(Input, types::TY_CXX);
+      auto *Preprocess =
+          C.MakeAction<PreprocessJobAction>(AppendFooter, Input->getType());
+      return C.MakeAction<CompileJobAction>(Preprocess, types::TY_LLVM_BC);
     }
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
@@ -6177,7 +6181,6 @@ InputInfo Driver::BuildJobsForActionNoCache(
     }
     return InputInfo(A, &Input, /* _BaseInput = */ "");
   }
-
   if (const BindArchAction *BAA = dyn_cast<BindArchAction>(A)) {
     const ToolChain *TC;
     StringRef ArchName = BAA->getArchName();
@@ -6510,6 +6513,10 @@ InputInfo Driver::BuildJobsForActionNoCache(
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
           LinkingOutput);
       // Add another job to print information to terminal for host side.
+      // FIXME - After adding the additional preprocessed step to integrate
+      // the integration footer, the logic in which this additional pass to
+      // generate the 'stdout' preprocessed job is kicking in even when we
+      // are only proceeding to create an object.
       if (JobForPreprocessToStdout) {
         T->ConstructJob(
             C, *JA, ResultForPreprocessToStdout, InputInfos,
