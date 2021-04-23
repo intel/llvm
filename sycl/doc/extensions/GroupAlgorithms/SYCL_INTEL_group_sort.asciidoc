@@ -8,7 +8,6 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-:stem:
 
 :blank: pass:[ +]
 
@@ -194,13 +193,13 @@ Table. Member functions of the `default_sorter` class.
 void operator()(Group g, Ptr begin, Ptr end)`
 |Implements a default sorting algorithm. It's callable by the `joint_sort` algorithm.
 
-_Complexity_: Let `N` be `end - begin`:stem:[O(N \times log_2(N))] comparisons.
+_Complexity_: Let `N` be `end - begin`. `O(N*log_2(N))` comparisons.
 
 |`template<typename Group, typename T>
 T operator()(Group g, T val)`
 |Implements a default sorting algorithm. It's callable by the `sort_over_group` algorithm.
 
-_Complexity_: Let `N` be the work group size:stem:[O(N \times log_2(N))] comparisons.
+_Complexity_: Let `N` be the work group size. `O(N*log_2(N))` comparisons.
 |===
 
 Table. Constructors of the `radix_sorter` class.
@@ -270,7 +269,7 @@ _Preconditions_: `first`, `last` must be the same for all work-items in the grou
 1._Effects_: Sort the elements in the range `[first, last)`.
 Elements are compared by the `operator<`.
 
-_Complexity_: Let `N` be `last - first`:stem:[O(N \times log_2(N))] comparisons.
+_Complexity_: Let `N` be `last - first`. `O(N*log_2(N))` comparisons.
 
 2._Mandates_: `comp` must satisfy the requirements of `Compare` from
 the {cpp} standard.
@@ -278,7 +277,7 @@ the {cpp} standard.
 _Effects_: Sort the elements in the range `[first, last)` with respect to the
 binary comparison function object `comp`.
 
-_Complexity_: Let `N` be `last - first`:stem:[O(N \times log_2(N))] comparisons.
+_Complexity_: Let `N` be `last - first`. `O(N*log_2(N))` comparisons.
 
 3._Effects_: Equivalent to: `sorter(g, first, last)`.
 
@@ -288,7 +287,7 @@ of the ordered range resulting from sorting `val` from all work-items in the
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
-_Complexity_: Let `N` be the work group size:stem:[O(N \times log_2(N))] comparisons.
+_Complexity_: Let `N` be the work group size. `O(N*log_2(N))` comparisons.
 
 5._Mandates_: `comp` must satisfy the requirements of `Compare` from
 the {cpp} standard.
@@ -299,7 +298,7 @@ of the ordered range resulting from sorting `val` from all work-items in the
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
-_Complexity_: Let `N` be the work group size:stem:[O(N \times log_2(N))] comparisons.
+_Complexity_: Let `N` be the work group size. `O(N*log_2(N))` comparisons.
 
 6._Effects_: Equivalent to: `return sorter(g, val)`.
 
@@ -311,7 +310,7 @@ basing on private memory is not very useful if other algorithms in the chain use
 memory only.
 . It can be a separate proposal for key-value sorting basing on Projections.
 It needs to be investigated what is the response for that.
-. Sorter trait can be useful if there are Finder, Reducer or other objects
+. Sorter traits can be useful if there are Finder, Reducer or other objects
 will be added to the Spec to be used with other Group algorithms, e.g. find, reduce.
 
 == Revision History
