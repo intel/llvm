@@ -14,13 +14,13 @@
 #pragma once
 
 #include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
 
 #include <cassert>
 #include <cstdint>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>

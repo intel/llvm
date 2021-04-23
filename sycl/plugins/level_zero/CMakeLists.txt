@@ -58,6 +58,15 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     DEPENDEES install
   )
 
+  if (WIN32)
+    # Copy DLL into binary directory
+    ExternalProject_Add_Step(level-zero-loader llvmbininstall
+      COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/bin/ ${LLVM_BINARY_DIR}/bin
+      COMMENT "Installing level-zero-loader into the LLVM binary directory"
+      DEPENDEES install
+    )
+  endif()
+
   install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/"
     DESTINATION "."
     COMPONENT level-zero-loader

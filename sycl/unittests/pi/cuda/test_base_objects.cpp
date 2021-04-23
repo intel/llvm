@@ -24,11 +24,11 @@ using namespace cl::sycl;
 
 class CudaBaseObjectsTest : public ::testing::Test {
 protected:
-  detail::plugin *plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::cuda);
 
   void SetUp() override {
     // skip the tests if the CUDA backend is not available
-    if (!plugin) {
+    if (!plugin.has_value()) {
       GTEST_SKIP();
     }
   }
