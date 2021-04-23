@@ -65,7 +65,7 @@ Possible values of "device_type" are:
 - acc
 - \*
 
-Device_num is an integer that indexes the enumeration of devices from the sycl-ls utility tool, where the first device in that enumeration has index zero in each backend. For example, SYCL_DEVICE_FILTER=2 will return all devices with index '2' from all different backends. If multiple devices satisfy this device number (e.g., GPU and CPU devices can be assigned device number '2'), then default_selector will choose the device with the highest heuristic point. 
+Device_num is an integer that indexes the enumeration of devices from the sycl-ls utility tool, where the first device in that enumeration has index zero in each platform. For example, SYCL_DEVICE_FILTER=2 will return all devices with index '2' from all different platforms. If multiple devices satisfy this device number (e.g., GPU and CPU devices can be assigned device number '2'), then default_selector will choose the device with the highest heuristic point. 
 
 Assuming a filter has all three elements of the triple, it selects only those devices that come from the given backend, have the specified device type, AND have the given device index. If more than one filter is specified, the RT is restricted to the union of devices selected by all filters. The RT does not include the "host" backend and the host device automatically unless one of the filters explicitly specifies the "host" device type. Therefore, SYCL_DEVICE_FILTER=host should be set to enforce SYCL to use the host device only. 
 

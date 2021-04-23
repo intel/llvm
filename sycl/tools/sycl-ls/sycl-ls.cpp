@@ -38,27 +38,24 @@ public:
   }
 };
 
-static void printDeviceInfo(const device &Device, const std::string &Prepend) {
+std::string getDeviceTypeName(const device &Device) {
   auto DeviceType = Device.get_info<info::device::device_type>();
-  std::string DeviceTypeName;
   switch (DeviceType) {
   case info::device_type::cpu:
-    DeviceTypeName = "CPU ";
-    break;
+    return "cpu";
   case info::device_type::gpu:
-    DeviceTypeName = "GPU ";
-    break;
+    return "gpu";
   case info::device_type::host:
-    DeviceTypeName = "HOST";
-    break;
+    return "host";
   case info::device_type::accelerator:
-    DeviceTypeName = "ACC ";
-    break;
+    return "acc";
   default:
-    DeviceTypeName = "UNKNOWN";
-    break;
+    return "unknown";
   }
+}
 
+static void printDeviceInfo(const device &Device, const std::string &Prepend) {
+  std::string DeviceTypeName = getDeviceTypeName(Device);
   auto DeviceVersion = Device.get_info<info::device::version>();
   auto DeviceName = Device.get_info<info::device::name>();
   auto DeviceVendor = Device.get_info<info::device::vendor>();
@@ -73,9 +70,8 @@ static void printDeviceInfo(const device &Device, const std::string &Prepend) {
   } else {
     auto DevicePlatform = Device.get_info<info::device::platform>();
     auto DevicePlatformName = DevicePlatform.get_info<info::platform::name>();
-    std::cout << Prepend << DeviceTypeName << ": " << DevicePlatformName << " "
-              << DeviceVersion << " [" << DeviceDriverVersion << "]"
-              << std::endl;
+    std::cout << Prepend << " : " << DevicePlatformName << " " << DeviceVersion
+              << " [" << DeviceDriverVersion << "]" << std::endl;
   }
 }
 
@@ -83,7 +79,7 @@ static void printSelectorChoice(const device_selector &Selector,
                                 const std::string &Prepend) {
   try {
     const auto &Dev = device(Selector);
-    printDeviceInfo(Dev, Prepend);
+    printDeviceInfo(Dev, Prepend + getDeviceTypeName(Dev));
 
   } catch (const cl::sycl::runtime_error &Exception) {
     // Truncate long string so it can fit in one-line
@@ -132,7 +128,8 @@ int main(int argc, char **argv) {
         std::cout << "        Device [#" << DeviceNum << "]:" << std::endl;
       else {
         backend Backend = Platform.get_backend();
-        std::cout << "[" << Backend << ":" << DeviceNum << "] ";
+        std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
+                  << DeviceNum << "]";
       }
       ++DeviceNum;
       printDeviceInfo(Device, verbose ? "        " : "");
