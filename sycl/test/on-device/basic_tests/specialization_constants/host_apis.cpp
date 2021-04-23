@@ -15,11 +15,17 @@ struct TestStruct {
   int b;
 };
 
+struct TestStruct2 {
+  bool a;
+  long b;
+};
+
 const static sycl::specialization_id<int> SpecConst1{42};
 const static sycl::specialization_id<int> SpecConst2{42};
 const static sycl::specialization_id<TestStruct> SpecConst3{TestStruct{42, 42}};
 const static sycl::specialization_id<short> SpecConst4{42};
-const static sycl::specialization_id<TestStruct> SpecConst5{TestStruct{42, 42}};
+const static sycl::specialization_id<TestStruct2> SpecConst5{
+    TestStruct2{true, 0}};
 
 int main() {
   sycl::queue Q;
@@ -44,6 +50,7 @@ int main() {
   assert(KernelBundle.has_specialization_constant<SpecConst1>() == false);
   assert(KernelBundle.has_specialization_constant<SpecConst2>() == true);
 
+  // Test that unused spec constants are saved.
   assert(KernelBundle.get_specialization_constant<SpecConst1>() == 42);
   KernelBundle.set_specialization_constant<SpecConst1>(1);
   assert(KernelBundle.get_specialization_constant<SpecConst1>() == 1);
@@ -80,12 +87,13 @@ int main() {
 
   sycl::kernel_bundle KernelBundle2 =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
-  KernelBundle2.set_specialization_constant<SpecConst5>(TestStruct{0, 0});
+  KernelBundle2.set_specialization_constant<SpecConst5>(TestStruct2{false, 1});
 
   sycl::kernel_bundle KernelBundle3 =
       sycl::join<sycl::bundle_state::input>({KernelBundle2, KernelBundle});
 
-  assert(KernelBundle3.get_specialization_constant<SpecConst5>().a == 0);
+  assert(KernelBundle3.get_specialization_constant<SpecConst5>().a == false);
+  assert(KernelBundle3.get_specialization_constant<SpecConst5>().b == 1);
   assert(KernelBundle3.get_specialization_constant<SpecConst1>() == 1);
   assert(KernelBundle3.get_specialization_constant<SpecConst2>() == 1);
 
