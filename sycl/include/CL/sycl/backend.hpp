@@ -28,6 +28,9 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+/// Unlike OpenCL, other backends may not have reference count for their
+/// handles.
+enum class ownership : unsigned { transfer, keep };
 
 namespace detail {
 template <backend Backend, typename T> struct BackendInput {
@@ -38,6 +41,16 @@ template <backend Backend, typename T> struct BackendInput {
 template <backend Backend, typename T> struct BackendReturn {
   // TODO replace usage of interop with specializations.
   using type = typename interop<Backend, T>::type;
+};
+
+class InteropHandleBase {
+public:
+  InteropHandleBase(unsigned Version, ownership Ownership = ownership::keep)
+      : MVersion(Version), MOwnership(Ownership) {}
+
+private:
+  unsigned MVersion;
+  ownership MOwnership;
 };
 } // namespace detail
 

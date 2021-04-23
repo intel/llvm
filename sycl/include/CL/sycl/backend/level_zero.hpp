@@ -14,6 +14,27 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace level_zero {
+class module_desc_t : public detail::InteropHandleBase {
+public:
+  enum class state { il, native, object, executable, linked_executable };
+  module_desc_t(ze_module_handle_t Module, state State,
+                std::vector<unsigned char> Binary = {})
+      : InteropHandleBase(/*version*/ 0), MModule(Module), MState(State),
+        MBinary(std::move(Binary)) {}
+
+  ze_module_handle_t get_module_handle() const noexcept { return MModule; }
+  state get_state() const noexcept { return MState; }
+  const std::vector<unsigned char> &get_binary() const noexcept {
+    return MBinary;
+  }
+
+private:
+  ze_module_handle_t MModule;
+  state MState;
+  std::vector<unsigned char> MBinary;
+};
+} // namespace level_zero
 
 template <> struct interop<backend::level_zero, platform> {
   using type = ze_driver_handle_t;
@@ -51,7 +72,14 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
 
 namespace detail {
 template <> class BackendReturn<backend::level_zero, kernel> {
+public:
   using type = ze_kernel_handle_t;
+};
+
+template <bundle_state State>
+class BackendInput<backend::level_zero, kernel_bundle<State>> {
+public:
+  using type = level_zero::module_desc_t;
 };
 
 template <> struct InteropFeatureSupportMap<backend::level_zero> {
@@ -62,7 +90,7 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakeEvent = false;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
-  static constexpr bool MakeKernelBundle = false;
+  static constexpr bool MakeKernelBundle = true;
 };
 } // namespace detail
 

@@ -12,6 +12,7 @@
 /// \ingroup sycl_pi_level_zero
 
 #include "pi_level_zero.hpp"
+#include <CL/sycl/backend/level_zero.hpp>
 #include <CL/sycl/detail/spinlock.hpp>
 #include <algorithm>
 #include <cstdarg>
@@ -3346,14 +3347,39 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
-  auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
+  using namespace sycl::level_zero;
 
-  // We assume here that programs created from a native handle always
-  // represent a fully linked executable (state Exe) and not an unlinked
-  // executable (state Object).
+  auto ModuleDesc = pi_cast<module_desc_t *>(NativeHandle);
+  // auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
+
+  constexpr auto StateCast = [](module_desc_t::state State) {
+    switch (State) {
+    case (module_desc_t::state::il):
+      return _pi_program::IL;
+    case (module_desc_t::state::native):
+      return _pi_program::Native;
+    case (module_desc_t::state::object):
+      return _pi_program::Object;
+    case (module_desc_t::state::executable):
+      return _pi_program::Exe;
+    case (module_desc_t::state::linked_executable):
+      return _pi_program::LinkedExe;
+    }
+    die("Unsupported module state");
+  };
 
   try {
-    *Program = new _pi_program(Context, ZeModule, _pi_program::Exe);
+    module_desc_t::state ModuleState = ModuleDesc->get_state();
+    if (ModuleState == module_desc_t::state::il ||
+        ModuleState == module_desc_t::state::native) {
+      *Program = new _pi_program(Context, ModuleDesc->get_binary().data(),
+                                 ModuleDesc->get_binary().size(),
+                                 StateCast(ModuleState));
+
+    } else {
+      *Program = new _pi_program(Context, ModuleDesc->get_module_handle(),
+                                 StateCast(ModuleState));
+    }
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {

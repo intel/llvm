@@ -7,12 +7,15 @@
 #include <CL/sycl/backend/level_zero.hpp>
 #include <sycl/sycl.hpp>
 
+#include <CL/sycl/INTEL/online_compiler.hpp>
+
 constexpr auto BE = sycl::backend::level_zero;
 
 int main() {
   sycl::device Dev{sycl::default_selector{}};
 
-  sycl::queue Q{Dev};
+  sycl::context Ctx{Dev};
+  sycl::queue Q{Ctx, Dev};
 
   if (0) {
     Q.submit([](sycl::handler &CGH) { CGH.single_task<class T>([] {}); });
@@ -23,6 +26,28 @@ int main() {
 
   sycl::platform NewPlt = sycl::make_platform<BE>(NativePlt);
   assert(NewPlt == Plt);
+
+  {
+    sycl::INTEL::online_compiler<sycl::INTEL::source_language::opencl_c>
+        Compiler;
+
+    constexpr const char *Source = "kernel void _() {}";
+
+    std::vector<unsigned char> IL = Compiler.compile(Source);
+
+    sycl::level_zero::module_desc_t ModuleDesc{
+        nullptr, sycl::level_zero::module_desc_t::state::il, std::move(IL)};
+
+    sycl::kernel_bundle KBInput =
+        sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(ModuleDesc,
+                                                                Ctx);
+    sycl::kernel_bundle KBObject =
+        sycl::make_kernel_bundle<BE, sycl::bundle_state::object>(ModuleDesc,
+                                                                 Ctx);
+    sycl::kernel_bundle KBExe =
+        sycl::make_kernel_bundle<BE, sycl::bundle_state::executable>(ModuleDesc,
+                                                                     Ctx);
+  }
 
   return 0;
 }
