@@ -1247,8 +1247,8 @@ def SYCLSimdAccessorPtr : InheritableAttr {
 // The argument of the attribute specifies the number of SIMD lanes, for which
 // the function should be widened.
 def SYCLIntelESimdWiden : InheritableAttr {
-  let Spellings = [GNU<"sycl_esimd_widen">, CXX11<"intel", "sycl_esimd_widen">];
-  let Args = [UnsignedArgument<"Number">];
+  let Spellings = [CXX11<"intel", "sycl_esimd_widen">];
+  let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [Undocumented];

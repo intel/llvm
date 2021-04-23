@@ -5087,25 +5087,74 @@ static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) SYCLRegisterNumAttr(S.Context, AL, RegNo));
 }
 
-static void handleSYCLIntelESimdWidenAttrAttr(Sema &S, Decl *D,
-                                              const ParsedAttr &Attr) {
-  uint32_t NumSimdLanes = 0;
-  const Expr *E = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, E, NumSimdLanes, 0,
-                           /*StrictlyUnsigned=*/true))
-    return;
+void Sema::AddSYCLIntelESimdWidenAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
 
-  if (NumSimdLanes != 8 && NumSimdLanes != 16 && NumSimdLanes != 32) {
-    S.Diag(Attr.getLoc(), diag::err_sycl_esimd_widen_unsupported_value)
-        << Attr << E->getSourceRange();
-    return;
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
+    if (ArgVal != 8 && ArgVal != 16 && ArgVal != 32) {
+      Diag(E->getExprLoc(), diag::err_sycl_esimd_widen_unsupported_value) << CI;
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelESimdWidenAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
   }
 
-  if (D->getAttr<SYCLIntelESimdWidenAttr>())
-    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
-  else
-    D->addAttr(::new (S.Context)
-                   SYCLIntelESimdWidenAttr(S.Context, Attr, NumSimdLanes));
+  D->addAttr(::new (Context) SYCLIntelESimdWidenAttr(Context, CI, E));
+}
+
+SYCLIntelESimdWidenAttr *
+Sema::MergeSYCLIntelESimdWidenAttr(Decl *D, const SYCLIntelESimdWidenAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelESimdWidenAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+  return ::new (Context) SYCLIntelESimdWidenAttr(Context, A, A.getValue());
+}
+
+static void handleSYCLIntelESimdWidenAttr(Sema &S, Decl *D,
+                                          const ParsedAttr &A) {
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
+
+  Expr *E = A.getArgAsExpr(0);
+  S.AddSYCLIntelESimdWidenAttr(D, A, E);
 }
 
 static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -9129,7 +9178,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleSYCLRegisterNumAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelESimdWiden:
-    handleSYCLIntelESimdWidenAttrAttr(S, D, AL);
+    handleSYCLIntelESimdWidenAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);

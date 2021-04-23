@@ -10282,6 +10282,10 @@ public:
   SYCLIntelNumSimdWorkItemsAttr *
   MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
                                      const SYCLIntelNumSimdWorkItemsAttr &A);
+  void AddSYCLIntelESimdWidenAttr(Decl *D, const AttributeCommonInfo &CI,
+                                  Expr *E);
+  SYCLIntelESimdWidenAttr *
+  MergeSYCLIntelESimdWidenAttr(Decl *D, const SYCLIntelESimdWidenAttr &A);
   void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
                                               const AttributeCommonInfo &CI,
                                               Expr *E);
