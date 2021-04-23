@@ -274,7 +274,6 @@
 // CHK-PHASES-FILES: 27: clang-offload-wrapper, {26}, object, (device-sycl)
 // CHK-PHASES-FILES: 28: offload, "host-sycl (x86_64-unknown-linux-gnu)" {21}, "device-sycl (spir64-unknown-unknown-sycldevice)" {27}, image
 
-
 /// ###########################################################################
 
 /// Check separate compilation with offloading - bundling actions
