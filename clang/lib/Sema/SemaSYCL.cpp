@@ -4863,3 +4863,16 @@ bool Util::matchQualifiedTypeName(QualType Ty,
   const auto *Ctx = cast<DeclContext>(RecTy);
   return Util::matchContext(Ctx, Scopes);
 }
+
+void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
+  auto Callback = [](){/*TODO ERICH: Implement*/};
+
+  // TODO: ERICH: get the kernel object type here.
+  // getKernelObjectType
+  QualType Ty;
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), Callback)};
+  llvm::raw_null_ostream Out;
+  Ctx->mangleTypeName(Ty, Out);
+  (void)FD;
+}
