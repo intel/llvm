@@ -19,6 +19,7 @@ const static sycl::specialization_id<int> SpecConst1{42};
 const static sycl::specialization_id<int> SpecConst2{42};
 const static sycl::specialization_id<TestStruct> SpecConst3{TestStruct{42, 42}};
 const static sycl::specialization_id<short> SpecConst4{42};
+const static sycl::specialization_id<TestStruct> SpecConst5{TestStruct{42, 42}};
 
 int main() {
   sycl::queue Q;
@@ -42,6 +43,11 @@ int main() {
   assert(KernelBundle.contains_specialization_constants() == true);
   assert(KernelBundle.has_specialization_constant<SpecConst1>() == false);
   assert(KernelBundle.has_specialization_constant<SpecConst2>() == true);
+
+  assert(KernelBundle.get_specialization_constant<SpecConst1>() == 42);
+  KernelBundle.set_specialization_constant<SpecConst1>(1);
+  assert(KernelBundle.get_specialization_constant<SpecConst1>() == 1);
+
   KernelBundle.set_specialization_constant<SpecConst2>(1);
   {
     auto ExecBundle = sycl::build(KernelBundle);
@@ -71,6 +77,17 @@ int main() {
     auto Acc = Buf.get_access<sycl::access::mode::read>();
     assert(Acc[0].a == 1 && Acc[0].b == 2);
   }
+
+  sycl::kernel_bundle KernelBundle2 =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+  KernelBundle2.set_specialization_constant<SpecConst5>(TestStruct{0, 0});
+
+  sycl::kernel_bundle KernelBundle3 =
+      sycl::join<sycl::bundle_state::input>({KernelBundle2, KernelBundle});
+
+  assert(KernelBundle3.get_specialization_constant<SpecConst5>().a == 0);
+  assert(KernelBundle3.get_specialization_constant<SpecConst1>() == 1);
+  assert(KernelBundle3.get_specialization_constant<SpecConst2>() == 1);
 
   return 0;
 }
