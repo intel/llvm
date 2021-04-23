@@ -1529,16 +1529,14 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
       llvm::DiagnosticLocation DL =
           SourceLocToDebugLoc(ORI.value().KernelArgLoc);
+      std::string KAN = ORI.value().KernelArgName;
       llvm::OptimizationRemark Remark("sycl", "Region", DL,
                                       &Fn->getEntryBlock());
       Remark << "Argument " << llvm::ore::NV("Argument", ORI.index())
              << " for function kernel: "
-             << llvm::ore::NV(ORI.value().KernelArgName.empty() ? "&" : "")
-             << " " << Fn->getName() << "."
-             << llvm::ore::NV(ORI.value().KernelArgName.empty()
-                                  ? " "
-                                  : ORI.value().KernelArgName)
-             << "(" << ORI.value().KernelArgType << ")";
+             << llvm::ore::NV(KAN.empty() ? "&" : "") << " " << Fn->getName()
+             << "." << llvm::ore::NV(KAN.empty() ? " " : KAN) << "("
+             << ORI.value().KernelArgType << ")";
       ORE.emit(Remark);
     }
   }
