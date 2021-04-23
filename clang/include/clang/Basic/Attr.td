@@ -1239,6 +1239,23 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+// The attribute denotes that it is a function written in SIMT fashion, which
+// is used in ESIMD context and needs to be widened by a vector backend compiler.
+// For now, this attribute will be used only in internal implementation of
+// specific public ESIMD APIs. It is not supposed to be used directly in the
+// user code, hence it is undocumented.
+// The argument of the attribute specifies the number of SIMD lanes, for which
+// the function should be widened.
+def SYCLIntelESimdWiden : InheritableAttr {
+  let Spellings = [GNU<"sycl_esimd_widen">, CXX11<"intel", "sycl_esimd_widen">];
+  let Args = [UnsignedArgument<"Number">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice];
+  let Documentation = [Undocumented];
+  let SupportsNonconformingLambdaSyntax = 1;
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLScope : Attr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];

@@ -5087,6 +5087,27 @@ static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) SYCLRegisterNumAttr(S.Context, AL, RegNo));
 }
 
+static void handleSYCLIntelESimdWidenAttrAttr(Sema &S, Decl *D,
+                                              const ParsedAttr &Attr) {
+  uint32_t NumSimdLanes = 0;
+  const Expr *E = Attr.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, Attr, E, NumSimdLanes, 0,
+                           /*StrictlyUnsigned=*/true))
+    return;
+
+  if (NumSimdLanes != 8 && NumSimdLanes != 16 && NumSimdLanes != 32) {
+    S.Diag(Attr.getLoc(), diag::err_sycl_esimd_widen_unsupported_value)
+        << Attr << E->getSourceRange();
+    return;
+  }
+
+  if (D->getAttr<SYCLIntelESimdWidenAttr>())
+    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
+  else
+    D->addAttr(::new (S.Context)
+                   SYCLIntelESimdWidenAttr(S.Context, Attr, NumSimdLanes));
+}
+
 static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const auto *VD = cast<VarDecl>(D);
   if (VD->hasLocalStorage()) {
@@ -9106,6 +9127,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLRegisterNum:
     handleSYCLRegisterNumAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelESimdWiden:
+    handleSYCLIntelESimdWidenAttrAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);
