@@ -1,0 +1,6 @@
+-- Verify append-file creates the expected output file
+-- Append files
+RUN: append-file %S/Inputs/a.txt --append=%S/Inputs/b.txt --output=%t.txt
+
+-- Verify result
+RUN: diff %t.txt %S/Inputs/ab.txt
