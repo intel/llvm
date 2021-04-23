@@ -1271,15 +1271,10 @@ static bool InstrBreaksNoFree(Instruction &I, const SCCNodeSet &SCCNodes) {
   if (CB->hasFnAttr(Attribute::NoFree))
     return false;
 
-  Function *Callee = CB->getCalledFunction();
-  if (!Callee)
-    return true;
-
-  if (Callee->doesNotFreeMemory())
-    return false;
-
-  if (SCCNodes.contains(Callee))
-    return false;
+  // Speculatively assume in SCC.
+  if (Function *Callee = CB->getCalledFunction())
+    if (SCCNodes.contains(Callee))
+      return false;
 
   return true;
 }
@@ -1403,10 +1398,8 @@ static bool addNoRecurseAttrs(const SCCNodeSet &SCCNodes) {
 }
 
 static bool instructionDoesNotReturn(Instruction &I) {
-  if (auto *CB = dyn_cast<CallBase>(&I)) {
-    Function *Callee = CB->getCalledFunction();
-    return Callee && Callee->doesNotReturn();
-  }
+  if (auto *CB = dyn_cast<CallBase>(&I))
+    return CB->hasFnAttr(Attribute::NoReturn);
   return false;
 }
 
@@ -1515,13 +1508,6 @@ static bool InstrBreaksNoSync(Instruction &I, const SCCNodeSet &SCCNodes) {
     return false;
 
   if (CB->hasFnAttr(Attribute::NoSync))
-    return false;
-
-  // readnone + not convergent implies nosync
-  // (This is needed to initialize inference from declarations which aren't
-  //  explicitly nosync, but are readnone and not convergent.)
-  if (CB->hasFnAttr(Attribute::ReadNone) &&
-      !CB->hasFnAttr(Attribute::Convergent))
     return false;
 
   // Non volatile memset/memcpy/memmoves are nosync
@@ -1646,8 +1632,12 @@ PreservedAnalyses PostOrderFunctionAttrsPass::run(LazyCallGraph::SCC &C,
     Functions.push_back(&N.getFunction());
   }
 
-  if (deriveAttrsInPostOrder(Functions, AARGetter))
-    return PreservedAnalyses::none();
+  if (deriveAttrsInPostOrder(Functions, AARGetter)) {
+    // We have not changed the call graph or removed/added functions.
+    PreservedAnalyses PA;
+    PA.preserve<FunctionAnalysisManagerCGSCCProxy>();
+    return PA;
+  }
 
   return PreservedAnalyses::all();
 }

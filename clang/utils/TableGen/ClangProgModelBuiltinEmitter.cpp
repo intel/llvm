@@ -762,39 +762,51 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
 
   // Switch cases for generic types.
   for (const auto *GenType : Records.getAllDerivedDefinitions("GenericType")) {
-    OS << "    case TID_" << GenType->getValueAsString("Name") << ":\n";
-    OS << "      QT.append({";
+    OS << "    case TID_" << GenType->getValueAsString("Name") << ": {\n";
 
     // Build the Cartesian product of (vector sizes) x (types).  Only insert
     // the plain scalar types for now; other type information such as vector
     // size and type qualifiers will be added after the switch statement.
-    for (unsigned I = 0; I < GenType->getValueAsDef("VectorList")
-                                 ->getValueAsListOfInts("List")
-                                 .size();
-         I++) {
-      for (const auto *T :
-           GenType->getValueAsDef("TypeList")->getValueAsListOfDefs("List")) {
-        if (T->getValueAsDef("QTExpr")->isSubClassOf("QualTypeFromFunction"))
-          OS << T->getValueAsDef("QTExpr")->getValueAsString("TypeExpr")
-             << "(Context), ";
-        else
-          OS << T->getValueAsDef("QTExpr")->getValueAsString("TypeExpr")
-             << ", ";
+    std::vector<Record *> BaseTypes =
+        GenType->getValueAsDef("TypeList")->getValueAsListOfDefs("List");
+
+    // Collect all QualTypes for a single vector size into TypeList.
+    OS << "      SmallVector<QualType, " << BaseTypes.size() << "> TypeList;\n";
+    for (const auto *T : BaseTypes) {
+      StringRef Ext =
+          T->getValueAsDef("Extension")->getValueAsString("ExtName");
+      if (!Ext.empty()) {
+        OS << "      if (S.getPreprocessor().isMacroDefined(\"" << Ext
+           << "\")) {\n  ";
+      }
+      if (T->getValueAsDef("QTExpr")->isSubClassOf("QualTypeFromFunction"))
+        OS << "      TypeList.push_back("
+           << T->getValueAsDef("QTExpr")->getValueAsString("TypeExpr")
+           << "(Context));\n";
+      else
+        OS << "      TypeList.push_back("
+           << T->getValueAsDef("QTExpr")->getValueAsString("TypeExpr")
+           << ");\n";
+      if (!Ext.empty()) {
+        OS << "      }\n";
       }
     }
-    OS << "});\n";
-    // GenTypeNumTypes is the number of types in the GenType
-    // (e.g. float/double/half).
-    OS << "      GenTypeNumTypes = "
-       << GenType->getValueAsDef("TypeList")->getValueAsListOfDefs("List")
-              .size()
-       << ";\n";
+    OS << "      GenTypeNumTypes = TypeList.size();\n";
+
+    // Duplicate the TypeList for every vector size.
+    std::vector<int64_t> VectorList =
+        GenType->getValueAsDef("VectorList")->getValueAsListOfInts("List");
+    OS << "      QT.reserve(" << VectorList.size() * BaseTypes.size() << ");\n"
+       << "      for (unsigned I = 0; I < " << VectorList.size() << "; I++) {\n"
+       << "        QT.append(TypeList);\n"
+       << "      }\n";
+
     // GenVectorSizes is the list of vector sizes for this GenType.
-    // QT contains GenTypeNumTypes * #GenVectorSizes elements.
     OS << "      GenVectorSizes = List"
        << GenType->getValueAsDef("VectorList")->getValueAsString("Name")
-       << ";\n";
-    OS << "      break;\n";
+       << ";\n"
+       << "      break;\n"
+       << "    }\n";
   }
 
   // Switch cases for non generic, non image types (int, int4, float, ...).
@@ -818,12 +830,22 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
       continue;
     // Emit the cases for non generic, non image types.
     OS << "    case TID_" << T->getValueAsString("Name") << ":\n";
+
+    StringRef Ext = T->getValueAsDef("Extension")->getValueAsString("ExtName");
+    // If this type depends on an extension, ensure the extension macro is
+    // defined.
+    if (!Ext.empty()) {
+      OS << "      if (S.getPreprocessor().isMacroDefined(\"" << Ext
+         << "\")) {\n  ";
+    }
     if (QT->isSubClassOf("QualTypeFromFunction"))
       OS << "      QT.push_back(" << QT->getValueAsString("TypeExpr")
          << "(Context));\n";
     else
-      OS << "      QT.push_back(" << QT->getValueAsString("TypeExpr")
-         << ");\n";
+      OS << "      QT.push_back(" << QT->getValueAsString("TypeExpr") << ");\n";
+    if (!Ext.empty()) {
+      OS << "      }\n";
+    }
     OS << "      break;\n";
   }
 

@@ -3317,7 +3317,9 @@ TargetMVPriority(const TargetInfo &TI,
 }
 
 void CodeGenModule::emitMultiVersionFunctions() {
-  for (GlobalDecl GD : MultiVersionFuncs) {
+  std::vector<GlobalDecl> MVFuncsToEmit;
+  MultiVersionFuncs.swap(MVFuncsToEmit);
+  for (GlobalDecl GD : MVFuncsToEmit) {
     SmallVector<CodeGenFunction::MultiVersionResolverOption, 10> Options;
     const FunctionDecl *FD = cast<FunctionDecl>(GD.getDecl());
     getContext().forEachMultiversionedFunctionVersion(
@@ -3371,6 +3373,17 @@ void CodeGenModule::emitMultiVersionFunctions() {
     CodeGenFunction CGF(*this);
     CGF.EmitMultiVersionResolver(ResolverFunc, Options);
   }
+
+  // Ensure that any additions to the deferred decls list caused by emitting a
+  // variant are emitted.  This can happen when the variant itself is inline and
+  // calls a function without linkage.
+  if (!MVFuncsToEmit.empty())
+    EmitDeferred();
+
+  // Ensure that any additions to the multiversion funcs list from either the
+  // deferred decls or the multiversion functions themselves are emitted.
+  if (!MultiVersionFuncs.empty())
+    emitMultiVersionFunctions();
 }
 
 void CodeGenModule::emitCPUDispatchDefinition(GlobalDecl GD) {
@@ -3772,8 +3785,8 @@ GetRuntimeFunctionDecl(ASTContext &C, StringRef Name) {
   DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
 
   IdentifierInfo &CII = C.Idents.get(Name);
-  for (const auto &Result : DC->lookup(&CII))
-    if (const auto FD = dyn_cast<FunctionDecl>(Result))
+  for (const auto *Result : DC->lookup(&CII))
+    if (const auto *FD = dyn_cast<FunctionDecl>(Result))
       return FD;
 
   if (!C.getLangOpts().CPlusPlus)
@@ -3787,15 +3800,15 @@ GetRuntimeFunctionDecl(ASTContext &C, StringRef Name) {
 
   for (const auto &N : {"__cxxabiv1", "std"}) {
     IdentifierInfo &NS = C.Idents.get(N);
-    for (const auto &Result : DC->lookup(&NS)) {
-      NamespaceDecl *ND = dyn_cast<NamespaceDecl>(Result);
-      if (auto LSD = dyn_cast<LinkageSpecDecl>(Result))
-        for (const auto &Result : LSD->lookup(&NS))
+    for (const auto *Result : DC->lookup(&NS)) {
+      const NamespaceDecl *ND = dyn_cast<NamespaceDecl>(Result);
+      if (auto *LSD = dyn_cast<LinkageSpecDecl>(Result))
+        for (const auto *Result : LSD->lookup(&NS))
           if ((ND = dyn_cast<NamespaceDecl>(Result)))
             break;
 
       if (ND)
-        for (const auto &Result : ND->lookup(&CXXII))
+        for (const auto *Result : ND->lookup(&CXXII))
           if (const auto *FD = dyn_cast<FunctionDecl>(Result))
             return FD;
     }
@@ -5330,7 +5343,7 @@ CodeGenModule::GetAddrOfConstantCFString(const StringLiteral *Literal) {
         DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
 
         const VarDecl *VD = nullptr;
-        for (const auto &Result : DC->lookup(&II))
+        for (const auto *Result : DC->lookup(&II))
           if ((VD = dyn_cast<VarDecl>(Result)))
             break;
 

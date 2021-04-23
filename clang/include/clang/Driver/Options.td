@@ -631,6 +631,12 @@ def G_EQ : Joined<["-"], "G=">, Flags<[NoXarchOption]>, Group<m_Group>, Alias<G>
 def H : Flag<["-"], "H">, Flags<[CC1Option]>, Group<Preprocessor_Group>,
     HelpText<"Show header includes and nesting depth">,
     MarshallingInfoFlag<DependencyOutputOpts<"ShowHeaderIncludes">>;
+def fshow_skipped_includes : Flag<["-"], "fshow-skipped-includes">,
+  Flags<[CC1Option]>, HelpText<"Show skipped includes in -H output.">,
+  DocBrief<[{#include files may be "skipped" due to include guard optimization
+             or #pragma once. This flag makes -H show also such includes.}]>,
+  MarshallingInfoFlag<DependencyOutputOpts<"ShowSkippedHeaderIncludes">>;
+
 def I_ : Flag<["-"], "I-">, Group<I_Group>,
     HelpText<"Restrict all prior -I flags to double-quoted inclusion and "
              "remove current directory from include path">;
@@ -4484,6 +4490,9 @@ def J : JoinedOrSeparate<["-"], "J">,
 //===----------------------------------------------------------------------===//
 let Flags = [FC1Option, FlangOnlyOption] in {
 
+def fget_definition : MultiArg<["-"], "fget-definition", 3>,
+  HelpText<"Get the symbol definition from <line> <start-column> <end-column>">,
+  Group<Action_Group>;
 def test_io : Flag<["-"], "test-io">, Group<Action_Group>,
   HelpText<"Run the InputOuputTest action. Use for development and testing only.">;
 def fdebug_unparse_no_sema : Flag<["-"], "fdebug-unparse-no-sema">, Group<Action_Group>,
@@ -5054,11 +5063,6 @@ def fdenormal_fp_math_f32_EQ : Joined<["-"], "fdenormal-fp-math-f32=">,
 def sys_header_deps : Flag<["-"], "sys-header-deps">,
   HelpText<"Include system headers in dependency output">,
   MarshallingInfoFlag<DependencyOutputOpts<"IncludeSystemHeaders">>;
-def show_skipped_includes : Flag<["-"], "show-skipped-includes">,
-  HelpText<"Show skipped includes in -H output.">,
-  DocBrief<[{#include files may be "skipped" due to include guard optimization
-             or #pragma once. This flag makes -H show also such includes.}]>,
-  MarshallingInfoFlag<DependencyOutputOpts<"ShowSkippedHeaderIncludes">>;
 def module_file_deps : Flag<["-"], "module-file-deps">,
   HelpText<"Include module files in dependency output">,
   MarshallingInfoFlag<DependencyOutputOpts<"IncludeModuleFiles">>;
