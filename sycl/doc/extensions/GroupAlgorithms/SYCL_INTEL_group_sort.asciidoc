@@ -63,7 +63,7 @@ Semantics of `operator()` is following:
 [source,c++]
 ----
 template<typename Group, typename Ptr>
-void operator()(Group g, Ptr begin, Ptr end);
+void operator()(Group g, Ptr first, Ptr last);
 
 template<typename Group, typename T>
 T operator()(Group g, T val);
@@ -76,10 +76,10 @@ Table. `operator()` for Sorters.
 |`operator()`|Description
 
 |`template<typename Group, typename Ptr>
-void operator()(Group g, Ptr begin, Ptr end);`
+void operator()(Group g, Ptr first, Ptr last);`
 |Implements a sorting algorithm that calls by `joint_sort`.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
-`begin`, `end` must be the same for all work-items in the group.
+`first`, `last` must be the same for all work-items in the group.
 
 |`template<typename Group, typename T>
 T operator()(Group g, T val);`
@@ -96,14 +96,14 @@ public:
   Compare comp;
 
   template<typename Group, typename Ptr>
-  void operator()(Group g, Ptr begin, Ptr end){
-    size_t n = end - begin;
+  void operator()(Group g, Ptr first, Ptr last){
+    size_t n = last - first;
     size_t idx = g.get_local_id().get(0);
     if(idx == 0)
       for(size_t i = 0; i < n; ++i)
         for(size_t j = i + 1; j < n; ++j)
-          if(comp(begin[j], begin[i]))
-            std::swap(begin[i], begin[j]);
+          if(comp(first[j], first[i]))
+            std::swap(first[i], first[j]);
   }
 };
 ----
@@ -137,7 +137,7 @@ namespace sycl::ext::oneapi {
     default_sorter(Compare comp = Compare());
 
     template<typename Group, typename Ptr>
-    void operator()(Group g, Ptr begin, Ptr end);
+    void operator()(Group g, Ptr first, Ptr last);
 
     template<typename Group, typename T>
     T operator()(Group g, T val);
@@ -150,7 +150,7 @@ namespace sycl::ext::oneapi {
                  std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max()));
 
     template<typename Group, typename Ptr>
-    void operator()(Group g, Ptr begin, Ptr end);
+    void operator()(Group g, Ptr first, Ptr last);
 
     template<typename Group>
     T operator()(Group g, T val);
@@ -171,7 +171,7 @@ using `Compare` as the binary comparison function object.
 |`template<typename T, radix_order Order = radix_order::ascending, unsigned int BitsPerPass = 4>
 radix_sorter`
 |Use radix sort as a sorting method. `Order` specify the sorting order.
-Only arithmetic types as `T` can be passed to radix_sorter.
+Only arithmetic types as `T` can be passed to `radix_sorter`.
 `BitsPerPass` is a number of bits that values are split by.
 For example, if a sequence of `int32_t` is sorted using `BitsPerPass == 4` then one
 pass of the radix sort algorithm considers only 4 bits. The number of passes is `32/4=8`.
@@ -190,14 +190,14 @@ Table. Member functions of the `default_sorter` class.
 |Member function|Description
 
 |`template<typename Group, typename Ptr>
-void operator()(Group g, Ptr begin, Ptr end)`
-|Implements a default sorting algorithm. It's callable by the `joint_sort` algorithm.
+void operator()(Group g, Ptr first, Ptr last)`
+|Implements a default sorting algorithm to be called by the `joint_sort` algorithm.
 
-_Complexity_: Let `N` be `end - begin`. `O(N*log_2(N))` comparisons.
+_Complexity_: Let `N` be `last - first`. `O(N*log_2(N))` comparisons.
 
 |`template<typename Group, typename T>
 T operator()(Group g, T val)`
-|Implements a default sorting algorithm. It's callable by the `sort_over_group` algorithm.
+|Implements a default sorting algorithm to be called by the `sort_over_group` algorithm.
 
 _Complexity_: Let `N` be the work group size. `O(N*log_2(N))` comparisons.
 |===
@@ -217,12 +217,12 @@ Table. Member functions of the `radix_sorter` class.
 |Member function|Description
 
 |`template<typename Group, typename Ptr>
-void operator()(Group g, Ptr begin, Ptr end)`
-|Implements the radix sort algorithm. It's callable by the `joint_sort` algorithm.
+void operator()(Group g, Ptr first, Ptr last)`
+|Implements the radix sort algorithm to be called by the `joint_sort` algorithm.
 
-|`template<typename Group, typename T>
+|`template<typename Group>
 T operator()(Group g, T val)`
-|Implements the radix sort algorithm. It's callable by the `sort_over_group` algorithm.
+|Implements the radix sort algorithm to be called by the `sort_over_group` algorithm.
 |===
 
 ==== Sort
@@ -267,7 +267,7 @@ is true and `Sorter` is a SYCL Sorter.
 _Preconditions_: `first`, `last` must be the same for all work-items in the group.
 
 1._Effects_: Sort the elements in the range `[first, last)`.
-Elements are compared by the `operator<`.
+Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log_2(N))` comparisons.
 
@@ -283,7 +283,7 @@ _Complexity_: Let `N` be `last - first`. `O(N*log_2(N))` comparisons.
 
 4._Returns_: The value returned on work-item `i` is the value in position `i`
 of the ordered range resulting from sorting `val` from all work-items in the
-`g` group. Elements are compared by the `operator<`.
+`g` group. Elements are compared by `operator<`.
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
