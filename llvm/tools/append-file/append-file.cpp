@@ -24,14 +24,17 @@ using namespace llvm;
 static cl::OptionCategory AppendFileCategory("append-file options");
 
 static cl::opt<std::string> Output("output", cl::Required,
-    cl::desc("output file"), cl::cat(AppendFileCategory));
+                                   cl::desc("output file"),
+                                   cl::cat(AppendFileCategory));
 
 static cl::opt<std::string> Input(cl::Positional, cl::Required,
-    cl::desc("<input file>"), cl::cat(AppendFileCategory));
+                                  cl::desc("<input file>"),
+                                  cl::cat(AppendFileCategory));
 
-static cl::opt<std::string> AppendFile("append", cl::ZeroOrMore,
-    cl::desc("file which is appended to the input file"),
-    cl::cat(AppendFileCategory));
+static cl::opt<std::string>
+    AppendFile("append", cl::ZeroOrMore,
+               cl::desc("file which is appended to the input file"),
+               cl::cat(AppendFileCategory));
 
 static void error(const Twine &Msg) {
   errs() << "append-file: " << Msg << '\n';
@@ -52,8 +55,8 @@ int main(int argc, const char **argv) {
   llvm::sys::fs::copy_file(Input, Output);
   if (!AppendFile.empty()) {
     // Append the to the output file.
-    std::ofstream OutFile(Output,
-        std::ios_base::binary | std::ios_base::app | std::ios_base::ate);
+    std::ofstream OutFile(Output, std::ios_base::binary | std::ios_base::app |
+                                      std::ios_base::ate);
     std::ifstream FooterFile(AppendFile, std::ios_base::binary);
     OutFile << FooterFile.rdbuf();
     OutFile.close();
