@@ -20,13 +20,15 @@
 // CHECK_PHASES: 4: input, "[[INPUT]]", archive
 // CHECK_PHASES: 5: clang-offload-unbundler, {4}, archive
 // CHECK_PHASES: 6: linker, {3, 5}, ir, (device-sycl)
-// CHECK_PHASES: 7: sycl-post-link, {6}, ir, (device-sycl)
-// CHECK_PHASES: 8: llvm-spirv, {7}, spirv, (device-sycl)
-// CHECK_PHASES: 9: input, "[[INPUT]]", archive
-// CHECK_PHASES: 10: clang-offload-unbundler, {9}, fpga_dep_list
-// CHECK_PHASES: 11: backend-compiler, {8, 10}, fpga_aocx, (device-sycl)
-// CHECK_PHASES: 12: clang-offload-wrapper, {11}, object, (device-sycl)
-// CHECK_PHASES: 13: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {12}, image
+// CHECK_PHASES: 7: sycl-post-link, {6}, tempfiletable, (device-sycl)
+// CHECK_PHASES: 8: file-table-tform, {7}, tempfilelist, (device-sycl)
+// CHECK_PHASES: 9: llvm-spirv, {8}, tempfilelist, (device-sycl)
+// CHECK_PHASES: 10: input, "d:\iusers\mtoguchi\github\llvm\build\tools\clang\test\Driver\Output\sycl-intelfpga-static-lib-win.cpp.tmp.lib", archive
+// CHECK_PHASES: 11: clang-offload-unbundler, {10}, fpga_dep_list
+// CHECK_PHASES: 12: backend-compiler, {9, 11}, fpga_aocx, (device-sycl)
+// CHECK_PHASES: 13: file-table-tform, {7, 12}, tempfiletable, (device-sycl)
+// CHECK_PHASES: 14: clang-offload-wrapper, {13}, object, (device-sycl)
+// CHECK_PHASES: 15: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {14}, image
 
 /// Check for unbundle and use of deps in static lib
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga -Xshardware %t.lib -### 2>&1 \
