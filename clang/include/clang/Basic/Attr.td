@@ -539,7 +539,8 @@ class Attr {
   // content. Eg) It parses 3 args, but semantically takes 4 args.  Opts out of
   // common attribute error checking.
   bit HasCustomParsing = 0;
-  // Set to true if the attribute is a statement dependent one.
+  // Set to true if the statement attribute is instantiation dependent and uses
+  // custom TreeTransform logic for template instantiation.
   bit IsStmtDependent = 0;
   // Set to true if all of the attribute's arguments should be parsed in an
   // unevaluated context.
