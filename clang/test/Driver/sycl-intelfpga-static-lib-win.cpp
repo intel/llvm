@@ -23,7 +23,7 @@
 // CHECK_PHASES: 7: sycl-post-link, {6}, tempfiletable, (device-sycl)
 // CHECK_PHASES: 8: file-table-tform, {7}, tempfilelist, (device-sycl)
 // CHECK_PHASES: 9: llvm-spirv, {8}, tempfilelist, (device-sycl)
-// CHECK_PHASES: 10: input, "d:\iusers\mtoguchi\github\llvm\build\tools\clang\test\Driver\Output\sycl-intelfpga-static-lib-win.cpp.tmp.lib", archive
+// CHECK_PHASES: 10: input, "[[INPUT]]", archive
 // CHECK_PHASES: 11: clang-offload-unbundler, {10}, fpga_dep_list
 // CHECK_PHASES: 12: backend-compiler, {9, 11}, fpga_aocx, (device-sycl)
 // CHECK_PHASES: 13: file-table-tform, {7, 12}, tempfiletable, (device-sycl)
