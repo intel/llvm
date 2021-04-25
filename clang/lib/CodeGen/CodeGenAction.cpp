@@ -1028,9 +1028,8 @@ CodeGenAction::loadModule(MemoryBufferRef MBRef) {
 }
 
 namespace {
-// Handles the initialization and cleanup of the OptRecordFile. This
-// customization allows initialization before the clang codegen runs
-// so it can also emit to the opt report.
+// Handles the initialization and cleanup of the OptRecordFile before the clang
+// codegen runs so it can also emit to the opt report.
 struct OptRecordFileRAII {
   std::unique_ptr<llvm::ToolOutputFile> OptRecordFile;
   std::unique_ptr<DiagnosticHandler> OldDiagnosticHandler;
