@@ -35,6 +35,7 @@
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
@@ -1520,6 +1521,25 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   // Emit the standard function prologue.
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
+
+  SyclOptReportHandler &OptReportHandler =
+      CGM.getDiags().getSYCLOptReportHandler();
+  if (OptReportHandler.HasOptReportInfo(FD)) {
+    llvm::OptimizationRemarkEmitter ORE(Fn);
+    for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
+      llvm::DiagnosticLocation DL =
+          SourceLocToDebugLoc(ORI.value().KernelArgLoc);
+      std::string KAN = ORI.value().KernelArgName;
+      llvm::OptimizationRemark Remark("sycl", "Region", DL,
+                                      &Fn->getEntryBlock());
+      Remark << "Argument " << llvm::ore::NV("Argument", ORI.index())
+             << " for function kernel: "
+             << llvm::ore::NV(KAN.empty() ? "&" : "") << " " << Fn->getName()
+             << "." << llvm::ore::NV(KAN.empty() ? " " : KAN) << "("
+             << ORI.value().KernelArgType << ")";
+      ORE.emit(Remark);
+    }
+  }
 
   // Save parameters for coroutine function.
   if (Body && isa_and_nonnull<CoroutineBodyStmt>(Body))
