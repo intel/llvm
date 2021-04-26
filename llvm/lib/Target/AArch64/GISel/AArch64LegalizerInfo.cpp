@@ -159,7 +159,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .widenScalarToNextPow2(0)
       .scalarize(0);
 
-  getActionDefinitionsBuilder({G_SREM, G_UREM})
+  getActionDefinitionsBuilder({G_SREM, G_UREM, G_SDIVREM, G_UDIVREM})
       .lowerFor({s1, s8, s16, s32, s64});
 
   getActionDefinitionsBuilder({G_SMULO, G_UMULO}).lowerFor({{s64, s1}});
@@ -686,8 +686,10 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   getActionDefinitionsBuilder({G_BZERO, G_MEMCPY, G_MEMMOVE, G_MEMSET})
       .libcall();
 
-  getActionDefinitionsBuilder(G_ABS).lowerIf(
-      [=](const LegalityQuery &Query) { return Query.Types[0].isScalar(); });
+  // FIXME: Legal types are only legal with NEON.
+  getActionDefinitionsBuilder(G_ABS)
+      .lowerIf(isScalar(0))
+      .legalFor(PackedVectorAllTypeList);
 
   getActionDefinitionsBuilder(G_VECREDUCE_FADD)
       // We only have FADDP to do reduction-like operations. Lower the rest.

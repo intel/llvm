@@ -976,7 +976,7 @@ typedef unsigned int   char32_t;
 #endif
 
 #if _LIBCPP_STD_VER <= 17 || !defined(__cpp_char8_t)
-#define _LIBCPP_NO_HAS_CHAR8_T
+#define _LIBCPP_HAS_NO_CHAR8_T
 #endif
 
 // Deprecation macros.
@@ -1019,7 +1019,7 @@ typedef unsigned int   char32_t;
 #  define _LIBCPP_DEPRECATED_IN_CXX20
 #endif
 
-#if !defined(_LIBCPP_NO_HAS_CHAR8_T)
+#if !defined(_LIBCPP_HAS_NO_CHAR8_T)
 #  define _LIBCPP_DEPRECATED_WITH_CHAR8_T _LIBCPP_DEPRECATED
 #else
 #  define _LIBCPP_DEPRECATED_WITH_CHAR8_T
@@ -1420,8 +1420,6 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(
 #    endif
 #  endif // defined(_LIBCPP_ABI_MICROSOFT) && !defined(_LIBCPP_BUILDING_LIBRARY)
 #endif // _LIBCPP_NO_AUTO_LINK
-
-#define _LIBCPP_UNUSED_VAR(x) ((void)(x))
 
 // Configures the fopen close-on-exec mode character, if any. This string will
 // be appended to any mode string used by fstream for fopen/fdopen.
