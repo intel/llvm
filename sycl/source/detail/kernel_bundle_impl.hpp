@@ -287,7 +287,8 @@ public:
                   SpecConst.second.back().Size);
       }
     };
-    std::for_each(DevImgIt, MDeviceImages.end(), MergeSpecConstants);
+    std::for_each(RemovedImages.begin(), RemovedImages.end(),
+                  MergeSpecConstants);
 
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
       for (const std::pair<std::string, std::vector<unsigned char>> &SpecConst :
