@@ -29,14 +29,13 @@ set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(pi_cuda
   PRIVATE
     ${sycl_inc_dir}
-    ${OPENCL_ICD_LOADER_HEADERS_DIR}
-  PUBLIC
-    ${CUDA_INCLUDE_DIRS}
 )
 
 target_link_libraries(pi_cuda
-  PRIVATE OpenCL-Headers
-  PUBLIC cudadrv)
+  PRIVATE
+    OpenCL-Headers
+    cudadrv
+)
 
 add_common_options(pi_cuda)
 
