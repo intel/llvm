@@ -1,5 +1,7 @@
 # May'21 release notes
 
+Release notes for commit range 2ffafb95f887..6a49170027fb
+
 ## New features
  - [ESIMD] Allowed ESIMD and regular SYCL kernels to coexist in the same
    translation unit and in the same program. The `-fsycl-explicit-simd` option
@@ -25,7 +27,8 @@
    `sycl::property::reduction::initialize_to_identity` property [3473c1a]
  - Implemented zero argument version of `sycl::buffer::reinterpret()` for
    SYCL 2020 [c0c3c80]
- - Implemented [Matrix Programming Extension for DPC++](https://github.com/intel/llvm/blob/49b6749ea9175ae250b718c04d71af4ccfecc06c/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc) [35db973]
+ - Added an initial AOT implementation of the experimental matrix extension on
+   the CPU device to target AMX hardware. Base features are supported [35db973]
  - Added support for
    [SYCL_INTEL_local_memory extension](doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc)
    [5a66fcb] [9a734f6]
@@ -85,8 +88,7 @@
    [d3aeb4a]
  - Added a warning on using SYCL 1.2.1 OpenCL interoperability API when
    compiling in SYCL 2020 mode. It can be suppressed by defining
-   `SYCL2020_DISABLE_DEPRECATION_WARNINGS` macro or by setting `-sycl-std=2017`
-   or `-sycl-std=1.2.1` [a249316]
+   `SYCL2020_DISABLE_DEPRECATION_WARNINGS` [a249316]
  - Added support for blitter engine in Level Zero plugin. Some memory
    operations are submitted to a Level Zero copy queue now [11ba5b5]
  - Improved `sycl::INTEL::lsu::load` and `sycl::INTEL::lsu::store` to take
