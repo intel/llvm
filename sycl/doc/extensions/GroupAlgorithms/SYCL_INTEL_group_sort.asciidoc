@@ -18,7 +18,7 @@
 
 == Notice
 
-Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
 
 IMPORTANT: This specification is a draft.
 
