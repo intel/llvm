@@ -40,6 +40,18 @@ llvm_config.use_clang()
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
 
+# Propagate extra environment variables
+if config.extra_environment:
+    lit_config.note("Extra environment variables")
+    for env_pair in config.extra_environment.split(','):
+        [var,val]=env_pair.split("=")
+        if val:
+           llvm_config.with_environment(var,val)
+           lit_config.note("\t"+var+"="+val)
+        else:
+           lit_config.note("\tUnset "+var)
+           llvm_config.with_environment(var,"")
+
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add('linux')
