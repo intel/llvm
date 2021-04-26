@@ -17,15 +17,14 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <level_zero/zes_api.h>
+#include <level_zero/zet_api.h>
 #include <memory>
 #include <set>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
-
-#include <level_zero/zes_api.h>
-#include <level_zero/zet_api.h>
 
 #include "usm_allocator.hpp"
 
@@ -3491,19 +3490,19 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   ze_kernel_handle_t ZeKernel;
   ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_KERNEL_NAME;
   _pi_program::ModuleIterator ModIt(Program);
-  uint32_t KernelNameNum = 0;
+  uint32_t KernelNum = 0;
   while (!ModIt.Done()) {
-    KernelNameNum = 0;
-    ZeResult = ZE_CALL_NOCHECK(zeModuleGetKernelNames,
-                               (*ModIt, &KernelNameNum, nullptr));
+    KernelNum = 0;
+    ZeResult =
+        ZE_CALL_NOCHECK(zeModuleGetKernelNames, (*ModIt, &KernelNum, nullptr));
     if (ZeResult != ZE_RESULT_SUCCESS)
       break;
-    if (!KernelNameNum)
-      continue;
-    ZeResult =
-        ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
-    if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
-      break;
+    if (KernelNum != 0) {
+      ZeResult =
+          ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
+      if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
+        break;
+    }
     ModIt++;
   }
   if (ZeResult != ZE_RESULT_SUCCESS)
