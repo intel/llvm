@@ -336,7 +336,7 @@ struct sub_group {
       vec<T, 3>>
   load(const multi_ptr<T, Space> src) const {
     auto res = sycl::detail::sub_group::load<4, T>(src);
-    return {res.s2(), res.s1(), res.s0()};
+    return {res.s0(), res.s1(), res.s2()};
   }
 
   template <int N, typename T, access::address_space Space>
