@@ -3,7 +3,7 @@
 
 // -----
 
-func @single_iteration(%A: memref<?x?x?xi32>) {
+func @single_iteration_some(%A: memref<?x?x?xi32>) {
   %c0 = constant 0 : index
   %c1 = constant 1 : index
   %c2 = constant 2 : index
@@ -19,7 +19,7 @@ func @single_iteration(%A: memref<?x?x?xi32>) {
   return
 }
 
-// CHECK-LABEL:   func @single_iteration(
+// CHECK-LABEL:   func @single_iteration_some(
 // CHECK-SAME:                        [[ARG0:%.*]]: memref<?x?x?xi32>) {
 // CHECK-DAG:           [[C42:%.*]] = constant 42 : i32
 // CHECK-DAG:           [[C7:%.*]] = constant 7 : index
@@ -32,6 +32,70 @@ func @single_iteration(%A: memref<?x?x?xi32>) {
 // CHECK:             scf.yield
 // CHECK:           }
 // CHECK:           return
+
+// -----
+
+func @single_iteration_all(%A: memref<?x?x?xi32>) {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %c3 = constant 3 : index
+  %c6 = constant 6 : index
+  %c7 = constant 7 : index
+  %c10 = constant 10 : index
+  scf.parallel (%i0, %i1, %i2) = (%c0, %c3, %c7) to (%c1, %c6, %c10) step (%c1, %c3, %c3) {
+    %c42 = constant 42 : i32
+    memref.store %c42, %A[%i0, %i1, %i2] : memref<?x?x?xi32>
+    scf.yield
+  }
+  return
+}
+
+// CHECK-LABEL:   func @single_iteration_all(
+// CHECK-SAME:                        [[ARG0:%.*]]: memref<?x?x?xi32>) {
+// CHECK-DAG:           [[C42:%.*]] = constant 42 : i32
+// CHECK-DAG:           [[C7:%.*]] = constant 7 : index
+// CHECK-DAG:           [[C3:%.*]] = constant 3 : index
+// CHECK-DAG:           [[C0:%.*]] = constant 0 : index
+// CHECK-NOT:           scf.parallel
+// CHECK:               memref.store [[C42]], [[ARG0]]{{\[}}[[C0]], [[C3]], [[C7]]] : memref<?x?x?xi32>
+// CHECK-NOT:           scf.yield
+// CHECK:               return
+
+// -----
+
+func @single_iteration_reduce(%A: index, %B: index) -> (index, index) {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %c2 = constant 2 : index
+  %c3 = constant 3 : index
+  %c6 = constant 6 : index
+  %0:2 = scf.parallel (%i0, %i1) = (%c1, %c3) to (%c2, %c6) step (%c1, %c3) init(%A, %B) -> (index, index) {
+    scf.reduce(%i0) : index {
+    ^bb0(%lhs: index, %rhs: index):
+      %1 = addi %lhs, %rhs : index
+      scf.reduce.return %1 : index
+    }
+    scf.reduce(%i1) : index {
+    ^bb0(%lhs: index, %rhs: index):
+      %2 = muli %lhs, %rhs : index
+      scf.reduce.return %2 : index
+    }
+    scf.yield
+  }
+  return %0#0, %0#1 : index, index
+}
+
+// CHECK-LABEL:   func @single_iteration_reduce(
+// CHECK-SAME:                        [[ARG0:%.*]]: index, [[ARG1:%.*]]: index)
+// CHECK-DAG:           [[C3:%.*]] = constant 3 : index
+// CHECK-DAG:           [[C1:%.*]] = constant 1 : index
+// CHECK-NOT:           scf.parallel
+// CHECK-NOT:           scf.reduce
+// CHECK-NOT:           scf.reduce.return
+// CHECK-NOT:           scf.yield
+// CHECK:               [[V0:%.*]] = addi [[ARG0]], [[C1]]
+// CHECK:               [[V1:%.*]] = muli [[ARG1]], [[C3]]
+// CHECK:               return [[V0]], [[V1]]
 
 // -----
 
@@ -488,7 +552,7 @@ func @fold_away_iter_with_no_use_and_yielded_input(%arg0 : i32,
                     %ub : index, %lb : index, %step : index) -> (i32, i32) {
   // CHECK-NEXT: %[[C32:.*]] = constant 32 : i32
   %cst = constant 32 : i32
-  // CHECK-NEXT: %[[FOR_RES:.*]] = scf.for {{.*}} iter_args({{.*}} = %[[A0]]) -> (i32) { 
+  // CHECK-NEXT: %[[FOR_RES:.*]] = scf.for {{.*}} iter_args({{.*}} = %[[A0]]) -> (i32) {
   %0:2 = scf.for %arg1 = %lb to %ub step %step iter_args(%arg2 = %arg0, %arg3 = %cst)
     -> (i32, i32) {
     %1 = addi %arg2, %cst : i32
@@ -512,7 +576,37 @@ func @fold_away_iter_and_result_with_no_use(%arg0 : i32,
     %1 = addi %arg2, %cst : i32
     scf.yield %1, %1 : i32, i32
   }
-  
+
   // CHECK: return %[[FOR_RES]] : i32
   return %0#0 : i32
+}
+
+// -----
+
+func private @do(%arg0: tensor<?x?xf32>) -> tensor<?x?xf32>
+
+// CHECK-LABEL: matmul_on_tensors
+//  CHECK-SAME:   %[[T0:[0-9a-z]*]]: tensor<32x1024xf32>
+//  CHECK-SAME:   %[[T1:[0-9a-z]*]]: tensor<1024x1024xf32>
+func @matmul_on_tensors(%t0: tensor<32x1024xf32>, %t1: tensor<1024x1024xf32>) -> tensor<1024x1024xf32> {
+  %c0 = constant 0 : index
+  %c32 = constant 32 : index
+  %c1024 = constant 1024 : index
+//   CHECK-NOT: tensor.cast
+//       CHECK: %[[FOR_RES:.*]] = scf.for {{.*}} iter_args(%[[ITER_T0:.*]] = %[[T0]]) -> (tensor<32x1024xf32>) {
+//       CHECK:   %[[CAST:.*]] = tensor.cast %[[ITER_T0]] : tensor<32x1024xf32> to tensor<?x?xf32>
+//       CHECK:   %[[DONE:.*]] = call @do(%[[CAST]]) : (tensor<?x?xf32>) -> tensor<?x?xf32>
+//       CHECK:   %[[UNCAST:.*]] = tensor.cast %[[DONE]] : tensor<?x?xf32> to tensor<32x1024xf32>
+//       CHECK:   scf.yield %[[UNCAST]] : tensor<32x1024xf32>
+  %0 = tensor.cast %t0 : tensor<32x1024xf32> to tensor<?x?xf32>
+  %1 = scf.for %i = %c0 to %c1024 step %c32 iter_args(%iter_t0 = %0) -> (tensor<?x?xf32>) {
+    %2 = call @do(%iter_t0) : (tensor<?x?xf32>) -> tensor<?x?xf32>
+    scf.yield %2 : tensor<?x?xf32>
+  }
+//   CHECK-NOT: tensor.cast
+//       CHECK: %[[RES:.*]] = subtensor_insert %[[FOR_RES]] into %[[T1]][0, 0] [32, 1024] [1, 1] : tensor<32x1024xf32> into tensor<1024x1024xf32>
+//       CHECK: return %[[RES]] : tensor<1024x1024xf32>
+  %2 = tensor.cast %1 : tensor<?x?xf32> to tensor<32x1024xf32>
+  %res = subtensor_insert %2 into %t1[0, 0] [32, 1024] [1, 1] : tensor<32x1024xf32> into tensor<1024x1024xf32>
+  return %res : tensor<1024x1024xf32>
 }

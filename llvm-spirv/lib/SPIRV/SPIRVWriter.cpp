@@ -546,8 +546,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
   if (F->isIntrinsic() && (!BM->isSPIRVAllowUnknownIntrinsicsEnabled() ||
                            isKnownIntrinsic(F->getIntrinsicID()))) {
     // We should not translate LLVM intrinsics as a function
-    assert(none_of(F->users(),
-                   [this](User *U) { return getTranslatedValue(U); }) &&
+    assert(std::none_of(F->user_begin(), F->user_end(),
+                        [this](User *U) { return getTranslatedValue(U); }) &&
            "LLVM intrinsics shouldn't be called in SPIRV");
     return nullptr;
   }

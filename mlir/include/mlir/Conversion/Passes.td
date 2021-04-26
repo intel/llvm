@@ -229,6 +229,19 @@ def ConvertLinalgToSPIRV : Pass<"convert-linalg-to-spirv", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// MathToLibm
+//===----------------------------------------------------------------------===//
+
+def ConvertMathToLibm : Pass<"convert-math-to-libm", "ModuleOp"> {
+  let summary = "Convert Math dialect to libm calls";
+  let description = [{
+    This pass converts supported Math ops to libm calls.
+  }];
+  let constructor = "mlir::createConvertMathToLibmPass()";
+  let dependentDialects = ["StandardOpsDialect", "vector::VectorDialect"];
+}
+
+//===----------------------------------------------------------------------===//
 // OpenMPToLLVM
 //===----------------------------------------------------------------------===//
 
@@ -409,17 +422,6 @@ def ConvertStandardToLLVM : Pass<"convert-std-to-llvm", "ModuleOp"> {
 //===----------------------------------------------------------------------===//
 // StandardToSPIRV
 //===----------------------------------------------------------------------===//
-
-def LegalizeStandardForSPIRV : Pass<"legalize-std-for-spirv"> {
-  let summary = "Legalize standard ops for SPIR-V lowering";
-  let description = [{
-    The pass contains certain intra standard op conversions that are meant for
-    lowering to SPIR-V ops, e.g., folding subviews loads/stores to the original
-    loads/stores from/to the original memref.
-  }];
-  let constructor = "mlir::createLegalizeStdOpsForSPIRVLoweringPass()";
-  let dependentDialects = ["spirv::SPIRVDialect"];
-}
 
 def ConvertStandardToSPIRV : Pass<"convert-std-to-spirv", "ModuleOp"> {
   let summary = "Convert Standard dialect to SPIR-V dialect";

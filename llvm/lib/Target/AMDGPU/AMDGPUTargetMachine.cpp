@@ -193,10 +193,10 @@ static cl::opt<bool> EnableStructurizerWorkarounds(
     cl::desc("Enable workarounds for the StructurizeCFG pass"), cl::init(true),
     cl::Hidden);
 
-static cl::opt<bool>
-    DisableLowerModuleLDS("amdgpu-disable-lower-module-lds", cl::Hidden,
-                          cl::desc("Disable lower module lds pass"),
-                          cl::init(false));
+static cl::opt<bool, true> EnableLowerModuleLDS(
+    "amdgpu-enable-lower-module-lds", cl::desc("Enable lower module lds pass"),
+    cl::location(AMDGPUTargetMachine::EnableLowerModuleLDS), cl::init(true),
+    cl::Hidden);
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
@@ -388,15 +388,12 @@ AMDGPUTargetMachine::AMDGPUTargetMachine(const Target &T, const Triple &TT,
     else if (getMCSubtargetInfo()->checkFeatures("+wavefrontsize32"))
       MRI.reset(llvm::createGCNMCRegisterInfo(AMDGPUDwarfFlavour::Wave32));
   }
-  // Set -fixed-function-abi to true if not provided..
-  if (TT.getOS() == Triple::AMDHSA &&
-      EnableAMDGPUFixedFunctionABIOpt.getNumOccurrences() == 0)
-    EnableFixedFunctionABI = true;
 }
 
 bool AMDGPUTargetMachine::EnableLateStructurizeCFG = false;
 bool AMDGPUTargetMachine::EnableFunctionCalls = false;
 bool AMDGPUTargetMachine::EnableFixedFunctionABI = false;
+bool AMDGPUTargetMachine::EnableLowerModuleLDS = true;
 
 AMDGPUTargetMachine::~AMDGPUTargetMachine() = default;
 
@@ -578,6 +575,9 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
         PM.addPass(AMDGPUPrintfRuntimeBindingPass());
 
         if (InternalizeSymbols) {
+          // Global variables may have dead uses which need to be removed.
+          // Otherwise these useless global variables will not get internalized.
+          PM.addPass(GlobalDCEPass());
           PM.addPass(InternalizePass(mustPreserveGV));
         }
         PM.addPass(AMDGPUPropagateAttributesLatePass(*this));
@@ -892,7 +892,7 @@ void AMDGPUPassConfig::addIRPasses() {
   addPass(createAMDGPUOpenCLEnqueuedBlockLoweringPass());
 
   // Can increase LDS used by kernel so runs before PromoteAlloca
-  if (!DisableLowerModuleLDS)
+  if (EnableLowerModuleLDS)
     addPass(createAMDGPULowerModuleLDSPass());
 
   if (TM.getOptLevel() > CodeGenOpt::None) {
@@ -1072,15 +1072,14 @@ void GCNPassConfig::addMachineSSAOptimization() {
   addPass(&SIFoldOperandsID);
   if (EnableDPPCombine)
     addPass(&GCNDPPCombineID);
-  addPass(&DeadMachineInstructionElimID);
   addPass(&SILoadStoreOptimizerID);
   if (EnableSDWAPeephole) {
     addPass(&SIPeepholeSDWAID);
     addPass(&EarlyMachineLICMID);
     addPass(&MachineCSEID);
     addPass(&SIFoldOperandsID);
-    addPass(&DeadMachineInstructionElimID);
   }
+  addPass(&DeadMachineInstructionElimID);
   addPass(createSIShrinkInstructionsPass());
 }
 
