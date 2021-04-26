@@ -63,6 +63,14 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
+// Record for a memory allocation. This structure is used to keep track of all
+// memory allocations.
+struct MemAllocRecord : _pi_object {
+  MemAllocRecord(pi_context Context, void *Ptr) : Ptr(Ptr), Context(Context) {}
+  void *Ptr;
+  pi_context Context;
+};
+
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
@@ -94,6 +102,16 @@ struct _pi_platform {
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
+
+  // We need to store all memory allocations in the platform because there could
+  // be kernels with indirect access. Kernels with indirect access start to
+  // reference all existing memory allocations at the time when they are
+  // submitted to the device. Referenced memory allocations can be released only
+  // when kernel has finished execution.
+  // TODO: this container can be moved to _pi_context when Level Zero will
+  // support isolation of memory allocations in a context.
+  std::list<MemAllocRecord> MemAllocs;
+  std::mutex MemAllocsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -826,13 +844,24 @@ struct _pi_program : _pi_object {
 
 struct _pi_kernel : _pi_object {
   _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
-      : ZeKernel{Kernel}, Program{Program} {}
+      : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, UsersCount{0} {}
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;
+
+  // If kernel has indirect access we need to make a snapshot of all existing
+  // memory allocations to defer deletion of these memory allocations to the
+  // moment when kernel execution has finished.
+  std::list<MemAllocRecord *> MemAllocs;
+
+  // Track the number of events associated with this kernel.
+  // When this value is zero, it means that kernel is not submitted for an
+  // execution. It allows to release memory allocations referenced by this
+  // kernel.
+  std::atomic<pi_uint32> UsersCount;
 };
 
 struct _pi_sampler : _pi_object {
