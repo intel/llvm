@@ -2916,7 +2916,7 @@ protected:
   typedef SPIRVInstTemplate<SPIRVExpectKHRInstBase, Op##x, __VA_ARGS__>        \
       SPIRV##x;
 _SPIRV_OP(ExpectKHR, true, 5)
-#undef _SPIRV_OP
+#undef _SPIRV_OP_INTERNAL
 
 class SPIRVSubgroupShuffleINTELInstBase : public SPIRVInstTemplateBase {
 protected:
