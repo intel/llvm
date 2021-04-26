@@ -308,7 +308,7 @@ struct sub_group {
     }
     return res;
   }
-#else // __NVPTX__
+#else  // __NVPTX__
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
@@ -348,13 +348,13 @@ struct sub_group {
     return sycl::detail::sub_group::load(src);
   }
 #endif // ___NVPTX___
-#else // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_DEVICE_ONLY__
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
   load(const multi_ptr<T, Space> src) const {
-      (void)src;
+    (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
   }
@@ -459,89 +459,63 @@ struct sub_group {
 #endif
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+  template <int N, typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
+  store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
+    for (int i = 0; i < N; ++i) {
+      *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
+    }
+  }
+#else // __NVPTX__
+  template <int N, typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+      N != 1 && N != 3 && N != 16>
+  store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
+    sycl::detail::sub_group::store(dst, x);
+  }
+
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 1>
   store(multi_ptr<T, Space> dst, const vec<T, 1> &x) const {
-#ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
-    dst.get()[get_local_id()[0]] = x[0];
-#else
-    store<T, Space>(dst, x);
-#endif // __NVPTX__
-#else
-    (void)dst;
-    (void)x;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif
-  }
-
-  template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
-      N != 1 && N != 16 && N != 3>
-  store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
-#ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
-    for (int i = 0; i < N; ++i) {
-      *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
-    }
-#else
     sycl::detail::sub_group::store(dst, x);
-#endif // __NVPTX__
-#else
-    (void)dst;
-    (void)x;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif
-  }
-
-  template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
-      N == 16>
-  store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
-#ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
-    for (int i = 0; i < N; ++i) {
-      *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
-    }
-#else
-    store<8, T, Space>(dst, x.lo());
-    store<8, T, Space>(dst + 8 * get_max_local_range()[0], x.hi());
-#endif // __NVPTX__
-#else
-    (void)dst;
-    (void)x;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif
   }
 
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 3>
-  store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
-#ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
-    for (int i = 0; i < N; ++i) {
-      *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
-    }
-#else
+  store(multi_ptr<T, Space> dst, const vec<T, 3> &x) const {
     store<1, T, Space>(dst, x.s0());
     store<2, T, Space>(dst + get_max_local_range()[0], {x.s1(), x.s2()});
+  }
+
+  template <int N, typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
+      N == 16>
+  store(multi_ptr<T, Space> dst, const vec<T, 16> &x) const {
+    store<8, T, Space>(dst, x.lo());
+    store<8, T, Space>(dst + 8 * get_max_local_range()[0], x.hi());
+  }
+
 #endif // __NVPTX__
-#else
+#else  // __SYCL_DEVICE_ONLY__
+  template <int N, typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
+  store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
     (void)dst;
     (void)x;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
-#endif
   }
+#endif // __SYCL_DEVICE_ONLY__
 
   template <int N, typename T, access::address_space Space>
   sycl::detail::enable_if_t<
