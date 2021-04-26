@@ -283,12 +283,11 @@ public:
              const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
     // TODO: remove this workaround after AOT binaries contain kernel IDs by
     // default
-    bool HasKernelIdProp = false;
-    for (const auto &DeviceImage : MDeviceImages) {
-      if (!getSyclObjImpl(DeviceImage)->get_kernel_ids().empty()) {
-        HasKernelIdProp = true;
-      }
-    }
+    bool HasKernelIdProp =
+        std::any_of(MDeviceImages.begin(), MDeviceImages.end(),
+                    [](const auto &DeviceImage) {
+                      return !getSyclObjImpl(DeviceImage)->get_kernel_ids().empty();
+                    });
     if (!HasKernelIdProp) {
       for (const auto &DeviceImage : MDeviceImages) {
         size_t Size;

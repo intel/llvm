@@ -177,7 +177,7 @@ public:
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin.call<PiApiKind::piMemBufferCreate>(
           detail::getSyclObjImpl(MContext)->getHandleRef(),
-          PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_USE,
+          PI_MEM_FLAGS_ACCESS_RO | PI_MEM_FLAGS_HOST_PTR_USE,
           MSpecConstsBlob.size(), MSpecConstsBlob.data(), &MSpecConstsBuffer,
           nullptr);
     }
