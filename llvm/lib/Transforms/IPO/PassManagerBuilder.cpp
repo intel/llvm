@@ -463,17 +463,17 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
       MPM.add(createLoopFlattenPass()); // Flatten loops
       MPM.add(createLoopSimplifyCFGPass());
     }
-    MPM.add(createLoopIdiomPass());             // Recognize idioms like memset.
-    MPM.add(createIndVarSimplifyPass());      // Canonicalize indvars
+    MPM.add(createLoopIdiomPass());      // Recognize idioms like memset.
+    MPM.add(createIndVarSimplifyPass()); // Canonicalize indvars
     addExtensionsToPM(EP_LateLoopOptimizations, MPM);
-    MPM.add(createLoopDeletionPass());          // Delete dead loops
+    MPM.add(createLoopDeletionPass()); // Delete dead loops
 
     if (EnableLoopInterchange)
       MPM.add(createLoopInterchangePass()); // Interchange loops
 
     // Unroll small loops and perform peeling.
     MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                                      ForgetAllSCEVInLoopUnroll));
+                                       ForgetAllSCEVInLoopUnroll));
     addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
     // This ends the loop pass pipelines.
   }
