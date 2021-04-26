@@ -1396,42 +1396,6 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
-  // Check whether the object should be disallowed from being copied to kernel.
-  // Return true if not copyable, false if copyable.
-  bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
-    if (FieldTy->isArrayType()) {
-      if (const auto *CAT =
-              SemaRef.getASTContext().getAsConstantArrayType(FieldTy)) {
-        QualType ET = CAT->getElementType();
-        return checkNotCopyableToKernel(FD, ET);
-      }
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_constant_array_type)
-             << FieldTy;
-    }
-
-    if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams)
-      if (!FieldTy->isStandardLayoutType())
-        return Diag.Report(FD->getLocation(),
-                           diag::err_sycl_non_std_layout_type)
-               << FieldTy;
-
-    if (!FieldTy->isStructureOrClassType())
-      return false;
-
-    CXXRecordDecl *RD =
-        cast<CXXRecordDecl>(FieldTy->getAs<RecordType>()->getDecl());
-    if (!RD->hasTrivialCopyConstructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 0 << FieldTy;
-    if (!RD->hasTrivialDestructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 1 << FieldTy;
-
-    return false;
-  }
 
   void checkPropertyListType(TemplateArgument PropList, SourceLocation Loc) {
     if (PropList.getKind() != TemplateArgument::ArgKind::Type) {
@@ -1527,11 +1491,6 @@ public:
     return isValid();
   }
 
-  bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
-    return isValid();
-  }
-
   bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     checkAccessorType(FieldTy, BS.getBeginLoc());
@@ -1544,7 +1503,11 @@ public:
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+    if (!SemaRef.getASTContext().getAsConstantArrayType(FieldTy)) {
+      IsInvalid = true;
+      Diag.Report(FD->getLocation(), diag::err_sycl_non_constant_array_type)
+          << FieldTy;
+    }
     return isValid();
   }
 
@@ -3200,8 +3163,16 @@ public:
       : SyclKernelFieldHandler(S), Footer(F) {
     (void)Footer; // workaround for unused field warning
   }
-};
 
+  bool handleStructType(FieldDecl *, QualType FieldTy) final {
+    Footer.addTypeToCheckForDeviceCopyability(FieldTy);
+    return true;
+  }
+  bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    Footer.addTypeToCheckForDeviceCopyability(FieldTy);
+    return true;
+  }
+};
 } // namespace
 
 class SYCLKernelNameTypeVisitor
@@ -4523,6 +4494,19 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   SpecConstants.push_back(VD);
 }
 
+void SYCLIntegrationFooter::addTypeToCheckForDeviceCopyability(QualType QT) {
+  // FIXME: should this be an assertion instead?
+  if (!QT->isRecordType())
+    return;
+
+  // We don't care about type qualifiers for this.
+  QT = QT.getUnqualifiedType();
+
+  // Insert the type into our set, but we don't care if the type was already
+  // added before or not.
+  (void)TypesToCheckForDeviceCopyability.insert(QT);
+}
+
 // Post-compile integration header support.
 bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
@@ -4709,6 +4693,18 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   }
 
   OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+
+  // If there are types to be checked for device copyability, emit the checks
+  // for those types now.
+  if (!TypesToCheckForDeviceCopyability.empty())
+    OS << "#include <CL/sycl/detail/sycl_fe_intrins.hpp>\n\n";
+  for (QualType QT : TypesToCheckForDeviceCopyability) {
+    OS << "static_assert(::sycl::is_device_copyable<";
+    QT.print(OS, Policy); // Use the fwd-declarable policy.
+    OS << ">_v, \"error: kernel parameter type ('";
+    QT.print(OS, S.getPrintingPolicy()); // Use the diagnostic policy.
+    OS << "') is not device copyable\");\n";
+  }
   return true;
 }
 

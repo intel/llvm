@@ -435,11 +435,13 @@ public:
   SYCLIntegrationFooter(Sema &S) : S(S) {}
   bool emit(StringRef MainSrc);
   void addVarDecl(const VarDecl *VD);
+  void addTypeToCheckForDeviceCopyability(QualType QT);
 
 private:
   bool emit(raw_ostream &O);
   Sema &S;
   llvm::SmallVector<const VarDecl *> SpecConstants;
+  llvm::SetVector<QualType> TypesToCheckForDeviceCopyability;
   void emitSpecIDName(raw_ostream &O, const VarDecl *VD);
 };
 

@@ -4,6 +4,13 @@
 // an array of non-trivially copyable structs as SYCL kernel parameter or
 // a non-constant size array.
 
+// FIXME: the reason for the missing-expected-error comments is because
+// checking for non-trivially-copyable kernel names is done via the integration
+// footer, which is only run when doing a host compilation. The host
+// compilation has not yet begun to include the integration footer. The cases with
+// missing-expected-error comments are the ones expected to be caught by the
+// integration footer.
+
 #include "sycl.hpp"
 
 sycl::queue q;
@@ -35,9 +42,9 @@ void test() {
 
   q.submit([&](sycl::handler &h) {
     h.single_task<class kernel_capture_refs>([=] {
-      // expected-error@+1 {{kernel parameter has non-trivially copy constructible class/struct type}}
+      // missing-expected-error@+1 {{kernel parameter has non-trivially copy constructible class/struct type}}
       int b = NTCSObject[2].i;
-      // expected-error@+1 {{kernel parameter has non-trivially destructible class/struct type}}
+      // missing-expected-error@+1 {{kernel parameter has non-trivially destructible class/struct type}}
       int d = NTDSObject[4].i;
     });
   });

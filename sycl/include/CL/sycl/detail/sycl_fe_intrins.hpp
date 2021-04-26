@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -49,3 +50,16 @@ extern "C" SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
 __sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
 
 #endif
+
+namespace sycl {
+// This type trait is used by the FE to determine whether an object can be
+// safely copied to the device via memcpy. This is used by the integration
+// footer in order to diagnose types that need to be copied to the device but
+// are not device copyable.
+template <typename _Ty> struct is_device_copyable {
+  static constexpr bool value = std::is_trivially_copyable_v<_Ty>;
+};
+
+template <typename _Ty>
+inline constexpr bool is_device_copyable_v = is_device_copyable<_Ty>::value;
+} // namespace sycl

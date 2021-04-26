@@ -3,6 +3,14 @@
 // This test checks if compiler reports compilation error on an attempt to pass
 // a struct with non-trivially copyable type as SYCL kernel parameter.
 
+// expected-no-diagnostics
+// FIXME: the reason no diagnostics are expected is because checking for non-
+// trivially-copyable kernel names is done via the integration footer, which is
+// only run when doing a host compilation. The host compilation has not yet
+// begun to include the integration footer. The cases with
+// missing-expected-error comments are the ones expected to be caught by the
+// integration footer.
+
 struct A { int i; };
 
 struct B {
@@ -34,10 +42,10 @@ void test() {
   D IamAlsoBad{0};
   kernel_single_task<class kernel_capture_refs>([=] {
     int a = IamGood.i;
-    // expected-error@+1 {{kernel parameter has non-trivially copy constructible class/struct type}}
+    // missing-expected-error@+1 {{kernel parameter has non-trivially copy constructible class/struct type}}
     int b = IamBad.i;
     int c = IamAlsoGood.i;
-    // expected-error@+1 {{kernel parameter has non-trivially destructible class/struct type}}
+    // missing-expected-error@+1 {{kernel parameter has non-trivially destructible class/struct type}}
     int d = IamAlsoBad.i;
   });
 }

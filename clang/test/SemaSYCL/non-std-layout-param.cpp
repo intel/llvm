@@ -4,6 +4,14 @@
 // This test checks if compiler reports compilation error on an attempt to pass
 // non-standard layout struct object as SYCL kernel parameter.
 
+// expected-no-diagnostics
+// FIXME: the reason no diagnostics are expected is because checking for non-
+// trivially-copyable kernel names is done via the integration footer, which is
+// only run when doing a host compilation. The host compilation has not yet
+// begun to include the integration footer. The cases with
+// missing-expected-error comments are the ones expected to be caught by the
+// integration footer.
+
 struct Base {
   int X;
 };
@@ -23,7 +31,7 @@ void test() {
   C C0;
   C0.Y=0;
   kernel_single_task<class MyKernel>([=] {
-    // expected-error@+1 {{kernel parameter has non-standard layout class/struct type 'C'}}
+    // missing-expected-error@+1 {{kernel parameter has non-standard layout class/struct type 'C'}}
     (void)C0.Y;
   });
 }
@@ -37,12 +45,12 @@ struct Kernel {
   }
 
   int p;
-  // expected-error@+1 {{kernel parameter has non-standard layout class/struct type 'C'}}
+  // missing-expected-error@+1 {{kernel parameter has non-standard layout class/struct type 'C'}}
   C c1;
 
   int q;
 
-  // expected-error@+1 {{kernel parameter has non-standard layout class/struct type 'C'}}
+  // missing-expected-error@+1 {{kernel parameter has non-standard layout class/struct type 'C'}}
   C c2;
 };
 
