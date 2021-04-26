@@ -427,7 +427,10 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (OptLevel > 1)
     MPM.add(createTailCallEliminationPass()); // Eliminate tail calls
   MPM.add(createCFGSimplificationPass());      // Merge & remove BBs
-  MPM.add(createReassociatePass());           // Reassociate expressions
+  // FIXME: re-association increases variables liveness and therefore register
+  // pressure.
+  if (!SYCLOptimizationMode)
+    MPM.add(createReassociatePass());           // Reassociate expressions
 
   // Begin the loop pass pipeline.
   if (EnableSimpleLoopUnswitch) {
