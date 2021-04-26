@@ -4,7 +4,7 @@
 // an array of non-trivially copyable structs as SYCL kernel parameter or
 // a non-constant size array.
 
-// FIXME: the reason for the missing-expected-error comments is because
+// NOTE: the reason for the missing-expected-error comments is because
 // checking for non-trivially-copyable kernel names is done via the integration
 // footer, which is only run when doing a host compilation. The host
 // compilation has not yet begun to include the integration footer. The cases with

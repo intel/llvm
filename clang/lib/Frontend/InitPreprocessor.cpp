@@ -483,6 +483,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
     }
 
+    Builder.defineMacro("SYCL_DEVICE_COPYABLE", "1");
+
     if (LangOpts.SYCLValueFitInMaxInt)
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__", "1");
   }

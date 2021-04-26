@@ -4,7 +4,7 @@
 // a struct with non-trivially copyable type as SYCL kernel parameter.
 
 // expected-no-diagnostics
-// FIXME: the reason no diagnostics are expected is because checking for non-
+// NOTE: the reason no diagnostics are expected is because checking for non-
 // trivially-copyable kernel names is done via the integration footer, which is
 // only run when doing a host compilation. The host compilation has not yet
 // begun to include the integration footer. The cases with

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-std-layout-kernel-params -Wno-sycl-2017-compat -fsyntax-only -fsycl-int-footer=%t.h %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -Wno-sycl-2017-compat -fsyntax-only -fsycl-int-footer=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s
 //
 // This test checks if compiler reports compilation error on an attempt to pass

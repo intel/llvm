@@ -3169,7 +3169,9 @@ public:
     return true;
   }
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    Footer.addTypeToCheckForDeviceCopyability(FieldTy);
+    QualType ElementTy = cast<ArrayType>(FieldTy)->getElementType();
+    if (ElementTy->isRecordType())
+      Footer.addTypeToCheckForDeviceCopyability(ElementTy);
     return true;
   }
 };
@@ -4495,10 +4497,6 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
 }
 
 void SYCLIntegrationFooter::addTypeToCheckForDeviceCopyability(QualType QT) {
-  // FIXME: should this be an assertion instead?
-  if (!QT->isRecordType())
-    return;
-
   // We don't care about type qualifiers for this.
   QT = QT.getUnqualifiedType();
 
