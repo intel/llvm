@@ -16,7 +16,7 @@ template <typename T>
 void tmpl(T t) {}
 // See Check Lines below.
 
-void usages() {
+__attribute__((sycl_device)) void usages() {
   // CHECK-DAG: [[GLOB:%[a-zA-Z0-9]+]] = alloca i32 addrspace(1)*
   // CHECK-DAG: [[GLOB]].ascast = addrspacecast i32 addrspace(1)** [[GLOB]] to i32 addrspace(1)* addrspace(4)*
   __attribute__((opencl_global)) int *GLOB;
@@ -29,6 +29,10 @@ void usages() {
   // CHECK-DAG: [[PRIV:%[a-zA-Z0-9]+]] = alloca i32*
   // CHECK-DAG: [[PRIV]].ascast = addrspacecast i32** [[PRIV]] to i32* addrspace(4)*
   __attribute__((opencl_private)) int *PRIV;
+  // CHECK-DAG: [[GLOB_DEVICE:%[a-zA-Z0-9]+]] = alloca i32 addrspace(5)*
+  __attribute__((opencl_global_device)) int *GLOBDEVICE;
+  // CHECK-DAG: [[GLOB_HOST:%[a-zA-Z0-9]+]] = alloca i32 addrspace(6)*
+  __attribute__((opencl_global_host)) int *GLOBHOST;
 
   // Explicit conversions
   // From names address spaces to default address space

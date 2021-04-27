@@ -3,22 +3,22 @@
 
 // REQUIRES: x86-registered-target
 
-void foo(__attribute__((opencl_global)) int *);
-void foo(__attribute__((opencl_local)) int *);
-void foo(__attribute__((opencl_private)) int *);
-void foo(int *);
+__attribute__((sycl_device)) void foo(__attribute__((opencl_global)) int *);
+__attribute__((sycl_device)) void foo(__attribute__((opencl_local)) int *);
+__attribute__((sycl_device)) void foo(__attribute__((opencl_private)) int *);
+__attribute__((sycl_device)) void foo(int *);
 
-// SPIR: declare spir_func void @_Z3fooPU3AS1i(i32 addrspace(1)*) #1
-// SPIR: declare spir_func void @_Z3fooPU3AS3i(i32 addrspace(3)*) #1
-// SPIR: declare spir_func void @_Z3fooPU3AS0i(i32*) #1
-// SPIR: declare spir_func void @_Z3fooPi(i32 addrspace(4)*) #1
+// SPIR: declare spir_func void @_Z3fooPU3AS1i(i32 addrspace(1)*)
+// SPIR: declare spir_func void @_Z3fooPU3AS3i(i32 addrspace(3)*)
+// SPIR: declare spir_func void @_Z3fooPU3AS0i(i32*)
+// SPIR: declare spir_func void @_Z3fooPi(i32 addrspace(4)*)
 
-// X86: declare void @_Z3fooPU8SYglobali(i32*) #1
-// X86: declare void @_Z3fooPU7SYlocali(i32*) #1
-// X86: declare void @_Z3fooPU9SYprivatei(i32*) #1
-// X86: declare void @_Z3fooPi(i32*) #1
+// X86: declare void @_Z3fooPU8SYglobali(i32*)
+// X86: declare void @_Z3fooPU7SYlocali(i32*)
+// X86: declare void @_Z3fooPU9SYprivatei(i32*)
+// X86: declare void @_Z3fooPi(i32*)
 
-void test() {
+__attribute__((sycl_device)) void test() {
   __attribute__((opencl_global)) int *glob;
   __attribute__((opencl_local)) int *loc;
   __attribute__((opencl_private)) int *priv;

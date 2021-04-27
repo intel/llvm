@@ -1543,7 +1543,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
         !S.getLangOpts().SYCLIsDevice &&
         !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
-          << "__float128";
+        << "__float128";
     Result = Context.Float128Ty;
     break;
   case DeclSpec::TST_bool:

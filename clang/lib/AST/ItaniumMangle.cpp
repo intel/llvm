@@ -2501,12 +2501,8 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
     if (Context.getASTContext().addressSpaceMapManglingFor(AS)) {
       //  <target-addrspace> ::= "AS" <address-space-number>
       unsigned TargetAS = Context.getASTContext().getTargetAddressSpace(AS);
-<<<<<<< HEAD
-      if (TargetAS != 0 || (Context.getASTContext().getLangOpts().SYCLIsDevice))
-=======
       if (TargetAS != 0 ||
           Context.getASTContext().getTargetAddressSpace(LangAS::Default) != 0)
->>>>>>> 7818906ca134... [SYCL] Implement SYCL address space attributes handling
         ASString = "AS" + llvm::utostr(TargetAS);
     } else {
       switch (AS) {
@@ -2538,6 +2534,12 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
       //  <SYCL-addrspace> ::= "SY" [ "global" | "local" | "private" ]
       case LangAS::sycl_global:
         ASString = "SYglobal";
+        break;
+      case LangAS::sycl_global_device:
+        ASString = "SYglobaldevice";
+        break;
+      case LangAS::sycl_global_host:
+        ASString = "SYglobalhost";
         break;
       case LangAS::sycl_local:
         ASString = "SYlocal";

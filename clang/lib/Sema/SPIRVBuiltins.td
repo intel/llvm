@@ -35,10 +35,10 @@ class AddressSpace<string _AS> {
 // the one it will be lowered to.
 // This file assumes it will get lowered to generic or private.
 def DefaultAS    : AddressSpace<"clang::LangAS::Default">;
-def PrivateAS    : AddressSpace<"clang::LangAS::opencl_private">;
-def GlobalAS     : AddressSpace<"clang::LangAS::opencl_global">;
+def PrivateAS    : AddressSpace<"clang::LangAS::sycl_private">;
+def GlobalAS     : AddressSpace<"clang::LangAS::sycl_global">;
 def ConstantAS   : AddressSpace<"clang::LangAS::opencl_constant">;
-def LocalAS      : AddressSpace<"clang::LangAS::opencl_local">;
+def LocalAS      : AddressSpace<"clang::LangAS::sycl_local">;
 def GenericAS    : AddressSpace<"clang::LangAS::opencl_generic">;
 
 // TODO: Manage capabilities. Unused for now.

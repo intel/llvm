@@ -460,6 +460,7 @@ LangAS TargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
                                                    const VarDecl *D) const {
   assert(!CGM.getLangOpts().OpenCL &&
          !(CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) &&
+         !(CGM.getLangOpts().SYCLIsDevice) &&
          "Address space agnostic languages only");
   return D ? D->getType().getAddressSpace() : LangAS::Default;
 }
@@ -9167,6 +9168,7 @@ AMDGPUTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
                                                   const VarDecl *D) const {
   assert(!CGM.getLangOpts().OpenCL &&
          !(CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) &&
+         !(CGM.getLangOpts().SYCLIsDevice) &&
          "Address space agnostic languages only");
   LangAS DefaultGlobalAS = getLangASFromTargetAS(
       CGM.getContext().getTargetAddressSpace(LangAS::opencl_global));
@@ -10047,12 +10049,10 @@ public:
   }
 
   unsigned getOpenCLKernelCallingConv() const override;
-
-  LangAS getASTAllocaAddressSpace() const override {
-    return getLangASFromTargetAS(
-        getABIInfo().getDataLayout().getAllocaAddrSpace());
-  }
-
+  // FIXME: remove this overload. We currently use as a workaround for ESIMD
+  // mode which applies `opencl_private` address space attribute to global
+  // variables, which is not valid for SPIR target for OpenCL environment.
+  // TODO: find solution to this issue, which we can upstream to llorg.
   LangAS getGlobalVarAddressSpace(CodeGenModule &CGM,
                                   const VarDecl *D) const override;
   bool shouldEmitStaticExternCAliases() const override;
@@ -10098,10 +10098,9 @@ LangAS SPIRTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
   if (AddrSpace != LangAS::Default)
     return AddrSpace;
 
-  if (CGM.isTypeConstant(D->getType(), false)) {
-    if (auto ConstAS = CGM.getTarget().getConstantAddressSpace())
-      return ConstAS.getValue();
-  }
+  if (CGM.isTypeConstant(D->getType(), false))
+    return CGM.GetGlobalConstantAddressSpace();
+
   return DefaultGlobalAS;
 }
 

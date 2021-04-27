@@ -4,7 +4,7 @@
 // CHECK: @[[STR:[.a-zA-Z0-9_]+]] = private unnamed_addr addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
 
 // CHECK-LABEL: @_Z4testv
-void test() {
+__attribute__((sycl_device)) void test() {
   static const int foo = 0x42;
 
   // CHECK: %i.ascast = addrspacecast i32* %i to i32 addrspace(4)*

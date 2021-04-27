@@ -268,16 +268,7 @@ void CodeGenModule::createCUDARuntime() {
 }
 
 void CodeGenModule::createSYCLRuntime() {
-  switch (getTriple().getArch()) {
-  case llvm::Triple::spir:
-  case llvm::Triple::spir64:
-  case llvm::Triple::nvptx:
-  case llvm::Triple::nvptx64:
-    SYCLRuntime.reset(new CGSYCLRuntime(*this));
-    break;
-  default:
-    llvm_unreachable("unsupported target for SYCL");
-  }
+  SYCLRuntime.reset(new CGSYCLRuntime(*this));
 }
 
 void CodeGenModule::addReplacement(StringRef Name, llvm::Constant *C) {
@@ -1532,16 +1523,20 @@ static void removeImageAccessQualifier(std::string& TyName) {
 static unsigned ArgInfoAddressSpace(LangAS AS) {
   switch (AS) {
   case LangAS::opencl_global:
+  case LangAS::sycl_global:
     return 1;
   case LangAS::opencl_constant:
     return 2;
   case LangAS::opencl_local:
+  case LangAS::sycl_local:
     return 3;
   case LangAS::opencl_generic:
     return 4; // Not in SPIR 2.0 specs.
   case LangAS::opencl_global_device:
+  case LangAS::sycl_global_device:
     return 5;
   case LangAS::opencl_global_host:
+  case LangAS::sycl_global_host:
     return 6;
   default:
     return 0; // Assume private.
@@ -4244,17 +4239,25 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     return AddrSpace;
   }
 
-<<<<<<< HEAD
   if (LangOpts.SYCLIsDevice && D) {
     auto *Scope = D->getAttr<SYCLScopeAttr>();
     if (Scope && Scope->isWorkGroup())
-      return LangAS::opencl_local;
+      return LangAS::sycl_local;
   }
-=======
-  if (LangOpts.SYCLIsDevice &&
-      (!D || D->getType().getAddressSpace() == LangAS::Default))
-    return LangAS::sycl_global;
->>>>>>> 7818906ca134... [SYCL] Implement SYCL address space attributes handling
+
+  if (LangOpts.SYCLIsDevice) {
+    AddrSpace = !D || (D->getType().getAddressSpace() == LangAS::Default)
+                    ? LangAS::sycl_global
+                    : D->getType().getAddressSpace();
+    assert(AddrSpace == LangAS::sycl_global ||
+           AddrSpace == LangAS::sycl_global_device ||
+           AddrSpace == LangAS::sycl_global_host ||
+           AddrSpace == LangAS::opencl_constant ||
+           AddrSpace == LangAS::sycl_local ||
+           AddrSpace == LangAS::sycl_private ||
+           AddrSpace >= LangAS::FirstTargetAddressSpace);
+    return AddrSpace;
+  }
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
     if (D && D->hasAttr<CUDAConstantAttr>())
