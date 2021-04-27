@@ -553,10 +553,10 @@ MDNode *LoopInfo::createMetadata(
 
   // Setting max_concurrency attribute with number of threads
   if (Attrs.SYCLMaxConcurrencyEnable) {
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.max_concurrency.count"),
-        ConstantAsMetadata::get(ConstantInt::get(
-            llvm::Type::getInt32Ty(Ctx), Attrs.SYCLMaxConcurrencyNThreads))};
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.max_concurrency.count"),
+                        ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx),
+                            Attrs.SYCLMaxConcurrencyNThreads))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
