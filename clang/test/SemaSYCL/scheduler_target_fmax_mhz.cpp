@@ -30,8 +30,7 @@ func3() {}
 
 // Diagnostic is emitted because the arguments mismatch.
 [[intel::scheduler_target_fmax_mhz(2)]] // expected-note {{previous attribute is here}}
-[[intel::scheduler_target_fmax_mhz(4)]] void
-func5() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
+[[intel::scheduler_target_fmax_mhz(4)]] void func5() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 
 [[intel::scheduler_target_fmax_mhz(1)]] void func6(); // expected-note {{previous attribute is here}}
 [[intel::scheduler_target_fmax_mhz(3)]] void func6(); // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
