@@ -86,8 +86,8 @@ llvm/unittests/Support/PropertySetIOTest.cpp @mlychkov @AlexeySachkov
 llvm/lib/Support/Base64.cpp @mlychkov @AlexeySachkov
 
 # Clang offload tools
-clang/tools/clang-offload-bundler/ @mlychkov @sndmitriev
-clang/tools/clang-offload-wrapper/ @mlychkov @sndmitriev
+clang/tools/clang-offload-bundler/ @mlychkov @sndmitriev @AlexeySachkov
+clang/tools/clang-offload-wrapper/ @mlychkov @sndmitriev @AlexeySachkov
 clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
@@ -99,4 +99,3 @@ sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
 # ITT annotations
 llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims
 llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims
-
