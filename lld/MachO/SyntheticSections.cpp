@@ -585,8 +585,10 @@ static void validateExportSymbol(const Defined *defined) {
 }
 
 static bool shouldExportSymbol(const Defined *defined) {
-  if (defined->privateExtern)
+  if (defined->privateExtern) {
+    assert(defined->isExternal() && "invalid input file");
     return false;
+  }
   // TODO: Is this a performance bottleneck? If a build has mostly
   // global symbols in the input but uses -exported_symbols to filter
   // out most of them, then it would be better to set the value of
@@ -844,7 +846,6 @@ template <class LP> void SymtabSectionImpl<LP>::writeTo(uint8_t *buf) const {
       if (!shouldExportSymbol(defined)) {
         // Private external -- dylib scoped symbol.
         // Promote to non-external at link time.
-        assert(defined->isExternal() && "invalid input file");
         scope = N_PEXT;
       } else if (defined->isExternal()) {
         // Normal global symbol.
@@ -1115,12 +1116,12 @@ void macho::createSyntheticSymbols() {
     if (config->isPic)
       symtab->addSynthetic("__mh_execute_header", in.header->isec, 0,
                            /*privateExtern=*/false,
-                           /*includeInSymbtab=*/true);
+                           /*includeInSymtab=*/true);
     else
       symtab->addSynthetic("__mh_execute_header",
                            /*isec*/ nullptr, 0,
                            /*privateExtern=*/false,
-                           /*includeInSymbtab=*/true);
+                           /*includeInSymtab=*/true);
     break;
 
     // The following symbols are  N_SECT symbols, even though the header is not

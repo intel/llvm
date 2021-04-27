@@ -189,6 +189,55 @@ private:
     llvm_unreachable("Unexpected MemIndexedMode");
   }
 
+  InstructionCost getCommonMaskedMemoryOpCost(unsigned Opcode, Type *DataTy,
+                                              Align Alignment,
+                                              bool VariableMask,
+                                              bool IsGatherScatter,
+                                              TTI::TargetCostKind CostKind) {
+    auto *VT = cast<FixedVectorType>(DataTy);
+    // Assume the target does not have support for gather/scatter operations
+    // and provide a rough estimate.
+    //
+    // First, compute the cost of the individual memory operations.
+    InstructionCost AddrExtractCost =
+        IsGatherScatter
+            ? getVectorInstrCost(Instruction::ExtractElement,
+                                 FixedVectorType::get(
+                                     PointerType::get(VT->getElementType(), 0),
+                                     VT->getNumElements()),
+                                 -1)
+            : 0;
+    InstructionCost LoadCost =
+        VT->getNumElements() *
+        (AddrExtractCost +
+         getMemoryOpCost(Opcode, VT->getElementType(), Alignment, 0, CostKind));
+
+    // Next, compute the cost of packing the result in a vector.
+    int PackingCost = getScalarizationOverhead(VT, Opcode != Instruction::Store,
+                                               Opcode == Instruction::Store);
+
+    InstructionCost ConditionalCost = 0;
+    if (VariableMask) {
+      // Compute the cost of conditionally executing the memory operations with
+      // variable masks. This includes extracting the individual conditions, a
+      // branches and PHIs to combine the results.
+      // NOTE: Estimating the cost of conditionally executing the memory
+      // operations accurately is quite difficult and the current solution
+      // provides a very rough estimate only.
+      ConditionalCost =
+          VT->getNumElements() *
+          (getVectorInstrCost(
+               Instruction::ExtractElement,
+               FixedVectorType::get(Type::getInt1Ty(DataTy->getContext()),
+                                    VT->getNumElements()),
+               -1) +
+           getCFInstrCost(Instruction::Br, CostKind) +
+           getCFInstrCost(Instruction::PHI, CostKind));
+    }
+
+    return LoadCost + PackingCost + ConditionalCost;
+  }
+
 protected:
   explicit BasicTTIImplBase(const TargetMachine *TM, const DataLayout &DL)
       : BaseT(DL) {}
@@ -281,8 +330,9 @@ public:
     return TargetTransformInfoImplBase::isProfitableLSRChainElement(I);
   }
 
-  int getScalingFactorCost(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
-                           bool HasBaseReg, int64_t Scale, unsigned AddrSpace) {
+  InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
+                                       int64_t BaseOffset, bool HasBaseReg,
+                                       int64_t Scale, unsigned AddrSpace) {
     TargetLoweringBase::AddrMode AM;
     AM.BaseGV = BaseGV;
     AM.BaseOffs = BaseOffset;
@@ -310,8 +360,8 @@ public:
     return getTLI()->getTypeLegalizationCost(DL, Ty).first;
   }
 
-  int getGEPCost(Type *PointeeType, const Value *Ptr,
-                 ArrayRef<const Value *> Operands) {
+  InstructionCost getGEPCost(Type *PointeeType, const Value *Ptr,
+                             ArrayRef<const Value *> Operands) {
     return BaseT::getGEPCost(PointeeType, Ptr, Operands);
   }
 
@@ -1023,50 +1073,20 @@ public:
     return Cost;
   }
 
+  InstructionCost getMaskedMemoryOpCost(unsigned Opcode, Type *DataTy,
+                                        Align Alignment, unsigned AddressSpace,
+                                        TTI::TargetCostKind CostKind) {
+    return getCommonMaskedMemoryOpCost(Opcode, DataTy, Alignment, true, false,
+                                       CostKind);
+  }
+
   InstructionCost getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
                                          const Value *Ptr, bool VariableMask,
                                          Align Alignment,
                                          TTI::TargetCostKind CostKind,
                                          const Instruction *I = nullptr) {
-    auto *VT = cast<FixedVectorType>(DataTy);
-    // Assume the target does not have support for gather/scatter operations
-    // and provide a rough estimate.
-    //
-    // First, compute the cost of extracting the individual addresses and the
-    // individual memory operations.
-    InstructionCost LoadCost =
-        VT->getNumElements() *
-        (getVectorInstrCost(
-             Instruction::ExtractElement,
-             FixedVectorType::get(PointerType::get(VT->getElementType(), 0),
-                                  VT->getNumElements()),
-             -1) +
-         getMemoryOpCost(Opcode, VT->getElementType(), Alignment, 0, CostKind));
-
-    // Next, compute the cost of packing the result in a vector.
-    int PackingCost = getScalarizationOverhead(VT, Opcode != Instruction::Store,
-                                               Opcode == Instruction::Store);
-
-    InstructionCost ConditionalCost = 0;
-    if (VariableMask) {
-      // Compute the cost of conditionally executing the memory operations with
-      // variable masks. This includes extracting the individual conditions, a
-      // branches and PHIs to combine the results.
-      // NOTE: Estimating the cost of conditionally executing the memory
-      // operations accurately is quite difficult and the current solution
-      // provides a very rough estimate only.
-      ConditionalCost =
-          VT->getNumElements() *
-          (getVectorInstrCost(
-               Instruction::ExtractElement,
-               FixedVectorType::get(Type::getInt1Ty(DataTy->getContext()),
-                                    VT->getNumElements()),
-               -1) +
-           getCFInstrCost(Instruction::Br, CostKind) +
-           getCFInstrCost(Instruction::PHI, CostKind));
-    }
-
-    return LoadCost + PackingCost + ConditionalCost;
+    return getCommonMaskedMemoryOpCost(Opcode, DataTy, Alignment, VariableMask,
+                                       true, CostKind);
   }
 
   InstructionCost getInterleavedMemoryOpCost(
@@ -1376,7 +1396,7 @@ public:
     // Assume that we need to scalarize this intrinsic.
     // Compute the scalarization overhead based on Args for a vector
     // intrinsic.
-    unsigned ScalarizationCost = std::numeric_limits<unsigned>::max();
+    InstructionCost ScalarizationCost = InstructionCost::getInvalid();
     if (RetVF.isVector() && !RetVF.isScalable()) {
       ScalarizationCost = 0;
       if (!RetTy->isVoidTy())
@@ -1402,7 +1422,7 @@ public:
     Type *RetTy = ICA.getReturnType();
     const SmallVectorImpl<Type *> &Tys = ICA.getArgTypes();
     FastMathFlags FMF = ICA.getFlags();
-    unsigned ScalarizationCostPassed = ICA.getScalarizationCost();
+    InstructionCost ScalarizationCostPassed = ICA.getScalarizationCost();
     bool SkipScalarizationCost = ICA.skipScalarizationCost();
 
     VectorType *VecOpTy = nullptr;
@@ -1429,7 +1449,8 @@ public:
         return InstructionCost::getInvalid();
 
       // Assume that we need to scalarize this intrinsic.
-      InstructionCost ScalarizationCost = ScalarizationCostPassed;
+      InstructionCost ScalarizationCost =
+          SkipScalarizationCost ? ScalarizationCostPassed : 0;
       unsigned ScalarCalls = 1;
       Type *ScalarRetTy = RetTy;
       if (auto *RetVTy = dyn_cast<VectorType>(RetTy)) {
@@ -1845,8 +1866,9 @@ public:
           }))
         return InstructionCost::getInvalid();
 
-      unsigned ScalarizationCost = SkipScalarizationCost ?
-        ScalarizationCostPassed : getScalarizationOverhead(RetVTy, true, false);
+      InstructionCost ScalarizationCost =
+          SkipScalarizationCost ? ScalarizationCostPassed
+                                : getScalarizationOverhead(RetVTy, true, false);
 
       unsigned ScalarCalls = cast<FixedVectorType>(RetVTy)->getNumElements();
       SmallVector<Type *, 4> ScalarTys;
@@ -1896,8 +1918,8 @@ public:
     return LT.first;
   }
 
-  unsigned getAddressComputationCost(Type *Ty, ScalarEvolution *,
-                                     const SCEV *) {
+  InstructionCost getAddressComputationCost(Type *Ty, ScalarEvolution *,
+                                            const SCEV *) {
     return 0;
   }
 
