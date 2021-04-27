@@ -623,26 +623,58 @@ public:
         CodeLoc);
   }
 
-  /// parallel_for version with a kernel represented as a lambda + nd_range that
-  /// specifies global, local sizes and offset.
-  ///
-  /// \param ExecutionRange is a range that specifies the work space of the
-  /// kernel
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, int Dims, typename... RestT>
-  event parallel_for(nd_range<Dims> ExecutionRange, RestT&&... Args) {
-    constexpr size_t NumArgs = sizeof...(RestT);
+  /// parallel_for accepting nd_range \p ExecutionRange, a pack \p Args
+  /// consisting of 3 or more reduction objects, 1 lambda/functor, and
+  /// an optional code location of user code.
+  /// Note that the last optional code location does not have the default value,
+  /// as having it would create non-deducible calling context.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<(sizeof...(RestT) > 3), event>
+  parallel_for(nd_range<Dims> ExecutionRange, RestT &&... Args) {
     std::tuple<RestT...> ArgsTuple(Args...);
     auto CodeLoc = getCodeLocation(ArgsTuple);
     auto ArgsWithoutCodeLocation =
         getParallelForArgsWithoutCodeLocation(ArgsTuple);
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, nd_range<Dims>>(
-              ExecutionRange, ArgsWithoutCodeLocation);
-        },
-        CodeLoc);
+    constexpr size_t NumArgsWOCodeLoc =
+        std::tuple_size_v<decltype(ArgsWithoutCodeLocation)>;
+    auto Indices = std::make_index_sequence<NumArgsWOCodeLoc>();
+    return parallel_for_impl(ExecutionRange, CodeLoc, ArgsWithoutCodeLocation,
+                             Indices);
+  }
+
+  /// parallel_for accepting nd_range \p ExecutionRange, user's lambda/functor
+  /// \p KernelFunc, and an optional code location of user code \p CodeLoc.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename KernelType>
+  event parallel_for(nd_range<Dims> ExecutionRange,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(ExecutionRange, CodeLoc, KernelFunc);
+  }
+
+  /// parallel_for accepting nd_range \p ExecutionRange, 1 reduction \p R1,
+  /// user's lambda/functor \p KernelFunc, and an optional code location
+  /// of user code \p CodeLoc.
+  template <typename KernelName = detail::auto_name, int Dims, typename R1T,
+            typename KernelType>
+  event parallel_for(nd_range<Dims> ExecutionRange, R1T R1,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(ExecutionRange, CodeLoc, R1,
+                                         KernelFunc);
+  }
+
+  /// parallel_for accepting nd_range \p ExecutionRange, 2 reductions \p R1 and
+  /// \p R2, user's lambda/functor \p KernelFunc, and an optional code location
+  /// of user code \p CodeLoc.
+  template <typename KernelName = detail::auto_name, int Dims, typename R1T,
+            typename R2T, typename KernelType>
+  event parallel_for(nd_range<Dims> ExecutionRange, R1T R1, R2T R2,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(ExecutionRange, CodeLoc, R1, R2,
+                                         KernelFunc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -741,8 +773,7 @@ private:
   /// \param NumWorkItems is a range that specifies the work space of the kernel
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
+  template <typename KernelName, typename KernelType, int Dims>
   event parallel_for_impl(
       range<Dims> NumWorkItems, KernelType KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
@@ -761,8 +792,7 @@ private:
   /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
+  template <typename KernelName, typename KernelType, int Dims>
   event parallel_for_impl(range<Dims> NumWorkItems, event DepEvent,
                           KernelType KernelFunc,
                           const detail::code_location &CodeLoc) {
@@ -783,8 +813,7 @@ private:
   /// dependencies
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
+  template <typename KernelName, typename KernelType, int Dims>
   event parallel_for_impl(range<Dims> NumWorkItems,
                           const vector_class<event> &DepEvents,
                           KernelType KernelFunc,
@@ -798,6 +827,30 @@ private:
         CodeLoc);
   }
 
+  /// parallel_for implementation helper accepting nd_range \p ExecutionRange,
+  /// code location \p CodeLoc, and a pack \p Args consisting of optional
+  /// reduction objects and non-optional lambda/functor.
+  template <typename KernelName, int Dims, typename... RestT>
+  event parallel_for_impl(nd_range<Dims> ExecutionRange,
+                          const detail::code_location &CodeLoc,
+                          RestT &&... Args) {
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName>(ExecutionRange, Args...);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for implementation helper accepting nd_range \p ExecutionRange,
+  /// code location \p CodeLoc, tuple \p Args consisting of optional reduction
+  /// objects and non-optional lambda/functor, and index sequence enumerating
+  /// elements in the tuple \p Args.
+  template <typename KernelName, typename RangeT, typename... Ts, size_t... Is>
+  event parallel_for_impl(RangeT &Range, const detail::code_location &CodeLoc,
+                          std::tuple<Ts...> Args, std::index_sequence<Is...>) {
+    return parallel_for_impl<KernelName>(Range, std::get<Is>(Args)..., CodeLoc);
+  }
+
   /// Either extracts and returns the last element from the given tuple if it is
   /// a code location, or creates and returns an empty code location.
   ///
@@ -805,7 +858,7 @@ private:
   /// the optional reduction objects, required lambda/functor function, and
   /// optional code location argument.
   template <typename... Ts>
-  static const detail::code_location &getCodeLocation(std::tuple<Ts...> &Args) {
+  static detail::code_location getCodeLocation(std::tuple<Ts...> &Args) {
     static_assert(sizeof...(Ts) > 0, "Unexpected argumnets of parallel_for()");
     using LastArgT = std::tuple_element_t<sizeof...(Ts) - 1, std::tuple<Ts...>>;
     if constexpr (std::is_same_v<std::decay_t<LastArgT>, detail::code_location>)
