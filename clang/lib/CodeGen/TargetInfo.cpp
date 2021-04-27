@@ -10042,19 +10042,13 @@ class SPIRTargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   SPIRTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
       : TargetCodeGenInfo(std::make_unique<SPIRABIInfo>(CGT)) {}
+  unsigned getOpenCLKernelCallingConv() const override;
 
   LangAS getASTAllocaAddressSpace() const override {
     return getLangASFromTargetAS(
         getABIInfo().getDataLayout().getAllocaAddrSpace());
   }
 
-  unsigned getOpenCLKernelCallingConv() const override;
-  // FIXME: remove this overload. We currently use as a workaround for ESIMD
-  // mode which applies `opencl_private` address space attribute to global
-  // variables, which is not valid for SPIR target for OpenCL environment.
-  // TODO: find solution to this issue, which we can upstream to llorg.
-  LangAS getGlobalVarAddressSpace(CodeGenModule &CGM,
-                                  const VarDecl *D) const override;
   bool shouldEmitStaticExternCAliases() const override;
 };
 
@@ -10079,29 +10073,6 @@ unsigned SPIRTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
 
 bool SPIRTargetCodeGenInfo::shouldEmitStaticExternCAliases() const {
   return false;
-}
-
-LangAS SPIRTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
-                                                       const VarDecl *D) const {
-  assert(!CGM.getLangOpts().OpenCL &&
-         !(CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) &&
-         "Address space agnostic languages only");
-  LangAS DefaultGlobalAS = getLangASFromTargetAS(
-      CGM.getContext().getTargetAddressSpace(LangAS::opencl_global));
-  if (!D)
-    return DefaultGlobalAS;
-
-  LangAS AddrSpace = D->getType().getAddressSpace();
-  assert(AddrSpace == LangAS::Default || isTargetAddressSpace(AddrSpace) ||
-         // allow applying clang AST address spaces in SYCL mode
-         CGM.getLangOpts().SYCLIsDevice);
-  if (AddrSpace != LangAS::Default)
-    return AddrSpace;
-
-  if (CGM.isTypeConstant(D->getType(), false))
-    return CGM.GetGlobalConstantAddressSpace();
-
-  return DefaultGlobalAS;
 }
 
 static bool appendType(SmallStringEnc &Enc, QualType QType,
