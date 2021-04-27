@@ -49,23 +49,21 @@ constexpr uint16_t float2Half(const float &Val) {
   if (Val != 0) {
     if (AbsVal == std::numeric_limits<float>::infinity()) {
       Exponent = 255;
-    }
-    else if (std::isnan(AbsVal)) {
+    } else if (std::isnan(AbsVal)) {
       Exponent = 0xff;
       // Change the first bit to 1 for NaN check below
       FracVal = 0x8000000000000000;
-    }
-    else {
+    } else {
       // The main idea is to bring float value first to integer
       // Second bring it to range [0, 2^64-1] that suit to uint_64
       // For that it needs to up the number to values >= 2^87
       // Then downscale the number to the desirable range
 
       // The number will be integer anyway if it >= 2^23
-      // If the num >= 2^87 then if we downscale it by 2^64 we get integer number
+      // If the num >= 2^87 then if we downscale it by 2^64 we get
+      // integer number
       Exponent = 254;
-      while(AbsVal < 0x1p87f)
-      {
+      while(AbsVal < 0x1p87f) {
         // We upscale the value by 2^41 to finally get number < 2^128
         AbsVal *= 0x1p41f;
         Exponent -= 41;
@@ -90,8 +88,7 @@ constexpr uint16_t float2Half(const float &Val) {
 
       // If the float value is denormalized, then exponent = 0
       // And the first 8 bits are meaningless
-      if (Exponent <= 0)
-      {
+      if (Exponent <= 0) {
         Exponent = 0;
         MeaninglessBits = 8;
       }
@@ -149,7 +146,7 @@ public:
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  constexpr half(const float &rhs): Buf(float2Half(rhs)) {}
+  constexpr half(const float &rhs) : Buf(float2Half(rhs)) {}
 
   half &operator=(const half &rhs) = default;
 
