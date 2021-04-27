@@ -6,7 +6,7 @@
 // RUN: llvm-spirv -o %t-split1_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split1_0.bc
 // RUN: llvm-spirv -o %t-split2_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split2_0.bc
 //
-//==----------- spec_const.cpp ---------------------------------------------==//
+//==----------- SYCL-2020-spec-constants.cpp -------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,7 +24,7 @@
 
 // FIXME: there is a bug with generation SPIR-V friendly IR for boolean spec
 // constants, which was likely interoduced by https://github.com/intel/llvm/pull/3513
-//constexpr sycl::specialization_id<bool> bool_id;
+// constexpr sycl::specialization_id<bool> bool_id;
 constexpr sycl::specialization_id<int8_t> int8_id(1);
 constexpr sycl::specialization_id<uint8_t> uint8_id(2);
 constexpr sycl::specialization_id<int16_t> int16_id(3);
@@ -58,7 +58,8 @@ int main() {
       auto acc = buf.get_access<sycl::access::mode::write>(h);
 
       h.single_task<SpecializedKernel>([=](sycl::kernel_handler kh) {
- //       auto i1 = kh.get_specialization_constant<bool_id>();
+        // see FIXME above about bool type support
+        // auto i1 = kh.get_specialization_constant<bool_id>();
         auto i8 = kh.get_specialization_constant<int8_id>();
         auto u8 = kh.get_specialization_constant<uint8_id>();
         auto i16 = kh.get_specialization_constant<int16_id>();
@@ -67,11 +68,13 @@ int main() {
         auto u32 = kh.get_specialization_constant<uint32_id>();
         auto i64 = kh.get_specialization_constant<int64_id>();
         auto u64 = kh.get_specialization_constant<uint64_id>();
+        // see FIXME above about half type support
         // auto f16 = kh.get_specialization_constant<half_id>();
         auto f32 = kh.get_specialization_constant<float_id>();
         auto f64 = kh.get_specialization_constant<double_id>();
         auto c = kh.get_specialization_constant<composite_id>();
 
+        // see FIXMEs above about bool and half types support
         acc[0] = /*i1 +*/ i8 + u8 + i16 + u16 + i32 + u32 + i64 + u64 +
                  //f16.get() +
                  f32 + f64 + c.a + c.b;
@@ -84,6 +87,7 @@ int main() {
 
 // CHECK: [SYCL/specialization constants]
 // CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL12composite_idEEE=2|
+// See FIXME above about bool type support
 // CHECK-disabled: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL7bool_idEEE=2|
 // CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL7int8_idEEE=2|
 // CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL8float_idEEE=2|
