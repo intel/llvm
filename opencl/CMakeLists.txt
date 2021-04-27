@@ -12,7 +12,8 @@ FetchContent_Declare(ocl-headers
 
 FetchContent_MakeAvailable(ocl-headers)
 FetchContent_GetProperties(ocl-headers)
-set(OpenCL_INCLUDE_DIRS ${ocl-headers_SOURCE_DIR})
+set(OpenCL_INCLUDE_DIR
+  ${ocl-headers_SOURCE_DIR} CACHE PATH "Path to OpenCL Headers")
 
 target_compile_definitions(Headers INTERFACE -DCL_TARGET_OPENCL_VERSION=220)
 add_library(OpenCL-Headers ALIAS Headers)
@@ -21,7 +22,7 @@ add_library(OpenCL-Headers ALIAS Headers)
 
 # Set OPENCL_ICD_LOADER_HEADERS_DIR, as prerequisite for ICD build
 set(OPENCL_ICD_LOADER_HEADERS_DIR
-  ${OpenCL_INCLUDE_DIRS} PATH "Path to OpenCL Headers")
+  ${OpenCL_INCLUDE_DIR} CACHE PATH "Path to OpenCL Headers")
 
 # LLVM build sets this OFF by default, but we need OpenCL to be built as shared
 # library.

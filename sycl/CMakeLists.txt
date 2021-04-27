@@ -80,11 +80,11 @@ endif()
 # Copy OpenCL Headers into sycl headers build directory
 # Compiler does automatic lookup bin/../include based on clang binary location,
 # e.g. when run LIT tests
-file(COPY ${OPENCL_ICD_LOADER_HEADERS_DIR}/CL
+file(COPY ${OpenCL_INCLUDE_DIR}/CL
      DESTINATION ${SYCL_INCLUDE_BUILD_DIR}/sycl)
 
 # Include OpenCL Headers into final bundle.
-install(DIRECTORY ${OPENCL_ICD_LOADER_HEADERS_DIR}/CL
+install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR}/sycl
         COMPONENT OpenCL-Headers)
 
