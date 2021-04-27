@@ -414,7 +414,11 @@ public:
   void get_specialization_constant_raw_value(const char *SpecName,
                                              void *ValueRet) const noexcept {
     for (const device_image_plain &DeviceImage : MDeviceImages)
-      if (getSyclObjImpl(DeviceImage)->has_specialization_constant(SpecName)) {
+      // After join, kernel_bundle may contain a device image, that has spec
+      // constant, but does not contain its value. Find device image, where
+      // the value for SpecName constant is set.
+      if (getSyclObjImpl(DeviceImage)
+              ->is_specialization_constant_set(SpecName)) {
         getSyclObjImpl(DeviceImage)
             ->get_specialization_constant_raw_value(SpecName, ValueRet);
         return;
