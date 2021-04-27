@@ -2955,7 +2955,7 @@ def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg";
   let Content = [{
-The loop count attribute specifies the minimum, maximum, or average number of
+The loop count attributes specify the minimum, maximum, or average number of
 iterations for a ``for`` loop. These are hints that the user specify that can be
 used by some of the loop optimization to make decisions such as if the loop
 should be unrolled. It is a way for the user to provide some information without
