@@ -21,7 +21,7 @@ target_include_directories(PiCudaTests
   PRIVATE
     "../"
     "${sycl_inc_dir}/CL/sycl/detail/"
-    ${sycl_inc_dir}
+    "${sycl_inc_dir}"
     "${sycl_plugin_dir}/cuda/"
 )
 

@@ -6,9 +6,9 @@
 
 # Plugin for OpenCL
 # Create Shared library for libpi_opencl.so.
-#TODO: remove dependency on pi.hpp in sycl project.
+#TODO: remove dependency on pi.h in sycl project.
 #TODO: Currently, the pi.h header is common between sycl and plugin library sources.
-#This can be changed by copying the pi.hpp file in the plugins project.
+#This can be changed by copying the pi.h file in the plugins project.
 
 add_library(pi_opencl SHARED
   "${sycl_inc_dir}/CL/sycl/detail/pi.h"
@@ -24,8 +24,9 @@ target_include_directories(pi_opencl PRIVATE "${sycl_inc_dir}")
 
 #link pi_opencl with OpenCL headers and ICD Loader.
 target_link_libraries(pi_opencl
-  PRIVATE OpenCL-Headers
-  PRIVATE OpenCL-ICD
+  PRIVATE
+    OpenCL-Headers
+    OpenCL-ICD
 )
 if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)

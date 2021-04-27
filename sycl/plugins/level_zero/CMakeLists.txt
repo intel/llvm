@@ -136,8 +136,9 @@ endif()
 
 add_dependencies(sycl-toolchain pi_level_zero)
 target_link_libraries(pi_level_zero
-  PRIVATE "${LEVEL_ZERO_LOADER}"
-  PRIVATE OpenCL-Headers
+  PRIVATE
+    "${LEVEL_ZERO_LOADER}"
+    OpenCL-Headers
 )
 
 if (UNIX)
