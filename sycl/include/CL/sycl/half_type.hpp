@@ -27,9 +27,120 @@
 #define __SYCL_CONSTEXPR_ON_DEVICE
 #endif
 
+#ifdef _MSC_VER
+// This feature is not supported in MSVC.
+#define __builtin_expect(a, b) (a)
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+constexpr uint16_t float2Half(const float &Val) {
+  // First part of the calculations - get the Exponent and Fractional
+  // Get bool sign of Val and its absolute value for calculations
+  bool BSign = Val < 0.0f;
+  float AbsVal = BSign ? -Val : Val;
+  int MeaninglessBits = 0;
+  int Exponent = 0;
+  // Fractional part
+  uint64_t FracVal = 0;
+
+  if (Val != 0) {
+    if (AbsVal == std::numeric_limits<float>::infinity()) {
+      Exponent = 255;
+    }
+    else if (std::isnan(AbsVal)) {
+      Exponent = 0xff;
+      // Change the first bit to 1 for NaN check below
+      FracVal = 0x8000000000000000;
+    }
+    else {
+      // The main idea is to bring float value first to integer
+      // Second bring it to range [0, 2^64-1] that suit to uint_64
+      // For that it needs to up the number to values >= 2^87
+      // Then downscale the number to the desirable range
+
+      // The number will be integer anyway if it >= 2^23
+      // If the num >= 2^87 then if we downscale it by 2^64 we get integer number
+      Exponent = 254;
+      while(AbsVal < 0x1p87f)
+      {
+        // We upscale the value by 2^41 to finally get number < 2^128
+        AbsVal *= 0x1p41f;
+        Exponent -= 41;
+      }
+
+      // Downscale value to range [0, 2^64-1] by 2^-64
+      // The number is integer and it will be converted to uint_64t
+      // with all the bits of the fractional part
+      FracVal = (uint64_t)(AbsVal * 0x1p-64f);
+
+      // Next it needs to be count of bits that are not frac part
+      // It is needed for get the correct exponent from initial Val
+      bool Buf = 0;
+
+      // The meaningless bits are ended with the first 1
+      while (!Buf) {
+        Buf = (FracVal >> (63 - MeaninglessBits)) & 1;
+        MeaninglessBits++;
+      }
+      // Gets the correct exponent
+      Exponent -= (MeaninglessBits - 1);
+
+      // If the float value is denormalized, then exponent = 0
+      // And the first 8 bits are meaningless
+      if (Exponent <= 0)
+      {
+        Exponent = 0;
+        MeaninglessBits = 8;
+      }
+    }
+  }
+  // Second part of the calculations - get the half value
+
+  // Extract the sign from the bool value
+  const uint16_t Sign = 0x0001 & BSign;
+  // Extract the fraction from the FracValue
+  const uint32_t Frac32 = (FracVal << (MeaninglessBits)) >> (64 - 23);
+  // Extract the exponent from the int exponent
+  const uint8_t Exp32 = Exponent;
+  const int16_t Exp32Diff = Exp32 - 127;
+
+  // intialize to 0, covers the case for 0 and small numbers
+  uint16_t Exp16 = 0, Frac16 = 0;
+
+  if (__builtin_expect(Exp32Diff > 15, 0)) {
+    // Infinity and big numbers convert to infinity
+    Exp16 = 0x1f;
+  } else if (__builtin_expect(Exp32Diff > -14, 0)) {
+    // normal range for half type
+    Exp16 = Exp32Diff + 15;
+    // convert 23-bit mantissa to 10-bit mantissa.
+    Frac16 = Frac32 >> 13;
+    // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half
+    // data type.
+    if (Frac32 >> 12 & 0x01)
+      Frac16 += 1;
+  } else if (__builtin_expect(Exp32Diff > -24, 0)) {
+    // subnormals
+    Frac16 = (Frac32 | (uint32_t(1) << 23)) >> (-Exp32Diff - 1);
+  }
+
+  if (__builtin_expect(Exp32 == 0xff && Frac32 != 0, 0)) {
+    // corner case: FP32 is NaN
+    Exp16 = 0x1F;
+    Frac16 = 0x200;
+  }
+
+  // Compose the final FP16 binary
+  uint16_t Ret = 0;
+  Ret |= Sign;
+  Ret |= Exp16 << 10;
+  Ret += Frac16; // Add the carry bit from operation Frac16 += 1;
+
+  return Ret;
+}
 namespace host_half_impl {
 
 class __SYCL_EXPORT half {
@@ -38,7 +149,7 @@ public:
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  half(const float &rhs);
+  constexpr half(const float &rhs): Buf(float2Half(rhs)) {}
 
   half &operator=(const half &rhs) = default;
 
@@ -148,7 +259,7 @@ public:
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  __SYCL_CONSTEXPR_ON_DEVICE half(const float &rhs) : Data(rhs) {}
+  constexpr half(const float &rhs) : Data(rhs) {}
 
   half &operator=(const half &rhs) = default;
 
