@@ -2963,22 +2963,19 @@ using PGO.
 
 .. code-block:: c++
 
-  void foo() {
-    int a[10];
-    [[intel::loop_count_min(4)] for (int i = 0; i < n; ++i) a[i] = 0;
+  void foo(int *array, size_t n) {
+    [[intel::loop_count_min(4)]] for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
-  void zoo() {
-    int a[10];
-    [[intel::loop_count_max(10)] for (int i = 0; i < m; ++i) a[i] = 0;
+  void zoo(int *array, size_t n) {
+    [[intel::loop_count_max(10)]] for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
-  void goo() {
-    int a[10];
-    [[intel::loop_count_min(3)]
-    [[intel::loop_count_max(10)]
-    [[intel::loop_count_avg(5)]
-    for (int i = start; i < end; ++i) a[i] = 0;
+  void goo(int *array, size_t n) {
+    [[intel::loop_count_min(3)]]
+    [[intel::loop_count_max(10)]]
+    [[intel::loop_count_avg(5)]]
+    for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
   template<int N>

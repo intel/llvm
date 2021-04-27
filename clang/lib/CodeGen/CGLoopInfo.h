@@ -15,7 +15,6 @@
 #define LLVM_CLANG_LIB_CODEGEN_CGLOOPINFO_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Value.h"
@@ -410,8 +409,8 @@ public:
   }
 
   /// Set value of variant and loop count for the next loop pushed.
-  void setSYCLIntelFPGAVariantCount(const char *var, unsigned int C) {
-    StagedAttrs.SYCLIntelFPGAVariantCount.push_back({var, C});
+  void setSYCLIntelFPGAVariantCount(const char *Var, unsigned int Count) {
+    StagedAttrs.SYCLIntelFPGAVariantCount.push_back({Var, Count});
   }
 
   /// Set the unroll count for the next loop pushed.

@@ -605,13 +605,11 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  if (Attrs.SYCLIntelFPGAVariantCount.size() > 0) {
-    for (auto &VC : Attrs.SYCLIntelFPGAVariantCount) {
-      Metadata *Vals[] = {MDString::get(Ctx, VC.first),
-                          ConstantAsMetadata::get(ConstantInt::get(
-                              llvm::Type::getInt32Ty(Ctx), VC.second))};
-      LoopProperties.push_back(MDNode::get(Ctx, Vals));
-    }
+  for (auto &VC : Attrs.SYCLIntelFPGAVariantCount) {
+    Metadata *Vals[] = {MDString::get(Ctx, VC.first),
+                        ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx), VC.second))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
@@ -1043,15 +1041,15 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGALoopCountAvg =
             dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
-      unsigned int count = IntelFPGALoopCountAvg->getNTripCount()
+      unsigned int Count = IntelFPGALoopCountAvg->getNTripCount()
                                ->getIntegerConstantExpr(Ctx)
                                ->getSExtValue();
-      const char *var = IntelFPGALoopCountAvg->isMax()
+      const char *Var = IntelFPGALoopCountAvg->isMax()
                             ? "llvm.loop.intel.loopcount_max"
                             : IntelFPGALoopCountAvg->isMin()
                                   ? "llvm.loop.intel.loopcount_min"
                                   : "llvm.loop.intel.loopcount_avg";
-      setSYCLIntelFPGAVariantCount(var, count);
+      setSYCLIntelFPGAVariantCount(Var, Count);
     }
 
     if (const auto *IntelFPGALoopCoalesce =
