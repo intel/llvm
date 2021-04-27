@@ -71,9 +71,11 @@ set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
 set(SYCL_INCLUDE_DEPLOY_DIR ${CMAKE_INSTALL_PREFIX}/${SYCL_INCLUDE_DIR})
 
-# Second argument is not used, it's required since first arg is not a real
-# subdirectory
-add_subdirectory(../opencl ${CMAKE_CURRENT_BINARY_DIR}/opencl_deps)
+add_llvm_external_project(opencl)
+list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_FOUND)
+if(OPENCL_FOUND EQUAL -1)
+  message(FATAL_ERROR "opencl external project required but not found.")
+endif()
 
 # Copy OpenCL Headers into sycl headers build directory
 # Compiler does automatic lookup bin/../include based on clang binary location,

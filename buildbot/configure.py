@@ -13,7 +13,7 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice;xpti;xptifw'
+    llvm_external_projects = 'sycl;llvm-spirv;opencl;opencl-aot;libdevice;xpti;xptifw'
 
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
