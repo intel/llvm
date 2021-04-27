@@ -10,7 +10,7 @@
 // Tests for incorrect argument values for Intel FPGA scheduler_target_fmax_mhz function attribute.
 [[intel::scheduler_target_fmax_mhz(0)]] int Var = 0; // expected-error{{'scheduler_target_fmax_mhz' attribute only applies to functions}}
 
-[[intel::scheduler_target_fmax_mhz(1048577)]] void correct() {}  // OK
+[[intel::scheduler_target_fmax_mhz(1048577)]] void correct() {} // OK
 
 [[intel::scheduler_target_fmax_mhz("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
 
@@ -21,15 +21,17 @@
 // Tests for Intel FPGA scheduler_target_fmax_mhz function attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
 [[intel::scheduler_target_fmax_mhz(2)]]
-[[intel::scheduler_target_fmax_mhz(2)]] void func3() {}
+[[intel::scheduler_target_fmax_mhz(2)]] void
+func3() {}
 
 // No diagnostic is emitted because the arguments match.
 [[intel::scheduler_target_fmax_mhz(4)]] void func4();
 [[intel::scheduler_target_fmax_mhz(4)]] void func4(); // OK
 
 // Diagnostic is emitted because the arguments mismatch.
-[[intel::scheduler_target_fmax_mhz(2)]]                  // expected-note {{previous attribute is here}}
-[[intel::scheduler_target_fmax_mhz(4)]] void func5() {}  // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
+[[intel::scheduler_target_fmax_mhz(2)]] // expected-note {{previous attribute is here}}
+[[intel::scheduler_target_fmax_mhz(4)]] void
+func5() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 
 [[intel::scheduler_target_fmax_mhz(1)]] void func6(); // expected-note {{previous attribute is here}}
 [[intel::scheduler_target_fmax_mhz(3)]] void func6(); // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
@@ -39,7 +41,7 @@ template <int N>
 [[intel::scheduler_target_fmax_mhz(N)]] void func7(); // expected-error {{'scheduler_target_fmax_mhz' attribute requires a non-negative integral compile time constant expression}}
 
 template <int size>
-[[intel::scheduler_target_fmax_mhz(10)]] void func8();     // expected-note {{previous attribute is here}}
+[[intel::scheduler_target_fmax_mhz(10)]] void func8(); // expected-note {{previous attribute is here}}
 template <int size>
 [[intel::scheduler_target_fmax_mhz(size)]] void func8() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 

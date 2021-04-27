@@ -41,7 +41,8 @@ template <int N>
 // CHECK-NEXT: value: Int 10
 // CHECK-NEXT: IntegerLiteral{{.*}}10{{$}}
 [[intel::scheduler_target_fmax_mhz(10)]]
-[[intel::scheduler_target_fmax_mhz(10)]] void func4() {}
+[[intel::scheduler_target_fmax_mhz(10)]] void
+func4() {}
 
 class KernelFunctor {
 public:
@@ -95,11 +96,11 @@ int main() {
 
     // Ignore duplicate attribute.
     h.single_task<class kernel_name_5>(
-    // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_5
-    // CHECK: SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
-    // CHECK-NEXT: ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT: value: Int 6
-    // CHECK-NEXT: IntegerLiteral{{.*}}6{{$}}
+        // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_5
+        // CHECK: SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
+        // CHECK-NEXT: ConstantExpr {{.*}} 'int'
+        // CHECK-NEXT: value: Int 6
+        // CHECK-NEXT: IntegerLiteral{{.*}}6{{$}}
         []() [[intel::scheduler_target_fmax_mhz(6),
                intel::scheduler_target_fmax_mhz(6)]]{});
   });
