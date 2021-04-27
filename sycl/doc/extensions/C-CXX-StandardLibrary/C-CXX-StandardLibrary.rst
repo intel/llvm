@@ -53,6 +53,7 @@ List of supported functions from C standard library:
   - acoshf, acosh         (from <math.h> or <cmath>)
   - asinhf, asinh         (from <math.h> or <cmath>)
   - atanhf, atanh         (from <math.h> or <cmath>)
+  - scalbnf, scalbn       (from <math.h> or <cmath>)
   - abs, labs, llabs      (from <stdlib.h> or <cstdlib>)
   - div, ldiv, lldiv      (from <stdlib.h> or <cstdlib>)
   - cimagf, cimag         (from <complex.h>)
