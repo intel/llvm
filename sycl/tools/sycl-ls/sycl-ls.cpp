@@ -24,7 +24,7 @@
 
 using namespace cl::sycl;
 
-#define NumOfBackends 5
+#define NumOfBackends (int)backend::all
 
 // Controls verbose output vs. concise.
 bool verbose;
@@ -102,6 +102,16 @@ int main(int argc, char **argv) {
   else {
     std::cout << "Usage: sycl-ls [--verbose]" << std::endl;
     return EXIT_FAILURE;
+  }
+
+  const char *filter = std::getenv("SYCL_DEVICE_FILTER");
+  if (filter) {
+    std::cout << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
+              << filter << "." << std::endl;
+    std::cout
+        << "To see the correct device id, please unset SYCL_DEVICE_FILTER."
+        << std::endl
+        << std::endl;
   }
 
   const auto &Platforms = platform::get_platforms();

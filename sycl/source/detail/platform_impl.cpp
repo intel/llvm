@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#define NumOfBackends (int)backend::all
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -116,8 +118,9 @@ vector_class<platform> platform_impl::get_platforms() {
         platform Platform = detail::createSyclObjFromImpl<platform>(
             getOrMakePlatformImpl(PiPlatform, Plugins[i]));
         // Skip platforms which do not contain requested device types
-        if (!Platform.get_devices(ForcedType).empty() &&
-            !IsBannedPlatform(Platform))
+        if (!IsBannedPlatform(Platform) &&
+            (ForcedType == info::device_type::all ||
+             !Platform.get_devices(ForcedType).empty()))
           Platforms.push_back(Platform);
       }
     }
@@ -303,9 +306,20 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
   if (!FilterList)
     return;
 
+  // remember the last backend that has gone through tis filter function
+  // to assign a unique device id number across platforms that belong to
+  // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
+  static backend lastBackend = backend::all;
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
-  int DeviceNum = 0;
+  // DeviceNums should be given consecutive numbers across platforms.
+  // So, we keep the device num for the successive calls to this function.
+  static int DeviceNum = 0;
+  if (lastBackend != Backend) {
+    DeviceNum = 0;
+    lastBackend = Backend;
+  }
+
   for (RT::PiDevice Device : PiDevices) {
     RT::PiDeviceType PiDevType;
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
