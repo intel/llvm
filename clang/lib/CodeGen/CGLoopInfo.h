@@ -118,14 +118,9 @@ struct LoopAttributes {
   /// Value for llvm.loop.max_concurrency.count metadata.
   unsigned SYCLMaxConcurrencyNThreads;
 
-  /// Flag for llvm.loop.intel.loopcount metadata.
-  bool SYCLIntelFPGALoopCountEnable;
-
-  /// Value for llvm.loop.intel.loopcount value metadata.
-  llvm::SmallVector<unsigned int, 2> SYCLIntelFPGALoopCountValue;
-
-  /// Value for llvm.loop.intel.loopcount variant(min/max/avg) metadata.
-  llvm::SmallVector<const char *, 2> SYCLIntelFPGALoopCountVariant;
+  /// Value for count variant (min/max/avg) and count metadata.
+  llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
+      SYCLIntelFPGAVariantCount;
 
   /// Flag for llvm.loop.coalesce metadata.
   bool SYCLLoopCoalesceEnable;
@@ -414,19 +409,9 @@ public:
     StagedAttrs.SYCLSpeculatedIterationsNIterations = C;
   }
 
-  /// Set flag of loopcount for the next loop pushed.
-  void setSYCLIntelFPGALoopCountEnable() {
-    StagedAttrs.SYCLIntelFPGALoopCountEnable = true;
-  }
-
-  /// Set value of loopcount value for the next loop pushed.
-  void setSYCLIntelFPGALoopCountValue(unsigned C) {
-    StagedAttrs.SYCLIntelFPGALoopCountValue.push_back(C);
-  }
-
-  /// Set value of loopcount variant for the next loop pushed.
-  void setSYCLIntelFPGALoopCountVariant(const char *var) {
-    StagedAttrs.SYCLIntelFPGALoopCountVariant.push_back(var);
+  /// Set value of variant and loop count for the next loop pushed.
+  void setSYCLIntelFPGAVariantCount(const char *var, unsigned int C) {
+    StagedAttrs.SYCLIntelFPGAVariantCount.push_back({var, C});
   }
 
   /// Set the unroll count for the next loop pushed.

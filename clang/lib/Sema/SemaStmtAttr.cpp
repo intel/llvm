@@ -263,19 +263,8 @@ CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
   unsigned int MaxCount = 0;
   unsigned int AvgCount = 0;
   for (const auto *A : OnlyLoopCountAttrs) {
-    const SYCLIntelFPGALoopCountAttr *At =
-        dyn_cast<SYCLIntelFPGALoopCountAttr>(A);
-    switch (At->getCountKind()) {
-    case SYCLIntelFPGALoopCountAttr::CountKind::loop_count_min:
-      MinCount++;
-      break;
-    case SYCLIntelFPGALoopCountAttr::CountKind::loop_count_max:
-      MaxCount++;
-      break;
-    case SYCLIntelFPGALoopCountAttr::CountKind::loop_count_avg:
-      AvgCount++;
-      break;
-    }
+    const auto *At = dyn_cast<SYCLIntelFPGALoopCountAttr>(A);
+    At->isMin() ? MinCount++ : At->isMax() ? MaxCount++ : AvgCount++;
     if (MinCount > 1 || MaxCount > 1 || AvgCount > 1)
       S.Diag(A->getLocation(), diag::err_sycl_loop_attr_duplication) << 1 << A;
   }
@@ -290,14 +279,13 @@ handleIntelFPGALoopCountAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
 
     if (!ArgVal) {
       S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << A.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
+          << A << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return nullptr;
     }
 
     if (ArgVal->getSExtValue() < 0) {
       S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << A.getAttrName() << /* non-negative */ 1;
+          << A << /* non-negative */ 1;
       return nullptr;
     }
   }

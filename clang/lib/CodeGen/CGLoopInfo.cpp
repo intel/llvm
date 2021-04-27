@@ -605,13 +605,11 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  if (Attrs.SYCLIntelFPGALoopCountEnable) {
-    for (int i = 0; i < Attrs.SYCLIntelFPGALoopCountVariant.size(); i++) {
-      Metadata *Vals[] = {
-          MDString::get(Ctx, Attrs.SYCLIntelFPGALoopCountVariant[i]),
-          ConstantAsMetadata::get(
-              ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
-                               Attrs.SYCLIntelFPGALoopCountValue[i]))};
+  if (Attrs.SYCLIntelFPGAVariantCount.size() > 0) {
+    for (auto &VC : Attrs.SYCLIntelFPGAVariantCount) {
+      Metadata *Vals[] = {MDString::get(Ctx, VC.first),
+                          ConstantAsMetadata::get(ConstantInt::get(
+                              llvm::Type::getInt32Ty(Ctx), VC.second))};
       LoopProperties.push_back(MDNode::get(Ctx, Vals));
     }
   }
@@ -631,9 +629,8 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
       SYCLMaxInterleavingEnable(false), SYCLMaxInterleavingNInvocations(0),
       SYCLSpeculatedIterationsEnable(false),
-      SYCLSpeculatedIterationsNIterations(0),
-      SYCLIntelFPGALoopCountEnable(false), SYCLIntelFPGALoopCountValue(0),
-      SYCLIntelFPGALoopCountVariant(0), UnrollCount(0), UnrollAndJamCount(0),
+      SYCLSpeculatedIterationsNIterations(0), SYCLIntelFPGAVariantCount(false),
+      UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
       PipelineInitiationInterval(0), SYCLNofusionEnable(false),
       MustProgress(false) {}
@@ -655,9 +652,7 @@ void LoopAttributes::clear() {
   SYCLMaxInterleavingNInvocations = 0;
   SYCLSpeculatedIterationsEnable = false;
   SYCLSpeculatedIterationsNIterations = 0;
-  SYCLIntelFPGALoopCountEnable = false;
-  SYCLIntelFPGALoopCountVariant.clear();
-  SYCLIntelFPGALoopCountValue.clear();
+  SYCLIntelFPGAVariantCount.clear();
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -695,9 +690,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLMaxInterleavingNInvocations == 0 &&
       Attrs.SYCLSpeculatedIterationsEnable == false &&
       Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
-      Attrs.SYCLIntelFPGALoopCountEnable == 0 &&
-      Attrs.SYCLIntelFPGALoopCountVariant.empty() &&
-      Attrs.SYCLIntelFPGALoopCountValue.empty() && Attrs.UnrollCount == 0 &&
+      Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
       Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
       Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
@@ -1050,16 +1043,14 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *IntelFPGALoopCountAvg =
             dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
-      setSYCLIntelFPGALoopCountEnable();
-      setSYCLIntelFPGALoopCountValue(IntelFPGALoopCountAvg->getNTripCount()
-                                         ->getIntegerConstantExpr(Ctx)
-                                         ->getSExtValue());
-      const char *var = IntelFPGALoopCountAvg->isMax()
-                            ? "llvm.loop.intel.loopcount_max"
-                            : IntelFPGALoopCountAvg->isMin()
-                                  ? "llvm.loop.intel.loopcount_min"
-                                  : "llvm.loop.intel.loopcount_avg";
-      setSYCLIntelFPGALoopCountVariant(var);
+      unsigned int count = IntelFPGALoopCountAvg->getNTripCount()
+                               ->getIntegerConstantExpr(Ctx)
+                               ->getSExtValue();
+      const char *var =
+          IntelFPGALoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
+          : IntelFPGALoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
+                                           : "llvm.loop.intel.loopcount_avg";
+      setSYCLIntelFPGAVariantCount(var, count);
     }
 
     if (const auto *IntelFPGALoopCoalesce =

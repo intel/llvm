@@ -1986,15 +1986,7 @@ def SYCLIntelFPGALoopCount : StmtAttr {
                    Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>];
   let Args = [ExprArgument<"NTripCount">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    enum CountKind { loop_count_min, loop_count_max, loop_count_avg };
-    CountKind getCountKind() const {
-      return isMin() ? loop_count_min :
-             isMax() ? loop_count_max :
-             loop_count_avg;
-    }
-  }];
+  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGALoopCountAttrDocs];
 }
 

@@ -2955,29 +2955,30 @@ def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg";
   let Content = [{
-The "loop_count" attribute specifies the minimum, maximum, or average number of
-iterations for a for loop. In addition, a list of commonly occurring values
-can be specified to help the compiler generate multiple versions and perform
-complete unrolling.
+The loop count attribute specifies the minimum, maximum, or average number of
+iterations for a ``for`` loop. These are hints that the user specify that can be
+used by some of the loop optimization to make decisions such as if the loop
+should be unrolled. It is a way for the user to provide some information without
+using PGO.
 
 .. code-block:: c++
 
   void foo() {
     int a[10];
-    [[intel::loop_count_min(40)] for (int i = 0; i < 10; ++i) a[i] = 0;
+    [[intel::loop_count_min(4)] for (int i = 0; i < n; ++i) a[i] = 0;
   }
 
   void zoo() {
     int a[10];
-    [[intel::loop_count_max(40)] for (int i = 0; i < 10; ++i) a[i] = 0;
+    [[intel::loop_count_max(10)] for (int i = 0; i < m; ++i) a[i] = 0;
   }
 
   void goo() {
     int a[10];
-    [[intel::loop_count_min(10)]
-    [[intel::loop_count_max(40)]
-    [[intel::loop_count_avg(15)]
-    for (int i = 0; i < 10; ++i) a[i] = 0;
+    [[intel::loop_count_min(3)]
+    [[intel::loop_count_max(10)]
+    [[intel::loop_count_avg(5)]
+    for (int i = start; i < end; ++i) a[i] = 0;
   }
 
   template<int N>
