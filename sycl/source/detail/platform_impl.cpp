@@ -20,8 +20,6 @@
 #include <string>
 #include <vector>
 
-#define NumOfBackends (int)backend::all
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {

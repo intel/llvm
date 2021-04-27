@@ -24,7 +24,7 @@
 
 using namespace cl::sycl;
 
-#define NumOfBackends (int)backend::all
+#define NumOfBackends static_cast<int>(backend::all)
 
 // Controls verbose output vs. concise.
 bool verbose;
