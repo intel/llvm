@@ -63,7 +63,7 @@ constexpr uint16_t float2Half(const float &Val) {
       // If the num >= 2^87 then if we downscale it by 2^64 we get
       // integer number
       Exponent = 254;
-      while(AbsVal < 0x1p87f) {
+      while (AbsVal < 0x1p87f) {
         // We upscale the value by 2^41 to finally get number < 2^128
         AbsVal *= 0x1p41f;
         Exponent -= 41;
