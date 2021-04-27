@@ -261,34 +261,32 @@ public:
     const auto DevImgIt =
         std::unique(MDeviceImages.begin(), MDeviceImages.end());
 
-    // Save device images to be removed to extract their spec constant values.
-    std::vector<device_image_plain> RemovedImages{DevImgIt,
-                                                  MDeviceImages.end()};
+    if (get_bundle_state() == bundle_state::input) {
+      // Copy spec constants values from the device images to be removed.
+      auto MergeSpecConstants = [this](const device_image_plain &Img) {
+        const detail::DeviceImageImplPtr &ImgImpl = getSyclObjImpl(Img);
+        const std::map<std::string,
+                       std::vector<device_image_impl::SpecConstDescT>>
+            &SpecConsts = ImgImpl->get_spec_const_data_ref();
+        const std::vector<unsigned char> &Blob =
+            ImgImpl->get_spec_const_blob_ref();
+        for (const std::pair<std::string,
+                             std::vector<device_image_impl::SpecConstDescT>>
+                 &SpecConst : SpecConsts) {
+          if (SpecConst.second.front().IsSet)
+            set_specialization_constant_raw_value(
+                SpecConst.first.c_str(),
+                Blob.data() + SpecConst.second.front().BlobOffset,
+                SpecConst.second.back().CompositeOffset +
+                    SpecConst.second.back().Size);
+        }
+      };
+      std::for_each(MDeviceImages.begin(), MDeviceImages.end(),
+                    MergeSpecConstants);
+    }
 
     // Remove duplicate device images.
     MDeviceImages.erase(DevImgIt, MDeviceImages.end());
-
-    // Copy spec constants values from the device images to be removed.
-    auto MergeSpecConstants = [this](const device_image_plain &Img) {
-      const detail::DeviceImageImplPtr &ImgImpl = getSyclObjImpl(Img);
-      const std::map<std::string,
-                     std::vector<device_image_impl::SpecConstDescT>>
-          &SpecConsts = ImgImpl->get_spec_const_data_ref();
-      const std::vector<unsigned char> &Blob =
-          ImgImpl->get_spec_const_blob_ref();
-      for (const std::pair<std::string,
-                           std::vector<device_image_impl::SpecConstDescT>>
-               &SpecConst : SpecConsts) {
-        if (SpecConst.second.front().IsSet)
-          set_specialization_constant_raw_value(
-              SpecConst.first.c_str(),
-              Blob.data() + SpecConst.second.front().BlobOffset,
-              SpecConst.second.back().CompositeOffset +
-                  SpecConst.second.back().Size);
-      }
-    };
-    std::for_each(RemovedImages.begin(), RemovedImages.end(),
-                  MergeSpecConstants);
 
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
       for (const std::pair<std::string, std::vector<unsigned char>> &SpecConst :
@@ -414,11 +412,7 @@ public:
   void get_specialization_constant_raw_value(const char *SpecName,
                                              void *ValueRet) const noexcept {
     for (const device_image_plain &DeviceImage : MDeviceImages)
-      // After join, kernel_bundle may contain a device image, that has spec
-      // constant, but does not contain its value. Find device image, where
-      // the value for SpecName constant is set.
-      if (getSyclObjImpl(DeviceImage)
-              ->is_specialization_constant_set(SpecName)) {
+      if (getSyclObjImpl(DeviceImage)->has_specialization_constant(SpecName)) {
         getSyclObjImpl(DeviceImage)
             ->get_specialization_constant_raw_value(SpecName, ValueRet);
         return;
