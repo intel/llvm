@@ -4093,7 +4093,6 @@ recurse:
   case Expr::CXXInheritedCtorInitExprClass:
     llvm_unreachable("unexpected statement kind");
   case Expr::UniqueStableNameExprClass:
-    // TODO: ERICH: Figure out if this is possible to reach here.
     llvm_unreachable("unique-stable-name mangling not implemented yet");
 
   case Expr::ConstantExprClass:
