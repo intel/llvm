@@ -101,8 +101,6 @@ Release notes for commit range 2ffafb95f887..6a49170027fb
  - Added support for `sycl::info::partition_affinity_domain::numa` in Level
    Zero plugin [2ba8e05]
 ### Documentation
- - Added notes on SYCL 2020 status and runtime headers C++14 standard
-   requirement [a05f5de] [fed2d47]
  - Updated TBB paths in `GetStartedGuide` [a9acb70]
  - Aligned linked allocation document with recent changes [22b9d01]
  - Updated `GetStartedGuide` for building with `libcxx` [d3a74c3]
@@ -195,14 +193,6 @@ Release notes for commit range 2ffafb95f887..6a49170027fb
    device. Some queries about the device through device.get_info<>() also
    open up the device and lock it to that process since the runtime needs
    to query the actual device to obtain that information.
- - On Windows, DPC++ compiler enforces using dynamic C++ runtime for
-   application linked with SYCL library by:
-    - linking with msvcrt[d].dll when `-fsycl` switch is used;
-    - emitting an error on attempts to compile a program with static C++ RT
-      using `-fsycl` and `/MT` or `/MTd`.
-   That protects you from complicated runtime errors caused by C++ objects
-   crossing sycl[d].dll boundary and not always handled properly by different
-   versions of C++ RT used on app and sycl[d].dll sides.
  - The format of the object files produced by the compiler can change between
    versions. The workaround is to rebuild the application.
  - Using `sycl::program`/`sycl::kernel_bundle` API to refer to a kernel defined
@@ -212,9 +202,6 @@ Release notes for commit range 2ffafb95f887..6a49170027fb
    can happen when a SYCL application is built using MS Visual Studio 2019
    version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
  - Printing internal defines isn't supported on Windows [50628db]
- - Group algorithms for MUL/AND/OR/XOR cannot be enabled for group scope due to
-   SPIR-V limitations, and are not enabled for sub-group scope yet as the
-   SPIR-V version isn't automatically raised from 1.1 to 1.3 [96da39e]
 
 # January'21 release notes
 
