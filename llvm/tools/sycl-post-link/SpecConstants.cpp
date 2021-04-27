@@ -11,6 +11,7 @@
 #include "SpecConstants.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/InstIterator.h"
@@ -433,7 +434,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   unsigned NextOffset = 0;
   StringMap<SmallVector<unsigned, 1>> IDMap;
   StringMap<unsigned> OffsetMap;
-  StringMap<MDNode *> SCMetadata;
+  MapVector<StringRef, MDNode *> SCMetadata;
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)

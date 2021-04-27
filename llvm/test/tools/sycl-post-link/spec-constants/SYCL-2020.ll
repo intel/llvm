@@ -132,19 +132,19 @@ attributes #3 = { nounwind }
 
 ; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]]}
 ;
-; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
-; CHECK: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z9id_doubleEE", i32 0, i32 0, i32 8}
+; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_doubleEE", i32 0, i32 0, i32 8}
+; CHECK: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
 ;
 ; For composite types, the amount of metadata is a bit different between native and emulated spec constants
 ;
-; CHECK-DEF: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 3, i32 0, i32 24
-; CHECK-DEF: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 2, i32 0, i32 24}
+; CHECK-DEF: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 2, i32 0, i32 24}
+; CHECK-DEF: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 3, i32 0, i32 24
 ;
-; CHECK-RT: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 [[#SCID6]], i32 0, i32 1,
-; CHECK-RT-SAME: i32 [[#SCID7]], i32 4, i32 4,
-; CHECK-RT-SAME: i32 [[#SCID8]], i32 8, i32 4,
-; CHECK-RT-SAME: i32 [[#SCID9]], i32 16, i32 8}
-; CHECK-RT: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 [[#SCID2]], i32 0, i32 4,
+; CHECK-RT: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 [[#SCID2]], i32 0, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID3]], i32 8, i32 8,
 ; CHECK-RT-SAME: i32 [[#SCID4]], i32 16, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID5]], i32 20, i32 4}
+; CHECK-RT: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 [[#SCID6]], i32 0, i32 1,
+; CHECK-RT-SAME: i32 [[#SCID7]], i32 4, i32 4,
+; CHECK-RT-SAME: i32 [[#SCID8]], i32 8, i32 4,
+; CHECK-RT-SAME: i32 [[#SCID9]], i32 16, i32 8}

@@ -30,17 +30,17 @@
 ; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#N0]], float %[[#N1]])
 ; CHECK: %struct._ZTS1A.A %[[#CONST]]
 ;
-; CHECK: !sycl.specialization-constants = !{![[#MD:]], ![[#MD1:]]}
-
-; CHECK: ![[#MD]] = !{!"_ZTS13MyComposConst", i32 [[#ID + 6]], i32 0, i32 4,
-; CHECK-SAME: i32 [[#ID + 7]], i32 4, i32 4}
+; CHECK: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]]}
 ;
-; CHECK: ![[#MD1]] = !{!"_ZTS3POD", i32 [[#ID]], i32 0, i32 4,
+; CHECK: ![[#MD0]] = !{!"_ZTS3POD", i32 [[#ID]], i32 0, i32 4,
 ; CHECK-SAME: i32 [[#ID + 1]], i32 4, i32 4,
 ; CHECK-SAME: i32 [[#ID + 2]], i32 8, i32 4,
 ; CHECK-SAME: i32 [[#ID + 3]], i32 12, i32 4,
 ; CHECK-SAME: i32 [[#ID + 4]], i32 16, i32 4,
 ; CHECK-SAME: i32 [[#ID + 5]], i32 20, i32 4}
+
+; CHECK: ![[#MD1]] = !{!"_ZTS13MyComposConst", i32 [[#ID + 6]], i32 0, i32 4,
+; CHECK-SAME: i32 [[#ID + 7]], i32 4, i32 4}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown-sycldevice"

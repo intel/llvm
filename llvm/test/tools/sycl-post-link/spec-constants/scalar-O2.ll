@@ -174,15 +174,15 @@ attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-
 
 ; CHECK-RT: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]], ![[#ID4:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]], ![[#ID8:]], ![[#ID9:]], ![[#ID10:]], ![[#ID11:]]}
 
-; CHECK-RT: ![[#ID0:]] = !{!"_ZTS12MyInt32Const", i32 5, i32 0, i32 4}
+; CHECK-RT: ![[#ID0:]] = !{!"_ZTS11MyBoolConst", i32 0, i32 0, i32 1}
 ; CHECK-RT: ![[#ID1:]] = !{!"_ZTS11MyInt8Const", i32 1, i32 0, i32 1}
-; CHECK-RT: ![[#ID2:]] = !{!"_ZTS12MyInt16Const", i32 3, i32 0, i32 2}
-; CHECK-RT: ![[#ID3:]] = !{!"_ZTS12MyInt64Const", i32 7, i32 0, i32 8}
-; CHECK-RT: ![[#ID4:]] = !{!"_ZTS13MyUInt32Const", i32 6, i32 0, i32 4}
-; CHECK-RT: ![[#ID5:]] = !{!"_ZTS12MyFloatConst", i32 9, i32 0, i32 4}
-; CHECK-RT: ![[#ID6:]] = !{!"_ZTS12MyUInt8Const", i32 2, i32 0, i32 1}
-; CHECK-RT: ![[#ID7:]] = !{!"_ZTS13MyUInt16Const", i32 4, i32 0, i32 2}
-; CHECK-RT: ![[#ID8:]] = !{!"_ZTS11MyBoolConst", i32 0, i32 0, i32 1}
-; CHECK-RT: ![[#ID9:]] = !{!"_ZTS13MyUInt64Const", i32 8, i32 0, i32 8}
+; CHECK-RT: ![[#ID2:]] = !{!"_ZTS12MyUInt8Const", i32 2, i32 0, i32 1}
+; CHECK-RT: ![[#ID3:]] = !{!"_ZTS12MyInt16Const", i32 3, i32 0, i32 2}
+; CHECK-RT: ![[#ID4:]] = !{!"_ZTS13MyUInt16Const", i32 4, i32 0, i32 2}
+; CHECK-RT: ![[#ID5:]] = !{!"_ZTS12MyInt32Const", i32 5, i32 0, i32 4}
+; CHECK-RT: ![[#ID6:]] = !{!"_ZTS13MyUInt32Const", i32 6, i32 0, i32 4}
+; CHECK-RT: ![[#ID7:]] = !{!"_ZTS12MyInt64Const", i32 7, i32 0, i32 8}
+; CHECK-RT: ![[#ID8:]] = !{!"_ZTS13MyUInt64Const", i32 8, i32 0, i32 8}
+; CHECK-RT: ![[#ID9:]] = !{!"_ZTS12MyFloatConst", i32 9, i32 0, i32 4}
 ; CHECK-RT: ![[#ID10:]] = !{!"_ZTS13MyDoubleConst", i32 10, i32 0, i32 8}
 ; CHECK-RT: ![[#ID11:]] = !{!"_ZTS14MyDoubleConst2", i32 11, i32 0, i32 8}
