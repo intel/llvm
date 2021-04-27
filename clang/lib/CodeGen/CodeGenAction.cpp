@@ -1037,7 +1037,7 @@ struct OptRecordFileRAII {
 
   OptRecordFileRAII(CodeGenAction &CGA, llvm::LLVMContext &Ctx,
                     BackendConsumer &BC)
-      : Ctx(Ctx), OldDiagnosticHandler(Ctx.getDiagnosticHandler()) {
+      : OldDiagnosticHandler(Ctx.getDiagnosticHandler()), Ctx(Ctx) {
 
     CompilerInstance &CI = CGA.getCompilerInstance();
     CodeGenOptions &CodeGenOpts = CI.getCodeGenOpts();
