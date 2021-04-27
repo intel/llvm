@@ -1768,6 +1768,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        KernelDecl, FD->getName().data(), FieldTy.getAsString(),
+        FD->getLocation());
     addParam(newParamDesc, FieldTy);
   }
 
@@ -1778,6 +1781,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     StringRef Name = "_arg__base";
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        KernelDecl, "", FieldTy.getAsString(), BS.getBaseTypeLoc());
     addParam(newParamDesc, FieldTy);
   }
   // Add a parameter with specified name and type
@@ -4491,10 +4496,22 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(bool _UnnamedLambdaSupport,
     : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
 void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
+  // Skip the dependent version of these variables, we only care about them
+  // after instantiation.
+  if (VD->getDeclContext()->isDependentContext())
+    return;
   // Step 1: ensure that this is of the correct type-spec-constant template
   // specialization).
-  if (!Util::isSyclSpecIdType(VD->getType()))
-    return;
+  if (!Util::isSyclSpecIdType(VD->getType())) {
+    // Handle the case where this could be a deduced type, such as a deduction
+    // guide. We have to do this here since this function, unlike most of the
+    // rest of this file, is called during Sema instead of after it. We will
+    // also have to filter out after deduction later.
+    QualType Ty = VD->getType().getCanonicalType();
+
+    if (!Ty->isUndeducedType())
+      return;
+  }
   // Step 2: ensure that this is a static member, or a namespace-scope.
   // Note that isLocalVarDeclorParm excludes thread-local and static-local
   // intentionally, as there is no way to 'spell' one of those in the
@@ -4536,26 +4553,162 @@ void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
   O << "";
 }
 
-bool SYCLIntegrationFooter::emit(raw_ostream &O) {
+template <typename BeforeFn, typename AfterFn>
+static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
+                          const DeclContext *DC) {
+  if (DC->isTranslationUnit())
+    return;
+
+  const auto *CurDecl = cast<Decl>(DC);
+  // Ensure we are in the canonical version, so that we know we have the 'full'
+  // name of the thing.
+  CurDecl = CurDecl->getCanonicalDecl();
+
+  // We are intentionally skipping linkage decls and record decls.  Namespaces
+  // can appear in a linkage decl, but not a record decl, so we don't have to
+  // worry about the names getting messed up from that.  We handle record decls
+  // later when printing the name of the thing.
+  const auto *NS = dyn_cast<NamespaceDecl>(CurDecl);
+  if (NS)
+    Before(OS, NS);
+
+  if (const DeclContext *NewDC = CurDecl->getDeclContext())
+    PrintNSHelper(Before, After, OS, NewDC);
+
+  if (NS)
+    After(OS, NS);
+}
+
+static void PrintNamespaces(raw_ostream &OS, const DeclContext *DC) {
+  PrintNSHelper([](raw_ostream &OS, const NamespaceDecl *NS) {},
+                [](raw_ostream &OS, const NamespaceDecl *NS) {
+                  if (NS->isInline())
+                    OS << "inline ";
+                  OS << "namespace ";
+                  if (!NS->isAnonymousNamespace())
+                    OS << NS->getName() << " ";
+                  OS << "{\n";
+                },
+                OS, DC);
+}
+
+static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
+  PrintNSHelper(
+      [](raw_ostream &OS, const NamespaceDecl *NS) {
+        OS << "} // ";
+        if (NS->isInline())
+          OS << "inline ";
+
+        OS << "namespace ";
+        if (!NS->isAnonymousNamespace())
+          OS << NS->getName();
+
+        OS << '\n';
+      },
+      [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
+}
+
+static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
+                                  const std::string &LastShim,
+                                  const NamespaceDecl *AnonNS) {
+  std::string NewShimName =
+      "__sycl_detail::__spec_id_shim_" + std::to_string(ShimCounter) + "()";
+  // Print opening-namespace
+  PrintNamespaces(OS, Decl::castToDeclContext(AnonNS));
+  OS << "namespace __sycl_detail {\n";
+  OS << "static constexpr decltype(" << LastShim << ") &__spec_id_shim_"
+     << ShimCounter << "() {\n";
+  OS << "  return " << LastShim << ";\n";
+  OS << "}\n";
+  OS << "} // namespace __sycl_detail \n";
+  PrintNSClosingBraces(OS, Decl::castToDeclContext(AnonNS));
+
+  ++ShimCounter;
+  return std::move(NewShimName);
+}
+
+// Emit the list of shims required for a DeclContext, calls itself recursively.
+static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
+                            const DeclContext *DC,
+                            std::string &NameForLastShim) {
+  if (DC->isTranslationUnit()) {
+    NameForLastShim = "::" + NameForLastShim;
+    return;
+  }
+
+  const auto *CurDecl = cast<Decl>(DC)->getCanonicalDecl();
+
+  // We skip linkage decls, since they don't modify the Qualified name.
+  if (const auto *RD = dyn_cast<RecordDecl>(CurDecl)) {
+    NameForLastShim = RD->getNameAsString() + "::" + NameForLastShim;
+  } else if (const auto *ND = dyn_cast<NamespaceDecl>(CurDecl)) {
+    if (ND->isAnonymousNamespace()) {
+      // Print current shim, reset 'name for last shim'.
+      NameForLastShim = EmitSpecIdShim(OS, ShimCounter, NameForLastShim, ND);
+    } else {
+      NameForLastShim = ND->getNameAsString() + "::" + NameForLastShim;
+    }
+  } else {
+    // FIXME: I don't believe there are other declarations that these variables
+    // could possibly find themselves in. LinkageDecls don't change the
+    // qualified name, so there is nothing to do here. At one point we should
+    // probably convince ourselves that this is entire list and remove this
+    // comment.
+    assert((isa<LinkageSpecDecl, ExternCContextDecl>(CurDecl)) &&
+           "Unhandled decl type");
+  }
+
+  EmitSpecIdShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim);
+}
+
+// Emit the list of shims required for a variable declaration.
+// Returns a string containing the FQN of the 'top most' shim, including its
+// function call parameters.
+static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
+                                   const VarDecl *VD) {
+  assert(VD->isInAnonymousNamespace() &&
+         "Function assumes this is in an anonymous namespace");
+  std::string RelativeName = VD->getNameAsString();
+  EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
+  return std::move(RelativeName);
+}
+
+bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   PrintingPolicy Policy{S.getLangOpts()};
   Policy.adjustForCPlusPlusFwdDecl();
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
-  for (const VarDecl *D : SpecConstants) {
-    O << "template<>\n";
-    O << "inline const char *get_spec_constant_symbolic_ID<";
-    // Emit the FQN for this, but we probably need to do some funny-business for
-    // anonymous namespaces.
-    D->printQualifiedName(O, Policy);
-    O << ">() {\n";
-    O << "  return \"";
-    emitSpecIDName(O, D);
-    O << "\";\n";
-    O << "}\n";
+  // Used to uniquely name the 'shim's as we generate the names in each
+  // anonymous namespace.
+  unsigned ShimCounter = 0;
+  for (const VarDecl *VD : SpecConstants) {
+    VD = VD->getCanonicalDecl();
+    if (VD->isInAnonymousNamespace()) {
+      std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+      OS << "namespace sycl {\n";
+      OS << "namespace detail {\n";
+      OS << "template<>\n";
+      OS << "inline const char *get_spec_constant_symbolic_ID<" << TopShim
+         << ">() {\n";
+      OS << "  return " << TopShim << ";\n";
+    } else {
+      OS << "namespace sycl {\n";
+      OS << "namespace detail {\n";
+      OS << "template<>\n";
+      OS << "inline const char *get_spec_constant_symbolic_ID<::";
+      VD->printQualifiedName(OS, Policy);
+      OS << ">() {\n";
+      OS << "  return \"";
+      emitSpecIDName(OS, VD);
+      OS << "\";\n";
+    }
+    OS << "}\n";
+    OS << "} // namespace detail\n";
+    OS << "} // namespace sycl\n";
   }
 
-  O << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+  OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
   return true;
 }
 

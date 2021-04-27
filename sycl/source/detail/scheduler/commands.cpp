@@ -1882,8 +1882,7 @@ cl_int ExecCGCommand::enqueueImp() {
           "Enqueueing run_on_host_intel task has failed.", Error);
     }
   }
-  case CG::CGTYPE::KERNEL:
-  case CG::CGTYPE::KERNEL_V1: {
+  case CG::CGTYPE::KERNEL: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
