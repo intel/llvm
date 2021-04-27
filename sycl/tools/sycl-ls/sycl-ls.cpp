@@ -24,6 +24,8 @@
 
 using namespace cl::sycl;
 
+#define NumOfBackends 5
+
 // Controls verbose output vs. concise.
 bool verbose;
 
@@ -107,9 +109,14 @@ int main(int argc, char **argv) {
     std::cout << "Platforms: " << Platforms.size() << std::endl;
 
   uint32_t PlatformNum = 0;
+  std::vector<uint32_t> DeviceNums;
+  // For each backend, device num starts at zero.
+  for (int I = 0; I < NumOfBackends; I++) {
+    DeviceNums.push_back(0);
+  }
 
   for (const auto &Platform : Platforms) {
-    uint32_t DeviceNum = 0;
+    backend Backend = Platform.get_backend();
     ++PlatformNum;
     if (verbose) {
       auto PlatformVersion = Platform.get_info<info::platform::version>();
@@ -124,10 +131,10 @@ int main(int argc, char **argv) {
     if (verbose)
       std::cout << "    Devices  : " << Devices.size() << std::endl;
     for (const auto &Device : Devices) {
+      uint32_t DeviceNum = DeviceNums[(int)Backend]++;
       if (verbose)
         std::cout << "        Device [#" << DeviceNum << "]:" << std::endl;
       else {
-        backend Backend = Platform.get_backend();
         std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
                   << DeviceNum << "]";
       }
