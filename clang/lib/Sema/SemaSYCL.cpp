@@ -416,7 +416,8 @@ public:
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
       // definitions.
-      if (RecursiveFuncs.count(Callee) && !ConstexprDepth) {
+      if (!Callee->isConstexpr() && RecursiveFuncs.count(Callee) &&
+          !ConstexprDepth) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << Sema::KernelCallRecursiveFunction;
         SemaRef.Diag(Callee->getSourceRange().getBegin(),
