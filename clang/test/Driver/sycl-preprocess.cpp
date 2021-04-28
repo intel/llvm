@@ -1,7 +1,7 @@
 /// Test preprocessing capabilities when using -fsycl
 /// Creating a preprocessed file is expected to do an integration header
 /// creation step.
-// RUN: %clang++ -fsycl -E -o %t_output.ii %s -### 2>&1 \
+// RUN: %clangxx -fsycl -E -o %t_output.ii %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix PREPROC_ONLY %s
 // RUN: %clang_cl -fsycl -P -Fi%t_output.ii %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix PREPROC_ONLY %s
@@ -12,12 +12,12 @@
 
 /// When compiling from preprocessed file, no integration header is expected
 // RUN: touch %t.ii
-// RUN: %clang++ -fsycl %t.ii -### 2>&1 | FileCheck -check-prefix PREPROC_IN %s
+// RUN: %clangxx -fsycl %t.ii -### 2>&1 | FileCheck -check-prefix PREPROC_IN %s
 // PREPROC_IN: clang{{.*}} "-fsycl-is-device"
 // PREPROC_IN-NOT: "-fsycl-int-header={{.*}}"
 // PREPROC_IN: clang{{.*}} "-fsycl-is-host"
 
-// RUN: %clang++ -target x86_64-unknown-linux-gnu -fsycl -E %s -ccc-print-phases 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -E %s -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefix PREPROC_PHASES %s
 // PREPROC_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (device-sycl)
 // PREPROC_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
