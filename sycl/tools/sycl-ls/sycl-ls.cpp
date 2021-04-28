@@ -119,11 +119,8 @@ int main(int argc, char **argv) {
     std::cout << "Platforms: " << Platforms.size() << std::endl;
 
   uint32_t PlatformNum = 0;
-  std::vector<uint32_t> DeviceNums;
   // For each backend, device num starts at zero.
-  for (int I = 0; I < NumOfBackends; I++) {
-    DeviceNums.push_back(0);
-  }
+  std::vector<uint32_t> DeviceNums(backend::all, 0);
 
   for (const auto &Platform : Platforms) {
     backend Backend = Platform.get_backend();
