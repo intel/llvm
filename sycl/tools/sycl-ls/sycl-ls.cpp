@@ -82,8 +82,6 @@ static void printSelectorChoice(const device_selector &Selector,
   try {
     const auto &Dev = device(Selector);
     std::string DeviceTypeName = getDeviceTypeName(Dev);
-    std::transform(DeviceTypeName.begin(), DeviceTypeName.end(),
-                   DeviceTypeName.begin(), ::toupper);
     printDeviceInfo(Dev, Prepend + DeviceTypeName);
   } catch (const cl::sycl::runtime_error &Exception) {
     // Truncate long string so it can fit in one-line
