@@ -8446,10 +8446,11 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
     TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
 
-    std::string ExtArg("-spirv-ext=");
+    // Disable all the extensions by default
+    std::string ExtArg("-spirv-ext=-all");
     std::string DefaultExtArg =
-        "+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max,"
-        "+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls";
+        ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
+        ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls";
     std::string INTELExtArg =
         ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
         ",+SPV_INTEL_device_side_avc_motion_estimation"
