@@ -304,7 +304,7 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
   if (!FilterList)
     return;
 
-  // remember the last backend that has gone through tis filter function
+  // remember the last backend that has gone through this filter function
   // to assign a unique device id number across platforms that belong to
   // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
   static backend lastBackend = backend::all;
