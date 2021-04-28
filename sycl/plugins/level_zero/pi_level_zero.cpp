@@ -1347,8 +1347,8 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_INVALID_VALUE;
 }
 
-bool _pi_platform::
-findDriverExtension(const ze_driver_extension_properties_t zeExtension) {
+bool _pi_platform::findDriverExtension(
+    const ze_driver_extension_properties_t zeExtension) {
   if (zeDriverExtensionMap.find(zeExtension.name) !=
       zeDriverExtensionMap.end()) {
     return (zeDriverExtensionMap[zeExtension.name] == zeExtension.version);
@@ -3776,9 +3776,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
 
   if (GlobalWorkOffset != NULL) {
-    ze_driver_extension_properties_t
-      GlobalOffsetExtension{ZE_GLOBAL_OFFSET_EXP_NAME,
-        ZE_GLOBAL_OFFSET_EXP_VERSION_1_0};
+    ze_driver_extension_properties_t GlobalOffsetExtension{
+        ZE_GLOBAL_OFFSET_EXP_NAME, ZE_GLOBAL_OFFSET_EXP_VERSION_1_0};
 
     auto Platform = Queue->Device->Platform;
     if (!(Platform->findDriverExtension(GlobalOffsetExtension))) {
