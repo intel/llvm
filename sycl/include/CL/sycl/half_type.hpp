@@ -27,16 +27,19 @@
 #define __SYCL_CONSTEXPR_ON_DEVICE
 #endif
 
-#ifdef _MSC_VER
-// This feature is not supported in MSVC.
-#define __builtin_expect(a, b) (a)
+#ifndef __has_builtin
+  #define __has_builtin(x) 0
+#endif
+
+#if !__has_builtin(__builtin_expect)
+  #define __builtin_expect(a, b) (a)
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-constexpr uint16_t float2Half(const float &Val) {
+constexpr uint16_t floatToHalf(const float &Val) {
   // First part of the calculations - get the Exponent and Fractional
   // Get bool sign of Val and its absolute value for calculations
   bool BSign = Val < 0.0f;
@@ -146,7 +149,7 @@ public:
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  constexpr half(const float &rhs) : Buf(float2Half(rhs)) {}
+  constexpr half(const float &rhs) : Buf(floatToHalf(rhs)) {}
 
   half &operator=(const half &rhs) = default;
 
