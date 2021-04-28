@@ -202,11 +202,10 @@ in the `args` parameter pack according to the following rules:
   work-item with sub-group local ID `i`.
 
 - Arguments of type `sycl::ext::oneapi::uniform<T>` are converted to type `T`.
-  The value may be taken from any work-item in the sub-group; wrapping an
-  argument in a `sycl::ext::oneapi::uniform` is an assertion that the variable
-  holds the same value for all work-items in the sub-group. If this assertion
-  does not hold, the value of the scalar variable passed to the SIMD function
-  is undefined.
+  Conversion follows the same rules as the implicit conversion `operator T()`
+  from the `sycl::ext::oneapi::uniform<T>` class; if the return value of
+  `operator T()` would be undefined, the value of the scalar variable passed
+  to the SIMD function is undefined.
 
 - Arguments of type `std::tuple` are mapped as if each member of the tuple
   was mapped individually (e.g. a `std::tuple<float, int>` becomes a

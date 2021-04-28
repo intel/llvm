@@ -125,7 +125,8 @@ used to represent that the value of a variable is uniform at a specific point
 converted back to an instance of `T`, but doing so is not guaranteed to
 retain any uniformity information. The implicit conversion is free to return
 a value taken from any work-item in the sub-group; if the input to the
-constructor was not uniform, then the resulting value is undefined.
+constructor was not uniform, or the constructor was not encountered in
+converged control flow, then the resulting value is undefined.
 
 == Example Usage
 
