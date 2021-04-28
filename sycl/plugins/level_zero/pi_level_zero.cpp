@@ -1125,6 +1125,24 @@ pi_result _pi_platform::initialize() {
   ZeDriverApiVersion = std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
                        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
 
+  // Cache driver extension properties
+  uint32_t Count = 0;
+  ZE_CALL(zeDriverGetExtensionProperties, (ZeDriver, &Count, nullptr));
+
+  if (Count == 0) {
+    zePrint("No extensions supported on this driver\n");
+    return PI_INVALID_VALUE;
+  }
+
+  std::vector<ze_driver_extension_properties_t> zeExtensions(Count);
+
+  ZE_CALL(zeDriverGetExtensionProperties,
+          (ZeDriver, &Count, zeExtensions.data()));
+
+  for (auto extension : zeExtensions) {
+    zeDriverExtensionMap[extension.name] = extension.version;
+  }
+
   return PI_SUCCESS;
 }
 
@@ -1327,6 +1345,16 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   }
 
   return PI_INVALID_VALUE;
+}
+
+bool _pi_platform::
+findDriverExtension(const ze_driver_extension_properties_t zeExtension) {
+  if (zeDriverExtensionMap.find(zeExtension.name) !=
+      zeDriverExtensionMap.end()) {
+    return (zeDriverExtensionMap[zeExtension.name] == zeExtension.version);
+  }
+
+  return false;
 }
 
 // Get the cahched PI device created for the L0 device handle.
@@ -3748,31 +3776,12 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
 
   if (GlobalWorkOffset != NULL) {
-    uint32_t Count = 0;
-    ZE_CALL(zeDriverGetExtensionProperties,
-            (Queue->Device->Platform->ZeDriver, &Count, nullptr));
+    ze_driver_extension_properties_t
+      GlobalOffsetExtension{ZE_GLOBAL_OFFSET_EXP_NAME,
+        ZE_GLOBAL_OFFSET_EXP_VERSION_1_0};
 
-    if (Count == 0) {
-      zePrint("No extensions supported on this driver\n");
-      return PI_INVALID_VALUE;
-    }
-
-    std::vector<ze_driver_extension_properties_t> Extensions(Count);
-    ZE_CALL(zeDriverGetExtensionProperties,
-            (Queue->Device->Platform->ZeDriver, &Count, Extensions.data()));
-
-    bool ExtensionFound = false;
-    for (uint32_t i = 0; i < Extensions.size(); i++) {
-      if (strncmp(Extensions[i].name, ZE_GLOBAL_OFFSET_EXP_NAME,
-                  strlen(ZE_GLOBAL_OFFSET_EXP_NAME)) == 0) {
-        if (Extensions[i].version == ZE_GLOBAL_OFFSET_EXP_VERSION_1_0) {
-          ExtensionFound = true;
-          break;
-        }
-      }
-    }
-
-    if (ExtensionFound == false) {
+    auto Platform = Queue->Device->Platform;
+    if (!(Platform->findDriverExtension(GlobalOffsetExtension))) {
       zePrint("No global offset extension found on this driver\n");
       return PI_INVALID_VALUE;
     }
