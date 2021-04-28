@@ -24,8 +24,6 @@
 
 using namespace cl::sycl;
 
-#define NumOfBackends static_cast<int>(backend::all)
-
 // Controls verbose output vs. concise.
 bool verbose;
 
@@ -120,7 +118,7 @@ int main(int argc, char **argv) {
 
   uint32_t PlatformNum = 0;
   // For each backend, device num starts at zero.
-  std::vector<uint32_t> DeviceNums(backend::all, 0);
+  std::vector<uint32_t> DeviceNums(static_cast<int>(backend::all), 0);
 
   for (const auto &Platform : Platforms) {
     backend Backend = Platform.get_backend();
