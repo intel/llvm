@@ -10,12 +10,6 @@ struct NestedStruct {};
 }; // namespace NestedInStd
 }; // namespace std
 
-namespace Named {
-namespace {
-struct IsThisValid {};
-} // namespace
-} // namespace Named
-
 namespace ValidNS {
 struct StructinValidNS {};
 } // namespace ValidNS
@@ -36,12 +30,6 @@ public:
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<std::NestedInStd::NestedStruct>([] {});
-    });
-
-    // expected-error@#KernelSingleTask {{'Named::(anonymous namespace)::IsThisValid' should be globally visible}}
-    // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
-      h.single_task<Named::IsThisValid>([] {});
     });
 
     // no error for valid ns
