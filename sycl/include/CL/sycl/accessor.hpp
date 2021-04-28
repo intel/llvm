@@ -203,6 +203,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+class stream;
 namespace INTEL {
 namespace gpu {
 namespace detail {
@@ -929,6 +930,7 @@ public:
 
 private:
   friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
+  friend class sycl::stream;
 
 public:
   using value_type = DataT;

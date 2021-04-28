@@ -33,8 +33,9 @@ enum class kernel_param_kind_t {
   kind_accessor = 0,
   kind_std_layout = 1, // standard layout object parameters
   kind_sampler = 2,
-  kind_pointer = 3,
-  kind_specialization_constants_buffer = 4,
+  kind_stream = 3,
+  kind_pointer = 4,
+  kind_specialization_constants_buffer = 5,
 };
 
 // describes a kernel parameter

@@ -1660,6 +1660,8 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     if (!EliminatedArgMask.empty() && EliminatedArgMask[Arg.MIndex])
       continue;
     switch (Arg.MType) {
+    case kernel_param_kind_t::kind_stream:
+      break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
