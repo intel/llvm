@@ -99,6 +99,7 @@ the contents of the SIMD class.
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 
 namespace simd_abi {
 template <class T, int N>
@@ -111,6 +112,7 @@ using simd = std::experimental::simd<T, simd_abi::native_fixed_size<N>>;
 template <class T, int N>
 using simd_mask = std::experimental::simd_mask<T, simd_abi::native_fixed_size<N>>;
 
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
@@ -133,7 +135,7 @@ an 8-wide SIMD type `x` by a scalar value `n`.
 
 [source, c++]
 ----
-sycl::ext::oneapi::simd<float, 8> scale(sycl::ext::oneapi::simd<float, 8> x, float n)
+sycl::ext::oneapi::experimental::simd<float, 8> scale(sycl::ext::oneapi::experimental::simd<float, 8> x, float n)
 {
   return x * n;
 }
@@ -152,10 +154,12 @@ appropriate.
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 
 template <typename Callable, typename...T>
 auto invoke_simd(sub_group sg, Callable&& f, T... args);
 
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
@@ -174,14 +178,14 @@ sub-group size of the kernel; calling a SIMD function with mismatched lengths
 is an error, and an implementation must issue a diagnostic.
 
 To enable overloading in cases where the `Callable` accepts either a scalar
-type or a SIMD type, we leverage the `sycl::ext::oneapi::uniform` wrapper
+type or a SIMD type, we leverage the `sycl::ext::oneapi::experimental::uniform` wrapper
 type from the `SYCL_EXT_ONEAPI_UNIFORM` extension.
 
 Each argument in the `args` parameter pack must be an arithmetic type, a
-trivially copyable type wrapped in a `sycl::ext::oneapi::uniform`, or a
+trivially copyable type wrapped in a `sycl::ext::oneapi::experimental::uniform`, or a
 `std::tuple` of these types.  Arguments may not be pointers or references,
 but pointers (like any other non-arithmetic type) may be passed if wrapped in a
-`sycl::ext::oneapi::uniform`.  Any such pointer value must point to memory
+`sycl::ext::oneapi::experimental::uniform`.  Any such pointer value must point to memory
 that is accessible by all work-items in the sub-group (i.e. the pointer must
 point to an allocation in local or global memory).  The address space for such
 pointers can be local, global or generic; if a generic pointer that points
@@ -192,24 +196,24 @@ In order to invoke the SIMD function, `invoke_simd` converts each argument
 in the `args` parameter pack according to the following rules:
 
 - Arguments of type `bool` are converted to type
-  `sycl::ext::oneapi::simd_mask<bool, N>`, where `N` is the sub-group size of
+  `sycl::ext::oneapi::experimental::simd_mask<bool, N>`, where `N` is the sub-group size of
   the calling kernel.  Element `i` of the SIMD type represents the value from
   the work-item with sub-group local ID `i`.
 
 - All other arithmetic arguments of type `T` are converted to type
-  `sycl::ext::oneapi::simd<T, N>`, where `N` is the sub-group size of the
+  `sycl::ext::oneapi::experimental::simd<T, N>`, where `N` is the sub-group size of the
   calling kernel.  Element `i` of the SIMD type represents the value from the
   work-item with sub-group local ID `i`.
 
-- Arguments of type `sycl::ext::oneapi::uniform<T>` are converted to type `T`.
+- Arguments of type `sycl::ext::oneapi::experimental::uniform<T>` are converted to type `T`.
   Conversion follows the same rules as the implicit conversion `operator T()`
-  from the `sycl::ext::oneapi::uniform<T>` class; if the return value of
+  from the `sycl::ext::oneapi::experimental::uniform<T>` class; if the return value of
   `operator T()` would be undefined, the value of the scalar variable passed
   to the SIMD function is undefined.
 
 - Arguments of type `std::tuple` are mapped as if each member of the tuple
   was mapped individually (e.g. a `std::tuple<float, int>` becomes a
-  `std::tuple<sycl::ext::oneapi::simd<float, N>, sycl::ext::oneapi::simd<int, N>>`.
+  `std::tuple<sycl::ext::oneapi::experimental::simd<float, N>, sycl::ext::oneapi::experimental::simd<int, N>>`.
 
 After this mapping has taken place, an appropriate variant of `Callable` is
 selected based on standard overload resolution.
@@ -217,20 +221,20 @@ selected based on standard overload resolution.
 The return value of an `invoke_simd` function is subject to the same mapping
 rules in reverse:
 
-- Return values of type `sycl::ext::oneapi::simd_mask<bool, N>` are converted
+- Return values of type `sycl::ext::oneapi::experimental::simd_mask<bool, N>` are converted
   to `bool`, and the value in element `i` of the SIMD type is returned to the
   work-item with sub-group local ID `i`.
 
-- Return values of all other arithmetic types `sycl::ext::oneapi::simd<T, N>`
+- Return values of all other arithmetic types `sycl::ext::oneapi::experimental::simd<T, N>`
   are converted to `T`, and the value in element `i` of the SIMD type is
   returned to the work-item with sub-group local ID `i`.
 
-- Return values of type `T` are converted to `sycl::ext::oneapi::uniform<T>`,
+- Return values of type `T` are converted to `sycl::ext::oneapi::experimental::uniform<T>`,
   and broadcast to each work-item; every work-item in the sub-group receives
   the same value.
 
 - Return values of type `std::tuple` are mapped as if each member of the tuple
-  was mapped individually (e.g. a `std::tuple<sycl::ext::oneapi::simd<float, N>, sycl::ext::oneapi::simd<int, N>>`
+  was mapped individually (e.g. a `std::tuple<sycl::ext::oneapi::experimental::simd<float, N>, sycl::ext::oneapi::experimental::simd<int, N>>`
   becomes a `std::tuple<float, int>`).
 
 Note that these conversion rules do not permit special types (e.g. `sycl::nd_item`)
@@ -242,7 +246,7 @@ well-defined in SPMD contexts (e.g. sub-group barriers).  If a SIMD function
 requires access to a member variable of a SYCL class, the value of the
 variable should be passed via a dedicated argument (e.g. the value returned
 by `sub_group::get_local_id()[0]` could be passed as an integer to a
-`Callable` expecting a `sycl::ext::oneapi::simd<uint32_t, N>`).
+`Callable` expecting a `sycl::ext::oneapi::experimental::simd<uint32_t, N>`).
 
 The `invoke_simd` function has the same requirements as other group functions
 (as defined in Section 4.17.3 of the SYCL 2020 specification). A call to
@@ -258,12 +262,12 @@ SIMD mask parameter.
 
 [source, c++]
 ----
-sycl::ext::oneapi::simd<float, 8> scale(sycl::ext::oneapi::simd<float, 8> x, float n)
+sycl::ext::oneapi::experimental::simd<float, 8> scale(sycl::ext::oneapi::experimental::simd<float, 8> x, float n)
 {
   return x * n;
 }
 
-sycl::ext::oneapi::simd<float, 8> masked_scale(sycl::ext::oneapi::simd<float, 8> x, float n, sycl::ext::oneapi::simd_mask<bool, 8> mask)
+sycl::ext::oneapi::experimental::simd<float, 8> masked_scale(sycl::ext::oneapi::experimental::simd<float, 8> x, float n, sycl::ext::oneapi::experimental::simd_mask<bool, 8> mask)
 {
   std::experimental::where(mask, x) *= n;
   return x;
@@ -277,13 +281,13 @@ q.parallel_for(..., sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(8)]]
 
   // invoke SIMD function
   // x values from each work-item are combined into a simd<float, 8>
-  float y = sycl::ext::oneapi::invoke_simd(sg, scale, x, sycl::ext::oneapi::uniform(n));
+  float y = sycl::ext::oneapi::experimental::invoke_simd(sg, scale, x, sycl::ext::oneapi::experimental::uniform(n));
 
   // invoke SIMD function with a mask parameter
   // x values from each work-item be a simd<float, 8>
   // mask values from each work-item are combined into a simd_mask<bool, 8>
   bool mask = (it.get_local_id(0) % 2);
-  float z = sycl::ext::oneapi::invoke_simd(sg, masked_scale, x, sycl::ext::oneapi::uniform(n), mask);
+  float z = sycl::ext::oneapi::experimental::invoke_simd(sg, masked_scale, x, sycl::ext::oneapi::experimental::uniform(n), mask);
 });
 ----
 

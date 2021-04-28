@@ -86,18 +86,18 @@ These concepts are already exposed in other SPMD programming models:
 
 == Defining Uniform Values
 
-The `sycl::ext::oneapi::uniform` wrapper type can be used to assert that
+The `sycl::ext::oneapi::experimental::uniform` wrapper type can be used to assert that
 the value of a variable is the same for all work-items in a sub-group.
 Asserting uniformity when it does not hold can lead to undefined behavior.
 
 An implementation is not required to perform any analysis to prove or disprove
-the uniformity of a variable passed to the `sycl::ext::oneapi::uniform`
+the uniformity of a variable passed to the `sycl::ext::oneapi::experimental::uniform`
 constructor, but it is highly recommended that an implementation issue a
 diagnostic if it is known that an expression can never be uniform.
 
 Several classes in SYCL encapsulate information that is known to vary across
 work-items; instances of such classes can never be uniform. An implementation
-must issue a diagnostic if the `sycl::ext::oneapi::uniform` class template is
+must issue a diagnostic if the `sycl::ext::oneapi::experimental::uniform` class template is
 instantiated with any of the following types: `sycl::item`, `sycl::nd_item`,
 `sycl::h_item`, `sycl::group`, `sycl::sub_group` and `sycl::nd_range`.
 
@@ -106,6 +106,7 @@ instantiated with any of the following types: `sycl::item`, `sycl::nd_item`,
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 
 template <class T>
 class uniform {
@@ -113,12 +114,13 @@ class uniform {
   operator T() const;
 };
 
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
 ----
 
-The `sycl::ext::oneapi::uniform` wrapper class does not support arithmetic
+The `sycl::ext::oneapi::experimental::uniform` wrapper class does not support arithmetic
 operators or provide access to the underlying data, and is intended to be
 used to represent that the value of a variable is uniform at a specific point
 (i.e. when the wrapper class is constructed). The variable can be implicitly
@@ -142,7 +144,7 @@ void update(sub_group sg, T* ptr, T x) {
 
 // If ptr is asserted to be uniform, use a sub-group reduce first
 template <typename T>
-void update(sub_group sg, sycl::ext::oneapi::uniform<T*> ptr, T x) {
+void update(sub_group sg, sycl::ext::oneapi::experimental::uniform<T*> ptr, T x) {
   T sum = sycl::reduce_over_group(sg, x, std::plus<>());
   if (sg.leader()) {
     sycl::atomic_ref<T, sycl::memory_order::relaxed, sycl::memory_scope::device>(ptr) += sum;
@@ -153,14 +155,14 @@ void update(sub_group sg, sycl::ext::oneapi::uniform<T*> ptr, T x) {
 Asserting that all work-items in the sub-group take the same branch:
 ```c++
 bool condition = ...;
-if (sycl::ext::oneapi::uniform(condition)) {
+if (sycl::ext::oneapi::experimental::uniform(condition)) {
   ...
 }
 ```
 
 Asserting that all work-items in the sub-group access the same memory location:
 ```c++
-float x = array[sycl::ext::oneapi::uniform(index)];
+float x = array[sycl::ext::oneapi::experimental::uniform(index)];
 ```
 
 == Issues
