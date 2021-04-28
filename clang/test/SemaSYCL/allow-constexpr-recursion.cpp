@@ -1,8 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fcxx-exceptions -Wno-return-type -sycl-std=2020 -verify -fsyntax-only -std=c++20 -Werror=vla %s
 
-// This test verifies that a SYCL kernel executed on a device,
-// cannot call a recursive function. Constexpr functions are excepted
-// from this rule.
+// This test verifies that a SYCL kernel executed on a device, cannot call a recursive function.
 
 #include "sycl.hpp"
 
@@ -10,6 +8,7 @@ sycl::queue q;
 
 constexpr int constexpr_recurse1(int n);
 
+// expected-note@+1 3{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse(int n) {
   if (n)
     return constexpr_recurse1(n - 1);
@@ -17,6 +16,7 @@ constexpr int constexpr_recurse(int n) {
 }
 
 constexpr int constexpr_recurse1(int n) {
+  // expected-error@+1{{SYCL kernel cannot call a recursive function}}
   return constexpr_recurse(n) + 1;
 }
 
@@ -62,6 +62,7 @@ void constexpr_recurse_test() {
   int j;
   switch (105) {
   case constexpr_recurse(2):
+    // expected-error@+1{{SYCL kernel cannot call a recursive function}}
     j = constexpr_recurse(5);
     break;
   }
@@ -83,6 +84,7 @@ void constexpr_recurse_test() {
 }
 
 void constexpr_recurse_test_err() {
+  // expected-error@+1{{SYCL kernel cannot call a recursive function}}
   int i = constexpr_recurse(1);
 }
 
