@@ -381,6 +381,7 @@ class DiagDeviceFunction : public RecursiveASTVisitor<DiagDeviceFunction> {
   // Used to keep track of the constexpr depth, so we know whether to skip
   // diagnostics.
   unsigned ConstexprDepth = 0;
+  bool CheckedBodyIsConstexpr = false;
   Sema &SemaRef;
   const llvm::SmallPtrSetImpl<const FunctionDecl *> &RecursiveFuncs;
 
@@ -404,6 +405,14 @@ public:
       Sema &S,
       const llvm::SmallPtrSetImpl<const FunctionDecl *> &RecursiveFuncs)
       : RecursiveASTVisitor(), SemaRef(S), RecursiveFuncs(RecursiveFuncs) {}
+
+  void SetIsConstexprFD(const FunctionDecl * FD) {
+    CheckedBodyIsConstexpr = FD->isConstexpr();
+  }
+
+  bool IsConstexprFD() {
+    return CheckedBodyIsConstexpr;
+  }
 
   void CheckBody(Stmt *ToBeDiagnosed) { TraverseStmt(ToBeDiagnosed); }
 
@@ -470,6 +479,7 @@ public:
   // Skip checking rules on variables initialized during constant evaluation.
   bool TraverseVarDecl(VarDecl *VD) {
     ConstexprDepthRAII R(*this, VD->isConstexpr());
+    //TBD?? if (VD->isConstexpr()) return false;
     return RecursiveASTVisitor::TraverseVarDecl(VD);
   }
 
@@ -498,6 +508,12 @@ public:
         return false;
     }
     return TraverseStmt(S->getSubStmt());
+  }
+
+  bool TraverseReturnStmt(ReturnStmt *S) {
+    if (IsConstexprFD())
+      return false;
+    return TraverseStmt(S->getRetValue());
   }
 
   // Skip checking the size expr, since a constant array type loc's size expr is
@@ -555,8 +571,10 @@ public:
   ~DeviceFunctionTracker() {
     DiagDeviceFunction Diagnoser{SemaRef, RecursiveFunctions};
     for (const FunctionDecl *FD : DeviceFunctions)
-      if (const FunctionDecl *Def = FD->getDefinition())
+      if (const FunctionDecl *Def = FD->getDefinition()) {
+        Diagnoser.SetIsConstexprFD(FD);
         Diagnoser.CheckBody(Def->getBody());
+      }
   }
 };
 

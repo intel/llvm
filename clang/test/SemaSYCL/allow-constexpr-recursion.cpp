@@ -8,7 +8,7 @@ sycl::queue q;
 
 constexpr int constexpr_recurse1(int n);
 
-// expected-note@+1 3{{function implemented using recursion declared here}}
+// expected-note@+1 2{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse(int n) {
   if (n)
     return constexpr_recurse1(n - 1);
@@ -16,7 +16,6 @@ constexpr int constexpr_recurse(int n) {
 }
 
 constexpr int constexpr_recurse1(int n) {
-  // expected-error@+1{{SYCL kernel cannot call a recursive function}}
   return constexpr_recurse(n) + 1;
 }
 
