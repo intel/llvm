@@ -1,4 +1,3 @@
-// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out -DTEST_SHARED
 // RUN: %HOST_RUN_PLACEHOLDER %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out

@@ -3,9 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 // REQUIRES: cpu
-// XFAIL: cuda
-// TODO: ptxas fatal   : Unresolved extern function
-// '_Z20__spirv_ocl_lgamma_rfPi'
 
 #include <CL/sycl.hpp>
 
