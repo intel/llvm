@@ -48,13 +48,9 @@ public:
   InteropHandleBase(unsigned Version, ownership Ownership = ownership::keep)
       : MVersion(Version), MOwnership(Ownership) {}
 
-  unsigned get_version() const noexcept {
-    return MVersion;
-  }
+  unsigned get_version() const noexcept { return MVersion; }
 
-  ownership get_ownership() const noexcept {
-    return MOwnership;
-  }
+  ownership get_ownership() const noexcept { return MOwnership; }
 
 private:
   unsigned MVersion;
