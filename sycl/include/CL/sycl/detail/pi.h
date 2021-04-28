@@ -36,10 +36,11 @@
 // 2. A number of types needed to define pi_device_binary_property_set added.
 // 3. Added new ownership argument to piextContextCreateWithNativeHandle.
 // 4. Add interoperability interfaces for kernel.
+// 5. Add piextProgramCreateWithNativeHandle2.
 //
 #include "CL/cl.h"
 #define _PI_H_VERSION_MAJOR 3
-#define _PI_H_VERSION_MINOR 5
+#define _PI_H_VERSION_MINOR 6
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1158,6 +1159,21 @@ piextProgramGetNativeHandle(pi_program program, pi_native_handle *nativeHandle);
 /// \param context is the PI context of the program.
 /// \param program is the PI program created from the native handle.
 __SYCL_EXPORT pi_result piextProgramCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, pi_program *program);
+
+/// Creates PI program object from a native handle.
+///
+/// Unlike piextProgramCreateWithNativeHandle, this function is aware, that
+/// native objects may be wrapped in implementation-defined structures to
+/// support SYCL2020-stype interoperability.
+///
+/// TODO replace piextProgramCreateWithNativeHandle with this function, when
+/// breaking changes are allowed.
+///
+/// \param nativeHandle is the native handle to create PI program from.
+/// \param context is the PI context of the program.
+/// \param program is the PI program created from the native handle.
+__SYCL_EXPORT pi_result piextProgramCreateWithNativeHandle2(
     pi_native_handle nativeHandle, pi_context context, pi_program *program);
 
 //

@@ -3347,10 +3347,31 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
+  auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
+
+  // We assume here that programs created from a native handle always
+  // represent a fully linked executable (state Exe) and not an unlinked
+  // executable (state Object).
+  try {
+    *Program = new _pi_program(Context, ZeModule, _pi_program::Exe);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return PI_SUCCESS;
+}
+
+pi_result piextProgramCreateWithNativeHandle2(pi_native_handle NativeHandle,
+                                              pi_context Context,
+                                              pi_program *Program) {
+  PI_ASSERT(Program, PI_INVALID_PROGRAM);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+  PI_ASSERT(Context, PI_INVALID_CONTEXT);
+
   using namespace sycl::level_zero;
 
   auto ModuleDesc = pi_cast<module_desc_t *>(NativeHandle);
-  // auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
 
   constexpr auto StateCast = [](module_desc_t::state State) {
     switch (State) {

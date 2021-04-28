@@ -436,6 +436,14 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piextProgramCreateWithNativeHandle2(pi_native_handle nativeHandle,
+                                              pi_context,
+                                              pi_program *piProgram) {
+  assert(piProgram != nullptr);
+  *piProgram = reinterpret_cast<pi_program>(nativeHandle);
+  return PI_SUCCESS;
+}
+
 pi_result piSamplerCreate(pi_context context,
                           const pi_sampler_properties *sampler_properties,
                           pi_sampler *result_sampler) {
@@ -1272,6 +1280,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          piextProgramSetSpecializationConstant)
   _PI_CL(piextProgramGetNativeHandle, piextProgramGetNativeHandle)
   _PI_CL(piextProgramCreateWithNativeHandle, piextProgramCreateWithNativeHandle)
+  _PI_CL(piextProgramCreateWithNativeHandle,
+         piextProgramCreateWithNativeHandle2)
   // Kernel
   _PI_CL(piKernelCreate, piKernelCreate)
   _PI_CL(piKernelSetArg, clSetKernelArg)

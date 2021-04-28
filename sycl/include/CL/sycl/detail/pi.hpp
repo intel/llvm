@@ -139,10 +139,7 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 std::string platformInfoToString(pi_platform_info info);
 
 // Want all the needed casts be explicit, do not define conversion operators.
-template <class To, class From,
-          typename = typename std::enable_if_t<
-              !std::is_base_of_v<InteropHandleBase, From>>>
-To cast(From value);
+template <class To, class From> To cast(const From &value);
 
 // Holds the PluginInformation for the plugin that is bound.
 // Currently a global variable is used to store OpenCL plugin information to be
@@ -354,27 +351,26 @@ namespace RT = cl::sycl::detail::pi;
 // older than 7.x.
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56480
 namespace pi {
-template <typename To, typename From,
-          typename = typename std::enable_if_t<
-              std::is_base_of_v<InteropHandleBase, From>>>
-inline pi_native_handle cast(const From &value) {
-  return reinterpret_cast<pi_native_handle>(&value);
-}
 // Want all the needed casts be explicit, do not define conversion
 // operators.
-template <class To, class From, typename> inline To cast(From value) {
-  // TODO: see if more sanity checks are possible.
-  RT::assertion((sizeof(From) == sizeof(To)), "assert: cast failed size check");
-  return (To)(value);
+template <class To, class From> inline To cast(const From &value) {
+  if constexpr (std::is_base_of_v<InteropHandleBase, From>)
+    return reinterpret_cast<pi_native_handle>(&value);
+  else {
+    // TODO: see if more sanity checks are possible.
+    RT::assertion((sizeof(From) == sizeof(To)),
+                  "assert: cast failed size check");
+    return (To)(value);
+  }
 }
 
 // These conversions should use PI interop API.
-template <> inline pi::PiProgram cast(cl_program) {
+template <> inline pi::PiProgram cast(const cl_program &) {
   RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");
   return {};
 }
 
-template <> inline pi::PiDevice cast(cl_device_id) {
+template <> inline pi::PiDevice cast(const cl_device_id &) {
   RT::assertion(false, "pi::cast -> use piextCreateDeviceWithNativeHandle");
   return {};
 }
