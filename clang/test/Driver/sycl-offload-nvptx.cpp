@@ -22,16 +22,17 @@
 // CHK-PHASES-NO-CC: 3: preprocessor, {2}, c++-cpp-output, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 4: compiler, {3}, ir, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_50)" {4}, c++-cpp-output
-// CHK-PHASES-NO-CC: 6: append-footer, {5}, c++-cpp-output, (host-sycl)
-// CHK-PHASES-NO-CC: 7: compiler, {6}, ir, (host-sycl)
-// CHK-PHASES-NO-CC: 8: backend, {7}, assembler, (host-sycl)
-// CHK-PHASES-NO-CC: 9: assembler, {8}, object, (host-sycl)
-// CHK-PHASES-NO-CC: 10: linker, {9}, image, (host-sycl)
-// CHK-PHASES-NO-CC: 11: linker, {4}, ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 13: backend, {12}, assembler, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 14: clang-offload-wrapper, {13}, object, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_50)" {14}, image
+// CHK-PHASES-NO-CC: 6: append-footer, {5}, c++, (host-sycl)
+// CHK-PHASES-NO-CC: 7: preprocessor, {6}, c++-cpp-output, (host-sycl)
+// CHK-PHASES-NO-CC: 8: compiler, {7}, ir, (host-sycl)
+// CHK-PHASES-NO-CC: 9: backend, {8}, assembler, (host-sycl)
+// CHK-PHASES-NO-CC: 10: assembler, {9}, object, (host-sycl)
+// CHK-PHASES-NO-CC: 11: linker, {10}, image, (host-sycl)
+// CHK-PHASES-NO-CC: 12: linker, {4}, ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 13: sycl-post-link, {12}, ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 14: backend, {13}, assembler, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 15: clang-offload-wrapper, {14}, object, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_50)" {15}, image
 
 /// Check phases specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
@@ -44,13 +45,14 @@
 // CHK-PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl, sm_35)
 // CHK-PHASES: 4: compiler, {3}, ir, (device-sycl, sm_35)
 // CHK-PHASES: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_35)" {4}, c++-cpp-output
-// CHK-PHASES: 6: append-footer, {5}, c++-cpp-output, (host-sycl)
-// CHK-PHASES: 7: compiler, {6}, ir, (host-sycl)
-// CHK-PHASES: 8: backend, {7}, assembler, (host-sycl)
-// CHK-PHASES: 9: assembler, {8}, object, (host-sycl)
-// CHK-PHASES: 10: linker, {9}, image, (host-sycl)
-// CHK-PHASES: 11: linker, {4}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 13: backend, {12}, assembler, (device-sycl, sm_35)
-// CHK-PHASES: 14: clang-offload-wrapper, {13}, object, (device-sycl, sm_35)
-// CHK-PHASES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_35)" {14}, image
+// CHK-PHASES: 6: append-footer, {5}, c++, (host-sycl)
+// CHK-PHASES: 7: preprocessor, {6}, c++-cpp-output, (host-sycl)
+// CHK-PHASES: 8: compiler, {7}, ir, (host-sycl)
+// CHK-PHASES: 9: backend, {8}, assembler, (host-sycl)
+// CHK-PHASES: 10: assembler, {9}, object, (host-sycl)
+// CHK-PHASES: 11: linker, {10}, image, (host-sycl)
+// CHK-PHASES: 12: linker, {4}, ir, (device-sycl, sm_35)
+// CHK-PHASES: 13: sycl-post-link, {12}, ir, (device-sycl, sm_35)
+// CHK-PHASES: 14: backend, {13}, assembler, (device-sycl, sm_35)
+// CHK-PHASES: 15: clang-offload-wrapper, {14}, object, (device-sycl, sm_35)
+// CHK-PHASES: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_35)" {15}, image
