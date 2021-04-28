@@ -741,7 +741,6 @@ inline __width_manipulator__ setw(int Width) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT stream {
 public:
-
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
   stream() = default;
@@ -874,8 +873,7 @@ private:
               detail::GlobalBufPtrType GlobalFlushPtr,
               range<detail::GlobalBufDim> GlobalFlushAccRange,
               range<detail::GlobalBufDim> GlobalFlushMemRange,
-              id<detail::GlobalBufDim> GlobalFlushId,
-              size_t _FlushBufferSize) {
+              id<detail::GlobalBufDim> GlobalFlushId, size_t _FlushBufferSize) {
 #ifndef __SYCL_EXPLICIT_SIMD__
     GlobalBuf.__init(GlobalBufPtr, GlobalBufAccRange, GlobalBufMemRange,
                      GlobalBufId);
