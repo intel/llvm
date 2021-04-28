@@ -25,6 +25,13 @@ enum class namespace_short : short {
 };
 }
 
+namespace {
+enum class enum_in_anonNS : short {
+  val_1,
+  val_2
+};
+}
+
 enum class no_type_set {
   val_1,
   val_2
@@ -44,6 +51,12 @@ public:
 
 template <internal::namespace_short EnumType>
 class dummy_functor_3 {
+public:
+  void operator()() const {}
+};
+
+template <enum_in_anonNS EnumType>
+class dummy_functor_4 {
 public:
   void operator()() const {}
 };
@@ -100,6 +113,7 @@ int main() {
   dummy_functor_1<no_namespace_int::val_1> f1;
   dummy_functor_2<no_namespace_short::val_2> f2;
   dummy_functor_3<internal::namespace_short::val_2> f3;
+  dummy_functor_4<enum_in_anonNS::val_2> f4;
   dummy_functor_5<no_type_set::val_1> f5;
   dummy_functor_6<unscoped_enum::val_1> f6;
   dummy_functor_7<no_namespace_int> f7;
@@ -118,6 +132,10 @@ int main() {
 
   q.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task(f3);
+  });
+
+  q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task(f4);
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
@@ -160,6 +178,10 @@ int main() {
 // CHECK-NEXT: enum class namespace_short : short;
 // CHECK-NEXT: }
 // CHECK: template <internal::namespace_short EnumType> class dummy_functor_3;
+// CHECK: namespace  {
+// CHECK-NEXT: enum class enum_in_anonNS : short;
+// CHECK-NEXT: }
+// CHECK: template <enum_in_anonNS EnumType> class dummy_functor_4;
 // CHECK: enum class no_type_set : int;
 // CHECK: template <no_type_set EnumType> class dummy_functor_5;
 // CHECK: enum unscoped_enum : int;
@@ -178,6 +200,7 @@ int main() {
 // CHECK: template <> struct KernelInfo<::dummy_functor_1<static_cast<::no_namespace_int>(0)>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_2<static_cast<::no_namespace_short>(1)>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_3<static_cast<::internal::namespace_short>(1)>>
+// CHECK: template <> struct KernelInfo<::dummy_functor_4<static_cast<::enum_in_anonNS>(1)>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_5<static_cast<::no_type_set>(0)>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_6<static_cast<::unscoped_enum>(0)>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_7<::no_namespace_int>>
