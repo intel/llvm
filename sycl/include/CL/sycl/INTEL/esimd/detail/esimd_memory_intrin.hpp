@@ -74,7 +74,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 template <typename Ty, int N, int NumBlk = 0,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
     __SIGD::vector_type_t<Ty, N * __SIGD::ElemsPerAddrDecoding(NumBlk)>
     __esimd_flat_read(__SIGD::vector_type_t<uint64_t, N> addrs,
                       int ElemsPerAddr = NumBlk,
@@ -84,7 +84,7 @@ SYCL_EXTERNAL
 template <typename Ty, int N, int NumBlk = 0,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL void __esimd_flat_write(
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_flat_write(
     __SIGD::vector_type_t<uint64_t, N> addrs,
     __SIGD::vector_type_t<Ty, N * __SIGD::ElemsPerAddrDecoding(NumBlk)> vals,
     int ElemsPerAddr = NumBlk, __SIGD::vector_type_t<uint16_t, N> pred = 1);
@@ -93,39 +93,41 @@ SYCL_EXTERNAL void __esimd_flat_write(
 template <typename Ty, int N,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_flat_block_read_unaligned(uint64_t addr);
 
 // flat_block_write writes a block of data using one flat address
 template <typename Ty, int N,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL void __esimd_flat_block_write(uint64_t addr,
-                                            __SIGD::vector_type_t<Ty, N> vals);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
+__esimd_flat_block_write(uint64_t addr, __SIGD::vector_type_t<Ty, N> vals);
 
 // Reads a block of data from given surface at given offset.
 template <typename Ty, int N, typename SurfIndAliasTy>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_block_read(SurfIndAliasTy surf_ind, uint32_t offset);
 
 // Writes given block of data to a surface with given index at given offset.
 template <typename Ty, int N, typename SurfIndAliasTy>
-SYCL_EXTERNAL void __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
-                                       __SIGD::vector_type_t<Ty, N> vals);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
+__esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
+                    __SIGD::vector_type_t<Ty, N> vals);
 
 // flat_read4 does flat-address gather4
 template <typename Ty, int N, sycl::INTEL::gpu::ChannelMaskType Mask,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-__SIGD::vector_type_t<Ty, N * NumChannels(Mask)> SYCL_EXTERNAL
-__esimd_flat_read4(__SIGD::vector_type_t<uint64_t, N> addrs,
-                   __SIGD::vector_type_t<uint16_t, N> pred = 1);
+__SIGD::vector_type_t<Ty, N * NumChannels(Mask)>
+    SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+    __esimd_flat_read4(__SIGD::vector_type_t<uint64_t, N> addrs,
+                       __SIGD::vector_type_t<uint16_t, N> pred = 1);
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, sycl::INTEL::gpu::ChannelMaskType Mask,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL void
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_flat_write4(__SIGD::vector_type_t<uint64_t, N> addrs,
                     __SIGD::vector_type_t<Ty, N * NumChannels(Mask)> vals,
                     __SIGD::vector_type_t<uint16_t, N> pred = 1);
@@ -154,7 +156,7 @@ __esimd_flat_write4(__SIGD::vector_type_t<uint64_t, N> addrs,
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
                   uint32_t global_offset,
                   __SIGD::vector_type_t<uint32_t, N> elem_offsets)
@@ -196,7 +198,7 @@ __esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL void
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_surf_write(__SIGD::vector_type_t<uint16_t, N> pred, int16_t scale,
                    SurfIndAliasTy surf_ind, uint32_t global_offset,
                    __SIGD::vector_type_t<uint32_t, N> elem_offsets,
@@ -219,14 +221,14 @@ __esimd_surf_write(__SIGD::vector_type_t<uint16_t, N> pred, int16_t scale,
 template <sycl::INTEL::gpu::EsimdAtomicOpType Op, typename Ty, int N,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_flat_atomic0(__SIGD::vector_type_t<uint64_t, N> addrs,
                      __SIGD::vector_type_t<uint16_t, N> pred);
 
 template <sycl::INTEL::gpu::EsimdAtomicOpType Op, typename Ty, int N,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_flat_atomic1(__SIGD::vector_type_t<uint64_t, N> addrs,
                      __SIGD::vector_type_t<Ty, N> src0,
                      __SIGD::vector_type_t<uint16_t, N> pred);
@@ -234,71 +236,77 @@ __esimd_flat_atomic1(__SIGD::vector_type_t<uint64_t, N> addrs,
 template <sycl::INTEL::gpu::EsimdAtomicOpType Op, typename Ty, int N,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
           sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N> __esimd_flat_atomic2(
-    __SIGD::vector_type_t<uint64_t, N> addrs, __SIGD::vector_type_t<Ty, N> src0,
-    __SIGD::vector_type_t<Ty, N> src1, __SIGD::vector_type_t<uint16_t, N> pred);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
+__esimd_flat_atomic2(__SIGD::vector_type_t<uint64_t, N> addrs,
+                     __SIGD::vector_type_t<Ty, N> src0,
+                     __SIGD::vector_type_t<Ty, N> src1,
+                     __SIGD::vector_type_t<uint16_t, N> pred);
 
 // esimd_barrier, generic group barrier
-SYCL_EXTERNAL void __esimd_barrier();
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_barrier();
 
 // generic work-group split barrier
-SYCL_EXTERNAL void __esimd_sbarrier(sycl::INTEL::gpu::EsimdSbarrierType flag);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
+__esimd_sbarrier(sycl::INTEL::gpu::EsimdSbarrierType flag);
 
 // slm_fence sets the SLM read/write order
-SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_slm_fence(uint8_t cntl);
 
 // slm_read does SLM gather
 template <typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_slm_read(__SIGD::vector_type_t<uint32_t, N> addrs,
                  __SIGD::vector_type_t<uint16_t, N> pred = 1);
 
 // slm_write does SLM scatter
 template <typename Ty, int N>
-SYCL_EXTERNAL void
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_slm_write(__SIGD::vector_type_t<uint32_t, N> addrs,
                   __SIGD::vector_type_t<Ty, N> vals,
                   __SIGD::vector_type_t<uint16_t, N> pred = 1);
 
 // slm_block_read reads a block of data from SLM
 template <typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_slm_block_read(uint32_t addr);
 
 // slm_block_write writes a block of data to SLM
 template <typename Ty, int N>
-SYCL_EXTERNAL void __esimd_slm_block_write(uint32_t addr,
-                                           __SIGD::vector_type_t<Ty, N> vals);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
+__esimd_slm_block_write(uint32_t addr, __SIGD::vector_type_t<Ty, N> vals);
 
 // slm_read4 does SLM gather4
 template <typename Ty, int N, sycl::INTEL::gpu::ChannelMaskType Mask>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N * NumChannels(Mask)>
-__esimd_slm_read4(__SIGD::vector_type_t<uint32_t, N> addrs,
-                  __SIGD::vector_type_t<uint16_t, N> pred = 1);
+SYCL_EXTERNAL
+    SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N * NumChannels(Mask)>
+    __esimd_slm_read4(__SIGD::vector_type_t<uint32_t, N> addrs,
+                      __SIGD::vector_type_t<uint16_t, N> pred = 1);
 
 // slm_write4 does SLM scatter4
 template <typename Ty, int N, sycl::INTEL::gpu::ChannelMaskType Mask>
-SYCL_EXTERNAL void
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_slm_write4(__SIGD::vector_type_t<uint32_t, N> addrs,
                    __SIGD::vector_type_t<Ty, N * NumChannels(Mask)> vals,
                    __SIGD::vector_type_t<uint16_t, N> pred = 1);
 
 // slm_atomic: SLM atomic
 template <sycl::INTEL::gpu::EsimdAtomicOpType Op, typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_slm_atomic0(__SIGD::vector_type_t<uint32_t, N> addrs,
                     __SIGD::vector_type_t<uint16_t, N> pred);
 
 template <sycl::INTEL::gpu::EsimdAtomicOpType Op, typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_slm_atomic1(__SIGD::vector_type_t<uint32_t, N> addrs,
                     __SIGD::vector_type_t<Ty, N> src0,
                     __SIGD::vector_type_t<uint16_t, N> pred);
 
 template <sycl::INTEL::gpu::EsimdAtomicOpType Op, typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N> __esimd_slm_atomic2(
-    __SIGD::vector_type_t<uint32_t, N> addrs, __SIGD::vector_type_t<Ty, N> src0,
-    __SIGD::vector_type_t<Ty, N> src1, __SIGD::vector_type_t<uint16_t, N> pred);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
+__esimd_slm_atomic2(__SIGD::vector_type_t<uint32_t, N> addrs,
+                    __SIGD::vector_type_t<Ty, N> src0,
+                    __SIGD::vector_type_t<Ty, N> src1,
+                    __SIGD::vector_type_t<uint16_t, N> pred);
 
 // Media block load
 //
@@ -325,7 +333,7 @@ SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N> __esimd_slm_atomic2(
 // @return the linearized 2D block data read from surface.
 //
 template <typename Ty, int M, int N, typename TACC>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, M * N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, M * N>
 __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
                          unsigned width, unsigned x, unsigned y);
 
@@ -354,7 +362,7 @@ __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
 // @param vals the linearized 2D block data to be written to surface.
 //
 template <typename Ty, int M, int N, typename TACC>
-SYCL_EXTERNAL void
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_media_block_store(unsigned modififer, TACC handle, unsigned plane,
                           unsigned width, unsigned x, unsigned y,
                           __SIGD::vector_type_t<Ty, M * N> vals);
@@ -366,7 +374,8 @@ __esimd_media_block_store(unsigned modififer, TACC handle, unsigned plane,
 /// Returns the binding table index value.
 ///
 template <typename SurfIndAliasTy>
-SYCL_EXTERNAL uint32_t __esimd_get_value(SurfIndAliasTy sid);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint32_t
+__esimd_get_value(SurfIndAliasTy sid);
 
 /// \brief Raw sends load.
 ///
@@ -401,12 +410,14 @@ SYCL_EXTERNAL uint32_t __esimd_get_value(SurfIndAliasTy sid);
 ///
 template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
           int N = 16>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty1, N1> __esimd_raw_sends_load(
-    uint8_t modifier, uint8_t execSize, __SIGD::vector_type_t<uint16_t, N> pred,
-    uint8_t numSrc0, uint8_t numSrc1, uint8_t numDst, uint8_t sfid,
-    uint32_t exDesc, uint32_t msgDesc, __SIGD::vector_type_t<Ty2, N2> msgSrc0,
-    __SIGD::vector_type_t<Ty3, N3> msgSrc1,
-    __SIGD::vector_type_t<Ty1, N1> msgDst);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty1, N1>
+__esimd_raw_sends_load(uint8_t modifier, uint8_t execSize,
+                       __SIGD::vector_type_t<uint16_t, N> pred, uint8_t numSrc0,
+                       uint8_t numSrc1, uint8_t numDst, uint8_t sfid,
+                       uint32_t exDesc, uint32_t msgDesc,
+                       __SIGD::vector_type_t<Ty2, N2> msgSrc0,
+                       __SIGD::vector_type_t<Ty3, N3> msgSrc1,
+                       __SIGD::vector_type_t<Ty1, N1> msgDst);
 
 /// \brief Raw send load.
 ///
@@ -435,7 +446,7 @@ SYCL_EXTERNAL __SIGD::vector_type_t<Ty1, N1> __esimd_raw_sends_load(
 /// Returns a simd vector of type Ty1 and size N1.
 ///
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty1, N1>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty1, N1>
 __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
                       __SIGD::vector_type_t<uint16_t, N> pred, uint8_t numSrc0,
                       uint8_t numDst, uint8_t sfid, uint32_t exDesc,
@@ -467,7 +478,7 @@ __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
 /// @param msgSrc1 the second source operand of send message.
 ///
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
-SYCL_EXTERNAL void __esimd_raw_sends_store(
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_raw_sends_store(
     uint8_t modifier, uint8_t execSize, __SIGD::vector_type_t<uint16_t, N> pred,
     uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid, uint32_t exDesc,
     uint32_t msgDesc, __SIGD::vector_type_t<Ty1, N1> msgSrc0,
@@ -493,7 +504,7 @@ SYCL_EXTERNAL void __esimd_raw_sends_store(
 /// @param msgSrc0 the first source operand of send message.
 ///
 template <typename Ty1, int N1, int N = 16>
-SYCL_EXTERNAL void
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
                        __SIGD::vector_type_t<uint16_t, N> pred, uint8_t numSrc0,
                        uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,

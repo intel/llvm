@@ -46,6 +46,7 @@ public:
   short rows, cols;
 };
 
+// TODO: we are adding it this way until sycl::dynamic_extent gets implemented.
 constexpr size_t dynamic_extent = std::numeric_limits<size_t>::max();
 
 template <typename T> struct elems_per_dword {
@@ -62,7 +63,7 @@ ELEMS_PER_DWORD(unsigned short, 2)
 
 } // namespace detail
 
-namespace matrix {
+namespace experimental::matrix {
 using namespace cl::sycl;
 using namespace cl::sycl::ONEAPI;
 
@@ -196,9 +197,11 @@ public:
   joint_matrix(Group sg) {}
 };
 
-} // namespace matrix
+} // namespace experimental::matrix
 
 namespace detail {
+
+using namespace experimental;
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix::matrix_layout Layout>
@@ -231,7 +234,8 @@ inline __SYCL_ALWAYS_INLINE static
                    uint32_t row, uint32_t col, size_t stride,
                    matrix::matrix_layout layout, bool shouldreload) {
   if (shouldreload) {
-    // Force sub_m.tile's shape to be matrix::tile_size * matrix::tile_size * 4
+    // Force sub_m.tile's shape to be matrix::tile_size *
+    // matrix::tile_size * 4
     int8_t NewjmC[matrix::tile_size * matrix::tile_size * 4];
     matrix::tilestored64_internal(NumRows, NumCols * sizeof(T),
                                   reinterpret_cast<char *>(NewjmC),
@@ -309,7 +313,7 @@ inline __SYCL_ALWAYS_INLINE static
 
 } // namespace detail
 
-namespace matrix {
+namespace experimental::matrix {
 
 // This handles cases where matrix can't be accommodated by a tile
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -401,26 +405,27 @@ inline __SYCL_ALWAYS_INLINE typename std::enable_if<
         (LayoutA == matrix_layout::row_major) &&
         (LayoutB == matrix_layout::packed_b) &&
         (LayoutC == matrix_layout::row_major),
-    void>::type
+    joint_matrix<Group, T2, NumRowsC, NumColsC, LayoutC>>::type
 joint_matrix_mad(Group sg,
                  joint_matrix<Group, T1, NumRowsA, NumColsA, LayoutA> &jmA,
                  joint_matrix<Group, T1, NumRowsB, NumColsB, LayoutB> &jmB,
                  joint_matrix<Group, T2, NumRowsC, NumColsC, LayoutC> &jmC) {
+  joint_matrix<Group, T2, NumRowsC, NumColsC, LayoutC> res(jmC);
   constexpr size_t epd = detail::elems_per_dword<T1>::value;
   // If A is large and C is small, in joint_matrix_load, we do memcpy for A, and
   // we do tileload for C whose shape is not tile_size*tile_size*4. In
   // joint_matrix_mad, we do tileload for A and shape is tile_size*tile_size*4.
   // So we need to reshape C before we do dpbssd.
-  bool Cshouldreload = jmC.isSmall && !jmA.isSmall && !jmB.isSmall;
+  bool Cshouldreload = res.isSmall && !jmA.isSmall && !jmB.isSmall;
   bool Ashouldreload = jmA.isSmall && !jmB.isSmall;
   bool Bshouldreload = jmB.isSmall && !jmA.isSmall;
 
-  for (int m = 0; m < jmC.trows; ++m) {
-    for (int n = 0; n < jmC.tcols; ++n) {
+  for (int m = 0; m < res.trows; ++m) {
+    for (int n = 0; n < res.tcols; ++n) {
       detail::submatrix<T2> sub_c;
 
       // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
-      submatrix_load(sub_c, jmC, m * tile_size, n * tile_size, jmC.stride,
+      submatrix_load(sub_c, res, m * tile_size, n * tile_size, res.stride,
                      matrix_layout::row_major, Cshouldreload);
       for (int k = 0; k < jmA.tcols; ++k) { // K->int8_t
         detail::submatrix<T1> sub_a;
@@ -432,14 +437,14 @@ joint_matrix_mad(Group sg,
                        jmB.stride, matrix_layout::packed_b, Bshouldreload);
         submatrix_mad(sub_a, sub_b, sub_c);
       }
-      submatrix_store(sub_c, jmC, m * tile_size, n * tile_size, jmC.stride,
+      submatrix_store(sub_c, res, m * tile_size, n * tile_size, res.stride,
                       matrix_layout::row_major, Cshouldreload);
     }
   }
-  return;
+  return res;
 }
 
-} // namespace matrix
+} // namespace experimental::matrix
 } // namespace intel
 } // namespace ext
 } // namespace sycl
