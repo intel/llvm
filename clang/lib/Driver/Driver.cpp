@@ -4165,7 +4165,8 @@ class OffloadingActionBuilder final {
           SmallString<128> LibName(LibLoc);
           llvm::sys::path::append(LibName, Lib.devicelib_name);
           llvm::sys::path::replace_extension(LibName, LibSuffix);
-          if (llvm::sys::fs::exists(LibName)) {
+          if (llvm::sys::fs::exists(LibName) ||
+              C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
