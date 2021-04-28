@@ -694,6 +694,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
     return true;
   if (OpCode == OpImageSampleExplicitLod || OpCode == OpSampledImage)
     return false;
+  if (isEventOpCode(OpCode))
+    return false;
   if (OCLSPIRVBuiltinMap::rfind(OpCode, nullptr)) {
     // Not every spirv opcode which is placed in OCLSPIRVBuiltinMap is
     // translated directly to OCL builtin. Some of them are translated
