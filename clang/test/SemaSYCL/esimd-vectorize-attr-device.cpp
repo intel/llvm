@@ -4,8 +4,6 @@
 
 // expected-error@+1{{'sycl_esimd_vectorize' attribute argument must be 8, 16, or 32}}
 [[intel::sycl_esimd_vectorize(17)]] void foo1() {}
-// expected-error@+1{{'sycl_esimd_vectorize' attribute requires a positive integral compile time constant expression}}
-[[intel::sycl_esimd_vectorize(-8)]] void foo2() {}
 // expected-error@+1{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 [[intel::sycl_esimd_vectorize(3.f)]] void foo3() {}
 
@@ -13,6 +11,8 @@
 [[intel::sycl_esimd_vectorize(16)]] void foo5() {}
 [[intel::sycl_esimd_vectorize(32)]] void foo6() {}
 
+// We explicitly do not support a GNU spelling for this attribute, which is why it is
+// treated as an unknown attribute.
 // expected-warning@+1{{unknown attribute 'sycl_esimd_vectorize' ignored}}
 __attribute__((sycl_esimd_vectorize(8))) void foo7() {}
 
@@ -43,3 +43,6 @@ struct Functor {
 void test() {
   auto f2 = []() [[intel::sycl_esimd_vectorize(8)]]{};
 }
+
+template <int N>
+[[intel::sycl_esimd_vectorize(N)]] void templateFunc();

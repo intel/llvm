@@ -66,7 +66,7 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
 
   // Set the function attribute expected by the vector backend compiler.
   if (const auto *A = FD.getAttr<SYCLIntelESimdVectorizeAttr>())
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(A->getValue())) {
+    if (const auto *DeclExpr = cast<ConstantExpr>(A->getValue())) {
       SmallString<2> Str;
       DeclExpr->getResultAsAPSInt().toString(Str);
       F.addFnAttr("CMGenxSIMT", Str);

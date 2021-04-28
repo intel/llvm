@@ -5100,12 +5100,6 @@ void Sema::AddSYCLIntelESimdVectorizeAttr(Decl *D,
       return;
     E = Res.get();
 
-    // This attribute requires a strictly positive value.
-    if (ArgVal <= 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*positive*/ 0;
-      return;
-    }
     if (ArgVal != 8 && ArgVal != 16 && ArgVal != 32) {
       Diag(E->getExprLoc(), diag::err_sycl_esimd_vectorize_unsupported_value)
           << CI;
