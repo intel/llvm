@@ -406,7 +406,7 @@ public:
       const llvm::SmallPtrSetImpl<const FunctionDecl *> &RecursiveFuncs)
       : RecursiveASTVisitor(), SemaRef(S), RecursiveFuncs(RecursiveFuncs) {}
 
-  void SetIsConstexprFD(const FunctionDecl * FD) {
+  void SetIsConstexprFD(const FunctionDecl *FD) {
     CheckedBodyIsConstexpr = FD->isConstexpr();
   }
 
@@ -479,7 +479,6 @@ public:
   // Skip checking rules on variables initialized during constant evaluation.
   bool TraverseVarDecl(VarDecl *VD) {
     ConstexprDepthRAII R(*this, VD->isConstexpr());
-    //TBD?? if (VD->isConstexpr()) return false;
     return RecursiveASTVisitor::TraverseVarDecl(VD);
   }
 
