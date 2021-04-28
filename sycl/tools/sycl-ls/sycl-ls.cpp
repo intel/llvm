@@ -57,14 +57,14 @@ std::string getDeviceTypeName(const device &Device) {
 }
 
 static void printDeviceInfo(const device &Device, const std::string &Prepend) {
-  std::string DeviceTypeName = getDeviceTypeName(Device);
   auto DeviceVersion = Device.get_info<info::device::version>();
   auto DeviceName = Device.get_info<info::device::name>();
   auto DeviceVendor = Device.get_info<info::device::vendor>();
   auto DeviceDriverVersion = Device.get_info<info::device::driver_version>();
 
   if (verbose) {
-    std::cout << Prepend << "Type       : " << DeviceTypeName << std::endl;
+    std::cout << Prepend << "Type       : " << getDeviceTypeName(Device)
+              << std::endl;
     std::cout << Prepend << "Version    : " << DeviceVersion << std::endl;
     std::cout << Prepend << "Name       : " << DeviceName << std::endl;
     std::cout << Prepend << "Vendor     : " << DeviceVendor << std::endl;
@@ -81,8 +81,10 @@ static void printSelectorChoice(const device_selector &Selector,
                                 const std::string &Prepend) {
   try {
     const auto &Dev = device(Selector);
-    printDeviceInfo(Dev, Prepend + getDeviceTypeName(Dev));
-
+    std::string DeviceTypeName = getDeviceTypeName(Dev);
+    std::transform(DeviceTypeName.begin(), DeviceTypeName.end(),
+                   DeviceTypeName.begin(), ::toupper);
+    printDeviceInfo(Dev, Prepend + DeviceTypeName);
   } catch (const cl::sycl::runtime_error &Exception) {
     // Truncate long string so it can fit in one-line
     std::string What = Exception.what();
