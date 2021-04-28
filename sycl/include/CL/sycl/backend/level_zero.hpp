@@ -50,9 +50,9 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
-                                             access::target::image,
-                                             access::placeholder::false_t>> {
+struct interop<backend::level_zero,
+               accessor<DataT, Dimensions, AccessMode, access::target::image,
+                        access::placeholder::false_t>> {
   using type = ze_image_handle_t;
 };
 

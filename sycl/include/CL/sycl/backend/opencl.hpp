@@ -54,9 +54,9 @@ struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::image,
-                                         access::placeholder::false_t>> {
+struct interop<backend::opencl,
+               accessor<DataT, Dimensions, AccessMode, access::target::image,
+                        access::placeholder::false_t>> {
   using type = cl_mem;
 };
 
