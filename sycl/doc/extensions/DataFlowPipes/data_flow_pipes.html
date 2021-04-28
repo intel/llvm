@@ -519,7 +519,7 @@ This document is better viewed when rendered as html with asciidoctor.  GitHub d
 <h2 id="_version">Version</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Built On: 2021-04-27<br>
+<p>Built On: 2021-04-28<br>
 Revision: 3</p>
 </div>
 </div>
@@ -1265,7 +1265,7 @@ my_pipe::write(<span class="integer">5</span>);
 <p>There is no implicit synchronizes-with relationship between different pipes and/or with non-pipe memory in a named address space (e.g. global, local, private).  Specifically, there is no implicit global or local release of side effects through a pipe access, and observation of data or control information on one pipe does not imply any knowledge through happens-before relationship with a different pipe or with memory not associated with the pipe.</p>
 </li>
 <li>
-<p>Pipe read and write operations behave as if they are C relaxed atomic load and store operations.  When paired with sycl::atomic_fences to establish a sychronizes-with relationship, pipe operations can provide guarantees on side effect visibility in memory, as defined by the C memory model.</p>
+<p>Pipe read and write operations behave as if they are SYCL relaxed atomic load and store operations.  When paired with sycl::atomic_fences to establish a sychronizes-with relationship, pipe operations can provide guarantees on side effect visibility in memory, as defined by the SYCL memory model.</p>
 </li>
 <li>
 <p>At a work-group barrier, there is an implicit acquire and release of side effects for any pipes operated on within the kernel, either before or after the barrier.  This occurs without an explicit memory fence being applied to or around the barrier.</p>
@@ -1702,7 +1702,7 @@ pipe_memcpy&lt;<span class="integer">2</span>&gt;(d2, s2, N);</pre></td>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2021-04-27 13:22:27 -0300
+Last updated 2021-04-28 11:00:45 -0300
 </div>
 </div>
 <style>

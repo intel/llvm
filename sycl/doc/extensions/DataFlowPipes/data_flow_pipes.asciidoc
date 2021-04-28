@@ -424,7 +424,7 @@ Pipes in the context of this extension step outside the OpenCL and SYCL memory m
 
 . There is no implicit synchronizes-with relationship between different pipes and/or with non-pipe memory in a named address space (e.g. global, local, private).  Specifically, there is no implicit global or local release of side effects through a pipe access, and observation of data or control information on one pipe does not imply any knowledge through happens-before relationship with a different pipe or with memory not associated with the pipe.
 
-. Pipe read and write operations behave as if they are C++ relaxed atomic load and store operations.  When paired with sycl::atomic_fences to establish a sychronizes-with relationship, pipe operations can provide guarantees on side effect visibility in memory, as defined by the C++ memory model.
+. Pipe read and write operations behave as if they are SYCL relaxed atomic load and store operations.  When paired with sycl::atomic_fences to establish a sychronizes-with relationship, pipe operations can provide guarantees on side effect visibility in memory, as defined by the SYCL memory model.
 
 . At a work-group barrier, there is an implicit acquire and release of side effects for any pipes operated on within the kernel, either before or after the barrier.  This occurs without an explicit memory fence being applied to or around the barrier.
 
