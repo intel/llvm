@@ -76,18 +76,18 @@ xpti/ @tovinkere @andykaylor
 xptifw/ @tovinkere  @andykaylor
 
 # DPC++ tools
-llvm/**/file-table-tform/ @mlychkov @AlexeySachkov
+llvm/**/file-table-tform/ @mlychkov @AlexeySachkov @kbobrovs
 llvm/**/llvm-foreach/ @AlexeySachkov  @Fznamznon
 llvm/**/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
-llvm/**/sycl-post-link/ @mlychkov @AlexeySachkov
-llvm/include/llvm/Support/PropertySetIO.h @mlychkov @AlexeySachkov
-llvm/lib/Support/PropertySetIO.cpp @mlychkov @AlexeySachkov
-llvm/unittests/Support/PropertySetIOTest.cpp @mlychkov @AlexeySachkov
-llvm/lib/Support/Base64.cpp @mlychkov @AlexeySachkov
+llvm/**/sycl-post-link/ @mlychkov @AlexeySachkov @kbobrovs
+llvm/include/llvm/Support/PropertySetIO.h @mlychkov @AlexeySachkov @kbobrovs
+llvm/lib/Support/PropertySetIO.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/unittests/Support/PropertySetIOTest.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/lib/Support/Base64.cpp @mlychkov @AlexeySachkov @kbobrovs
 
 # Clang offload tools
 clang/tools/clang-offload-bundler/ @mlychkov @sndmitriev @AlexeySachkov
-clang/tools/clang-offload-wrapper/ @mlychkov @sndmitriev @AlexeySachkov
+clang/tools/clang-offload-wrapper/ @mlychkov @sndmitriev @AlexeySachkov @kbobrovs
 clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
