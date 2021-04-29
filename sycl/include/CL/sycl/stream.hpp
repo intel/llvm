@@ -71,7 +71,7 @@ using GlobalBufAccessorT = accessor<char, 1, cl::sycl::access::mode::read_write,
 constexpr static access::address_space GlobalBufAS =
     TargetToAS<cl::sycl::access::target::global_buffer>::AS;
 using GlobalBufPtrType =
-    typename detail::PtrValueType<char, GlobalBufAS>::type *;
+    typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
 using GlobalOffsetAccessorT =
@@ -82,7 +82,7 @@ using GlobalOffsetAccessorT =
 constexpr static access::address_space GlobalOffsetAS =
     TargetToAS<cl::sycl::access::target::global_buffer>::AS;
 using GlobalOffsetPtrType =
-    typename detail::PtrValueType<unsigned, GlobalOffsetAS>::type *;
+    typename detail::DecoratedType<unsigned, GlobalBufAS>::type *;
 constexpr static int GlobalOffsetDim = 1;
 
 // Read first 2 bytes of flush buffer to get buffer offset.
@@ -630,12 +630,12 @@ inline void writeHItem(GlobalBufAccessorT &GlobalFlushBuf,
   unsigned Len = 0;
   Len += append(Buf, "h_item(");
   for (int I = 0; I < 3; ++I) {
-    Len += append(Buf + Len, I == 0 ? "\n  global "
-                                    : I == 1 ? "\n  logical local "
-                                             : "\n  physical local ");
-    Len += ItemToStr(Buf + Len, I == 0 ? HItem.get_global()
-                                       : I == 1 ? HItem.get_logical_local()
-                                                : HItem.get_physical_local());
+    Len += append(Buf + Len, I == 0   ? "\n  global "
+                             : I == 1 ? "\n  logical local "
+                                      : "\n  physical local ");
+    Len += ItemToStr(Buf + Len, I == 0   ? HItem.get_global()
+                                : I == 1 ? HItem.get_logical_local()
+                                         : HItem.get_physical_local());
   }
   Len += append(Buf + Len, "\n)");
   write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
@@ -1157,4 +1157,3 @@ template <> struct hash<cl::sycl::stream> {
   }
 };
 } // namespace std
-
