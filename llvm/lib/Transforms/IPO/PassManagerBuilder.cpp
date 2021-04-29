@@ -427,11 +427,12 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (OptLevel > 1)
     MPM.add(createTailCallEliminationPass()); // Eliminate tail calls
   MPM.add(createCFGSimplificationPass());      // Merge & remove BBs
-  MPM.add(createReassociatePass());           // Reassociate expressions
 
   // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
   // optimizations rely on TTI, which is not accurate for SPIR target.
   if (!SYCLOptimizationMode) {
+    MPM.add(createReassociatePass()); // Reassociate expressions
+
     // Begin the loop pass pipeline.
     if (EnableSimpleLoopUnswitch) {
       // The simple loop unswitch pass relies on separate cleanup passes.
