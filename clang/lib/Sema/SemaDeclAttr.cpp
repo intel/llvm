@@ -5137,12 +5137,9 @@ Sema::MergeSYCLIntelESimdVectorizeAttr(Decl *D,
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
-          // Drop the attribute from the current declaration
-          D->dropAttr<SYCLIntelESimdVectorizeAttr>();
-        } else {
-          // Do not add a duplicate attribute.
-          return nullptr;
         }
+        // Do not add a duplicate attribute.
+        return nullptr;
       }
     }
   }
