@@ -627,7 +627,7 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
       SYCLMaxInterleavingEnable(false), SYCLMaxInterleavingNInvocations(0),
       SYCLSpeculatedIterationsEnable(false),
-      SYCLIntelFPGAVariantCount(false), SYCLSpeculatedIterationsNIterations(0),
+      SYCLSpeculatedIterationsNIterations(0), SYCLIntelFPGAVariantCount(false),
       UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
       PipelineInitiationInterval(0), SYCLNofusionEnable(false),
