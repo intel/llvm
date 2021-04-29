@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -std=c++17 -verify %s
 
 template<class T, T v>
 struct integral_constant {
@@ -143,6 +143,15 @@ void instantiate() {
   templates4<B>();
 }
 
+template <typename Func>
+void invoker(Func F) {
+  static_assert(__builtin_num_fields(Func) == 2, "expected one field");
+  static_assert(is_same<decltype(__builtin_field_type(Func, 0)), int>::value, "expected an int");
+  static_assert(is_same<decltype(__builtin_field_type(Func, 1)), double>::value, "expected a double");
+  F(1.0);
+  F(2);
+}
+
 void lambdas() {
   auto l1 = [](){};
   static_assert(__builtin_num_fields(decltype(l1)) == 0, "expected no fields");
@@ -163,6 +172,22 @@ void lambdas() {
   auto l5 = [=]() { (void)i; };
   static_assert(__builtin_num_fields(decltype(l5)) == 1, "expected one field");
   static_assert(is_same<decltype(__builtin_field_type(decltype(l5), 0)), int>::value, "expected an int");
+
+  // Test that invoking a generic lambda works with the correct number of
+  // captures.
+  double j;
+  invoker([=](auto X) { return i + j + X; });
+
+  // Test it still works even if there's odd stuff happening like using an
+  // if constexpr. Note: the order of the implicit captures is important to
+  // the static_assert in invoker(). Captures are converted into fields in the
+  // order they are implicitly captured.
+  invoker([=](auto X) {
+    if constexpr (is_same<decltype(X), int>::value) {
+      return (double)(X + i);
+    }
+    return (double)(X + j);
+  });
 }
 
 struct Z {
