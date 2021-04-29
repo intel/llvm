@@ -21,7 +21,7 @@ int main() {
   sycl::kernel_id KernelID = sycl::get_kernel_id<TestKernel>();
 
   sycl::kernel_bundle KernelBundle =
-        sycl::get_kernel_bundle<sycl::bundle_state::executable>(Q.get_context());
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Q.get_context());
 
   sycl::kernel Kernel = KernelBundle.get_kernel(KernelID);
 
@@ -33,4 +33,3 @@ int main() {
 
   return 0;
 }
-
