@@ -4907,14 +4907,13 @@ class SYCLBuiltinNumFieldsExpr : public Expr {
   friend class ASTStmtReader;
 
   SourceLocation Loc;
-  int64_t NumFields;
   QualType SourceTy;
 
 public:
-  SYCLBuiltinNumFieldsExpr(SourceLocation Loc, int64_t NumFields,
-                           QualType SourceTy, QualType RetTy)
+  SYCLBuiltinNumFieldsExpr(SourceLocation Loc, QualType SourceTy,
+                           QualType RetTy)
       : Expr(SYCLBuiltinNumFieldsExprClass, RetTy, VK_RValue, OK_Ordinary),
-        Loc(Loc), NumFields(NumFields), SourceTy(SourceTy) {
+        Loc(Loc), SourceTy(SourceTy) {
     setDependence(computeDependence(this));
   }
 
@@ -4922,9 +4921,13 @@ public:
       : Expr(SYCLBuiltinNumFieldsExprClass, Empty) {}
 
   QualType getSourceType() const { return SourceTy; }
-  int64_t getNumFields() const {
-    assert(!isTypeDependent());
-    return NumFields;
+  unsigned getNumFields() const {
+    assert(!isTypeDependent() && !SourceTy->isDependentType());
+    assert(SourceTy->isRecordType());
+    const auto *RD = SourceTy->getAsRecordDecl();
+    assert(RD);
+    return static_cast<unsigned>(
+        std::distance(RD->field_begin(), RD->field_end()));
   }
 
   SourceLocation getBeginLoc() const { return getLocation(); }

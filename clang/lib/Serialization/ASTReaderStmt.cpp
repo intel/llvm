@@ -1791,7 +1791,6 @@ void ASTStmtReader::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
 void ASTStmtReader::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
   E->setLocation(readSourceLocation());
   E->SourceTy = Record.readType();
-  E->NumFields = static_cast<int64_t>(Record.readInt());
 }
 
 void ASTStmtReader::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {

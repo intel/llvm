@@ -169,7 +169,6 @@ ExprResult Sema::ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT) {
 
 ExprResult Sema::BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
                                                QualType SourceTy) {
-  int64_t NumFields = 0;
   if (!SourceTy->isDependentType()) {
     if (RequireCompleteType(Loc, SourceTy,
                             diag::err_sycl_type_trait_requires_complete_type,
@@ -181,14 +180,9 @@ ExprResult Sema::BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
           << /*__builtin_num_fields*/ 0;
       return ExprError();
     }
-
-    RecordDecl *RD = SourceTy->getAsRecordDecl();
-    assert(RD && "Record type but no record decl?");
-
-    NumFields = std::distance(RD->field_begin(), RD->field_end());
   }
   return new (Context)
-      SYCLBuiltinNumFieldsExpr(Loc, NumFields, SourceTy, Context.getSizeType());
+      SYCLBuiltinNumFieldsExpr(Loc, SourceTy, Context.getSizeType());
 }
 
 ExprResult Sema::ActOnSYCLBuiltinFieldTypeExpr(ParsedType PT, Expr *Idx) {

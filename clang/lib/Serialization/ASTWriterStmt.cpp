@@ -1689,7 +1689,6 @@ void ASTStmtWriter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
 void ASTStmtWriter::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
   Record.AddSourceLocation(E->getLocation());
   Record.AddTypeRef(E->getSourceType());
-  Record.writeUInt64(static_cast<uint64_t>(E->getNumFields()));
   Code = serialization::EXPR_SYCL_BUILTIN_NUM_FIELDS;
 }
 
