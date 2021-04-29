@@ -3492,12 +3492,12 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   _pi_program::ModuleIterator ModIt(Program);
   while (!ModIt.Done()) {
     uint32_t KernelNum = 0;
-    ZeResult =
-        ZE_CALL_NOCHECK(zeModuleGetKernelNames, (*ModIt, &KernelNum, nullptr));
-    if (ZeResult != ZE_RESULT_SUCCESS)
-      break;
+    ZE_CALL(zeModuleGetKernelNames, (*ModIt, &KernelNum, nullptr));
     if (KernelNum != 0) {
-      ZE_CALL(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
+      ZeResult =
+          ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
+      if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
+        break;
     }
     ModIt++;
   }
