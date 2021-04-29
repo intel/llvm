@@ -36,6 +36,12 @@ class context;
 
 class interop_handle {
 public:
+  interop_handle() = delete;
+
+  /// Returns a backend associated with the queue associated with this
+  /// interop_handle.
+  __SYCL_EXPORT backend get_backend() const noexcept;
+
   /// Receives a SYCL accessor that has been defined as a requirement for the
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part
@@ -131,7 +137,6 @@ private:
   friend class detail::DispatchHostTask;
   using ReqToMem = std::pair<detail::Requirement *, pi_mem>;
 
-  // TODO set c-tor private
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
                  const std::shared_ptr<detail::device_impl> &Device,
@@ -139,7 +144,6 @@ private:
       : MQueue(Queue), MDevice(Device), MContext(Context),
         MMemObjs(std::move(MemObjs)) {}
 
-private:
   template <backend BackendName, typename DataT, int Dims, access::mode Mode,
             access::target Target, access::placeholder IsPlh>
   auto getMemImpl(detail::Requirement *Req) const ->
