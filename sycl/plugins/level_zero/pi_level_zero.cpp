@@ -3945,6 +3945,19 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
   case PI_EVENT_INFO_COMMAND_TYPE:
     return ReturnValue(pi_cast<pi_uint64>(Event->CommandType));
   case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
+    // Check to see if the event's Queue has an open command list due to
+    // batching. If so, go ahead and close and submit it, because it is
+    // possible that this is trying to query some event's status that
+    // is part of the batch.  This isn't strictly required, but it seems
+    // like a reasonable thing to do.
+    {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
+
+      if (auto Res = Event->Queue->executeOpenCommandList())
+        return Res;
+    }
+
     ze_result_t ZeResult;
     ZeResult = ZE_CALL_NOCHECK(zeEventQueryStatus, (Event->ZeEvent));
     if (ZeResult == ZE_RESULT_SUCCESS) {

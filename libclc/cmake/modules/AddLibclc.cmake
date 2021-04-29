@@ -91,7 +91,7 @@ macro(add_libclc_builtin_set arch_suffix)
     COMMAND prepare_builtins -o
     "${builtins_obj_path}"
     "$<TARGET_PROPERTY:opt.${obj_suffix},TARGET_FILE>"
-    DEPENDS ${builtins_opt_path}
+    DEPENDS "opt.${obj_suffix}"
             prepare_builtins )
   add_custom_target( "prepare-${obj_suffix}" ALL
     DEPENDS "${builtins_obj_path}" )

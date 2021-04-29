@@ -1768,6 +1768,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        KernelDecl, FD->getName().data(), FieldTy.getAsString(),
+        FD->getLocation());
     addParam(newParamDesc, FieldTy);
   }
 
@@ -1778,6 +1781,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     StringRef Name = "_arg__base";
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        KernelDecl, "", FieldTy.getAsString(), BS.getBaseTypeLoc());
     addParam(newParamDesc, FieldTy);
   }
   // Add a parameter with specified name and type
