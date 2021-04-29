@@ -37,6 +37,7 @@ struct H : B {
 struct I {};
 struct J { int &derp; const int &herp; int &&berp; };
 struct K { int a[10]; int b[]; };
+struct L { int a; int b : 1; int : 0; int c; };
 
 void easy() {
   static_assert(__builtin_num_fields(A) == 1, "expected one field");
@@ -73,6 +74,15 @@ void odd() {
   // fields.
   static_assert(__builtin_num_fields(C) == 1, "expected one field");
   static_assert(__builtin_num_fields(D) == 1, "expected one field");
+
+  // struct L has four fields despite containing an anonymous bit-field which
+  // is only sort of a field. All four fields are of type int despite some of
+  // the fields being bit-fields.
+  static_assert(__builtin_num_fields(L) == 4, "expected four fields");
+  static_assert(is_same<decltype(__builtin_field_type(L, 0)), int>::value, "expected an int");
+  static_assert(is_same<decltype(__builtin_field_type(L, 1)), int>::value, "expected an int");
+  static_assert(is_same<decltype(__builtin_field_type(L, 2)), int>::value, "expected an int");
+  static_assert(is_same<decltype(__builtin_field_type(L, 3)), int>::value, "expected an int");
 }
 
 template <typename Ty>
