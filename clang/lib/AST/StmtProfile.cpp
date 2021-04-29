@@ -1825,6 +1825,17 @@ void StmtProfiler::VisitSYCLBuiltinFieldTypeExpr(
   VisitExpr(E->getIndex());
 }
 
+void StmtProfiler::VisitSYCLBuiltinNumBasesExpr(
+    const SYCLBuiltinNumBasesExpr *E) {
+  VisitType(E->getSourceType());
+}
+
+void StmtProfiler::VisitSYCLBuiltinBaseTypeExpr(
+    const SYCLBuiltinBaseTypeExpr *E) {
+  VisitType(E->getSourceType());
+  VisitExpr(E->getIndex());
+}
+
 void StmtProfiler::VisitCXXAddrspaceCastExpr(const CXXAddrspaceCastExpr *S) {
   VisitCXXNamedCastExpr(S);
 }

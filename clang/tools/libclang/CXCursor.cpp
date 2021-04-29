@@ -338,6 +338,8 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::RecoveryExprClass:
   case Stmt::SYCLBuiltinNumFieldsExprClass:
   case Stmt::SYCLBuiltinFieldTypeExprClass:
+  case Stmt::SYCLBuiltinNumBasesExprClass:
+  case Stmt::SYCLBuiltinBaseTypeExprClass:
     K = CXCursor_UnexposedExpr;
     break;
 

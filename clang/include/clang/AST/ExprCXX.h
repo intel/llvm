@@ -4953,8 +4953,8 @@ public:
 /// the type itself (it would need to be a new type in the type system rather
 /// than an expression to do that), but instead is a valueless expression of
 /// the field's type. The expected usage is to use decltype to extract the
-/// actual type information. This is a hack. If we need to upstream this
-/// functionality, it should be done as a type in the type system instead.
+/// actual type information. This expression can only be used in an unevaluated
+/// context.
 class SYCLBuiltinFieldTypeExpr : public Expr {
   friend class ASTStmtReader;
 
@@ -4991,6 +4991,93 @@ public:
   child_range children() {
     return child_range(&Index, &Index + 1);
   }
+
+  const_child_range children() const {
+    return const_child_range(&Index, &Index + 1);
+  }
+};
+
+/// Represents a __builtin_num_bases expression.
+class SYCLBuiltinNumBasesExpr : public Expr {
+  friend class ASTStmtReader;
+
+  SourceLocation Loc;
+  QualType SourceTy;
+
+public:
+  SYCLBuiltinNumBasesExpr(SourceLocation Loc, QualType SourceTy, QualType RetTy)
+      : Expr(SYCLBuiltinNumBasesExprClass, RetTy, VK_RValue, OK_Ordinary),
+        Loc(Loc), SourceTy(SourceTy) {
+    setDependence(computeDependence(this));
+  }
+
+  explicit SYCLBuiltinNumBasesExpr(EmptyShell Empty)
+      : Expr(SYCLBuiltinNumBasesExprClass, Empty) {}
+
+  QualType getSourceType() const { return SourceTy; }
+  unsigned getNumBases() const {
+    assert(!isTypeDependent() && !SourceTy->isDependentType());
+    assert(SourceTy->isRecordType());
+    const auto *RD = SourceTy->getAsCXXRecordDecl();
+    assert(RD);
+    return RD->getNumBases();
+  }
+
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return getLocation(); }
+
+  SourceLocation getLocation() const { return Loc; }
+  void setLocation(SourceLocation L) { Loc = L; }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == SYCLBuiltinNumBasesExprClass;
+  }
+};
+
+/// Represents a __builtin_base_type expression. This has the same behavior and
+/// constraints as __builtin_field_type.
+class SYCLBuiltinBaseTypeExpr : public Expr {
+  friend class ASTStmtReader;
+
+  SourceLocation Loc;
+  QualType SourceTy, BaseTy;
+  Stmt *Index;
+
+public:
+  SYCLBuiltinBaseTypeExpr(SourceLocation Loc, QualType SourceTy, Expr *Index,
+                          QualType BaseTy)
+      : Expr(SYCLBuiltinBaseTypeExprClass, BaseTy, VK_RValue, OK_Ordinary),
+        Loc(Loc), SourceTy(SourceTy), BaseTy(BaseTy), Index(Index) {
+    setDependence(computeDependence(this));
+  }
+
+  explicit SYCLBuiltinBaseTypeExpr(EmptyShell Empty)
+      : Expr(SYCLBuiltinBaseTypeExprClass, Empty) {}
+
+  QualType getSourceType() const { return SourceTy; }
+  QualType getBaseType() const { return BaseTy; }
+  const Expr *getIndex() const { return static_cast<const Expr *>(Index); }
+  Expr *getIndex() { return static_cast<Expr *>(Index); }
+
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return getLocation(); }
+
+  SourceLocation getLocation() const { return Loc; }
+  void setLocation(SourceLocation L) { Loc = L; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == SYCLBuiltinBaseTypeExprClass;
+  }
+
+  child_range children() { return child_range(&Index, &Index + 1); }
 
   const_child_range children() const {
     return const_child_range(&Index, &Index + 1);

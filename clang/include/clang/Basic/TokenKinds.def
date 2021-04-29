@@ -509,6 +509,8 @@ KEYWORD(__underlying_type           , KEYCXX)
 // SYCL Type Traits
 KEYWORD(__builtin_num_fields, KEYSYCL)
 KEYWORD(__builtin_field_type, KEYSYCL)
+KEYWORD(__builtin_num_bases, KEYSYCL)
+KEYWORD(__builtin_base_type, KEYSYCL)
 
 // Clang-only C++ Type Traits
 TYPE_TRAIT_2(__reference_binds_to_temporary, ReferenceBindsToTemporary, KEYCXX)

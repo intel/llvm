@@ -1700,6 +1700,20 @@ void ASTStmtWriter::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
   Code = serialization::EXPR_SYCL_BUILTIN_FIELD_TYPE;
 }
 
+void ASTStmtWriter::VisitSYCLBuiltinNumBasesExpr(SYCLBuiltinNumBasesExpr *E) {
+  Record.AddSourceLocation(E->getLocation());
+  Record.AddTypeRef(E->getSourceType());
+  Code = serialization::EXPR_SYCL_BUILTIN_NUM_BASES;
+}
+
+void ASTStmtWriter::VisitSYCLBuiltinBaseTypeExpr(SYCLBuiltinBaseTypeExpr *E) {
+  Record.AddSourceLocation(E->getLocation());
+  Record.AddTypeRef(E->getSourceType());
+  Record.AddTypeRef(E->getBaseType());
+  Record.AddStmt(E->getIndex());
+  Code = serialization::EXPR_SYCL_BUILTIN_BASE_TYPE;
+}
+
 void ASTStmtWriter::VisitUserDefinedLiteral(UserDefinedLiteral *E) {
   VisitCallExpr(E);
   Record.AddSourceLocation(E->UDSuffixLoc);

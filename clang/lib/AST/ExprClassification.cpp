@@ -199,6 +199,8 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::RequiresExprClass:
   case Expr::SYCLBuiltinNumFieldsExprClass:
   case Expr::SYCLBuiltinFieldTypeExprClass:
+  case Expr::SYCLBuiltinNumBasesExprClass:
+  case Expr::SYCLBuiltinBaseTypeExprClass:
     return Cl::CL_PRValue;
 
   case Expr::ConstantExprClass:

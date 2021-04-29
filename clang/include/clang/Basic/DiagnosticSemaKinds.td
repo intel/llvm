@@ -11268,15 +11268,17 @@ def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
 def err_sycl_type_trait_requires_complete_type : Error<
-  "'%select{__builtin_num_fields|__builtin_field_type}0' requires a complete "
-  "type">;
+  "'%select{__builtin_num_fields|__builtin_field_type|__builtin_num_bases|"
+  "__builtin_base_type}0' requires a complete type">;
 def err_sycl_type_trait_requires_record_type : Error<
-  "'%select{__builtin_num_fields|__builtin_field_type}0' requires a structure "
+  "'%select{__builtin_num_fields|__builtin_field_type|__builtin_num_bases|"
+  "__builtin_base_type}0' requires a structure "
   "or lambda type">;
 def err_sycl_builtin_field_index_out_of_range : Error<
-  "index %0 is greater than the number of fields in type %1">;
+  "index %0 is greater than the number of %select{fields|bases}2 in type %1">;
 def err_sycl_builtin_field_type_evaluated : Error<
-  "'__builtin_field_type' cannot be used in an evaluated context">;
+  "'%select{__builtin_field_type|__builtin_base_type}0' cannot be used in an "
+  "evaluated context">;
 def err_sycl_non_trivially_copy_ctor_dtor_type
     : Error<"kernel parameter has non-trivially %select{copy "
             "constructible|destructible}0 class/struct type %1">;

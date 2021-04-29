@@ -38,6 +38,10 @@ struct I {};
 struct J { int &derp; const int &herp; int &&berp; };
 struct K { int a[10]; int b[]; };
 struct L { int a; int b : 1; int : 0; int c; };
+struct M : virtual A {};
+
+template <typename Ty>
+struct N : A, D, Ty {};
 
 void easy() {
   static_assert(__builtin_num_fields(A) == 1, "expected one field");
@@ -46,6 +50,10 @@ void easy() {
   static_assert(__builtin_num_fields(H) == 2, "expected two fields");
   static_assert(__builtin_num_fields(I) == 0, "expected no fields");
   static_assert(__builtin_num_fields(J) == 3, "expected three fields");
+
+  static_assert(__builtin_num_bases(A) == 0, "expected no bases");
+  static_assert(__builtin_num_bases(H) == 1, "expected one base");
+  static_assert(is_same<decltype(__builtin_base_type(H, 0)), B>::value, "expected a B");
 
   static_assert(is_same<decltype(__builtin_field_type(A, 0)), int>::value, "expected an int");
 
@@ -89,6 +97,10 @@ void odd() {
   static_assert(is_same<decltype(__builtin_field_type(L, 1)), int>::value, "expected an int");
   static_assert(is_same<decltype(__builtin_field_type(L, 2)), int>::value, "expected an int");
   static_assert(is_same<decltype(__builtin_field_type(L, 3)), int>::value, "expected an int");
+
+  // Virtual bases are still bases.
+  static_assert(__builtin_num_bases(M) == 1, "expected no bases");
+  static_assert(is_same<decltype(__builtin_base_type(M, 0)), A>::value, "expected an A");
 }
 
 template <typename Ty>
@@ -109,6 +121,14 @@ void templates3() {
   static_assert(is_same<decltype(__builtin_field_type(F<FieldTy>, 1)), int>::value, "expected an int");
 }
 
+template <typename Ty>
+void templates4() {
+  static_assert(__builtin_num_bases(N<Ty>) == 3, "expected three bases");
+  static_assert(is_same<decltype(__builtin_base_type(N<Ty>, 0)), A>::value, "expected an A");
+  static_assert(is_same<decltype(__builtin_base_type(N<Ty>, 1)), D>::value, "expected a D");
+  static_assert(is_same<decltype(__builtin_base_type(N<Ty>, 2)), Ty>::value, "expected a Ty");
+}
+
 void instantiate() {
   templates1<int>();
   templates1<struct S>(); // expected-note {{in instantiation of function template specialization 'templates1<S>' requested here}} \
@@ -119,11 +139,14 @@ void instantiate() {
   templates3<int>();
   templates3<float>();
   templates3<A>();
+
+  templates4<B>();
 }
 
 void lambdas() {
   auto l1 = [](){};
   static_assert(__builtin_num_fields(decltype(l1)) == 0, "expected no fields");
+  static_assert(__builtin_num_bases(decltype(l1)) == 0, "expected no bases");
 
   int i;
   auto l2 = [i](){};
@@ -148,6 +171,7 @@ struct Z {
     int z;
     auto l1 = [this](){(void)(x + y); };
     static_assert(__builtin_num_fields(decltype(l1)) == 1, "expected one field");
+    static_assert(__builtin_num_bases(decltype(l1)) == 0, "expected no bases");
     static_assert(is_same<decltype(__builtin_field_type(decltype(l1), 0)), Z*>::value, "expected a Z*");
     auto l2 = [&](){(void)(x + y); };
     static_assert(__builtin_num_fields(decltype(l2)) == 1, "expected one field");
@@ -162,15 +186,20 @@ struct Z {
 void errors() {
   __builtin_num_fields(struct S); // expected-error {{'__builtin_num_fields' requires a complete type}} \
                                      expected-note {{forward declaration of 'S'}}
+  __builtin_num_bases(struct T); // expected-error {{'__builtin_num_bases' requires a complete type}} \
+                                    expected-note {{forward declaration of 'T'}}
+
   __builtin_num_fields(easy); // expected-error {{unknown type name 'easy'}}
   __builtin_num_fields(decltype(easy)); // expected-error {{'__builtin_num_fields' requires a structure or lambda type}}
 
   // You can't use __builtin_field_type in an evaluated context because it
   // doesn't return a value that's usable (it's like std::declval).
   int i = __builtin_field_type(A, 0); // expected-error {{'__builtin_field_type' cannot be used in an evaluated context}}
+  int j = __builtin_base_type(A, 0); // expected-error {{'__builtin_base_type' cannot be used in an evaluated context}}
 
   // Using sizeof() to put the expression into an unevaluated context so that
   // the error reporting is focused on the real problem.
   sizeof(__builtin_field_type(A, 1)); // expected-error {{index 1 is greater than the number of fields in type 'A'}}
   sizeof(__builtin_field_type(I, 0)); // expected-error {{index 0 is greater than the number of fields in type 'I'}}
+  sizeof(__builtin_base_type(A, 0)); // expected-error {{index 0 is greater than the number of bases in type 'A'}}
 }

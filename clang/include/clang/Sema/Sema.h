@@ -13221,12 +13221,21 @@ public:
                                            QualType SourceTy);
 
   /// Get a value based on the type of the given field number so that callers
-  /// can wrap it in a decltype() to get the actual type of the field. This is
-  /// a hack to avoid creating a new kind of type in the typesystem (like
-  /// decltype or typeof cause).
+  /// can wrap it in a decltype() to get the actual type of the field.
   ExprResult ActOnSYCLBuiltinFieldTypeExpr(ParsedType PT, Expr *Idx);
   ExprResult BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
                                            QualType SourceTy, Expr *Idx);
+
+  /// Get the number of base classes within the parsed type.
+  ExprResult ActOnSYCLBuiltinNumBasesExpr(ParsedType PT);
+  ExprResult BuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
+                                          QualType SourceTy);
+
+  /// Get a value based on the type of the given base number so that callers
+  /// can wrap it in a decltype() to get the actual type of the base class.
+  ExprResult ActOnSYCLBuiltinBaseTypeExpr(ParsedType PT, Expr *Idx);
+  ExprResult BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc, QualType SourceTy,
+                                          Expr *Idx);
 
   /// Emit a diagnostic about the given attribute having a deprecated name, and
   /// also emit a fixit hint to generate the new attribute name.

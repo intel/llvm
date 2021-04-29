@@ -196,6 +196,8 @@ def CUDAKernelCallExpr : StmtNode<CallExpr>;
 // SYCL Extensions.
 def SYCLBuiltinNumFieldsExpr : StmtNode<Expr>;
 def SYCLBuiltinFieldTypeExpr : StmtNode<Expr>;
+def SYCLBuiltinNumBasesExpr : StmtNode<Expr>;
+def SYCLBuiltinBaseTypeExpr : StmtNode<Expr>;
 
 // Clang Extensions.
 def ShuffleVectorExpr : StmtNode<Expr>;

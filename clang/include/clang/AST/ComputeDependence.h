@@ -102,7 +102,9 @@ class ObjCIsaExpr;
 class ObjCIndirectCopyRestoreExpr;
 class ObjCMessageExpr;
 class SYCLBuiltinNumFieldsExpr;
+class SYCLBuiltinNumBasesExpr;
 class SYCLBuiltinFieldTypeExpr;
+class SYCLBuiltinBaseTypeExpr;
 
 // The following functions are called from constructors of `Expr`, so they
 // should not access anything beyond basic
@@ -195,7 +197,9 @@ ExprDependence computeDependence(ObjCIndirectCopyRestoreExpr *E);
 ExprDependence computeDependence(ObjCMessageExpr *E);
 
 ExprDependence computeDependence(SYCLBuiltinNumFieldsExpr *E);
+ExprDependence computeDependence(SYCLBuiltinNumBasesExpr *E);
 ExprDependence computeDependence(SYCLBuiltinFieldTypeExpr *E);
+ExprDependence computeDependence(SYCLBuiltinBaseTypeExpr *E);
 
 } // namespace clang
 #endif

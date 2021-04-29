@@ -1800,6 +1800,18 @@ void ASTStmtReader::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
   E->Index = Record.readExpr();
 }
 
+void ASTStmtReader::VisitSYCLBuiltinNumBasesExpr(SYCLBuiltinNumBasesExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+}
+
+void ASTStmtReader::VisitSYCLBuiltinBaseTypeExpr(SYCLBuiltinBaseTypeExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+  E->BaseTy = Record.readType();
+  E->Index = Record.readExpr();
+}
+
 void ASTStmtReader::VisitUserDefinedLiteral(UserDefinedLiteral *E) {
   VisitCallExpr(E);
   E->UDSuffixLoc = readSourceLocation();
@@ -3621,6 +3633,14 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_SYCL_BUILTIN_FIELD_TYPE:
       S = new (Context) SYCLBuiltinFieldTypeExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_NUM_BASES:
+      S = new (Context) SYCLBuiltinNumBasesExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_BASE_TYPE:
+      S = new (Context) SYCLBuiltinBaseTypeExpr(Empty);
       break;
 
     case EXPR_USER_DEFINED_LITERAL:

@@ -10741,6 +10741,9 @@ public:
   bool VisitSYCLBuiltinNumFieldsExpr(const SYCLBuiltinNumFieldsExpr *E) {
     return Success(E->getNumFields(), E);
   }
+  bool VisitSYCLBuiltinNumBasesExpr(const SYCLBuiltinNumBasesExpr* E) {
+    return Success(E->getNumBases(), E);
+  }
 };
 
 class FixedPointExprEvaluator
@@ -15164,6 +15167,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::DependentCoawaitExprClass:
   case Expr::CoyieldExprClass:
   case Expr::SYCLBuiltinFieldTypeExprClass:
+  case Expr::SYCLBuiltinBaseTypeExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
   case Expr::InitListExprClass: {
@@ -15206,6 +15210,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ExpressionTraitExprClass:
   case Expr::CXXNoexceptExprClass:
   case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinNumBasesExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {

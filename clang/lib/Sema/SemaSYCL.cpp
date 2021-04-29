@@ -199,7 +199,8 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
   // If the expression appears in an evaluated context, we want to give an
   // error so that users don't attempt to use the value of this expression.
   if (!isUnevaluatedContext()) {
-    Diag(Loc, diag::err_sycl_builtin_field_type_evaluated);
+    Diag(Loc, diag::err_sycl_builtin_field_type_evaluated)
+        << /*__builtin_field_type*/ 0;
     return ExprError();
   }
 
@@ -212,12 +213,12 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
   if (!SourceTy->isDependentType()) {
     if (RequireCompleteType(Loc, SourceTy,
                             diag::err_sycl_type_trait_requires_complete_type,
-                            /*__builtin_num_fields*/ 0))
+                            /*__builtin_field_type*/ 1))
       return ExprError();
 
     if (!SourceTy->isRecordType()) {
       Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
-          << /*__builtin_num_fields*/ 0;
+          << /*__builtin_field_type*/ 1;
       return ExprError();
     }
 
@@ -233,7 +234,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
         if (Index >= NumFields) {
           Diag(Idx->getExprLoc(),
                diag::err_sycl_builtin_field_index_out_of_range)
-              << IdxVal->toString(10) << SourceTy;
+              << IdxVal->toString(10) << SourceTy << /*fields*/ 0;
           return ExprError();
         }
         const FieldDecl *FD = *std::next(RD->field_begin(), Index);
@@ -252,6 +253,92 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
   }
   return new (Context)
       SYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx, FieldTy, ValueKind);
+}
+
+ExprResult Sema::ActOnSYCLBuiltinNumBasesExpr(ParsedType PT) {
+  TypeSourceInfo *TInfo = nullptr;
+  QualType QT = GetTypeFromParser(PT, &TInfo);
+  assert(TInfo && "couldn't get type info from a type from the parser?");
+  SourceLocation TypeLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  return BuildSYCLBuiltinNumBasesExpr(TypeLoc, QT);
+}
+
+ExprResult Sema::BuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
+                                              QualType SourceTy) {
+  if (!SourceTy->isDependentType()) {
+    if (RequireCompleteType(Loc, SourceTy,
+                            diag::err_sycl_type_trait_requires_complete_type,
+                            /*__builtin_num_bases*/ 2))
+      return ExprError();
+
+    if (!SourceTy->isRecordType()) {
+      Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
+          << /*__builtin_num_bases*/ 2;
+      return ExprError();
+    }
+  }
+  return new (Context)
+      SYCLBuiltinNumBasesExpr(Loc, SourceTy, Context.getSizeType());
+}
+
+ExprResult Sema::ActOnSYCLBuiltinBaseTypeExpr(ParsedType PT, Expr *Idx) {
+  TypeSourceInfo *TInfo = nullptr;
+  QualType QT = GetTypeFromParser(PT, &TInfo);
+  assert(TInfo && "couldn't get type info from a type from the parser?");
+  SourceLocation TypeLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  return BuildSYCLBuiltinBaseTypeExpr(TypeLoc, QT, Idx);
+}
+
+ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
+                                              QualType SourceTy, Expr *Idx) {
+  // If the expression appears in an evaluated context, we want to give an
+  // error so that users don't attempt to use the value of this expression.
+  if (!isUnevaluatedContext()) {
+    Diag(Loc, diag::err_sycl_builtin_field_type_evaluated)
+        << /*__builtin_base_type*/ 1;
+    return ExprError();
+  }
+
+  // We may not be able to calculate the base type (the source type may be a
+  // dependent type), so use the source type as a basic fallback. This will
+  // ensure that the AST node will have a dependent type that gets resolved
+  // later to the real type.
+  QualType BaseTy = SourceTy;
+  if (!SourceTy->isDependentType()) {
+    if (RequireCompleteType(Loc, SourceTy,
+                            diag::err_sycl_type_trait_requires_complete_type,
+                            /*__builtin_base_type*/ 3))
+      return ExprError();
+
+    if (!SourceTy->isRecordType()) {
+      Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
+          << /*__builtin_base_type*/ 3;
+      return ExprError();
+    }
+
+    if (!Idx->isValueDependent()) {
+      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      if (IdxVal) {
+        CXXRecordDecl *RD = SourceTy->getAsCXXRecordDecl();
+        assert(RD && "Record type but no record decl?");
+        int64_t Index = IdxVal->getExtValue();
+
+        // Ensure that the index is within range.
+        if (Index >= RD->getNumBases()) {
+          Diag(Idx->getExprLoc(),
+               diag::err_sycl_builtin_field_index_out_of_range)
+              << IdxVal->toString(10) << SourceTy << /*bases*/ 1;
+          return ExprError();
+        }
+
+        const CXXBaseSpecifier &Spec = *std::next(RD->bases_begin(), Index);
+        BaseTy = Spec.getType();
+      }
+    }
+  }
+  return new (Context) SYCLBuiltinBaseTypeExpr(Loc, SourceTy, Idx, BaseTy);
 }
 
 // This information is from Section 4.13 of the SYCL spec

@@ -1395,6 +1395,8 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::RequiresExprClass:
     case Stmt::SYCLBuiltinNumFieldsExprClass:
     case Stmt::SYCLBuiltinFieldTypeExprClass:
+    case Stmt::SYCLBuiltinNumBasesExprClass:
+    case Stmt::SYCLBuiltinBaseTypeExprClass:
       // Fall through.
 
     // Cases we intentionally don't evaluate, since they don't need
