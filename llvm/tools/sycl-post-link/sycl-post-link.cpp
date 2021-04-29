@@ -410,7 +410,7 @@ static string_vector saveDeviceImageProperty(
       PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
                   RMEntry);
     }
-    if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
+    if (ImgPSInfo.DoSpecConst) {
       if (ImgPSInfo.SpecConstsMet) {
         // extract spec constant maps per each module
         SpecIDMapTy TmpSpecIDMap;
