@@ -4988,9 +4988,7 @@ public:
     return T->getStmtClass() == SYCLBuiltinFieldTypeExprClass;
   }
 
-  child_range children() {
-    return child_range(&Index, &Index + 1);
-  }
+  child_range children() { return child_range(&Index, &Index + 1); }
 
   const_child_range children() const {
     return const_child_range(&Index, &Index + 1);

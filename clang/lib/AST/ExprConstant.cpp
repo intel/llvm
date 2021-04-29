@@ -10741,7 +10741,7 @@ public:
   bool VisitSYCLBuiltinNumFieldsExpr(const SYCLBuiltinNumFieldsExpr *E) {
     return Success(E->getNumFields(), E);
   }
-  bool VisitSYCLBuiltinNumBasesExpr(const SYCLBuiltinNumBasesExpr* E) {
+  bool VisitSYCLBuiltinNumBasesExpr(const SYCLBuiltinNumBasesExpr *E) {
     return Success(E->getNumBases(), E);
   }
 };
