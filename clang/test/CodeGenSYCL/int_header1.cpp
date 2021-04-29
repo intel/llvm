@@ -1,6 +1,12 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
+// Check if forward declarations of kernel names in anonymous namespace are in
+// anonymous namespace in the integration header as well.
+// CHECK:namespace  {
+// CHECK:class ClassInAnonNS;
+// CHECK:}
+
 // CHECK:template <> struct KernelInfo<class KernelName> {
 // CHECK:template <> struct KernelInfo<::nm1::nm2::KernelName0> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName1> {
@@ -117,6 +123,10 @@ struct MyWrapper {
     // kernel name type is a templated class, both the top-level class and the
     // template argument are declared in the anonymous namespace
     kernel_single_task<TmplClassInAnonNS<class ClassInAnonNS>>(
+        [=]() { acc.use(); });
+
+    // kernel name type is a class, declared in the anonymous namespace
+    kernel_single_task<ClassInAnonNS>(
         [=]() { acc.use(); });
 
     // Kernel name type is a templated specialization class with empty template pack argument
