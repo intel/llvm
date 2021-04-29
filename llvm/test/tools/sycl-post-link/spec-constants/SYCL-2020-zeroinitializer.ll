@@ -2,13 +2,6 @@
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants have zeroinitializer in LLVM IR
-;
-; CHECK: call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID0:]], i32 0)
-; CHECK: call double @_Z20__spirv_SpecConstantid(i32 [[#SCID1:]], double 0.000000e+00)
-; CHECK: call float @_Z20__spirv_SpecConstantif(i32 [[#SCID2:]], float 0.000000e+00)
-; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID3:]], i8 0)
-; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID4:]], i8 0)
-; CHECK: call i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID5:]], i64 0)
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown-sycldevice"
@@ -32,40 +25,24 @@ $"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel1" = comdat any
 @_ZL12composite_id = internal addrspace(1) constant %"class._ZTSN2cl4sycl17specialization_idI9compositeEE.cl::sycl::specialization_id" zeroinitializer, align 8
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel1"(i32 addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !4 {
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel1"() local_unnamed_addr #0 comdat {
 entry:
   %ref.tmp.i = alloca %struct._ZTS9composite.composite, align 8
-  %0 = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %_arg_3, i64 0, i32 0, i32 0, i64 0
-  %1 = addrspacecast i64* %0 to i64 addrspace(4)*
-  %2 = load i64, i64 addrspace(4)* %1, align 8
-  %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_, i64 %2
   %ref.tmp.ascast.i = addrspacecast %struct._ZTS9composite.composite* %ref.tmp.i to %struct._ZTS9composite.composite addrspace(4)*
   %call.i.i.i = tail call spir_func i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPKvS4_(i8 addrspace(4)* getelementptr inbounds ([70 x i8], [70 x i8] addrspace(4)* addrspacecast ([70 x i8] addrspace(1)* @__builtin_unique_stable_name._ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL6int_idEiLPv0EEET0_v to [70 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class._ZTSN2cl4sycl17specialization_idIiEE.cl::sycl::specialization_id" addrspace(1)* @_ZL6int_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* null) #3
-  %ptridx.ascast.i16.i = addrspacecast i32 addrspace(1)* %add.ptr.i to i32 addrspace(4)*
-  store i32 %call.i.i.i, i32 addrspace(4)* %ptridx.ascast.i16.i, align 4, !tbaa !5
+; CHECK: call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID0:]], i32 0)
+
   %call.i.i23.i = tail call spir_func double @_Z37__sycl_getScalar2020SpecConstantValueIdET_PKcPKvS4_(i8 addrspace(4)* getelementptr inbounds ([73 x i8], [73 x i8] addrspace(4)* addrspacecast ([73 x i8] addrspace(1)* @__builtin_unique_stable_name._ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL9double_idEdLPv0EEET0_v to [73 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class._ZTSN2cl4sycl17specialization_idIdEE.cl::sycl::specialization_id" addrspace(1)* @_ZL9double_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* null) #3
-  %conv.i = fptosi double %call.i.i23.i to i32
-  %3 = load i32, i32 addrspace(4)* %ptridx.ascast.i16.i, align 4, !tbaa !5
-  %add.i = add nsw i32 %3, %conv.i
-  store i32 %add.i, i32 addrspace(4)* %ptridx.ascast.i16.i, align 4, !tbaa !5
-  %4 = bitcast %struct._ZTS9composite.composite* %ref.tmp.i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* nonnull %4) #4
+; CHECK: call double @_Z20__spirv_SpecConstantid(i32 [[#SCID1:]], double 0.000000e+00)
+
   call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI9compositeET_PKcPKvS5_(%struct._ZTS9composite.composite addrspace(4)* sret(%struct._ZTS9composite.composite) align 8 %ref.tmp.ascast.i, i8 addrspace(4)* getelementptr inbounds ([77 x i8], [77 x i8] addrspace(4)* addrspacecast ([77 x i8] addrspace(1)* @__builtin_unique_stable_name._ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL12composite_idE9compositeLPv0EEET0_v to [77 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class._ZTSN2cl4sycl17specialization_idI9compositeEE.cl::sycl::specialization_id" addrspace(1)* @_ZL12composite_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* null) #3
-  %c.i = getelementptr inbounds %struct._ZTS9composite.composite, %struct._ZTS9composite.composite addrspace(4)* %ref.tmp.ascast.i, i64 0, i32 2
-  %5 = load i8, i8 addrspace(4)* %c.i, align 1, !tbaa !9
-  %conv6.i = sext i8 %5 to i32
-  %6 = load i32, i32 addrspace(4)* %ptridx.ascast.i16.i, align 4, !tbaa !5
-  %add9.i = add nsw i32 %6, %conv6.i
-  store i32 %add9.i, i32 addrspace(4)* %ptridx.ascast.i16.i, align 4, !tbaa !5
-  call void @llvm.lifetime.end.p0i8(i64 16, i8* nonnull %4) #4
+; CHECK: call float @_Z20__spirv_SpecConstantif(i32 [[#SCID2:]], float 0.000000e+00)
+; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID3:]], i8 0)
+; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID4:]], i8 0)
+; CHECK: call i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID5:]], i64 0)
+
   ret void
 }
-
-; Function Attrs: argmemonly nofree nosync nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
-
-; Function Attrs: argmemonly nofree nosync nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
 
 ; Function Attrs: convergent
 declare dso_local spir_func i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPKvS4_(i8 addrspace(4)*, i8 addrspace(4)*, i8 addrspace(4)*) local_unnamed_addr #2
