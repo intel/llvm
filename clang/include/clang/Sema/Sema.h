@@ -2122,6 +2122,9 @@ public:
   OpenCLUnrollHintAttr *
   BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
 
+  SYCLIntelFPGALoopCountAttr *
+  BuildSYCLIntelFPGALoopCount(const AttributeCommonInfo &CI, Expr *E);
+
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
   bool CheckFunctionReturnType(QualType T, SourceLocation Loc);
@@ -13440,7 +13443,8 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
                A.getParsedKind() ==
                    ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving ||
                A.getParsedKind() ==
-                   ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations) {
+                   ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations ||
+               A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCount) {
       if (Val < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << A.getAttrName() << /* non-negative */ 1;

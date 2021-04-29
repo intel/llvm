@@ -657,8 +657,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   // To support the SYCL 2020 spelling with no propagation, only emit for
   // kernel-or-device when that spelling, fall-back to old behavior.
   if (ReqSubGroup && (IsKernelOrDevice || !ReqSubGroup->isSYCL2020Spelling())) {
-    const auto *CE = dyn_cast<ConstantExpr>(ReqSubGroup->getValue());
-    assert(CE && "Not an integer constant expression");
+    const auto *CE = cast<ConstantExpr>(ReqSubGroup->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
@@ -705,10 +704,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const SYCLIntelNumSimdWorkItemsAttr *A =
-      FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-    const auto *CE = dyn_cast<ConstantExpr>(A->getValue());
-    assert(CE && "Not an integer constant expression");
+  if (const auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+    const auto *CE = cast<ConstantExpr>(A->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
@@ -716,10 +713,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const SYCLIntelSchedulerTargetFmaxMhzAttr *A =
-          FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
-    const auto *CE = dyn_cast<ConstantExpr>(A->getValue());
-    assert(CE && "Not an integer constant expression");
+  if (const auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+    const auto *CE = cast<ConstantExpr>(A->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
@@ -727,10 +722,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const SYCLIntelMaxGlobalWorkDimAttr *A =
-      FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    const auto *CE = dyn_cast<ConstantExpr>(A->getValue());
-    assert(CE && "Not an integer constant expression");
+  if (const auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+    const auto *CE = cast<ConstantExpr>(A->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
@@ -760,12 +753,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const SYCLIntelNoGlobalWorkOffsetAttr *A =
-          FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
-    const Expr *Arg = A->getValue();
-    assert(Arg && "Got an unexpected null argument");
-    const auto *CE = dyn_cast<ConstantExpr>(Arg);
-    assert(CE && "Not an integer constant expression");
+  if (const auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
+    const auto *CE = cast<ConstantExpr>(A->getValue());
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     if (ArgVal->getBoolValue())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
