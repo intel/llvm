@@ -202,7 +202,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
   // later to the real type.
   QualType FieldTy = SourceTy;
   ExprValueKind ValueKind = VK_RValue;
-  if (!SourceTy->isDependentType() && !Idx->isValueDependent()) {
+  if (!SourceTy->isDependentType()) {
     if (RequireCompleteType(Loc, SourceTy,
                             diag::err_sycl_type_trait_requires_complete_type,
                             /*__builtin_num_fields*/ 0))
@@ -214,35 +214,37 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
       return ExprError();
     }
 
-    RecordDecl *RD = SourceTy->getAsRecordDecl();
-    assert(RD && "Record type but no record decl?");
+    if (!Idx->isValueDependent()) {
+      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      if (IdxVal) {
+        RecordDecl *RD = SourceTy->getAsRecordDecl();
+        assert(RD && "Record type but no record decl?");
+        int64_t Index = IdxVal->getExtValue();
 
-    Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
-    if (IdxVal) {
-      int64_t Index = IdxVal->getExtValue();
+        // Ensure that the index is within range.
+        int64_t NumFields = std::distance(RD->field_begin(), RD->field_end());
+        if (Index >= NumFields) {
+          Diag(Idx->getExprLoc(),
+               diag::err_sycl_builtin_field_index_out_of_range)
+              << IdxVal->toString(10) << SourceTy;
+          return ExprError();
+        }
+        const FieldDecl *FD = *std::next(RD->field_begin(), Index);
+        FieldTy = FD->getType();
 
-      // Ensure that the index is within range.
-      int64_t NumFields = std::distance(RD->field_begin(), RD->field_end());
-      if (Index >= NumFields) {
-        Diag(Idx->getExprLoc(), diag::err_sycl_builtin_field_index_out_of_range)
-            << IdxVal->toString(10) << SourceTy;
-        return ExprError();
-      }
-      const FieldDecl *FD = *std::next(RD->field_begin(), Index);
-      FieldTy = FD->getType();
-
-      // If the field type was a reference type, adjust it now.
-      if (FieldTy->isLValueReferenceType()) {
-        ValueKind = VK_LValue;
-        FieldTy = FieldTy.getNonReferenceType();
-      } else if (FieldTy->isRValueReferenceType()) {
-        ValueKind = VK_XValue;
-        FieldTy = FieldTy.getNonReferenceType();
+        // If the field type was a reference type, adjust it now.
+        if (FieldTy->isLValueReferenceType()) {
+          ValueKind = VK_LValue;
+          FieldTy = FieldTy.getNonReferenceType();
+        } else if (FieldTy->isRValueReferenceType()) {
+          ValueKind = VK_XValue;
+          FieldTy = FieldTy.getNonReferenceType();
+        }
       }
     }
   }
-  return new (Context) SYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx, FieldTy,
-                                                ValueKind);
+  return new (Context)
+      SYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx, FieldTy, ValueKind);
 }
 
 // This information is from Section 4.13 of the SYCL spec
