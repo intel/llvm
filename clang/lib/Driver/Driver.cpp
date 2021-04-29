@@ -3864,18 +3864,16 @@ class OffloadingActionBuilder final {
             Args.getLastArg(options::OPT_M, options::OPT_MM);
         if (IsPreprocessOnly) {
           for (Action *&A : SYCLDeviceActions) {
-            if (!SYCLDeviceOnly) {
-              A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
-                                                     AssociatedOffloadKind);
-              // Add an additional compile action to generate the integration
-              // header.
-              Action *CompileAction =
-                  C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
-              DA.add(*CompileAction, *ToolChains.front(), nullptr,
-                     Action::OFK_SYCL);
-            } else
-              A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
-                                                     AssociatedOffloadKind);
+            A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
+                                                   AssociatedOffloadKind);
+            if (SYCLDeviceOnly)
+              continue;
+            // Add an additional compile action to generate the integration
+            // header.
+            Action *CompileAction =
+                C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
+            DA.add(*CompileAction, *ToolChains.front(), nullptr,
+                   Action::OFK_SYCL);
           }
           return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
         }
