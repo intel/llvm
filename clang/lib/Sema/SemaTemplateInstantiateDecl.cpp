@@ -549,7 +549,6 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
   S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
 }
 
-<<<<<<< HEAD
 template <typename AttrName>
 static void instantiateIntelSYCTripleLFunctionAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
