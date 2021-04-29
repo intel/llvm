@@ -57,7 +57,7 @@ struct interop<backend::level_zero,
 };
 
 namespace detail {
-template <> class BackendReturn<backend::level_zero, kernel> {
+template <> struct BackendReturn<backend::level_zero, kernel> {
   using type = ze_kernel_handle_t;
 };
 

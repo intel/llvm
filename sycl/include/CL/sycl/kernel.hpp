@@ -177,7 +177,7 @@ public:
   typename backend_traits<Backend>::template return_type<kernel>
   get_native() const {
     return detail::pi::cast<
-        backend_traits<Backend>::template return_type<kernel>>(getNativeImpl());
+        typename backend_traits<Backend>::template return_type<kernel>>(getNativeImpl());
   }
 
 private:
