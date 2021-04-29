@@ -9,12 +9,15 @@
 ; CHECK-LABEL: @_ZTSN4test8kernel_tIfEE
 ; CHECK: %[[#X1:]] = call float @_Z20__spirv_SpecConstantif(i32 0, float 0
 ; CHECK: %[[#Y1:]] = call float @_Z20__spirv_SpecConstantif(i32 1, float 0
-; CHECK: call {{.*}} @_Z29__spirv_SpecConstantCompositeff(float %[[#X1]], float %[[#Y1]]), !SYCL_SPEC_CONST_SYM_ID ![[#ID:]]
+; CHECK: call {{.*}} @_Z29__spirv_SpecConstantCompositeff(float %[[#X1]], float %[[#Y1]])
 ; CHECK-LABEL: @_ZTSN4test8kernel_tIiEE
 ; CHECK: %[[#X2:]] = call float @_Z20__spirv_SpecConstantif(i32 0, float 0
 ; CHECK: %[[#Y2:]] = call float @_Z20__spirv_SpecConstantif(i32 1, float 0
-; CHECK: call {{.*}} @_Z29__spirv_SpecConstantCompositeff(float %[[#X2]], float %[[#Y2]]), !SYCL_SPEC_CONST_SYM_ID ![[#ID]]
-; CHECK: ![[#ID]] = !{!"_ZTS11sc_kernel_t", i32 0, i32 1}
+; CHECK: call {{.*}} @_Z29__spirv_SpecConstantCompositeff(float %[[#X2]], float %[[#Y2]])
+
+; CHECK: !sycl.specialization-constants = !{![[#ID:]]
+
+; CHECK: ![[#ID]] = !{!"_ZTS11sc_kernel_t", i32 0, i32 0, i32 4, i32 1, i32 4, i32 4}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown-sycldevice"
