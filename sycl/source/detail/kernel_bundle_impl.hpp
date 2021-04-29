@@ -270,7 +270,7 @@ public:
             &SpecConsts = ImgImpl->get_spec_const_data_ref();
         const std::vector<unsigned char> &Blob =
             ImgImpl->get_spec_const_blob_ref();
-        for (const std::pair<std::string,
+        for (const std::pair<const std::string,
                              std::vector<device_image_impl::SpecConstDescT>>
                  &SpecConst : SpecConsts) {
           if (SpecConst.second.front().IsSet)
