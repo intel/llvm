@@ -75,6 +75,12 @@ void odd() {
   static_assert(__builtin_num_fields(C) == 1, "expected one field");
   static_assert(__builtin_num_fields(D) == 1, "expected one field");
 
+  // See if we can peer into the anonymous type to get to the two fields
+  // declared within it.
+  static_assert(__builtin_num_fields(decltype(__builtin_field_type(C, 0))) == 2, "expected two fields");
+  static_assert(is_same<decltype(__builtin_field_type(decltype(__builtin_field_type(C, 0)), 0)), int>::value, "expected an int");
+  static_assert(is_same<decltype(__builtin_field_type(decltype(__builtin_field_type(C, 0)), 1)), int>::value, "expected an int");
+
   // struct L has four fields despite containing an anonymous bit-field which
   // is only sort of a field. All four fields are of type int despite some of
   // the fields being bit-fields.
