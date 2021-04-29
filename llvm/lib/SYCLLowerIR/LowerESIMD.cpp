@@ -383,6 +383,7 @@ public:
         {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
+        {"lane_id", {"lane.id", {}}}
     };
   }
 
