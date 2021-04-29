@@ -3490,18 +3490,14 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   ze_kernel_handle_t ZeKernel;
   ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_KERNEL_NAME;
   _pi_program::ModuleIterator ModIt(Program);
-  uint32_t KernelNum = 0;
   while (!ModIt.Done()) {
-    KernelNum = 0;
+    uint32_t KernelNum = 0;
     ZeResult =
         ZE_CALL_NOCHECK(zeModuleGetKernelNames, (*ModIt, &KernelNum, nullptr));
     if (ZeResult != ZE_RESULT_SUCCESS)
       break;
     if (KernelNum != 0) {
-      ZeResult =
-          ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
-      if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
-        break;
+      ZE_CALL(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
     }
     ModIt++;
   }
