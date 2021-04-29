@@ -172,6 +172,11 @@ or a function pointer (if the device supports `SPV_INTEL_function_pointers`).
 `Callable` must be an immutable callable with the same type and state for all
 work-items in the sub-group, otherwise behavior is undefined.
 
+NOTE: When using a lambda `Callable`, it is very easy for a user to
+unintentionally capture non-uniform variables and violate the requirements
+from the previous paragraph. This form of `invoke_simd` should be used with
+caution.
+
 Each argument to the invoked `Callable` must be a scalar type, a SIMD type,
 or a `std::tuple` of these types. The length of each SIMD type must match the
 sub-group size of the kernel; calling a SIMD function with mismatched lengths
