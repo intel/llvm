@@ -1393,6 +1393,8 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::ConceptSpecializationExprClass:
     case Stmt::CXXRewrittenBinaryOperatorClass:
     case Stmt::RequiresExprClass:
+    case Stmt::SYCLBuiltinNumFieldsExprClass:
+    case Stmt::SYCLBuiltinFieldTypeExprClass:
       // Fall through.
 
     // Cases we intentionally don't evaluate, since they don't need

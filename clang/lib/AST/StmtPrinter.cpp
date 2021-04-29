@@ -1826,6 +1826,20 @@ void StmtPrinter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *Node) {
   OS << ")";
 }
 
+void StmtPrinter::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
+  OS << "__builtin_num_fields(";
+  E->getSourceType().print(OS, Policy);
+  OS << ")";
+}
+
+void StmtPrinter::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
+  OS << "__builtin_field_type(";
+  E->getSourceType().print(OS, Policy);
+  OS << ", ";
+  PrintExpr(E->getIndex());
+  OS << ")";
+}
+
 void StmtPrinter::VisitCXXAddrspaceCastExpr(CXXAddrspaceCastExpr *Node) {
   VisitCXXNamedCastExpr(Node);
 }

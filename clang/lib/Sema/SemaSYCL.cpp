@@ -22,6 +22,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/FileSystem.h"
@@ -156,6 +157,99 @@ public:
 };
 
 } // anonymous namespace
+
+ExprResult Sema::ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT) {
+  TypeSourceInfo *TInfo = nullptr;
+  QualType QT = GetTypeFromParser(PT, &TInfo);
+  assert(TInfo && "couldn't get type info from a type from the parser?");
+  SourceLocation TypeLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  return BuildSYCLBuiltinNumFieldsExpr(TypeLoc, QT);
+}
+
+ExprResult Sema::BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
+                                               QualType SourceTy) {
+  int64_t NumFields = 0;
+  if (!SourceTy->isDependentType()) {
+    if (RequireCompleteType(Loc, SourceTy,
+                            diag::err_sycl_type_trait_requires_complete_type,
+                            /*__builtin_num_fields*/ 0))
+      return ExprError();
+
+    if (!SourceTy->isRecordType()) {
+      Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
+          << /*__builtin_num_fields*/ 0;
+      return ExprError();
+    }
+
+    RecordDecl *RD = SourceTy->getAsRecordDecl();
+    assert(RD && "Record type but no record decl?");
+
+    NumFields = std::distance(RD->field_begin(), RD->field_end());
+  }
+  return new (Context)
+      SYCLBuiltinNumFieldsExpr(Loc, NumFields, SourceTy, Context.getSizeType());
+}
+
+ExprResult Sema::ActOnSYCLBuiltinFieldTypeExpr(ParsedType PT, Expr *Idx) {
+  TypeSourceInfo *TInfo = nullptr;
+  QualType QT = GetTypeFromParser(PT, &TInfo);
+  assert(TInfo && "couldn't get type info from a type from the parser?");
+  SourceLocation TypeLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  return BuildSYCLBuiltinFieldTypeExpr(TypeLoc, QT, Idx);
+}
+
+ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
+                                               QualType SourceTy, Expr *Idx) {
+  // We may not be able to calculate the field type (the source type may be a
+  // dependent type), so use the source type as a basic fallback. This will
+  // ensure that the AST node will have a dependent type that gets resolved
+  // later to the real type.
+  QualType FieldTy = SourceTy;
+  ExprValueKind ValueKind = VK_RValue;
+  if (!SourceTy->isDependentType() && !Idx->isValueDependent()) {
+    if (RequireCompleteType(Loc, SourceTy,
+                            diag::err_sycl_type_trait_requires_complete_type,
+                            /*__builtin_num_fields*/ 0))
+      return ExprError();
+
+    if (!SourceTy->isRecordType()) {
+      Diag(Loc, diag::err_sycl_type_trait_requires_record_type)
+          << /*__builtin_num_fields*/ 0;
+      return ExprError();
+    }
+
+    RecordDecl *RD = SourceTy->getAsRecordDecl();
+    assert(RD && "Record type but no record decl?");
+
+    Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+    if (IdxVal) {
+      int64_t Index = IdxVal->getExtValue();
+
+      // Ensure that the index is within range.
+      int64_t NumFields = std::distance(RD->field_begin(), RD->field_end());
+      if (Index >= NumFields) {
+        Diag(Idx->getExprLoc(), diag::err_sycl_builtin_field_index_out_of_range)
+            << IdxVal->toString(10) << SourceTy;
+        return ExprError();
+      }
+      const FieldDecl *FD = *std::next(RD->field_begin(), Index);
+      FieldTy = FD->getType();
+
+      // If the field type was a reference type, adjust it now.
+      if (FieldTy->isLValueReferenceType()) {
+        ValueKind = VK_LValue;
+        FieldTy = FieldTy.getNonReferenceType();
+      } else if (FieldTy->isRValueReferenceType()) {
+        ValueKind = VK_XValue;
+        FieldTy = FieldTy.getNonReferenceType();
+      }
+    }
+  }
+  return new (Context) SYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx, FieldTy,
+                                                ValueKind);
+}
 
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf

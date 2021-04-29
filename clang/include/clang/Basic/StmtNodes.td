@@ -193,6 +193,10 @@ def ObjCBridgedCastExpr : StmtNode<ExplicitCastExpr>;
 // CUDA Expressions.
 def CUDAKernelCallExpr : StmtNode<CallExpr>;
 
+// SYCL Extensions.
+def SYCLBuiltinNumFieldsExpr : StmtNode<Expr>;
+def SYCLBuiltinFieldTypeExpr : StmtNode<Expr>;
+
 // Clang Extensions.
 def ShuffleVectorExpr : StmtNode<Expr>;
 def ConvertVectorExpr : StmtNode<Expr>;

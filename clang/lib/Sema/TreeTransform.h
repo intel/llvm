@@ -2986,6 +2986,16 @@ public:
     return getSema().BuildBuiltinBitCastExpr(KWLoc, TSI, Sub, RParenLoc);
   }
 
+  ExprResult RebuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
+                                             QualType SourceTy) {
+    return getSema().BuildSYCLBuiltinNumFieldsExpr(Loc, SourceTy);
+  }
+
+  ExprResult RebuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
+                                             QualType SourceTy, Expr *Idx) {
+    return getSema().BuildSYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx);
+  }
+
   /// Build a new C++ typeid(type) expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11497,6 +11507,28 @@ TreeTransform<Derived>::TransformBuiltinBitCastExpr(BuiltinBitCastExpr *BCE) {
 
   return getDerived().RebuildBuiltinBitCastExpr(BCE->getBeginLoc(), TSI,
                                                 Sub.get(), BCE->getEndLoc());
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinNumFieldsExpr(
+    SYCLBuiltinNumFieldsExpr *SBNFE) {
+  QualType QT = getDerived().TransformType(SBNFE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+  return getDerived().RebuildSYCLBuiltinNumFieldsExpr(SBNFE->getLocation(), QT);
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformSYCLBuiltinFieldTypeExpr(
+    SYCLBuiltinFieldTypeExpr *SBFTE) {
+  QualType QT = getDerived().TransformType(SBFTE->getSourceType());
+  if (QT.isNull())
+    return ExprError();
+  ExprResult Idx = getDerived().TransformExpr(SBFTE->getIndex());
+  if (Idx.isInvalid())
+    return ExprError();
+  return getDerived().RebuildSYCLBuiltinFieldTypeExpr(SBFTE->getLocation(), QT,
+                                                      Idx.get());
 }
 
 template<typename Derived>

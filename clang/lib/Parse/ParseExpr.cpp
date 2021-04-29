@@ -1702,6 +1702,13 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     Res = ParseTypeTrait();
     break;
 
+  case tok::kw___builtin_num_fields:
+    Res = ParseSYCLBuiltinNumFields();
+    break;
+  case tok::kw___builtin_field_type:
+    Res = ParseSYCLBuiltinFieldType();
+    break;
+
   case tok::kw___array_rank:
   case tok::kw___array_extent:
     if (NotPrimaryExpression)
@@ -1822,6 +1829,55 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     }
 
   return Res;
+}
+
+/// __builtin_num_fields '(' type-id ')'
+ExprResult Parser::ParseSYCLBuiltinNumFields() {
+  assert(Tok.is(tok::kw___builtin_num_fields));
+  ConsumeToken(); // Eat the __builtin_num_fields token
+
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume(diag::err_expected_lparen_after,
+                         "__builtin_num_fields"))
+    return ExprError();
+
+  TypeResult TR = ParseTypeName();
+  if (TR.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  T.consumeClose();
+
+  return Actions.ActOnSYCLBuiltinNumFieldsExpr(TR.get());
+}
+
+/// __builtin_field_type '(' type-id ', ' integer-constant ')'
+ExprResult Parser::ParseSYCLBuiltinFieldType() {
+  assert(Tok.is(tok::kw___builtin_field_type));
+  ConsumeToken(); // Eat the __builtin_field_type token
+
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume(diag::err_expected_lparen_after,
+                         "__builtin_field_type"))
+    return ExprError();
+
+  TypeResult TR = ParseTypeName();
+  if (TR.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (ExpectAndConsume(tok::comma))
+    return ExprError();
+
+  ExprResult IdxRes = ParseConstantExpression();
+  if (IdxRes.isInvalid())
+    return ExprError();
+
+  T.consumeClose();
+
+  return Actions.ActOnSYCLBuiltinFieldTypeExpr(TR.get(), IdxRes.get());
 }
 
 /// Once the leading part of a postfix-expression is parsed, this

@@ -13215,6 +13215,19 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevices();
 
+  /// Get the number of fields or captures within the parsed type.
+  ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
+  ExprResult BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
+                                           QualType SourceTy);
+
+  /// Get a value based on the type of the given field number so that callers
+  /// can wrap it in a decltype() to get the actual type of the field. This is
+  /// a hack to avoid creating a new kind of type in the typesystem (like
+  /// decltype or typeof cause).
+  ExprResult ActOnSYCLBuiltinFieldTypeExpr(ParsedType PT, Expr *Idx);
+  ExprResult BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
+                                           QualType SourceTy, Expr *Idx);
+
   /// Emit a diagnostic about the given attribute having a deprecated name, and
   /// also emit a fixit hint to generate the new attribute name.
   void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,

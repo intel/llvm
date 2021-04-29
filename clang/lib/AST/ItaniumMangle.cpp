@@ -4158,6 +4158,8 @@ recurse:
   case Expr::AtomicExprClass:
   case Expr::SourceLocExprClass:
   case Expr::BuiltinBitCastExprClass:
+  case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinFieldTypeExprClass:
   {
     NotPrimaryExpr();
     if (!NullOut) {

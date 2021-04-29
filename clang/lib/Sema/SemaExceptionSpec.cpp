@@ -1397,6 +1397,8 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::SourceLocExprClass:
   case Expr::ConceptSpecializationExprClass:
   case Expr::RequiresExprClass:
+  case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinFieldTypeExprClass:
     // These expressions can never throw.
     return CT_Cannot;
 

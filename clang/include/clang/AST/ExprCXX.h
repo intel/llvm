@@ -4902,6 +4902,98 @@ public:
   }
 };
 
+/// Represents a __builtin_num_fields expression.
+class SYCLBuiltinNumFieldsExpr : public Expr {
+  friend class ASTStmtReader;
+
+  SourceLocation Loc;
+  int64_t NumFields;
+  QualType SourceTy;
+
+public:
+  SYCLBuiltinNumFieldsExpr(SourceLocation Loc, int64_t NumFields,
+                           QualType SourceTy, QualType RetTy)
+      : Expr(SYCLBuiltinNumFieldsExprClass, RetTy, VK_RValue, OK_Ordinary),
+        Loc(Loc), NumFields(NumFields), SourceTy(SourceTy) {
+    setDependence(computeDependence(this));
+  }
+
+  explicit SYCLBuiltinNumFieldsExpr(EmptyShell Empty)
+      : Expr(SYCLBuiltinNumFieldsExprClass, Empty) {}
+
+  QualType getSourceType() const { return SourceTy; }
+  int64_t getNumFields() const {
+    assert(!isTypeDependent());
+    return NumFields;
+  }
+
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return getLocation(); }
+
+  SourceLocation getLocation() const { return Loc; }
+  void setLocation(SourceLocation L) { Loc = L; }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == SYCLBuiltinNumFieldsExprClass;
+  }
+};
+
+/// Represents a __builtin_field_type expression. This does not actually return
+/// the type itself (it would need to be a new type in the type system rather
+/// than an expression to do that), but instead is a valueless expression of
+/// the field's type. The expected usage is to use decltype to extract the
+/// actual type information. This is a hack. If we need to upstream this
+/// functionality, it should be done as a type in the type system instead.
+class SYCLBuiltinFieldTypeExpr : public Expr {
+  friend class ASTStmtReader;
+
+  SourceLocation Loc;
+  QualType SourceTy, FieldTy;
+  Stmt *Index;
+
+public:
+  SYCLBuiltinFieldTypeExpr(SourceLocation Loc, QualType SourceTy, Expr *Index,
+                           QualType FieldTy, ExprValueKind ValueKind)
+      : Expr(SYCLBuiltinFieldTypeExprClass, FieldTy, ValueKind, OK_Ordinary),
+        Loc(Loc), SourceTy(SourceTy), FieldTy(FieldTy), Index(Index) {
+    setDependence(computeDependence(this));
+  }
+
+  explicit SYCLBuiltinFieldTypeExpr(EmptyShell Empty)
+      : Expr(SYCLBuiltinFieldTypeExprClass, Empty) {}
+
+  QualType getSourceType() const { return SourceTy; }
+  QualType getFieldType() const { return FieldTy; }
+  const Expr *getIndex() const { return static_cast<const Expr *>(Index); }
+  Expr *getIndex() { return static_cast<Expr *>(Index); }
+
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return getLocation(); }
+
+  SourceLocation getLocation() const { return Loc; }
+  void setLocation(SourceLocation L) { Loc = L; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == SYCLBuiltinFieldTypeExprClass;
+  }
+
+  child_range children() {
+    return child_range(&Index, &Index + 1);
+  }
+
+  const_child_range children() const {
+    return const_child_range(&Index, &Index + 1);
+  }
+};
+
 } // namespace clang
 
 #endif // LLVM_CLANG_AST_EXPRCXX_H

@@ -1788,6 +1788,19 @@ void ASTStmtReader::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
   E->RParenLoc = readSourceLocation();
 }
 
+void ASTStmtReader::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+  E->NumFields = static_cast<int64_t>(Record.readInt());
+}
+
+void ASTStmtReader::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
+  E->setLocation(readSourceLocation());
+  E->SourceTy = Record.readType();
+  E->FieldTy = Record.readType();
+  E->Index = Record.readExpr();
+}
+
 void ASTStmtReader::VisitUserDefinedLiteral(UserDefinedLiteral *E) {
   VisitCallExpr(E);
   E->UDSuffixLoc = readSourceLocation();

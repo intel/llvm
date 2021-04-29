@@ -3455,6 +3455,10 @@ private:
   ExprResult ParseArrayTypeTrait();
   ExprResult ParseExpressionTrait();
 
+  /// SYCL Type Traits
+  ExprResult ParseSYCLBuiltinNumFields();
+  ExprResult ParseSYCLBuiltinFieldType();
+
   //===--------------------------------------------------------------------===//
   // Preprocessor code-completion pass-through
   void CodeCompleteDirective(bool InConditional) override;

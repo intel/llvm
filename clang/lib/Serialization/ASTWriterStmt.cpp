@@ -1686,6 +1686,19 @@ void ASTStmtWriter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
   Code = serialization::EXPR_BUILTIN_BIT_CAST;
 }
 
+void ASTStmtWriter::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
+  Record.AddSourceLocation(E->getLocation());
+  Record.AddTypeRef(E->getSourceType());
+  Record.writeUInt64(static_cast<uint64_t>(E->getNumFields()));
+}
+
+void ASTStmtWriter::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
+  Record.AddSourceLocation(E->getLocation());
+  Record.AddTypeRef(E->getSourceType());
+  Record.AddTypeRef(E->getFieldType());
+  Record.AddStmt(E->getIndex());
+}
+
 void ASTStmtWriter::VisitUserDefinedLiteral(UserDefinedLiteral *E) {
   VisitCallExpr(E);
   Record.AddSourceLocation(E->UDSuffixLoc);
