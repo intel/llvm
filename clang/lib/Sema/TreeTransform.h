@@ -11515,6 +11515,9 @@ ExprResult TreeTransform<Derived>::TransformSYCLBuiltinNumFieldsExpr(
   QualType QT = getDerived().TransformType(SBNFE->getSourceType());
   if (QT.isNull())
     return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBNFE->getSourceType())
+    return SBNFE;
   return getDerived().RebuildSYCLBuiltinNumFieldsExpr(SBNFE->getLocation(), QT);
 }
 
@@ -11527,6 +11530,10 @@ ExprResult TreeTransform<Derived>::TransformSYCLBuiltinFieldTypeExpr(
   ExprResult Idx = getDerived().TransformExpr(SBFTE->getIndex());
   if (Idx.isInvalid())
     return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && QT == SBFTE->getSourceType() &&
+      Idx.get() == SBFTE->getIndex())
+    return SBFTE;
   return getDerived().RebuildSYCLBuiltinFieldTypeExpr(SBFTE->getLocation(), QT,
                                                       Idx.get());
 }
