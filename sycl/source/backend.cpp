@@ -110,7 +110,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
 
   pi::PiProgram PiProgram = nullptr;
-  Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
+  Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle2>(
       NativeHandle, ContextImpl->getHandleRef(), &PiProgram);
 
   std::vector<pi::PiDevice> ProgramDevices;
