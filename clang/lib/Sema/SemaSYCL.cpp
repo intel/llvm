@@ -2544,7 +2544,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
-    createSpecialMethodCall(RecordDecl, FinalizeMethodName, BodyStmts);
+    CXXMethodDecl *FinalizeMethod =
+        getMethodByName(RecordDecl, FinalizeMethodName);
+    if (FinalizeMethod)
+      createSpecialMethodCall(RecordDecl, FinalizeMethodName, BodyStmts);
 
     removeFieldMemberExpr(FD, Ty);
 
