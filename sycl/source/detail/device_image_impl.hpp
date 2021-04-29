@@ -11,11 +11,13 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 #include <algorithm>
@@ -176,6 +178,18 @@ public:
     return MSpecConstAccessMtx;
   }
 
+  pi_native_handle getNative() const {
+    assert(MProgram);
+    const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
+    const plugin &Plugin = ContextImplPtr->getPlugin();
+
+    pi_native_handle NativeProgram = 0;
+    Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
+                                                        &NativeProgram);
+
+    return NativeProgram;
+  }
+
   ~device_image_impl() {
 
     if (MProgram) {
@@ -214,7 +228,11 @@ private:
         auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
         auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
                                                             Descriptors.size());
+        unsigned PrevOffset = 0;
         while (It != End) {
+          // Make sure that alignment is correct in blob.
+          BlobOffset += /*Offset*/ It[1] - PrevOffset;
+          PrevOffset = It[1];
           // The map is not locked here because updateSpecConstSymMap() is only
           // supposed to be called from c'tor.
           MSpecConstSymMap[std::string{SCName}].push_back(
