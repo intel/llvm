@@ -165,6 +165,12 @@ void errors() {
   __builtin_num_fields(easy); // expected-error {{unknown type name 'easy'}}
   __builtin_num_fields(decltype(easy)); // expected-error {{'__builtin_num_fields' requires a structure or lambda type}}
 
-  __builtin_field_type(A, 1); // expected-error {{index 1 is greater than the number of fields in type 'A'}}
-  __builtin_field_type(I, 0); // expected-error {{index 0 is greater than the number of fields in type 'I'}}
+  // You can't use __builtin_field_type in an evaluated context because it
+  // doesn't return a value that's usable (it's like std::declval).
+  int i = __builtin_field_type(A, 0); // expected-error {{'__builtin_field_type' cannot be used in an evaluated context}}
+
+  // Using sizeof() to put the expression into an unevaluated context so that
+  // the error reporting is focused on the real problem.
+  sizeof(__builtin_field_type(A, 1)); // expected-error {{index 1 is greater than the number of fields in type 'A'}}
+  sizeof(__builtin_field_type(I, 0)); // expected-error {{index 0 is greater than the number of fields in type 'I'}}
 }

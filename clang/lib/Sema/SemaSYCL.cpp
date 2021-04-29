@@ -196,6 +196,13 @@ ExprResult Sema::ActOnSYCLBuiltinFieldTypeExpr(ParsedType PT, Expr *Idx) {
 
 ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
                                                QualType SourceTy, Expr *Idx) {
+  // If the expression appears in an evaluated context, we want to give an
+  // error so that users don't attempt to use the value of this expression.
+  if (!isUnevaluatedContext()) {
+    Diag(Loc, diag::err_sycl_builtin_field_type_evaluated);
+    return ExprError();
+  }
+
   // We may not be able to calculate the field type (the source type may be a
   // dependent type), so use the source type as a basic fallback. This will
   // ensure that the AST node will have a dependent type that gets resolved

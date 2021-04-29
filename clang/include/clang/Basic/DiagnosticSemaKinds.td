@@ -11275,6 +11275,8 @@ def err_sycl_type_trait_requires_record_type : Error<
   "or lambda type">;
 def err_sycl_builtin_field_index_out_of_range : Error<
   "index %0 is greater than the number of fields in type %1">;
+def err_sycl_builtin_field_type_evaluated : Error<
+  "'__builtin_field_type' cannot be used in an evaluated context">;
 def err_sycl_non_trivially_copy_ctor_dtor_type
     : Error<"kernel parameter has non-trivially %select{copy "
             "constructible|destructible}0 class/struct type %1">;
