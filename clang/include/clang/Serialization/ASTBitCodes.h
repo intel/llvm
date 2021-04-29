@@ -1965,6 +1965,10 @@ enum StmtCode {
 
   // FixedPointLiteral
   EXPR_FIXEDPOINT_LITERAL,
+
+  // SYCL
+  EXPR_SYCL_BUILTIN_NUM_FIELDS,
+  EXPR_SYCL_BUILTIN_FIELD_TYPE,
 };
 
 /// The kinds of designators that can occur in a

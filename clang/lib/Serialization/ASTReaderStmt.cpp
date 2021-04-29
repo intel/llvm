@@ -3616,6 +3616,14 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) BuiltinBitCastExpr(Empty);
       break;
 
+    case EXPR_SYCL_BUILTIN_NUM_FIELDS:
+      S = new (Context) SYCLBuiltinNumFieldsExpr(Empty);
+      break;
+
+    case EXPR_SYCL_BUILTIN_FIELD_TYPE:
+      S = new (Context) SYCLBuiltinFieldTypeExpr(Empty);
+      break;
+
     case EXPR_USER_DEFINED_LITERAL:
       S = UserDefinedLiteral::CreateEmpty(
           Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields],
