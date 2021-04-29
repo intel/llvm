@@ -882,9 +882,9 @@ void PassManagerBuilder::populateModulePassManager(
       // checked value is loop invariant.
       MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
     }
-  }
 
-  MPM.add(createWarnMissedTransformationsPass());
+    MPM.add(createWarnMissedTransformationsPass());
+  }
 
   // After vectorization and unrolling, assume intrinsics may tell us more
   // about pointer alignments.
