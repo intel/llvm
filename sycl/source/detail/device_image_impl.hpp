@@ -161,10 +161,6 @@ public:
 
   const context &get_context() const noexcept { return MContext; }
 
-  void set_kernel_ids(std::vector<kernel_id> KernelIDs) noexcept {
-    MKernelIDs = std::move(KernelIDs);
-  }
-
   std::vector<kernel_id> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
 
   std::vector<unsigned char> &get_spec_const_blob_ref() noexcept {

@@ -27,7 +27,7 @@ int main() {
     Q.submit([&](sycl::handler &CGH) {
       CGH.set_specialization_constant<SpecConst2>(1);
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
-      CGH.single_task<class Kernel3Name>([=](sycl::kernel_handler KH) {
+      CGH.single_task<class Kernel1Name>([=](sycl::kernel_handler KH) {
         Acc[0] = KH.get_specialization_constant<SpecConst2>();
       });
     });
@@ -42,7 +42,7 @@ int main() {
       CGH.set_specialization_constant<SpecConst3>(TestStruct{1, 2});
       const auto SC = CGH.get_specialization_constant<SpecConst4>();
       assert(SC == 42);
-      CGH.single_task<class Kernel4Name>([=](sycl::kernel_handler KH) {
+      CGH.single_task<class Kernel2Name>([=](sycl::kernel_handler KH) {
         Acc[0] = KH.get_specialization_constant<SpecConst3>();
       });
     });
