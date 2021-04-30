@@ -108,6 +108,7 @@ llvm/lib/Support/Base64.cpp @kbobrovs @AlexeySachkov
 clang/tools/clang-offload-bundler/ @kbobrovs @sndmitriev
 clang/tools/clang-offload-wrapper/ @sndmitriev @kbobrovs
 clang/tools/clang-offload-deps/ @sndmitriev
+clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
 SYCLLowerIR/ @kbobrovs @DenisBakhvalov
