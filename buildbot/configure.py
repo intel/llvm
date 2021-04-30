@@ -13,7 +13,7 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice;xpti;xptifw'
+    llvm_external_projects = 'sycl;llvm-spirv;opencl;opencl-aot;libdevice;xpti;xptifw'
 
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
@@ -21,8 +21,6 @@ def do_configure(args):
     xpti_dir = os.path.join(abs_src_dir, "xpti")
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
-    ocl_header_dir = os.path.join(abs_obj_dir, "OpenCL-Headers")
-    icd_loader_lib = os.path.join(abs_obj_dir, "OpenCL-ICD-Loader", "build")
     llvm_targets_to_build = 'X86'
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
@@ -34,7 +32,6 @@ def do_configure(args):
     llvm_build_shared_libs = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
-    icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so" if platform.system() == 'Linux' else "OpenCL.lib")
 
     # replace not append, so ARM ^ X86
     if args.arm:
@@ -86,11 +83,6 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing)
     ]
-
-    if args.system_ocl:
-      cmake_cmd.extend([
-            "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
-            "-DOpenCL_LIBRARY={}".format(icd_loader_lib)])
 
     if args.l0_headers and args.l0_loader:
       cmake_cmd.extend([
@@ -150,7 +142,6 @@ def main():
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
-    parser.add_argument("--system-ocl", action='store_true', help="use OpenCL deps from system (no download)")
     parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
     parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
