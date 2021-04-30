@@ -515,7 +515,6 @@ typedef enum {
 using pi_mem_flags = pi_bitfield;
 // Access
 constexpr pi_mem_flags PI_MEM_FLAGS_ACCESS_RW = CL_MEM_READ_WRITE;
-constexpr pi_mem_flags PI_MEM_FLAGS_ACCESS_RO = CL_MEM_READ_ONLY;
 // Host pointer
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
