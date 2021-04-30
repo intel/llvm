@@ -254,7 +254,7 @@ private:
         // TODO: same 8 bytes are the size of this new property?
         assert(Descriptors.size() > 8 && "Unexpected property size");
         // TODO: need to simplify it
-        auto Value = reinterpret_cast<const char *>(&Descriptors[8])[0];
+        const auto Value = reinterpret_cast<const void *>(&Descriptors[8]);
         set_specialization_constant_raw_value(SCName, Value);
       }
     }
