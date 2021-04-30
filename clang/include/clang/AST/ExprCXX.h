@@ -4959,14 +4959,14 @@ class SYCLBuiltinFieldTypeExpr : public Expr {
   friend class ASTStmtReader;
 
   SourceLocation Loc;
-  QualType SourceTy, FieldTy;
+  QualType SourceTy;
   Stmt *Index;
 
 public:
   SYCLBuiltinFieldTypeExpr(SourceLocation Loc, QualType SourceTy, Expr *Index,
                            QualType FieldTy, ExprValueKind ValueKind)
       : Expr(SYCLBuiltinFieldTypeExprClass, FieldTy, ValueKind, OK_Ordinary),
-        Loc(Loc), SourceTy(SourceTy), FieldTy(FieldTy), Index(Index) {
+        Loc(Loc), SourceTy(SourceTy), Index(Index) {
     setDependence(computeDependence(this));
   }
 
@@ -4974,7 +4974,7 @@ public:
       : Expr(SYCLBuiltinFieldTypeExprClass, Empty) {}
 
   QualType getSourceType() const { return SourceTy; }
-  QualType getFieldType() const { return FieldTy; }
+
   const Expr *getIndex() const { return static_cast<const Expr *>(Index); }
   Expr *getIndex() { return static_cast<Expr *>(Index); }
 
@@ -5046,14 +5046,14 @@ class SYCLBuiltinBaseTypeExpr : public Expr {
   friend class ASTStmtReader;
 
   SourceLocation Loc;
-  QualType SourceTy, BaseTy;
+  QualType SourceTy;
   Stmt *Index;
 
 public:
   SYCLBuiltinBaseTypeExpr(SourceLocation Loc, QualType SourceTy, Expr *Index,
                           QualType BaseTy)
       : Expr(SYCLBuiltinBaseTypeExprClass, BaseTy, VK_RValue, OK_Ordinary),
-        Loc(Loc), SourceTy(SourceTy), BaseTy(BaseTy), Index(Index) {
+        Loc(Loc), SourceTy(SourceTy), Index(Index) {
     setDependence(computeDependence(this));
   }
 
@@ -5061,7 +5061,7 @@ public:
       : Expr(SYCLBuiltinBaseTypeExprClass, Empty) {}
 
   QualType getSourceType() const { return SourceTy; }
-  QualType getBaseType() const { return BaseTy; }
+
   const Expr *getIndex() const { return static_cast<const Expr *>(Index); }
   Expr *getIndex() { return static_cast<Expr *>(Index); }
 

@@ -1796,7 +1796,6 @@ void ASTStmtReader::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
 void ASTStmtReader::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
   E->setLocation(readSourceLocation());
   E->SourceTy = Record.readType();
-  E->FieldTy = Record.readType();
   E->Index = Record.readExpr();
 }
 
@@ -1808,7 +1807,6 @@ void ASTStmtReader::VisitSYCLBuiltinNumBasesExpr(SYCLBuiltinNumBasesExpr *E) {
 void ASTStmtReader::VisitSYCLBuiltinBaseTypeExpr(SYCLBuiltinBaseTypeExpr *E) {
   E->setLocation(readSourceLocation());
   E->SourceTy = Record.readType();
-  E->BaseTy = Record.readType();
   E->Index = Record.readExpr();
 }
 
