@@ -39,7 +39,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-constexpr uint16_t floatToHalf(const float &Val) {
+constexpr uint16_t float2Half(const float &Val) {
   // First part of the calculations - get the Exponent and Fractional
   // Get bool sign of Val and its absolute value for calculations
   bool BSign = Val < 0.0f;
@@ -138,18 +138,88 @@ constexpr uint16_t floatToHalf(const float &Val) {
   Ret |= Sign;
   Ret |= Exp16 << 10;
   Ret += Frac16; // Add the carry bit from operation Frac16 += 1;
-
   return Ret;
 }
+
+/*constexpr float half2Float(const uint16_t &Val) {
+  // Extract the sign from the bits
+  const uint32_t Sign = static_cast<uint32_t>(Val & 0x8000) << 16;
+  // Extract the exponent from the bits
+  const uint8_t Exp16 = (Val & 0x7c00) >> 10;
+  // Extract the fraction from the bits
+  uint16_t Frac16 = Val & 0x3ff;
+
+  uint32_t Exp32 = 0;
+  if (__builtin_expect(Exp16 == 0x1f, 0)) {
+    Exp32 = 0xff;
+  } else if (__builtin_expect(Exp16 == 0, 0)) {
+    Exp32 = 0;
+  } else {
+    Exp32 = static_cast<uint32_t>(Exp16) + 112;
+  }
+
+  // corner case: subnormal -> normal
+  // The denormal number of FP16 can be represented by FP32, therefore we need
+  // to recover the exponent and recalculate the fration.
+  if (__builtin_expect(Exp16 == 0 && Frac16 != 0, 0)) {
+    uint8_t OffSet = 0;
+    do {
+      ++OffSet;
+      Frac16 <<= 1;
+    } while ((Frac16 & 0x400) != 0x400);
+    // mask the 9th bit
+    Frac16 &= 0x3ff;
+    Exp32 = 113 - OffSet;
+  }
+
+  uint32_t Frac32 = Frac16 << 13;
+
+  // Compose the final FP32 binary
+  uint32_t Bits = 0;
+
+  Bits |= Sign;
+  Bits |= (Exp32 << 23);
+  Bits |= Frac32;
+
+  float Result = 1.0f;
+  Result *= Sign;
+  int ExpDiff = Exp32 - 127;
+  float Exp = 1;
+  float mult = 2;
+  if (ExpDiff < 0) {
+    ExpDiff *= -1;
+    mult = 1/2;
+  }
+  for (int i = 0; i < ExpDiff; i++) {
+    Exp *= mult;
+  }
+
+  mult = 1/2;
+  float Frac = 1;
+
+  for (int i = 0; i < 23; i++) {
+    bool b = (Bits >> (22 - i)) & 0x1;
+    if (b == 1)
+      Frac += mult;
+    mult *= 1/2;
+  }
+
+  Result = Result * Exp * Frac;
+  //std::memcpy(&Result, &Bits, sizeof(Result));
+  return Result;
+}
+*/
 namespace host_half_impl {
 
+// This class is legacy and it is needed only to avoid breaking ABI
 class __SYCL_EXPORT half {
 public:
   half() = default;
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  constexpr half(const float &rhs) : Buf(floatToHalf(rhs)) {}
+  //constexpr half(const float &rhs) : Buf(float2Half(rhs)) {}
+  half(const float &rhs);
 
   half &operator=(const half &rhs) = default;
 
@@ -203,6 +273,67 @@ private:
   uint16_t Buf;
 };
 
+// The main host half class
+class __SYCL_EXPORT half_new {
+public:
+  half_new() = default;
+  constexpr half_new(const half_new &) = default;
+  constexpr half_new(half_new &&) = default;
+
+  constexpr half_new(const float &rhs) : Buf(float2Half(rhs)) {}
+
+  half_new &operator=(const half_new &rhs) = default;
+
+  // Operator +=, -=, *=, /=
+  half_new &operator+=(const half_new &rhs);
+
+  half_new &operator-=(const half_new &rhs);
+
+  half_new &operator*=(const half_new &rhs);
+
+  half_new &operator/=(const half_new &rhs);
+
+  // Operator ++, --
+  half_new &operator++() {
+    *this += 1;
+    return *this;
+  }
+
+  half_new operator++(int) {
+    half_new ret(*this);
+    operator++();
+    return ret;
+  }
+
+  half_new &operator--() {
+    *this -= 1;
+    return *this;
+  }
+
+  half_new operator--(int) {
+    half_new ret(*this);
+    operator--();
+    return ret;
+  }
+
+  // Operator neg
+  constexpr half_new &operator-() {
+    Buf ^= 0x8000;
+    return *this;
+  }
+
+  // Operator float
+  operator float() const;
+
+  template <typename Key> friend struct std::hash;
+
+  // Initialize underlying data
+  constexpr explicit half_new(uint16_t x) : Buf(x) {}
+
+private:
+  uint16_t Buf;
+};
+
 } // namespace host_half_impl
 
 namespace half_impl {
@@ -232,7 +363,7 @@ class half;
   using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
   using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
 #else
-  using StorageT = detail::host_half_impl::half;
+  using StorageT = detail::host_half_impl::half_new;
   // No need to extract underlying data type for built-in functions operating on
   // host
   using BIsRepresentationT = half;
