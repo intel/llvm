@@ -28,7 +28,7 @@ template <typename BaseTy, typename RegionTy> class simd_view {
   template <typename, typename> friend class simd_view;
 
 public:
-  static_assert(!is_simd_view_v<BaseTy>::value);
+  static_assert(!detail::is_simd_view_v<BaseTy>::value);
   // Deduce the corresponding value type from its region type.
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
@@ -94,7 +94,7 @@ public:
   value_type read() const {
     using BT = typename BaseTy::element_type;
     constexpr int BN = BaseTy::length;
-    return readRegion<BT, BN>(M_base.data(), M_region);
+    return detail::readRegion<BT, BN>(M_base.data(), M_region);
   }
 
   /// Write to this simd_view object.
@@ -118,7 +118,7 @@ public:
 
   /// View this object in a different element type.
   template <typename EltTy> auto format() {
-    using TopRegionTy = compute_format_type_t<simd_view, EltTy>;
+    using TopRegionTy = detail::compute_format_type_t<simd_view, EltTy>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
     using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(0);
@@ -128,7 +128,7 @@ public:
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width> auto format() {
     using TopRegionTy =
-        compute_format_type_2d_t<simd_view, EltTy, Height, Width>;
+        detail::compute_format_type_2d_t<simd_view, EltTy, Height, Width>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
     using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(0, 0);
@@ -177,17 +177,19 @@ public:
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
   ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
                                           const value_type &Y) {               \
-    using ComputeTy = compute_type_t<value_type>;                              \
-    auto V0 = convert<typename ComputeTy::vector_type>(X.read().data());       \
-    auto V1 = convert<typename ComputeTy::vector_type>(Y.data());              \
+    using ComputeTy = detail::compute_type_t<value_type>;                      \
+    auto V0 =                                                                  \
+        detail::convert<typename ComputeTy::vector_type>(X.read().data());     \
+    auto V1 = detail::convert<typename ComputeTy::vector_type>(Y.data());      \
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
                                           const simd_view &Y) {                \
-    using ComputeTy = compute_type_t<value_type>;                              \
-    auto V0 = convert<typename ComputeTy::vector_type>(X.data());              \
-    auto V1 = convert<typename ComputeTy::vector_type>(Y.read().data());       \
+    using ComputeTy = detail::compute_type_t<value_type>;                      \
+    auto V0 = detail::convert<typename ComputeTy::vector_type>(X.data());      \
+    auto V1 =                                                                  \
+        detail::convert<typename ComputeTy::vector_type>(Y.read().data());     \
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
@@ -196,11 +198,11 @@ public:
     return (X BINOP Y.read());                                                 \
   }                                                                            \
   simd_view &operator OPASSIGN(const value_type &RHS) {                        \
-    using ComputeTy = compute_type_t<value_type>;                              \
-    auto V0 = convert<typename ComputeTy::vector_type>(read().data());         \
-    auto V1 = convert<typename ComputeTy::vector_type>(RHS.data());            \
+    using ComputeTy = detail::compute_type_t<value_type>;                      \
+    auto V0 = detail::convert<typename ComputeTy::vector_type>(read().data()); \
+    auto V1 = detail::convert<typename ComputeTy::vector_type>(RHS.data());    \
     auto V2 = V0 BINOP V1;                                                     \
-    auto V3 = convert<vector_type>(V2);                                        \
+    auto V3 = detail::convert<vector_type>(V2);                                \
     write(V3);                                                                 \
     return *this;                                                              \
   }                                                                            \
@@ -221,13 +223,13 @@ public:
       const simd_view &X, const value_type &Y) {                               \
     auto R = X.read().data() RELOP Y.data();                                   \
     mask_type_t<length> M(1);                                                  \
-    return M & convert<mask_type_t<length>>(R);                                \
+    return M & detail::convert<mask_type_t<length>>(R);                        \
   }                                                                            \
   ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
       const value_type &X, const simd_view &Y) {                               \
     auto R = X.data() RELOP Y.read().data();                                   \
     mask_type_t<length> M(1);                                                  \
-    return M & convert<mask_type_t<length>>(R);                                \
+    return M & detail::convert<mask_type_t<length>>(R);                        \
   }                                                                            \
   ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
       const simd_view &X, const simd_view &Y) {                                \
@@ -263,7 +265,7 @@ public:
   simd_view &operator OPASSIGN(const value_type &RHS) {                        \
     static_assert(std::is_integral<element_type>(), "not integeral type");     \
     auto V2 = read().data() BITWISE_OP RHS.data();                             \
-    auto V3 = convert<vector_type>(V2);                                        \
+    auto V3 = detail::convert<vector_type>(V2);                                \
     write(V3);                                                                 \
     return *this;                                                              \
   }                                                                            \
