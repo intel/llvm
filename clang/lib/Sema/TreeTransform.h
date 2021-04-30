@@ -10209,6 +10209,11 @@ TreeTransform<Derived>::TransformUniqueStableNameExpr(UniqueStableNameExpr *E) {
     if (ER.isInvalid())
       return ExprError();
 
+    ER = getSema().CheckPlaceholderExpr(ER.get());
+
+    if (ER.isInvalid())
+      return ExprError();
+
     if (!getDerived().AlwaysRebuild() && E->getExpr() == ER.get())
       return E;
 
