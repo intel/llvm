@@ -4,8 +4,8 @@
 // Check if forward declarations of kernel names in anonymous namespace are in
 // anonymous namespace in the integration header as well.
 // CHECK:namespace  {
-// CHECK:class ClassInAnonNS;
-// CHECK:}
+// CHECK-NEXT:class ClassInAnonNS;
+// CHECK-NEXT:}
 
 // CHECK:template <> struct KernelInfo<class KernelName> {
 // CHECK:template <> struct KernelInfo<::nm1::nm2::KernelName0> {
