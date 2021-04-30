@@ -136,7 +136,7 @@ specialization_id<int> AnonNSSpecID;
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::Foo::__sycl_detail::__spec_id_shim_[[SHIM0]]()>() {
-// CHECK-NEXT: return ::Foo::__sycl_detail::__spec_id_shim_[[SHIM0]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
