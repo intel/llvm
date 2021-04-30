@@ -2,13 +2,25 @@ cmake_minimum_required(VERSION 3.14)
 
 include(FetchContent)
 
+# Repo URLs
+
+set(OCL_HEADERS_REPO
+  "https://github.com/KhronosGroup/OpenCL-Headers.git")
+set(OCL_LOADER_REPO
+  "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git")
+
+# Repo tags/hashes
+
+set(OCL_HEADERS_TAG 23710f1b99186065c1768fc3098ba681adc0f253)
+set(OCL_LOADER_TAG 5f8249691ec8c25775789498951f8e9eb62c201d)
+
 # OpenCL Headers
 if(NOT OpenCL_HEADERS)
   message(STATUS "Will fetch OpenCL headers from github.com")
 
   FetchContent_Declare(ocl-headers
-    GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-Headers.git
-    GIT_TAG           23710f1b99186065c1768fc3098ba681adc0f253
+    GIT_REPOSITORY    ${OCL_HEADERS_REPO}
+    GIT_TAG           ${OCL_HEADERS_TAG}
   )
 else()
   message(STATUS "OpenCL headers are added manually ${OpenCL_HEADERS}")
@@ -40,8 +52,8 @@ if(NOT OpenCL_LIBRARY_SRC)
   message(STATUS "Will fetch OpenCL ICD Loader from github.com")
 
   FetchContent_Declare(ocl-icd
-    GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-    GIT_TAG           5f8249691ec8c25775789498951f8e9eb62c201d
+    GIT_REPOSITORY    ${OCL_LOADER_REPO}
+    GIT_TAG           ${OCL_LOADER_TAG}
   )
 else()
   # TODO: add possibility to use prebuilt OpenCL library rather than building
