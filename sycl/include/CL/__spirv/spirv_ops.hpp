@@ -199,7 +199,7 @@ __spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
 
 template <typename dataT>
 extern __attribute__((opencl_global)) dataT *
-__spirv_GenericCastToPtrExplicit_ToGlobal(
+__SYCL_GenericCastToPtrExplicit_ToGlobal(
     const void *Ptr, __spv::StorageClass::Flag S) noexcept {
   return (__attribute__((opencl_global))
           dataT *)__spirv_GenericCastToPtrExplicit_ToGlobal(Ptr, S);
@@ -207,8 +207,8 @@ __spirv_GenericCastToPtrExplicit_ToGlobal(
 
 template <typename dataT>
 extern __attribute__((opencl_local)) dataT *
-__spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
-                                         __spv::StorageClass::Flag S) noexcept {
+__SYCL_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
+                                        __spv::StorageClass::Flag S) noexcept {
   return (__attribute__((opencl_local))
           dataT *)__spirv_GenericCastToPtrExplicit_ToLocal(Ptr, S);
 }

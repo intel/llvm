@@ -244,12 +244,12 @@ struct sub_group {
 #ifdef __NVPTX__
     return src[get_local_id()[0]];
 #else  // __NVPTX__
-    auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
+    auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(
         src, __spv::StorageClass::Workgroup);
     if (l)
       return load(l);
 
-    auto g = __spirv_GenericCastToPtrExplicit_ToGlobal<T>(
+    auto g = __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(
         src, __spv::StorageClass::CrossWorkgroup);
     if (g)
       return load(g);
@@ -400,14 +400,14 @@ struct sub_group {
 #ifdef __NVPTX__
     dst[get_local_id()[0]] = x;
 #else  // __NVPTX__
-    auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
+    auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(
         dst, __spv::StorageClass::Workgroup);
     if (l) {
       store(l, x);
       return;
     }
 
-    auto g = __spirv_GenericCastToPtrExplicit_ToGlobal<T>(
+    auto g = __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(
         dst, __spv::StorageClass::CrossWorkgroup);
     if (g) {
       store(g, x);
