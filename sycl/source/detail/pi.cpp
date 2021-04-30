@@ -615,6 +615,8 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
     Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
 
   SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
+  SpecConstDefaultValuesMap.init(
+      Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
   KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
 }

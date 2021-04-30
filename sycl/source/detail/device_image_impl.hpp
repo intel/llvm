@@ -243,6 +243,20 @@ private:
         }
       }
       MSpecConstsBlob.resize(BlobOffset);
+
+      // set default values for specialization constants
+      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
+          MBinImage->getSpecConstantsDefaultValues();
+      for (SCItTy SCIt : SCDefValRange) {
+        const char *SCName = (*SCIt)->Name;
+        pi::ByteArray Descriptors =
+            pi::DeviceBinaryProperty(*SCIt).asByteArray();
+        // TODO: same 8 bytes are the size of this new property?
+        assert(Descriptors.size() > 8 && "Unexpected property size");
+        // TODO: need to simplify it
+        auto Value = reinterpret_cast<const char *>(&Descriptors[8])[0];
+        set_specialization_constant_raw_value(SCName, Value);
+      }
     }
   }
 

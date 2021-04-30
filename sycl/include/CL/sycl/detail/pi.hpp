@@ -318,6 +318,9 @@ public:
   /// like:
   /// { ID5, 0, 4 }
   const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
+  const PropertyRange &getSpecConstantsDefaultValues() const {
+    return SpecConstDefaultValuesMap;
+  }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
@@ -331,6 +334,7 @@ protected:
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
+  DeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
 };
