@@ -414,24 +414,17 @@ static string_vector saveDeviceImageProperty(
       if (ImgPSInfo.SpecConstsMet) {
         // extract spec constant maps per each module
         SpecIDMapTy TmpSpecIDMap;
-        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
-                                                       TmpSpecIDMap);
+        std::vector<char> DefaultValues;
+        SpecConstantsPass::collectSpecConstantMetadata(
+            *ResultModules[I].get(), TmpSpecIDMap, DefaultValues);
         PropSet.add(
             llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
             TmpSpecIDMap);
-      }
-    }
-    if (ImgPSInfo.DoSpecConst) { //} && ImgPSInfo.SetSpecConstAtRT) {
-      if (ImgPSInfo.SpecConstsMet) {
-        // extract spec constant maps per each module
-        SpecIDMapTy TmpSpecIDMap;
-        std::vector<char> vec;
-        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
-                                                       TmpSpecIDMap, &vec);
+
         using SpecDefaultMapTy = std::map<StringRef, std::vector<char>>;
         SpecDefaultMapTy TmpSpecDefaultMap;
 
-        TmpSpecDefaultMap["all"] = vec;
+        TmpSpecDefaultMap["all"] = DefaultValues;
         PropSet.add(
             llvm::util::PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
             TmpSpecDefaultMap);
