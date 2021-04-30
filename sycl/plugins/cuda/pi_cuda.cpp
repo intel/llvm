@@ -2493,7 +2493,7 @@ pi_result cuda_piEnqueueNativeKernel(
 }
 
 pi_result cuda_piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                 pi_kernel *) {
+                                                 bool, pi_kernel *) {
   sycl::detail::pi::die("Unsupported operation");
   return PI_SUCCESS;
 }

@@ -7,6 +7,30 @@ template <unsigned ID> struct ethernet_pipe_id {
   static constexpr unsigned id = ID;
 };
 
+template <typename T, cl::sycl::access::address_space space>
+void lsu_body(cl::sycl::multi_ptr<T,space> input_ptr,cl::sycl::multi_ptr<T,space>  output_ptr) {
+        using PrefetchingLSU =
+            cl::sycl::INTEL::lsu<cl::sycl::INTEL::prefetch<true>,
+                                 cl::sycl::INTEL::statically_coalesce<false>>;
+
+        using BurstCoalescedLSU =
+            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
+                                 cl::sycl::INTEL::statically_coalesce<false>>;
+
+        using CachingLSU =
+            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
+                                 cl::sycl::INTEL::cache<1024>,
+                                 cl::sycl::INTEL::statically_coalesce<false>>;
+
+        using PipelinedLSU = cl::sycl::INTEL::lsu<>;
+
+        int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
+        int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
+
+        BurstCoalescedLSU::store(output_ptr, X); // output_ptr[0] = X
+        PipelinedLSU::store(output_ptr + 1, Y);  // output_ptr[1] = Y
+}
+
 using ethernet_read_pipe =
     sycl::INTEL::kernel_readable_io_pipe<ethernet_pipe_id<0>, int, 0>;
 using ethernet_write_pipe =
@@ -58,39 +82,48 @@ int main() {
 
   /*Check LSU interface*/
   {
-    cl::sycl::buffer<int, 1> output_buffer(1);
-    auto *in_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
 
-    Queue.submit([&](cl::sycl::handler &cgh) {
-      auto output_accessor =
-          output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
-
-      cgh.single_task<class kernel>([=] {
-        cl::sycl::host_ptr<int> input_ptr(in_ptr);
-        auto output_ptr = output_accessor.get_pointer();
-
-        using PrefetchingLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::prefetch<true>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
-
-        using BurstCoalescedLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
-
-        using CachingLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
-                                 cl::sycl::INTEL::cache<1024>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
-
-        using PipelinedLSU = cl::sycl::INTEL::lsu<>;
-
-        int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
-        int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
-
-        BurstCoalescedLSU::store(output_ptr, X); // output_ptr[0] = X
-        PipelinedLSU::store(output_ptr + 1, Y);  // output_ptr[1] = Y
+    {
+      auto *out_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
+      auto *in_ptr = cl::sycl::malloc_host<int>(1, Queue.get_context());
+      Queue.submit([&](sycl::handler &cgh) {
+        cgh.single_task<class HostAnnotation>([=]() {
+          cl::sycl::host_ptr<int> input_ptr(in_ptr);
+          cl::sycl::host_ptr<int> output_ptr(out_ptr);
+          intelfpga::lsu_body<
+              int, cl::sycl::access::address_space::global_host_space>(
+              input_ptr, output_ptr);
+        });
       });
-    });
+    }
+    {
+      auto *out_ptr = cl::sycl::malloc_device<int>(1, Queue);
+      auto *in_ptr = cl::sycl::malloc_device<int>(1, Queue);
+      Queue.submit([&](sycl::handler &cgh) {
+        cgh.single_task<class DeviceAnnotation>([=]() {
+          cl::sycl::device_ptr<int> input_ptr(in_ptr);
+          cl::sycl::device_ptr<int> output_ptr(out_ptr);
+          intelfpga::lsu_body<
+              int, cl::sycl::access::address_space::global_device_space>(
+              input_ptr, output_ptr);
+        });
+      });
+    }
+    {
+      cl::sycl::buffer<int, 1> output_buffer(1);
+      cl::sycl::buffer<int, 1> input_buffer(1);
+      Queue.submit([&](sycl::handler &cgh) {
+        auto output_accessor =
+            output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+        auto input_accessor =
+            input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+        cgh.single_task<class AccessorAnnotation>([=]() {
+          auto input_ptr = input_accessor.get_pointer();
+          auto output_ptr = output_accessor.get_pointer();
+          intelfpga::lsu_body<>(input_ptr, output_ptr);
+        });
+      });
+    }
   }
 
   return 0;

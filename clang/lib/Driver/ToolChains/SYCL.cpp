@@ -41,7 +41,7 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
   } else {
     CmdArgs.push_back("-spirv-max-version=1.3");
     CmdArgs.push_back("-spirv-ext=+all");
-    CmdArgs.push_back("-spirv-debug-info-version=legacy");
+    CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
     CmdArgs.push_back("-spirv-allow-extra-diexpressions");
     CmdArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
     CmdArgs.push_back("-o");

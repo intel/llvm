@@ -1990,6 +1990,21 @@ def : MutualExclusions<[SYCLIntelFPGAIVDep,
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
+def SYCLIntelFPGALoopCount : StmtAttr {
+  let Spellings = [CXX11<"intel", "loop_count_min">,
+                   CXX11<"intel", "loop_count_max">,
+                   CXX11<"intel", "loop_count_avg">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Accessors = [Accessor<"isMin", [CXX11<"intel", "loop_count_min">]>,
+                   Accessor<"isMax", [CXX11<"intel", "loop_count_max">]>,
+                   Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>];
+  let Args = [ExprArgument<"NTripCount">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let IsStmtDependent = 1;
+  let Documentation = [SYCLIntelFPGALoopCountAttrDocs];
+}
+
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
 

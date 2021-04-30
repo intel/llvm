@@ -228,7 +228,11 @@ private:
         auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
         auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
                                                             Descriptors.size());
+        unsigned PrevOffset = 0;
         while (It != End) {
+          // Make sure that alignment is correct in blob.
+          BlobOffset += /*Offset*/ It[1] - PrevOffset;
+          PrevOffset = It[1];
           // The map is not locked here because updateSpecConstSymMap() is only
           // supposed to be called from c'tor.
           MSpecConstSymMap[std::string{SCName}].push_back(
