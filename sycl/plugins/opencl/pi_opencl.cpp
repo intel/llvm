@@ -754,9 +754,10 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
-  assert(alignment == 0 ||
-         (RetVal == PI_SUCCESS &&
-          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
+  //ensure we aligned the allocation correctly
+  if(RetVal == PI_SUCCESS && alignment != 0)
+    assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0 && "allocation not aligned correctly");
+
   return RetVal;
 }
 
@@ -790,9 +791,10 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
-  assert(alignment == 0 ||
-         (RetVal == PI_SUCCESS &&
-          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
+  //ensure we aligned the allocation correctly
+  if(RetVal == PI_SUCCESS && alignment != 0)
+    assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0 && "allocation not aligned correctly");
+
   return RetVal;
 }
 
