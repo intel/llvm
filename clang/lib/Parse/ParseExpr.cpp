@@ -1835,9 +1835,9 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
 
 /// __builtin_num_fields '(' type-id ')' or
 /// __builtin_num_bases '(' type-id ')'
-ExprResult Parser::ParseSYCLBuiltinNum(bool NumFields) {
-  assert((NumFields && Tok.is(tok::kw___builtin_num_fields)) ||
-         (!NumFields && Tok.is(tok::kw___builtin_num_bases)));
+ExprResult Parser::ParseSYCLBuiltinNum(bool IsNumFields) {
+  assert((IsNumFields && Tok.is(tok::kw___builtin_num_fields)) ||
+         (!IsNumFields && Tok.is(tok::kw___builtin_num_bases)));
   ConsumeToken(); // Eat the __builtin_num_* token
 
   BalancedDelimiterTracker T(*this, tok::l_paren);
@@ -1852,16 +1852,16 @@ ExprResult Parser::ParseSYCLBuiltinNum(bool NumFields) {
 
   T.consumeClose();
 
-  if (NumFields)
+  if (IsNumFields)
     return Actions.ActOnSYCLBuiltinNumFieldsExpr(TR.get());
   return Actions.ActOnSYCLBuiltinNumBasesExpr(TR.get());
 }
 
 /// __builtin_field_type '(' type-id ',' integer-constant ')' or
 /// __builtin_base_type '(' type-id ',' integer-constant ')'
-ExprResult Parser::ParseSYCLBuiltinType(bool FieldType) {
-  assert((FieldType && Tok.is(tok::kw___builtin_field_type)) ||
-         (!FieldType && Tok.is(tok::kw___builtin_base_type)));
+ExprResult Parser::ParseSYCLBuiltinType(bool IsFieldType) {
+  assert((IsFieldType && Tok.is(tok::kw___builtin_field_type)) ||
+         (!IsFieldType && Tok.is(tok::kw___builtin_base_type)));
   ConsumeToken(); // Eat the __builtin_*_type token
 
   BalancedDelimiterTracker T(*this, tok::l_paren);
@@ -1883,7 +1883,7 @@ ExprResult Parser::ParseSYCLBuiltinType(bool FieldType) {
 
   T.consumeClose();
 
-  if (FieldType)
+  if (IsFieldType)
     return Actions.ActOnSYCLBuiltinFieldTypeExpr(TR.get(), IdxRes.get());
   return Actions.ActOnSYCLBuiltinBaseTypeExpr(TR.get(), IdxRes.get());
 }

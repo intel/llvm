@@ -4922,7 +4922,7 @@ public:
 
   QualType getSourceType() const { return SourceTy; }
   unsigned getNumFields() const {
-    assert(!isTypeDependent() && !SourceTy->isDependentType());
+    assert(!SourceTy->isDependentType());
     assert(SourceTy->isRecordType());
     const auto *RD = SourceTy->getAsRecordDecl();
     assert(RD);
@@ -4930,8 +4930,8 @@ public:
         std::distance(RD->field_begin(), RD->field_end()));
   }
 
-  SourceLocation getBeginLoc() const { return getLocation(); }
-  SourceLocation getEndLoc() const { return getLocation(); }
+  SourceLocation getBeginLoc() const { return Loc; }
+  SourceLocation getEndLoc() const { return Loc; }
 
   SourceLocation getLocation() const { return Loc; }
   void setLocation(SourceLocation L) { Loc = L; }
@@ -4978,8 +4978,8 @@ public:
   const Expr *getIndex() const { return static_cast<const Expr *>(Index); }
   Expr *getIndex() { return static_cast<Expr *>(Index); }
 
-  SourceLocation getBeginLoc() const { return getLocation(); }
-  SourceLocation getEndLoc() const { return getLocation(); }
+  SourceLocation getBeginLoc() const { return Loc; }
+  SourceLocation getEndLoc() const { return Loc; }
 
   SourceLocation getLocation() const { return Loc; }
   void setLocation(SourceLocation L) { Loc = L; }
@@ -5014,15 +5014,15 @@ public:
 
   QualType getSourceType() const { return SourceTy; }
   unsigned getNumBases() const {
-    assert(!isTypeDependent() && !SourceTy->isDependentType());
+    assert(!SourceTy->isDependentType());
     assert(SourceTy->isRecordType());
     const auto *RD = SourceTy->getAsCXXRecordDecl();
     assert(RD);
     return RD->getNumBases();
   }
 
-  SourceLocation getBeginLoc() const { return getLocation(); }
-  SourceLocation getEndLoc() const { return getLocation(); }
+  SourceLocation getBeginLoc() const { return Loc; }
+  SourceLocation getEndLoc() const { return Loc; }
 
   SourceLocation getLocation() const { return Loc; }
   void setLocation(SourceLocation L) { Loc = L; }
@@ -5065,8 +5065,8 @@ public:
   const Expr *getIndex() const { return static_cast<const Expr *>(Index); }
   Expr *getIndex() { return static_cast<Expr *>(Index); }
 
-  SourceLocation getBeginLoc() const { return getLocation(); }
-  SourceLocation getEndLoc() const { return getLocation(); }
+  SourceLocation getBeginLoc() const { return Loc; }
+  SourceLocation getEndLoc() const { return Loc; }
 
   SourceLocation getLocation() const { return Loc; }
   void setLocation(SourceLocation L) { Loc = L; }

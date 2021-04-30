@@ -199,7 +199,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
   // If the expression appears in an evaluated context, we want to give an
   // error so that users don't attempt to use the value of this expression.
   if (!isUnevaluatedContext()) {
-    Diag(Loc, diag::err_sycl_builtin_field_type_evaluated)
+    Diag(Loc, diag::err_sycl_builtin_type_trait_evaluated)
         << /*__builtin_field_type*/ 0;
     return ExprError();
   }
@@ -233,7 +233,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
         int64_t NumFields = std::distance(RD->field_begin(), RD->field_end());
         if (Index >= NumFields) {
           Diag(Idx->getExprLoc(),
-               diag::err_sycl_builtin_field_index_out_of_range)
+               diag::err_sycl_builtin_type_trait_index_out_of_range)
               << IdxVal->toString(10) << SourceTy << /*fields*/ 0;
           return ExprError();
         }
@@ -296,7 +296,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
   // If the expression appears in an evaluated context, we want to give an
   // error so that users don't attempt to use the value of this expression.
   if (!isUnevaluatedContext()) {
-    Diag(Loc, diag::err_sycl_builtin_field_type_evaluated)
+    Diag(Loc, diag::err_sycl_builtin_type_trait_evaluated)
         << /*__builtin_base_type*/ 1;
     return ExprError();
   }
@@ -328,7 +328,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
         // Ensure that the index is within range.
         if (Index >= RD->getNumBases()) {
           Diag(Idx->getExprLoc(),
-               diag::err_sycl_builtin_field_index_out_of_range)
+               diag::err_sycl_builtin_type_trait_index_out_of_range)
               << IdxVal->toString(10) << SourceTy << /*bases*/ 1;
           return ExprError();
         }
