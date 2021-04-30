@@ -8080,7 +8080,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       continue;
     } else if (InputType == types::TY_Archive ||
                (getToolChain().getTriple().getSubArch() ==
-                llvm::Triple::SPIRSubArch_fpga &&
+                    llvm::Triple::SPIRSubArch_fpga &&
                 TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
       // Do not extract host part if we are unbundling archive on Windows
       // because it is not needed. Static offload libraries are added to the
