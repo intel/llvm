@@ -125,6 +125,11 @@ LLVMToSPIRVBase::LLVMToSPIRVBase(SPIRVModule *SMod)
   DbgTran = std::make_unique<LLVMToSPIRVDbgTran>(nullptr, SMod, this);
 }
 
+LLVMToSPIRVBase::~LLVMToSPIRVBase() {
+  for (auto *I : UnboundInst)
+    I->deleteValue();
+}
+
 bool LLVMToSPIRVBase::runLLVMToSPIRV(Module &Mod) {
   M = &Mod;
   CG = std::make_unique<CallGraph>(Mod);
@@ -851,6 +856,7 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
              dbgs() << "Instruction: " << *Inst << '\n';)
     auto BI = transValue(Inst, nullptr, false);
     Inst->dropAllReferences();
+    UnboundInst.push_back(Inst);
     return BI;
   }
 
@@ -1326,6 +1332,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
         Ty = static_cast<PointerType *>(Init->getType());
       }
       Inst->dropAllReferences();
+      UnboundInst.push_back(Inst);
       BVarInit = transValue(Init, nullptr);
     } else if (ST && isa<UndefValue>(Init)) {
       // Undef initializer for LLVM structure be can translated to
