@@ -140,11 +140,11 @@ EnableIfBitcastBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
   GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
   using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  auto BroadcastX = detail::bit_cast<BroadcastT>(x);
+  auto BroadcastX = bit_cast<BroadcastT>(x);
   OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
   BroadcastT Result =
       __spirv_GroupBroadcast(group_scope<Group>::value, BroadcastX, OCLId);
-  return detail::bit_cast<T>(Result);
+  return bit_cast<T>(Result);
 }
 template <typename Group, typename T, typename IdT>
 EnableIfGenericBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
@@ -190,11 +190,11 @@ EnableIfBitcastBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
   for (int i = 0; i < Dimensions; ++i) {
     VecId[i] = local_id[Dimensions - i - 1];
   }
-  auto BroadcastX = detail::bit_cast<BroadcastT>(x);
+  auto BroadcastX = bit_cast<BroadcastT>(x);
   OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
   BroadcastT Result =
       __spirv_GroupBroadcast(group_scope<Group>::value, BroadcastX, OCLId);
-  return detail::bit_cast<T>(Result);
+  return bit_cast<T>(Result);
 }
 template <typename Group, typename T, int Dimensions>
 EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
@@ -284,11 +284,11 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr,
   auto *PtrInt =
       reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
           MPtr.get());
-  I DesiredInt = detail::bit_cast<I>(Desired);
-  I ExpectedInt = detail::bit_cast<I>(Expected);
+  I DesiredInt = bit_cast<I>(Desired);
+  I ExpectedInt = bit_cast<I>(Expected);
   I ResultInt = __spirv_AtomicCompareExchange(
       PtrInt, SPIRVScope, SPIRVSuccess, SPIRVFailure, DesiredInt, ExpectedInt);
-  return detail::bit_cast<T>(ResultInt);
+  return bit_cast<T>(ResultInt);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -312,7 +312,7 @@ AtomicLoad(multi_ptr<T, AddressSpace> MPtr, ONEAPI::memory_scope Scope,
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   I ResultInt = __spirv_AtomicLoad(PtrInt, SPIRVScope, SPIRVOrder);
-  return detail::bit_cast<T>(ResultInt);
+  return bit_cast<T>(ResultInt);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -335,7 +335,7 @@ AtomicStore(multi_ptr<T, AddressSpace> MPtr, ONEAPI::memory_scope Scope,
           MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  I ValueInt = detail::bit_cast<I>(Value);
+  I ValueInt = bit_cast<I>(Value);
   __spirv_AtomicStore(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
 }
 
@@ -359,10 +359,10 @@ AtomicExchange(multi_ptr<T, AddressSpace> MPtr, ONEAPI::memory_scope Scope,
           MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  I ValueInt = detail::bit_cast<I>(Value);
+  I ValueInt = bit_cast<I>(Value);
   I ResultInt =
       __spirv_AtomicExchange(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
-  return detail::bit_cast<T>(ResultInt);
+  return bit_cast<T>(ResultInt);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -600,7 +600,7 @@ using ConvertToNativeShuffleType_t = select_cl_scalar_integral_unsigned_t<T>;
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
-  auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+  auto ShuffleX = bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleINTEL(
       ShuffleX, static_cast<uint32_t>(local_id.get(0)));
@@ -608,13 +608,13 @@ EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   ShuffleT Result =
       __nvvm_shfl_sync_idx_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
 #endif
-  return detail::bit_cast<T>(Result);
+  return bit_cast<T>(Result);
 }
 
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
-  auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+  auto ShuffleX = bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleXorINTEL(
       ShuffleX, static_cast<uint32_t>(local_id.get(0)));
@@ -622,13 +622,13 @@ EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   ShuffleT Result =
       __nvvm_shfl_sync_bfly_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
 #endif
-  return detail::bit_cast<T>(Result);
+  return bit_cast<T>(Result);
 }
 
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
-  auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+  auto ShuffleX = bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(
       ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
@@ -636,13 +636,13 @@ EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
   ShuffleT Result =
       __nvvm_shfl_sync_down_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
 #endif
-  return detail::bit_cast<T>(Result);
+  return bit_cast<T>(Result);
 }
 
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
-  auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+  auto ShuffleX = bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(
       ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
@@ -650,7 +650,7 @@ EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   ShuffleT Result =
       __nvvm_shfl_sync_up_i32(membermask(), ShuffleX, local_id.get(0), 0);
 #endif
-  return detail::bit_cast<T>(Result);
+  return bit_cast<T>(Result);
 }
 
 // Generic shuffles may require multiple calls to SubgroupShuffle

@@ -48,6 +48,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -64,25 +65,44 @@ cl::opt<bool> SPIRVLowerConst(
     "spirv-lower-const-expr", cl::init(true),
     cl::desc("LLVM/SPIR-V translation enable lowering constant expression"));
 
-class SPIRVLowerConstExpr : public ModulePass {
+class SPIRVLowerConstExprBase {
 public:
-  SPIRVLowerConstExpr() : ModulePass(ID), M(nullptr), Ctx(nullptr) {
-    initializeSPIRVLowerConstExprPass(*PassRegistry::getPassRegistry());
-  }
+  SPIRVLowerConstExprBase() : M(nullptr), Ctx(nullptr) {}
 
-  bool runOnModule(Module &M) override;
+  bool runLowerConstExpr(Module &M);
   void visit(Module *M);
-
-  static char ID;
 
 private:
   Module *M;
   LLVMContext *Ctx;
 };
 
-char SPIRVLowerConstExpr::ID = 0;
+class SPIRVLowerConstExprPass
+    : public llvm::PassInfoMixin<SPIRVLowerConstExprPass>,
+      public SPIRVLowerConstExprBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    return runLowerConstExpr(M) ? llvm::PreservedAnalyses::none()
+                                : llvm::PreservedAnalyses::all();
+  }
+};
 
-bool SPIRVLowerConstExpr::runOnModule(Module &Module) {
+class SPIRVLowerConstExprLegacy : public ModulePass,
+                                  public SPIRVLowerConstExprBase {
+public:
+  SPIRVLowerConstExprLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerConstExprLegacyPass(*PassRegistry::getPassRegistry());
+  }
+
+  bool runOnModule(Module &M) override { return runLowerConstExpr(M); }
+
+  static char ID;
+};
+
+char SPIRVLowerConstExprLegacy::ID = 0;
+
+bool SPIRVLowerConstExprBase::runLowerConstExpr(Module &Module) {
   if (!SPIRVLowerConst)
     return false;
 
@@ -106,7 +126,7 @@ bool SPIRVLowerConstExpr::runOnModule(Module &Module) {
 /// is replaced by one instruction.
 /// ToDo: remove redundant instructions for common subexpression
 
-void SPIRVLowerConstExpr::visit(Module *M) {
+void SPIRVLowerConstExprBase::visit(Module *M) {
   for (auto &I : M->functions()) {
     std::list<Instruction *> WorkList;
     for (auto &BI : I) {
@@ -192,9 +212,9 @@ void SPIRVLowerConstExpr::visit(Module *M) {
 
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVLowerConstExpr, "spv-lower-const-expr",
+INITIALIZE_PASS(SPIRVLowerConstExprLegacy, "spv-lower-const-expr",
                 "Regularize LLVM for SPIR-V", false, false)
 
-ModulePass *llvm::createSPIRVLowerConstExpr() {
-  return new SPIRVLowerConstExpr();
+ModulePass *llvm::createSPIRVLowerConstExprLegacy() {
+  return new SPIRVLowerConstExprLegacy();
 }

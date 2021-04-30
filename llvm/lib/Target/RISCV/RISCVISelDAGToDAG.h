@@ -64,6 +64,8 @@ public:
   bool selectVSplat(SDValue N, SDValue &SplatVal);
   bool selectVSplatSimm5(SDValue N, SDValue &SplatVal);
   bool selectVSplatUimm5(SDValue N, SDValue &SplatVal);
+  bool selectVSplatSimm5Plus1(SDValue N, SDValue &SplatVal);
+  bool selectVSplatSimm5Plus1NonZero(SDValue N, SDValue &SplatVal);
 
   bool selectRVVSimm5(SDValue N, unsigned Width, SDValue &Imm);
   template <unsigned Width> bool selectRVVSimm5(SDValue N, SDValue &Imm) {
@@ -74,6 +76,12 @@ public:
   template <unsigned Width> bool selectRVVUimm5(SDValue N, SDValue &Imm) {
     return selectRVVUimm5(N, Width, Imm);
   }
+
+  void addVectorLoadStoreOperands(SDNode *Node, unsigned SEWImm,
+                                  const SDLoc &DL, unsigned CurOp,
+                                  bool IsMasked, bool IsStridedOrIndexed,
+                                  SmallVectorImpl<SDValue> &Operands,
+                                  MVT *IndexVT = nullptr);
 
   void selectVLSEG(SDNode *Node, bool IsMasked, bool IsStrided);
   void selectVLSEGFF(SDNode *Node, bool IsMasked);

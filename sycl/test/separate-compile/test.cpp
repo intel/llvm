@@ -7,13 +7,13 @@
 // >> host compilation...
 // Driver automatically adds -D_DLL and -D_MT on Windows with -fsycl.
 // Add those defines required for Windows and harmless for Linux.
-// RUN: %clangxx -D_DLL -D_MT -include sycl_ihdr_a.h -g -c %s -o a.o -I %sycl_include/sycl -Wno-sycl-strict
+// RUN: %clangxx -D_DLL -D_MT -std=c++17 -include sycl_ihdr_a.h -g -c %s -o a.o -I %sycl_include/sycl -Wno-sycl-strict
 //
 // >> ---- compile src2
 // >> device compilation...
 // RUN: %clangxx -DB_CPP=1 -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx -DB_CPP=1 -D_DLL -D_MT -include sycl_ihdr_b.h -g -c %s -o b.o -I %sycl_include/sycl -Wno-sycl-strict
+// RUN: %clangxx -DB_CPP=1 -D_DLL -D_MT -std=c++17 -include sycl_ihdr_b.h -g -c %s -o b.o -I %sycl_include/sycl -Wno-sycl-strict
 //
 // >> ---- bundle .o with .spv
 // >> run bundler

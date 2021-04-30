@@ -34,6 +34,10 @@ bool device_image_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
+pi_native_handle device_image_plain::getNative() const {
+  return impl->getNative();
+}
+
 ////////////////////////////
 ///// kernel_bundle_plain
 ///////////////////////////
@@ -83,6 +87,27 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID) const noexcept {
 bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
                                      const device &Dev) const noexcept {
   return impl->has_kernel(KernelID, Dev);
+}
+
+bool kernel_bundle_plain::has_specialization_constant_impl(
+    const char *SpecName) const noexcept {
+  return impl->has_specialization_constant(SpecName);
+}
+
+void kernel_bundle_plain::set_specialization_constant_impl(
+    const char *SpecName, void *Value, size_t Size) noexcept {
+  impl->set_specialization_constant_raw_value(SpecName, Value, Size);
+}
+
+void kernel_bundle_plain::get_specialization_constant_impl(const char *SpecName,
+                                                           void *Value) const
+    noexcept {
+  impl->get_specialization_constant_raw_value(SpecName, Value);
+}
+
+bool kernel_bundle_plain::is_specialization_constant_set(
+    const char *SpecName) const noexcept {
+  return impl->is_specialization_constant_set(SpecName);
 }
 
 ////////////////////////////

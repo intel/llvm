@@ -15,23 +15,46 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "usm_allocator.hpp"
+#include <CL/sycl/detail/spinlock.hpp>
+#include <iostream>
+
+// USM allocations are a mimimum of 64KB in size even when a smaller size is
+// requested. The implementation distinguishes between allocations of size
+// ChunkCutOff (32KB) and those that are larger.
+// Allocation requests smaller than ChunkCutoff use chunks taken from a single
+// 64KB USM allocation. Thus, for example, for 8-byte allocations, only 1 in
+// ~8000 requests results in a new USM allocation. Freeing results only in a
+// chunk of a larger 64KB allocation to be marked as available and no real
+// return to the system. An allocation is returned to the system only when all
+// chunks in a 64KB allocation are freed by the program.
+// Allocations larger than ChunkCutOff use a separate USM allocation for each
+// request. These are subject to "pooling". That is, when such an allocation is
+// freed by the program it is retained in a pool. The pool is available for
+// future allocations, which means there are fewer actual USM
+// allocations/deallocations.
 
 namespace settings {
-// Size of the slab which is going to be requested from the system.
-static constexpr size_t SlabSize = 64 * 1024; // 64K
+// Minimum allocation size that will be requested from the system.
+static constexpr size_t SlabMinSize = 64 * 1024; // 64KB
+
+// Allocations <= ChunkCutOff will use chunks from individual slabs.
+// Allocations >  ChunkCutOff will be rounded up to a multiple of
+// SlabMinSize and allocated to occupy the whole slab.
+static constexpr size_t ChunkCutOff = SlabMinSize / 2;
 // The largest size which is allocated via the allocator.
 // Allocations with size > CutOff bypass the USM allocator and
 // go directly to the runtime.
-static constexpr size_t CutOff = SlabSize / 2;
+static constexpr size_t CutOff = (size_t)1 << 31; // 2GB
 
 // Unfortunately we cannot deduce the size of the array, so every change
 // to the number of buckets should be reflected here.
-using BucketsArrayType = std::array<size_t, 21>;
+using BucketsArrayType = std::array<size_t, 53>;
 
 // Generates a list of bucket sizes used by the allocator.
 static constexpr BucketsArrayType generateBucketSizes() {
@@ -41,7 +64,7 @@ static constexpr BucketsArrayType generateBucketSizes() {
 // allow to write this in a nicer way.
 
 // Simple helper to compute power of 2
-#define P(n) (1 << n)
+#define P(n) (1ULL << n)
 
   BucketsArrayType Sizes = {32,    48,
                             64,    96,
@@ -53,6 +76,22 @@ static constexpr BucketsArrayType generateBucketSizes() {
                             P(12), P(12) + P(11),
                             P(13), P(13) + P(12),
                             P(14), P(14) + P(13),
+                            P(15), P(15) + P(14),
+                            P(16), P(16) + P(15),
+                            P(17), P(17) + P(16),
+                            P(18), P(18) + P(17),
+                            P(19), P(19) + P(18),
+                            P(20), P(20) + P(19),
+                            P(21), P(21) + P(20),
+                            P(22), P(22) + P(21),
+                            P(23), P(23) + P(22),
+                            P(24), P(24) + P(23),
+                            P(25), P(25) + P(24),
+                            P(26), P(26) + P(25),
+                            P(27), P(27) + P(26),
+                            P(28), P(28) + P(27),
+                            P(29), P(29) + P(28),
+                            P(30), P(30) + P(29),
                             CutOff};
 #undef P
 
@@ -61,9 +100,55 @@ static constexpr BucketsArrayType generateBucketSizes() {
 
 static constexpr BucketsArrayType BucketSizes = generateBucketSizes();
 
-// The implementation expects that SlabSize is 2^n
-static_assert((SlabSize & (SlabSize - 1)) == 0,
-              "SlabSize must be a power of 2");
+// The implementation expects that SlabMinSize is 2^n
+static_assert((SlabMinSize & (SlabMinSize - 1)) == 0,
+              "SlabMinSize must be a power of 2");
+
+// Protects the capacity checking of the pool.
+static sycl::detail::SpinLock PoolLock;
+
+static class SetLimits {
+public:
+  size_t MaxPoolableSize = 1;
+  size_t Capacity = 4;
+  size_t MaxPoolSize = 256;
+  size_t CurPoolSize = 0;
+
+  SetLimits() {
+    // Parse optional parameters of this form (applicable to each context):
+    // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_SETTINGS=[<MaxPoolableSize>][,[<Capacity>][,[<MaxPoolSize>]]]
+    // MaxPoolableSize: Maximum poolable allocation size, specified in MB.
+    //                  Default 1MB.
+    // Capacity:        Number of pooled allocations in each bucket.
+    //                  Default 4.
+    // MaxPoolSize:     Maximum size of pool, specified in MB.
+    //                  Default 256MB.
+
+    char *PoolParams = getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+    if (PoolParams != nullptr) {
+      std::string Params(PoolParams);
+      size_t Pos = Params.find(',');
+      if (Pos != std::string::npos) {
+        if (Pos > 0)
+          MaxPoolableSize = std::stoi(Params.substr(0, Pos));
+        Params.erase(0, Pos + 1);
+        Pos = Params.find(',');
+        if (Pos != std::string::npos) {
+          if (Pos > 0)
+            Capacity = std::stoi(Params.substr(0, Pos));
+          Params.erase(0, Pos + 1);
+          if (Pos != std::string::npos)
+            MaxPoolSize = std::stoi(Params);
+        } else {
+          Capacity = std::stoi(Params);
+        }
+      } else
+        MaxPoolableSize = std::stoi(Params);
+    }
+    MaxPoolableSize *= (1 << 20);
+    MaxPoolSize *= (1 << 20);
+  }
+} USMPoolSettings;
 } // namespace settings
 
 // Aligns the pointer down to the specified alignment
@@ -93,7 +178,7 @@ static size_t AlignUp(size_t Val, size_t Alignment) {
 
 class Bucket;
 
-// Represents the allocated memory block of size 'settings::SlabSize'
+// Represents the allocated memory block of size 'settings::SlabMinSize'
 // Internally, it splits the memory block into chunks. The number of
 // chunks depends of the size of a Bucket which created the Slab.
 // The chunks
@@ -101,7 +186,7 @@ class Bucket;
 // so no locking happens here.
 class Slab {
 
-  // Pointer to the allocated memory of SlabSize bytes
+  // Pointer to the allocated memory of SlabMinSize bytes
   void *MemPtr;
 
   // Represents the current state of each chunk:
@@ -142,11 +227,15 @@ public:
 
   size_t getNumAllocated() const { return NumAllocated; }
 
-  void *getFreeChunk();
+  // Get pointer to allocation that is one piece of this slab.
+  void *getChunk();
+
+  // Get pointer to allocation that is this entire slab.
+  void *getSlab();
 
   void *getPtr() const { return MemPtr; }
   void *getEnd() const {
-    return static_cast<char *>(getPtr()) + settings::SlabSize;
+    return static_cast<char *>(getPtr()) + settings::SlabMinSize;
   }
 
   size_t getChunkSize() const;
@@ -180,17 +269,37 @@ public:
   Bucket(size_t Sz, USMAllocContext::USMAllocImpl &AllocCtx)
       : Size{Sz}, OwnAllocCtx{AllocCtx} {}
 
+  // Get pointer to allocation that is one piece of an available slab in this
+  // bucket.
   void *getChunk();
+
+  // Get pointer to allocation that is a full slab in this bucket.
+  void *getSlab();
 
   size_t getSize() const { return Size; }
 
+  // Free an allocation that is one piece of a slab in this bucket.
   void freeChunk(void *Ptr, Slab &Slab);
+
+  // Free an allocation that is a full slab in this bucket.
+  void freeSlab(Slab &Slab);
+
   SystemMemory &getMemHandle();
   USMAllocContext::USMAllocImpl &getUsmAllocCtx() { return OwnAllocCtx; }
 
+  // Check whether an allocation to be freed can be placed in the pool.
+  bool CanPool();
+
 private:
   void onFreeChunk(Slab &);
+
+  // Get a slab to be used for chunked allocations.
+  // These slabs are used for allocations <= ChunkCutOff and not pooled.
   decltype(AvailableSlabs.begin()) getAvailSlab();
+
+  // Get a slab that will be used as a whole for a single allocation.
+  // These slabs are > ChunkCutOff in size and pooled.
+  decltype(AvailableSlabs.begin()) getAvailFullSlab();
 };
 
 class USMAllocContext::USMAllocImpl {
@@ -242,12 +351,14 @@ std::ostream &operator<<(std::ostream &Os, const Slab &Slab) {
 }
 
 Slab::Slab(Bucket &Bkt)
-    : MemPtr(Bkt.getMemHandle().allocate(settings::SlabSize)),
-      // In case if bucket size is not that SlabSize % b.getSize() == 0, we
-      // would have some padding at the end of the slab.
-      Chunks(settings::SlabSize / Bkt.getSize()), NumAllocated{0},
+    : // In case bucket size is not a multiple of SlabMinSize, we would have
+      // some padding at the end of the slab.
+      Chunks(settings::SlabMinSize / Bkt.getSize()), NumAllocated{0},
       bucket(Bkt), SlabListIter{}, FirstFreeChunkIdx{0} {
-
+  size_t SlabAllocSize = Bkt.getSize();
+  if (SlabAllocSize < settings::SlabMinSize)
+    SlabAllocSize = settings::SlabMinSize;
+  MemPtr = Bkt.getMemHandle().allocate(SlabAllocSize);
   regSlab(*this);
 }
 
@@ -268,7 +379,7 @@ size_t Slab::FindFirstAvailableChunkIdx() const {
   return static_cast<size_t>(-1);
 }
 
-void *Slab::getFreeChunk() {
+void *Slab::getChunk() {
   assert(NumAllocated != Chunks.size());
 
   const size_t ChunkIdx = FindFirstAvailableChunkIdx();
@@ -285,6 +396,8 @@ void *Slab::getFreeChunk() {
 
   return FreeChunk;
 }
+
+void *Slab::getSlab() { return getPtr(); }
 
 Bucket &Slab::getBucket() { return bucket; }
 const Bucket &Slab::getBucket() const { return bucket; }
@@ -320,16 +433,16 @@ void Slab::unregSlabByAddr(void *Addr, Slab &Slab) {
 }
 
 void Slab::regSlab(Slab &Slab) {
-  void *StartAddr = AlignPtrDown(Slab.getPtr(), settings::SlabSize);
-  void *EndAddr = static_cast<char *>(StartAddr) + settings::SlabSize;
+  void *StartAddr = AlignPtrDown(Slab.getPtr(), settings::SlabMinSize);
+  void *EndAddr = static_cast<char *>(StartAddr) + settings::SlabMinSize;
 
   regSlabByAddr(StartAddr, Slab);
   regSlabByAddr(EndAddr, Slab);
 }
 
 void Slab::unregSlab(Slab &Slab) {
-  void *StartAddr = AlignPtrDown(Slab.getPtr(), settings::SlabSize);
-  void *EndAddr = static_cast<char *>(StartAddr) + settings::SlabSize;
+  void *StartAddr = AlignPtrDown(Slab.getPtr(), settings::SlabMinSize);
+  void *EndAddr = static_cast<char *>(StartAddr) + settings::SlabMinSize;
 
   unregSlabByAddr(StartAddr, Slab);
   unregSlabByAddr(EndAddr, Slab);
@@ -359,6 +472,47 @@ void Slab::freeChunk(void *Ptr) {
 
 bool Slab::hasAvail() { return NumAllocated != getNumChunks(); }
 
+auto Bucket::getAvailFullSlab() -> decltype(AvailableSlabs.begin()) {
+  // Return a slab that will be used for a single allocation.
+  if (AvailableSlabs.size() == 0) {
+    auto It = AvailableSlabs.insert(AvailableSlabs.begin(),
+                                    std::make_unique<Slab>(*this));
+    (*It)->setIterator(It);
+  } else {
+    // If a slab was available in the pool then note that the current pooled
+    // size has reduced by the size of this slab.
+    settings::USMPoolSettings.CurPoolSize -= Size;
+  }
+
+  return AvailableSlabs.begin();
+}
+
+void *Bucket::getSlab() {
+  std::lock_guard<std::mutex> Lg(BucketLock);
+
+  auto SlabIt = getAvailFullSlab();
+  auto *FreeSlab = (*SlabIt)->getSlab();
+  auto It =
+      UnavailableSlabs.insert(UnavailableSlabs.begin(), std::move(*SlabIt));
+  AvailableSlabs.erase(SlabIt);
+  (*It)->setIterator(It);
+  return FreeSlab;
+}
+
+void Bucket::freeSlab(Slab &Slab) {
+  std::lock_guard<std::mutex> Lg(BucketLock);
+  auto SlabIter = Slab.getIterator();
+  assert(SlabIter != UnavailableSlabs.end());
+  if (CanPool()) {
+    auto It =
+        AvailableSlabs.insert(AvailableSlabs.begin(), std::move(*SlabIter));
+    UnavailableSlabs.erase(SlabIter);
+    (*It)->setIterator(It);
+  } else {
+    UnavailableSlabs.erase(SlabIter);
+  }
+}
+
 auto Bucket::getAvailSlab() -> decltype(AvailableSlabs.begin()) {
   if (AvailableSlabs.size() == 0) {
     auto It = AvailableSlabs.insert(AvailableSlabs.begin(),
@@ -373,9 +527,9 @@ void *Bucket::getChunk() {
   std::lock_guard<std::mutex> Lg(BucketLock);
 
   auto SlabIt = getAvailSlab();
-  auto *FreeChunk = (*SlabIt)->getFreeChunk();
+  auto *FreeChunk = (*SlabIt)->getChunk();
 
-  // If the slab is full, move it to unavailable slabs and update its itreator
+  // If the slab is full, move it to unavailable slabs and update its iterator
   if (!((*SlabIt)->hasAvail())) {
     auto It =
         UnavailableSlabs.insert(UnavailableSlabs.begin(), std::move(*SlabIt));
@@ -409,15 +563,33 @@ void Bucket::onFreeChunk(Slab &Slab) {
     (*It)->setIterator(It);
   }
 
-  // Remove the slab when all the chunks from it are deallocated
-  // Note: since the slab is stored as unique_ptr, just remove it from
-  // the list to remove the list to destroy the object
+  // If slab has no chunks allocated we could pool it if capacity is available
+  // or release it to the system.
   if (Slab.getNumAllocated() == 0) {
-    auto It = Slab.getIterator();
-    assert(It != AvailableSlabs.end());
+    // Pool has no space so release it.
+    if (!CanPool()) {
+      // Remove the slab when all the chunks from it are deallocated
+      // Note: since the slab is stored as unique_ptr, just remove it from
+      // the list to remove the list to destroy the object
+      auto It = Slab.getIterator();
+      assert(It != AvailableSlabs.end());
 
-    AvailableSlabs.erase(It);
+      AvailableSlabs.erase(It);
+    }
   }
+}
+
+bool Bucket::CanPool() {
+  std::lock_guard<sycl::detail::SpinLock> Lock{settings::PoolLock};
+  size_t NewFreeSlabsInBucket = AvailableSlabs.size() + 1;
+  if (settings::USMPoolSettings.Capacity >= NewFreeSlabsInBucket) {
+    size_t NewPoolSize = settings::USMPoolSettings.CurPoolSize + Size;
+    if (settings::USMPoolSettings.MaxPoolSize >= NewPoolSize) {
+      settings::USMPoolSettings.CurPoolSize = NewPoolSize;
+      return true;
+    }
+  }
+  return false;
 }
 
 SystemMemory &Bucket::getMemHandle() { return OwnAllocCtx.getMemHandle(); }
@@ -426,10 +598,16 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size) {
   if (Size == 0)
     return nullptr;
 
-  if (Size > settings::CutOff)
+  if (Size > settings::USMPoolSettings.MaxPoolableSize) {
     return getMemHandle().allocate(Size);
+  }
 
-  return findBucket(Size).getChunk();
+  auto &Bucket = findBucket(Size);
+  if (Size > settings::ChunkCutOff) {
+    return Bucket.getSlab();
+  }
+
+  return Bucket.getChunk();
 }
 
 void *USMAllocContext::USMAllocImpl::allocate(size_t Size, size_t Alignment) {
@@ -441,13 +619,19 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, size_t Alignment) {
 
   size_t AlignedSize = (Size > 1) ? AlignUp(Size, Alignment) : Alignment;
 
-  // Check if our largest chunk is able to fit aligned size.
+  // Check if requested allocation size is within pooling limit.
   // If not, just request aligned pointer from the system.
-  if (AlignedSize > settings::CutOff) {
+  if (AlignedSize > settings::USMPoolSettings.MaxPoolableSize) {
     return getMemHandle().allocate(Size, Alignment);
   }
 
-  auto *Ptr = findBucket(AlignedSize).getChunk();
+  void *Ptr;
+  auto &Bucket = findBucket(AlignedSize);
+  if (AlignedSize > settings::ChunkCutOff) {
+    Ptr = Bucket.getSlab();
+  } else {
+    Ptr = Bucket.getChunk();
+  }
   return AlignPtrUp(Ptr, Alignment);
 }
 
@@ -464,7 +648,7 @@ Bucket &USMAllocContext::USMAllocImpl::findBucket(size_t Size) {
 }
 
 void USMAllocContext::USMAllocImpl::deallocate(void *Ptr) {
-  auto *SlabPtr = AlignPtrDown(Ptr, settings::SlabSize);
+  auto *SlabPtr = AlignPtrDown(Ptr, settings::SlabMinSize);
 
   // Lock the map on read
   std::shared_lock<std::shared_timed_mutex> Lk(getKnownSlabsMapLock());
@@ -481,12 +665,15 @@ void USMAllocContext::USMAllocImpl::deallocate(void *Ptr) {
     // protected by the lock, so it's safe to access it here.
     auto &Slab = It->second;
     if (Ptr >= Slab.getPtr() && Ptr < Slab.getEnd()) {
-
       // Unlock the map before freeing the chunk, it may be locked on write
       // there
       Lk.unlock();
       auto &Bucket = Slab.getBucket();
-      Bucket.freeChunk(Ptr, Slab);
+      if (Bucket.getSize() <= settings::ChunkCutOff) {
+        Bucket.freeChunk(Ptr, Slab);
+      } else {
+        Bucket.freeSlab(Slab);
+      }
       return;
     }
   }

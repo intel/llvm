@@ -28,7 +28,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/IR/Statepoint.h"
 
 using namespace llvm;
 
@@ -59,6 +58,16 @@ static bool isDereferenceableAndAlignedPointer(
 
   // Note that it is not safe to speculate into a malloc'd region because
   // malloc may return null.
+
+  // Recurse into both hands of select.
+  if (const SelectInst *Sel = dyn_cast<SelectInst>(V)) {
+    return isDereferenceableAndAlignedPointer(Sel->getTrueValue(), Alignment,
+                                              Size, DL, CtxI, DT, TLI, Visited,
+                                              MaxDepth) &&
+           isDereferenceableAndAlignedPointer(Sel->getFalseValue(), Alignment,
+                                              Size, DL, CtxI, DT, TLI, Visited,
+                                              MaxDepth);
+  }
 
   // bitcast instructions are no-ops as far as dereferenceability is concerned.
   if (const BitCastOperator *BC = dyn_cast<BitCastOperator>(V)) {
