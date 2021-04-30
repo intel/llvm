@@ -2527,13 +2527,10 @@ static USED void syscall_fd_release(uptr pc, int fd) {
   FdRelease(thr, pc, fd);
 }
 
-static void syscall_pre_fork(uptr pc) {
-  TSAN_SYSCALL();
-  ForkBefore(thr, pc);
-}
+static void syscall_pre_fork(uptr pc) { ForkBefore(cur_thread(), pc); }
 
 static void syscall_post_fork(uptr pc, int pid) {
-  TSAN_SYSCALL();
+  ThreadState *thr = cur_thread();
   if (pid == 0) {
     // child
     ForkChildAfter(thr, pc);

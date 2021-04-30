@@ -118,6 +118,10 @@ protected:
   /// the current PC.  Defaults to false.
   bool DollarIsPC = false;
 
+  /// Allow '.' token, when not referencing an identifier or constant, to refer
+  /// to the current PC. Defaults to true.
+  bool DotIsPC = true;
+
   /// This string, if specified, is used to separate instructions from each
   /// other when on the same line.  Defaults to ';'
   const char *SeparatorString;
@@ -183,24 +187,31 @@ protected:
 
   /// This is true if the assembler allows the "?" character at the start of
   /// of a string to be lexed as an AsmToken::Identifier.
-  /// If the CommentString is also set to "?", setting this option will have
-  /// no effect, and the string will be lexed as a comment.
-  /// Defaults to false.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
   bool AllowQuestionAtStartOfIdentifier = false;
 
   /// This is true if the assembler allows the "$" character at the start of
   /// of a string to be lexed as an AsmToken::Identifier.
-  /// If the CommentString is also set to "$", setting this option will have
-  /// no effect, and the string will be lexed as a comment.
-  /// Defaults to false.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
   bool AllowDollarAtStartOfIdentifier = false;
 
   /// This is true if the assembler allows the "@" character at the start of
   /// a string to be lexed as an AsmToken::Identifier.
-  /// If the CommentString is also set to "@", setting this option will have
-  /// no effect, and the string will be lexed as a comment.
-  /// Defaults to false.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
   bool AllowAtAtStartOfIdentifier = false;
+
+  /// This is true if the assembler allows the "#" character at the start of
+  /// a string to be lexed as an AsmToken::Identifier.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
+  bool AllowHashAtStartOfIdentifier = false;
 
   /// If this is true, symbol names with invalid characters will be printed in
   /// quotes.
@@ -586,6 +597,7 @@ public:
 
   unsigned getMinInstAlignment() const { return MinInstAlignment; }
   bool getDollarIsPC() const { return DollarIsPC; }
+  bool getDotIsPC() const { return DotIsPC; }
   const char *getSeparatorString() const { return SeparatorString; }
 
   /// This indicates the column (zero-based) at which asm comments should be
@@ -629,6 +641,9 @@ public:
   }
   bool doesAllowDollarAtStartOfIdentifier() const {
     return AllowDollarAtStartOfIdentifier;
+  }
+  bool doesAllowHashAtStartOfIdentifier() const {
+    return AllowHashAtStartOfIdentifier;
   }
   bool supportsNameQuoting() const { return SupportsQuotedNames; }
 

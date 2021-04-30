@@ -726,8 +726,6 @@ def UnusedMemberFunction : DiagGroup<"unused-member-function",
 def UnusedLabel : DiagGroup<"unused-label">;
 def UnusedLambdaCapture : DiagGroup<"unused-lambda-capture">;
 def UnusedParameter : DiagGroup<"unused-parameter">;
-def UnusedButSetParameter : DiagGroup<"unused-but-set-parameter">;
-def UnusedButSetVariable : DiagGroup<"unused-but-set-variable">;
 def UnusedResult : DiagGroup<"unused-result">;
 def PotentiallyEvaluatedExpression : DiagGroup<"potentially-evaluated-expression">;
 def UnevaluatedExpression : DiagGroup<"unevaluated-expression",
@@ -869,8 +867,7 @@ def Conversion : DiagGroup<"conversion",
                  DiagCategory<"Value Conversion Issue">;
 
 def Unused : DiagGroup<"unused",
-                       [UnusedArgument, UnusedButSetVariable,
-                        UnusedFunction, UnusedLabel,
+                       [UnusedArgument, UnusedFunction, UnusedLabel,
                         // UnusedParameter, (matches GCC's behavior)
                         // UnusedTemplate, (clean-up libc++ before enabling)
                         // UnusedMemberFunction, (clean-up llvm before enabling)
@@ -927,7 +924,6 @@ def Extra : DiagGroup<"extra", [
     SemiBeforeMethodBody,
     MissingMethodReturnType,
     SignCompare,
-    UnusedButSetParameter,
     UnusedParameter,
     NullPointerArithmetic,
     EmptyInitStatement,
@@ -1297,3 +1293,5 @@ in addition with the pragmas or -fmax-tokens flag to get any warnings.
 def WebAssemblyExceptionSpec : DiagGroup<"wasm-exception-spec">;
 
 def RTTI : DiagGroup<"rtti">;
+
+def OpenCLCoreFeaturesDiagGroup : DiagGroup<"pedantic-core-features">;

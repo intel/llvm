@@ -6018,7 +6018,8 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
                (!Param || !Param->hasAttr<CFConsumedAttr>()))
         CFAudited = true;
 
-      if (Proto->getExtParameterInfo(i).isNoEscape())
+      if (Proto->getExtParameterInfo(i).isNoEscape() &&
+          ProtoArgType->isBlockPointerType())
         if (auto *BE = dyn_cast<BlockExpr>(Arg->IgnoreParenNoopCasts(Context)))
           BE->getBlockDecl()->setDoesNotEscape();
 
@@ -15591,9 +15592,6 @@ ExprResult Sema::ActOnBlockStmtExpr(SourceLocation CaretLoc,
     DiagnoseInvalidJumps(cast<CompoundStmt>(Body));
 
   BD->setBody(cast<CompoundStmt>(Body));
-
-  // wait to diagnose unused but set parameters until after setBody
-  DiagnoseUnusedButSetParameters(BD->parameters());
 
   if (Body && getCurFunction()->HasPotentialAvailabilityViolations)
     DiagnoseUnguardedAvailabilityViolations(BD);
