@@ -1702,11 +1702,11 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       if (DeviceImageImpl != nullptr) {
         RT::PiMem SpecConstsBuffer =
             DeviceImageImpl->get_spec_const_buffer_ref();
-        Plugin.call<PiApiKind::piKernelSetArg>(
-            Kernel, NextTrueIndex, sizeof(RT::PiMem), &SpecConstsBuffer);
+        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                        &SpecConstsBuffer);
       } else {
-        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
-                                               sizeof(RT::PiMem), nullptr);
+        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                        nullptr);
       }
       break;
     }
