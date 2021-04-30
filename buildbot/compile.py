@@ -35,6 +35,9 @@ def do_compile(args):
         "deploy-opencl-aot",
         "-j", str(cpu_count)]
 
+    if args.verbose:
+      cmake_cmd.append("--verbose")
+
     print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
     subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
@@ -55,6 +58,7 @@ def main():
     parser.add_argument("-s", "--src-dir", metavar="SRC_DIR", help="source directory")
     parser.add_argument("-o", "--obj-dir", metavar="OBJ_DIR", help="build directory")
     parser.add_argument("-j", "--build-parallelism", metavar="BUILD_PARALLELISM", help="build parallelism")
+    parser.add_argument("-v", "--verbose", action='store_true', help="verbose build output")
 
     args = parser.parse_args()
 
