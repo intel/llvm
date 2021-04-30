@@ -1,4 +1,4 @@
-// REQUIRES: ocloc, gpu
+// REQUIRES: opencl, ocloc, gpu
 // UNSUPPORTED: cuda
 // CUDA is not compatible with SPIR.
 
