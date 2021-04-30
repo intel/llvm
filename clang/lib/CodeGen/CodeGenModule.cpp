@@ -4245,19 +4245,9 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
       return LangAS::sycl_local;
   }
 
-  if (LangOpts.SYCLIsDevice) {
-    AddrSpace = !D || (D->getType().getAddressSpace() == LangAS::Default)
-                    ? LangAS::sycl_global
-                    : D->getType().getAddressSpace();
-    assert(AddrSpace == LangAS::sycl_global ||
-           AddrSpace == LangAS::sycl_global_device ||
-           AddrSpace == LangAS::sycl_global_host ||
-           AddrSpace == LangAS::opencl_constant ||
-           AddrSpace == LangAS::sycl_local ||
-           AddrSpace == LangAS::sycl_private ||
-           AddrSpace >= LangAS::FirstTargetAddressSpace);
-    return AddrSpace;
-  }
+  if (LangOpts.SYCLIsDevice &&
+      (!D || D->getType().getAddressSpace() == LangAS::Default))
+    return LangAS::sycl_global;
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
     if (D && D->hasAttr<CUDAConstantAttr>())

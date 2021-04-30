@@ -460,7 +460,6 @@ LangAS TargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
                                                    const VarDecl *D) const {
   assert(!CGM.getLangOpts().OpenCL &&
          !(CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) &&
-         !(CGM.getLangOpts().SYCLIsDevice) &&
          "Address space agnostic languages only");
   return D ? D->getType().getAddressSpace() : LangAS::Default;
 }
@@ -9168,7 +9167,6 @@ AMDGPUTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
                                                   const VarDecl *D) const {
   assert(!CGM.getLangOpts().OpenCL &&
          !(CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) &&
-         !(CGM.getLangOpts().SYCLIsDevice) &&
          "Address space agnostic languages only");
   LangAS DefaultGlobalAS = getLangASFromTargetAS(
       CGM.getContext().getTargetAddressSpace(LangAS::opencl_global));
