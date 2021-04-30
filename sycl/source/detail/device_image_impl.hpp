@@ -169,6 +169,19 @@ public:
     return MSpecConstsBlob;
   }
 
+  RT::PiMem &get_spec_const_buffer_ref() noexcept {
+    std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+    if (nullptr == MSpecConstsBuffer) {
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      Plugin.call<PiApiKind::piMemBufferCreate>(
+          detail::getSyclObjImpl(MContext)->getHandleRef(),
+          PI_MEM_FLAGS_ACCESS_RO | PI_MEM_FLAGS_HOST_PTR_USE,
+          MSpecConstsBlob.size(), MSpecConstsBlob.data(), &MSpecConstsBuffer,
+          nullptr);
+    }
+    return MSpecConstsBuffer;
+  }
+
   const std::map<std::string, std::vector<SpecConstDescT>> &
   get_spec_const_data_ref() const noexcept {
     return MSpecConstSymMap;
@@ -262,6 +275,10 @@ private:
   // Binary blob which can have values of all specialization constants in the
   // image
   std::vector<unsigned char> MSpecConstsBlob;
+  // Buffer containing binary blob which can have values of all specialization
+  // constants in the image, it is using for storing non-native specialization
+  // constants
+  RT::PiMem MSpecConstsBuffer = nullptr;
   // Contains map of spec const names to their descriptions + offsets in
   // the MSpecConstsBlob
   std::map<std::string, std::vector<SpecConstDescT>> MSpecConstSymMap;
