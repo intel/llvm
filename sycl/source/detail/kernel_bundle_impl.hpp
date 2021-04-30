@@ -289,8 +289,8 @@ public:
     MDeviceImages.erase(DevImgIt, MDeviceImages.end());
 
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
-      for (const std::pair<std::string, std::vector<unsigned char>> &SpecConst :
-           Bundle->MSpecConstValues) {
+      for (const std::pair<const std::string, std::vector<unsigned char>>
+               &SpecConst : Bundle->MSpecConstValues) {
         set_specialization_constant_raw_value(SpecConst.first.c_str(),
                                               SpecConst.second.data(),
                                               SpecConst.second.size());
