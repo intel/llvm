@@ -81,7 +81,6 @@ struct _pi_platform {
 
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
-  bool findDriverExtension(const ze_driver_extension_properties_t zeExtension);
 
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;

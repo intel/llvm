@@ -278,6 +278,9 @@ static sycl::detail::SpinLock *PiPlatformsCacheMutex =
     new sycl::detail::SpinLock;
 static bool PiPlatformCachePopulated = false;
 
+// Keeps track if the global offset extension is found
+static bool PiDriverGlobalOffsetExtensionFound = false;
+
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
 
@@ -1129,17 +1132,19 @@ pi_result _pi_platform::initialize() {
   uint32_t Count = 0;
   ZE_CALL(zeDriverGetExtensionProperties, (ZeDriver, &Count, nullptr));
 
-  if (Count == 0) {
-    zePrint("No extensions supported on this driver\n");
-    return PI_INVALID_VALUE;
-  }
-
   std::vector<ze_driver_extension_properties_t> zeExtensions(Count);
 
   ZE_CALL(zeDriverGetExtensionProperties,
           (ZeDriver, &Count, zeExtensions.data()));
 
   for (auto extension : zeExtensions) {
+    // Check if global offset extension is available
+    if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
+                strlen(ZE_GLOBAL_OFFSET_EXP_NAME)) == 0) {
+      if (extension.version == ZE_GLOBAL_OFFSET_EXP_VERSION_1_0) {
+        PiDriverGlobalOffsetExtensionFound = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
@@ -1345,16 +1350,6 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   }
 
   return PI_INVALID_VALUE;
-}
-
-bool _pi_platform::findDriverExtension(
-    const ze_driver_extension_properties_t zeExtension) {
-  if (zeDriverExtensionMap.find(zeExtension.name) !=
-      zeDriverExtensionMap.end()) {
-    return (zeDriverExtensionMap[zeExtension.name] == zeExtension.version);
-  }
-
-  return false;
 }
 
 // Get the cahched PI device created for the L0 device handle.
@@ -3776,11 +3771,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
 
   if (GlobalWorkOffset != NULL) {
-    ze_driver_extension_properties_t GlobalOffsetExtension{
-        ZE_GLOBAL_OFFSET_EXP_NAME, ZE_GLOBAL_OFFSET_EXP_VERSION_1_0};
-
-    auto Platform = Queue->Device->Platform;
-    if (!(Platform->findDriverExtension(GlobalOffsetExtension))) {
+    if (!PiDriverGlobalOffsetExtensionFound) {
       zePrint("No global offset extension found on this driver\n");
       return PI_INVALID_VALUE;
     }
