@@ -682,7 +682,11 @@ void SYCLToolChain::AddImpliedTargetArgs(
   llvm::opt::ArgStringList BeArgs;
   bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
-    if (!A->getOption().matches(options::OPT_g0))
+    // Add debug enabling option.  Do not add for FPGA Emulation.  Explicit
+    // debug enabling can be done by using -Xsycl-target-backend --bo=-g
+    if (!A->getOption().matches(options::OPT_g0) &&
+        !(Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64 &&
+          Args.hasArg(options::OPT_fintelfpga)))
       BeArgs.push_back("-g");
   if (Args.getLastArg(options::OPT_O0))
     BeArgs.push_back("-cl-opt-disable");
