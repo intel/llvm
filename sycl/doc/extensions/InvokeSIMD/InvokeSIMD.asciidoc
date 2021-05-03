@@ -223,6 +223,12 @@ in the `args` parameter pack according to the following rules:
 After this mapping has taken place, an appropriate variant of `Callable` is
 selected based on standard overload resolution.
 
+NOTE: If overload behavior is desired, a user must pass an overload set to
+`invoke_simd` (e.g. a `Callable` with multiple call operators).  When the name
+of a function is passed to `invoke_simd` it decays to a function pointer; if
+the name of an overloaded function is passed to `invoke_simd`, the compiler
+cannot deduce the type of `Callable`.
+
 The return value of an `invoke_simd` function is subject to the same mapping
 rules in reverse:
 
@@ -293,6 +299,61 @@ q.parallel_for(..., sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(8)]]
   // mask values from each work-item are combined into a simd_mask<bool, 8>
   bool mask = (it.get_local_id(0) % 2);
   float z = sycl::ext::oneapi::experimental::invoke_simd(sg, masked_scale, x, sycl::ext::oneapi::experimental::uniform(n), mask);
+});
+----
+
+The examples below demonstrates how invoking a SIMD function behaves in the
+presence of function overloads.
+
+[source, c++]
+----
+sycl::ext::oneapi::experimental::simd<float, 8> scale(sycl::ext::oneapi::experimental::simd<float, 8> x, float n)
+{
+  return x * n;
+}
+
+sycl::ext::oneapi::experimental::simd<float, 8> scale(sycl::ext::oneapi::experimental::simd<float, 8> x, sycl::ext::oneapi::experimental::simd<float, 8> n)
+{
+  return x * n;
+}
+
+q.parallel_for(..., sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(8)]]
+{
+  sycl::sub_group sg = it.get_sub_group();
+  float x = ...;
+  float n = ...;
+
+  // invoke SIMD function
+  // which overload to call must be expressed explicitly, here we use invoke_simd's template argument
+  float y = sycl::ext::oneapi::experimental::invoke_simd<sycl::ext::oneapi::experimental::simd<float, 8>(sycl::ext::oneapi::experimental::simd<float, 8>, float)>(sg, scale, x, sycl::ext::oneapi::experimental::uniform(n));
+});
+----
+
+[source, c++]
+----
+struct scale
+{
+  sycl::ext::oneapi::experimental::simd<float, 8> operator()(sycl::ext::oneapi::experimental::simd<float, 8> x, float n)
+  {
+    return x * n;
+  }
+
+  sycl::ext::oneapi::experimental::simd<float, 8> operator()(sycl::ext::oneapi::experimental::simd<float, 8> x, sycl::ext::oneapi::experimental::simd<float, 8> n)
+  {
+    return x * n;
+  }
+};
+
+q.parallel_for(..., sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(8)]]
+{
+  sycl::sub_group sg = it.get_sub_group();
+  float x = ...;
+  float n = ...;
+
+  // invoke SIMD function
+  // the correct overload of scale's call operator will be selected after mapping to SIMD types
+  // note that invoke_simd accepts an instance of scale
+  float y = sycl::ext::oneapi::experimental::invoke_simd(sg, scale(), x, sycl::ext::oneapi::experimental::uniform(n));
 });
 ----
 
