@@ -1,5 +1,3 @@
-// UNSUPPORTED: cuda
-// CUDA does not support unnamed lambdas.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-unnamed-lambda %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
@@ -7,7 +5,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-//==------ oq_kernels.cpp - SYCL ordered queue kernel shortcut test --------==//
+// SYCL ordered queue kernel shortcut test
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,6 +40,12 @@ int main() {
       A[i]++;
     });
 
+    q.single_task([=]() {
+      for (int i = 0; i < N; i++) {
+        A[i]++;
+      }
+    });
+
     q.single_task<class Bar>([=]() {
       for (int i = 0; i < N; i++) {
         A[i]++;
@@ -49,21 +53,49 @@ int main() {
     });
 
     id<1> offset(0);
+    q.parallel_for(range<1>{N}, offset, [=](id<1> ID) {
+      auto i = ID[0];
+      A[i]++;
+    });
+
     q.parallel_for<class Baz>(range<1>{N}, offset, [=](id<1> ID) {
       auto i = ID[0];
       A[i]++;
     });
 
     nd_range<1> NDR(range<1>{N}, range<1>{2});
+    q.parallel_for(NDR, [=](nd_item<1> Item) {
+      auto i = Item.get_global_id(0);
+      A[i]++;
+    });
+
     q.parallel_for<class NDFoo>(NDR, [=](nd_item<1> Item) {
       auto i = Item.get_global_id(0);
       A[i]++;
     });
 
+    q.submit([&](handler &cgh) {
+      cgh.parallel_for_work_group<class WkGrp>(
+          range<1>{N / 2}, range<1>{2}, [=](group<1> myGroup) {
+            auto j = myGroup.get_id(0);
+            myGroup.parallel_for_work_item(
+                [&](h_item<1> it) { A[(j * 2) + it.get_local_id(0)]++; });
+          });
+    });
+
+    q.submit([&](handler &cgh) {
+      cgh.parallel_for_work_group(
+          range<1>{N / 2}, range<1>{2}, [=](group<1> myGroup) {
+            auto j = myGroup.get_id(0);
+            myGroup.parallel_for_work_item(
+                [&](h_item<1> it) { A[(j * 2) + it.get_local_id(0)]++; });
+          });
+    });
+
     q.wait();
 
     for (int i = 0; i < N; i++) {
-      if (A[i] != 6)
+      if (A[i] != 11)
         return 1;
     }
   }
