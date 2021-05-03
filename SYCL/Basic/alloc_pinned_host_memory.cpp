@@ -38,5 +38,6 @@ int main() {
 }
 
 // CHECK:---> piMemBufferCreate
+// CHECK:---> piMemBufferCreate
 // CHECK-NEXT: {{.*}} : {{.*}}
-// CHECK-NEXT: {{.*}} : 9
+// CHECK-NEXT: {{.*}} : 17
