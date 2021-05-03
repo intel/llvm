@@ -7,6 +7,14 @@
 // CHECK-NEXT:class ClassInAnonNS;
 // CHECK-NEXT:}
 
+// CHECK:namespace  { namespace NestedInAnon {
+// CHECK-NEXT:struct StructInAnonymousNS;
+// CHECK-NEXT:}}
+
+// CHECK:namespace Named { namespace  {
+// CHECK-NEXT:struct IsThisValid;
+// CHECK-NEXT:}}
+
 // CHECK:template <> struct KernelInfo<class KernelName> {
 // CHECK:template <> struct KernelInfo<::nm1::nm2::KernelName0> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName1> {
@@ -57,6 +65,18 @@ namespace {
   class ClassInAnonNS;
   template <typename T> class TmplClassInAnonNS;
 }
+
+namespace {
+namespace NestedInAnon {
+struct StructInAnonymousNS {};
+} // namespace NestedInAnon
+} // namespace
+
+namespace Named {
+namespace {
+struct IsThisValid {};
+} // namespace
+} // namespace Named
 
 struct MyWrapper {
   class KN101 {};
@@ -127,6 +147,13 @@ struct MyWrapper {
 
     // kernel name type is a class, declared in the anonymous namespace
     kernel_single_task<ClassInAnonNS>(
+        [=]() { acc.use(); });
+
+    // kernel name types declared in nested anonymous namespace
+    kernel_single_task<NestedInAnon::StructInAnonymousNS>(
+        [=]() { acc.use(); });
+
+    kernel_single_task<Named::IsThisValid>(
         [=]() { acc.use(); });
 
     // Kernel name type is a templated specialization class with empty template pack argument
