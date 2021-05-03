@@ -564,16 +564,20 @@ pi_result _pi_device::initialize() {
 }
 
 pi_result _pi_context::initialize() {
-  // Create the immediate command list to be used for initializations
+  // Create the immediate command lists to be used for initializations
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
-  ze_command_queue_desc_t ZeCommandQueueDesc = {};
-  ZeCommandQueueDesc.ordinal = Devices[0]->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
-  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  ZE_CALL(zeCommandListCreateImmediate,
-          (ZeContext, Devices[0]->ZeDevice, &ZeCommandQueueDesc,
-           &ZeCommandListInit));
+  for (auto &Device : Devices) {
+    ze_command_queue_desc_t ZeCommandQueueDesc = {};
+    ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
+    ZeCommandQueueDesc.index = 0;
+    ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
+    ze_command_list_handle_t ZeCommandListInit;
+    ZE_CALL(
+        zeCommandListCreateImmediate,
+        (ZeContext, Device->ZeDevice, &ZeCommandQueueDesc, &ZeCommandListInit));
+    ZeImmediateCommandLists[Device] = ZeCommandListInit;
+  }
   return PI_SUCCESS;
 }
 
@@ -586,8 +590,10 @@ pi_result _pi_context::finalize() {
   if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
     ZE_CALL(zeEventPoolDestroy, (ZeEventPool));
 
-  // Destroy the command list used for initializations
-  ZE_CALL(zeCommandListDestroy, (ZeCommandListInit));
+  for (auto &[Device, ZeImmediateCommandList] : ZeImmediateCommandLists) {
+    // Destroy the command list used for initializations
+    ZE_CALL(zeCommandListDestroy, (ZeImmediateCommandList));
+  }
 
   std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
   for (ze_command_list_handle_t &ZeCommandList : ZeComputeCommandListCache) {
@@ -2519,11 +2525,16 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     Alignment = 1UL;
 
   pi_result Result;
+  std::map<pi_device, char *> ZeMemHandles;
   if (DeviceIsIntegrated) {
     Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+    ZeMemHandles[Context->Devices[0]] = pi_cast<char *>(Ptr);
   } else {
-    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->Devices[0], nullptr,
-                                 Size, Alignment);
+    for (auto &Device : Context->Devices) {
+      Result =
+          piextUSMDeviceAlloc(&Ptr, Context, Device, nullptr, Size, Alignment);
+      ZeMemHandles[Device] = pi_cast<char *>(Ptr);
+    }
   }
   if (Result != PI_SUCCESS)
     return Result;
@@ -2537,10 +2548,13 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
         memcpy(Ptr, HostPtr, Size);
       } else {
 
-        // Initialize the buffer synchronously with immediate offload
-        ZE_CALL(zeCommandListAppendMemoryCopy,
-                (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
-                 nullptr));
+        for (auto &[Device, ZeImmediateCommandList] :
+             Context->ZeImmediateCommandLists) {
+          // Initialize the buffer synchronously with immediate offload
+          ZE_CALL(zeCommandListAppendMemoryCopy,
+                  (ZeImmediateCommandList, ZeMemHandles[Device], HostPtr, Size,
+                   nullptr, 0, nullptr));
+        }
       }
     } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
       // Nothing more to do.
@@ -2553,7 +2567,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
   try {
     *RetMem = new _pi_buffer(
-        Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
+        Context, std::move(ZeMemHandles) /* Level Zero Memory Handles */,
         HostPtrOrNull, nullptr, 0, 0,
         DeviceIsIntegrated /* allocation in host memory */);
   } catch (const std::bad_alloc &) {
@@ -2590,11 +2604,15 @@ pi_result piMemRelease(pi_mem Mem) {
 
   if (--(Mem->RefCount) == 0) {
     if (Mem->isImage()) {
-      ZE_CALL(zeImageDestroy, (pi_cast<ze_image_handle_t>(Mem->getZeHandle())));
+      auto Img = static_cast<_pi_image *>(Mem);
+      for (auto &[Device, ZeImageHandle] : Img->ZeImageHandles)
+        ZE_CALL(zeImageDestroy, (ZeImageHandle));
     } else {
       auto Buf = static_cast<_pi_buffer *>(Mem);
       if (!Buf->isSubBuffer()) {
-        PI_CALL(piextUSMFree(Mem->Context, Mem->getZeHandle()));
+        for (auto &[Device, ZeMemHandle] : Buf->ZeMemHandles) {
+          PI_CALL(piextUSMFree(Mem->Context, ZeMemHandle));
+        }
       }
     }
     delete Mem;
@@ -2736,35 +2754,35 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZeImageDesc.arraylevels = pi_cast<uint32_t>(ImageDesc->image_array_size);
   ZeImageDesc.miplevels = ImageDesc->num_mip_levels;
 
-  // Have the "0" device in context to own the image. Rely on Level-Zero
-  // drivers to perform migration as necessary for sharing it across multiple
-  // devices in the context.
-  //
-  // TODO: figure out if we instead need explicit copying for acessing
-  // the image from other devices in the context.
-  //
-  pi_device Device = Context->Devices[0];
-  ze_image_handle_t ZeHImage;
-  ZE_CALL(zeImageCreate,
-          (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));
+  std::map<pi_device, ze_image_handle_t> ZeImageHandles;
+  for (auto &Device : Context->Devices) {
+    ze_image_handle_t ZeHImage;
+    ZE_CALL(zeImageCreate,
+            (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));
+    ZeImageHandles[Device] = ZeHImage;
+  }
 
   auto HostPtrOrNull =
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
 
   try {
-    auto ZePIImage = new _pi_image(Context, ZeHImage, HostPtrOrNull);
+    if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
+        (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
+      for (auto &[Device, ZeImmediateCommandList] :
+           Context->ZeImmediateCommandLists) {
+        // Initialize image synchronously with immediate offload
+        ZE_CALL(zeCommandListAppendImageCopyFromMemory,
+                (ZeImmediateCommandList, ZeImageHandles[Device], HostPtr,
+                 nullptr, nullptr, 0, nullptr));
+      }
+    }
+
+    auto ZePIImage =
+        new _pi_image(Context, std::move(ZeImageHandles), HostPtrOrNull);
 
 #ifndef NDEBUG
     ZePIImage->ZeImageDesc = ZeImageDesc;
 #endif // !NDEBUG
-
-    if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
-        (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
-      // Initialize image synchronously with immediate offload
-      ZE_CALL(zeCommandListAppendImageCopyFromMemory,
-              (Context->ZeCommandListInit, ZeHImage, HostPtr, nullptr, nullptr,
-               0, nullptr));
-    }
 
     *RetImage = ZePIImage;
   } catch (const std::bad_alloc &) {
@@ -2777,7 +2795,10 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
 pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
-  *NativeHandle = pi_cast<pi_native_handle>(Mem->getZeHandle());
+  // TODO: Change the interface. User need to provide a device to get a memory
+  // handle because memory handle is per device.
+  *NativeHandle =
+      pi_cast<pi_native_handle>(Mem->getZeHandle(Mem->Context->Devices[0]));
   return PI_SUCCESS;
 }
 
@@ -2830,8 +2851,6 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
       *BinaryStatus = PI_INVALID_VALUE;
     return PI_INVALID_VALUE;
   }
-  if (DeviceList[0] != Context->Devices[0])
-    return PI_INVALID_DEVICE;
 
   size_t Length = Lengths[0];
   auto Binary = Binaries[0];
@@ -3119,6 +3138,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     if (ZeResult == ZE_RESULT_SUCCESS ||
         ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
       *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog);
+      (*RetProgram)->Device = Device;
     }
     if (ZeResult != ZE_RESULT_SUCCESS)
       return mapError(ZeResult);
@@ -3160,6 +3180,7 @@ pi_result piProgramCompile(
     return res;
 
   Program->State = _pi_program::Object;
+  Program->Device = DeviceList[0];
   return PI_SUCCESS;
 }
 
@@ -3186,6 +3207,7 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
     return res;
 
   Program->State = _pi_program::Exe;
+  Program->Device = DeviceList[0];
   return PI_SUCCESS;
 }
 
@@ -3562,7 +3584,7 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   ZE_CALL(zeKernelSetArgumentValue,
           (pi_cast<ze_kernel_handle_t>(Kernel->ZeKernel),
            pi_cast<uint32_t>(ArgIndex), sizeof(void *),
-           (*ArgValue)->getZeHandlePtr()));
+           (*ArgValue)->getZeHandlePtr(Kernel->Program->Device)));
 
   return PI_SUCCESS;
 }
@@ -4505,10 +4527,10 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   PI_ASSERT(Src, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
-                              BlockingRead, Size,
-                              pi_cast<char *>(Src->getZeHandle()) + Offset,
-                              NumEventsInWaitList, EventWaitList, Event);
+  return enqueueMemCopyHelper(
+      PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst, BlockingRead, Size,
+      pi_cast<char *>(Src->getZeHandle(Queue->Device)) + Offset,
+      NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -4523,10 +4545,11 @@ pi_result piEnqueueMemBufferReadRect(
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   return enqueueMemCopyRectHelper(
-      PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, Queue, Buffer->getZeHandle(),
-      static_cast<char *>(Ptr), BufferOffset, HostOffset, Region,
-      BufferRowPitch, HostRowPitch, BufferSlicePitch, HostSlicePitch,
-      BlockingRead, NumEventsInWaitList, EventWaitList, Event);
+      PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, Queue,
+      Buffer->getZeHandle(Queue->Device), static_cast<char *>(Ptr),
+      BufferOffset, HostOffset, Region, BufferRowPitch, HostRowPitch,
+      BufferSlicePitch, HostSlicePitch, BlockingRead, NumEventsInWaitList,
+      EventWaitList, Event);
 }
 
 } // extern "C"
@@ -4697,12 +4720,12 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
-                              pi_cast<char *>(Buffer->getZeHandle()) +
-                                  Offset, // dst
-                              BlockingWrite, Size,
-                              Ptr, // src
-                              NumEventsInWaitList, EventWaitList, Event);
+  return enqueueMemCopyHelper(
+      PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
+      pi_cast<char *>(Buffer->getZeHandle(Queue->Device)) + Offset, // dst
+      BlockingWrite, Size,
+      Ptr, // src
+      NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
@@ -4718,10 +4741,10 @@ pi_result piEnqueueMemBufferWriteRect(
 
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, Queue,
-      const_cast<char *>(static_cast<const char *>(Ptr)), Buffer->getZeHandle(),
-      HostOffset, BufferOffset, Region, HostRowPitch, BufferRowPitch,
-      HostSlicePitch, BufferSlicePitch, BlockingWrite, NumEventsInWaitList,
-      EventWaitList, Event);
+      const_cast<char *>(static_cast<const char *>(Ptr)),
+      Buffer->getZeHandle(Queue->Device), HostOffset, BufferOffset, Region,
+      HostRowPitch, BufferRowPitch, HostSlicePitch, BufferSlicePitch,
+      BlockingWrite, NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
@@ -4737,9 +4760,9 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
   return enqueueMemCopyHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue,
-      pi_cast<char *>(DstBuffer->getZeHandle()) + DstOffset,
+      pi_cast<char *>(DstBuffer->getZeHandle(Queue->Device)) + DstOffset,
       false, // blocking
-      Size, pi_cast<char *>(SrcBuffer->getZeHandle()) + SrcOffset,
+      Size, pi_cast<char *>(SrcBuffer->getZeHandle(Queue->Device)) + SrcOffset,
       NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
@@ -4755,9 +4778,10 @@ pi_result piEnqueueMemBufferCopyRect(
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
   return enqueueMemCopyRectHelper(
-      PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, Queue, SrcBuffer->getZeHandle(),
-      DstBuffer->getZeHandle(), SrcOrigin, DstOrigin, Region, SrcRowPitch,
-      DstRowPitch, SrcSlicePitch, DstSlicePitch,
+      PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, Queue,
+      SrcBuffer->getZeHandle(Queue->Device),
+      DstBuffer->getZeHandle(Queue->Device), SrcOrigin, DstOrigin, Region,
+      SrcRowPitch, DstRowPitch, SrcSlicePitch, DstSlicePitch,
       false, // blocking
       NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
@@ -4839,10 +4863,10 @@ pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  return enqueueMemFillHelper(PI_COMMAND_TYPE_MEM_BUFFER_FILL, Queue,
-                              pi_cast<char *>(Buffer->getZeHandle()) + Offset,
-                              Pattern, PatternSize, Size, NumEventsInWaitList,
-                              EventWaitList, Event);
+  return enqueueMemFillHelper(
+      PI_COMMAND_TYPE_MEM_BUFFER_FILL, Queue,
+      pi_cast<char *>(Buffer->getZeHandle(Queue->Device)) + Offset, Pattern,
+      PatternSize, Size, NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
@@ -4915,9 +4939,11 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
       if (!(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION))
-        memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
+        memcpy(*RetMap,
+               pi_cast<char *>(Buffer->getZeHandle(Queue->Device)) + Offset,
+               Size);
     } else {
-      *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
+      *RetMap = pi_cast<char *>(Buffer->getZeHandle(Queue->Device)) + Offset;
     }
 
     // Signal this event
@@ -4958,8 +4984,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
   ZE_CALL(zeCommandListAppendMemoryCopy,
           (ZeCommandList, *RetMap,
-           pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size, ZeEvent, 0,
-           nullptr));
+           pi_cast<char *>(Buffer->getZeHandle(Queue->Device)) + Offset, Size,
+           ZeEvent, 0, nullptr));
 
   if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, *Event,
                                            BlockingMap))
@@ -5036,8 +5062,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     }
 
     if (MemObj->MapHostPtr)
-      memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
-             MapInfo.Size);
+      memcpy(pi_cast<char *>(MemObj->getZeHandle(Queue->Device)) +
+                 MapInfo.Offset,
+             MappedPtr, MapInfo.Size);
 
     // Signal this event
     ZE_CALL(zeEventHostSignal, (ZeEvent));
@@ -5069,8 +5096,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
   ZE_CALL(zeCommandListAppendMemoryCopy,
           (ZeCommandList,
-           pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
-           MapInfo.Size, ZeEvent, 0, nullptr));
+           pi_cast<char *>(MemObj->getZeHandle(Queue->Device)) + MapInfo.Offset,
+           MappedPtr, MapInfo.Size, ZeEvent, 0, nullptr));
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -5212,8 +5239,8 @@ static pi_result enqueueMemImageCommandHelper(
 
     ZE_CALL(zeCommandListAppendImageCopyToMemory,
             (ZeCommandList, Dst,
-             pi_cast<ze_image_handle_t>(SrcMem->getZeHandle()), &ZeSrcRegion,
-             ZeEvent, 0, nullptr));
+             pi_cast<ze_image_handle_t>(SrcMem->getZeHandle(Queue->Device)),
+             &ZeSrcRegion, ZeEvent, 0, nullptr));
   } else if (CommandType == PI_COMMAND_TYPE_IMAGE_WRITE) {
     pi_mem DstMem = pi_cast<pi_mem>(Dst);
     ze_image_region_t ZeDstRegion;
@@ -5243,7 +5270,8 @@ static pi_result enqueueMemImageCommandHelper(
 #endif // !NDEBUG
 
     ZE_CALL(zeCommandListAppendImageCopyFromMemory,
-            (ZeCommandList, pi_cast<ze_image_handle_t>(DstMem->getZeHandle()),
+            (ZeCommandList,
+             pi_cast<ze_image_handle_t>(DstMem->getZeHandle(Queue->Device)),
              Src, &ZeDstRegion, ZeEvent, 0, nullptr));
   } else if (CommandType == PI_COMMAND_TYPE_IMAGE_COPY) {
     pi_mem SrcImage = pi_cast<pi_mem>(const_cast<void *>(Src));
@@ -5260,9 +5288,10 @@ static pi_result enqueueMemImageCommandHelper(
       return Result;
 
     ZE_CALL(zeCommandListAppendImageCopyRegion,
-            (ZeCommandList, pi_cast<ze_image_handle_t>(DstImage->getZeHandle()),
-             pi_cast<ze_image_handle_t>(SrcImage->getZeHandle()), &ZeDstRegion,
-             &ZeSrcRegion, ZeEvent, 0, nullptr));
+            (ZeCommandList,
+             pi_cast<ze_image_handle_t>(DstImage->getZeHandle(Queue->Device)),
+             pi_cast<ze_image_handle_t>(SrcImage->getZeHandle(Queue->Device)),
+             &ZeDstRegion, &ZeSrcRegion, ZeEvent, 0, nullptr));
   } else {
     zePrint("enqueueMemImageUpdate: unsupported image command type\n");
     return PI_INVALID_OPERATION;
@@ -5383,13 +5412,15 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
             PI_INVALID_VALUE);
 
   try {
-    *RetMem =
-        new _pi_buffer(Buffer->Context,
-                       pi_cast<char *>(Buffer->getZeHandle()) +
-                           Region->origin /* Level Zero memory handle */,
-                       nullptr /* Host pointer */, Buffer /* Parent buffer */,
-                       Region->origin /* Sub-buffer origin */,
-                       Region->size /*Sub-buffer size*/);
+    std::map<pi_device, char *> ZeMemHandles;
+    for (auto &Device : Buffer->Context->Devices) {
+      ZeMemHandles[Device] =
+          pi_cast<char *>(Buffer->getZeHandle(Device)) + Region->origin;
+    }
+    *RetMem = new _pi_buffer(
+        Buffer->Context, std::move(ZeMemHandles), nullptr /* Host pointer */,
+        Buffer /* Parent buffer */, Region->origin /* Sub-buffer origin */,
+        Region->size /*Sub-buffer size*/);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {

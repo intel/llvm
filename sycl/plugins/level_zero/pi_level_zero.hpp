@@ -190,7 +190,7 @@ struct _pi_context : _pi_object {
               const pi_device *Devs, bool OwnZeContext)
       : ZeContext{ZeContext},
         OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
-        ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
+        ZeImmediateCommandLists{}, ZeEventPool{nullptr},
         NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
     // Create USM allocator context for each pair (device, context).
     for (uint32_t I = 0; I < NumDevices; I++) {
@@ -230,15 +230,13 @@ struct _pi_context : _pi_object {
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;
 
-  // Immediate Level Zero command list for the device in this context, to be
+  // Immediate Level Zero command list for the devices in this context, to be
   // used for initializations. To be created as:
   // - Immediate command list: So any command appended to it is immediately
   //   offloaded to the device.
   // - Synchronous: So implicit synchronization is made inside the level-zero
   //   driver.
-  // There will be a list of immediate command lists (for each device) when
-  // support of the multiple devices per context will be added.
-  ze_command_list_handle_t ZeCommandListInit;
+  std::map<pi_device, ze_command_list_handle_t> ZeImmediateCommandLists;
 
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
@@ -475,10 +473,10 @@ struct _pi_mem : _pi_object {
   // Interface of the _pi_mem object
 
   // Get the Level Zero handle of the current memory object
-  virtual void *getZeHandle() = 0;
+  virtual void *getZeHandle(pi_device Device) = 0;
 
   // Get a pointer to the Level Zero handle of the current memory object
-  virtual void *getZeHandlePtr() = 0;
+  virtual void *getZeHandlePtr(pi_device Device) = 0;
 
   // Method to get type of the derived object (image or buffer)
   virtual bool isImage() const = 0;
@@ -506,23 +504,35 @@ private:
 
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
-             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
-             bool MemOnHost = false)
-      : _pi_mem(Ctx, HostPtr, MemOnHost), ZeMem{Mem}, SubBuffer{Parent, Origin,
-                                                                Size} {}
+  _pi_buffer(pi_context Ctx, std::map<pi_device, char *> &&ZeMemHandles,
+             char *HostPtr, _pi_mem *Parent = nullptr, size_t Origin = 0,
+             size_t Size = 0, bool MemOnHost = false)
+      : _pi_mem(Ctx, HostPtr, MemOnHost),
+        ZeMemHandles(std::move(ZeMemHandles)), SubBuffer{Parent, Origin, Size} {
+  }
 
-  void *getZeHandle() override { return ZeMem; }
+  void *getZeHandle(const pi_device Device) override {
+    auto It = ZeMemHandles.find(Device);
+    if (It == ZeMemHandles.end())
+      die("Invalid device");
+    return It->second;
+  }
 
-  void *getZeHandlePtr() override { return &ZeMem; }
+  void *getZeHandlePtr(const pi_device Device) override {
+    auto It = ZeMemHandles.find(Device);
+    if (It == ZeMemHandles.end())
+      die("Invalid device");
+    return &(It->second);
+  }
 
   bool isImage() const override { return false; }
 
   bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
 
+  // Container of the native memory handles for each device in the context.
   // Level Zero memory handle is really just a naked pointer.
   // It is just convenient to have it char * to simplify offset arithmetics.
-  char *ZeMem;
+  std::map<pi_device, char *> ZeMemHandles;
 
   struct {
     _pi_mem *Parent;
@@ -533,12 +543,24 @@ struct _pi_buffer final : _pi_mem {
 
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr)
-      : _pi_mem(Ctx, HostPtr), ZeImage{Image} {}
+  _pi_image(pi_context Ctx,
+            std::map<pi_device, ze_image_handle_t> ZeImageHandles,
+            char *HostPtr)
+      : _pi_mem(Ctx, HostPtr), ZeImageHandles(std::move(ZeImageHandles)) {}
 
-  void *getZeHandle() override { return ZeImage; }
+  void *getZeHandle(const pi_device Device) override {
+    auto It = ZeImageHandles.find(Device);
+    if (It == ZeImageHandles.end())
+      die("Invalid device");
+    return It->second;
+  }
 
-  void *getZeHandlePtr() override { return &ZeImage; }
+  void *getZeHandlePtr(const pi_device Device) override {
+    auto It = ZeImageHandles.find(Device);
+    if (It == ZeImageHandles.end())
+      die("Invalid device");
+    return &(It->second);
+  }
 
   bool isImage() const override { return true; }
 
@@ -547,8 +569,8 @@ struct _pi_image final : _pi_mem {
   ze_image_desc_t ZeImageDesc;
 #endif // !NDEBUG
 
-  // Level Zero image handle.
-  ze_image_handle_t ZeImage;
+  // Container of the native image handles for each device in the context.
+  std::map<pi_device, ze_image_handle_t> ZeImageHandles;
 };
 
 struct _pi_ze_event_list_t {
@@ -784,6 +806,7 @@ struct _pi_program : _pi_object {
 
   // Used for programs in all states.
   state State;
+  pi_device Device;
   pi_context Context; // Context of the program.
 
   // Used for programs in IL or Native states.
