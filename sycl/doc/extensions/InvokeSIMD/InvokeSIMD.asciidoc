@@ -177,7 +177,7 @@ unintentionally capture non-uniform variables and violate the requirements
 from the previous paragraph. This form of `invoke_simd` should be used with
 caution.
 
-Each parameter of the invoked `Callable` must be a scalar type, a SIMD type,
+Each formal parameter of the invoked `Callable` must be a scalar type, a SIMD type,
 or a `std::tuple` of these types. The length of each SIMD type must match the
 sub-group size of the kernel; calling a SIMD function with mismatched lengths
 is an error, and an implementation must issue a diagnostic.
