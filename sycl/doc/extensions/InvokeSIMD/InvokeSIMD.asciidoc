@@ -197,6 +197,12 @@ pointers can be local, global or generic; if a generic pointer that points
 to an allocation in private memory is passed as an argument, the behavior is
 undefined.
 
+NOTE: The restrictions above may prevent SYCL kernels from directly invoking
+pre-existing SIMD functions (e.g. because they expect a vector of pointers).
+The user is required to define a wrapper function to expose a compatible
+interface in such cases (e.g. a wrapper function that converts a uniform base
+pointer and offsets into a vector of pointers).
+
 In order to invoke the SIMD function, `invoke_simd` converts each argument
 in the `args` parameter pack according to the following rules:
 
