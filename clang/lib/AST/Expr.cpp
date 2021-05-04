@@ -564,7 +564,7 @@ UniqueStableNameExpr *UniqueStableNameExpr::CreateEmpty(const ASTContext &Ctx,
   return new (Mem) UniqueStableNameExpr(EmptyShell(), ResultTy, IsExpr);
 }
 
-std::string UniqueStableNameExpr::ComputeName(ASTContext &Context) {
+std::string UniqueStableNameExpr::ComputeName(ASTContext &Context) const {
   return UniqueStableNameExpr::ComputeName(Context,
                                            getTypeSourceInfo()->getType());
 }
