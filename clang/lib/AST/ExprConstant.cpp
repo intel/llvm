@@ -8670,11 +8670,10 @@ public:
   }
 
   bool VisitUniqueStableNameExpr(const UniqueStableNameExpr *E) {
-    if (Info.Ctx.KernelNameEvaluatedFirst.isInvalid())
-      Info.Ctx.KernelNameEvaluatedFirst = E->getLocation();
-
-    // TODO: ERICH: Do we have any idea if this is the right way to do this?
     std::string ResultStr = E->ComputeName(Info.Ctx);
+
+    Info.Ctx.UniqueStableNameEvaluatedValues[E] = ResultStr;
+
     QualType CharTy = Info.Ctx.CharTy.withConst();
     APInt Size(Info.Ctx.getTypeSize(Info.Ctx.getSizeType()), ResultStr.size());
     QualType ArrayTy = Info.Ctx.getConstantArrayType(CharTy, Size, nullptr,

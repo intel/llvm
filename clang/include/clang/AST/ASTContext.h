@@ -3155,7 +3155,8 @@ public:
   /// A SourceLocation to store whether we have evaluated a kernel name already,
   /// and where it happened.  If so, we need to diagnose an illegal use of the
   /// builtin.
-  SourceLocation KernelNameEvaluatedFirst{};
+  llvm::MapVector<const UniqueStableNameExpr *, std::string>
+      UniqueStableNameEvaluatedValues;
 
 private:
   /// All OMPTraitInfo objects live in this collection, one per

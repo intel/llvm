@@ -739,20 +739,23 @@ static void instantiateSYCLIntelFPGAInitiationIntervalAttr(
 static void instantiateDependentSYCLKernelAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLKernelAttr &Attr, Decl *New) {
-
-  // Diagnose if we have already constant-evaluated one of these builtins.
-  if (S.Context.KernelNameEvaluatedFirst.isValid()) {
-    S.Diag(S.Context.KernelNameEvaluatedFirst,
-           diag::err_unique_stable_name_already_evaluated);
-    S.Diag(New->getLocation(), diag::note_kernel_instantiated_here);
-    return;
-  }
-
   // Functions cannot be partially specialized, so if we are being instantiated,
   // we are obviously a complete specialization. Since this attribute is only
   // valid on function template declarations, we know that this is a full
   // instantiation of a kernel.
   S.AddSYCLKernelLambda(cast<FunctionDecl>(New));
+
+  // Evaluate whether this would change any of the already evaluated
+  // __builtin_unique_stable_name values.
+  for (const auto Itr : S.Context.UniqueStableNameEvaluatedValues) {
+    if (Itr.second != Itr.first->ComputeName(S.Context)) {
+      S.Diag(New->getLocation(),
+             diag::err_kernel_invalidates_unique_stable_name);
+      S.Diag(Itr.first->getLocation(),
+             diag::note_unique_stable_name_evaluated_here);
+      return;
+    }
+  }
 
   New->addAttr(Attr.clone(S.getASTContext()));
 }
