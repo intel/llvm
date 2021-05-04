@@ -345,8 +345,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
 
   // Attributes that should be propagated from device functions to a kernel
   // in SYCL 1.2.1.
-  if (S.getASTContext().getLangOpts().getSYCLVersion() ==
-      LangOptions::SYCL_2017) {
+  if (S.getASTContext().getLangOpts().getSYCLVersion() <
+      LangOptions::SYCL_2020) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
@@ -358,8 +358,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   } else {
     // Attributes that should not be propagated from device functions to a
     // kernel in SYCL 2020.
-    if (DirectlyCalled && S.getASTContext().getLangOpts().getSYCLVersion() ==
-                              LangOptions::SYCL_2020) {
+    if (DirectlyCalled) {
       llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
         return isa<
             SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
