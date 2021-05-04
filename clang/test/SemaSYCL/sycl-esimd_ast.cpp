@@ -16,36 +16,37 @@ struct FuncObj {
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
-    // CHECK SYCLSimdAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLKernelAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLSimdAttr {{.*}}
+    // CHECK:       SYCLSimdAttr {{.*}} Implicit
+    // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
+    // CHECK-NEXT:  SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel1>(
         FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-    // CHECK SYCLSimdAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLKernelAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLSimdAttr {{.*}}
+    // CHECK:       SYCLSimdAttr {{.*}} Implicit
+    // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
+    // CHECK-NEXT:  SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel2>(
         []() [[intel::sycl_explicit_simd]]{});
 
 #if defined(SYCL2017)
+    // Test attribute is propagated.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-    // CHECK:       SYCLSimdAttr {{.*}}
-    // CHECK SYCLSimdAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLKernelAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLSimdAttr {{.*}}
-    // CHECK-NEXT: SYCLSimdAttr {{.*}}
+    // CHECK:       SYCLSimdAttr {{.*}} Implicit
+    // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
+    // CHECK-NEXT:  SYCLSimdAttr {{.*}}
+    // CHECK-NEXT:  SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel3>(
         []() [[intel::sycl_explicit_simd]] { func(); });
 #endif //SYCL2017
 
 #if defined(SYCL2020)
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kerne4
-    // CHECK SYCLSimdAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLKernelAttr {{.*}} Implicit
-    // CHECK-NEXT: SYCLSimdAttr {{.*}}
-    // CHECK-NEXT-NOT:   SYCLSimdAttr {{.*}}
+    // Test attribute is not propagated.
+    // CHECK-LABEL:    FunctionDecl {{.*}}test_kerne4
+    // CHECK:          SYCLSimdAttr {{.*}} Implicit
+    // CHECK-NEXT:     SYCLKernelAttr {{.*}} Implicit
+    // CHECK-NEXT:     SYCLSimdAttr {{.*}}
+    // CHECK-NEXT-NOT: SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel4>(
         []() [[intel::sycl_explicit_simd]] { func(); });
 #endif // SYCL2020
