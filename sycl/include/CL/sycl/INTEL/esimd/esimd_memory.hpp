@@ -166,7 +166,7 @@ scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
 // This API, even though deprecated, can't be removed until then.
 template <typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
-__SYCL_DEPRECATED("Replaced by simd::copy_from")
+__SYCL_DEPRECATED("block_load is deprecated, use simd::copy_from.")
 ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(const T *const addr) {
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -185,7 +185,7 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(const T *const addr) {
 /// Accessor-based block-load.
 /// \ingroup sycl_esimd
 template <typename T, int n, typename AccessorTy>
-__SYCL_DEPRECATED("Replaced by simd::copy_from")
+__SYCL_DEPRECATED("block_load is deprecated, use simd::copy_from.")
 ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(AccessorTy acc,
                                                  uint32_t offset) {
   simd<T, n> Res;
@@ -198,7 +198,7 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(AccessorTy acc,
 // TODO the above note about cache hints applies to this API as well.
 template <typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
-__SYCL_DEPRECATED("Replaced by simd::copy_to")
+__SYCL_DEPRECATED("block_store is deprecated, use simd::copy_to.")
 ESIMD_INLINE ESIMD_NODEBUG void block_store(T *p, simd<T, n> vals) {
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -217,7 +217,7 @@ ESIMD_INLINE ESIMD_NODEBUG void block_store(T *p, simd<T, n> vals) {
 /// Accessor-based block-store.
 /// \ingroup sycl_esimd
 template <typename T, int n, typename AccessorTy>
-__SYCL_DEPRECATED("Replaced by simd::copy_to")
+__SYCL_DEPRECATED("block_store is deprecated, use simd::copy_to.")
 ESIMD_INLINE ESIMD_NODEBUG
     void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals) {
   vals.copy_to(acc, offset);

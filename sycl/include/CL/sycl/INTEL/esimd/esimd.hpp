@@ -543,7 +543,7 @@ ESIMD_INLINE simd<U, n> convert(simd<T, n> val) {
 
 // ----------- Outlined implementations of esimd class APIs.
 
-template <typename T, int N> void simd<T, N>::copy_from(const T *const addr) {
+template <typename T, int N> void simd<T, N>::copy_from(const T *const Addr) {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -554,7 +554,7 @@ template <typename T, int N> void simd<T, N>::copy_from(const T *const addr) {
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
-  uintptr_t AddrVal = reinterpret_cast<uintptr_t>(addr);
+  uintptr_t AddrVal = reinterpret_cast<uintptr_t>(Addr);
   *this =
       __esimd_flat_block_read_unaligned<T, N, CacheHint::None, CacheHint::None>(
           AddrVal);
