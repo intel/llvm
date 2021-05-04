@@ -26,7 +26,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   #      cmake files simplification
   include(ExternalProject)
   if (WIN32)
-    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.0.16)
+    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.2.3)
   else()
     set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.2.3)
   endif()
