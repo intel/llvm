@@ -2547,7 +2547,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     CXXMethodDecl *FinalizeMethod =
         getMethodByName(RecordDecl, FinalizeMethodName);
     if (FinalizeMethod)
-      createSpecialMethodCall(RecordDecl, FinalizeMethodName, BodyStmts);
+      createSpecialMethodCall(RecordDecl, FinalizeMethodName, FinalizeStmts);
 
     removeFieldMemberExpr(FD, Ty);
 
