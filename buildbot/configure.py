@@ -115,8 +115,10 @@ def do_configure(args):
     except subprocess.CalledProcessError:
         cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
         if os.path.isfile(cmake_cache):
-            os.remove(cmake_cache)
-        subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
+           print("There is CMakeCache.txt at " + cmake_cache +
+             " ... you can try to remove it and rerun.")
+           print("Configure failed!")
+        return False
 
     return True
 
