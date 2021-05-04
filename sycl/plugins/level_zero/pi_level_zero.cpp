@@ -590,9 +590,9 @@ pi_result _pi_context::finalize() {
   if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
     ZE_CALL(zeEventPoolDestroy, (ZeEventPool));
 
-  for (auto &[Device, ZeImmediateCommandList] : ZeImmediateCommandLists) {
+  for (auto &Item : ZeImmediateCommandLists) {
     // Destroy the command list used for initializations
-    ZE_CALL(zeCommandListDestroy, (ZeImmediateCommandList));
+    ZE_CALL(zeCommandListDestroy, (Item.second));
   }
 
   std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
@@ -2548,11 +2548,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
         memcpy(Ptr, HostPtr, Size);
       } else {
 
-        for (auto &[Device, ZeImmediateCommandList] :
-             Context->ZeImmediateCommandLists) {
+        for (auto &Item : Context->ZeImmediateCommandLists) {
           // Initialize the buffer synchronously with immediate offload
           ZE_CALL(zeCommandListAppendMemoryCopy,
-                  (ZeImmediateCommandList, ZeMemHandles[Device], HostPtr, Size,
+                  (Item.second, ZeMemHandles[Item.first], HostPtr, Size,
                    nullptr, 0, nullptr));
         }
       }
@@ -2605,13 +2604,13 @@ pi_result piMemRelease(pi_mem Mem) {
   if (--(Mem->RefCount) == 0) {
     if (Mem->isImage()) {
       auto Img = static_cast<_pi_image *>(Mem);
-      for (auto &[Device, ZeImageHandle] : Img->ZeImageHandles)
-        ZE_CALL(zeImageDestroy, (ZeImageHandle));
+      for (auto &Item : Img->ZeImageHandles)
+        ZE_CALL(zeImageDestroy, (Item.second));
     } else {
       auto Buf = static_cast<_pi_buffer *>(Mem);
       if (!Buf->isSubBuffer()) {
-        for (auto &[Device, ZeMemHandle] : Buf->ZeMemHandles) {
-          PI_CALL(piextUSMFree(Mem->Context, ZeMemHandle));
+        for (auto &Item : Buf->ZeMemHandles) {
+          PI_CALL(piextUSMFree(Mem->Context, Item.second));
         }
       }
     }
@@ -2768,12 +2767,11 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   try {
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
         (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
-      for (auto &[Device, ZeImmediateCommandList] :
-           Context->ZeImmediateCommandLists) {
+      for (auto &Item : Context->ZeImmediateCommandLists) {
         // Initialize image synchronously with immediate offload
         ZE_CALL(zeCommandListAppendImageCopyFromMemory,
-                (ZeImmediateCommandList, ZeImageHandles[Device], HostPtr,
-                 nullptr, nullptr, 0, nullptr));
+                (Item.second, ZeImageHandles[Item.first], HostPtr, nullptr,
+                 nullptr, 0, nullptr));
       }
     }
 
