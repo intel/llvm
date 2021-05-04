@@ -546,8 +546,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
   if (F->isIntrinsic() && (!BM->isSPIRVAllowUnknownIntrinsicsEnabled() ||
                            isKnownIntrinsic(F->getIntrinsicID()))) {
     // We should not translate LLVM intrinsics as a function
-    assert(none_of(F->users(),
-                   [this](User *U) { return getTranslatedValue(U); }) &&
+    assert(std::none_of(F->user_begin(), F->user_end(),
+                        [this](User *U) { return getTranslatedValue(U); }) &&
            "LLVM intrinsics shouldn't be called in SPIRV");
     return nullptr;
   }
@@ -586,6 +586,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       BA->addAttr(FunctionParameterAttributeNoCapture);
     if (I->hasStructRetAttr())
       BA->addAttr(FunctionParameterAttributeSret);
+    if (I->onlyReadsMemory())
+      BA->addAttr(FunctionParameterAttributeNoWrite);
     if (Attrs.hasAttribute(ArgNo + 1, Attribute::ZExt))
       BA->addAttr(FunctionParameterAttributeZext);
     if (Attrs.hasAttribute(ArgNo + 1, Attribute::SExt))
@@ -3638,10 +3640,6 @@ bool LLVMToSPIRVBase::transOCLMetadata() {
               BA->addDecorate(
                   new SPIRVDecorate(DecorationFuncParamAttr, BA,
                                     FunctionParameterAttributeNoAlias));
-            if (Str.find("const") != std::string::npos)
-              BA->addDecorate(
-                  new SPIRVDecorate(DecorationFuncParamAttr, BA,
-                                    FunctionParameterAttributeNoWrite));
           });
     }
     if (auto *KernelArgName = F.getMetadata(SPIR_MD_KERNEL_ARG_NAME)) {

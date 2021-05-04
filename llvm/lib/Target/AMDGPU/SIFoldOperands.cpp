@@ -503,11 +503,11 @@ static bool getRegSeqInit(
 
   for (unsigned I = 1, E = Def->getNumExplicitOperands(); I < E; I += 2) {
     MachineOperand *Sub = &Def->getOperand(I);
-    assert (Sub->isReg());
+    assert(Sub->isReg());
 
     for (MachineInstr *SubDef = MRI.getVRegDef(Sub->getReg());
-         SubDef && Sub->isReg() && !Sub->getSubReg() &&
-         TII->isFoldableCopy(*SubDef);
+         SubDef && Sub->isReg() && Sub->getReg().isVirtual() &&
+         !Sub->getSubReg() && TII->isFoldableCopy(*SubDef);
          SubDef = MRI.getVRegDef(Sub->getReg())) {
       MachineOperand *Op = &SubDef->getOperand(1);
       if (Op->isImm()) {
@@ -515,7 +515,7 @@ static bool getRegSeqInit(
           Sub = Op;
         break;
       }
-      if (!Op->isReg())
+      if (!Op->isReg() || Op->getReg().isPhysical())
         break;
       Sub = Op;
     }
@@ -1596,6 +1596,10 @@ bool SIFoldOperands::tryFoldRegSequence(MachineInstr &MI) {
 
   LLVM_DEBUG(dbgs() << "Folded " << *RS << " into " << *UseMI);
 
+  // Erase the REG_SEQUENCE eagerly, unless we followed a chain of COPY users,
+  // in which case we can erase them all later in runOnMachineFunction.
+  if (MRI->use_nodbg_empty(MI.getOperand(0).getReg()))
+    MI.eraseFromParentAndMarkDBGValuesForRemoval();
   return true;
 }
 
@@ -1651,7 +1655,7 @@ bool SIFoldOperands::tryFoldLCSSAPhi(MachineInstr &PHI) {
 // Attempt to convert VGPR load to an AGPR load.
 bool SIFoldOperands::tryFoldLoad(MachineInstr &MI) {
   assert(MI.mayLoad());
-  if (!ST->hasGFX90AInsts() || !MI.getNumOperands())
+  if (!ST->hasGFX90AInsts() || MI.getNumExplicitDefs() != 1)
     return false;
 
   MachineOperand &Def = MI.getOperand(0);
@@ -1786,8 +1790,24 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
 
       // If we managed to fold all uses of this copy then we might as well
       // delete it now.
-      if (MRI->use_nodbg_empty(MI.getOperand(0).getReg()))
-        MI.eraseFromParentAndMarkDBGValuesForRemoval();
+      // The only reason we need to follow chains of copies here is that
+      // tryFoldRegSequence looks forward through copies before folding a
+      // REG_SEQUENCE into its eventual users.
+      auto *InstToErase = &MI;
+      while (MRI->use_nodbg_empty(InstToErase->getOperand(0).getReg())) {
+        auto &SrcOp = InstToErase->getOperand(1);
+        auto SrcReg = SrcOp.isReg() ? SrcOp.getReg() : Register();
+        InstToErase->eraseFromParentAndMarkDBGValuesForRemoval();
+        InstToErase = nullptr;
+        if (!SrcReg || SrcReg.isPhysical())
+          break;
+        InstToErase = MRI->getVRegDef(SrcReg);
+        if (!InstToErase || !TII->isFoldableCopy(*InstToErase))
+          break;
+      }
+      if (InstToErase && InstToErase->isRegSequence() &&
+          MRI->use_nodbg_empty(InstToErase->getOperand(0).getReg()))
+        InstToErase->eraseFromParentAndMarkDBGValuesForRemoval();
     }
   }
   return true;
