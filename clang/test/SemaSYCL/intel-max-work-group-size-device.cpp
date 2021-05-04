@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 -DSYCL2017 %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -triple spir64 -DSYCL2020 %s
 
 #include "sycl.hpp"
 
@@ -73,6 +75,16 @@ int main() {
     h.single_task<class test_kernel2>(
         []() [[intelfpga::max_work_group_size(8, 8, 8)]]{});
 
+#if defined(SYCL2020)
+    // Test attribute is not propagated.
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
+    // CHECK-NOT:   SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    h.single_task<class test_kernel3>(
+        []() { func_do_not_ignore(); });
+#endif // SYCL2020
+
+#if defined(SYCL2017)
+    // Test attribute is propagated.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
@@ -86,6 +98,7 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
+#endif // SYCL2017
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}

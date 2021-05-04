@@ -343,15 +343,38 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   if (!FD->hasAttrs())
     return;
 
-  llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-    // FIXME: Make this list self-adapt as new SYCL attributes are added.
-    return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-               ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-               SYCLIntelNumSimdWorkItemsAttr,
-               SYCLIntelSchedulerTargetFmaxMhzAttr,
-               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
-  });
+  // Attributes that should be propagated from device functions to a kernel
+  // in SYCL 1.2.1.
+  if (S.getASTContext().getLangOpts().getSYCLVersion() == LangOptions::SYCL_2017) {
+    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+       // FIXME: Make this list self-adapt as new SYCL attributes are added.
+       return isa<SYCLIntelKernelArgsRestrictAttr,
+                  SYCLIntelNumSimdWorkItemsAttr,
+                  SYCLIntelSchedulerTargetFmaxMhzAttr,
+		  ReqdWorkGroupSizeAttr,
+                  SYCLIntelMaxWorkGroupSizeAttr,
+		  SYCLIntelMaxGlobalWorkDimAttr,
+		  IntelReqdSubGroupSizeAttr, SYCLSimdAttr,
+                  SYCLIntelNoGlobalWorkOffsetAttr>(A);
+    });
+  } else {
+    // Attributes that should not be propagated from device functions to a
+    // kernel in SYCL 2020.
+    if (DirectlyCalled &&
+        S.getASTContext().getLangOpts().getSYCLVersion() == LangOptions::SYCL_2020) {
+      llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+        return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
+                   SYCLIntelFPGADisableLoopPipeliningAttr,
+		   SYCLIntelKernelArgsRestrictAttr, ReqdWorkGroupSizeAttr,
+		   SYCLIntelNumSimdWorkItemsAttr,
+                   SYCLIntelSchedulerTargetFmaxMhzAttr,
+		   SYCLIntelNoGlobalWorkOffsetAttr,
+		   SYCLIntelMaxWorkGroupSizeAttr, IntelNamedSubGroupSizeAttr,
+		   SYCLIntelMaxGlobalWorkDimAttr, SYCLSimdAttr,
+                   SYCLIntelFPGAInitiationIntervalAttr>(A);
+      });
+    }  
+  }
 
   // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
   // functions and function objects called directly from a kernel.
@@ -365,15 +388,6 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
           << A;
       FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
     }
-  }
-
-  // Attributes that should not be propagated from device functions to a kernel.
-  if (DirectlyCalled) {
-    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-      return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
-                 SYCLIntelFPGADisableLoopPipeliningAttr,
-                 SYCLIntelFPGAInitiationIntervalAttr>(A);
-    });
   }
 }
 

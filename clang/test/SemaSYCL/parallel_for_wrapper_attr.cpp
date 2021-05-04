@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat -sycl-std=2017 | FileCheck %s
 
 #include "Inputs/sycl.hpp"
 

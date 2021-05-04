@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -triple spir64 -verify
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat -sycl-std=2017 -verify
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat -sycl-std=2017 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 %s
 
 #ifndef TRIGGER_ERROR
 [[intel::no_global_work_offset]] void not_direct_one() {} // expected-no-diagnostics

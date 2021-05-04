@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -Wno-sycl-2017-compat -verify
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -DTRIGGER_ERROR -Wno-sycl-2017-compat -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -Wno-sycl-2017-compat | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -Wno-sycl-2017-compat -sycl-std=2017 -verify
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -DTRIGGER_ERROR -Wno-sycl-2017-compat -sycl-std=2017 -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -Wno-sycl-2017-compat -sycl-std=2017 | FileCheck %s
 
 #include "sycl.hpp"
 

@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -fsyntax-only -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 -DTRIGGER_ERROR -DSYCL2017 -verify %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -triple spir64 -DTRIGGER_ERROR -DSYCL2020 -verify %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 -DSYCL2017 %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -triple spir64 -DSYCL2020 %s
 
 #include "sycl.hpp"
 
@@ -21,6 +23,7 @@ void bar() {
 }
 
 #else
+#if defined(SYCL2017)
 [[intel::reqd_work_group_size(4)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
 [[intel::reqd_work_group_size(32)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
@@ -30,6 +33,18 @@ void bar() {
 
 [[intel::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
 [[intel::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
+#endif // SYCL2017
+
+#if defined(SYCL2020)
+[[intel::reqd_work_group_size(4)]] void f4x1x1() {} // OK
+[[intel::reqd_work_group_size(32)]] void f32x1x1() {} // OK
+
+[[intel::reqd_work_group_size(16)]] void f16x1x1() {} // OK
+[[intel::reqd_work_group_size(16, 16)]] void f16x16x1() {} // OK
+
+[[intel::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // OK
+[[intel::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // OK
+#endif // SYCL2020
 
 #ifdef TRIGGER_ERROR
 class Functor32 {
@@ -37,6 +52,8 @@ public:
   [[cl::reqd_work_group_size(32)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}}
 };
 #endif // TRIGGER_ERROR
+
+[[intel::reqd_work_group_size(16, 16, 16)]] void func() {}
 
 class Functor33 {
 public:
@@ -65,12 +82,14 @@ public:
   [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
 };
 
+#if defined(SYCL2017)
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
   [[intel::reqd_work_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
+#endif // SYCL2017
 
 class Functor {
 public:
@@ -89,8 +108,11 @@ int main() {
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 
+#if defined(SYCL2017)
+    // Test attribute is propagated.
     Functor f;
     h.single_task<class kernel_name2>(f);
+#endif // SYCL2017
 
     Functor16x16x16 f16x16x16;
     h.single_task<class kernel_name3>(f16x16x16);
@@ -108,6 +130,8 @@ int main() {
       f32x32x32();
     });
 #ifdef TRIGGER_ERROR
+#if defined(SYCL2017)
+    // Test attribute is propagated.
     Functor8 f8;
     h.single_task<class kernel_name8>(f8);
 
@@ -125,13 +149,54 @@ int main() {
       f32x32x32();
       f32x32x1();
     });
+#endif // SYCL2017
+#if defined(SYCL2020)
+    // Test attribute is not propagated.
+    h.single_task<class kernel_name9>([]() { // OK 
+      f4x1x1();
+      f32x1x1();
+    });
 
+    h.single_task<class kernel_name10>([]() { // OK
+      f16x1x1();
+      f16x16x1();
+    });
+
+    h.single_task<class kernel_name11>([]() { // OK
+      f32x32x32();
+      f32x32x1();
+    });
+#endif // SYCL2020
     // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
     h.single_task<class kernel_name12>([[intel::reqd_work_group_size(32, 32, 32)]][]() {
       f32x32x32();
     });
-
 #endif // TRIGGER_ERROR
+    
+#if defined(SYCL2020)
+    // Test attribute is not propagated.
+    // CHECK-LABEL: FunctionDecl {{.*}}class kernel_name13
+    // CHECK-NOT:   ReqdWorkGroupSizeAttr {{.*}}
+    h.single_task<class kernel_name13>(
+        []() { func(); });
+#endif // SYCL2020
+
+#if defined(SYCL2017)
+    // Test attribute is propagated.
+    // CHECK-LABEL: FunctionDecl {{.*}}class kernel_name14
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 16
+    // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 16
+    // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 16
+    // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+    h.single_task<class kernel_name14>(
+        []() { func(); });
+#endif // SYCL2017
   });
   return 0;
 }
