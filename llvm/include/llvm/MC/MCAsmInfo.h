@@ -118,6 +118,10 @@ protected:
   /// the current PC.  Defaults to false.
   bool DollarIsPC = false;
 
+  /// Allow '.' token, when not referencing an identifier or constant, to refer
+  /// to the current PC. Defaults to true.
+  bool DotIsPC = true;
+
   /// This string, if specified, is used to separate instructions from each
   /// other when on the same line.  Defaults to ';'
   const char *SeparatorString;
@@ -183,24 +187,31 @@ protected:
 
   /// This is true if the assembler allows the "?" character at the start of
   /// of a string to be lexed as an AsmToken::Identifier.
-  /// If the CommentString is also set to "?", setting this option will have
-  /// no effect, and the string will be lexed as a comment.
-  /// Defaults to false.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
   bool AllowQuestionAtStartOfIdentifier = false;
 
   /// This is true if the assembler allows the "$" character at the start of
   /// of a string to be lexed as an AsmToken::Identifier.
-  /// If the CommentString is also set to "$", setting this option will have
-  /// no effect, and the string will be lexed as a comment.
-  /// Defaults to false.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
   bool AllowDollarAtStartOfIdentifier = false;
 
   /// This is true if the assembler allows the "@" character at the start of
   /// a string to be lexed as an AsmToken::Identifier.
-  /// If the CommentString is also set to "@", setting this option will have
-  /// no effect, and the string will be lexed as a comment.
-  /// Defaults to false.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
   bool AllowAtAtStartOfIdentifier = false;
+
+  /// This is true if the assembler allows the "#" character at the start of
+  /// a string to be lexed as an AsmToken::Identifier.
+  /// If the AsmLexer determines that the string can be lexed as a possible
+  /// comment, setting this option will have no effect, and the string will
+  /// still be lexed as a comment.
+  bool AllowHashAtStartOfIdentifier = false;
 
   /// If this is true, symbol names with invalid characters will be printed in
   /// quotes.
@@ -340,6 +351,10 @@ protected:
   /// Describes if the .lcomm directive for the target supports an alignment
   /// argument and how it is interpreted.  Defaults to NoAlignment.
   LCOMM::LCOMMType LCOMMDirectiveAlignmentType = LCOMM::NoAlignment;
+
+  /// True if the target only has basename for .file directive. False if the
+  /// target also needs the directory along with the basename. Default to true.
+  bool HasBasenameOnlyForFileDirective = true;
 
   // True if the target allows .align directives on functions. This is true for
   // most targets, so defaults to true.
@@ -582,6 +597,7 @@ public:
 
   unsigned getMinInstAlignment() const { return MinInstAlignment; }
   bool getDollarIsPC() const { return DollarIsPC; }
+  bool getDotIsPC() const { return DotIsPC; }
   const char *getSeparatorString() const { return SeparatorString; }
 
   /// This indicates the column (zero-based) at which asm comments should be
@@ -626,6 +642,9 @@ public:
   bool doesAllowDollarAtStartOfIdentifier() const {
     return AllowDollarAtStartOfIdentifier;
   }
+  bool doesAllowHashAtStartOfIdentifier() const {
+    return AllowHashAtStartOfIdentifier;
+  }
   bool supportsNameQuoting() const { return SupportsQuotedNames; }
 
   bool doesSupportDataRegionDirectives() const {
@@ -666,6 +685,9 @@ public:
     return LCOMMDirectiveAlignmentType;
   }
 
+  bool hasBasenameOnlyForFileDirective() const {
+    return HasBasenameOnlyForFileDirective;
+  }
   bool hasFunctionAlignment() const { return HasFunctionAlignment; }
   bool hasDotTypeDotSizeDirective() const { return HasDotTypeDotSizeDirective; }
   bool hasSingleParameterDotFile() const { return HasSingleParameterDotFile; }

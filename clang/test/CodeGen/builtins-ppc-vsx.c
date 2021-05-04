@@ -1290,6 +1290,19 @@ void test1() {
 // CHECK-LE: fmul <2 x double>
 // CHECK-LE: fptosi <2 x double> %{{.*}} to <2 x i64>
 
+  res_vsll = vec_ctsl(vf, 3);
+  // CHECK: fmul <4 x float> {{%.*}}, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+  // CHECK: call <2 x i64> @llvm.ppc.vsx.xvcvspsxds(<4 x float>
+  // CHECK-LE: fmul <4 x float> {{%.*}}, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+  // CHECK-LE:  shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 7, i32 0, i32 1, i32 2>
+  // CHECK-LE: call <2 x i64> @llvm.ppc.vsx.xvcvspsxds(<4 x float>
+
+  res_vsll = vec_ctsl(vd, 3);
+  // CHECK: fmul <2 x double> {{%.*}}, <double 8.000000e+00, double 8.000000e+00>
+  // CHECK: fptosi <2 x double> {{%.*}} to <2 x i64>
+  // CHECK-LE: fmul <2 x double> {{%.*}}, <double 8.000000e+00, double 8.000000e+00>
+  // CHECK-LE: fptosi <2 x double> {{%.*}} to <2 x i64>
+
   res_vsll = vec_ctu(vd, 0);
 // CHECK: fmul <2 x double>
 // CHECK: fptoui <2 x double> %{{.*}} to <2 x i64>
@@ -1301,6 +1314,19 @@ void test1() {
 // CHECK: fptoui <2 x double> %{{.*}} to <2 x i64>
 // CHECK-LE: fmul <2 x double>
 // CHECK-LE: fptoui <2 x double> %{{.*}} to <2 x i64>
+
+  res_vull = vec_ctul(vf, 3);
+  // CHECK: fmul <4 x float> {{%.*}}, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+  // CHECK: call <2 x i64> @llvm.ppc.vsx.xvcvspuxds(<4 x float>
+  // CHECK-LE: fmul <4 x float> {{%.*}}, <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+  // CHECK-LE:  shufflevector <4 x i32> {{%.*}}, <4 x i32> {{%.*}}, <4 x i32> <i32 7, i32 0, i32 1, i32 2>
+  // CHECK-LE: call <2 x i64> @llvm.ppc.vsx.xvcvspuxds(<4 x float>
+
+  res_vull = vec_ctul(vd, 3);
+  // CHECK: fmul <2 x double> {{%.*}}, <double 8.000000e+00, double 8.000000e+00>
+  // CHECK: fptoui <2 x double> {{%.*}} to <2 x i64>
+  // CHECK-LE: fmul <2 x double> {{%.*}}, <double 8.000000e+00, double 8.000000e+00>
+  // CHECK-LE: fptoui <2 x double> {{%.*}} to <2 x i64>
 
   res_vd = vec_ctf(vsll, 0);
 // CHECK: sitofp <2 x i64> %{{.*}} to <2 x double>
@@ -1864,6 +1890,18 @@ void test1() {
 // CHECK-LE: sub nsw i32 31
 // CHECK-LE: @llvm.ppc.altivec.vperm
 
+  res_vd = vec_sldw(vd, vd, 0);
+// CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 1
+// CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 2
+// CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 3
+// CHECK: add nsw i32 {{[0-9a-zA-Z%.]+}}, 15
+// CHECK: @llvm.ppc.altivec.vperm
+// CHECK-LE: sub nsw i32 16
+// CHECK-LE: sub nsw i32 17
+// CHECK-LE: sub nsw i32 18
+// CHECK-LE: sub nsw i32 31
+// CHECK-LE: @llvm.ppc.altivec.vperm
+
   res_vsll = vec_sll(vsll, vuc);
 // CHECK: @llvm.ppc.altivec.vsl
 // CHECK-LE: @llvm.ppc.altivec.vsl
@@ -2256,4 +2294,22 @@ void test_builtin_xvcpsgndp(vector double a, vector double b) {
 // CHECK-DAG: [[RB:%[0-9]+]] = load <2 x double>, <2 x double>* %b.addr
 // CHECK-NEXT: call <2 x double> @llvm.copysign.v2f64(<2 x double> [[RA]], <2 x double> [[RB]])
   __builtin_vsx_xvcpsgndp(a, b);
+}
+
+vector double test_recipdivd(vector double a, vector double b) {
+  // CHECK-LABEL: test_recipdivd
+  // CHECK: fdiv fast <2 x double>
+  // CHECK-LE-LABEL: test_recipdivd
+  // CHECK-LE: fdiv fast <2 x double>
+  return vec_recipdiv(a, b);
+}
+
+vector double test_rsqrtd(vector double a, vector double b) {
+  // CHECK-LABEL: test_rsqrtd
+  // CHECK: call fast <2 x double> @llvm.sqrt.v2f64
+  // CHECK: fdiv fast <2 x double> <double 1.000000e+00, double 1.000000e+00>
+  // CHECK-LE-LABEL: test_rsqrtd
+  // CHECK-LE: call fast <2 x double> @llvm.sqrt.v2f64
+  // CHECK-LE: fdiv fast <2 x double> <double 1.000000e+00, double 1.000000e+00>
+  return vec_rsqrt(a);
 }

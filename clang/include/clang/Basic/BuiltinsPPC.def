@@ -546,6 +546,8 @@ BUILTIN(__builtin_vsx_xvxsigsp, "V4UiV4f", "")
 // Conversion builtins
 BUILTIN(__builtin_vsx_xvcvdpsxws, "V4SiV2d", "")
 BUILTIN(__builtin_vsx_xvcvdpuxws, "V4UiV2d", "")
+BUILTIN(__builtin_vsx_xvcvspsxds, "V2SLLiV4f", "")
+BUILTIN(__builtin_vsx_xvcvspuxds, "V2ULLiV4f", "")
 BUILTIN(__builtin_vsx_xvcvsxwdp, "V2dV4Si", "")
 BUILTIN(__builtin_vsx_xvcvuxwdp, "V2dV4Ui", "")
 BUILTIN(__builtin_vsx_xvcvspdp, "V2dV4f", "")
@@ -597,6 +599,12 @@ BUILTIN(__builtin_fmaf128_round_to_odd, "LLdLLdLLdLLd", "")
 BUILTIN(__builtin_truncf128_round_to_odd, "dLLd", "")
 BUILTIN(__builtin_vsx_scalar_extract_expq, "ULLiLLd", "")
 BUILTIN(__builtin_vsx_scalar_insert_exp_qp, "LLdLLdULLi", "")
+
+// Fastmath by default builtins
+BUILTIN(__builtin_ppc_rsqrtf, "V4fV4f", "")
+BUILTIN(__builtin_ppc_rsqrtd, "V2dV2d", "")
+BUILTIN(__builtin_ppc_recipdivf, "V4fV4fV4f", "")
+BUILTIN(__builtin_ppc_recipdivd, "V2dV2dV2d", "")
 
 // HTM builtins
 BUILTIN(__builtin_tbegin, "UiUIi", "")
