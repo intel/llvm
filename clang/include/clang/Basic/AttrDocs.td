@@ -2619,6 +2619,34 @@ In OpenCL C, this attribute is available with the GNU spelling
   }];
 }
 
+def WorkGroupSizeHintAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Applies to a device function/lambda function. Hint to the compiler on the work-
+group size most likely to be used when launching the kernel at runtime. Each
+argument must be a nonzero integral constant expression whose value is
+unsigned. The number of dimensional values defined provide additional
+information to the compiler on the dimensionality most likely to be used when
+launching the kernel at runtime.
+
+When SYCL mode is enabled, the second and third arguments are optional, and if
+not provided will default to ``1``. Additionally, the GNU spelling is
+deprecated in SYCL mode.
+
+In OpenCL mode, all three arguments are mandatory.
+
+.. code-block:: c++
+
+  [[sycl::work_group_size_hint(4, 4, 4)]] void foo() {}
+
+  class Foo {
+  public:
+    [[sycl::work_group_size_hint(2)]] void operator()() const {}
+  };
+
+  }];
+}
+
 def SYCLIntelMaxWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::max_work_group_size";

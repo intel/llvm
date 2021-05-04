@@ -2955,7 +2955,7 @@ def WorkGroupSizeHint :  InheritableAttr {
               UnsignedArgument<"YDim", /*optional*/1>,
               UnsignedArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [WorkGroupSizeHintAttrDocs];
 }
 
 def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {

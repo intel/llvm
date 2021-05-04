@@ -16,6 +16,36 @@ queue q;
 [[sycl::reqd_work_group_size(32, 32, 1)]] void f32x32x1() {} // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
+// No diagnostic because the attributes are synonyms with identical behavior.
+[[intel::reqd_work_group_size(4, 4, 4)]] void four();
+[[sycl::reqd_work_group_size(4, 4, 4)]] void four(); // OK
+
+// Same for the default values.
+[[intel::reqd_work_group_size(4)]] void four_again();
+[[sycl::reqd_work_group_size(4)]] void four_again(); // OK
+[[intel::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
+[[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
+
+// The GNU and [[ci::reqd_work_group_size]] spellings are deprecated in SYCL
+// mode, and still requires all three arguments.
+__attribute__((reqd_work_group_size(4, 4, 4))) void four_once_more(); // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
+                                                                      // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
+[[cl::reqd_work_group_size(4, 4, 4)]] void four_with_feeling(); // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
+                                                                // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+
+#ifdef TRIGGER_ERROR
+__attribute__((reqd_work_group_size(4))) void four_yet_again(); // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}} \
+                                                                // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
+                                                                // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
+
+[[cl::reqd_work_group_size(4)]] void four_with_more_feeling(); // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}} \
+                                                               // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
+                                                               // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+
+// Make sure there's at least one argument passed for the SYCL spelling.
+[[sycl::reqd_work_group_size]] void four_no_more(); // expected-error {{'reqd_work_group_size' attribute takes at least 1 argument}}
+#endif // TRIGGER_ERROR
+
 class Functor16 {
 public:
   [[sycl::reqd_work_group_size(16, 1, 1)]] [[sycl::reqd_work_group_size(16, 1, 1)]] void operator()() const {}
