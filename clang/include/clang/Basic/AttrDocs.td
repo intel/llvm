@@ -415,6 +415,12 @@ def SYCLSimdDocs : Documentation {
     The compiler may decide to compile such functions using different optimization
     and code generation pipeline. Also, this attribute is used to distinguish
     ESIMD private globals from regular SYCL global variables.
+
+    If ``intel::sycl_explicit_simd`` is applied to a function called from a
+    device kernel, the attribute is not ignored and it is propagated to the kernel
+    in SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+    ``intel::sycl_explicit_simd`` is applied to a function called from a
+    device kernel.
   }];
 }
 
@@ -2418,7 +2424,10 @@ attribute was applied. This effect is equivalent to annotating restrict on
 **all** kernel pointer arguments in an OpenCL or SPIR-V kernel.
 
 If ``intel::kernel_args_restrict`` is applied to a function called from a device
-kernel, the attribute is not ignored and it is propagated to the kernel.
+kernel, the attribute is not ignored and it is propagated to the kernel in
+SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+``intel::kernel_args_restrict`` is applied to a function called from a device
+kernel.
 
 The attribute forms an unchecked assertion, in that implementations
 do not need to check/confirm the pre-condition in any way. If a user applies
@@ -2457,7 +2466,10 @@ def SYCLIntelNumSimdWorkItemsAttrDocs : Documentation {
 Applies to a device function/lambda function. Indicates the number of work
 items that should be processed in parallel. Valid values are positive integers.
 If ``intel::num_simd_work_items`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to the kernel.
+device kernel, the attribute is not ignored and it is propagated to the kernel
+in SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+``intel::num_simd_work_items`` is applied to a function called from a device
+kernel.
 
 .. code-block:: c++
 
@@ -2546,6 +2558,12 @@ generated code appropriately for the kernel to which attribute is applied.
 While semantic of this attribute is the same between OpenCL and SYCL,
 spelling is a bit different: 
 
+If ``cl::reqd_work_group_size`` is applied to a function called from a
+device kernel, the attribute is not ignored and it is propagated to the kernel.
+in SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+``cl:::reqd_work_group_size`` is applied to a function called from a
+device kernel.
+
 SYCL 1.2.1 describes ``[[cl::reqd_work_group_size(X, Y, Z)]]`` spelling: this
 attribute is legal on device functions and is propagated down to any caller of 
 those device functions, such that the kernel attributes are the sum of all 
@@ -2575,6 +2593,12 @@ spelling is supported. This spelling allows the Y and Z arguments to be
 optional. If not provided by the user, the value of Y and Z defaults to 1.
 This simplifies usage of the attribute when a 1- or 2-dimensional ND-range
 is assumed.
+
+If ``intel::reqd_work_group_size`` is applied to a function called from a
+device kernel, the attribute is not ignored and it is propagated to the kernel.
+in SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+``intel:::reqd_work_group_size`` is applied to a function called from a
+device kernel.
 
 .. code-block:: c++
 
@@ -2623,6 +2647,9 @@ reqd_work_group_size, but allows work groups that are smaller or equal to the
 specified sizes.
 If ``intel::max_work_group_size`` is applied to a function called from a
 device kernel, the attribute is not ignored and it is propagated to the kernel.
+in SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+``intel:::max_work_group_size`` is applied to a function called from a
+device kernel.
 
 .. code-block:: c++
 
@@ -2654,7 +2681,11 @@ function object). Indicates the largest valid global work dimension that will be
 accepted when running the kernel on a device. Valid values are integers in a
 range of [0, 3].
 If ``intel::max_global_work_dim`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to the kernel.
+device kernel, the attribute is not ignored and it is propagated to the kernel
+in SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+``intel::max_global_work_dim`` is applied to a function called from a device
+kernel.
+
 
 .. code-block:: c++
 
@@ -2711,6 +2742,12 @@ device operation, guiding the FPGA backend to insert the appropriate number of
 registers to break-up the combinational logic circuit, and thereby controlling
 the length of the longest combinational path.
 
+If ``intel::scheduler_target_fmax_mhz`` is applied to a function called from a
+device kernel, the attribute is not ignored and it is propagated to the kernel
+in SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+``intel::scheduler_target_fmax_mhz`` is applied to a function called from a
+device kernel.
+
 .. code-block:: c++
 
   [[intel::scheduler_target_fmax_mhz(4)]] void foo() {}
@@ -2740,6 +2777,12 @@ Applies to a device function/lambda function or function call operator (of a
 function object). If 1, compiler doesn't use the global work offset values for
 the device function. Valid values are 0 and 1. If used without argument, value
 of 1 is set implicitly.
+
+If ``intel::no_global_work_offset`` is applied to a function called from a
+device kernel, the attribute is not ignored and it is propagated to the kernel
+in SYCL 1.2.1 spec. SYCL 2020 spec does not allow propagating the attribute if
+``intel::no_global_work_offset`` is applied to a function called from a
+device kernel.
 
 .. code-block:: c++
 
