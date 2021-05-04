@@ -65,7 +65,7 @@ struct S2 {
   // CHECK-NEXT: namespace detail {
   // CHECK-NEXT: template<>
   // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-  // CHECK-NEXT: return ::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: return "";
   // CHECK-NEXT: }
   // CHECK-NEXT: // namespace detail
   // CHECK-NEXT: // namespace sycl
@@ -128,7 +128,7 @@ constexpr sycl::specialization_id same_name{7};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return ::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
@@ -147,7 +147,7 @@ constexpr sycl::specialization_id same_name{8};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return ::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
@@ -169,7 +169,7 @@ constexpr sycl::specialization_id same_name{9};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return ::inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
@@ -201,7 +201,7 @@ constexpr sycl::specialization_id same_name{11};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return ::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
@@ -221,7 +221,7 @@ constexpr sycl::specialization_id same_name{12};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return ::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
@@ -257,7 +257,7 @@ constexpr sycl::specialization_id same_name{13};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID_2]]()>() {
-// CHECK-NEXT: return ::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID_2]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
@@ -280,7 +280,7 @@ constexpr sycl::specialization_id same_name{14};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return ::__sycl_detail::__spec_id_shim_[[SHIM_ID]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
@@ -309,7 +309,7 @@ constexpr sycl::specialization_id same_name{15};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID2]]()>() {
-// CHECK-NEXT: return ::__sycl_detail::__spec_id_shim_[[SHIM_ID2]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
@@ -337,7 +337,7 @@ constexpr sycl::specialization_id same_name{16};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID2]]()>() {
-// CHECK-NEXT: return ::__sycl_detail::__spec_id_shim_[[SHIM_ID2]]();
+// CHECK-NEXT: return "";
 // CHECK-NEXT: }
 // CHECK-NEXT: // namespace detail
 // CHECK-NEXT: // namespace sycl
