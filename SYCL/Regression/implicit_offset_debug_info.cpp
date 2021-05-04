@@ -2,9 +2,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: cuda
 
-// The test fail after LLVM pulldown intel/llvm#3573
-// XFAIL: cuda
-
 // NOTE: Tests that the implicit global offset pass copies debug information
 
 #include <CL/sycl.hpp>
