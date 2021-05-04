@@ -2952,8 +2952,8 @@ def WorkGroupSizeHint :  InheritableAttr {
   let Spellings = [GNU<"work_group_size_hint">,
                    CXX11<"sycl", "work_group_size_hint">];
   let Args = [UnsignedArgument<"XDim">,
-              UnsignedArgument<"YDim", /*optional*/1>,
-              UnsignedArgument<"ZDim", /*optional*/1>];
+              UnsignedArgument<"YDim">,
+              UnsignedArgument<"ZDim">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [WorkGroupSizeHintAttrDocs];
 }

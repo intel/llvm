@@ -3155,16 +3155,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  // The GNU spelling requires three arguments, but the SYCL spelling only
-  // requires one argument.
-  if (AL.getSyntax() == ParsedAttr::AS_GNU) {
-    if (!AL.checkExactlyNumArgs(S, 3))
-      return;
-  } else if (!AL.checkAtLeastNumArgs(S, 1)) {
-    return;
-  }
-
-  uint32_t WGSize[3] = {1, 1, 1};
+  uint32_t WGSize[3];
   for (unsigned i = 0; i < AL.getNumArgs(); ++i) {
     if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
                              /*StrictlyUnsigned=*/true))

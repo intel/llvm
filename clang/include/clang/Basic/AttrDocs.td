@@ -2629,11 +2629,7 @@ unsigned. The number of dimensional values defined provide additional
 information to the compiler on the dimensionality most likely to be used when
 launching the kernel at runtime.
 
-When SYCL mode is enabled, the second and third arguments are optional, and if
-not provided will default to ``1``. Additionally, the GNU spelling is
-deprecated in SYCL mode.
-
-In OpenCL mode, all three arguments are mandatory.
+The GNU spelling is deprecated in SYCL mode.
 
 .. code-block:: c++
 
@@ -2641,7 +2637,7 @@ In OpenCL mode, all three arguments are mandatory.
 
   class Foo {
   public:
-    [[sycl::work_group_size_hint(2)]] void operator()() const {}
+    [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
   };
 
   }];
