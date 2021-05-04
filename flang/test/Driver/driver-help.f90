@@ -1,21 +1,21 @@
 ! REQUIRES: new-flang-driver
 
 !--------------------------
-! FLANG DRIVER (flang-new)
+! FLANG DRIVER (flang)
 !--------------------------
-! RUN: %flang-new -help 2>&1 | FileCheck %s --check-prefix=HELP
-! RUN: not %flang-new -helps 2>&1 | FileCheck %s --check-prefix=ERROR
+! RUN: %flang -help 2>&1 | FileCheck %s --check-prefix=HELP
+! RUN: not %flang -helps 2>&1 | FileCheck %s --check-prefix=ERROR
 
 !----------------------------------------
-! FLANG FRONTEND DRIVER (flang-new -fc1)
+! FLANG FRONTEND DRIVER (flang -fc1)
 !----------------------------------------
-! RUN: %flang-new -fc1 -help 2>&1 | FileCheck %s --check-prefix=HELP-FC1
-! RUN: not %flang-new -fc1 -helps 2>&1 | FileCheck %s --check-prefix=ERROR
+! RUN: %flang_fc1 -help 2>&1 | FileCheck %s --check-prefix=HELP-FC1
+! RUN: not %flang_fc1 -helps 2>&1 | FileCheck %s --check-prefix=ERROR
 
 !----------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG DRIVER (flang-new)
+! EXPECTED OUTPUT FOR FLANG DRIVER (flang)
 !----------------------------------------------------
-! HELP:USAGE: flang-new
+! HELP:USAGE: flang
 ! HELP-EMPTY:
 ! HELP-NEXT:OPTIONS:
 ! HELP-NEXT: -###                   Print (but do not run) the commands to run for this compilation
@@ -57,9 +57,9 @@
 ! HELP-NEXT: -Xflang <arg>          Pass <arg> to the flang compiler
 
 !-------------------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG FRONTEND DRIVER (flang-new -fc1)
+! EXPECTED OUTPUT FOR FLANG FRONTEND DRIVER (flang -fc1)
 !-------------------------------------------------------------
-! HELP-FC1:USAGE: flang-new
+! HELP-FC1:USAGE: flang
 ! HELP-FC1-EMPTY:
 ! HELP-FC1-NEXT:OPTIONS:
 ! HELP-FC1-NEXT: -cpp                   Enable predefined and command line preprocessor macros
@@ -91,6 +91,8 @@
 ! HELP-FC1-NEXT: -ffixed-line-length=<value>
 ! HELP-FC1-NEXT: Use <value> as character line width in fixed mode
 ! HELP-FC1-NEXT: -ffree-form            Process source files in free form
+! HELP-FC1-NEXT: -fget-definition <value> <value> <value>
+! HELP-FC1-NEXT:                        Get the symbol definition from <line> <start-column> <end-column>
 ! HELP-FC1-NEXT: -fget-symbols-sources   Dump symbols and their source code locations
 ! HELP-FC1-NEXT: -fimplicit-none        No implicit typing allowed unless overridden by IMPLICIT statements
 ! HELP-FC1-NEXT: -finput-charset=<value> Specify the default character set for source files

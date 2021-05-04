@@ -13,10 +13,10 @@
 
 #include "WebAssemblyISelLowering.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
 #include "WebAssemblyTargetMachine.h"
-#include "WebAssemblyUtilities.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -121,6 +121,11 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
         setOperationAction(Op, T, Expand);
   }
 
+  if (Subtarget->hasNontrappingFPToInt())
+    for (auto Op : {ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT})
+      for (auto T : {MVT::i32, MVT::i64})
+        setOperationAction(Op, T, Custom);
+
   // SIMD-specific configuration
   if (Subtarget->hasSIMD128()) {
     // Hoist bitcasts out of shuffles
@@ -129,6 +134,14 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     // Combine extends of extract_subvectors into widening ops
     setTargetDAGCombine(ISD::SIGN_EXTEND);
     setTargetDAGCombine(ISD::ZERO_EXTEND);
+
+    // Combine int_to_fp of extract_vectors and vice versa into conversions ops
+    setTargetDAGCombine(ISD::SINT_TO_FP);
+    setTargetDAGCombine(ISD::UINT_TO_FP);
+    setTargetDAGCombine(ISD::EXTRACT_SUBVECTOR);
+
+    // Combine concat of {s,u}int_to_fp_sat to i32x4.trunc_sat_f64x2_zero_{s,u}
+    setTargetDAGCombine(ISD::CONCAT_VECTORS);
 
     // Support saturating add for i8x16 and i16x8
     for (auto Op : {ISD::SADDSAT, ISD::UADDSAT})
@@ -180,8 +193,7 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
         setOperationAction(Op, T, Legal);
 
     // Expand float operations supported for scalars but not SIMD
-    for (auto Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FNEARBYINT,
-                    ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
+    for (auto Op : {ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
                     ISD::FEXP, ISD::FEXP2, ISD::FRINT})
       for (auto T : {MVT::v4f32, MVT::v2f64})
         setOperationAction(Op, T, Expand);
@@ -195,6 +207,10 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
          {ISD::SINT_TO_FP, ISD::UINT_TO_FP, ISD::FP_TO_SINT, ISD::FP_TO_UINT})
       for (auto T : {MVT::v2i64, MVT::v2f64})
         setOperationAction(Op, T, Expand);
+
+    // But saturating fp_to_int converstions are
+    for (auto Op : {ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT})
+      setOperationAction(Op, MVT::v4i32, Custom);
   }
 
   // As a special case, these operators use the type to mean the type to
@@ -1234,6 +1250,9 @@ SDValue WebAssemblyTargetLowering::LowerOperation(SDValue Op,
   case ISD::SRA:
   case ISD::SRL:
     return LowerShift(Op, DAG);
+  case ISD::FP_TO_SINT_SAT:
+  case ISD::FP_TO_UINT_SAT:
+    return LowerFP_TO_INT_SAT(Op, DAG);
   }
 }
 
@@ -1950,6 +1969,21 @@ SDValue WebAssemblyTargetLowering::LowerShift(SDValue Op,
   return DAG.getNode(Opcode, DL, Op.getValueType(), Op.getOperand(0), ShiftVal);
 }
 
+SDValue WebAssemblyTargetLowering::LowerFP_TO_INT_SAT(SDValue Op,
+                                                      SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  EVT ResT = Op.getValueType();
+  uint64_t Width = Op.getConstantOperandVal(1);
+
+  if ((ResT == MVT::i32 || ResT == MVT::i64) && (Width == 32 || Width == 64))
+    return Op;
+
+  if (ResT == MVT::v4i32 && Width == 32)
+    return Op;
+
+  return SDValue();
+}
+
 //===----------------------------------------------------------------------===//
 //   Custom DAG combine hooks
 //===----------------------------------------------------------------------===//
@@ -1995,8 +2029,8 @@ performVectorExtendCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
     return SDValue();
   auto Index = IndexNode->getZExtValue();
 
-  // Only v8i8 and v4i16 extracts can be widened, and only if the extracted
-  // subvector is the low or high half of its source.
+  // Only v8i8, v4i16, and v2i32 extracts can be widened, and only if the
+  // extracted subvector is the low or high half of its source.
   EVT ResVT = N->getValueType(0);
   if (ResVT == MVT::v8i16) {
     if (Extract.getValueType() != MVT::v8i8 ||
@@ -2005,6 +2039,10 @@ performVectorExtendCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
   } else if (ResVT == MVT::v4i32) {
     if (Extract.getValueType() != MVT::v4i16 ||
         Source.getValueType() != MVT::v8i16 || (Index != 0 && Index != 4))
+      return SDValue();
+  } else if (ResVT == MVT::v2i64) {
+    if (Extract.getValueType() != MVT::v2i32 ||
+        Source.getValueType() != MVT::v4i32 || (Index != 0 && Index != 2))
       return SDValue();
   } else {
     return SDValue();
@@ -2021,6 +2059,114 @@ performVectorExtendCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
   return DAG.getNode(Op, SDLoc(N), ResVT, Source);
 }
 
+static SDValue
+performVectorConvertLowCombine(SDNode *N,
+                               TargetLowering::DAGCombinerInfo &DCI) {
+  auto &DAG = DCI.DAG;
+
+  EVT ResVT = N->getValueType(0);
+  if (ResVT != MVT::v2f64)
+    return SDValue();
+
+  if (N->getOpcode() == ISD::SINT_TO_FP || N->getOpcode() == ISD::UINT_TO_FP) {
+    // Combine this:
+    //
+    //   (v2f64 ({s,u}int_to_fp
+    //     (v2i32 (extract_subvector (v4i32 $x), 0))))
+    //
+    // into (f64x2.convert_low_i32x4_{s,u} $x).
+    auto Extract = N->getOperand(0);
+    if (Extract.getOpcode() != ISD::EXTRACT_SUBVECTOR)
+      return SDValue();
+    if (Extract.getValueType() != MVT::v2i32)
+      return SDValue();
+    auto Source = Extract.getOperand(0);
+    if (Source.getValueType() != MVT::v4i32)
+      return SDValue();
+    auto *IndexNode = dyn_cast<ConstantSDNode>(Extract.getOperand(1));
+    if (IndexNode == nullptr || IndexNode->getZExtValue() != 0)
+      return SDValue();
+
+    unsigned Op = N->getOpcode() == ISD::SINT_TO_FP
+                      ? WebAssemblyISD::CONVERT_LOW_S
+                      : WebAssemblyISD::CONVERT_LOW_U;
+
+    return DAG.getNode(Op, SDLoc(N), ResVT, Source);
+
+  } else if (N->getOpcode() == ISD::EXTRACT_SUBVECTOR) {
+    // Combine this:
+    //
+    //   (v2f64 (extract_subvector
+    //     (v4f64 ({s,u}int_to_fp (v4i32 $x))), 0))
+    //
+    // into (f64x2.convert_low_i32x4_{s,u} $x).
+    auto IntToFP = N->getOperand(0);
+    if (IntToFP.getOpcode() != ISD::SINT_TO_FP &&
+        IntToFP.getOpcode() != ISD::UINT_TO_FP)
+      return SDValue();
+    if (IntToFP.getValueType() != MVT::v4f64)
+      return SDValue();
+    auto Source = IntToFP.getOperand(0);
+    if (Source.getValueType() != MVT::v4i32)
+      return SDValue();
+    auto IndexNode = dyn_cast<ConstantSDNode>(N->getOperand(1));
+    if (IndexNode == nullptr || IndexNode->getZExtValue() != 0)
+      return SDValue();
+
+    unsigned Op = IntToFP->getOpcode() == ISD::SINT_TO_FP
+                      ? WebAssemblyISD::CONVERT_LOW_S
+                      : WebAssemblyISD::CONVERT_LOW_U;
+
+    return DAG.getNode(Op, SDLoc(N), ResVT, Source);
+
+  } else {
+    llvm_unreachable("unexpected opcode");
+  }
+}
+
+static SDValue
+performVectorTruncSatLowCombine(SDNode *N,
+                                TargetLowering::DAGCombinerInfo &DCI) {
+  auto &DAG = DCI.DAG;
+  assert(N->getOpcode() == ISD::CONCAT_VECTORS);
+
+  // Combine this:
+  //
+  //   (concat_vectors (v2i32 (fp_to_{s,u}int_sat $x, 32)), (v2i32 (splat 0)))
+  //
+  // into (i32x4.trunc_sat_f64x2_zero_{s,u} $x).
+  EVT ResVT = N->getValueType(0);
+  if (ResVT != MVT::v4i32)
+    return SDValue();
+
+  auto FPToInt = N->getOperand(0);
+  auto FPToIntOp = FPToInt.getOpcode();
+  if (FPToIntOp != ISD::FP_TO_SINT_SAT && FPToIntOp != ISD::FP_TO_UINT_SAT)
+    return SDValue();
+  if (FPToInt.getConstantOperandVal(1) != 32)
+    return SDValue();
+
+  auto Source = FPToInt.getOperand(0);
+  if (Source.getValueType() != MVT::v2f64)
+    return SDValue();
+
+  auto *Splat = dyn_cast<BuildVectorSDNode>(N->getOperand(1));
+  APInt SplatValue, SplatUndef;
+  unsigned SplatBitSize;
+  bool HasAnyUndefs;
+  if (!Splat || !Splat->isConstantSplat(SplatValue, SplatUndef, SplatBitSize,
+                                        HasAnyUndefs))
+    return SDValue();
+  if (SplatValue != 0)
+    return SDValue();
+
+  unsigned Op = FPToIntOp == ISD::FP_TO_SINT_SAT
+                    ? WebAssemblyISD::TRUNC_SAT_ZERO_S
+                    : WebAssemblyISD::TRUNC_SAT_ZERO_U;
+
+  return DAG.getNode(Op, SDLoc(N), ResVT, Source);
+}
+
 SDValue
 WebAssemblyTargetLowering::PerformDAGCombine(SDNode *N,
                                              DAGCombinerInfo &DCI) const {
@@ -2032,5 +2178,11 @@ WebAssemblyTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::SIGN_EXTEND:
   case ISD::ZERO_EXTEND:
     return performVectorExtendCombine(N, DCI);
+  case ISD::SINT_TO_FP:
+  case ISD::UINT_TO_FP:
+  case ISD::EXTRACT_SUBVECTOR:
+    return performVectorConvertLowCombine(N, DCI);
+  case ISD::CONCAT_VECTORS:
+    return performVectorTruncSatLowCombine(N, DCI);
   }
 }

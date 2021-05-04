@@ -1031,14 +1031,14 @@ defm NEG : SIMDUnaryFP<fneg, "neg", 225>;
 defm SQRT : SIMDUnaryFP<fsqrt, "sqrt", 227>;
 
 // Rounding: ceil, floor, trunc, nearest
-defm CEIL : SIMDUnary<F32x4, int_wasm_ceil, "ceil", 0x67>;
-defm FLOOR : SIMDUnary<F32x4, int_wasm_floor, "floor", 0x68>;
-defm TRUNC: SIMDUnary<F32x4, int_wasm_trunc, "trunc", 0x69>;
-defm NEAREST: SIMDUnary<F32x4, int_wasm_nearest, "nearest", 0x6a>;
-defm CEIL : SIMDUnary<F64x2, int_wasm_ceil, "ceil", 0x74>;
-defm FLOOR : SIMDUnary<F64x2, int_wasm_floor, "floor", 0x75>;
-defm TRUNC: SIMDUnary<F64x2, int_wasm_trunc, "trunc", 0x7a>;
-defm NEAREST: SIMDUnary<F64x2, int_wasm_nearest, "nearest", 0x94>;
+defm CEIL : SIMDUnary<F32x4, fceil, "ceil", 0x67>;
+defm FLOOR : SIMDUnary<F32x4, ffloor, "floor", 0x68>;
+defm TRUNC: SIMDUnary<F32x4, ftrunc, "trunc", 0x69>;
+defm NEAREST: SIMDUnary<F32x4, fnearbyint, "nearest", 0x6a>;
+defm CEIL : SIMDUnary<F64x2, fceil, "ceil", 0x74>;
+defm FLOOR : SIMDUnary<F64x2, ffloor, "floor", 0x75>;
+defm TRUNC: SIMDUnary<F64x2, ftrunc, "trunc", 0x7a>;
+defm NEAREST: SIMDUnary<F64x2, fnearbyint, "nearest", 0x94>;
 
 //===----------------------------------------------------------------------===//
 // Floating-point binary arithmetic
@@ -1091,15 +1091,30 @@ multiclass SIMDConvert<Vec vec, Vec arg, SDPatternOperator op, string name,
 defm "" : SIMDConvert<I32x4, F32x4, fp_to_sint, "trunc_sat_f32x4_s", 248>;
 defm "" : SIMDConvert<I32x4, F32x4, fp_to_uint, "trunc_sat_f32x4_u", 249>;
 
+// Support the saturating variety as well.
+def trunc_s_sat32 : PatFrag<(ops node:$x), (fp_to_sint_sat $x, (i32 32))>;
+def trunc_u_sat32 : PatFrag<(ops node:$x), (fp_to_uint_sat $x, (i32 32))>;
+def : Pat<(v4i32 (trunc_s_sat32 (v4f32 V128:$src))), (fp_to_sint_I32x4 $src)>;
+def : Pat<(v4i32 (trunc_u_sat32 (v4f32 V128:$src))), (fp_to_uint_I32x4 $src)>;
+
+def trunc_sat_zero_t : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>;
+def trunc_sat_zero_s :
+  SDNode<"WebAssemblyISD::TRUNC_SAT_ZERO_S", trunc_sat_zero_t>;
+def trunc_sat_zero_u :
+  SDNode<"WebAssemblyISD::TRUNC_SAT_ZERO_U", trunc_sat_zero_t>;
+defm "" : SIMDConvert<I32x4, F64x2, trunc_sat_zero_s, "trunc_sat_zero_f64x2_s",
+                      0xfc>;
+defm "" : SIMDConvert<I32x4, F64x2, trunc_sat_zero_u, "trunc_sat_zero_f64x2_u",
+                      0xfd>;
+
 // Integer to floating point: convert
+def convert_low_t : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>;
+def convert_low_s : SDNode<"WebAssemblyISD::CONVERT_LOW_S", convert_low_t>;
+def convert_low_u : SDNode<"WebAssemblyISD::CONVERT_LOW_U", convert_low_t>;
 defm "" : SIMDConvert<F32x4, I32x4, sint_to_fp, "convert_i32x4_s", 250>;
 defm "" : SIMDConvert<F32x4, I32x4, uint_to_fp, "convert_i32x4_u", 251>;
-
-// Lower llvm.wasm.trunc.sat.* to saturating instructions
-def : Pat<(v4i32 (int_wasm_trunc_saturate_signed (v4f32 V128:$src))),
-          (fp_to_sint_I32x4 $src)>;
-def : Pat<(v4i32 (int_wasm_trunc_saturate_unsigned (v4f32 V128:$src))),
-          (fp_to_uint_I32x4 $src)>;
+defm "" : SIMDConvert<F64x2, I32x4, convert_low_s, "convert_low_i32x4_s", 0xfe>;
+defm "" : SIMDConvert<F64x2, I32x4, convert_low_u, "convert_low_i32x4_u", 0xff>;
 
 // Extending operations
 def extend_t : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>;
@@ -1120,17 +1135,9 @@ multiclass SIMDExtend<Vec vec, bits<32> baseInst> {
                         "extend_high_"#vec.split.prefix#"_u", !add(baseInst, 3)>;
 }
 
-defm "" : SIMDExtend<I16x8, 135>;
-defm "" : SIMDExtend<I32x4, 167>;
-
-defm "" : SIMDConvert<I64x2, I32x4, int_wasm_extend_low_signed,
-                      "extend_low_i32x4_s", 199>;
-defm "" : SIMDConvert<I64x2, I32x4, int_wasm_extend_high_signed,
-                      "extend_high_i32x4_s", 200>;
-defm "" : SIMDConvert<I64x2, I32x4, int_wasm_extend_low_unsigned,
-                      "extend_low_i32x4_u", 201>;
-defm "" : SIMDConvert<I64x2, I32x4, int_wasm_extend_high_unsigned,
-                      "extend_high_i32x4_u", 202>;
+defm "" : SIMDExtend<I16x8, 0x87>;
+defm "" : SIMDExtend<I32x4, 0xa7>;
+defm "" : SIMDExtend<I64x2, 0xc7>;
 
 // Narrowing operations
 multiclass SIMDNarrow<Vec vec, bits<32> baseInst> {
@@ -1153,12 +1160,15 @@ defm "" : SIMDNarrow<I32x4, 133>;
 // Use narrowing operations for truncating stores. Since the narrowing
 // operations are saturating instead of truncating, we need to mask
 // the stored values first.
-// TODO: Use consts instead of splats
 def store_v8i8_trunc_v8i16 :
   OutPatFrag<(ops node:$val),
              (EXTRACT_LANE_I64x2
                (NARROW_U_I8x16
-                 (AND (SPLAT_I32x4 (CONST_I32 0x00ff00ff)), node:$val),
+                 (AND
+                   (CONST_V128_I16x8
+                     0x00ff, 0x00ff, 0x00ff, 0x00ff,
+                     0x00ff, 0x00ff, 0x00ff, 0x00ff),
+                   node:$val),
                  $val), // Unused input
                0)>;
 
@@ -1166,7 +1176,10 @@ def store_v4i16_trunc_v4i32 :
   OutPatFrag<(ops node:$val),
              (EXTRACT_LANE_I64x2
                (NARROW_U_I16x8
-                 (AND (SPLAT_I32x4 (CONST_I32 0x0000ffff)), node:$val),
+                 (AND
+                  (CONST_V128_I32x4
+                    0x0000ffff, 0x0000ffff, 0x0000ffff, 0x0000ffff),
+                  node:$val),
                  $val), // Unused input
                0)>;
 
@@ -1251,14 +1264,6 @@ defm "" : SIMDConvert<F32x4, F64x2, int_wasm_demote_zero,
                       "demote_zero_f64x2", 0x5e>;
 defm "" : SIMDConvert<F64x2, F32x4, int_wasm_promote_low,
                       "promote_low_f32x4", 0x5f>;
-defm "" : SIMDConvert<I32x4, F64x2, int_wasm_trunc_sat_zero_signed,
-                      "trunc_sat_zero_f64x2_s", 0xfc>;
-defm "" : SIMDConvert<I32x4, F64x2, int_wasm_trunc_sat_zero_unsigned,
-                      "trunc_sat_zero_f64x2_u", 0xfd>;
-defm "" : SIMDConvert<F64x2, I32x4, int_wasm_convert_low_signed,
-                      "convert_low_i32x4_s", 0xfe>;
-defm "" : SIMDConvert<F64x2, I32x4, int_wasm_convert_low_unsigned,
-                      "convert_low_i32x4_u", 0xff>;
 
 //===----------------------------------------------------------------------===//
 // Saturating Rounding Q-Format Multiplication

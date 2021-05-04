@@ -253,7 +253,8 @@ class SimplifyCFGOpt {
   bool tryToSimplifyUncondBranchWithICmpInIt(ICmpInst *ICI,
                                              IRBuilder<> &Builder);
 
-  bool HoistThenElseCodeToIf(BranchInst *BI, const TargetTransformInfo &TTI);
+  bool HoistThenElseCodeToIf(BranchInst *BI, const TargetTransformInfo &TTI,
+                             bool EqTermsOnly);
   bool SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
                               const TargetTransformInfo &TTI);
   bool SimplifyTerminatorOnSelect(Instruction *OldTerm, Value *Cond,
@@ -1388,9 +1389,12 @@ static bool passingValueIsAlwaysUndefined(Value *V, Instruction *I, bool PtrValu
 
 /// Given a conditional branch that goes to BB1 and BB2, hoist any common code
 /// in the two blocks up into the branch block. The caller of this function
-/// guarantees that BI's block dominates BB1 and BB2.
+/// guarantees that BI's block dominates BB1 and BB2. If EqTermsOnly is given,
+/// only perform hoisting in case both blocks only contain a terminator. In that
+/// case, only the original BI will be replaced and selects for PHIs are added.
 bool SimplifyCFGOpt::HoistThenElseCodeToIf(BranchInst *BI,
-                                           const TargetTransformInfo &TTI) {
+                                           const TargetTransformInfo &TTI,
+                                           bool EqTermsOnly) {
   // This does very trivial matching, with limited scanning, to find identical
   // instructions in the two blocks.  In particular, we don't want to get into
   // O(M*N) situations here where M and N are the sizes of BB1 and BB2.  As
@@ -1426,6 +1430,20 @@ bool SimplifyCFGOpt::HoistThenElseCodeToIf(BranchInst *BI,
     if (Changed)
       ++NumHoistCommonCode;
   });
+
+  // Check if only hoisting terminators is allowed. This does not add new
+  // instructions to the hoist location.
+  if (EqTermsOnly) {
+    // Skip any debug intrinsics, as they are free to hoist.
+    auto *I1NonDbg = &*skipDebugIntrinsics(I1->getIterator());
+    auto *I2NonDbg = &*skipDebugIntrinsics(I2->getIterator());
+    if (!I1NonDbg->isIdenticalToWhenDefined(I2NonDbg))
+      return false;
+    if (!I1NonDbg->isTerminator())
+      return false;
+    // Now we know that we only need to hoist debug instrinsics and the
+    // terminator. Let the loop below handle those 2 cases.
+  }
 
   do {
     // If we are hoisting the terminator instruction, don't move one (making a
@@ -5779,7 +5797,7 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
   // Only build lookup table when we have a target that supports it or the
   // attribute is not set.
   if (!TTI.shouldBuildLookupTables() ||
-      (Fn->getFnAttribute("no-jump-tables").getValueAsString() == "true"))
+      (Fn->getFnAttribute("no-jump-tables").getValueAsBool()))
     return false;
 
   // FIXME: If the switch is too sparse for a lookup table, perhaps we could
@@ -6443,9 +6461,9 @@ bool SimplifyCFGOpt::simplifyCondBranch(BranchInst *BI, IRBuilder<> &Builder) {
   // can hoist it up to the branching block.
   if (BI->getSuccessor(0)->getSinglePredecessor()) {
     if (BI->getSuccessor(1)->getSinglePredecessor()) {
-      if (HoistCommon && Options.HoistCommonInsts)
-        if (HoistThenElseCodeToIf(BI, TTI))
-          return requestResimplify();
+      if (HoistCommon &&
+          HoistThenElseCodeToIf(BI, TTI, !Options.HoistCommonInsts))
+        return requestResimplify();
     } else {
       // If Successor #1 has multiple preds, we may be able to conditionally
       // execute Successor #0 if it branches to Successor #1.

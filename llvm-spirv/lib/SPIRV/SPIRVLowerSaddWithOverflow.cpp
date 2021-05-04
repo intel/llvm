@@ -63,6 +63,7 @@ class SPIRVLowerSaddWithOverflowBase
     : public InstVisitor<SPIRVLowerSaddWithOverflowBase> {
 public:
   SPIRVLowerSaddWithOverflowBase() : Context(nullptr) {}
+  virtual ~SPIRVLowerSaddWithOverflowBase() {}
   virtual void visitIntrinsicInst(CallInst &I) {
     IntrinsicInst *II = dyn_cast<IntrinsicInst>(&I);
     if (!II || II->getIntrinsicID() != Intrinsic::sadd_with_overflow)

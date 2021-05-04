@@ -239,6 +239,7 @@ inline void SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>::init() {
   add(Attribute::StructRet, FunctionParameterAttributeSret);
   add(Attribute::NoAlias, FunctionParameterAttributeNoAlias);
   add(Attribute::NoCapture, FunctionParameterAttributeNoCapture);
+  add(Attribute::ReadOnly, FunctionParameterAttributeNoWrite);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>
     SPIRSPIRVFuncParamAttrMap;
