@@ -1434,7 +1434,7 @@ def LoopUnrollHint : StmtAttr {
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [
     GNU<"intel_reqd_sub_group_size">, CXX11<"intel", "reqd_sub_group_size">,
-    CXX11<"intel", "sub_group_size"> // SYCL2020 spelling.
+    CXX11<"intel", "sub_group_size">, CXX11<"sycl", "reqd_sub_group_size">
   ];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -2917,12 +2917,13 @@ def NoDeref : TypeAttr {
   let Documentation = [NoDerefDocs];
 }
 
-// Default arguments in ReqWorkGroupSize can be used only with
-// intel::reqd_work_group_size spelling.
+// Default arguments can only be used with the intel::reqd_work_group_size or
+// sycl::reqd_work_group_size spellings.
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
-                   CXX11<"intel","reqd_work_group_size">,
-                   CXX11<"cl","reqd_work_group_size">];
+                   CXX11<"intel", "reqd_work_group_size">,
+                   CXX11<"cl", "reqd_work_group_size">,
+                   CXX11<"sycl", "reqd_work_group_size">];
   let Args = [ExprArgument<"XDim">,
               ExprArgument<"YDim", /*optional*/1>,
               ExprArgument<"ZDim", /*optional*/1>];
@@ -2945,12 +2946,14 @@ def ReqdWorkGroupSize : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
+// Default arguments can only be used with the sycl::work_group_size_hint
+// spelling.
 def WorkGroupSizeHint :  InheritableAttr {
-  // Does not have a [[]] spelling because it is an OpenCL-related attribute.
-  let Spellings = [GNU<"work_group_size_hint">];
+  let Spellings = [GNU<"work_group_size_hint">,
+                   CXX11<"sycl", "work_group_size_hint">];
   let Args = [UnsignedArgument<"XDim">,
-              UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
+              UnsignedArgument<"YDim", /*optional*/1>,
+              UnsignedArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [Undocumented];
 }

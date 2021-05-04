@@ -327,6 +327,41 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
+  // If SYCL is enabled (either host or device) and the language mode is not
+  // greater than SYCL 2020, diagnose.
+  // FIXME: it is weird that -cc1 -fsycl-is-device/-fsycl-is-host does not set
+  // the SYCL version information to something other than SYCL_None. So I am
+  // testing for that value explicitly and treating it as though the user
+  // specified the latest SYCL standards mode. We should correct this in the
+  // frontend options parsing though.
+  if ((LangOpts.SYCLIsDevice || LangOpts.SYCLIsHost) &&
+      (LangOpts.getSYCLVersion() > LangOptions::SYCL_2017 ||
+       LangOpts.getSYCLVersion() == LangOptions::SYCL_None)) {
+    // All attributes in the cl vendor namespace are deprecated in favor of a
+    // name in the sycl namespace as of SYCL 2020.
+    if (A.hasScope() && A.getScopeName()->isStr("cl")) {
+      DiagnoseDeprecatedAttribute(A, "sycl", NewName);
+      return;
+    }
+
+    // All GNU-style spellings are deprecated in favor of a C++-style spelling.
+    if (A.getSyntax() == ParsedAttr::AS_GNU) {
+      // Note: we cannot suggest an automatic fix-it because GNU-style
+      // spellings can appear in locations that are not valid for a C++-style
+      // spelling, and the attribute could be part of an attribute list within
+      // a single __attribute__ specifier. Just tell the user it's deprecated
+      // manually.
+      //
+      // This currently assumes that the GNU-style spelling is the same as the
+      // SYCL 2020 spelling (sans the vendor namespace).
+      Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
+          << "'" + A.getNormalizedFullName() + "'";
+      Diag(A.getLoc(), diag::note_spelling_suggestion)
+          << "'[[sycl::" + A.getNormalizedFullName() + "]]'";
+      return;
+    }
+  }
+
   // All attributes in the intelfpga vendor namespace are deprecated in favor
   // of a name in the intel vendor namespace. By default, assume the attribute
   // retains its original name but changes the namespace. However, some
@@ -2990,9 +3025,6 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     return Result;
   }
 
-  if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)
-    S.CheckDeprecatedSYCLAttributeSpelling(AL);
-
   if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     if ((A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue()) == 0) {
       Result &= checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), Ctx),
@@ -3036,18 +3068,21 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->isInvalidDecl())
     return;
 
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
+
   Expr *XDimExpr = AL.getArgAsExpr(0);
 
-  // If no attribute argument is specified, set to default value '1'
-  // for second and third attribute argument in ReqdWorkGroupSizeAttr
-  // for only with intel::reqd_work_group_size spelling.
+  // If no attribute argument is specified, set the second and third argument
+  // to the default value 1, but only if the sycl:: or intel::
+  // reqd_work_group_size spelling was used.
   auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL, SourceLocation loc) {
-    Expr *E = (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
-               AL.getAttributeSpellingListIndex() ==
-                   ReqdWorkGroupSizeAttr::CXX11_intel_reqd_work_group_size)
-                  ? IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                           S.Context.IntTy, AL.getLoc())
-                  : nullptr;
+    Expr *E =
+        (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
+         (AL.getScopeName()->isStr("sycl") ||
+          AL.getScopeName()->isStr("intel")))
+            ? IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                     S.Context.IntTy, AL.getLoc())
+            : nullptr;
     return E;
   };
 
@@ -3115,12 +3150,19 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 // Handles work_group_size_hint.
 static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
-  uint32_t WGSize[3];
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  if (!AL.checkExactlyNumArgs(S, 3))
+  // The GNU spelling requires three arguments, but the SYCL spelling only
+  // requires one argument.
+  if (AL.getSyntax() == ParsedAttr::AS_GNU) {
+    if (!AL.checkExactlyNumArgs(S, 3))
+      return;
+  } else if (!AL.checkAtLeastNumArgs(S, 1)) {
     return;
+  }
 
-  for (unsigned i = 0; i < 3; ++i) {
+  uint32_t WGSize[3] = {1, 1, 1};
+  for (unsigned i = 0; i < AL.getNumArgs(); ++i) {
     if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
                              /*StrictlyUnsigned=*/true))
       return;
@@ -3204,6 +3246,8 @@ Sema::MergeIntelReqdSubGroupSizeAttr(Decl *D,
 
 static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
                                         const ParsedAttr &AL) {
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
+
   Expr *E = AL.getArgAsExpr(0);
   S.AddIntelReqdSubGroupSize(D, AL, E);
 }

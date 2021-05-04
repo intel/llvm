@@ -62,13 +62,13 @@ struct TRIFuncObjBad2 {
 
 struct TRIFuncObjBad3 {
   [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[cl::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad4 {
-  [[cl::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
@@ -182,12 +182,12 @@ struct TRIFuncObjGood2 {
 
 struct TRIFuncObjGood3 {
   [[intel::num_simd_work_items(4)]]
-  [[cl::reqd_work_group_size(64, 64, 5)]] void
+  [[sycl::reqd_work_group_size(64, 64, 5)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood4 {
-  [[cl::reqd_work_group_size(64, 64, 5)]]
+  [[sycl::reqd_work_group_size(64, 64, 5)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
