@@ -168,7 +168,8 @@ struct OutgoingArgHandler : public CallLowering::OutgoingValueHandler {
                      int FPDiff = 0)
       : OutgoingValueHandler(MIRBuilder, MRI, AssignFn), MIB(MIB),
         AssignFnVarArg(AssignFnVarArg), IsTailCall(IsTailCall), FPDiff(FPDiff),
-        StackSize(0), SPReg(0) {}
+        StackSize(0), SPReg(0),
+        Subtarget(MIRBuilder.getMF().getSubtarget<AArch64Subtarget>()) {}
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
                            MachinePointerInfo &MPO,
@@ -240,7 +241,9 @@ struct OutgoingArgHandler : public CallLowering::OutgoingValueHandler {
                  ISD::ArgFlagsTy Flags,
                  CCState &State) override {
     bool Res;
-    if (Info.IsFixed)
+    bool IsCalleeWin = Subtarget.isCallingConvWin64(State.getCallingConv());
+    bool UseVarArgsCCForFixed = IsCalleeWin && State.isVarArg();
+    if (Info.IsFixed && !UseVarArgsCCForFixed)
       Res = AssignFn(ValNo, ValVT, LocVT, LocInfo, Flags, State);
     else
       Res = AssignFnVarArg(ValNo, ValVT, LocVT, LocInfo, Flags, State);
@@ -260,6 +263,8 @@ struct OutgoingArgHandler : public CallLowering::OutgoingValueHandler {
 
   // Cache the SP register vreg if we need it more than once in this call site.
   Register SPReg;
+
+  const AArch64Subtarget &Subtarget;
 };
 } // namespace
 
@@ -442,9 +447,10 @@ bool AArch64CallLowering::fallBackToDAGISel(const MachineFunction &MF) const {
       }))
     return true;
   const auto &ST = MF.getSubtarget<AArch64Subtarget>();
-  LLVM_DEBUG(dbgs() << "Falling back to SDAG because we don't support no-NEON");
-  if (!ST.hasNEON() || !ST.hasFPARMv8())
+  if (!ST.hasNEON() || !ST.hasFPARMv8()) {
+    LLVM_DEBUG(dbgs() << "Falling back to SDAG because we don't support no-NEON\n");
     return true;
+  }
   return false;
 }
 
