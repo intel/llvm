@@ -519,9 +519,10 @@ private:
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   pi_result SetKernelParamsAndLaunch(
-      CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
-      std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
-      ProgramManager::KernelArgMask EliminatedArgMask);
+      CGExecKernel *ExecKernel,
+      std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
+      NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
+      RT::PiEvent &Event, ProgramManager::KernelArgMask EliminatedArgMask);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 
