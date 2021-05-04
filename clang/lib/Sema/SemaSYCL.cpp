@@ -360,7 +360,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     // kernel in SYCL 2020.
     if (DirectlyCalled && S.getASTContext().getLangOpts().getSYCLVersion() ==
                               LangOptions::SYCL_2020) {
-       llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+      llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
         return isa<
             SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
             SYCLIntelFPGADisableLoopPipeliningAttr,
@@ -369,7 +369,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
             SYCLIntelNoGlobalWorkOffsetAttr, SYCLIntelMaxWorkGroupSizeAttr,
             IntelNamedSubGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
             SYCLSimdAttr, SYCLIntelFPGAInitiationIntervalAttr>(A);
-       });
+      });
     }
   }
 
