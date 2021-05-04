@@ -166,8 +166,7 @@ void insertSimpleInstrumentationCall(Module &M, StringRef Name,
 
 // Insert instrumental annotation calls for SPIR-V atomics.
 void insertAtomicInstrumentationCall(Module &M, StringRef Name,
-                                     CallInst *AtomicFun,
-                                     Instruction *Position,
+                                     CallInst *AtomicFun, Instruction *Position,
                                      StringRef AtomicName) {
   LLVMContext &Ctx = M.getContext();
   Type *VoidTy = Type::getVoidTy(Ctx);
@@ -187,10 +186,11 @@ void insertAtomicInstrumentationCall(Module &M, StringRef Name,
   //   __itt_mem_store = 1,
   //   __itt_mem_update = 2
   // }
-  ConstantInt *AtomicOp = StringSwitch<ConstantInt *>(AtomicName)
-    .StartsWith(SPIRV_ATOMIC_LOAD, ConstantInt::get(Int32Ty, 0))
-    .StartsWith(SPIRV_ATOMIC_STORE, ConstantInt::get(Int32Ty, 1))
-    .Default(ConstantInt::get(Int32Ty, 2));
+  ConstantInt *AtomicOp =
+      StringSwitch<ConstantInt *>(AtomicName)
+          .StartsWith(SPIRV_ATOMIC_LOAD, ConstantInt::get(Int32Ty, 0))
+          .StartsWith(SPIRV_ATOMIC_STORE, ConstantInt::get(Int32Ty, 1))
+          .Default(ConstantInt::get(Int32Ty, 2));
   // Third parameter of Atomic Start/Finish annotation is an ordering
   // semantic of the instruction, encoded into a value of enum, defined like
   // this on user's/profiler's side:
@@ -276,8 +276,8 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
                         })) {
           Instruction *InstAfterBarrier = CI->getNextNode();
           insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WG_BARRIER, CI);
-          insertSimpleInstrumentationCall(
-              M, ITT_ANNOTATION_WI_RESUME, InstAfterBarrier);
+          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_RESUME,
+                                          InstAfterBarrier);
         } else if (CalleeName.startswith(SPIRV_ATOMIC_INST)) {
           Instruction *InstAfterAtomic = CI->getNextNode();
           insertAtomicInstrumentationCall(M, ITT_ANNOTATION_ATOMIC_START, CI,
