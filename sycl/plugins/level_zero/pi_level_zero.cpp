@@ -1437,7 +1437,7 @@ static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
       // Additionally we need to cache all sub-devices too, such that they
       // are readily visible to the piextDeviceCreateWithNativeHandle.
       //
-      pi_uint32 SubDevicesCount;
+      pi_uint32 SubDevicesCount = 0;
       ZE_CALL(zeDeviceGetSubDevices,
               (Device->ZeDevice, &SubDevicesCount, nullptr));
 
@@ -1449,7 +1449,7 @@ static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
       // cache.
       for (uint32_t I = 0; I < SubDevicesCount; ++I) {
         std::unique_ptr<_pi_device> PiSubDevice(
-            new _pi_device(ZeSubdevices[I], Platform));
+            new _pi_device(ZeSubdevices[I], Platform, true));
         pi_result Result = PiSubDevice->initialize();
         if (Result != PI_SUCCESS) {
           delete[] ZeSubdevices;
