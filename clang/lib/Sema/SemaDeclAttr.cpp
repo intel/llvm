@@ -3656,6 +3656,12 @@ static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // This attribute is deprecated without replacement in SYCL mode.
+  if (S.LangOpts.SYCLIsDevice || S.LangOpts.SYCLIsHost) {
+    S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated)
+        << "'" + AL.getNormalizedFullName() + "'";
+  }
+
   if (!AL.hasParsedType()) {
     S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
     return;
