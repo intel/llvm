@@ -6325,6 +6325,10 @@ def warn_pointer_arith_null_ptr : Warning<
 def warn_gnu_null_ptr_arith : Warning<
   "arithmetic on a null pointer treated as a cast from integer to pointer is a GNU extension">,
   InGroup<NullPointerArithmetic>, DefaultIgnore;
+def err_unique_stable_name_already_evaluated
+    : Error<"__builtin_unique_stable_name evaluated before the last kernel was "
+            "instantiated">;
+def note_kernel_instantiated_here : Note<"kernel instantiated here">;
 
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,
@@ -11233,7 +11237,7 @@ def err_sycl_device_function_is_called_from_esimd : Error<
 
 def err_nullptr_t_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, "
                                         "'std::nullptr_t' is declared in the 'std' namespace ">;
-def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, " 
+def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, "
                                           "%q1 is declared in the 'std' namespace ">;
 
 def err_sycl_kernel_incorrectly_named : Error<
@@ -11299,10 +11303,10 @@ def err_sycl_invalid_accessor_property_list_template_param : Error<
 def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
   "%0 attribute must evenly divide the work-group size for the %1 attribute">;
 
-def warn_sycl_pass_by_value_deprecated 
+def warn_sycl_pass_by_value_deprecated
     : Warning<"Passing kernel functions by value is deprecated in SYCL 2020">,
       InGroup<Sycl2020Compat>, ShowInSystemHeader;
-def warn_sycl_pass_by_reference_future 
+def warn_sycl_pass_by_reference_future
     : Warning<"Passing of kernel functions by reference is a SYCL 2020 extension">,
       InGroup<Sycl2017Compat>, ShowInSystemHeader;
 def warn_sycl_implicit_decl

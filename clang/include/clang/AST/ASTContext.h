@@ -3152,6 +3152,10 @@ public:
   void AddSYCLKernelNamingDecl(const TagDecl *TD);
   bool IsSYCLKernelNamingDecl(const TagDecl *TD) const;
   unsigned GetSYCLKernelNamingIndex(const TagDecl *TD) const;
+  /// A SourceLocation to store whether we have evaluated a kernel name already,
+  /// and where it happened.  If so, we need to diagnose an illegal use of the
+  /// builtin.
+  SourceLocation KernelNameEvaluatedFirst{};
 
 private:
   /// All OMPTraitInfo objects live in this collection, one per

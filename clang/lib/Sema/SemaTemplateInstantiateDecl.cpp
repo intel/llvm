@@ -739,6 +739,15 @@ static void instantiateSYCLIntelFPGAInitiationIntervalAttr(
 static void instantiateDependentSYCLKernelAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLKernelAttr &Attr, Decl *New) {
+
+  // Diagnose if we have already constant-evaluated one of these builtins.
+  if (S.Context.KernelNameEvaluatedFirst.isValid()) {
+    S.Diag(S.Context.KernelNameEvaluatedFirst,
+           diag::err_unique_stable_name_already_evaluated);
+    S.Diag(New->getLocation(), diag::note_kernel_instantiated_here);
+    return;
+  }
+
   // Functions cannot be partially specialized, so if we are being instantiated,
   // we are obviously a complete specialization. Since this attribute is only
   // valid on function template declarations, we know that this is a full
