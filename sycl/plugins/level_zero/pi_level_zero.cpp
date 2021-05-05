@@ -1076,8 +1076,6 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
 
 static bool setEnvVar(const char *var, const char *value);
 
-static pi_result populateDeviceCacheIfNeeded(pi_platform Platform);
-
 // Forward declarations for mock implementations of Level Zero APIs that
 // do not yet work in the driver.
 // TODO: Remove these mock definitions when they work in the driver.
@@ -1335,7 +1333,7 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 // Return NULL if no such PI device found.
 pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
-  pi_result Res = populateDeviceCacheIfNeeded(Platform);
+  pi_result Res = populateDeviceCacheIfNeeded();
   if (Res != PI_SUCCESS) {
     return nullptr;
   }
@@ -1356,7 +1354,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
 
-  pi_result Res = populateDeviceCacheIfNeeded(Platform);
+  pi_result Res = Platform->populateDeviceCacheIfNeeded();
   if (Res != PI_SUCCESS) {
     return Res;
   }
@@ -1415,14 +1413,13 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 }
 
 // Check the device cache and load it if necessary.
-static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
-  std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
+pi_result _pi_platform::populateDeviceCacheIfNeeded() {
+  std::lock_guard<std::mutex> Lock(PiDevicesCacheMutex);
 
-  if (Platform->DeviceCachePopulated) {
+  if (DeviceCachePopulated) {
     return PI_SUCCESS;
   }
 
-  ze_driver_handle_t ZeDriver = Platform->ZeDriver;
   uint32_t ZeDeviceCount = 0;
   ZE_CALL(zeDeviceGet, (ZeDriver, &ZeDeviceCount, nullptr));
 
@@ -1431,8 +1428,7 @@ static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
     ZE_CALL(zeDeviceGet, (ZeDriver, &ZeDeviceCount, ZeDevices.data()));
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-      std::unique_ptr<_pi_device> Device(
-          new _pi_device(ZeDevices[I], Platform));
+      std::unique_ptr<_pi_device> Device(new _pi_device(ZeDevices[I], this));
       pi_result Result = Device->initialize();
       if (Result != PI_SUCCESS) {
         return Result;
@@ -1453,7 +1449,7 @@ static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
       // cache.
       for (uint32_t I = 0; I < SubDevicesCount; ++I) {
         std::unique_ptr<_pi_device> PiSubDevice(
-            new _pi_device(ZeSubdevices[I], Platform, true));
+            new _pi_device(ZeSubdevices[I], this, true));
         pi_result Result = PiSubDevice->initialize();
         if (Result != PI_SUCCESS) {
           delete[] ZeSubdevices;
@@ -1461,19 +1457,19 @@ static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
         }
         // save pointers to sub-devices for quick retrieval in the future.
         Device->SubDevices.push_back(PiSubDevice.get());
-        Platform->PiDevicesCache.push_back(std::move(PiSubDevice));
+        PiDevicesCache.push_back(std::move(PiSubDevice));
       }
       delete[] ZeSubdevices;
 
       // Save the root device in the cache for future uses.
-      Platform->PiDevicesCache.push_back(std::move(Device));
+      PiDevicesCache.push_back(std::move(Device));
     }
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-  Platform->DeviceCachePopulated = true;
+  DeviceCachePopulated = true;
   return PI_SUCCESS;
 }
 
@@ -2022,7 +2018,7 @@ pi_result piDevicePartition(pi_device Device,
   // Devices cache is normally created in piDevicesGet but still make
   // sure that cache is populated.
   //
-  pi_result Res = populateDeviceCacheIfNeeded(Device->Platform);
+  pi_result Res = Device->Platform->populateDeviceCacheIfNeeded();
   if (Res != PI_SUCCESS) {
     return Res;
   }
