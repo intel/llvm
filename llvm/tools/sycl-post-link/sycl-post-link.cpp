@@ -414,7 +414,6 @@ static string_vector saveDeviceImageProperty(
       if (ImgPSInfo.SpecConstsMet) {
         // extract spec constant maps per each module
         SpecIDMapTy TmpSpecIDMap;
-
         SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
                                                        TmpSpecIDMap);
         PropSet.add(
@@ -427,7 +426,6 @@ static string_vector saveDeviceImageProperty(
           std::vector<char> DefaultValues;
           SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
               *ResultModules[I].get(), DefaultValues);
-
           PropSet.add(llvm::util::PropertySetRegistry::
                           SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
                       "all", DefaultValues);

@@ -616,6 +616,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // specialization constants is passed as a 3rd argument of intrinsic.
           Value *RTBuffer =
               IsComposite ? CI->getArgOperand(3) : CI->getArgOperand(2);
+
           // Add the string literal to a "spec const string literal ID" ->
           // "offset" map, uniquing the integer offsets if this is new
           // literal.
