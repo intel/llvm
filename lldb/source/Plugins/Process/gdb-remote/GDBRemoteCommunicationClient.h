@@ -275,6 +275,8 @@ public:
 
   ArchSpec GetSystemArchitecture();
 
+  uint32_t GetAddressingBits();
+
   bool GetHostname(std::string &s);
 
   lldb::addr_t GetShlibInfoAddr();
@@ -573,6 +575,7 @@ protected:
                               // continue, step, etc
 
   uint32_t m_num_supported_hardware_watchpoints;
+  uint32_t m_addressing_bits;
 
   ArchSpec m_host_arch;
   ArchSpec m_process_arch;
@@ -601,7 +604,8 @@ protected:
 
   // Given the list of compression types that the remote debug stub can support,
   // possibly enable compression if we find an encoding we can handle.
-  void MaybeEnableCompression(std::vector<std::string> supported_compressions);
+  void MaybeEnableCompression(
+      llvm::ArrayRef<llvm::StringRef> supported_compressions);
 
   bool DecodeProcessInfoResponse(StringExtractorGDBRemote &response,
                                  ProcessInstanceInfo &process_info);

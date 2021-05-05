@@ -73,6 +73,7 @@ static size_t getOCLCpp11AtomicMaxNumOps(StringRef Name) {
 class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase> {
 public:
   OCLToSPIRVBase() : M(nullptr), Ctx(nullptr), CLVer(0) {}
+  virtual ~OCLToSPIRVBase() {}
   bool runOCLToSPIRV(Module &M);
 
   virtual void visitCallInst(CallInst &CI);

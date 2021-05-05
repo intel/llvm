@@ -6088,26 +6088,26 @@ TryToFixInvalidVariablyModifiedTypeSourceInfo(TypeSourceInfo *TInfo,
 
 /// Attempt to fold a variable-sized type to a constant-sized type, returning
 /// true if we were successful.
-static bool tryToFixVariablyModifiedVarType(Sema &S, TypeSourceInfo *&TInfo,
-                                            QualType &T, SourceLocation Loc,
-                                            unsigned FailedFoldDiagID) {
+bool Sema::tryToFixVariablyModifiedVarType(TypeSourceInfo *&TInfo,
+                                           QualType &T, SourceLocation Loc,
+                                           unsigned FailedFoldDiagID) {
   bool SizeIsNegative;
   llvm::APSInt Oversized;
   TypeSourceInfo *FixedTInfo = TryToFixInvalidVariablyModifiedTypeSourceInfo(
-      TInfo, S.Context, SizeIsNegative, Oversized);
+      TInfo, Context, SizeIsNegative, Oversized);
   if (FixedTInfo) {
-    S.Diag(Loc, diag::ext_vla_folded_to_constant);
+    Diag(Loc, diag::ext_vla_folded_to_constant);
     TInfo = FixedTInfo;
     T = FixedTInfo->getType();
     return true;
   }
 
   if (SizeIsNegative)
-    S.Diag(Loc, diag::err_typecheck_negative_array_size);
+    Diag(Loc, diag::err_typecheck_negative_array_size);
   else if (Oversized.getBoolValue())
-    S.Diag(Loc, diag::err_array_too_large) << Oversized.toString(10);
+    Diag(Loc, diag::err_array_too_large) << Oversized.toString(10);
   else if (FailedFoldDiagID)
-    S.Diag(Loc, FailedFoldDiagID);
+    Diag(Loc, FailedFoldDiagID);
   return false;
 }
 
@@ -6955,10 +6955,10 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     }
   }
 
-  // If this variable has a variable-modified type and an initializer, try to
+  // If this variable has a VLA type and an initializer, try to
   // fold to a constant-sized type. This is otherwise invalid.
-  if (D.hasInitializer() && R->isVariablyModifiedType())
-    tryToFixVariablyModifiedVarType(*this, TInfo, R, D.getIdentifierLoc(),
+  if (D.hasInitializer() && R->isVariableArrayType())
+    tryToFixVariablyModifiedVarType(TInfo, R, D.getIdentifierLoc(),
                                     /*DiagID=*/0);
 
   bool IsMemberSpecialization = false;
@@ -8701,7 +8701,7 @@ static bool isOpenCLSizeDependentType(ASTContext &C, QualType Ty) {
 }
 
 static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
-  if (PT->isPointerType()) {
+  if (PT->isPointerType() || PT->isReferenceType()) {
     QualType PointeeType = PT->getPointeeType();
     if (PointeeType.getAddressSpace() == LangAS::opencl_generic ||
         PointeeType.getAddressSpace() == LangAS::opencl_private ||
@@ -8718,6 +8718,15 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
 
       return PtrPtrKernelParam;
     }
+
+    // C++ for OpenCL v1.0 s2.4:
+    // Moreover the types used in parameters of the kernel functions must be:
+    // Standard layout types for pointer parameters. The same applies to
+    // reference if an implementation supports them in kernel parameters.
+    if (S.getLangOpts().OpenCLCPlusPlus && !PointeeType->isAtomicType() &&
+        !PointeeType->isVoidType() && !PointeeType->isStandardLayoutType())
+      return InvalidKernelParam;
+
     return PtrKernelParam;
   }
 
@@ -8742,9 +8751,6 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
       PT->isHalfType())
     return InvalidKernelParam;
 
-  if (PT->isRecordType())
-    return RecordKernelParam;
-
   // Look into an array argument to check if it has a forbidden type.
   if (PT->isArrayType()) {
     const Type *UnderlyingTy = PT->getPointeeOrArrayElementType();
@@ -8753,6 +8759,17 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
     // array, this recursive call only happens once.
     return getOpenCLKernelParameterType(S, QualType(UnderlyingTy, 0));
   }
+
+  // C++ for OpenCL v1.0 s2.4:
+  // Moreover the types used in parameters of the kernel functions must be:
+  // Trivial and standard-layout types C++17 [basic.types] (plain old data
+  // types) for parameters passed by value;
+  if (S.getLangOpts().OpenCLCPlusPlus && !PT->isOpenCLSpecificType() &&
+      !PT.isPODType(S.Context))
+    return InvalidKernelParam;
+
+  if (PT->isRecordType())
+    return RecordKernelParam;
 
   return ValidKernelParam;
 }
@@ -9746,6 +9763,10 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
             (D.getCXXScopeSpec().getScopeRep()->isDependent() ||
              (!Previous.empty() && CurContext->isDependentContext()))) {
           // ignore these
+        } else if (NewFD->isCPUDispatchMultiVersion() ||
+                   NewFD->isCPUSpecificMultiVersion()) {
+          // ignore this, we allow the redeclaration behavior here to create new
+          // versions of the function.
         } else {
           // The user tried to provide an out-of-line definition for a
           // function that is a member of a class or namespace, but there
@@ -16840,7 +16861,7 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
   // than a variably modified type.
   if (!InvalidDecl && T->isVariablyModifiedType()) {
     if (!tryToFixVariablyModifiedVarType(
-            *this, TInfo, T, Loc, diag::err_typecheck_field_variable_size))
+            TInfo, T, Loc, diag::err_typecheck_field_variable_size))
       InvalidDecl = true;
   }
 
@@ -17068,7 +17089,7 @@ Decl *Sema::ActOnIvar(Scope *S,
   // than a variably modified type.
   else if (T->isVariablyModifiedType()) {
     if (!tryToFixVariablyModifiedVarType(
-            *this, TInfo, T, Loc, diag::err_typecheck_ivar_variable_size))
+            TInfo, T, Loc, diag::err_typecheck_ivar_variable_size))
       D.setInvalidType();
   }
 

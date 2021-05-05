@@ -55,6 +55,7 @@ namespace SPIRV {
 class SPIRVLowerMemmoveBase : public InstVisitor<SPIRVLowerMemmoveBase> {
 public:
   SPIRVLowerMemmoveBase() : Context(nullptr) {}
+  virtual ~SPIRVLowerMemmoveBase() {}
   virtual void visitMemMoveInst(MemMoveInst &I) {
     IRBuilder<> Builder(I.getParent());
     Builder.SetInsertPoint(&I);
@@ -137,7 +138,7 @@ public:
   SPIRVLowerMemmoveLegacy() : ModulePass(ID) {
     initializeSPIRVLowerMemmoveLegacyPass(*PassRegistry::getPassRegistry());
   }
-  bool runOnModule(Module &M) { return runLowerMemmove(M); }
+  bool runOnModule(Module &M) override { return runLowerMemmove(M); }
 
   static char ID;
 };
