@@ -5,10 +5,6 @@
 // and parallel_for_work_group to verify that this code compiles and runs
 // correctly with user's lambda with and without sycl::kernel_handler argument
 
-// TODO: enable cuda support when non-native spec constants started to be
-// supported
-// UNSUPPORTED: cuda
-
 #include <CL/sycl.hpp>
 
 int main() {

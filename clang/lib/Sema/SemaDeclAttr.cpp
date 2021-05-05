@@ -5131,6 +5131,73 @@ static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) SYCLRegisterNumAttr(S.Context, AL, RegNo));
 }
 
+void Sema::AddSYCLIntelESimdVectorizeAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    if (ArgVal != 8 && ArgVal != 16 && ArgVal != 32) {
+      Diag(E->getExprLoc(), diag::err_sycl_esimd_vectorize_unsupported_value)
+          << CI;
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelESimdVectorizeAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context) SYCLIntelESimdVectorizeAttr(Context, CI, E));
+}
+
+SYCLIntelESimdVectorizeAttr *
+Sema::MergeSYCLIntelESimdVectorizeAttr(Decl *D,
+                                       const SYCLIntelESimdVectorizeAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelESimdVectorizeAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+  return ::new (Context) SYCLIntelESimdVectorizeAttr(Context, A, A.getValue());
+}
+
+static void handleSYCLIntelESimdVectorizeAttr(Sema &S, Decl *D,
+                                              const ParsedAttr &A) {
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
+
+  Expr *E = A.getArgAsExpr(0);
+  S.AddSYCLIntelESimdVectorizeAttr(D, A, E);
+}
+
 static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const auto *VD = cast<VarDecl>(D);
   if (VD->hasLocalStorage()) {
@@ -9150,6 +9217,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLRegisterNum:
     handleSYCLRegisterNumAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelESimdVectorize:
+    handleSYCLIntelESimdVectorizeAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);
