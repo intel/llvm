@@ -222,13 +222,7 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
 MDNode *generateSpecConstDefaultValueMetadata(Instruction *I, StringRef SymID,
                                               Value *Default) {
   LLVMContext &Ctx = I->getContext();
-  SmallVector<Metadata *, 4> MDOperands;
-  // MDOperands.push_back(MDString::get(Ctx, SymID));
-  MDOperands.push_back(ConstantAsMetadata::get(cast<Constant>(Default)));
-
-  // MDNode *Entry = MDNode::get(Ctx, MDOperands);
-  return MDNode::get(Ctx, MDOperands);
-  // I->setMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING, Entry);
+  return MDNode::get(Ctx, ConstantAsMetadata::get(cast<Constant>(Default)));
 }
 
 /// Recursively iterates over a composite type in order to collect information
@@ -282,18 +276,15 @@ void collectCompositeElementsInfoRecursive(
 }
 
 /// Recursively iterates over a composite type in order to collect information
-/// about its scalar elements.
+/// about default values of its scalar elements.
 void collectCompositeElementsDefaultValuesRecursive(
-    const Module &M, Constant *C, unsigned &Index, unsigned &Offset,
+    const Module &M, Constant *C, unsigned &Offset,
     std::vector<char> &DefaultValues) {
   Type *Ty = C->getType();
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       Constant *El = cast<Constant>(C->getOperand(I));
-      // TODO: this is a spot for potential optimization: for arrays we could
-      // just make a single recursive call here and use it to populate
-      // DefaultValues in a loop.
-      collectCompositeElementsDefaultValuesRecursive(M, El, Index, Offset,
+      collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
                                                      DefaultValues);
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
@@ -311,7 +302,7 @@ void collectCompositeElementsDefaultValuesRecursive(
       while (LocalOffset != DefaultValues.size())
         DefaultValues.push_back(0);
 
-      collectCompositeElementsDefaultValuesRecursive(M, El, Index, LocalOffset,
+      collectCompositeElementsDefaultValuesRecursive(M, El, LocalOffset,
                                                      DefaultValues);
     }
     // Update "global" offset according to the total size of a handled struct
@@ -320,14 +311,12 @@ void collectCompositeElementsDefaultValuesRecursive(
   } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     for (size_t I = 0; I < VecTy->getNumElements(); ++I) {
       Constant *El = cast<Constant>(C->getOperand(I));
-      // TODO: this is a spot for potential optimization: for vectors we could
-      // just make a single recursive call here and use it to populate
-      // DefaultValues in a loop.
-      collectCompositeElementsDefaultValuesRecursive(M, El, Index, Offset,
+      collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
                                                      DefaultValues);
     }
   } else { // Assume that we encountered some scalar element
-    int NumBytes = Ty->getScalarSizeInBits() / CHAR_BIT;
+    int NumBytes = Ty->getScalarSizeInBits() / CHAR_BIT +
+                   (Ty->getScalarSizeInBits() % 8 != 0);
     char *CharPtr;
 
     if (auto IntConst = dyn_cast<ConstantInt>(C)) {
@@ -345,9 +334,7 @@ void collectCompositeElementsDefaultValuesRecursive(
       }
     }
     std::copy_n(CharPtr, NumBytes, std::back_inserter(DefaultValues));
-    Index++;
-    Offset += Ty->getPrimitiveSizeInBits() / 8 +
-              (Ty->getPrimitiveSizeInBits() % 8 != 0);
+    Offset += NumBytes;
   }
 }
 
@@ -572,6 +559,22 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       }
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
       Value *Replacement = nullptr;
+      Constant *DefaultValue = nullptr;
+      if (Is2020Intrinsic) {
+        // For SYCL 2020, there is a mechanism to specify the default value.
+        // It is stored as an initializer of a global variable referenced by
+        // the second argument of the intrinsic.
+        auto *GV = dyn_cast<GlobalVariable>(
+            CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
+        if (GV) {
+          auto *Initializer = GV->getInitializer();
+          assert(isa<ConstantAggregate>(Initializer) &&
+                 "expected specialization_id instance");
+          // specialization_id structure contains a single field which is the
+          // default value of corresponding specialization constant.
+          DefaultValue = Initializer->getAggregateElement(0u);
+        }
+      }
 
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
@@ -585,23 +588,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // For any spec constant type there will be always at least one ID
           // generated.
           IDs.push_back(NextID);
-        }
-
-        Constant *DefaultValue = nullptr;
-        if (Is2020Intrinsic) {
-          // For SYCL 2020, there is a mechanism to specify the default value.
-          // It is stored as an initializer of a global variable referenced by
-          // the second argument of the intrinsic.
-          auto *GV = dyn_cast<GlobalVariable>(
-              CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
-          if (GV) {
-            auto *Initializer = GV->getInitializer();
-            assert(isa<ConstantAggregate>(Initializer) &&
-                   "expected specialization_id instance");
-            // specialization_id structure contains a single field which is the
-            // default value of corresponding specialization constant.
-            DefaultValue = Initializer->getAggregateElement(0u);
-          }
         }
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
@@ -671,11 +657,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           Instruction *Inst = new LoadInst(SCTy, BitCast, "load", CI);
           Replacement = Inst;
 
-          Value *GlobVar = (IsComposite ? CI->getOperand(2) : CI->getOperand(1))
-                               ->stripPointerCasts();
-          Value *DefaultValue =
-              cast<GlobalVariable>(GlobVar)->getInitializer()->getOperand(0);
-
           if (IsNewSpecConstant)
             DefaultsMetadata.push_back(generateSpecConstDefaultValueMetadata(
                 Inst, SymID, DefaultValue));
@@ -716,22 +697,21 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   for (const auto &P : SCMetadata)
     MD->addOperand(P.second);
 
-  NamedMDNode *MDDefaults =
-      M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
-  for (const auto &P : DefaultsMetadata)
-    MDDefaults->addOperand(P);
+  // Emit default values metadata only in native (default) spec constants mode.
+  if (!SetValAtRT) {
+    NamedMDNode *MDDefaults =
+        M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
+    for (const auto &P : DefaultsMetadata)
+      MDDefaults->addOperand(P);
+  }
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
-bool SpecConstantsPass::collectSpecConstantMetadata(
-    Module &M, SpecIDMapTy &IDMap, std::vector<char> &DefaultValues) {
-  NamedMDNode *MD = M.getOrInsertNamedMetadata(SPEC_CONST_MD_STRING);
+bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
+                                                    SpecIDMapTy &IDMap) {
+  NamedMDNode *MD = M.getNamedMetadata(SPEC_CONST_MD_STRING);
   if (!MD)
-    return false;
-
-  NamedMDNode *N = M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
-  if (!N)
     return false;
 
   auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
@@ -754,10 +734,20 @@ bool SpecConstantsPass::collectSpecConstantMetadata(
 
     IDMap[ID] = Descs;
   }
-  unsigned Index = 0, Offset = 0;
+
+  return true;
+}
+
+bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
+    Module &M, std::vector<char> &DefaultValues) {
+  NamedMDNode *N = M.getNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
+  if (!N)
+    return false;
+
+  unsigned Offset = 0;
   for (const auto *Node : N->operands()) {
     auto *Constant = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
-    collectCompositeElementsDefaultValuesRecursive(M, Constant, Index, Offset,
+    collectCompositeElementsDefaultValuesRecursive(M, Constant, Offset,
                                                    DefaultValues);
   }
 

@@ -203,6 +203,13 @@ public:
       PropSet.insert(std::make_pair(Prop.first, PropertyValue(Prop.second)));
   }
 
+  // Function to add a property to a given category (property set name).
+  template <typename T>
+  void add(StringRef Category, StringRef PropName, T &PropVal) {
+    auto &PropSet = PropSetMap[Category];
+    PropSet.insert(std::make_pair(PropName, PropertyValue(PropVal)));
+  }
+
   // Parses and creates a property set registry.
   static Expected<std::unique_ptr<PropertySetRegistry>>
   read(const MemoryBuffer *Buf);

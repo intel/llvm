@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
 // RUN: sycl-post-link %t.bc -spec-const=rt -o %t-split1.txt
-// RUN: cat %t-split1_0.prop | FileCheck %s
+// RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
 // RUN: sycl-post-link %t.bc -spec-const=default -o %t-split2.txt
-// RUN: cat %t-split2_0.prop | FileCheck %s
+// RUN: cat %t-split2_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-DEF
 // RUN: llvm-spirv -o %t-split1_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split1_0.bc
 // RUN: llvm-spirv -o %t-split2_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split2_0.bc
 //
@@ -100,3 +100,7 @@ int main() {
 // CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL9uint32_idEEE=2|
 // CHECK-DAG: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL9uint64_idEEE=2|
 // FIXME: check line for half constant
+
+// CHECK-RT-NOT: [SYCL/specialization constants default values]
+// CHECK-DEF: [SYCL/specialization constants default values]
+// CHECK-DEF: all=2|
