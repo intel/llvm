@@ -17,6 +17,13 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// This guard is needed because the libsycl.so can be compiled with C++ <=14
+// while the code requires C++17. This code is not supposed to be used by the
+// libsycl.so so it should not be a problem.
+#if __cplusplus > 201402L
+template <auto &S> struct specialization_id_name_generator {};
+#endif
+
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Bool bool
 #endif
@@ -48,6 +55,18 @@ struct kernel_param_desc_t {
 template <class Name> struct SpecConstantInfo {
   static constexpr const char *getName() { return ""; }
 };
+
+#if __cplusplus >= 201703L
+// Translates SYCL 2020 specialization constant type to its name.
+template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
+#ifdef SYCL_LANGUAGE_VERSION
+  return __builtin_unique_stable_name(
+      specialization_id_name_generator<SpecName>);
+#else
+  return "";
+#endif
+}
+#endif
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {

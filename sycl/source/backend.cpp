@@ -8,13 +8,22 @@
 
 #include "detail/context_impl.hpp"
 #include "detail/event_impl.hpp"
+#include "detail/kernel_bundle_impl.hpp"
+#include "detail/kernel_id_impl.hpp"
 #include "detail/platform_impl.hpp"
 #include "detail/plugin.hpp"
 #include "detail/queue_impl.hpp"
 #include <CL/sycl/backend.hpp>
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/exception.hpp>
 #include <CL/sycl/exception_list.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
+
+#include <algorithm>
+#include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -94,6 +103,100 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
       std::make_shared<event_impl>(PiEvent, Context));
 }
 
+std::shared_ptr<detail::kernel_bundle_impl>
+make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
+                   bundle_state State, backend Backend) {
+  const auto &Plugin = getPlugin(Backend);
+  const auto &ContextImpl = getSyclObjImpl(TargetContext);
+
+  pi::PiProgram PiProgram = nullptr;
+  Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
+      NativeHandle, ContextImpl->getHandleRef(), &PiProgram);
+
+  std::vector<pi::PiDevice> ProgramDevices;
+  size_t NumDevices = 0;
+
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      PiProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(size_t), &NumDevices,
+      nullptr);
+  ProgramDevices.resize(NumDevices);
+  Plugin.call<PiApiKind::piProgramGetInfo>(PiProgram, PI_PROGRAM_INFO_DEVICES,
+                                           sizeof(pi::PiDevice) * NumDevices,
+                                           ProgramDevices.data(), nullptr);
+
+  for (const auto &Dev : ProgramDevices) {
+    size_t BinaryType = 0;
+    Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+        PiProgram, Dev, PI_PROGRAM_BUILD_INFO_BINARY_TYPE, sizeof(size_t),
+        &BinaryType, nullptr);
+    switch (BinaryType) {
+    case (PI_PROGRAM_BINARY_TYPE_NONE):
+      if (State == bundle_state::object)
+        Plugin.call<PiApiKind::piProgramCompile>(
+            PiProgram, 1, &Dev, nullptr, 0, nullptr, nullptr, nullptr, nullptr);
+      else if (State == bundle_state::executable)
+        Plugin.call<PiApiKind::piProgramBuild>(PiProgram, 1, &Dev, nullptr,
+                                               nullptr, nullptr);
+      break;
+    case (PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT):
+    case (PI_PROGRAM_BINARY_TYPE_LIBRARY):
+      if (State == bundle_state::input)
+        // TODO SYCL2020 exception
+        throw sycl::runtime_error("Program and kernel_bundle state mismatch",
+                                  PI_INVALID_VALUE);
+      if (State == bundle_state::executable)
+        Plugin.call<PiApiKind::piProgramLink>(ContextImpl->getHandleRef(), 1,
+                                              &Dev, nullptr, 1, &PiProgram,
+                                              nullptr, nullptr, &PiProgram);
+      break;
+    case (PI_PROGRAM_BINARY_TYPE_EXECUTABLE):
+      if (State == bundle_state::input || State == bundle_state::object)
+        // TODO SYCL2020 exception
+        throw sycl::runtime_error("Program and kernel_bundle state mismatch",
+                                  PI_INVALID_VALUE);
+      break;
+    }
+  }
+
+  std::vector<device> Devices;
+  Devices.reserve(ProgramDevices.size());
+  std::transform(
+      ProgramDevices.begin(), ProgramDevices.end(), std::back_inserter(Devices),
+      [&Plugin](const auto &Dev) {
+        auto Platform =
+            detail::platform_impl::getPlatformFromPiDevice(Dev, Plugin);
+        auto DeviceImpl = Platform->getOrMakeDeviceImpl(Dev, Platform);
+        return createSyclObjFromImpl<device>(DeviceImpl);
+      });
+
+  // Unlike SYCL, other backends, like OpenCL or Level Zero, may not support
+  // getting kernel IDs before executable is built. The SYCL Runtime workarounds
+  // this by pre-building the device image and extracting kernel info. We can't
+  // do the same to user images, since they may contain references to undefined
+  // symbols (e.g. when kernel_bundle is supposed to be joined with another).
+  std::vector<kernel_id> KernelIDs{};
+  auto DevImgImpl = std::make_shared<device_image_impl>(
+      nullptr, TargetContext, Devices, State, KernelIDs, PiProgram);
+  device_image_plain DevImg{DevImgImpl};
+
+  return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
+}
+kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
+                   backend Backend) {
+  const auto &Plugin = getPlugin(Backend);
+  const auto &ContextImpl = getSyclObjImpl(TargetContext);
+  // Create PI kernel first.
+  pi::PiKernel PiKernel = nullptr;
+  Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
+      NativeHandle, ContextImpl->getHandleRef(), false, &PiKernel);
+
+  if (Backend == backend::opencl)
+    Plugin.call<PiApiKind::piKernelRetain>(PiKernel);
+
+  // Construct the SYCL queue from PI queue.
+  return detail::createSyclObjFromImpl<kernel>(
+      std::make_shared<kernel_impl>(PiKernel, ContextImpl));
+}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -20,298 +20,298 @@
 
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_satf(__SIGD::vector_type_t<T1, SZ> src);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_fptoui_sat(__SIGD::vector_type_t<T1, SZ> src);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_fptosi_sat(__SIGD::vector_type_t<T1, SZ> src);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_uutrunc_sat(__SIGD::vector_type_t<T1, SZ> src);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_ustrunc_sat(__SIGD::vector_type_t<T1, SZ> src);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_sutrunc_sat(__SIGD::vector_type_t<T1, SZ> src);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_sstrunc_sat(__SIGD::vector_type_t<T1, SZ> src);
 
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_abs(__SIGD::vector_type_t<T, SZ> src0);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_ssshl(__SIGD::vector_type_t<T1, SZ> src0,
               __SIGD::vector_type_t<T1, SZ> src1);
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_sushl(__SIGD::vector_type_t<T1, SZ> src0,
               __SIGD::vector_type_t<T1, SZ> src1);
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_usshl(__SIGD::vector_type_t<T1, SZ> src0,
               __SIGD::vector_type_t<T1, SZ> src1);
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_uushl(__SIGD::vector_type_t<T1, SZ> src0,
               __SIGD::vector_type_t<T1, SZ> src1);
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_ssshl_sat(__SIGD::vector_type_t<T1, SZ> src0,
                   __SIGD::vector_type_t<T1, SZ> src1);
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_sushl_sat(__SIGD::vector_type_t<T1, SZ> src0,
                   __SIGD::vector_type_t<T1, SZ> src1);
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_usshl_sat(__SIGD::vector_type_t<T1, SZ> src0,
                   __SIGD::vector_type_t<T1, SZ> src1);
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_uushl_sat(__SIGD::vector_type_t<T1, SZ> src0,
                   __SIGD::vector_type_t<T1, SZ> src1);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_rol(__SIGD::vector_type_t<T1, SZ> src0,
             __SIGD::vector_type_t<T1, SZ> src1);
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_ror(__SIGD::vector_type_t<T1, SZ> src0,
             __SIGD::vector_type_t<T1, SZ> src1);
 
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_umulh(__SIGD::vector_type_t<T, SZ> src0,
               __SIGD::vector_type_t<T, SZ> src1);
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_smulh(__SIGD::vector_type_t<T, SZ> src0,
               __SIGD::vector_type_t<T, SZ> src1);
 
 template <int SZ>
-SYCL_EXTERNAL SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_frc(__SIGD::vector_type_t<float, SZ> src0);
 
 /// 3 kinds of max
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_fmax(__SIGD::vector_type_t<T, SZ> src0,
              __SIGD::vector_type_t<T, SZ> src1);
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_umax(__SIGD::vector_type_t<T, SZ> src0,
              __SIGD::vector_type_t<T, SZ> src1);
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_smax(__SIGD::vector_type_t<T, SZ> src0,
              __SIGD::vector_type_t<T, SZ> src1);
 
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_lzd(__SIGD::vector_type_t<T, SZ> src0);
 
 /// 3 kinds of min
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_fmin(__SIGD::vector_type_t<T, SZ> src0,
              __SIGD::vector_type_t<T, SZ> src1);
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_umin(__SIGD::vector_type_t<T, SZ> src0,
              __SIGD::vector_type_t<T, SZ> src1);
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T, SZ>
 __esimd_smin(__SIGD::vector_type_t<T, SZ> src0,
              __SIGD::vector_type_t<T, SZ> src1);
 
 template <typename T0, typename T1, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_bfrev(__SIGD::vector_type_t<T1, SZ> src0);
 
 template <typename T, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<unsigned int, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<unsigned int, SZ>
 __esimd_cbit(__SIGD::vector_type_t<T, SZ> src0);
 
 template <typename T0, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ> __esimd_bfins(
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ> __esimd_bfins(
     __SIGD::vector_type_t<T0, SZ> src0, __SIGD::vector_type_t<T0, SZ> src1,
     __SIGD::vector_type_t<T0, SZ> src2, __SIGD::vector_type_t<T0, SZ> src3);
 
 template <typename T0, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<T0, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T0, SZ>
 __esimd_bfext(__SIGD::vector_type_t<T0, SZ> src0,
               __SIGD::vector_type_t<T0, SZ> src1,
               __SIGD::vector_type_t<T0, SZ> src2);
 
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<uint32_t, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<uint32_t, SZ>
 __esimd_fbl(__SIGD::vector_type_t<uint32_t, SZ> src0);
 
 template <typename T0, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<int, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<int, SZ>
 __esimd_sfbh(__SIGD::vector_type_t<T0, SZ> src0);
 
 template <typename T0, int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<uint32_t, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<uint32_t, SZ>
 __esimd_ufbh(__SIGD::vector_type_t<T0, SZ> src0);
 
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_inv(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_log(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_exp(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_sqrt(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_sqrt_ieee(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_rsqrt(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_sin(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_cos(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_pow(__SIGD::vector_type_t<float, SZ> src0,
             __SIGD::vector_type_t<float, SZ> src1);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_div_ieee(__SIGD::vector_type_t<float, SZ> src0,
                  __SIGD::vector_type_t<float, SZ> src1);
 
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_rndd(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_rndu(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_rnde(__SIGD::vector_type_t<float, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<float, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<float, SZ>
 __esimd_rndz(__SIGD::vector_type_t<float, SZ> src0);
 
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<double, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<double, SZ>
 __esimd_sqrt_ieee(__SIGD::vector_type_t<double, SZ> src0);
 template <int SZ>
-SYCL_EXTERNAL __SIGD::vector_type_t<double, SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<double, SZ>
 __esimd_div_ieee(__SIGD::vector_type_t<double, SZ> src0,
                  __SIGD::vector_type_t<double, SZ> src1);
 
 template <int N>
-SYCL_EXTERNAL uint32_t
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint32_t
 __esimd_pack_mask(__SIGD::vector_type_t<uint16_t, N> src0);
 
 template <int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<uint16_t, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<uint16_t, N>
 __esimd_unpack_mask(uint32_t src0);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T1, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T1, N>
 __esimd_uudp4a(__SIGD::vector_type_t<T2, N> src0,
                __SIGD::vector_type_t<T3, N> src1,
                __SIGD::vector_type_t<T4, N> src2);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T1, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T1, N>
 __esimd_usdp4a(__SIGD::vector_type_t<T2, N> src0,
                __SIGD::vector_type_t<T3, N> src1,
                __SIGD::vector_type_t<T4, N> src2);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T1, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T1, N>
 __esimd_sudp4a(__SIGD::vector_type_t<T2, N> src0,
                __SIGD::vector_type_t<T3, N> src1,
                __SIGD::vector_type_t<T4, N> src2);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T1, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T1, N>
 __esimd_ssdp4a(__SIGD::vector_type_t<T2, N> src0,
                __SIGD::vector_type_t<T3, N> src1,
                __SIGD::vector_type_t<T4, N> src2);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T1, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T1, N>
 __esimd_uudp4a_sat(__SIGD::vector_type_t<T2, N> src0,
                    __SIGD::vector_type_t<T3, N> src1,
                    __SIGD::vector_type_t<T4, N> src2);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T1, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T1, N>
 __esimd_usdp4a_sat(__SIGD::vector_type_t<T2, N> src0,
                    __SIGD::vector_type_t<T3, N> src1,
                    __SIGD::vector_type_t<T4, N> src2);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T1, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T1, N>
 __esimd_sudp4a_sat(__SIGD::vector_type_t<T2, N> src0,
                    __SIGD::vector_type_t<T3, N> src1,
                    __SIGD::vector_type_t<T4, N> src2);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<T1, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<T1, N>
 __esimd_ssdp4a_sat(__SIGD::vector_type_t<T2, N> src0,
                    __SIGD::vector_type_t<T3, N> src1,
                    __SIGD::vector_type_t<T4, N> src2);
 
 // Reduction functions
 template <typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_reduced_fmax(__SIGD::vector_type_t<Ty, N> src1,
                      __SIGD::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_reduced_umax(__SIGD::vector_type_t<Ty, N> src1,
                      __SIGD::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_reduced_smax(__SIGD::vector_type_t<Ty, N> src1,
                      __SIGD::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_reduced_fmin(__SIGD::vector_type_t<Ty, N> src1,
                      __SIGD::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_reduced_umin(__SIGD::vector_type_t<Ty, N> src1,
                      __SIGD::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-__SIGD::vector_type_t<Ty, N>
-    SYCL_EXTERNAL __esimd_reduced_smin(__SIGD::vector_type_t<Ty, N> src1,
-                                       __SIGD::vector_type_t<Ty, N> src2);
+__SIGD::vector_type_t<Ty, N> SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+__esimd_reduced_smin(__SIGD::vector_type_t<Ty, N> src1,
+                     __SIGD::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL __SIGD::vector_type_t<Ty, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SIGD::vector_type_t<Ty, N>
 __esimd_dp4(__SIGD::vector_type_t<Ty, N> v1, __SIGD::vector_type_t<Ty, N> v2);
 
 #ifndef __SYCL_DEVICE_ONLY__

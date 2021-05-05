@@ -320,10 +320,12 @@ void PassManagerBuilder::populateFunctionPassManager(
 
   addInitialAliasAnalysisPasses(FPM);
 
+  // Lower llvm.expect to metadata before attempting transforms.
+  // Compare/branch metadata may alter the behavior of passes like SimplifyCFG.
+  FPM.add(createLowerExpectIntrinsicPass());
   FPM.add(createCFGSimplificationPass());
   FPM.add(createSROAPass());
   FPM.add(createEarlyCSEPass());
-  FPM.add(createLowerExpectIntrinsicPass());
 }
 
 // Do PGO instrumentation generation or use pass as the option specified.
@@ -675,7 +677,7 @@ void PassManagerBuilder::populateModulePassManager(
   // Try to perform OpenMP specific optimizations. This is a (quick!) no-op if
   // there are no OpenMP runtime calls present in the module.
   if (OptLevel > 1)
-    MPM.add(createOpenMPOptLegacyPass());
+    MPM.add(createOpenMPOptCGSCCLegacyPass());
 
   MPM.add(createPostOrderFunctionAttrsLegacyPass());
   if (OptLevel > 2)
@@ -1035,7 +1037,7 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   // Try to perform OpenMP specific optimizations. This is a (quick!) no-op if
   // there are no OpenMP runtime calls present in the module.
   if (OptLevel > 1)
-    PM.add(createOpenMPOptLegacyPass());
+    PM.add(createOpenMPOptCGSCCLegacyPass());
 
   // Optimize globals again if we ran the inliner.
   if (RunInliner)

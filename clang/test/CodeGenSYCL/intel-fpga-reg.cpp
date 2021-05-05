@@ -195,7 +195,7 @@ typedef int myInt;
 // CHECK-NEXT:    store [[UNION__ZTS2UN_UN]] addrspace(4)* [[TMP69]], [[UNION__ZTS2UN_UN]] addrspace(4)* addrspace(4)* [[U3_ASCAST]], align 8, [[TBAA5]]
 // CHECK-NEXT:    [[TMP70:%.*]] = bitcast %class._ZTS1A.A* [[CA]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* [[TMP70]]) [[ATTR6]]
-// CHECK-NEXT:    call spir_func void @_ZN1AC1Ei(%class._ZTS1A.A addrspace(4)* align 4 dereferenceable_or_null(4) [[CA_ASCAST]], i32 213) [[ATTR7:#.*]]
+// CHECK-NEXT:    call spir_func void @_ZN1AC1Ei(%class._ZTS1A.A addrspace(4)* dereferenceable_or_null(4) [[CA_ASCAST]], i32 213) [[ATTR7:#.*]]
 // CHECK-NEXT:    [[TMP71:%.*]] = bitcast %class._ZTS1A.A* [[CB]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* [[TMP71]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP72:%.*]] = bitcast [[CLASS__ZTS1A_A]] addrspace(4)* [[AGG_TEMP5_ASCAST]] to i8 addrspace(4)*

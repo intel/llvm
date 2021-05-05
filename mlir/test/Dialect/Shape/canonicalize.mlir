@@ -120,6 +120,36 @@ func @f() -> !shape.shape {
 
 // -----
 
+// All but one operands are known empty shapes.
+// CHECK-LABEL: @all_but_one_empty
+// CHECK-SAME:  (%[[ARG:.*]]: !shape.shape)
+func @all_but_one_empty(%arg0 : !shape.shape) -> !shape.shape {
+  // CHECK: return %[[ARG]]
+  %0 = shape.const_shape [] : !shape.shape
+  %1 = shape.const_shape [] : tensor<0xindex>
+  %2 = shape.broadcast %0, %arg0, %1, %0 : !shape.shape, !shape.shape,
+      tensor<0xindex>, !shape.shape -> !shape.shape
+  return %2 : !shape.shape
+}
+
+// -----
+
+// Partial folding.
+// CHECK-LABEL: @partial_folding
+// CHECK-SAME:  (%[[ARG:.*]]: !shape.shape)
+func @partial_folding(%arg0 : !shape.shape) -> !shape.shape {
+  // CHECK: %[[CST_SHAPE:.*]] = constant dense<[1, 2, 3]> : tensor<3xindex>
+  // CHECK: %[[RESULT:.*]] = shape.broadcast %[[ARG]], %[[CST_SHAPE]] : !shape.shape, tensor<3xindex> -> !shape.shape
+  // CHECK: return %[[RESULT]]
+  %0 = shape.const_shape [2, 1] : !shape.shape
+  %1 = shape.const_shape [1, 2, 3] : tensor<3xindex>
+  %2 = shape.broadcast %0, %arg0, %1, %0 : !shape.shape, !shape.shape,
+      tensor<3xindex>, !shape.shape -> !shape.shape
+  return %2 : !shape.shape
+}
+
+// -----
+
 // Incompatible shapes. No folding.
 // CHECK-LABEL: func @f
 func @f() -> !shape.shape {
@@ -434,7 +464,7 @@ func @cstr_require_no_fold(%arg0: i1) {
 }
 
 // -----
-// `assuming_all` with all `cstr_eq` can be collapsed.
+// `assuming_all` with all `cstr_eq` and shared operands can be collapsed.
 // CHECK-LABEL: func @assuming_all_to_cstr_eq
 // CHECK-SAME: (%[[A:.*]]: !shape.shape, %[[B:.*]]: tensor<?xindex>, %[[C:.*]]: tensor<3xindex>)
 func @assuming_all_to_cstr_eq(%a : !shape.shape, %b : tensor<?xindex>,
@@ -443,6 +473,22 @@ func @assuming_all_to_cstr_eq(%a : !shape.shape, %b : tensor<?xindex>,
   // CHECK: return %[[RESULT]]
   %0 = shape.cstr_eq %a, %b : !shape.shape, tensor<?xindex>
   %1 = shape.cstr_eq %b, %c : tensor<?xindex>, tensor<3xindex>
+  %2 = shape.assuming_all %0, %1
+  return %2 : !shape.witness
+}
+
+// -----
+// `assuming_all` with all `cstr_eq` but disjoint operands cannot be collapsed.
+// CHECK-LABEL: func @assuming_all_to_cstr_eq
+// CHECK-SAME: (%[[A:.*]]: !shape.shape, %[[B:.*]]: tensor<?xindex>, %[[C:.*]]: tensor<3xindex>, %[[D:.*]]: tensor<3xindex>)
+func @assuming_all_to_cstr_eq(%a : !shape.shape, %b : tensor<?xindex>,
+    %c : tensor<3xindex>, %d : tensor<3xindex>) -> !shape.witness {
+  // CHECK: %[[EQ0:.*]] = shape.cstr_eq %[[A]], %[[B]]
+  // CHECK: %[[EQ1:.*]] = shape.cstr_eq %[[C]], %[[D]]
+  // CHECK: %[[RESULT:.*]] = shape.assuming_all %[[EQ0]], %[[EQ1]]
+  // CHECK: return %[[RESULT]]
+  %0 = shape.cstr_eq %a, %b : !shape.shape, tensor<?xindex>
+  %1 = shape.cstr_eq %c, %d : tensor<3xindex>, tensor<3xindex>
   %2 = shape.assuming_all %0, %1
   return %2 : !shape.witness
 }
@@ -1242,4 +1288,15 @@ func @min_same_arg(%a: !shape.shape) -> !shape.shape {
   %1 = shape.min %a, %a : !shape.shape, !shape.shape -> !shape.shape
   // CHECK: return %[[SHAPE]]
   return %1 : !shape.shape
+}
+
+// ----
+
+// CHECK-LABEL: @cstr_broadcastable_folding
+func @cstr_broadcastable_folding(%arg : tensor<?x4xf32>) {
+  // CHECK: const_witness true
+  %0 = shape.shape_of %arg : tensor<?x4xf32> -> tensor<2xindex>
+  %1 = constant dense<[4]> : tensor<1xindex>
+  %2 = shape.cstr_broadcastable %0, %1: tensor<2xindex>, tensor<1xindex>
+  "use"(%2) : (!shape.witness) -> ()
 }

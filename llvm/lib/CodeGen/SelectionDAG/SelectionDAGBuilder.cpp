@@ -1238,6 +1238,10 @@ void SelectionDAGBuilder::resolveDanglingDebugInfo(const Value *V,
 }
 
 void SelectionDAGBuilder::salvageUnresolvedDbgValue(DanglingDebugInfo &DDI) {
+  // TODO: For the variadic implementation, instead of only checking the fail
+  // state of `handleDebugValue`, we need know specifically which values were
+  // invalid, so that we attempt to salvage only those values when processing
+  // a DIArgList.
   assert(!DDI.getDI()->hasArgList() &&
          "Not implemented for variadic dbg_values");
   Value *V = DDI.getDI()->getValue(0);
@@ -1261,16 +1265,21 @@ void SelectionDAGBuilder::salvageUnresolvedDbgValue(DanglingDebugInfo &DDI) {
   while (isa<Instruction>(V)) {
     Instruction &VAsInst = *cast<Instruction>(V);
     // Temporary "0", awaiting real implementation.
-    DIExpression *NewExpr = salvageDebugInfoImpl(VAsInst, Expr, StackValue, 0);
+    SmallVector<Value *, 4> AdditionalValues;
+    DIExpression *SalvagedExpr =
+        salvageDebugInfoImpl(VAsInst, Expr, StackValue, 0, AdditionalValues);
 
     // If we cannot salvage any further, and haven't yet found a suitable debug
     // expression, bail out.
-    if (!NewExpr)
+    // TODO: If AdditionalValues isn't empty, then the salvage can only be
+    // represented with a DBG_VALUE_LIST, so we give up. When we have support
+    // here for variadic dbg_values, remove that condition.
+    if (!SalvagedExpr || !AdditionalValues.empty())
       break;
 
     // New value and expr now represent this debuginfo.
     V = VAsInst.getOperand(0);
-    Expr = NewExpr;
+    Expr = SalvagedExpr;
 
     // Some kind of simplification occurred: check whether the operand of the
     // salvaged debug expression can be encoded in this DAG.
@@ -1302,8 +1311,8 @@ bool SelectionDAGBuilder::handleDebugValue(ArrayRef<const Value *> Values,
                                            bool IsVariadic) {
   if (Values.empty())
     return true;
-  SDDbgValue::LocOpVector LocationOps;
-  SDDbgValue::SDNodeVector Dependencies;
+  SmallVector<SDDbgOperand> LocationOps;
+  SmallVector<SDNode *> Dependencies;
   for (const Value *V : Values) {
     // Constant value.
     if (isa<ConstantInt>(V) || isa<ConstantFP>(V) || isa<UndefValue>(V) ||
@@ -1331,7 +1340,6 @@ bool SelectionDAGBuilder::handleDebugValue(ArrayRef<const Value *> Values,
       // Only emit func arg dbg value for non-variadic dbg.values for now.
       if (!IsVariadic && EmitFuncArgumentDbgValue(V, Var, Expr, dl, false, N))
         return true;
-      Dependencies.push_back(N.getNode());
       if (auto *FISDN = dyn_cast<FrameIndexSDNode>(N.getNode())) {
         // Construct a FrameIndexDbgValue for FrameIndexSDNodes so we can
         // describe stack slot locations.
@@ -1343,6 +1351,7 @@ bool SelectionDAGBuilder::handleDebugValue(ArrayRef<const Value *> Values,
         //   dbg.value(i32* %px, !"int x", !DIExpression(DW_OP_deref))
         //
         // Both describe the direct values of their associated variables.
+        Dependencies.push_back(N.getNode());
         LocationOps.emplace_back(SDDbgOperand::fromFrameIdx(FISDN->getIndex()));
         continue;
       }
@@ -9425,6 +9434,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
       // for a type depending on the context. Give the target a chance to
       // specify the alignment it wants.
       const Align OriginalAlignment(getABIAlignmentForCallingConv(ArgTy, DL));
+      Flags.setOrigAlign(OriginalAlignment);
 
       if (Args[i].Ty->isPointerTy()) {
         Flags.setPointer();
@@ -9478,6 +9488,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
         // in the various CC lowering callbacks.
         Flags.setByVal();
       }
+      Align MemAlign;
       if (Args[i].IsByVal || Args[i].IsInAlloca || Args[i].IsPreallocated) {
         PointerType *Ty = cast<PointerType>(Args[i].Ty);
         Type *ElementTy = Ty->getElementType();
@@ -9487,18 +9498,20 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
         Flags.setByValSize(FrameSize);
 
         // info is not there but there are cases it cannot get right.
-        Align FrameAlign;
         if (auto MA = Args[i].Alignment)
-          FrameAlign = *MA;
+          MemAlign = *MA;
         else
-          FrameAlign = Align(getByValTypeAlignment(ElementTy, DL));
-        Flags.setByValAlign(FrameAlign);
+          MemAlign = Align(getByValTypeAlignment(ElementTy, DL));
+      } else if (auto MA = Args[i].Alignment) {
+        MemAlign = *MA;
+      } else {
+        MemAlign = OriginalAlignment;
       }
+      Flags.setMemAlign(MemAlign);
       if (Args[i].IsNest)
         Flags.setNest();
       if (NeedsRegBlock)
         Flags.setInConsecutiveRegs();
-      Flags.setOrigAlign(OriginalAlignment);
 
       MVT PartVT = getRegisterTypeForCallingConv(CLI.RetTy->getContext(),
                                                  CLI.CallConv, VT);
@@ -9960,11 +9973,6 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
       Type *ArgTy = VT.getTypeForEVT(*DAG.getContext());
       ISD::ArgFlagsTy Flags;
 
-      // Certain targets (such as MIPS), may have a different ABI alignment
-      // for a type depending on the context. Give the target a chance to
-      // specify the alignment it wants.
-      const Align OriginalAlignment(
-          TLI->getABIAlignmentForCallingConv(ArgTy, DL));
 
       if (Arg.getType()->isPointerTy()) {
         Flags.setPointer();
@@ -10017,6 +10025,14 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
         Flags.setByVal();
       }
 
+      // Certain targets (such as MIPS), may have a different ABI alignment
+      // for a type depending on the context. Give the target a chance to
+      // specify the alignment it wants.
+      const Align OriginalAlignment(
+          TLI->getABIAlignmentForCallingConv(ArgTy, DL));
+      Flags.setOrigAlign(OriginalAlignment);
+
+      Align MemAlign;
       Type *ArgMemTy = nullptr;
       if (Flags.isByVal() || Flags.isInAlloca() || Flags.isPreallocated() ||
           Flags.isByRef()) {
@@ -10028,24 +10044,27 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
         // For in-memory arguments, size and alignment should be passed from FE.
         // BE will guess if this info is not there but there are cases it cannot
         // get right.
-        MaybeAlign MemAlign = Arg.getParamAlign();
-        if (!MemAlign)
+        if (auto ParamAlign = Arg.getParamStackAlign())
+          MemAlign = *ParamAlign;
+        else if ((ParamAlign = Arg.getParamAlign()))
+          MemAlign = *ParamAlign;
+        else
           MemAlign = Align(TLI->getByValTypeAlignment(ArgMemTy, DL));
-
-        if (Flags.isByRef()) {
+        if (Flags.isByRef())
           Flags.setByRefSize(MemSize);
-          Flags.setByRefAlign(*MemAlign);
-        } else {
+        else
           Flags.setByValSize(MemSize);
-          Flags.setByValAlign(*MemAlign);
-        }
+      } else if (auto ParamAlign = Arg.getParamStackAlign()) {
+        MemAlign = *ParamAlign;
+      } else {
+        MemAlign = OriginalAlignment;
       }
+      Flags.setMemAlign(MemAlign);
 
       if (Arg.hasAttribute(Attribute::Nest))
         Flags.setNest();
       if (NeedsRegBlock)
         Flags.setInConsecutiveRegs();
-      Flags.setOrigAlign(OriginalAlignment);
       if (ArgCopyElisionCandidates.count(&Arg))
         Flags.setCopyElisionCandidate();
       if (Arg.hasAttribute(Attribute::Returned))

@@ -27,46 +27,6 @@ static MlirStringRef toMlirStringRef(const std::string &s) {
   return mlirStringRefCreate(s.data(), s.size());
 }
 
-/// CRTP base classes for Python attributes that subclass Attribute and should
-/// be castable from it (i.e. via something like StringAttr(attr)).
-/// By default, attribute class hierarchies are one level deep (i.e. a
-/// concrete attribute class extends PyAttribute); however, intermediate
-/// python-visible base classes can be modeled by specifying a BaseTy.
-template <typename DerivedTy, typename BaseTy = PyAttribute>
-class PyConcreteAttribute : public BaseTy {
-public:
-  // Derived classes must define statics for:
-  //   IsAFunctionTy isaFunction
-  //   const char *pyClassName
-  using ClassTy = py::class_<DerivedTy, BaseTy>;
-  using IsAFunctionTy = bool (*)(MlirAttribute);
-
-  PyConcreteAttribute() = default;
-  PyConcreteAttribute(PyMlirContextRef contextRef, MlirAttribute attr)
-      : BaseTy(std::move(contextRef), attr) {}
-  PyConcreteAttribute(PyAttribute &orig)
-      : PyConcreteAttribute(orig.getContext(), castFrom(orig)) {}
-
-  static MlirAttribute castFrom(PyAttribute &orig) {
-    if (!DerivedTy::isaFunction(orig)) {
-      auto origRepr = py::repr(py::cast(orig)).cast<std::string>();
-      throw SetPyError(PyExc_ValueError, Twine("Cannot cast attribute to ") +
-                                             DerivedTy::pyClassName +
-                                             " (from " + origRepr + ")");
-    }
-    return orig;
-  }
-
-  static void bind(py::module &m) {
-    auto cls = ClassTy(m, DerivedTy::pyClassName, py::buffer_protocol());
-    cls.def(py::init<PyAttribute &>(), py::keep_alive<0, 1>());
-    DerivedTy::bindDerived(cls);
-  }
-
-  /// Implemented by derived classes to add methods to the Python subclass.
-  static void bindDerived(ClassTy &m) {}
-};
-
 class PyAffineMapAttribute : public PyConcreteAttribute<PyAffineMapAttribute> {
 public:
   static constexpr IsAFunctionTy isaFunction = mlirAttributeIsAAffineMap;
@@ -502,8 +462,9 @@ private:
            MlirType mlirElementType, py::buffer_info &arrayInfo) {
     SmallVector<int64_t, 4> shape(arrayInfo.shape.begin(),
                                   arrayInfo.shape.begin() + arrayInfo.ndim);
-    auto shapedType =
-        mlirRankedTensorTypeGet(shape.size(), shape.data(), mlirElementType);
+    MlirAttribute encodingAttr = mlirAttributeGetNull();
+    auto shapedType = mlirRankedTensorTypeGet(shape.size(), shape.data(),
+                                              mlirElementType, encodingAttr);
     intptr_t numElements = arrayInfo.size;
     const ElementTy *contents = static_cast<const ElementTy *>(arrayInfo.ptr);
     return ctor(shapedType, numElements, contents);

@@ -615,8 +615,11 @@ Init *ListInit::convertInitializerTo(RecTy *Ty) const {
 }
 
 Init *ListInit::convertInitListSlice(ArrayRef<unsigned> Elements) const {
-  if (Elements.size() == 1)
-    return getElement(0);
+  if (Elements.size() == 1) {
+    if (Elements[0] >= size())
+      return nullptr;
+    return getElement(Elements[0]);
+  }
 
   SmallVector<Init*, 8> Vals;
   Vals.reserve(Elements.size());
@@ -650,6 +653,14 @@ Init *ListInit::resolveReferences(Resolver &R) const {
   if (Changed)
     return ListInit::get(Resolved, getElementType());
   return const_cast<ListInit *>(this);
+}
+
+bool ListInit::isComplete() const {
+  for (Init *Element : *this) {
+    if (!Element->isComplete())
+      return false;
+  }
+  return true;
 }
 
 bool ListInit::isConcrete() const {
@@ -1835,7 +1846,7 @@ DefInit *VarDefInit::instantiate() {
     Records.addDef(std::move(NewRecOwner));
 
     // Check the assertions.
-    NewRec->checkAssertions();
+    NewRec->checkRecordAssertions();
 
     Def = DefInit::get(NewRec);
   }
@@ -1921,7 +1932,7 @@ Init *FieldInit::Fold(Record *CurRec) const {
                       FieldName->getAsUnquotedString() + "' of '" +
                       Rec->getAsString() + "' is a forbidden self-reference");
     Init *FieldVal = Def->getValue(FieldName)->getValue();
-    if (FieldVal->isComplete())
+    if (FieldVal->isConcrete())
       return FieldVal;
   }
   return const_cast<FieldInit *>(this);
@@ -2618,7 +2629,7 @@ DagInit *Record::getValueAsDag(StringRef FieldName) const {
 // and message, then call CheckAssert().
 // Note: The condition and message are probably already resolved,
 //       but resolving again allows calls before records are resolved.
-void Record::checkAssertions() {
+void Record::checkRecordAssertions() {
   RecordResolver R(*this);
   R.setFinal(true);
 

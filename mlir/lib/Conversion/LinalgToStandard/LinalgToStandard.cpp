@@ -110,6 +110,8 @@ LogicalResult mlir::linalg::LinalgOpToLibraryCallRewrite::matchAndRewrite(
   if (!libraryCallName)
     return failure();
 
+  // TODO: Add support for more complex library call signatures that include
+  // indices or captured values.
   rewriter.replaceOpWithNewOp<mlir::CallOp>(
       op, libraryCallName.getValue(), TypeRange(),
       createTypeCanonicalizedMemRefOperands(rewriter, op->getLoc(),

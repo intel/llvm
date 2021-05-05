@@ -331,6 +331,10 @@ def OMPC_Link : Clause<"link"> {
 }
 def OMPC_Inbranch : Clause<"inbranch"> {}
 def OMPC_Notinbranch : Clause<"notinbranch"> {}
+def OMPC_Filter : Clause<"filter"> {
+  let clangClass = "OMPFilterClause";
+  let flangClass = "ScalarIntExpr";
+}
 
 //===----------------------------------------------------------------------===//
 // Definition of OpenMP directives
@@ -1486,7 +1490,7 @@ def OMP_TargetTeamsDistributeSimd :
   ];
 }
 def OMP_Allocate : Directive<"allocate"> {
-  let allowedClauses = [
+  let allowedOnceClauses = [
     VersionedClause<OMPC_Allocator>
   ];
 }
@@ -1673,6 +1677,11 @@ def OMP_dispatch : Directive<"dispatch"> {
     VersionedClause<OMPC_Depend>,
     VersionedClause<OMPC_Novariants>,
     VersionedClause<OMPC_Nocontext>
+  ];
+}
+def OMP_masked : Directive<"masked"> {
+  let allowedOnceClauses = [
+    VersionedClause<OMPC_Filter>
   ];
 }
 def OMP_Unknown : Directive<"unknown"> {

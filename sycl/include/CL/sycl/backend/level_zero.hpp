@@ -49,7 +49,18 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
   using type = char *;
 };
 
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct interop<backend::level_zero,
+               accessor<DataT, Dimensions, AccessMode, access::target::image,
+                        access::placeholder::false_t>> {
+  using type = ze_image_handle_t;
+};
+
 namespace detail {
+template <> struct BackendReturn<backend::level_zero, kernel> {
+  using type = ze_kernel_handle_t;
+};
+
 template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = false;
@@ -58,6 +69,7 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakeEvent = false;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
+  static constexpr bool MakeKernelBundle = false;
 };
 } // namespace detail
 
