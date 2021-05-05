@@ -3597,9 +3597,6 @@ InstructionCost BoUpSLP::getEntryCost(TreeEntry *E) {
               TTIRef.getShuffleCost(TargetTransformInfo::SK_ExtractSubvector,
                                     EEVTy, None, Idx, VecTy);
         } else {
-          // Need to round up the subvector type vectorization factor to avoid a
-          // crash in cost model functions. Make SubVT so that Idx + VF of SubVT
-          // <= EENumElts.
           auto *SubVT =
               FixedVectorType::get(VecTy->getElementType(), EENumElts - Idx);
           Cost +=
