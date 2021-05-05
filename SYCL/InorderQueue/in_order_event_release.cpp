@@ -1,5 +1,3 @@
-// UNSUPPORTED: cuda
-// CUDA does not support unnamed lambdas.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-unnamed-lambda %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
@@ -7,8 +5,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-//==------ oq_event_release.cpp - SYCL ordered queue event release shortcut test
-//--------==//
+// SYCL ordered queue event release shortcut test
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
