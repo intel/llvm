@@ -1,9 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
-// Looks like there is a bug in the test. There are rare sporadic failures of
-// this test on different devices.
-// REQUIRES: TEMPORARY_DISABLED
-//
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -67,6 +63,8 @@ int main() {
     event kernelEvent = kernelQueue.submit([&](sycl::handler &CGH) {
       CGH.single_task<class EmptyKernel>([=]() {});
     });
+    copyEvent.wait();
+    kernelEvent.wait();
 
     assert(verifyProfiling(copyEvent) && verifyProfiling(kernelEvent));
   }
