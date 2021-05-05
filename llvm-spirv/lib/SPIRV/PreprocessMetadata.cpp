@@ -48,6 +48,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -60,13 +61,11 @@ namespace SPIRV {
 cl::opt<bool> EraseOCLMD("spirv-erase-cl-md", cl::init(true),
                          cl::desc("Erase OpenCL metadata"));
 
-class PreprocessMetadata : public ModulePass {
+class PreprocessMetadataBase {
 public:
-  PreprocessMetadata() : ModulePass(ID), M(nullptr), Ctx(nullptr) {
-    initializePreprocessMetadataPass(*PassRegistry::getPassRegistry());
-  }
+  PreprocessMetadataBase() : M(nullptr), Ctx(nullptr) {}
 
-  bool runOnModule(Module &M) override;
+  bool runPreprocessMetadata(Module &M);
   void visit(Module *M);
   void preprocessCXXStructorList(SPIRVMDBuilder::NamedMDWrapper &EM,
                                  GlobalVariable *V, ExecutionMode EMode);
@@ -74,16 +73,43 @@ public:
   void preprocessVectorComputeMetadata(Module *M, SPIRVMDBuilder *B,
                                        SPIRVMDWalker *W);
 
-  static char ID;
-
 private:
   Module *M;
   LLVMContext *Ctx;
 };
 
-char PreprocessMetadata::ID = 0;
+class PreprocessMetadataLegacy : public ModulePass,
+                                 public PreprocessMetadataBase {
+public:
+  PreprocessMetadataLegacy() : ModulePass(ID) {
+    initializePreprocessMetadataLegacyPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnModule(Module &M) override;
 
-bool PreprocessMetadata::runOnModule(Module &Module) {
+  static char ID;
+};
+
+class PreprocessMetadataPass
+    : public llvm::PassInfoMixin<PreprocessMetadataPass>,
+      public PreprocessMetadataBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM);
+};
+
+char PreprocessMetadataLegacy::ID = 0;
+
+bool PreprocessMetadataLegacy::runOnModule(Module &Module) {
+  return runPreprocessMetadata(Module);
+}
+
+llvm::PreservedAnalyses
+PreprocessMetadataPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  return runPreprocessMetadata(M) ? llvm::PreservedAnalyses::none()
+                                  : llvm::PreservedAnalyses::all();
+}
+
+bool PreprocessMetadataBase::runPreprocessMetadata(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
 
@@ -96,7 +122,7 @@ bool PreprocessMetadata::runOnModule(Module &Module) {
   return true;
 }
 
-void PreprocessMetadata::preprocessCXXStructorList(
+void PreprocessMetadataBase::preprocessCXXStructorList(
     SPIRVMDBuilder::NamedMDWrapper &EM, GlobalVariable *V,
     ExecutionMode EMode) {
   auto *List = dyn_cast_or_null<ConstantArray>(V->getInitializer());
@@ -114,7 +140,7 @@ void PreprocessMetadata::preprocessCXXStructorList(
   }
 }
 
-void PreprocessMetadata::visit(Module *M) {
+void PreprocessMetadataBase::visit(Module *M) {
   SPIRVMDBuilder B(*M);
   SPIRVMDWalker W(*M);
 
@@ -233,8 +259,8 @@ void PreprocessMetadata::visit(Module *M) {
   }
 }
 
-void PreprocessMetadata::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
-                                               SPIRVMDWalker *W) {
+void PreprocessMetadataBase::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
+                                                   SPIRVMDWalker *W) {
   unsigned CLVer = getOCLVersion(M, true);
   if (CLVer == 0)
     return;
@@ -278,9 +304,9 @@ void PreprocessMetadata::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
     B->eraseNamedMD(kSPIR2MD::FPContract);
 }
 
-void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
-                                                         SPIRVMDBuilder *B,
-                                                         SPIRVMDWalker *W) {
+void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
+                                                             SPIRVMDBuilder *B,
+                                                             SPIRVMDWalker *W) {
   using namespace VectorComputeUtil;
 
   auto EM = B->addNamedMD(kSPIRVMD::ExecutionMode);
@@ -335,10 +361,10 @@ void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
 
 } // namespace SPIRV
 
-INITIALIZE_PASS(PreprocessMetadata, "preprocess-metadata",
+INITIALIZE_PASS(PreprocessMetadataLegacy, "preprocess-metadata",
                 "Transform LLVM IR metadata to SPIR-V metadata format", false,
                 false)
 
-ModulePass *llvm::createPreprocessMetadata() {
-  return new PreprocessMetadata();
+ModulePass *llvm::createPreprocessMetadataLegacy() {
+  return new PreprocessMetadataLegacy();
 }

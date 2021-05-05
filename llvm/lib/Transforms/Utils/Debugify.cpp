@@ -25,6 +25,7 @@
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
 
 #define DEBUG_TYPE "debugify"
@@ -440,7 +441,7 @@ static void writeJSON(StringRef OrigDIVerifyBugsReportFilePath,
                       llvm::json::Array &Bugs) {
   std::error_code EC;
   raw_fd_ostream OS_FILE{OrigDIVerifyBugsReportFilePath, EC,
-                         sys::fs::OF_Append | sys::fs::OF_Text};
+                         sys::fs::OF_Append | sys::fs::OF_TextWithCRLF};
   if (EC) {
     errs() << "Could not open file: " << EC.message() << ", "
            << OrigDIVerifyBugsReportFilePath << '\n';

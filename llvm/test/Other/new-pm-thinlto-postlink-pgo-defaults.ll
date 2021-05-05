@@ -1,22 +1,22 @@
 ; Validate ThinLTO post link pipeline when we have instrumentation PGO
 ;
 ; Postlink pipelines:
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='thinlto<O1>' -S %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-O1,%llvmcheckext
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='thinlto<O2>' -S  %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-O2,CHECK-O23SZ,%llvmcheckext
-; RUN: opt -disable-verify -debug-pass-manager -passes-ep-pipeline-start='no-op-module' \
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager -passes-ep-pipeline-start='no-op-module' \
 ; RUN:     -passes='thinlto<O3>' -S  %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-O3,CHECK-O23SZ,%llvmcheckext
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='thinlto<Os>' -S %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-Os,CHECK-O23SZ,%llvmcheckext
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='thinlto<Oz>' -S %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-Oz,CHECK-O23SZ,%llvmcheckext
-; RUN: opt -disable-verify -debug-pass-manager -new-pm-debug-info-for-profiling \
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager -new-pm-debug-info-for-profiling \
 ; RUN:     -passes='thinlto<O2>' -S  %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-O2,CHECK-O23SZ,%llvmcheckext
 
@@ -34,6 +34,7 @@
 ; CHECK-O-NEXT: Running pass: InferFunctionAttrsPass
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis
 ; CHECK-O-NEXT: Starting {{.*}}Function pass manager run.
+; CHECK-O-NEXT: Running pass: LowerExpectIntrinsicPass
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running analysis: TargetIRAnalysis
 ; CHECK-O-NEXT: Running analysis: AssumptionAnalysis
@@ -41,9 +42,10 @@
 ; CHECK-O-NEXT: Running analysis: DominatorTreeAnalysis
 ; CHECK-O-NEXT: Running pass: EarlyCSEPass
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis
-; CHECK-O-NEXT: Running pass: LowerExpectIntrinsicPass
 ; CHECK-O3-NEXT: Running pass: CallSiteSplittingPass
 ; CHECK-O-NEXT: Finished {{.*}}Function pass manager run.
+; CHECK-O2-NEXT: Running pass: OpenMPOptPass
+; CHECK-O3-NEXT: Running pass: OpenMPOptPass
 ; CHECK-O-NEXT: Running pass: LowerTypeTestsPass
 ; CHECK-O-NEXT: Running pass: IPSCCPPass
 ; CHECK-O-NEXT: Running pass: CalledValuePropagationPass
@@ -82,8 +84,8 @@
 ; CHECK-O-NEXT: Running pass: InlinerPass
 ; CHECK-O-NEXT: Running pass: PostOrderFunctionAttrsPass
 ; CHECK-O3-NEXT: Running pass: ArgumentPromotionPass
-; CHECK-O2-NEXT: Running pass: OpenMPOptPass
-; CHECK-O3-NEXT: Running pass: OpenMPOptPass
+; CHECK-O2-NEXT: Running pass: OpenMPOptCGSCCPass
+; CHECK-O3-NEXT: Running pass: OpenMPOptCGSCCPass
 ; CHECK-O-NEXT: Starting {{.*}}Function pass manager run.
 ; CHECK-O-NEXT: Running pass: SROA
 ; CHECK-O-NEXT: Running pass: EarlyCSEPass
@@ -213,6 +215,8 @@
 ; CHECK-O-NEXT: Running pass: CGProfilePass
 ; CHECK-O-NEXT: Running pass: GlobalDCEPass
 ; CHECK-O-NEXT: Running pass: ConstantMergePass
+; CHECK-O-NEXT: Running pass: RelLookupTableConverterPass
+; CHECK-O-NEXT: Running analysis: TargetIRAnalysis
 ; CHECK-O-NEXT: Running pass: AnnotationRemarksPass on foo
 ; CHECK-O-NEXT: Running pass: PrintModulePass
 

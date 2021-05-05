@@ -32,7 +32,7 @@
 # NO-OBJC-EMPTY:
 # NO-OBJC-NEXT:  SYMBOL TABLE:
 # NO-OBJC-NEXT:  g     F __TEXT,__text _main
-# NO-OBJC-NEXT:  g *ABS* __mh_execute_header
+# NO-OBJC-NEXT:  g     F __TEXT,__text __mh_execute_header
 # NO-OBJC-EMPTY:
 
 #--- has-objc-symbol.s
@@ -40,11 +40,11 @@
 _OBJC_CLASS_$_MyObject:
 
 #--- has-objc-category.s
-.section	__DATA,__objc_catlist
+.section __DATA,__objc_catlist
 .quad 0x1234
 
 #--- has-swift.s
-.section	__TEXT,__swift
+.section __TEXT,__swift
 .quad 0x1234
 
 #--- no-objc.s

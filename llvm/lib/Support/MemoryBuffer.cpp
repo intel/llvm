@@ -259,7 +259,7 @@ static ErrorOr<std::unique_ptr<MB>>
 getFileAux(const Twine &Filename, uint64_t MapSize, uint64_t Offset,
            bool IsText, bool RequiresNullTerminator, bool IsVolatile) {
   Expected<sys::fs::file_t> FDOrErr = sys::fs::openNativeFileForRead(
-      Filename, IsText ? sys::fs::OF_Text : sys::fs::OF_None);
+      Filename, IsText ? sys::fs::OF_TextWithCRLF : sys::fs::OF_None);
   if (!FDOrErr)
     return errorToErrorCode(FDOrErr.takeError());
   sys::fs::file_t FD = *FDOrErr;
@@ -512,7 +512,7 @@ ErrorOr<std::unique_ptr<MemoryBuffer>> MemoryBuffer::getSTDIN() {
   //
   // FIXME: That isn't necessarily true, we should try to mmap stdin and
   // fallback if it fails.
-  sys::ChangeStdinToBinary();
+  sys::ChangeStdinMode(sys::fs::OF_Text);
 
   return getMemoryBufferForStream(sys::fs::getStdinHandle(), "<stdin>");
 }

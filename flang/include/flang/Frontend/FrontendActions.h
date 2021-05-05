@@ -63,6 +63,22 @@ class DebugMeasureParseTreeAction : public PrescanAction {
 };
 
 //===----------------------------------------------------------------------===//
+// PrescanAndParse Actions
+//===----------------------------------------------------------------------===//
+class PrescanAndParseAction : public FrontendAction {
+  void ExecuteAction() override = 0;
+  bool BeginSourceFileAction(CompilerInstance &ci) override;
+};
+
+class DebugUnparseNoSemaAction : public PrescanAndParseAction {
+  void ExecuteAction() override;
+};
+
+class DebugDumpParseTreeNoSemaAction : public PrescanAndParseAction {
+  void ExecuteAction() override;
+};
+
+//===----------------------------------------------------------------------===//
 // PrescanAndSema Actions
 //===----------------------------------------------------------------------===//
 class PrescanAndSemaAction : public FrontendAction {
@@ -97,6 +113,10 @@ class DebugDumpParseTreeAction : public PrescanAndSemaAction {
 };
 
 class DebugPreFIRTreeAction : public PrescanAndSemaAction {
+  void ExecuteAction() override;
+};
+
+class GetDefinitionAction : public PrescanAndSemaAction {
   void ExecuteAction() override;
 };
 

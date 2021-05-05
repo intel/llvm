@@ -31,6 +31,26 @@ RankedTensorType shape::getExtentTensorType(MLIRContext *ctx) {
   return RankedTensorType::get({ShapedType::kDynamicSize}, IndexType::get(ctx));
 }
 
+LogicalResult shape::getShapeVec(Value input,
+                                 SmallVectorImpl<int64_t> &shapeValues) {
+  if (auto inputOp = input.getDefiningOp<ShapeOfOp>()) {
+    auto type = inputOp.arg().getType().dyn_cast<ShapedType>();
+    if (!type.hasRank())
+      return failure();
+    shapeValues = llvm::to_vector<6>(type.getShape());
+    return success();
+  } else if (auto inputOp = input.getDefiningOp<ConstShapeOp>()) {
+    shapeValues = llvm::to_vector<6>(inputOp.shape().getValues<int64_t>());
+    return success();
+  } else if (auto inputOp = input.getDefiningOp<ConstantOp>()) {
+    shapeValues = llvm::to_vector<6>(
+        inputOp.value().cast<DenseIntElementsAttr>().getValues<int64_t>());
+    return success();
+  } else {
+    return failure();
+  }
+}
+
 static bool isErrorPropagationPossible(TypeRange operandTypes) {
   return llvm::any_of(operandTypes, [](Type ty) {
     return ty.isa<SizeType, ShapeType, ValueShapeType>();
@@ -268,12 +288,57 @@ struct AssumingWithTrue : public OpRewritePattern<AssumingOp> {
     return success();
   }
 };
+
+struct AssumingOpRemoveUnusedResults : public OpRewritePattern<AssumingOp> {
+  using OpRewritePattern<AssumingOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AssumingOp op,
+                                PatternRewriter &rewriter) const override {
+    Block *body = op.getBody();
+    auto yieldOp = llvm::cast<AssumingYieldOp>(body->getTerminator());
+
+    // Find used values.
+    SmallVector<Value, 4> newYieldOperands;
+    Value opResult, yieldOperand;
+    for (auto it : llvm::zip(op.getResults(), yieldOp.operands())) {
+      std::tie(opResult, yieldOperand) = it;
+      if (!opResult.getUses().empty()) {
+        newYieldOperands.push_back(yieldOperand);
+      }
+    }
+
+    // Rewrite only if redundant results exist.
+    if (newYieldOperands.size() == yieldOp->getNumOperands())
+      return failure();
+
+    // Replace yield op in the old assuming op's body and move the entire region
+    // to the new assuming op.
+    rewriter.setInsertionPointToEnd(body);
+    auto newYieldOp =
+        rewriter.replaceOpWithNewOp<AssumingYieldOp>(yieldOp, newYieldOperands);
+    rewriter.setInsertionPoint(op);
+    auto newOp = rewriter.create<AssumingOp>(
+        op.getLoc(), newYieldOp->getOperandTypes(), op.witness());
+    newOp.doRegion().takeBody(op.doRegion());
+
+    // Use the new results to replace the previously used ones.
+    SmallVector<Value, 4> replacementValues;
+    auto src = newOp.getResults().begin();
+    for (auto it : op.getResults()) {
+      if (it.getUses().empty())
+        replacementValues.push_back(nullptr);
+      else
+        replacementValues.push_back(*src++);
+    }
+    rewriter.replaceOp(op, replacementValues);
+    return success();
+  }
+};
 } // namespace
 
 void AssumingOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
-  // If taking a passing witness, inline region.
-  patterns.add<AssumingWithTrue>(context);
+  patterns.add<AssumingOpRemoveUnusedResults, AssumingWithTrue>(context);
 }
 
 // See RegionBranchOpInterface in Interfaces/ControlFlowInterfaces.td
@@ -336,9 +401,34 @@ void AssumingOp::build(
 // AssumingAllOp
 //===----------------------------------------------------------------------===//
 
+namespace {
+struct AssumingAllToCstrEqCanonicalization
+    : public OpRewritePattern<AssumingAllOp> {
+  using OpRewritePattern<AssumingAllOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AssumingAllOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value, 8> shapes;
+    for (Value w : op.inputs()) {
+      auto cstrEqOp = w.getDefiningOp<CstrEqOp>();
+      if (!cstrEqOp)
+        return failure();
+      bool disjointShapes = llvm::none_of(cstrEqOp.shapes(), [&](Value s) {
+        return llvm::is_contained(shapes, s);
+      });
+      if (!shapes.empty() && !cstrEqOp.shapes().empty() && disjointShapes)
+        return failure();
+      shapes.append(cstrEqOp.shapes().begin(), cstrEqOp.shapes().end());
+    }
+    rewriter.replaceOpWithNewOp<CstrEqOp>(op, shapes);
+    return success();
+  }
+};
+} // namespace
+
 void AssumingAllOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                 MLIRContext *context) {
-  patterns.add<AssumingAllOneOp>(context);
+  patterns.add<AssumingAllOneOp, AssumingAllToCstrEqCanonicalization>(context);
 }
 
 OpFoldResult AssumingAllOp::fold(ArrayRef<Attribute> operands) {
@@ -370,39 +460,36 @@ static LogicalResult verify(AssumingAllOp op) {
   return success();
 }
 
+void AssumingAllOp::build(OpBuilder &b, OperationState &state,
+                          ValueRange inputs) {
+  build(b, state, b.getType<WitnessType>(), inputs);
+}
+
 //===----------------------------------------------------------------------===//
 // BroadcastOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult BroadcastOp::fold(ArrayRef<Attribute> operands) {
-  if (operands.size() == 1)
+  if (shapes().size() == 1)
     return shapes().front();
 
   // TODO: Support folding with more than 2 input shapes
   if (shapes().size() > 2)
     return nullptr;
 
-  if (!operands[1])
+  if (!operands[0] || !operands[1])
     return nullptr;
-
-  auto rhsShape = llvm::to_vector<6>(
-      operands[1].cast<DenseIntElementsAttr>().getValues<int64_t>());
-  if (rhsShape.empty())
-    return shapes()[0];
-
-  if (!operands[0])
-    return nullptr;
-
   auto lhsShape = llvm::to_vector<6>(
       operands[0].cast<DenseIntElementsAttr>().getValues<int64_t>());
-  if (lhsShape.empty())
-    return shapes()[1];
-
+  auto rhsShape = llvm::to_vector<6>(
+      operands[1].cast<DenseIntElementsAttr>().getValues<int64_t>());
   SmallVector<int64_t, 6> resultShape;
+
   // If the shapes are not compatible, we can't fold it.
   // TODO: Fold to an "error".
   if (!OpTrait::util::getBroadcastedShape(lhsShape, rhsShape, resultShape))
     return nullptr;
+
   Builder builder(getContext());
   return builder.getIndexTensorAttr(resultShape);
 }
@@ -436,6 +523,31 @@ struct RemoveDuplicateOperandsPattern : public OpRewritePattern<OpTy> {
   }
 };
 
+template <typename OpTy>
+struct RemoveEmptyShapeOperandsPattern : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    auto isPotentiallyNonEmptyShape = [](Value shape) {
+      if (auto constShape = shape.getDefiningOp<ConstShapeOp>())
+        return constShape.shape().size() != 0;
+      return true;
+    };
+    auto newOperands = llvm::to_vector<8>(
+        llvm::make_filter_range(op->getOperands(), isPotentiallyNonEmptyShape));
+
+    // Reduce op to equivalent without empty shape operands.
+    if (newOperands.size() < op.getNumOperands()) {
+      rewriter.replaceOpWithNewOp<OpTy>(op, op->getResultTypes(), newOperands,
+                                        op->getAttrs());
+      return success();
+    }
+
+    return failure();
+  }
+};
+
 struct BroadcastForwardSingleOperandPattern
     : public OpRewritePattern<BroadcastOp> {
   using OpRewritePattern<BroadcastOp>::OpRewritePattern;
@@ -443,18 +555,59 @@ struct BroadcastForwardSingleOperandPattern
   LogicalResult matchAndRewrite(BroadcastOp op,
                                 PatternRewriter &rewriter) const override {
     if (op.getNumOperands() == 1) {
-      rewriter.replaceOp(op, op.shapes().front());
+      Value uniqueShapeOperand = op.shapes().front();
+      rewriter.replaceOp(op, uniqueShapeOperand);
       return success();
     }
     return failure();
+  }
+};
+
+struct BroadcastFoldConstantOperandsPattern
+    : public OpRewritePattern<BroadcastOp> {
+  using OpRewritePattern<BroadcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BroadcastOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<int64_t, 8> foldedConstantShape;
+    SmallVector<Value, 8> newShapeOperands;
+    for (Value shape : op.shapes()) {
+      if (auto constShape = shape.getDefiningOp<ConstShapeOp>()) {
+        SmallVector<int64_t, 8> newFoldedConstantShape;
+        if (OpTrait::util::getBroadcastedShape(
+                foldedConstantShape,
+                llvm::to_vector<8>(constShape.shape().getValues<int64_t>()),
+                newFoldedConstantShape)) {
+          foldedConstantShape = newFoldedConstantShape;
+          continue;
+        }
+      }
+      newShapeOperands.push_back(shape);
+    }
+
+    // Need at least two constant operands to fold anything.
+    if (op.getNumOperands() - newShapeOperands.size() < 2)
+      return failure();
+
+    auto foldedConstantOperandsTy = RankedTensorType::get(
+        {static_cast<int64_t>(foldedConstantShape.size())},
+        rewriter.getIndexType());
+    newShapeOperands.push_back(rewriter.create<ConstShapeOp>(
+        op.getLoc(), foldedConstantOperandsTy,
+        rewriter.getIndexTensorAttr(foldedConstantShape)));
+    rewriter.replaceOpWithNewOp<BroadcastOp>(op, op.getType(),
+                                             newShapeOperands);
+    return success();
   }
 };
 } // namespace
 
 void BroadcastOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                               MLIRContext *context) {
-  patterns.add<BroadcastForwardSingleOperandPattern,
-               RemoveDuplicateOperandsPattern<BroadcastOp>>(context);
+  patterns.add<BroadcastFoldConstantOperandsPattern,
+               BroadcastForwardSingleOperandPattern,
+               RemoveDuplicateOperandsPattern<BroadcastOp>,
+               RemoveEmptyShapeOperandsPattern<BroadcastOp>>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -529,24 +682,6 @@ void ConstShapeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 //===----------------------------------------------------------------------===//
 // CstrBroadcastableOp
 //===----------------------------------------------------------------------===//
-
-namespace {
-// Given an input shape Value, try to obtain the shape's values.
-LogicalResult getShapeVec(Value input, SmallVectorImpl<int64_t> &shapeValues) {
-  if (auto inputOp = input.getDefiningOp<ShapeOfOp>()) {
-    auto type = inputOp.arg().getType().dyn_cast<ShapedType>();
-    if (!type.hasRank())
-      return failure();
-    shapeValues = llvm::to_vector<6>(type.getShape());
-    return success();
-  } else if (auto inputOp = input.getDefiningOp<ConstShapeOp>()) {
-    shapeValues = llvm::to_vector<6>(inputOp.shape().getValues<int64_t>());
-    return success();
-  } else {
-    return failure();
-  }
-}
-} // namespace
 
 void CstrBroadcastableOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
@@ -935,6 +1070,28 @@ void NumElementsOp::build(OpBuilder &builder, OperationState &result,
   }
   auto type = SizeType::get(builder.getContext());
   return build(builder, result, type, shape);
+}
+
+//===----------------------------------------------------------------------===//
+// MaxOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult MaxOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  // If operands are equal, just propagate one.
+  if (lhs() == rhs())
+    return lhs();
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// MinOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult MinOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  // If operands are equal, just propagate one.
+  if (lhs() == rhs())
+    return lhs();
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//

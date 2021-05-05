@@ -3346,10 +3346,7 @@ IsInitializerListConstructorConversion(Sema &S, Expr *From, QualType ToType,
     bool Usable = !Info.Constructor->isInvalidDecl() &&
                   S.isInitListConstructor(Info.Constructor);
     if (Usable) {
-      // If the first argument is (a reference to) the target type,
-      // suppress conversions.
-      bool SuppressUserConversions = isFirstArgumentCompatibleWithType(
-          S.Context, Info.Constructor, ToType);
+      bool SuppressUserConversions = false;
       if (Info.ConstructorTmpl)
         S.AddTemplateOverloadCandidate(Info.ConstructorTmpl, Info.FoundDecl,
                                        /*ExplicitArgs*/ nullptr, From,
@@ -3473,14 +3470,18 @@ IsUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
                                  /*AllowExplicit*/ true);
         if (Usable) {
           bool SuppressUserConversions = !ConstructorsOnly;
+          // C++20 [over.best.ics.general]/4.5:
+          //   if the target is the first parameter of a constructor [of class
+          //   X] and the constructor [...] is a candidate by [...] the second
+          //   phase of [over.match.list] when the initializer list has exactly
+          //   one element that is itself an initializer list, [...] and the
+          //   conversion is to X or reference to cv X, user-defined conversion
+          //   sequences are not cnosidered.
           if (SuppressUserConversions && ListInitializing) {
-            SuppressUserConversions = false;
-            if (NumArgs == 1) {
-              // If the first argument is (a reference to) the target type,
-              // suppress conversions.
-              SuppressUserConversions = isFirstArgumentCompatibleWithType(
-                  S.Context, Info.Constructor, ToType);
-            }
+            SuppressUserConversions =
+                NumArgs == 1 && isa<InitListExpr>(Args[0]) &&
+                isFirstArgumentCompatibleWithType(S.Context, Info.Constructor,
+                                                  ToType);
           }
           if (Info.ConstructorTmpl)
             S.AddTemplateOverloadCandidate(
@@ -3706,7 +3707,7 @@ compareConversionFunctions(Sema &S, FunctionDecl *Function1,
         CallOp->getType()->getAs<FunctionProtoType>();
 
     CallingConv CallOpCC =
-        CallOp->getType()->getAs<FunctionType>()->getCallConv();
+        CallOp->getType()->castAs<FunctionType>()->getCallConv();
     CallingConv DefaultFree = S.Context.getDefaultCallingConvention(
         CallOpProto->isVariadic(), /*IsCXXMethod=*/false);
     CallingConv DefaultMember = S.Context.getDefaultCallingConvention(
@@ -3927,7 +3928,7 @@ getFixedEnumPromtion(Sema &S, const StandardConversionSequence &SCS) {
   if (!FromType->isEnumeralType())
     return FixedEnumPromotion::None;
 
-  EnumDecl *Enum = FromType->getAs<EnumType>()->getDecl();
+  EnumDecl *Enum = FromType->castAs<EnumType>()->getDecl();
   if (!Enum->isFixed())
     return FixedEnumPromotion::None;
 
@@ -10244,10 +10245,10 @@ static bool shouldSkipNotingLambdaConversionDecl(FunctionDecl *Fn) {
 
   CXXMethodDecl *CallOp = RD->getLambdaCallOperator();
   CallingConv CallOpCC =
-      CallOp->getType()->getAs<FunctionType>()->getCallConv();
-  QualType ConvRTy = ConvD->getType()->getAs<FunctionType>()->getReturnType();
+      CallOp->getType()->castAs<FunctionType>()->getCallConv();
+  QualType ConvRTy = ConvD->getType()->castAs<FunctionType>()->getReturnType();
   CallingConv ConvToCC =
-      ConvRTy->getPointeeType()->getAs<FunctionType>()->getCallConv();
+      ConvRTy->getPointeeType()->castAs<FunctionType>()->getCallConv();
 
   return ConvToCC != CallOpCC;
 }

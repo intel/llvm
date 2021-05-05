@@ -838,20 +838,20 @@ static void handleAssertExclusiveLockAttr(Sema &S, Decl *D,
 ///
 /// AttrArgNo is used to actually retrieve the argument, so it's base-0.
 template <typename AttrInfo>
-static bool checkParamIsIntegerType(Sema &S, const FunctionDecl *FD,
-                                    const AttrInfo &AI, unsigned AttrArgNo) {
+static bool checkParamIsIntegerType(Sema &S, const Decl *D, const AttrInfo &AI,
+                                    unsigned AttrArgNo) {
   assert(AI.isArgExpr(AttrArgNo) && "Expected expression argument");
   Expr *AttrArg = AI.getArgAsExpr(AttrArgNo);
   ParamIdx Idx;
-  if (!checkFunctionOrMethodParameterIndex(S, FD, AI, AttrArgNo + 1, AttrArg,
+  if (!checkFunctionOrMethodParameterIndex(S, D, AI, AttrArgNo + 1, AttrArg,
                                            Idx))
     return false;
 
-  const ParmVarDecl *Param = FD->getParamDecl(Idx.getASTIndex());
-  if (!Param->getType()->isIntegerType() && !Param->getType()->isCharType()) {
+  QualType ParamTy = getFunctionOrMethodParamType(D, Idx.getASTIndex());
+  if (!ParamTy->isIntegerType() && !ParamTy->isCharType()) {
     SourceLocation SrcLoc = AttrArg->getBeginLoc();
     S.Diag(SrcLoc, diag::err_attribute_integers_only)
-        << AI << Param->getSourceRange();
+        << AI << getFunctionOrMethodParamRange(D, Idx.getASTIndex());
     return false;
   }
   return true;
@@ -861,8 +861,10 @@ static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 2))
     return;
 
-  const auto *FD = cast<FunctionDecl>(D);
-  if (!FD->getReturnType()->isPointerType()) {
+  assert(isFunctionOrMethod(D) && hasFunctionProto(D));
+
+  QualType RetTy = getFunctionOrMethodResultType(D);
+  if (!RetTy->isPointerType()) {
     S.Diag(AL.getLoc(), diag::warn_attribute_return_pointers_only) << AL;
     return;
   }
@@ -872,7 +874,7 @@ static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Parameter indices are 1-indexed, hence Index=1
   if (!checkPositiveIntArgument(S, AL, SizeExpr, SizeArgNoVal, /*Idx=*/1))
     return;
-  if (!checkParamIsIntegerType(S, FD, AL, /*AttrArgNo=*/0))
+  if (!checkParamIsIntegerType(S, D, AL, /*AttrArgNo=*/0))
     return;
   ParamIdx SizeArgNo(SizeArgNoVal, D);
 
@@ -883,7 +885,7 @@ static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     // Parameter indices are 1-based, hence Index=2
     if (!checkPositiveIntArgument(S, AL, NumberExpr, Val, /*Idx=*/2))
       return;
-    if (!checkParamIsIntegerType(S, FD, AL, /*AttrArgNo=*/1))
+    if (!checkParamIsIntegerType(S, D, AL, /*AttrArgNo=*/1))
       return;
     NumberArgNo = ParamIdx(Val, D);
   }
@@ -5085,6 +5087,73 @@ static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) SYCLRegisterNumAttr(S.Context, AL, RegNo));
 }
 
+void Sema::AddSYCLIntelESimdVectorizeAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    if (ArgVal != 8 && ArgVal != 16 && ArgVal != 32) {
+      Diag(E->getExprLoc(), diag::err_sycl_esimd_vectorize_unsupported_value)
+          << CI;
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelESimdVectorizeAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context) SYCLIntelESimdVectorizeAttr(Context, CI, E));
+}
+
+SYCLIntelESimdVectorizeAttr *
+Sema::MergeSYCLIntelESimdVectorizeAttr(Decl *D,
+                                       const SYCLIntelESimdVectorizeAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelESimdVectorizeAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+  return ::new (Context) SYCLIntelESimdVectorizeAttr(Context, A, A.getValue());
+}
+
+static void handleSYCLIntelESimdVectorizeAttr(Sema &S, Decl *D,
+                                              const ParsedAttr &A) {
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
+
+  Expr *E = A.getArgAsExpr(0);
+  S.AddSYCLIntelESimdVectorizeAttr(D, A, E);
+}
+
 static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const auto *VD = cast<VarDecl>(D);
   if (VD->hasLocalStorage()) {
@@ -9105,6 +9174,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLRegisterNum:
     handleSYCLRegisterNumAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLIntelESimdVectorize:
+    handleSYCLIntelESimdVectorizeAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);
     break;
@@ -9281,10 +9353,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleVecTypeHint(S, D, AL);
     break;
   case ParsedAttr::AT_InitPriority:
-    if (S.Context.getTargetInfo().getTriple().isOSAIX())
-      llvm::report_fatal_error(
-          "'init_priority' attribute is not yet supported on AIX");
-    else
       handleInitPriorityAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Packed:

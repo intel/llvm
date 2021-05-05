@@ -825,6 +825,7 @@ constexpr chrono::year                                  operator ""y(unsigned lo
 
 #include <__config>
 #include <__availability>
+#include <compare>
 #include <ctime>
 #include <type_traits>
 #include <ratio>
@@ -2964,4 +2965,4 @@ _LIBCPP_END_NAMESPACE_FILESYSTEM
 
 _LIBCPP_POP_MACROS
 
-#endif  // _LIBCPP_CHRONO
+#endif // _LIBCPP_CHRONO

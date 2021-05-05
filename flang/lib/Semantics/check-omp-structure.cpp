@@ -127,11 +127,52 @@ private:
   std::map<std::string, std::int64_t> labelNamesandLevels_;
 };
 
+bool OmpStructureChecker::IsCloselyNestedRegion(const OmpDirectiveSet &set) {
+  // Definition of close nesting:
+  //
+  // `A region nested inside another region with no parallel region nested
+  // between them`
+  //
+  // Examples:
+  //   non-parallel construct 1
+  //    non-parallel construct 2
+  //      parallel construct
+  //        construct 3
+  // In the above example, construct 3 is NOT closely nested inside construct 1
+  // or 2
+  //
+  //   non-parallel construct 1
+  //    non-parallel construct 2
+  //        construct 3
+  // In the above example, construct 3 is closely nested inside BOTH construct 1
+  // and 2
+  //
+  // Algorithm:
+  // Starting from the parent context, Check in a bottom-up fashion, each level
+  // of the context stack. If we have a match for one of the (supplied)
+  // violating directives, `close nesting` is satisfied. If no match is there in
+  // the entire stack, `close nesting` is not satisfied. If at any level, a
+  // `parallel` region is found, `close nesting` is not satisfied.
+
+  if (CurrentDirectiveIsNested()) {
+    int index = dirContext_.size() - 2;
+    while (index != -1) {
+      if (set.test(dirContext_[index].directive)) {
+        return true;
+      } else if (llvm::omp::parallelSet.test(dirContext_[index].directive)) {
+        return false;
+      }
+      index--;
+    }
+  }
+  return false;
+}
+
 bool OmpStructureChecker::HasInvalidWorksharingNesting(
     const parser::CharBlock &source, const OmpDirectiveSet &set) {
   // set contains all the invalid closely nested directives
   // for the given directive (`source` here)
-  if (CurrentDirectiveIsNested() && set.test(GetContextParent().directive)) {
+  if (IsCloselyNestedRegion(set)) {
     context_.Say(source,
         "A worksharing region may not be closely nested inside a "
         "worksharing, explicit task, taskloop, critical, ordered, atomic, or "
@@ -353,8 +394,7 @@ void OmpStructureChecker::CheckIfDoOrderedClause(
     }
     // Other disallowed nestings, these directives do not support
     // ordered clause in them, so no need to check
-    else if (llvm::omp::nestedOrderedErrSet.test(
-                 GetContextParent().directive)) {
+    else if (IsCloselyNestedRegion(llvm::omp::nestedOrderedErrSet)) {
       context_.Say(blkDirective.source,
           "`ORDERED` region may not be closely nested inside of "
           "`CRITICAL`, `ORDERED`, explicit `TASK` or `TASKLOOP` region."_err_en_US);
@@ -422,10 +462,12 @@ void OmpStructureChecker::Leave(const parser::OpenMPDeclareSimdConstruct &) {
 
 void OmpStructureChecker::Enter(const parser::OpenMPDeclarativeAllocate &x) {
   const auto &dir{std::get<parser::Verbatim>(x.t)};
+  const auto &objectList{std::get<parser::OmpObjectList>(x.t)};
   PushContextAndClauseSets(dir.source, llvm::omp::Directive::OMPD_allocate);
+  CheckIsVarPartOfAnotherVar(dir.source, objectList);
 }
 
-void OmpStructureChecker::Leave(const parser::OpenMPDeclarativeAllocate &) {
+void OmpStructureChecker::Leave(const parser::OpenMPDeclarativeAllocate &x) {
   dirContext_.pop_back();
 }
 
@@ -444,7 +486,10 @@ void OmpStructureChecker::Leave(const parser::OpenMPDeclareTargetConstruct &) {
 
 void OmpStructureChecker::Enter(const parser::OpenMPExecutableAllocate &x) {
   const auto &dir{std::get<parser::Verbatim>(x.t)};
+  const auto &objectList{std::get<std::optional<parser::OmpObjectList>>(x.t)};
   PushContextAndClauseSets(dir.source, llvm::omp::Directive::OMPD_allocate);
+  if (objectList)
+    CheckIsVarPartOfAnotherVar(dir.source, *objectList);
 }
 
 void OmpStructureChecker::Leave(const parser::OpenMPExecutableAllocate &) {
@@ -731,6 +776,7 @@ CHECK_SIMPLE_CLAUSE(Init, OMPC_init)
 CHECK_SIMPLE_CLAUSE(Use, OMPC_use)
 CHECK_SIMPLE_CLAUSE(Novariants, OMPC_novariants)
 CHECK_SIMPLE_CLAUSE(Nocontext, OMPC_nocontext)
+CHECK_SIMPLE_CLAUSE(Filter, OMPC_filter)
 
 CHECK_REQ_SCALAR_INT_CLAUSE(Allocator, OMPC_allocator)
 CHECK_REQ_SCALAR_INT_CLAUSE(Grainsize, OMPC_grainsize)
@@ -913,26 +959,37 @@ void OmpStructureChecker::Enter(const parser::OmpClause::Ordered &x) {
 
 void OmpStructureChecker::Enter(const parser::OmpClause::Shared &x) {
   CheckAllowed(llvm::omp::Clause::OMPC_shared);
-  CheckIsVarPartOfAnotherVar(x.v);
+  CheckIsVarPartOfAnotherVar(GetContext().clauseSource, x.v);
 }
 void OmpStructureChecker::Enter(const parser::OmpClause::Private &x) {
   CheckAllowed(llvm::omp::Clause::OMPC_private);
-  CheckIsVarPartOfAnotherVar(x.v);
+  CheckIsVarPartOfAnotherVar(GetContext().clauseSource, x.v);
   CheckIntentInPointer(x.v, llvm::omp::Clause::OMPC_private);
 }
 
 void OmpStructureChecker::CheckIsVarPartOfAnotherVar(
-    const parser::OmpObjectList &objList) {
+    const parser::CharBlock &source, const parser::OmpObjectList &objList) {
+
   for (const auto &ompObject : objList.v) {
-    if ((parser::Unwrap<parser::StructureComponent>(ompObject)) ||
-        (parser::Unwrap<parser::ArrayElement>(ompObject))) {
-      context_.Say(GetContext().clauseSource,
-          "A variable that is part of another variable (as an "
-          "array or structure element)"
-          " cannot appear in a PRIVATE or SHARED clause."_err_en_US);
-    }
+    std::visit(
+        common::visitors{
+            [&](const parser::Designator &designator) {
+              if (std::get_if<parser::DataRef>(&designator.u)) {
+                if ((parser::Unwrap<parser::StructureComponent>(ompObject)) ||
+                    (parser::Unwrap<parser::ArrayElement>(ompObject))) {
+                  context_.Say(source,
+                      "A variable that is part of another variable (as an "
+                      "array or structure element)"
+                      " cannot appear in a PRIVATE or SHARED clause or on the ALLOCATE directive."_err_en_US);
+                }
+              }
+            },
+            [&](const parser::Name &name) {},
+        },
+        ompObject.u);
   }
 }
+
 void OmpStructureChecker::Enter(const parser::OmpClause::Firstprivate &x) {
   CheckAllowed(llvm::omp::Clause::OMPC_firstprivate);
   CheckIsLoopIvPartOfClause(llvmOmpClause::OMPC_firstprivate, x.v);

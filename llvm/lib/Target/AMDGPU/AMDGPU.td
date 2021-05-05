@@ -229,7 +229,7 @@ def FeatureNSAtoVMEMBug : SubtargetFeature<"nsa-to-vmem-bug",
 def FeatureFlatSegmentOffsetBug : SubtargetFeature<"flat-segment-offset-bug",
   "HasFlatSegmentOffsetBug",
   "true",
-  "GFX10 bug, inst_offset ignored in flat segment"
+  "GFX10 bug where inst_offset is ignored when flat instructions access global memory"
 >;
 
 def FeatureOffset3fBug : SubtargetFeature<"offset-3f-bug",
@@ -1320,6 +1320,10 @@ def Has64BitDPP : Predicate<"Subtarget->has64BitDPP()">,
 
 def HasPackedFP32Ops : Predicate<"Subtarget->hasPackedFP32Ops()">,
   AssemblerPredicate<(all_of FeaturePackedFP32Ops)>;
+
+def HasFmaakFmamkF32Insts :
+  Predicate<"Subtarget->hasFmaakFmamkF32Insts()">,
+  AssemblerPredicate<(any_of FeatureGFX10Insts)>;
 
 def HasExtendedImageInsts : Predicate<"Subtarget->hasExtendedImageInsts()">,
   AssemblerPredicate<(all_of FeatureExtendedImageInsts)>;

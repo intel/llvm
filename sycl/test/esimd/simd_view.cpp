@@ -7,18 +7,6 @@
 
 using namespace sycl::INTEL::gpu;
 
-bool test_simd_view_ctors() __attribute__((sycl_device)) {
-  simd<int, 16> v0(0, 1);
-
-  region1d_t<int, 4, 1> r0(4);
-  simd_view<simd<int, 16>, region1d_t<int, 4, 1>> ref0(v0, r0);
-  simd_view<simd<int, 16>, region1d_t<int, 4, 1>> ref1(std::move(ref0));
-  simd_view<simd<int, 16>, region1d_t<int, 4, 1>> ref2(
-      std::move(v0.select<4, 1>(8)));
-
-  return (ref0[0] == 4) && (ref1[1] == 5) && (ref2[0] == 8);
-}
-
 bool test_simd_view_bin_ops() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;
   simd<int, 16> v1 = 2;

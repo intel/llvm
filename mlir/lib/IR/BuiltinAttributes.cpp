@@ -79,11 +79,9 @@ static bool dictionaryAttrSort(ArrayRef<NamedAttribute> value,
       storage.assign(value.begin(), value.end());
     // Check to see they are sorted already.
     bool isSorted = llvm::is_sorted(value);
-    if (!isSorted) {
-      // If not, do a general sort.
+    // If not, do a general sort.
+    if (!isSorted)
       llvm::array_pod_sort(storage.begin(), storage.end());
-      value = storage;
-    }
     return !isSorted;
   }
   return false;
@@ -355,7 +353,8 @@ bool ElementsAttr::isValidIndex(ArrayRef<uint64_t> index) const {
   // Verify that all of the indices are within the shape dimensions.
   auto shape = type.getShape();
   return llvm::all_of(llvm::seq<int>(0, rank), [&](int i) {
-    return static_cast<int64_t>(index[i]) < shape[i];
+    int64_t dim = static_cast<int64_t>(index[i]);
+    return 0 <= dim && dim < shape[i];
   });
 }
 
@@ -695,7 +694,7 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
            "expected attribute value to have element type");
     if (eltType.isa<FloatType>())
       intVal = values[i].cast<FloatAttr>().getValue().bitcastToAPInt();
-    else if (eltType.isa<IntegerType>())
+    else if (eltType.isa<IntegerType, IndexType>())
       intVal = values[i].cast<IntegerAttr>().getValue();
     else
       llvm_unreachable("unexpected element type");

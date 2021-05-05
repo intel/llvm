@@ -770,11 +770,20 @@ static void GetProgModelBuiltinFctOverloads(
       Context.getDefaultCallingConvention(false, false, true));
   PI.Variadic = IsVariadic;
 
+  // Do not attempt to create any FunctionTypes if there are no return types,
+  // which happens when a type belongs to a disabled extension.
+  if (RetTypes.size() == 0)
+    return;
+
   // Create FunctionTypes for each (gen)type.
   for (unsigned IGenType = 0; IGenType < GenTypeMaxCnt; IGenType++) {
     SmallVector<QualType, 5> ArgList;
 
     for (unsigned A = 0; A < ArgTypes.size(); A++) {
+      // Bail out if there is an argument that has no available types.
+      if (ArgTypes[A].size() == 0)
+        return;
+
       // Builtins such as "max" have an "sgentype" argument that represents
       // the corresponding scalar type of a gentype.  The number of gentypes
       // must be a multiple of the number of sgentypes.
@@ -789,6 +798,20 @@ static void GetProgModelBuiltinFctOverloads(
   }
 }
 
+template <typename ProgModel>
+static bool isVersionInMask(const LangOptions &O, unsigned Mask);
+template <>
+bool isVersionInMask<OpenCLBuiltin>(const LangOptions &LO, unsigned Mask) {
+  return isOpenCLVersionContainedInMask(LO, Mask);
+}
+
+// SPIRV Builtins are always permitted, since all builtins are 'SPIRV_ALL'. We
+// have no corresponding language option to check, so we always include them.
+template <>
+bool isVersionInMask<SPIRVBuiltin>(const LangOptions &LO, unsigned Mask) {
+  return true;
+}
+
 /// When trying to resolve a function name, if ProgModel::isBuiltin() returns a
 /// non-null <Index, Len> pair, then the name is referencing a
 /// builtin function.  Add all candidate signatures to the LookUpResult.
@@ -800,8 +823,8 @@ static void GetProgModelBuiltinFctOverloads(
 /// \param Len (in) The signature list has Len elements.
 template <typename ProgModel>
 static void InsertBuiltinDeclarationsFromTable(
-    Sema &S, unsigned BuiltinSetVersion, LookupResult &LR, IdentifierInfo *II,
-    const unsigned FctIndex, const unsigned Len,
+    Sema &S, LookupResult &LR, IdentifierInfo *II, const unsigned FctIndex,
+    const unsigned Len,
     std::function<void(const typename ProgModel::BuiltinStruct &,
                        FunctionDecl &)>
         ProgModelFinalizer) {
@@ -812,19 +835,16 @@ static void InsertBuiltinDeclarationsFromTable(
   // as argument.  Only meaningful for generic types, otherwise equals 1.
   unsigned GenTypeMaxCnt;
 
+  ASTContext &Context = S.Context;
+
   for (unsigned SignatureIndex = 0; SignatureIndex < Len; SignatureIndex++) {
     const typename ProgModel::BuiltinStruct &Builtin =
         ProgModel::BuiltinTable[FctIndex + SignatureIndex];
-    ASTContext &Context = S.Context;
 
-    // Ignore this BIF if its version does not match the language options.
-    if (BuiltinSetVersion) {
-      if (BuiltinSetVersion < Builtin.MinVersion)
-        continue;
-      if ((Builtin.MaxVersion != 0) &&
-          (BuiltinSetVersion >= Builtin.MaxVersion))
-        continue;
-    }
+    // Ignore this builtin function if it is not available in the currently
+    // selected language version.
+    if (!isVersionInMask<ProgModel>(Context.getLangOpts(), Builtin.Versions))
+      continue;
 
     // Ignore this builtin function if it carries an extension macro that is
     // not defined. This indicates that the extension is not supported by the
@@ -863,28 +883,24 @@ static void InsertBuiltinDeclarationsFromTable(
     DeclContext *Parent = Context.getTranslationUnitDecl();
     FunctionDecl *NewBuiltin;
 
-    for (unsigned Index = 0; Index < GenTypeMaxCnt; Index++) {
+    for (const auto &FTy : FunctionList) {
       NewBuiltin = FunctionDecl::Create(
-          Context, Parent, Loc, Loc, II, FunctionList[Index],
-          /*TInfo=*/nullptr, SC_Extern, false,
-          FunctionList[Index]->isFunctionProtoType());
+          Context, Parent, Loc, Loc, II, FTy, /*TInfo=*/nullptr, SC_Extern,
+          false, FTy->isFunctionProtoType());
       NewBuiltin->setImplicit();
 
       // Create Decl objects for each parameter, adding them to the
       // FunctionDecl.
-      if (const FunctionProtoType *FP =
-              dyn_cast<FunctionProtoType>(FunctionList[Index])) {
-        SmallVector<ParmVarDecl *, 16> ParmList;
-        for (unsigned IParm = 0, e = FP->getNumParams(); IParm != e; ++IParm) {
-          ParmVarDecl *Parm = ParmVarDecl::Create(
-              Context, NewBuiltin, SourceLocation(), SourceLocation(), nullptr,
-              FP->getParamType(IParm),
-              /*TInfo=*/nullptr, SC_None, nullptr);
-          Parm->setScopeInfo(0, IParm);
-          ParmList.push_back(Parm);
-        }
-        NewBuiltin->setParams(ParmList);
+      const auto *FP = cast<FunctionProtoType>(FTy);
+      SmallVector<ParmVarDecl *, 4> ParmList;
+      for (unsigned IParm = 0, e = FP->getNumParams(); IParm != e; ++IParm) {
+        ParmVarDecl *Parm = ParmVarDecl::Create(
+            Context, NewBuiltin, SourceLocation(), SourceLocation(),
+            nullptr, FP->getParamType(IParm), nullptr, SC_None, nullptr);
+        Parm->setScopeInfo(0, IParm);
+        ParmList.push_back(Parm);
       }
+      NewBuiltin->setParams(ParmList);
 
       // Add function attributes.
       if (Builtin.IsPure)
@@ -932,11 +948,8 @@ bool Sema::LookupBuiltin(LookupResult &R) {
       if (getLangOpts().OpenCL && getLangOpts().DeclareOpenCLBuiltins) {
         auto Index = OpenCLBuiltin::isBuiltin(II->getName());
         if (Index.first) {
-          unsigned OpenCLVersion = Context.getLangOpts().OpenCLVersion;
-          if (Context.getLangOpts().OpenCLCPlusPlus)
-            OpenCLVersion = 200;
           InsertBuiltinDeclarationsFromTable<OpenCLBuiltin>(
-              *this, OpenCLVersion, R, II, Index.first - 1, Index.second,
+              *this, R, II, Index.first - 1, Index.second,
               [this](const OpenCLBuiltin::BuiltinStruct &OpenCLBuiltin,
                      FunctionDecl &NewOpenCLBuiltin) {
                 if (!this->getLangOpts().OpenCLCPlusPlus)
@@ -952,7 +965,7 @@ bool Sema::LookupBuiltin(LookupResult &R) {
         auto Index = SPIRVBuiltin::isBuiltin(II->getName());
         if (Index.first) {
           InsertBuiltinDeclarationsFromTable<SPIRVBuiltin>(
-              *this, 0, R, II, Index.first - 1, Index.second,
+              *this, R, II, Index.first - 1, Index.second,
               [this](const SPIRVBuiltin::BuiltinStruct &,
                      FunctionDecl &NewBuiltin) {
                 if (!this->getLangOpts().CPlusPlus)

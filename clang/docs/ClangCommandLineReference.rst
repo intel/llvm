@@ -2997,6 +2997,10 @@ Enable threadgroup split execution mode (AMDGPU only)
 
 Specify XNACK mode (AMDGPU only)
 
+.. option:: -munsafe-fp-atomics, -mno-unsafe-fp-atomics
+
+Enable generation of unsafe floating point atomic instructions. May generate more efficient code, but may not respect rounding and denormal modes, and may give incorrect results for certain memory destinations. (AMDGPU only)
+
 ARM
 ---
 .. option:: -faapcs-bitfield-load
@@ -3541,6 +3545,8 @@ Embed source text in DWARF debug sections
 Set DWARF fission mode to either 'split' or 'single'
 
 .. option:: -gstrict-dwarf, -gno-strict-dwarf
+
+Restrict DWARF features to those defined in the specified version, avoiding features from later versions.
 
 .. option:: -gz=<arg>, -gz (equivalent to -gz=zlib)
 

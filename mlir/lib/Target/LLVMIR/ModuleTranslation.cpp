@@ -275,11 +275,11 @@ void mlir::LLVM::detail::connectPHINodes(Region &region,
 }
 
 /// Sort function blocks topologically.
-llvm::SetVector<Block *>
+SetVector<Block *>
 mlir::LLVM::detail::getTopologicallySortedBlocks(Region &region) {
   // For each block that has not been visited yet (i.e. that has no
   // predecessors), add it to the list as well as its successors.
-  llvm::SetVector<Block *> blocks;
+  SetVector<Block *> blocks;
   for (Block &b : region) {
     if (blocks.count(&b) == 0) {
       llvm::ReversePostOrderTraversal<Block *> traversal(&b);
@@ -303,13 +303,20 @@ llvm::Value *mlir::LLVM::detail::createIntrinsicCall(
 /// Given a single MLIR operation, create the corresponding LLVM IR operation
 /// using the `builder`.
 LogicalResult
-ModuleTranslation::convertOperation(Operation &opInst,
+ModuleTranslation::convertOperation(Operation &op,
                                     llvm::IRBuilderBase &builder) {
-  if (failed(iface.convertOperation(&opInst, builder, *this)))
-    return opInst.emitError("unsupported or non-LLVM operation: ")
-           << opInst.getName();
+  const LLVMTranslationDialectInterface *opIface = iface.getInterfaceFor(&op);
+  if (!opIface)
+    return op.emitError("cannot be converted to LLVM IR: missing "
+                        "`LLVMTranslationDialectInterface` registration for "
+                        "dialect for op: ")
+           << op.getName();
 
-  return convertDialectAttributes(&opInst);
+  if (failed(opIface->convertOperation(&op, builder, *this)))
+    return op.emitError("LLVM Translation failed for operation: ")
+           << op.getName();
+
+  return convertDialectAttributes(&op);
 }
 
 /// Convert block to LLVM IR.  Unless `ignoreArguments` is set, emit PHI nodes
@@ -399,6 +406,9 @@ LogicalResult ModuleTranslation::convertGlobals() {
         shouldDropGlobalInitializer(linkage, cst) ? nullptr : cst,
         op.sym_name(),
         /*InsertBefore=*/nullptr, llvm::GlobalValue::NotThreadLocal, addrSpace);
+
+    if (op.unnamed_addr().hasValue())
+      var->setUnnamedAddr(convertUnnamedAddrToLLVM(*op.unnamed_addr()));
 
     globalsMapping.try_emplace(op, var);
   }

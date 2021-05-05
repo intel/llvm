@@ -28,6 +28,9 @@ public:
   specialization_id &operator=(specialization_id &&rhs) = delete;
 
 private:
+  template <bundle_state State> friend class kernel_bundle;
+  T getDefaultValue() const noexcept { return MDefaultValue; }
+
   T MDefaultValue;
 };
 

@@ -62,7 +62,6 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/IR/Statepoint.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
@@ -92,13 +91,14 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "gvn"
 
-STATISTIC(NumGVNInstr,  "Number of instructions deleted");
-STATISTIC(NumGVNLoad,   "Number of loads deleted");
-STATISTIC(NumGVNPRE,    "Number of instructions PRE'd");
+STATISTIC(NumGVNInstr, "Number of instructions deleted");
+STATISTIC(NumGVNLoad, "Number of loads deleted");
+STATISTIC(NumGVNPRE, "Number of instructions PRE'd");
 STATISTIC(NumGVNBlocks, "Number of blocks merged");
-STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
+STATISTIC(NumGVNSimpl, "Number of instructions simplified");
 STATISTIC(NumGVNEqProp, "Number of equalities propagated");
-STATISTIC(NumPRELoad,   "Number of loads PRE'd");
+STATISTIC(NumPRELoad, "Number of loads PRE'd");
+STATISTIC(NumPRELoopLoad, "Number of loop loads PRE'd");
 
 STATISTIC(IsValueFullyAvailableInBlockNumSpeculationsMax,
           "Number of blocks speculated as available in "
@@ -397,9 +397,7 @@ void GVN::ValueTable::add(Value *V, uint32_t num) {
 }
 
 uint32_t GVN::ValueTable::lookupOrAddCall(CallInst *C) {
-  // The gc.relocate specific check is to simplify migration under PR49607, and
-  // is to be removed once complete.
-  if (AA->doesNotAccessMemory(C) || isa<GCRelocateInst>(C)) {
+  if (AA->doesNotAccessMemory(C)) {
     Expression exp = createExpr(C);
     uint32_t e = assignExpNewValueNum(exp).first;
     valueNumbering[C] = e;
@@ -1134,6 +1132,81 @@ void GVN::AnalyzeLoadAvailability(LoadInst *Load, LoadDepVect &Deps,
          "post condition violation");
 }
 
+void GVN::eliminatePartiallyRedundantLoad(
+    LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
+    MapVector<BasicBlock *, Value *> &AvailableLoads) {
+  for (const auto &AvailableLoad : AvailableLoads) {
+    BasicBlock *UnavailableBlock = AvailableLoad.first;
+    Value *LoadPtr = AvailableLoad.second;
+
+    auto *NewLoad =
+        new LoadInst(Load->getType(), LoadPtr, Load->getName() + ".pre",
+                     Load->isVolatile(), Load->getAlign(), Load->getOrdering(),
+                     Load->getSyncScopeID(), UnavailableBlock->getTerminator());
+    NewLoad->setDebugLoc(Load->getDebugLoc());
+    if (MSSAU) {
+      auto *MSSA = MSSAU->getMemorySSA();
+      // Get the defining access of the original load or use the load if it is a
+      // MemoryDef (e.g. because it is volatile). The inserted loads are
+      // guaranteed to load from the same definition.
+      auto *LoadAcc = MSSA->getMemoryAccess(Load);
+      auto *DefiningAcc =
+          isa<MemoryDef>(LoadAcc) ? LoadAcc : LoadAcc->getDefiningAccess();
+      auto *NewAccess = MSSAU->createMemoryAccessInBB(
+          NewLoad, DefiningAcc, NewLoad->getParent(),
+          MemorySSA::BeforeTerminator);
+      if (auto *NewDef = dyn_cast<MemoryDef>(NewAccess))
+        MSSAU->insertDef(NewDef, /*RenameUses=*/true);
+      else
+        MSSAU->insertUse(cast<MemoryUse>(NewAccess), /*RenameUses=*/true);
+    }
+
+    // Transfer the old load's AA tags to the new load.
+    AAMDNodes Tags;
+    Load->getAAMetadata(Tags);
+    if (Tags)
+      NewLoad->setAAMetadata(Tags);
+
+    if (auto *MD = Load->getMetadata(LLVMContext::MD_invariant_load))
+      NewLoad->setMetadata(LLVMContext::MD_invariant_load, MD);
+    if (auto *InvGroupMD = Load->getMetadata(LLVMContext::MD_invariant_group))
+      NewLoad->setMetadata(LLVMContext::MD_invariant_group, InvGroupMD);
+    if (auto *RangeMD = Load->getMetadata(LLVMContext::MD_range))
+      NewLoad->setMetadata(LLVMContext::MD_range, RangeMD);
+    if (auto *AccessMD = Load->getMetadata(LLVMContext::MD_access_group))
+      if (LI &&
+          LI->getLoopFor(Load->getParent()) == LI->getLoopFor(UnavailableBlock))
+        NewLoad->setMetadata(LLVMContext::MD_access_group, AccessMD);
+
+    // We do not propagate the old load's debug location, because the new
+    // load now lives in a different BB, and we want to avoid a jumpy line
+    // table.
+    // FIXME: How do we retain source locations without causing poor debugging
+    // behavior?
+
+    // Add the newly created load.
+    ValuesPerBlock.push_back(
+        AvailableValueInBlock::get(UnavailableBlock, NewLoad));
+    MD->invalidateCachedPointerInfo(LoadPtr);
+    LLVM_DEBUG(dbgs() << "GVN INSERTED " << *NewLoad << '\n');
+  }
+
+  // Perform PHI construction.
+  Value *V = ConstructSSAForLoadSet(Load, ValuesPerBlock, *this);
+  Load->replaceAllUsesWith(V);
+  if (isa<PHINode>(V))
+    V->takeName(Load);
+  if (Instruction *I = dyn_cast<Instruction>(V))
+    I->setDebugLoc(Load->getDebugLoc());
+  if (V->getType()->isPtrOrPtrVectorTy())
+    MD->invalidateCachedPointerInfo(V);
+  markInstructionForDeletion(Load);
+  ORE->emit([&]() {
+    return OptimizationRemark(DEBUG_TYPE, "LoadPRE", Load)
+           << "load eliminated by PRE";
+  });
+}
+
 bool GVN::PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
                          UnavailBlkVect &UnavailableBlocks) {
   // Okay, we have *some* definitions of the value.  This means that the value
@@ -1352,9 +1425,9 @@ bool GVN::PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
   // and using PHI construction to get the value in the other predecessors, do
   // it.
   LLVM_DEBUG(dbgs() << "GVN REMOVING PRE LOAD: " << *Load << '\n');
-  LLVM_DEBUG(if (!NewInsts.empty()) dbgs()
-             << "INSERTED " << NewInsts.size() << " INSTS: " << *NewInsts.back()
-             << '\n');
+  LLVM_DEBUG(if (!NewInsts.empty()) dbgs() << "INSERTED " << NewInsts.size()
+                                           << " INSTS: " << *NewInsts.back()
+                                           << '\n');
 
   // Assign value numbers to the new instructions.
   for (Instruction *I : NewInsts) {
@@ -1370,77 +1443,86 @@ bool GVN::PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
     VN.lookupOrAdd(I);
   }
 
-  for (const auto &PredLoad : PredLoads) {
-    BasicBlock *UnavailablePred = PredLoad.first;
-    Value *LoadPtr = PredLoad.second;
+  eliminatePartiallyRedundantLoad(Load, ValuesPerBlock, PredLoads);
+  ++NumPRELoad;
+  return true;
+}
 
-    auto *NewLoad =
-        new LoadInst(Load->getType(), LoadPtr, Load->getName() + ".pre",
-                     Load->isVolatile(), Load->getAlign(), Load->getOrdering(),
-                     Load->getSyncScopeID(), UnavailablePred->getTerminator());
-    NewLoad->setDebugLoc(Load->getDebugLoc());
-    if (MSSAU) {
-      auto *MSSA = MSSAU->getMemorySSA();
-      // Get the defining access of the original load or use the load if it is a
-      // MemoryDef (e.g. because it is volatile). The inserted loads are
-      // guaranteed to load from the same definition.
-      auto *LoadAcc = MSSA->getMemoryAccess(Load);
-      auto *DefiningAcc =
-          isa<MemoryDef>(LoadAcc) ? LoadAcc : LoadAcc->getDefiningAccess();
-      auto *NewAccess = MSSAU->createMemoryAccessInBB(
-          NewLoad, DefiningAcc, NewLoad->getParent(),
-          MemorySSA::BeforeTerminator);
-      if (auto *NewDef = dyn_cast<MemoryDef>(NewAccess))
-        MSSAU->insertDef(NewDef, /*RenameUses=*/true);
-      else
-        MSSAU->insertUse(cast<MemoryUse>(NewAccess), /*RenameUses=*/true);
-    }
+bool GVN::performLoopLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
+                             UnavailBlkVect &UnavailableBlocks) {
+  if (!LI)
+    return false;
 
-    // Transfer the old load's AA tags to the new load.
-    AAMDNodes Tags;
-    Load->getAAMetadata(Tags);
-    if (Tags)
-      NewLoad->setAAMetadata(Tags);
+  const Loop *L = LI->getLoopFor(Load->getParent());
+  // TODO: Generalize to other loop blocks that dominate the latch.
+  if (!L || L->getHeader() != Load->getParent())
+    return false;
 
-    if (auto *MD = Load->getMetadata(LLVMContext::MD_invariant_load))
-      NewLoad->setMetadata(LLVMContext::MD_invariant_load, MD);
-    if (auto *InvGroupMD = Load->getMetadata(LLVMContext::MD_invariant_group))
-      NewLoad->setMetadata(LLVMContext::MD_invariant_group, InvGroupMD);
-    if (auto *RangeMD = Load->getMetadata(LLVMContext::MD_range))
-      NewLoad->setMetadata(LLVMContext::MD_range, RangeMD);
-    if (auto *AccessMD = Load->getMetadata(LLVMContext::MD_access_group))
-      if (LI &&
-          LI->getLoopFor(Load->getParent()) == LI->getLoopFor(UnavailablePred))
-        NewLoad->setMetadata(LLVMContext::MD_access_group, AccessMD);
+  BasicBlock *Preheader = L->getLoopPreheader();
+  BasicBlock *Latch = L->getLoopLatch();
+  if (!Preheader || !Latch)
+    return false;
 
-    // We do not propagate the old load's debug location, because the new
-    // load now lives in a different BB, and we want to avoid a jumpy line
-    // table.
-    // FIXME: How do we retain source locations without causing poor debugging
-    // behavior?
+  Value *LoadPtr = Load->getPointerOperand();
+  // Must be available in preheader.
+  if (!L->isLoopInvariant(LoadPtr))
+    return false;
 
-    // Add the newly created load.
-    ValuesPerBlock.push_back(AvailableValueInBlock::get(UnavailablePred,
-                                                        NewLoad));
-    MD->invalidateCachedPointerInfo(LoadPtr);
-    LLVM_DEBUG(dbgs() << "GVN INSERTED " << *NewLoad << '\n');
+  // We plan to hoist the load to preheader without introducing a new fault.
+  // In order to do it, we need to prove that we cannot side-exit the loop
+  // once loop header is first entered before execution of the load.
+  if (ICF->isDominatedByICFIFromSameBlock(Load))
+    return false;
+
+  BasicBlock *LoopBlock = nullptr;
+  for (auto *Blocker : UnavailableBlocks) {
+    // Blockers from outside the loop are handled in preheader.
+    if (!L->contains(Blocker))
+      continue;
+
+    // Only allow one loop block. Loop header is not less frequently executed
+    // than each loop block, and likely it is much more frequently executed. But
+    // in case of multiple loop blocks, we need extra information (such as block
+    // frequency info) to understand whether it is profitable to PRE into
+    // multiple loop blocks.
+    if (LoopBlock)
+      return false;
+
+    // Do not sink into inner loops. This may be non-profitable.
+    if (L != LI->getLoopFor(Blocker))
+      return false;
+
+    // Blocks that dominate the latch execute on every single iteration, maybe
+    // except the last one. So PREing into these blocks doesn't make much sense
+    // in most cases. But the blocks that do not necessarily execute on each
+    // iteration are sometimes much colder than the header, and this is when
+    // PRE is potentially profitable.
+    if (DT->dominates(Blocker, Latch))
+      return false;
+
+    // Make sure that the terminator itself doesn't clobber.
+    if (Blocker->getTerminator()->mayWriteToMemory())
+      return false;
+
+    LoopBlock = Blocker;
   }
 
-  // Perform PHI construction.
-  Value *V = ConstructSSAForLoadSet(Load, ValuesPerBlock, *this);
-  Load->replaceAllUsesWith(V);
-  if (isa<PHINode>(V))
-    V->takeName(Load);
-  if (Instruction *I = dyn_cast<Instruction>(V))
-    I->setDebugLoc(Load->getDebugLoc());
-  if (V->getType()->isPtrOrPtrVectorTy())
-    MD->invalidateCachedPointerInfo(V);
-  markInstructionForDeletion(Load);
-  ORE->emit([&]() {
-    return OptimizationRemark(DEBUG_TYPE, "LoadPRE", Load)
-           << "load eliminated by PRE";
-  });
-  ++NumPRELoad;
+  if (!LoopBlock)
+    return false;
+
+  // Make sure the memory at this pointer cannot be freed, therefore we can
+  // safely reload from it after clobber.
+  if (LoadPtr->canBeFreed())
+    return false;
+
+  // TODO: Support critical edge splitting if blocker has more than 1 successor.
+  MapVector<BasicBlock *, Value *> AvailableLoads;
+  AvailableLoads[LoopBlock] = LoadPtr;
+  AvailableLoads[Preheader] = LoadPtr;
+
+  LLVM_DEBUG(dbgs() << "GVN REMOVING PRE LOOP LOAD: " << *Load << '\n');
+  eliminatePartiallyRedundantLoad(Load, ValuesPerBlock, AvailableLoads);
+  ++NumPRELoopLoad;
   return true;
 }
 
@@ -1541,7 +1623,8 @@ bool GVN::processNonLocalLoad(LoadInst *Load) {
   if (!isLoadInLoopPREEnabled() && LI && LI->getLoopFor(Load->getParent()))
     return Changed;
 
-  return Changed || PerformLoadPRE(Load, ValuesPerBlock, UnavailableBlocks);
+  return Changed || PerformLoadPRE(Load, ValuesPerBlock, UnavailableBlocks) ||
+         performLoopLoadPRE(Load, ValuesPerBlock, UnavailableBlocks);
 }
 
 static bool impliesEquivalanceIfTrue(CmpInst* Cmp) {
@@ -1605,9 +1688,7 @@ static bool hasUsersIn(Value *V, BasicBlock *BB) {
   return false;
 }
 
-bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
-  assert(IntrinsicI->getIntrinsicID() == Intrinsic::assume &&
-         "This function can only be called with llvm.assume intrinsic");
+bool GVN::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
   Value *V = IntrinsicI->getArgOperand(0);
 
   if (ConstantInt *Cond = dyn_cast<ConstantInt>(V)) {
@@ -2173,6 +2254,9 @@ bool GVN::processInstruction(Instruction *I) {
   if (Value *V = SimplifyInstruction(I, {DL, TLI, DT, AC})) {
     bool Changed = false;
     if (!I->use_empty()) {
+      // Simplification can cause a special instruction to become not special.
+      // For example, devirtualization to a willreturn function.
+      ICF->removeUsersOf(I);
       I->replaceAllUsesWith(V);
       Changed = true;
     }
@@ -2188,9 +2272,8 @@ bool GVN::processInstruction(Instruction *I) {
     }
   }
 
-  if (IntrinsicInst *IntrinsicI = dyn_cast<IntrinsicInst>(I))
-    if (IntrinsicI->getIntrinsicID() == Intrinsic::assume)
-      return processAssumeIntrinsic(IntrinsicI);
+  if (auto *Assume = dyn_cast<AssumeInst>(I))
+    return processAssumeIntrinsic(Assume);
 
   if (LoadInst *Load = dyn_cast<LoadInst>(I)) {
     if (processLoad(Load))
@@ -2468,6 +2551,8 @@ bool GVN::performScalarPREInsertion(Instruction *Instr, BasicBlock *Pred,
   Instr->insertBefore(Pred->getTerminator());
   Instr->setName(Instr->getName() + ".pre");
   Instr->setDebugLoc(Instr->getDebugLoc());
+
+  ICF->insertInstructionTo(Instr, Pred);
 
   unsigned Num = VN.lookupOrAdd(Instr);
   VN.add(Instr, Num);

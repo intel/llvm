@@ -26,7 +26,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -467,9 +467,8 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
         C->setName(Inst->getName());
         C->insertBefore(LoopEntryBranch);
 
-        if (auto *II = dyn_cast<IntrinsicInst>(C))
-          if (II->getIntrinsicID() == Intrinsic::assume)
-            AC->registerAssumption(II);
+        if (auto *II = dyn_cast<AssumeInst>(C))
+          AC->registerAssumption(II);
         // MemorySSA cares whether the cloned instruction was inserted or not, and
         // not whether it can be remapped to a simplified value.
         if (MSSAU)

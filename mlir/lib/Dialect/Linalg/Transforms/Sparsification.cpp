@@ -771,12 +771,14 @@ static Value genLoad(CodeGen &codegen, PatternRewriter &rewriter, Location loc,
     // extremely large offsets.
     Type etp = ptr.getType().cast<MemRefType>().getElementType();
     Value vload = genVectorLoad(codegen, rewriter, ptr, {s});
-    if (etp.getIntOrFloatBitWidth() < 32)
-      vload = rewriter.create<ZeroExtendIOp>(
-          loc, vload, vectorType(codegen, rewriter.getIntegerType(32)));
-    else if (etp.getIntOrFloatBitWidth() < 64)
-      vload = rewriter.create<ZeroExtendIOp>(
-          loc, vload, vectorType(codegen, rewriter.getIntegerType(64)));
+    if (!etp.isa<IndexType>()) {
+      if (etp.getIntOrFloatBitWidth() < 32)
+        vload = rewriter.create<ZeroExtendIOp>(
+            loc, vload, vectorType(codegen, rewriter.getIntegerType(32)));
+      else if (etp.getIntOrFloatBitWidth() < 64)
+        vload = rewriter.create<ZeroExtendIOp>(
+            loc, vload, vectorType(codegen, rewriter.getIntegerType(64)));
+    }
     return vload;
   }
   // For the scalar case, we simply zero extend narrower indices into 64-bit
@@ -837,11 +839,19 @@ static void genReductionEnd(Merger &merger, CodeGen &codegen,
   assert(codegen.curVecLength == 1);
   codegen.redVal = merger.exp(codegen.redExp).val = Value(); // end chain
   unsigned lhs = op.getNumShapedOperands() - 1;
-  if (red.getType().isa<VectorType>()) {
+  if (auto vtp = red.getType().dyn_cast<VectorType>()) {
     // TODO: assumes + reductions for now
+    StringAttr kind = rewriter.getStringAttr("add");
     Value ld = genTensorLoad(merger, codegen, rewriter, op, codegen.redExp);
-    red = rewriter.create<vector::ReductionOp>(
-        op.getLoc(), ld.getType(), rewriter.getStringAttr("add"), red, ld);
+    // Integer reductions don't accept an accumulator.
+    if (vtp.getElementType().isa<IntegerType>()) {
+      red = rewriter.create<vector::ReductionOp>(op.getLoc(), ld.getType(),
+                                                 kind, red, ValueRange{});
+      red = rewriter.create<AddIOp>(op.getLoc(), red, ld);
+    } else {
+      red = rewriter.create<vector::ReductionOp>(op.getLoc(), ld.getType(),
+                                                 kind, red, ld);
+    }
   }
   genTensorStore(merger, codegen, rewriter, op, lhs, red);
 }

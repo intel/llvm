@@ -2202,12 +2202,15 @@ static LogicalResult verifyTransferOp(Operation *op, ShapedType shapedType,
     return op->emitOpError(
         "requires source to be a memref or ranked tensor type");
   auto elementType = shapedType.getElementType();
+  DataLayout dataLayout = DataLayout::closest(op);
   if (auto vectorElementType = elementType.dyn_cast<VectorType>()) {
     // Memref or tensor has vector element type.
-    unsigned sourceVecSize = vectorElementType.getElementTypeBitWidth() *
-                             vectorElementType.getShape().back();
+    unsigned sourceVecSize =
+        dataLayout.getTypeSizeInBits(vectorElementType.getElementType()) *
+        vectorElementType.getShape().back();
     unsigned resultVecSize =
-        vectorType.getElementTypeBitWidth() * vectorType.getShape().back();
+        dataLayout.getTypeSizeInBits(vectorType.getElementType()) *
+        vectorType.getShape().back();
     if (resultVecSize % sourceVecSize != 0)
       return op->emitOpError(
           "requires the bitwidth of the minor 1-D vector to be an integral "
@@ -2226,8 +2229,9 @@ static LogicalResult verifyTransferOp(Operation *op, ShapedType shapedType,
   } else {
     // Memref or tensor has scalar element type.
     unsigned resultVecSize =
-        vectorType.getElementTypeBitWidth() * vectorType.getShape().back();
-    if (resultVecSize % elementType.getIntOrFloatBitWidth() != 0)
+        dataLayout.getTypeSizeInBits(vectorType.getElementType()) *
+        vectorType.getShape().back();
+    if (resultVecSize % dataLayout.getTypeSizeInBits(elementType) != 0)
       return op->emitOpError(
           "requires the bitwidth of the minor 1-D vector to be an integral "
           "multiple of the bitwidth of the source element type");
@@ -2295,8 +2299,27 @@ void TransferReadOp::build(OpBuilder &builder, OperationState &result,
   build(builder, result, vectorType, source, indices, permMap, inBounds);
 }
 
+/// Builder that does not provide a mask.
+void TransferReadOp::build(OpBuilder &builder, OperationState &result,
+                           Type vectorType, Value source, ValueRange indices,
+                           AffineMap permutationMap, Value padding,
+                           ArrayAttr inBounds) {
+  build(builder, result, vectorType, source, indices, permutationMap, padding,
+        /*mask=*/Value(), inBounds);
+}
+
+/// Builder that does not provide a mask.
+void TransferReadOp::build(OpBuilder &builder, OperationState &result,
+                           Type vectorType, Value source, ValueRange indices,
+                           AffineMapAttr permutationMap, Value padding,
+                           ArrayAttr inBounds) {
+  build(builder, result, vectorType, source, indices, permutationMap, padding,
+        /*mask=*/Value(), inBounds);
+}
+
 static void printTransferAttrs(OpAsmPrinter &p, VectorTransferOpInterface op) {
-  SmallVector<StringRef, 2> elidedAttrs;
+  SmallVector<StringRef, 3> elidedAttrs;
+  elidedAttrs.push_back(TransferReadOp::getOperandSegmentSizeAttr());
   if (op.permutation_map().isMinorIdentity())
     elidedAttrs.push_back(op.getPermutationMapAttrName());
   bool elideInBounds = true;
@@ -2316,27 +2339,36 @@ static void printTransferAttrs(OpAsmPrinter &p, VectorTransferOpInterface op) {
 static void print(OpAsmPrinter &p, TransferReadOp op) {
   p << op.getOperationName() << " " << op.source() << "[" << op.indices()
     << "], " << op.padding();
+  if (op.mask())
+    p << ", " << op.mask();
   printTransferAttrs(p, cast<VectorTransferOpInterface>(op.getOperation()));
   p << " : " << op.getShapedType() << ", " << op.getVectorType();
 }
 
 static ParseResult parseTransferReadOp(OpAsmParser &parser,
                                        OperationState &result) {
+  auto &builder = parser.getBuilder();
   llvm::SMLoc typesLoc;
   OpAsmParser::OperandType sourceInfo;
   SmallVector<OpAsmParser::OperandType, 8> indexInfo;
   OpAsmParser::OperandType paddingInfo;
   SmallVector<Type, 2> types;
+  OpAsmParser::OperandType maskInfo;
   // Parsing with support for paddingValue.
   if (parser.parseOperand(sourceInfo) ||
       parser.parseOperandList(indexInfo, OpAsmParser::Delimiter::Square) ||
-      parser.parseComma() || parser.parseOperand(paddingInfo) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseComma() || parser.parseOperand(paddingInfo))
+    return failure();
+  ParseResult hasMask = parser.parseOptionalComma();
+  if (hasMask.succeeded()) {
+    parser.parseOperand(maskInfo);
+  }
+  if (parser.parseOptionalAttrDict(result.attributes) ||
       parser.getCurrentLocation(&typesLoc) || parser.parseColonTypeList(types))
     return failure();
   if (types.size() != 2)
     return parser.emitError(typesLoc, "requires two types");
-  auto indexType = parser.getBuilder().getIndexType();
+  auto indexType = builder.getIndexType();
   auto shapedType = types[0].dyn_cast<ShapedType>();
   if (!shapedType || !shapedType.isa<MemRefType, RankedTensorType>())
     return parser.emitError(typesLoc, "requires memref or ranked tensor type");
@@ -2349,12 +2381,21 @@ static ParseResult parseTransferReadOp(OpAsmParser &parser,
     auto permMap = getTransferMinorIdentityMap(shapedType, vectorType);
     result.attributes.set(permutationAttrName, AffineMapAttr::get(permMap));
   }
-  return failure(
-      parser.resolveOperand(sourceInfo, shapedType, result.operands) ||
+  if (parser.resolveOperand(sourceInfo, shapedType, result.operands) ||
       parser.resolveOperands(indexInfo, indexType, result.operands) ||
       parser.resolveOperand(paddingInfo, shapedType.getElementType(),
-                            result.operands) ||
-      parser.addTypeToList(vectorType, result.types));
+                            result.operands))
+    return failure();
+  if (hasMask.succeeded()) {
+    auto maskType = VectorType::get(vectorType.getShape(), builder.getI1Type());
+    if (parser.resolveOperand(maskInfo, maskType, result.operands))
+      return failure();
+  }
+  result.addAttribute(
+      TransferReadOp::getOperandSegmentSizeAttr(),
+      builder.getI32VectorAttr({1, static_cast<int32_t>(indexInfo.size()), 1,
+                                static_cast<int32_t>(hasMask.succeeded())}));
+  return parser.addTypeToList(vectorType, result.types);
 }
 
 static LogicalResult verify(TransferReadOp op) {
@@ -2471,7 +2512,35 @@ static LogicalResult foldTransferInBoundsAttribute(TransferOp op) {
   return success();
 }
 
+///  ```
+///  %w0 = vector.transfer_write %v0, %arg0[%c1, %c0] {in_bounds = [true, true]}
+///    : vector<1x4xf32>, tensor<4x4xf32>
+///  %0 = vector.transfer_read %w0[%c1, %c0], %cf0 {in_bounds = [true, true]}
+///    : tensor<4x4xf32>, vector<1x4xf32>
+///  ```
+///  -> Folds into
+///  ```
+///  %v0
+///  ```
+static Value foldRAW(TransferReadOp readOp) {
+  if (!readOp.getShapedType().isa<RankedTensorType>())
+    return {};
+  auto defWrite = readOp.source().getDefiningOp<vector::TransferWriteOp>();
+  while (defWrite) {
+    if (checkSameValueRAW(defWrite, readOp))
+      return defWrite.vector();
+    if (!isDisjointTransferIndices(
+            cast<VectorTransferOpInterface>(defWrite.getOperation()),
+            cast<VectorTransferOpInterface>(readOp.getOperation())))
+      break;
+    defWrite = defWrite.source().getDefiningOp<vector::TransferWriteOp>();
+  }
+  return {};
+}
+
 OpFoldResult TransferReadOp::fold(ArrayRef<Attribute>) {
+  if (Value vec = foldRAW(*this))
+    return vec;
   /// transfer_read(memrefcast) -> transfer_read
   if (succeeded(foldTransferInBoundsAttribute(*this)))
     return getResult();
@@ -2525,7 +2594,7 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
                             /*optional*/ ArrayAttr inBounds) {
   Type resultType = source.getType().dyn_cast<RankedTensorType>();
   build(builder, result, resultType, vector, source, indices, permutationMap,
-        inBounds);
+        /*mask=*/Value(), inBounds);
 }
 
 void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
@@ -2534,24 +2603,39 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
                             /*optional*/ ArrayAttr inBounds) {
   Type resultType = source.getType().dyn_cast<RankedTensorType>();
   build(builder, result, resultType, vector, source, indices, permutationMap,
-        inBounds);
+        /*mask=*/Value(), inBounds);
+}
+
+void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
+                            Value vector, Value source, ValueRange indices,
+                            AffineMap permutationMap, /*optional*/ Value mask,
+                            /*optional*/ ArrayAttr inBounds) {
+  Type resultType = source.getType().dyn_cast<RankedTensorType>();
+  build(builder, result, resultType, vector, source, indices, permutationMap,
+        mask, inBounds);
 }
 
 static ParseResult parseTransferWriteOp(OpAsmParser &parser,
                                         OperationState &result) {
+  auto &builder = parser.getBuilder();
   llvm::SMLoc typesLoc;
   OpAsmParser::OperandType vectorInfo, sourceInfo;
   SmallVector<OpAsmParser::OperandType, 8> indexInfo;
   SmallVector<Type, 2> types;
+  OpAsmParser::OperandType maskInfo;
   if (parser.parseOperand(vectorInfo) || parser.parseComma() ||
       parser.parseOperand(sourceInfo) ||
-      parser.parseOperandList(indexInfo, OpAsmParser::Delimiter::Square) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseOperandList(indexInfo, OpAsmParser::Delimiter::Square))
+    return failure();
+  ParseResult hasMask = parser.parseOptionalComma();
+  if (hasMask.succeeded() && parser.parseOperand(maskInfo))
+    return failure();
+  if (parser.parseOptionalAttrDict(result.attributes) ||
       parser.getCurrentLocation(&typesLoc) || parser.parseColonTypeList(types))
     return failure();
   if (types.size() != 2)
     return parser.emitError(typesLoc, "requires two types");
-  auto indexType = parser.getBuilder().getIndexType();
+  auto indexType = builder.getIndexType();
   VectorType vectorType = types[0].dyn_cast<VectorType>();
   if (!vectorType)
     return parser.emitError(typesLoc, "requires vector type");
@@ -2564,17 +2648,28 @@ static ParseResult parseTransferWriteOp(OpAsmParser &parser,
     auto permMap = getTransferMinorIdentityMap(shapedType, vectorType);
     result.attributes.set(permutationAttrName, AffineMapAttr::get(permMap));
   }
-  return failure(
-      parser.resolveOperand(vectorInfo, vectorType, result.operands) ||
+  if (parser.resolveOperand(vectorInfo, vectorType, result.operands) ||
       parser.resolveOperand(sourceInfo, shapedType, result.operands) ||
-      parser.resolveOperands(indexInfo, indexType, result.operands) ||
-      (shapedType.isa<RankedTensorType>() &&
-       parser.addTypeToList(shapedType, result.types)));
+      parser.resolveOperands(indexInfo, indexType, result.operands))
+    return failure();
+  if (hasMask.succeeded()) {
+    auto maskType = VectorType::get(vectorType.getShape(), builder.getI1Type());
+    if (parser.resolveOperand(maskInfo, maskType, result.operands))
+      return failure();
+  }
+  result.addAttribute(
+      TransferWriteOp::getOperandSegmentSizeAttr(),
+      builder.getI32VectorAttr({1, 1, static_cast<int32_t>(indexInfo.size()),
+                                static_cast<int32_t>(hasMask.succeeded())}));
+  return failure(shapedType.isa<RankedTensorType>() &&
+                 parser.addTypeToList(shapedType, result.types));
 }
 
 static void print(OpAsmPrinter &p, TransferWriteOp op) {
   p << op.getOperationName() << " " << op.vector() << ", " << op.source() << "["
     << op.indices() << "]";
+  if (op.mask())
+    p << ", " << op.mask();
   printTransferAttrs(p, cast<VectorTransferOpInterface>(op.getOperation()));
   p << " : " << op.getVectorType() << ", " << op.getShapedType();
 }
@@ -2587,6 +2682,11 @@ static LogicalResult verify(TransferWriteOp op) {
 
   if (llvm::size(op.indices()) != shapedType.getRank())
     return op.emitOpError("requires ") << shapedType.getRank() << " indices";
+
+  // We do not allow broadcast dimensions on TransferWriteOps for the moment,
+  // as the semantics is unclear. This can be revisited later if necessary.
+  if (op.hasBroadcastDim())
+    return op.emitOpError("should not have broadcast dimensions");
 
   if (failed(verifyTransferOp(op.getOperation(), shapedType, vectorType,
                               permutationMap,
@@ -2657,9 +2757,46 @@ static LogicalResult foldReadInitWrite(TransferWriteOp write,
   return success();
 }
 
+static bool checkSameValueWAR(vector::TransferReadOp read,
+                              vector::TransferWriteOp write) {
+  return read.source() == write.source() && read.indices() == write.indices() &&
+         read.permutation_map() == write.permutation_map() &&
+         read.getVectorType() == write.getVectorType() && !read.mask() &&
+         !write.mask();
+}
+/// Fold transfer_write write after read:
+/// ```
+///    %t0 = ...
+///    %v = vector.transfer_read %t0[%c0...] :
+///      tensor<static_sizesxf32>, vector<static_sizesxf32>
+///    %t1 = vector.transfer_write %v, %t0[%c0...] :
+///      vector<static_sizesxf32>, tensor<static_sizesxf32>
+/// ```
+///
+/// into:
+///
+/// ```
+///    %t0
+/// ```
+static LogicalResult foldWAR(TransferWriteOp write,
+                             SmallVectorImpl<OpFoldResult> &results) {
+  if (!write.source().getType().isa<RankedTensorType>())
+    return failure();
+  auto read = write.vector().getDefiningOp<vector::TransferReadOp>();
+  if (!read)
+    return failure();
+
+  if (!checkSameValueWAR(read, write))
+    return failure();
+  results.push_back(read.source());
+  return success();
+}
+
 LogicalResult TransferWriteOp::fold(ArrayRef<Attribute> operands,
                                     SmallVectorImpl<OpFoldResult> &results) {
   if (succeeded(foldReadInitWrite(*this, operands, results)))
+    return success();
+  if (succeeded(foldWAR(*this, results)))
     return success();
   if (succeeded(foldTransferInBoundsAttribute(*this)))
     return success();
@@ -2676,6 +2813,67 @@ void TransferWriteOp::getEffects(
   if (getShapedType().isa<MemRefType>())
     effects.emplace_back(MemoryEffects::Write::get(), source(),
                          SideEffects::DefaultResource::get());
+}
+
+namespace {
+/// Remove dead transfer write from the SSA chain so that it an be eliminated by
+/// DCE
+/// ```
+///  %w0 = vector.transfer_write %v0, %arg0[%c1, %c0] {in_bounds = [true, true]}
+///    : vector<1x4xf32>, tensor<4x4xf32>
+///  %w1 = vector.transfer_write %v0, %w0[%c2, %c0] {in_bounds = [true, true]}
+///    : vector<1x4xf32>, tensor<4x4xf32>
+///  %w2 = vector.transfer_write %v1, %w1[%c1, %c0] {in_bounds = [true, true]}
+///    : vector<1x4xf32>, tensor<4x4xf32>
+/// ```
+///
+/// into:
+///
+/// ```
+///  %w0 = vector.transfer_write %v0, %arg0[%c1, %c0] {in_bounds = [true, true]}
+///    : vector<1x4xf32>, tensor<4x4xf32>
+///  %w1 = vector.transfer_write %v0, %arg0[%c2, %c0] {in_bounds = [true, true]}
+///    : vector<1x4xf32>, tensor<4x4xf32>
+///  %w2 = vector.transfer_write %v1, %w1[%c1, %c0] {in_bounds = [true, true]}
+///    : vector<1x4xf32>, tensor<4x4xf32>
+/// ```
+///
+/// `%w0 = vector.transfer_write` op will be removed by DCE if it doesn't have
+/// any other uses.
+class foldWAW final : public OpRewritePattern<TransferWriteOp> {
+public:
+  using OpRewritePattern<TransferWriteOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(TransferWriteOp writeOp,
+                                PatternRewriter &rewriter) const override {
+    if (!writeOp.getShapedType().isa<RankedTensorType>())
+      return failure();
+    vector::TransferWriteOp writeToModify = writeOp;
+
+    auto defWrite = writeOp.source().getDefiningOp<vector::TransferWriteOp>();
+    while (defWrite) {
+      if (checkSameValueWAW(writeOp, defWrite)) {
+        writeToModify.sourceMutable().assign(defWrite.source());
+        return success();
+      }
+      if (!isDisjointTransferIndices(
+              cast<VectorTransferOpInterface>(defWrite.getOperation()),
+              cast<VectorTransferOpInterface>(writeOp.getOperation())))
+        break;
+      // If the previous write op doesn't have any other use we an safely look
+      // at the previous store to see if it can be removed.
+      if (!defWrite->hasOneUse())
+        break;
+      writeToModify = defWrite;
+      defWrite = defWrite.source().getDefiningOp<vector::TransferWriteOp>();
+    }
+    return failure();
+  }
+};
+} // namespace
+
+void TransferWriteOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                  MLIRContext *context) {
+  results.add<foldWAW>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3170,9 +3368,10 @@ static LogicalResult verify(BitCastOp op) {
       return op.emitOpError("dimension size mismatch at: ") << i;
   }
 
-  if (sourceVectorType.getElementTypeBitWidth() *
+  DataLayout dataLayout = DataLayout::closest(op);
+  if (dataLayout.getTypeSizeInBits(sourceVectorType.getElementType()) *
           sourceVectorType.getShape().back() !=
-      resultVectorType.getElementTypeBitWidth() *
+      dataLayout.getTypeSizeInBits(resultVectorType.getElementType()) *
           resultVectorType.getShape().back())
     return op.emitOpError(
         "source/result bitwidth of the minor 1-D vectors must be equal");

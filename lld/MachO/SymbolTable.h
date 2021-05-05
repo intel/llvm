@@ -52,7 +52,7 @@ public:
   Symbol *addLazy(StringRef name, ArchiveFile *file,
                   const llvm::object::Archive::Symbol &sym);
 
-  Defined *addSynthetic(StringRef name, InputSection *, uint32_t value,
+  Defined *addSynthetic(StringRef name, InputSection *, uint64_t value,
                         bool isPrivateExtern, bool includeInSymtab);
 
   ArrayRef<Symbol *> getSymbols() const { return symVector; }
@@ -60,7 +60,7 @@ public:
   Symbol *find(StringRef name) { return find(llvm::CachedHashStringRef(name)); }
 
 private:
-  std::pair<Symbol *, bool> insert(StringRef name);
+  std::pair<Symbol *, bool> insert(StringRef name, const InputFile *);
   llvm::DenseMap<llvm::CachedHashStringRef, int> symMap;
   std::vector<Symbol *> symVector;
 };

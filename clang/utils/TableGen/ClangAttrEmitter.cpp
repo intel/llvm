@@ -2896,7 +2896,7 @@ void EmitClangAttrList(RecordKeeper &Records, raw_ostream &OS) {
     if (AttrHasPragmaSpelling(Attr))
       PragmaAttrs.push_back(Attr);
 
-    if (Attr->getValueAsBit("HasCustomTypeTransform"))
+    if (Attr->getValueAsBit("IsStmtDependent"))
       DependentStmtAttrs.push_back(Attr);
 
     // Place it in the hierarchy.
