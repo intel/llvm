@@ -34,6 +34,7 @@ macro(add_sycl_unittest test_dirname link_variant)
   target_include_directories(${test_dirname}
     PRIVATE SYSTEM
       ${sycl_inc_dir}
+      ${pi_include_dir}
       ${SYCL_SOURCE_DIR}/source/
       ${SYCL_SOURCE_DIR}/unittests/
     )
@@ -92,8 +93,10 @@ macro(add_sycl_unittest_with_device test_dirname link_variant)
   endif()
 
   if ("${link_variant}" MATCHES "OBJECT")
+    # TODO PI integration should be fixed
+    # once add_sycl_executable supports target_link_libraries
     add_sycl_executable(${test_dirname}
-      OPTIONS -nolibsycl ${COMMON_OPTS} ${LLVM_PTHREAD_LIB} ${TERMINFO_LIB}
+      OPTIONS -nolibsycl ${COMMON_OPTS} ${LLVM_PTHREAD_LIB} ${TERMINFO_LIB} -I "${pi_include_dir}"
       SOURCES ${ARGN} $<TARGET_OBJECTS:${sycl_obj_target}>
       LIBRARIES gtest_main gtest LLVMSupport LLVMTestingSupport OpenCL ${EXTRA_LIBS}
       DEPENDANTS SYCLUnitTests)

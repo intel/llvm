@@ -18,7 +18,8 @@
 #ifndef PI_LEVEL_ZERO_HPP
 #define PI_LEVEL_ZERO_HPP
 
-#include <CL/sycl/detail/pi.h>
+#include <pi/pi.h>
+
 #include <atomic>
 #include <cassert>
 #include <cstring>

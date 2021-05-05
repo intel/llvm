@@ -16,8 +16,8 @@ set_target_properties(
 )
 
 add_library(pi_cuda SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-  "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
+  "${pi_include_dir}/pi/pi.h"
+  "${pi_include_dir}/pi/pi.hpp"
   "pi_cuda.hpp"
   "pi_cuda.cpp"
 )
@@ -29,6 +29,7 @@ set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(pi_cuda
   PRIVATE
     ${sycl_inc_dir}
+    ${pi_include_dir}
 )
 
 target_link_libraries(pi_cuda

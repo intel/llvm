@@ -10,10 +10,10 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 
 #include <atomic>
 #include <cassert>

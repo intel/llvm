@@ -18,29 +18,30 @@
 #ifndef PI_CUDA_HPP
 #define PI_CUDA_HPP
 
-#include "CL/sycl/detail/pi.h"
+#include <pi/pi.h>
+
 #include <array>
 #include <atomic>
 #include <cassert>
 #include <cstring>
 #include <cuda.h>
+#include <functional>
 #include <limits>
+#include <mutex>
 #include <numeric>
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include <functional>
-#include <mutex>
 
 extern "C" {
 
 /// \cond INGORE_BLOCK_IN_DOXYGEN
-pi_result cuda_piContextRetain(pi_context );
-pi_result cuda_piContextRelease(pi_context );
-pi_result cuda_piDeviceRelease(pi_device );
-pi_result cuda_piDeviceRetain(pi_device );
-pi_result cuda_piProgramRetain(pi_program );
-pi_result cuda_piProgramRelease(pi_program );
+pi_result cuda_piContextRetain(pi_context);
+pi_result cuda_piContextRelease(pi_context);
+pi_result cuda_piDeviceRelease(pi_device);
+pi_result cuda_piDeviceRetain(pi_device);
+pi_result cuda_piProgramRetain(pi_program);
+pi_result cuda_piProgramRelease(pi_program);
 pi_result cuda_piQueueRelease(pi_queue);
 pi_result cuda_piQueueRetain(pi_queue);
 pi_result cuda_piMemRetain(pi_mem);
@@ -511,7 +512,7 @@ struct _pi_program {
 
   pi_result set_binary(const char *binary, size_t binarySizeInBytes);
 
-  pi_result build_program(const char* build_options);
+  pi_result build_program(const char *build_options);
 
   pi_context get_context() const { return context_; };
 
@@ -632,8 +633,7 @@ struct _pi_kernel {
              pi_context ctxt)
       : _pi_kernel{func, nullptr, name, program, ctxt} {}
 
-  ~_pi_kernel()
-  {
+  ~_pi_kernel() {
     cuda_piProgramRelease(program_);
     cuda_piContextRelease(context_);
   }

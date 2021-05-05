@@ -15,6 +15,7 @@
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
+#include <detail/plugin_sycl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -9,9 +9,9 @@
 #include <detail/spec_constant_impl.hpp>
 
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/exception.hpp>
+#include <pi/pi.h>
 
 #include <cstring>
 #include <iostream>

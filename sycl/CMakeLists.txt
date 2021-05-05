@@ -94,20 +94,31 @@ option(SYCL_BUILD_PI_CUDA
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
-set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
+set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/libpi/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
+
+# Location of PI files
+set(pi_include_dir ${CMAKE_CURRENT_SOURCE_DIR}/libpi/include)
+set(pi_source_dir ${CMAKE_CURRENT_SOURCE_DIR}/libpi/src)
+
+# Copy SYCL headers from sources to build directory
+add_custom_target(pi-headers ALL
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${pi_include_dir} ${SYCL_INCLUDE_BUILD_DIR}
+  COMMENT "Copying PI headers ...")
 
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers ALL
 COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
 COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
 COMMENT "Copying SYCL headers ...")
+add_dependencies(sycl-headers pi-headers)
 
 # Copy SYCL headers from sources to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR}/sycl COMPONENT sycl-headers)
+install(DIRECTORY "${pi_include_dir}/." DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR} COMPONENT sycl-headers)
 
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
@@ -213,7 +224,7 @@ option(SYCL_INCLUDE_TESTS
   ${LLVM_INCLUDE_TESTS})
 
 # Plugin Library
-add_subdirectory( plugins )
+include(libpi.cmake)
 
 add_subdirectory(tools)
 

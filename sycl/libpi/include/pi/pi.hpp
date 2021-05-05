@@ -17,7 +17,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.h>
+#include <pi/pi.h>
 
 #include <cassert>
 #include <cstdint>
@@ -41,7 +41,7 @@ namespace detail {
 
 enum class PiApiKind {
 #define _PI_API(api) api,
-#include <CL/sycl/detail/pi.def>
+#include <pi/pi.def>
 };
 class plugin;
 namespace pi {
@@ -162,7 +162,7 @@ template <PiApiKind PiApiOffset> struct PiFuncInfo {};
       return MPlugin.PiFunctionTable.api;                                      \
     }                                                                          \
   };
-#include <CL/sycl/detail/pi.def>
+#include <pi/pi.def>
 
 /// Emits an XPTI trace before a PI API call is made
 /// \param FName The name of the PI API call

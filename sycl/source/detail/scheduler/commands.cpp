@@ -782,7 +782,6 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   Stream << " Link : " << this->MLinkedAllocaCmd << "\\n";
   Stream << "\"];" << std::endl;
 
-
   for (const auto &Dep : MDeps) {
     if (Dep.MDepCommand == nullptr)
       continue;
@@ -919,7 +918,6 @@ cl_int ReleaseCommand::enqueueImp() {
     // 2. Host allocation should be released if host allocation is "leader".
     // 3. Device alloca in the pair should be in active state in order to be
     //    correctly released.
-
 
     // There is no actual memory allocation if a host alloca command is created
     // being linked to a device allocation.
@@ -2044,15 +2042,16 @@ cl_int ExecCGCommand::enqueueImp() {
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
     }
     std::vector<interop_handler::ReqToMem> ReqMemObjs;
-    // Extract the Mem Objects for all Requirements, to ensure they are available if
-    // a user ask for them inside the interop task scope
-    const auto& HandlerReq = ExecInterop->MRequirements;
-    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement* Req) {
-      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
-      interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
-      ReqMemObjs.emplace_back(ReqToMem);
-    });
+    // Extract the Mem Objects for all Requirements, to ensure they are
+    // available if a user ask for them inside the interop task scope
+    const auto &HandlerReq = ExecInterop->MRequirements;
+    std::for_each(
+        std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {
+          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+          auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+          interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
+          ReqMemObjs.emplace_back(ReqToMem);
+        });
 
     std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
     interop_handler InteropHandler(std::move(ReqMemObjs), MQueue);

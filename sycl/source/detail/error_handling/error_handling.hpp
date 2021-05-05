@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/pi.h>
 #include <detail/device_impl.hpp>
+#include <pi/pi.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -65,6 +65,7 @@ function(add_sycl_rt_library LIB_NAME)
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
       "${sycl_inc_dir}"
+      "${pi_include_dir}"
   )
   #TODO: Remove dependency on icd loader and opencl headers.
   target_link_libraries(${LIB_OBJ_NAME}
@@ -112,7 +113,7 @@ set(SYCL_SOURCES
     "detail/builtins_integer.cpp"
     "detail/builtins_math.cpp"
     "detail/builtins_relational.cpp"
-    "detail/pi.cpp"
+    "${pi_source_dir}/pi.cpp"
     "detail/common.cpp"
     "detail/config.cpp"
     "detail/context_impl.cpp"
@@ -172,8 +173,8 @@ set(SYCL_SOURCES
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
-    "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
-    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
+    "$<$<PLATFORM_ID:Windows>:${pi_source_dir}/windows_pi.cpp>"
+    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:${pi_source_dir}/posix_pi.cpp>"
 )
 
 if (MSVC)

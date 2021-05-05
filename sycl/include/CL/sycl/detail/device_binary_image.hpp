@@ -8,7 +8,7 @@
 #pragma once
 
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 
 #include <memory>
 

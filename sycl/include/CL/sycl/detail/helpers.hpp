@@ -13,7 +13,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 
 #include <memory>

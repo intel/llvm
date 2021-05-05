@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/interop_handler.hpp>
 #include <detail/queue_impl.hpp>
 

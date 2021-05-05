@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.h>
+#include <pi/pi.h>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 

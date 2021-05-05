@@ -13,6 +13,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/plugin_sycl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

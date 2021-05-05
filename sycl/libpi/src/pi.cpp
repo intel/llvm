@@ -11,15 +11,15 @@
 ///
 /// \ingroup sycl_pi
 
-#include "context_impl.hpp"
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <detail/config.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/plugin.hpp>
+#include <pi/pi.hpp>
+#include <pi/plugin.hpp>
 
 #include <bitset>
 #include <cstdarg>

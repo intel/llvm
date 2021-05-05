@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>

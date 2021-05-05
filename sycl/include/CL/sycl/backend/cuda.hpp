@@ -13,6 +13,7 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/queue.hpp>
@@ -58,4 +59,4 @@ struct interop<backend::cuda, accessor<DataT, Dimensions, AccessMode,
 };
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

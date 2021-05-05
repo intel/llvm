@@ -17,6 +17,7 @@
 #include <CL/sycl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/plugin_sycl.hpp>
 
 #include <algorithm>
 #include <memory>

@@ -6,9 +6,9 @@
 //
 // ===--------------------------------------------------------------------=== //
 
+#include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/exception_list.hpp>
@@ -20,6 +20,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <pi/pi_cuda.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

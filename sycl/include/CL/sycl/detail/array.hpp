@@ -9,6 +9,8 @@
 #pragma once
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/exception.hpp>
+#include <pi/pi.h>
+
 #include <functional>
 #include <stdexcept>
 

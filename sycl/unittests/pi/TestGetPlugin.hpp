@@ -6,7 +6,7 @@
 
 #include "BackendString.hpp"
 #include <algorithm>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 #include <functional>
 
 namespace pi {

@@ -12,8 +12,8 @@
 
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <detail/plugin.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
+#include <detail/plugin_sycl.hpp>
 #include <pi_cuda.hpp>
 
 using namespace cl::sycl;

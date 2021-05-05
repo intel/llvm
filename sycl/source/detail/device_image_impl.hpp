@@ -10,14 +10,14 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
+#include <pi/pi.h>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 #include <algorithm>

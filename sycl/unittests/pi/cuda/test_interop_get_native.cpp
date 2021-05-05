@@ -13,6 +13,7 @@
 #include <CL/sycl/backend/cuda.hpp>
 #include <cuda.h>
 #include <iostream>
+#include <pi_cuda.hpp>
 
 using namespace cl::sycl;
 

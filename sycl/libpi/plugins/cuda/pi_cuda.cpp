@@ -11,9 +11,9 @@
 ///
 /// \ingroup sycl_pi_cuda
 
-#include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <pi/pi.hpp>
+#include <pi/pi_cuda.h>
 #include <pi_cuda.hpp>
 
 #include <algorithm>

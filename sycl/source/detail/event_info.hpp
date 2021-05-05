@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/plugin.hpp>
+#include <detail/plugin_sycl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

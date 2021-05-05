@@ -15,7 +15,7 @@
 /// \ingroup sycl_pi_ocl
 
 #include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/pi.h>
+#include <pi/pi.h>
 
 #include <algorithm>
 #include <cassert>

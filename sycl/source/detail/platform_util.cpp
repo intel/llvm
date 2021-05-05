@@ -9,6 +9,7 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/exception.hpp>
 #include <detail/platform_util.hpp>
+#include <pi/pi.h>
 
 #if defined(__SYCL_RT_OS_LINUX)
 #include <errno.h>
@@ -167,8 +168,8 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
   const char *PtrEnd = Ptr + NumBytes;
 
   // Set the pointer to the beginning of the current cache line.
-  Ptr = reinterpret_cast<const char *>(
-            reinterpret_cast<size_t>(Ptr) & CacheLineMask);
+  Ptr = reinterpret_cast<const char *>(reinterpret_cast<size_t>(Ptr) &
+                                       CacheLineMask);
   for (; Ptr < PtrEnd; Ptr += CacheLineSize) {
 #if defined(__SYCL_RT_OS_LINUX)
     __builtin_prefetch(Ptr);

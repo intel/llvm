@@ -1649,7 +1649,7 @@ struct _pi_plugin {
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;
-#include <CL/sycl/detail/pi.def>
+#include <pi/pi.def>
   } PiFunctionTable;
 };
 

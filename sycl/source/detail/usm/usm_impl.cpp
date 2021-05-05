@@ -9,7 +9,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/usm.hpp>
 #include <detail/queue_impl.hpp>
@@ -194,7 +194,7 @@ void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt) {
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q) {
   return aligned_alloc_host(Alignment, Size, Q.get_context());
-}  
+}
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
                            const context &Ctxt) {

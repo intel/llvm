@@ -11,13 +11,13 @@
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_id_impl.hpp"
 #include "detail/platform_impl.hpp"
-#include "detail/plugin.hpp"
 #include "detail/queue_impl.hpp"
 #include <CL/sycl/backend.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
+#include <pi/pi.h>
+#include <pi/plugin.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/kernel_bundle.hpp>

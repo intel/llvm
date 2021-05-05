@@ -13,6 +13,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
+#include <detail/plugin_sycl.hpp>
 
 #include <algorithm>
 #include <cstring>

@@ -9,7 +9,7 @@ add_sycl_unittest(PiTests OBJECT
 )
 
 add_dependencies(PiTests sycl)
-target_include_directories(PiTests PRIVATE SYSTEM ${sycl_inc_dir})
+target_include_directories(PiTests PRIVATE SYSTEM ${sycl_inc_dir} ${pi_include_dir})
 
 if(SYCL_BUILD_PI_CUDA)
     add_subdirectory(cuda)

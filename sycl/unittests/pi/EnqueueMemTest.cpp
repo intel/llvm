@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestGetPlugin.hpp"
-#include <CL/sycl/detail/pi.hpp>
-#include <detail/plugin.hpp>
+#include <CL/sycl/detail/pi_sycl.hpp>
+#include <detail/plugin_sycl.hpp>
 #include <gtest/gtest.h>
 
 using namespace cl::sycl;
