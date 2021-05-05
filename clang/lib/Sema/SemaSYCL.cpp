@@ -367,7 +367,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
             SYCLIntelNumSimdWorkItemsAttr, SYCLIntelSchedulerTargetFmaxMhzAttr,
             SYCLIntelNoGlobalWorkOffsetAttr, SYCLIntelMaxWorkGroupSizeAttr,
             IntelNamedSubGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-	    IntelReqdSubGroupSizeAttr, SYCLIntelFPGAInitiationIntervalAttr>(A);
+            IntelReqdSubGroupSizeAttr, SYCLIntelFPGAInitiationIntervalAttr>(A);
       });
     }
   }
