@@ -661,7 +661,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           Instruction *Inst = new LoadInst(SCTy, BitCast, "load", CI);
           Replacement = Inst;
 
-          if (IsNewSpecConstant)
+          if (IsNewSpecConstant && DefaultValue)
             DefaultsMetadata.push_back(generateSpecConstDefaultValueMetadata(
                 Inst, SymID, DefaultValue));
         } else {
