@@ -1335,7 +1335,11 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 // Return NULL if no such PI device found.
 pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
-  std::lock_guard<std::mutex> Lock(this->PiDevicesCacheMutex);
+  pi_result Res = populateDeviceCacheIfNeeded(Platform);
+  if (Res != PI_SUCCESS) {
+    return nullptr;
+  }
+
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
                          [&](std::unique_ptr<_pi_device> &D) {
                            return D.get()->ZeDevice == ZeDevice;
@@ -2029,6 +2033,9 @@ pi_result piDevicePartition(pi_device Device,
 
   if (OutDevices) {
     // TODO: Consider support for partitioning to <= total sub-devices.
+    // Currently supported partitioning (by affinity domain/numa) would always
+    // partition to all sub-devices.
+    //
     PI_ASSERT(NumDevices == Device->SubDevices.size(), PI_INVALID_VALUE);
 
     for (uint32_t I = 0; I < NumDevices; I++) {
@@ -2105,10 +2112,6 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
 
-  pi_result Res = populateDeviceCacheIfNeeded(Platform);
-  if (Res != PI_SUCCESS) {
-    return Res;
-  }
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
 
   // The SYCL spec requires that the set of devices must remain fixed for the
