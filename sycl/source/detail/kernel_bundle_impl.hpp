@@ -442,7 +442,11 @@ public:
     return SetInDevImg || MSpecConstValues.count(std::string{SpecName}) != 0;
   }
 
-  const device_image_plain *begin() const { return &MDeviceImages.front(); }
+  const device_image_plain *begin() const {
+    assert(!MDeviceImages.empty() && "MDeviceImages can't be empty");
+    // UB in case MDeviceImages is empty
+    return &MDeviceImages.front();
+  }
 
   const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
 
