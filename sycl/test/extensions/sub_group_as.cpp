@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
     });
   }
   // load() accepting raw pointers method
-  // CHECK-O0: define{{.*}}spir_func i32 {{.*}}cl4sycl6ONEAPI9sub_group4load{{.*}}addrspace(4)* %src)
+  // CHECK-O0: define{{.*}}spir_func i32 {{.*}}cl4sycl6ONEAPI9sub_group4load{{.*}}addrspace(4)* %
   // CHECK-O0: call spir_func i32 addrspace(3)* {{.*}}SYCL_GenericCastToPtrExplicit_ToLocal{{.*}}(i8 addrspace(4)*
   // CHECK-O0: call spir_func i32 {{.*}}sycl6ONEAPI9sub_group4load{{.*}}i32 addrspace(3)* %
   // CHECK-O0: call spir_func i32 addrspace(1)* {{.*}}SYCL_GenericCastToPtrExplicit_ToGlobal{{.*}}(i8 addrspace(4)*
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
   // CHECK-O0: call spir_func void {{.*}}assert
 
   // store() accepting raw pointers method
-  // CHECK-O0: define{{.*}}spir_func void {{.*}}cl4sycl6ONEAPI9sub_group5store{{.*}}i32 addrspace(4)* %dst
+  // CHECK-O0: define{{.*}}spir_func void {{.*}}cl4sycl6ONEAPI9sub_group5store{{.*}}i32 addrspace(4)* %
   // CHECK-O0: call spir_func i32 addrspace(3)* {{.*}}SYCL_GenericCastToPtrExplicit_ToLocal{{.*}}(i8 addrspace(4)*
   // CHECK-O0: call spir_func void {{.*}}cl4sycl6ONEAPI9sub_group5store{{.*}}, i32 addrspace(3)* %
   // CHECK-O0: call spir_func i32 addrspace(1)* {{.*}}SYCL_GenericCastToPtrExplicit_ToGlobal{{.*}}(i8 addrspace(4)*
