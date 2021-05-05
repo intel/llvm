@@ -98,10 +98,13 @@ struct ESIMDIntrinDesc {
     CONST_INT64,  // is an i64 constant
   };
 
-  enum GenXArgConversion {
-    NONE,  // no conversion
-    TO_I1, // convert vector of N-bit integer to 1-bit
-    TO_SI  // convert to 32-bit integer surface index
+  enum class GenXArgConversion : int16_t {
+    NONE,   // no conversion
+    TO_SI,  // convert to 32-bit integer surface index
+    TO_I1,  // convert vector of N-bit integer to 1-bit
+    TO_I8,  // convert vector of N-bit integer to 18-bit
+    TO_I16, // convert vector of N-bit integer to 16-bit
+    TO_I32, // convert vector of N-bit integer to 32-bit
   };
 
   // Denotes GenX intrinsic name suffix creation rule kind.
@@ -117,13 +120,13 @@ struct ESIMDIntrinDesc {
     GenXArgRuleKind Kind;
     union Info {
       struct {
-        int16_t CallArgNo; // SRC_CALL_ARG: source call arg num
-                           // UNDEF: source call arg num to get type from
-                           // -1 denotes return value
-        int16_t Conv;      // GenXArgConversion
+        int16_t CallArgNo;      // SRC_CALL_ARG: source call arg num
+                                // SRC_TMPL_ARG: source template arg num
+                                // UNDEF: source call arg num to get type from
+                                // -1 denotes return value
+        GenXArgConversion Conv; // GenXArgConversion
       } Arg;
       int NRemArgs;           // SRC_CALL_ALL: number of remaining args
-      unsigned int TmplArgNo; // SRC_TMPL_ARG: source template arg num
       unsigned int ArgConst;  // CONST_I16 OR CONST_I32: constant value
     } I;
   };
@@ -168,9 +171,38 @@ private:
     return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::Kind, {{N, {}}}};         \
   }
   DEF_ARG_RULE(l, SRC_CALL_ALL)
-  DEF_ARG_RULE(t, SRC_TMPL_ARG)
   DEF_ARG_RULE(u, UNDEF)
   DEF_ARG_RULE(nbs, NUM_BYTES)
+
+  static constexpr ESIMDIntrinDesc::ArgRule t(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule t1(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule t8(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I8}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule t16(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I16}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule t32(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I32}}};
+  }
 
   static constexpr ESIMDIntrinDesc::ArgRule a(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
@@ -474,32 +506,59 @@ static const T *castNodeImpl(const id::Node *N, id::Node::Kind K) {
   castNodeImpl<id::NodeKind>(NodeObj, id::Node::K##NodeKind)
 
 static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
-                              Type *&Ty, LLVMContext &Ctx) {
+                              Type *&Ty, LLVMContext &Ctx,
+                              ESIMDIntrinDesc::GenXArgConversion Conv =
+                                  ESIMDIntrinDesc::GenXArgConversion::NONE) {
+  // parseTemplateArg returns APInt with a certain bitsize
+  // This bitsize (primitive size in bits) is deduced by the following rules:
+  // If Conv is not None, then bitsize is taken from Conv
+  // If Conv is None and Arg is IntegerLiteral, then bitsize is taken from
+  // Arg size
+  // If Conv is None and Arg is BoolExpr or Enum, the bitsize falls back to 32
+
   const auto *Nm = castNode(FE->getName(), NameWithTemplateArgs);
   const auto *ArgsN = castNode(Nm->TemplateArgs, TemplateArgs);
   id::NodeArray Args = ArgsN->getParams();
   assert(N < Args.size() && "too few template arguments");
   id::StringView Val;
+  switch (Conv) {
+  case ESIMDIntrinDesc::GenXArgConversion::NONE:
+    // Default fallback case, if we cannot deduce bitsize
+    Ty = IntegerType::getInt32Ty(Ctx);
+    break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I1:
+    Ty = IntegerType::getInt1Ty(Ctx);
+    break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I8:
+    Ty = IntegerType::getInt8Ty(Ctx);
+    break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I16:
+    Ty = IntegerType::getInt16Ty(Ctx);
+    break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I32:
+  case ESIMDIntrinDesc::GenXArgConversion::TO_SI:
+    Ty = IntegerType::getInt32Ty(Ctx);
+    break;
+  }
 
   switch (Args[N]->getKind()) {
   case id::Node::KIntegerLiteral: {
     auto *ValL = castNode(Args[N], IntegerLiteral);
     const id::StringView &TyStr = ValL->getType();
-    Ty = TyStr.size() == 0 ? IntegerType::getInt32Ty(Ctx)
-                           : parsePrimitiveTypeString(
-                                 StringRef(TyStr.begin(), TyStr.size()), Ctx);
+    if (Conv == ESIMDIntrinDesc::GenXArgConversion::NONE && TyStr.size() != 0)
+      // Overwrite Ty with IntegerLiteral's size
+      Ty =
+          parsePrimitiveTypeString(StringRef(TyStr.begin(), TyStr.size()), Ctx);
     Val = ValL->getValue();
     break;
   }
   case id::Node::KBoolExpr: {
     auto *ValL = castNode(Args[N], BoolExpr);
-    Ty = IntegerType::getInt32Ty(Ctx);
     ValL->match([&Val](bool Value) { Value ? Val = "1" : Val = "0"; });
     break;
   }
   case id::Node::KEnumLiteral: {
     auto *CE = castNode(Args[N], EnumLiteral);
-    Ty = IntegerType::getInt32Ty(Ctx);
     Val = CE->getIntegerValue();
     break;
   }
@@ -971,7 +1030,8 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       break;
     case ESIMDIntrinDesc::GenXArgRuleKind::SRC_TMPL_ARG: {
       Type *Ty = nullptr;
-      APInt Val = parseTemplateArg(FE, Rule.I.TmplArgNo, Ty, CI.getContext());
+      APInt Val = parseTemplateArg(FE, Rule.I.Arg.CallArgNo, Ty,
+                                   CI.getContext(), Rule.I.Arg.Conv);
       Value *ArgVal = ConstantInt::get(
           Ty, static_cast<uint64_t>(Val.getSExtValue()), true /*signed*/);
       GenXArgs.push_back(ArgVal);
