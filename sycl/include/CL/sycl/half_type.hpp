@@ -51,7 +51,7 @@ constexpr uint16_t float2Half(const float &Val) {
 
   if (Val != 0) {
     if (AbsVal == std::numeric_limits<float>::infinity()) {
-      Exponent = 255;
+      Exponent = 0xff;
     } else if (std::isnan(AbsVal)) {
       Exponent = 0xff;
       // Change the first bit to 1 for NaN check below
@@ -141,9 +141,9 @@ constexpr uint16_t float2Half(const float &Val) {
   return Ret;
 }
 
-/*constexpr float half2Float(const uint16_t &Val) {
-  // Extract the sign from the bits
-  const uint32_t Sign = static_cast<uint32_t>(Val & 0x8000) << 16;
+constexpr float half2Float(const uint16_t &Val) {
+  // Extract the sign from the bits. It is 1 if the sign is negative
+  const uint32_t Sign = static_cast<uint32_t>(Val & 0x8000) >> 15;
   // Extract the exponent from the bits
   const uint8_t Exp16 = (Val & 0x7c00) >> 10;
   // Extract the fraction from the bits
@@ -157,7 +157,6 @@ constexpr uint16_t float2Half(const float &Val) {
   } else {
     Exp32 = static_cast<uint32_t>(Exp16) + 112;
   }
-
   // corner case: subnormal -> normal
   // The denormal number of FP16 can be represented by FP32, therefore we need
   // to recover the exponent and recalculate the fration.
@@ -174,41 +173,52 @@ constexpr uint16_t float2Half(const float &Val) {
 
   uint32_t Frac32 = Frac16 << 13;
 
-  // Compose the final FP32 binary
-  uint32_t Bits = 0;
+  if (__builtin_expect(Exp32 == 255, 0)){
+    if (Frac32 != 0)
+      return std::numeric_limits<float>::quiet_NaN();
+    else if (Sign == 0)
+      return std::numeric_limits<float>::infinity();
+    else if (Sign == 1)
+      return -1 * std::numeric_limits<float>::infinity();
+  }
+  if (__builtin_expect(Exp32 == 0 && Frac32 == 0, 0))
+    return 0.0f;
 
-  Bits |= Sign;
-  Bits |= (Exp32 << 23);
-  Bits |= Frac32;
-
+  // Compose the final float value
   float Result = 1.0f;
-  Result *= Sign;
   int ExpDiff = Exp32 - 127;
-  float Exp = 1;
-  float mult = 2;
+  // The exponent is 2 ^ Expdiff
+  float Exponent = 1.0f;
+
+  // Mult is the value by which the Exponent 
+  // will be multiplied abs(Expdiff) times
+  float Mult = 2.0f;
   if (ExpDiff < 0) {
     ExpDiff *= -1;
-    mult = 1/2;
+    Mult = 0.5f;
   }
   for (int i = 0; i < ExpDiff; i++) {
-    Exp *= mult;
+    Exponent *= Mult;
   }
-
-  mult = 1/2;
-  float Frac = 1;
+  // The Fractional part is multiplyed only by 
+  // negative degree of two
+  Mult = 0.5f;
+  float Fractional = 1.0f;
 
   for (int i = 0; i < 23; i++) {
-    bool b = (Bits >> (22 - i)) & 0x1;
-    if (b == 1)
-      Frac += mult;
-    mult *= 1/2;
+    bool bit = (Frac32 >> (22 - i)) & 0x1;
+    if (bit == 1)
+      Fractional += Mult;
+    Mult /= 2.0f;
   }
 
-  Result = Result * Exp * Frac;
-  //std::memcpy(&Result, &Bits, sizeof(Result));
+  Result = Result * Exponent * Fractional;
+  if (Sign == 1)
+    Result *= -1;
+
   return Result;
 }
-*/
+
 namespace host_half_impl {
 
 // This class is legacy and it is needed only to avoid breaking ABI
@@ -218,7 +228,6 @@ public:
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  //constexpr half(const float &rhs) : Buf(float2Half(rhs)) {}
   half(const float &rhs);
 
   half &operator=(const half &rhs) = default;
@@ -282,35 +291,47 @@ public:
 
   constexpr half_new(const float &rhs) : Buf(float2Half(rhs)) {}
 
-  half_new &operator=(const half_new &rhs) = default;
-
   // Operator +=, -=, *=, /=
-  half_new &operator+=(const half_new &rhs);
+  constexpr half_new &operator=(const half_new &rhs) = default;
 
-  half_new &operator-=(const half_new &rhs);
+  constexpr half_new &operator+=(const half_new &rhs) {
+    *this = operator float() + static_cast<float>(rhs);
+    return *this;
+  }
 
-  half_new &operator*=(const half_new &rhs);
+  constexpr half_new &operator-=(const half_new &rhs) {
+    *this = operator float() - static_cast<float>(rhs);
+    return *this;
+  }
 
-  half_new &operator/=(const half_new &rhs);
+  constexpr half_new &operator*=(const half_new &rhs) {
+    *this = operator float() * static_cast<float>(rhs);
+    return *this;
+  }
+
+  constexpr half_new &operator/=(const half_new &rhs) {
+    *this = operator float() / static_cast<float>(rhs);
+    return *this;
+  }
 
   // Operator ++, --
-  half_new &operator++() {
+  constexpr half_new &operator++() {
     *this += 1;
     return *this;
   }
 
-  half_new operator++(int) {
+  constexpr half_new operator++(int) {
     half_new ret(*this);
     operator++();
     return ret;
   }
 
-  half_new &operator--() {
+  constexpr half_new &operator--() {
     *this -= 1;
     return *this;
   }
 
-  half_new operator--(int) {
+  constexpr half_new operator--(int) {
     half_new ret(*this);
     operator--();
     return ret;
@@ -323,7 +344,7 @@ public:
   }
 
   // Operator float
-  operator float() const;
+  constexpr operator float() const { return half2Float(Buf); }
 
   template <typename Key> friend struct std::hash;
 
@@ -392,54 +413,54 @@ public:
 
   constexpr half(const float &rhs) : Data(rhs) {}
 
-  half &operator=(const half &rhs) = default;
+  constexpr half &operator=(const half &rhs) = default;
 
 #ifndef __SYCL_DEVICE_ONLY__
   // Since StorageT and BIsRepresentationT are different on host, these two
   // helpers are required for 'vec' class
-  constexpr half(const detail::host_half_impl::half &rhs) : Data(rhs){};
-  constexpr operator detail::host_half_impl::half() const { return Data; }
+  constexpr half(const detail::host_half_impl::half_new &rhs) : Data(rhs){};
+  constexpr operator detail::host_half_impl::half_new() const { return Data; }
 #endif // __SYCL_DEVICE_ONLY__
 
   // Operator +=, -=, *=, /=
-  half &operator+=(const half &rhs) {
+  constexpr half &operator+=(const half &rhs) {
     Data += rhs.Data;
     return *this;
   }
 
-  half &operator-=(const half &rhs) {
+  constexpr half &operator-=(const half &rhs) {
     Data -= rhs.Data;
     return *this;
   }
 
-  half &operator*=(const half &rhs) {
+  constexpr half &operator*=(const half &rhs) {
     Data *= rhs.Data;
     return *this;
   }
 
-  half &operator/=(const half &rhs) {
+  constexpr half &operator/=(const half &rhs) {
     Data /= rhs.Data;
     return *this;
   }
 
   // Operator ++, --
-  half &operator++() {
+  constexpr half &operator++() {
     *this += 1;
     return *this;
   }
 
-  half operator++(int) {
+  constexpr half operator++(int) {
     half ret(*this);
     operator++();
     return ret;
   }
 
-  half &operator--() {
+  constexpr half &operator--() {
     *this -= 1;
     return *this;
   }
 
-  half operator--(int) {
+  constexpr half operator--(int) {
     half ret(*this);
     operator--();
     return ret;
@@ -453,7 +474,7 @@ public:
     return -r;
   }
   // Operator float
-  operator float() const { return static_cast<float>(Data); }
+  constexpr operator float() const { return static_cast<float>(Data); }
 
   template <typename Key> friend struct std::hash;
 private:
@@ -517,23 +538,23 @@ template <> struct numeric_limits<cl::sycl::half> {
   static constexpr bool is_iec559 = true;
   static constexpr float_round_style round_style = round_to_nearest;
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half(min)() noexcept {
+  static constexpr const cl::sycl::half(min)() noexcept {
     return 6.103515625e-05f; // half minimum value
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half(max)() noexcept {
+  static constexpr const cl::sycl::half(max)() noexcept {
     return 65504.0f; // half maximum value
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half lowest() noexcept {
+  static constexpr const cl::sycl::half lowest() noexcept {
     return -65504.0f; // -1*(half maximum value)
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half epsilon() noexcept {
+  static constexpr const cl::sycl::half epsilon() noexcept {
     return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half
+  static constexpr const cl::sycl::half
   round_error() noexcept {
     return 0.5f;
   }
@@ -542,21 +563,21 @@ template <> struct numeric_limits<cl::sycl::half> {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_huge_valf();
 #else
-    return cl::sycl::detail::host_half_impl::half(
+    return cl::sycl::detail::host_half_impl::half_new(
         static_cast<uint16_t>(0x7C00));
 #endif
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half quiet_NaN() noexcept {
+  static constexpr const cl::sycl::half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half
+  static constexpr const cl::sycl::half
   signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half denorm_min() noexcept {
+  static constexpr const cl::sycl::half denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
