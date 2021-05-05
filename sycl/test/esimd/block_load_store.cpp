@@ -5,7 +5,7 @@
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 SYCL_EXTERNAL void kernel1(
