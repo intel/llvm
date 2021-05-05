@@ -362,12 +362,12 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
         return isa<
             SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
-            SYCLIntelFPGADisableLoopPipeliningAttr,
+            SYCLIntelFPGADisableLoopPipeliningAttr, SYCLSimdAttr,
             SYCLIntelKernelArgsRestrictAttr, ReqdWorkGroupSizeAttr,
             SYCLIntelNumSimdWorkItemsAttr, SYCLIntelSchedulerTargetFmaxMhzAttr,
             SYCLIntelNoGlobalWorkOffsetAttr, SYCLIntelMaxWorkGroupSizeAttr,
             IntelNamedSubGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-            SYCLSimdAttr, SYCLIntelFPGAInitiationIntervalAttr>(A);
+	    IntelReqdSubGroupSizeAttr, SYCLIntelFPGAInitiationIntervalAttr>(A);
       });
     }
   }

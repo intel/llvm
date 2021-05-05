@@ -42,7 +42,7 @@ int main() {
 
 #if defined(SYCL2020)
     // Test attribute is not propagated.
-    // CHECK-LABEL:    FunctionDecl {{.*}}test_kerne4
+    // CHECK-LABEL:    FunctionDecl {{.*}}test_kernel4
     // CHECK:          SYCLSimdAttr {{.*}} Implicit
     // CHECK-NEXT:     SYCLKernelAttr {{.*}} Implicit
     // CHECK-NEXT:     SYCLSimdAttr {{.*}}

@@ -63,6 +63,7 @@ int main() {
     h.single_task<class kernel_name1>(f16);
 
 #if defined(SYCL2017)
+    // Test attribute is propagated.
     Functor f;
     h.single_task<class kernel_name2>(f);
 
@@ -74,7 +75,7 @@ int main() {
       foo();
       baz();
     });
-#endif
+#endif // TRIGGER_ERROR
 #endif // SYCL2017
 
     h.single_task<class kernel_name5>([]() [[intel::reqd_sub_group_size(2)]]{});
@@ -83,7 +84,9 @@ int main() {
 
     Functor4 f4;
     h.single_task<class kernel_name8>(f4);
+
 #if defined(SYCL2020)
+    // Test attribute is not propagated.
     // CHECK-LABEL: FunctionDecl {{.*}}class kernel_name9
     // CHECK-NOT:   IntelReqdSubGroupSizeAttr {{.*}}
     h.single_task<class kernel_name9>(
@@ -91,6 +94,7 @@ int main() {
 #endif // SYCL2020
 
 #if defined(SYCL2017)
+    // Test attribute is propagated.
     // CHECK-LABEL: FunctionDecl {{.*}}class kernel_name10
     // CHECK:       IntelReqdSubGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
