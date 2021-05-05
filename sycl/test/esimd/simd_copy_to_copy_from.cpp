@@ -10,7 +10,7 @@
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 // --- Postive tests.
@@ -42,13 +42,13 @@ kernel3(accessor<int, 1, access::mode::read_write, access::target::local> &buf)
   simd<int, 32> v1(0, 1);
   simd<int, 32> v0;
   // expected-error@+3 {{no matching member function for call to 'copy_from'}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:514 {{}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:509 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:499 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:511 {{}}
   v0.copy_from(buf, 0);
   v0 = v0 + v1;
   // expected-error@+3 {{no matching member function for call to 'copy_to'}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:497 {{}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:525 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:516 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:527 {{}}
   v0.copy_to(buf, 0);
 }
 
@@ -58,8 +58,8 @@ SYCL_EXTERNAL void kernel4(
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v;
   // expected-error@+3 {{no matching member function for call to 'copy_from'}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:514 {{}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:509 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:499 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:511 {{}}
   v.copy_from(buf, 0);
 }
 
@@ -69,7 +69,7 @@ SYCL_EXTERNAL void kernel5(
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v(0, 1);
   // expected-error@+3 {{no matching member function for call to 'copy_to'}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:497 {{}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:525 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:516 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd.hpp:527 {{}}
   v.copy_to(buf, 0);
 }

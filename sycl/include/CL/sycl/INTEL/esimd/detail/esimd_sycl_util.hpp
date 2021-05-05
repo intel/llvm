@@ -15,8 +15,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 namespace detail {
 
 // Checks that given type is a SYCL accessor type. Sets its static field
@@ -80,7 +82,9 @@ using EnableIfAccessor = sycl::detail::enable_if_t<
     detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value, RetT>;
 
 } // namespace detail
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
