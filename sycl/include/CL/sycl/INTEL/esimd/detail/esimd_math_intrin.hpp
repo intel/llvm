@@ -1170,7 +1170,7 @@ inline __SEIEED::vector_type_t<T1, N>
 __esimd_dp4a(__SEIEED::vector_type_t<T2, N> src0,
              __SEIEED::vector_type_t<T3, N> src1,
              __SEIEED::vector_type_t<T4, N> src2) {
-  using __SEIEE::emu::detail::restype_ex;
+  using __SEIEEED::restype_ex;
   typename restype_ex<T2, typename restype_ex<T3, T4>::type>::type reta;
   __SEIEED::vector_type_t<T1, N> retv;
 
