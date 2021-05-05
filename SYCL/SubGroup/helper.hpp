@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
+#include <bitset>
 #include <cmath>
 #include <complex>
 #include <iostream>
@@ -34,6 +35,17 @@ template <typename T2> struct utils<T2, 2> {
   static std::string stringify_vec(const vec<T2, 2> &v) {
     return std::string("(") + std::to_string((T2)v.s0()) + ", " +
            std::to_string((T2)v.s1()) + " )";
+  }
+};
+template <typename T2> struct utils<T2, 3> {
+  static T2 add_vec(const vec<T2, 3> &v) { return v.s0() + v.s1() + v.s2(); }
+  static bool cmp_vec(const vec<T2, 3> &v, const vec<T2, 3> &r) {
+    return v.s0() == r.s0() && v.s1() == r.s1() && v.s2() == r.s2();
+  }
+  static std::string stringify_vec(const vec<T2, 2> &v) {
+    return std::string("(") + std::to_string((T2)v.s0()) + ", " +
+           std::to_string((T2)v.s1()) + ", " + std::to_string((T2)v.s3()) +
+           " )";
   }
 };
 template <typename T2> struct utils<T2, 4> {
@@ -98,9 +110,12 @@ template <typename T2> struct utils<T2, 16> {
 
 template <typename T> void exit_if_not_equal(T val, T ref, const char *name) {
   if (std::is_floating_point<T>::value) {
-    if (std::fabs(val - ref) > 0.01) {
-      std::cout << "Unexpected result for " << name << ": " << (double)val
-                << " expected value: " << (double)ref << std::endl;
+    auto cmp_val = std::bitset<CHAR_BIT * sizeof(T)>(val);
+    auto cmp_ref = std::bitset<CHAR_BIT * sizeof(T)>(ref);
+    if (cmp_val != cmp_ref) {
+      std::cout << "Unexpected result for " << name << ": " << val << "("
+                << cmp_val << ") expected value: " << ref << "(" << cmp_ref
+                << ")" << std::endl;
       exit(1);
     }
   } else {
@@ -115,12 +130,9 @@ template <typename T> void exit_if_not_equal(T val, T ref, const char *name) {
 template <typename T>
 void exit_if_not_equal(std::complex<T> val, std::complex<T> ref,
                        const char *name) {
-  if (std::fabs(val.real() - ref.real()) > 0.01 ||
-      std::fabs(val.imag() - ref.imag()) > 0.01) {
-    std::cout << "Unexpected result for " << name << ": " << val
-              << " expected value: " << ref << std::endl;
-    exit(1);
-  }
+  std::string Name{name};
+  exit_if_not_equal(val.real(), ref.real(), (Name + ".real()").c_str());
+  exit_if_not_equal(val.imag(), ref.imag(), (Name + ".imag()").c_str());
 }
 
 template <typename T> void exit_if_not_equal(T *val, T *ref, const char *name) {

@@ -1,10 +1,8 @@
-// UNSUPPORTED: cpu
-// #2252 Disable until all variants of built-ins are available in OpenCL CPU
-// runtime for every supported ISA
-//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// #2252 Disable until all variants of built-ins are available in OpenCL CPU
+// runtime for every supported ISA
+// RUNx %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
@@ -23,15 +21,10 @@ template <typename T, int N> class sycl_subgr;
 using namespace cl::sycl;
 
 template <typename T, int N> void check(queue &Queue) {
-  const int G = 1024, L = 128;
+  const int G = 512, L = 256;
 
-  // Pad arrays based on sub-group size to ensure no out-of-bounds accesses
-  // Workaround for info::device::sub_group_sizes support on some devices
-  size_t max_sg_size = 128;
-#if 0
   auto sg_sizes = Queue.get_device().get_info<info::device::sub_group_sizes>();
   size_t max_sg_size = *std::max_element(sg_sizes.begin(), sg_sizes.end());
-#endif
 
   try {
     nd_range<1> NdRange(G, L);
@@ -41,7 +34,7 @@ template <typename T, int N> void check(queue &Queue) {
       auto acc = syclbuf.template get_access<access::mode::read_write>();
       for (int i = 0; i < G; i++) {
         acc[i] = i;
-        acc[i] += 0.1; // Check that floating point types are not casted to int
+        acc[i] += 0.25; // Check that floating point types are not casted to int
       }
     }
     Queue.submit([&](handler &cgh) {
@@ -51,22 +44,24 @@ template <typename T, int N> void check(queue &Queue) {
           {L + max_sg_size * N}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
         ONEAPI::sub_group SG = NdItem.get_sub_group();
-        if (SG.get_group_id().get(0) % N == 0) {
-          size_t SGOffset =
-              SG.get_group_id().get(0) * SG.get_max_local_range().get(0);
+        auto SGid = SG.get_group_id().get(0);
+        auto SGsize = SG.get_max_local_range().get(0);
+        /* Avoid overlapping data ranges inside and between local groups */
+        if (SGid % N == 0 && (SGid + N) * SGsize <= L) {
+          size_t SGOffset = SGid * SGsize;
           size_t WGSGoffset = NdItem.get_group(0) * L + SGOffset;
           multi_ptr<T, access::address_space::global_space> mp(
               &acc[WGSGoffset]);
           multi_ptr<T, access::address_space::local_space> MPL(
               &LocalMem[SGOffset]);
           // Add all values in read block
-          vec<T, N> v(utils<T, N>::add_vec(SG.load<N, T>(mp)));
+          vec<T, N> v(SG.load<N, T>(mp));
           SG.store<N, T>(MPL, v);
           vec<T, N> t(utils<T, N>::add_vec(SG.load<N, T>(MPL)));
           SG.store<N, T>(mp, t);
         }
         if (NdItem.get_global_id(0) == 0)
-          sgsizeacc[0] = SG.get_max_local_range()[0];
+          sgsizeacc[0] = SGsize;
       });
     });
     auto acc = syclbuf.template get_access<access::mode::read_write>();
@@ -86,12 +81,11 @@ template <typename T, int N> void check(queue &Queue) {
         ref = acc[j - (SGid % N) * sg_size];
       } else {
         for (int i = 0; i < N; i++) {
-          ref += (T)(j + i * sg_size) + 0.1;
+          ref += (T)(j + i * sg_size) + 0.25;
         }
-        ref *= N;
       }
       /* There is no defined out-of-range behavior for these functions. */
-      if ((SGid + N) * sg_size < L) {
+      if ((SGid + N) * sg_size <= L) {
         std::string s("Vector<");
         s += std::string(typeid(ref).name()) + std::string(",") +
              std::to_string(N) + std::string(">[") + std::to_string(j) +
@@ -181,20 +175,26 @@ int main() {
     check<aligned_int>(Queue);
     check<aligned_int, 1>(Queue);
     check<aligned_int, 2>(Queue);
+    check<aligned_int, 3>(Queue);
     check<aligned_int, 4>(Queue);
     check<aligned_int, 8>(Queue);
+    check<aligned_int, 16>(Queue);
     typedef unsigned int aligned_uint __attribute__((aligned(16)));
     check<aligned_uint>(Queue);
     check<aligned_uint, 1>(Queue);
     check<aligned_uint, 2>(Queue);
+    check<aligned_uint, 3>(Queue);
     check<aligned_uint, 4>(Queue);
     check<aligned_uint, 8>(Queue);
+    check<aligned_uint, 16>(Queue);
     typedef float aligned_float __attribute__((aligned(16)));
     check<aligned_float>(Queue);
     check<aligned_float, 1>(Queue);
     check<aligned_float, 2>(Queue);
+    check<aligned_float, 3>(Queue);
     check<aligned_float, 4>(Queue);
     check<aligned_float, 8>(Queue);
+    check<aligned_float, 16>(Queue);
   }
   if (Queue.get_device().has_extension("cl_intel_subgroups_short") ||
       PlatformName.find("CUDA") != std::string::npos) {
@@ -202,16 +202,20 @@ int main() {
     check<aligned_short>(Queue);
     check<aligned_short, 1>(Queue);
     check<aligned_short, 2>(Queue);
+    check<aligned_short, 3>(Queue);
     check<aligned_short, 4>(Queue);
     check<aligned_short, 8>(Queue);
+    check<aligned_short, 16>(Queue);
     if (Queue.get_device().has_extension("cl_khr_fp16") ||
         PlatformName.find("CUDA") != std::string::npos) {
       typedef half aligned_half __attribute__((aligned(16)));
       check<aligned_half>(Queue);
       check<aligned_half, 1>(Queue);
       check<aligned_half, 2>(Queue);
+      check<aligned_half, 3>(Queue);
       check<aligned_half, 4>(Queue);
       check<aligned_half, 8>(Queue);
+      check<aligned_half, 16>(Queue);
     }
   }
   if (Queue.get_device().has_extension("cl_intel_subgroups_long") ||
@@ -220,20 +224,26 @@ int main() {
     check<aligned_long>(Queue);
     check<aligned_long, 1>(Queue);
     check<aligned_long, 2>(Queue);
+    check<aligned_long, 3>(Queue);
     check<aligned_long, 4>(Queue);
     check<aligned_long, 8>(Queue);
+    check<aligned_long, 16>(Queue);
     typedef unsigned long aligned_ulong __attribute__((aligned(16)));
     check<aligned_ulong>(Queue);
     check<aligned_ulong, 1>(Queue);
     check<aligned_ulong, 2>(Queue);
+    check<aligned_ulong, 3>(Queue);
     check<aligned_ulong, 4>(Queue);
     check<aligned_ulong, 8>(Queue);
+    check<aligned_ulong, 16>(Queue);
     typedef double aligned_double __attribute__((aligned(16)));
     check<aligned_double>(Queue);
     check<aligned_double, 1>(Queue);
     check<aligned_double, 2>(Queue);
+    check<aligned_double, 3>(Queue);
     check<aligned_double, 4>(Queue);
     check<aligned_double, 8>(Queue);
+    check<aligned_double, 16>(Queue);
   }
   std::cout << "Test passed." << std::endl;
   return 0;
