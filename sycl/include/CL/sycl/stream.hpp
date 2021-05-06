@@ -874,14 +874,12 @@ private:
               range<detail::GlobalBufDim> GlobalFlushAccRange,
               range<detail::GlobalBufDim> GlobalFlushMemRange,
               id<detail::GlobalBufDim> GlobalFlushId, size_t _FlushBufferSize) {
-#ifndef __SYCL_EXPLICIT_SIMD__
     GlobalBuf.__init(GlobalBufPtr, GlobalBufAccRange, GlobalBufMemRange,
                      GlobalBufId);
     GlobalOffset.__init(GlobalOffsetPtr, GlobalOffsetAccRange,
                         GlobalOffsetMemRange, GlobalOffsetId);
     GlobalFlushBuf.__init(GlobalFlushPtr, GlobalFlushAccRange,
                           GlobalFlushMemRange, GlobalFlushId);
-#endif
     FlushBufferSize = _FlushBufferSize;
     // Calculate offset in the flush buffer for each work item in the global
     // work space. We need to avoid calling intrinsics to get global id because
