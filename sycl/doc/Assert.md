@@ -76,8 +76,6 @@ practical cases.
    based on input SPIR-V image.
  - Low-level Runtime - the backend/runtime behind DPCPP Runtime attached via the
    Plugin Interface.
- - Accessor metadata - parts of accessor representation at device-side: pointer,
-   ranges, offset.
 
 
 ## How it works?
@@ -125,49 +123,73 @@ The following sequence of events describes how user code gets notified:
    3. Low-Level Runtime calls `abort()`
 
 
-### Fallback approach
+## Fallback approach
 
-If Device-side Runtime doesn't support `__devicelib_assert_fail` then a buffer
-based approach comes in place. The approach doesn't require any support from
+If Device-side Runtime doesn't support `__devicelib_assert_fail` then a fallback
+approach comes in place. The approach doesn't require any support from
 Device-side Runtime and Native Device Compiler. Neither it does from Low-level
 Runtime.
 
-Within this approach, a dedicated assert buffer is allocated and implicit kernel
-argument is introduced. The argument is an accessor that has either
-`access_mode::read_write` or `access_mode::write` access mode and was
-constructed with the `property::no_init property`. Accessor metadata is stored
-to program scope variable. This allows to refer to the accessor without
-modifying each and every user's function. Fallback implementation of
-`__devicelib_assert_fail` restores accessor metadata from program scope variable
-and writes assert information to the assert buffer. Atomic operations are used
-in order to not overwrite existing information.
-
-DPCPP Runtime checks contents of the assert buffer for assert failure flag after
-kernel finishes.
+Within this approach, a mutable program scope variable is introduced. This
+variable stores a flag which says if an assert failure was encountered. Fallback
+implementation of `__devicelib_assert_fail` atomically raises the flag so that
+DPCPP Runtime is able to detect assert failure after kernel finishes.
 
 The following sequence of events describes how user code gets notified:
  - Device side:
    1. Assert fails in device-code in kernel
    2. Fallback version of `__devicelib_assert_fail` is called
-   3. Assert information is stored into assert buffer
+   3. Assert information is stored into program-scope variable
    4. Kernel continues running
  - Host side:
-   1. A distinct thread is launched no later than the point of enqueue of the
-      first kernel with assertions
-   2. This thread polls the enqueued kernels for finish and checks the assert
-      buffer for assert data
-   3. If assert data is present DPCPP Runtime calls `abort()`
+   1. A copy 'kernel' is enqueued as the one depending on user's kernel to get
+      the value of assert failure flag.
+   2. A host-task is enqueued to check value of assert failure flag.
+   3. The host task calls abort whenever assert failure flag is set.
 
+Illustrating this with an example, lets assume the user enqueues three kernels:
+ - `Kernel #1`
+ - `Kernel #2`
+ - `Kernel #3`, which depends on `Kernel #1`
 
-#### Online-linking fallback `__devicelib_assert_fail`
+The resulting graph will look like this: ![graph](images/assert-fallback-graph.svg)
+
+### Interface to program scope variable
+
+Multiple translation units could be compiled/linked into a single device binary
+image. All of them should have `extern` declaration of program scope variable
+available. Definition of the variable is only available within devicelib in the
+same binary image where fallback `__devicelib_assert_fail` resides.
+
+<a name="prog-scope-var-decl">The variable has the following structure and
+declaration:</a>
+
+```c++
+struct AssertHappened {
+  int Flag = 0;
+};
+
+#ifdef __SYCL_DEVICE_ONLY__
+extern SYCL_GLOBAL_VAR AssertHappened AssertHappenedMem;
+#endif
+```
+
+Here, `SYCL_GLOBAL_VAR` is a macro which wraps special attribute to allow for
+mutable program-scope variable.
+
+The reference to extern variable is resolved within online-linking against
+fallback devicelib.
+
+### Online-linking fallback `__devicelib_assert_fail`
 
 Online linking against fallback implementation of `__devicelib_assert_fail` is
 performed only when assertion is enabled and Device-side Runtime doesn't provide
 implementation of `__devicelib_assert_fail`.
 
 In DPCPP headers one can see if assert is enabled with status of `NDEBUG` macro
-with `#ifdef`'s. This allows to add implicit buffer argument to kernel
-invocation. Here "implicit" means "implicit to the user".
+with `#ifdef`'s. This allows to enqueue a copy kernel and host task. The copy
+kernel will copy `AssertHappenedMem` to host and host-task will check the `Flag`
+value and `abort()` as needed.
 
 When in DPCPP Runtime Library this knowledge is obtained from device binary
 image descriptor's property sets.
@@ -213,8 +235,62 @@ translation unit was compiled with assertions enabled i.e. `NDEBUG` undefined.
 The property is added by `sycl-post-link` tool depending on module metadata.
 Metadata is provided by Clang frontend. Metadata name is `is_assert_enabled`.
 
+Suppose the following example user code:
+```c++
+void user_func(int X) {
+  assert(X && “X is nil”);
+}
 
-##### Compiling with assert enabled/disabled
+int main() {
+  queue Q(...);
+  Q.submit([&] (handler& CGH) {
+    CGH.single_task([=] () {
+      do_smth();
+      user_func(0);
+      do_smth_else();
+    });
+  });
+  ...
+}
+```
+
+The following LLVM IR pseudo code will be generated after linking against
+fallback implementation of devicelib:
+```
+@AssertHappenedMem = global AssertHappened
+
+/// user's code
+void user_func(int X) {
+if (!(X && “X is nil")) {
+    __assert_fail(...);
+  }
+}
+
+kernel(...) {
+  do_smth()
+  user_func(0);
+  do_smth_else();
+}
+
+/// __assert_fail belongs to Linux version of devicelib
+void __assert_fail(...) {
+  ...
+  __devicelib_assert_fail(...);
+}
+
+void __devicelib_assert_fail(Expr, File, Line, GlobalID, LocalID) {
+  ...
+  volatile int *Ptr = (volatile int *)AssertHappenedMem.Flag;
+  int Expected = 0;
+  int Desired = 1;
+
+  if (atomic_CAS(&AssertHappenedMem.Flag, Expected, Desired))
+    printf("Assertion `%s' failed in %s at line %i. GlobalID: %i, LocalID: %i",
+           Expr, File, Line, GlobalID, LocalID);
+}
+```
+
+#### Compiling with assert enabled/disabled
 
 Consider the following example sources:
 ```c++
@@ -275,145 +351,65 @@ fail. Having assertions enabled in at least one translation unit with device
 code requires for `isAssertEnabled` property set being present in device image
 descriptor structure.
 
+### Raising assert failure flag and reading it on host
 
-#### Storing accessor metadata and writing assert failure to buffer
+Each and every translation unit provided by user should have `extern`
+declaration of `AssertHappenedMem` i.e. DPCPP headers includes appropriate file
+with [declaration](#prog-scope-var-decl).
 
-Both storing of accessor metadata and writing assert failure is performed with
-help of built-ins. Implementations of these builtins are substituted by
-frontend.
+The definition is only provided within devicelib along with
+`__devicelib_assert_fail` function which raises the flag.
 
-User's kernel is executed through a wrapper. Wrapping takes place in DPCPP
-Runtime headers in a following manner:
+Reading of assert failure flag is performed with the help of auxiliary kernel
+which is enqueued as dependent on user's one. The flag state is checked later
+in host-task. This is achieved with approximately the following changes:
 
-```
-class handler {
-
-template <typename KernelName> parallel_for(KernelFunc, Range) {
-#ifndef NDEBUG
-  // Assert required
-  if (!MQueue->get_device()->assert_fail_supported()) {
-    using KName2 = class ASSERT_WRAPPER_NAME(KernelName);
-    
-    auto AssertBufferAcc = MQueue->get_context()->getAssertBufferAccessor(this);
-
-    parallel_for_impl<KName2>(
-      Range,
-      [=](Item) {
-        __store_acc(AssertBuffAcc);
-        KernelFunc(Item);
-      });
-  } else {
-#endif
-
-     // (No assert required) OR (Assert supported by device)
-     // ordinary enqueue process
+```c++
+#include <assert_happened.hpp> // contains extern decl of AssertHappenedMem
 
 #ifndef NDEBUG
-  }
+class AssertFlagCopier;
 #endif
-}
 
-}
-```
+class queue {
+  template <typename T> event submit(T CGF) {
+    event Event = submit_impl(CGF);
+#ifndef NDEBUG
+    // assert required
+    if (!get_device()->assert_fail_supported()) {
+      // __devicelib_assert_fail isn't supported by Device-side Runtime
+      // Linking against fallback impl of __devicelib_assert_fail is performed
+      // by program manager class
+      AssertHappened *AH = new AssertHappened;
+      buffer<AssertHappened, 1> *Buffer = new buffer<AssertHappened, 1>{1, AH};
 
+      // read flag value
+      event CopierEv = submit_impl([&](handler &CGH) {
+        CGH.depends_on(Event);
 
-#### Built-ins operation
+        auto Acc = Buffer->get_access<access::mode::write>(CGH);
 
-Accessor is a pointer augmented with offset and two ranges (access range and
-memory range).
+        CGH.single_task<AssertFlagCopier>([=] {
+          Acc[0].Flag = atomic_load(&AssertHappenedMem.Flag);
+        });
+      });
 
-There are two built-ins provided by frontend:
- * `__store_acc()` - to store accessor metadata into program-scope variable.
- * `__store_assert_failure()` - to store flag about assert failure in a buffer
-   using the metadata stored in program-scope variable.
+      // check flag state
+      submit_impl([=](handler &CGH) {
+        CGH.depends_on(CopierEv);
 
-The accessor should be stored to program scope variable in global address space
-using atomic operations. Motivation for using atomic operations: the program may
-contain several kernels and some of them could be running simultaneously on a
-single device.
+        CGH.codeplay_host_task([=] {
+          if (AH->Flag)
+            abort();
 
-The `__store_assert_failure()` built-in atomically sets a flag in a buffer. The
-buffer is accessed using accessor metadata from program-scope variable. This
-built-in return a boolean value which is `true` if the flag is set by this call
-to `__store_assert_failure()` and `false` if the flag was already set.
-Motivation for using atomic operation is the same as with `__store_acc()`
-builtin.
-
-The following pseudo-code snippets shows how these built-ins are used.
-First of all, assume the following code as user's one:
-```
-void user_func(int X) {
-  assert(X && “X is nil”);
-}
-
-int main() {
-  queue Q(...);
-  Q.submit([&] (handler& CGH) {
-    CGH.single_task([=] () {
-      do_smth();
-      user_func(0);
-      do_smth_else();
-    });
-  });
-  ...
-}
-```
-
-The following LLVM IR pseudo code will be generated for the user's code:
-```
-@AssertBufferPtr = global void* null
-@AssertBufferAccessRange = ...
-@AssertBufferMemoryRange = ...
-@AssertBufferOffset = ...
-
-/// user's code
-void user_func(int X) {
-if (!(X && “X is nil")) {
-    __assert_fail(...);
+          free(Buffer);
+          free(AH);
+        });
+      });
+    }
+#endif
+    return Event;
   }
-}
-
-users_kernel(...) {
-  do_smth()
-  user_func(0);
-  do_smth_else();
-}
-
-/// a wrapped user's kernel
-kernel(AssertBufferAccessor, OtherArguments...) {
-  __store_acc(AssertBufferAccessor);
-  users_kernel(OtherArguments...);
-}
-
-/// __assert_fail belongs to Linux version of devicelib
-void __assert_fail(...) {
-  ...
-  __devicelib_assert_fail(...);
-}
-
-void __devicelib_assert_fail(Expr, File, Line, GlobalID, LocalID) {
-  ...
-  if (__store_assert_info())
-    printf("Assertion `%s' failed in %s at line %i. GlobalID: %i, LocalID: %i",
-           Expr, File, Line, GlobalID, LocalID);
-}
-
-/// The following are built-ins provided by frontend
-void __store_acc(accessor) {
-  %1 = accessor.getPtr();
-  store void * %1, void * @AssertBufferPtr
-}
-
-bool __store_assert_info(...) {
-  AssertBAcc = __fetch_acc();
-  // fill in data in AsBAcc
-  volatile int *Ptr = (volatile int *)AssertBAcc.getPtr();
-  bool Expected = false;
-  bool Desired = true;
-
-  return atomic_cas(Ptr, Expected, Desired, SequentialConsistentMemoryOrder);
-  // or it could be:
-  // return !atomic_exchange(Ptr, Desired, SequentialConsistentMemoryOrder);
-}
+};
 ```
 
