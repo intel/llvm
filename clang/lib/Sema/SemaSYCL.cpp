@@ -2544,9 +2544,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
+    CXXMethodDecl *FinalizeMethod =
+        getMethodByName(RecordDecl, FinalizeMethodName);
     // A finalize-method is expected for stream classes.
-    if (CXXMethodDecl *FinalizeMethod =
-            getMethodByName(RecordDecl, FinalizeMethodName))
+    if (!FinalizeMethod && Util::isSyclStreamType(Ty))
+      SemaRef.Diag(FD->getLocation(), diag::err_sycl_expected_finalize_method);
+    else
       createSpecialMethodCall(RecordDecl, FinalizeMethodName, FinalizeStmts);
 
     removeFieldMemberExpr(FD, Ty);

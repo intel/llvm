@@ -11396,6 +11396,8 @@ def err_sycl_mismatch_group_size
             "have a sub group size that matches the size specified for the "
             "kernel">;
 def note_sycl_kernel_declared_here : Note<"kernel declared here">;
+def err_sycl_expected_finalize_method : Error<
+  "Expected a finalize method for this stream class">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<

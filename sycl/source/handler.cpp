@@ -235,9 +235,8 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    /*index*/ 0);
 }
 
-static void addArgsForGlobalAccessor(detail::Requirement *AccImpl,
-                                     const size_t Index, size_t &IndexShift,
-                                     const int Size,
+static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
+                                     size_t &IndexShift, int Size,
                                      bool IsKernelCreatedFromSource,
                                      size_t GlobalSize,
                                      vector_class<detail::ArgDesc> &Args) {
