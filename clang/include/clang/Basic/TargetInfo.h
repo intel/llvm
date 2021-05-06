@@ -612,8 +612,8 @@ public:
   }
 
   /// Return the largest alignment for which a suitably-sized allocation with
-  /// '::operator new(size_t)' is guaranteed to produce a correctly-aligned
-  /// pointer.
+  /// '::operator new(size_t)' or 'malloc' is guaranteed to produce a
+  /// correctly-aligned pointer.
   unsigned getNewAlign() const {
     return NewAlign ? NewAlign : std::max(LongDoubleAlign, LongLongAlign);
   }
@@ -1128,6 +1128,15 @@ public:
   virtual bool shouldDLLImportComdatSymbols() const {
     return getTriple().isWindowsMSVCEnvironment() ||
            getTriple().isWindowsItaniumEnvironment() || getTriple().isPS4CPU();
+  }
+
+  // Does this target have PS4 specific dllimport/export handling?
+  virtual bool hasPS4DLLImportExport() const {
+    return getTriple().isPS4CPU() ||
+           // Windows Itanium support allows for testing the SCEI flavour of
+           // dllimport/export handling on a Windows system.
+           (getTriple().isWindowsItaniumEnvironment() &&
+            getTriple().getVendor() == llvm::Triple::SCEI);
   }
 
   /// An optional hook that targets can implement to perform semantic

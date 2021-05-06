@@ -20,10 +20,15 @@
 ;
 ; CHECK: %[[#B:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 4]], i32{{.*}})
 ;
-; CHECK: %[[#POD:]] = call %struct._ZTS3POD.POD @_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Ai([2 x %struct._ZTS1A.A] %[[#NA]], i32 %[[#B]]), !SYCL_SPEC_CONST_SYM_ID ![[#MD:]]
+; CHECK: %[[#POD:]] = call %struct._ZTS3POD.POD @_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Ai([2 x %struct._ZTS1A.A] %[[#NA]], i32 %[[#B]])
 ; CHECK: store %struct._ZTS3POD.POD %[[#POD]]
 ;
-; CHECK: ![[#MD]] = !{!"_ZTS3POD", i32 [[#ID]], i32 [[#ID + 1]], i32 [[#ID + 2]], i32 [[#ID + 3]], i32 [[#ID + 4]]}
+; CHECK: !sycl.specialization-constants = !{![[#MD:]]}
+; CHECK: ![[#MD]] = !{!"_ZTS3POD", i32 [[#ID]], i32 0, i32 4,
+; CHECK-SAME: i32 [[#ID + 1]], i32 4, i32 4,
+; CHECK-SAME: i32 [[#ID + 2]], i32 8, i32 4,
+; CHECK-SAME: i32 [[#ID + 3]], i32 12, i32 4,
+; CHECK-SAME: i32 [[#ID + 4]], i32 16, i32 4}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown-sycldevice"
