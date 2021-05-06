@@ -23,7 +23,7 @@ static constexpr int BLOCK_WIDTH = 32;
 static constexpr int NUM_BLOCKS = 32;
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 // Histogram kernel: computes the distribution of pixel intensities
 ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,

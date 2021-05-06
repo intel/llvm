@@ -60,7 +60,7 @@ int main(void) {
       auto PC = bufc.get_access<access::mode::write>(cgh);
       cgh.parallel_for<class Test>(
           Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
             int gid = ndi.get_group_linear_id();
             int lid = ndi.get_local_linear_id();
 

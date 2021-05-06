@@ -55,7 +55,7 @@ int main(void) {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class Test>(
           GroupRange * TaskRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
 
             simd<TYPE, VL> va = block_load<TYPE, VL>(A + i * VL);
             simd<int, OutputSize> vb;

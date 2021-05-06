@@ -17,7 +17,7 @@
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 #define LOCAL_SIZE 4
 #define GLOBAL_SIZE 6

@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class Stencil_kernel>(
           GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
             uint h_pos = it.get_id(0);
             uint v_pos = it.get_id(1);
 

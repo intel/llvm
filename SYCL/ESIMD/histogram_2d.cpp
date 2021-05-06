@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 
       cgh.parallel_for<class Hist>(
           Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
 
             // Get thread origin offsets
             uint h_pos = ndi.get_group(0) * BLOCK_WIDTH;

@@ -51,15 +51,15 @@ int main(int argc, char **argv) {
     q.submit([&](handler &cgh) {
       auto acc = buf.get_access<access::mode::write>(cgh);
 
-      cgh.parallel_for<KernelID>(sycl::range<1>{1},
-                                 [=](id<1> i) SYCL_ESIMD_KERNEL {
-                                   using namespace sycl::INTEL::gpu;
+      cgh.parallel_for<KernelID>(
+          sycl::range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
+            using namespace sycl::ext::intel::experimental::esimd;
 
-                                   auto foo = &add;
-                                   auto res = foo(in1, in2, in3);
+            auto foo = &add;
+            auto res = foo(in1, in2, in3);
 
-                                   scalar_store(acc, 0, res);
-                                 });
+            scalar_store(acc, 0, res);
+          });
     });
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << std::endl;

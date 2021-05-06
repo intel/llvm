@@ -50,7 +50,7 @@ int main() {
 
       cgh.parallel_for<class Test>(
           range<1>(1), [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
             unsigned int offset = 0;
             for (int k = 0; k < VL / 16; k++) {
               simd<Ty, 16> var = block_load<Ty, 16>(acc0, offset);

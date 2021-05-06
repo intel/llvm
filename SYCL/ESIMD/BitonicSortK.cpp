@@ -18,7 +18,7 @@
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace std;
 
 #define LOG2_ELEMENTS 16 // 24
@@ -598,11 +598,11 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
     auto e = pQueue_->submit([&](handler &cgh) {
       auto acci = bufi.get_access<access::mode::read>(cgh);
       auto acco = bufo.get_access<access::mode::write>(cgh);
-      cgh.parallel_for<class Sort256>(SortGlobalRange * SortLocalRange,
-                                      [=](id<1> i) SYCL_ESIMD_KERNEL {
-                                        using namespace sycl::INTEL::gpu;
-                                        cmk_bitonic_sort_256(acci, acco, i);
-                                      });
+      cgh.parallel_for<class Sort256>(
+          SortGlobalRange * SortLocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
+            using namespace sycl::ext::intel::experimental::esimd;
+            cmk_bitonic_sort_256(acci, acco, i);
+          });
     });
     e.wait();
     total_time += esimd_test::report_time("kernel time", e, e);
@@ -638,11 +638,12 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
         buffer<uint32_t, 1> buf(pOutputs, range<1>(size));
         mergeEvent[k] = pQueue_->submit([&](handler &cgh) {
           auto acc = buf.get_access<access::mode::read_write>(cgh);
-          cgh.parallel_for<class Merge>(MergeGlobalRange * MergeLocalRange,
-                                        [=](id<1> tid) SYCL_ESIMD_KERNEL {
-                                          using namespace sycl::INTEL::gpu;
-                                          cmk_bitonic_merge(acc, j, i, tid);
-                                        });
+          cgh.parallel_for<class Merge>(
+              MergeGlobalRange * MergeLocalRange,
+              [=](id<1> tid) SYCL_ESIMD_KERNEL {
+                using namespace sycl::ext::intel::experimental::esimd;
+                cmk_bitonic_merge(acc, j, i, tid);
+              });
         });
         k++;
       }

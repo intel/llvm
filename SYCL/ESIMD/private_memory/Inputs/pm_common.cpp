@@ -132,7 +132,7 @@ template <int CASE_NUM> int test() {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<KernelID<CASE_NUM>>(
           sycl::range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
 
             int o[VL] = {0};
 

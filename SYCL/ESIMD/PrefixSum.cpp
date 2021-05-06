@@ -38,7 +38,7 @@
 #define REMAINING_ENTRIES 64
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 void compute_local_prefixsum(unsigned int prefixSum[], unsigned int size,
                              unsigned elem_stride, unsigned thread_stride) {

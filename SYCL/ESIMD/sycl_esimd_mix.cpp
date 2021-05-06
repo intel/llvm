@@ -99,7 +99,7 @@ int main(void) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernel>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
             unsigned int offset = i * VL * sizeof(float);
             simd<float, VL> va = block_load<float, VL>(PA, offset);
             simd<float, VL> vc = va + 1;

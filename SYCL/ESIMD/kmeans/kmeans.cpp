@@ -23,7 +23,7 @@
 #include <vector>
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace std;
 
 inline float dist(Point p, Centroid c) {

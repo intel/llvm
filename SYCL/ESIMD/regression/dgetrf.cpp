@@ -50,7 +50,7 @@
 
 using namespace cl::sycl;
 using namespace std;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 ESIMD_PRIVATE ESIMD_REGISTER(192) simd<double, 3 * 32 * 4> GRF;
 

@@ -62,7 +62,7 @@ int checkHistogram(unsigned int *refHistogram, unsigned int *hist) {
   return 1;
 }
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 template <EsimdAtomicOpType Op, typename T, int n>
 ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
                                simd<T, n> src0, simd<ushort, n> pred) {

@@ -36,7 +36,7 @@
 #define MIN_NUM_THREADS 1
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 void compute_local_prefixsum(unsigned int input[], unsigned int prefixSum[],
                              unsigned int size) {

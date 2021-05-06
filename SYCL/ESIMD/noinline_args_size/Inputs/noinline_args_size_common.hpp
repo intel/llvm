@@ -59,7 +59,7 @@ int main(void) {
     auto qq = q.submit([&](handler &cgh) {
       cgh.parallel_for<KernelID>(
           sycl::range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
 
             simd<a_data_t, SIZE> va(0);
             simd<b_data_t, SIZE> vb(0);

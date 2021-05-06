@@ -19,7 +19,7 @@
 
 using namespace cl::sycl;
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE simd<T, N> dwaligned_block_read(AccessorTy acc,

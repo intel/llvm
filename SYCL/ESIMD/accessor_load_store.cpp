@@ -30,7 +30,7 @@ template <typename T> struct Kernel {
   Kernel(Acc<T> acc) : acc(acc) {}
 
   void operator()(id<1> i) const SYCL_ESIMD_KERNEL {
-    using namespace sycl::INTEL::gpu;
+    using namespace sycl::ext::intel::experimental::esimd;
     uint32_t ii = static_cast<uint32_t>(i.get(0));
     T v = scalar_load<T>(acc, ii);
     v += ii;

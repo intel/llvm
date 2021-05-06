@@ -19,7 +19,7 @@
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 // --- Data initialization functions
 

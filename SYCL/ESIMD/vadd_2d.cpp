@@ -61,7 +61,7 @@ int main(void) {
 
       cgh.parallel_for<class Test>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
 
             constexpr int ESIZE = sizeof(int);
             int x = i * ESIZE * VL;

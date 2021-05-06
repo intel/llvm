@@ -75,7 +75,8 @@ int main(int argc, char **argv) {
         auto acc = buf.get_access<sycl::access::mode::write>(cgh);
         cgh.single_task<KernelAAA>(
             program.get_kernel<KernelAAA>(), [=]() SYCL_ESIMD_KERNEL {
-              sycl::INTEL::gpu::scalar_store(acc, i, sc0.get() + sc1.get());
+              sycl::ext::intel::experimental::esimd::scalar_store(
+                  acc, i, sc0.get() + sc1.get());
             });
       });
     } catch (sycl::exception &e) {

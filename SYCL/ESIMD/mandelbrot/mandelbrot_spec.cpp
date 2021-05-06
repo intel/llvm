@@ -19,7 +19,7 @@
 #include <memory>
 
 using namespace cl::sycl;
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 #ifdef _SIM_MODE_
 #define CRUNCH 32
