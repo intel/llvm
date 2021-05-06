@@ -478,10 +478,14 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       DelInsts.push_back(CI);
       Type *SCTy = CI->getType();
       unsigned NameArgNo = 0;
-      if (IsComposite) { // structs are returned via sret arguments.
-        NameArgNo = 1;
-        auto *PtrTy = cast<PointerType>(CI->getArgOperand(0)->getType());
-        SCTy = PtrTy->getElementType();
+      Function *Callee = CI->getCalledFunction();
+      assert(Callee && "Failed to get spec constant call");
+      bool HasSretParameter = Callee->hasStructRetAttr();
+      // Structs are returned via 'sret' arguments if they are larger than 64b
+      if (HasSretParameter) {
+        // Get structure type stored in an argument annotated with 'sret'
+        // parameter attribute and skip it.
+        SCTy = Callee->getParamStructRetType(NameArgNo++);
       }
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
       Value *Replacement = nullptr;
@@ -544,7 +548,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // A pointer to a single RT-buffer with all the values of
           // specialization constants is passed as a 3rd argument of intrinsic.
           Value *RTBuffer =
-              IsComposite ? CI->getArgOperand(3) : CI->getArgOperand(2);
+              HasSretParameter ? CI->getArgOperand(3) : CI->getArgOperand(2);
 
           // Add the string literal to a "spec const string literal ID" ->
           // "offset" map, uniquing the integer offsets if this is new
@@ -592,8 +596,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
       }
 
-      if (IsComposite) {
-        // __sycl_getCompositeSpecConstant returns through argument, so, the
+      if (HasSretParameter) {
+        // If __sycl_getCompositeSpecConstant returns through argument, then the
         // only thing we need to do here is to store into a memory pointed
         // by that argument
         new StoreInst(Replacement, CI->getArgOperand(0), CI);
