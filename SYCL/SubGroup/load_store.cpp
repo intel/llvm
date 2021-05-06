@@ -16,6 +16,9 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
+
+#include <algorithm>
+
 template <typename T, int N> class sycl_subgr;
 
 using namespace cl::sycl;
