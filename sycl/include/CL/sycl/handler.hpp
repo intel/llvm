@@ -996,8 +996,7 @@ private:
                       KernelType, ElementType>()) {
       kernel_handler KH;
       kernel_parallel_for<KernelName, ElementType>(KernelFunc, KH);
-    }
-    else {
+    } else {
       kernel_parallel_for<KernelName, ElementType>(KernelFunc);
     }
   }
@@ -1015,8 +1014,7 @@ private:
                       KernelType, ElementType>()) {
       kernel_handler KH;
       kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc, KH);
-    }
-    else {
+    } else {
       kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
     }
   }
