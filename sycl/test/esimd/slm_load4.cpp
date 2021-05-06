@@ -6,7 +6,7 @@
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 template <typename name, typename Func>
