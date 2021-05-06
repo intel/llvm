@@ -4778,19 +4778,27 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
 
+  bool PreferCopyEngine = false;
+  bool MaxPatternSize =
+      Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
+
   // Performance analysis on a simple SYCL data "fill" test shows copy engine
   // is faster than compute engine for such operations.
-  bool PreferCopyEngine = Queue->Device->hasCopyEngine();
-  if (PreferCopyEngine) {
-    // Make sure that pattern size matches the capability of the queue.
-    if (PatternSize >
-        Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize) {
-      PreferCopyEngine = false;
-      PI_ASSERT(PatternSize <= Queue->Device->ZeComputeQueueGroupProperties
-                                   .maxMemoryFillPatternSize,
-                PI_INVALID_VALUE);
-    }
+  //
+  // Make sure that pattern size matches the capability of the copy queue.
+  //
+  if (Queue->Device->hasCopyEngine() &&
+      PatternSize <=
+          Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize) {
+    MaxPatternSize =
+        Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize;
+    PreferCopyEngine = true;
   }
+  // Pattern size must fit the queue.
+  PI_ASSERT(PatternSize <= MaxPatternSize, PI_INVALID_VALUE);
+  // Pattern size must be a power of two.
+  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
+            PI_INVALID_VALUE);
 
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
@@ -4810,9 +4818,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     ZE_CALL(zeCommandListAppendWaitOnEvents,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
-  // Pattern size must be a power of two
-  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
-            PI_INVALID_VALUE);
 
   ZE_CALL(
       zeCommandListAppendMemoryFill,
