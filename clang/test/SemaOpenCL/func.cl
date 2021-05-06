@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -triple spir-unknown-unknown
 // RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -triple spir-unknown-unknown -DFUNCPTREXT
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -triple spir-unknown-unknown -DVARARG
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -triple spir-unknown-unknown -DVARARGEXT
 // XFAIL: *
 
 #ifdef FUNCPTREXT

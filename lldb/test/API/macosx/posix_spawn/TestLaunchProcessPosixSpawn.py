@@ -17,17 +17,6 @@ def apple_silicon():
     return "Apple M" in features.decode('utf-8')
 
 
-@contextlib.contextmanager
-def remove_from_env(var):
-    old_environ = os.environ.copy()
-    del os.environ[var]
-    try:
-        yield
-    finally:
-        os.environ.clear()
-        os.environ.update(old_environ)
-
-
 class TestLaunchProcessPosixSpawn(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
     mydir = TestBase.compute_mydir(__file__)
@@ -53,6 +42,7 @@ class TestLaunchProcessPosixSpawn(TestBase):
     @skipUnlessDarwin
     @skipIfDarwinEmbedded
     @skipTestIfFn(no_haswell)
+    @skipIfReproducer # Test relies on inferior output
     def test_haswell(self):
         self.build()
         exe = self.getBuildArtifact("fat.out")
@@ -62,12 +52,9 @@ class TestLaunchProcessPosixSpawn(TestBase):
     @skipUnlessDarwin
     @skipIfDarwinEmbedded
     @skipTestIfFn(no_apple_silicon)
+    @skipIfReproducer # Test relies on inferior output
     def test_apple_silicon(self):
         self.build()
         exe = self.getBuildArtifact("fat.out")
-
-        # We need to remove LLDB_DEBUGSERVER_PATH from the environment if it's
-        # set so that the Rosetta debugserver is picked for x86_64.
-        with remove_from_env('LLDB_DEBUGSERVER_PATH'):
-            self.run_arch(exe, 'x86_64')
-            self.run_arch(exe, 'arm64')
+        self.run_arch(exe, 'x86_64')
+        self.run_arch(exe, 'arm64')

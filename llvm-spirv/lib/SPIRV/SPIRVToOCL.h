@@ -50,6 +50,7 @@ namespace SPIRV {
 class SPIRVToOCLBase : public InstVisitor<SPIRVToOCLBase> {
 public:
   SPIRVToOCLBase() : M(nullptr), Ctx(nullptr) {}
+  virtual ~SPIRVToOCLBase() {}
 
   virtual bool runSPIRVToOCL(Module &M) = 0;
 
@@ -181,7 +182,7 @@ protected:
   SPIRVToOCLLegacy(char &ID) : ModulePass(ID) {}
 
 public:
-  virtual bool runOnModule(Module &M) = 0;
+  bool runOnModule(Module &M) override = 0;
 };
 
 } // namespace SPIRV

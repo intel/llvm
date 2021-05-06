@@ -210,8 +210,10 @@ public:
       vlog("  {0} {1}", Pos, Tok.text(AST->getSourceManager()));
       auto Tree = SelectionTree::createRight(AST->getASTContext(),
                                              AST->getTokens(), Start, End);
-      Tweak::Selection Selection(&Index, *AST, Start, End, std::move(Tree));
-      for (const auto &T : prepareTweaks(Selection, Opts.TweakFilter)) {
+      Tweak::Selection Selection(&Index, *AST, Start, End, std::move(Tree),
+                                 nullptr);
+      for (const auto &T :
+           prepareTweaks(Selection, Opts.TweakFilter, Opts.FeatureModules)) {
         auto Result = T->apply(Selection);
         if (!Result) {
           elog("    tweak: {0} ==> FAIL: {1}", T->id(), Result.takeError());
