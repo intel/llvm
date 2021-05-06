@@ -294,7 +294,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     stream *S = static_cast<stream *>(Ptr);
 
     detail::AccessorBaseHost *GBufBase =
-        (detail::AccessorBaseHost *)&S->GlobalBuf;
+        static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
     detail::AccessorImplPtr GBufImpl = detail::getSyclObjImpl(*GBufBase);
     detail::Requirement *GBufReq = GBufImpl.get();
     addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
@@ -302,7 +302,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                              MNDRDesc.GlobalSize.size(), MArgs);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
-        (detail::AccessorBaseHost *)&S->GlobalOffset;
+        static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
     detail::AccessorImplPtr GOfssetImpl = detail::getSyclObjImpl(*GOffsetBase);
     detail::Requirement *GOffsetReq = GOfssetImpl.get();
     addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
@@ -310,7 +310,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                              MNDRDesc.GlobalSize.size(), MArgs);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
-        (detail::AccessorBaseHost *)&S->GlobalFlushBuf;
+        static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
     detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
     detail::Requirement *GFlushReq = GFlushImpl.get();
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,

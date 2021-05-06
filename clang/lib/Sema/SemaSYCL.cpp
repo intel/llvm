@@ -2544,9 +2544,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
-    CXXMethodDecl *FinalizeMethod =
-        getMethodByName(RecordDecl, FinalizeMethodName);
-    if (FinalizeMethod)
+    // A finalize-method is expected for stream classes.
+    if (CXXMethodDecl *FinalizeMethod =
+            getMethodByName(RecordDecl, FinalizeMethodName))
       createSpecialMethodCall(RecordDecl, FinalizeMethodName, FinalizeStmts);
 
     removeFieldMemberExpr(FD, Ty);
