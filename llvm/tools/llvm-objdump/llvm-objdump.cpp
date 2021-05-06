@@ -19,13 +19,15 @@
 #include "COFFDump.h"
 #include "ELFDump.h"
 #include "MachODump.h"
+#include "ObjdumpOptID.h"
+#include "SourcePrinter.h"
 #include "WasmDump.h"
 #include "XCOFFDump.h"
 #include "llvm/ADT/IndexedMap.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
@@ -54,8 +56,10 @@
 #include "llvm/Object/MachOUniversal.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/Wasm.h"
+#include "llvm/Option/Arg.h"
+#include "llvm/Option/ArgList.h"
+#include "llvm/Option/Option.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileSystem.h"
@@ -81,313 +85,143 @@
 using namespace llvm;
 using namespace llvm::object;
 using namespace llvm::objdump;
+using namespace llvm::opt;
+
+namespace {
+
+class CommonOptTable : public opt::OptTable {
+public:
+  CommonOptTable(ArrayRef<Info> OptionInfos, const char *Usage,
+                 const char *Description)
+      : OptTable(OptionInfos), Usage(Usage), Description(Description) {
+    setGroupedShortOptions(true);
+  }
+
+  void printHelp(StringRef Argv0, bool ShowHidden = false) const {
+    Argv0 = sys::path::filename(Argv0);
+    PrintHelp(outs(), (Argv0 + Usage).str().c_str(), Description, ShowHidden,
+              ShowHidden);
+    // TODO Replace this with OptTable API once it adds extrahelp support.
+    outs() << "\nPass @FILE as argument to read options from FILE.\n";
+  }
+
+private:
+  const char *Usage;
+  const char *Description;
+};
+
+// ObjdumpOptID is in ObjdumpOptID.h
+
+#define PREFIX(NAME, VALUE) const char *const OBJDUMP_##NAME[] = VALUE;
+#include "ObjdumpOpts.inc"
+#undef PREFIX
+
+static constexpr opt::OptTable::Info ObjdumpInfoTable[] = {
+#define OBJDUMP_nullptr nullptr
+#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
+               HELPTEXT, METAVAR, VALUES)                                      \
+  {OBJDUMP_##PREFIX, NAME,         HELPTEXT,                                   \
+   METAVAR,          OBJDUMP_##ID, opt::Option::KIND##Class,                   \
+   PARAM,            FLAGS,        OBJDUMP_##GROUP,                            \
+   OBJDUMP_##ALIAS,  ALIASARGS,    VALUES},
+#include "ObjdumpOpts.inc"
+#undef OPTION
+#undef OBJDUMP_nullptr
+};
+
+class ObjdumpOptTable : public CommonOptTable {
+public:
+  ObjdumpOptTable()
+      : CommonOptTable(ObjdumpInfoTable, " [options] <input object files>",
+                       "llvm object file dumper") {}
+};
+
+enum OtoolOptID {
+  OTOOL_INVALID = 0, // This is not an option ID.
+#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
+               HELPTEXT, METAVAR, VALUES)                                      \
+  OTOOL_##ID,
+#include "OtoolOpts.inc"
+#undef OPTION
+};
+
+#define PREFIX(NAME, VALUE) const char *const OTOOL_##NAME[] = VALUE;
+#include "OtoolOpts.inc"
+#undef PREFIX
+
+static constexpr opt::OptTable::Info OtoolInfoTable[] = {
+#define OTOOL_nullptr nullptr
+#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
+               HELPTEXT, METAVAR, VALUES)                                      \
+  {OTOOL_##PREFIX, NAME,       HELPTEXT,                                       \
+   METAVAR,        OTOOL_##ID, opt::Option::KIND##Class,                       \
+   PARAM,          FLAGS,      OTOOL_##GROUP,                                  \
+   OTOOL_##ALIAS,  ALIASARGS,  VALUES},
+#include "OtoolOpts.inc"
+#undef OPTION
+#undef OTOOL_nullptr
+};
+
+class OtoolOptTable : public CommonOptTable {
+public:
+  OtoolOptTable()
+      : CommonOptTable(OtoolInfoTable, " [option...] [file...]",
+                       "Mach-O object file displaying tool") {}
+};
+
+} // namespace
 
 #define DEBUG_TYPE "objdump"
 
-static cl::OptionCategory ObjdumpCat("llvm-objdump Options");
+static uint64_t AdjustVMA;
+static bool AllHeaders;
+static std::string ArchName;
+bool objdump::ArchiveHeaders;
+bool objdump::Demangle;
+bool objdump::Disassemble;
+bool objdump::DisassembleAll;
+bool objdump::SymbolDescription;
+static std::vector<std::string> DisassembleSymbols;
+static bool DisassembleZeroes;
+static std::vector<std::string> DisassemblerOptions;
+DIDumpType objdump::DwarfDumpType;
+static bool DynamicRelocations;
+static bool FaultMapSection;
+static bool FileHeaders;
+bool objdump::SectionContents;
+static std::vector<std::string> InputFilenames;
+bool objdump::PrintLines;
+static bool MachOOpt;
+std::string objdump::MCPU;
+std::vector<std::string> objdump::MAttrs;
+bool objdump::ShowRawInsn;
+bool objdump::LeadingAddr;
+static bool RawClangAST;
+bool objdump::Relocations;
+bool objdump::PrintImmHex;
+bool objdump::PrivateHeaders;
+std::vector<std::string> objdump::FilterSections;
+bool objdump::SectionHeaders;
+static bool ShowLMA;
+bool objdump::PrintSource;
 
-static cl::opt<uint64_t> AdjustVMA(
-    "adjust-vma",
-    cl::desc("Increase the displayed address by the specified offset"),
-    cl::value_desc("offset"), cl::init(0), cl::cat(ObjdumpCat));
+static uint64_t StartAddress;
+static bool HasStartAddressFlag;
+static uint64_t StopAddress = UINT64_MAX;
+static bool HasStopAddressFlag;
 
-static cl::opt<bool>
-    AllHeaders("all-headers",
-               cl::desc("Display all available header information"),
-               cl::cat(ObjdumpCat));
-static cl::alias AllHeadersShort("x", cl::desc("Alias for --all-headers"),
-                                 cl::NotHidden, cl::Grouping,
-                                 cl::aliasopt(AllHeaders));
+bool objdump::SymbolTable;
+static bool SymbolizeOperands;
+static bool DynamicSymbolTable;
+std::string objdump::TripleName;
+bool objdump::UnwindInfo;
+static bool Wide;
+std::string objdump::Prefix;
+uint32_t objdump::PrefixStrip;
 
-static cl::opt<std::string>
-    ArchName("arch-name",
-             cl::desc("Target arch to disassemble for, "
-                      "see --version for available targets"),
-             cl::cat(ObjdumpCat));
+DebugVarsFormat objdump::DbgVariables = DVDisabled;
 
-cl::opt<bool>
-    objdump::ArchiveHeaders("archive-headers",
-                            cl::desc("Display archive header information"),
-                            cl::cat(ObjdumpCat));
-static cl::alias ArchiveHeadersShort("a",
-                                     cl::desc("Alias for --archive-headers"),
-                                     cl::NotHidden, cl::Grouping,
-                                     cl::aliasopt(ArchiveHeaders));
-
-cl::opt<bool> objdump::Demangle("demangle", cl::desc("Demangle symbols names"),
-                                cl::init(false), cl::cat(ObjdumpCat));
-static cl::alias DemangleShort("C", cl::desc("Alias for --demangle"),
-                               cl::NotHidden, cl::Grouping,
-                               cl::aliasopt(Demangle));
-
-cl::opt<bool> objdump::Disassemble(
-    "disassemble",
-    cl::desc("Display assembler mnemonics for the machine instructions"),
-    cl::cat(ObjdumpCat));
-static cl::alias DisassembleShort("d", cl::desc("Alias for --disassemble"),
-                                  cl::NotHidden, cl::Grouping,
-                                  cl::aliasopt(Disassemble));
-
-cl::opt<bool> objdump::DisassembleAll(
-    "disassemble-all",
-    cl::desc("Display assembler mnemonics for the machine instructions"),
-    cl::cat(ObjdumpCat));
-static cl::alias DisassembleAllShort("D",
-                                     cl::desc("Alias for --disassemble-all"),
-                                     cl::NotHidden, cl::Grouping,
-                                     cl::aliasopt(DisassembleAll));
-
-cl::opt<bool> objdump::SymbolDescription(
-    "symbol-description",
-    cl::desc("Add symbol description for disassembly. This "
-             "option is for XCOFF files only"),
-    cl::init(false), cl::cat(ObjdumpCat));
-
-static cl::list<std::string>
-    DisassembleSymbols("disassemble-symbols", cl::CommaSeparated,
-                       cl::desc("List of symbols to disassemble. "
-                                "Accept demangled names when --demangle is "
-                                "specified, otherwise accept mangled names"),
-                       cl::cat(ObjdumpCat));
-
-static cl::opt<bool> DisassembleZeroes(
-    "disassemble-zeroes",
-    cl::desc("Do not skip blocks of zeroes when disassembling"),
-    cl::cat(ObjdumpCat));
-static cl::alias
-    DisassembleZeroesShort("z", cl::desc("Alias for --disassemble-zeroes"),
-                           cl::NotHidden, cl::Grouping,
-                           cl::aliasopt(DisassembleZeroes));
-
-static cl::list<std::string>
-    DisassemblerOptions("disassembler-options",
-                        cl::desc("Pass target specific disassembler options"),
-                        cl::value_desc("options"), cl::CommaSeparated,
-                        cl::cat(ObjdumpCat));
-static cl::alias
-    DisassemblerOptionsShort("M", cl::desc("Alias for --disassembler-options"),
-                             cl::NotHidden, cl::Grouping, cl::Prefix,
-                             cl::CommaSeparated,
-                             cl::aliasopt(DisassemblerOptions));
-
-cl::opt<DIDumpType> objdump::DwarfDumpType(
-    "dwarf", cl::init(DIDT_Null), cl::desc("Dump of dwarf debug sections:"),
-    cl::values(clEnumValN(DIDT_DebugFrame, "frames", ".debug_frame")),
-    cl::cat(ObjdumpCat));
-
-static cl::opt<bool> DynamicRelocations(
-    "dynamic-reloc",
-    cl::desc("Display the dynamic relocation entries in the file"),
-    cl::cat(ObjdumpCat));
-static cl::alias DynamicRelocationShort("R",
-                                        cl::desc("Alias for --dynamic-reloc"),
-                                        cl::NotHidden, cl::Grouping,
-                                        cl::aliasopt(DynamicRelocations));
-
-static cl::opt<bool>
-    FaultMapSection("fault-map-section",
-                    cl::desc("Display contents of faultmap section"),
-                    cl::cat(ObjdumpCat));
-
-static cl::opt<bool>
-    FileHeaders("file-headers",
-                cl::desc("Display the contents of the overall file header"),
-                cl::cat(ObjdumpCat));
-static cl::alias FileHeadersShort("f", cl::desc("Alias for --file-headers"),
-                                  cl::NotHidden, cl::Grouping,
-                                  cl::aliasopt(FileHeaders));
-
-cl::opt<bool>
-    objdump::SectionContents("full-contents",
-                             cl::desc("Display the content of each section"),
-                             cl::cat(ObjdumpCat));
-static cl::alias SectionContentsShort("s",
-                                      cl::desc("Alias for --full-contents"),
-                                      cl::NotHidden, cl::Grouping,
-                                      cl::aliasopt(SectionContents));
-
-static cl::list<std::string> InputFilenames(cl::Positional,
-                                            cl::desc("<input object files>"),
-                                            cl::ZeroOrMore,
-                                            cl::cat(ObjdumpCat));
-
-static cl::opt<bool>
-    PrintLines("line-numbers",
-               cl::desc("Display source line numbers with "
-                        "disassembly. Implies disassemble object"),
-               cl::cat(ObjdumpCat));
-static cl::alias PrintLinesShort("l", cl::desc("Alias for --line-numbers"),
-                                 cl::NotHidden, cl::Grouping,
-                                 cl::aliasopt(PrintLines));
-
-static cl::opt<bool> MachOOpt("macho",
-                              cl::desc("Use MachO specific object file parser"),
-                              cl::cat(ObjdumpCat));
-static cl::alias MachOm("m", cl::desc("Alias for --macho"), cl::NotHidden,
-                        cl::Grouping, cl::aliasopt(MachOOpt));
-
-cl::opt<std::string> objdump::MCPU(
-    "mcpu", cl::desc("Target a specific cpu type (--mcpu=help for details)"),
-    cl::value_desc("cpu-name"), cl::init(""), cl::cat(ObjdumpCat));
-
-cl::list<std::string> objdump::MAttrs(
-    "mattr", cl::CommaSeparated,
-    cl::desc("Target specific attributes (--mattr=help for details)"),
-    cl::value_desc("a1,+a2,-a3,..."), cl::cat(ObjdumpCat));
-
-cl::opt<bool> objdump::NoShowRawInsn(
-    "no-show-raw-insn",
-    cl::desc(
-        "When disassembling instructions, do not print the instruction bytes."),
-    cl::cat(ObjdumpCat));
-
-cl::opt<bool> objdump::NoLeadingAddr("no-leading-addr",
-                                     cl::desc("Print no leading address"),
-                                     cl::cat(ObjdumpCat));
-
-static cl::opt<bool> RawClangAST(
-    "raw-clang-ast",
-    cl::desc("Dump the raw binary contents of the clang AST section"),
-    cl::cat(ObjdumpCat));
-
-cl::opt<bool>
-    objdump::Relocations("reloc",
-                         cl::desc("Display the relocation entries in the file"),
-                         cl::cat(ObjdumpCat));
-static cl::alias RelocationsShort("r", cl::desc("Alias for --reloc"),
-                                  cl::NotHidden, cl::Grouping,
-                                  cl::aliasopt(Relocations));
-
-cl::opt<bool>
-    objdump::PrintImmHex("print-imm-hex",
-                         cl::desc("Use hex format for immediate values"),
-                         cl::cat(ObjdumpCat));
-
-cl::opt<bool>
-    objdump::PrivateHeaders("private-headers",
-                            cl::desc("Display format specific file headers"),
-                            cl::cat(ObjdumpCat));
-static cl::alias PrivateHeadersShort("p",
-                                     cl::desc("Alias for --private-headers"),
-                                     cl::NotHidden, cl::Grouping,
-                                     cl::aliasopt(PrivateHeaders));
-
-cl::list<std::string>
-    objdump::FilterSections("section",
-                            cl::desc("Operate on the specified sections only. "
-                                     "With --macho dump segment,section"),
-                            cl::cat(ObjdumpCat));
-static cl::alias FilterSectionsj("j", cl::desc("Alias for --section"),
-                                 cl::NotHidden, cl::Grouping, cl::Prefix,
-                                 cl::aliasopt(FilterSections));
-
-cl::opt<bool> objdump::SectionHeaders(
-    "section-headers",
-    cl::desc("Display summaries of the headers for each section."),
-    cl::cat(ObjdumpCat));
-static cl::alias SectionHeadersShort("headers",
-                                     cl::desc("Alias for --section-headers"),
-                                     cl::NotHidden,
-                                     cl::aliasopt(SectionHeaders));
-static cl::alias SectionHeadersShorter("h",
-                                       cl::desc("Alias for --section-headers"),
-                                       cl::NotHidden, cl::Grouping,
-                                       cl::aliasopt(SectionHeaders));
-
-static cl::opt<bool>
-    ShowLMA("show-lma",
-            cl::desc("Display LMA column when dumping ELF section headers"),
-            cl::cat(ObjdumpCat));
-
-static cl::opt<bool> PrintSource(
-    "source",
-    cl::desc(
-        "Display source inlined with disassembly. Implies disassemble object"),
-    cl::cat(ObjdumpCat));
-static cl::alias PrintSourceShort("S", cl::desc("Alias for --source"),
-                                  cl::NotHidden, cl::Grouping,
-                                  cl::aliasopt(PrintSource));
-
-static cl::opt<uint64_t>
-    StartAddress("start-address", cl::desc("Disassemble beginning at address"),
-                 cl::value_desc("address"), cl::init(0), cl::cat(ObjdumpCat));
-static cl::opt<uint64_t> StopAddress("stop-address",
-                                     cl::desc("Stop disassembly at address"),
-                                     cl::value_desc("address"),
-                                     cl::init(UINT64_MAX), cl::cat(ObjdumpCat));
-
-cl::opt<bool> objdump::SymbolTable("syms", cl::desc("Display the symbol table"),
-                                   cl::cat(ObjdumpCat));
-static cl::alias SymbolTableShort("t", cl::desc("Alias for --syms"),
-                                  cl::NotHidden, cl::Grouping,
-                                  cl::aliasopt(SymbolTable));
-
-static cl::opt<bool> SymbolizeOperands(
-    "symbolize-operands",
-    cl::desc("Symbolize instruction operands when disassembling"),
-    cl::cat(ObjdumpCat));
-
-static cl::opt<bool> DynamicSymbolTable(
-    "dynamic-syms",
-    cl::desc("Display the contents of the dynamic symbol table"),
-    cl::cat(ObjdumpCat));
-static cl::alias DynamicSymbolTableShort("T",
-                                         cl::desc("Alias for --dynamic-syms"),
-                                         cl::NotHidden, cl::Grouping,
-                                         cl::aliasopt(DynamicSymbolTable));
-
-cl::opt<std::string>
-    objdump::TripleName("triple",
-                        cl::desc("Target triple to disassemble for, see "
-                                 "--version for available targets"),
-                        cl::cat(ObjdumpCat));
-
-cl::opt<bool> objdump::UnwindInfo("unwind-info",
-                                  cl::desc("Display unwind information"),
-                                  cl::cat(ObjdumpCat));
-static cl::alias UnwindInfoShort("u", cl::desc("Alias for --unwind-info"),
-                                 cl::NotHidden, cl::Grouping,
-                                 cl::aliasopt(UnwindInfo));
-
-static cl::opt<bool>
-    Wide("wide", cl::desc("Ignored for compatibility with GNU objdump"),
-         cl::cat(ObjdumpCat));
-static cl::alias WideShort("w", cl::Grouping, cl::aliasopt(Wide));
-
-cl::opt<std::string> objdump::Prefix("prefix",
-                                     cl::desc("Add prefix to absolute paths"),
-                                     cl::cat(ObjdumpCat));
-
-cl::opt<uint32_t>
-    objdump::PrefixStrip("prefix-strip",
-                         cl::desc("Strip out initial directories from absolute "
-                                  "paths. No effect without --prefix"),
-                         cl::init(0), cl::cat(ObjdumpCat));
-
-enum DebugVarsFormat {
-  DVDisabled,
-  DVUnicode,
-  DVASCII,
-};
-
-static cl::opt<DebugVarsFormat> DbgVariables(
-    "debug-vars", cl::init(DVDisabled),
-    cl::desc("Print the locations (in registers or memory) of "
-             "source-level variables alongside disassembly"),
-    cl::ValueOptional,
-    cl::values(clEnumValN(DVUnicode, "", "unicode"),
-               clEnumValN(DVUnicode, "unicode", "unicode"),
-               clEnumValN(DVASCII, "ascii", "unicode")),
-    cl::cat(ObjdumpCat));
-
-static cl::opt<int>
-    DbgIndent("debug-vars-indent", cl::init(40),
-              cl::desc("Distance to indent the source-level variable display, "
-                       "relative to the start of the disassembly"),
-              cl::cat(ObjdumpCat));
-
-static cl::extrahelp
-    HelpResponse("\nPass @FILE as argument to read options from FILE.\n");
+int objdump::DbgIndent = 40;
 
 static StringSet<> DisasmSymbolSet;
 StringSet<> objdump::FoundSectionSet;
@@ -594,530 +428,7 @@ namespace {
 /// Get the column at which we want to start printing the instruction
 /// disassembly, taking into account anything which appears to the left of it.
 unsigned getInstStartColumn(const MCSubtargetInfo &STI) {
-  return NoShowRawInsn ? 16 : STI.getTargetTriple().isX86() ? 40 : 24;
-}
-
-/// Stores a single expression representing the location of a source-level
-/// variable, along with the PC range for which that expression is valid.
-struct LiveVariable {
-  DWARFLocationExpression LocExpr;
-  const char *VarName;
-  DWARFUnit *Unit;
-  const DWARFDie FuncDie;
-
-  LiveVariable(const DWARFLocationExpression &LocExpr, const char *VarName,
-               DWARFUnit *Unit, const DWARFDie FuncDie)
-      : LocExpr(LocExpr), VarName(VarName), Unit(Unit), FuncDie(FuncDie) {}
-
-  bool liveAtAddress(object::SectionedAddress Addr) {
-    if (LocExpr.Range == None)
-      return false;
-    return LocExpr.Range->SectionIndex == Addr.SectionIndex &&
-           LocExpr.Range->LowPC <= Addr.Address &&
-           LocExpr.Range->HighPC > Addr.Address;
-  }
-
-  void print(raw_ostream &OS, const MCRegisterInfo &MRI) const {
-    DataExtractor Data({LocExpr.Expr.data(), LocExpr.Expr.size()},
-                       Unit->getContext().isLittleEndian(), 0);
-    DWARFExpression Expression(Data, Unit->getAddressByteSize());
-    Expression.printCompact(OS, MRI);
-  }
-};
-
-/// Helper class for printing source variable locations alongside disassembly.
-class LiveVariablePrinter {
-  // Information we want to track about one column in which we are printing a
-  // variable live range.
-  struct Column {
-    unsigned VarIdx = NullVarIdx;
-    bool LiveIn = false;
-    bool LiveOut = false;
-    bool MustDrawLabel  = false;
-
-    bool isActive() const { return VarIdx != NullVarIdx; }
-
-    static constexpr unsigned NullVarIdx = std::numeric_limits<unsigned>::max();
-  };
-
-  // All live variables we know about in the object/image file.
-  std::vector<LiveVariable> LiveVariables;
-
-  // The columns we are currently drawing.
-  IndexedMap<Column> ActiveCols;
-
-  const MCRegisterInfo &MRI;
-  const MCSubtargetInfo &STI;
-
-  void addVariable(DWARFDie FuncDie, DWARFDie VarDie) {
-    uint64_t FuncLowPC, FuncHighPC, SectionIndex;
-    FuncDie.getLowAndHighPC(FuncLowPC, FuncHighPC, SectionIndex);
-    const char *VarName = VarDie.getName(DINameKind::ShortName);
-    DWARFUnit *U = VarDie.getDwarfUnit();
-
-    Expected<DWARFLocationExpressionsVector> Locs =
-        VarDie.getLocations(dwarf::DW_AT_location);
-    if (!Locs) {
-      // If the variable doesn't have any locations, just ignore it. We don't
-      // report an error or warning here as that could be noisy on optimised
-      // code.
-      consumeError(Locs.takeError());
-      return;
-    }
-
-    for (const DWARFLocationExpression &LocExpr : *Locs) {
-      if (LocExpr.Range) {
-        LiveVariables.emplace_back(LocExpr, VarName, U, FuncDie);
-      } else {
-        // If the LocExpr does not have an associated range, it is valid for
-        // the whole of the function.
-        // TODO: technically it is not valid for any range covered by another
-        // LocExpr, does that happen in reality?
-        DWARFLocationExpression WholeFuncExpr{
-            DWARFAddressRange(FuncLowPC, FuncHighPC, SectionIndex),
-            LocExpr.Expr};
-        LiveVariables.emplace_back(WholeFuncExpr, VarName, U, FuncDie);
-      }
-    }
-  }
-
-  void addFunction(DWARFDie D) {
-    for (const DWARFDie &Child : D.children()) {
-      if (Child.getTag() == dwarf::DW_TAG_variable ||
-          Child.getTag() == dwarf::DW_TAG_formal_parameter)
-        addVariable(D, Child);
-      else
-        addFunction(Child);
-    }
-  }
-
-  // Get the column number (in characters) at which the first live variable
-  // line should be printed.
-  unsigned getIndentLevel() const {
-    return DbgIndent + getInstStartColumn(STI);
-  }
-
-  // Indent to the first live-range column to the right of the currently
-  // printed line, and return the index of that column.
-  // TODO: formatted_raw_ostream uses "column" to mean a number of characters
-  // since the last \n, and we use it to mean the number of slots in which we
-  // put live variable lines. Pick a less overloaded word.
-  unsigned moveToFirstVarColumn(formatted_raw_ostream &OS) {
-    // Logical column number: column zero is the first column we print in, each
-    // logical column is 2 physical columns wide.
-    unsigned FirstUnprintedLogicalColumn =
-        std::max((int)(OS.getColumn() - getIndentLevel() + 1) / 2, 0);
-    // Physical column number: the actual column number in characters, with
-    // zero being the left-most side of the screen.
-    unsigned FirstUnprintedPhysicalColumn =
-        getIndentLevel() + FirstUnprintedLogicalColumn * 2;
-
-    if (FirstUnprintedPhysicalColumn > OS.getColumn())
-      OS.PadToColumn(FirstUnprintedPhysicalColumn);
-
-    return FirstUnprintedLogicalColumn;
-  }
-
-  unsigned findFreeColumn() {
-    for (unsigned ColIdx = 0; ColIdx < ActiveCols.size(); ++ColIdx)
-      if (!ActiveCols[ColIdx].isActive())
-        return ColIdx;
-
-    size_t OldSize = ActiveCols.size();
-    ActiveCols.grow(std::max<size_t>(OldSize * 2, 1));
-    return OldSize;
-  }
-
-public:
-  LiveVariablePrinter(const MCRegisterInfo &MRI, const MCSubtargetInfo &STI)
-      : LiveVariables(), ActiveCols(Column()), MRI(MRI), STI(STI) {}
-
-  void dump() const {
-    for (const LiveVariable &LV : LiveVariables) {
-      dbgs() << LV.VarName << " @ " << LV.LocExpr.Range << ": ";
-      LV.print(dbgs(), MRI);
-      dbgs() << "\n";
-    }
-  }
-
-  void addCompileUnit(DWARFDie D) {
-    if (D.getTag() == dwarf::DW_TAG_subprogram)
-      addFunction(D);
-    else
-      for (const DWARFDie &Child : D.children())
-        addFunction(Child);
-  }
-
-  /// Update to match the state of the instruction between ThisAddr and
-  /// NextAddr. In the common case, any live range active at ThisAddr is
-  /// live-in to the instruction, and any live range active at NextAddr is
-  /// live-out of the instruction. If IncludeDefinedVars is false, then live
-  /// ranges starting at NextAddr will be ignored.
-  void update(object::SectionedAddress ThisAddr,
-              object::SectionedAddress NextAddr, bool IncludeDefinedVars) {
-    // First, check variables which have already been assigned a column, so
-    // that we don't change their order.
-    SmallSet<unsigned, 8> CheckedVarIdxs;
-    for (unsigned ColIdx = 0, End = ActiveCols.size(); ColIdx < End; ++ColIdx) {
-      if (!ActiveCols[ColIdx].isActive())
-        continue;
-      CheckedVarIdxs.insert(ActiveCols[ColIdx].VarIdx);
-      LiveVariable &LV = LiveVariables[ActiveCols[ColIdx].VarIdx];
-      ActiveCols[ColIdx].LiveIn = LV.liveAtAddress(ThisAddr);
-      ActiveCols[ColIdx].LiveOut = LV.liveAtAddress(NextAddr);
-      LLVM_DEBUG(dbgs() << "pass 1, " << ThisAddr.Address << "-"
-                        << NextAddr.Address << ", " << LV.VarName << ", Col "
-                        << ColIdx << ": LiveIn=" << ActiveCols[ColIdx].LiveIn
-                        << ", LiveOut=" << ActiveCols[ColIdx].LiveOut << "\n");
-
-      if (!ActiveCols[ColIdx].LiveIn && !ActiveCols[ColIdx].LiveOut)
-        ActiveCols[ColIdx].VarIdx = Column::NullVarIdx;
-    }
-
-    // Next, look for variables which don't already have a column, but which
-    // are now live.
-    if (IncludeDefinedVars) {
-      for (unsigned VarIdx = 0, End = LiveVariables.size(); VarIdx < End;
-           ++VarIdx) {
-        if (CheckedVarIdxs.count(VarIdx))
-          continue;
-        LiveVariable &LV = LiveVariables[VarIdx];
-        bool LiveIn = LV.liveAtAddress(ThisAddr);
-        bool LiveOut = LV.liveAtAddress(NextAddr);
-        if (!LiveIn && !LiveOut)
-          continue;
-
-        unsigned ColIdx = findFreeColumn();
-        LLVM_DEBUG(dbgs() << "pass 2, " << ThisAddr.Address << "-"
-                          << NextAddr.Address << ", " << LV.VarName << ", Col "
-                          << ColIdx << ": LiveIn=" << LiveIn
-                          << ", LiveOut=" << LiveOut << "\n");
-        ActiveCols[ColIdx].VarIdx = VarIdx;
-        ActiveCols[ColIdx].LiveIn = LiveIn;
-        ActiveCols[ColIdx].LiveOut = LiveOut;
-        ActiveCols[ColIdx].MustDrawLabel = true;
-      }
-    }
-  }
-
-  enum class LineChar {
-    RangeStart,
-    RangeMid,
-    RangeEnd,
-    LabelVert,
-    LabelCornerNew,
-    LabelCornerActive,
-    LabelHoriz,
-  };
-  const char *getLineChar(LineChar C) const {
-    bool IsASCII = DbgVariables == DVASCII;
-    switch (C) {
-    case LineChar::RangeStart:
-      return IsASCII ? "^" : (const char *)u8"\u2548";
-    case LineChar::RangeMid:
-      return IsASCII ? "|" : (const char *)u8"\u2503";
-    case LineChar::RangeEnd:
-      return IsASCII ? "v" : (const char *)u8"\u253b";
-    case LineChar::LabelVert:
-      return IsASCII ? "|" : (const char *)u8"\u2502";
-    case LineChar::LabelCornerNew:
-      return IsASCII ? "/" : (const char *)u8"\u250c";
-    case LineChar::LabelCornerActive:
-      return IsASCII ? "|" : (const char *)u8"\u2520";
-    case LineChar::LabelHoriz:
-      return IsASCII ? "-" : (const char *)u8"\u2500";
-    }
-    llvm_unreachable("Unhandled LineChar enum");
-  }
-
-  /// Print live ranges to the right of an existing line. This assumes the
-  /// line is not an instruction, so doesn't start or end any live ranges, so
-  /// we only need to print active ranges or empty columns. If AfterInst is
-  /// true, this is being printed after the last instruction fed to update(),
-  /// otherwise this is being printed before it.
-  void printAfterOtherLine(formatted_raw_ostream &OS, bool AfterInst) {
-    if (ActiveCols.size()) {
-      unsigned FirstUnprintedColumn = moveToFirstVarColumn(OS);
-      for (size_t ColIdx = FirstUnprintedColumn, End = ActiveCols.size();
-           ColIdx < End; ++ColIdx) {
-        if (ActiveCols[ColIdx].isActive()) {
-          if ((AfterInst && ActiveCols[ColIdx].LiveOut) ||
-              (!AfterInst && ActiveCols[ColIdx].LiveIn))
-            OS << getLineChar(LineChar::RangeMid);
-          else if (!AfterInst && ActiveCols[ColIdx].LiveOut)
-            OS << getLineChar(LineChar::LabelVert);
-          else
-            OS << " ";
-        }
-        OS << " ";
-      }
-    }
-    OS << "\n";
-  }
-
-  /// Print any live variable range info needed to the right of a
-  /// non-instruction line of disassembly. This is where we print the variable
-  /// names and expressions, with thin line-drawing characters connecting them
-  /// to the live range which starts at the next instruction. If MustPrint is
-  /// true, we have to print at least one line (with the continuation of any
-  /// already-active live ranges) because something has already been printed
-  /// earlier on this line.
-  void printBetweenInsts(formatted_raw_ostream &OS, bool MustPrint) {
-    bool PrintedSomething = false;
-    for (unsigned ColIdx = 0, End = ActiveCols.size(); ColIdx < End; ++ColIdx) {
-      if (ActiveCols[ColIdx].isActive() && ActiveCols[ColIdx].MustDrawLabel) {
-        // First we need to print the live range markers for any active
-        // columns to the left of this one.
-        OS.PadToColumn(getIndentLevel());
-        for (unsigned ColIdx2 = 0; ColIdx2 < ColIdx; ++ColIdx2) {
-          if (ActiveCols[ColIdx2].isActive()) {
-            if (ActiveCols[ColIdx2].MustDrawLabel &&
-                           !ActiveCols[ColIdx2].LiveIn)
-              OS << getLineChar(LineChar::LabelVert) << " ";
-            else
-              OS << getLineChar(LineChar::RangeMid) << " ";
-          } else
-            OS << "  ";
-        }
-
-        // Then print the variable name and location of the new live range,
-        // with box drawing characters joining it to the live range line.
-        OS << getLineChar(ActiveCols[ColIdx].LiveIn
-                              ? LineChar::LabelCornerActive
-                              : LineChar::LabelCornerNew)
-           << getLineChar(LineChar::LabelHoriz) << " ";
-        WithColor(OS, raw_ostream::GREEN)
-            << LiveVariables[ActiveCols[ColIdx].VarIdx].VarName;
-        OS << " = ";
-        {
-          WithColor ExprColor(OS, raw_ostream::CYAN);
-          LiveVariables[ActiveCols[ColIdx].VarIdx].print(OS, MRI);
-        }
-
-        // If there are any columns to the right of the expression we just
-        // printed, then continue their live range lines.
-        unsigned FirstUnprintedColumn = moveToFirstVarColumn(OS);
-        for (unsigned ColIdx2 = FirstUnprintedColumn, End = ActiveCols.size();
-             ColIdx2 < End; ++ColIdx2) {
-          if (ActiveCols[ColIdx2].isActive() && ActiveCols[ColIdx2].LiveIn)
-            OS << getLineChar(LineChar::RangeMid) << " ";
-          else
-            OS << "  ";
-        }
-
-        OS << "\n";
-        PrintedSomething = true;
-      }
-    }
-
-    for (unsigned ColIdx = 0, End = ActiveCols.size(); ColIdx < End; ++ColIdx)
-      if (ActiveCols[ColIdx].isActive())
-        ActiveCols[ColIdx].MustDrawLabel = false;
-
-    // If we must print something (because we printed a line/column number),
-    // but don't have any new variables to print, then print a line which
-    // just continues any existing live ranges.
-    if (MustPrint && !PrintedSomething)
-      printAfterOtherLine(OS, false);
-  }
-
-  /// Print the live variable ranges to the right of a disassembled instruction.
-  void printAfterInst(formatted_raw_ostream &OS) {
-    if (!ActiveCols.size())
-      return;
-    unsigned FirstUnprintedColumn = moveToFirstVarColumn(OS);
-    for (unsigned ColIdx = FirstUnprintedColumn, End = ActiveCols.size();
-         ColIdx < End; ++ColIdx) {
-      if (!ActiveCols[ColIdx].isActive())
-        OS << "  ";
-      else if (ActiveCols[ColIdx].LiveIn && ActiveCols[ColIdx].LiveOut)
-        OS << getLineChar(LineChar::RangeMid) << " ";
-      else if (ActiveCols[ColIdx].LiveOut)
-        OS << getLineChar(LineChar::RangeStart) << " ";
-      else if (ActiveCols[ColIdx].LiveIn)
-        OS << getLineChar(LineChar::RangeEnd) << " ";
-      else
-        llvm_unreachable("var must be live in or out!");
-    }
-  }
-};
-
-class SourcePrinter {
-protected:
-  DILineInfo OldLineInfo;
-  const ObjectFile *Obj = nullptr;
-  std::unique_ptr<symbolize::LLVMSymbolizer> Symbolizer;
-  // File name to file contents of source.
-  std::unordered_map<std::string, std::unique_ptr<MemoryBuffer>> SourceCache;
-  // Mark the line endings of the cached source.
-  std::unordered_map<std::string, std::vector<StringRef>> LineCache;
-  // Keep track of missing sources.
-  StringSet<> MissingSources;
-  // Only emit 'invalid debug info' warning once.
-  bool WarnedInvalidDebugInfo = false;
-
-private:
-  bool cacheSource(const DILineInfo& LineInfoFile);
-
-  void printLines(formatted_raw_ostream &OS, const DILineInfo &LineInfo,
-                  StringRef Delimiter, LiveVariablePrinter &LVP);
-
-  void printSources(formatted_raw_ostream &OS, const DILineInfo &LineInfo,
-                    StringRef ObjectFilename, StringRef Delimiter,
-                    LiveVariablePrinter &LVP);
-
-public:
-  SourcePrinter() = default;
-  SourcePrinter(const ObjectFile *Obj, StringRef DefaultArch) : Obj(Obj) {
-    symbolize::LLVMSymbolizer::Options SymbolizerOpts;
-    SymbolizerOpts.PrintFunctions =
-        DILineInfoSpecifier::FunctionNameKind::LinkageName;
-    SymbolizerOpts.Demangle = Demangle;
-    SymbolizerOpts.DefaultArch = std::string(DefaultArch);
-    Symbolizer.reset(new symbolize::LLVMSymbolizer(SymbolizerOpts));
-  }
-  virtual ~SourcePrinter() = default;
-  virtual void printSourceLine(formatted_raw_ostream &OS,
-                               object::SectionedAddress Address,
-                               StringRef ObjectFilename,
-                               LiveVariablePrinter &LVP,
-                               StringRef Delimiter = "; ");
-};
-
-bool SourcePrinter::cacheSource(const DILineInfo &LineInfo) {
-  std::unique_ptr<MemoryBuffer> Buffer;
-  if (LineInfo.Source) {
-    Buffer = MemoryBuffer::getMemBuffer(*LineInfo.Source);
-  } else {
-    auto BufferOrError = MemoryBuffer::getFile(LineInfo.FileName);
-    if (!BufferOrError) {
-      if (MissingSources.insert(LineInfo.FileName).second)
-        reportWarning("failed to find source " + LineInfo.FileName,
-                      Obj->getFileName());
-      return false;
-    }
-    Buffer = std::move(*BufferOrError);
-  }
-  // Chomp the file to get lines
-  const char *BufferStart = Buffer->getBufferStart(),
-             *BufferEnd = Buffer->getBufferEnd();
-  std::vector<StringRef> &Lines = LineCache[LineInfo.FileName];
-  const char *Start = BufferStart;
-  for (const char *I = BufferStart; I != BufferEnd; ++I)
-    if (*I == '\n') {
-      Lines.emplace_back(Start, I - Start - (BufferStart < I && I[-1] == '\r'));
-      Start = I + 1;
-    }
-  if (Start < BufferEnd)
-    Lines.emplace_back(Start, BufferEnd - Start);
-  SourceCache[LineInfo.FileName] = std::move(Buffer);
-  return true;
-}
-
-void SourcePrinter::printSourceLine(formatted_raw_ostream &OS,
-                                    object::SectionedAddress Address,
-                                    StringRef ObjectFilename,
-                                    LiveVariablePrinter &LVP,
-                                    StringRef Delimiter) {
-  if (!Symbolizer)
-    return;
-
-  DILineInfo LineInfo = DILineInfo();
-  Expected<DILineInfo> ExpectedLineInfo =
-      Symbolizer->symbolizeCode(*Obj, Address);
-  std::string ErrorMessage;
-  if (ExpectedLineInfo) {
-    LineInfo = *ExpectedLineInfo;
-  } else if (!WarnedInvalidDebugInfo) {
-    WarnedInvalidDebugInfo = true;
-    // TODO Untested.
-    reportWarning("failed to parse debug information: " +
-                      toString(ExpectedLineInfo.takeError()),
-                  ObjectFilename);
-  }
-
-  if (!Prefix.empty() && sys::path::is_absolute_gnu(LineInfo.FileName)) {
-    // FileName has at least one character since is_absolute_gnu is false for
-    // an empty string.
-    assert(!LineInfo.FileName.empty());
-    if (PrefixStrip > 0) {
-      uint32_t Level = 0;
-      auto StrippedNameStart = LineInfo.FileName.begin();
-
-      // Path.h iterator skips extra separators. Therefore it cannot be used
-      // here to keep compatibility with GNU Objdump.
-      for (auto Pos = StrippedNameStart + 1, End = LineInfo.FileName.end();
-           Pos != End && Level < PrefixStrip; ++Pos) {
-        if (sys::path::is_separator(*Pos)) {
-          StrippedNameStart = Pos;
-          ++Level;
-        }
-      }
-
-      LineInfo.FileName =
-          std::string(StrippedNameStart, LineInfo.FileName.end());
-    }
-
-    SmallString<128> FilePath;
-    sys::path::append(FilePath, Prefix, LineInfo.FileName);
-
-    LineInfo.FileName = std::string(FilePath);
-  }
-
-  if (PrintLines)
-    printLines(OS, LineInfo, Delimiter, LVP);
-  if (PrintSource)
-    printSources(OS, LineInfo, ObjectFilename, Delimiter, LVP);
-  OldLineInfo = LineInfo;
-}
-
-void SourcePrinter::printLines(formatted_raw_ostream &OS,
-                               const DILineInfo &LineInfo, StringRef Delimiter,
-                               LiveVariablePrinter &LVP) {
-  bool PrintFunctionName = LineInfo.FunctionName != DILineInfo::BadString &&
-                           LineInfo.FunctionName != OldLineInfo.FunctionName;
-  if (PrintFunctionName) {
-    OS << Delimiter << LineInfo.FunctionName;
-    // If demangling is successful, FunctionName will end with "()". Print it
-    // only if demangling did not run or was unsuccessful.
-    if (!StringRef(LineInfo.FunctionName).endswith("()"))
-      OS << "()";
-    OS << ":\n";
-  }
-  if (LineInfo.FileName != DILineInfo::BadString && LineInfo.Line != 0 &&
-      (OldLineInfo.Line != LineInfo.Line ||
-       OldLineInfo.FileName != LineInfo.FileName || PrintFunctionName)) {
-    OS << Delimiter << LineInfo.FileName << ":" << LineInfo.Line;
-    LVP.printBetweenInsts(OS, true);
-  }
-}
-
-void SourcePrinter::printSources(formatted_raw_ostream &OS,
-                                 const DILineInfo &LineInfo,
-                                 StringRef ObjectFilename, StringRef Delimiter,
-                                 LiveVariablePrinter &LVP) {
-  if (LineInfo.FileName == DILineInfo::BadString || LineInfo.Line == 0 ||
-      (OldLineInfo.Line == LineInfo.Line &&
-       OldLineInfo.FileName == LineInfo.FileName))
-    return;
-
-  if (SourceCache.find(LineInfo.FileName) == SourceCache.end())
-    if (!cacheSource(LineInfo))
-      return;
-  auto LineBuffer = LineCache.find(LineInfo.FileName);
-  if (LineBuffer != LineCache.end()) {
-    if (LineInfo.Line > LineBuffer->second.size()) {
-      reportWarning(
-          formatv(
-              "debug info line number {0} exceeds the number of lines in {1}",
-              LineInfo.Line, LineInfo.FileName),
-          ObjectFilename);
-      return;
-    }
-    // Vector begins at 0, line numbers are non-zero
-    OS << Delimiter << LineBuffer->second[LineInfo.Line - 1];
-    LVP.printBetweenInsts(OS, true);
-  }
+  return !ShowRawInsn ? 16 : STI.getTargetTriple().isX86() ? 40 : 24;
 }
 
 static bool isAArch64Elf(const ObjectFile *Obj) {
@@ -1160,9 +471,9 @@ public:
     LVP.printBetweenInsts(OS, false);
 
     size_t Start = OS.tell();
-    if (!NoLeadingAddr)
+    if (LeadingAddr)
       OS << format("%8" PRIx64 ":", Address.Address);
-    if (!NoShowRawInsn) {
+    if (ShowRawInsn) {
       OS << ' ';
       dumpBytes(Bytes, OS);
     }
@@ -1193,9 +504,9 @@ public:
                  formatted_raw_ostream &OS) {
     uint32_t opcode =
       (Bytes[3] << 24) | (Bytes[2] << 16) | (Bytes[1] << 8) | Bytes[0];
-    if (!NoLeadingAddr)
+    if (LeadingAddr)
       OS << format("%8" PRIx64 ":", Address);
-    if (!NoShowRawInsn) {
+    if (ShowRawInsn) {
       OS << "\t";
       dumpBytes(Bytes.slice(0, 4), OS);
       OS << format("\t%08" PRIx32, opcode);
@@ -1330,9 +641,9 @@ public:
                  LiveVariablePrinter &LVP) override {
     if (SP && (PrintSource || PrintLines))
       SP->printSourceLine(OS, Address, ObjectFilename, LVP);
-    if (!NoLeadingAddr)
+    if (LeadingAddr)
       OS << format("%8" PRId64 ":", Address.Address / 8);
-    if (!NoShowRawInsn) {
+    if (ShowRawInsn) {
       OS << "\t";
       dumpBytes(Bytes, OS);
     }
@@ -1897,7 +1208,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       }
 
       outs() << '\n';
-      if (!NoLeadingAddr)
+      if (LeadingAddr)
         outs() << format(Is64Bits ? "%016" PRIx64 " " : "%08" PRIx64 " ",
                          SectionAddr + Start + VMAAdjustment);
       if (Obj->isXCOFF() && SymbolDescription) {
@@ -2829,11 +2140,11 @@ static void checkForInvalidStartStopAddress(ObjectFile *Obj,
         return;
     }
 
-  if (StartAddress.getNumOccurrences() == 0)
+  if (!HasStartAddressFlag)
     reportWarning("no section has address less than 0x" +
                       Twine::utohexstr(Stop) + " specified by --stop-address",
                   Obj->getFileName());
-  else if (StopAddress.getNumOccurrences() == 0)
+  else if (!HasStopAddressFlag)
     reportWarning("no section has address greater than or equal to 0x" +
                       Twine::utohexstr(Start) + " specified by --start-address",
                   Obj->getFileName());
@@ -2856,7 +2167,7 @@ static void dumpObject(ObjectFile *O, const Archive *A = nullptr,
     outs() << ":\tfile format " << O->getFileFormatName().lower() << "\n\n";
   }
 
-  if (StartAddress.getNumOccurrences() || StopAddress.getNumOccurrences())
+  if (HasStartAddressFlag || HasStopAddressFlag)
     checkForInvalidStartStopAddress(O, StartAddress, StopAddress);
 
   // Note: the order here matches GNU objdump for compatability.
@@ -2976,32 +2287,247 @@ static void dumpInput(StringRef file) {
     reportError(errorCodeToError(object_error::invalid_file_type), file);
 }
 
+template <typename T>
+static void parseIntArg(const llvm::opt::InputArgList &InputArgs, int ID,
+                        T &Value) {
+  if (const opt::Arg *A = InputArgs.getLastArg(ID)) {
+    StringRef V(A->getValue());
+    if (!llvm::to_integer(V, Value, 0)) {
+      reportCmdLineError(A->getSpelling() +
+                         ": expected a non-negative integer, but got '" + V +
+                         "'");
+    }
+  }
+}
+
+static std::vector<std::string>
+commaSeparatedValues(const llvm::opt::InputArgList &InputArgs, int ID) {
+  std::vector<std::string> Values;
+  for (StringRef Value : InputArgs.getAllArgValues(ID)) {
+    llvm::SmallVector<StringRef, 2> SplitValues;
+    llvm::SplitString(Value, SplitValues, ",");
+    for (StringRef SplitValue : SplitValues)
+      Values.push_back(SplitValue.str());
+  }
+  return Values;
+}
+
+static void parseOtoolOptions(const llvm::opt::InputArgList &InputArgs) {
+  MachOOpt = true;
+  FullLeadingAddr = true;
+  PrintImmHex = true;
+
+  ArchName = InputArgs.getLastArgValue(OTOOL_arch).str();
+  LinkOptHints = InputArgs.hasArg(OTOOL_C);
+  if (InputArgs.hasArg(OTOOL_d))
+    FilterSections.push_back("__DATA,__data");
+  DylibId = InputArgs.hasArg(OTOOL_D);
+  UniversalHeaders = InputArgs.hasArg(OTOOL_f);
+  DataInCode = InputArgs.hasArg(OTOOL_G);
+  FirstPrivateHeader = InputArgs.hasArg(OTOOL_h);
+  IndirectSymbols = InputArgs.hasArg(OTOOL_I);
+  ShowRawInsn = InputArgs.hasArg(OTOOL_j);
+  PrivateHeaders = InputArgs.hasArg(OTOOL_l);
+  DylibsUsed = InputArgs.hasArg(OTOOL_L);
+  MCPU = InputArgs.getLastArgValue(OTOOL_mcpu_EQ).str();
+  ObjcMetaData = InputArgs.hasArg(OTOOL_o);
+  DisSymName = InputArgs.getLastArgValue(OTOOL_p).str();
+  InfoPlist = InputArgs.hasArg(OTOOL_P);
+  Relocations = InputArgs.hasArg(OTOOL_r);
+  if (const Arg *A = InputArgs.getLastArg(OTOOL_s)) {
+    auto Filter = (A->getValue(0) + StringRef(",") + A->getValue(1)).str();
+    FilterSections.push_back(Filter);
+  }
+  if (InputArgs.hasArg(OTOOL_t))
+    FilterSections.push_back("__TEXT,__text");
+  Verbose = InputArgs.hasArg(OTOOL_v) || InputArgs.hasArg(OTOOL_V) ||
+            InputArgs.hasArg(OTOOL_o);
+  SymbolicOperands = InputArgs.hasArg(OTOOL_V);
+  if (InputArgs.hasArg(OTOOL_x))
+    FilterSections.push_back(",__text");
+  LeadingAddr = LeadingHeaders = !InputArgs.hasArg(OTOOL_X);
+
+  InputFilenames = InputArgs.getAllArgValues(OTOOL_INPUT);
+  if (InputFilenames.empty())
+    reportCmdLineError("no input file");
+
+  for (const Arg *A : InputArgs) {
+    const Option &O = A->getOption();
+    if (O.getGroup().isValid() && O.getGroup().getID() == OTOOL_grp_obsolete) {
+      reportCmdLineWarning(O.getPrefixedName() +
+                           " is obsolete and not implemented");
+    }
+  }
+}
+
+static void parseObjdumpOptions(const llvm::opt::InputArgList &InputArgs) {
+  parseIntArg(InputArgs, OBJDUMP_adjust_vma_EQ, AdjustVMA);
+  AllHeaders = InputArgs.hasArg(OBJDUMP_all_headers);
+  ArchName = InputArgs.getLastArgValue(OBJDUMP_arch_name_EQ).str();
+  ArchiveHeaders = InputArgs.hasArg(OBJDUMP_archive_headers);
+  Demangle = InputArgs.hasArg(OBJDUMP_demangle);
+  Disassemble = InputArgs.hasArg(OBJDUMP_disassemble);
+  DisassembleAll = InputArgs.hasArg(OBJDUMP_disassemble_all);
+  SymbolDescription = InputArgs.hasArg(OBJDUMP_symbol_description);
+  DisassembleSymbols =
+      commaSeparatedValues(InputArgs, OBJDUMP_disassemble_symbols_EQ);
+  DisassembleZeroes = InputArgs.hasArg(OBJDUMP_disassemble_zeroes);
+  DisassemblerOptions =
+      commaSeparatedValues(InputArgs, OBJDUMP_disassembler_options_EQ);
+  if (const opt::Arg *A = InputArgs.getLastArg(OBJDUMP_dwarf_EQ)) {
+    DwarfDumpType =
+        StringSwitch<DIDumpType>(A->getValue()).Case("frames", DIDT_DebugFrame);
+  }
+  DynamicRelocations = InputArgs.hasArg(OBJDUMP_dynamic_reloc);
+  FaultMapSection = InputArgs.hasArg(OBJDUMP_fault_map_section);
+  FileHeaders = InputArgs.hasArg(OBJDUMP_file_headers);
+  SectionContents = InputArgs.hasArg(OBJDUMP_full_contents);
+  PrintLines = InputArgs.hasArg(OBJDUMP_line_numbers);
+  InputFilenames = InputArgs.getAllArgValues(OBJDUMP_INPUT);
+  MachOOpt = InputArgs.hasArg(OBJDUMP_macho);
+  MCPU = InputArgs.getLastArgValue(OBJDUMP_mcpu_EQ).str();
+  MAttrs = commaSeparatedValues(InputArgs, OBJDUMP_mattr_EQ);
+  ShowRawInsn = !InputArgs.hasArg(OBJDUMP_no_show_raw_insn);
+  LeadingAddr = !InputArgs.hasArg(OBJDUMP_no_leading_addr);
+  RawClangAST = InputArgs.hasArg(OBJDUMP_raw_clang_ast);
+  Relocations = InputArgs.hasArg(OBJDUMP_reloc);
+  PrintImmHex =
+      InputArgs.hasFlag(OBJDUMP_print_imm_hex, OBJDUMP_no_print_imm_hex, false);
+  PrivateHeaders = InputArgs.hasArg(OBJDUMP_private_headers);
+  FilterSections = InputArgs.getAllArgValues(OBJDUMP_section_EQ);
+  SectionHeaders = InputArgs.hasArg(OBJDUMP_section_headers);
+  ShowLMA = InputArgs.hasArg(OBJDUMP_show_lma);
+  PrintSource = InputArgs.hasArg(OBJDUMP_source);
+  parseIntArg(InputArgs, OBJDUMP_start_address_EQ, StartAddress);
+  HasStartAddressFlag = InputArgs.hasArg(OBJDUMP_start_address_EQ);
+  parseIntArg(InputArgs, OBJDUMP_stop_address_EQ, StopAddress);
+  HasStopAddressFlag = InputArgs.hasArg(OBJDUMP_stop_address_EQ);
+  SymbolTable = InputArgs.hasArg(OBJDUMP_syms);
+  SymbolizeOperands = InputArgs.hasArg(OBJDUMP_symbolize_operands);
+  DynamicSymbolTable = InputArgs.hasArg(OBJDUMP_dynamic_syms);
+  TripleName = InputArgs.getLastArgValue(OBJDUMP_triple_EQ).str();
+  UnwindInfo = InputArgs.hasArg(OBJDUMP_unwind_info);
+  Wide = InputArgs.hasArg(OBJDUMP_wide);
+  Prefix = InputArgs.getLastArgValue(OBJDUMP_prefix).str();
+  parseIntArg(InputArgs, OBJDUMP_prefix_strip, PrefixStrip);
+  if (const opt::Arg *A = InputArgs.getLastArg(OBJDUMP_debug_vars_EQ)) {
+    DbgVariables = StringSwitch<DebugVarsFormat>(A->getValue())
+                       .Case("ascii", DVASCII)
+                       .Case("unicode", DVUnicode);
+  }
+  parseIntArg(InputArgs, OBJDUMP_debug_vars_indent_EQ, DbgIndent);
+
+  parseMachOOptions(InputArgs);
+
+  // Handle options that get forwarded to cl::opt<>s in libraries.
+  // FIXME: Depending on https://reviews.llvm.org/D84191#inline-946075 ,
+  // hopefully remove this again.
+  std::vector<const char *> LLVMArgs;
+  LLVMArgs.push_back("llvm-objdump (LLVM option parsing)");
+  if (const opt::Arg *A = InputArgs.getLastArg(OBJDUMP_x86_asm_syntax_att,
+                                               OBJDUMP_x86_asm_syntax_intel)) {
+    switch (A->getOption().getID()) {
+    case OBJDUMP_x86_asm_syntax_att:
+      LLVMArgs.push_back("--x86-asm-syntax=att");
+      break;
+    case OBJDUMP_x86_asm_syntax_intel:
+      LLVMArgs.push_back("--x86-asm-syntax=intel");
+      break;
+    }
+  }
+  if (InputArgs.hasArg(OBJDUMP_mhvx))
+    LLVMArgs.push_back("--mhvx");
+  if (InputArgs.hasArg(OBJDUMP_mhvx_v66))
+    LLVMArgs.push_back("--mhvx=v66");
+  if (InputArgs.hasArg(OBJDUMP_mv60))
+    LLVMArgs.push_back("--mv60");
+  if (InputArgs.hasArg(OBJDUMP_mv65))
+    LLVMArgs.push_back("--mv65");
+  if (InputArgs.hasArg(OBJDUMP_mv66))
+    LLVMArgs.push_back("--mv66");
+  if (InputArgs.hasArg(OBJDUMP_mv67))
+    LLVMArgs.push_back("--mv67");
+  if (InputArgs.hasArg(OBJDUMP_mv67t))
+    LLVMArgs.push_back("--mv67t");
+  if (InputArgs.hasArg(OBJDUMP_riscv_no_aliases))
+    LLVMArgs.push_back("--riscv-no-aliases");
+  LLVMArgs.push_back(nullptr);
+  llvm::cl::ParseCommandLineOptions(LLVMArgs.size() - 1, LLVMArgs.data());
+
+  // objdump defaults to a.out if no filenames specified.
+  if (InputFilenames.empty())
+    InputFilenames.push_back("a.out");
+}
+
 int main(int argc, char **argv) {
   using namespace llvm;
   InitLLVM X(argc, argv);
-  const cl::OptionCategory *OptionFilters[] = {&ObjdumpCat, &MachOCat};
-  cl::HideUnrelatedOptions(OptionFilters);
+
+  ToolName = argv[0];
+  std::unique_ptr<CommonOptTable> T;
+  OptSpecifier Unknown, HelpFlag, HelpHiddenFlag, VersionFlag;
+
+  StringRef Stem = sys::path::stem(ToolName);
+  auto Is = [=](StringRef Tool) {
+    // We need to recognize the following filenames:
+    //
+    // llvm-objdump -> objdump
+    // llvm-otool-10.exe -> otool
+    // powerpc64-unknown-freebsd13-objdump -> objdump
+    auto I = Stem.rfind_lower(Tool);
+    return I != StringRef::npos &&
+           (I + Tool.size() == Stem.size() || !isAlnum(Stem[I + Tool.size()]));
+  };
+  if (Is("otool")) {
+    T = std::make_unique<OtoolOptTable>();
+    Unknown = OTOOL_UNKNOWN;
+    HelpFlag = OTOOL_help;
+    HelpHiddenFlag = OTOOL_help_hidden;
+    VersionFlag = OTOOL_version;
+  } else {
+    T = std::make_unique<ObjdumpOptTable>();
+    Unknown = OBJDUMP_UNKNOWN;
+    HelpFlag = OBJDUMP_help;
+    HelpHiddenFlag = OBJDUMP_help_hidden;
+    VersionFlag = OBJDUMP_version;
+  }
+
+  BumpPtrAllocator A;
+  StringSaver Saver(A);
+  opt::InputArgList InputArgs =
+      T->parseArgs(argc, argv, Unknown, Saver,
+                   [&](StringRef Msg) { reportCmdLineError(Msg); });
+
+  if (InputArgs.size() == 0 || InputArgs.hasArg(HelpFlag)) {
+    T->printHelp(ToolName);
+    return 0;
+  }
+  if (InputArgs.hasArg(HelpHiddenFlag)) {
+    T->printHelp(ToolName, /*show_hidden=*/true);
+    return 0;
+  }
 
   // Initialize targets and assembly printers/parsers.
   InitializeAllTargetInfos();
   InitializeAllTargetMCs();
   InitializeAllDisassemblers();
 
-  // Register the target printer for --version.
-  cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
+  if (InputArgs.hasArg(VersionFlag)) {
+    cl::PrintVersionMessage();
+    if (!Is("otool")) {
+      outs() << '\n';
+      TargetRegistry::printRegisteredTargetsForVersion(outs());
+    }
+    return 0;
+  }
 
-  cl::ParseCommandLineOptions(argc, argv, "llvm object file dumper\n", nullptr,
-                              /*EnvVar=*/nullptr,
-                              /*LongOptionsUseDoubleDash=*/true);
+  if (Is("otool"))
+    parseOtoolOptions(InputArgs);
+  else
+    parseObjdumpOptions(InputArgs);
 
   if (StartAddress >= StopAddress)
     reportCmdLineError("start address should be less than stop address");
-
-  ToolName = argv[0];
-
-  // Defaults to a.out if no filenames specified.
-  if (InputFilenames.empty())
-    InputFilenames.push_back("a.out");
 
   // Removes trailing separators from prefix.
   while (!Prefix.empty() && sys::path::is_separator(Prefix.back()))
@@ -3022,9 +2548,9 @@ int main(int argc, char **argv) {
       !(MachOOpt &&
         (Bind || DataInCode || DylibId || DylibsUsed || ExportsTrie ||
          FirstPrivateHeader || FunctionStarts || IndirectSymbols || InfoPlist ||
-         LazyBind || LinkOptHints || ObjcMetaData || Rebase ||
+         LazyBind || LinkOptHints || ObjcMetaData || Rebase || Rpaths ||
          UniversalHeaders || WeakBind || !FilterSections.empty()))) {
-    cl::PrintHelpMessage();
+    T->printHelp(ToolName);
     return 2;
   }
 
