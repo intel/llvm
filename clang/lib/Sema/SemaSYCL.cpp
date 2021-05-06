@@ -3385,6 +3385,10 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
+  // FIXME: In place until the library works around its 'host' invocation
+  // issues. hopefully we won't have to commit this to the repo.
+  if(!LangOpts.SYCLIsDevice)
+    return;
   const CXXRecordDecl *KernelObj = getKernelObjectType(KernelFunc);
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
