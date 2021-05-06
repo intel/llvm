@@ -1541,13 +1541,13 @@ def SignedDivIOp : IntBinaryOp<"divi_signed"> {
 
     ```mlir
     // Scalar signed integer division.
-    %a = divis %b, %c : i64
+    %a = divi_signed %b, %c : i64
 
     // SIMD vector element-wise division.
-    %f = divis %g, %h : vector<4xi32>
+    %f = divi_signed %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division.
-    %x = divis %y, %z : tensor<4x?xi8>
+    %x = divi_signed %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;
@@ -1633,13 +1633,13 @@ def SignedRemIOp : IntBinaryOp<"remi_signed"> {
 
     ```mlir
     // Scalar signed integer division remainder.
-    %a = remis %b, %c : i64
+    %a = remi_signed %b, %c : i64
 
     // SIMD vector element-wise division remainder.
-    %f = remis %g, %h : vector<4xi32>
+    %f = remi_signed %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division remainder.
-    %x = remis %y, %z : tensor<4x?xi8>
+    %x = remi_signed %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;
@@ -2030,6 +2030,89 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<
   let hasFolder = 1;
 }
 
+
+//===----------------------------------------------------------------------===//
+// SwitchOp
+//===----------------------------------------------------------------------===//
+
+def SwitchOp : Std_Op<"switch",
+    [AttrSizedOperandSegments,
+     DeclareOpInterfaceMethods<BranchOpInterface, ["getSuccessorForOperands"]>,
+     NoSideEffect, Terminator]> {
+  let summary = "switch operation";
+  let description = [{
+    The `switch` terminator operation represents a switch on a signless integer
+    value. If the flag matches one of the specified cases, then the
+    corresponding destination is jumped to. If the flag does not match any of
+    the cases, the default destination is jumped to. The count and types of
+    operands must align with the arguments in the corresponding target blocks.
+
+    Example:
+
+    ```mlir
+    switch %flag : i32, [
+      default: ^bb1(%a : i32),
+      42: ^bb1(%b : i32),
+      43: ^bb3(%c : i32)
+    ]
+    ```
+  }];
+
+  let arguments = (ins AnyInteger:$flag,
+                       Variadic<AnyType>:$defaultOperands,
+                       Variadic<AnyType>:$caseOperands,
+                       OptionalAttr<AnyIntElementsAttr>:$case_values,
+                       OptionalAttr<I32ElementsAttr>:$case_operand_offsets);
+  let successors = (successor
+                        AnySuccessor:$defaultDestination,
+                        VariadicSuccessor<AnySuccessor>:$caseDestinations);
+  let builders = [
+    OpBuilder<(ins "Value":$flag,
+      "Block *":$defaultDestination,
+      "ValueRange":$defaultOperands,
+      CArg<"ArrayRef<APInt>", "{}">:$caseValues,
+      CArg<"BlockRange", "{}">:$caseDestinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$caseOperands)>,
+    OpBuilder<(ins "Value":$flag,
+      "Block *":$defaultDestination,
+      "ValueRange":$defaultOperands,
+      CArg<"ArrayRef<int32_t>", "{}">:$caseValues,
+      CArg<"BlockRange", "{}">:$caseDestinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$caseOperands)>,
+    OpBuilder<(ins "Value":$flag,
+      "Block *":$defaultDestination,
+      "ValueRange":$defaultOperands,
+      CArg<"DenseIntElementsAttr", "{}">:$caseValues,
+      CArg<"BlockRange", "{}">:$caseDestinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$caseOperands)>
+  ];
+
+  let assemblyFormat = [{
+    $flag `:` type($flag) `,` `[` `\n`
+      custom<SwitchOpCases>(ref(type($flag)),$defaultDestination,
+                            $defaultOperands,
+                            type($defaultOperands),
+                            $case_values,
+                            $caseDestinations,
+                            $caseOperands,
+                            type($caseOperands),
+                            $case_operand_offsets)
+   `]`
+    attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    /// Return the operands for the case destination block at the given index.
+    OperandRange getCaseOperands(unsigned index);
+
+    /// Return a mutable range of operands for the case destination block at the
+    /// given index.
+    MutableOperandRange getCaseOperandsMutable(unsigned index);
+  }];
+
+  let hasCanonicalizer = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // TruncateIOp
 //===----------------------------------------------------------------------===//
@@ -2111,13 +2194,13 @@ def UnsignedDivIOp : IntBinaryOp<"divi_unsigned"> {
 
     ```mlir
     // Scalar unsigned integer division.
-    %a = diviu %b, %c : i64
+    %a = divi_unsigned %b, %c : i64
 
     // SIMD vector element-wise division.
-    %f = diviu %g, %h : vector<4xi32>
+    %f = divi_unsigned %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division.
-    %x = diviu %y, %z : tensor<4x?xi8>
+    %x = divi_unsigned %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;
@@ -2146,13 +2229,13 @@ def UnsignedRemIOp : IntBinaryOp<"remi_unsigned"> {
 
     ```mlir
     // Scalar unsigned integer division remainder.
-    %a = remiu %b, %c : i64
+    %a = remi_unsigned %b, %c : i64
 
     // SIMD vector element-wise division remainder.
-    %f = remiu %g, %h : vector<4xi32>
+    %f = remi_unsigned %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division remainder.
-    %x = remiu %y, %z : tensor<4x?xi8>
+    %x = remi_unsigned %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;

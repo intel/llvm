@@ -144,7 +144,7 @@ AsmToken AsmLexer::LexHexFloatLiteral(bool NoIntDigits) {
   return AsmToken(AsmToken::Real, StringRef(TokStart, CurPtr - TokStart));
 }
 
-/// LexIdentifier: [a-zA-Z_.][a-zA-Z0-9_$.@#?]*
+/// LexIdentifier: [a-zA-Z_$.@?][a-zA-Z0-9_$.@#?]*
 static bool isIdentifierChar(char C, bool AllowAt, bool AllowHash) {
   return isAlnum(C) || C == '_' || C == '$' || C == '.' || C == '?' ||
          (AllowAt && C == '@') || (AllowHash && C == '#');
@@ -175,7 +175,13 @@ AsmToken AsmLexer::LexIdentifier() {
 
 /// LexSlash: Slash: /
 ///           C-Style Comment: /* ... */
+///           C-style Comment: // ...
 AsmToken AsmLexer::LexSlash() {
+  if (!MAI.shouldAllowAdditionalComments()) {
+    IsAtStartOfStatement = false;
+    return AsmToken(AsmToken::Slash, StringRef(TokStart, 1));
+  }
+
   switch (*CurPtr) {
   case '*':
     IsAtStartOfStatement = false;
@@ -450,26 +456,32 @@ AsmToken AsmLexer::LexDigit() {
   }
 
   // Decimal integer: [1-9][0-9]*
-  if (CurPtr[-1] != '0' || CurPtr[0] == '.') {
+  // HLASM-flavour decimal integer: [0-9][0-9]*
+  // FIXME: Later on, support for fb for HLASM has to be added in
+  // as they probably would be needed for asm goto
+  if (LexHLASMIntegers || CurPtr[-1] != '0' || CurPtr[0] == '.') {
     unsigned Radix = doHexLookAhead(CurPtr, 10, LexMasmIntegers);
-    bool isHex = Radix == 16;
-    // Check for floating point literals.
-    if (!isHex && (*CurPtr == '.' || *CurPtr == 'e' || *CurPtr == 'E')) {
-      if (*CurPtr == '.')
-        ++CurPtr;
-      return LexFloatLiteral();
+
+    if (!LexHLASMIntegers) {
+      bool IsHex = Radix == 16;
+      // Check for floating point literals.
+      if (!IsHex && (*CurPtr == '.' || *CurPtr == 'e' || *CurPtr == 'E')) {
+        if (*CurPtr == '.')
+          ++CurPtr;
+        return LexFloatLiteral();
+      }
     }
 
     StringRef Result(TokStart, CurPtr - TokStart);
 
     APInt Value(128, 0, true);
-    if (Result.getAsInteger(Radix, Value)) {
+    if (Result.getAsInteger(Radix, Value))
       return ReturnError(TokStart, "invalid " + radixName(Radix) + " number");
-    }
 
-    // The darwin/x86 (and x86-64) assembler accepts and ignores type
-    // suffices on integer literals.
-    SkipIgnoredIntegerSuffix(CurPtr);
+    if (!LexHLASMIntegers)
+      // The darwin/x86 (and x86-64) assembler accepts and ignores type
+      // suffices on integer literals.
+      SkipIgnoredIntegerSuffix(CurPtr);
 
     return intToken(Result, Value);
   }
@@ -729,7 +741,9 @@ AsmToken AsmLexer::LexToken() {
       UnLex(TokenBuf[0]);
       return AsmToken(AsmToken::HashDirective, s);
     }
-    return LexLineComment();
+
+    if (MAI.shouldAllowAdditionalComments())
+      return LexLineComment();
   }
 
   if (isAtStartOfComment(TokStart))
@@ -755,17 +769,10 @@ AsmToken AsmLexer::LexToken() {
   IsAtStartOfStatement = false;
   switch (CurChar) {
   default:
-    if (MAI.doesAllowSymbolAtNameStart()) {
-      // Handle Microsoft-style identifier: [a-zA-Z_$.@?][a-zA-Z0-9_$.@#?]*
-      if (!isDigit(CurChar) &&
-          isIdentifierChar(CurChar, MAI.doesAllowAtInName(),
-                           AllowHashInIdentifier))
-        return LexIdentifier();
-    } else {
-      // Handle identifier: [a-zA-Z_.][a-zA-Z0-9_$.@]*
-      if (isalpha(CurChar) || CurChar == '_' || CurChar == '.')
-        return LexIdentifier();
-    }
+    // Handle identifier: [a-zA-Z_.?][a-zA-Z0-9_$.@#?]*
+    if (isalpha(CurChar) || CurChar == '_' || CurChar == '.' ||
+        (MAI.doesAllowQuestionAtStartOfIdentifier() && CurChar == '?'))
+      return LexIdentifier();
 
     // Unknown character, emit an error.
     return ReturnError(TokStart, "invalid character in input");
@@ -809,13 +816,18 @@ AsmToken AsmLexer::LexToken() {
   case '}': return AsmToken(AsmToken::RCurly, StringRef(TokStart, 1));
   case '*': return AsmToken(AsmToken::Star, StringRef(TokStart, 1));
   case ',': return AsmToken(AsmToken::Comma, StringRef(TokStart, 1));
-  case '$':
-    if (LexMotorolaIntegers && isHexDigit(*CurPtr)) {
+  case '$': {
+    if (LexMotorolaIntegers && isHexDigit(*CurPtr))
       return LexDigit();
-    }
-
+    if (MAI.doesAllowDollarAtStartOfIdentifier())
+      return LexIdentifier();
     return AsmToken(AsmToken::Dollar, StringRef(TokStart, 1));
-  case '@': return AsmToken(AsmToken::At, StringRef(TokStart, 1));
+  }
+  case '@': {
+    if (MAI.doesAllowAtAtStartOfIdentifier())
+      return LexIdentifier();
+    return AsmToken(AsmToken::At, StringRef(TokStart, 1));
+  }
   case '\\': return AsmToken(AsmToken::BackSlash, StringRef(TokStart, 1));
   case '=':
     if (*CurPtr == '=') {
