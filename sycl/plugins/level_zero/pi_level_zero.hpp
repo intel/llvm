@@ -163,6 +163,10 @@ struct _pi_device : _pi_object {
   int32_t ZeComputeQueueGroupIndex;
   int32_t ZeCopyQueueGroupIndex;
 
+  // Cache the properties of the compute/copy queue groups.
+  ze_command_queue_group_properties_t ZeComputeQueueGroupProperties = {};
+  ze_command_queue_group_properties_t ZeCopyQueueGroupProperties = {};
+
   // This returns "true" if a copy engine is available for use.
   bool hasCopyEngine() { return (ZeCopyQueueGroupIndex >= 0); }
 

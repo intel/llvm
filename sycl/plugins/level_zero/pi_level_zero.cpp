@@ -517,14 +517,14 @@ pi_result _pi_device::initialize() {
   if (numQueueGroups == 0) {
     return PI_ERROR_UNKNOWN;
   }
-  std::vector<ze_command_queue_group_properties_t> queueProperties(
+  std::vector<ze_command_queue_group_properties_t> QueueProperties(
       numQueueGroups);
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
-          (ZeDevice, &numQueueGroups, queueProperties.data()));
+          (ZeDevice, &numQueueGroups, QueueProperties.data()));
 
   int ComputeGroupIndex = -1;
   for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (queueProperties[i].flags &
+    if (QueueProperties[i].flags &
         ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
       ComputeGroupIndex = i;
       break;
@@ -534,16 +534,17 @@ pi_result _pi_device::initialize() {
   if (ComputeGroupIndex < 0) {
     return PI_ERROR_UNKNOWN;
   }
-  this->ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
   int CopyGroupIndex = -1;
   const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
   bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
   if (UseCopyEngine) {
     for (uint32_t i = 0; i < numQueueGroups; i++) {
-      if (((queueProperties[i].flags &
+      if (((QueueProperties[i].flags &
             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
-          (queueProperties[i].flags &
+          (QueueProperties[i].flags &
            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
         CopyGroupIndex = i;
         break;
@@ -555,7 +556,10 @@ pi_result _pi_device::initialize() {
     else
       zePrint("NOTE: blitter/copy engine is available\n");
   }
-  this->ZeCopyQueueGroupIndex = CopyGroupIndex;
+  ZeCopyQueueGroupIndex = CopyGroupIndex;
+  if (CopyGroupIndex >= 0) {
+    ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
+  }
 
   // Cache device properties
   ZeDeviceProperties = {};
@@ -4773,10 +4777,23 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
+
   // Performance analysis on a simple SYCL data "fill" test shows copy engine
   // is faster than compute engine for such operations.
+  bool PreferCopyEngine = Queue->Device->hasCopyEngine();
+  if (PreferCopyEngine) {
+    // Make sure that pattern size matches the capability of the queue.
+    if (PatternSize >
+        Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize) {
+      PreferCopyEngine = false;
+      PI_ASSERT(PatternSize <= Queue->Device->ZeComputeQueueGroupProperties
+                                   .maxMemoryFillPatternSize,
+                PI_INVALID_VALUE);
+    }
+  }
+
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, true /* PreferCopyEngine */))
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
