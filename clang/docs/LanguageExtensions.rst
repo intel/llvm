@@ -2314,9 +2314,9 @@ argument.
 ``__builtin_unique_stable_name``
 --------------------------------
 
-``__builtin_unique_stable_name()`` is a builtin that takes a type or expression and
-produces a string literal containing a unique name for the type (or type of the
-expression) that is stable across split compilations.
+``__builtin_unique_stable_name()`` is a builtin that takes a type or unevaluated
+expression and produces a string literal containing a unique name for the type
+(or type of the expression) that is stable across split compilations.
 
 In cases where the split compilation needs to share a unique token for a type
 across the boundary (such as in an offloading situation), this name can be used

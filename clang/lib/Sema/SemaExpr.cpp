@@ -3536,68 +3536,49 @@ ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
   return PredefinedExpr::Create(Context, Loc, ResTy, IK, SL);
 }
 
-static std::pair<QualType, StringLiteral *>
-GetUniqueStableNameInfo(ASTContext &Context, QualType OpType,
-                        SourceLocation OpLoc, PredefinedExpr::IdentKind K) {
-  std::pair<QualType, StringLiteral*> Result{{}, nullptr};
-
-  if (OpType->isDependentType()) {
-      Result.first = Context.DependentTy;
-      return Result;
-  }
-
-  std::string Str = PredefinedExpr::ComputeName(Context, K, OpType);
-  llvm::APInt Length(32, Str.length() + 1);
-  Result.first =
-      Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
-  Result.first = Context.getConstantArrayType(
-      Result.first, Length, nullptr, ArrayType::Normal, /*IndexTypeQuals*/ 0);
-  Result.second = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
-                                        /*Pascal*/ false, Result.first, OpLoc);
-  return Result;
+ExprResult Sema::BuildUniqueStableNameExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           TypeSourceInfo *TSI) {
+  //if (RequireCompleteSizedType(
+  //        OpLoc, TSI->getType(),
+  //        diag::err_sizeof_alignof_incomplete_or_sizeless_type,
+  //        "__builtin_unique_stable_name", SourceRange{LParen, RParen}))
+  //  return ExprError();
+  return UniqueStableNameExpr::Create(Context, OpLoc, LParen, RParen, TSI);
 }
+ExprResult Sema::BuildUniqueStableNameExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen, Expr *E) {
+  // If this isn't dependent anymore, we know the type, so convert to a Type
+  // based version of the UniqueStableNameExpr.
+  if (E->isInstantiationDependent())
+    return UniqueStableNameExpr::Create(Context, OpLoc, LParen, RParen, E);
 
-ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
-                                       TypeSourceInfo *Operand) {
-  QualType ResultTy;
-  StringLiteral *SL;
-  std::tie(ResultTy, SL) = GetUniqueStableNameInfo(
-      Context, Operand->getType(), OpLoc, PredefinedExpr::UniqueStableNameType);
-
-  return PredefinedExpr::Create(Context, OpLoc, ResultTy,
-                                PredefinedExpr::UniqueStableNameType, SL,
-                                Operand);
-}
-
-ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
-                                       Expr *E) {
-  QualType ResultTy;
-  StringLiteral *SL;
-  std::tie(ResultTy, SL) = GetUniqueStableNameInfo(
-      Context, E->getType(), OpLoc, PredefinedExpr::UniqueStableNameExpr);
-
-  return PredefinedExpr::Create(Context, OpLoc, ResultTy,
-                                PredefinedExpr::UniqueStableNameExpr, SL, E);
+  return BuildUniqueStableNameExpr(
+      OpLoc, LParen, RParen, Context.getTrivialTypeSourceInfo(E->getType()));
 }
 
 ExprResult Sema::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
-                                           SourceLocation L, SourceLocation R,
-                                           ParsedType Ty) {
-  TypeSourceInfo *TInfo = nullptr;
-  QualType T = GetTypeFromParser(Ty, &TInfo);
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           ParsedType ParsedTy) {
+  TypeSourceInfo *TSI = nullptr;
+  QualType Ty = GetTypeFromParser(ParsedTy, &TSI);
 
-  if (T.isNull())
+  if (Ty.isNull())
     return ExprError();
-  if (!TInfo)
-    TInfo = Context.getTrivialTypeSourceInfo(T, OpLoc);
+  if (!TSI)
+    TSI = Context.getTrivialTypeSourceInfo(Ty, LParen);
 
-  return BuildUniqueStableName(OpLoc, TInfo);
+  return BuildUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
 }
 
 ExprResult Sema::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
-                                           SourceLocation L, SourceLocation R,
-                                           Expr *E) {
-  return BuildUniqueStableName(OpLoc, E);
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           Expr *Operand) {
+  return BuildUniqueStableNameExpr(OpLoc, LParen, RParen, Operand);
 }
 
 ExprResult Sema::ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind) {

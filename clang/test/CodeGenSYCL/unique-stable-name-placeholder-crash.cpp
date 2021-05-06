@@ -25,4 +25,4 @@ int main() {
 
 // Note: the mangling here is actually the 'typeinfo name for void ()'.  That is
 // because the type of temp<R> is actually the function type (which is void()).
-// CHECK: @__builtin_unique_stable_name._Z3fooIL_ZL8THE_NAMEEEvPKc = private unnamed_addr addrspace(1) constant [9 x i8] c"_ZTSFvvE\00", align 1
+// CHECK: private unnamed_addr addrspace(1) constant [9 x i8] c"_ZTSFvvE\00", align 1

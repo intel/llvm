@@ -1472,6 +1472,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___builtin_unique_stable_name:
     Res = ParseUniqueStableNameExpression();
     break;
+
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
       TypeResult Type = getTypeAnnotation(Tok);
@@ -2326,7 +2327,8 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
   return Operand;
 }
 
-
+/// Parse a __builtin_unique_stable_name expression.  Accepts a type-id or an
+/// arbitrary expression as a parameter.
 ExprResult Parser::ParseUniqueStableNameExpression() {
   assert(Tok.is(tok::kw___builtin_unique_stable_name) &&
          "Not __bulitin_unique_stable_name");
@@ -2334,7 +2336,7 @@ ExprResult Parser::ParseUniqueStableNameExpression() {
   SourceLocation OpLoc = ConsumeToken();
   BalancedDelimiterTracker T(*this, tok::l_paren);
 
-  // typeid expressions are always parenthesized.
+  // __builtin_unique_stable_name expressions are always parenthesized.
   if (T.expectAndConsume(diag::err_expected_lparen_after,
                          "__builtin_unique_stable_name"))
     return ExprError();

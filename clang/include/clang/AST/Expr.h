@@ -1946,17 +1946,13 @@ public:
 /// [C99 6.4.2.2] - A predefined identifier such as __func__.
 class PredefinedExpr final
     : public Expr,
-      private llvm::TrailingObjects<PredefinedExpr, Stmt *, Expr *,
-                                    TypeSourceInfo *> {
+      private llvm::TrailingObjects<PredefinedExpr, Stmt *> {
   friend class ASTStmtReader;
   friend TrailingObjects;
 
   // PredefinedExpr is optionally followed by a single trailing
   // "Stmt *" for the predefined identifier. It is present if and only if
   // hasFunctionName() is true and is always a "StringLiteral *".
-  // It can also be followed by a Expr* in the case of a
-  // __builtin_unique_stable_name with an expression, or TypeSourceInfo * if
-  // __builtin_unique_stable_name with a type.
 
 public:
   enum IdentKind {
@@ -1969,18 +1965,12 @@ public:
     PrettyFunction,
     /// The same as PrettyFunction, except that the
     /// 'virtual' keyword is omitted for virtual member functions.
-    PrettyFunctionNoVirtual,
-    UniqueStableNameType,
-    UniqueStableNameExpr,
+    PrettyFunctionNoVirtual
   };
 
 private:
   PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
                  StringLiteral *SL);
-  PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
-                 TypeSourceInfo *Info);
-  PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
-                 Expr *E);
 
   explicit PredefinedExpr(EmptyShell Empty, bool HasFunctionName);
 
@@ -1993,39 +1983,10 @@ private:
     *getTrailingObjects<Stmt *>() = SL;
   }
 
-  void setTypeSourceInfo(TypeSourceInfo *Info) {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
-           "TypeSourceInfo only valid for UniqueStableName of a Type");
-    *getTrailingObjects<TypeSourceInfo *>() = Info;
-  }
-
-  void setExpr(Expr *E) {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
-    *getTrailingObjects<Expr *>() = E;
-  }
-
-  size_t numTrailingObjects(OverloadToken<Stmt *>) const {
-    return hasFunctionName();
-  }
-
-  size_t numTrailingObjects(OverloadToken<TypeSourceInfo *>) const {
-    return getIdentKind() == UniqueStableNameType && !hasFunctionName();
-  }
-  size_t numTrailingObjects(OverloadToken<Expr *>) const {
-    return getIdentKind() == UniqueStableNameExpr && !hasFunctionName();
-  }
-
 public:
   /// Create a PredefinedExpr.
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
                                 QualType FNTy, IdentKind IK, StringLiteral *SL);
-  static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FNTy, IdentKind IK, StringLiteral *SL,
-                                TypeSourceInfo *Info);
-  static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FNTy, IdentKind IK, StringLiteral *SL,
-                                Expr *E);
 
   /// Create an empty PredefinedExpr.
   static PredefinedExpr *CreateEmpty(const ASTContext &Ctx,
@@ -2050,38 +2011,12 @@ public:
                : nullptr;
   }
 
-  TypeSourceInfo *getTypeSourceInfo() {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
-           "TypeSourceInfo only valid for UniqueStableName of a Type");
-    return *getTrailingObjects<TypeSourceInfo *>();
-  }
-
-  const TypeSourceInfo *getTypeSourceInfo() const {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
-           "TypeSourceInfo only valid for UniqueStableName of a Type");
-    return *getTrailingObjects<TypeSourceInfo *>();
-  }
-
-  Expr *getExpr() {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
-    return *getTrailingObjects<Expr *>();
-  }
-
-  const Expr *getExpr() const {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
-    return *getTrailingObjects<Expr *>();
-  }
-
   static StringRef getIdentKindName(IdentKind IK);
   StringRef getIdentKindName() const {
     return getIdentKindName(getIdentKind());
   }
 
   static std::string ComputeName(IdentKind IK, const Decl *CurrentDecl);
-  static std::string ComputeName(ASTContext &Context, IdentKind IK,
-                                 const QualType Ty);
 
   SourceLocation getBeginLoc() const { return getLocation(); }
   SourceLocation getEndLoc() const { return getLocation(); }
@@ -2100,6 +2035,119 @@ public:
     return const_child_range(getTrailingObjects<Stmt *>(),
                              getTrailingObjects<Stmt *>() + hasFunctionName());
   }
+};
+
+// This represents a use of the __builtin_unique_stable_name, which takes either
+// a type-id or an expression, and at CodeGen time emits a unique string
+// representation of the type (or type of the expression) in a way that permits
+// us to properly encode information about the SYCL kernels.
+class UniqueStableNameExpr final
+    : public Expr,
+      private llvm::TrailingObjects<UniqueStableNameExpr, Stmt *,
+                                    TypeSourceInfo *> {
+  friend class ASTStmtReader;
+  friend TrailingObjects;
+  SourceLocation OpLoc, LParen, RParen;
+  // Note: We store a Stmt* instead of the Expr* so that we can implement
+  // 'children'.
+  enum class ParamKind { Type, Expr };
+  ParamKind Kind;
+
+  UniqueStableNameExpr(EmptyShell Empty, QualType ResultTy, bool IsExpr);
+  UniqueStableNameExpr(SourceLocation OpLoc, SourceLocation LParen,
+                       SourceLocation RParen, QualType ResultTy,
+                       TypeSourceInfo *TSI);
+  UniqueStableNameExpr(SourceLocation OpLoc, SourceLocation LParen,
+                       SourceLocation RParen, QualType ResultTy, Expr *E);
+
+  size_t numTrailingObjects(OverloadToken<TypeSourceInfo *>) const {
+    return Kind == ParamKind::Type ? 1 : 0;
+  }
+  size_t numTrailingObjects(OverloadToken<Stmt *>) const {
+    return Kind == ParamKind::Expr ? 1 : 0;
+  }
+  void setTypeSourceInfo(TypeSourceInfo *Ty) {
+    assert(Kind == ParamKind::Type &&
+           "TypeSourceInfo only valid for UniqueStableName of a Type");
+    *getTrailingObjects<TypeSourceInfo *>() = Ty;
+  }
+  void setExpr(Expr *E) {
+    assert(Kind == ParamKind::Expr &&
+           "Expr only valid for UniqueStableName of an Expr");
+    assert(E->isInstantiationDependent() &&
+           "Expr type only valid if the expr is dependent");
+    *getTrailingObjects<Stmt *>() = E;
+  }
+
+  void setLocation(SourceLocation L) { OpLoc = L; }
+  void setLParenLocation(SourceLocation L) { LParen = L; }
+  void setRParenLocation(SourceLocation L) { RParen = L; }
+
+public:
+  TypeSourceInfo *getTypeSourceInfo() {
+    assert(Kind == ParamKind::Type &&
+           "TypeSourceInfo only valid for UniqueStableName of a Type");
+    return *getTrailingObjects<TypeSourceInfo *>();
+  }
+
+  const TypeSourceInfo *getTypeSourceInfo() const {
+    assert(Kind == ParamKind::Type &&
+           "TypeSourceInfo only valid for UniqueStableName of a Type");
+    return *getTrailingObjects<TypeSourceInfo *>();
+  }
+
+  Expr *getExpr() {
+    assert(Kind == ParamKind::Expr &&
+           "Expr only valid for UniqueStableName of an Expr");
+    return cast<Expr>(*getTrailingObjects<Stmt *>());
+  }
+
+  const Expr *getExpr() const {
+    assert(Kind == ParamKind::Expr &&
+           "Expr only valid for UniqueStableName of an Expr");
+    return cast<Expr>(*getTrailingObjects<Stmt *>());
+  }
+
+  bool isExpr() const { return Kind == ParamKind::Expr; }
+
+  bool isTypeSourceInfo() const { return Kind == ParamKind::Type; }
+
+  static UniqueStableNameExpr *
+  Create(const ASTContext &Ctx, SourceLocation OpLoc, SourceLocation LParen,
+         SourceLocation RParen, TypeSourceInfo *TSI);
+
+  static UniqueStableNameExpr *Create(const ASTContext &Ctx,
+                                      SourceLocation OpLoc,
+                                      SourceLocation LParen,
+                                      SourceLocation RParen, Expr *E);
+  static UniqueStableNameExpr *CreateEmpty(const ASTContext &Ctx, bool IsExpr);
+
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return RParen; }
+  SourceLocation getLocation() const { return OpLoc; }
+  SourceLocation getLParenLocation() const { return LParen; }
+  SourceLocation getRParenLocation() const { return RParen; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == UniqueStableNameExprClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(getTrailingObjects<Stmt *>(),
+                       getTrailingObjects<Stmt *>() + isExpr());
+  }
+  const_child_range children() const {
+    return const_child_range(getTrailingObjects<Stmt *>(),
+                             getTrailingObjects<Stmt *>() + isExpr());
+  }
+
+  // Convenience function to generate the name of the currently stored type.
+  std::string ComputeName(ASTContext &Context) const;
+
+  // Get the generated name of the type.  Note that this only works after all
+  // kernels have been instantiated.
+  static std::string ComputeName(ASTContext &Context, QualType Ty);
 };
 
 /// ParenExpr - This represents a parethesized expression, e.g. "(1)".  This

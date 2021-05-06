@@ -880,9 +880,7 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
   MC.mangleTypeName(KernelNameType, Out);
 
   return {std::string(Out.str()),
-          PredefinedExpr::ComputeName(S.getASTContext(),
-                                      PredefinedExpr::UniqueStableNameType,
-                                      KernelNameType)};
+          UniqueStableNameExpr::ComputeName(S.getASTContext(), KernelNameType)};
 }
 
 static bool isDefaultSPIRArch(ASTContext &Context) {
@@ -3057,9 +3055,9 @@ public:
     // Get specialization constant ID type, which is the second template
     // argument.
     QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
-    const std::string SpecConstName = PredefinedExpr::ComputeName(
-        SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
-        SpecConstIDTy);
+    const std::string SpecConstName = UniqueStableNameExpr::ComputeName(
+        SemaRef.getASTContext(), SpecConstIDTy);
+
     Header.addSpecConstant(SpecConstName, SpecConstIDTy);
     return true;
   }
@@ -4862,4 +4860,36 @@ bool Util::matchQualifiedTypeName(QualType Ty,
     return false; // only classes/structs supported
   const auto *Ctx = cast<DeclContext>(RecTy);
   return Util::matchContext(Ctx, Scopes);
+}
+
+// The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
+// the first parameter to a sycl_kernel labeled function template. In SYCL1.2.1,
+// this was passed by value, and in SYCL2020, it is passed by reference.
+static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
+  assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
+  QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
+
+  // SYCL 2020 kernels are passed by reference.
+  if (KernelParamTy->isReferenceType())
+    return KernelParamTy->getPointeeType();
+
+  // SYCL 1.2.1
+  return KernelParamTy;
+}
+
+void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
+  auto ShouldMangleCallback = [](ASTContext &Ctx, const TagDecl *TD) {
+    // We ALWAYS want to descend into the lambda mangling for these.
+    return true;
+  };
+  auto MangleCallback = [](ASTContext &Ctx, const TagDecl *TD, raw_ostream &) {
+    Ctx.AddSYCLKernelNamingDecl(TD);
+  };
+
+  QualType Ty = GetSYCLKernelObjectType(FD);
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), ShouldMangleCallback, MangleCallback)};
+  llvm::raw_null_ostream Out;
+  Ctx->mangleTypeName(Ty, Out);
+  (void)FD;
 }

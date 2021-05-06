@@ -172,14 +172,12 @@ public:
 };
 
 class ItaniumMangleContext : public MangleContext {
-  bool IsUniqueNameMangler = false;
 public:
+  using ShouldCallKernelCallbackTy = bool (*)(ASTContext &, const TagDecl *);
+  using KernelMangleCallbackTy = void (*)(ASTContext &, const TagDecl *,
+                                          raw_ostream &);
   explicit ItaniumMangleContext(ASTContext &C, DiagnosticsEngine &D)
       : MangleContext(C, D, MK_Itanium) {}
-  explicit ItaniumMangleContext(ASTContext &C, DiagnosticsEngine &D,
-                                bool IsUniqueNameMangler)
-      : MangleContext(C, D, MK_Itanium),
-        IsUniqueNameMangler(IsUniqueNameMangler) {}
 
   virtual void mangleCXXVTable(const CXXRecordDecl *RD, raw_ostream &) = 0;
   virtual void mangleCXXVTT(const CXXRecordDecl *RD, raw_ostream &) = 0;
@@ -200,15 +198,21 @@ public:
 
   virtual void mangleDynamicStermFinalizer(const VarDecl *D, raw_ostream &) = 0;
 
-  bool isUniqueNameMangler() { return IsUniqueNameMangler; }
+  // These have to live here, otherwise the CXXNameMangler won't have access to
+  // them.
+  virtual ShouldCallKernelCallbackTy getShouldCallKernelCallback() const = 0;
+  virtual KernelMangleCallbackTy getKernelMangleCallback() const = 0;
 
   static bool classof(const MangleContext *C) {
     return C->getKind() == MK_Itanium;
   }
 
   static ItaniumMangleContext *create(ASTContext &Context,
-                                      DiagnosticsEngine &Diags,
-                                      bool IsUniqueNameMangler = false);
+                                      DiagnosticsEngine &Diags);
+  static ItaniumMangleContext *
+  create(ASTContext &Context, DiagnosticsEngine &Diags,
+         ShouldCallKernelCallbackTy ShouldKernelMangleCB,
+         KernelMangleCallbackTy KernelMangleCB);
 };
 
 class MicrosoftMangleContext : public MangleContext {

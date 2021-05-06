@@ -503,6 +503,100 @@ SourceLocation DeclRefExpr::getEndLoc() const {
   return getNameInfo().getEndLoc();
 }
 
+UniqueStableNameExpr::UniqueStableNameExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           QualType ResultTy,
+                                           TypeSourceInfo *TSI)
+    : Expr(UniqueStableNameExprClass, ResultTy, VK_RValue, OK_Ordinary),
+      OpLoc(OpLoc), LParen(LParen), RParen(RParen), Kind(ParamKind::Type) {
+  setTypeSourceInfo(TSI);
+  setDependence(computeDependence(this));
+}
+
+UniqueStableNameExpr::UniqueStableNameExpr(EmptyShell Empty, QualType ResultTy,
+                                           bool IsExpr)
+    : Expr(UniqueStableNameExprClass, ResultTy, VK_RValue, OK_Ordinary) {
+  Kind = IsExpr ? ParamKind::Expr : ParamKind::Type;
+}
+
+UniqueStableNameExpr::UniqueStableNameExpr(SourceLocation OpLoc,
+                                           SourceLocation LParen,
+                                           SourceLocation RParen,
+                                           QualType ResultTy, Expr *E)
+    : Expr(UniqueStableNameExprClass, ResultTy, VK_RValue, OK_Ordinary),
+      OpLoc(OpLoc), LParen(LParen), RParen(RParen), Kind(ParamKind::Expr) {
+  setExpr(E);
+  setDependence(computeDependence(this));
+}
+
+UniqueStableNameExpr *UniqueStableNameExpr::Create(const ASTContext &Ctx,
+                                                   SourceLocation OpLoc,
+                                                   SourceLocation LParen,
+                                                   SourceLocation RParen,
+                                                   Expr *E) {
+  assert(E->isInstantiationDependent() &&
+         "Expr type only valid if the expr is dependent");
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *, TypeSourceInfo *>(1, 0),
+                           alignof(UniqueStableNameExpr));
+
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Mem) UniqueStableNameExpr(OpLoc, LParen, RParen, ResultTy, E);
+}
+
+UniqueStableNameExpr *UniqueStableNameExpr::Create(const ASTContext &Ctx,
+                                                   SourceLocation OpLoc,
+                                                   SourceLocation LParen,
+                                                   SourceLocation RParen,
+                                                   TypeSourceInfo *TSI) {
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *, TypeSourceInfo *>(1, 0),
+                           alignof(UniqueStableNameExpr));
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Mem) UniqueStableNameExpr(OpLoc, LParen, RParen, ResultTy, TSI);
+}
+
+UniqueStableNameExpr *UniqueStableNameExpr::CreateEmpty(const ASTContext &Ctx,
+                                                        bool IsExpr) {
+  void *Mem =
+      Ctx.Allocate(totalSizeToAlloc<Stmt *, TypeSourceInfo *>(IsExpr, !IsExpr),
+                   alignof(UniqueStableNameExpr));
+  QualType ResultTy = Ctx.getPointerType(Ctx.CharTy.withConst());
+  return new (Mem) UniqueStableNameExpr(EmptyShell(), ResultTy, IsExpr);
+}
+
+std::string UniqueStableNameExpr::ComputeName(ASTContext &Context) const {
+  return UniqueStableNameExpr::ComputeName(Context,
+                                           getTypeSourceInfo()->getType());
+}
+
+std::string UniqueStableNameExpr::ComputeName(ASTContext &Context,
+                                              QualType Ty) {
+  auto ShouldMangleCallback = [](ASTContext &Ctx, const TagDecl *TD) {
+    return Ctx.IsSYCLKernelNamingDecl(TD);
+  };
+  auto MangleCallback = [](ASTContext &Ctx, const TagDecl *TD,
+                           raw_ostream &OS) {
+    assert(Ctx.IsSYCLKernelNamingDecl(TD) && "Not a sycl kernel?");
+    // This replaces the 'lambda number' in the mangling with a unique number
+    // based on its order in the declaration.  To provide some level of visual
+    // notability (actual uniqueness from normal lambdas isn't necessary, as
+    // these are used differently), we add 10,000 to the number.
+    // For example:
+    // _ZTSZ3foovEUlvE10005_
+    // Demangles to: typeinfo name for foo()::'lambda10005'()
+    OS << (10'000 + Ctx.GetSYCLKernelNamingIndex(TD));
+  };
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), ShouldMangleCallback, MangleCallback)};
+
+  std::string Buffer;
+  Buffer.reserve(128);
+  llvm::raw_string_ostream Out(Buffer);
+  Ctx->mangleTypeName(Ty, Out);
+
+  return std::move(Buffer);
+}
+
 PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
                                StringLiteral *SL)
     : Expr(PredefinedExprClass, FNTy, VK_LValue, OK_Ordinary) {
@@ -517,34 +611,6 @@ PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
   setDependence(computeDependence(this));
 }
 
-PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FnTy, IdentKind IK,
-                               TypeSourceInfo *Info)
-    : Expr(PredefinedExprClass, FnTy, VK_LValue, OK_Ordinary) {
-  PredefinedExprBits.Kind = IK;
-  assert((getIdentKind() == IK) &&
-         "IdentKind do not fit in PredefinedExprBitFields!");
-  assert(IK == UniqueStableNameType &&
-         "Constructor only valid with UniqueStableNameType");
-  PredefinedExprBits.HasFunctionName = false;
-  PredefinedExprBits.Loc = L;
-  setTypeSourceInfo(Info);
-  setDependence(computeDependence(this));
-}
-
-PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FnTy, IdentKind IK,
-                               Expr *E)
-    : Expr(PredefinedExprClass, FnTy, VK_LValue, OK_Ordinary) {
-  PredefinedExprBits.Kind = IK;
-  assert((getIdentKind() == IK) &&
-         "IdentKind do not fit in PredefinedExprBitFields!");
-  assert(IK == UniqueStableNameExpr &&
-         "Constructor only valid with UniqueStableNameExpr");
-  PredefinedExprBits.HasFunctionName = false;
-  PredefinedExprBits.Loc = L;
-  setExpr(E);
-  setDependence(computeDependence(this));
-}
-
 PredefinedExpr::PredefinedExpr(EmptyShell Empty, bool HasFunctionName)
     : Expr(PredefinedExprClass, Empty) {
   PredefinedExprBits.HasFunctionName = HasFunctionName;
@@ -554,44 +620,15 @@ PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
                                        QualType FNTy, IdentKind IK,
                                        StringLiteral *SL) {
   bool HasFunctionName = SL != nullptr;
-  void *Mem = Ctx.Allocate(
-      totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(HasFunctionName, 0, 0),
-      alignof(PredefinedExpr));
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *>(HasFunctionName),
+                           alignof(PredefinedExpr));
   return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
-}
-
-PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
-                                       QualType FNTy, IdentKind IK,
-                                       StringLiteral *SL,
-                                       TypeSourceInfo *Info) {
-  assert(IK == UniqueStableNameType && "Only valid with UniqueStableNameType");
-  bool HasFunctionName = SL != nullptr;
-  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(
-                               HasFunctionName, 0, !HasFunctionName),
-                           alignof(PredefinedExpr));
-  if (HasFunctionName)
-    return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
-  return new (Mem) PredefinedExpr(L, FNTy, IK, Info);
-}
-
-PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
-                                       QualType FNTy, IdentKind IK,
-                                       StringLiteral *SL, Expr *E) {
-  assert(IK == UniqueStableNameExpr && "Only valid with UniqueStableNameExpr");
-  bool HasFunctionName = SL != nullptr;
-  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(
-                               HasFunctionName, !HasFunctionName, 0),
-                           alignof(PredefinedExpr));
-  if (HasFunctionName)
-    return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
-  return new (Mem) PredefinedExpr(L, FNTy, IK, E);
 }
 
 PredefinedExpr *PredefinedExpr::CreateEmpty(const ASTContext &Ctx,
                                             bool HasFunctionName) {
-  void *Mem = Ctx.Allocate(
-      totalSizeToAlloc<Stmt *, Expr *, TypeSourceInfo *>(HasFunctionName, 0, 0),
-      alignof(PredefinedExpr));
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *>(HasFunctionName),
+                           alignof(PredefinedExpr));
   return new (Mem) PredefinedExpr(EmptyShell(), HasFunctionName);
 }
 
@@ -611,26 +648,10 @@ StringRef PredefinedExpr::getIdentKindName(PredefinedExpr::IdentKind IK) {
     return "__FUNCSIG__";
   case LFuncSig:
     return "L__FUNCSIG__";
-  case UniqueStableNameType:
-  case UniqueStableNameExpr:
-    return "__builtin_unique_stable_name";
   case PrettyFunctionNoVirtual:
     break;
   }
   llvm_unreachable("Unknown ident kind for PredefinedExpr");
-}
-
-std::string PredefinedExpr::ComputeName(ASTContext &Context, IdentKind IK,
-                                        QualType Ty) {
-  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), /*IsUniqueNameMangler*/ true)};
-
-  Ty = Ty.getCanonicalType();
-
-  SmallString<256> Buffer;
-  llvm::raw_svector_ostream Out(Buffer);
-  Ctx->mangleTypeName(Ty, Out);
-  return std::string(Buffer.str());
 }
 
 // FIXME: Maybe this should use DeclPrinter with a special "print predefined
@@ -3381,6 +3402,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case SourceLocExprClass:
   case ConceptSpecializationExprClass:
   case RequiresExprClass:
+  case UniqueStableNameExprClass:
     // These never have a side-effect.
     return false;
 
