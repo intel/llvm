@@ -361,13 +361,11 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     if (DirectlyCalled) {
       llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
         return isa<
-            SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
-            SYCLIntelFPGADisableLoopPipeliningAttr, SYCLSimdAttr,
+            IntelReqdSubGroupSizeAttr, SYCLSimdAttr,
             SYCLIntelKernelArgsRestrictAttr, ReqdWorkGroupSizeAttr,
             SYCLIntelNumSimdWorkItemsAttr, SYCLIntelSchedulerTargetFmaxMhzAttr,
             SYCLIntelNoGlobalWorkOffsetAttr, SYCLIntelMaxWorkGroupSizeAttr,
-            IntelNamedSubGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-            IntelReqdSubGroupSizeAttr, SYCLIntelFPGAInitiationIntervalAttr>(A);
+            IntelNamedSubGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr>(A);
       });
     }
   }
@@ -385,6 +383,15 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
     }
   }
+
+  // Attributes that should not be propagated from device functions to a kernel.
+  if (DirectlyCalled) {
+    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+      return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
+                 SYCLIntelFPGADisableLoopPipeliningAttr,
+                 SYCLIntelFPGAInitiationIntervalAttr>(A);
+      });
+    }
 }
 
 class DiagDeviceFunction : public RecursiveASTVisitor<DiagDeviceFunction> {
