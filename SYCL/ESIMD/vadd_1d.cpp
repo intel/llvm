@@ -97,5 +97,5 @@ int main(void) {
 }
 
 // CHECK: ---> piProgramBuild(
-// CHECK: <const char *>: -vc-codegen
+// CHECK: <const char *>: {{.*}}-vc-codegen
 // CHECK: ) ---> pi_result : PI_SUCCESS
