@@ -52,8 +52,8 @@
 #include <CL/cl_ext.h>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
-#include <cstdint>
 #include <array>
+#include <cstdint>
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,8 +65,7 @@ using pi_uint64 = uint64_t;
 using pi_bool = pi_uint32;
 using pi_bitfield = pi_uint64;
 using pi_native_handle = uintptr_t;
-using pi_byte_array = std::array<std::byte, 16>;
-
+using pi_uint8_ptr = uint8_t *;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed

@@ -18,14 +18,14 @@ The Feature Test Macro will be defined as:
 
 A new device descriptor will be added which will provide the device Universal Unique ID (UUID).
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+This new device descriptor is currently only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior would be to expose the UUIDs of all supported GPU devices which enables detection of total number of unique devices.
 
 
 ## Device Information Descriptors ##
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| info\:\:device\:\:ext\_intel\_device\_info\_uuid | std\:\:array\<std\:\:byte\, 16\> | For Level Zero BE, returns the device UUID|
+| info\:\:device\:\:ext\_intel\_device\_info\_uuid | std\:\:array\<std\:\:byte\, 16\> | Returns the device UUID|
 
 
 ## Aspects ##
@@ -39,10 +39,10 @@ An invalid object runtime error will be thrown if the device does not support as
 
 ## Example Usage ##
 
-The PCI address can be obtained using the standard get\_info() interface.
+The UUID can be obtained using the standard get\_info() interface.
 
     if (dev.has(aspect::ext_intel_device_info_uuid)) {
-      auto BDF = dev.get_info<info::device::ext_intel_device_info_uuid>();
+      auto UUID = dev.get_info<info::device::ext_intel_device_info_uuid>();
     }
 
 
