@@ -297,22 +297,20 @@ bool device_impl::has(aspect Aspect) const {
                MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_device_info_uuid:
-    {
-      auto Result =
-        getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-          MDevice, PI_DEVICE_INFO_UUID, sizeof(pi_device_type), &device_type,
-          &return_size);
-      if (Result != PI_SUCCESS) {
-        return false;
-      }
-
-      pi_uint8_ptr uuid = static_cast<pi_uint8_ptr>(malloc(
-          return_size * sizeof(uint8_t)));
-      return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_UUID, sizeof(pi_uint8_ptr), uuid,
-        &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_device_info_uuid: {
+    auto Result = getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+        MDevice, PI_DEVICE_INFO_UUID, sizeof(pi_device_type), &device_type,
+        &return_size);
+    if (Result != PI_SUCCESS) {
+      return false;
     }
+
+    pi_uint8_ptr uuid =
+        static_cast<pi_uint8_ptr>(malloc(return_size * sizeof(uint8_t)));
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_UUID, sizeof(pi_uint8_ptr), uuid,
+               &return_size) == PI_SUCCESS;
+  }
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
