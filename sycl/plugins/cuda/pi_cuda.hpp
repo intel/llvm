@@ -410,7 +410,7 @@ public:
 
   bool is_started() const noexcept { return isStarted_; }
 
-  bool is_completed() const noexcept { return isCompleted_; };
+  bool is_completed() const noexcept;
 
   pi_int32 get_execution_status() const noexcept {
 
@@ -462,8 +462,9 @@ private:
 
   std::atomic_uint32_t refCount_; // Event reference count.
 
-  bool isCompleted_; // Signifies whether the operations have completed
-                     //
+  bool hasBeenWaitedOn_; // Signifies whether the event has been waited
+                         // on through a call to wait(), which implies
+                         // that it has completed.
 
   bool isRecorded_; // Signifies wether a native CUDA event has been recorded
                     // yet.

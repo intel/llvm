@@ -718,14 +718,19 @@ public:
   }
 
   /// An iterator for DICompileUnits that skips those marked NoDebug.
-  class debug_compile_units_iterator
-      : public std::iterator<std::input_iterator_tag, DICompileUnit *> {
+  class debug_compile_units_iterator {
     NamedMDNode *CUs;
     unsigned Idx;
 
     void SkipNoDebugCUs();
 
   public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = DICompileUnit *;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
     explicit debug_compile_units_iterator(NamedMDNode *CUs, unsigned Idx)
         : CUs(CUs), Idx(Idx) {
       SkipNoDebugCUs();
@@ -880,6 +885,15 @@ public:
 
   /// Set that PLT should be avoid for RTLib calls.
   void setRtLibUseGOT();
+
+  /// Get/set whether synthesized functions should get the uwtable attribute.
+  bool getUwtable() const;
+  void setUwtable();
+
+  /// Get/set whether synthesized functions should get the "frame-pointer"
+  /// attribute.
+  FramePointerKind getFramePointer() const;
+  void setFramePointer(FramePointerKind Kind);
 
   /// @name Utility functions for querying and setting the build SDK version
   /// @{

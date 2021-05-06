@@ -12,18 +12,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "OpFormatGen.h"
+#include "OpGenHelpers.h"
 #include "mlir/TableGen/CodeGenHelpers.h"
 #include "mlir/TableGen/Format.h"
 #include "mlir/TableGen/GenInfo.h"
 #include "mlir/TableGen/Interfaces.h"
 #include "mlir/TableGen/OpClass.h"
-#include "mlir/TableGen/OpTrait.h"
 #include "mlir/TableGen/Operator.h"
 #include "mlir/TableGen/SideEffects.h"
+#include "mlir/TableGen/Trait.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Regex.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
@@ -34,17 +34,6 @@
 using namespace llvm;
 using namespace mlir;
 using namespace mlir::tblgen;
-
-cl::OptionCategory opDefGenCat("Options for -gen-op-defs and -gen-op-decls");
-
-static cl::opt<std::string> opIncFilter(
-    "op-include-regex",
-    cl::desc("Regex of name of op's to include (no filter if empty)"),
-    cl::cat(opDefGenCat));
-static cl::opt<std::string> opExcFilter(
-    "op-exclude-regex",
-    cl::desc("Regex of name of op's to exclude (no filter if empty)"),
-    cl::cat(opDefGenCat));
 
 static const char *const tblgenNamePrefix = "tblgen_";
 static const char *const generatedArgName = "odsArg";
@@ -441,7 +430,7 @@ private:
   void genOpInterfaceMethods();
 
   // Generate op interface methods for the given interface.
-  void genOpInterfaceMethods(const tblgen::InterfaceOpTrait *trait);
+  void genOpInterfaceMethods(const tblgen::InterfaceTrait *trait);
 
   // Generate op interface method for the given interface method. If
   // 'declaration' is true, generates a declaration, else a definition.
@@ -1730,8 +1719,8 @@ void OpEmitter::genFolderDecls() {
   }
 }
 
-void OpEmitter::genOpInterfaceMethods(const tblgen::InterfaceOpTrait *opTrait) {
-  auto interface = opTrait->getOpInterface();
+void OpEmitter::genOpInterfaceMethods(const tblgen::InterfaceTrait *opTrait) {
+  Interface interface = opTrait->getInterface();
 
   // Get the set of methods that should always be declared.
   auto alwaysDeclaredMethodsVec = opTrait->getAlwaysDeclaredMethods();
@@ -1768,7 +1757,7 @@ OpMethod *OpEmitter::genOpInterfaceMethod(const InterfaceMethod &method,
 
 void OpEmitter::genOpInterfaceMethods() {
   for (const auto &trait : op.getTraits()) {
-    if (const auto *opTrait = dyn_cast<tblgen::InterfaceOpTrait>(&trait))
+    if (const auto *opTrait = dyn_cast<tblgen::InterfaceTrait>(&trait))
       if (opTrait->shouldDeclareMethods())
         genOpInterfaceMethods(opTrait);
   }
@@ -1877,9 +1866,9 @@ void OpEmitter::genTypeInterfaceMethods() {
     return;
   // Generate 'inferReturnTypes' method declaration using the interface method
   // declared in 'InferTypeOpInterface' op interface.
-  const auto *trait = dyn_cast<InterfaceOpTrait>(
+  const auto *trait = dyn_cast<InterfaceTrait>(
       op.getTrait("::mlir::InferTypeOpInterface::Trait"));
-  auto interface = trait->getOpInterface();
+  Interface interface = trait->getInterface();
   OpMethod *method = [&]() -> OpMethod * {
     for (const InterfaceMethod &interfaceMethod : interface.getMethods()) {
       if (interfaceMethod.getName() == "inferReturnTypes") {
@@ -1977,7 +1966,7 @@ void OpEmitter::genVerifier() {
   genOperandResultVerifier(body, op.getResults(), "result");
 
   for (auto &trait : op.getTraits()) {
-    if (auto *t = dyn_cast<tblgen::PredOpTrait>(&trait)) {
+    if (auto *t = dyn_cast<tblgen::PredTrait>(&trait)) {
       body << tgfmt("  if (!($0))\n    "
                     "return emitOpError(\"failed to verify that $1\");\n",
                     &verifyCtx, tgfmt(t->getPredTemplate(), &verifyCtx),
@@ -2198,10 +2187,10 @@ void OpEmitter::genTraits() {
 
   // Add the native and interface traits.
   for (const auto &trait : op.getTraits()) {
-    if (auto opTrait = dyn_cast<tblgen::NativeOpTrait>(&trait))
-      opClass.addTrait(opTrait->getTrait());
-    else if (auto opTrait = dyn_cast<tblgen::InterfaceOpTrait>(&trait))
-      opClass.addTrait(opTrait->getTrait());
+    if (auto opTrait = dyn_cast<tblgen::NativeTrait>(&trait))
+      opClass.addTrait(opTrait->getFullyQualifiedTraitName());
+    else if (auto opTrait = dyn_cast<tblgen::InterfaceTrait>(&trait))
+      opClass.addTrait(opTrait->getFullyQualifiedTraitName());
   }
 }
 
@@ -2390,12 +2379,14 @@ void OpOperandAdaptorEmitter::addVerification() {
   // Verify a few traits first so that we can use
   // getODSOperands()/getODSResults() in the rest of the verifier.
   for (auto &trait : op.getTraits()) {
-    if (auto *t = dyn_cast<tblgen::NativeOpTrait>(&trait)) {
-      if (t->getTrait() == "::mlir::OpTrait::AttrSizedOperandSegments") {
+    if (auto *t = dyn_cast<tblgen::NativeTrait>(&trait)) {
+      if (t->getFullyQualifiedTraitName() ==
+          "::mlir::OpTrait::AttrSizedOperandSegments") {
         body << formatv(checkAttrSizedValueSegmentsCode,
                         "operand_segment_sizes", op.getNumOperands(),
                         "operand");
-      } else if (t->getTrait() == "::mlir::OpTrait::AttrSizedResultSegments") {
+      } else if (t->getFullyQualifiedTraitName() ==
+                 "::mlir::OpTrait::AttrSizedResultSegments") {
         body << formatv(checkAttrSizedValueSegmentsCode, "result_segment_sizes",
                         op.getNumResults(), "result");
       }
@@ -2472,44 +2463,10 @@ static void emitOpList(const std::vector<Record *> &defs, raw_ostream &os) {
       [&os]() { os << ",\n"; });
 }
 
-static std::string getOperationName(const Record &def) {
-  auto prefix = def.getValueAsDef("opDialect")->getValueAsString("name");
-  auto opName = def.getValueAsString("opName");
-  if (prefix.empty())
-    return std::string(opName);
-  return std::string(llvm::formatv("{0}.{1}", prefix, opName));
-}
-
-static std::vector<Record *>
-getAllDerivedDefinitions(const RecordKeeper &recordKeeper,
-                         StringRef className) {
-  Record *classDef = recordKeeper.getClass(className);
-  if (!classDef)
-    PrintFatalError("ERROR: Couldn't find the `" + className + "' class!\n");
-
-  llvm::Regex includeRegex(opIncFilter), excludeRegex(opExcFilter);
-  std::vector<Record *> defs;
-  for (const auto &def : recordKeeper.getDefs()) {
-    if (!def.second->isSubClassOf(classDef))
-      continue;
-    // Include if no include filter or include filter matches.
-    if (!opIncFilter.empty() &&
-        !includeRegex.match(getOperationName(*def.second)))
-      continue;
-    // Unless there is an exclude filter and it matches.
-    if (!opExcFilter.empty() &&
-        excludeRegex.match(getOperationName(*def.second)))
-      continue;
-    defs.push_back(def.second.get());
-  }
-
-  return defs;
-}
-
 static bool emitOpDecls(const RecordKeeper &recordKeeper, raw_ostream &os) {
   emitSourceFileHeader("Op Declarations", os);
 
-  const auto &defs = getAllDerivedDefinitions(recordKeeper, "Op");
+  std::vector<Record *> defs = getRequestedOpDefinitions(recordKeeper);
   emitOpClasses(recordKeeper, defs, os, /*emitDecl=*/true);
 
   return false;
@@ -2518,7 +2475,7 @@ static bool emitOpDecls(const RecordKeeper &recordKeeper, raw_ostream &os) {
 static bool emitOpDefs(const RecordKeeper &recordKeeper, raw_ostream &os) {
   emitSourceFileHeader("Op Definitions", os);
 
-  const auto &defs = getAllDerivedDefinitions(recordKeeper, "Op");
+  std::vector<Record *> defs = getRequestedOpDefinitions(recordKeeper);
   emitOpList(defs, os);
   emitOpClasses(recordKeeper, defs, os, /*emitDecl=*/false);
 

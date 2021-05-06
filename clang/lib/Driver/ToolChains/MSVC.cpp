@@ -435,8 +435,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-defaultlib:oldnames");
   }
 
-  if (!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&
-      Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {
+  if ((!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&
+       Args.hasArg(options::OPT_fsycl) &&
+       !Args.hasArg(options::OPT_nolibsycl)) ||
+      Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
     if (Args.hasArg(options::OPT__SLASH_MDd))
       CmdArgs.push_back("-defaultlib:sycld.lib");
     else

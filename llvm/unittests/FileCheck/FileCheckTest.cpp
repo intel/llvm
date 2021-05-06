@@ -161,7 +161,7 @@ struct ExpressionFormatParameterisedFixture
     return (Twine(Prefix) + Twine(Num)).str();
   }
 
-  void checkWildcardRegexCharMatchFailure(StringRef Chars) const {
+  void checkPerCharWildcardRegexMatchFailure(StringRef Chars) const {
     for (auto C : Chars) {
       std::string Str = addBasePrefix(StringRef(&C, 1));
       EXPECT_FALSE(WildcardRegex.match(Str));
@@ -259,9 +259,9 @@ TEST_P(ExpressionFormatParameterisedFixture, FormatGetWildcardRegex) {
   if (AllowHex) {
     LongNumberStr = addBasePrefix(AcceptedHexOnlyDigits);
     checkWildcardRegexMatch(LongNumberStr, 16);
-    checkWildcardRegexCharMatchFailure(RefusedHexOnlyDigits);
+    checkPerCharWildcardRegexMatchFailure(RefusedHexOnlyDigits);
   }
-  checkWildcardRegexCharMatchFailure(FirstInvalidCharDigits);
+  checkPerCharWildcardRegexMatchFailure(FirstInvalidCharDigits);
 
   // Check leading zeros are only accepted if number of digits is less than the
   // precision.
@@ -1445,8 +1445,10 @@ TEST_F(FileCheckTest, Match) {
                        Succeeded());
   Tester.initNextPattern();
   // Match with substitution failure.
-  ASSERT_FALSE(Tester.parsePattern("[[#UNKNOWN]]"));
-  expectUndefErrors({"UNKNOWN"}, Tester.match("FOO").takeError());
+  ASSERT_FALSE(Tester.parsePattern("[[#UNKNOWN1+UNKNOWN2]]"));
+  expectSameErrors<ErrorDiagnostic>(
+      {"undefined variable: UNKNOWN1", "undefined variable: UNKNOWN2"},
+      Tester.match("FOO").takeError());
   Tester.initNextPattern();
   // Check that @LINE matches the later (given the calls to initNextPattern())
   // line number.

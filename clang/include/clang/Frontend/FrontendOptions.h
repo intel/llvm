@@ -15,10 +15,11 @@
 #include "clang/Sema/CodeCompleteOptions.h"
 #include "clang/Serialization/ModuleFileExtension.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include <cassert>
+#include <map>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace llvm {
@@ -404,7 +405,7 @@ public:
   std::string ActionName;
 
   /// Args to pass to the plugins
-  std::unordered_map<std::string,std::vector<std::string>> PluginArgs;
+  std::map<std::string, std::vector<std::string>> PluginArgs;
 
   /// The list of plugin actions to run in addition to the normal action.
   std::vector<std::string> AddPluginActions;

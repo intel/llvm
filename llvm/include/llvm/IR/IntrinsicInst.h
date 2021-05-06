@@ -204,6 +204,11 @@ public:
 
   void replaceVariableLocationOp(Value *OldValue, Value *NewValue);
   void replaceVariableLocationOp(unsigned OpIdx, Value *NewValue);
+  /// Adding a new location operand will always result in this intrinsic using
+  /// an ArgList, and must always be accompanied by a new expression that uses
+  /// the new operand.
+  void addVariableLocationOps(ArrayRef<Value *> NewValues,
+                              DIExpression *NewExpr);
 
   void setVariable(DILocalVariable *NewVar) {
     setArgOperand(1, MetadataAsValue::get(NewVar->getContext(), NewVar));
@@ -263,6 +268,13 @@ public:
 
   Metadata *getRawExpression() const {
     return cast<MetadataAsValue>(getArgOperand(2))->getMetadata();
+  }
+
+  /// Use of this should generally be avoided; instead,
+  /// replaceVariableLocationOp and addVariableLocationOps should be used where
+  /// possible to avoid creating invalid state.
+  void setRawLocation(Metadata *Location) {
+    return setArgOperand(0, MetadataAsValue::get(getContext(), Location));
   }
 
   /// Get the size (in bits) of the variable, or fragment of the variable that
@@ -449,6 +461,47 @@ public:
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }
+};
+
+/// This class represents min/max intrinsics.
+class MinMaxIntrinsic : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    switch (I->getIntrinsicID()) {
+    case Intrinsic::umin:
+    case Intrinsic::umax:
+    case Intrinsic::smin:
+    case Intrinsic::smax:
+      return true;
+    default:
+      return false;
+    }
+  }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+
+  Value *getLHS() const { return const_cast<Value *>(getArgOperand(0)); }
+  Value *getRHS() const { return const_cast<Value *>(getArgOperand(1)); }
+
+  /// Returns the comparison predicate underlying the intrinsic.
+  ICmpInst::Predicate getPredicate() const {
+    switch (getIntrinsicID()) {
+    case Intrinsic::umin:
+      return ICmpInst::Predicate::ICMP_ULT;
+    case Intrinsic::umax:
+      return ICmpInst::Predicate::ICMP_UGT;
+    case Intrinsic::smin:
+      return ICmpInst::Predicate::ICMP_SLT;
+    case Intrinsic::smax:
+      return ICmpInst::Predicate::ICMP_SGT;
+    default:
+      llvm_unreachable("Invalid intrinsic");
+    }
+  }
+
+  /// Whether the intrinsic is signed or unsigned.
+  bool isSigned() const { return ICmpInst::isSigned(getPredicate()); };
 };
 
 /// This class represents an intrinsic that is based on a binary operation.
@@ -1146,6 +1199,86 @@ public:
   void setScopeList(MDNode *ScopeList) {
     setOperand(Intrinsic::NoAliasScopeDeclScopeArg,
                MetadataAsValue::get(getContext(), ScopeList));
+  }
+};
+
+// Defined in Statepoint.h -- NOT a subclass of IntrinsicInst
+class GCStatepointInst;
+
+/// Common base class for representing values projected from a statepoint.
+/// Currently, the only projections available are gc.result and gc.relocate.
+class GCProjectionInst : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::experimental_gc_relocate ||
+      I->getIntrinsicID() == Intrinsic::experimental_gc_result;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+
+  /// Return true if this relocate is tied to the invoke statepoint.
+  /// This includes relocates which are on the unwinding path.
+  bool isTiedToInvoke() const {
+    const Value *Token = getArgOperand(0);
+
+    return isa<LandingPadInst>(Token) || isa<InvokeInst>(Token);
+  }
+
+  /// The statepoint with which this gc.relocate is associated.
+  const GCStatepointInst *getStatepoint() const;
+};
+
+/// Represents calls to the gc.relocate intrinsic.
+class GCRelocateInst : public GCProjectionInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::experimental_gc_relocate;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+
+  /// The index into the associate statepoint's argument list
+  /// which contains the base pointer of the pointer whose
+  /// relocation this gc.relocate describes.
+  unsigned getBasePtrIndex() const {
+    return cast<ConstantInt>(getArgOperand(1))->getZExtValue();
+  }
+
+  /// The index into the associate statepoint's argument list which
+  /// contains the pointer whose relocation this gc.relocate describes.
+  unsigned getDerivedPtrIndex() const {
+    return cast<ConstantInt>(getArgOperand(2))->getZExtValue();
+  }
+
+  Value *getBasePtr() const;
+  Value *getDerivedPtr() const;
+};
+
+/// Represents calls to the gc.result intrinsic.
+class GCResultInst : public GCProjectionInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::experimental_gc_result;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+};
+
+
+/// This represents the llvm.assume intrinsic.
+class AssumeInst : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::assume;
+  }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }
 };
 

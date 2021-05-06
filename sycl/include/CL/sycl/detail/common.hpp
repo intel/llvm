@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/cl_ext_intel.h>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/export.hpp>

@@ -67,6 +67,8 @@ def err_drv_no_hip_runtime : Error<
   "cannot find HIP runtime. Provide its path via --rocm-path, or pass "
   "-nogpuinc to build without HIP runtime.">;
 
+def err_drv_undetermined_amdgpu_arch : Error<
+  "Cannot determine AMDGPU architecture: %0. Consider passing it via --march.">;
 def err_drv_cuda_version_unsupported : Error<
   "GPU arch %0 is supported by CUDA versions between %1 and %2 (inclusive), "
   "but installation at %3 is %4. Use --cuda-path to specify a different CUDA "
@@ -106,6 +108,8 @@ def err_drv_use_of_Z_option : Error<
   "unsupported use of internal gcc -Z option '%0'">;
 def err_drv_output_argument_with_multiple_files : Error<
   "cannot specify -o when generating multiple output files">;
+def err_drv_output_type_with_host_compiler : Error<
+  "unsupported output type when using external host compiler">;
 def err_drv_out_file_argument_with_multiple_sources : Error<
   "cannot specify '%0%1' when compiling multiple source files">;
 def err_no_external_assembler : Error<

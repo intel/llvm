@@ -4,10 +4,7 @@
 // RUN:   -disable-O0-optnone -emit-llvm %s -o - | opt -S -mem2reg | FileCheck --check-prefix=CHECK-RV32 %s
 // RUN: %clang_cc1 -triple riscv64 -target-feature +f -target-feature +d -target-feature +experimental-v \
 // RUN:   -disable-O0-optnone -emit-llvm %s -o - | opt -S -mem2reg | FileCheck --check-prefix=CHECK-RV64 %s
-// RUN: %clang_cc1 -triple riscv64 -target-feature +m -target-feature +f -target-feature +d -target-feature +experimental-v \
-// RUN:   -Werror -Wall -o - %s -S >/dev/null 2>&1 | FileCheck --check-prefix=ASM --allow-empty %s
 
-// ASM-NOT: warning
 #include <riscv_vector.h>
 
 // CHECK-RV32-LABEL: @test_vse8_v_i8mf8(
@@ -1704,4 +1701,116 @@ void test_vse64_v_f64m4_m(vbool16_t mask, double *base, vfloat64m4_t value, size
 //
 void test_vse64_v_f64m8_m(vbool8_t mask, double *base, vfloat64m8_t value, size_t vl) {
   return vse64_v_f64m8_m(mask, base, value, vl);
+}
+
+// CHECK-RV32-LABEL: @test_vse1_v_b1(
+// CHECK-RV32-NEXT:  entry:
+// CHECK-RV32-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 64 x i1>*
+// CHECK-RV32-NEXT:    call void @llvm.riscv.vse1.nxv64i1.i32(<vscale x 64 x i1> [[VALUE:%.*]], <vscale x 64 x i1>* [[TMP0]], i32 [[VL:%.*]])
+// CHECK-RV32-NEXT:    ret void
+//
+// CHECK-RV64-LABEL: @test_vse1_v_b1(
+// CHECK-RV64-NEXT:  entry:
+// CHECK-RV64-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 64 x i1>*
+// CHECK-RV64-NEXT:    call void @llvm.riscv.vse1.nxv64i1.i64(<vscale x 64 x i1> [[VALUE:%.*]], <vscale x 64 x i1>* [[TMP0]], i64 [[VL:%.*]])
+// CHECK-RV64-NEXT:    ret void
+//
+void test_vse1_v_b1(uint8_t *base, vbool1_t value, size_t vl) {
+  return vse1_v_b1(base, value, vl);
+}
+
+// CHECK-RV32-LABEL: @test_vse1_v_b2(
+// CHECK-RV32-NEXT:  entry:
+// CHECK-RV32-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 32 x i1>*
+// CHECK-RV32-NEXT:    call void @llvm.riscv.vse1.nxv32i1.i32(<vscale x 32 x i1> [[VALUE:%.*]], <vscale x 32 x i1>* [[TMP0]], i32 [[VL:%.*]])
+// CHECK-RV32-NEXT:    ret void
+//
+// CHECK-RV64-LABEL: @test_vse1_v_b2(
+// CHECK-RV64-NEXT:  entry:
+// CHECK-RV64-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 32 x i1>*
+// CHECK-RV64-NEXT:    call void @llvm.riscv.vse1.nxv32i1.i64(<vscale x 32 x i1> [[VALUE:%.*]], <vscale x 32 x i1>* [[TMP0]], i64 [[VL:%.*]])
+// CHECK-RV64-NEXT:    ret void
+//
+void test_vse1_v_b2(uint8_t *base, vbool2_t value, size_t vl) {
+  return vse1_v_b2(base, value, vl);
+}
+
+// CHECK-RV32-LABEL: @test_vse1_v_b4(
+// CHECK-RV32-NEXT:  entry:
+// CHECK-RV32-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 16 x i1>*
+// CHECK-RV32-NEXT:    call void @llvm.riscv.vse1.nxv16i1.i32(<vscale x 16 x i1> [[VALUE:%.*]], <vscale x 16 x i1>* [[TMP0]], i32 [[VL:%.*]])
+// CHECK-RV32-NEXT:    ret void
+//
+// CHECK-RV64-LABEL: @test_vse1_v_b4(
+// CHECK-RV64-NEXT:  entry:
+// CHECK-RV64-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 16 x i1>*
+// CHECK-RV64-NEXT:    call void @llvm.riscv.vse1.nxv16i1.i64(<vscale x 16 x i1> [[VALUE:%.*]], <vscale x 16 x i1>* [[TMP0]], i64 [[VL:%.*]])
+// CHECK-RV64-NEXT:    ret void
+//
+void test_vse1_v_b4(uint8_t *base, vbool4_t value, size_t vl) {
+  return vse1_v_b4(base, value, vl);
+}
+
+// CHECK-RV32-LABEL: @test_vse1_v_b8(
+// CHECK-RV32-NEXT:  entry:
+// CHECK-RV32-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 8 x i1>*
+// CHECK-RV32-NEXT:    call void @llvm.riscv.vse1.nxv8i1.i32(<vscale x 8 x i1> [[VALUE:%.*]], <vscale x 8 x i1>* [[TMP0]], i32 [[VL:%.*]])
+// CHECK-RV32-NEXT:    ret void
+//
+// CHECK-RV64-LABEL: @test_vse1_v_b8(
+// CHECK-RV64-NEXT:  entry:
+// CHECK-RV64-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 8 x i1>*
+// CHECK-RV64-NEXT:    call void @llvm.riscv.vse1.nxv8i1.i64(<vscale x 8 x i1> [[VALUE:%.*]], <vscale x 8 x i1>* [[TMP0]], i64 [[VL:%.*]])
+// CHECK-RV64-NEXT:    ret void
+//
+void test_vse1_v_b8(uint8_t *base, vbool8_t value, size_t vl) {
+  return vse1_v_b8(base, value, vl);
+}
+
+// CHECK-RV32-LABEL: @test_vse1_v_b16(
+// CHECK-RV32-NEXT:  entry:
+// CHECK-RV32-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 4 x i1>*
+// CHECK-RV32-NEXT:    call void @llvm.riscv.vse1.nxv4i1.i32(<vscale x 4 x i1> [[VALUE:%.*]], <vscale x 4 x i1>* [[TMP0]], i32 [[VL:%.*]])
+// CHECK-RV32-NEXT:    ret void
+//
+// CHECK-RV64-LABEL: @test_vse1_v_b16(
+// CHECK-RV64-NEXT:  entry:
+// CHECK-RV64-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 4 x i1>*
+// CHECK-RV64-NEXT:    call void @llvm.riscv.vse1.nxv4i1.i64(<vscale x 4 x i1> [[VALUE:%.*]], <vscale x 4 x i1>* [[TMP0]], i64 [[VL:%.*]])
+// CHECK-RV64-NEXT:    ret void
+//
+void test_vse1_v_b16(uint8_t *base, vbool16_t value, size_t vl) {
+  return vse1_v_b16(base, value, vl);
+}
+
+// CHECK-RV32-LABEL: @test_vse1_v_b32(
+// CHECK-RV32-NEXT:  entry:
+// CHECK-RV32-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 2 x i1>*
+// CHECK-RV32-NEXT:    call void @llvm.riscv.vse1.nxv2i1.i32(<vscale x 2 x i1> [[VALUE:%.*]], <vscale x 2 x i1>* [[TMP0]], i32 [[VL:%.*]])
+// CHECK-RV32-NEXT:    ret void
+//
+// CHECK-RV64-LABEL: @test_vse1_v_b32(
+// CHECK-RV64-NEXT:  entry:
+// CHECK-RV64-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 2 x i1>*
+// CHECK-RV64-NEXT:    call void @llvm.riscv.vse1.nxv2i1.i64(<vscale x 2 x i1> [[VALUE:%.*]], <vscale x 2 x i1>* [[TMP0]], i64 [[VL:%.*]])
+// CHECK-RV64-NEXT:    ret void
+//
+void test_vse1_v_b32(uint8_t *base, vbool32_t value, size_t vl) {
+  return vse1_v_b32(base, value, vl);
+}
+
+// CHECK-RV32-LABEL: @test_vse1_v_b64(
+// CHECK-RV32-NEXT:  entry:
+// CHECK-RV32-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 1 x i1>*
+// CHECK-RV32-NEXT:    call void @llvm.riscv.vse1.nxv1i1.i32(<vscale x 1 x i1> [[VALUE:%.*]], <vscale x 1 x i1>* [[TMP0]], i32 [[VL:%.*]])
+// CHECK-RV32-NEXT:    ret void
+//
+// CHECK-RV64-LABEL: @test_vse1_v_b64(
+// CHECK-RV64-NEXT:  entry:
+// CHECK-RV64-NEXT:    [[TMP0:%.*]] = bitcast i8* [[BASE:%.*]] to <vscale x 1 x i1>*
+// CHECK-RV64-NEXT:    call void @llvm.riscv.vse1.nxv1i1.i64(<vscale x 1 x i1> [[VALUE:%.*]], <vscale x 1 x i1>* [[TMP0]], i64 [[VL:%.*]])
+// CHECK-RV64-NEXT:    ret void
+//
+void test_vse1_v_b64(uint8_t *base, vbool64_t value, size_t vl) {
+  return vse1_v_b64(base, value, vl);
 }

@@ -202,6 +202,10 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
   size_t TotalCount = 1;
   SmallVector<llvm::Metadata *, 8> Subscripts;
   for (size_t I = ComponentCountIdx, E = Ops.size(); I < E; ++I) {
+    if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[I])) {
+      Subscripts.push_back(Builder.getOrCreateSubrange(1, nullptr));
+      continue;
+    }
     SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
     int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
     Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
@@ -266,10 +270,12 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   DICompositeType *CT = nullptr;
   switch (Ops[TagIdx]) {
   case SPIRVDebug::Class:
-    CT = Builder.createClassType(
-        ParentScope, Name, File, LineNo, Size, Align, 0, Flags, DerivedFrom,
-        DINodeArray() /*elements*/, nullptr /*VTableHolder*/,
-        nullptr /*TemplateParams*/, Identifier);
+    // TODO: should be replaced with createClassType, when bug with creating
+    // ClassType with llvm::dwarf::DW_TAG_struct_type tag will be fixed
+    CT = Builder.createReplaceableCompositeType(
+        llvm::dwarf::DW_TAG_class_type, Name, ParentScope, File, LineNo, 0,
+        Size, Align, Flags, Identifier);
+    CT = llvm::MDNode::replaceWithDistinct(llvm::TempDICompositeType(CT));
     break;
   case SPIRVDebug::Structure:
     CT = Builder.createStructType(ParentScope, Name, File, LineNo, Size, Align,
@@ -768,6 +774,9 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
   DIFile *File = getFile(Ops[SourceIdx]);
   auto *Entity = transDebugInst<DINode>(BM->get<SPIRVExtInst>(Ops[EntityIdx]));
   if (Ops[TagIdx] == SPIRVDebug::ImportedModule) {
+    if (!Entity)
+      return Builder.createImportedModule(
+          Scope, static_cast<DIImportedEntity *>(nullptr), File, Line);
     if (DIImportedEntity *IE = dyn_cast<DIImportedEntity>(Entity))
       return Builder.createImportedModule(Scope, IE, File, Line);
     if (DINamespace *NS = dyn_cast<DINamespace>(Entity))

@@ -1,9 +1,4 @@
-; RUN: opt -cost-model -analyze -mtriple=aarch64--linux-gnu -mattr=+sve  < %s 2>%t | FileCheck %s
-; RUN: FileCheck --check-prefix=WARN --allow-empty %s <%t
-
-; If this check fails please read test/CodeGen/AArch64/README for instructions on how to resolve it.
-; WARN-NOT: warning
-
+; RUN: opt -cost-model -analyze -mtriple=aarch64--linux-gnu -mattr=+sve  < %s | FileCheck %s
 
 define void @vector_insert_extract(<vscale x 4 x i32> %v0, <vscale x 16 x i32> %v1, <16 x i32> %v2) {
 ; CHECK-LABEL: 'vector_insert_extract'
@@ -27,8 +22,8 @@ define void @reductions(<vscale x 4 x i32> %v0, <vscale x 4 x i64> %v1, <vscale 
 ; CHECK-LABEL: 'reductions'
 ; CHECK-NEXT: Cost Model: Found an estimated cost of 2 for instruction: %add_nxv4i32 = call i32 @llvm.vector.reduce.add.nxv4i32(<vscale x 4 x i32> %v0)
 ; CHECK-NEXT: Cost Model: Found an estimated cost of 3 for instruction: %add_nxv4i64 = call i64 @llvm.vector.reduce.add.nxv4i64(<vscale x 4 x i64> %v1)
-; CHECK-NEXT: Cost Model: Found an estimated cost of 16 for instruction: %mul_nxv4i32 = call i32 @llvm.vector.reduce.mul.nxv4i32(<vscale x 4 x i32> %v0)
-; CHECK-NEXT: Cost Model: Found an estimated cost of 16 for instruction: %mul_nxv4i64 = call i64 @llvm.vector.reduce.mul.nxv4i64(<vscale x 4 x i64> %v1)
+; CHECK-NEXT: Cost Model: Invalid cost for instruction: %mul_nxv4i32 = call i32 @llvm.vector.reduce.mul.nxv4i32(<vscale x 4 x i32> %v0)
+; CHECK-NEXT: Cost Model: Invalid cost for instruction: %mul_nxv4i64 = call i64 @llvm.vector.reduce.mul.nxv4i64(<vscale x 4 x i64> %v1)
 ; CHECK-NEXT: Cost Model: Found an estimated cost of 2 for instruction: %and_nxv4i32 = call i32 @llvm.vector.reduce.and.nxv4i32(<vscale x 4 x i32> %v0)
 ; CHECK-NEXT: Cost Model: Found an estimated cost of 3 for instruction: %and_nxv4i64 = call i64 @llvm.vector.reduce.and.nxv4i64(<vscale x 4 x i64> %v1)
 ; CHECK-NEXT: Cost Model: Found an estimated cost of 2 for instruction: %or_nxv4i32 = call i32 @llvm.vector.reduce.or.nxv4i32(<vscale x 4 x i32> %v0)

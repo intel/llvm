@@ -77,6 +77,8 @@ void registerTestGpuParallelLoopMappingPass();
 void registerTestIRVisitorsPass();
 void registerTestInterfaces();
 void registerTestLinalgCodegenStrategy();
+void registerTestLinalgElementwiseFusion();
+void registerTestPushExpandingReshape();
 void registerTestLinalgFusionTransforms();
 void registerTestLinalgTensorFusionTransforms();
 void registerTestLinalgGreedyFusion();
@@ -154,6 +156,8 @@ void registerTestPasses() {
   test::registerTestIRVisitorsPass();
   test::registerTestInterfaces();
   test::registerTestLinalgCodegenStrategy();
+  test::registerTestLinalgElementwiseFusion();
+  test::registerTestPushExpandingReshape();
   test::registerTestLinalgFusionTransforms();
   test::registerTestLinalgTensorFusionTransforms();
   test::registerTestLinalgGreedyFusion();

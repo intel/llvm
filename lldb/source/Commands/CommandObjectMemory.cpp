@@ -669,8 +669,8 @@ protected:
       }
 
       Address address(addr, nullptr);
-      bytes_read = target->ReadMemory(address, false, data_sp->GetBytes(),
-                                      data_sp->GetByteSize(), error);
+      bytes_read = target->ReadMemory(address, data_sp->GetBytes(),
+                                      data_sp->GetByteSize(), error, true);
       if (bytes_read == 0) {
         const char *error_cstr = error.AsCString();
         if (error_cstr && error_cstr[0]) {
@@ -767,10 +767,11 @@ protected:
     std::string path = outfile_spec.GetPath();
     if (outfile_spec) {
 
-      auto open_options = File::eOpenOptionWrite | File::eOpenOptionCanCreate;
+      File::OpenOptions open_options =
+          File::eOpenOptionWrite | File::eOpenOptionCanCreate;
       const bool append = m_outfile_options.GetAppend().GetCurrentValue();
-      if (append)
-        open_options |= File::eOpenOptionAppend;
+      open_options |=
+          append ? File::eOpenOptionAppend : File::eOpenOptionTruncate;
 
       auto outfile = FileSystem::Instance().Open(outfile_spec, open_options);
 

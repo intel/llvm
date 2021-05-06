@@ -237,7 +237,7 @@ public:
             Ptr);
     cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
-    cl_float ResVal = detail::bit_cast<cl_float>(TmpVal);
+    cl_float ResVal = bit_cast<cl_float>(TmpVal);
     return ResVal;
   }
 #else

@@ -383,7 +383,7 @@ public:
         {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
-    };
+        {"lane_id", {"lane.id", {}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -730,7 +730,7 @@ static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   if (GVTS.find(CI.getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
-  auto LI = Builder.CreateLoad(CI.getArgOperand(0), CI.getName());
+  auto LI = Builder.CreateLoad(CI.getType(), CI.getArgOperand(0), CI.getName());
   LI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(LI);
   return true;

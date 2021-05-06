@@ -174,6 +174,49 @@ func @test_vectorize_copy_scalar(%A : memref<f32>, %B : memref<f32>) {
 
 // -----
 
+// CHECK-LABEL: func @test_vectorize_trailing_index
+  //  CHECK-SAME: (%[[ARG0:.*]]: memref<1x2x4x8xindex>)
+func @test_vectorize_trailing_index(%arg0: memref<1x2x4x8xindex>) {
+  //   CHECK-DAG:   %[[CST0:.*]] = constant dense<[0, 1, 2, 3, 4, 5, 6, 7]> : vector<8xindex>
+  //   CHECK-DAG:   %[[C0:.*]] = constant 0 : index
+  linalg.generic {
+    indexing_maps = [
+      affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>],
+    iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
+  outs(%arg0: memref<1x2x4x8xindex>) {
+  ^bb0(%arg1: index):
+  //       CHECK:   %[[BCST:.*]] = vector.broadcast %[[CST0]] : vector<8xindex> to vector<1x2x4x8xindex>
+  //       CHECK:   vector.transfer_write %[[BCST]], %[[ARG0]][%[[C0]], %[[C0]], %[[C0]], %[[C0]]] {{.*}} : vector<1x2x4x8xindex>, memref<1x2x4x8xindex>
+    %0 = linalg.index 3 : index
+    linalg.yield %0 : index
+  }
+  return
+}
+
+// -----
+
+// CHECK-LABEL: func @test_vectorize_inner_index
+  //  CHECK-SAME: (%[[ARG0:.*]]: memref<1x2x4x8xindex>)
+func @test_vectorize_inner_index(%arg0: memref<1x2x4x8xindex>) {
+  //   CHECK-DAG:   %[[CST0:.*]] = constant dense<[0, 1]> : vector<2xindex>
+  //   CHECK-DAG:   %[[C0:.*]] = constant 0 : index
+  linalg.generic {
+    indexing_maps = [
+      affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>],
+    iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
+  outs(%arg0: memref<1x2x4x8xindex>) {
+  ^bb0(%arg1: index):
+  //       CHECK:   %[[BCST:.*]] = vector.broadcast %[[CST0]] : vector<2xindex> to vector<1x8x4x2xindex>
+  //       CHECK:   %[[TRAN:.*]] = vector.transpose %[[BCST]], [0, 3, 2, 1] : vector<1x8x4x2xindex> to vector<1x2x4x8xindex>
+  //       CHECK:   vector.transfer_write %[[TRAN]], %[[ARG0]][%[[C0]], %[[C0]], %[[C0]], %[[C0]]] {{.*}} : vector<1x2x4x8xindex>, memref<1x2x4x8xindex>
+    %0 = linalg.index 1 : index
+    linalg.yield %0 : index
+  }
+  return
+}
+
+// -----
+
 // CHECK-LABEL: func @generic_vectorize
   //  CHECK-SAME: (%[[ARG0:.*]]: memref<4x256xf32>, %[[ARG1:.*]]: memref<4x256xf32>,
   //  CHECK-SAME:  %[[ARG2:.*]]: memref<256xf32>, %[[ARG3:.*]]: f32)
@@ -251,7 +294,6 @@ func @generic_vectorize(%arg0: memref<4x256xf32>,
   }
   return
 }
-
 
 // -----
 

@@ -343,7 +343,7 @@ int main(int argc, char **argv) {
   Triple TheTriple(TripleName);
 
   ErrorOr<std::unique_ptr<MemoryBuffer>> BufferPtr =
-      MemoryBuffer::getFileOrSTDIN(InputFilename);
+      MemoryBuffer::getFileOrSTDIN(InputFilename, /*IsText=*/true);
   if (std::error_code EC = BufferPtr.getError()) {
     WithColor::error(errs(), ProgName)
         << InputFilename << ": " << EC.message() << '\n';
@@ -452,8 +452,9 @@ int main(int argc, char **argv) {
     FeaturesStr = Features.getString();
   }
 
-  sys::fs::OpenFlags Flags = (FileType == OFT_AssemblyFile) ? sys::fs::OF_Text
-                                                            : sys::fs::OF_None;
+  sys::fs::OpenFlags Flags = (FileType == OFT_AssemblyFile)
+                                 ? sys::fs::OF_TextWithCRLF
+                                 : sys::fs::OF_None;
   std::unique_ptr<ToolOutputFile> Out = GetOutputStream(OutputFilename, Flags);
   if (!Out)
     return 1;

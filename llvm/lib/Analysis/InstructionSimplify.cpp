@@ -3432,6 +3432,8 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   if (Value *V = simplifyICmpOfBools(Pred, LHS, RHS, Q))
     return V;
 
+  // TODO: Sink/common this with other potentially expensive calls that use
+  //       ValueTracking? See comment below for isKnownNonEqual().
   if (Value *V = simplifyICmpWithZero(Pred, LHS, RHS, Q))
     return V;
 
@@ -3451,13 +3453,10 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
       auto LHS_CR = getConstantRangeFromMetadata(
           *LHS_Instr->getMetadata(LLVMContext::MD_range));
 
-      auto Satisfied_CR = ConstantRange::makeSatisfyingICmpRegion(Pred, RHS_CR);
-      if (Satisfied_CR.contains(LHS_CR))
+      if (LHS_CR.icmp(Pred, RHS_CR))
         return ConstantInt::getTrue(RHS->getContext());
 
-      auto InversedSatisfied_CR = ConstantRange::makeSatisfyingICmpRegion(
-                CmpInst::getInversePredicate(Pred), RHS_CR);
-      if (InversedSatisfied_CR.contains(LHS_CR))
+      if (LHS_CR.icmp(CmpInst::getInversePredicate(Pred), RHS_CR))
         return ConstantInt::getFalse(RHS->getContext());
     }
   }
@@ -3640,7 +3639,9 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   }
 
   // icmp eq|ne X, Y -> false|true if X != Y
-  if (ICmpInst::isEquality(Pred) &&
+  // This is potentially expensive, and we have already computedKnownBits for
+  // compares with 0 above here, so only try this for a non-zero compare.
+  if (ICmpInst::isEquality(Pred) && !match(RHS, m_Zero()) &&
       isKnownNonEqual(LHS, RHS, Q.DL, Q.AC, Q.CxtI, Q.DT, Q.IIQ.UseInstrInfo)) {
     return Pred == ICmpInst::ICMP_NE ? getTrue(ITy) : getFalse(ITy);
   }
@@ -4321,10 +4322,14 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
   // Compute the (pointer) type returned by the GEP instruction.
   Type *LastType = GetElementPtrInst::getIndexedType(SrcTy, Ops.slice(1));
   Type *GEPTy = PointerType::get(LastType, AS);
-  if (VectorType *VT = dyn_cast<VectorType>(Ops[0]->getType()))
-    GEPTy = VectorType::get(GEPTy, VT->getElementCount());
-  else if (VectorType *VT = dyn_cast<VectorType>(Ops[1]->getType()))
-    GEPTy = VectorType::get(GEPTy, VT->getElementCount());
+  for (Value *Op : Ops) {
+    // If one of the operands is a vector, the result type is a vector of
+    // pointers. All vector operands must have the same number of elements.
+    if (VectorType *VT = dyn_cast<VectorType>(Op->getType())) {
+      GEPTy = VectorType::get(GEPTy, VT->getElementCount());
+      break;
+    }
+  }
 
   // getelementptr poison, idx -> poison
   // getelementptr baseptr, poison -> poison
@@ -5472,8 +5477,10 @@ static Value *simplifyBinaryIntrinsic(Function *F, Value *Op0, Value *Op1,
   }
   case Intrinsic::ctlz: {
     Value *X;
-    if (match(Op0, m_LShr(m_SignMask(), m_Value(X))))
+    if (match(Op0, m_LShr(m_Negative(), m_Value(X))))
       return X;
+    if (match(Op0, m_AShr(m_Negative(), m_Value())))
+      return Constant::getNullValue(ReturnType);
     break;
   }
   case Intrinsic::smax:

@@ -272,7 +272,7 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
   FileStream.read((char *)&Size, sizeof(Size));
   res.resize(Size);
   FileStream.read(&res[0], Size);
-  if (BuildOptionsString.compare(0, Size, res.data()))
+  if (BuildOptionsString.compare(res))
     return false;
 
   FileStream.read((char *)&Size, sizeof(Size));

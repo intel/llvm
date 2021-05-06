@@ -88,6 +88,8 @@ piextDeviceSelectBinary
 piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer
+piextKernelCreateWithNativeHandle
+piextKernelGetNativeHandle
 piextKernelSetArgMemObj
 piextKernelSetArgPointer
 piextKernelSetArgSampler
