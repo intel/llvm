@@ -64,8 +64,9 @@ static cl::opt<std::string> OutputFileList{
 
 static cl::opt<std::string> OutIncrement{
     "out-increment",
-    cl::desc("Specify output file which should be incrementally named with each "
-             "pass."),
+    cl::desc(
+        "Specify output file which should be incrementally named with each "
+        "pass."),
     cl::init(""), cl::value_desc("R")};
 
 static void error(const Twine &Msg) {
