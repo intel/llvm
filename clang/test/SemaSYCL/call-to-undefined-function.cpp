@@ -79,6 +79,9 @@ struct TplWithTplMethod2<T, true> {
   }
 };
 
+template <typename T>
+void defined_only_in_discarded_stmt(){}
+
 void forwardDeclFn();
 void forwardDeclFn2();
 
@@ -165,6 +168,28 @@ int main() {
       useFwDeclFn();
       forwardDeclFn();
       forwardDeclFn2();
+
+      if constexpr (true) {
+        // expected-error@+1 {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
+        undefined();
+      } else {
+        // Should not diagnose.
+        undefined();
+      }
+
+      // Similar to the one above, just make sure the active branch being empty changes nothing.
+      if constexpr (true) {
+      } else {
+        // Should not diagnose.
+        undefined();
+      }
+
+      // Tests that an active 'else'  where 'else' doesn't exist won't crash.
+      if constexpr (false) {
+        // Should not diagnose.
+        undefined();
+        defined_only_in_discarded_stmt<int>();
+      }
     });
   });
 }
