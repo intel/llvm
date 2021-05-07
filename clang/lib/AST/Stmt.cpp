@@ -994,7 +994,8 @@ Optional<const Stmt*> IfStmt::getNondiscardedCase(const ASTContext &Ctx) const {
     return None;
   return !getCond()->EvaluateKnownConstInt(Ctx) ? getElse() : getThen();
 }
-Optional<Stmt*> IfStmt::getNondiscardedCase(const ASTContext &Ctx) {
+
+Optional<Stmt *> IfStmt::getNondiscardedCase(const ASTContext &Ctx) {
   if (!isConstexpr() || getCond()->isValueDependent())
     return None;
   return !getCond()->EvaluateKnownConstInt(Ctx) ? getElse() : getThen();

@@ -1687,7 +1687,7 @@ public:
   }
 
   void VisitIfStmt(IfStmt *If) {
-    if (Optional<Stmt*> SubStmt = If->getNondiscardedCase(S.Context)) {
+    if (Optional<Stmt *> SubStmt = If->getNondiscardedCase(S.Context)) {
       if (*SubStmt)
         this->Visit(*SubStmt);
     } else {
