@@ -1594,25 +1594,25 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
              << FieldTy;
     }
 
-    if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams)
-      if (!FieldTy->isStandardLayoutType())
-        return Diag.Report(FD->getLocation(),
-                           diag::err_sycl_non_std_layout_type)
-               << FieldTy;
+    //if (SemaRef.getASTContext().getLangOpts().SYCLStdLayoutKernelParams)
+    //  if (!FieldTy->isStandardLayoutType())
+    //    return Diag.Report(FD->getLocation(),
+    //                       diag::err_sycl_non_std_layout_type)
+    //           << FieldTy;
 
     if (!FieldTy->isStructureOrClassType())
       return false;
 
-    CXXRecordDecl *RD =
-        cast<CXXRecordDecl>(FieldTy->getAs<RecordType>()->getDecl());
-    if (!RD->hasTrivialCopyConstructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 0 << FieldTy;
-    if (!RD->hasTrivialDestructor())
-      return Diag.Report(FD->getLocation(),
-                         diag::err_sycl_non_trivially_copy_ctor_dtor_type)
-             << 1 << FieldTy;
+    //CXXRecordDecl *RD =
+    //    cast<CXXRecordDecl>(FieldTy->getAs<RecordType>()->getDecl());
+    //if (!RD->hasTrivialCopyConstructor())
+    //  return Diag.Report(FD->getLocation(),
+    //                     diag::err_sycl_non_trivially_copy_ctor_dtor_type)
+    //         << 0 << FieldTy;
+    //if (!RD->hasTrivialDestructor())
+    //  return Diag.Report(FD->getLocation(),
+    //                     diag::err_sycl_non_trivially_copy_ctor_dtor_type)
+    //         << 1 << FieldTy;
 
     return false;
   }
