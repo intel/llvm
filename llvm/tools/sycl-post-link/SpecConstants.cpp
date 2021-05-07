@@ -277,6 +277,9 @@ void collectCompositeElementsInfoRecursive(
 
 /// Recursively iterates over a composite type in order to collect information
 /// about default values of its scalar elements.
+/// TODO: processing of composite spec constants here is similar to
+/// collectCompositeElementsInfoRecursive. Possible place for improvement -
+/// factor out the common code, e.g. using visitor pattern.
 void collectCompositeElementsDefaultValuesRecursive(
     const Module &M, Constant *C, unsigned &Offset,
     std::vector<char> &DefaultValues) {
@@ -567,6 +570,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         // the second argument of the intrinsic.
         auto *GV = dyn_cast<GlobalVariable>(
             CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
+        // Go through global variable if the second argument was not null.
         if (GV) {
           assert(GV->hasInitializer() && "expected initializer");
           auto *Initializer = GV->getInitializer();

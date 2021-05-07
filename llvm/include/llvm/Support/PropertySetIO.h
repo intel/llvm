@@ -205,7 +205,7 @@ public:
 
   // Function to add a property to a given category (property set name).
   template <typename T>
-  void add(StringRef Category, StringRef PropName, T &PropVal) {
+  void add(StringRef Category, StringRef PropName, const T &PropVal) {
     auto &PropSet = PropSetMap[Category];
     PropSet.insert(std::make_pair(PropName, PropertyValue(PropVal)));
   }
