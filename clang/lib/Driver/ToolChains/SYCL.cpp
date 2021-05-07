@@ -98,16 +98,11 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
 static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
-    "cassert",
-    "cmath",
-    "cmath-fp64",
-    "complex",
-    "complex-fp64",
-    "fallback-cassert",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64"};
+    "cassert",          "cmath",
+    "cmath-fp64",       "complex",
+    "complex-fp64",     "fallback-cassert",
+    "fallback-cmath",   "fallback-cmath-fp64",
+    "fallback-complex", "fallback-complex-fp64"};
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
