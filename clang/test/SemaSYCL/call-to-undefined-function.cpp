@@ -188,7 +188,7 @@ int main() {
         undefined();
       }
 
-      // Tests that an active 'else'  where 'else' doesn't exist won't crash.
+      // Tests that an active 'else' where 'else' doesn't exist won't crash.
       // expected-warning@+1 {{constexpr if is a C++17 extension}}
       if constexpr (false) {
         // Should not diagnose.

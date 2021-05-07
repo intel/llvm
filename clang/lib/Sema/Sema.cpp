@@ -1691,7 +1691,7 @@ public:
       if (*SubStmt)
         this->Visit(*SubStmt);
     } else {
-      this->VisitStmt(If);
+      Inherited::VisitStmt(If);
     }
   }
 
