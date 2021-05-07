@@ -19,8 +19,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_sat(simd<T1, SZ> src) {
@@ -113,7 +115,8 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
     esimd_shl(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
-  typedef typename computation_type<decltype(src0), U>::type ComputationTy;
+  typedef
+      typename detail::computation_type<decltype(src0), U>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
 
@@ -151,7 +154,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
 esimd_shl(T1 src0, T2 src1, int flag = GENX_NOSAT) {
-  typedef typename computation_type<T1, T2>::type ComputationTy;
+  typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_shl<T0>(Src0, Src1, flag);
@@ -166,7 +169,8 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
     esimd_shr(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
-  typedef typename computation_type<decltype(src0), U>::type ComputationTy;
+  typedef
+      typename detail::computation_type<decltype(src0), U>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   typename detail::simd_type<ComputationTy>::type Result =
@@ -185,7 +189,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
 esimd_shr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
-  typedef typename computation_type<T1, T2>::type ComputationTy;
+  typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_shr<T0>(Src0, Src1, flag);
@@ -207,7 +211,8 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
     esimd_rol(simd<T1, SZ> src0, U src1) {
-  typedef typename computation_type<decltype(src0), U>::type ComputationTy;
+  typedef
+      typename detail::computation_type<decltype(src0), U>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   return __esimd_rol<T0>(Src0.data(), Src1.data());
@@ -220,7 +225,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
 esimd_rol(T1 src0, T2 src1) {
-  typedef typename computation_type<T1, T2>::type ComputationTy;
+  typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_rol<T0>(Src0, Src1);
@@ -242,7 +247,8 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
     esimd_ror(simd<T1, SZ> src0, U src1) {
-  typedef typename computation_type<decltype(src0), U>::type ComputationTy;
+  typedef
+      typename detail::computation_type<decltype(src0), U>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   return __esimd_ror<T0>(Src0.data(), Src1.data());
@@ -255,7 +261,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
 esimd_ror(T1 src0, T2 src1) {
-  typedef typename computation_type<T1, T2>::type ComputationTy;
+  typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_ror<T0>(Src0, Src1);
@@ -270,7 +276,7 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
     esimd_lsr(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
-  typedef typename computation_type<T1, T1>::type IntermedTy;
+  typedef typename detail::computation_type<T1, T1>::type IntermedTy;
   typedef typename std::make_unsigned<IntermedTy>::type ComputationTy;
   simd<ComputationTy, SZ> Src0 = src0;
   simd<ComputationTy, SZ> Result = Src0.data() >> src1.data();
@@ -288,7 +294,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
 esimd_lsr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
-  typedef typename computation_type<T1, T2>::type ComputationTy;
+  typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_lsr<T0>(Src0, Src1, flag);
@@ -313,7 +319,7 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            std::is_integral<U>::value,
                                        simd<T0, SZ>>
     esimd_asr(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
-  typedef typename computation_type<T1, T1>::type IntermedTy;
+  typedef typename detail::computation_type<T1, T1>::type IntermedTy;
   typedef typename std::make_signed<IntermedTy>::type ComputationTy;
   simd<ComputationTy, SZ> Src0 = src0;
   simd<ComputationTy, SZ> Result = Src0 >> src1;
@@ -331,7 +337,7 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename sycl::detail::remove_const_t<T0>>
 esimd_asr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
-  typedef typename computation_type<T1, T2>::type ComputationTy;
+  typedef typename detail::computation_type<T1, T2>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_asr<T0>(Src0, Src1, flag);
@@ -358,7 +364,8 @@ ESIMD_NODEBUG ESIMD_INLINE
                                            detail::is_dword_type<U>::value,
                                        simd<T0, SZ>>
     esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
-  typedef typename computation_type<decltype(src0), U>::type ComputationTy;
+  typedef
+      typename detail::computation_type<decltype(src0), U>::type ComputationTy;
   typename detail::simd_type<ComputationTy>::type Src0 = src0;
   typename detail::simd_type<ComputationTy>::type Src1 = src1;
   rmd = Src0 * Src1;
@@ -378,8 +385,8 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_dword_type<U>::value && SZ == 1,
     simd<T0, SZ>>
 esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
-  typedef
-      typename computation_type<decltype(rmd), long long>::type ComputationTy;
+  typedef typename detail::computation_type<decltype(rmd), long long>::type
+      ComputationTy;
   ComputationTy Product = convert<long long>(src0);
   Product *= src1;
   rmd = Product.format<T0>().select<1, 1>[0];
@@ -392,8 +399,8 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
         detail::is_dword_type<U>::value && SZ != 1,
     simd<T0, SZ>>
 esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
-  typedef
-      typename computation_type<decltype(rmd), long long>::type ComputationTy;
+  typedef typename detail::computation_type<decltype(rmd), long long>::type
+      ComputationTy;
   ComputationTy Product = convert<long long>(src0);
   Product *= src1;
   rmd = Product.format<T0>().select<SZ, 2>(0);
@@ -1964,11 +1971,11 @@ ESIMD_INLINE ESIMD_NODEBUG T0 hmin(simd<T1, SZ> v) {
 
 template <typename T0, typename T1, int SZ, typename BinaryOperation>
 ESIMD_INLINE ESIMD_NODEBUG T0 reduce(simd<T1, SZ> v, BinaryOperation op) {
-  if constexpr (std::is_same<remove_cvref_t<BinaryOperation>,
+  if constexpr (std::is_same<detail::remove_cvref_t<BinaryOperation>,
                              std::plus<>>::value) {
     T0 retv = detail::esimd_sum<T0>(v);
     return retv;
-  } else if constexpr (std::is_same<remove_cvref_t<BinaryOperation>,
+  } else if constexpr (std::is_same<detail::remove_cvref_t<BinaryOperation>,
                                     std::multiplies<>>::value) {
     T0 retv = detail::esimd_prod<T0>(v);
     return retv;
@@ -1981,7 +1988,9 @@ simd<T, N> esimd_dp4(simd<T, N> v1, simd<T, N> v2) {
   return retv;
 }
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

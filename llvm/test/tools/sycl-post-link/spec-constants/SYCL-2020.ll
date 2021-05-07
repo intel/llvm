@@ -38,21 +38,21 @@ entry:
 ; CHECK-DEF: %[[BITCAST:[0-9a-z]+]] = bitcast i8* %[[GEP]] to double*
 ; CHECK-DEF: %[[LOAD:[0-9a-z]+]] = load double, double* %[[BITCAST]], align 8
 ;
-; CHECK-RT: call double @_Z20__spirv_SpecConstantid(i32 [[#SCID0:]], double 3.140000e+00), !SYCL_SPEC_CONST_SYM_ID ![[#MID0:]]
+; CHECK-RT: call double @_Z20__spirv_SpecConstantid(i32 [[#SCID0:]], double 3.140000e+00)
 
   %call.i3 = tail call i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPvS3_(i8* getelementptr inbounds ([34 x i8], [34 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z6id_intE17specialization_idIiEiET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.0* @id_int to i8*), i8* null)
 ; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 8
 ; CHECK-DEF: %[[BITCAST1:[0-9a-z]+]] = bitcast i8* %[[GEP1]] to i32*
 ; CHECK-DEF: %[[LOAD1:[0-9a-z]+]] = load i32, i32* %[[BITCAST1]], align 4
 ;
-; CHECK-RT: call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID1:]], i32 42), !SYCL_SPEC_CONST_SYM_ID ![[#MID1:]]
+; CHECK-RT: call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID1:]], i32 42)
 
   %call.i4 = tail call fast double @_Z37__sycl_getScalar2020SpecConstantValueIdET_PKcPvS3_(i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_doubleE17specialization_idIdEdET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id* @id_double to i8*), i8* null)
 ; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, i8* null, i32 0
 ; CHECK-DEF: %[[BITCAST2:[0-9a-z]+]] = bitcast i8* %[[GEP2]] to double*
 ; CHECK-DEF: %[[LOAD2:[0-9a-z]+]] = load double, double* %[[BITCAST2]], align 8
 ;
-; CHECK-RT: call double @_Z20__spirv_SpecConstantid(i32 [[#SCID0]], double 3.140000e+00), !SYCL_SPEC_CONST_SYM_ID ![[#MID0]]
+; CHECK-RT: call double @_Z20__spirv_SpecConstantid(i32 [[#SCID0]], double 3.140000e+00)
   ret void
 }
 
@@ -74,7 +74,7 @@ entry:
 ; CHECK-RT: %[[#SE3:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID4:]], i32 13)
 ; CHECK-RT: %[[#SE4:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID5:]], float 0x4020666660000000)
 ; CHECK-RT: %[[#CE1:]] = call %struct.myConst @_Z29__spirv_SpecConstantCompositeif(i32 %[[#SE3]], float %[[#SE4]])
-; CHECK-RT: %[[C1:[0-9a-z]+]] = call %struct.ComposConst @_Z29__spirv_SpecConstantCompositeidstruct.myConst(i32 %[[#SE1]], double %[[#SE2]], %struct.myConst %[[#CE1]]), !SYCL_SPEC_CONST_SYM_ID ![[#MID2:]]
+; CHECK-RT: %[[C1:[0-9a-z]+]] = call %struct.ComposConst @_Z29__spirv_SpecConstantCompositeidstruct.myConst(i32 %[[#SE1]], double %[[#SE2]], %struct.myConst %[[#CE1]])
 ;
 ; CHECK: store %struct.ComposConst %[[C1]], %struct.ComposConst*
 
@@ -91,7 +91,7 @@ entry:
 ; CHECK-RT: %[[#SE3:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID8:]], float 0x40479999A0000000)
 ; CHECK-RT: %[[#CE1:]] = call %struct.myConst @_Z29__spirv_SpecConstantCompositeif(i32 %[[#SE2]], float %[[#SE3]])
 ; CHECK-RT: %[[#SE4:]] = call double @_Z20__spirv_SpecConstantid(i32 [[#SCID9:]], double 2.000000e+00)
-; CHECK-RT: %[[C2:[0-9a-z]+]] = call %struct.ComposConst2 @_Z29__spirv_SpecConstantCompositeastruct.myConstd(i8 %[[#SE1]], %struct.myConst %[[#CE1]], double %[[#SE4]]), !SYCL_SPEC_CONST_SYM_ID ![[#MID3:]]
+; CHECK-RT: %[[C2:[0-9a-z]+]] = call %struct.ComposConst2 @_Z29__spirv_SpecConstantCompositeastruct.myConstd(i8 %[[#SE1]], %struct.myConst %[[#CE1]], double %[[#SE4]])
 ;
 ; CHECK: store %struct.ComposConst2 %[[C2]], %struct.ComposConst2*
 
@@ -107,7 +107,7 @@ entry:
 ; CHECK-RT: %[[#SE3:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID4]], i32 13)
 ; CHECK-RT: %[[#SE4:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID5]], float 0x4020666660000000)
 ; CHECK-RT: %[[#CE1:]] = call %struct.myConst @_Z29__spirv_SpecConstantCompositeif(i32 %[[#SE3]], float %[[#SE4]])
-; CHECK-RT: %[[C3:[0-9a-z]+]] = call %struct.ComposConst @_Z29__spirv_SpecConstantCompositeidstruct.myConst(i32 %[[#SE1]], double %[[#SE2]], %struct.myConst %[[#CE1]]), !SYCL_SPEC_CONST_SYM_ID ![[#MID2]]
+; CHECK-RT: %[[C3:[0-9a-z]+]] = call %struct.ComposConst @_Z29__spirv_SpecConstantCompositeidstruct.myConst(i32 %[[#SE1]], double %[[#SE2]], %struct.myConst %[[#CE1]])
 ;
 ; CHECK: store %struct.ComposConst %[[C3]], %struct.ComposConst*
   call void @llvm.lifetime.end.p0i8(i64 24, i8* nonnull %2) #3
@@ -130,7 +130,21 @@ attributes #1 = { argmemonly nofree nosync nounwind willreturn }
 attributes #2 = { "denormal-fp-math"="preserve-sign,preserve-sign" "denormal-fp-math-f32"="ieee,ieee" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="true" "use-soft-float"="false" }
 attributes #3 = { nounwind }
 
-; CHECK-RT: ![[#MID0]] = !{!"_ZTS14name_generatorIL_Z9id_doubleEE", i32 [[#SCID0]]}
-; CHECK-RT: ![[#MID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 [[#SCID1]]}
-; CHECK-RT: ![[#MID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 [[#SCID2]], i32 [[#SCID3]], i32 [[#SCID4]], i32 [[#SCID5]]}
-; CHECK-RT: ![[#MID3]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 [[#SCID6]], i32 [[#SCID7]], i32 [[#SCID8]], i32 [[#SCID9]]}
+; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]]}
+;
+; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_doubleEE", i32 0, i32 0, i32 8}
+; CHECK: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
+;
+; For composite types, the amount of metadata is a bit different between native and emulated spec constants
+;
+; CHECK-DEF: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 2, i32 0, i32 24}
+; CHECK-DEF: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 3, i32 0, i32 24
+;
+; CHECK-RT: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 [[#SCID2]], i32 0, i32 4,
+; CHECK-RT-SAME: i32 [[#SCID3]], i32 8, i32 8,
+; CHECK-RT-SAME: i32 [[#SCID4]], i32 16, i32 4,
+; CHECK-RT-SAME: i32 [[#SCID5]], i32 20, i32 4}
+; CHECK-RT: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 [[#SCID6]], i32 0, i32 1,
+; CHECK-RT-SAME: i32 [[#SCID7]], i32 4, i32 4,
+; CHECK-RT-SAME: i32 [[#SCID8]], i32 8, i32 4,
+; CHECK-RT-SAME: i32 [[#SCID9]], i32 16, i32 8}

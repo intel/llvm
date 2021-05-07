@@ -16,15 +16,20 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
 namespace detail {
 namespace half_impl {
 class half;
 } // namespace half_impl
 } // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
-namespace INTEL {
-namespace gpu {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 namespace emu {
 namespace detail {
 
@@ -466,8 +471,10 @@ template <> struct dwordtype<unsigned int> { static const bool value = true; };
 
 } // namespace detail
 } // namespace emu
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 

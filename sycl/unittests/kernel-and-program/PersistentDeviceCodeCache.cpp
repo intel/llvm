@@ -145,6 +145,33 @@ protected:
   std::unique_ptr<unittest::PiMock> Mock;
 };
 
+/* Checks that key values with \0 symbols are processed correctly
+ */
+TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+  std::string Key{'1', '\0', '3', '4', '\0'};
+  std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
+  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      Dev, Img, SpecConst, Key);
+  llvm::sys::fs::remove_directories(ItemDir);
+
+  detail::PersistentDeviceCodeCache::putItemToDisc(Dev, Img, SpecConst, Key,
+                                                   NativeProg);
+  auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(Dev, Img,
+                                                                SpecConst, Key);
+  assert(Res.size() != 0 && "Failed to load cache item");
+  for (int i = 0; i < Res.size(); ++i) {
+    assert(Res[i].size() != 0 && "Failed to device image");
+    for (int j = 0; j < Res[i].size(); ++j) {
+      assert(Res[i][j] == i && "Corrupted image loaded from persistent cache");
+    }
+  }
+
+  llvm::sys::fs::remove_directories(ItemDir);
+}
+
 /* Do read/write for the same cache item to/from 300 threads for small device
  * code size. Make sure that there is no data corruption or crashes.
  */

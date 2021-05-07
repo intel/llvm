@@ -6,7 +6,7 @@
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 void kernel0(accessor<uint32_t, 1, access::mode::read_write, access::target::global_buffer> &buf) __attribute__((sycl_device)) {

@@ -11,6 +11,7 @@
 #include "SpecConstants.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/InstIterator.h"
@@ -43,10 +44,9 @@ constexpr char SPIRV_GET_SPEC_CONST_VAL[] = "__spirv_SpecConstant";
 constexpr char SPIRV_GET_SPEC_CONST_COMPOSITE[] =
     "__spirv_SpecConstantComposite";
 
-// Metadata ID string added to calls to __spirv_SpecConstant to record the
-// original symbolic spec constant ID. For composite spec constants it contains
-// IDs of all scalar spec constants included into a composite
-constexpr char SPEC_CONST_SYM_ID_MD_STRING[] = "SYCL_SPEC_CONST_SYM_ID";
+// Name of the metadata which holds a list of all specialization constants (with
+// associated information) encountered in the module
+constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 
 void AssertRelease(bool Cond, const char *Msg) {
   if (!Cond)
@@ -215,41 +215,10 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   return Res;
 }
 
-void setSpecConstSymIDMetadata(Instruction *I, StringRef SymID,
-                               ArrayRef<unsigned> IntIDs) {
-  LLVMContext &Ctx = I->getContext();
-  SmallVector<Metadata *, 4> MDOperands;
-  MDOperands.push_back(MDString::get(Ctx, SymID));
-  for (unsigned ID : IntIDs)
-    MDOperands.push_back(
-        ConstantAsMetadata::get(ConstantInt::get(Ctx, APInt(32, ID))));
-  MDNode *Entry = MDNode::get(Ctx, MDOperands);
-  I->setMetadata(SPEC_CONST_SYM_ID_MD_STRING, Entry);
-}
-
-std::pair<StringRef, std::vector<SpecConstantDescriptor>>
-getScalarSpecConstMetadata(const Instruction *I) {
-  const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
-  if (!N)
-    return std::make_pair("", std::vector<SpecConstantDescriptor>{});
-  const auto *MDSym = cast<MDString>(N->getOperand(0));
-  const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(1));
-  unsigned ID = static_cast<unsigned>(
-      cast<ConstantInt>(MDInt->getValue())->getValue().getZExtValue());
-  std::vector<SpecConstantDescriptor> Res(1);
-  Res[0].ID = ID;
-  // We need to add an additional byte if the type size is not evenly
-  // divisible by eight, which might be the case for i1, i.e. booleans
-  Res[0].Size = I->getType()->getPrimitiveSizeInBits() / 8 +
-                (I->getType()->getPrimitiveSizeInBits() % 8 != 0);
-  Res[0].Offset = 0;
-  return std::make_pair(MDSym->getString(), Res);
-}
-
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
-    const Module *M, Type *Ty, unsigned &Index, unsigned &Offset,
+    const Module &M, Type *Ty, unsigned &Index, unsigned &Offset,
     std::vector<SpecConstantDescriptor> &Result) {
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
@@ -260,7 +229,7 @@ void collectCompositeElementsInfoRecursive(
                                             Offset, Result);
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
-    const StructLayout *SL = M->getDataLayout().getStructLayout(StructTy);
+    const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
       auto *ElTy = StructTy->getElementType(I);
       // When handling elements of a structure, we do not use manually
@@ -296,25 +265,50 @@ void collectCompositeElementsInfoRecursive(
   }
 }
 
-std::pair<StringRef, std::vector<SpecConstantDescriptor>>
-getCompositeSpecConstMetadata(const Instruction *I) {
-  const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
-  if (!N)
-    return std::make_pair("", std::vector<SpecConstantDescriptor>{});
-  const auto *MDSym = cast<MDString>(N->getOperand(0));
+MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
+                                     Type *SCTy, ArrayRef<unsigned> IDs,
+                                     bool IsNativeSpecConstant) {
+  SmallVector<Metadata *, 16> MDOps;
+  LLVMContext &Ctx = M.getContext();
+  auto *Int32Ty = Type::getInt32Ty(Ctx);
 
-  std::vector<SpecConstantDescriptor> Result(N->getNumOperands() - 1);
-  unsigned Index = 0, Offset = 0;
-  collectCompositeElementsInfoRecursive(I->getModule(), I->getType(), Index,
-                                        Offset, Result);
+  // First element is always Symbolic ID
+  MDOps.push_back(MDString::get(Ctx, SymbolicID));
 
-  for (unsigned I = 1; I < N->getNumOperands(); ++I) {
-    const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(I));
-    unsigned ID = static_cast<unsigned>(
-        cast<ConstantInt>(MDInt->getValue())->getValue().getZExtValue());
-    Result[I - 1].ID = ID;
+  if (IsNativeSpecConstant) {
+    std::vector<SpecConstantDescriptor> Result(IDs.size());
+    unsigned Index = 0, Offset = 0;
+    collectCompositeElementsInfoRecursive(M, SCTy, Index, Offset, Result);
+
+    for (unsigned I = 0; I < Result.size(); ++I) {
+      MDOps.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(Int32Ty, APInt(32, IDs[I]))));
+      MDOps.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].Offset))));
+      MDOps.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].Size))));
+    }
+  } else {
+    assert(IDs.size() == 1 &&
+           "There must be a single ID for emulated spec constant");
+    MDOps.push_back(ConstantAsMetadata::get(
+        Constant::getIntegerValue(Int32Ty, APInt(32, IDs[0]))));
+    // Second element is always zero here
+    MDOps.push_back(ConstantAsMetadata::get(
+        Constant::getIntegerValue(Int32Ty, APInt(32, 0))));
+
+    unsigned Size = 0;
+    if (auto *StructTy = dyn_cast<StructType>(SCTy)) {
+      const auto *SL = M.getDataLayout().getStructLayout(StructTy);
+      Size = SL->getSizeInBytes();
+    } else
+      Size = SCTy->getScalarSizeInBits() / CHAR_BIT;
+
+    MDOps.push_back(ConstantAsMetadata::get(
+        Constant::getIntegerValue(Int32Ty, APInt(32, Size))));
   }
-  return std::make_pair(MDSym->getString(), Result);
+
+  return MDNode::get(Ctx, MDOps);
 }
 
 Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
@@ -440,9 +434,10 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   unsigned NextOffset = 0;
   StringMap<SmallVector<unsigned, 1>> IDMap;
   StringMap<unsigned> OffsetMap;
+  MapVector<StringRef, MDNode *> SCMetadata;
 
   // Iterate through all declarations of instances of function template
-  // template <typename T> T __sycl_getSpecConstantValue(const char *ID)
+  // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
   // intrinsic to find its calls and lower them depending on the SetValAtRT
   // setting (see below).
   bool IRModified = false;
@@ -466,7 +461,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
     IRModified = IRModified || (SCIntrCalls.size() > 0);
 
     for (auto *CI : SCIntrCalls) {
-      // 1. Find the symbolic ID (string literal) passed as the actual argument
+      // 1. Find the Symbolic ID (string literal) passed as the actual argument
       // to the intrinsic - this should always be possible, as only string
       // literals are passed to it in the SYCL RT source code, and application
       // code can't use this intrinsic directly.
@@ -489,12 +484,12 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         SCTy = PtrTy->getElementType();
       }
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
+      Value *Replacement = nullptr;
 
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
-        // to a "spec const string literal ID" -> "integer ID" map or
-        // "composite spec const string literal ID" -> "vector of integer IDs"
-        // map, uniquing the integer IDs if this is new literal
+        // to a "spec const string literal ID" -> "vector of integer IDs" map,
+        // uniquing the integer IDs if this is a new literal
         auto Ins =
             IDMap.insert(std::make_pair(SymID, SmallVector<unsigned, 1>{}));
         bool IsNewSpecConstant = Ins.second;
@@ -513,8 +508,10 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           auto *GV = dyn_cast<GlobalVariable>(
               CI->getArgOperand(NameArgNo + 1)->stripPointerCasts());
           if (GV) {
+            assert(GV->hasInitializer() && "expected initializer");
             auto *Initializer = GV->getInitializer();
-            assert(isa<ConstantAggregate>(Initializer) &&
+            assert((isa<ConstantAggregate>(Initializer) ||
+                    Initializer->isZeroValue()) &&
                    "expected specialization_id instance");
             // specialization_id structure contains a single field which is the
             // default value of corresponding specialization constant.
@@ -524,44 +521,25 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
-        auto *SPIRVCall =
-            emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
+        Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
-          // (because of composite types) and therefore, we need to ajudst
+          // (because of composite types) and therefore, we need to adjust
           // NextID according to the actual amount of emitted spec constants.
           NextID += IDs.size();
-        }
 
-        if (IsComposite) {
-          // __sycl_getCompositeSpecConstant returns through argument, so, the
-          // only thing we need to do here is to store into a memory pointed by
-          // that argument
-          new StoreInst(SPIRVCall, CI->getArgOperand(0), CI);
-        } else {
-          CI->replaceAllUsesWith(SPIRVCall);
+          // Generate necessary metadata which later will be pulled by
+          // sycl-post-link and transformed into device image properties
+          SCMetadata[SymID] = generateSpecConstantMetadata(
+              M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
-
-        // Mark the instruction with <symbolic_id, int_ids...> list for later
-        // recollection by collectSpecConstantMetadata method.
-        setSpecConstSymIDMetadata(SPIRVCall, SymID, IDs);
-        // Example of the emitted call when spec constant is integer:
-        // %6 = call i32 @_Z20__spirv_SpecConstantii(i32 0, i32 0), \
-        //                                          !SYCL_SPEC_CONST_SYM_ID !22
-        // !22 = {!"string-id", i32 0}
-        // Example of the emitted call when spec constant is vector consisting
-        // of two integers:
-        // %1 = call i32 @_Z20__spirv_SpecConstantii(i32 3, i32 0)
-        // %2 = call i32 @_Z20__spirv_SpecConstantii(i32 4, i32 0)
-        // %3 = call <2 x i32> @_Z29__spirv_SpecConstantCompositeii(i32 \
-        //          %1, i32 %2), !SYCL_SPEC_CONST_SYM_ID !23
-        // !23 = {!"string-id-2", i32 3, i32 4}
       } else {
-        // 2a. Spec constant must be resolved at compile time - replace the
-        // intrinsic with the actual value for spec constant.
-        Value *Val = nullptr;
+        // 2a. For SYCL 2020: spec constant will be passed as kernel argument;
+        // For older proposal against SYCL 1.2.1 spec constant must be resolved
+        // at compile time - replace the intrinsic with the actual value for
+        // spec constant.
         if (Is2020Intrinsic) {
-          // Handle SYCL2020 version of intrinsic - replace it with a load from
+          // Handle SYCL 2020 version of intrinsic - replace it with a load from
           // the pointer to the specialization constant value.
           // A pointer to a single RT-buffer with all the values of
           // specialization constants is passed as a 3rd argument of intrinsic.
@@ -573,23 +551,28 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // literal.
           auto Ins = OffsetMap.insert(std::make_pair(SymID, NextOffset));
           bool IsNewSpecConstant = Ins.second;
-          auto CurrentOffset = Ins.first->second;
+          unsigned CurrentOffset = Ins.first->second;
           if (IsNewSpecConstant) {
+            unsigned Size = 0;
             if (IsComposite) {
               // When handling elements of a structure, we do not use manually
               // calculated offsets (which are sum of sizes of all previously
               // encountered elements), but instead rely on data provided for us
               // by DataLayout, because the structure can be unpacked, i.e.
               // padded in order to ensure particular alignment of its elements.
-              auto *StructTy = cast<StructType>(
-                  CI->getArgOperand(0)->getType()->getPointerElementType());
               // We rely on the fact that the StructLayout of spec constant RT
               // values is the same for the host and the device.
               const StructLayout *SL =
-                  M.getDataLayout().getStructLayout(StructTy);
-              NextOffset += SL->getSizeInBytes();
+                  M.getDataLayout().getStructLayout(cast<StructType>(SCTy));
+              Size = SL->getSizeInBytes();
             } else
-              NextOffset += SCTy->getScalarSizeInBits() / CHAR_BIT;
+              Size = SCTy->getScalarSizeInBits() / CHAR_BIT;
+
+            SCMetadata[SymID] = generateSpecConstantMetadata(
+                M, SymID, SCTy, NextID, /* is native spec constant */ false);
+
+            ++NextID;
+            NextOffset += Size;
           }
 
           Type *Int8Ty = Type::getInt8Ty(CI->getContext());
@@ -601,62 +584,73 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           BitCastInst *BitCast = new BitCastInst(
               GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc", CI);
 
-          LoadInst *Load = new LoadInst(SCTy, BitCast, "load", CI);
-          Val = Load;
+          Replacement = new LoadInst(SCTy, BitCast, "load", CI);
         } else {
           // Replace the intrinsic with default C++ value for the spec constant
           // type.
-          Val = getDefaultCPPValue(SCTy);
-        }
-
-        if (IsComposite) {
-          // __sycl_getCompositeSpecConstant returns through argument, so, the
-          // only thing we need to do here is to store into a memory pointed
-          // by that argument
-          new StoreInst(Val, CI->getArgOperand(0), CI);
-        } else {
-          CI->replaceAllUsesWith(Val);
+          Replacement = getDefaultCPPValue(SCTy);
         }
       }
 
+      if (IsComposite) {
+        // __sycl_getCompositeSpecConstant returns through argument, so, the
+        // only thing we need to do here is to store into a memory pointed
+        // by that argument
+        new StoreInst(Replacement, CI->getArgOperand(0), CI);
+      } else {
+        CI->replaceAllUsesWith(Replacement);
+      }
+
       for (auto *I : DelInsts) {
-        assert(I->getNumUses() == 0 && "removing live instruction");
         I->removeFromParent();
         I->deleteValue();
       }
     }
   }
+
+  // Emit metadata about encountered specializaiton constants. This metadata
+  // is later queried by sycl-post-link in order to be converted into device
+  // image properties.
+  // Generated metadata looks like:
+  // !sycl.specialization-constants = !{!1, !2, ... for each spec constant}
+  // !1 = !{!"SymbolicID1", i32 1, i32 0, i32 4, i32 2, i32 4, i32 8}
+  // !2 = !{!"SymbolicID2", i32 3, i32 0, i32 4}
+  // The format is [Symbolic ID, list of triplets: numeric ID, offset, size]
+  // For more infor about meaning of those triplets see comments about
+  // SpecConstantDescriptor structure in SpecConstants.h
+  NamedMDNode *MD = M.getOrInsertNamedMetadata(SPEC_CONST_MD_STRING);
+  for (const auto &P : SCMetadata)
+    MD->addOperand(P.second);
+
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
 bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
                                                     SpecIDMapTy &IDMap) {
-  bool Met = false;
+  NamedMDNode *MD = M.getOrInsertNamedMetadata(SPEC_CONST_MD_STRING);
+  if (!MD)
+    return false;
 
-  for (Function &F : M) {
-    if (F.isDeclaration())
-      continue;
-    SmallVector<CallInst *, 32> SCIntrCalls;
+  auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
+                                             unsigned OpNo) -> unsigned {
+    Constant *C =
+        cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
+    return static_cast<unsigned>(C->getUniqueInteger().getZExtValue());
+  };
 
-    for (Instruction &I : instructions(F)) {
-      auto *CI = dyn_cast<CallInst>(&I);
-      Function *Callee = nullptr;
-      if (!CI || CI->isIndirectCall() || !(Callee = CI->getCalledFunction()))
-        continue;
-
-      std::pair<StringRef, std::vector<SpecConstantDescriptor>> Res;
-      if (Callee->getName().contains(SPIRV_GET_SPEC_CONST_COMPOSITE)) {
-        Res = getCompositeSpecConstMetadata(CI);
-      } else if (Callee->getName().contains(SPIRV_GET_SPEC_CONST_VAL)) {
-        Res = getScalarSpecConstMetadata(CI);
-      }
-
-      if (!Res.first.empty()) {
-        IDMap[Res.first] = Res.second;
-        Met = true;
-      }
+  for (const auto *Node : MD->operands()) {
+    StringRef ID = cast<MDString>(Node->getOperand(0).get())->getString();
+    assert((Node->getNumOperands() - 1) % 3 == 0 &&
+           "Unexpected amount of operands");
+    std::vector<SpecConstantDescriptor> Descs((Node->getNumOperands() - 1) / 3);
+    for (unsigned NI = 1, I = 0; NI < Node->getNumOperands(); NI += 3, ++I) {
+      Descs[I].ID = ExtractIntegerFromMDNodeOperand(Node, NI + 0);
+      Descs[I].Offset = ExtractIntegerFromMDNodeOperand(Node, NI + 1);
+      Descs[I].Size = ExtractIntegerFromMDNodeOperand(Node, NI + 2);
     }
+
+    IDMap[ID] = Descs;
   }
 
-  return Met;
+  return true;
 }
