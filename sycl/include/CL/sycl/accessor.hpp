@@ -203,7 +203,6 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-class stream;
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -929,7 +928,6 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-  friend class sycl::stream;
   friend class sycl::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
 

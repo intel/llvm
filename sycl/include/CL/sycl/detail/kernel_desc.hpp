@@ -35,7 +35,6 @@ enum class kernel_param_kind_t {
   kind_sampler = 2,
   kind_pointer = 3,
   kind_specialization_constants_buffer = 4,
-  kind_stream = 5,
 };
 
 // describes a kernel parameter
