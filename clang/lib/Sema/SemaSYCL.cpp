@@ -548,6 +548,7 @@ class DeviceFunctionTracker {
 
 public:
   DeviceFunctionTracker(Sema &S) : SemaRef(S) {
+    CG.setSkipConstantExpressions(S.Context);
     CG.addToCallGraph(S.getASTContext().getTranslationUnitDecl());
     CollectSyclExternalFuncs();
   }
