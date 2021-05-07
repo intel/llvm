@@ -604,6 +604,12 @@ pi_result _pi_context::finalize() {
     if (ZeCommandList)
       ZE_CALL(zeCommandListDestroy, (ZeCommandList));
   }
+
+  // Adjust the number of command lists created on this platform.
+  auto Platform = Devices[0]->Platform;
+  Platform->ZeGlobalCommandListCount -= ZeComputeCommandListCache.size();
+  Platform->ZeGlobalCommandListCount -= ZeCopyCommandListCache.size();
+
   return PI_SUCCESS;
 }
 
