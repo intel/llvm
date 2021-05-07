@@ -52,9 +52,6 @@ function(add_sycl_rt_library LIB_NAME)
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-
-    target_compile_options(${LIB_OBJ_NAME} PUBLIC
-                           -ggdb -O0)
     set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
     target_link_libraries(
       ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")

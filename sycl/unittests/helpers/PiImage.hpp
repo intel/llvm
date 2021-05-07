@@ -21,10 +21,17 @@ namespace unittest {
 class PiProperty {
 public:
   using NativeType = _pi_device_binary_property_struct;
+
+  /// Constructs a PI property.
+  ///
+  /// \param Name is a property name.
+  /// \param Data is a vector of raw property value bytes.
+  /// \param Type is one of pi_property_type values.
   PiProperty(const std::string &Name, std::vector<char> Data, uint32_t Type)
       : MName(Name), MData(std::move(Data)), MType(Type) {
     updateNativeType();
   }
+
   NativeType convertToNativeType() const { return MNative; }
 
   PiProperty(const PiProperty &Src) {
@@ -33,6 +40,7 @@ public:
     MType = Src.MType;
     updateNativeType();
   }
+
   PiProperty &operator=(const PiProperty &Src) {
     MName = Src.MName;
     MData = Src.MData;
@@ -56,6 +64,7 @@ private:
 class PiOffloadEntry {
 public:
   using NativeType = _pi_offload_entry_struct;
+
   PiOffloadEntry(const std::string &Name, std::vector<char> Data, int32_t Flags)
       : MName(Name), MData(std::move(Data)), MFlags(Flags) {
     updateNativeType();
@@ -125,6 +134,10 @@ class PiPropertySet {
 public:
   PiPropertySet() = default;
 
+  /// Adds a new array of properties to the set.
+  ///
+  /// \param Name is a property array name. See pi.h for list of known names.
+  /// \param Props is an array of property values.
   void insert(const std::string &Name, PiArray<PiProperty> Props) {
     MNames.push_back(Name);
     MMockProperties.push_back(std::move(Props));
@@ -329,6 +342,9 @@ PiProperty makeSpecConstant(std::vector<char> &ValData, const std::string &Name,
   return Prop;
 }
 
+/// Utility function to add specialization constants to property set.
+///
+/// This function overrides the default spec constant values.
 void addSpecConstants(PiArray<PiProperty> SpecConstants,
                       std::vector<char> ValData, PiPropertySet &Props) {
   Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
@@ -341,6 +357,7 @@ void addSpecConstants(PiArray<PiProperty> SpecConstants,
                std::move(DefaultValues));
 }
 
+/// Utility function to generate offload entries for kernels without arguments.
 PiArray<PiOffloadEntry>
 makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
   PiArray<PiOffloadEntry> Entries;
