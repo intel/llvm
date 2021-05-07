@@ -280,6 +280,11 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
+bool queue_impl::kernelUsesAssert(const std::string &KernelName) const {
+  // TODO check device binary image descriptor for if kernel uses assert
+  return true;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

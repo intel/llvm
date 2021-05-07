@@ -100,6 +100,18 @@ event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
 }
 
+event queue::submit_impl(function_class<void(handler &)> CGH,
+                         std::string &KernelName,
+                         const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, KernelName, impl, CodeLoc);
+}
+
+event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
+                         std::string &KernelName,
+                         const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, KernelName, impl, SecondQueue.impl, CodeLoc);
+}
+
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
   impl->wait(CodeLoc);
 }
@@ -142,6 +154,10 @@ bool queue::is_in_order() const {
 backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
+
+bool queue::kernelUsesAssert(const std::string &KernelName) const {
+  return impl->kernelUsesAssert(KernelName);
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

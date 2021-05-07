@@ -22,6 +22,22 @@
 
 #include <utility>
 
+struct AssertHappened {
+  int Flag = 0;
+};
+
+#if 0
+#ifndef __SYCL_GLOBAL_VAR__
+#define __SYCL_GLOBAL_VAR__
+#endif
+
+extern "C" __SYCL_GLOBAL_VAR__ const AssertHappened AssertHappenedMem;
+#endif
+
+#ifdef __SYCL_DEVICE_ONLY__
+SYCL_EXTERNAL __attribute__((weak)) extern "C" int __devicelib_assert_read();
+#endif
+
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
 // Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
 // _CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
@@ -60,6 +76,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+/*template <typename T>*/ class AssertFlagCopier {};
 
 // Forward declaration
 class context;
@@ -214,6 +232,56 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
+private:
+#ifndef NDEBUG
+  event submitAssertCapture(event &Event, queue *SecondaryQueue, const detail::code_location &CodeLoc) {
+    _CODELOCARG(&CodeLoc);
+
+    AssertHappened *AH = new AssertHappened;
+    buffer<AssertHappened, 1> *Buffer = new buffer<AssertHappened, 1>{AH, range<1>{1}};
+
+    event CopierEv, CheckerEv;
+    auto CopierCGF = [&](handler &CGH) {
+      CGH.depends_on(Event);
+
+      auto Acc = Buffer->get_access<access::mode::write>(CGH);
+
+      fprintf(stderr, "About to enqueue copier\n");
+      CGH.single_task<AssertFlagCopier>([Acc] {
+#ifdef __SYCL_DEVICE_ONLY__
+        Acc[0].Flag = __devicelib_assert_read(); //AssertHappenedMem.Flag;
+#endif // __SYCL_DEVICE_ONLY__
+      });
+    };
+    auto CheckerCGF = [&CopierEv, AH, Buffer](handler &CGH) {
+      CGH.depends_on(CopierEv);
+
+      fprintf(stderr, "About to enqueue checker\n");
+      CGH.codeplay_host_task([=] {
+        fprintf(stderr, "Checker running!\n");
+        if (AH->Flag)
+          abort();
+
+        delete Buffer;
+        delete AH;
+      });
+    };
+
+    if (SecondaryQueue) {
+      CopierEv = submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
+      CheckerEv = submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
+    } else {
+      CopierEv = submit_impl(CopierCGF, CodeLoc);
+      CheckerEv = submit_impl(CheckerCGF, CodeLoc);
+    }
+
+    return CheckerEv;
+  }
+#endif
+
+  bool kernelUsesAssert(const std::string &KernelName) const;
+
+public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
@@ -223,7 +291,25 @@ public:
   template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    return submit_impl(CGF, CodeLoc);
+    event Event;
+#ifndef NDEBUG
+    std::string KernelName;
+    Event = submit_impl(CGF, KernelName, CodeLoc);
+#else
+    Event = submit_impl(CGF, CodeLoc);
+#endif
+
+#ifndef NDEBUG
+    // assert required
+    if (!get_device().is_assert_fail_supported() && kernelUsesAssert(KernelName)) {
+      // __devicelib_assert_fail isn't supported by Device-side Runtime
+      // Linking against fallback impl of __devicelib_assert_fail is performed
+      // by program manager class
+      submitAssertCapture(Event, /* SecondaryQueue = */ nullptr, CodeLoc);
+    }
+#endif // NDEBUG
+
+    return Event;
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -241,7 +327,26 @@ public:
   event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    return submit_impl(CGF, SecondaryQueue, CodeLoc);
+    event Event;
+
+#ifndef NDEBUG
+    std::string KernelName;
+    Event = submit_impl(CGF, KernelName, SecondaryQueue, CodeLoc);
+#else
+    Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+#endif
+
+#ifndef NDEBUG
+    // assert required
+    if (!get_device().is_assert_fail_supported() && kernelUsesAssert(KernelName)) {
+      // __devicelib_assert_fail isn't supported by Device-side Runtime
+      // Linking against fallback impl of __devicelib_assert_fail is performed
+      // by program manager class
+      submitAssertCapture(Event, &SecondaryQueue, CodeLoc);
+    }
+#endif // NDEBUG
+
+    return Event;
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -751,6 +856,13 @@ private:
                     const detail::code_location &CodeLoc);
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
+                    const detail::code_location &CodeLoc);
+
+  event submit_impl(function_class<void(handler &)> CGH,
+                    std::string &KernelName,
+                    const detail::code_location &CodeLoc);
+  event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
+                    std::string &KernelName,
                     const detail::code_location &CodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that

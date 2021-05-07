@@ -301,6 +301,10 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
   return HostImpl;
 }
 
+bool device_impl::isAssertFailSupported() const {
+  return false;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

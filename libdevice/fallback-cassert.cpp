@@ -9,9 +9,28 @@
 #include "wrapper.h"
 
 #ifdef __SPIR__
+
+struct AssertHappened {
+  int Flag = 1;
+};
+
+#ifndef __SYCL_GLOBAL_VAR__
+#define __SYCL_GLOBAL_VAR__
+#endif
+
+extern "C" __SYCL_GLOBAL_VAR__ const AssertHappened AssertHappenedMem; // declaration
+
+__SYCL_GLOBAL_VAR__ const AssertHappened AssertHappenedMem; // definition
+
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
     "Assertion `%s` failed.\n";
+
+static const __attribute__((opencl_constant)) char flag_output_fmt[] = "Flag = %d\n";
+
+DEVICE_EXTERN_C int __devicelib_assert_read(void) {
+  return AssertHappenedMem.Flag;
+}
 
 DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                                              int32_t line, const char *func,
@@ -26,6 +45,10 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                      // WORKAROUND: IGC does not handle this well
                      // (func) ? func : "<unknown function>",
                      func, gid0, gid1, gid2, lid0, lid1, lid2, expr);
+
+  //AssertHappenedMem.Flag = 1;
+
+  __spirv_ocl_printf(flag_output_fmt, AssertHappenedMem.Flag);
 
   // FIXME: call SPIR-V unreachable instead
   // volatile int *die = (int *)0x0;

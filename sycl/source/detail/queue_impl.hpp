@@ -173,13 +173,29 @@ public:
                const shared_ptr_class<queue_impl> &SecondQueue,
                const detail::code_location &Loc) {
     try {
-      return submit_impl(CGF, Self, Loc);
+      return submit_impl(CGF, /*KernelName =*/ nullptr, Self, Loc);
     } catch (...) {
       {
         std::lock_guard<mutex_class> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
       return SecondQueue->submit(CGF, SecondQueue, Loc);
+    }
+  }
+
+  event submit(const function_class<void(handler &)> &CGF,
+               std::string &KernelName,
+               const shared_ptr_class<queue_impl> &Self,
+               const shared_ptr_class<queue_impl> &SecondQueue,
+               const detail::code_location &Loc) {
+    try {
+      return submit_impl(CGF, &KernelName, Self, Loc);
+    } catch (...) {
+      {
+        std::lock_guard<mutex_class> Lock(MMutex);
+        MExceptions.PushBack(std::current_exception());
+      }
+      return SecondQueue->submit(CGF, KernelName, SecondQueue, Loc);
     }
   }
 
@@ -193,7 +209,14 @@ public:
   event submit(const function_class<void(handler &)> &CGF,
                const shared_ptr_class<queue_impl> &Self,
                const detail::code_location &Loc) {
-    return submit_impl(CGF, Self, Loc);
+    return submit_impl(CGF, /*KernelName =*/ nullptr, Self, Loc);
+  }
+
+  event submit(const function_class<void(handler &)> &CGF,
+               std::string &KernelName,
+               const shared_ptr_class<queue_impl> &Self,
+               const detail::code_location &Loc) {
+    return submit_impl(CGF, &KernelName, Self, Loc);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -377,6 +400,8 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  bool kernelUsesAssert(const std::string &KernelName) const;
+
 private:
   /// Performs command group submission to the queue.
   ///
@@ -385,11 +410,16 @@ private:
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const function_class<void(handler &)> &CGF,
+                    std::string *KernelName,
                     const shared_ptr_class<queue_impl> &Self,
                     const detail::code_location &Loc) {
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
+
+    if (KernelName && Handler.getType() == CG::KERNEL)
+      *KernelName = Handler.MKernelName;
+
     event Event = Handler.finalize();
     addEvent(Event);
     return Event;
