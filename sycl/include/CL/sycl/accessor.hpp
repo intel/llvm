@@ -2333,8 +2333,8 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 
 #endif
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace gpu
+} // namespace INTEL
 
 namespace std {
 template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
