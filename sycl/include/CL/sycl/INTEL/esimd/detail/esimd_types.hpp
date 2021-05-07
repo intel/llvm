@@ -19,8 +19,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 // simd and simd_view forward declarations
 template <typename Ty, int N> class simd;
@@ -31,7 +33,6 @@ namespace detail {
 namespace csd = cl::sycl::detail;
 
 using half = cl::sycl::detail::half_impl::StorageT;
-using namespace sycl::INTEL::gpu;
 
 template <typename T>
 using remove_cvref_t = csd::remove_cv_t<csd::remove_reference_t<T>>;
@@ -259,7 +260,9 @@ inline std::istream &operator>>(std::istream &I, half &rhs) {
 template <int N>
 using mask_type_t = typename detail::vector_type<uint16_t, N>::type;
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

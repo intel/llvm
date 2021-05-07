@@ -331,7 +331,7 @@ AOT compiler for each device type:
 #### CPU
 
 * CPU AOT compiler `opencl-aot` is enabled by default. For more, see
-[opencl-aot documentation](../../opencl-aot/README.md).
+[opencl-aot documentation](../../opencl/opencl-aot/README.md).
 
 #### Accelerator
 

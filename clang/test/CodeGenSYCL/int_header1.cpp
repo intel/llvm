@@ -1,6 +1,20 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
+// Check if forward declarations of kernel names in anonymous namespace are in
+// anonymous namespace in the integration header as well.
+// CHECK:namespace  {
+// CHECK-NEXT:class ClassInAnonNS;
+// CHECK-NEXT:}
+
+// CHECK:namespace  { namespace NestedInAnon {
+// CHECK-NEXT:struct StructInAnonymousNS;
+// CHECK-NEXT:}}
+
+// CHECK:namespace Named { namespace  {
+// CHECK-NEXT:struct IsThisValid;
+// CHECK-NEXT:}}
+
 // CHECK:template <> struct KernelInfo<class KernelName> {
 // CHECK:template <> struct KernelInfo<::nm1::nm2::KernelName0> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName1> {
@@ -9,6 +23,7 @@
 // CHECK:template <> struct KernelInfo<::nm1::KernelName4<::nm1::nm2::KernelName0>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName4<::nm1::KernelName1>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName8<::nm1::nm2::C>> {
+// CHECK:template <> struct KernelInfo<::TmplClassInAnonNS<ClassInAnonNS>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName9<char>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName3<const volatile ::nm1::KernelName3<const volatile char>>> {
 
@@ -50,6 +65,18 @@ namespace {
   class ClassInAnonNS;
   template <typename T> class TmplClassInAnonNS;
 }
+
+namespace {
+namespace NestedInAnon {
+struct StructInAnonymousNS {};
+} // namespace NestedInAnon
+} // namespace
+
+namespace Named {
+namespace {
+struct IsThisValid {};
+} // namespace
+} // namespace Named
 
 struct MyWrapper {
   class KN101 {};
@@ -112,6 +139,22 @@ struct MyWrapper {
     // as argument declared in a namespace at translation unit scope
     kernel_single_task<nm1::KernelName8<nm1::nm2::C>>(
       [=]() { acc.use(); });
+
+    // kernel name type is a templated class, both the top-level class and the
+    // template argument are declared in the anonymous namespace
+    kernel_single_task<TmplClassInAnonNS<class ClassInAnonNS>>(
+        [=]() { acc.use(); });
+
+    // kernel name type is a class, declared in the anonymous namespace
+    kernel_single_task<ClassInAnonNS>(
+        [=]() { acc.use(); });
+
+    // kernel name types declared in nested anonymous namespace
+    kernel_single_task<NestedInAnon::StructInAnonymousNS>(
+        [=]() { acc.use(); });
+
+    kernel_single_task<Named::IsThisValid>(
+        [=]() { acc.use(); });
 
     // Kernel name type is a templated specialization class with empty template pack argument
     kernel_single_task<nm1::KernelName9<char>>(

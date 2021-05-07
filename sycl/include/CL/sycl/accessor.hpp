@@ -206,17 +206,18 @@ namespace sycl {
 class stream;
 namespace INTEL {
 namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
 } // namespace detail
-} // namespace gpu
-} // namespace INTEL
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 
 template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,
@@ -472,7 +473,8 @@ private:
 #endif
 
 private:
-  friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
 
 #ifdef __SYCL_DEVICE_ONLY__
   const OCLImageTy getNativeImageObj() const { return MImageObj; }
@@ -929,8 +931,13 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
+<<<<<<< HEAD
   friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
   friend class sycl::stream;
+=======
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
+>>>>>>> remote/sycl
 
 public:
   using value_type = DataT;
