@@ -205,6 +205,12 @@ private:
           MBinImage->getSpecConstants();
       using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
 
+      // get default values for specialization constants
+      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
+          MBinImage->getSpecConstantsDefaultValues();
+
+      bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
+
       // This variable is used to calculate spec constant value offset in a
       // flat byte array.
       unsigned BlobOffset = 0;
@@ -237,25 +243,19 @@ private:
           // supposed to be called from c'tor.
           MSpecConstSymMap[std::string{SCName}].push_back(
               SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
-                             /*Size*/ It[2], BlobOffset});
+                             /*Size*/ It[2], BlobOffset, HasDefaultValues});
           BlobOffset += /*Size*/ It[2];
           It += NumElements;
         }
       }
       MSpecConstsBlob.resize(BlobOffset);
 
-      // set default values for specialization constants
-      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
-          MBinImage->getSpecConstantsDefaultValues();
-      for (SCItTy SCIt : SCDefValRange) {
-        const char *SCName = (*SCIt)->Name;
-        pi::ByteArray Descriptors =
-            pi::DeviceBinaryProperty(*SCIt).asByteArray();
-        // TODO: same 8 bytes are the size of this new property?
-        assert(Descriptors.size() > 8 && "Unexpected property size");
-        // TODO: need to simplify it
-        const auto Value = reinterpret_cast<const void *>(&Descriptors[8]);
-        set_specialization_constant_raw_value(SCName, Value);
+      if (HasDefaultValues) {
+        pi::ByteArray DefValDescriptors =
+            pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        std::uninitialized_copy(&DefValDescriptors[0],
+                                &DefValDescriptors[0] + MSpecConstsBlob.size(),
+                                MSpecConstsBlob.data());
       }
     }
   }

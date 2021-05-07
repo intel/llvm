@@ -318,7 +318,12 @@ public:
   /// like:
   /// { ID5, 0, 4 }
   const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
-  const PropertyRange &getSpecConstantsDefaultValues() const {
+  const PropertyRange getSpecConstantsDefaultValues() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    DeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
+    SpecConstDefaultValuesMap.init(
+        Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
     return SpecConstDefaultValuesMap;
   }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
@@ -334,7 +339,6 @@ protected:
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
-  DeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
 };
