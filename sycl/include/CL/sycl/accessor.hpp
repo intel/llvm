@@ -204,8 +204,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class stream;
-namespace INTEL {
-namespace gpu {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -931,7 +929,6 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-  friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
   friend class sycl::stream;
   friend class sycl::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
@@ -2333,8 +2330,8 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 
 #endif
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
