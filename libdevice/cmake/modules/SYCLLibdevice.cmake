@@ -27,14 +27,14 @@ set(compile_opts
   -sycl-std=2017
   )
 
-set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})
-add_custom_command(OUTPUT ${devicelib-obj-file}
+set(devicelib-obj-cassert ${obj_binary_dir}/libsycl-cassert.${lib-suffix})
+add_custom_command(OUTPUT ${devicelib-obj-cassert}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/crt_wrapper.cpp
-                           -o ${devicelib-obj-file}
-                   MAIN_DEPENDENCY crt_wrapper.cpp
-                   DEPENDS wrapper.h device.h spirv_vars.h clang clang-offload-bundler
+                           ${CMAKE_CURRENT_SOURCE_DIR}/cassert_wrapper.cpp
+                           -o ${devicelib-obj-cassert}
+                   MAIN_DEPENDENCY cassert_wrapper.cpp
+                   DEPENDS device_assert.h device.h spirv_vars.h clang clang-offload-bundler
                    VERBATIM)
 
 set(devicelib-obj-complex ${obj_binary_dir}/libsycl-complex.${lib-suffix})
@@ -83,7 +83,7 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert.spv
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
                            -o ${spv_binary_dir}/libsycl-fallback-cassert.spv
                    MAIN_DEPENDENCY fallback-cassert.cpp
-                   DEPENDS wrapper.h device.h clang spirv_vars.h llvm-spirv
+                   DEPENDS device_assert.h device.h clang spirv_vars.h llvm-spirv
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
@@ -92,7 +92,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffi
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
                            -o ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
                    MAIN_DEPENDENCY fallback-cassert.cpp
-                   DEPENDS wrapper.h device.h clang spirv_vars.h clang-offload-bundler
+                   DEPENDS device_assert.h device.h clang spirv_vars.h clang-offload-bundler
                    VERBATIM)
 
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-complex.spv
@@ -201,7 +201,7 @@ set(devicelib-obj-itt-files
   )
 
 add_custom_target(libsycldevice-obj DEPENDS
-  ${devicelib-obj-file}
+  ${devicelib-obj-cassert}
   ${devicelib-obj-complex}
   ${devicelib-obj-complex-fp64}
   ${devicelib-obj-cmath}
@@ -237,7 +237,7 @@ endif()
 
 set(install_dest_lib lib${LLVM_LIBDIR_SUFFIX})
 
-install(FILES ${devicelib-obj-file}
+install(FILES ${devicelib-obj-cassert}
 	      ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
               ${devicelib-obj-complex}
 	      ${obj_binary_dir}/libsycl-fallback-complex.${lib-suffix}

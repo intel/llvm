@@ -1,4 +1,4 @@
-//==--- wrapper.h - declarations for devicelib functions -----*- C++ -*-----==//
+//==------- device_assert.h - assert devicelib function declaration-------- ==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __LIBDEVICE_WRAPPER_H__
-#define __LIBDEVICE_WRAPPER_H__
+#ifndef __LIBDEVICE_DEVICE_ASSERT_H__
+#define __LIBDEVICE_DEVICE_ASSERT_H__
 
 #include "device.h"
 
@@ -25,4 +25,4 @@ void __devicelib_assert_fail(const char *expr, const char *file, int32_t line,
                              uint64_t gid2, uint64_t lid0, uint64_t lid1,
                              uint64_t lid2);
 #endif // __SPIR__
-#endif // __LIBDEVICE_WRAPPER_H__
+#endif // __LIBDEVICE_DEVICE_ASSERT_H__

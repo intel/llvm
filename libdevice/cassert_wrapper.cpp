@@ -1,4 +1,4 @@
-//==------ crt_wrapper.cpp - wrappers for libc internal functions ----------==//
+//==-------- cassert_wrapper.cpp - wrapper for C assert functions ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "wrapper.h"
+#include "device_assert.h"
 
 #ifdef __SPIR__
 #if defined(_WIN32)

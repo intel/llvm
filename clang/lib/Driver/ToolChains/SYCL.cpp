@@ -98,7 +98,7 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
 static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
-    "crt",
+    "cassert",
     "cmath",
     "cmath-fp64",
     "complex",

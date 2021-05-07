@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "wrapper.h"
+#include "device_assert.h"
 
 #ifdef __SPIR__
 static const __attribute__((opencl_constant)) char assert_fmt[] =
