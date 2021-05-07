@@ -931,13 +931,10 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-<<<<<<< HEAD
   friend class sycl::INTEL::gpu::detail::AccessorPrivateProxy;
   friend class sycl::stream;
-=======
   friend class sycl::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
->>>>>>> remote/sycl
 
 public:
   using value_type = DataT;
