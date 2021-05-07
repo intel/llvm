@@ -253,8 +253,8 @@ private:
       if (HasDefaultValues) {
         pi::ByteArray DefValDescriptors =
             pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
-        std::uninitialized_copy(&DefValDescriptors[0],
-                                &DefValDescriptors[0] + MSpecConstsBlob.size(),
+        std::uninitialized_copy(&DefValDescriptors[8],
+                                &DefValDescriptors[8] + MSpecConstsBlob.size(),
                                 MSpecConstsBlob.data());
       }
     }

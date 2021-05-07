@@ -305,13 +305,22 @@ PiProperty makeSpecConstant(std::vector<char> &ValData, const std::string &Name,
   std::uninitialized_copy(&PropByteArraySize, &PropByteArraySize + 8,
                           DescData.data());
 
+  if (ValData.empty())
+    ValData.resize(8); // Reserve first 8 bytes for array size.
   size_t PrevSize = ValData.size();
-  // Resize raw data blob to current size + offset of the last element + size of
-  // the last element.
-  ValData.resize(
-      PrevSize + *std::prev(Offsets.end()) +
-      sizeof(typename std::tuple_element<sizeof...(T) - 1,
-                                         decltype(DefaultValues)>::type));
+
+  {
+    // Resize raw data blob to current size + offset of the last element + size
+    // of the last element.
+    ValData.resize(
+        PrevSize + *std::prev(Offsets.end()) +
+        sizeof(typename std::tuple_element<sizeof...(T) - 1,
+                                           decltype(DefaultValues)>::type));
+    // Update raw data array size
+    uint64_t NewValSize = ValData.size();
+    std::uninitialized_copy(&NewValSize, &NewValSize + sizeof(uint64_t),
+                            ValData.data());
+  }
 
   auto FillData = [PrevOffset = 0, PrevSize, &ValData, &IDs, &Offsets,
                    &DescData](uint32_t Idx, const char *Begin,
