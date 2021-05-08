@@ -17,20 +17,20 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace property {
 
-class noinit : public detail::DataLessProperty<detail::NoInit> {};
+class no_init : public detail::DataLessProperty<detail::NoInit> {};
 
 } // namespace property
 
 #if __cplusplus > 201402L
 
-inline constexpr property::noinit noinit;
+inline constexpr property::no_init no_init;
 
 #else
 
 namespace {
 
-constexpr const auto &noinit =
-    sycl::detail::InlineVariableHelper<property::noinit>::value;
+constexpr const auto &no_init =
+    sycl::detail::InlineVariableHelper<property::no_init>::value;
 }
 
 #endif
