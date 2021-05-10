@@ -383,6 +383,9 @@ struct _pi_queue : _pi_object {
   ze_fence_handle_t ZeOpenCommandListFence = {nullptr};
   pi_uint32 ZeOpenCommandListSize = {0};
 
+  // Kernels in the open command list.
+  std::vector<pi_kernel> Kernels;
+
   // Approximate number of commands that are allowed to be batched for
   // this queue.
   // Added this member to the queue rather than using a global variable

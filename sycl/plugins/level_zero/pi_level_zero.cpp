@@ -888,6 +888,24 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
     this->ZeOpenCommandListSize = 0;
   }
 
+  // We are going to submit kernels for execution. If indirect access flag is
+  // set for a kernel then we need to make a snapshot of existing memory
+  // allocations. We need to lock the mutex guarding the list of memory
+  // allocations in the platform to prevent creation of new memory alocations
+  // before we submit the kernel for execution.
+  // Note. Currently indirect access flag is set for all kernels to be
+  // conservative, that's why no need to check for a flag.
+  std::lock_guard<std::mutex> MemAllocsLock(Device->Platform->MemAllocsMutex);
+  for (auto &Kernel : Kernels) {
+    for (auto &MemAlloc : Device->Platform->MemAllocs) {
+      Kernel->MemAllocs.push_back(&MemAlloc);
+      // Kernel is referencing this memory allocation from now.
+      MemAlloc.RefCount++;
+    }
+    Kernel->UsersCount++;
+  }
+  Kernels.clear();
+
   bool UseCopyEngine = getZeCommandListIsCopyList(ZeCommandList);
   if (UseCopyEngine)
     zePrint("Command list to be executed on copy engine\n");
@@ -3841,29 +3859,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   ZE_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
-  pi_platform Plt = Kernel->Program->Context->Devices[0]->Platform;
   // Lock automatically releases when this goes out of scope.
-  std::lock(Queue->PiQueueMutex, Plt->MemAllocsMutex);
-  std::lock_guard<std::mutex> QueueLock(Queue->PiQueueMutex, std::adopt_lock);
-  std::lock_guard<std::mutex> MemAllocsLock(Plt->MemAllocsMutex,
-                                            std::adopt_lock);
-
-  // We are going to submit a kernel for execution. If indirect access flag is
-  // set for a kernel then we need to make a snapshot of existing memory
-  // allocations. We need to lock the mutex guarding the list of memory
-  // allocations in the platform to prevent creation of new memory alocations
-  // before we submit the kernel for execution. Mutex guaring the list of
-  // referenced allocations in the kernel must be locked as well because kernel
-  // can be submitted multiple times from different threads.
-  // Note. Currently indirect access flag is set for all kernels to be
-  // conservative, that's why no need to check for a flag.
-  for (auto &MemAlloc : Plt->MemAllocs) {
-    Kernel->MemAllocs.push_back(&MemAlloc);
-    // Kernel is referencing this memory allocation from now.
-    MemAlloc.RefCount++;
-  }
-
-  Kernel->UsersCount++;
+  std::lock_guard<std::mutex> QueueLock(Queue->PiQueueMutex);
 
   _pi_ze_event_list_t TmpWaitList;
 
@@ -3907,6 +3904,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
           "  ZeEvent %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
+
+  Queue->Kernels.push_back(Kernel);
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
