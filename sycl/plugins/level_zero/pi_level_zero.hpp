@@ -849,6 +849,12 @@ struct _pi_kernel : _pi_object {
   _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
       : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, UsersCount{0} {}
 
+  bool hasIndirectAccess() {
+    // Currently indirect access flag is set for all kernels and there is no API
+    // to check if kernel actually indirectly access smth.
+    return true;
+  }
+
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 

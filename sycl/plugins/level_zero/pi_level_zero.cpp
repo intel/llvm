@@ -897,6 +897,9 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
   // conservative, that's why no need to check for a flag.
   std::lock_guard<std::mutex> MemAllocsLock(Device->Platform->MemAllocsMutex);
   for (auto &Kernel : Kernels) {
+    if(!Kernel->hasIndirectAccess())
+      continue;
+
     for (auto &MemAlloc : Device->Platform->MemAllocs) {
       Kernel->MemAllocs.push_back(&MemAlloc);
       // Kernel is referencing this memory allocation from now.
@@ -3525,8 +3528,8 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
 
   // Update the refcount of the program and context to show it's used by this
   // kernel.
-  { PI_CALL(piProgramRetain(Program)); }
-  { PI_CALL(piContextRetain(Program->Context)); }
+  PI_CALL(piProgramRetain(Program));
+  PI_CALL(piContextRetain(Program->Context));
 
   return PI_SUCCESS;
 }
