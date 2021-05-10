@@ -36,7 +36,7 @@ third:
 
   auto e = q.submit([&](handler &cgh) {
     cgh.parallel_for<class Test>(Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-      using namespace sycl::INTEL::gpu;
+      using namespace sycl::ext::intel::experimental::esimd;
 
       int i = ndi.get_global_id(0);
       simd<float, VL> va = block_load<float, VL>(A + i * VL);
