@@ -9,7 +9,7 @@ This proposal details what is required to provide this information as a SYCL ext
 
 ## Feature Test Macro ##
 
-The Feature Test Macro will be defined as one of the values defined in the table below. The existence of this macro can be tested to determine if the implementation supports this feature, or applications can test the macro's value to determine which of the extension's APIs the implementation supports.
+The Feature Test Macro `SYCL\_EXT\_INTEL\_DEVICE\_INFO` will be defined as one of the values defined in the table below. The existence of this macro can be tested to determine if the implementation supports this feature, or applications can test the macro's value to determine which of the extension's APIs the implementation supports.
 
 | Value | Description |
 | ----- | ----------- |
