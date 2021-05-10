@@ -990,10 +990,9 @@ bool IfStmt::isObjCAvailabilityCheck() const {
 }
 
 Optional<const Stmt*> IfStmt::getNondiscardedCase(const ASTContext &Ctx) const {
-  Optional<Stmt *> Result =
-      const_cast<IfStmt *>(this)->getNondiscardedCase(Ctx);
-  if (Result.hasValue())
-    return {*Result};
+  if (Optional<Stmt *> Result =
+          const_cast<IfStmt *>(this)->getNondiscardedCase(Ctx))
+    return *Result;
   return None;
 }
 
