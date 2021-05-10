@@ -9,9 +9,12 @@ This proposal details what is required to provide this information as a SYCL ext
 
 ## Feature Test Macro ##
 
-The Feature Test Macro will be defined as:
+The Feature Test Macro will be defined as one of the values defined in the table below. The existence of this macro can be tested to determine if the implementation supports this feature, or applications can test the macro's value to determine which of the extension's APIs the implementation supports.
 
-    #define SYCL_EXT_INTEL_DEVICE_INFO 2
+| Value | Description |
+| ----- | ----------- |
+| 1     | Initial extension version\. Base features are supported |
+| 2     | Device UUID is supported |
 
 
 # Device UUID #
@@ -21,11 +24,16 @@ A new device descriptor will be added which will provide the device Universal Un
 This new device descriptor is currently only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior would be to expose the UUIDs of all supported GPU devices which enables detection of total number of unique devices.
 
 
+## Version ##
+
+The extension supports this query in version 2 and later.
+
+
 ## Device Information Descriptors ##
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| info\:\:device\:\:ext\_intel\_device\_info\_uuid | std\:\:array\<std\:\:byte\, 16\> | Returns the device UUID|
+| info\:\:device\:\:ext\_intel\_device\_info\_uuid | uint8\_t \* | Returns the device UUID|
 
 
 ## Aspects ##
@@ -54,6 +62,11 @@ A new device descriptor will be added which will provide the PCI address in BDF 
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 **Note:** The environment variable SYCL\_ENABLE\_PCI must be set to 1 to obtain the PCI address.
+
+
+## Version ##
+
+All versions of the extension support this query.
 
 
 ## Device Information Descriptors ##
@@ -87,6 +100,11 @@ The PCI address can be obtained using the standard get\_info() interface.
 A new device descriptor will be added which will provide the physical SIMD width of an execution unit on an Intel GPU.  This data will be used to calculate the computational capabilities of the device.
 
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
+
+## Version ##
+
+All versions of the extension support this query.
 
 
 ## Device Information Descriptors ##
@@ -124,6 +142,11 @@ This new device descriptor will provide the same information as "max\_compute\_u
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
+## Version ##
+
+All versions of the extension support this query.
+
+
 ## Device Information Descriptors ##
 
 | Device Descriptors | Return Type | Description |
@@ -155,6 +178,11 @@ Then the number of EUs can be obtained using the standard get\_info() interface.
 A new device descriptor will be added which will provide the number of slices on an Intel GPU.  If the device is a subdevice, then the number of slices in the subdevice is returned.
 
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
+
+## Version ##
+
+All versions of the extension support this query.
 
 
 ## Device Information Descriptors ##
@@ -189,6 +217,11 @@ A new device descriptor will be added which will provide the number of subslices
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
+## Version ##
+
+All versions of the extension support this query.
+
+
 ## Device Information Descriptors ##
 
 | Device Descriptors | Return Type | Description |
@@ -221,6 +254,11 @@ A new device descriptor will be added which will provide the number of EUs per s
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
+## Version ##
+
+All versions of the extension support this query.
+
+
 ## Device Information Descriptors ##
 
 | Device Descriptors | Return Type | Description |
@@ -251,6 +289,11 @@ Then the number of EUs per subslice can be obtained using the standard get\_info
 A new device descriptor will be added which will provide the maximum memory bandwidth.  If the device is a subdevice, then the maximum bandwidth of the subdevice is returned.
 
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
+
+## Version ##
+
+All versions of the extension support this query.
 
 
 ## Device Information Descriptors ##
