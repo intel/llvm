@@ -1,25 +1,58 @@
-// RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
-#include "Inputs/sycl.hpp"
-[[intel::scheduler_target_fmax_mhz(5)]] void
-func() {}
+#include "sycl.hpp"
+
+using namespace cl::sycl;
+queue q;
+
+class Foo {
+public:
+  [[intel::scheduler_target_fmax_mhz(5)]] void operator()() const {}
+};
+
+template <int N>
+class Functor {
+public:
+  [[intel::scheduler_target_fmax_mhz(N)]] void operator()() const {}
+};
 
 template <int N>
 [[intel::scheduler_target_fmax_mhz(N)]] void zoo() {}
 
+[[intel::scheduler_target_fmax_mhz(2)]] void bar() {}
+
 int main() {
-  cl::sycl::kernel_single_task<class test_kernel1>(
-      []() [[intel::scheduler_target_fmax_mhz(2)]]{});
+  q.submit([&](handler &h) {
+    // Test attribute argument size.
+    Foo boo;
+    h.single_task<class kernel_name1>(boo);
 
-  cl::sycl::kernel_single_task<class test_kernel2>(
-      []() { func(); });
+    // Test attribute is applied on lambda.
+    h.single_task<class kernel_name2>(
+        []() [[intel::scheduler_target_fmax_mhz(42)]]{});
 
-  cl::sycl::kernel_single_task<class test_kernel3>(
-      []() { zoo<75>(); });
+    // Test class template argument.
+    Functor<7> f;
+    h.single_task<class kernel_name3>(f);
+
+    // Test attribute is propagated.
+    h.single_task<class kernel_name4>(
+        []() { bar(); });
+
+    // Test function template argument.
+    h.single_task<class kernel_name5>(
+        []() { zoo<75>(); });
+  });
+  return 0;
 }
-// CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel1() {{.*}} !scheduler_target_fmax_mhz ![[PARAM1:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel2() {{.*}} !scheduler_target_fmax_mhz ![[PARAM2:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel3() {{.*}} !scheduler_target_fmax_mhz ![[PARAM3:[0-9]+]]
-// CHECK: ![[PARAM1]] = !{i32 2}
-// CHECK: ![[PARAM2]] = !{i32 5}
-// CHECK: ![[PARAM3]] = !{i32 75}
+
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM5:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM42:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM7:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM2:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} !scheduler_target_fmax_mhz ![[NUM75:[0-9]+]]
+// CHECK: ![[NUM5]] = !{i32 5}
+// CHECK: ![[NUM42]] = !{i32 42}
+// CHECK: ![[NUM7]] = !{i32 7}
+// CHECK: ![[NUM2]] = !{i32 2}
+// CHECK: ![[NUM75]] = !{i32 75}

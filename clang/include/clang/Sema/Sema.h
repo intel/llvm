@@ -2039,6 +2039,7 @@ public:
   void setFunctionHasBranchIntoScope();
   void setFunctionHasBranchProtectedScope();
   void setFunctionHasIndirectGoto();
+  void setFunctionHasMustTail();
 
   void PushCompoundScope(bool IsStmtExpr);
   void PopCompoundScope();
@@ -2120,6 +2121,9 @@ public:
                                               Expr *E);
   OpenCLUnrollHintAttr *
   BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
+
+  SYCLIntelFPGALoopCountAttr *
+  BuildSYCLIntelFPGALoopCount(const AttributeCommonInfo &CI, Expr *E);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
@@ -2791,6 +2795,9 @@ public:
 
   NamedDecl *HandleDeclarator(Scope *S, Declarator &D,
                               MultiTemplateParamsArg TemplateParameterLists);
+  bool tryToFixVariablyModifiedVarType(TypeSourceInfo *&TInfo,
+                                       QualType &T, SourceLocation Loc,
+                                       unsigned FailedFoldDiagID);
   void RegisterLocallyScopedExternCDecl(NamedDecl *ND, Scope *S);
   bool DiagnoseClassNameShadow(DeclContext *DC, DeclarationNameInfo Info);
   bool diagnoseQualifiedDeclaration(CXXScopeSpec &SS, DeclContext *DC,
@@ -10282,6 +10289,11 @@ public:
   SYCLIntelNumSimdWorkItemsAttr *
   MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
                                      const SYCLIntelNumSimdWorkItemsAttr &A);
+  void AddSYCLIntelESimdVectorizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  SYCLIntelESimdVectorizeAttr *
+  MergeSYCLIntelESimdVectorizeAttr(Decl *D,
+                                   const SYCLIntelESimdVectorizeAttr &A);
   void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
                                               const AttributeCommonInfo &CI,
                                               Expr *E);
@@ -11636,6 +11648,18 @@ public:
   /// function, issuing a diagnostic if not.
   void checkVariadicArgument(const Expr *E, VariadicCallType CT);
 
+  /// Check whether the given statement can have musttail applied to it,
+  /// issuing a diagnostic and returning false if not. In the success case,
+  /// the statement is rewritten to remove implicit nodes from the return
+  /// value.
+  bool checkAndRewriteMustTailAttr(Stmt *St, const Attr &MTA);
+
+private:
+  /// Check whether the given statement can have musttail applied to it,
+  /// issuing a diagnostic and returning false if not.
+  bool checkMustTailAttr(const Stmt *St, const Attr &MTA);
+
+public:
   /// Check to see if a given expression could have '.c_str()' called on it.
   bool hasCStrMethod(const Expr *E);
 
@@ -13439,7 +13463,8 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
                A.getParsedKind() ==
                    ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving ||
                A.getParsedKind() ==
-                   ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations) {
+                   ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations ||
+               A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCount) {
       if (Val < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << A.getAttrName() << /* non-negative */ 1;

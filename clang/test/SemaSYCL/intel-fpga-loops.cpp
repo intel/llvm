@@ -22,6 +22,8 @@ void foo() {
   [[intel::speculated_iterations(6)]] int j[10];
   // expected-error@+1 {{'nofusion' attribute cannot be applied to a declaration}}
   [[intel::nofusion]] int k[10];
+  // expected-error@+1{{'loop_count_avg' attribute cannot be applied to a declaration}}
+  [[intel::loop_count_avg(6)]] int p[10];
 }
 
 // Test for deprecated spelling of Intel FPGA loop attributes
@@ -119,6 +121,9 @@ void boo() {
   // expected-error@+1 {{'nofusion' attribute takes no arguments}}
   [[intel::nofusion(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+  // expected-error@+1 {{'loop_count_avg' attribute takes one argument}}
+  [[intel::loop_count_avg(3, 6)]]  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for incorrect argument value for Intel FPGA loop attributes
@@ -195,6 +200,15 @@ void goo() {
 
   // no diagnostics are expected
   [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::loop_count_avg(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'loop_count_avg' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count_avg(-1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'loop_count_avg' attribute requires an integer constant}}
+    [[intel::loop_count_avg("abc")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -304,6 +318,11 @@ void zoo() {
   // expected-error@+1 {{duplicate Intel FPGA loop attribute 'nofusion'}}
   [[intel::nofusion]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::loop_count_avg(2)]]
+  // expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_avg'}}
+  [[intel::loop_count_avg(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -341,6 +360,17 @@ void loop_attrs_compatibility() {
   // no diagnostics are expected
   [[intel::disable_loop_pipelining]]
   [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // no diagnostics are expected
+  [[intel::disable_loop_pipelining]]
+  [[intel::loop_count_avg(8)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intel::loop_count_min(8)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intel::loop_count_max(8)]]
+  for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -402,6 +432,42 @@ void max_concurrency_dependent() {
       a[i] = 0;
 }
 
+template<int A, int B, int C>
+void loop_count_control_dependent() {
+  int a[10];
+
+  //expected-error@+1{{'loop_count_avg' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count_avg(C)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  //expected-error@+1{{'loop_count_min' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count_min(C)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  //expected-error@+1{{'loop_count_max' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count_max(C)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::loop_count_avg(A)]]
+  //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_avg'}}
+  [[intel::loop_count_avg(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::loop_count_min(A)]]
+  //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_min'}}
+  [[intel::loop_count_min(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::loop_count_max(A)]]
+  //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_max'}}
+  [[intel::loop_count_max(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+}
+
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     h.single_task<class kernel_function>([]() {
@@ -419,7 +485,10 @@ int main() {
       //expected-note@-1 +{{in instantiation of function template specialization}}
       max_concurrency_dependent<1, 4, -2>();
       //expected-note@-1 +{{in instantiation of function template specialization}}
-    });
+
+     loop_count_control_dependent<3, 2, -1>();
+      //expected-note@-1{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}
+});
   });
 
   return 0;

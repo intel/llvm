@@ -1,60 +1,79 @@
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat -verify | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -verify %s
 
-#include "Inputs/sycl.hpp"
+// Test that checks scheduler_target_fmax_mhz attribute support on Function.
+
+// Test for deprecated spelling of scheduler_target_fmax_mhz attribute.
 // expected-warning@+2 {{attribute 'intelfpga::scheduler_target_fmax_mhz' is deprecated}}
 // expected-note@+1 {{did you mean to use 'intel::scheduler_target_fmax_mhz' instead?}}
-[[intelfpga::scheduler_target_fmax_mhz(2)]] void
-func() {}
+[[intelfpga::scheduler_target_fmax_mhz(2)]] void deprecate() {}
+
+// Tests for incorrect argument values for Intel FPGA scheduler_target_fmax_mhz function attribute.
+[[intel::scheduler_target_fmax_mhz(0)]] int Var = 0; // expected-error{{'scheduler_target_fmax_mhz' attribute only applies to functions}}
+
+[[intel::scheduler_target_fmax_mhz(1048577)]] void correct() {} // OK
+
+[[intel::scheduler_target_fmax_mhz("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+
+[[intel::scheduler_target_fmax_mhz(-1)]] void func1() {} // expected-error{{'scheduler_target_fmax_mhz' attribute requires a non-negative integral compile time constant expression}}
+
+[[intel::scheduler_target_fmax_mhz(0, 1)]] void func2() {} // expected-error{{'scheduler_target_fmax_mhz' attribute takes one argument}}
+
+// Tests for Intel FPGA scheduler_target_fmax_mhz function attribute duplication.
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::scheduler_target_fmax_mhz(2)]]
+[[intel::scheduler_target_fmax_mhz(2)]] void
+func3() {}
 
 // No diagnostic is emitted because the arguments match.
-[[intel::scheduler_target_fmax_mhz(12)]] void bar();
-[[intel::scheduler_target_fmax_mhz(12)]] void bar() {} // OK
+[[intel::scheduler_target_fmax_mhz(4)]] void func4();
+[[intel::scheduler_target_fmax_mhz(4)]] void func4(); // OK
 
 // Diagnostic is emitted because the arguments mismatch.
-[[intel::scheduler_target_fmax_mhz(12)]] void baz();  // expected-note {{previous attribute is here}}
-[[intel::scheduler_target_fmax_mhz(100)]] void baz(); // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
+[[intel::scheduler_target_fmax_mhz(2)]] // expected-note {{previous attribute is here}}
+[[intel::scheduler_target_fmax_mhz(4)]] void
+func5() {} // expected-warning@-1 {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 
+[[intel::scheduler_target_fmax_mhz(1)]] void func6(); // expected-note {{previous attribute is here}}
+[[intel::scheduler_target_fmax_mhz(3)]] void func6(); // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
+
+// Tests that check template parameter support for Intel FPGA scheduler_target_fmax_mhz function attributes.
 template <int N>
-[[intel::scheduler_target_fmax_mhz(N)]] void zoo() {}
+[[intel::scheduler_target_fmax_mhz(N)]] void func7(); // expected-error {{'scheduler_target_fmax_mhz' attribute requires a non-negative integral compile time constant expression}}
 
-int main() {
-  // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel1 'void ()'
-  // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
-  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
-  // CHECK-NEXT:   value: Int 5
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 5
-  // expected-warning@+3 {{attribute 'intelfpga::scheduler_target_fmax_mhz' is deprecated}}
-  // expected-note@+2 {{did you mean to use 'intel::scheduler_target_fmax_mhz' instead?}}
-  cl::sycl::kernel_single_task<class test_kernel1>(
-      []() [[intelfpga::scheduler_target_fmax_mhz(5)]]{});
+template <int size>
+[[intel::scheduler_target_fmax_mhz(10)]] void func8(); // expected-note {{previous attribute is here}}
+template <int size>
+[[intel::scheduler_target_fmax_mhz(size)]] void func8() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 
-  // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel2 'void ()'
-  // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
-  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
-  // CHECK-NEXT:   value: Int 2
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 2
-  cl::sycl::kernel_single_task<class test_kernel2>(
-      []() { func(); });
+void checkTemplates() {
+  func7<4>();  // OK
+  func7<-1>(); // expected-note {{in instantiation of function template specialization 'func7<-1>' requested here}}
+  func7<0>();  // OK
+  func8<20>(); // expected-note {{in instantiation of function template specialization 'func8<20>' requested here}}
+}
 
-  // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel3 'void ()'
-  // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
-  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
-  // CHECK-NEXT:   value: Int 75
-  // CHECK-NEXT:   SubstNonTypeTemplateParmExpr {{.*}} 'int'
-  // CHECK-NEXT:   NonTypeTemplateParmDecl {{.*}} referenced 'int' depth 0 index 0 N
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 75
-  cl::sycl::kernel_single_task<class test_kernel3>(
-      []() { zoo<75>(); });
+// Test that checks expression is not a constant expression.
+// expected-note@+1{{declared here}}
+int baz();
+// expected-error@+2{{expression is not an integral constant expression}}
+// expected-note@+1{{non-constexpr function 'baz' cannot be used in a constant expression}}
+[[intel::scheduler_target_fmax_mhz(baz() + 1)]] void func9();
 
-  [[intel::scheduler_target_fmax_mhz(0)]] int Var = 0; // expected-error{{'scheduler_target_fmax_mhz' attribute only applies to functions}}
+// Test that checks expression is a constant expression.
+constexpr int bar() { return 0; }
+[[intel::scheduler_target_fmax_mhz(bar() + 2)]] void func10(); // OK
 
-  cl::sycl::kernel_single_task<class test_kernel4>(
-      []() [[intel::scheduler_target_fmax_mhz(1048577)]]{}); // OK
+// Test that checks wrong function template instantiation and ensures that the type
+// is checked properly when instantiating from the template definition.
+template <typename Ty>
+// expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+// expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+[[intel::scheduler_target_fmax_mhz(Ty{})]] void func11() {}
 
-  cl::sycl::kernel_single_task<class test_kernel5>(
-      []() [[intel::scheduler_target_fmax_mhz(-4)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires a non-negative integral compile time constant expression}}
-
-  cl::sycl::kernel_single_task<class test_kernel6>(
-      []() [[intel::scheduler_target_fmax_mhz(1),      // expected-note {{previous attribute is here}}
-             intel::scheduler_target_fmax_mhz(2)]]{}); // expected-warning{{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
+struct S {};
+void test() {
+  //expected-note@+1{{in instantiation of function template specialization 'func11<S>' requested here}}
+  func11<S>();
+  //expected-note@+1{{in instantiation of function template specialization 'func11<float>' requested here}}
+  func11<float>();
 }
