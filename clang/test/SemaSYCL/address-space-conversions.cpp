@@ -1,5 +1,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
 
+// Validates address space conversions for SYCL mode.
+// See clang/docs/SYCLSupport.rst#address-space-handling for allowed
+// conversions.
+
 void bar(int &Data) {}
 void bar2(int &Data) {}
 void bar(__attribute__((opencl_private)) int &Data) {}

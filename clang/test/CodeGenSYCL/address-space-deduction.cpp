@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
+// Validates SYCL deduction rules compliance.
+// See clang/docs/SYCLSupport.rst#address-space-handling for the details.
+
 // CHECK:    @_ZZ4testvE3foo = internal addrspace(1) constant i32 66, align 4
 // CHECK: @[[STR:[.a-zA-Z0-9_]+]] = private unnamed_addr addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
 

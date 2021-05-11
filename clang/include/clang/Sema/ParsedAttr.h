@@ -659,6 +659,8 @@ public:
   /// representation in LangAS, otherwise returns default address space.
   LangAS asSYCLLangAS() const {
     switch (getKind()) {
+    // FIXME: there are uses of `opencl_constant` attribute in SYCL mode.
+    // See https://github.com/intel/llvm/issues/3062 for more details.
     case ParsedAttr::AT_OpenCLConstantAddressSpace:
       return LangAS::opencl_constant;
     case ParsedAttr::AT_OpenCLGlobalAddressSpace:
