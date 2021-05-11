@@ -1140,7 +1140,7 @@ pi_result _pi_platform::initialize() {
   for (auto extension : zeExtensions) {
     // Check if global offset extension is available
     if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
-                strlen(ZE_GLOBAL_OFFSET_EXP_NAME)) == 0) {
+                strlen(ZE_GLOBAL_OFFSET_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_GLOBAL_OFFSET_EXP_VERSION_1_0) {
         PiDriverGlobalOffsetExtensionFound = true;
       }
