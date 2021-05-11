@@ -897,7 +897,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
   // conservative, that's why no need to check for a flag.
   std::lock_guard<std::mutex> MemAllocsLock(Device->Platform->MemAllocsMutex);
   for (auto &Kernel : Kernels) {
-    if(!Kernel->hasIndirectAccess())
+    if (!Kernel->hasIndirectAccess())
       continue;
 
     for (auto &MemAlloc : Device->Platform->MemAllocs) {
