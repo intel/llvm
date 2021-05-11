@@ -3313,7 +3313,7 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
 
       llvm::APSInt WorkGroupSize =
-	  DeclAttr->usesOpenCLArgOrdering() ? *XDimVal : *ZDimVal;
+          DeclAttr->usesOpenCLArgOrdering() ? *XDimVal : *ZDimVal;
 
       if (WorkGroupSize % ArgVal != 0) {
         Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
