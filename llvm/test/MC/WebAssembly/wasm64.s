@@ -1,5 +1,5 @@
-# RUN: llvm-mc -triple=wasm64-unknown-unknown -mattr=+atomics,+unimplemented-simd128,+nontrapping-fptoint,+exception-handling < %s | FileCheck %s
-# RUN: llvm-mc -triple=wasm64-unknown-unknown -filetype=obj -mattr=+atomics,+unimplemented-simd128,+nontrapping-fptoint,+exception-handling -o - < %s | obj2yaml | FileCheck %s -check-prefix=BIN
+# RUN: llvm-mc -triple=wasm64-unknown-unknown -mattr=+atomics,+simd128,+nontrapping-fptoint,+exception-handling < %s | FileCheck %s
+# RUN: llvm-mc -triple=wasm64-unknown-unknown -filetype=obj -mattr=+atomics,+simd128,+nontrapping-fptoint,+exception-handling -o - < %s | obj2yaml | FileCheck %s -check-prefix=BIN
 
 # Most of our other tests are for wasm32, this one adds some wasm64 specific tests.
 
@@ -133,7 +133,7 @@ test:
 
 # BIN:      --- !WASM
 # BIN-NEXT: FileHeader:
-# BIN-NEXT:   Version:         0x00000001
+# BIN-NEXT:   Version:         0x1
 # BIN-NEXT: Sections:
 # BIN-NEXT:   - Type:            TYPE
 # BIN-NEXT:     Signatures:
@@ -148,14 +148,7 @@ test:
 # BIN-NEXT:         Kind:            MEMORY
 # BIN-NEXT:         Memory:
 # BIN-NEXT:           Flags:           [ IS_64 ]
-# BIN-NEXT:           Initial:         0x00000001
-# BIN-NEXT:       - Module:          env
-# BIN-NEXT:         Field:           __indirect_function_table
-# BIN-NEXT:         Kind:            TABLE
-# BIN-NEXT:         Table:
-# BIN-NEXT:           ElemType:        FUNCREF
-# BIN-NEXT:           Limits:
-# BIN-NEXT:             Initial:         0x00000000
+# BIN-NEXT:           Minimum:         0x1
 # BIN-NEXT:       - Module:          env
 # BIN-NEXT:         Field:           myglob64
 # BIN-NEXT:         Kind:            GLOBAL
@@ -174,25 +167,25 @@ test:
 # BIN-NEXT:     Relocations:
 # BIN-NEXT:       - Type:            R_WASM_MEMORY_ADDR_SLEB64
 # BIN-NEXT:         Index:           1
-# BIN-NEXT:         Offset:          0x00000013
+# BIN-NEXT:         Offset:          0x13
 # BIN-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 # BIN-NEXT:         Index:           2
-# BIN-NEXT:         Offset:          0x00000022
+# BIN-NEXT:         Offset:          0x22
 # BIN-NEXT:       - Type:            R_WASM_MEMORY_ADDR_LEB64
 # BIN-NEXT:         Index:           1
-# BIN-NEXT:         Offset:          0x0000002F
+# BIN-NEXT:         Offset:          0x2F
 # BIN-NEXT:       - Type:            R_WASM_MEMORY_ADDR_SLEB64
 # BIN-NEXT:         Index:           1
-# BIN-NEXT:         Offset:          0x00000054
+# BIN-NEXT:         Offset:          0x54
 # BIN-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 # BIN-NEXT:         Index:           2
-# BIN-NEXT:         Offset:          0x00000067
+# BIN-NEXT:         Offset:          0x67
 # BIN-NEXT:       - Type:            R_WASM_MEMORY_ADDR_LEB64
 # BIN-NEXT:         Index:           1
-# BIN-NEXT:         Offset:          0x00000078
+# BIN-NEXT:         Offset:          0x78
 # BIN-NEXT:       - Type: R_WASM_GLOBAL_INDEX_LEB
 # BIN-NEXT:         Index: 3
-# BIN-NEXT:         Offset: 0x00000083
+# BIN-NEXT:         Offset: 0x83
 # BIN-NEXT:     Functions:
 # BIN-NEXT:       - Index:           0
 # BIN-NEXT:         Locals:
@@ -203,12 +196,12 @@ test:
 # BIN-NEXT:     Relocations:
 # BIN-NEXT:       - Type:            R_WASM_MEMORY_ADDR_I64
 # BIN-NEXT:         Index:           1
-# BIN-NEXT:         Offset:          0x00000016
+# BIN-NEXT:         Offset:          0x16
 # BIN-NEXT:     Segments:
 # BIN-NEXT:       - SectionOffset:   6
 # BIN-NEXT:         InitFlags:       0
 # BIN-NEXT:         Offset:
-# BIN-NEXT:           Opcode:          I32_CONST
+# BIN-NEXT:           Opcode:          I64_CONST
 # BIN-NEXT:           Value:           0
 # BIN-NEXT:         Content:         48656C6C6F2C20576F726C64212121000000000000000000
 # BIN-NEXT:   - Type:            CUSTOM

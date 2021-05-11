@@ -96,10 +96,13 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeARMTarget() {
   initializeARMExpandPseudoPass(Registry);
   initializeThumb2SizeReducePass(Registry);
   initializeMVEVPTBlockPass(Registry);
-  initializeMVEVPTOptimisationsPass(Registry);
+  initializeMVETPAndVPTOptimisationsPass(Registry);
   initializeMVETailPredicationPass(Registry);
   initializeARMLowOverheadLoopsPass(Registry);
+  initializeARMBlockPlacementPass(Registry);
   initializeMVEGatherScatterLoweringPass(Registry);
+  initializeARMSLSHardeningPass(Registry);
+  initializeMVELaneInterleavingPass(Registry);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -271,8 +274,7 @@ ARMBaseTargetMachine::getSubtargetImpl(const Function &F) const {
   // function before we can generate a subtarget. We also need to use
   // it as a key for the subtarget since that can be the only difference
   // between two functions.
-  bool SoftFloat =
-      F.getFnAttribute("use-soft-float").getValueAsString() == "true";
+  bool SoftFloat = F.getFnAttribute("use-soft-float").getValueAsBool();
   // If the soft float attribute is set on the function turn on the soft float
   // subtarget feature.
   if (SoftFloat)
@@ -414,6 +416,7 @@ void ARMPassConfig::addIRPasses() {
         }));
 
   addPass(createMVEGatherScatterLoweringPass());
+  addPass(createMVELaneInterleavingPass());
 
   TargetPassConfig::addIRPasses();
 
@@ -485,13 +488,13 @@ bool ARMPassConfig::addRegBankSelect() {
 }
 
 bool ARMPassConfig::addGlobalInstructionSelect() {
-  addPass(new InstructionSelect());
+  addPass(new InstructionSelect(getOptLevel()));
   return false;
 }
 
 void ARMPassConfig::addPreRegAlloc() {
   if (getOptLevel() != CodeGenOpt::None) {
-    addPass(createMVEVPTOptimisationsPass());
+    addPass(createMVETPAndVPTOptimisationsPass());
 
     addPass(createMLxExpansionPass());
 
@@ -538,6 +541,9 @@ void ARMPassConfig::addPreSched2() {
     addPass(&PostMachineSchedulerID);
     addPass(&PostRASchedulerID);
   }
+
+  addPass(createARMIndirectThunks());
+  addPass(createARMSLSHardeningPass());
 }
 
 void ARMPassConfig::addPreEmitPass() {
@@ -548,16 +554,21 @@ void ARMPassConfig::addPreEmitPass() {
     return MF.getSubtarget<ARMSubtarget>().isThumb2();
   }));
 
-  // Don't optimize barriers at -O0.
-  if (getOptLevel() != CodeGenOpt::None)
+  // Don't optimize barriers or block placement at -O0.
+  if (getOptLevel() != CodeGenOpt::None) {
+    addPass(createARMBlockPlacementPass());
     addPass(createARMOptimizeBarriersPass());
+  }
 }
 
 void ARMPassConfig::addPreEmitPass2() {
   addPass(createARMConstantIslandPass());
   addPass(createARMLowOverheadLoopsPass());
 
-  // Identify valid longjmp targets for Windows Control Flow Guard.
-  if (TM->getTargetTriple().isOSWindows())
+  if (TM->getTargetTriple().isOSWindows()) {
+    // Identify valid longjmp targets for Windows Control Flow Guard.
     addPass(createCFGuardLongjmpPass());
+    // Identify valid eh continuation targets for Windows EHCont Guard.
+    addPass(createEHContGuardCatchretPass());
+  }
 }

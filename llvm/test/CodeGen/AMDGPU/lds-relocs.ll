@@ -6,15 +6,15 @@
 
 ; ELF:      Relocations [
 ; ELF-NEXT:   Section (3) .rel.text {
-; ELF-NEXT:     0x{{[0-9a-f]*}} R_AMDGPU_ABS32 lds.external 0x0
-; ELF-NEXT:     0x{{[0-9a-f]*}} R_AMDGPU_ABS32 lds.defined 0x0
+; ELF-NEXT:     0x{{[0-9a-f]*}} R_AMDGPU_ABS32 lds.external
+; ELF-NEXT:     0x{{[0-9a-f]*}} R_AMDGPU_ABS32 lds.defined
 ; ELF-NEXT:   }
 ; ELF-NEXT: ]
 
 ; ELF:      Symbol {
-; ELF:        Name: lds.defined
-; ELF-NEXT:   Value: 0x8
-; ELF-NEXT:   Size: 32
+; ELF:        Name: lds.external
+; ELF-NEXT:   Value: 0x4
+; ELF-NEXT:   Size: 0
 ; ELF-NEXT:   Binding: Global (0x1)
 ; ELF-NEXT:   Type: Object (0x1)
 ; ELF-NEXT:   Other: 0
@@ -22,9 +22,9 @@
 ; ELF-NEXT: }
 
 ; ELF:      Symbol {
-; ELF:        Name: lds.external
-; ELF-NEXT:   Value: 0x4
-; ELF-NEXT:   Size: 0
+; ELF:        Name: lds.defined
+; ELF-NEXT:   Value: 0x8
+; ELF-NEXT:   Size: 32
 ; ELF-NEXT:   Binding: Global (0x1)
 ; ELF-NEXT:   Type: Object (0x1)
 ; ELF-NEXT:   Other: 0

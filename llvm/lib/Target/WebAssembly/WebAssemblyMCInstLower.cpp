@@ -13,8 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "WebAssemblyMCInstLower.h"
-#include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "TargetInfo/WebAssemblyTargetInfo.h"
+#include "Utils/WebAssemblyTypeUtilities.h"
 #include "WebAssemblyAsmPrinter.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblyRuntimeLibcallSignatures.h"
@@ -38,29 +38,34 @@ cl::opt<bool>
                                " instruction output for test purposes only."),
                       cl::init(false));
 
+extern cl::opt<bool> EnableEmException;
+extern cl::opt<bool> EnableEmSjLj;
+
 static void removeRegisterOperands(const MachineInstr *MI, MCInst &OutMI);
 
 MCSymbol *
 WebAssemblyMCInstLower::GetGlobalAddressSymbol(const MachineOperand &MO) const {
   const GlobalValue *Global = MO.getGlobal();
-  auto *WasmSym = cast<MCSymbolWasm>(Printer.getSymbol(Global));
+  if (!isa<Function>(Global))
+    return cast<MCSymbolWasm>(Printer.getSymbol(Global));
 
-  if (const auto *FuncTy = dyn_cast<FunctionType>(Global->getValueType())) {
-    const MachineFunction &MF = *MO.getParent()->getParent()->getParent();
-    const TargetMachine &TM = MF.getTarget();
-    const Function &CurrentFunc = MF.getFunction();
+  const auto *FuncTy = cast<FunctionType>(Global->getValueType());
+  const MachineFunction &MF = *MO.getParent()->getParent()->getParent();
+  const TargetMachine &TM = MF.getTarget();
+  const Function &CurrentFunc = MF.getFunction();
 
-    SmallVector<MVT, 1> ResultMVTs;
-    SmallVector<MVT, 4> ParamMVTs;
-    const auto *const F = dyn_cast<Function>(Global);
-    computeSignatureVTs(FuncTy, F, CurrentFunc, TM, ParamMVTs, ResultMVTs);
+  SmallVector<MVT, 1> ResultMVTs;
+  SmallVector<MVT, 4> ParamMVTs;
+  const auto *const F = dyn_cast<Function>(Global);
+  computeSignatureVTs(FuncTy, F, CurrentFunc, TM, ParamMVTs, ResultMVTs);
+  auto Signature = signatureFromMVTs(ResultMVTs, ParamMVTs);
 
-    auto Signature = signatureFromMVTs(ResultMVTs, ParamMVTs);
-    WasmSym->setSignature(Signature.get());
-    Printer.addSignature(std::move(Signature));
-    WasmSym->setType(wasm::WASM_SYMBOL_TYPE_FUNCTION);
-  }
-
+  bool InvokeDetected = false;
+  auto *WasmSym = Printer.getMCSymbolForFunction(
+      F, EnableEmException || EnableEmSjLj, Signature.get(), InvokeDetected);
+  WasmSym->setSignature(Signature.get());
+  Printer.addSignature(std::move(Signature));
+  WasmSym->setType(wasm::WASM_SYMBOL_TYPE_FUNCTION);
   return WasmSym;
 }
 
@@ -134,6 +139,9 @@ MCOperand WebAssemblyMCInstLower::lowerSymbolOperand(const MachineOperand &MO,
     case WebAssemblyII::MO_MEMORY_BASE_REL:
       Kind = MCSymbolRefExpr::VK_WASM_MBREL;
       break;
+    case WebAssemblyII::MO_TLS_BASE_REL:
+      Kind = MCSymbolRefExpr::VK_WASM_TLSREL;
+      break;
     case WebAssemblyII::MO_TABLE_BASE_REL:
       Kind = MCSymbolRefExpr::VK_WASM_TBREL;
       break;
@@ -153,6 +161,8 @@ MCOperand WebAssemblyMCInstLower::lowerSymbolOperand(const MachineOperand &MO,
       report_fatal_error("Global indexes with offsets not supported");
     if (WasmSym->isEvent())
       report_fatal_error("Event indexes with offsets not supported");
+    if (WasmSym->isTable())
+      report_fatal_error("Table indexes with offsets not supported");
 
     Expr = MCBinaryExpr::createAdd(
         Expr, MCConstantExpr::create(MO.getOffset(), Ctx), Ctx);
@@ -266,19 +276,24 @@ void WebAssemblyMCInstLower::lower(const MachineInstr *MI,
                                          SmallVector<wasm::ValType, 4>());
             break;
           }
+        } else if (Info.OperandType == WebAssembly::OPERAND_HEAPTYPE) {
+          assert(static_cast<WebAssembly::HeapType>(MO.getImm()) !=
+                 WebAssembly::HeapType::Invalid);
+          // With typed function references, this will need a case for type
+          // index operands.  Otherwise, fall through.
         }
       }
       MCOp = MCOperand::createImm(MO.getImm());
       break;
     }
     case MachineOperand::MO_FPImmediate: {
-      // TODO: MC converts all floating point immediate operands to double.
-      // This is fine for numeric values, but may cause NaNs to change bits.
       const ConstantFP *Imm = MO.getFPImm();
+      const uint64_t BitPattern =
+          Imm->getValueAPF().bitcastToAPInt().getZExtValue();
       if (Imm->getType()->isFloatTy())
-        MCOp = MCOperand::createFPImm(Imm->getValueAPF().convertToFloat());
+        MCOp = MCOperand::createSFPImm(static_cast<uint32_t>(BitPattern));
       else if (Imm->getType()->isDoubleTy())
-        MCOp = MCOperand::createFPImm(Imm->getValueAPF().convertToDouble());
+        MCOp = MCOperand::createDFPImm(BitPattern);
       else
         llvm_unreachable("unknown floating point immediate type");
       break;

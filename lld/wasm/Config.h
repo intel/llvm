@@ -17,12 +17,18 @@
 namespace lld {
 namespace wasm {
 
+// For --unresolved-symbols.
+// The `ImportFuncs` mode is an additional mode that corresponds to the
+// --allow-undefined flag which turns undefined functions in imports
+// as opposed ed to Ignore or Warn which turn them into unreachables.
+enum class UnresolvedPolicy { ReportError, Warn, Ignore, ImportFuncs };
+
 // This struct contains the global configuration for the linker.
 // Most fields are direct mapping from the command line options
 // and such fields have the same name as the corresponding options.
 // Most fields are initialized by the driver.
 struct Configuration {
-  bool allowUndefined;
+  bool bsymbolic;
   bool checkFeatures;
   bool compressRelocations;
   bool demangle;
@@ -56,6 +62,9 @@ struct Configuration {
   unsigned ltoo;
   unsigned optimize;
   llvm::StringRef thinLTOJobs;
+  bool ltoNewPassManager;
+  bool ltoDebugPassManager;
+  UnresolvedPolicy unresolvedSymbols;
 
   llvm::StringRef entry;
   llvm::StringRef mapFile;
@@ -73,6 +82,10 @@ struct Configuration {
 
   // True if we are creating position-independent code.
   bool isPic;
+
+  // True if we have an MVP input that uses __indirect_function_table and which
+  // requires it to be allocated to table number 0.
+  bool legacyFunctionTable = false;
 
   // The table offset at which to place function addresses.  We reserve zero
   // for the null function pointer.  This gets set to 1 for executables and 0

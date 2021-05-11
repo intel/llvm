@@ -111,6 +111,7 @@ struct Configuration {
   llvm::StringRef mapFile;
   llvm::StringRef outputFile;
   llvm::StringRef optRemarksFilename;
+  llvm::Optional<uint64_t> optRemarksHotnessThreshold = 0;
   llvm::StringRef optRemarksPasses;
   llvm::StringRef optRemarksFormat;
   llvm::StringRef progName;
@@ -137,7 +138,6 @@ struct Configuration {
                   uint64_t>
       callGraphProfile;
   bool allowMultipleDefinition;
-  bool allowShlibUndefined;
   bool androidPackDynRelocs;
   bool armHasBlx = false;
   bool armHasMovtMovw = false;
@@ -163,6 +163,7 @@ struct Configuration {
   bool fixCortexA53Errata843419;
   bool fixCortexA8;
   bool formatBinary = false;
+  bool fortranCommon;
   bool gcSections;
   bool gdbIndex;
   bool gnuHash = false;
@@ -174,6 +175,7 @@ struct Configuration {
   bool ltoDebugPassManager;
   bool ltoEmitAsm;
   bool ltoNewPassManager;
+  bool ltoPseudoProbeForProfiling;
   bool ltoUniqueBasicBlockSectionNames;
   bool ltoWholeProgramVisibility;
   bool mergeArmExidx;
@@ -185,6 +187,8 @@ struct Configuration {
   bool nostdlib;
   bool oFormatBinary;
   bool omagic;
+  bool optEB = false;
+  bool optEL = false;
   bool optimizeBBJumps;
   bool optRemarksWithHotness;
   bool picThunk;
@@ -194,7 +198,7 @@ struct Configuration {
   bool relocatable;
   bool relrPackDynRelocs;
   bool saveTemps;
-  llvm::Optional<uint32_t> shuffleSectionSeed;
+  std::vector<std::pair<llvm::GlobPattern, uint32_t>> shuffleSections;
   bool singleRoRx;
   bool shared;
   bool symbolic;
@@ -213,7 +217,6 @@ struct Configuration {
   bool warnBackrefs;
   std::vector<llvm::GlobPattern> warnBackrefsExclude;
   bool warnCommon;
-  bool warnIfuncTextrel;
   bool warnMissingEntry;
   bool warnSymbolOrdering;
   bool writeAddends;
@@ -236,6 +239,7 @@ struct Configuration {
   bool zRelro;
   bool zRodynamic;
   bool zShstk;
+  bool zStartStopGC;
   uint8_t zStartStopVisibility;
   bool zText;
   bool zRetpolineplt;
@@ -247,7 +251,9 @@ struct Configuration {
   SortSectionPolicy sortSection;
   StripPolicy strip;
   UnresolvedPolicy unresolvedSymbols;
+  UnresolvedPolicy unresolvedSymbolsInShlib;
   Target2Policy target2;
+  bool Power10Stub;
   ARMVFPArgKind armVFPArgs = ARMVFPArgKind::Default;
   BuildIdKind buildId = BuildIdKind::None;
   SeparateSegmentKind zSeparate;

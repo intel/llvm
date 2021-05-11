@@ -6,19 +6,14 @@
 
 # Plugin for OpenCL
 # Create Shared library for libpi_opencl.so.
-#TODO: remove dependency on pi.hpp in sycl project.
-#TODO: Currently, the pi.hpp header is common between sycl and plugin library sources. 
-#This can be changed by copying the pi.hpp file in the plugins project.
+#TODO: remove dependency on pi.h in sycl project.
+#TODO: Currently, the pi.h header is common between sycl and plugin library sources.
+#This can be changed by copying the pi.h file in the plugins project.
 
 add_library(pi_opencl SHARED
   "${sycl_inc_dir}/CL/sycl/detail/pi.h"
   "pi_opencl.cpp"
   )
-
-add_dependencies(pi_opencl
-  ocl-icd
-  ocl-headers
-)
 
 add_dependencies(sycl-toolchain pi_opencl)
 
@@ -28,9 +23,10 @@ set_target_properties(pi_opencl PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(pi_opencl PRIVATE "${sycl_inc_dir}")
 
 #link pi_opencl with OpenCL headers and ICD Loader.
-target_link_libraries( pi_opencl
-  PRIVATE OpenCL::Headers
-  PRIVATE ${OpenCL_LIBRARIES}
+target_link_libraries(pi_opencl
+  PRIVATE
+    OpenCL-Headers
+    OpenCL-ICD
 )
 if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
@@ -46,7 +42,7 @@ else()
   set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt")
 
   # Filter symbols based on the scope defined in the script file,
-  # and export pi* function symbols in the library. 
+  # and export pi* function symbols in the library.
   target_link_libraries( pi_opencl
     PRIVATE "-Wl,--version-script=${linker_script}"
   )
@@ -55,5 +51,5 @@ endif()
 add_common_options(pi_opencl)
 
 install(TARGETS pi_opencl
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_opencl
-    RUNTIME DESTINATION "bin" COMPONENT pi_opencl)
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_opencl
+  RUNTIME DESTINATION "bin" COMPONENT pi_opencl)

@@ -44,6 +44,7 @@ class MachineRegisterInfo;
 class TargetInstrInfo;
 class TargetRegisterInfo;
 class VirtRegMap;
+class VirtRegAuxInfo;
 
 /// Determines the latest safe point in a block in which we can insert a split,
 /// spill or other instruction related with CurLI.
@@ -131,6 +132,9 @@ public:
     bool isOneInstr() const {
       return SlotIndex::isSameInstr(FirstInstr, LastInstr);
     }
+
+    void print(raw_ostream &OS) const;
+    void dump() const;
   };
 
 private:
@@ -235,6 +239,10 @@ public:
     return IPA.getLastInsertPoint(*CurLI, *MF.getBlockNumbered(Num));
   }
 
+  SlotIndex getLastSplitPoint(MachineBasicBlock *BB) {
+    return IPA.getLastInsertPoint(*CurLI, *BB);
+  }
+
   MachineBasicBlock::iterator getLastSplitPointIter(MachineBasicBlock *BB) {
     return IPA.getLastInsertPointIter(*CurLI, *BB);
   }
@@ -265,6 +273,7 @@ class LLVM_LIBRARY_VISIBILITY SplitEditor {
   const TargetInstrInfo &TII;
   const TargetRegisterInfo &TRI;
   const MachineBlockFrequencyInfo &MBFI;
+  VirtRegAuxInfo &VRAI;
 
 public:
   /// ComplementSpillMode - Select how the complement live range should be
@@ -439,20 +448,20 @@ private:
   /// Add a copy instruction copying \p FromReg to \p ToReg before
   /// \p InsertBefore. This can be invoked with a \p LaneMask which may make it
   /// necessary to construct a sequence of copies to cover it exactly.
-  SlotIndex buildCopy(unsigned FromReg, unsigned ToReg, LaneBitmask LaneMask,
+  SlotIndex buildCopy(Register FromReg, Register ToReg, LaneBitmask LaneMask,
       MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertBefore,
       bool Late, unsigned RegIdx);
 
-  SlotIndex buildSingleSubRegCopy(unsigned FromReg, unsigned ToReg,
+  SlotIndex buildSingleSubRegCopy(Register FromReg, Register ToReg,
       MachineBasicBlock &MB, MachineBasicBlock::iterator InsertBefore,
       unsigned SubIdx, LiveInterval &DestLI, bool Late, SlotIndex Def);
 
 public:
   /// Create a new SplitEditor for editing the LiveInterval analyzed by SA.
   /// Newly created intervals will be appended to newIntervals.
-  SplitEditor(SplitAnalysis &sa, AAResults &aa, LiveIntervals &lis,
-              VirtRegMap &vrm, MachineDominatorTree &mdt,
-              MachineBlockFrequencyInfo &mbfi);
+  SplitEditor(SplitAnalysis &SA, AAResults &AA, LiveIntervals &LIS,
+              VirtRegMap &VRM, MachineDominatorTree &MDT,
+              MachineBlockFrequencyInfo &MBFI, VirtRegAuxInfo &VRAI);
 
   /// reset - Prepare for a new split.
   void reset(LiveRangeEdit&, ComplementSpillMode = SM_Partition);

@@ -19,6 +19,7 @@
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
+#include "lld/Common/Arrays.h"
 #include "lld/Common/Filesystem.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
@@ -45,10 +46,9 @@ namespace {
 // The writer writes a SymbolTable result to a file.
 template <class ELFT> class Writer {
 public:
+  LLVM_ELF_IMPORT_TYPES_ELFT(ELFT)
+
   Writer() : buffer(errorHandler().outputBuffer) {}
-  using Elf_Shdr = typename ELFT::Shdr;
-  using Elf_Ehdr = typename ELFT::Ehdr;
-  using Elf_Phdr = typename ELFT::Phdr;
 
   void run();
 
@@ -158,7 +158,6 @@ static bool needsInterpSection() {
 }
 
 template <class ELFT> void elf::writeResult() {
-  llvm::TimeTraceScope timeScope("Write output file");
   Writer<ELFT>().run();
 }
 
@@ -205,6 +204,7 @@ void elf::copySectionsIntoPartitions() {
 }
 
 void elf::combineEhSections() {
+  llvm::TimeTraceScope timeScope("Combine EH sections");
   for (InputSectionBase *&s : inputSections) {
     // Ignore dead sections and the partition end marker (.part.end),
     // whose partition number is out of bounds.
@@ -636,28 +636,32 @@ template <class ELFT> void Writer<ELFT>::run() {
   // It does not make sense try to open the file if we have error already.
   if (errorCount())
     return;
-  // Write the result down to a file.
-  openFile();
-  if (errorCount())
-    return;
 
-  if (!config->oFormatBinary) {
-    if (config->zSeparate != SeparateSegmentKind::None)
-      writeTrapInstr();
-    writeHeader();
-    writeSections();
-  } else {
-    writeSectionsBinary();
+  {
+    llvm::TimeTraceScope timeScope("Write output file");
+    // Write the result down to a file.
+    openFile();
+    if (errorCount())
+      return;
+
+    if (!config->oFormatBinary) {
+      if (config->zSeparate != SeparateSegmentKind::None)
+        writeTrapInstr();
+      writeHeader();
+      writeSections();
+    } else {
+      writeSectionsBinary();
+    }
+
+    // Backfill .note.gnu.build-id section content. This is done at last
+    // because the content is usually a hash value of the entire output file.
+    writeBuildId();
+    if (errorCount())
+      return;
+
+    if (auto e = buffer->commit())
+      error("failed to write to the output file: " + toString(std::move(e)));
   }
-
-  // Backfill .note.gnu.build-id section content. This is done at last
-  // because the content is usually a hash value of the entire output file.
-  writeBuildId();
-  if (errorCount())
-    return;
-
-  if (auto e = buffer->commit())
-    error("failed to write to the output file: " + toString(std::move(e)));
 }
 
 template <class ELFT, class RelTy>
@@ -763,6 +767,7 @@ static bool includeInSymtab(const Symbol &b) {
 template <class ELFT> void Writer<ELFT>::copyLocalSymbols() {
   if (!in.symTab)
     return;
+  llvm::TimeTraceScope timeScope("Add local symbols");
   if (config->copyRelocs && config->discard != DiscardPolicy::None)
     markUsedLocalSymbols<ELFT>();
   for (InputFile *file : objectFiles) {
@@ -811,9 +816,12 @@ template <class ELFT> void Writer<ELFT>::addSectionSymbols() {
     if (isa<SyntheticSection>(isec) && !(isec->flags & SHF_MERGE))
       continue;
 
+    // Set the symbol to be relative to the output section so that its st_value
+    // equals the output section address. Note, there may be a gap between the
+    // start of the output section and isec.
     auto *sym =
         make<Defined>(isec->file, "", STB_LOCAL, /*stOther=*/0, STT_SECTION,
-                      /*value=*/0, /*size=*/0, isec);
+                      /*value=*/0, /*size=*/0, isec->getOutputSection());
     in.symTab->addSymbol(sym);
   }
 }
@@ -1284,22 +1292,39 @@ findOrphanPos(std::vector<BaseCommand *>::iterator b,
 
 // Adds random priorities to sections not already in the map.
 static void maybeShuffle(DenseMap<const InputSectionBase *, int> &order) {
-  if (!config->shuffleSectionSeed)
+  if (config->shuffleSections.empty())
     return;
 
-  std::vector<int> priorities(inputSections.size() - order.size());
+  std::vector<InputSectionBase *> matched, sections = inputSections;
+  matched.reserve(sections.size());
+  for (const auto &patAndSeed : config->shuffleSections) {
+    matched.clear();
+    for (InputSectionBase *sec : sections)
+      if (patAndSeed.first.match(sec->name))
+        matched.push_back(sec);
+    const uint32_t seed = patAndSeed.second;
+    if (seed == UINT32_MAX) {
+      // If --shuffle-sections <section-glob>=-1, reverse the section order. The
+      // section order is stable even if the number of sections changes. This is
+      // useful to catch issues like static initialization order fiasco
+      // reliably.
+      std::reverse(matched.begin(), matched.end());
+    } else {
+      std::mt19937 g(seed ? seed : std::random_device()());
+      llvm::shuffle(matched.begin(), matched.end(), g);
+    }
+    size_t i = 0;
+    for (InputSectionBase *&sec : sections)
+      if (patAndSeed.first.match(sec->name))
+        sec = matched[i++];
+  }
+
   // Existing priorities are < 0, so use priorities >= 0 for the missing
   // sections.
-  int curPrio = 0;
-  for (int &prio : priorities)
-    prio = curPrio++;
-  uint32_t seed = *config->shuffleSectionSeed;
-  std::mt19937 g(seed ? seed : std::random_device()());
-  llvm::shuffle(priorities.begin(), priorities.end(), g);
-  int prioIndex = 0;
-  for (InputSectionBase *sec : inputSections) {
-    if (order.try_emplace(sec, priorities[prioIndex]).second)
-      ++prioIndex;
+  int prio = 0;
+  for (InputSectionBase *sec : sections) {
+    if (order.try_emplace(sec, prio).second)
+      ++prio;
   }
 }
 
@@ -1439,8 +1464,8 @@ static void sortSection(OutputSection *sec,
     return;
 
   // IRelative relocations that usually live in the .rel[a].dyn section should
-  // be proccessed last by the dynamic loader. To achieve that we add synthetic
-  // sections in the required order from the begining so that the in.relaIplt
+  // be processed last by the dynamic loader. To achieve that we add synthetic
+  // sections in the required order from the beginning so that the in.relaIplt
   // section is placed last in an output section. Here we just do not apply
   // sorting for an output section which holds the in.relaIplt section.
   if (in.relaIplt->getParent() == sec)
@@ -1501,6 +1526,7 @@ template <class ELFT> void Writer<ELFT>::sortInputSections() {
 }
 
 template <class ELFT> void Writer<ELFT>::sortSections() {
+  llvm::TimeTraceScope timeScope("Sort sections");
   script->adjustSectionsBeforeSorting();
 
   // Don't sort if using -r. It is not necessary and we want to preserve the
@@ -1634,6 +1660,7 @@ static bool compareByFilePosition(InputSection *a, InputSection *b) {
 }
 
 template <class ELFT> void Writer<ELFT>::resolveShfLinkOrder() {
+  llvm::TimeTraceScope timeScope("Resolve SHF_LINK_ORDER");
   for (OutputSection *sec : outputSections) {
     if (!(sec->flags & SHF_LINK_ORDER))
       continue;
@@ -1676,8 +1703,10 @@ template <class ELFT> void Writer<ELFT>::resolveShfLinkOrder() {
 }
 
 static void finalizeSynthetic(SyntheticSection *sec) {
-  if (sec && sec->isNeeded() && sec->getParent())
+  if (sec && sec->isNeeded() && sec->getParent()) {
+    llvm::TimeTraceScope timeScope("Finalize synthetic sections", sec->name);
     sec->finalizeContents();
+  }
 }
 
 // We need to generate and finalize the content that depends on the address of
@@ -1685,6 +1714,7 @@ static void finalizeSynthetic(SyntheticSection *sec) {
 // addresses we must converge to a fixed point. We do that here. See the comment
 // in Writer<ELFT>::finalizeSections().
 template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
+  llvm::TimeTraceScope timeScope("Finalize address dependent content");
   ThunkCreator tc;
   AArch64Err843419Patcher a64p;
   ARMErr657417Patcher a32p;
@@ -1757,7 +1787,7 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
              Twine(os->alignment) + ")");
 }
 
-// If Input Sections have been shrinked (basic block sections) then
+// If Input Sections have been shrunk (basic block sections) then
 // update symbol values and sizes associated with these sections.  With basic
 // block sections, input sections can shrink when the jump instructions at
 // the end of the section are relaxed.
@@ -1941,11 +1971,14 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     }
   }
 
-  // This responsible for splitting up .eh_frame section into
-  // pieces. The relocation scan uses those pieces, so this has to be
-  // earlier.
-  for (Partition &part : partitions)
-    finalizeSynthetic(part.ehFrame);
+  {
+    llvm::TimeTraceScope timeScope("Finalize .eh_frame");
+    // This responsible for splitting up .eh_frame section into
+    // pieces. The relocation scan uses those pieces, so this has to be
+    // earlier.
+    for (Partition &part : partitions)
+      finalizeSynthetic(part.ehFrame);
+  }
 
   for (Symbol *sym : symtab->symbols())
     sym->isPreemptible = computeIsPreemptible(*sym);
@@ -1954,14 +1987,17 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   // by declareSymbols) to actual definitions.
   script->processSymbolAssignments();
 
-  // Scan relocations. This must be done after every symbol is declared so that
-  // we can correctly decide if a dynamic relocation is needed. This is called
-  // after processSymbolAssignments() because it needs to know whether a
-  // linker-script-defined symbol is absolute.
-  ppc64noTocRelax.clear();
-  if (!config->relocatable) {
-    forEachRelSec(scanRelocations<ELFT>);
-    reportUndefinedSymbols<ELFT>();
+  {
+    llvm::TimeTraceScope timeScope("Scan relocations");
+    // Scan relocations. This must be done after every symbol is declared so
+    // that we can correctly decide if a dynamic relocation is needed. This is
+    // called after processSymbolAssignments() because it needs to know whether
+    // a linker-script-defined symbol is absolute.
+    ppc64noTocRelax.clear();
+    if (!config->relocatable) {
+      forEachRelSec(scanRelocations<ELFT>);
+      reportUndefinedSymbols<ELFT>();
+    }
   }
 
   if (in.plt && in.plt->isNeeded())
@@ -1969,7 +2005,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   if (in.iplt && in.iplt->isNeeded())
     in.iplt->addSymbols();
 
-  if (!config->allowShlibUndefined) {
+  if (config->unresolvedSymbolsInShlib != UnresolvedPolicy::Ignore) {
     // Error on undefined symbols in a shared object, if all of its DT_NEEDED
     // entries are seen. These cases would otherwise lead to runtime errors
     // reported by the dynamic linker.
@@ -1986,36 +2022,44 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     for (Symbol *sym : symtab->symbols())
       if (sym->isUndefined() && !sym->isWeak())
         if (auto *f = dyn_cast_or_null<SharedFile>(sym->file))
-          if (f->allNeededIsKnown)
-            errorOrWarn(toString(f) + ": undefined reference to " +
-                        toString(*sym) + " [--no-allow-shlib-undefined]");
+          if (f->allNeededIsKnown) {
+            auto diagnose = config->unresolvedSymbolsInShlib ==
+                                    UnresolvedPolicy::ReportError
+                                ? errorOrWarn
+                                : warn;
+            diagnose(toString(f) + ": undefined reference to " +
+                     toString(*sym) + " [--no-allow-shlib-undefined]");
+          }
   }
 
-  // Now that we have defined all possible global symbols including linker-
-  // synthesized ones. Visit all symbols to give the finishing touches.
-  for (Symbol *sym : symtab->symbols()) {
-    if (!includeInSymtab(*sym))
-      continue;
-    if (in.symTab)
-      in.symTab->addSymbol(sym);
+  {
+    llvm::TimeTraceScope timeScope("Add symbols to symtabs");
+    // Now that we have defined all possible global symbols including linker-
+    // synthesized ones. Visit all symbols to give the finishing touches.
+    for (Symbol *sym : symtab->symbols()) {
+      if (!includeInSymtab(*sym))
+        continue;
+      if (in.symTab)
+        in.symTab->addSymbol(sym);
 
-    if (sym->includeInDynsym()) {
-      partitions[sym->partition - 1].dynSymTab->addSymbol(sym);
-      if (auto *file = dyn_cast_or_null<SharedFile>(sym->file))
-        if (file->isNeeded && !sym->isUndefined())
-          addVerneed(sym);
+      if (sym->includeInDynsym()) {
+        partitions[sym->partition - 1].dynSymTab->addSymbol(sym);
+        if (auto *file = dyn_cast_or_null<SharedFile>(sym->file))
+          if (file->isNeeded && !sym->isUndefined())
+            addVerneed(sym);
+      }
     }
-  }
 
-  // We also need to scan the dynamic relocation tables of the other partitions
-  // and add any referenced symbols to the partition's dynsym.
-  for (Partition &part : MutableArrayRef<Partition>(partitions).slice(1)) {
-    DenseSet<Symbol *> syms;
-    for (const SymbolTableEntry &e : part.dynSymTab->getSymbols())
-      syms.insert(e.sym);
-    for (DynamicReloc &reloc : part.relaDyn->relocs)
-      if (reloc.sym && !reloc.useSymVA && syms.insert(reloc.sym).second)
-        part.dynSymTab->addSymbol(reloc.sym);
+    // We also need to scan the dynamic relocation tables of the other
+    // partitions and add any referenced symbols to the partition's dynsym.
+    for (Partition &part : MutableArrayRef<Partition>(partitions).slice(1)) {
+      DenseSet<Symbol *> syms;
+      for (const SymbolTableEntry &e : part.dynSymTab->getSymbols())
+        syms.insert(e.sym);
+      for (DynamicReloc &reloc : part.relaDyn->relocs)
+        if (reloc.sym && !reloc.useSymVA && syms.insert(reloc.sym).second)
+          part.dynSymTab->addSymbol(reloc.sym);
+    }
   }
 
   // Do not proceed if there was an undefined symbol.
@@ -2096,35 +2140,39 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   // have the headers, we can find out which sections they point to.
   setReservedSymbolSections();
 
-  finalizeSynthetic(in.bss);
-  finalizeSynthetic(in.bssRelRo);
-  finalizeSynthetic(in.symTabShndx);
-  finalizeSynthetic(in.shStrTab);
-  finalizeSynthetic(in.strTab);
-  finalizeSynthetic(in.got);
-  finalizeSynthetic(in.mipsGot);
-  finalizeSynthetic(in.igotPlt);
-  finalizeSynthetic(in.gotPlt);
-  finalizeSynthetic(in.relaIplt);
-  finalizeSynthetic(in.relaPlt);
-  finalizeSynthetic(in.plt);
-  finalizeSynthetic(in.iplt);
-  finalizeSynthetic(in.ppc32Got2);
-  finalizeSynthetic(in.partIndex);
+  {
+    llvm::TimeTraceScope timeScope("Finalize synthetic sections");
 
-  // Dynamic section must be the last one in this list and dynamic
-  // symbol table section (dynSymTab) must be the first one.
-  for (Partition &part : partitions) {
-    finalizeSynthetic(part.dynSymTab);
-    finalizeSynthetic(part.gnuHashTab);
-    finalizeSynthetic(part.hashTab);
-    finalizeSynthetic(part.verDef);
-    finalizeSynthetic(part.relaDyn);
-    finalizeSynthetic(part.relrDyn);
-    finalizeSynthetic(part.ehFrameHdr);
-    finalizeSynthetic(part.verSym);
-    finalizeSynthetic(part.verNeed);
-    finalizeSynthetic(part.dynamic);
+    finalizeSynthetic(in.bss);
+    finalizeSynthetic(in.bssRelRo);
+    finalizeSynthetic(in.symTabShndx);
+    finalizeSynthetic(in.shStrTab);
+    finalizeSynthetic(in.strTab);
+    finalizeSynthetic(in.got);
+    finalizeSynthetic(in.mipsGot);
+    finalizeSynthetic(in.igotPlt);
+    finalizeSynthetic(in.gotPlt);
+    finalizeSynthetic(in.relaIplt);
+    finalizeSynthetic(in.relaPlt);
+    finalizeSynthetic(in.plt);
+    finalizeSynthetic(in.iplt);
+    finalizeSynthetic(in.ppc32Got2);
+    finalizeSynthetic(in.partIndex);
+
+    // Dynamic section must be the last one in this list and dynamic
+    // symbol table section (dynSymTab) must be the first one.
+    for (Partition &part : partitions) {
+      finalizeSynthetic(part.dynSymTab);
+      finalizeSynthetic(part.gnuHashTab);
+      finalizeSynthetic(part.hashTab);
+      finalizeSynthetic(part.verDef);
+      finalizeSynthetic(part.relaDyn);
+      finalizeSynthetic(part.relrDyn);
+      finalizeSynthetic(part.ehFrameHdr);
+      finalizeSynthetic(part.verSym);
+      finalizeSynthetic(part.verNeed);
+      finalizeSynthetic(part.dynamic);
+    }
   }
 
   if (!script->hasSectionsCommand && !config->relocatable)
@@ -2155,9 +2203,13 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   if (errorCount())
     return;
 
-  // finalizeAddressDependentContent may have added local symbols to the static symbol table.
-  finalizeSynthetic(in.symTab);
-  finalizeSynthetic(in.ppc64LongBranchTarget);
+  {
+    llvm::TimeTraceScope timeScope("Finalize synthetic sections");
+    // finalizeAddressDependentContent may have added local symbols to the
+    // static symbol table.
+    finalizeSynthetic(in.symTab);
+    finalizeSynthetic(in.ppc64LongBranchTarget);
+  }
 
   // Relaxation to delete inter-basic block jumps created by basic block
   // sections. Run after in.symTab is finalized as optimizeBasicBlockJumps
@@ -2838,7 +2890,13 @@ template <class ELFT> void Writer<ELFT>::writeHeader() {
 template <class ELFT> void Writer<ELFT>::openFile() {
   uint64_t maxSize = config->is64 ? INT64_MAX : UINT32_MAX;
   if (fileSize != size_t(fileSize) || maxSize < fileSize) {
-    error("output file too large: " + Twine(fileSize) + " bytes");
+    std::string msg;
+    raw_string_ostream s(msg);
+    s << "output file too large: " << Twine(fileSize) << " bytes\n"
+      << "section sizes:\n";
+    for (OutputSection *os : outputSections)
+      s << os->name << ' ' << os->size << "\n";
+    error(s.str());
     return;
   }
 
@@ -2913,19 +2971,6 @@ template <class ELFT> void Writer<ELFT>::writeSections() {
   for (OutputSection *sec : outputSections)
     if (sec->type != SHT_REL && sec->type != SHT_RELA)
       sec->writeTo<ELFT>(Out::bufferStart + sec->offset);
-}
-
-// Split one uint8 array into small pieces of uint8 arrays.
-static std::vector<ArrayRef<uint8_t>> split(ArrayRef<uint8_t> arr,
-                                            size_t chunkSize) {
-  std::vector<ArrayRef<uint8_t>> ret;
-  while (arr.size() > chunkSize) {
-    ret.push_back(arr.take_front(chunkSize));
-    arr = arr.drop_front(chunkSize);
-  }
-  if (!arr.empty())
-    ret.push_back(arr);
-  return ret;
 }
 
 // Computes a hash value of Data using a given hash function.

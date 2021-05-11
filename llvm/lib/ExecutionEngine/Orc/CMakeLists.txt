@@ -2,6 +2,7 @@ add_llvm_component_library(LLVMOrcJIT
   CompileOnDemandLayer.cpp
   CompileUtils.cpp
   Core.cpp
+  DebugObjectManagerPlugin.cpp
   DebugUtils.cpp
   ExecutionUtils.cpp
   IndirectionUtils.cpp
@@ -9,31 +10,46 @@ add_llvm_component_library(LLVMOrcJIT
   IRTransformLayer.cpp
   JITTargetMachineBuilder.cpp
   LazyReexports.cpp
-  Legacy.cpp
   Layer.cpp
   LLJIT.cpp
   MachOPlatform.cpp
   Mangling.cpp
-  NullResolver.cpp
   ObjectLinkingLayer.cpp
   ObjectTransformLayer.cpp
   OrcABISupport.cpp
-  OrcCBindings.cpp
   OrcV2CBindings.cpp
-  OrcMCJITReplacement.cpp
   RTDyldObjectLinkingLayer.cpp
   Speculation.cpp
   SpeculateAnalyses.cpp
   TargetProcessControl.cpp
   ThreadSafeModule.cpp
+  TPCDebugObjectRegistrar.cpp
   TPCDynamicLibrarySearchGenerator.cpp
+  TPCEHFrameRegistrar.cpp
   TPCIndirectionUtils.cpp
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/ExecutionEngine/Orc
 
   DEPENDS
   intrinsics_gen
+
+  LINK_COMPONENTS
+  Core
+  ExecutionEngine
+  JITLink
+  Object
+  OrcShared
+  OrcTargetProcess
+  MC
+  Passes
+  RuntimeDyld
+  Support
+  Target
+  TransformUtils
   )
+
+add_subdirectory(Shared)
+add_subdirectory(TargetProcess)
 
 target_link_libraries(LLVMOrcJIT
   PRIVATE

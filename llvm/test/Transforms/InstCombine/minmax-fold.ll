@@ -1080,7 +1080,7 @@ define i37 @add_umax_constant_limit(i37 %x) {
 
 define i37 @add_umax_simplify(i37 %x) {
 ; CHECK-LABEL: @add_umax_simplify(
-; CHECK-NEXT:    [[A:%.*]] = add i37 [[X:%.*]], 42
+; CHECK-NEXT:    [[A:%.*]] = add nuw i37 [[X:%.*]], 42
 ; CHECK-NEXT:    ret i37 [[A]]
 ;
   %a = add nuw i37 %x, 42
@@ -1452,7 +1452,7 @@ define i8 @PR14613_smax(i8 %x) {
 define i8 @PR46271(<2 x i8> %x) {
 ; CHECK-LABEL: @PR46271(
 ; CHECK-NEXT:    [[A:%.*]] = icmp sgt <2 x i8> [[X:%.*]], <i8 -1, i8 -1>
-; CHECK-NEXT:    [[B:%.*]] = select <2 x i1> [[A]], <2 x i8> [[X]], <2 x i8> <i8 undef, i8 -1>
+; CHECK-NEXT:    [[B:%.*]] = select <2 x i1> [[A]], <2 x i8> [[X]], <2 x i8> <i8 poison, i8 -1>
 ; CHECK-NEXT:    [[TMP1:%.*]] = extractelement <2 x i8> [[B]], i32 1
 ; CHECK-NEXT:    [[R:%.*]] = xor i8 [[TMP1]], -1
 ; CHECK-NEXT:    ret i8 [[R]]

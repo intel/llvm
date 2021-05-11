@@ -100,8 +100,9 @@ static cl::opt<bool>
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCTarget() {
   // Register the targets
   RegisterTargetMachine<PPCTargetMachine> A(getThePPC32Target());
-  RegisterTargetMachine<PPCTargetMachine> B(getThePPC64Target());
-  RegisterTargetMachine<PPCTargetMachine> C(getThePPC64LETarget());
+  RegisterTargetMachine<PPCTargetMachine> B(getThePPC32LETarget());
+  RegisterTargetMachine<PPCTargetMachine> C(getThePPC64Target());
+  RegisterTargetMachine<PPCTargetMachine> D(getThePPC64LETarget());
 
   PassRegistry &PR = *PassRegistry::getPassRegistry();
 #ifndef NDEBUG
@@ -125,13 +126,17 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCTarget() {
   initializeGlobalISel(PR);
 }
 
+static bool isLittleEndianTriple(const Triple &T) {
+  return T.getArch() == Triple::ppc64le || T.getArch() == Triple::ppcle;
+}
+
 /// Return the datalayout string of a subtarget.
 static std::string getDataLayoutString(const Triple &T) {
   bool is64Bit = T.getArch() == Triple::ppc64 || T.getArch() == Triple::ppc64le;
   std::string Ret;
 
-  // Most PPC* platforms are big endian, PPC64LE is little endian.
-  if (T.getArch() == Triple::ppc64le)
+  // Most PPC* platforms are big endian, PPC(64)LE is little endian.
+  if (isLittleEndianTriple(T))
     Ret = "e";
   else
     Ret = "E";
@@ -145,10 +150,7 @@ static std::string getDataLayoutString(const Triple &T) {
 
   // Note, the alignment values for f64 and i64 on ppc64 in Darwin
   // documentation are wrong; these are correct (i.e. "what gcc does").
-  if (is64Bit || !T.isOSDarwin())
-    Ret += "-i64:64";
-  else
-    Ret += "-f64:32:64";
+  Ret += "-i64:64";
 
   // PPC64 has 32 and 64 bit registers, PPC32 has only 32 bit ones.
   if (is64Bit)
@@ -159,9 +161,8 @@ static std::string getDataLayoutString(const Triple &T) {
   // Specify the vector alignment explicitly. For v256i1 and v512i1, the
   // calculated alignment would be 256*alignment(i1) and 512*alignment(i1),
   // which is 256 and 512 bytes - way over aligned.
-  if ((T.getArch() == Triple::ppc64le || T.getArch() == Triple::ppc64) &&
-      (T.isOSAIX() || T.isOSLinux()))
-    Ret += "-v256:256:256-v512:512:512";
+  if (is64Bit && (T.isOSAIX() || T.isOSLinux()))
+    Ret += "-S128-v256:256:256-v512:512:512";
 
   return Ret;
 }
@@ -192,13 +193,17 @@ static std::string computeFSAdditions(StringRef FS, CodeGenOpt::Level OL,
       FullFS = "+invariant-function-descriptors";
   }
 
+  if (TT.isOSAIX()) {
+    if (!FullFS.empty())
+      FullFS = "+aix," + FullFS;
+    else
+      FullFS = "+aix";
+  }
+
   return FullFS;
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
-  if (TT.isOSDarwin())
-    return std::make_unique<TargetLoweringObjectFileMachO>();
-
   if (TT.isOSAIX())
     return std::make_unique<TargetLoweringObjectFileXCOFF>();
 
@@ -207,9 +212,6 @@ static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
 
 static PPCTargetMachine::PPCABI computeTargetABI(const Triple &TT,
                                                  const TargetOptions &Options) {
-  if (TT.isOSDarwin())
-    report_fatal_error("Darwin is no longer supported for PowerPC");
-  
   if (Options.MCOptions.getABIName().startswith("elfv1"))
     return PPCTargetMachine::PPC_ABI_ELFv1;
   else if (Options.MCOptions.getABIName().startswith("elfv2"))
@@ -238,10 +240,6 @@ static Reloc::Model getEffectiveRelocModel(const Triple &TT,
 
   if (RM.hasValue())
     return *RM;
-
-  // Darwin defaults to dynamic-no-pic.
-  if (TT.isOSDarwin())
-    return Reloc::DynamicNoPIC;
 
   // Big Endian PPC and AIX default to PIC.
   if (TT.getArch() == Triple::ppc64 || TT.isOSAIX())
@@ -323,7 +321,8 @@ PPCTargetMachine::PPCTargetMachine(const Target &T, const Triple &TT,
                         getEffectiveRelocModel(TT, RM),
                         getEffectivePPCCodeModel(TT, CM, JIT), OL),
       TLOF(createTLOF(getTargetTriple())),
-      TargetABI(computeTargetABI(TT, Options)) {
+      TargetABI(computeTargetABI(TT, Options)),
+      Endianness(isLittleEndianTriple(TT) ? Endian::LITTLE : Endian::BIG) {
   initAsmInfo();
 }
 
@@ -344,8 +343,7 @@ PPCTargetMachine::getSubtargetImpl(const Function &F) const {
   // function before we can generate a subtarget. We also need to use
   // it as a key for the subtarget since that can be the only difference
   // between two functions.
-  bool SoftFloat =
-      F.getFnAttribute("use-soft-float").getValueAsString() == "true";
+  bool SoftFloat = F.getFnAttribute("use-soft-float").getValueAsBool();
   // If the soft float attribute is set on the function turn on the soft float
   // subtarget feature.
   if (SoftFloat)
@@ -546,6 +544,12 @@ PPCTargetMachine::getTargetTransformInfo(const Function &F) {
   return TargetTransformInfo(PPCTTIImpl(this, F));
 }
 
+bool PPCTargetMachine::isLittleEndian() const {
+  assert(Endianness != Endian::NOT_DETECTED &&
+         "Unable to determine endianness");
+  return Endianness == Endian::LITTLE;
+}
+
 static MachineSchedRegistry
 PPCPreRASchedRegistry("ppc-prera",
                       "Run PowerPC PreRA specific scheduler",
@@ -573,6 +577,6 @@ bool PPCPassConfig::addRegBankSelect() {
 }
 
 bool PPCPassConfig::addGlobalInstructionSelect() {
-  addPass(new InstructionSelect());
+  addPass(new InstructionSelect(getOptLevel()));
   return false;
 }

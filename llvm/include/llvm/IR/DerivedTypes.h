@@ -87,12 +87,6 @@ public:
   /// Get a bit mask for this type.
   APInt getMask() const;
 
-  /// This method determines if the width of this IntegerType is a power-of-2
-  /// in terms of 8 bit bytes.
-  /// @returns true if this is a power-of-2 byte width.
-  /// Is this a power-of-2 byte-width IntegerType ?
-  bool isPowerOf2ByteWidth() const;
-
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const Type *T) {
     return T->getTypeID() == IntegerTyID;
@@ -273,6 +267,10 @@ public:
     return llvm::StructType::get(Ctx, StructFields);
   }
 
+  /// Return the type with the specified name, or null if there is none by that
+  /// name.
+  static StructType *getTypeByName(LLVMContext &C, StringRef Name);
+
   bool isPacked() const { return (getSubclassData() & SCDB_Packed) != 0; }
 
   /// Return true if this type is uniqued by structural equivalence, false if it
@@ -285,6 +283,9 @@ public:
 
   /// isSized - Return true if this is a sized type.
   bool isSized(SmallPtrSetImpl<Type *> *Visited = nullptr) const;
+
+  /// Returns true if this struct contains a scalable vector.
+  bool containsScalableVectorType() const;
 
   /// Return true if this is a named struct that has a non-empty name.
   bool hasName() const { return SymbolTableEntry != nullptr; }
@@ -317,7 +318,7 @@ public:
 
   element_iterator element_begin() const { return ContainedTys; }
   element_iterator element_end() const { return &ContainedTys[NumContainedTys];}
-  ArrayRef<Type *> const elements() const {
+  ArrayRef<Type *> elements() const {
     return makeArrayRef(element_begin(), element_end());
   }
 
@@ -420,15 +421,6 @@ public:
   VectorType(const VectorType &) = delete;
   VectorType &operator=(const VectorType &) = delete;
 
-  /// Get the number of elements in this vector. It does not make sense to call
-  /// this function on a scalable vector, and this will be moved into
-  /// FixedVectorType in a future commit
-  LLVM_ATTRIBUTE_DEPRECATED(
-      inline unsigned getNumElements() const,
-      "Calling this function via a base VectorType is deprecated. Either call "
-      "getElementCount() and handle the case where Scalable is true or cast to "
-      "FixedVectorType.");
-
   Type *getElementType() const { return ContainedType; }
 
   /// This static method is the primary way to construct an VectorType.
@@ -530,21 +522,6 @@ public:
            T->getTypeID() == ScalableVectorTyID;
   }
 };
-
-unsigned VectorType::getNumElements() const {
-  ElementCount EC = getElementCount();
-#ifdef STRICT_FIXED_SIZE_VECTORS
-  assert(!EC.isScalable() &&
-         "Request for fixed number of elements from scalable vector");
-#else
-  if (EC.isScalable())
-    WithColor::warning()
-        << "The code that requested the fixed number of elements has made the "
-           "assumption that this vector is not scalable. This assumption was "
-           "not correct, and this may lead to broken code\n";
-#endif
-  return EC.getKnownMinValue();
-}
 
 /// Class to represent fixed width SIMD vectors
 class FixedVectorType : public VectorType {
@@ -700,14 +677,17 @@ Type *Type::getExtendedType() const {
   return cast<IntegerType>(this)->getExtendedType();
 }
 
+Type *Type::getWithNewType(Type *EltTy) const {
+  if (auto *VTy = dyn_cast<VectorType>(this))
+    return VectorType::get(EltTy, VTy->getElementCount());
+  return EltTy;
+}
+
 Type *Type::getWithNewBitWidth(unsigned NewBitWidth) const {
   assert(
       isIntOrIntVectorTy() &&
       "Original type expected to be a vector of integers or a scalar integer.");
-  Type *NewType = getIntNTy(getContext(), NewBitWidth);
-  if (auto *VTy = dyn_cast<VectorType>(this))
-    NewType = VectorType::get(NewType, VTy->getElementCount());
-  return NewType;
+  return getWithNewType(getIntNTy(getContext(), NewBitWidth));
 }
 
 unsigned Type::getPointerAddressSpace() const {

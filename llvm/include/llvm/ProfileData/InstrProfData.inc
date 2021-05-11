@@ -6,15 +6,15 @@
 |*
 \*===----------------------------------------------------------------------===*/
 /*
- * This is the master file that defines all the data structure, signature,
+ * This is the main file that defines all the data structure, signature,
  * constant literals that are shared across profiling runtime library,
  * compiler (instrumentation), and host tools (reader/writer). The entities
  * defined in this file affect the profile runtime ABI, the raw profile format,
  * or both.
  *
- * The file has two identical copies. The master copy lives in LLVM and
+ * The file has two identical copies. The primary copy lives in LLVM and
  * the other one  sits in compiler-rt/lib/profile directory. To make changes
- * in this file, first modify the master copy and copy it over to compiler-rt.
+ * in this file, first modify the primary copy and copy it over to compiler-rt.
  * Testing of any change in this file can start only after the two copies are
  * synced up.
  *
@@ -154,19 +154,7 @@ INSTR_PROF_RAW_HEADER(uint64_t, ValueKindLast, IPVK_Last)
 VALUE_PROF_FUNC_PARAM(uint64_t, TargetValue, Type::getInt64Ty(Ctx)) \
                       INSTR_PROF_COMMA
 VALUE_PROF_FUNC_PARAM(void *, Data, Type::getInt8PtrTy(Ctx)) INSTR_PROF_COMMA
-#ifndef VALUE_RANGE_PROF
 VALUE_PROF_FUNC_PARAM(uint32_t, CounterIndex, Type::getInt32Ty(Ctx))
-#else /* VALUE_RANGE_PROF */
-/* FIXME: This is to be removed after switching to the new memop value
- * profiling. */
-VALUE_PROF_FUNC_PARAM(uint32_t, CounterIndex, Type::getInt32Ty(Ctx)) \
-                      INSTR_PROF_COMMA
-VALUE_PROF_FUNC_PARAM(uint64_t, PreciseRangeStart, Type::getInt64Ty(Ctx)) \
-                      INSTR_PROF_COMMA
-VALUE_PROF_FUNC_PARAM(uint64_t, PreciseRangeLast, Type::getInt64Ty(Ctx)) \
-                      INSTR_PROF_COMMA
-VALUE_PROF_FUNC_PARAM(uint64_t, LargeValue, Type::getInt64Ty(Ctx))
-#endif /*VALUE_RANGE_PROF */
 #undef VALUE_PROF_FUNC_PARAM
 #undef INSTR_PROF_COMMA
 /* VALUE_PROF_FUNC_PARAM end */
@@ -659,9 +647,9 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 /* Raw profile format version (start from 1). */
 #define INSTR_PROF_RAW_VERSION 5
 /* Indexed profile format version (start from 1). */
-#define INSTR_PROF_INDEX_VERSION 6
+#define INSTR_PROF_INDEX_VERSION 7
 /* Coverage mapping format version (start from 0). */
-#define INSTR_PROF_COVMAP_VERSION 3
+#define INSTR_PROF_COVMAP_VERSION 5
 
 /* Profile version is always of type uint64_t. Reserve the upper 8 bits in the
  * version for other variants of profile. We set the lowest bit of the upper 8
@@ -756,11 +744,6 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 #define INSTR_PROF_VALUE_PROF_FUNC __llvm_profile_instrument_target
 #define INSTR_PROF_VALUE_PROF_FUNC_STR \
         INSTR_PROF_QUOTE(INSTR_PROF_VALUE_PROF_FUNC)
-/* FIXME: This is to be removed after switching to the new memop value
- * profiling. */
-#define INSTR_PROF_VALUE_RANGE_PROF_FUNC __llvm_profile_instrument_range
-#define INSTR_PROF_VALUE_RANGE_PROF_FUNC_STR \
-        INSTR_PROF_QUOTE(INSTR_PROF_VALUE_RANGE_PROF_FUNC)
 #define INSTR_PROF_VALUE_PROF_MEMOP_FUNC __llvm_profile_instrument_memop
 #define INSTR_PROF_VALUE_PROF_MEMOP_FUNC_STR                                   \
   INSTR_PROF_QUOTE(INSTR_PROF_VALUE_PROF_MEMOP_FUNC)
@@ -830,6 +813,7 @@ typedef struct InstrProfValueData {
  * range and used to store in the runtime profile data records and the VP
  * metadata. For example, it's 2 for [2, 2] and 64 for [65, 127].
  */
+#define INSTR_PROF_NUM_BUCKETS 22
 
 /*
  * Clz and Popcount. This code was copied from
@@ -889,7 +873,7 @@ InstrProfGetRangeRepValue(uint64_t Value) {
     return Value;
   else
     // Otherwise, take to the previous power of two + 1.
-    return (1 << (64 - InstProfClzll(Value) - 1)) + 1;
+    return (UINT64_C(1) << (64 - InstProfClzll(Value) - 1)) + 1;
 }
 
 /* Return true if the range that an (observed) memop size value belongs to has

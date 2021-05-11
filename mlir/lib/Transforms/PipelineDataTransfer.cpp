@@ -17,6 +17,8 @@
 #include "mlir/Analysis/LoopAnalysis.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Utils.h"
@@ -83,17 +85,12 @@ static bool doubleBuffer(Value oldMemRef, AffineForOp forOp) {
   // The double buffer is allocated right before 'forOp'.
   OpBuilder bOuter(forOp);
   // Put together alloc operands for any dynamic dimensions of the memref.
-  SmallVector<Value, 4> allocOperands;
-  unsigned dynamicDimCount = 0;
-  for (auto dimSize : oldMemRefType.getShape()) {
-    if (dimSize == -1)
-      allocOperands.push_back(
-          bOuter.create<DimOp>(forOp.getLoc(), oldMemRef, dynamicDimCount++));
-  }
+
+  auto allocOperands = getDynOperands(forOp.getLoc(), oldMemRef, bOuter);
 
   // Create and place the alloc right before the 'affine.for' operation.
-  Value newMemRef =
-      bOuter.create<AllocOp>(forOp.getLoc(), newMemRefType, allocOperands);
+  Value newMemRef = bOuter.create<memref::AllocOp>(
+      forOp.getLoc(), newMemRefType, allocOperands);
 
   // Create 'iv mod 2' value to index the leading dimension.
   auto d0 = bInner.getAffineDimExpr(0);
@@ -119,7 +116,7 @@ static bool doubleBuffer(Value oldMemRef, AffineForOp forOp) {
   }
   // Insert the dealloc op right after the for loop.
   bOuter.setInsertionPointAfter(forOp);
-  bOuter.create<DeallocOp>(forOp.getLoc(), newMemRef);
+  bOuter.create<memref::DeallocOp>(forOp.getLoc(), newMemRef);
 
   return true;
 }
@@ -205,7 +202,7 @@ static void findMatchingStartFinishInsts(
     bool escapingUses = false;
     for (auto *user : memref.getUsers()) {
       // We can double buffer regardless of dealloc's outside the loop.
-      if (isa<DeallocOp>(user))
+      if (isa<memref::DeallocOp>(user))
         continue;
       if (!forOp.getBody()->findAncestorOpInBlock(*user)) {
         LLVM_DEBUG(llvm::dbgs()
@@ -278,7 +275,8 @@ void PipelineDataTransfer::runOnAffineForOp(AffineForOp forOp) {
       if (oldMemRef.use_empty()) {
         allocOp->erase();
       } else if (oldMemRef.hasOneUse()) {
-        if (auto dealloc = dyn_cast<DeallocOp>(*oldMemRef.user_begin())) {
+        if (auto dealloc =
+                dyn_cast<memref::DeallocOp>(*oldMemRef.user_begin())) {
           dealloc.erase();
           allocOp->erase();
         }
@@ -300,7 +298,8 @@ void PipelineDataTransfer::runOnAffineForOp(AffineForOp forOp) {
       if (oldTagMemRef.use_empty()) {
         tagAllocOp->erase();
       } else if (oldTagMemRef.hasOneUse()) {
-        if (auto dealloc = dyn_cast<DeallocOp>(*oldTagMemRef.user_begin())) {
+        if (auto dealloc =
+                dyn_cast<memref::DeallocOp>(*oldTagMemRef.user_begin())) {
           dealloc.erase();
           tagAllocOp->erase();
         }

@@ -17,6 +17,7 @@
 
 #include "lldb/API/SBBreakpoint.h"
 #include "lldb/API/SBBreakpointLocation.h"
+#include "lldb/API/SBDeclaration.h"
 #include "lldb/API/SBValue.h"
 #include "lldb/Host/PosixApi.h"
 
@@ -867,9 +868,10 @@ llvm::json::Value CreateThreadStopped(lldb::SBThread &thread,
   case lldb::eStopReasonInstrumentation:
     body.try_emplace("reason", "breakpoint");
     break;
-  case lldb::eStopReasonSignal:
-    body.try_emplace("reason", "exception");
+  case lldb::eStopReasonProcessorTrace:
+    body.try_emplace("reason", "processor trace");
     break;
+  case lldb::eStopReasonSignal:
   case lldb::eStopReasonException:
     body.try_emplace("reason", "exception");
     break;
@@ -901,6 +903,25 @@ llvm::json::Value CreateThreadStopped(lldb::SBThread &thread,
   body.try_emplace("allThreadsStopped", true);
   event.try_emplace("body", std::move(body));
   return llvm::json::Value(std::move(event));
+}
+
+std::string CreateUniqueVariableNameForDisplay(lldb::SBValue v,
+                                               bool is_name_duplicated) {
+  lldb::SBStream name_builder;
+  const char *name = v.GetName();
+  name_builder.Print(name ? name : "<null>");
+  if (is_name_duplicated) {
+    name_builder.Print(" @ ");
+    lldb::SBDeclaration declaration = v.GetDeclaration();
+    std::string file_name(declaration.GetFileSpec().GetFilename());
+    const uint32_t line = declaration.GetLine();
+
+    if (!file_name.empty() && line > 0)
+      name_builder.Printf("%s:%u", file_name.c_str(), line);
+    else
+      name_builder.Print(v.GetLocation());
+  }
+  return name_builder.GetData();
 }
 
 // "Variable": {
@@ -966,10 +987,12 @@ llvm::json::Value CreateThreadStopped(lldb::SBThread &thread,
 //   "required": [ "name", "value", "variablesReference" ]
 // }
 llvm::json::Value CreateVariable(lldb::SBValue v, int64_t variablesReference,
-                                 int64_t varID, bool format_hex) {
+                                 int64_t varID, bool format_hex,
+                                 bool is_name_duplicated) {
   llvm::json::Object object;
-  auto name = v.GetName();
-  EmplaceSafeString(object, "name", name ? name : "<null>");
+  EmplaceSafeString(object, "name",
+                    CreateUniqueVariableNameForDisplay(v, is_name_duplicated));
+
   if (format_hex)
     v.SetFormat(lldb::eFormatHex);
   SetValueForKey(v, object, "value");
@@ -1001,7 +1024,9 @@ llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit) {
 /// See
 /// https://microsoft.github.io/debug-adapter-protocol/specification#Reverse_Requests_RunInTerminal
 llvm::json::Object
-CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request) {
+CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
+                                  llvm::StringRef debug_adaptor_path,
+                                  llvm::StringRef comm_file) {
   llvm::json::Object reverse_request;
   reverse_request.try_emplace("type", "request");
   reverse_request.try_emplace("command", "runInTerminal");
@@ -1012,10 +1037,13 @@ CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request) {
   run_in_terminal_args.try_emplace("kind", "integrated");
 
   auto launch_request_arguments = launch_request.getObject("arguments");
-  std::vector<std::string> args = GetStrings(launch_request_arguments, "args");
   // The program path must be the first entry in the "args" field
-  args.insert(args.begin(),
-              GetString(launch_request_arguments, "program").str());
+  std::vector<std::string> args = {
+      debug_adaptor_path.str(), "--comm-file", comm_file.str(),
+      "--launch-target", GetString(launch_request_arguments, "program").str()};
+  std::vector<std::string> target_args =
+      GetStrings(launch_request_arguments, "args");
+  args.insert(args.end(), target_args.begin(), target_args.end());
   run_in_terminal_args.try_emplace("args", args);
 
   const auto cwd = GetString(launch_request_arguments, "cwd");
@@ -1027,7 +1055,7 @@ CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request) {
   std::vector<std::string> envs = GetStrings(launch_request_arguments, "env");
   llvm::json::Object environment;
   for (const std::string &env : envs) {
-    size_t index = env.find("=");
+    size_t index = env.find('=');
     environment.try_emplace(env.substr(0, index), env.substr(index + 1));
   }
   run_in_terminal_args.try_emplace("env",
@@ -1036,6 +1064,14 @@ CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request) {
   reverse_request.try_emplace(
       "arguments", llvm::json::Value(std::move(run_in_terminal_args)));
   return reverse_request;
+}
+
+std::string JSONToString(const llvm::json::Value &json) {
+  std::string data;
+  llvm::raw_string_ostream os(data);
+  os << json;
+  os.flush();
+  return data;
 }
 
 } // namespace lldb_vscode

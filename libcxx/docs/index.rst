@@ -38,12 +38,20 @@ Getting Started with libc++
    UsingLibcxx
    BuildingLibcxx
    TestingLibcxx
+   Contributing
+   Cxx1yStatus
+   Cxx1zStatus
+   Cxx2aStatus
+   Cxx2bStatus
+   RangesStatus
 
 
 .. toctree::
     :hidden:
 
+    AddingNewCIJobs
     FeatureTestMacroTable
+
 
 Current Status
 --------------
@@ -130,8 +138,10 @@ C++ Dialect Support
 ---------------------
 
 * C++11 - Complete
-* `C++14 - Complete <http://libcxx.llvm.org/cxx1y_status.html>`__
-* `C++17 - In Progress <http://libcxx.llvm.org/cxx1z_status.html>`__
+* :ref:`C++14 - Complete <cxx1y-status>`
+* :ref:`C++17 - In Progress <cxx1z-status>`
+* :ref:`C++20 - In Progress <cxx2a-status>`
+* :ref:`C++2b - In Progress <cxx2b-status>`
 * `Post C++14 Technical Specifications - In Progress <http://libcxx.llvm.org/ts1z_status.html>`__
 * :ref:`C++ Feature Test Macro Status <feature-status>`
 
@@ -154,7 +164,6 @@ Design Documents
 .. toctree::
    :maxdepth: 1
 
-   DesignDocs/AvailabilityMarkup
    DesignDocs/DebugMode
    DesignDocs/CapturingConfigInfo
    DesignDocs/ABIVersioning
@@ -165,6 +174,7 @@ Design Documents
    DesignDocs/FeatureTestMacros
    DesignDocs/ExtendedCXX03Support
    DesignDocs/UniquePtrTrivialAbi
+   DesignDocs/NoexceptPolicy
 
 * `<atomic> design <http://libcxx.llvm.org/atomic_design.html>`_
 * `<type_traits> design <http://libcxx.llvm.org/type_traits_design.html>`_
@@ -175,10 +185,9 @@ Design Documents
 Build Bots and Test Coverage
 ----------------------------
 
-* `LLVM Buildbot Builders <http://lab.llvm.org:8011/console>`_
-* `Apple Jenkins Builders <http://lab.llvm.org:8080/green/view/Libcxx/>`_
-* `Windows Appveyor Builders <https://ci.appveyor.com/project/llvm-mirror/libcxx>`_
-* `Code Coverage Results <http://efcs.ca/libcxx-coverage>`_
+* `Buildkite CI pipeline <https://buildkite.com/llvm-project/libcxx-ci>`_
+* `LLVM Buildbot Builders <http://lab.llvm.org:8011>`_
+* :ref:`Adding New CI Jobs <AddingNewCIJobs>`
 
 Getting Involved
 ================
@@ -212,4 +221,4 @@ Quick Links
 * `LLVM Bugzilla <https://bugs.llvm.org/>`_
 * `libcxx-commits Mailing List`_
 * `libcxx-dev Mailing List`_
-* `Browse libc++ Sources <https://github.com/llvm/llvm-project/tree/master/libcxx/>`_
+* `Browse libc++ Sources <https://github.com/llvm/llvm-project/tree/main/libcxx/>`_

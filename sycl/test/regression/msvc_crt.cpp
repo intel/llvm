@@ -1,7 +1,7 @@
 // RUN: %clang_cl -fsycl /MD -o %t1.exe %s
-// RUN: %CPU_RUN_PLACEHOLDER %t1.exe
+// RUN: %RUN_ON_HOST %t1.exe
 // RUN: %clang_cl -fsycl /MDd -o %t2.exe %s
-// RUN: %CPU_RUN_PLACEHOLDER %t2.exe
+// RUN: %RUN_ON_HOST %t2.exe
 // REQUIRES: system-windows
 //==-------------- msvc_crt.cpp - SYCL MSVC CRT test -----------------------==//
 //

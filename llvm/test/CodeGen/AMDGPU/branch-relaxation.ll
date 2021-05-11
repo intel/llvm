@@ -1,9 +1,9 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs -amdgpu-s-branch-bits=4 < %s | FileCheck -enable-var-scope -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs -amdgpu-s-branch-bits=4 -simplifycfg-require-and-preserve-domtree=1 < %s | FileCheck -enable-var-scope -check-prefix=GCN %s
 
 
 ; FIXME: We should use llvm-mc for this, but we can't even parse our own output.
 ;        See PR33579.
-; RUN: llc -march=amdgcn -verify-machineinstrs -amdgpu-s-branch-bits=4 -o %t.o -filetype=obj %s
+; RUN: llc -march=amdgcn -verify-machineinstrs -amdgpu-s-branch-bits=4 -o %t.o -filetype=obj -simplifycfg-require-and-preserve-domtree=1 %s
 ; RUN: llvm-readobj -r %t.o | FileCheck --check-prefix=OBJ %s
 
 ; OBJ:       Relocations [
@@ -245,7 +245,7 @@ bb3:
 
 ; GCN: v_mov_b32_e32 [[BB4_K:v[0-9]+]], 63
 ; GCN: buffer_store_dword [[BB4_K]]
-; GCN-NEXT: s_endpgm
+; GCN: s_endpgm
 ; GCN-NEXT: .Lfunc_end{{[0-9]+}}:
 define amdgpu_kernel void @uniform_unconditional_min_long_forward_branch(i32 addrspace(1)* %arg, i32 %arg1) {
 bb0:

@@ -53,14 +53,12 @@ struct AA {
     return 2;
   }
   static constexpr int foo2() {
-    return AA<T>::getB(); // expected-error{{no matching function for call to 'getB'}} \
-                          // expected-note {{subexpression not valid in a constant expression}}
+    return AA<T>::getB(); // expected-error{{no matching function for call to 'getB'}}
   }
 };
 // FIXME: should we suppress the "be initialized by a constant expression" diagnostic?
 constexpr auto x2 = AA<int>::foo2(); // expected-error {{be initialized by a constant expression}} \
-                                     // expected-note {{in instantiation of member function}} \
-                                     // expected-note {{in call to}}
+                                     // expected-note {{in instantiation of member function}}
 }
 
 // verify no assertion failure on violating value category.
@@ -92,7 +90,7 @@ namespace test7 {
 struct C {
   C() = delete; // expected-note {{has been explicitly marked deleted}}
 };
-void f(C &); // expected-note {{candidate function not viable: expects an l-value for 1st argument}}
+void f(C &); // expected-note {{candidate function not viable: expects an lvalue for 1st argument}}
 void test() {
   f(C()); // expected-error {{call to deleted constructor}} \
              expected-error {{no matching function for call}}
@@ -104,4 +102,17 @@ namespace test8 {
 typedef int arr[];
 int v = arr(); // expected-error {{array types cannot be value-initialized}} \
                   expected-error {{cannot initialize a variable of type 'int' with an rvalue of type 'test8::arr'}}
+}
+
+namespace test9 {
+auto f(); // expected-note {{candidate function not viable}}
+// verify no crash on evaluating the size of undeduced auto type.
+static_assert(sizeof(f(1)), ""); // expected-error {{no matching function for call to 'f'}}
+}
+
+namespace test10 {
+// Ensure we don't assert here.
+int f(); // expected-note {{candidate}}
+template<typename T> const int k = f(T()); // expected-error {{no matching function}}
+static_assert(k<int> == 1, ""); // expected-note {{instantiation of}}
 }

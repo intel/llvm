@@ -38,7 +38,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
@@ -143,7 +142,7 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
       // Simple byval argument? Just add all the struct element types.
       Type *AgTy = cast<PointerType>(I->getType())->getElementType();
       StructType *STy = cast<StructType>(AgTy);
-      Params.insert(Params.end(), STy->element_begin(), STy->element_end());
+      llvm::append_range(Params, STy->elements());
       ArgAttrVec.insert(ArgAttrVec.end(), STy->getNumElements(),
                         AttributeSet());
       ++NumByValArgsPromoted;
@@ -161,13 +160,19 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
       // In this table, we will track which indices are loaded from the argument
       // (where direct loads are tracked as no indices).
       ScalarizeTable &ArgIndices = ScalarizedElements[&*I];
-      for (User *U : I->users()) {
+      for (User *U : make_early_inc_range(I->users())) {
         Instruction *UI = cast<Instruction>(U);
         Type *SrcTy;
         if (LoadInst *L = dyn_cast<LoadInst>(UI))
           SrcTy = L->getType();
         else
           SrcTy = cast<GetElementPtrInst>(UI)->getSourceElementType();
+        // Skip dead GEPs and remove them.
+        if (isa<GetElementPtrInst>(UI) && UI->use_empty()) {
+          UI->eraseFromParent();
+          continue;
+        }
+
         IndicesVector Indices;
         Indices.reserve(UI->getNumOperands() - 1);
         // Since loads will only have a single operand, and GEPs only a single
@@ -437,11 +442,12 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
                           << "' in function '" << F->getName() << "'\n");
       } else {
         GetElementPtrInst *GEP = cast<GetElementPtrInst>(I->user_back());
+        assert(!GEP->use_empty() &&
+               "GEPs without uses should be cleaned up already");
         IndicesVector Operands;
         Operands.reserve(GEP->getNumIndices());
-        for (User::op_iterator II = GEP->idx_begin(), IE = GEP->idx_end();
-             II != IE; ++II)
-          Operands.push_back(cast<ConstantInt>(*II)->getSExtValue());
+        for (const Use &Idx : GEP->indices())
+          Operands.push_back(cast<ConstantInt>(Idx)->getSExtValue());
 
         // GEPs with a single 0 index can be merged with direct loads
         if (Operands.size() == 1 && Operands.front() == 0)
@@ -627,9 +633,8 @@ static bool isSafeToPromoteArgument(Argument *Arg, Type *ByValTy, AAResults &AAR
         if (V == Arg) {
           // This load actually loads (part of) Arg? Check the indices then.
           Indices.reserve(GEP->getNumIndices());
-          for (User::op_iterator II = GEP->idx_begin(), IE = GEP->idx_end();
-               II != IE; ++II)
-            if (ConstantInt *CI = dyn_cast<ConstantInt>(*II))
+          for (Use &Idx : GEP->indices())
+            if (ConstantInt *CI = dyn_cast<ConstantInt>(Idx))
               Indices.push_back(CI->getSExtValue());
             else
               // We found a non-constant GEP index for this argument? Bail out
@@ -675,20 +680,15 @@ static bool isSafeToPromoteArgument(Argument *Arg, Type *ByValTy, AAResults &AAR
       if (GEP->use_empty()) {
         // Dead GEP's cause trouble later.  Just remove them if we run into
         // them.
-        GEP->eraseFromParent();
-        // TODO: This runs the above loop over and over again for dead GEPs
-        // Couldn't we just do increment the UI iterator earlier and erase the
-        // use?
-        return isSafeToPromoteArgument(Arg, ByValTy, AAR, MaxElements);
+        continue;
       }
 
       if (!UpdateBaseTy(GEP->getSourceElementType()))
         return false;
 
       // Ensure that all of the indices are constants.
-      for (User::op_iterator i = GEP->idx_begin(), e = GEP->idx_end(); i != e;
-           ++i)
-        if (ConstantInt *C = dyn_cast<ConstantInt>(*i))
+      for (Use &Idx : GEP->indices())
+        if (ConstantInt *C = dyn_cast<ConstantInt>(Idx))
           Operands.push_back(C->getSExtValue());
         else
           return false; // Not a constant operand GEP!
@@ -819,14 +819,12 @@ static bool canPaddingBeAccessed(Argument *arg) {
 
   // Scan through the uses recursively to make sure the pointer is always used
   // sanely.
-  SmallVector<Value *, 16> WorkList;
-  WorkList.insert(WorkList.end(), arg->user_begin(), arg->user_end());
+  SmallVector<Value *, 16> WorkList(arg->users());
   while (!WorkList.empty()) {
-    Value *V = WorkList.back();
-    WorkList.pop_back();
+    Value *V = WorkList.pop_back_val();
     if (isa<GetElementPtrInst>(V) || isa<PHINode>(V)) {
       if (PtrValues.insert(V).second)
-        WorkList.insert(WorkList.end(), V->user_begin(), V->user_end());
+        llvm::append_range(WorkList, V->users());
     } else if (StoreInst *Store = dyn_cast<StoreInst>(V)) {
       Stores.push_back(Store);
     } else if (!isa<LoadInst>(V)) {
@@ -988,13 +986,8 @@ promoteArguments(Function *F, function_ref<AAResults &(Function &F)> AARGetter,
     // function, we could end up infinitely peeling the function argument.
     if (isSelfRecursive) {
       if (StructType *STy = dyn_cast<StructType>(AgTy)) {
-        bool RecursiveType = false;
-        for (const auto *EltTy : STy->elements()) {
-          if (EltTy == PtrArg->getType()) {
-            RecursiveType = true;
-            break;
-          }
-        }
+        bool RecursiveType =
+            llvm::is_contained(STy->elements(), PtrArg->getType());
         if (RecursiveType)
           continue;
       }
@@ -1053,6 +1046,7 @@ PreservedAnalyses ArgumentPromotionPass::run(LazyCallGraph::SCC &C,
       // swaps out the particular function mapped to a particular node in the
       // graph.
       C.getOuterRefSCC().replaceNodeFunction(N, *NewF);
+      FAM.clear(OldF, OldF.getName());
       OldF.eraseFromParent();
     }
 

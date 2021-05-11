@@ -79,7 +79,7 @@ declare void @llvm.lifetime.start.p0i8(i64 immarg %0, i8* nocapture %1) #2
 declare void @llvm.lifetime.end.p0i8(i64 immarg %0, i8* nocapture %1) #2
 
 ; Function Attrs: noinline norecurse nounwind
-define dso_local spir_func void @_Z3fooPiN2cl4sycl5INTEL3gpu4simdIiLi16EEE(i32 addrspace(4)* %C, %"class._ZTSN2cl4sycl5INTEL3gpu4simdIiLi16EEE.cl::sycl::INTEL::gpu::simd"* %v) local_unnamed_addr #3 !sycl_explicit_simd !12 {
+define dso_local spir_func void @_Z3fooPiN2cl4sycl5INTEL3gpu4simdIiLi16EEE(i32 addrspace(4)* %C, %"class._ZTSN2cl4sycl5INTEL3gpu4simdIiLi16EEE.cl::sycl::INTEL::gpu::simd"* %v) local_unnamed_addr #3 {
 entry:
   %agg.tmp = alloca %"class._ZTSN2cl4sycl5INTEL3gpu4simdIiLi16EEE.cl::sycl::INTEL::gpu::simd", align 64
   %0 = addrspacecast %"class._ZTSN2cl4sycl5INTEL3gpu4simdIiLi16EEE.cl::sycl::INTEL::gpu::simd"* %v to %"class._ZTSN2cl4sycl5INTEL3gpu4simdIiLi16EEE.cl::sycl::INTEL::gpu::simd" addrspace(4)*

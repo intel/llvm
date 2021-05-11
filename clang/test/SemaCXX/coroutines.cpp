@@ -1,7 +1,9 @@
 // This file contains references to sections of the Coroutines TS, which can be
 // found at http://wg21.link/coroutines.
 
-// RUN: %clang_cc1 -std=c++14 -fcoroutines-ts -verify %s -fcxx-exceptions -fexceptions -Wunused-result
+// RUN: %clang_cc1 -std=c++2b                 -fsyntax-only -verify=expected,cxx20_2b %s -fcxx-exceptions -fexceptions -Wunused-result
+// RUN: %clang_cc1 -std=c++20                 -fsyntax-only -verify=expected,cxx20_2b %s -fcxx-exceptions -fexceptions -Wunused-result
+// RUN: %clang_cc1 -std=c++14 -fcoroutines-ts -fsyntax-only -verify=expected          %s -fcxx-exceptions -fexceptions -Wunused-result
 
 void no_coroutine_traits_bad_arg_await() {
   co_await a; // expected-error {{include <experimental/coroutine>}}
@@ -328,6 +330,7 @@ void unevaluated() {
                         // expected-warning@-1 {{declaration does not declare anything}}
   sizeof(co_await a); // expected-error {{'co_await' cannot be used in an unevaluated context}}
                       // expected-error@-1 {{invalid application of 'sizeof' to an incomplete type 'void'}}
+                      // expected-warning@-2 {{expression with side effects has no effect in an unevaluated context}}
   typeid(co_await a); // expected-error {{'co_await' cannot be used in an unevaluated context}}
                       // expected-warning@-1 {{expression with side effects has no effect in an unevaluated context}}
                       // expected-warning@-2 {{expression result unused}}
@@ -335,6 +338,7 @@ void unevaluated() {
                         // expected-warning@-1 {{declaration does not declare anything}}
   sizeof(co_yield 2); // expected-error {{'co_yield' cannot be used in an unevaluated context}}
                       // expected-error@-1 {{invalid application of 'sizeof' to an incomplete type 'void'}}
+                      // expected-warning@-2 {{expression with side effects has no effect in an unevaluated context}}
   typeid(co_yield 3); // expected-error {{'co_yield' cannot be used in an unevaluated context}}
                       // expected-warning@-1 {{expression with side effects has no effect in an unevaluated context}}
                       // expected-warning@-2 {{expression result unused}}
@@ -1010,6 +1014,7 @@ struct await_suspend_type_test {
   // expected-error@+2 {{return type of 'await_suspend' is required to be 'void' or 'bool' (have 'bool &')}}
   // expected-error@+1 {{return type of 'await_suspend' is required to be 'void' or 'bool' (have 'bool &&')}}
   SuspendTy await_suspend(std::experimental::coroutine_handle<>);
+  // cxx20_2b-warning@-1 {{volatile-qualified return type 'const volatile bool' is deprecated}}
   void await_resume();
 };
 void test_bad_suspend() {
@@ -1031,7 +1036,7 @@ void test_bad_suspend() {
     await_suspend_type_test<bool &&> a;
     await_suspend_type_test<bool &> b;
     await_suspend_type_test<const void> c;
-    await_suspend_type_test<const volatile bool> d;
+    await_suspend_type_test<const volatile bool> d; // cxx20_2b-note {{in instantiation of template class}}
     co_await a; // expected-note {{call to 'await_suspend' implicitly required by coroutine function here}}
     co_await b; // expected-note {{call to 'await_suspend' implicitly required by coroutine function here}}
     co_await c; // OK
@@ -1119,6 +1124,7 @@ struct TestType {
   }
 
   CoroMemberTag test_qual(int *, const float &&, volatile void *volatile) const {
+    // cxx20_2b-warning@-1 {{volatile-qualified parameter type}}
     auto TC = co_yield 0;
     static_assert(TC.MatchesArgs<const TestType &, int *, const float &&, volatile void *volatile>, "");
   }
@@ -1217,6 +1223,7 @@ struct DepTestType {
   }
 
   CoroMemberTag test_qual(int *, const float &&, volatile void *volatile) const {
+    // cxx20_2b-warning@-1 {{volatile-qualified parameter type}}
     auto TC = co_yield 0;
     static_assert(TC.template MatchesArgs<const DepTestType &, int *, const float &&, volatile void *volatile>, "");
   }

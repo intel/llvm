@@ -16,12 +16,19 @@
 #include <CL/sycl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
 #include <CL/sycl/half_type.hpp>
 #include <cstdint>
-#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+
+// simd and simd_view forward declarations
+template <typename Ty, int N> class simd;
+template <typename BaseTy, typename RegionTy> class simd_view;
+
+namespace detail {
 
 namespace csd = cl::sycl::detail;
 
@@ -68,20 +75,6 @@ template <typename Ty, int N> struct vector_type {
 
 template <typename Ty, int N>
 using vector_type_t = typename vector_type<Ty, N>::type;
-
-// TODO @rolandschulz on May 21
-// {quote}
-// - The mask should also be a wrapper around the clang - vector type rather
-//   than the clang - vector type itself.
-// - The internal storage should be implementation defined.uint16_t is a bad
-//   choice for some HW.Nor is it how clang - vector types works(using the same
-//   size int as the corresponding vector type used for comparison(e.g. long for
-//   double and int for float)).
-template <int N> using mask_type_t = typename vector_type<uint16_t, N>::type;
-
-// simd and simd_view forward declarations
-template <typename Ty, int N> class simd;
-template <typename BaseTy, typename RegionTy> class simd_view;
 
 // Compute the simd_view type of a 1D format operation.
 template <typename BaseTy, typename EltTy> struct compute_format_type;
@@ -208,8 +201,8 @@ template <typename T1, typename T2> struct computation_type {
 template <typename U> constexpr bool is_type() { return false; }
 
 template <typename U, typename T, typename... Ts> constexpr bool is_type() {
-  using UU = typename std::remove_const<U>::type;
-  using TT = typename std::remove_const<T>::type;
+  using UU = typename csd::remove_const_t<U>;
+  using TT = typename csd::remove_const_t<T>;
   return std::is_same<UU, TT>::value || is_type<UU, Ts...>();
 }
 
@@ -228,10 +221,10 @@ struct bitcast_helper {
 // Change the element type of a simd vector.
 template <typename ToEltTy, typename FromEltTy, int FromN,
           typename = csd::enable_if_t<is_vectorizable<ToEltTy>::value>>
-ESIMD_INLINE typename std::conditional<
+ESIMD_INLINE typename csd::conditional_t<
     std::is_same<FromEltTy, ToEltTy>::value, vector_type_t<FromEltTy, FromN>,
     vector_type_t<ToEltTy,
-                  bitcast_helper<ToEltTy, FromEltTy, FromN>::nToElems()>>::type
+                  bitcast_helper<ToEltTy, FromEltTy, FromN>::nToElems()>>
 bitcast(vector_type_t<FromEltTy, FromN> Val) {
   // Noop.
   if constexpr (std::is_same<FromEltTy, ToEltTy>::value)
@@ -254,8 +247,22 @@ inline std::istream &operator>>(std::istream &I, half &rhs) {
   rhs = ValFloat;
   return I;
 }
+} // namespace detail
 
-} // namespace gpu
-} // namespace INTEL
+// TODO @rolandschulz on May 21
+// {quote}
+// - The mask should also be a wrapper around the clang - vector type rather
+//   than the clang - vector type itself.
+// - The internal storage should be implementation defined.uint16_t is a bad
+//   choice for some HW.Nor is it how clang - vector types works(using the same
+//   size int as the corresponding vector type used for comparison(e.g. long for
+//   double and int for float)).
+template <int N>
+using mask_type_t = typename detail::vector_type<uint16_t, N>::type;
+
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -1,4 +1,6 @@
-// RUN: %clang_cc1 -fsyntax-only -verify -std=c++11 %s
+// RUN: %clang_cc1 -std=c++2b -fsyntax-only -verify=expected       %s
+// RUN: %clang_cc1 -std=c++20 -fsyntax-only -verify=expected       %s
+// RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify=expected,cxx11 %s
 
 int* ret_local() {
   int x = 1;
@@ -156,10 +158,66 @@ void ret_from_lambda() {
   (void) [=]() -> int& { int a; return a; }; // expected-warning {{reference to stack}}
   (void) [&]() -> int& { int &a = b; return a; };
   (void) [=]() mutable -> int& { int &a = b; return a; };
+
+  (void) [] {
+    int a;
+    return [&] { // expected-warning {{address of stack memory associated with local variable 'a' returned}}
+      return a; // expected-note {{implicitly captured by reference due to use here}}
+    };
+  };
+  (void) [] {
+    int a;
+    return [&a] {}; // expected-warning {{address of stack memory associated with local variable 'a' returned}} expected-note {{captured by reference here}}
+  };
+  (void) [] {
+    int a;
+    return [=] {
+      return a;
+    };
+  };
+  (void) [] {
+    int a;
+    return [a] {};
+  };
+  (void) [] {
+    int a;
+    // cxx11-warning@+1 {{C++14}}
+    return [&b = a] {}; // expected-warning {{address of stack memory associated with local variable 'a' returned}} expected-note {{captured by reference via initialization of lambda capture 'b'}}
+  };
+  (void) [] {
+    int a;
+    // cxx11-warning@+1 {{C++14}}
+    return [b = &a] {}; // expected-warning {{address of stack memory associated with local variable 'a' returned}} expected-note {{captured via initialization of lambda capture 'b'}}
+  };
+}
+
+struct HoldsPointer { int *p; };
+
+HoldsPointer ret_via_member_1() {
+  int n;
+  return {&n}; // expected-warning {{address of stack memory associated with local variable 'n' returned}}
+}
+HoldsPointer ret_via_member_2() {
+  int n;
+  return HoldsPointer(HoldsPointer{&n}); // cxx11-warning {{address of stack memory associated with local variable 'n' returned}}
+}
+// FIXME: We could diagnose this too.
+HoldsPointer ret_via_member_3() {
+  int n;
+  const HoldsPointer hp = HoldsPointer{&n};
+  return hp;
 }
 
 namespace mem_ptr {
   struct X {};
   int X::*f();
   int &r(X *p) { return p->*f(); }
+}
+
+namespace PR47861 {
+  struct A {
+    A(int i);
+    A &operator+=(int i);
+  };
+  A const &b = A(5) += 5; // expected-warning {{temporary bound to local reference 'b' will be destroyed at the end of the full-expression}}
 }

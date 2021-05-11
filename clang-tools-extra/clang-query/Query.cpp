@@ -48,8 +48,6 @@ bool HelpQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
         "    AsIs                            "
         "Print and match the AST as clang sees it.  This mode is the "
         "default.\n"
-        "    IgnoreImplicitCastsAndParentheses  "
-        "Omit implicit casts and parens in matching and dumping.\n"
         "    IgnoreUnlessSpelledInSource     "
         "Omit AST nodes unless spelled in the source.\n"
         "  set output <feature>              "
@@ -156,8 +154,7 @@ bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
         if (QS.DetailedASTOutput) {
           OS << "Binding for \"" << BI->first << "\":\n";
           const ASTContext &Ctx = AST->getASTContext();
-          const SourceManager &SM = Ctx.getSourceManager();
-          ASTDumper Dumper(OS, Ctx, SM.getDiagnostics().getShowColors());
+          ASTDumper Dumper(OS, Ctx, AST->getDiagnostics().getShowColors());
           Dumper.SetTraversalKind(QS.TK);
           Dumper.Visit(BI->second);
           OS << "\n";

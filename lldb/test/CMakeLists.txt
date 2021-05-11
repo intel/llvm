@@ -49,6 +49,9 @@ if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
   add_lldb_test_dependency(darwin-debug)
 endif()
 
+if(TARGET debugserver)
+  add_lldb_test_dependency(debugserver)
+endif()
 if(TARGET lldb-server)
   add_lldb_test_dependency(lldb-server)
 endif()
@@ -106,7 +109,7 @@ if(TARGET clang)
     else()
       # We require libcxx for the test suite, so if we aren't building it,
       # try to provide a helpful error about how to resolve the situation.
-      if(NOT TARGET cxx)
+      if(NOT TARGET cxx AND NOT libcxx IN_LIST LLVM_ENABLE_RUNTIMES)
         if(LLVM_ENABLE_PROJECTS STREQUAL "")
           # If `LLVM_ENABLE_PROJECTS` is not being used (implying that we are
           # using the old layout), suggest checking it out.
@@ -118,8 +121,9 @@ if(TARGET clang)
           # If `LLVM_ENABLE_PROJECTS` is being used, suggest adding it.
           message(FATAL_ERROR
             "LLDB test suite requires libc++, but it is currently disabled. "
-            "Please add `libcxx` to `LLVM_ENABLE_PROJECTS` or disable tests "
-            "via `LLDB_INCLUDE_TESTS=OFF`.")
+            "Please add `libcxx` to `LLVM_ENABLE_PROJECTS` or "
+            "`LLVM_ENABLE_RUNTIMES`, or disable tests via "
+            "`LLDB_INCLUDE_TESTS=OFF`.")
         endif()
       endif()
       add_lldb_test_dependency(cxx)
@@ -141,6 +145,7 @@ add_lldb_test_dependency(
   llvm-nm
   llvm-mc
   llvm-objcopy
+  llvm-pdbutil
   llvm-readobj
   )
 
@@ -165,6 +170,7 @@ llvm_canonicalize_cmake_booleans(
   LLDB_ENABLE_LZMA
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_SHARED_LIBS
+  LLDB_USE_SYSTEM_DEBUGSERVER
   LLDB_IS_64_BITS)
 
 # Configure the individual test suites.
@@ -179,19 +185,13 @@ configure_lit_site_cfg(
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
 
-add_lit_testsuites(LLDB
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  DEPENDS lldb-test-deps)
-
-add_lit_testsuite(check-lldb-lit "Running lldb lit test suite"
+add_lit_testsuite(check-lldb "Running lldb lit test suite"
   ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS lldb-test-deps)
-set_target_properties(check-lldb-lit PROPERTIES FOLDER "lldb tests")
-
-add_custom_target(check-lldb)
-add_dependencies(check-lldb lldb-test-deps)
-set_target_properties(check-lldb PROPERTIES FOLDER "lldb misc")
-add_dependencies(check-lldb check-lldb-lit)
+  DEPENDS
+    lldb-api-test-deps
+    lldb-shell-test-deps
+    lldb-unit-test-deps)
+set_target_properties(check-lldb PROPERTIES FOLDER "lldb tests")
 
 # Add a lit test suite that runs the API & shell test while capturing a
 # reproducer.

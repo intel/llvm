@@ -14,22 +14,23 @@
 #include "mlir/Support/MlirOptMain.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/Parser.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Support/DebugCounter.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/ToolUtilities.h"
-#include "mlir/Transforms/Passes.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/StringSaver.h"
 #include "llvm/Support/ToolOutputFile.h"
 
 using namespace mlir;
@@ -58,11 +59,17 @@ static LogicalResult performActions(raw_ostream &os, bool verifyDiagnostics,
     return failure();
 
   // Apply any pass manager command line options.
-  PassManager pm(context, verifyPasses);
+  PassManager pm(context, OpPassManager::Nesting::Implicit);
+  pm.enableVerifier(verifyPasses);
   applyPassManagerCLOptions(pm);
 
+  auto errorHandler = [&](const Twine &msg) {
+    emitError(UnknownLoc::get(context)) << msg;
+    return failure();
+  };
+
   // Build the provided pipeline.
-  if (failed(passPipeline.addToPipeline(pm)))
+  if (failed(passPipeline.addToPipeline(pm, errorHandler)))
     return failure();
 
   // Run the pipeline.
@@ -89,12 +96,12 @@ static LogicalResult processBuffer(raw_ostream &os,
   sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), SMLoc());
 
   // Parse the input file.
-  MLIRContext context(/*loadAllDialects=*/preloadDialectsInContext);
-  registry.appendTo(context.getDialectRegistry());
+  MLIRContext context(registry);
   if (preloadDialectsInContext)
-    registry.loadAll(&context);
+    context.loadAllAvailableDialects();
   context.allowUnregisteredDialects(allowUnregisteredDialects);
   context.printOpOnDiagnostic(!verifyDiagnostics);
+  context.getDebugActionManager().registerActionHandler<DebugCounter>();
 
   // If we are in verify diagnostics mode then we have a lot of work to do,
   // otherwise just perform the actions without worrying about it.
@@ -109,8 +116,8 @@ static LogicalResult processBuffer(raw_ostream &os,
   // Do any processing requested by command line flags.  We don't care whether
   // these actions succeed or fail, we only care what diagnostics they produce
   // and whether they match our expectations.
-  performActions(os, verifyDiagnostics, verifyPasses, sourceMgr, &context,
-                 passPipeline);
+  (void)performActions(os, verifyDiagnostics, verifyPasses, sourceMgr, &context,
+                       passPipeline);
 
   // Verify the diagnostic handler to make sure that each of the diagnostics
   // matched.
@@ -177,12 +184,18 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
       "show-dialects", cl::desc("Print the list of registered dialects"),
       cl::init(false));
 
+  static cl::opt<bool> runRepro(
+      "run-reproducer",
+      cl::desc("Append the command line options of the reproducer"),
+      cl::init(false));
+
   InitLLVM y(argc, argv);
 
   // Register any command line options.
   registerAsmPrinterCLOptions();
   registerMLIRContextCLOptions();
   registerPassManagerCLOptions();
+  DebugCounter::registerCLOptions();
   PassPipelineCLParser passPipeline("", "Compiler passes to run");
 
   // Build the list of dialects as a header for the --help message.
@@ -190,10 +203,8 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
   {
     llvm::raw_string_ostream os(helpHeader);
     MLIRContext context;
-    interleaveComma(registry, os, [&](auto &registryEntry) {
-      StringRef name = registryEntry.first;
-      os << name;
-    });
+    interleaveComma(registry.getDialectNames(), os,
+                    [&](auto name) { os << name; });
   }
   // Parse pass names in main to ensure static initialization completed.
   cl::ParseCommandLineOptions(argc, argv, helpHeader);
@@ -201,8 +212,8 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
   if (showDialects) {
     llvm::outs() << "Available Dialects:\n";
     interleave(
-        registry, llvm::outs(),
-        [](auto &registryEntry) { llvm::outs() << registryEntry.first; }, "\n");
+        registry.getDialectNames(), llvm::outs(),
+        [](auto name) { llvm::outs() << name; }, "\n");
     return success();
   }
 
@@ -212,6 +223,23 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
   if (!file) {
     llvm::errs() << errorMessage << "\n";
     return failure();
+  }
+
+  // Parse reproducer options.
+  BumpPtrAllocator a;
+  StringSaver saver(a);
+  if (runRepro) {
+    auto pair = file->getBuffer().split('\n');
+    if (!pair.first.consume_front("// configuration:")) {
+      llvm::errs() << "Failed to find repro configuration, expect file to "
+                      "begin with '// configuration:'\n";
+      return failure();
+    }
+    // Tokenize & parse the first line.
+    SmallVector<const char *, 4> newArgv;
+    newArgv.push_back(argv[0]);
+    llvm::cl::TokenizeGNUCommandLine(pair.first, saver, newArgv);
+    cl::ParseCommandLineOptions(newArgv.size(), &newArgv[0], helpHeader);
   }
 
   auto output = openOutputFile(outputFilename, &errorMessage);

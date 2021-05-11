@@ -15,11 +15,13 @@
 using namespace llvm;
 
 EVT EVT::changeExtendedTypeToInteger() const {
+  assert(isExtended() && "Type is not extended!");
   LLVMContext &Context = LLVMTy->getContext();
   return getIntegerVT(Context, getSizeInBits());
 }
 
 EVT EVT::changeExtendedVectorElementTypeToInteger() const {
+  assert(isExtended() && "Type is not extended!");
   LLVMContext &Context = LLVMTy->getContext();
   EVT IntTy = getIntegerVT(Context, getScalarSizeInBits());
   return getVectorVT(Context, IntTy, getVectorNumElements(),
@@ -27,6 +29,7 @@ EVT EVT::changeExtendedVectorElementTypeToInteger() const {
 }
 
 EVT EVT::changeExtendedVectorElementType(EVT EltVT) const {
+  assert(isExtended() && "Type is not extended!");
   LLVMContext &Context = LLVMTy->getContext();
   return getVectorVT(Context, EltVT, getVectorElementCount());
 }
@@ -158,15 +161,17 @@ std::string EVT::getEVTString() const {
     if (isFloatingPoint())
       return "f" + utostr(getSizeInBits());
     llvm_unreachable("Invalid EVT!");
-  case MVT::bf16:    return "bf16";
-  case MVT::ppcf128: return "ppcf128";
-  case MVT::isVoid:  return "isVoid";
-  case MVT::Other:   return "ch";
-  case MVT::Glue:    return "glue";
-  case MVT::x86mmx:  return "x86mmx";
-  case MVT::Metadata:return "Metadata";
-  case MVT::Untyped: return "Untyped";
-  case MVT::exnref : return "exnref";
+  case MVT::bf16:      return "bf16";
+  case MVT::ppcf128:   return "ppcf128";
+  case MVT::isVoid:    return "isVoid";
+  case MVT::Other:     return "ch";
+  case MVT::Glue:      return "glue";
+  case MVT::x86mmx:    return "x86mmx";
+  case MVT::x86amx:    return "x86amx";
+  case MVT::Metadata:  return "Metadata";
+  case MVT::Untyped:   return "Untyped";
+  case MVT::funcref:   return "funcref";
+  case MVT::externref: return "externref";
   }
 }
 
@@ -193,6 +198,7 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
   case MVT::f128:    return Type::getFP128Ty(Context);
   case MVT::ppcf128: return Type::getPPC_FP128Ty(Context);
   case MVT::x86mmx:  return Type::getX86_MMXTy(Context);
+  case MVT::x86amx:  return Type::getX86_AMXTy(Context);
   case MVT::v1i1:
     return FixedVectorType::get(Type::getInt1Ty(Context), 1);
   case MVT::v2i1:
@@ -291,8 +297,16 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
     return FixedVectorType::get(Type::getInt64Ty(Context), 16);
   case MVT::v32i64:
     return FixedVectorType::get(Type::getInt64Ty(Context), 32);
+  case MVT::v64i64:
+    return FixedVectorType::get(Type::getInt64Ty(Context), 64);
+  case MVT::v128i64:
+    return FixedVectorType::get(Type::getInt64Ty(Context), 128);
+  case MVT::v256i64:
+    return FixedVectorType::get(Type::getInt64Ty(Context), 256);
   case MVT::v1i128:
     return FixedVectorType::get(Type::getInt128Ty(Context), 1);
+  case MVT::v1f16:
+    return FixedVectorType::get(Type::getHalfTy(Context), 1);
   case MVT::v2f16:
     return FixedVectorType::get(Type::getHalfTy(Context), 2);
   case MVT::v3f16:
@@ -365,6 +379,12 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
     return FixedVectorType::get(Type::getDoubleTy(Context), 16);
   case MVT::v32f64:
     return FixedVectorType::get(Type::getDoubleTy(Context), 32);
+  case MVT::v64f64:
+    return FixedVectorType::get(Type::getDoubleTy(Context), 64);
+  case MVT::v128f64:
+    return FixedVectorType::get(Type::getDoubleTy(Context), 128);
+  case MVT::v256f64:
+    return FixedVectorType::get(Type::getDoubleTy(Context), 256);
   case MVT::nxv1i1:
     return ScalableVectorType::get(Type::getInt1Ty(Context), 1);
   case MVT::nxv2i1:
@@ -441,6 +461,8 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
     return ScalableVectorType::get(Type::getHalfTy(Context), 16);
   case MVT::nxv32f16:
     return ScalableVectorType::get(Type::getHalfTy(Context), 32);
+  case MVT::nxv1bf16:
+    return ScalableVectorType::get(Type::getBFloatTy(Context), 1);
   case MVT::nxv2bf16:
     return ScalableVectorType::get(Type::getBFloatTy(Context), 2);
   case MVT::nxv4bf16:
@@ -487,6 +509,7 @@ MVT MVT::getVT(Type *Ty, bool HandleUnknown){
   case Type::DoubleTyID:    return MVT(MVT::f64);
   case Type::X86_FP80TyID:  return MVT(MVT::f80);
   case Type::X86_MMXTyID:   return MVT(MVT::x86mmx);
+  case Type::X86_AMXTyID:   return MVT(MVT::x86amx);
   case Type::FP128TyID:     return MVT(MVT::f128);
   case Type::PPC_FP128TyID: return MVT(MVT::ppcf128);
   case Type::PointerTyID:   return MVT(MVT::iPTR);

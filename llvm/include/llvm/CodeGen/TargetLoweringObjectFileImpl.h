@@ -14,6 +14,7 @@
 #ifndef LLVM_CODEGEN_TARGETLOWERINGOBJECTFILEIMPL_H
 #define LLVM_CODEGEN_TARGETLOWERINGOBJECTFILEIMPL_H
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 
@@ -21,6 +22,7 @@ namespace llvm {
 
 class GlobalValue;
 class MachineModuleInfo;
+class MachineFunction;
 class MCContext;
 class MCExpr;
 class MCSection;
@@ -31,17 +33,19 @@ class TargetMachine;
 class TargetLoweringObjectFileELF : public TargetLoweringObjectFile {
   bool UseInitArray = false;
   mutable unsigned NextUniqueID = 1;  // ID 0 is reserved for execute-only sections
+  SmallPtrSet<GlobalObject *, 2> Used;
 
 protected:
   MCSymbolRefExpr::VariantKind PLTRelativeVariantKind =
       MCSymbolRefExpr::VK_None;
-  const TargetMachine *TM = nullptr;
 
 public:
-  TargetLoweringObjectFileELF() = default;
+  TargetLoweringObjectFileELF();
   ~TargetLoweringObjectFileELF() override = default;
 
   void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
+
+  void getModuleMetadata(Module &M) override;
 
   /// Emit Obj-C garbage collection and linker options.
   void emitModuleMetadata(MCStreamer &Streamer, Module &M) const override;
@@ -63,11 +67,17 @@ public:
 
   MCSection *getSectionForJumpTable(const Function &F,
                                     const TargetMachine &TM) const override;
+  MCSection *getSectionForLSDA(const Function &F, const MCSymbol &FnSym,
+                               const TargetMachine &TM) const override;
 
   MCSection *
   getSectionForMachineBasicBlock(const Function &F,
                                  const MachineBasicBlock &MBB,
                                  const TargetMachine &TM) const override;
+
+  MCSection *
+  getUniqueSectionForFunction(const Function &F,
+                              const TargetMachine &TM) const override;
 
   bool shouldPutJumpTableInFunctionSection(bool UsesLabelDifference,
                                            const Function &F) const override;
@@ -94,6 +104,9 @@ public:
   const MCExpr *lowerRelativeReference(const GlobalValue *LHS,
                                        const GlobalValue *RHS,
                                        const TargetMachine &TM) const override;
+
+  const MCExpr *lowerDSOLocalEquivalent(const DSOLocalEquivalent *Equiv,
+                                        const TargetMachine &TM) const override;
 
   MCSection *getSectionForCommandLines() const override;
 };
@@ -214,6 +227,10 @@ class TargetLoweringObjectFileXCOFF : public TargetLoweringObjectFile {
 public:
   TargetLoweringObjectFileXCOFF() = default;
   ~TargetLoweringObjectFileXCOFF() override = default;
+
+  static bool ShouldEmitEHBlock(const MachineFunction *MF);
+
+  static MCSymbol *getEHInfoTableSymbol(const MachineFunction *MF);
 
   void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
 

@@ -280,8 +280,12 @@ SectionChunk *ObjFile::readSection(uint32_t sectionNumber,
     debugChunks.push_back(c);
   else if (name == ".gfids$y")
     guardFidChunks.push_back(c);
+  else if (name == ".giats$y")
+    guardIATChunks.push_back(c);
   else if (name == ".gljmp$y")
     guardLJmpChunks.push_back(c);
+  else if (name == ".gehcont$y")
+    guardEHContChunks.push_back(c);
   else if (name == ".sxdata")
     sxDataChunks.push_back(c);
   else if (config->tailMerge && sec->NumberOfRelocations == 0 &&

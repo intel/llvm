@@ -1,7 +1,7 @@
-; RUN: llc -fast-isel-sink-local-values -verify-machineinstrs -frame-pointer=all -enable-shrink-wrap=false < %s -mtriple=aarch64-apple-ios -disable-post-ra | FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-APPLE --check-prefix=CHECK-APPLE-AARCH64 %s
-; RUN: llc -fast-isel-sink-local-values -verify-machineinstrs -frame-pointer=all -O0 -fast-isel < %s -mtriple=aarch64-apple-ios -disable-post-ra | FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-O0 --check-prefix=CHECK-O0-AARCH64 %s
-; RUN: llc -fast-isel-sink-local-values -verify-machineinstrs -frame-pointer=all -enable-shrink-wrap=false < %s -mtriple=arm64_32-apple-ios -disable-post-ra | FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-APPLE --check-prefix=CHECK-APPLE-ARM64_32 %s
-; RUN: llc -fast-isel-sink-local-values -verify-machineinstrs -O0 -fast-isel < %s -mtriple=arm64_32-apple-ios -disable-post-ra | FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-O0 --check-prefix=CHECK-O0-ARM64_32 %s
+; RUN: llc -verify-machineinstrs -frame-pointer=all -enable-shrink-wrap=false < %s -mtriple=aarch64-apple-ios -disable-post-ra | FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-APPLE --check-prefix=CHECK-APPLE-AARCH64 %s
+; RUN: llc -verify-machineinstrs -frame-pointer=all -O0 -fast-isel < %s -mtriple=aarch64-apple-ios -disable-post-ra | FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-O0 --check-prefix=CHECK-O0-AARCH64 %s
+; RUN: llc -verify-machineinstrs -frame-pointer=all -enable-shrink-wrap=false < %s -mtriple=arm64_32-apple-ios -disable-post-ra | FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-APPLE --check-prefix=CHECK-APPLE-ARM64_32 %s
+; RUN: llc -verify-machineinstrs -O0 -fast-isel < %s -mtriple=arm64_32-apple-ios -disable-post-ra | FileCheck -allow-deprecated-dag-overlap --check-prefix=CHECK-O0 --check-prefix=CHECK-O0-ARM64_32 %s
 
 declare i8* @malloc(i64)
 declare void @free(i8*)
@@ -243,7 +243,7 @@ bb_end:
 
 ; "foo_sret" is a function that takes a swifterror parameter, it also has a sret
 ; parameter.
-define void @foo_sret(%struct.S* sret %agg.result, i32 %val1, %swift_error** swifterror %error_ptr_ref) {
+define void @foo_sret(%struct.S* sret(%struct.S) %agg.result, i32 %val1, %swift_error** swifterror %error_ptr_ref) {
 ; CHECK-APPLE-LABEL: foo_sret:
 ; CHECK-APPLE: mov [[SRET:x[0-9]+]], x8
 ; CHECK-APPLE: mov w0, #16
@@ -309,7 +309,7 @@ entry:
   %s = alloca %struct.S, align 8
   %error_ptr_ref = alloca swifterror %swift_error*
   store %swift_error* null, %swift_error** %error_ptr_ref
-  call void @foo_sret(%struct.S* sret %s, i32 1, %swift_error** swifterror %error_ptr_ref)
+  call void @foo_sret(%struct.S* sret(%struct.S) %s, i32 1, %swift_error** swifterror %error_ptr_ref)
   %error_from_foo = load %swift_error*, %swift_error** %error_ptr_ref
   %had_error_from_foo = icmp ne %swift_error* %error_from_foo, null
   %tmp = bitcast %swift_error* %error_from_foo to i8*

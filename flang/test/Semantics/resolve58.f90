@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 subroutine s1(x, y)
   !ERROR: Array pointer 'x' must have deferred shape or assumed rank
   real, pointer :: x(1:)  ! C832
@@ -30,7 +30,7 @@ subroutine s3(a, b)
   real :: b(*,*)  ! C836
   !ERROR: Implied-shape array 'c' must be a named constant
   real :: c(*)  ! C836
-  !ERROR: Named constant 'd' array must have explicit or implied shape
+  !ERROR: Named constant 'd' array must have constant or implied shape
   integer, parameter :: d(:) = [1, 2, 3]
 end
 

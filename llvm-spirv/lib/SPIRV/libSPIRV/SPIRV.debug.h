@@ -6,6 +6,7 @@
 namespace SPIRVDebug {
 
 const unsigned int DebugInfoVersion = 0x00010000;
+static const std::string ChecksumKindPrefx = {"//__CSK_"};
 
 // clang-format off
 
@@ -50,8 +51,8 @@ enum Instruction {
 };
 
 enum Flag {
-  FlagIsPrivate           = 1 << 0,
-  FlagIsProtected         = 1 << 1,
+  FlagIsProtected         = 1 << 0,
+  FlagIsPrivate           = 1 << 1,
   FlagIsPublic            = FlagIsPrivate | FlagIsProtected,
   FlagAccess              = FlagIsPublic,
   FlagIsLocal             = 1 << 2,

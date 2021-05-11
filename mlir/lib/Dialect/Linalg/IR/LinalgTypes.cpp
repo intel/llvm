@@ -12,9 +12,9 @@
 
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -36,12 +36,12 @@ struct LinalgInlinerInterface : public DialectInlinerInterface {
 
   // We don't have any special restrictions on what can be inlined into
   // destination regions (e.g. while/conditional bodies). Always allow it.
-  bool isLegalToInline(Region *dest, Region *src,
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
                        BlockAndValueMapping &valueMapping) const final {
     return true;
   }
   // Operations in Linalg dialect are always legal to inline.
-  bool isLegalToInline(Operation *, Region *,
+  bool isLegalToInline(Operation *, Region *, bool,
                        BlockAndValueMapping &) const final {
     return true;
   }
@@ -57,9 +57,39 @@ struct LinalgInlinerInterface : public DialectInlinerInterface {
 // LinalgDialect
 //===----------------------------------------------------------------------===//
 
-void mlir::linalg::LinalgDialect::initialize() {
-  getContext()->getOrLoadDialect("std");
+/// Trait to check if T provides a `regionBuilder` method.
+template <typename T, typename... Args>
+using has_region_builder = decltype(T::regionBuilder);
+template <typename T>
+using detect_has_region_builder = llvm::is_detected<has_region_builder, T>;
 
+/// SFINAE helper for single C++ class without a `regionBuilder` method (e.g.
+/// an OpInterface).
+template <typename OpType, typename = std::enable_if_t<
+                               !detect_has_region_builder<OpType>::value>>
+void addNamedOpBuilderImpl(
+    llvm::StringMap<LinalgDialect::RegionBuilderFunType> &map) {
+  // Do nothing.
+}
+
+template <typename OpType,
+          typename = std::enable_if_t<detect_has_region_builder<OpType>::value>,
+          typename = void>
+void addNamedOpBuilderImpl(
+    llvm::StringMap<LinalgDialect::RegionBuilderFunType> &map) {
+  map.insert(std::make_pair(
+      OpType::getOperationName(),
+      static_cast<LinalgDialect::RegionBuilderFunType>(OpType::regionBuilder)));
+}
+
+template <typename... OpTypes>
+void addNamedOpBuilders(
+    llvm::StringMap<LinalgDialect::RegionBuilderFunType> &map) {
+  (void)std::initializer_list<int>{0,
+                                   (addNamedOpBuilderImpl<OpTypes>(map), 0)...};
+}
+
+void mlir::linalg::LinalgDialect::initialize() {
   addTypes<RangeType>();
   addOperations<
 #define GET_OP_LIST
@@ -69,6 +99,16 @@ void mlir::linalg::LinalgDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
       >();
+  addOperations<
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgSparseOps.cpp.inc"
+      >();
+
+  // Fill the Linalg-specific OpName to RegionBuilder map.
+  addNamedOpBuilders<
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
+      >(namedStructuredOpRegionBuilders);
 
   addInterfaces<LinalgInlinerInterface>();
 }

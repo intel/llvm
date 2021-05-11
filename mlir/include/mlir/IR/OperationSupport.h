@@ -28,8 +28,14 @@
 #include "llvm/Support/TrailingObjects.h"
 #include <memory>
 
+namespace llvm {
+class BitVector;
+} // end namespace llvm
+
 namespace mlir {
 class Dialect;
+class DictionaryAttr;
+class ElementsAttr;
 class Operation;
 struct OperationState;
 class OpAsmParser;
@@ -45,32 +51,15 @@ class RewritePattern;
 class Type;
 class Value;
 class ValueRange;
-template <typename ValueRangeT> class ValueTypeRange;
+template <typename ValueRangeT>
+class ValueTypeRange;
 
-class OwningRewritePatternList;
+class RewritePatternSet;
+using OwningRewritePatternList = RewritePatternSet;
 
 //===----------------------------------------------------------------------===//
 // AbstractOperation
 //===----------------------------------------------------------------------===//
-
-enum class OperationProperty {
-  /// This bit is set for an operation if it is a commutative
-  /// operation: that is an operator where order of operands does not
-  /// change the result of the operation.  For example, in a binary
-  /// commutative operation, "a op b" and "b op a" produce the same
-  /// results.
-  Commutative = 0x1,
-
-  /// This bit is set for an operation if it is a terminator: that means
-  /// an operation at the end of a block.
-  Terminator = 0x2,
-
-  /// This bit is set for operations that are completely isolated from above.
-  /// This is used for operations whose regions are explicit capture only, i.e.
-  /// they are never allowed to implicitly reference values defined above the
-  /// parent operation.
-  IsolatedFromAbove = 0x4,
-};
 
 /// This is a "type erased" representation of a registered operation.  This
 /// should only be used by things like the AsmPrinter and other things that need
@@ -78,7 +67,14 @@ enum class OperationProperty {
 /// the concrete operation types.
 class AbstractOperation {
 public:
-  using OperationProperties = uint32_t;
+  using GetCanonicalizationPatternsFn = void (*)(RewritePatternSet &,
+                                                 MLIRContext *);
+  using FoldHookFn = LogicalResult (*)(Operation *, ArrayRef<Attribute>,
+                                       SmallVectorImpl<OpFoldResult> &);
+  using HasTraitFn = bool (*)(TypeID);
+  using ParseAssemblyFn = ParseResult (*)(OpAsmParser &, OperationState &);
+  using PrintAssemblyFn = void (*)(Operation *, OpAsmPrinter &);
+  using VerifyInvariantsFn = LogicalResult (*)(Operation *);
 
   /// This is the name of the operation.
   const Identifier name;
@@ -90,15 +86,22 @@ public:
   TypeID typeID;
 
   /// Use the specified object to parse this ops custom assembly format.
-  ParseResult (&parseAssembly)(OpAsmParser &parser, OperationState &result);
+  ParseResult parseAssembly(OpAsmParser &parser, OperationState &result) const;
+
+  /// Return the static hook for parsing this operation assembly.
+  ParseAssemblyFn getParseAssemblyFn() const { return parseAssemblyFn; }
 
   /// This hook implements the AsmPrinter for this operation.
-  void (&printAssembly)(Operation *op, OpAsmPrinter &p);
+  void printAssembly(Operation *op, OpAsmPrinter &p) const {
+    return printAssemblyFn(op, p);
+  }
 
   /// This hook implements the verifier for this operation.  It should emits an
   /// error message and returns failure if a problem is detected, or returns
   /// success if everything is ok.
-  LogicalResult (&verifyInvariants)(Operation *op);
+  LogicalResult verifyInvariants(Operation *op) const {
+    return verifyInvariantsFn(op);
+  }
 
   /// This hook implements a generalized folder for this operation.  Operations
   /// can implement this to provide simplifications rules that are applied by
@@ -119,30 +122,39 @@ public:
   /// This allows expression of some simple in-place canonicalizations (e.g.
   /// "x+0 -> x", "min(x,y,x,z) -> min(x,y,z)", "x+y-x -> y", etc), as well as
   /// generalized constant folding.
-  LogicalResult (&foldHook)(Operation *op, ArrayRef<Attribute> operands,
-                            SmallVectorImpl<OpFoldResult> &results);
+  LogicalResult foldHook(Operation *op, ArrayRef<Attribute> operands,
+                         SmallVectorImpl<OpFoldResult> &results) const {
+    return foldHookFn(op, operands, results);
+  }
 
   /// This hook returns any canonicalization pattern rewrites that the operation
   /// supports, for use by the canonicalization pass.
-  void (&getCanonicalizationPatterns)(OwningRewritePatternList &results,
-                                      MLIRContext *context);
-
-  /// Returns whether the operation has a particular property.
-  bool hasProperty(OperationProperty property) const {
-    return opProperties & static_cast<OperationProperties>(property);
+  void getCanonicalizationPatterns(RewritePatternSet &results,
+                                   MLIRContext *context) const {
+    return getCanonicalizationPatternsFn(results, context);
   }
 
   /// Returns an instance of the concept object for the given interface if it
   /// was registered to this operation, null otherwise. This should not be used
   /// directly.
-  template <typename T> typename T::Concept *getInterface() const {
+  template <typename T>
+  typename T::Concept *getInterface() const {
     return interfaceMap.lookup<T>();
   }
 
-  /// Returns true if the operation has a particular trait.
-  template <template <typename T> class Trait> bool hasTrait() const {
-    return hasRawTrait(TypeID::get<Trait>());
+  /// Returns true if this operation has the given interface registered to it.
+  bool hasInterface(TypeID interfaceID) const {
+    return interfaceMap.contains(interfaceID);
   }
+
+  /// Returns true if the operation has a particular trait.
+  template <template <typename T> class Trait>
+  bool hasTrait() const {
+    return hasTraitFn(TypeID::get<Trait>());
+  }
+
+  /// Returns true if the operation has a particular trait.
+  bool hasTrait(TypeID traitID) const { return hasTraitFn(traitID); }
 
   /// Look up the specified operation in the specified MLIRContext and return a
   /// pointer to it if present.  Otherwise, return a null pointer.
@@ -151,36 +163,43 @@ public:
 
   /// This constructor is used by Dialect objects when they register the list of
   /// operations they contain.
-  template <typename T> static AbstractOperation get(Dialect &dialect) {
-    return AbstractOperation(
-        T::getOperationName(), dialect, T::getOperationProperties(),
-        TypeID::get<T>(), T::parseAssembly, T::printAssembly,
-        T::verifyInvariants, T::foldHook, T::getCanonicalizationPatterns,
-        T::getInterfaceMap(), T::hasTrait);
+  template <typename T>
+  static void insert(Dialect &dialect) {
+    insert(T::getOperationName(), dialect, TypeID::get<T>(),
+           T::getParseAssemblyFn(), T::getPrintAssemblyFn(),
+           T::getVerifyInvariantsFn(), T::getFoldHookFn(),
+           T::getGetCanonicalizationPatternsFn(), T::getInterfaceMap(),
+           T::getHasTraitFn());
   }
 
-private:
-  AbstractOperation(
-      StringRef name, Dialect &dialect, OperationProperties opProperties,
-      TypeID typeID,
-      ParseResult (&parseAssembly)(OpAsmParser &parser, OperationState &result),
-      void (&printAssembly)(Operation *op, OpAsmPrinter &p),
-      LogicalResult (&verifyInvariants)(Operation *op),
-      LogicalResult (&foldHook)(Operation *op, ArrayRef<Attribute> operands,
-                                SmallVectorImpl<OpFoldResult> &results),
-      void (&getCanonicalizationPatterns)(OwningRewritePatternList &results,
-                                          MLIRContext *context),
-      detail::InterfaceMap &&interfaceMap, bool (&hasTrait)(TypeID traitID));
+  /// Register a new operation in a Dialect object.
+  /// The use of this method is in general discouraged in favor of
+  /// 'insert<CustomOp>(dialect)'.
+  static void insert(StringRef name, Dialect &dialect, TypeID typeID,
+                     ParseAssemblyFn parseAssembly,
+                     PrintAssemblyFn printAssembly,
+                     VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
+                     GetCanonicalizationPatternsFn getCanonicalizationPatterns,
+                     detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait);
 
-  /// The properties of the operation.
-  const OperationProperties opProperties;
+private:
+  AbstractOperation(StringRef name, Dialect &dialect, TypeID typeID,
+                    ParseAssemblyFn parseAssembly,
+                    PrintAssemblyFn printAssembly,
+                    VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
+                    GetCanonicalizationPatternsFn getCanonicalizationPatterns,
+                    detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait);
 
   /// A map of interfaces that were registered to this operation.
   detail::InterfaceMap interfaceMap;
 
-  /// This hook returns if the operation contains the trait corresponding
-  /// to the given TypeID.
-  bool (&hasRawTrait)(TypeID traitID);
+  /// Internal callback hooks provided by the op implementation.
+  FoldHookFn foldHookFn;
+  GetCanonicalizationPatternsFn getCanonicalizationPatternsFn;
+  HasTraitFn hasTraitFn;
+  ParseAssemblyFn parseAssemblyFn;
+  PrintAssemblyFn printAssemblyFn;
+  VerifyInvariantsFn verifyInvariantsFn;
 };
 
 //===----------------------------------------------------------------------===//
@@ -198,6 +217,7 @@ public:
 
   NamedAttrList() : dictionarySorted({}, true) {}
   NamedAttrList(ArrayRef<NamedAttribute> attributes);
+  NamedAttrList(DictionaryAttr attributes);
   NamedAttrList(const_iterator in_start, const_iterator in_end);
 
   bool operator!=(const NamedAttrList &other) const {
@@ -211,13 +231,27 @@ public:
   void append(StringRef name, Attribute attr);
 
   /// Add an attribute with the specified name.
-  void append(Identifier name, Attribute attr);
+  void append(Identifier name, Attribute attr) {
+    append(NamedAttribute(name, attr));
+  }
+
+  /// Append the given named attribute.
+  void append(NamedAttribute attr) { push_back(attr); }
 
   /// Add an array of named attributes.
-  void append(ArrayRef<NamedAttribute> newAttributes);
+  template <typename RangeT>
+  void append(RangeT &&newAttributes) {
+    append(std::begin(newAttributes), std::end(newAttributes));
+  }
 
   /// Add a range of named attributes.
-  void append(const_iterator in_start, const_iterator in_end);
+  template <typename IteratorT>
+  void append(IteratorT in_start, IteratorT in_end) {
+    // TODO: expand to handle case where values appended are in order & after
+    // end of current list.
+    dictionarySorted.setPointerAndInt(nullptr, false);
+    attrs.append(in_start, in_end);
+  }
 
   /// Replaces the attributes with new list of attributes.
   void assign(const_iterator in_start, const_iterator in_end);
@@ -237,6 +271,10 @@ public:
   /// Pop last element from list.
   void pop_back() { attrs.pop_back(); }
 
+  /// Returns an entry with a duplicate name the list, if it exists, else
+  /// returns llvm::None.
+  Optional<NamedAttribute> findDuplicate() const;
+
   /// Return a dictionary attribute for the underlying dictionary. This will
   /// return an empty dictionary attribute if empty rather than null.
   DictionaryAttr getDictionary(MLIRContext *context) const;
@@ -253,20 +291,30 @@ public:
   Optional<NamedAttribute> getNamed(Identifier name) const;
 
   /// If the an attribute exists with the specified name, change it to the new
-  /// value.  Otherwise, add a new attribute with the specified name/value.
-  void set(Identifier name, Attribute value);
-  void set(StringRef name, Attribute value);
+  /// value. Otherwise, add a new attribute with the specified name/value.
+  /// Returns the previous attribute value of `name`, or null if no
+  /// attribute previously existed with `name`.
+  Attribute set(Identifier name, Attribute value);
+  Attribute set(StringRef name, Attribute value);
+
+  /// Erase the attribute with the given name from the list. Return the
+  /// attribute that was erased, or nullptr if there was no attribute with such
+  /// name.
+  Attribute erase(Identifier name);
+  Attribute erase(StringRef name);
 
   const_iterator begin() const { return attrs.begin(); }
   const_iterator end() const { return attrs.end(); }
 
   NamedAttrList &operator=(const SmallVectorImpl<NamedAttribute> &rhs);
   operator ArrayRef<NamedAttribute>() const;
-  operator MutableDictionaryAttr() const;
 
 private:
   /// Return whether the attributes are sorted.
   bool isSorted() const { return dictionarySorted.getInt(); }
+
+  /// Erase the attribute at the given iterator position.
+  Attribute eraseImpl(SmallVectorImpl<NamedAttribute>::iterator it);
 
   // These are marked mutable as they may be modified (e.g., sorted)
   mutable SmallVector<NamedAttribute, 4> attrs;
@@ -290,7 +338,15 @@ public:
   OperationName(StringRef name, MLIRContext *context);
 
   /// Return the name of the dialect this operation is registered to.
-  StringRef getDialect() const;
+  StringRef getDialectNamespace() const;
+
+  /// Return the Dialect this operation is registered to if it is loaded in the
+  /// context, or nullptr if the dialect isn't loaded.
+  Dialect *getDialect() const {
+    if (const auto *abstractOp = getAbstractOperation())
+      return &abstractOp->dialect;
+    return representation.get<Identifier>().getDialect();
+  }
 
   /// Return the operation name with dialect name stripped, if it has one.
   StringRef stripDialect() const;
@@ -303,7 +359,9 @@ public:
 
   /// If this operation has a registered operation description, return it.
   /// Otherwise return null.
-  const AbstractOperation *getAbstractOperation() const;
+  const AbstractOperation *getAbstractOperation() const {
+    return representation.dyn_cast<const AbstractOperation *>();
+  }
 
   void print(raw_ostream &os) const;
   void dump() const;
@@ -311,7 +369,7 @@ public:
   void *getAsOpaquePointer() const {
     return static_cast<void *>(representation.getOpaqueValue());
   }
-  static OperationName getFromOpaquePointer(void *pointer);
+  static OperationName getFromOpaquePointer(const void *pointer);
 
 private:
   RepresentationUnion representation;
@@ -461,6 +519,10 @@ public:
   /// Erase the operands held by the storage within the given range.
   void eraseOperands(unsigned start, unsigned length);
 
+  /// Erase the operands held by the storage that have their corresponding bit
+  /// set in `eraseIndices`.
+  void eraseOperands(const llvm::BitVector &eraseIndices);
+
   /// Get the operation operands held by the storage.
   MutableArrayRef<OpOperand> getOperands() {
     return getStorage().getOperands();
@@ -522,36 +584,6 @@ private:
 } // end namespace detail
 
 //===----------------------------------------------------------------------===//
-// ResultStorage
-//===----------------------------------------------------------------------===//
-
-namespace detail {
-/// This class provides the implementation for an in-line operation result. This
-/// is an operation result whose number can be stored inline inside of the bits
-/// of an Operation*.
-struct InLineOpResult : public IRObjectWithUseList<OpOperand> {};
-/// This class provides the implementation for an out-of-line operation result.
-/// This is an operation result whose number cannot be stored inline inside of
-/// the bits of an Operation*.
-struct TrailingOpResult : public IRObjectWithUseList<OpOperand> {
-  TrailingOpResult(uint64_t trailingResultNumber)
-      : trailingResultNumber(trailingResultNumber) {}
-
-  /// Returns the parent operation of this trailing result.
-  Operation *getOwner();
-
-  /// Return the proper result number of this op result.
-  unsigned getResultNumber() {
-    return trailingResultNumber + OpResult::getMaxInlineResults();
-  }
-
-  /// The trailing result number, or the offset from the beginning of the
-  /// trailing array.
-  uint64_t trailingResultNumber;
-};
-} // end namespace detail
-
-//===----------------------------------------------------------------------===//
 // OpPrintingFlags
 //===----------------------------------------------------------------------===//
 
@@ -562,10 +594,10 @@ public:
   OpPrintingFlags();
   OpPrintingFlags(llvm::NoneType) : OpPrintingFlags() {}
 
-  /// Enable the elision of large elements attributes, by printing a '...'
-  /// instead of the element data. Note: The IR generated with this option is
-  /// not parsable. `largeElementLimit` is used to configure what is considered
-  /// to be a "large" ElementsAttr by providing an upper limit to the number of
+  /// Enables the elision of large elements attributes by printing a lexically
+  /// valid but otherwise meaningless form instead of the element data. The
+  /// `largeElementLimit` is used to configure what is considered to be a
+  /// "large" ElementsAttr by providing an upper limit to the number of
   /// elements.
   OpPrintingFlags &elideLargeElementsAttrs(int64_t largeElementLimit = 16);
 
@@ -723,53 +755,35 @@ private:
 
 /// This class implements the result iterators for the Operation class.
 class ResultRange final
-    : public llvm::indexed_accessor_range<ResultRange, Operation *, OpResult,
-                                          OpResult, OpResult> {
+    : public llvm::detail::indexed_accessor_range_base<
+          ResultRange, detail::OpResultImpl *, OpResult, OpResult, OpResult> {
 public:
-  using indexed_accessor_range<ResultRange, Operation *, OpResult, OpResult,
-                               OpResult>::indexed_accessor_range;
-  ResultRange(Operation *op);
+  using RangeBaseT::RangeBaseT;
 
   /// Returns the types of the values within this range.
-  using type_iterator = ArrayRef<Type>::iterator;
-  using type_range = ArrayRef<Type>;
-  type_range getTypes() const;
+  using type_iterator = ValueTypeIterator<iterator>;
+  using type_range = ValueTypeRange<ResultRange>;
+  type_range getTypes() const { return {begin(), end()}; }
   auto getType() const { return getTypes(); }
 
 private:
-  /// See `llvm::indexed_accessor_range` for details.
-  static OpResult dereference(Operation *op, ptrdiff_t index);
+  /// See `llvm::detail::indexed_accessor_range_base` for details.
+  static detail::OpResultImpl *offset_base(detail::OpResultImpl *object,
+                                           ptrdiff_t index) {
+    return object->getNextResultAtOffset(index);
+  }
+  /// See `llvm::detail::indexed_accessor_range_base` for details.
+  static OpResult dereference_iterator(detail::OpResultImpl *object,
+                                       ptrdiff_t index) {
+    return offset_base(object, index);
+  }
 
-  /// Allow access to `dereference_iterator`.
-  friend llvm::indexed_accessor_range<ResultRange, Operation *, OpResult,
-                                      OpResult, OpResult>;
+  /// Allow access to `offset_base` and `dereference_iterator`.
+  friend RangeBaseT;
 };
 
 //===----------------------------------------------------------------------===//
 // ValueRange
-
-namespace detail {
-/// The type representing the owner of a ValueRange. This is either a list of
-/// values, operands, or an Operation+start index for results.
-struct ValueRangeOwner {
-  ValueRangeOwner(const Value *owner) : ptr(owner), startIndex(0) {}
-  ValueRangeOwner(OpOperand *owner) : ptr(owner), startIndex(0) {}
-  ValueRangeOwner(Operation *owner, unsigned startIndex)
-      : ptr(owner), startIndex(startIndex) {}
-  bool operator==(const ValueRangeOwner &rhs) const { return ptr == rhs.ptr; }
-
-  /// The owner pointer of the range. The owner has represents three distinct
-  /// states:
-  /// const Value *: The owner is the base to a contiguous array of Value.
-  /// OpOperand *  : The owner is the base to a contiguous array of operands.
-  /// void*        : This owner is an Operation*. It is marked as void* here
-  ///                because the definition of Operation is not visible here.
-  PointerUnion<const Value *, OpOperand *, void *> ptr;
-
-  /// Ths start index into the range. This is only used for Operation* owners.
-  unsigned startIndex;
-};
-} // end namespace detail
 
 /// This class provides an abstraction over the different types of ranges over
 /// Values. In many cases, this prevents the need to explicitly materialize a
@@ -778,8 +792,15 @@ struct ValueRangeOwner {
 /// parameter.
 class ValueRange final
     : public llvm::detail::indexed_accessor_range_base<
-          ValueRange, detail::ValueRangeOwner, Value, Value, Value> {
+          ValueRange,
+          PointerUnion<const Value *, OpOperand *, detail::OpResultImpl *>,
+          Value, Value, Value> {
 public:
+  /// The type representing the owner of a ValueRange. This is either a list of
+  /// values, operands, or results.
+  using OwnerT =
+      PointerUnion<const Value *, OpOperand *, detail::OpResultImpl *>;
+
   using RangeBaseT::RangeBaseT;
 
   template <typename Arg,
@@ -807,8 +828,6 @@ public:
   auto getType() const { return getTypes(); }
 
 private:
-  using OwnerT = detail::ValueRangeOwner;
-
   /// See `llvm::detail::indexed_accessor_range_base` for details.
   static OwnerT offset_base(const OwnerT &owner, ptrdiff_t index);
   /// See `llvm::detail::indexed_accessor_range_base` for details.
@@ -852,7 +871,8 @@ LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 namespace llvm {
 // Identifiers hash just like pointers, there is no need to hash the bytes.
-template <> struct DenseMapInfo<mlir::OperationName> {
+template <>
+struct DenseMapInfo<mlir::OperationName> {
   static mlir::OperationName getEmptyKey() {
     auto pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::OperationName::getFromOpaquePointer(pointer);
@@ -872,7 +892,8 @@ template <> struct DenseMapInfo<mlir::OperationName> {
 /// The pointer inside of an identifier comes from a StringMap, so its alignment
 /// is always at least 4 and probably 8 (on 64-bit machines).  Allow LLVM to
 /// steal the low bits.
-template <> struct PointerLikeTypeTraits<mlir::OperationName> {
+template <>
+struct PointerLikeTypeTraits<mlir::OperationName> {
 public:
   static inline void *getAsVoidPointer(mlir::OperationName I) {
     return const_cast<void *>(I.getAsOpaquePointer());

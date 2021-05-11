@@ -19,7 +19,6 @@ template <typename T = void> struct minimum {
   }
 };
 
-#if __cplusplus >= 201402L
 template <> struct minimum<void> {
   struct is_transparent {};
   template <typename T, typename U>
@@ -30,7 +29,6 @@ template <> struct minimum<void> {
                : std::forward<U>(rhs);
   }
 };
-#endif
 
 template <typename T = void> struct maximum {
   T operator()(const T &lhs, const T &rhs) const {
@@ -38,7 +36,6 @@ template <typename T = void> struct maximum {
   }
 };
 
-#if __cplusplus >= 201402L
 template <> struct maximum<void> {
   struct is_transparent {};
   template <typename T, typename U>
@@ -50,7 +47,6 @@ template <> struct maximum<void> {
                : std::forward<U>(rhs);
   }
 };
-#endif
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;

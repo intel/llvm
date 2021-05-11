@@ -12,6 +12,7 @@
 #include "semantics.h"
 #include "flang/Common/Fortran.h"
 #include "flang/Common/indirection.h"
+#include "flang/Common/restorer.h"
 #include "flang/Evaluate/characteristics.h"
 #include "flang/Evaluate/check-expression.h"
 #include "flang/Evaluate/expression.h"
@@ -73,14 +74,13 @@ struct SetExprHelper {
     x.Reset(new GenericExprWrapper{std::move(expr_)},
         evaluate::GenericExprWrapper::Deleter);
   }
-  void Set(const parser::Expr &x) { Set(x.typedExpr); }
-  void Set(const parser::Variable &x) { Set(x.typedExpr); }
-  void Set(const parser::DataStmtConstant &x) { Set(x.typedExpr); }
   template <typename T> void Set(const common::Indirection<T> &x) {
     Set(x.value());
   }
   template <typename T> void Set(const T &x) {
-    if constexpr (ConstraintTrait<T>) {
+    if constexpr (parser::HasTypedExpr<T>::value) {
+      Set(x.typedExpr);
+    } else if constexpr (ConstraintTrait<T>) {
       Set(x.thing);
     } else if constexpr (WrapperTrait<T>) {
       Set(x.v);
@@ -139,6 +139,16 @@ public:
   // its INTEGER kind type parameter.
   std::optional<int> IsImpliedDo(parser::CharBlock) const;
 
+  // Allows a whole assumed-size array to appear for the lifetime of
+  // the returned value.
+  common::Restorer<bool> AllowWholeAssumedSizeArray() {
+    return common::ScopedSet(isWholeAssumedSizeArrayOk_, true);
+  }
+
+  common::Restorer<bool> DoNotUseSavedTypedExprs() {
+    return common::ScopedSet(useSavedTypedExprs_, false);
+  }
+
   Expr<SubscriptInteger> AnalyzeKindSelector(common::TypeCategory category,
       const std::optional<parser::KindSelector> &);
 
@@ -146,6 +156,8 @@ public:
   MaybeExpr Analyze(const parser::Variable &);
   MaybeExpr Analyze(const parser::Designator &);
   MaybeExpr Analyze(const parser::DataStmtValue &);
+  MaybeExpr Analyze(const parser::AllocateObject &);
+  MaybeExpr Analyze(const parser::PointerObject &);
 
   template <typename A> MaybeExpr Analyze(const common::Indirection<A> &x) {
     return Analyze(x.value());
@@ -226,6 +238,7 @@ public:
   MaybeExpr Analyze(const parser::SignedComplexLiteralConstant &);
   MaybeExpr Analyze(const parser::StructureConstructor &);
   MaybeExpr Analyze(const parser::InitialDataTarget &);
+  MaybeExpr Analyze(const parser::NullInit &);
 
   void Analyze(const parser::CallStmt &);
   const Assignment *Analyze(const parser::AssignmentStmt &);
@@ -244,7 +257,6 @@ private:
   MaybeExpr Analyze(const parser::HollerithLiteralConstant &);
   MaybeExpr Analyze(const parser::BOZLiteralConstant &);
   MaybeExpr Analyze(const parser::NamedConstant &);
-  MaybeExpr Analyze(const parser::NullInit &);
   MaybeExpr Analyze(const parser::DataStmtConstant &);
   MaybeExpr Analyze(const parser::Substring &);
   MaybeExpr Analyze(const parser::ArrayElement &);
@@ -315,7 +327,8 @@ private:
   // Analysis subroutines
   int AnalyzeKindParam(
       const std::optional<parser::KindParam> &, int defaultKind);
-  template <typename PARSED> MaybeExpr ExprOrVariable(const PARSED &);
+  template <typename PARSED>
+  MaybeExpr ExprOrVariable(const PARSED &, parser::CharBlock source);
   template <typename PARSED> MaybeExpr IntLiteralConstant(const PARSED &);
   MaybeExpr AnalyzeString(std::string &&, int kind);
   std::optional<Expr<SubscriptInteger>> AsSubscript(MaybeExpr &&);
@@ -351,13 +364,15 @@ private:
   const Symbol *ResolveGeneric(const Symbol &, const ActualArguments &,
       const AdjustActuals &, bool mightBeStructureConstructor = false);
   void EmitGenericResolutionError(const Symbol &);
+  const Symbol &AccessSpecific(
+      const Symbol &originalGeneric, const Symbol &specific);
   std::optional<CalleeAndArguments> GetCalleeAndArguments(const parser::Name &,
       ActualArguments &&, bool isSubroutine = false,
       bool mightBeStructureConstructor = false);
   std::optional<CalleeAndArguments> GetCalleeAndArguments(
       const parser::ProcedureDesignator &, ActualArguments &&,
       bool isSubroutine, bool mightBeStructureConstructor = false);
-
+  void CheckBadExplicitType(const SpecificCall &, const Symbol &);
   void CheckForBadRecursion(parser::CharBlock, const semantics::Symbol &);
   bool EnforceTypeConstraint(parser::CharBlock, const MaybeExpr &, TypeCategory,
       bool defaultKind = false);
@@ -371,7 +386,8 @@ private:
   semantics::SemanticsContext &context_;
   FoldingContext &foldingContext_{context_.foldingContext()};
   std::map<parser::CharBlock, int> impliedDos_; // values are INTEGER kinds
-  bool fatalErrors_{false};
+  bool isWholeAssumedSizeArrayOk_{false};
+  bool useSavedTypedExprs_{true};
   friend class ArgumentAnalyzer;
 };
 
@@ -433,6 +449,14 @@ public:
     return false;
   }
   bool Pre(const parser::DataStmtValue &x) {
+    exprAnalyzer_.Analyze(x);
+    return false;
+  }
+  bool Pre(const parser::AllocateObject &x) {
+    exprAnalyzer_.Analyze(x);
+    return false;
+  }
+  bool Pre(const parser::PointerObject &x) {
     exprAnalyzer_.Analyze(x);
     return false;
   }

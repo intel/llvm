@@ -324,9 +324,7 @@ static const IntrinsicData IntrinsicsWithChain[] = {
  * Find Intrinsic data by intrinsic ID
  */
 static const IntrinsicData* getIntrinsicWithChain(unsigned IntNo) {
-  const IntrinsicData *Data =  std::lower_bound(std::begin(IntrinsicsWithChain),
-                                                std::end(IntrinsicsWithChain),
-                                                IntNo);
+  const IntrinsicData *Data = lower_bound(IntrinsicsWithChain, IntNo);
   if (Data != std::end(IntrinsicsWithChain) && Data->Id == IntNo)
     return Data;
   return nullptr;
@@ -1108,8 +1106,8 @@ static const IntrinsicData  IntrinsicsWithoutChain[] = {
   X86_INTRINSIC_DATA(ssse3_pshuf_b_128, INTR_TYPE_2OP, X86ISD::PSHUFB, 0),
   X86_INTRINSIC_DATA(subborrow_32,      ADX, X86ISD::SBB, X86ISD::SUB),
   X86_INTRINSIC_DATA(subborrow_64,      ADX, X86ISD::SBB, X86ISD::SUB),
-  X86_INTRINSIC_DATA(tbm_bextri_u32,    BEXTRI, X86ISD::BEXTR, 0),
-  X86_INTRINSIC_DATA(tbm_bextri_u64,    BEXTRI, X86ISD::BEXTR, 0),
+  X86_INTRINSIC_DATA(tbm_bextri_u32,    BEXTRI, X86ISD::BEXTRI, 0),
+  X86_INTRINSIC_DATA(tbm_bextri_u64,    BEXTRI, X86ISD::BEXTRI, 0),
   X86_INTRINSIC_DATA(vcvtps2ph_128,     INTR_TYPE_2OP, X86ISD::CVTPS2PH, 0),
   X86_INTRINSIC_DATA(vcvtps2ph_256,     INTR_TYPE_2OP, X86ISD::CVTPS2PH, 0),
 
@@ -1152,9 +1150,7 @@ static const IntrinsicData  IntrinsicsWithoutChain[] = {
  * Return nullptr if intrinsic is not defined in the table.
  */
 static const IntrinsicData* getIntrinsicWithoutChain(unsigned IntNo) {
-  const IntrinsicData *Data = std::lower_bound(std::begin(IntrinsicsWithoutChain),
-                                               std::end(IntrinsicsWithoutChain),
-                                               IntNo);
+  const IntrinsicData *Data = lower_bound(IntrinsicsWithoutChain, IntNo);
   if (Data != std::end(IntrinsicsWithoutChain) && Data->Id == IntNo)
     return Data;
   return nullptr;

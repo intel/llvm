@@ -14,23 +14,40 @@
 #ifndef MLIR_TESTTYPES_H
 #define MLIR_TESTTYPES_H
 
+#include <tuple>
+
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/IR/Types.h"
+#include "mlir/Interfaces/DataLayoutInterfaces.h"
 
 namespace mlir {
+namespace test {
+
+/// FieldInfo represents a field in the StructType data type. It is used as a
+/// parameter in TestTypeDefs.td.
+struct FieldInfo {
+  StringRef name;
+  Type type;
+
+  // Custom allocation called from generated constructor code
+  FieldInfo allocateInto(TypeStorageAllocator &alloc) const {
+    return FieldInfo{alloc.copyInto(name), type};
+  }
+};
+
+} // namespace test
+} // namespace mlir
 
 #include "TestTypeInterfaces.h.inc"
 
-/// This class is a simple test type that uses a generated interface.
-struct TestType : public Type::TypeBase<TestType, Type, TypeStorage,
-                                        TestTypeInterface::Trait> {
-  using Base::Base;
+#define GET_TYPEDEF_CLASSES
+#include "TestTypeDefs.h.inc"
 
-  /// Provide a definition for the necessary interface methods.
-  void printTypeC(Location loc) const {
-    emitRemark(loc) << *this << " - TestC";
-  }
-};
+namespace mlir {
+namespace test {
 
 /// Storage for simple named recursive types, where the type is identified by
 /// its name and can "contain" another type, including itself.
@@ -80,6 +97,7 @@ public:
   StringRef getName() { return getImpl()->name; }
 };
 
-} // end namespace mlir
+} // namespace test
+} // namespace mlir
 
 #endif // MLIR_TESTTYPES_H

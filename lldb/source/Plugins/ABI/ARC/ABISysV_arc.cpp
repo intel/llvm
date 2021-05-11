@@ -272,7 +272,8 @@ bool ABISysV_arc::PrepareTrivialCall(Thread &thread, addr_t sp, addr_t pc,
         reg_value[byte_index++] = 0;
       }
 
-      RegisterValue reg_val_obj(reg_value, reg_size, eByteOrderLittle);
+      RegisterValue reg_val_obj(llvm::makeArrayRef(reg_value, reg_size),
+                                eByteOrderLittle);
       if (!reg_ctx->WriteRegister(
             reg_ctx->GetRegisterInfo(eRegisterKindGeneric, reg_index),
             reg_val_obj))
@@ -465,7 +466,7 @@ ABISysV_arc::GetReturnValueObjectSimple(Thread &thread,
     if (!SetSizedInteger(value.GetScalar(), raw_value, byte_size, is_signed))
       return ValueObjectSP();
 
-    value.SetValueType(Value::eValueTypeScalar);
+    value.SetValueType(Value::ValueType::Scalar);
   }
   // Pointer return type.
   else if (type_flags & eTypeIsPointer) {
@@ -473,7 +474,7 @@ ABISysV_arc::GetReturnValueObjectSimple(Thread &thread,
                                                 LLDB_REGNUM_GENERIC_ARG1);
     value.GetScalar() = reg_ctx->ReadRegisterAsUnsigned(reg_info_r0, 0);
 
-    value.SetValueType(Value::eValueTypeScalar);
+    value.SetValueType(Value::ValueType::Scalar);
   }
   // Floating point return type.
   else if (type_flags & eTypeIsFloat) {
@@ -536,7 +537,7 @@ ValueObjectSP ABISysV_arc::GetReturnValueObjectImpl(Thread &thread,
     auto reg_info_r0 = reg_ctx->GetRegisterInfo(eRegisterKindGeneric,
                                                 LLDB_REGNUM_GENERIC_ARG1);
     value.GetScalar() = reg_ctx->ReadRegisterAsUnsigned(reg_info_r0, 0);
-    value.SetValueType(Value::eValueTypeScalar);
+    value.SetValueType(Value::ValueType::Scalar);
   }
   // Floating point return type.
   else if (retType.isFloatingPointTy()) {

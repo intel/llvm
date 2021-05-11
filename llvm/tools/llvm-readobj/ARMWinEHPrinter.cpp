@@ -184,31 +184,16 @@ void Decoder::printRegisters(const std::pair<uint16_t, uint32_t> &RegisterMask) 
   const uint16_t VFPMask = std::get<1>(RegisterMask);
 
   OS << '{';
-  bool Comma = false;
-  for (unsigned RI = 0, RE = 11; RI < RE; ++RI) {
-    if (GPRMask & (1 << RI)) {
-      if (Comma)
-        OS << ", ";
-      OS << GPRRegisterNames[RI];
-      Comma = true;
-    }
-  }
-  for (unsigned RI = 0, RE = 32; RI < RE; ++RI) {
-    if (VFPMask & (1 << RI)) {
-      if (Comma)
-        OS << ", ";
-      OS << "d" << unsigned(RI);
-      Comma = true;
-    }
-  }
-  for (unsigned RI = 11, RE = 16; RI < RE; ++RI) {
-    if (GPRMask & (1 << RI)) {
-      if (Comma)
-        OS << ", ";
-      OS << GPRRegisterNames[RI];
-      Comma = true;
-    }
-  }
+  ListSeparator LS;
+  for (unsigned RI = 0, RE = 11; RI < RE; ++RI)
+    if (GPRMask & (1 << RI))
+      OS << LS << GPRRegisterNames[RI];
+  for (unsigned RI = 0, RE = 32; RI < RE; ++RI)
+    if (VFPMask & (1 << RI))
+      OS << LS << "d" << unsigned(RI);
+  for (unsigned RI = 11, RE = 16; RI < RE; ++RI)
+    if (GPRMask & (1 << RI))
+      OS << LS << GPRRegisterNames[RI];
   OS << '}';
 }
 
@@ -1223,10 +1208,12 @@ bool Decoder::dumpPackedARM64Entry(const object::COFFObjectFile &COFF,
     if (I == (RF.RegI() + 1) / 2 - 1 && RF.RegI() % 2 == 1) {
       // The last register, an odd register without a pair
       if (RF.CR() == 1) {
-        if (I == 0) // If this is the only register pair
-          SW.startLine() << format("stp x%d, lr, [sp, #-%d]!\n", 19 + 2 * I,
-                                   SavSZ);
-        else
+        if (I == 0) { // If this is the only register pair
+          // CR=1 combined with RegI=1 doesn't map to a documented case;
+          // it doesn't map to any regular unwind info opcode, and the
+          // actual unwinder doesn't support it.
+          SW.startLine() << "INVALID!\n";
+        } else
           SW.startLine() << format("stp x%d, lr, [sp, #%d]\n", 19 + 2 * I,
                                    16 * I);
       } else {

@@ -124,6 +124,12 @@ if config.have_ocamlopt:
 
 opt_viewer_cmd = '%s %s/tools/opt-viewer/opt-viewer.py' % (sys.executable, config.llvm_src_root)
 
+llvm_original_di_preservation_cmd = os.path.join(
+    config.llvm_src_root,'utils', 'llvm-original-di-preservation.py')
+config.substitutions.append(
+    ('%llvm-original-di-preservation', "'%s' %s" % (
+        config.python_executable, llvm_original_di_preservation_cmd)))
+
 llvm_locstats_tool = os.path.join(config.llvm_tools_dir, 'llvm-locstats')
 config.substitutions.append(
     ('%llvm-locstats', "'%s' %s" % (config.python_executable, llvm_locstats_tool)))
@@ -148,13 +154,14 @@ tools = [
 # FIXME: Why do we have both `lli` and `%lli` that do slightly different things?
 tools.extend([
     'dsymutil', 'lli', 'lli-child-target', 'llvm-ar', 'llvm-as',
-    'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-bitcode-strip', 'llvm-config', 
-    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-diff', 'llvm-dis', 
-    'llvm-dwarfdump', 'llvm-exegesis', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
+    'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-bitcode-strip', 'llvm-config',
+    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-diff', 'llvm-dis',
+    'llvm-dwarfdump', 'llvm-dlltool', 'llvm-exegesis', 'llvm-extract',
+    'llvm-isel-fuzzer', 'llvm-ifs',
     'llvm-install-name-tool', 'llvm-jitlink', 'llvm-opt-fuzzer', 'llvm-lib',
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
-    'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump',
-    'llvm-pdbutil', 'llvm-profdata', 'llvm-ranlib', 'llvm-rc', 'llvm-readelf',
+    'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump', 'llvm-otool',
+    'llvm-pdbutil', 'llvm-profdata', 'llvm-profgen', 'llvm-ranlib', 'llvm-rc', 'llvm-readelf',
     'llvm-readobj', 'llvm-rtdyld', 'llvm-size', 'llvm-split', 'llvm-strings',
     'llvm-strip', 'llvm-tblgen', 'llvm-undname', 'llvm-c-test', 'llvm-cxxfilt',
     'llvm-xray', 'yaml2obj', 'obj2yaml', 'yaml-bench', 'verify-uselistorder',
@@ -170,7 +177,8 @@ tools.extend([
     ToolSubst('Kaleidoscope-Ch6', unresolved='ignore'),
     ToolSubst('Kaleidoscope-Ch7', unresolved='ignore'),
     ToolSubst('Kaleidoscope-Ch8', unresolved='ignore'),
-    ToolSubst('LLJITWithThinLTOSummaries', unresolved='ignore')])
+    ToolSubst('LLJITWithThinLTOSummaries', unresolved='ignore'),
+    ToolSubst('LLJITWithRemoteDebugging', unresolved='ignore')])
 
 llvm_config.add_tool_substitutions(tools, config.llvm_tools_dir)
 
@@ -260,6 +268,10 @@ if have_cxx_shared_library():
 
 if config.libcxx_used:
     config.available_features.add('libcxx-used')
+
+# Direct object generation
+if not 'xcore' in config.target_triple:
+    config.available_features.add('object-emission')
 
 # LLVM can be configured with an empty default triple
 # Some tests are "generic" and require a valid default triple

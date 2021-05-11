@@ -8,8 +8,8 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Identifier.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -25,7 +25,7 @@ namespace mlir {
 /// Helper that returns an example test::TestStruct for testing its
 /// implementation.
 static test::TestStruct getTestStruct(mlir::MLIRContext *context) {
-  auto integerType = mlir::IntegerType::get(32, context);
+  auto integerType = mlir::IntegerType::get(context, 32);
   auto integerAttr = mlir::IntegerAttr::get(integerType, 127);
 
   auto floatType = mlir::FloatType::getF32(context);
@@ -44,7 +44,7 @@ static test::TestStruct getTestStruct(mlir::MLIRContext *context) {
 /// Validates that test::TestStruct::classof correctly identifies a valid
 /// test::TestStruct.
 TEST(StructsGenTest, ClassofTrue) {
-  mlir::MLIRContext context(false);
+  mlir::MLIRContext context;
   auto structAttr = getTestStruct(&context);
   ASSERT_TRUE(test::TestStruct::classof(structAttr));
 }
@@ -67,7 +67,7 @@ TEST(StructsGenTest, ClassofExtraFalse) {
   newValues.push_back(wrongAttr);
 
   // Make a new DictionaryAttr and validate.
-  auto badDictionary = mlir::DictionaryAttr::get(newValues, &context);
+  auto badDictionary = mlir::DictionaryAttr::get(&context, newValues);
   ASSERT_FALSE(test::TestStruct::classof(badDictionary));
 }
 
@@ -88,7 +88,7 @@ TEST(StructsGenTest, ClassofBadNameFalse) {
   auto wrongAttr = mlir::NamedAttribute(wrongId, expectedValues[0].second);
   newValues.push_back(wrongAttr);
 
-  auto badDictionary = mlir::DictionaryAttr::get(newValues, &context);
+  auto badDictionary = mlir::DictionaryAttr::get(&context, newValues);
   ASSERT_FALSE(test::TestStruct::classof(badDictionary));
 }
 
@@ -105,7 +105,7 @@ TEST(StructsGenTest, ClassofBadTypeFalse) {
       expectedValues.begin(), expectedValues.end() - 1);
 
   // Add a copy of the last attribute with the wrong type.
-  auto i64Type = mlir::IntegerType::get(64, &context);
+  auto i64Type = mlir::IntegerType::get(&context, 64);
   auto elementsType = mlir::RankedTensorType::get({3}, i64Type);
   auto elementsAttr =
       mlir::DenseIntElementsAttr::get(elementsType, ArrayRef<int64_t>{1, 2, 3});
@@ -113,7 +113,7 @@ TEST(StructsGenTest, ClassofBadTypeFalse) {
   auto wrongAttr = mlir::NamedAttribute(id, elementsAttr);
   newValues.push_back(wrongAttr);
 
-  auto badDictionary = mlir::DictionaryAttr::get(newValues, &context);
+  auto badDictionary = mlir::DictionaryAttr::get(&context, newValues);
   ASSERT_FALSE(test::TestStruct::classof(badDictionary));
 }
 
@@ -130,7 +130,7 @@ TEST(StructsGenTest, ClassofMissingFalse) {
       expectedValues.begin() + 1, expectedValues.end());
 
   // Make a new DictionaryAttr and validate it is not a validate TestStruct.
-  auto badDictionary = mlir::DictionaryAttr::get(newValues, &context);
+  auto badDictionary = mlir::DictionaryAttr::get(&context, newValues);
   ASSERT_FALSE(test::TestStruct::classof(badDictionary));
 }
 

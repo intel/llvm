@@ -251,6 +251,8 @@ llvm::Function *CodeGenFunction::createAtExitStub(const VarDecl &VD,
   CGF.StartFunction(GlobalDecl(&VD, DynamicInitKind::AtExit),
                     CGM.getContext().VoidTy, fn, FI, FunctionArgList(),
                     VD.getLocation(), VD.getInit()->getExprLoc());
+  // Emit an artificial location for this function.
+  auto AL = ApplyDebugLocation::CreateArtificial(CGF);
 
   llvm::CallInst *call = CGF.Builder.CreateCall(dtor, addr);
 
@@ -275,8 +277,10 @@ void CodeGenFunction::registerGlobalDtorWithAtExit(const VarDecl &VD,
 
 void CodeGenFunction::registerGlobalDtorWithAtExit(llvm::Constant *dtorStub) {
   // extern "C" int atexit(void (*f)(void));
-  assert(cast<llvm::Function>(dtorStub)->getFunctionType() ==
-             llvm::FunctionType::get(CGM.VoidTy, false) &&
+  assert(dtorStub->getType() ==
+             llvm::PointerType::get(
+                 llvm::FunctionType::get(CGM.VoidTy, false),
+                 dtorStub->getType()->getPointerAddressSpace()) &&
          "Argument to atexit has a wrong type.");
 
   llvm::FunctionType *atexitTy =
@@ -292,7 +296,7 @@ void CodeGenFunction::registerGlobalDtorWithAtExit(llvm::Constant *dtorStub) {
 }
 
 llvm::Value *
-CodeGenFunction::unregisterGlobalDtorWithUnAtExit(llvm::Function *dtorStub) {
+CodeGenFunction::unregisterGlobalDtorWithUnAtExit(llvm::Constant *dtorStub) {
   // The unatexit subroutine unregisters __dtor functions that were previously
   // registered by the atexit subroutine. If the referenced function is found,
   // it is removed from the list of functions that are called at normal program
@@ -300,8 +304,10 @@ CodeGenFunction::unregisterGlobalDtorWithUnAtExit(llvm::Function *dtorStub) {
   // value is returned.
   //
   // extern "C" int unatexit(void (*f)(void));
-  assert(dtorStub->getFunctionType() ==
-             llvm::FunctionType::get(CGM.VoidTy, false) &&
+  assert(dtorStub->getType() ==
+             llvm::PointerType::get(
+                 llvm::FunctionType::get(CGM.VoidTy, false),
+                 dtorStub->getType()->getPointerAddressSpace()) &&
          "Argument to unatexit has a wrong type.");
 
   llvm::FunctionType *unatexitTy =
@@ -386,43 +392,43 @@ llvm::Function *CodeGenModule::CreateGlobalInitOrCleanUpFunction(
     Fn->setDoesNotThrow();
 
   if (getLangOpts().Sanitize.has(SanitizerKind::Address) &&
-      !isInSanitizerBlacklist(SanitizerKind::Address, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::Address, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SanitizeAddress);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::KernelAddress) &&
-      !isInSanitizerBlacklist(SanitizerKind::KernelAddress, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::KernelAddress, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SanitizeAddress);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::HWAddress) &&
-      !isInSanitizerBlacklist(SanitizerKind::HWAddress, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::HWAddress, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SanitizeHWAddress);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::KernelHWAddress) &&
-      !isInSanitizerBlacklist(SanitizerKind::KernelHWAddress, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::KernelHWAddress, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SanitizeHWAddress);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::MemTag) &&
-      !isInSanitizerBlacklist(SanitizerKind::MemTag, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::MemTag, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SanitizeMemTag);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::Thread) &&
-      !isInSanitizerBlacklist(SanitizerKind::Thread, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::Thread, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SanitizeThread);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::Memory) &&
-      !isInSanitizerBlacklist(SanitizerKind::Memory, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::Memory, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::KernelMemory) &&
-      !isInSanitizerBlacklist(SanitizerKind::KernelMemory, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::KernelMemory, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::SafeStack) &&
-      !isInSanitizerBlacklist(SanitizerKind::SafeStack, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::SafeStack, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SafeStack);
 
   if (getLangOpts().Sanitize.has(SanitizerKind::ShadowCallStack) &&
-      !isInSanitizerBlacklist(SanitizerKind::ShadowCallStack, Fn, Loc))
+      !isInNoSanitizeList(SanitizerKind::ShadowCallStack, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::ShadowCallStack);
 
   return Fn;
@@ -497,7 +503,8 @@ CodeGenModule::EmitCXXGlobalVarDeclInitFunc(const VarDecl *D,
   } else if (PerformInit && ISA) {
     EmitPointerToInitFunc(D, Addr, Fn, ISA);
   } else if (auto *IPA = D->getAttr<InitPriorityAttr>()) {
-    OrderGlobalInits Key(IPA->getPriority(), PrioritizedCXXGlobalInits.size());
+    OrderGlobalInitsOrStermFinalizers Key(IPA->getPriority(),
+                                          PrioritizedCXXGlobalInits.size());
     PrioritizedCXXGlobalInits.push_back(std::make_pair(Key, Fn));
   } else if (isTemplateInstantiation(D->getTemplateSpecializationKind()) ||
              getContext().GetGVALinkageForVariable(D) == GVA_DiscardableODR) {
@@ -564,6 +571,17 @@ static SmallString<128> getTransformedFileName(llvm::Module &M) {
   return FileName;
 }
 
+static std::string getPrioritySuffix(unsigned int Priority) {
+  assert(Priority <= 65535 && "Priority should always be <= 65535.");
+
+  // Compute the function suffix from priority. Prepend with zeroes to make
+  // sure the function names are also ordered as priorities.
+  std::string PrioritySuffix = llvm::utostr(Priority);
+  PrioritySuffix = std::string(6 - PrioritySuffix.size(), '0') + PrioritySuffix;
+
+  return PrioritySuffix;
+}
+
 void
 CodeGenModule::EmitCXXGlobalInitFunc() {
   while (!CXXGlobalInits.empty() && !CXXGlobalInits.back())
@@ -575,12 +593,8 @@ CodeGenModule::EmitCXXGlobalInitFunc() {
   llvm::FunctionType *FTy = llvm::FunctionType::get(VoidTy, false);
   const CGFunctionInfo &FI = getTypes().arrangeNullaryFunction();
 
-  const bool UseSinitAndSterm = getCXXABI().useSinitAndSterm();
   // Create our global prioritized initialization function.
   if (!PrioritizedCXXGlobalInits.empty()) {
-    assert(!UseSinitAndSterm && "Prioritized sinit and sterm functions are not"
-                                " supported yet.");
-
     SmallVector<llvm::Function *, 8> LocalCXXGlobalInits;
     llvm::array_pod_sort(PrioritizedCXXGlobalInits.begin(),
                          PrioritizedCXXGlobalInits.end());
@@ -594,14 +608,10 @@ CodeGenModule::EmitCXXGlobalInitFunc() {
         PrioE = std::upper_bound(I + 1, E, *I, GlobalInitPriorityCmp());
 
       LocalCXXGlobalInits.clear();
-      unsigned Priority = I->first.priority;
-      // Compute the function suffix from priority. Prepend with zeroes to make
-      // sure the function names are also ordered as priorities.
-      std::string PrioritySuffix = llvm::utostr(Priority);
-      // Priority is always <= 65535 (enforced by sema).
-      PrioritySuffix = std::string(6-PrioritySuffix.size(), '0')+PrioritySuffix;
+
+      unsigned int Priority = I->first.priority;
       llvm::Function *Fn = CreateGlobalInitOrCleanUpFunction(
-          FTy, "_GLOBAL__I_" + PrioritySuffix, FI);
+          FTy, "_GLOBAL__I_" + getPrioritySuffix(Priority), FI);
 
       for (; I < PrioE; ++I)
         LocalCXXGlobalInits.push_back(I->second);
@@ -612,7 +622,7 @@ CodeGenModule::EmitCXXGlobalInitFunc() {
     PrioritizedCXXGlobalInits.clear();
   }
 
-  if (UseSinitAndSterm && CXXGlobalInits.empty())
+  if (getCXXABI().useSinitAndSterm() && CXXGlobalInits.empty())
     return;
 
   // Include the filename in the symbol name. Including "sub_" matches gcc
@@ -647,11 +657,49 @@ CodeGenModule::EmitCXXGlobalInitFunc() {
 }
 
 void CodeGenModule::EmitCXXGlobalCleanUpFunc() {
-  if (CXXGlobalDtorsOrStermFinalizers.empty())
+  if (CXXGlobalDtorsOrStermFinalizers.empty() &&
+      PrioritizedCXXStermFinalizers.empty())
     return;
 
   llvm::FunctionType *FTy = llvm::FunctionType::get(VoidTy, false);
   const CGFunctionInfo &FI = getTypes().arrangeNullaryFunction();
+
+  // Create our global prioritized cleanup function.
+  if (!PrioritizedCXXStermFinalizers.empty()) {
+    SmallVector<CXXGlobalDtorsOrStermFinalizer_t, 8> LocalCXXStermFinalizers;
+    llvm::array_pod_sort(PrioritizedCXXStermFinalizers.begin(),
+                         PrioritizedCXXStermFinalizers.end());
+    // Iterate over "chunks" of dtors with same priority and emit each chunk
+    // into separate function. Note - everything is sorted first by priority,
+    // second - by lex order, so we emit dtor functions in proper order.
+    for (SmallVectorImpl<StermFinalizerData>::iterator
+             I = PrioritizedCXXStermFinalizers.begin(),
+             E = PrioritizedCXXStermFinalizers.end();
+         I != E;) {
+      SmallVectorImpl<StermFinalizerData>::iterator PrioE =
+          std::upper_bound(I + 1, E, *I, StermFinalizerPriorityCmp());
+
+      LocalCXXStermFinalizers.clear();
+
+      unsigned int Priority = I->first.priority;
+      llvm::Function *Fn = CreateGlobalInitOrCleanUpFunction(
+          FTy, "_GLOBAL__a_" + getPrioritySuffix(Priority), FI);
+
+      for (; I < PrioE; ++I) {
+        llvm::FunctionCallee DtorFn = I->second;
+        LocalCXXStermFinalizers.emplace_back(DtorFn.getFunctionType(),
+                                             DtorFn.getCallee(), nullptr);
+      }
+
+      CodeGenFunction(*this).GenerateCXXGlobalCleanUpFunc(
+          Fn, LocalCXXStermFinalizers);
+      AddGlobalDtor(Fn, Priority);
+    }
+    PrioritizedCXXStermFinalizers.clear();
+  }
+
+  if (CXXGlobalDtorsOrStermFinalizers.empty())
+    return;
 
   // Create our global cleanup function.
   llvm::Function *Fn =
@@ -676,8 +724,9 @@ void CodeGenFunction::GenerateCXXGlobalVarDeclInitFunc(llvm::Function *Fn,
 
   StartFunction(GlobalDecl(D, DynamicInitKind::Initializer),
                 getContext().VoidTy, Fn, getTypes().arrangeNullaryFunction(),
-                FunctionArgList(), D->getLocation(),
-                D->getInit()->getExprLoc());
+                FunctionArgList());
+  // Emit an artificial location for this function.
+  auto AL = ApplyDebugLocation::CreateArtificial(*this);
 
   // Use guarded initialization if the global variable is weak. This
   // occurs for, e.g., instantiated static data members and
@@ -758,8 +807,9 @@ CodeGenFunction::GenerateCXXGlobalInitFunc(llvm::Function *Fn,
 
 void CodeGenFunction::GenerateCXXGlobalCleanUpFunc(
     llvm::Function *Fn,
-    const std::vector<std::tuple<llvm::FunctionType *, llvm::WeakTrackingVH,
-                                 llvm::Constant *>> &DtorsOrStermFinalizers) {
+    ArrayRef<std::tuple<llvm::FunctionType *, llvm::WeakTrackingVH,
+                        llvm::Constant *>>
+        DtorsOrStermFinalizers) {
   {
     auto NL = ApplyDebugLocation::CreateEmpty(*this);
     StartFunction(GlobalDecl(), getContext().VoidTy, Fn,
@@ -811,7 +861,10 @@ llvm::Function *CodeGenFunction::generateDestroyHelper(
 
   CurEHLocation = VD->getBeginLoc();
 
-  StartFunction(VD, getContext().VoidTy, fn, FI, args);
+  StartFunction(GlobalDecl(VD, DynamicInitKind::GlobalArrayDestructor),
+                getContext().VoidTy, fn, FI, args);
+  // Emit an artificial location for this function.
+  auto AL = ApplyDebugLocation::CreateArtificial(*this);
 
   emitDestroy(addr, type, destroyer, useEHCleanupForArray);
 

@@ -64,12 +64,16 @@ inline bool operator<(const DataRefImpl &a, const DataRefImpl &b) {
   return std::memcmp(&a, &b, sizeof(DataRefImpl)) < 0;
 }
 
-template <class content_type>
-class content_iterator
-    : public std::iterator<std::forward_iterator_tag, content_type> {
+template <class content_type> class content_iterator {
   content_type Current;
 
 public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = content_type;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
   content_iterator(content_type symb) : Current(std::move(symb)) {}
 
   const content_type *operator->() const { return &Current; }
@@ -161,14 +165,12 @@ public:
   // construction aux.
   static Expected<std::unique_ptr<SymbolicFile>>
   createSymbolicFile(MemoryBufferRef Object, llvm::file_magic Type,
-                     LLVMContext *Context);
+                     LLVMContext *Context, bool InitContent = true);
 
   static Expected<std::unique_ptr<SymbolicFile>>
   createSymbolicFile(MemoryBufferRef Object) {
     return createSymbolicFile(Object, llvm::file_magic::unknown, nullptr);
   }
-  static Expected<OwningBinary<SymbolicFile>>
-  createSymbolicFile(StringRef ObjectPath);
 
   static bool classof(const Binary *v) {
     return v->isSymbolic();

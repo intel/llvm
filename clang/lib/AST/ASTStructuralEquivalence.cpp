@@ -233,6 +233,24 @@ class StmtComparer {
     return E1->isExact() == E2->isExact() && E1->getValue() == E2->getValue();
   }
 
+  bool IsStmtEquivalent(const GenericSelectionExpr *E1,
+                        const GenericSelectionExpr *E2) {
+    for (auto Pair : zip_longest(E1->getAssocTypeSourceInfos(),
+                                 E2->getAssocTypeSourceInfos())) {
+      Optional<TypeSourceInfo *> Child1 = std::get<0>(Pair);
+      Optional<TypeSourceInfo *> Child2 = std::get<1>(Pair);
+      // Skip this case if there are a different number of associated types.
+      if (!Child1 || !Child2)
+        return false;
+
+      if (!IsStructurallyEquivalent(Context, (*Child1)->getType(),
+                                    (*Child2)->getType()))
+        return false;
+    }
+
+    return true;
+  }
+
   bool IsStmtEquivalent(const ImplicitCastExpr *CastE1,
                         const ImplicitCastExpr *CastE2) {
     return IsStructurallyEquivalent(Context, CastE1->getType(),
@@ -1256,48 +1274,9 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return false;
   }
 
-  if (Field1->isBitField() != Field2->isBitField()) {
-    if (Context.Complain) {
-      Context.Diag2(
-          Owner2->getLocation(),
-          Context.getApplicableDiagnostic(diag::err_odr_tag_type_inconsistent))
-          << Context.ToCtx.getTypeDeclType(Owner2);
-      if (Field1->isBitField()) {
-        Context.Diag1(Field1->getLocation(), diag::note_odr_bit_field)
-            << Field1->getDeclName() << Field1->getType()
-            << Field1->getBitWidthValue(Context.FromCtx);
-        Context.Diag2(Field2->getLocation(), diag::note_odr_not_bit_field)
-            << Field2->getDeclName();
-      } else {
-        Context.Diag2(Field2->getLocation(), diag::note_odr_bit_field)
-            << Field2->getDeclName() << Field2->getType()
-            << Field2->getBitWidthValue(Context.ToCtx);
-        Context.Diag1(Field1->getLocation(), diag::note_odr_not_bit_field)
-            << Field1->getDeclName();
-      }
-    }
-    return false;
-  }
-
-  if (Field1->isBitField()) {
-    // Make sure that the bit-fields are the same length.
-    unsigned Bits1 = Field1->getBitWidthValue(Context.FromCtx);
-    unsigned Bits2 = Field2->getBitWidthValue(Context.ToCtx);
-
-    if (Bits1 != Bits2) {
-      if (Context.Complain) {
-        Context.Diag2(Owner2->getLocation(),
-                      Context.getApplicableDiagnostic(
-                          diag::err_odr_tag_type_inconsistent))
-            << Context.ToCtx.getTypeDeclType(Owner2);
-        Context.Diag2(Field2->getLocation(), diag::note_odr_bit_field)
-            << Field2->getDeclName() << Field2->getType() << Bits2;
-        Context.Diag1(Field1->getLocation(), diag::note_odr_bit_field)
-            << Field1->getDeclName() << Field1->getType() << Bits1;
-      }
-      return false;
-    }
-  }
+  if (Field1->isBitField())
+    return IsStructurallyEquivalent(Context, Field1->getBitWidth(),
+                                    Field2->getBitWidth());
 
   return true;
 }

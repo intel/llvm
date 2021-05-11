@@ -71,8 +71,11 @@ static void printDeviceInfo(const device &Device, const std::string &Prepend) {
     std::cout << Prepend << "Vendor     : " << DeviceVendor << std::endl;
     std::cout << Prepend << "Driver     : " << DeviceDriverVersion << std::endl;
   } else {
-    std::cout << Prepend << DeviceTypeName << ": " << DeviceVersion << "[ "
-              << DeviceDriverVersion << " ]" << std::endl;
+    auto DevicePlatform = Device.get_info<info::device::platform>();
+    auto DevicePlatformName = DevicePlatform.get_info<info::platform::name>();
+    std::cout << Prepend << DeviceTypeName << ": " << DevicePlatformName << " "
+              << DeviceVersion << " [" << DeviceDriverVersion << "]"
+              << std::endl;
   }
 }
 
@@ -103,12 +106,14 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  auto Platforms = platform::get_platforms();
+  const auto &Platforms = platform::get_platforms();
   if (verbose)
     std::cout << "Platforms: " << Platforms.size() << std::endl;
 
   uint32_t PlatformNum = 0;
+
   for (const auto &Platform : Platforms) {
+    uint32_t DeviceNum = 0;
     ++PlatformNum;
     if (verbose) {
       auto PlatformVersion = Platform.get_info<info::platform::version>();
@@ -119,14 +124,17 @@ int main(int argc, char **argv) {
       std::cout << "    Name     : " << PlatformName << std::endl;
       std::cout << "    Vendor   : " << PlatformVendor << std::endl;
     }
-    auto Devices = Platform.get_devices();
+    const auto &Devices = Platform.get_devices();
     if (verbose)
       std::cout << "    Devices  : " << Devices.size() << std::endl;
-    uint32_t DeviceNum = 0;
     for (const auto &Device : Devices) {
-      ++DeviceNum;
       if (verbose)
         std::cout << "        Device [#" << DeviceNum << "]:" << std::endl;
+      else {
+        backend Backend = Platform.get_backend();
+        std::cout << "[" << Backend << ":" << DeviceNum << "] ";
+      }
+      ++DeviceNum;
       printDeviceInfo(Device, verbose ? "        " : "");
     }
   }

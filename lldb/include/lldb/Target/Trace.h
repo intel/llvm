@@ -9,11 +9,15 @@
 #ifndef LLDB_TARGET_TRACE_H
 #define LLDB_TARGET_TRACE_H
 
+#include <unordered_map>
+
 #include "llvm/Support/JSON.h"
 
 #include "lldb/Core/PluginInterface.h"
-#include "lldb/Target/TraceSettingsParser.h"
+#include "lldb/Target/Thread.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/TraceGDBRemotePackets.h"
+#include "lldb/Utility/UnimplementedError.h"
 #include "lldb/lldb-private.h"
 
 namespace lldb_private {
@@ -33,8 +37,18 @@ namespace lldb_private {
 /// Processor trace information can also be fetched through the process
 /// interfaces during a live debug session if your process supports gathering
 /// this information.
-class Trace : public PluginInterface {
+///
+/// In order to support live tracing, the name of the plug-in should match the
+/// name of the tracing type returned by the gdb-remote packet
+/// \a jLLDBTraceSupported.
+class Trace : public PluginInterface,
+              public std::enable_shared_from_this<Trace> {
 public:
+  enum class TraceDirection {
+    Forwards = 0,
+    Backwards,
+  };
+
   /// Dump the trace data that this plug-in has access to.
   ///
   /// This function will dump all of the trace data for all threads in a user
@@ -72,70 +86,244 @@ public:
   ///       correctly.
   ///
   /// \param[in] debugger
-  ///     The debugger instance were new Target will be created as part of the
+  ///     The debugger instance where new Targets will be created as part of the
   ///     JSON data parsing.
   ///
-  /// \param[in] settings
-  ///     JSON object describing a trace.
+  /// \param[in] trace_session_file
+  ///     The contents of the trace session file describing the trace session.
+  ///     See \a TraceSessionFileParser::BuildSchema for more information about
+  ///     the schema of this JSON file.
   ///
-  /// \param[in] settings_dir
-  ///     Path to a directory used to resolve relative paths in the JSON data.
-  ///     If the JSON data is defined in a file, this should be the
-  ///     folder containing it.
+  /// \param[in] session_file_dir
+  ///     The path to the directory that contains the session file. It's used to
+  ///     resolved relative paths in the session file.
   static llvm::Expected<lldb::TraceSP>
-  FindPlugin(Debugger &debugger, const llvm::json::Value &settings,
-             llvm::StringRef settings_dir);
+  FindPluginForPostMortemProcess(Debugger &debugger,
+                                 const llvm::json::Value &trace_session_file,
+                                 llvm::StringRef session_file_dir);
 
-  /// Create an instance of trace plug-in by name.
+  /// Find a trace plug-in to trace a live process.
+  ///
+  /// \param[in] plugin_name
+  ///     Plug-in name to search.
+  ///
+  /// \param[in] process
+  ///     Live process to trace.
+  ///
+  /// \return
+  ///     A \a TraceSP instance, or an \a llvm::Error if the plug-in name
+  ///     doesn't match any registered plug-ins or tracing couldn't be
+  ///     started.
+  static llvm::Expected<lldb::TraceSP>
+  FindPluginForLiveProcess(llvm::StringRef plugin_name, Process &process);
+
+  /// Get the schema of a Trace plug-in given its name.
   ///
   /// \param[in] plugin_name
   ///     Name of the trace plugin.
-  static llvm::Expected<lldb::TraceSP> FindPlugin(llvm::StringRef plugin_name);
+  static llvm::Expected<llvm::StringRef>
+  FindPluginSchema(llvm::StringRef plugin_name);
 
-  /// Parse the JSON settings and create the corresponding \a Target
-  /// objects. In case of an error, no targets are created.
+  /// Get the command handle for the "process trace start" command.
+  virtual lldb::CommandObjectSP
+  GetProcessTraceStartCommand(CommandInterpreter &interpreter) = 0;
+
+  /// Get the command handle for the "thread trace start" command.
+  virtual lldb::CommandObjectSP
+  GetThreadTraceStartCommand(CommandInterpreter &interpreter) = 0;
+
+  /// \return
+  ///     The JSON schema of this Trace plug-in.
+  virtual llvm::StringRef GetSchema() = 0;
+
+  /// Each decoded thread contains a cursor to the current position the user is
+  /// stopped at. When reverse debugging, each operation like reverse-next or
+  /// reverse-continue will move this cursor, which is then picked by any
+  /// subsequent dump or reverse operation.
   ///
-  /// \param[in] debugger
-  ///   The debugger instance where the targets are created.
-  ///
-  /// \param[in] settings
-  ///     JSON object describing a trace.
-  ///
-  /// \param[in] settings_dir
-  ///     Path to a directory used to resolve relative paths in the JSON data.
-  ///     If the JSON data is defined in a file, this should be the
-  ///     folder containing it.
+  /// The initial position for this cursor is the last element of the thread,
+  /// which is the most recent chronologically.
   ///
   /// \return
-  ///   An error object containing the reason if there is a failure.
-  llvm::Error ParseSettings(Debugger &debugger,
-                            const llvm::json::Value &settings,
-                            llvm::StringRef settings_dir);
+  ///     The current position of the thread's trace or \b 0 if empty.
+  virtual size_t GetCursorPosition(Thread &thread) = 0;
 
-  /// Get the JSON schema of the settings for the trace plug-in.
-  llvm::StringRef GetSchema();
+  /// Dump \a count instructions of the given thread's trace ending at the
+  /// given \a end_position position.
+  ///
+  /// The instructions are printed along with their indices or positions, which
+  /// are increasing chronologically. This means that the \a index 0 represents
+  /// the oldest instruction of the trace chronologically.
+  ///
+  /// \param[in] thread
+  ///     The thread whose trace will be dumped.
+  ///
+  /// \param[in] s
+  ///     The stream object where the instructions are printed.
+  ///
+  /// \param[in] count
+  ///     The number of instructions to print.
+  ///
+  /// \param[in] end_position
+  ///     The position of the last instruction to print.
+  ///
+  /// \param[in] raw
+  ///     Dump only instruction addresses without disassembly nor symbol
+  ///     information.
+  void DumpTraceInstructions(Thread &thread, Stream &s, size_t count,
+                             size_t end_position, bool raw);
+
+  /// Run the provided callback on the instructions of the trace of the given
+  /// thread.
+  ///
+  /// The instructions will be traversed starting at the given \a position
+  /// sequentially until the callback returns \b false, in which case no more
+  /// instructions are inspected.
+  ///
+  /// The purpose of this method is to allow inspecting traced instructions
+  /// without exposing the internal representation of how they are stored on
+  /// memory.
+  ///
+  /// \param[in] thread
+  ///     The thread whose trace will be traversed.
+  ///
+  /// \param[in] position
+  ///     The instruction position to start iterating on.
+  ///
+  /// \param[in] direction
+  ///     If \b TraceDirection::Forwards, then then instructions will be
+  ///     traversed forwards chronologically, i.e. with incrementing indices. If
+  ///     \b TraceDirection::Backwards, the traversal is done backwards
+  ///     chronologically, i.e. with decrementing indices.
+  ///
+  /// \param[in] callback
+  ///     The callback to execute on each instruction. If it returns \b false,
+  ///     the iteration stops.
+  virtual void TraverseInstructions(
+      Thread &thread, size_t position, TraceDirection direction,
+      std::function<bool(size_t index, llvm::Expected<lldb::addr_t> load_addr)>
+          callback) = 0;
+
+  /// Get the number of available instructions in the trace of the given thread.
+  ///
+  /// \param[in] thread
+  ///     The thread whose trace will be inspected.
+  ///
+  /// \return
+  ///     The total number of instructions in the trace.
+  virtual size_t GetInstructionCount(Thread &thread) = 0;
+
+  /// Check if a thread is currently traced by this object.
+  ///
+  /// \param[in] thread
+  ///     The thread in question.
+  ///
+  /// \return
+  ///     \b true if the thread is traced by this instance, \b false otherwise.
+  virtual bool IsTraced(const Thread &thread) = 0;
+
+  /// Stop tracing live threads.
+  ///
+  /// \param[in] tids
+  ///     The threads to stop tracing on.
+  ///
+  /// \return
+  ///     \a llvm::Error::success if the operation was successful, or
+  ///     \a llvm::Error otherwise.
+  llvm::Error StopThreads(const std::vector<lldb::tid_t> &tids);
+
+  /// Stop tracing a live process.
+  ///
+  /// \param[in] request
+  ///     The information determining which threads or process to stop tracing.
+  ///
+  /// \return
+  ///     \a llvm::Error::success if the operation was successful, or
+  ///     \a llvm::Error otherwise.
+  llvm::Error StopProcess();
+
+  /// Get the trace file of the given post mortem thread.
+  llvm::Expected<const FileSpec &> GetPostMortemTraceFile(lldb::tid_t tid);
 
 protected:
-  Trace() {}
+  /// Get binary data of a live thread given a data identifier.
+  ///
+  /// \param[in] tid
+  ///     The thread whose data is requested.
+  ///
+  /// \param[in] kind
+  ///     The kind of data requested.
+  ///
+  /// \return
+  ///     A vector of bytes with the requested data, or an \a llvm::Error in
+  ///     case of failures.
+  llvm::Expected<std::vector<uint8_t>>
+  GetLiveThreadBinaryData(lldb::tid_t tid, llvm::StringRef kind);
 
-  /// The actual plug-in should define its own implementation of \a
-  /// TraceSettingsParser for doing any custom parsing.
-  virtual std::unique_ptr<lldb_private::TraceSettingsParser> CreateParser() = 0;
+  /// Get binary data of the current process given a data identifier.
+  ///
+  /// \param[in] kind
+  ///     The kind of data requested.
+  ///
+  /// \return
+  ///     A vector of bytes with the requested data, or an \a llvm::Error in
+  ///     case of failures.
+  llvm::Expected<std::vector<uint8_t>>
+  GetLiveProcessBinaryData(llvm::StringRef kind);
 
-private:
-  Trace(const Trace &) = delete;
-  const Trace &operator=(const Trace &) = delete;
+  /// Get the size of the data returned by \a GetLiveThreadBinaryData
+  llvm::Optional<size_t> GetLiveThreadBinaryDataSize(lldb::tid_t tid,
+                                                     llvm::StringRef kind);
 
-protected:
-  friend class TraceSettingsParser;
-  /// JSON object that holds all settings for this trace session.
-  llvm::json::Object m_settings;
-  /// The directory that contains the settings file.
-  std::string m_settings_dir;
+  /// Get the size of the data returned by \a GetLiveProcessBinaryData
+  llvm::Optional<size_t> GetLiveProcessBinaryDataSize(llvm::StringRef kind);
+  /// Constructor for post mortem processes
+  Trace() = default;
 
-  std::map<lldb::pid_t, std::map<lldb::tid_t, lldb_private::FileSpec>>
-      m_thread_to_trace_file_map;
-  std::vector<lldb::TargetSP> m_targets;
+  /// Constructor for a live process
+  Trace(Process &live_process) : m_live_process(&live_process) {}
+
+  /// Start tracing a live process or its threads.
+  ///
+  /// \param[in] request
+  ///     JSON object with the information necessary to start tracing. In the
+  ///     case of gdb-remote processes, this JSON object should conform to the
+  ///     jLLDBTraceStart packet.
+  ///
+  /// \return
+  ///     \a llvm::Error::success if the operation was successful, or
+  ///     \a llvm::Error otherwise.
+  llvm::Error Start(const llvm::json::Value &request);
+
+  /// Get the current tracing state of a live process and its threads.
+  ///
+  /// \return
+  ///     A JSON object string with custom data depending on the trace
+  ///     technology, or an \a llvm::Error in case of errors.
+  llvm::Expected<std::string> GetLiveProcessState();
+
+  /// Method to be overriden by the plug-in to refresh its own state.
+  ///
+  /// This is invoked by RefreshLiveProcessState when a new state is found.
+  ///
+  /// \param[in] state
+  ///     The jLLDBTraceGetState response.
+  virtual void
+  DoRefreshLiveProcessState(llvm::Expected<TraceGetStateResponse> state) = 0;
+
+  /// Method to be invoked by the plug-in to refresh the live process state.
+  ///
+  /// The result is cached through the same process stop.
+  void RefreshLiveProcessState();
+
+  /// Process traced by this object if doing live tracing. Otherwise it's null.
+  int64_t m_stop_id = -1;
+  Process *m_live_process = nullptr;
+  /// tid -> data kind -> size
+  std::map<lldb::tid_t, std::unordered_map<std::string, size_t>>
+      m_live_thread_data;
+  /// data kind -> size
+  std::unordered_map<std::string, size_t> m_live_process_data;
 };
 
 } // namespace lldb_private

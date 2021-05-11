@@ -1,5 +1,5 @@
 ; RUN: llc -relocation-model=pic -mattr=+mutable-globals -filetype=obj %s -o %t.o
-; RUN: wasm-ld -shared -o %t.wasm %t.o
+; RUN: wasm-ld --experimental-pic -shared -o %t.wasm %t.o
 ; RUN: obj2yaml %t.wasm | FileCheck %s
 
 target triple = "wasm32-unknown-emscripten"
@@ -67,14 +67,15 @@ declare void @func_external()
 ; CHECK-NEXT:         Field:           memory
 ; CHECK-NEXT:         Kind:            MEMORY
 ; CHECK-NEXT:         Memory:
-; CHECK-NEXT:           Initial:       0x0000000
+; CHECK-NEXT:           Minimum:       0x1
 ; CHECK-NEXT:       - Module:          env
 ; CHECK-NEXT:         Field:           __indirect_function_table
 ; CHECK-NEXT:         Kind:            TABLE
 ; CHECK-NEXT:         Table:
+; CHECK-NEXT:           Index:           0
 ; CHECK-NEXT:           ElemType:        FUNCREF
 ; CHECK-NEXT:           Limits:
-; CHECK-NEXT:             Initial:         0x00000002
+; CHECK-NEXT:             Minimum:         0x2
 ; CHECK-NEXT:       - Module:          env
 ; CHECK-NEXT:         Field:           __stack_pointer
 ; CHECK-NEXT:         Kind:            GLOBAL
@@ -131,7 +132,7 @@ declare void @func_external()
 ; CHECK-NEXT:           Index:           2
 ; CHECK-NEXT:         Functions:       [ 4, 3 ]
 
-; check the generated code in __wasm_call_ctors and __wasm_apply_relocs functions
+; check the generated code in __wasm_call_ctors and __wasm_apply_data_relocs functions
 ; TODO(sbc): Disassemble and verify instructions.
 
 ; CHECK:        - Type:            CODE

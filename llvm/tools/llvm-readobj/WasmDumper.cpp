@@ -24,7 +24,7 @@ static const EnumEntry<unsigned> WasmSymbolTypes[] = {
 #define ENUM_ENTRY(X)                                                          \
   { #X, wasm::WASM_SYMBOL_TYPE_##X }
     ENUM_ENTRY(FUNCTION), ENUM_ENTRY(DATA),  ENUM_ENTRY(GLOBAL),
-    ENUM_ENTRY(SECTION),  ENUM_ENTRY(EVENT),
+    ENUM_ENTRY(SECTION),  ENUM_ENTRY(EVENT), ENUM_ENTRY(TABLE),
 #undef ENUM_ENTRY
 };
 
@@ -57,7 +57,7 @@ static const EnumEntry<unsigned> WasmSymbolFlags[] = {
 class WasmDumper : public ObjDumper {
 public:
   WasmDumper(const WasmObjectFile *Obj, ScopedPrinter &Writer)
-      : ObjDumper(Writer), Obj(Obj) {}
+      : ObjDumper(Writer, Obj->getFileName()), Obj(Obj) {}
 
   void printFileHeaders() override;
   void printSectionHeaders() override;
@@ -192,7 +192,7 @@ void WasmDumper::printSectionHeaders() {
       ListScope Group(W, "Memories");
       for (const wasm::WasmLimits &Memory : Obj->memories()) {
         DictScope Group(W, "Memory");
-        W.printNumber("InitialPages", Memory.Initial);
+        W.printNumber("MinPages", Memory.Minimum);
         if (Memory.Flags & wasm::WASM_LIMITS_FLAG_HAS_MAX) {
           W.printNumber("MaxPages", WasmSec.Offset);
         }

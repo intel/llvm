@@ -1,19 +1,28 @@
 add_flang_library(flangFrontend
   CompilerInstance.cpp
   CompilerInvocation.cpp
+  FrontendAction.cpp
+  FrontendActions.cpp
   FrontendOptions.cpp
+  TextDiagnosticPrinter.cpp
+  TextDiagnosticBuffer.cpp
+  TextDiagnostic.cpp
 
   DEPENDS
   clangBasic
 
   LINK_LIBS
+  FortranParser
+  FortranSemantics
+  FortranEvaluate
+  FortranCommon
+  FortranLower
   clangBasic
   clangDriver
-  # TODO: Added to re-use clang's TextDiagnosticBuffer & TextDiagnosticPrinter.
-  # Add a custom implementation for Flang and remove this dependency.
-  clangFrontend
 
   LINK_COMPONENTS
   Option
   Support
+  FrontendOpenACC
+  FrontendOpenMP
 )

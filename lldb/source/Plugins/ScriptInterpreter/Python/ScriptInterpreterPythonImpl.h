@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLDB_PLUGINS_SCRIPTINTERPRETER_PYTHON_SCRIPTINTERPRETERPYTHONIMPL_H
+#define LLDB_PLUGINS_SCRIPTINTERPRETER_PYTHON_SCRIPTINTERPRETERPYTHONIMPL_H
+
 #include "lldb/Host/Config.h"
 
 #if LLDB_ENABLE_PYTHON
@@ -231,10 +234,10 @@ public:
   bool RunScriptFormatKeyword(const char *impl_function, ValueObject *value,
                               std::string &output, Status &error) override;
 
-  bool
-  LoadScriptingModule(const char *filename, bool init_session,
-                      lldb_private::Status &error,
-                      StructuredData::ObjectSP *module_sp = nullptr) override;
+  bool LoadScriptingModule(const char *filename, bool init_session,
+                           lldb_private::Status &error,
+                           StructuredData::ObjectSP *module_sp = nullptr,
+                           FileSpec extra_search_dir = {}) override;
 
   bool IsReservedWord(const char *word) override;
 
@@ -483,4 +486,5 @@ protected:
 
 } // namespace lldb_private
 
-#endif
+#endif // LLDB_ENABLE_PYTHON
+#endif // LLDB_PLUGINS_SCRIPTINTERPRETER_PYTHON_SCRIPTINTERPRETERPYTHONIMPL_H

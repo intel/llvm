@@ -23,7 +23,7 @@ define <2 x double> @test2elt(i16 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-P9-LABEL: test2elt:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrws v2, r3
+; CHECK-P9-NEXT:    mtvsrwz v2, r3
 ; CHECK-P9-NEXT:    addis r3, r2, .LCPI0_0@toc@ha
 ; CHECK-P9-NEXT:    xxlxor v4, v4, v4
 ; CHECK-P9-NEXT:    addi r3, r3, .LCPI0_0@toc@l
@@ -34,12 +34,12 @@ define <2 x double> @test2elt(i16 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-BE-LABEL: test2elt:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrws v2, r3
+; CHECK-BE-NEXT:    mtvsrwz v2, r3
 ; CHECK-BE-NEXT:    addis r3, r2, .LCPI0_0@toc@ha
 ; CHECK-BE-NEXT:    xxlxor v4, v4, v4
 ; CHECK-BE-NEXT:    addi r3, r3, .LCPI0_0@toc@l
 ; CHECK-BE-NEXT:    lxvx v3, 0, r3
-; CHECK-BE-NEXT:    vperm v2, v2, v4, v3
+; CHECK-BE-NEXT:    vperm v2, v4, v2, v3
 ; CHECK-BE-NEXT:    xvcvuxddp v2, v2
 ; CHECK-BE-NEXT:    blr
 entry:
@@ -48,7 +48,7 @@ entry:
   ret <2 x double> %1
 }
 
-define void @test4elt(<4 x double>* noalias nocapture sret %agg.result, i32 %a.coerce) local_unnamed_addr #1 {
+define void @test4elt(<4 x double>* noalias nocapture sret(<4 x double>) %agg.result, i32 %a.coerce) local_unnamed_addr #1 {
 ; CHECK-P8-LABEL: test4elt:
 ; CHECK-P8:       # %bb.0: # %entry
 ; CHECK-P8-NEXT:    addis r5, r2, .LCPI1_0@toc@ha
@@ -72,7 +72,7 @@ define void @test4elt(<4 x double>* noalias nocapture sret %agg.result, i32 %a.c
 ;
 ; CHECK-P9-LABEL: test4elt:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrws v2, r4
+; CHECK-P9-NEXT:    mtvsrwz v2, r4
 ; CHECK-P9-NEXT:    addis r4, r2, .LCPI1_0@toc@ha
 ; CHECK-P9-NEXT:    xxlxor v4, v4, v4
 ; CHECK-P9-NEXT:    addi r4, r4, .LCPI1_0@toc@l
@@ -90,14 +90,14 @@ define void @test4elt(<4 x double>* noalias nocapture sret %agg.result, i32 %a.c
 ;
 ; CHECK-BE-LABEL: test4elt:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrws v2, r4
+; CHECK-BE-NEXT:    mtvsrwz v2, r4
 ; CHECK-BE-NEXT:    addis r4, r2, .LCPI1_0@toc@ha
 ; CHECK-BE-NEXT:    xxlxor v4, v4, v4
 ; CHECK-BE-NEXT:    addi r4, r4, .LCPI1_0@toc@l
 ; CHECK-BE-NEXT:    lxvx v3, 0, r4
 ; CHECK-BE-NEXT:    addis r4, r2, .LCPI1_1@toc@ha
 ; CHECK-BE-NEXT:    addi r4, r4, .LCPI1_1@toc@l
-; CHECK-BE-NEXT:    vperm v3, v2, v4, v3
+; CHECK-BE-NEXT:    vperm v3, v4, v2, v3
 ; CHECK-BE-NEXT:    xvcvuxddp vs0, v3
 ; CHECK-BE-NEXT:    lxvx v3, 0, r4
 ; CHECK-BE-NEXT:    vperm v2, v4, v2, v3
@@ -112,7 +112,7 @@ entry:
   ret void
 }
 
-define void @test8elt(<8 x double>* noalias nocapture sret %agg.result, i64 %a.coerce) local_unnamed_addr #1 {
+define void @test8elt(<8 x double>* noalias nocapture sret(<8 x double>) %agg.result, i64 %a.coerce) local_unnamed_addr #1 {
 ; CHECK-P8-LABEL: test8elt:
 ; CHECK-P8:       # %bb.0: # %entry
 ; CHECK-P8-NEXT:    addis r5, r2, .LCPI2_0@toc@ha
@@ -189,7 +189,7 @@ define void @test8elt(<8 x double>* noalias nocapture sret %agg.result, i64 %a.c
 ; CHECK-BE-NEXT:    lxvx v3, 0, r4
 ; CHECK-BE-NEXT:    addis r4, r2, .LCPI2_1@toc@ha
 ; CHECK-BE-NEXT:    addi r4, r4, .LCPI2_1@toc@l
-; CHECK-BE-NEXT:    vperm v3, v2, v4, v3
+; CHECK-BE-NEXT:    vperm v3, v4, v2, v3
 ; CHECK-BE-NEXT:    xvcvuxddp vs0, v3
 ; CHECK-BE-NEXT:    lxvx v3, 0, r4
 ; CHECK-BE-NEXT:    addis r4, r2, .LCPI2_2@toc@ha
@@ -216,7 +216,7 @@ entry:
   ret void
 }
 
-define void @test16elt(<16 x double>* noalias nocapture sret %agg.result, <16 x i8> %a) local_unnamed_addr #2 {
+define void @test16elt(<16 x double>* noalias nocapture sret(<16 x double>) %agg.result, <16 x i8> %a) local_unnamed_addr #2 {
 ; CHECK-P8-LABEL: test16elt:
 ; CHECK-P8:       # %bb.0: # %entry
 ; CHECK-P8-NEXT:    addis r4, r2, .LCPI3_0@toc@ha
@@ -346,7 +346,7 @@ define void @test16elt(<16 x double>* noalias nocapture sret %agg.result, <16 x 
 ; CHECK-BE-NEXT:    lxvx v3, 0, r4
 ; CHECK-BE-NEXT:    addis r4, r2, .LCPI3_1@toc@ha
 ; CHECK-BE-NEXT:    addi r4, r4, .LCPI3_1@toc@l
-; CHECK-BE-NEXT:    vperm v3, v2, v4, v3
+; CHECK-BE-NEXT:    vperm v3, v4, v2, v3
 ; CHECK-BE-NEXT:    xvcvuxddp vs0, v3
 ; CHECK-BE-NEXT:    lxvx v3, 0, r4
 ; CHECK-BE-NEXT:    addis r4, r2, .LCPI3_2@toc@ha
@@ -415,7 +415,7 @@ define <2 x double> @test2elt_signed(i16 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-P9-LABEL: test2elt_signed:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrws v2, r3
+; CHECK-P9-NEXT:    mtvsrwz v2, r3
 ; CHECK-P9-NEXT:    addis r3, r2, .LCPI4_0@toc@ha
 ; CHECK-P9-NEXT:    addi r3, r3, .LCPI4_0@toc@l
 ; CHECK-P9-NEXT:    lxvx v3, 0, r3
@@ -426,7 +426,7 @@ define <2 x double> @test2elt_signed(i16 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-BE-LABEL: test2elt_signed:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrws v2, r3
+; CHECK-BE-NEXT:    mtvsrwz v2, r3
 ; CHECK-BE-NEXT:    addis r3, r2, .LCPI4_0@toc@ha
 ; CHECK-BE-NEXT:    addi r3, r3, .LCPI4_0@toc@l
 ; CHECK-BE-NEXT:    lxvx v3, 0, r3
@@ -440,7 +440,7 @@ entry:
   ret <2 x double> %1
 }
 
-define void @test4elt_signed(<4 x double>* noalias nocapture sret %agg.result, i32 %a.coerce) local_unnamed_addr #1 {
+define void @test4elt_signed(<4 x double>* noalias nocapture sret(<4 x double>) %agg.result, i32 %a.coerce) local_unnamed_addr #1 {
 ; CHECK-P8-LABEL: test4elt_signed:
 ; CHECK-P8:       # %bb.0: # %entry
 ; CHECK-P8-NEXT:    addis r5, r2, .LCPI5_0@toc@ha
@@ -471,7 +471,7 @@ define void @test4elt_signed(<4 x double>* noalias nocapture sret %agg.result, i
 ;
 ; CHECK-P9-LABEL: test4elt_signed:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrws v2, r4
+; CHECK-P9-NEXT:    mtvsrwz v2, r4
 ; CHECK-P9-NEXT:    addis r4, r2, .LCPI5_0@toc@ha
 ; CHECK-P9-NEXT:    addi r4, r4, .LCPI5_0@toc@l
 ; CHECK-P9-NEXT:    lxvx v3, 0, r4
@@ -490,7 +490,7 @@ define void @test4elt_signed(<4 x double>* noalias nocapture sret %agg.result, i
 ;
 ; CHECK-BE-LABEL: test4elt_signed:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrws v2, r4
+; CHECK-BE-NEXT:    mtvsrwz v2, r4
 ; CHECK-BE-NEXT:    addis r4, r2, .LCPI5_0@toc@ha
 ; CHECK-BE-NEXT:    xxlxor v3, v3, v3
 ; CHECK-BE-NEXT:    addi r4, r4, .LCPI5_0@toc@l
@@ -514,7 +514,7 @@ entry:
   ret void
 }
 
-define void @test8elt_signed(<8 x double>* noalias nocapture sret %agg.result, i64 %a.coerce) local_unnamed_addr #1 {
+define void @test8elt_signed(<8 x double>* noalias nocapture sret(<8 x double>) %agg.result, i64 %a.coerce) local_unnamed_addr #1 {
 ; CHECK-P8-LABEL: test8elt_signed:
 ; CHECK-P8:       # %bb.0: # %entry
 ; CHECK-P8-NEXT:    addis r5, r2, .LCPI6_0@toc@ha
@@ -636,7 +636,7 @@ entry:
   ret void
 }
 
-define void @test16elt_signed(<16 x double>* noalias nocapture sret %agg.result, <16 x i8> %a) local_unnamed_addr #2 {
+define void @test16elt_signed(<16 x double>* noalias nocapture sret(<16 x double>) %agg.result, <16 x i8> %a) local_unnamed_addr #2 {
 ; CHECK-P8-LABEL: test16elt_signed:
 ; CHECK-P8:       # %bb.0: # %entry
 ; CHECK-P8-NEXT:    addis r4, r2, .LCPI7_0@toc@ha

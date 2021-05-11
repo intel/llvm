@@ -10,6 +10,7 @@
 // in SYCL SPEC section - 4.13.6 Geometric functions.
 
 #include "builtins_helper.hpp"
+#include <CL/sycl/detail/stl_type_traits.hpp>
 
 #include <cmath>
 
@@ -58,46 +59,47 @@ template <typename T> inline T __FMul(T p0, T p1) {
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_sgengeo<T>::value, T>::type __length(T t) {
+inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
+__length(T t) {
   return std::sqrt(__FMul(t, t));
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_vgengeo<T>::value,
-                               typename T::element_type>::type
+inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value,
+                                          typename T::element_type>
 __length(T t) {
   return std::sqrt(Dot(t, t));
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_sgengeo<T>::value, T>::type
+inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
 __normalize(T t) {
   T r = __length(t);
   return t / T(r);
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_vgengeo<T>::value, T>::type
+inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value, T>
 __normalize(T t) {
   typename T::element_type r = __length(t);
   return t / T(r);
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_sgengeo<T>::value, T>::type
+inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
 __fast_length(T t) {
   return std::sqrt(__FMul(t, t));
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_vgengeo<T>::value,
-                               typename T::element_type>::type
+inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value,
+                                          typename T::element_type>
 __fast_length(T t) {
   return std::sqrt(Dot(t, t));
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_vgengeo<T>::value, T>::type
+inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value, T>
 __fast_normalize(T t) {
   if (All(t == T(0.0f)))
     return t;

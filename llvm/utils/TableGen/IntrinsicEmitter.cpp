@@ -247,13 +247,15 @@ enum IIT_Info {
   IIT_VEC_OF_BITCASTS_TO_INT = 46,
   IIT_V128 = 47,
   IIT_BF16 = 48,
-  IIT_STRUCT9 = 49
+  IIT_STRUCT9 = 49,
+  IIT_V256 = 50,
+  IIT_AMX  = 51
 };
 
 static void EncodeFixedValueType(MVT::SimpleValueType VT,
                                  std::vector<unsigned char> &Sig) {
   if (MVT(VT).isInteger()) {
-    unsigned BitWidth = MVT(VT).getSizeInBits();
+    unsigned BitWidth = MVT(VT).getFixedSizeInBits();
     switch (BitWidth) {
     default: PrintFatalError("unhandled integer type width in intrinsic!");
     case 1: return Sig.push_back(IIT_I1);
@@ -275,6 +277,7 @@ static void EncodeFixedValueType(MVT::SimpleValueType VT,
   case MVT::token: return Sig.push_back(IIT_TOKEN);
   case MVT::Metadata: return Sig.push_back(IIT_METADATA);
   case MVT::x86mmx: return Sig.push_back(IIT_MMX);
+  case MVT::x86amx: return Sig.push_back(IIT_AMX);
   // MVT::OtherVT is used to mean the empty struct type here.
   case MVT::Other: return Sig.push_back(IIT_EMPTYSTRUCT);
   // MVT::isVoid is used to represent varargs here.
@@ -385,6 +388,7 @@ static void EncodeFixedType(Record *R, std::vector<unsigned char> &ArgCodes,
     case 32: Sig.push_back(IIT_V32); break;
     case 64: Sig.push_back(IIT_V64); break;
     case 128: Sig.push_back(IIT_V128); break;
+    case 256: Sig.push_back(IIT_V256); break;
     case 512: Sig.push_back(IIT_V512); break;
     case 1024: Sig.push_back(IIT_V1024); break;
     }
@@ -580,6 +584,9 @@ struct AttributeComparator {
     if (L->isNoDuplicate != R->isNoDuplicate)
       return R->isNoDuplicate;
 
+    if (L->isNoMerge != R->isNoMerge)
+      return R->isNoMerge;
+
     if (L->isNoReturn != R->isNoReturn)
       return R->isNoReturn;
 
@@ -634,13 +641,13 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
       std::max(maxArgAttrs, unsigned(intrinsic.ArgumentAttributes.size()));
     unsigned &N = UniqAttributes[&intrinsic];
     if (N) continue;
-    assert(AttrNum < 256 && "Too many unique attributes for table!");
     N = ++AttrNum;
+    assert(N < 65536 && "Too many unique attributes for table!");
   }
 
   // Emit an array of AttributeList.  Most intrinsics will have at least one
   // entry, for the function itself (index ~1), which is usually nounwind.
-  OS << "  static const uint8_t IntrinsicsToAttributesMap[] = {\n";
+  OS << "  static const uint16_t IntrinsicsToAttributesMap[] = {\n";
 
   for (unsigned i = 0, e = Ints.size(); i != e; ++i) {
     const CodeGenIntrinsic &intrinsic = Ints[i];
@@ -671,65 +678,38 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
         unsigned attrIdx = intrinsic.ArgumentAttributes[ai].Index;
 
         OS << "      const Attribute::AttrKind AttrParam" << attrIdx << "[]= {";
-        bool addComma = false;
+        ListSeparator LS(",");
 
         bool AllValuesAreZero = true;
         SmallVector<uint64_t, 8> Values;
         do {
           switch (intrinsic.ArgumentAttributes[ai].Kind) {
           case CodeGenIntrinsic::NoCapture:
-            if (addComma)
-              OS << ",";
-            OS << "Attribute::NoCapture";
-            addComma = true;
+            OS << LS << "Attribute::NoCapture";
             break;
           case CodeGenIntrinsic::NoAlias:
-            if (addComma)
-              OS << ",";
-            OS << "Attribute::NoAlias";
-            addComma = true;
+            OS << LS << "Attribute::NoAlias";
             break;
           case CodeGenIntrinsic::NoUndef:
-            if (addComma)
-              OS << ",";
-            OS << "Attribute::NoUndef";
-            addComma = true;
+            OS << LS << "Attribute::NoUndef";
             break;
           case CodeGenIntrinsic::Returned:
-            if (addComma)
-              OS << ",";
-            OS << "Attribute::Returned";
-            addComma = true;
+            OS << LS << "Attribute::Returned";
             break;
           case CodeGenIntrinsic::ReadOnly:
-            if (addComma)
-              OS << ",";
-            OS << "Attribute::ReadOnly";
-            addComma = true;
+            OS << LS << "Attribute::ReadOnly";
             break;
           case CodeGenIntrinsic::WriteOnly:
-            if (addComma)
-              OS << ",";
-            OS << "Attribute::WriteOnly";
-            addComma = true;
+            OS << LS << "Attribute::WriteOnly";
             break;
           case CodeGenIntrinsic::ReadNone:
-            if (addComma)
-              OS << ",";
-            OS << "Attribute::ReadNone";
-            addComma = true;
+            OS << LS << "Attribute::ReadNone";
             break;
           case CodeGenIntrinsic::ImmArg:
-            if (addComma)
-              OS << ',';
-            OS << "Attribute::ImmArg";
-            addComma = true;
+            OS << LS << "Attribute::ImmArg";
             break;
           case CodeGenIntrinsic::Alignment:
-            if (addComma)
-              OS << ',';
-            OS << "Attribute::Alignment";
-            addComma = true;
+            OS << LS << "Attribute::Alignment";
             break;
           }
           uint64_t V = intrinsic.ArgumentAttributes[ai].Value;
@@ -743,13 +723,9 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
         // Generate attribute value array if not all attribute values are zero.
         if (!AllValuesAreZero) {
           OS << "      const uint64_t AttrValParam" << attrIdx << "[]= {";
-          addComma = false;
-          for (const auto V : Values) {
-            if (addComma)
-              OS << ',';
-            OS << V;
-            addComma = true;
-          }
+          ListSeparator LSV(",");
+          for (const auto V : Values)
+            OS << LSV << V;
           OS << "};\n";
         }
 
@@ -766,129 +742,86 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
          !intrinsic.hasSideEffects) ||
         intrinsic.isNoReturn || intrinsic.isNoSync || intrinsic.isNoFree ||
         intrinsic.isWillReturn || intrinsic.isCold || intrinsic.isNoDuplicate ||
-        intrinsic.isConvergent || intrinsic.isSpeculatable) {
+        intrinsic.isNoMerge || intrinsic.isConvergent ||
+        intrinsic.isSpeculatable) {
       OS << "      const Attribute::AttrKind Atts[] = {";
-      bool addComma = false;
-      if (!intrinsic.canThrow) {
-        OS << "Attribute::NoUnwind";
-        addComma = true;
-      }
-      if (intrinsic.isNoReturn) {
-        if (addComma)
-          OS << ",";
-        OS << "Attribute::NoReturn";
-        addComma = true;
-      }
-      if (intrinsic.isNoSync) {
-        if (addComma)
-          OS << ",";
-        OS << "Attribute::NoSync";
-        addComma = true;
-      }
-      if (intrinsic.isNoFree) {
-        if (addComma)
-          OS << ",";
-        OS << "Attribute::NoFree";
-        addComma = true;
-      }
-      if (intrinsic.isWillReturn) {
-        if (addComma)
-          OS << ",";
-        OS << "Attribute::WillReturn";
-        addComma = true;
-      }
-      if (intrinsic.isCold) {
-        if (addComma)
-          OS << ",";
-        OS << "Attribute::Cold";
-        addComma = true;
-      }
-      if (intrinsic.isNoDuplicate) {
-        if (addComma)
-          OS << ",";
-        OS << "Attribute::NoDuplicate";
-        addComma = true;
-      }
-      if (intrinsic.isConvergent) {
-        if (addComma)
-          OS << ",";
-        OS << "Attribute::Convergent";
-        addComma = true;
-      }
-      if (intrinsic.isSpeculatable) {
-        if (addComma)
-          OS << ",";
-        OS << "Attribute::Speculatable";
-        addComma = true;
-      }
+      ListSeparator LS(",");
+      if (!intrinsic.canThrow)
+        OS << LS << "Attribute::NoUnwind";
+      if (intrinsic.isNoReturn)
+        OS << LS << "Attribute::NoReturn";
+      if (intrinsic.isNoSync)
+        OS << LS << "Attribute::NoSync";
+      if (intrinsic.isNoFree)
+        OS << LS << "Attribute::NoFree";
+      if (intrinsic.isWillReturn)
+        OS << LS << "Attribute::WillReturn";
+      if (intrinsic.isCold)
+        OS << LS << "Attribute::Cold";
+      if (intrinsic.isNoDuplicate)
+        OS << LS << "Attribute::NoDuplicate";
+      if (intrinsic.isNoMerge)
+        OS << LS << "Attribute::NoMerge";
+      if (intrinsic.isConvergent)
+        OS << LS << "Attribute::Convergent";
+      if (intrinsic.isSpeculatable)
+        OS << LS << "Attribute::Speculatable";
 
       switch (intrinsic.ModRef) {
       case CodeGenIntrinsic::NoMem:
         if (intrinsic.hasSideEffects)
           break;
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::ReadNone";
         break;
       case CodeGenIntrinsic::ReadArgMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::ReadOnly,";
         OS << "Attribute::ArgMemOnly";
         break;
       case CodeGenIntrinsic::ReadMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::ReadOnly";
         break;
       case CodeGenIntrinsic::ReadInaccessibleMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::ReadOnly,";
         OS << "Attribute::InaccessibleMemOnly";
         break;
       case CodeGenIntrinsic::ReadInaccessibleMemOrArgMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::ReadOnly,";
         OS << "Attribute::InaccessibleMemOrArgMemOnly";
         break;
       case CodeGenIntrinsic::WriteArgMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::WriteOnly,";
         OS << "Attribute::ArgMemOnly";
         break;
       case CodeGenIntrinsic::WriteMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::WriteOnly";
         break;
       case CodeGenIntrinsic::WriteInaccessibleMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::WriteOnly,";
         OS << "Attribute::InaccessibleMemOnly";
         break;
       case CodeGenIntrinsic::WriteInaccessibleMemOrArgMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::WriteOnly,";
         OS << "Attribute::InaccessibleMemOrArgMemOnly";
         break;
       case CodeGenIntrinsic::ReadWriteArgMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::ArgMemOnly";
         break;
       case CodeGenIntrinsic::ReadWriteInaccessibleMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::InaccessibleMemOnly";
         break;
       case CodeGenIntrinsic::ReadWriteInaccessibleMemOrArgMem:
-        if (addComma)
-          OS << ",";
+        OS << LS;
         OS << "Attribute::InaccessibleMemOrArgMemOnly";
         break;
       case CodeGenIntrinsic::ReadWriteMem:

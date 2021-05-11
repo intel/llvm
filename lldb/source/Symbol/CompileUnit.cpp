@@ -75,8 +75,7 @@ void CompileUnit::ForeachFunction(
 
 lldb::FunctionSP CompileUnit::FindFunction(
     llvm::function_ref<bool(const FunctionSP &)> matching_lambda) {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "CompileUnit::FindFunction");
+  LLDB_SCOPED_TIMER();
 
   lldb::ModuleSP module = CalculateSymbolContextModule();
 
@@ -249,17 +248,6 @@ void CompileUnit::ResolveSymbolContext(const FileSpec &file_spec,
   if (!file_spec_matches_cu_file_spec && !check_inlines)
     return;
 
-  uint32_t file_idx =
-      GetSupportFiles().FindFileIndex(0, file_spec, true);
-  while (file_idx != UINT32_MAX) {
-    file_indexes.push_back(file_idx);
-    file_idx = GetSupportFiles().FindFileIndex(file_idx + 1, file_spec, true);
-  }
-
-  const size_t num_file_indexes = file_indexes.size();
-  if (num_file_indexes == 0)
-    return;
-
   SymbolContext sc(GetModule());
   sc.comp_unit = this;
 
@@ -272,10 +260,25 @@ void CompileUnit::ResolveSymbolContext(const FileSpec &file_spec,
     return;
   }
 
+  uint32_t file_idx =
+      GetSupportFiles().FindFileIndex(0, file_spec, true);
+  while (file_idx != UINT32_MAX) {
+    file_indexes.push_back(file_idx);
+    file_idx = GetSupportFiles().FindFileIndex(file_idx + 1, file_spec, true);
+  }
+
+  const size_t num_file_indexes = file_indexes.size();
+  if (num_file_indexes == 0)
+    return;
+
   LineTable *line_table = sc.comp_unit->GetLineTable();
 
-  if (line_table == nullptr)
+  if (line_table == nullptr) {
+    if (file_spec_matches_cu_file_spec && !check_inlines) {
+      sc_list.Append(sc);
+    }
     return;
+  }
 
   uint32_t line_idx;
   LineEntry line_entry;

@@ -439,18 +439,19 @@ static void diagnoseUnsatisfiedRequirement(Sema &S,
     case concepts::ExprRequirement::SS_ConstraintsNotSatisfied: {
       ConceptSpecializationExpr *ConstraintExpr =
           Req->getReturnTypeRequirementSubstitutedConstraintExpr();
-      if (ConstraintExpr->getTemplateArgsAsWritten()->NumTemplateArgs == 1)
+      if (ConstraintExpr->getTemplateArgsAsWritten()->NumTemplateArgs == 1) {
         // A simple case - expr type is the type being constrained and the concept
         // was not provided arguments.
-        S.Diag(ConstraintExpr->getBeginLoc(),
+        Expr *e = Req->getExpr();
+        S.Diag(e->getBeginLoc(),
                diag::note_expr_requirement_constraints_not_satisfied_simple)
-            << (int)First << S.BuildDecltypeType(Req->getExpr(),
-                                                 Req->getExpr()->getBeginLoc())
+            << (int)First << S.getDecltypeForParenthesizedExpr(e)
             << ConstraintExpr->getNamedConcept();
-      else
+      } else {
         S.Diag(ConstraintExpr->getBeginLoc(),
                diag::note_expr_requirement_constraints_not_satisfied)
             << (int)First << ConstraintExpr;
+      }
       S.DiagnoseUnsatisfiedConstraint(ConstraintExpr->getSatisfaction());
       break;
     }
@@ -1053,25 +1054,20 @@ ReturnTypeRequirement(TemplateParameterList *TPL) :
   auto *Constraint =
       cast_or_null<ConceptSpecializationExpr>(
           TC->getImmediatelyDeclaredConstraint());
-  bool Dependent = false;
-  if (Constraint->getTemplateArgsAsWritten()) {
-    for (auto &ArgLoc :
-         Constraint->getTemplateArgsAsWritten()->arguments().drop_front(1)) {
-      if (ArgLoc.getArgument().isDependent()) {
-        Dependent = true;
-        break;
-      }
-    }
-  }
+  bool Dependent =
+      Constraint->getTemplateArgsAsWritten() &&
+      TemplateSpecializationType::anyInstantiationDependentTemplateArguments(
+          Constraint->getTemplateArgsAsWritten()->arguments().drop_front(1));
   TypeConstraintInfo.setInt(Dependent ? 1 : 0);
 }
 
 concepts::TypeRequirement::TypeRequirement(TypeSourceInfo *T) :
-    Requirement(RK_Type, T->getType()->isDependentType(),
+    Requirement(RK_Type, T->getType()->isInstantiationDependentType(),
                 T->getType()->containsUnexpandedParameterPack(),
                 // We reach this ctor with either dependent types (in which
                 // IsSatisfied doesn't matter) or with non-dependent type in
                 // which the existence of the type indicates satisfaction.
-                /*IsSatisfied=*/true
-                ), Value(T),
-    Status(T->getType()->isDependentType() ? SS_Dependent : SS_Satisfied) {}
+                /*IsSatisfied=*/true),
+    Value(T),
+    Status(T->getType()->isInstantiationDependentType() ? SS_Dependent
+                                                        : SS_Satisfied) {}

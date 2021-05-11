@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-return-type -Wno-sycl-2017-compat -Wno-error=sycl-strict -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -Wno-return-type -Wno-sycl-2017-compat -Wno-error=sycl-strict -verify -fsyntax-only -std=c++17 %s
 
 // This recursive function is not called from sycl kernel,
 // so it should not be diagnosed.
@@ -16,7 +16,6 @@ using myFuncDef = int(int, int);
 
 typedef __typeof__(sizeof(int)) size_t;
 
-// expected-warning@+1 {{SYCL 1.2.1 specification does not allow 'sycl_device' attribute applied to a function with a raw pointer return type}}
 SYCL_EXTERNAL
 void *operator new(size_t);
 
@@ -35,7 +34,7 @@ template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task2(const Func &kernelFunc) {
   // expected-note@+1 {{called by 'kernel_single_task2}}
   kernelFunc();
-  // expected-warning@+1 2{{SYCL kernel cannot call a recursive function}}
+  // expected-error@+1 2{{SYCL kernel cannot call a recursive function}}
   kernel_single_task2<name, Func>(kernelFunc);
 }
 

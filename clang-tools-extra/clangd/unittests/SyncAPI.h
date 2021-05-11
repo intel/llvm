@@ -46,10 +46,11 @@ llvm::Expected<RenameResult> runRename(ClangdServer &Server, PathRef File,
 
 llvm::Expected<RenameResult>
 runPrepareRename(ClangdServer &Server, PathRef File, Position Pos,
+                 llvm::Optional<std::string> NewName,
                  const clangd::RenameOptions &RenameOpts);
 
 llvm::Expected<tooling::Replacements>
-runFormatFile(ClangdServer &Server, PathRef File, StringRef Code);
+runFormatFile(ClangdServer &Server, PathRef File, llvm::Optional<Range>);
 
 SymbolSlab runFuzzyFind(const SymbolIndex &Index, StringRef Query);
 SymbolSlab runFuzzyFind(const SymbolIndex &Index, const FuzzyFindRequest &Req);

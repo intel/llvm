@@ -10,6 +10,7 @@
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
+using namespace mlir::test;
 
 namespace {
 /// This test checks various aspects of Type interface generation and
@@ -24,6 +25,10 @@ struct TestTypeInterfaces
           testInterface.printTypeB(op->getLoc());
           testInterface.printTypeC(op->getLoc());
           testInterface.printTypeD(op->getLoc());
+          // Just check that we can assign the result to a variable of interface
+          // type.
+          TestTypeInterface result = testInterface.printTypeRet(op->getLoc());
+          (void)result;
         }
         if (auto testType = type.dyn_cast<TestType>())
           testType.printTypeE(op->getLoc());
@@ -34,8 +39,10 @@ struct TestTypeInterfaces
 } // end anonymous namespace
 
 namespace mlir {
+namespace test {
 void registerTestInterfaces() {
   PassRegistration<TestTypeInterfaces> pass("test-type-interfaces",
                                             "Test type interface support.");
 }
+} // namespace test
 } // namespace mlir

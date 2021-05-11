@@ -95,6 +95,8 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     std::string Dyld = D.DyldPrefix;
     if (SanArgs.needsAsanRt() && SanArgs.needsSharedRt())
       Dyld += "asan/";
+    if (SanArgs.needsHwasanRt() && SanArgs.needsSharedRt())
+      Dyld += "hwasan/";
     if (SanArgs.needsTsanRt() && SanArgs.needsSharedRt())
       Dyld += "tsan/";
     Dyld += "ld.so.1";
@@ -167,7 +169,7 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                         Exec, CmdArgs, Inputs));
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 /// Fuchsia - Fuchsia tool chain which can call as(1) and ld(1) directly.
@@ -187,12 +189,10 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
 
   auto FilePaths = [&](const Multilib &M) -> std::vector<std::string> {
     std::vector<std::string> FP;
-    if (D.CCCIsCXX()) {
-      if (auto CXXStdlibPath = getCXXStdlibPath()) {
-        SmallString<128> P(*CXXStdlibPath);
-        llvm::sys::path::append(P, M.gccSuffix());
-        FP.push_back(std::string(P.str()));
-      }
+    if (auto StdlibPath = getStdlibPath()) {
+      SmallString<128> P(*StdlibPath);
+      llvm::sys::path::append(P, M.gccSuffix());
+      FP.push_back(std::string(P.str()));
     }
     return FP;
   };
@@ -210,6 +210,41 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
                           .flag("+fsanitize=address")
                           .flag("-fexceptions")
                           .flag("+fno-exceptions"));
+  // HWASan has higher priority because we always want the instrumentated
+  // version.
+  Multilibs.push_back(
+      Multilib("hwasan", {}, {}, 4).flag("+fsanitize=hwaddress"));
+  // Use the hwasan+noexcept variant with HWASan and -fno-exceptions.
+  Multilibs.push_back(Multilib("hwasan+noexcept", {}, {}, 5)
+                          .flag("+fsanitize=hwaddress")
+                          .flag("-fexceptions")
+                          .flag("+fno-exceptions"));
+  // Use the relative vtables ABI.
+  // TODO: Remove these multilibs once relative vtables are enabled by default
+  // for Fuchsia.
+  Multilibs.push_back(Multilib("relative-vtables", {}, {}, 6)
+                          .flag("+fexperimental-relative-c++-abi-vtables"));
+  Multilibs.push_back(Multilib("relative-vtables+noexcept", {}, {}, 7)
+                          .flag("+fexperimental-relative-c++-abi-vtables")
+                          .flag("-fexceptions")
+                          .flag("+fno-exceptions"));
+  Multilibs.push_back(Multilib("relative-vtables+asan", {}, {}, 8)
+                          .flag("+fexperimental-relative-c++-abi-vtables")
+                          .flag("+fsanitize=address"));
+  Multilibs.push_back(Multilib("relative-vtables+asan+noexcept", {}, {}, 9)
+                          .flag("+fexperimental-relative-c++-abi-vtables")
+                          .flag("+fsanitize=address")
+                          .flag("-fexceptions")
+                          .flag("+fno-exceptions"));
+  Multilibs.push_back(Multilib("relative-vtables+hwasan", {}, {}, 10)
+                          .flag("+fexperimental-relative-c++-abi-vtables")
+                          .flag("+fsanitize=hwaddress"));
+  Multilibs.push_back(Multilib("relative-vtables+hwasan+noexcept", {}, {}, 11)
+                          .flag("+fexperimental-relative-c++-abi-vtables")
+                          .flag("+fsanitize=hwaddress")
+                          .flag("-fexceptions")
+                          .flag("+fno-exceptions"));
+
   Multilibs.FilterOut([&](const Multilib &M) {
     std::vector<std::string> RD = FilePaths(M);
     return std::all_of(RD.begin(), RD.end(), [&](std::string P) {
@@ -222,6 +257,15 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
       Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions, true),
       "fexceptions", Flags);
   addMultilibFlag(getSanitizerArgs().needsAsanRt(), "fsanitize=address", Flags);
+  addMultilibFlag(getSanitizerArgs().needsHwasanRt(), "fsanitize=hwaddress",
+                  Flags);
+
+  addMultilibFlag(
+      Args.hasFlag(options::OPT_fexperimental_relative_cxx_abi_vtables,
+                   options::OPT_fno_experimental_relative_cxx_abi_vtables,
+                   /*default=*/false),
+      "fexperimental-relative-c++-abi-vtables", Flags);
+
   Multilibs.setFilePathsCallback(FilePaths);
 
   if (Multilibs.select(Flags, SelectedMultilib))
@@ -319,7 +363,9 @@ void Fuchsia::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
   switch (GetCXXStdlibType(DriverArgs)) {
   case ToolChain::CST_Libcxx: {
     SmallString<128> P(getDriver().Dir);
-    llvm::sys::path::append(P, "..", "include", "c++", "v1");
+    llvm::sys::path::append(P, "..", "include");
+    std::string Version = detectLibcxxVersion(P);
+    llvm::sys::path::append(P, "c++", Version);
     addSystemInclude(DriverArgs, CC1Args, P.str());
     break;
   }
@@ -344,6 +390,7 @@ void Fuchsia::AddCXXStdlibLibArgs(const ArgList &Args,
 SanitizerMask Fuchsia::getSupportedSanitizers() const {
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   Res |= SanitizerKind::Address;
+  Res |= SanitizerKind::HWAddress;
   Res |= SanitizerKind::PointerCompare;
   Res |= SanitizerKind::PointerSubtract;
   Res |= SanitizerKind::Fuzzer;

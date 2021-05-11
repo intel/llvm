@@ -4,12 +4,12 @@
 
 func @vector_add_2d(%arg0: index, %arg1: index) -> f32 {
   // Nothing should be matched in this first block.
-  // CHECK-NOT:matched: {{.*}} = alloc{{.*}}
+  // CHECK-NOT:matched: {{.*}} = memref.alloc{{.*}}
   // CHECK-NOT:matched: {{.*}} = constant 0{{.*}}
   // CHECK-NOT:matched: {{.*}} = constant 1{{.*}}
-  %0 = alloc(%arg0, %arg1) : memref<?x?xf32>
-  %1 = alloc(%arg0, %arg1) : memref<?x?xf32>
-  %2 = alloc(%arg0, %arg1) : memref<?x?xf32>
+  %0 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
+  %1 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
+  %2 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
   %c0 = constant 0 : index
   %cst = constant 1.000000e+00 : f32
 
@@ -29,11 +29,11 @@ func @vector_add_2d(%arg0: index, %arg1: index) -> f32 {
   // Nothing should be matched in this last block.
   // CHECK-NOT:matched: {{.*}} = constant 7{{.*}}
   // CHECK-NOT:matched: {{.*}} = constant 42{{.*}}
-  // CHECK-NOT:matched: {{.*}} = load{{.*}}
+  // CHECK-NOT:matched: {{.*}} = memref.load{{.*}}
   // CHECK-NOT:matched: return {{.*}}
   %c7 = constant 7 : index
   %c42 = constant 42 : index
-  %9 = load %2[%c7, %c42] : memref<?x?xf32>
+  %9 = memref.load %2[%c7, %c42] : memref<?x?xf32>
   return %9 : f32
 }
 
@@ -56,7 +56,7 @@ func @double_loop_nest(%a: memref<20x30xf32>, %b: memref<20xf32>) {
 // VECNEST:         vector.transfer_read
 // VECNEST-NEXT:    affine.for %{{.*}} = 0 to 30 {
 // VECNEST:           vector.transfer_read
-// VECNEST-NEXT:      vector.transfer_write
+// VECNEST-NEXT:      vector.transfer_write %{{.*}}, %{{.*}}[%{{.*}}, %{{.*}}] {permutation_map = #{{.*}}}
 // VECNEST-NEXT:    }
 // VECNEST-NEXT:    vector.transfer_write
 // VECNEST:       }

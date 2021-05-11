@@ -1,6 +1,6 @@
 // RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck -check-prefix=GCN --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck -check-prefix=GCN -check-prefix=SI --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga %s 2>&1 | FileCheck -check-prefix=GCN -check-prefix=VI --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck -check-prefix=GCN --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga %s 2>&1 | FileCheck --check-prefixes=GCN,VI --implicit-check-not=error: %s
 
 s_mov_b32 v1, s2
 // GCN: error: invalid operand for instruction
@@ -39,3 +39,6 @@ s_mov_b32 s103, 1
 
 s_mov_b64 s[102:103], -1
 // VI: error: register not available on this GPU
+
+s_setpc_b64 0
+// GCN: error: invalid operand for instruction

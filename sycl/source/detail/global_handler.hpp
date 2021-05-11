@@ -56,9 +56,11 @@ public:
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  std::mutex &getHandlerExtendedMembersMutex();
 
 private:
   friend void shutdown();
+
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
   GlobalHandler();
@@ -66,6 +68,7 @@ private:
 
   SpinLock MFieldsLock;
 
+  // Do not forget to update shutdown() function if needed.
   std::unique_ptr<Scheduler> MScheduler;
   std::unique_ptr<ProgramManager> MProgramManager;
   std::unique_ptr<Sync> MSync;
@@ -74,6 +77,8 @@ private:
   std::unique_ptr<std::mutex> MFilterMutex;
   std::unique_ptr<std::vector<plugin>> MPlugins;
   std::unique_ptr<device_filter_list> MDeviceFilterList;
+  // The mutex for synchronizing accesses to handlers extended members
+  std::unique_ptr<std::mutex> MHandlerExtendedMembersMutex;
 };
 } // namespace detail
 } // namespace sycl

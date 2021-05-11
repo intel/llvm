@@ -52,17 +52,19 @@ UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
 }
 
 // Converts the Coordinates from any dimensions into float4.
+// valid but unused coordinates are written as 0.5 so the Int_uvwsubhalf
+// calculation won't pass 0.
 // Non-valid coordinates are written as 0.
 template <typename T>
 detail::enable_if_t<IsValidCoordType<T>::value, cl_float4>
 convertToFloat4(T Coords) {
-  return {static_cast<float>(Coords), 0.f, 0.f, 0.f};
+  return {static_cast<float>(Coords), 0.5f, 0.5f, 0.f};
 }
 
 template <typename T>
 detail::enable_if_t<IsValidCoordType<T>::value, cl_float4>
 convertToFloat4(vec<T, 2> Coords) {
-  return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()), 0.f,
+  return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()), 0.5f,
           0.f};
 }
 

@@ -51,6 +51,8 @@ exclude_patterns = ['extensions/*']
 
 source_parsers = {'.md': 'recommonmark.parser.CommonMarkParser'}
 
+suppress_warnings = [ 'misc.highlighting_failure' ]
+
 def on_missing_reference(app, env, node, contnode):
     if node['reftype'] == 'any':
         contnode['refuri'] = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + contnode['refuri']

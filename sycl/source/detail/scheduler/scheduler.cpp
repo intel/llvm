@@ -11,9 +11,11 @@
 #include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
 
 #include <chrono>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -72,7 +74,21 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   EventImplPtr NewEvent = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   std::vector<Command *> AuxiliaryCmds;
+  const bool IsHostKernel = CommandGroup->getType() == CG::RUN_ON_HOST_INTEL;
   vector_class<StreamImplPtr> Streams;
+
+  if (IsKernel) {
+    Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
+    // Stream's flush buffer memory is mainly initialized in stream's __init
+    // method. However, this method is not available on host device.
+    // Initializing stream's flush buffer on the host side in a separate task.
+    if (Queue->is_host()) {
+      for (const StreamImplPtr &Stream : Streams) {
+        initStream(Stream, Queue);
+      }
+    }
+  }
+
   {
     WriteLockT Lock(MGraphLock, std::defer_lock);
     acquireWriteLock(Lock);
@@ -114,12 +130,15 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
-      if (IsKernel)
-        Streams = ((ExecCGCommand *)NewCmd)->getStreams();
-
+      // If there are no memory dependencies decouple and free the command.
+      // Though, dismiss ownership of native kernel command group as it's
+      // resources may be in use by backend and synchronization point here is
+      // at native kernel execution finish.
       if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0) {
-        NewEvent->setCommand(nullptr); // if there are no memory dependencies,
-                                       // decouple and free the command
+        if (IsHostKernel)
+          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
+
+        NewEvent->setCommand(nullptr);
         delete NewCmd;
       }
     }
@@ -179,48 +198,76 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
   GraphProcessor::waitForEvent(std::move(Event), Lock);
 }
 
+static void deallocateStreams(
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+  // Deallocate buffers for stream objects of the finished commands. Iterate in
+  // reverse order because it is the order of commands execution.
+  for (auto StreamImplPtr = StreamsToDeallocate.rbegin();
+       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
+    detail::Scheduler::getInstance().deallocateStreamBuffers(
+        StreamImplPtr->get());
+}
+
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
-  // Avoiding deadlock situation, where one thread is in the process of
-  // enqueueing (with a locked mutex) a currently blocked task that waits for
-  // another thread which is stuck at attempting cleanup.
-  WriteLockT Lock(MGraphLock, std::try_to_lock);
-  if (Lock.owns_lock()) {
-    Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
-    // The command might have been cleaned up (and set to nullptr) by another
-    // thread
-    if (FinishedCmd)
-      MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  // We are going to traverse a graph of finished commands. Gather stream
+  // objects from these commands if any and deallocate buffers for these stream
+  // objects, this is needed to guarantee that streamed data is printed and
+  // resources are released.
+  std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
+  {
+    // Avoiding deadlock situation, where one thread is in the process of
+    // enqueueing (with a locked mutex) a currently blocked task that waits for
+    // another thread which is stuck at attempting cleanup.
+    WriteLockT Lock(MGraphLock, std::try_to_lock);
+    if (Lock.owns_lock()) {
+      auto FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
+      // The command might have been cleaned up (and set to nullptr) by another
+      // thread
+      if (FinishedCmd)
+        MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate);
+    }
   }
+  deallocateStreams(StreamsToDeallocate);
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  MemObjRecord *Record = nullptr;
-  WriteLockT Lock(MGraphLock, std::defer_lock);
+  // We are going to traverse a graph of finished commands. Gather stream
+  // objects from these commands if any and deallocate buffers for these stream
+  // objects, this is needed to guarantee that streamed data is printed and
+  // resources are released.
+  std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
 
   {
-    acquireWriteLock(Lock);
+    MemObjRecord *Record = nullptr;
+    WriteLockT Lock(MGraphLock, std::defer_lock);
 
-    Record = MGraphBuilder.getMemObjRecord(MemObj);
-    if (!Record)
-      // No operations were performed on the mem object
-      return;
+    {
+      acquireWriteLock(Lock);
+      lockSharedTimedMutex(Lock);
 
-    Lock.unlock();
+      Record = MGraphBuilder.getMemObjRecord(MemObj);
+      if (!Record)
+        // No operations were performed on the mem object
+        return;
+
+      Lock.unlock();
+    }
+
+    {
+      // This only needs a shared mutex as it only involves enqueueing and
+      // awaiting for events
+      ReadLockT Lock(MGraphLock);
+      waitForRecordToFinish(Record, Lock);
+    }
+
+    {
+      acquireWriteLock(Lock);
+      MGraphBuilder.decrementLeafCountersForRecord(Record);
+      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate);
+      MGraphBuilder.removeRecordForMemObj(MemObj);
+    }
   }
-
-  {
-    // This only needs a shared mutex as it only involves enqueueing and
-    // awaiting for events
-    ReadLockT Lock(MGraphLock);
-    waitForRecordToFinish(Record, Lock);
-  }
-
-  {
-    acquireWriteLock(Lock);
-    MGraphBuilder.decrementLeafCountersForRecord(Record);
-    MGraphBuilder.cleanupCommandsForRecord(Record);
-    MGraphBuilder.removeRecordForMemObj(MemObj);
-  }
+  deallocateStreams(StreamsToDeallocate);
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
@@ -287,13 +334,14 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
 void Scheduler::allocateStreamBuffers(stream_impl *Impl,
                                       size_t StreamBufferSize,
                                       size_t FlushBufferSize) {
-  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
   StreamBuffersPool.insert(
-      {Impl, StreamBuffers(StreamBufferSize, FlushBufferSize)});
+      {Impl, new StreamBuffers(StreamBufferSize, FlushBufferSize)});
 }
 
 void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
-  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
+  delete StreamBuffersPool[Impl];
   StreamBuffersPool.erase(Impl);
 }
 
@@ -302,6 +350,25 @@ Scheduler::Scheduler() {
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
                      /*PropList=*/{}));
+}
+
+Scheduler::~Scheduler() {
+  DefaultHostQueue->stopThreadPool();
+  // By specification there are several possible sync points: buffer
+  // destruction, wait() method of a queue or event. Stream doesn't introduce
+  // any synchronization point. It is guaranteed that stream is flushed and
+  // resources are released only if one of the listed sync points was used for
+  // the kernel. Otherwise resources for stream will not be released, issue a
+  // warning in this case.
+  if (pi::trace(pi::TraceLevel::PI_TRACE_BASIC)) {
+    std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
+    if (!StreamBuffersPool.empty())
+      fprintf(
+          stderr,
+          "\nWARNING: Some commands may have not finished the execution and "
+          "not all resources were released. Please be sure that all kernels "
+          "have synchronization points.\n\n");
+  }
 }
 
 void Scheduler::acquireWriteLock(WriteLockT &Lock) {

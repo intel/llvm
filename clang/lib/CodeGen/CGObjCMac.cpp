@@ -1765,6 +1765,24 @@ struct NullReturnState {
           assert(RV.isScalar() &&
                  "NullReturnState::complete - arg not on object");
           CGF.EmitARCRelease(RV.getScalarVal(), ARCImpreciseLifetime);
+        } else {
+          QualType QT = ParamDecl->getType();
+          auto *RT = QT->getAs<RecordType>();
+          if (RT && RT->getDecl()->isParamDestroyedInCallee()) {
+            RValue RV = I->getRValue(CGF);
+            QualType::DestructionKind DtorKind = QT.isDestructedType();
+            switch (DtorKind) {
+            case QualType::DK_cxx_destructor:
+              CGF.destroyCXXObject(CGF, RV.getAggregateAddress(), QT);
+              break;
+            case QualType::DK_nontrivial_c_struct:
+              CGF.destroyNonTrivialCStruct(CGF, RV.getAggregateAddress(), QT);
+              break;
+            default:
+              llvm_unreachable("unexpected dtor kind");
+              break;
+            }
+          }
         }
       }
     }
@@ -1782,7 +1800,8 @@ struct NullReturnState {
     // If we've got a scalar return, build a phi.
     if (result.isScalar()) {
       // Derive the null-initialization value.
-      llvm::Constant *null = CGF.CGM.EmitNullConstant(resultType);
+      llvm::Value *null =
+          CGF.EmitFromMemory(CGF.CGM.EmitNullConstant(resultType), resultType);
 
       // If no join is necessary, just flow out.
       if (!contBB) return RValue::get(null);
@@ -2077,6 +2096,7 @@ CGObjCMac::GenerateMessageSendSuper(CodeGen::CodeGenFunction &CGF,
                           CGF.Builder.CreateStructGEP(ObjCSuper, 0));
 
   // If this is a class message the metaclass is passed as the target.
+  llvm::Type *ClassTyPtr = llvm::PointerType::getUnqual(ObjCTypes.ClassTy);
   llvm::Value *Target;
   if (IsClassMessage) {
     if (isCategoryImpl) {
@@ -2088,13 +2108,14 @@ CGObjCMac::GenerateMessageSendSuper(CodeGen::CodeGenFunction &CGF,
       // isa" is the first ivar in a class (which it must be).
       Target = EmitClassRef(CGF, Class->getSuperClass());
       Target = CGF.Builder.CreateStructGEP(ObjCTypes.ClassTy, Target, 0);
-      Target = CGF.Builder.CreateAlignedLoad(Target, CGF.getPointerAlign());
+      Target = CGF.Builder.CreateAlignedLoad(ClassTyPtr, Target,
+                                             CGF.getPointerAlign());
     } else {
       llvm::Constant *MetaClassPtr = EmitMetaClassRef(Class);
       llvm::Value *SuperPtr =
           CGF.Builder.CreateStructGEP(ObjCTypes.ClassTy, MetaClassPtr, 1);
-      llvm::Value *Super =
-        CGF.Builder.CreateAlignedLoad(SuperPtr, CGF.getPointerAlign());
+      llvm::Value *Super = CGF.Builder.CreateAlignedLoad(ClassTyPtr, SuperPtr,
+                                                         CGF.getPointerAlign());
       Target = Super;
     }
   } else if (isCategoryImpl)
@@ -2102,7 +2123,8 @@ CGObjCMac::GenerateMessageSendSuper(CodeGen::CodeGenFunction &CGF,
   else {
     llvm::Value *ClassPtr = EmitSuperClassRef(Class);
     ClassPtr = CGF.Builder.CreateStructGEP(ObjCTypes.ClassTy, ClassPtr, 1);
-    Target = CGF.Builder.CreateAlignedLoad(ClassPtr, CGF.getPointerAlign());
+    Target = CGF.Builder.CreateAlignedLoad(ClassTyPtr, ClassPtr,
+                                           CGF.getPointerAlign());
   }
   // FIXME: We shouldn't need to do this cast, rectify the ASTContext and
   // ObjCTypes types.
@@ -2241,7 +2263,7 @@ CGObjCCommonMac::EmitMessageSend(CodeGen::CodeGenFunction &CGF,
   // Emit a null-check if there's a consumed argument other than the receiver.
   if (!RequiresNullCheck && CGM.getLangOpts().ObjCAutoRefCount && Method) {
     for (const auto *ParamDecl : Method->parameters()) {
-      if (ParamDecl->hasAttr<NSConsumedAttr>()) {
+      if (ParamDecl->isDestroyedInCallee()) {
         RequiresNullCheck = true;
         break;
       }
@@ -5266,7 +5288,8 @@ llvm::Value *CGObjCMac::EmitClassRefFromId(CodeGenFunction &CGF,
         CGM.getPointerAlign(), true);
   }
 
-  return CGF.Builder.CreateAlignedLoad(Entry, CGF.getPointerAlign());
+  return CGF.Builder.CreateAlignedLoad(Entry->getValueType(), Entry,
+                                       CGF.getPointerAlign());
 }
 
 llvm::Value *CGObjCMac::EmitClassRef(CodeGenFunction &CGF,
@@ -6499,7 +6522,7 @@ static llvm::GlobalValue::DLLStorageClassTypes getStorage(CodeGenModule &CGM,
   DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
 
   const VarDecl *VD = nullptr;
-  for (const auto &Result : DC->lookup(&II))
+  for (const auto *Result : DC->lookup(&II))
     if ((VD = dyn_cast<VarDecl>(Result)))
       break;
 
@@ -6663,7 +6686,7 @@ llvm::Value *CGObjCNonFragileABIMac::GenerateProtocolRef(CodeGenFunction &CGF,
 
   llvm::GlobalVariable *PTGV = CGM.getModule().getGlobalVariable(ProtocolName);
   if (PTGV)
-    return CGF.Builder.CreateAlignedLoad(PTGV, Align);
+    return CGF.Builder.CreateAlignedLoad(PTGV->getValueType(), PTGV, Align);
   PTGV = new llvm::GlobalVariable(CGM.getModule(), Init->getType(), false,
                                   llvm::GlobalValue::WeakAnyLinkage, Init,
                                   ProtocolName);
@@ -6674,7 +6697,7 @@ llvm::Value *CGObjCNonFragileABIMac::GenerateProtocolRef(CodeGenFunction &CGF,
   if (!CGM.getTriple().isOSBinFormatMachO())
     PTGV->setComdat(CGM.getModule().getOrInsertComdat(ProtocolName));
   CGM.addUsedGlobal(PTGV);
-  return CGF.Builder.CreateAlignedLoad(PTGV, Align);
+  return CGF.Builder.CreateAlignedLoad(PTGV->getValueType(), PTGV, Align);
 }
 
 /// GenerateCategory - Build metadata for a category implementation.
@@ -7227,7 +7250,8 @@ CGObjCNonFragileABIMac::EmitIvarOffset(CodeGen::CodeGenFunction &CGF,
   } else {
     llvm::GlobalVariable *GV = ObjCIvarOffsetVariable(Interface, Ivar);
     IvarOffsetValue =
-        CGF.Builder.CreateAlignedLoad(GV, CGF.getSizeAlign(), "ivar");
+        CGF.Builder.CreateAlignedLoad(GV->getValueType(), GV,
+                                      CGF.getSizeAlign(), "ivar");
     if (IsIvarOffsetKnownIdempotent(CGF, Ivar))
       cast<llvm::LoadInst>(IvarOffsetValue)
           ->setMetadata(CGM.getModule().getMDKindID("invariant.load"),
@@ -7350,7 +7374,7 @@ CGObjCNonFragileABIMac::EmitVTableMessageSend(CodeGenFunction &CGF,
   bool requiresnullCheck = false;
   if (CGM.getLangOpts().ObjCAutoRefCount && method)
     for (const auto *ParamDecl : method->parameters()) {
-      if (ParamDecl->hasAttr<NSConsumedAttr>()) {
+      if (ParamDecl->isDestroyedInCallee()) {
         if (!nullReturn.NullBB)
           nullReturn.init(CGF, arg0);
         requiresnullCheck = true;
@@ -7467,7 +7491,7 @@ CGObjCNonFragileABIMac::EmitLoadOfClassRef(CodeGenFunction &CGF,
   }
 
   CharUnits Align = CGF.getPointerAlign();
-  return CGF.Builder.CreateAlignedLoad(Entry, Align);
+  return CGF.Builder.CreateAlignedLoad(Entry->getValueType(), Entry, Align);
 }
 
 llvm::Value *
@@ -7559,7 +7583,7 @@ llvm::Value *CGObjCNonFragileABIMac::EmitMetaClassRef(CodeGenFunction &CGF,
     CGM.addCompilerUsedGlobal(Entry);
   }
 
-  return CGF.Builder.CreateAlignedLoad(Entry, Align);
+  return CGF.Builder.CreateAlignedLoad(ObjCTypes.ClassnfABIPtrTy, Entry, Align);
 }
 
 /// GetClass - Return a reference to the class for the given interface

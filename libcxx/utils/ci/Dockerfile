@@ -17,19 +17,10 @@
 # The environment variables in `secrets.env` must be replaced by the actual
 # tokens for this to work. These should obviously never be checked in.
 #
-# To start a shell in the Docker image, use:
-#   $ docker run -it --volume "$(git rev-parse --show-toplevel):/llvm" --workdir "/llvm" $(docker build -q .) bash
+# If you're only looking to run the Docker image locally for debugging a
+# build bot, see the `run-buildbot-container` script located in this directory.
 #
-# This will fire up the Docker container and mount the root of the monorepo
-# as /llvm in the container. Be careful, the state in /llvm is shared between
-# the container and the host machine.
-#
-# Finally, a pre-built version of this image is available on DockerHub as
-# ldionne/libcxx-builder. To use the pre-built version of the image, use
-#
-#   $ docker pull ldionne/libcxx-builder
-#   $ docker run -it <options> ldionne/libcxx-builder
-#
+# A pre-built version of this image is maintained on DockerHub as ldionne/libcxx-builder.
 # To update the image, rebuild it and push it to ldionne/libcxx-builder (which
 # will obviously only work if you have permission to do so).
 #
@@ -39,29 +30,39 @@
 
 FROM ubuntu:bionic
 
-RUN apt-get update
-RUN apt-get install -y bash curl
+# Make sure apt-get doesn't try to prompt for stuff like our time zone, etc.
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y bash curl
 
 # Install various tools used by the build or the test suite
-RUN apt-get install -y ninja-build python3 sphinx-doc git
-
-# Install the Phabricator Python module to allow uploading results to Phabricator.
-# This MUST be done before installing a recent GCC, otherwise /usr/bin/gcc is
-# overwritten to an older GCC.
-RUN apt-get install -y python3-pip
-RUN pip3 install phabricator
+RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils git gdb
+RUN apt-get update && apt-get install -y libc6-dev-i386 # Required to cross-compile to 32 bits
 
 # Install the most recently released LLVM
-RUN apt-get install -y lsb-release wget software-properties-common
-RUN bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
-RUN ln -s $(find /usr/bin -regex '.+/clang\+\+-[a-zA-Z0-9.]+') /usr/bin/clang++
-RUN ln -s $(find /usr/bin -regex '.+/clang-[a-zA-Z0-9.]+') /usr/bin/clang
+RUN apt-get update && apt-get install -y lsb-release wget software-properties-common
+RUN wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
+RUN bash /tmp/llvm.sh
+RUN LLVM_VERSION=$(find /usr/bin -regex '^.+/clang-[0-9.]+$') && LLVM_VERSION=${LLVM_VERSION#*clang-} && echo "LLVM_VERSION=$LLVM_VERSION" > /tmp/env.sh
+RUN ln -s $(find /usr/bin -regex '^.+/clang\+\+-[0-9.]+$') /usr/bin/clang++ && [ -e $(readlink /usr/bin/clang++) ]
+RUN ln -s $(find /usr/bin -regex '^.+/clang-[0-9.]+$') /usr/bin/clang && [ -e $(readlink /usr/bin/clang) ]
+
+# Install the not-yet-released LLVM
+RUN . /tmp/env.sh && echo "LLVM_TOT_VERSION=$(($LLVM_VERSION + 1))" >> /tmp/env.sh
+RUN . /tmp/env.sh && bash /tmp/llvm.sh ${LLVM_TOT_VERSION}
+RUN . /tmp/env.sh && ln -s /usr/bin/clang++-${LLVM_TOT_VERSION} /usr/bin/clang++-tot && [ -e $(readlink /usr/bin/clang++-tot) ]
+RUN . /tmp/env.sh && ln -s /usr/bin/clang-${LLVM_TOT_VERSION} /usr/bin/clang-tot && [ -e $(readlink /usr/bin/clang-tot) ]
+
+# Install clang-format
+RUN . /tmp/env.sh && apt-get install -y clang-format-$LLVM_VERSION
+RUN ln -s $(find /usr/bin -regex '^.+/clang-format-[0-9.]+$') /usr/bin/clang-format && [ -e $(readlink /usr/bin/clang-format) ]
+RUN ln -s $(find /usr/bin -regex '^.+/git-clang-format-[0-9.]+$') /usr/bin/git-clang-format && [ -e $(readlink /usr/bin/git-clang-format) ]
 
 # Install a recent GCC
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test
 RUN apt-get update && apt install -y gcc-10 g++-10
-RUN ln -f -s /usr/bin/g++-10 /usr/bin/g++
-RUN ln -f -s /usr/bin/gcc-10 /usr/bin/gcc
+RUN ln -f -s /usr/bin/g++-10 /usr/bin/g++ && [ -e $(readlink /usr/bin/g++) ]
+RUN ln -f -s /usr/bin/gcc-10 /usr/bin/gcc && [ -e $(readlink /usr/bin/gcc) ]
 
 # Install a recent CMake
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.sh -O /tmp/install-cmake.sh
@@ -70,7 +71,7 @@ RUN rm /tmp/install-cmake.sh
 
 # Change the user to a non-root user, since some of the libc++ tests
 # (e.g. filesystem) require running as non-root. Also setup passwordless sudo.
-RUN apt-get install -y sudo
+RUN apt-get update && apt-get install -y sudo
 RUN echo "ALL ALL = (ALL) NOPASSWD: ALL" >> /etc/sudoers
 RUN useradd --create-home libcxx-builder
 USER libcxx-builder

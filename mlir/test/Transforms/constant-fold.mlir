@@ -13,8 +13,8 @@ func @affine_for(%p : memref<f32>) {
 
       %2 = addf %0, %1 : f32
 
-      // CHECK-NEXT: store [[C]], [[ARG]][]
-      store %2, %p[] : memref<f32>
+      // CHECK-NEXT: memref.store [[C]], [[ARG]][]
+      memref.store %2, %p[] : memref<f32>
     }
   }
   return
@@ -402,6 +402,82 @@ func @divi_unsigned_splat_tensor() -> (tensor<4xi32>, tensor<4xi32>, tensor<4xi3
 
 // -----
 
+// CHECK-LABEL: func @simple_floordivi_signed
+func @simple_floordivi_signed() -> (i32, i32, i32, i32, i32) {
+  // CHECK-DAG: [[C0:%.+]] = constant 0
+  %z = constant 0 : i32
+  // CHECK-DAG: [[C6:%.+]] = constant 7
+  %0 = constant 7 : i32
+  %1 = constant 2 : i32
+
+  // floor(7, 2) = 3
+  // CHECK-NEXT: [[C3:%.+]] = constant 3 : i32
+  %2 = floordivi_signed %0, %1 : i32
+
+  %3 = constant -2 : i32
+
+  // floor(7, -2) = -4
+  // CHECK-NEXT: [[CM3:%.+]] = constant -4 : i32
+  %4 = floordivi_signed %0, %3 : i32
+
+  %5 = constant -9 : i32
+
+  // floor(-9, 2) = -5
+  // CHECK-NEXT: [[CM4:%.+]] = constant -5 : i32
+  %6 = floordivi_signed %5, %1 : i32
+
+  %7 = constant -13 : i32
+
+  // floor(-13, -2) = 6
+  // CHECK-NEXT: [[CM5:%.+]] = constant 6 : i32
+  %8 = floordivi_signed %7, %3 : i32
+
+  // CHECK-NEXT: [[XZ:%.+]] = floordivi_signed [[C6]], [[C0]]
+  %9 = floordivi_signed %0, %z : i32
+
+  return %2, %4, %6, %8, %9 : i32, i32, i32, i32, i32
+}
+
+// -----
+
+// CHECK-LABEL: func @simple_ceildivi_signed
+func @simple_ceildivi_signed() -> (i32, i32, i32, i32, i32) {
+  // CHECK-DAG: [[C0:%.+]] = constant 0
+  %z = constant 0 : i32
+  // CHECK-DAG: [[C6:%.+]] = constant 7
+  %0 = constant 7 : i32
+  %1 = constant 2 : i32
+
+  // ceil(7, 2) = 4
+  // CHECK-NEXT: [[C3:%.+]] = constant 4 : i32
+  %2 = ceildivi_signed %0, %1 : i32
+
+  %3 = constant -2 : i32
+
+  // ceil(7, -2) = -3
+  // CHECK-NEXT: [[CM3:%.+]] = constant -3 : i32
+  %4 = ceildivi_signed %0, %3 : i32
+
+  %5 = constant -9 : i32
+
+  // ceil(-9, 2) = -4
+  // CHECK-NEXT: [[CM4:%.+]] = constant -4 : i32
+  %6 = ceildivi_signed %5, %1 : i32
+
+  %7 = constant -15 : i32
+
+  // ceil(-15, -2) = 8
+  // CHECK-NEXT: [[CM5:%.+]] = constant 8 : i32
+  %8 = ceildivi_signed %7, %3 : i32
+
+  // CHECK-NEXT: [[XZ:%.+]] = ceildivi_signed [[C6]], [[C0]]
+  %9 = ceildivi_signed %0, %z : i32
+
+  return %2, %4, %6, %8, %9 : i32, i32, i32, i32, i32
+}
+
+// -----
+
 // CHECK-LABEL: func @simple_remi_signed
 func @simple_remi_signed(%a : i32) -> (i32, i32, i32) {
   %0 = constant 5 : i32
@@ -472,7 +548,7 @@ func @dim(%x : tensor<8x4xf32>) -> index {
 
   // CHECK:[[C4:%.+]] = constant 4 : index
   %c1 = constant 1 : index
-  %0 = dim %x, %c1 : tensor<8x4xf32>
+  %0 = memref.dim %x, %c1 : tensor<8x4xf32>
 
   // CHECK-NEXT: return [[C4]]
   return %0 : index
@@ -487,25 +563,25 @@ func @cmpi() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1) {
   // CHECK-DAG: [[F:%.+]] = constant false
   // CHECK-DAG: [[T:%.+]] = constant true
   // CHECK-NEXT: return [[F]],
-  %0 = cmpi "eq", %c42, %cm1 : i32
+  %0 = cmpi eq, %c42, %cm1 : i32
   // CHECK-SAME: [[T]],
-  %1 = cmpi "ne", %c42, %cm1 : i32
+  %1 = cmpi ne, %c42, %cm1 : i32
   // CHECK-SAME: [[F]],
-  %2 = cmpi "slt", %c42, %cm1 : i32
+  %2 = cmpi slt, %c42, %cm1 : i32
   // CHECK-SAME: [[F]],
-  %3 = cmpi "sle", %c42, %cm1 : i32
+  %3 = cmpi sle, %c42, %cm1 : i32
   // CHECK-SAME: [[T]],
-  %4 = cmpi "sgt", %c42, %cm1 : i32
+  %4 = cmpi sgt, %c42, %cm1 : i32
   // CHECK-SAME: [[T]],
-  %5 = cmpi "sge", %c42, %cm1 : i32
+  %5 = cmpi sge, %c42, %cm1 : i32
   // CHECK-SAME: [[T]],
-  %6 = cmpi "ult", %c42, %cm1 : i32
+  %6 = cmpi ult, %c42, %cm1 : i32
   // CHECK-SAME: [[T]],
-  %7 = cmpi "ule", %c42, %cm1 : i32
+  %7 = cmpi ule, %c42, %cm1 : i32
   // CHECK-SAME: [[F]],
-  %8 = cmpi "ugt", %c42, %cm1 : i32
+  %8 = cmpi ugt, %c42, %cm1 : i32
   // CHECK-SAME: [[F]]
-  %9 = cmpi "uge", %c42, %cm1 : i32
+  %9 = cmpi uge, %c42, %cm1 : i32
   return %0, %1, %2, %3, %4, %5, %6, %7, %8, %9 : i1, i1, i1, i1, i1, i1, i1, i1, i1, i1
 }
 
@@ -518,37 +594,37 @@ func @cmpf_normal_numbers() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, 
   // CHECK-DAG: [[F:%.+]] = constant false
   // CHECK-DAG: [[T:%.+]] = constant true
   // CHECK-NEXT: return [[F]],
-  %0 = cmpf "false", %c42, %cm1 : f32
+  %0 = cmpf false, %c42, %cm1 : f32
   // CHECK-SAME: [[F]],
-  %1 = cmpf "oeq", %c42, %cm1 : f32
+  %1 = cmpf oeq, %c42, %cm1 : f32
   // CHECK-SAME: [[T]],
-  %2 = cmpf "ogt", %c42, %cm1 : f32
+  %2 = cmpf ogt, %c42, %cm1 : f32
   // CHECK-SAME: [[T]],
-  %3 = cmpf "oge", %c42, %cm1 : f32
+  %3 = cmpf oge, %c42, %cm1 : f32
   // CHECK-SAME: [[F]],
-  %4 = cmpf "olt", %c42, %cm1 : f32
+  %4 = cmpf olt, %c42, %cm1 : f32
   // CHECK-SAME: [[F]],
-  %5 = cmpf "ole", %c42, %cm1 : f32
+  %5 = cmpf ole, %c42, %cm1 : f32
   // CHECK-SAME: [[T]],
-  %6 = cmpf "one", %c42, %cm1 : f32
+  %6 = cmpf one, %c42, %cm1 : f32
   // CHECK-SAME: [[T]],
-  %7 = cmpf "ord", %c42, %cm1 : f32
+  %7 = cmpf ord, %c42, %cm1 : f32
   // CHECK-SAME: [[F]],
-  %8 = cmpf "ueq", %c42, %cm1 : f32
+  %8 = cmpf ueq, %c42, %cm1 : f32
   // CHECK-SAME: [[T]],
-  %9 = cmpf "ugt", %c42, %cm1 : f32
+  %9 = cmpf ugt, %c42, %cm1 : f32
   // CHECK-SAME: [[T]],
-  %10 = cmpf "uge", %c42, %cm1 : f32
+  %10 = cmpf uge, %c42, %cm1 : f32
   // CHECK-SAME: [[F]],
-  %11 = cmpf "ult", %c42, %cm1 : f32
+  %11 = cmpf ult, %c42, %cm1 : f32
   // CHECK-SAME: [[F]],
-  %12 = cmpf "ule", %c42, %cm1 : f32
+  %12 = cmpf ule, %c42, %cm1 : f32
   // CHECK-SAME: [[T]],
-  %13 = cmpf "une", %c42, %cm1 : f32
+  %13 = cmpf une, %c42, %cm1 : f32
   // CHECK-SAME: [[F]],
-  %14 = cmpf "uno", %c42, %cm1 : f32
+  %14 = cmpf uno, %c42, %cm1 : f32
   // CHECK-SAME: [[T]]
-  %15 = cmpf "true", %c42, %cm1 : f32
+  %15 = cmpf true, %c42, %cm1 : f32
   return %0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15 : i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1
 }
 
@@ -561,37 +637,37 @@ func @cmpf_nan() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1,
   // CHECK-DAG: [[F:%.+]] = constant false
   // CHECK-DAG: [[T:%.+]] = constant true
   // CHECK-NEXT: return [[F]],
-  %0 = cmpf "false", %c42, %cqnan : f32
+  %0 = cmpf false, %c42, %cqnan : f32
   // CHECK-SAME: [[F]]
-  %1 = cmpf "oeq", %c42, %cqnan : f32
+  %1 = cmpf oeq, %c42, %cqnan : f32
   // CHECK-SAME: [[F]],
-  %2 = cmpf "ogt", %c42, %cqnan : f32
+  %2 = cmpf ogt, %c42, %cqnan : f32
   // CHECK-SAME: [[F]],
-  %3 = cmpf "oge", %c42, %cqnan : f32
+  %3 = cmpf oge, %c42, %cqnan : f32
   // CHECK-SAME: [[F]],
-  %4 = cmpf "olt", %c42, %cqnan : f32
+  %4 = cmpf olt, %c42, %cqnan : f32
   // CHECK-SAME: [[F]],
-  %5 = cmpf "ole", %c42, %cqnan : f32
+  %5 = cmpf ole, %c42, %cqnan : f32
   // CHECK-SAME: [[F]],
-  %6 = cmpf "one", %c42, %cqnan : f32
+  %6 = cmpf one, %c42, %cqnan : f32
   // CHECK-SAME: [[F]],
-  %7 = cmpf "ord", %c42, %cqnan : f32
+  %7 = cmpf ord, %c42, %cqnan : f32
   // CHECK-SAME: [[T]],
-  %8 = cmpf "ueq", %c42, %cqnan : f32
+  %8 = cmpf ueq, %c42, %cqnan : f32
   // CHECK-SAME: [[T]],
-  %9 = cmpf "ugt", %c42, %cqnan : f32
+  %9 = cmpf ugt, %c42, %cqnan : f32
   // CHECK-SAME: [[T]],
-  %10 = cmpf "uge", %c42, %cqnan : f32
+  %10 = cmpf uge, %c42, %cqnan : f32
   // CHECK-SAME: [[T]],
-  %11 = cmpf "ult", %c42, %cqnan : f32
+  %11 = cmpf ult, %c42, %cqnan : f32
   // CHECK-SAME: [[T]],
-  %12 = cmpf "ule", %c42, %cqnan : f32
+  %12 = cmpf ule, %c42, %cqnan : f32
   // CHECK-SAME: [[T]],
-  %13 = cmpf "une", %c42, %cqnan : f32
+  %13 = cmpf une, %c42, %cqnan : f32
   // CHECK-SAME: [[T]],
-  %14 = cmpf "uno", %c42, %cqnan : f32
+  %14 = cmpf uno, %c42, %cqnan : f32
   // CHECK-SAME: [[T]]
-  %15 = cmpf "true", %c42, %cqnan : f32
+  %15 = cmpf true, %c42, %cqnan : f32
   return %0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15 : i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1
 }
 
@@ -604,70 +680,38 @@ func @cmpf_inf() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1,
   // CHECK-DAG: [[F:%.+]] = constant false
   // CHECK-DAG: [[T:%.+]] = constant true
   // CHECK-NEXT: return [[F]],
-  %0 = cmpf "false", %c42, %cpinf: f32
+  %0 = cmpf false, %c42, %cpinf: f32
   // CHECK-SAME: [[F]]
-  %1 = cmpf "oeq", %c42, %cpinf: f32
+  %1 = cmpf oeq, %c42, %cpinf: f32
   // CHECK-SAME: [[F]],
-  %2 = cmpf "ogt", %c42, %cpinf: f32
+  %2 = cmpf ogt, %c42, %cpinf: f32
   // CHECK-SAME: [[F]],
-  %3 = cmpf "oge", %c42, %cpinf: f32
+  %3 = cmpf oge, %c42, %cpinf: f32
   // CHECK-SAME: [[T]],
-  %4 = cmpf "olt", %c42, %cpinf: f32
+  %4 = cmpf olt, %c42, %cpinf: f32
   // CHECK-SAME: [[T]],
-  %5 = cmpf "ole", %c42, %cpinf: f32
+  %5 = cmpf ole, %c42, %cpinf: f32
   // CHECK-SAME: [[T]],
-  %6 = cmpf "one", %c42, %cpinf: f32
+  %6 = cmpf one, %c42, %cpinf: f32
   // CHECK-SAME: [[T]],
-  %7 = cmpf "ord", %c42, %cpinf: f32
+  %7 = cmpf ord, %c42, %cpinf: f32
   // CHECK-SAME: [[F]],
-  %8 = cmpf "ueq", %c42, %cpinf: f32
+  %8 = cmpf ueq, %c42, %cpinf: f32
   // CHECK-SAME: [[F]],
-  %9 = cmpf "ugt", %c42, %cpinf: f32
+  %9 = cmpf ugt, %c42, %cpinf: f32
   // CHECK-SAME: [[F]],
-  %10 = cmpf "uge", %c42, %cpinf: f32
+  %10 = cmpf uge, %c42, %cpinf: f32
   // CHECK-SAME: [[T]],
-  %11 = cmpf "ult", %c42, %cpinf: f32
+  %11 = cmpf ult, %c42, %cpinf: f32
   // CHECK-SAME: [[T]],
-  %12 = cmpf "ule", %c42, %cpinf: f32
+  %12 = cmpf ule, %c42, %cpinf: f32
   // CHECK-SAME: [[T]],
-  %13 = cmpf "une", %c42, %cpinf: f32
+  %13 = cmpf une, %c42, %cpinf: f32
   // CHECK-SAME: [[F]],
-  %14 = cmpf "uno", %c42, %cpinf: f32
+  %14 = cmpf uno, %c42, %cpinf: f32
   // CHECK-SAME: [[T]]
-  %15 = cmpf "true", %c42, %cpinf: f32
+  %15 = cmpf true, %c42, %cpinf: f32
   return %0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15 : i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1
-}
-
-// -----
-
-// CHECK-LABEL: func @fold_extract_element
-func @fold_extract_element(%arg0 : index) -> (f32, f16, f16, i32) {
-  %const_0 = constant 0 : index
-  %const_1 = constant 1 : index
-  %const_3 = constant 3 : index
-
-  // Fold an extract into a splat.
-  // CHECK-NEXT: [[C4:%.+]] = constant 4.{{0*}}e+00 : f32
-  %0 = constant dense<4.0> : tensor<4xf32>
-  %ext_1 = extract_element %0[%arg0] : tensor<4xf32>
-
-  // Fold an extract into a sparse with a sparse index.
-  // CHECK-NEXT: [[CM2:%.+]] = constant -2.{{0*}}e+00 : f16
-  %1 = constant sparse<[[0, 0, 0], [1, 1, 1]],  [-5.0, -2.0]> : vector<4x4x4xf16>
-  %ext_2 = extract_element %1[%const_1, %const_1, %const_1] : vector<4x4x4xf16>
-
-  // Fold an extract into a sparse with a non sparse index.
-  // CHECK-NEXT: [[C0:%.+]] = constant 0.{{0*}}e+00 : f16
-  %2 = constant sparse<[[1, 1, 1]],  [-2.0]> : vector<1x1x1xf16>
-  %ext_3 = extract_element %2[%const_0, %const_0, %const_0] : vector<1x1x1xf16>
-
-  // Fold an extract into a dense tensor.
-  // CHECK-NEXT: [[C64:%.+]] = constant 64 : i32
-  %3 = constant dense<[[[1, -2, 1, 36]], [[0, 2, -1, 64]]]> : tensor<2x1x4xi32>
-  %ext_4 = extract_element %3[%const_1, %const_0, %const_3] : tensor<2x1x4xi32>
-
-  // CHECK-NEXT: return [[C4]], [[CM2]], [[C0]], [[C64]]
-  return %ext_1, %ext_2, %ext_3, %ext_4 : f32, f16, f16, i32
 }
 
 // -----
@@ -743,4 +787,13 @@ func @splat_fold() -> (vector<4xf32>, tensor<4xf32>) {
   // CHECK-NEXT: [[V:%.*]] = constant dense<1.000000e+00> : vector<4xf32>
   // CHECK-NEXT: [[T:%.*]] = constant dense<1.000000e+00> : tensor<4xf32>
   // CHECK-NEXT: return [[V]], [[T]] : vector<4xf32>, tensor<4xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @subview_scalar_fold
+func @subview_scalar_fold(%arg0: memref<f32>) -> memref<f32> {
+  // CHECK-NOT: memref.subview
+  %c = memref.subview %arg0[] [] [] : memref<f32> to memref<f32>
+  return %c : memref<f32>
 }

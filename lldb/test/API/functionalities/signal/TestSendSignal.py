@@ -18,9 +18,6 @@ class SendSignalTestCase(TestBase):
         # Find the line number to break inside main().
         self.line = line_number('main.c', 'Put breakpoint here')
 
-    @expectedFailureAll(
-        oslist=['freebsd'],
-        bugnumber="llvm.org/pr23318: does not report running state")
     @expectedFailureNetBSD(bugnumber='llvm.org/pr43959')
     @skipIfWindows  # Windows does not support signals
     @skipIfReproducer # FIXME: Unexpected packet during (active) replay
@@ -95,8 +92,8 @@ class SendSignalTestCase(TestBase):
         self.assertTrue(
             thread.GetStopReasonDataCount() >= 1,
             "There was data in the event.")
-        self.assertTrue(
-            thread.GetStopReasonDataAtIndex(0) == lldbutil.get_signal_number('SIGUSR1'),
+        self.assertEqual(
+            thread.GetStopReasonDataAtIndex(0), lldbutil.get_signal_number('SIGUSR1'),
             "The stop signal was SIGUSR1")
 
     def match_state(self, process_listener, expected_state):

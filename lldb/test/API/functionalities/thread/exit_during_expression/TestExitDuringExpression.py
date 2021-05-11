@@ -15,11 +15,16 @@ class TestExitDuringExpression(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @skipIfWindows
+    @skipIf(oslist=["linux"], archs=["arm", "aarch64"], bugnumber="llvm.org/pr48414")
+    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48414")
+    @expectedFailureNetBSD
     def test_exit_before_one_thread_unwind(self):
         """Test the case where we exit within the one thread timeout"""
         self.exiting_expression_test(True, True)
 
     @skipIfWindows
+    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48414")
+    @expectedFailureNetBSD
     def test_exit_before_one_thread_no_unwind(self):
         """Test the case where we exit within the one thread timeout"""
         self.exiting_expression_test(True, False)

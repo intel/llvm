@@ -170,7 +170,8 @@ ModuleMacro *Preprocessor::addModuleMacro(Module *Mod, IdentifierInfo *II,
   return MM;
 }
 
-ModuleMacro *Preprocessor::getModuleMacro(Module *Mod, IdentifierInfo *II) {
+ModuleMacro *Preprocessor::getModuleMacro(Module *Mod,
+                                          const IdentifierInfo *II) {
   llvm::FoldingSetNodeID ID;
   ModuleMacro::Profile(ID, Mod, II);
 
@@ -1695,8 +1696,14 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
       [this](Token &Tok, bool &HasLexedNextToken) -> int {
         IdentifierInfo *II = ExpectFeatureIdentifierInfo(Tok, *this,
                                            diag::err_feature_check_malformed);
-        return II ? hasAttribute(AttrSyntax::Declspec, nullptr, II,
-                                 getTargetInfo(), getLangOpts()) : 0;
+        if (II) {
+          const LangOptions &LangOpts = getLangOpts();
+          return LangOpts.DeclSpecKeyword &&
+                 hasAttribute(AttrSyntax::Declspec, nullptr, II,
+                              getTargetInfo(), LangOpts);
+        }
+
+        return false;
       });
   } else if (II == Ident__has_cpp_attribute ||
              II == Ident__has_c_attribute) {

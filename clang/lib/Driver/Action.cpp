@@ -43,14 +43,14 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-unbundler";
   case OffloadWrapperJobClass:
     return "clang-offload-wrapper";
+  case OffloadDepsJobClass:
+    return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
     return "llvm-spirv";
   case SPIRCheckJobClass:
     return "llvm-no-spir-kernel";
   case SYCLPostLinkJobClass:
     return "sycl-post-link";
-  case PartialLinkJobClass:
-    return "partial-link";
   case BackendCompileJobClass:
     return "backend-compiler";
   case FileTableTformJobClass:
@@ -68,6 +68,9 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, const char *OArch) {
     return;
   // Unbundling actions use the host kinds.
   if (Kind == OffloadUnbundlingJobClass)
+    return;
+  // Deps job uses the host kinds.
+  if (Kind == OffloadDepsJobClass)
     return;
 
   assert((OffloadingDeviceKind == OKind || OffloadingDeviceKind == OFK_None) &&
@@ -183,8 +186,8 @@ StringRef Action::GetOffloadKindName(OffloadKind Kind) {
 
 void InputAction::anchor() {}
 
-InputAction::InputAction(const Arg &_Input, types::ID _Type)
-    : Action(InputClass, _Type), Input(_Input) {}
+InputAction::InputAction(const Arg &_Input, types::ID _Type, StringRef _Id)
+    : Action(InputClass, _Type), Input(_Input), Id(_Id.str()) {}
 
 void BindArchAction::anchor() {}
 
@@ -444,6 +447,18 @@ OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input,
                                                  types::ID Type)
     : JobAction(OffloadWrapperJobClass, Input, Type) {}
 
+void OffloadDepsJobAction::anchor() {}
+
+OffloadDepsJobAction::OffloadDepsJobAction(
+    const OffloadAction::HostDependence &HDep, types::ID Type)
+    : JobAction(OffloadDepsJobClass, HDep.getAction(), Type),
+      HostTC(HDep.getToolChain()) {
+  OffloadingArch = HDep.getBoundArch();
+  ActiveOffloadKindMask = HDep.getOffloadKinds();
+  HDep.getAction()->propagateHostOffloadInfo(HDep.getOffloadKinds(),
+                                             HDep.getBoundArch());
+}
+
 void SPIRVTranslatorJobAction::anchor() {}
 
 SPIRVTranslatorJobAction::SPIRVTranslatorJobAction(Action *Input,
@@ -459,14 +474,6 @@ void SYCLPostLinkJobAction::anchor() {}
 
 SYCLPostLinkJobAction::SYCLPostLinkJobAction(Action *Input, types::ID Type)
     : JobAction(SYCLPostLinkJobClass, Input, Type) {}
-
-void PartialLinkJobAction::anchor() {}
-
-PartialLinkJobAction::PartialLinkJobAction(Action *Input, types::ID Type)
-    : JobAction(PartialLinkJobClass, Input, Type) {}
-
-PartialLinkJobAction::PartialLinkJobAction(ActionList &Inputs, types::ID Type)
-    : JobAction(PartialLinkJobClass, Inputs, Type) {}
 
 void BackendCompileJobAction::anchor() {}
 
@@ -496,6 +503,11 @@ void FileTableTformJobAction::addExtractColumnTform(StringRef ColumnName,
 void FileTableTformJobAction::addReplaceColumnTform(StringRef From,
                                                     StringRef To) {
   Tforms.emplace_back(Tform(Tform::REPLACE, {From, To}));
+}
+
+void FileTableTformJobAction::addRenameColumnTform(StringRef From,
+                                                   StringRef To) {
+  Tforms.emplace_back(Tform(Tform::RENAME, {From, To}));
 }
 
 void StaticLibJobAction::anchor() {}

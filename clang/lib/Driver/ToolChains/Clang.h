@@ -88,9 +88,10 @@ private:
                       codegenoptions::DebugInfoKind *DebugInfoKind,
                       bool *EmitCodeView) const;
 
-  visualstudio::Compiler *getCLFallback() const;
-
-  mutable std::unique_ptr<visualstudio::Compiler> CLFallback;
+  void ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
+                                const InputInfo &Output,
+                                const InputInfoList &Inputs,
+                                const llvm::opt::ArgList &TCArgs) const;
 
   mutable std::unique_ptr<llvm::raw_fd_ostream> CompilationDatabase = nullptr;
   void DumpCompilationDatabase(Compilation &C, StringRef Filename,
@@ -169,6 +170,29 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// Offload deps tool.
+class LLVM_LIBRARY_VISIBILITY OffloadDeps final : public Tool {
+  void constructJob(Compilation &C, const JobAction &JA,
+                    ArrayRef<InputInfo> Outputs, ArrayRef<InputInfo> Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const;
+
+public:
+  OffloadDeps(const ToolChain &TC)
+      : Tool("offload deps", "clang-offload-deps", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+  void ConstructJobMultipleOutputs(Compilation &C, const JobAction &JA,
+                                   const InputInfoList &Outputs,
+                                   const InputInfoList &Inputs,
+                                   const llvm::opt::ArgList &TCArgs,
+                                   const char *LinkingOutput) const override;
+};
+
 /// SPIR-V translator tool.
 class LLVM_LIBRARY_VISIBILITY SPIRVTranslator final : public Tool {
 public:
@@ -214,19 +238,6 @@ class LLVM_LIBRARY_VISIBILITY FileTableTform final : public Tool {
 public:
   FileTableTform(const ToolChain &TC)
       : Tool("File table transformation", "file-table-tform", TC) {}
-
-  bool hasIntegratedCPP() const override { return false; }
-  bool hasGoodDiagnostics() const override { return true; }
-  void ConstructJob(Compilation &C, const JobAction &JA,
-                    const InputInfo &Output, const InputInfoList &Inputs,
-                    const llvm::opt::ArgList &TCArgs,
-                    const char *LinkingOutput) const override;
-};
-
-/// Partially link objects and archives.
-class LLVM_LIBRARY_VISIBILITY PartialLink final : public Tool {
-public:
-  PartialLink(const ToolChain &TC) : Tool("partial link", "partial-link", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool hasGoodDiagnostics() const override { return true; }

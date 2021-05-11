@@ -19,6 +19,7 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 
 using namespace llvm;
@@ -224,11 +225,11 @@ void polly::splitEntryBlockForAlloca(BasicBlock *EntryBlock, Pass *P) {
 void polly::recordAssumption(polly::RecordedAssumptionsTy *RecordedAssumptions,
                              polly::AssumptionKind Kind, isl::set Set,
                              DebugLoc Loc, polly::AssumptionSign Sign,
-                             BasicBlock *BB) {
+                             BasicBlock *BB, bool RTC) {
   assert((Set.is_params() || BB) &&
          "Assumptions without a basic block must be parameter sets");
   if (RecordedAssumptions)
-    RecordedAssumptions->push_back({Kind, Sign, Set, Loc, BB});
+    RecordedAssumptions->push_back({Kind, Sign, Set, Loc, BB, RTC});
 }
 
 /// The SCEVExpander will __not__ generate any code for an existing SDiv/SRem
@@ -341,6 +342,9 @@ private:
   ///
   ///{
   const SCEV *visitConstant(const SCEVConstant *E) { return E; }
+  const SCEV *visitPtrToIntExpr(const SCEVPtrToIntExpr *E) {
+    return SE.getPtrToIntExpr(visit(E->getOperand()), E->getType());
+  }
   const SCEV *visitTruncateExpr(const SCEVTruncateExpr *E) {
     return SE.getTruncateExpr(visit(E->getOperand()), E->getType());
   }
@@ -722,4 +726,85 @@ bool polly::hasDebugCall(ScopStmt *Stmt) {
   }
 
   return false;
+}
+
+/// Find a property in a LoopID.
+static MDNode *findNamedMetadataNode(MDNode *LoopMD, StringRef Name) {
+  if (!LoopMD)
+    return nullptr;
+  for (const MDOperand &X : drop_begin(LoopMD->operands(), 1)) {
+    auto *OpNode = dyn_cast<MDNode>(X.get());
+    if (!OpNode)
+      continue;
+
+    auto *OpName = dyn_cast<MDString>(OpNode->getOperand(0));
+    if (!OpName)
+      continue;
+    if (OpName->getString() == Name)
+      return OpNode;
+  }
+  return nullptr;
+}
+
+Optional<Metadata *> polly::findMetadataOperand(MDNode *LoopMD,
+                                                StringRef Name) {
+  MDNode *MD = findNamedMetadataNode(LoopMD, Name);
+  if (!MD)
+    return None;
+  switch (MD->getNumOperands()) {
+  case 1:
+    return nullptr;
+  case 2:
+    return MD->getOperand(1).get();
+  default:
+    llvm_unreachable("loop metadata must have 0 or 1 operands");
+  }
+}
+
+bool polly::hasDisableAllTransformsHint(Loop *L) {
+  return llvm::hasDisableAllTransformsHint(L);
+}
+
+isl::id polly::getIslLoopAttr(isl::ctx Ctx, BandAttr *Attr) {
+  assert(Attr && "Must be a valid BandAttr");
+
+  // The name "Loop" signals that this id contains a pointer to a BandAttr.
+  // The ScheduleOptimizer also uses the string "Inter iteration alias-free" in
+  // markers, but it's user pointer is an llvm::Value.
+  isl::id Result = isl::id::alloc(Ctx, "Loop with Metadata", Attr);
+  Result = isl::manage(isl_id_set_free_user(Result.release(), [](void *Ptr) {
+    BandAttr *Attr = reinterpret_cast<BandAttr *>(Ptr);
+    delete Attr;
+  }));
+  return Result;
+}
+
+isl::id polly::createIslLoopAttr(isl::ctx Ctx, Loop *L) {
+  if (!L)
+    return {};
+
+  // A loop without metadata does not need to be annotated.
+  MDNode *LoopID = L->getLoopID();
+  if (!LoopID)
+    return {};
+
+  BandAttr *Attr = new BandAttr();
+  Attr->OriginalLoop = L;
+  Attr->Metadata = L->getLoopID();
+
+  return getIslLoopAttr(Ctx, Attr);
+}
+
+bool polly::isLoopAttr(const isl::id &Id) {
+  if (Id.is_null())
+    return false;
+
+  return Id.get_name() == "Loop with Metadata";
+}
+
+BandAttr *polly::getLoopAttr(const isl::id &Id) {
+  if (!isLoopAttr(Id))
+    return nullptr;
+
+  return reinterpret_cast<BandAttr *>(Id.get_user());
 }

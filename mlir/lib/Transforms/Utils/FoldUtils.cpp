@@ -30,7 +30,7 @@ getInsertionRegion(DialectInterfaceCollection<DialectFoldInterface> &interfaces,
     //  * The parent is unregistered, or is known to be isolated from above.
     //  * The parent is a top-level operation.
     auto *parentOp = region->getParentOp();
-    if (!parentOp->isRegistered() || parentOp->isKnownIsolatedFromAbove() ||
+    if (parentOp->mightHaveTrait<OpTrait::IsIsolatedFromAbove>() ||
         !parentOp->getBlock())
       return region;
 
@@ -61,6 +61,18 @@ static Operation *materializeConstant(Dialect *dialect, OpBuilder &builder,
     return constOp;
   }
 
+  // TODO: To facilitate splitting the std dialect (PR48490), have a special
+  // case for falling back to std.constant. Eventually, we will have separate
+  // ops tensor.constant, int.constant, float.constant, etc. that live in their
+  // respective dialects, which will allow each dialect to implement the
+  // materializeConstant hook above.
+  //
+  // The special case is needed because in the interim state while we are
+  // splitting out those dialects from std, the std dialect depends on the
+  // tensor dialect, which makes it impossible for the tensor dialect to use
+  // std.constant (it would be a cyclic dependency) as part of its
+  // materializeConstant hook.
+  //
   // If the dialect is unable to materialize a constant, check to see if the
   // standard constant can be used.
   if (ConstantOp::isBuildableWith(value, type))
@@ -170,7 +182,7 @@ LogicalResult OperationFolder::tryToFold(
   SmallVector<OpFoldResult, 8> foldResults;
 
   // If this is a commutative operation, move constants to be trailing operands.
-  if (op->getNumOperands() >= 2 && op->isCommutative()) {
+  if (op->getNumOperands() >= 2 && op->hasTrait<OpTrait::IsCommutative>()) {
     std::stable_partition(
         op->getOpOperands().begin(), op->getOpOperands().end(),
         [&](OpOperand &O) { return !matchPattern(O.get(), m_Constant()); });
@@ -209,6 +221,8 @@ LogicalResult OperationFolder::tryToFold(
 
     // Check if the result was an SSA value.
     if (auto repl = foldResults[i].dyn_cast<Value>()) {
+      if (repl.getType() != op->getResult(i).getType())
+        return failure();
       results.emplace_back(repl);
       continue;
     }

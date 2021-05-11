@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEBUGINFO_DWARFLISTTABLE_H
-#define LLVM_DEBUGINFO_DWARFLISTTABLE_H
+#ifndef LLVM_DEBUGINFO_DWARF_DWARFLISTTABLE_H
+#define LLVM_DEBUGINFO_DWARF_DWARFLISTTABLE_H
 
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DIContext.h"
@@ -113,12 +113,18 @@ public:
   void dump(DataExtractor Data, raw_ostream &OS,
             DIDumpOptions DumpOpts = {}) const;
   Optional<uint64_t> getOffsetEntry(DataExtractor Data, uint32_t Index) const {
-    if (Index > HeaderData.OffsetEntryCount)
+    if (Index >= HeaderData.OffsetEntryCount)
       return None;
 
+    return getOffsetEntry(Data, getHeaderOffset() + getHeaderSize(Format), Format, Index);
+  }
+
+  static Optional<uint64_t> getOffsetEntry(DataExtractor Data,
+                                           uint64_t OffsetTableOffset,
+                                           dwarf::DwarfFormat Format,
+                                           uint32_t Index) {
     uint8_t OffsetByteSize = Format == dwarf::DWARF64 ? 8 : 4;
-    uint64_t Offset =
-        getHeaderOffset() + getHeaderSize(Format) + OffsetByteSize * Index;
+    uint64_t Offset = OffsetTableOffset + OffsetByteSize * Index;
     auto R = Data.getUnsigned(&Offset, OffsetByteSize);
     return R;
   }
@@ -164,7 +170,8 @@ public:
   Error extract(DWARFDataExtractor Data, uint64_t *OffsetPtr);
   /// Look up a list based on a given offset. Extract it and enter it into the
   /// list map if necessary.
-  Expected<DWARFListType> findList(DWARFDataExtractor Data, uint64_t Offset);
+  Expected<DWARFListType> findList(DWARFDataExtractor Data,
+                                   uint64_t Offset) const;
 
   uint64_t getHeaderOffset() const { return Header.getHeaderOffset(); }
   uint8_t getAddrSize() const { return Header.getAddrSize(); }
@@ -269,12 +276,13 @@ void DWARFListTableBase<DWARFListType>::dump(
 template <typename DWARFListType>
 Expected<DWARFListType>
 DWARFListTableBase<DWARFListType>::findList(DWARFDataExtractor Data,
-                                            uint64_t Offset) {
+                                            uint64_t Offset) const {
   // Extract the list from the section and enter it into the list map.
   DWARFListType List;
-  Data = DWARFDataExtractor(Data, getHeaderOffset() + Header.length());
+  if (Header.length())
+    Data = DWARFDataExtractor(Data, getHeaderOffset() + Header.length());
   if (Error E =
-          List.extract(Data, getHeaderOffset(), &Offset,
+          List.extract(Data, Header.length() ? getHeaderOffset() : 0, &Offset,
                        Header.getSectionName(), Header.getListTypeString()))
     return std::move(E);
   return List;
@@ -282,4 +290,4 @@ DWARFListTableBase<DWARFListType>::findList(DWARFDataExtractor Data,
 
 } // end namespace llvm
 
-#endif // LLVM_DEBUGINFO_DWARFLISTTABLE_H
+#endif // LLVM_DEBUGINFO_DWARF_DWARFLISTTABLE_H

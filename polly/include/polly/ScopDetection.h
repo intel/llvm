@@ -48,20 +48,45 @@
 
 #include "polly/ScopDetectionDiagnostic.h"
 #include "polly/Support/ScopHelper.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AliasSetTracker.h"
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Pass.h"
 #include <set>
 
-using namespace llvm;
-
 namespace llvm {
+class AAResults;
+
 void initializeScopDetectionWrapperPassPass(PassRegistry &);
 } // namespace llvm
 
 namespace polly {
+using llvm::AAResults;
+using llvm::AliasSetTracker;
+using llvm::AnalysisInfoMixin;
+using llvm::AnalysisKey;
+using llvm::AnalysisUsage;
+using llvm::BranchInst;
+using llvm::CallInst;
+using llvm::DenseMap;
+using llvm::DominatorTree;
+using llvm::Function;
+using llvm::FunctionAnalysisManager;
+using llvm::FunctionPass;
+using llvm::IntrinsicInst;
+using llvm::LoopInfo;
+using llvm::Module;
+using llvm::OptimizationRemarkEmitter;
+using llvm::PassInfoMixin;
+using llvm::PreservedAnalyses;
+using llvm::RegionInfo;
+using llvm::ScalarEvolution;
+using llvm::SCEVUnknown;
+using llvm::SetVector;
+using llvm::SmallSetVector;
+using llvm::SmallVectorImpl;
+using llvm::StringRef;
+using llvm::SwitchInst;
 
 using ParamSetType = std::set<const SCEV *>;
 
@@ -135,7 +160,7 @@ public:
     ///
     /// This set contains all base pointers and the locations where they are
     /// used for memory accesses that can not be detected as affine accesses.
-    SetVector<std::pair<const SCEVUnknown *, Loop *>> NonAffineAccesses;
+    llvm::SetVector<std::pair<const SCEVUnknown *, Loop *>> NonAffineAccesses;
     BaseToElSize ElementSize;
 
     /// The region has at least one load instruction.
@@ -161,22 +186,8 @@ public:
     MapInsnToMemAcc InsnToMemAcc;
 
     /// Initialize a DetectionContext from scratch.
-    DetectionContext(Region &R, AliasAnalysis &AA, bool Verify)
+    DetectionContext(Region &R, AAResults &AA, bool Verify)
         : CurRegion(R), AST(AA), Verifying(Verify), Log(&R) {}
-
-    /// Initialize a DetectionContext with the data from @p DC.
-    DetectionContext(const DetectionContext &&DC)
-        : CurRegion(DC.CurRegion), AST(DC.AST.getAliasAnalysis()),
-          Verifying(DC.Verifying), Log(std::move(DC.Log)),
-          Accesses(std::move(DC.Accesses)),
-          NonAffineAccesses(std::move(DC.NonAffineAccesses)),
-          ElementSize(std::move(DC.ElementSize)), hasLoads(DC.hasLoads),
-          hasStores(DC.hasStores), HasUnknownAccess(DC.HasUnknownAccess),
-          NonAffineSubRegionSet(std::move(DC.NonAffineSubRegionSet)),
-          BoxedLoopsSet(std::move(DC.BoxedLoopsSet)),
-          RequiredILS(std::move(DC.RequiredILS)) {
-      AST.add(DC.AST);
-    }
   };
 
   /// Helper data structure to collect statistics about loop counts.
@@ -197,11 +208,12 @@ private:
   ScalarEvolution &SE;
   LoopInfo &LI;
   RegionInfo &RI;
-  AliasAnalysis &AA;
+  AAResults &AA;
   //@}
 
   /// Map to remember detection contexts for all regions.
-  using DetectionContextMapTy = DenseMap<BBPair, DetectionContext>;
+  using DetectionContextMapTy =
+      DenseMap<BBPair, std::unique_ptr<DetectionContext>>;
   mutable DetectionContextMapTy DetectionContextMap;
 
   /// Remove cached results for @p R.
@@ -518,7 +530,7 @@ private:
 
 public:
   ScopDetection(Function &F, const DominatorTree &DT, ScalarEvolution &SE,
-                LoopInfo &LI, RegionInfo &RI, AliasAnalysis &AA,
+                LoopInfo &LI, RegionInfo &RI, AAResults &AA,
                 OptimizationRemarkEmitter &ORE);
 
   /// Get the RegionInfo stored in this pass.
@@ -533,7 +545,8 @@ public:
   ///
   /// @param R The Region to test if it is maximum.
   /// @param Verify Rerun the scop detection to verify SCoP was not invalidated
-  ///               meanwhile.
+  ///               meanwhile. Do not use if the region's DetectionContect is
+  ///               referenced by a Scop that is still to be processed.
   ///
   /// @return Return true if R is the maximum Region in a Scop, false otherwise.
   bool isMaxRegionInScop(const Region &R, bool Verify = true) const;

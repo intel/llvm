@@ -1,4 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope %s
+; RUN: llc -march=amdgcn -verify-machineinstrs -simplifycfg-require-and-preserve-domtree=1 < %s | FileCheck -enable-var-scope %s
+
 ; Although it's modeled without any control flow in order to get better code
 ; out of the structurizer, @llvm.amdgcn.kill actually ends the thread that calls
 ; it with "true". In case it's called in a provably infinite loop, we still
@@ -49,7 +50,7 @@ end:
 ; CHECK-LABEL: only_kill
 ; CHECK: exp null off, off, off, off done vm
 ; CHECK-NEXT: s_endpgm
-; SIInsertSkips inserts an extra null export here, but it should be harmless.
+; SILateBranchLowering inserts an extra null export here, but it should be harmless.
 ; CHECK: exp null off, off, off, off done vm
 ; CHECK-NEXT: s_endpgm
 define amdgpu_ps void @only_kill() #0 {

@@ -118,6 +118,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::Label:        // __label__ x;
   case Decl::Import:
   case Decl::MSGuid:    // __declspec(uuid("..."))
+  case Decl::TemplateParamObject:
   case Decl::OMPThreadPrivate:
   case Decl::OMPAllocate:
   case Decl::OMPCapturedExpr:
@@ -375,12 +376,11 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
   if (GV->getValueType() != Init->getType()) {
     llvm::GlobalVariable *OldGV = GV;
 
-    GV = new llvm::GlobalVariable(CGM.getModule(), Init->getType(),
-                                  OldGV->isConstant(),
-                                  OldGV->getLinkage(), Init, "",
-                                  /*InsertBefore*/ OldGV,
-                                  OldGV->getThreadLocalMode(),
-                                  OldGV->getType()->getPointerAddressSpace());
+    GV = new llvm::GlobalVariable(
+        CGM.getModule(), Init->getType(), OldGV->isConstant(),
+        OldGV->getLinkage(), Init, "",
+        /*InsertBefore*/ OldGV, OldGV->getThreadLocalMode(),
+        OldGV->getType()->getPointerAddressSpace());
     GV->setVisibility(OldGV->getVisibility());
     GV->setDSOLocal(OldGV->isDSOLocal());
     GV->setComdat(OldGV->getComdat());
@@ -468,8 +468,10 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   if (const SectionAttr *SA = D.getAttr<SectionAttr>())
     var->setSection(SA->getName());
 
-  if (D.hasAttr<UsedAttr>())
+  if (D.hasAttr<RetainAttr>())
     CGM.addUsedGlobal(var);
+  else if (D.hasAttr<UsedAttr>())
+    CGM.addUsedOrCompilerUsedGlobal(var);
 
   // We may have to cast the constant because of the initializer
   // mismatch above.
@@ -575,6 +577,7 @@ namespace {
   struct CallStackRestore final : EHScopeStack::Cleanup {
     Address Stack;
     CallStackRestore(Address Stack) : Stack(Stack) {}
+    bool isRedundantBeforeReturn() override { return true; }
     void Emit(CodeGenFunction &CGF, Flags flags) override {
       llvm::Value *V = CGF.Builder.CreateLoad(Stack);
       llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stackrestore);
@@ -937,14 +940,17 @@ static bool canEmitInitWithFewStoresAfterBZero(llvm::Constant *Init,
 /// the scalar stores that would be required.
 static void emitStoresForInitAfterBZero(CodeGenModule &CGM,
                                         llvm::Constant *Init, Address Loc,
-                                        bool isVolatile, CGBuilderTy &Builder) {
+                                        bool isVolatile, CGBuilderTy &Builder,
+                                        bool IsAutoInit) {
   assert(!Init->isNullValue() && !isa<llvm::UndefValue>(Init) &&
          "called emitStoresForInitAfterBZero for zero or undef value.");
 
   if (isa<llvm::ConstantInt>(Init) || isa<llvm::ConstantFP>(Init) ||
       isa<llvm::ConstantVector>(Init) || isa<llvm::BlockAddress>(Init) ||
       isa<llvm::ConstantExpr>(Init)) {
-    Builder.CreateStore(Init, Loc, isVolatile);
+    auto *I = Builder.CreateStore(Init, Loc, isVolatile);
+    if (IsAutoInit)
+      I->addAnnotationMetadata("auto-init");
     return;
   }
 
@@ -957,7 +963,7 @@ static void emitStoresForInitAfterBZero(CodeGenModule &CGM,
       if (!Elt->isNullValue() && !isa<llvm::UndefValue>(Elt))
         emitStoresForInitAfterBZero(
             CGM, Elt, Builder.CreateConstInBoundsGEP2_32(Loc, 0, i), isVolatile,
-            Builder);
+            Builder, IsAutoInit);
     }
     return;
   }
@@ -972,7 +978,7 @@ static void emitStoresForInitAfterBZero(CodeGenModule &CGM,
     if (!Elt->isNullValue() && !isa<llvm::UndefValue>(Elt))
       emitStoresForInitAfterBZero(CGM, Elt,
                                   Builder.CreateConstInBoundsGEP2_32(Loc, 0, i),
-                                  isVolatile, Builder);
+                                  isVolatile, Builder, IsAutoInit);
   }
 }
 
@@ -1180,7 +1186,7 @@ static Address createUnnamedGlobalForMemcpyFrom(CodeGenModule &CGM,
 static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
                                   Address Loc, bool isVolatile,
                                   CGBuilderTy &Builder,
-                                  llvm::Constant *constant) {
+                                  llvm::Constant *constant, bool IsAutoInit) {
   auto *Ty = constant->getType();
   uint64_t ConstantSize = CGM.getDataLayout().getTypeAllocSize(Ty);
   if (!ConstantSize)
@@ -1189,7 +1195,9 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
   bool canDoSingleStore = Ty->isIntOrIntVectorTy() ||
                           Ty->isPtrOrPtrVectorTy() || Ty->isFPOrFPVectorTy();
   if (canDoSingleStore) {
-    Builder.CreateStore(constant, Loc, isVolatile);
+    auto *I = Builder.CreateStore(constant, Loc, isVolatile);
+    if (IsAutoInit)
+      I->addAnnotationMetadata("auto-init");
     return;
   }
 
@@ -1198,14 +1206,17 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
   // If the initializer is all or mostly the same, codegen with bzero / memset
   // then do a few stores afterward.
   if (shouldUseBZeroPlusStoresToInitialize(constant, ConstantSize)) {
-    Builder.CreateMemSet(Loc, llvm::ConstantInt::get(CGM.Int8Ty, 0), SizeVal,
-                         isVolatile);
+    auto *I = Builder.CreateMemSet(Loc, llvm::ConstantInt::get(CGM.Int8Ty, 0),
+                                   SizeVal, isVolatile);
+    if (IsAutoInit)
+      I->addAnnotationMetadata("auto-init");
 
     bool valueAlreadyCorrect =
         constant->isNullValue() || isa<llvm::UndefValue>(constant);
     if (!valueAlreadyCorrect) {
       Loc = Builder.CreateBitCast(Loc, Ty->getPointerTo(Loc.getAddressSpace()));
-      emitStoresForInitAfterBZero(CGM, constant, Loc, isVolatile, Builder);
+      emitStoresForInitAfterBZero(CGM, constant, Loc, isVolatile, Builder,
+                                  IsAutoInit);
     }
     return;
   }
@@ -1220,8 +1231,10 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
       assert(AP.getBitWidth() <= 8);
       Value = AP.getLimitedValue();
     }
-    Builder.CreateMemSet(Loc, llvm::ConstantInt::get(CGM.Int8Ty, Value), SizeVal,
-                         isVolatile);
+    auto *I = Builder.CreateMemSet(
+        Loc, llvm::ConstantInt::get(CGM.Int8Ty, Value), SizeVal, isVolatile);
+    if (IsAutoInit)
+      I->addAnnotationMetadata("auto-init");
     return;
   }
 
@@ -1234,7 +1247,8 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
           Address EltPtr = Builder.CreateStructGEP(Loc, i);
           emitStoresForConstant(
               CGM, D, EltPtr, isVolatile, Builder,
-              cast<llvm::Constant>(Builder.CreateExtractValue(constant, i)));
+              cast<llvm::Constant>(Builder.CreateExtractValue(constant, i)),
+              IsAutoInit);
         }
         return;
       }
@@ -1245,7 +1259,8 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
           Address EltPtr = Builder.CreateConstArrayGEP(Loc, i);
           emitStoresForConstant(
               CGM, D, EltPtr, isVolatile, Builder,
-              cast<llvm::Constant>(Builder.CreateExtractValue(constant, i)));
+              cast<llvm::Constant>(Builder.CreateExtractValue(constant, i)),
+              IsAutoInit);
         }
         return;
       }
@@ -1253,10 +1268,13 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
   }
 
   // Copy from a global.
-  Builder.CreateMemCpy(Loc,
-                       createUnnamedGlobalForMemcpyFrom(
-                           CGM, D, Builder, constant, Loc.getAlignment()),
-                       SizeVal, isVolatile);
+  auto *I =
+      Builder.CreateMemCpy(Loc,
+                           createUnnamedGlobalForMemcpyFrom(
+                               CGM, D, Builder, constant, Loc.getAlignment()),
+                           SizeVal, isVolatile);
+  if (IsAutoInit)
+    I->addAnnotationMetadata("auto-init");
 }
 
 static void emitStoresForZeroInit(CodeGenModule &CGM, const VarDecl &D,
@@ -1265,7 +1283,8 @@ static void emitStoresForZeroInit(CodeGenModule &CGM, const VarDecl &D,
   llvm::Type *ElTy = Loc.getElementType();
   llvm::Constant *constant =
       constWithPadding(CGM, IsPattern::No, llvm::Constant::getNullValue(ElTy));
-  emitStoresForConstant(CGM, D, Loc, isVolatile, Builder, constant);
+  emitStoresForConstant(CGM, D, Loc, isVolatile, Builder, constant,
+                        /*IsAutoInit=*/true);
 }
 
 static void emitStoresForPatternInit(CodeGenModule &CGM, const VarDecl &D,
@@ -1275,7 +1294,8 @@ static void emitStoresForPatternInit(CodeGenModule &CGM, const VarDecl &D,
   llvm::Constant *constant = constWithPadding(
       CGM, IsPattern::Yes, initializationPatternFor(CGM, ElTy));
   assert(!isa<llvm::UndefValue>(constant));
-  emitStoresForConstant(CGM, D, Loc, isVolatile, Builder, constant);
+  emitStoresForConstant(CGM, D, Loc, isVolatile, Builder, constant,
+                        /*IsAutoInit=*/true);
 }
 
 static bool containsUndef(llvm::Constant *constant) {
@@ -1625,8 +1645,12 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
     if (!AnnotStr.empty()) {
       llvm::Value *V = address.getPointer();
-      EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation),
-                         Builder.CreateBitCast(V, CGM.Int8PtrTy, V->getName()),
+      llvm::Type *DestPtrTy = llvm::PointerType::getInt8PtrTy(
+          CGM.getLLVMContext(), address.getAddressSpace());
+      llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
+      if (address.getAddressSpace() != 0)
+        Arg = Builder.CreateAddrSpaceCast(Arg, CGM.Int8PtrTy, V->getName());
+      EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation), Arg,
                          AnnotStr, D.getLocation());
     }
   }
@@ -1760,14 +1784,16 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
   case LangOptions::TrivialAutoVarInitKind::Uninitialized:
     llvm_unreachable("Uninitialized handled by caller");
 
-  case LangOptions::TrivialAutoVarInitKind::Zero:
+  case LangOptions::TrivialAutoVarInitKind::Zero: {
     if (CGM.stopAutoInit())
       return;
     if (!EltSize.isOne())
       SizeVal = Builder.CreateNUWMul(SizeVal, CGM.getSize(EltSize));
-    Builder.CreateMemSet(Loc, llvm::ConstantInt::get(Int8Ty, 0), SizeVal,
-                         isVolatile);
+    auto *I = Builder.CreateMemSet(Loc, llvm::ConstantInt::get(Int8Ty, 0),
+                                   SizeVal, isVolatile);
+    I->addAnnotationMetadata("auto-init");
     break;
+  }
 
   case LangOptions::TrivialAutoVarInitKind::Pattern: {
     if (CGM.stopAutoInit())
@@ -1789,17 +1815,19 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
     llvm::Value *BaseSizeInChars =
         llvm::ConstantInt::get(IntPtrTy, EltSize.getQuantity());
     Address Begin = Builder.CreateElementBitCast(Loc, Int8Ty, "vla.begin");
-    llvm::Value *End =
-        Builder.CreateInBoundsGEP(Begin.getPointer(), SizeVal, "vla.end");
+    llvm::Value *End = Builder.CreateInBoundsGEP(
+        Begin.getElementType(), Begin.getPointer(), SizeVal, "vla.end");
     llvm::BasicBlock *OriginBB = Builder.GetInsertBlock();
     EmitBlock(LoopBB);
     llvm::PHINode *Cur = Builder.CreatePHI(Begin.getType(), 2, "vla.cur");
     Cur->addIncoming(Begin.getPointer(), OriginBB);
     CharUnits CurAlign = Loc.getAlignment().alignmentOfArrayElement(EltSize);
-    Builder.CreateMemCpy(Address(Cur, CurAlign),
-                         createUnnamedGlobalForMemcpyFrom(
-                             CGM, D, Builder, Constant, ConstantAlign),
-                         BaseSizeInChars, isVolatile);
+    auto *I =
+        Builder.CreateMemCpy(Address(Cur, CurAlign),
+                             createUnnamedGlobalForMemcpyFrom(
+                                 CGM, D, Builder, Constant, ConstantAlign),
+                             BaseSizeInChars, isVolatile);
+    I->addAnnotationMetadata("auto-init");
     llvm::Value *Next =
         Builder.CreateInBoundsGEP(Int8Ty, Cur, BaseSizeInChars, "vla.next");
     llvm::Value *Done = Builder.CreateICmpEQ(Next, End, "vla-init.isdone");
@@ -1920,7 +1948,7 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
   llvm::Type *BP = CGM.Int8Ty->getPointerTo(Loc.getAddressSpace());
   emitStoresForConstant(
       CGM, D, (Loc.getType() == BP) ? Loc : Builder.CreateBitCast(Loc, BP),
-      type.isVolatileQualified(), Builder, constant);
+      type.isVolatileQualified(), Builder, constant, /*IsAutoInit=*/false);
 }
 
 /// Emit an expression as an initializer for an object (variable, field, etc.)
@@ -2216,7 +2244,8 @@ void CodeGenFunction::emitDestroy(Address addr, QualType type,
   }
 
   llvm::Value *begin = addr.getPointer();
-  llvm::Value *end = Builder.CreateInBoundsGEP(begin, length);
+  llvm::Value *end =
+      Builder.CreateInBoundsGEP(addr.getElementType(), begin, length);
   emitArrayDestroy(begin, end, type, elementAlign, destroyer,
                    checkZeroLength, useEHCleanupForArray);
 }
@@ -2588,7 +2617,10 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   // Emit debug info for param declarations in non-thunk functions.
   if (CGDebugInfo *DI = getDebugInfo()) {
     if (CGM.getCodeGenOpts().hasReducedDebugInfo() && !CurFuncIsThunk) {
-      DI->EmitDeclareOfArgVariable(&D, DeclPtr.getPointer(), ArgNo, Builder);
+      llvm::DILocalVariable *DILocalVar = DI->EmitDeclareOfArgVariable(
+          &D, DeclPtr.getPointer(), ArgNo, Builder);
+      if (const auto *Var = dyn_cast_or_null<ParmVarDecl>(&D))
+        DI->getParamDbgMappings().insert({Var, DILocalVar});
     }
   }
 

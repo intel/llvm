@@ -51,7 +51,7 @@ namespace {
 const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
   if (!SelNode)
     return nullptr;
-  const ast_type_traits::DynTypedNode &AstNode = SelNode->ASTNode;
+  const DynTypedNode &AstNode = SelNode->ASTNode;
   if (const FunctionDecl *FD = AstNode.get<FunctionDecl>())
     return FD;
   if (AstNode.get<CompoundStmt>() &&
@@ -64,12 +64,10 @@ const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
 
 llvm::Optional<Path> getSourceFile(llvm::StringRef FileName,
                                    const Tweak::Selection &Sel) {
-  if (auto Source = getCorrespondingHeaderOrSource(
-          std::string(FileName),
-          &Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem()))
+  assert(Sel.FS);
+  if (auto Source = getCorrespondingHeaderOrSource(FileName, Sel.FS))
     return *Source;
-  return getCorrespondingHeaderOrSource(std::string(FileName), *Sel.AST,
-                                        Sel.Index);
+  return getCorrespondingHeaderOrSource(FileName, *Sel.AST, Sel.Index);
 }
 
 // Synthesize a DeclContext for TargetNS from CurContext. TargetNS must be empty
@@ -145,7 +143,8 @@ getFunctionSourceAfterReplacements(const FunctionDecl *FD,
 // FIXME: Drop attributes in function signature.
 llvm::Expected<std::string>
 getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
-                      const syntax::TokenBuffer &TokBuf) {
+                      const syntax::TokenBuffer &TokBuf,
+                      const HeuristicResolver *Resolver) {
   auto &AST = FD->getASTContext();
   auto &SM = AST.getSourceManager();
   auto TargetContext = findContextForNS(TargetNamespace, FD->getDeclContext());
@@ -157,31 +156,36 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
 
   // Finds the first unqualified name in function return type and name, then
   // qualifies those to be valid in TargetContext.
-  findExplicitReferences(FD, [&](ReferenceLoc Ref) {
-    // It is enough to qualify the first qualifier, so skip references with a
-    // qualifier. Also we can't do much if there are no targets or name is
-    // inside a macro body.
-    if (Ref.Qualifier || Ref.Targets.empty() || Ref.NameLoc.isMacroID())
-      return;
-    // Only qualify return type and function name.
-    if (Ref.NameLoc != FD->getReturnTypeSourceRange().getBegin() &&
-        Ref.NameLoc != FD->getLocation())
-      return;
+  findExplicitReferences(
+      FD,
+      [&](ReferenceLoc Ref) {
+        // It is enough to qualify the first qualifier, so skip references with
+        // a qualifier. Also we can't do much if there are no targets or name is
+        // inside a macro body.
+        if (Ref.Qualifier || Ref.Targets.empty() || Ref.NameLoc.isMacroID())
+          return;
+        // Only qualify return type and function name.
+        if (Ref.NameLoc != FD->getReturnTypeSourceRange().getBegin() &&
+            Ref.NameLoc != FD->getLocation())
+          return;
 
-    for (const NamedDecl *ND : Ref.Targets) {
-      if (ND->getDeclContext() != Ref.Targets.front()->getDeclContext()) {
-        elog("Targets from multiple contexts: {0}, {1}",
-             printQualifiedName(*Ref.Targets.front()), printQualifiedName(*ND));
-        return;
-      }
-    }
-    const NamedDecl *ND = Ref.Targets.front();
-    const std::string Qualifier = getQualification(
-        AST, *TargetContext, SM.getLocForStartOfFile(SM.getMainFileID()), ND);
-    if (auto Err = DeclarationCleanups.add(
-            tooling::Replacement(SM, Ref.NameLoc, 0, Qualifier)))
-      Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
-  });
+        for (const NamedDecl *ND : Ref.Targets) {
+          if (ND->getDeclContext() != Ref.Targets.front()->getDeclContext()) {
+            elog("Targets from multiple contexts: {0}, {1}",
+                 printQualifiedName(*Ref.Targets.front()),
+                 printQualifiedName(*ND));
+            return;
+          }
+        }
+        const NamedDecl *ND = Ref.Targets.front();
+        const std::string Qualifier =
+            getQualification(AST, *TargetContext,
+                             SM.getLocForStartOfFile(SM.getMainFileID()), ND);
+        if (auto Err = DeclarationCleanups.add(
+                tooling::Replacement(SM, Ref.NameLoc, 0, Qualifier)))
+          Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
+      },
+      Resolver);
 
   // Get rid of default arguments, since they should not be specified in
   // out-of-line definition.
@@ -266,6 +270,10 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
       DelKeyword(tok::kw_virtual, {FD->getBeginLoc(), FD->getLocation()});
     if (MD->isStatic())
       DelKeyword(tok::kw_static, {FD->getBeginLoc(), FD->getLocation()});
+  }
+  if (const auto *CD = dyn_cast<CXXConstructorDecl>(FD)) {
+    if (CD->isExplicit())
+      DelKeyword(tok::kw_explicit, {FD->getBeginLoc(), FD->getLocation()});
   }
 
   if (Errors)
@@ -360,7 +368,7 @@ public:
     return CodeAction::REFACTOR_KIND;
   }
   std::string title() const override {
-    return "Move function body to out-of-line.";
+    return "Move function body to out-of-line";
   }
 
   bool prepare(const Selection &Sel) override {
@@ -405,12 +413,11 @@ public:
       return error("Couldn't get absolute path for main file.");
 
     auto CCFile = getSourceFile(*MainFileName, Sel);
+
     if (!CCFile)
       return error("Couldn't find a suitable implementation file.");
-
-    auto &FS =
-        Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem();
-    auto Buffer = FS.getBufferForFile(*CCFile);
+    assert(Sel.FS && "FS Must be set in apply");
+    auto Buffer = Sel.FS->getBufferForFile(*CCFile);
     // FIXME: Maybe we should consider creating the implementation file if it
     // doesn't exist?
     if (!Buffer)
@@ -422,7 +429,8 @@ public:
       return InsertionPoint.takeError();
 
     auto FuncDef = getFunctionSourceCode(
-        Source, InsertionPoint->EnclosingNamespace, Sel.AST->getTokens());
+        Source, InsertionPoint->EnclosingNamespace, Sel.AST->getTokens(),
+        Sel.AST->getHeuristicResolver());
     if (!FuncDef)
       return FuncDef.takeError();
 

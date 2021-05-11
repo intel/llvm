@@ -1403,6 +1403,12 @@ public:
   /// extended, truncated, or left alone to make it that width.
   APInt zextOrTrunc(unsigned width) const;
 
+  /// Truncate to width
+  ///
+  /// Make this APInt have the bit width given by \p width. The value is
+  /// truncated or left alone to make it that width.
+  APInt truncOrSelf(unsigned width) const;
+
   /// Sign extend or truncate to width
   ///
   /// Make this APInt have the bit width given by \p width. The value is sign
@@ -1692,8 +1698,10 @@ public:
   /// \returns BitWidth if the value is zero, otherwise returns the number of
   /// zeros from the least significant bit to the first one bit.
   unsigned countTrailingZeros() const {
-    if (isSingleWord())
-      return std::min(unsigned(llvm::countTrailingZeros(U.VAL)), BitWidth);
+    if (isSingleWord()) {
+      unsigned TrailingZeros = llvm::countTrailingZeros(U.VAL);
+      return (TrailingZeros > BitWidth ? BitWidth : TrailingZeros);
+    }
     return countTrailingZerosSlowCase();
   }
 

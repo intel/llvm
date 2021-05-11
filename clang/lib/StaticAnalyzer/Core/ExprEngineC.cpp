@@ -418,6 +418,8 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
       case CK_ZeroToOCLOpaqueType:
       case CK_IntToOCLSampler:
       case CK_LValueBitCast:
+      case CK_FloatingToFixedPoint:
+      case CK_FixedPointToFloating:
       case CK_FixedPointCast:
       case CK_FixedPointToBoolean:
       case CK_FixedPointToIntegral:
@@ -524,10 +526,9 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
       case CK_ReinterpretMemberPointer: {
         SVal V = state->getSVal(Ex, LCtx);
         if (auto PTMSV = V.getAs<nonloc::PointerToMember>()) {
-          SVal CastedPTMSV = svalBuilder.makePointerToMember(
-              getBasicVals().accumCXXBase(
-                  llvm::make_range<CastExpr::path_const_iterator>(
-                      CastE->path_begin(), CastE->path_end()), *PTMSV));
+          SVal CastedPTMSV =
+              svalBuilder.makePointerToMember(getBasicVals().accumCXXBase(
+                  CastE->path(), *PTMSV, CastE->getCastKind()));
           state = state->BindExpr(CastE, LCtx, CastedPTMSV);
           Bldr.generateNode(CastE, Pred, state);
           continue;
@@ -540,6 +541,10 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
       case CK_ToUnion:
       case CK_VectorSplat: {
         state = handleLVectorSplat(state, LCtx, CastE, Bldr, Pred);
+        continue;
+      }
+      case CK_MatrixCast: {
+        // TODO: Handle MatrixCast here.
         continue;
       }
     }

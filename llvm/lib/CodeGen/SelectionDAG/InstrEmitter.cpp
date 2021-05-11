@@ -26,6 +26,7 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/PseudoProbe.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -80,19 +81,6 @@ static unsigned countOperands(SDNode *Node, unsigned NumExpUses,
   }
 
   return N;
-}
-
-/// Return starting index of GC operand list.
-// FIXME: need a better place for this. Put it in StackMaps?
-static unsigned getStatepointGCArgStartIdx(MachineInstr *MI) {
-  assert(MI->getOpcode() == TargetOpcode::STATEPOINT &&
-         "STATEPOINT node expected");
-  unsigned OperIdx = StatepointOpers(MI).getNumDeoptArgsIdx();
-  unsigned NumDeopts = MI->getOperand(OperIdx).getImm();
-  ++OperIdx;
-  while (NumDeopts--)
-    OperIdx = StackMaps::getNextMetaArgIdx(MI, OperIdx);
-  return OperIdx;
 }
 
 /// EmitCopyFromReg - Generate machine code for an CopyFromReg node or an
@@ -696,6 +684,28 @@ InstrEmitter::EmitDbgValue(SDDbgValue *SD,
 
   SD->setIsEmitted();
 
+  ArrayRef<SDDbgOperand> LocationOps = SD->getLocationOps();
+  assert(!LocationOps.empty() && "dbg_value with no location operands?");
+
+  // Emit variadic dbg_value nodes as DBG_VALUE_LIST.
+  if (SD->isVariadic()) {
+    // DBG_VALUE_LIST := "DBG_VALUE_LIST" var, expression, loc (, loc)*
+    const MCInstrDesc &DbgValDesc = TII->get(TargetOpcode::DBG_VALUE_LIST);
+    // Build the DBG_VALUE_LIST instruction base.
+    auto MIB = BuildMI(*MF, DL, DbgValDesc);
+    MIB.addMetadata(Var);
+    MIB.addMetadata(Expr);
+    if (SD->isInvalidated()) {
+      // At least one node is no longer computed so we are unable to emit the
+      // location. Simply mark all of the operands as undef.
+      for (size_t i = 0; i < LocationOps.size(); ++i)
+        MIB.addReg(0U, RegState::Debug);
+    } else {
+      AddDbgValueLocationOps(MIB, DbgValDesc, LocationOps, VRBaseMap);
+    }
+    return &*MIB;
+  }
+
   if (SD->isInvalidated()) {
     // An invalidated SDNode must generate an undef DBG_VALUE: although the
     // original value is no longer computed, earlier DBG_VALUEs live ranges
@@ -708,70 +718,139 @@ InstrEmitter::EmitDbgValue(SDDbgValue *SD,
     return &*MIB;
   }
 
-  if (SD->getKind() == SDDbgValue::FRAMEIX) {
-    // Stack address; this needs to be lowered in target-dependent fashion.
-    // EmitTargetCodeForFrameDebugValue is responsible for allocation.
-    auto FrameMI = BuildMI(*MF, DL, TII->get(TargetOpcode::DBG_VALUE))
-                       .addFrameIndex(SD->getFrameIx());
-    if (SD->isIndirect())
-      // Push [fi + 0] onto the DIExpression stack.
-      FrameMI.addImm(0);
-    else
-      // Push fi onto the DIExpression stack.
-      FrameMI.addReg(0);
-    return FrameMI.addMetadata(Var).addMetadata(Expr);
-  }
-  // Otherwise, we're going to create an instruction here.
-  const MCInstrDesc &II = TII->get(TargetOpcode::DBG_VALUE);
-  MachineInstrBuilder MIB = BuildMI(*MF, DL, II);
-  if (SD->getKind() == SDDbgValue::SDNODE) {
-    SDNode *Node = SD->getSDNode();
-    SDValue Op = SDValue(Node, SD->getResNo());
-    // It's possible we replaced this SDNode with other(s) and therefore
-    // didn't generate code for it.  It's better to catch these cases where
-    // they happen and transfer the debug info, but trying to guarantee that
-    // in all cases would be very fragile; this is a safeguard for any
-    // that were missed.
-    DenseMap<SDValue, Register>::iterator I = VRBaseMap.find(Op);
-    if (I==VRBaseMap.end())
-      MIB.addReg(0U);       // undef
-    else
-      AddOperand(MIB, Op, (*MIB).getNumOperands(), &II, VRBaseMap,
-                 /*IsDebug=*/true, /*IsClone=*/false, /*IsCloned=*/false);
-  } else if (SD->getKind() == SDDbgValue::VREG) {
-    MIB.addReg(SD->getVReg(), RegState::Debug);
-  } else if (SD->getKind() == SDDbgValue::CONST) {
-    const Value *V = SD->getConst();
-    if (const ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
-      if (CI->getBitWidth() > 64)
-        MIB.addCImm(CI);
-      else
-        MIB.addImm(CI->getSExtValue());
-    } else if (const ConstantFP *CF = dyn_cast<ConstantFP>(V)) {
-      MIB.addFPImm(CF);
-    } else if (isa<ConstantPointerNull>(V)) {
-      // Note: This assumes that all nullptr constants are zero-valued.
-      MIB.addImm(0);
-    } else {
-      // Could be an Undef.  In any case insert an Undef so we can see what we
-      // dropped.
-      MIB.addReg(0U);
-    }
-  } else {
-    // Insert an Undef so we can see what we dropped.
-    MIB.addReg(0U);
-  }
+  // Attempt to produce a DBG_INSTR_REF if we've been asked to.
+  // We currently exclude the possibility of instruction references for
+  // variadic nodes; if at some point we enable them, this should be moved
+  // above the variadic block.
+  if (EmitDebugInstrRefs)
+    if (auto *InstrRef = EmitDbgInstrRef(SD, VRBaseMap))
+      return InstrRef;
 
-  // Indirect addressing is indicated by an Imm as the second parameter.
+  // Emit non-variadic dbg_value nodes as DBG_VALUE.
+  // DBG_VALUE := "DBG_VALUE" loc, isIndirect, var, expr
+  const MCInstrDesc &DbgValDesc = TII->get(TargetOpcode::DBG_VALUE);
+  // Build the DBG_VALUE instruction base.
+  auto MIB = BuildMI(*MF, DL, DbgValDesc);
+  // Add the single location componenet 'loc'.
+  assert(LocationOps.size() == 1 &&
+         "Non variadic dbg_value should have only one location op");
+  AddDbgValueLocationOps(MIB, DbgValDesc, LocationOps, VRBaseMap);
+  // Add 'isIndirect'.
   if (SD->isIndirect())
     MIB.addImm(0U);
   else
     MIB.addReg(0U, RegState::Debug);
-
   MIB.addMetadata(Var);
   MIB.addMetadata(Expr);
-
   return &*MIB;
+}
+
+void InstrEmitter::AddDbgValueLocationOps(
+    MachineInstrBuilder &MIB, const MCInstrDesc &DbgValDesc,
+    ArrayRef<SDDbgOperand> LocationOps,
+    DenseMap<SDValue, Register> &VRBaseMap) {
+  for (const SDDbgOperand &Op : LocationOps) {
+    switch (Op.getKind()) {
+    case SDDbgOperand::FRAMEIX:
+      MIB.addFrameIndex(Op.getFrameIx());
+      break;
+    case SDDbgOperand::VREG:
+      MIB.addReg(Op.getVReg(), RegState::Debug);
+      break;
+    case SDDbgOperand::SDNODE: {
+      SDValue V = SDValue(Op.getSDNode(), Op.getResNo());
+      // It's possible we replaced this SDNode with other(s) and therefore
+      // didn't generate code for it. It's better to catch these cases where
+      // they happen and transfer the debug info, but trying to guarantee that
+      // in all cases would be very fragile; this is a safeguard for any
+      // that were missed.
+      if (VRBaseMap.count(V) == 0)
+        MIB.addReg(0U); // undef
+      else
+        AddOperand(MIB, V, (*MIB).getNumOperands(), &DbgValDesc, VRBaseMap,
+                   /*IsDebug=*/true, /*IsClone=*/false, /*IsCloned=*/false);
+    } break;
+    case SDDbgOperand::CONST: {
+      const Value *V = Op.getConst();
+      if (const ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
+        if (CI->getBitWidth() > 64)
+          MIB.addCImm(CI);
+        else
+          MIB.addImm(CI->getSExtValue());
+      } else if (const ConstantFP *CF = dyn_cast<ConstantFP>(V)) {
+        MIB.addFPImm(CF);
+      } else if (isa<ConstantPointerNull>(V)) {
+        // Note: This assumes that all nullptr constants are zero-valued.
+        MIB.addImm(0);
+      } else {
+        // Could be an Undef. In any case insert an Undef so we can see what we
+        // dropped.
+        MIB.addReg(0U);
+      }
+    } break;
+    }
+  }
+}
+
+MachineInstr *
+InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
+                              DenseMap<SDValue, Register> &VRBaseMap) {
+  // No support for instruction references for variadic values yet.
+  if (SD->isVariadic())
+    return nullptr;
+  SDDbgOperand DbgOperand = SD->getLocationOps()[0];
+  // Instruction referencing is still in a prototype state: for now we're only
+  // going to support SDNodes within a block. Copies are not supported, they
+  // don't actually define a value.
+  if (DbgOperand.getKind() != SDDbgOperand::SDNODE)
+    return nullptr;
+
+  SDNode *Node = DbgOperand.getSDNode();
+  SDValue Op = SDValue(Node, DbgOperand.getResNo());
+  DenseMap<SDValue, Register>::iterator I = VRBaseMap.find(Op);
+  if (I==VRBaseMap.end())
+    return nullptr; // undef value: let EmitDbgValue produce a DBG_VALUE $noreg.
+
+  MDNode *Var = SD->getVariable();
+  MDNode *Expr = SD->getExpression();
+  DebugLoc DL = SD->getDebugLoc();
+
+  // Try to pick out a defining instruction at this point.
+  unsigned VReg = getVR(Op, VRBaseMap);
+  MachineInstr *ResultInstr = nullptr;
+
+  // No definition corresponds to scenarios where a vreg is live-in to a block,
+  // and doesn't have a defining instruction (yet). This can be patched up
+  // later; at this early stage of implementation, fall back to using DBG_VALUE.
+  if (!MRI->hasOneDef(VReg))
+    return nullptr;
+
+  MachineInstr &DefMI = *MRI->def_instr_begin(VReg);
+  // Some target specific opcodes can become copies. As stated above, we're
+  // ignoring those for now.
+  if (DefMI.isCopy() || DefMI.getOpcode() == TargetOpcode::SUBREG_TO_REG)
+    return nullptr;
+
+  const MCInstrDesc &RefII = TII->get(TargetOpcode::DBG_INSTR_REF);
+  auto MIB = BuildMI(*MF, DL, RefII);
+
+  // Find the operand which defines the specified VReg.
+  unsigned OperandIdx = 0;
+  for (const auto &MO : DefMI.operands()) {
+    if (MO.isReg() && MO.isDef() && MO.getReg() == VReg)
+      break;
+    ++OperandIdx;
+  }
+  assert(OperandIdx < DefMI.getNumOperands());
+
+  // Make the DBG_INSTR_REF refer to that instruction, and that operand.
+  unsigned InstrNum = DefMI.getDebugInstrNum();
+  MIB.addImm(InstrNum);
+  MIB.addImm(OperandIdx);
+  MIB.addMetadata(Var);
+  MIB.addMetadata(Expr);
+  ResultInstr = &*MIB;
+  return ResultInstr;
 }
 
 MachineInstr *
@@ -993,14 +1072,13 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
     assert(!HasPhysRegOuts && "STATEPOINT mishandled");
     MachineInstr *MI = MIB;
     unsigned Def = 0;
-    unsigned Use = getStatepointGCArgStartIdx(MI);
-    Use = StackMaps::getNextMetaArgIdx(MI, Use); // first derived
-    assert(Use < MI->getNumOperands());
+    int First = StatepointOpers(MI).getFirstGCPtrIdx();
+    assert(First > 0 && "Statepoint has Defs but no GC ptr list");
+    unsigned Use = (unsigned)First;
     while (Def < NumDefs) {
       if (MI->getOperand(Use).isReg())
         MI->tieOperands(Def++, Use);
-      Use = StackMaps::getNextMetaArgIdx(MI, Use); // next base
-      Use = StackMaps::getNextMetaArgIdx(MI, Use); // next derived
+      Use = StackMaps::getNextMetaArgIdx(MI, Use);
     }
   }
 
@@ -1073,6 +1151,20 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
     FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Node->getOperand(1));
     BuildMI(*MBB, InsertPos, Node->getDebugLoc(), TII->get(TarOp))
     .addFrameIndex(FI->getIndex());
+    break;
+  }
+
+  case ISD::PSEUDO_PROBE: {
+    unsigned TarOp = TargetOpcode::PSEUDO_PROBE;
+    auto Guid = cast<PseudoProbeSDNode>(Node)->getGuid();
+    auto Index = cast<PseudoProbeSDNode>(Node)->getIndex();
+    auto Attr = cast<PseudoProbeSDNode>(Node)->getAttributes();
+
+    BuildMI(*MBB, InsertPos, Node->getDebugLoc(), TII->get(TarOp))
+        .addImm(Guid)
+        .addImm(Index)
+        .addImm((uint8_t)PseudoProbeType::Block)
+        .addImm(Attr);
     break;
   }
 
@@ -1191,10 +1283,12 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
 
 /// InstrEmitter - Construct an InstrEmitter and set it to start inserting
 /// at the given position in the given block.
-InstrEmitter::InstrEmitter(MachineBasicBlock *mbb,
+InstrEmitter::InstrEmitter(const TargetMachine &TM, MachineBasicBlock *mbb,
                            MachineBasicBlock::iterator insertpos)
     : MF(mbb->getParent()), MRI(&MF->getRegInfo()),
       TII(MF->getSubtarget().getInstrInfo()),
       TRI(MF->getSubtarget().getRegisterInfo()),
       TLI(MF->getSubtarget().getTargetLowering()), MBB(mbb),
-      InsertPos(insertpos) {}
+      InsertPos(insertpos) {
+  EmitDebugInstrRefs = TM.Options.ValueTrackingVariableLocations;
+}

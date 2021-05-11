@@ -8,8 +8,8 @@
 /// \file
 /// Common declarations for yaml2obj
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_TOOLS_YAML2OBJ_YAML2OBJ_H
-#define LLVM_TOOLS_YAML2OBJ_YAML2OBJ_H
+#ifndef LLVM_OBJECTYAML_YAML2OBJ_H
+#define LLVM_OBJECTYAML_YAML2OBJ_H
 
 #include "llvm/ADT/STLExtras.h"
 #include <memory>
@@ -40,12 +40,17 @@ namespace WasmYAML {
 struct Object;
 }
 
+namespace ArchYAML {
+struct Archive;
+}
+
 namespace yaml {
 class Input;
 struct YamlObjectFile;
 
 using ErrorHandler = llvm::function_ref<void(const Twine &Msg)>;
 
+bool yaml2archive(ArchYAML::Archive &Doc, raw_ostream &Out, ErrorHandler EH);
 bool yaml2coff(COFFYAML::Object &Doc, raw_ostream &Out, ErrorHandler EH);
 bool yaml2elf(ELFYAML::Object &Doc, raw_ostream &Out, ErrorHandler EH,
               uint64_t MaxSize);

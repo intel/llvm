@@ -24,10 +24,6 @@ func @illegalmemrefelementtype(memref<?xtensor<i8>>) -> () // expected-error {{i
 func @illegalunrankedmemrefelementtype(memref<*xtensor<i8>>) -> () // expected-error {{invalid memref element type}}
 
 // -----
-
-func @indexvector(vector<4 x index>) -> () // expected-error {{vector elements must be int or float type}}
-
-// -----
 // Test no map in memref type.
 func @memrefs(memref<2x4xi8, >) // expected-error {{expected list element}}
 
@@ -36,8 +32,8 @@ func @memrefs(memref<2x4xi8, >) // expected-error {{expected list element}}
 func @memrefs(memref<2x4xi8, #map7>) // expected-error {{undefined symbol alias id 'map7'}}
 
 // -----
-// Test non affine map in memref type.
-func @memrefs(memref<2x4xi8, i8>) // expected-error {{expected affine map in memref type}}
+// Test unsupported memory space.
+func @memrefs(memref<2x4xi8, i8>) // expected-error {{unsupported memory space Attribute}}
 
 // -----
 // Test non-existent map in map composition of memref type.
@@ -104,6 +100,12 @@ func @memref_zero_stride(memref<42x42xi8, offset: ?, strides: [0, ?]>) // expect
 
 // -----
 
+func @tensor_encoding_mismatch(%arg0: tensor<8xi32, "enc">) -> (tensor<8xi32>) { // expected-note {{prior use here}}
+  return %arg0: tensor<8xi32> // expected-error {{use of value '%arg0' expects different type than prior uses: 'tensor<8xi32>' vs 'tensor<8xi32, "enc">'}}
+}
+
+// -----
+
 func @bad_branch() {
 ^bb12:
   br ^missing  // expected-error {{reference to an undefined block}}
@@ -120,7 +122,7 @@ func @block_redef() {
 
 // -----
 
-func @no_terminator() {   // expected-error {{block with no terminator}}
+func @no_terminator() {   // expected-error {{empty block: expect at least a terminator}}
 ^bb40:
   return
 ^bb41:
@@ -170,7 +172,8 @@ func @block_first_has_predecessor() {
 // -----
 
 func @no_return() {
-  %x = constant 0 : i32  // expected-error {{block with no terminator}}
+  %x = constant 0 : i32
+  %y = constant 1 : i32  // expected-error {{block with no terminator}}
 }
 
 // -----
@@ -200,7 +203,7 @@ func @no_terminator() {
 
 // -----
 
-func @illegaltype(i0) // expected-error {{invalid integer width}}
+func @illegaltype(i21312312323120) // expected-error {{invalid integer width}}
 
 // -----
 
@@ -386,7 +389,7 @@ func @succ_arg_type_mismatch() {
 
 // Test no nested vector.
 func @vectors(vector<1 x vector<1xi32>>, vector<2x4xf32>)
-// expected-error@-1 {{vector elements must be int or float type}}
+// expected-error@-1 {{vector elements must be int/index/float type}}
 
 // -----
 
@@ -463,7 +466,49 @@ func @dominance_failure() {
   "foo"(%x) : (i32) -> ()    // expected-error {{operand #0 does not dominate this use}}
   br ^bb1
 ^bb1:
-  %x = "bar"() : () -> i32    // expected-note {{operand defined here}}
+  %x = "bar"() : () -> i32    // expected-note {{operand defined here (op in the same region)}}
+  return
+}
+
+// -----
+
+func @dominance_failure() {
+^bb0:
+  "foo"(%x) : (i32) -> ()    // expected-error {{operand #0 does not dominate this use}}
+  %x = "bar"() : () -> i32    // expected-note {{operand defined here (op in the same block)}}
+  br ^bb1
+^bb1:
+  return
+}
+
+// -----
+
+func @dominance_failure() {
+  "foo"() ({
+    "foo"(%x) : (i32) -> ()    // expected-error {{operand #0 does not dominate this use}}
+  }) : () -> ()
+  %x = "bar"() : () -> i32    // expected-note {{operand defined here (op in a parent region)}}
+  return
+}
+
+// -----
+
+func @dominance_failure() {  //  expected-note {{operand defined as a block argument (block #1 in the same region)}}
+^bb0:
+  br ^bb1(%x : i32)    // expected-error {{operand #0 does not dominate this use}}
+^bb1(%x : i32):
+  return
+}
+
+// -----
+
+func @dominance_failure() {  //  expected-note {{operand defined as a block argument (block #1 in a parent region)}}
+^bb0:
+  %f = "foo"() ({
+    "foo"(%x) : (i32) -> ()    // expected-error {{operand #0 does not dominate this use}}
+  }) : () -> (i32)
+  br ^bb1(%f : i32)
+^bb1(%x : i32):
   return
 }
 
@@ -686,6 +731,11 @@ func @elementsattr_toolarge1() -> () {
 
 // -----
 
+// expected-error@+1 {{parsed zero elements, but type ('tensor<i64>') expected at least 1}}
+#attr = dense<> : tensor<i64>
+
+// -----
+
 func @elementsattr_toolarge2() -> () {
 ^bb0:
   "foo"(){bar = dense<[-777]> : tensor<1xi8>} : () -> () // expected-error {{integer constant out of range}}
@@ -718,21 +768,14 @@ func @elementsattr_malformed_opaque() -> () {
 
 func @elementsattr_malformed_opaque1() -> () {
 ^bb0:
-  "foo"(){bar = opaque<"", "0xQZz123"> : tensor<1xi8>} : () -> () // expected-error {{elements hex string only contains hex digits}}
+  "foo"(){bar = opaque<"_", "0xQZz123"> : tensor<1xi8>} : () -> () // expected-error {{expected string containing hex digits starting with `0x`}}
 }
 
 // -----
 
 func @elementsattr_malformed_opaque2() -> () {
 ^bb0:
-  "foo"(){bar = opaque<"", "00abc"> : tensor<1xi8>} : () -> () // expected-error {{elements hex string should start with '0x'}}
-}
-
-// -----
-
-func @elementsattr_malformed_opaque3() -> () {
-^bb0:
-  "foo"(){bar = opaque<"t", "0xabc"> : tensor<1xi8>} : () -> () // expected-error {{no registered dialect with namespace 't'}}
+  "foo"(){bar = opaque<"_", "00abc"> : tensor<1xi8>} : () -> () // expected-error {{expected string containing hex digits starting with `0x`}}
 }
 
 // -----
@@ -763,7 +806,7 @@ func @mixed_named_arguments(f32,
 // `tensor` as operator rather than as a type.
 func @f(f32) {
 ^bb0(%a : f32):
-  %18 = cmpi "slt", %idx, %idx : index
+  %18 = cmpi slt, %idx, %idx : index
   tensor<42 x index  // expected-error {{custom op 'tensor' is unknown}}
   return
 }
@@ -773,7 +816,7 @@ func @f(f32) {
 func @f(%m : memref<?x?xf32>) {
   affine.for %i0 = 0 to 42 {
     // expected-note@+1 {{previously referenced here}}
-    %x = load %m[%i0, %i1] : memref<?x?xf32>
+    %x = memref.load %m[%i0, %i1] : memref<?x?xf32>
   }
   // expected-error@+1 {{region entry argument '%i1' is already in use}}
   affine.for %i1 = 0 to 42 {
@@ -833,7 +876,7 @@ func @type_alias_unknown(!unknown_alias) -> () { // expected-error {{undefined s
 func @complex_loops() {
   affine.for %i1 = 1 to 100 {
   // expected-error @+1 {{expected '"' in string literal}}
-  "opaqueIntTensor"(){bar = opaque<"", "0x686]> : tensor<2x1x4xi32>} : () -> ()
+  "opaqueIntTensor"(){bar = opaque<"_", "0x686]> : tensor<2x1x4xi32>} : () -> ()
 
 // -----
 
@@ -1150,7 +1193,7 @@ func @hexadecimal_float_literal_overflow() {
 // -----
 
 func @decimal_float_literal() {
-  // expected-error @+2 {{unexpected decimal integer literal for a float attribute}}
+  // expected-error @+2 {{unexpected decimal integer literal for a floating point value}}
   // expected-note @+1 {{add a trailing dot to make the literal a float}}
   "foo"() {value = 42 : f32} : () -> ()
 }
@@ -1203,7 +1246,7 @@ func @hexadecimal_float_too_wide_for_type_in_tensor() {
 
 // Check that we report an error when a value is too wide to be parsed.
 func @hexadecimal_float_too_wide_in_tensor() {
-  // expected-error @+1 {{hexadecimal float constant out of range for attribute}}
+  // expected-error @+1 {{hexadecimal float constant out of range for type}}
   "foo"() {bar = dense<0x7FFFFFF0000000000000> : tensor<2xf32>} : () -> ()
 }
 
@@ -1513,9 +1556,14 @@ func @really_large_bound() {
 // -----
 
 func @duplicate_dictionary_attr_key() {
-  // expected-error @+1 {{duplicate key in dictionary attribute}}
+  // expected-error @+1 {{duplicate key 'a' in dictionary attribute}}
   "foo.op"() {a, a} : () -> ()
 }
+
+// -----
+
+// expected-error @+1 {{attribute 'attr' occurs more than once in the attribute list}}
+test.format_symbol_name_attr_op @name { attr = "xx" }
 
 // -----
 
@@ -1566,3 +1614,7 @@ func @invalid_region_dominance_with_dominance_free_regions() {
   }
   return
 }
+
+// -----
+
+func @foo() {} // expected-error {{expected non-empty function body}}

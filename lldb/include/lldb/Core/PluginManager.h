@@ -331,12 +331,42 @@ public:
   GetSymbolVendorCreateCallbackAtIndex(uint32_t idx);
 
   // Trace
-  static bool RegisterPlugin(ConstString name, const char *description,
-                             TraceCreateInstance create_callback);
+  static bool RegisterPlugin(
+      ConstString name, const char *description,
+      TraceCreateInstanceForSessionFile create_callback_for_session_file,
+      TraceCreateInstanceForLiveProcess create_callback_for_live_process,
+      llvm::StringRef schema);
 
-  static bool UnregisterPlugin(TraceCreateInstance create_callback);
+  static bool
+  UnregisterPlugin(TraceCreateInstanceForSessionFile create_callback);
 
-  static TraceCreateInstance GetTraceCreateCallback(ConstString plugin_name);
+  static TraceCreateInstanceForSessionFile
+  GetTraceCreateCallback(ConstString plugin_name);
+
+  static TraceCreateInstanceForLiveProcess
+  GetTraceCreateCallbackForLiveProcess(ConstString plugin_name);
+
+  /// Get the JSON schema for a trace session file corresponding to the given
+  /// plugin.
+  ///
+  /// \param[in] plugin_name
+  ///     The name of the plugin.
+  ///
+  /// \return
+  ///     An empty \a StringRef if no plugin was found with that plugin name,
+  ///     otherwise the actual schema is returned.
+  static llvm::StringRef GetTraceSchema(ConstString plugin_name);
+
+  /// Get the JSON schema for a trace session file corresponding to the plugin
+  /// given by its index.
+  ///
+  /// \param[in] index
+  ///     The index of the plugin to get the schema of.
+  ///
+  /// \return
+  ///     An empty \a StringRef if the index is greater than or equal to the
+  ///     number plugins, otherwise the actual schema is returned.
+  static llvm::StringRef GetTraceSchema(size_t index);
 
   // UnwindAssembly
   static bool RegisterPlugin(ConstString name, const char *description,

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -verify
+// RUN: %clang_cc1 %s -std=c++17 -fsyntax-only -verify
 // RUN: %clang_cc1 %s -DPEDANTIC -pedantic -fsyntax-only -verify
 
 #if PEDANTIC
@@ -127,6 +127,31 @@ void n() [[likely]] // expected-error {{'likely' attribute cannot be applied to 
   try
     [[likely]] {} // expected-error {{expected '{'}}
   catch (...) [[likely]] { // expected-error {{expected expression}}
+  }
+}
+
+void o()
+{
+  // expected-warning@+2 {{attribute 'likely' has no effect when annotating an 'if constexpr' statement}}
+  // expected-note@+1 {{annotating the 'if constexpr' statement here}}
+  if constexpr (true) [[likely]];
+
+  // expected-note@+1 {{annotating the 'if constexpr' statement here}}
+  if constexpr (true) {
+  // expected-warning@+1 {{attribute 'unlikely' has no effect when annotating an 'if constexpr' statement}}
+  } else [[unlikely]];
+
+  // Annotating both branches with conflicting likelihoods generates no diagnostic regarding the conflict.
+  // expected-warning@+2 {{attribute 'likely' has no effect when annotating an 'if constexpr' statement}}
+  // expected-note@+1 2 {{annotating the 'if constexpr' statement here}}
+  if constexpr (true) [[likely]] {
+  // expected-warning@+1 {{attribute 'likely' has no effect when annotating an 'if constexpr' statement}}
+  } else [[likely]];
+
+  if (1) [[likely, unlikely]] { // expected-error {{'unlikely' and 'likely' attributes are not compatible}} \
+                                // expected-note {{conflicting attribute is here}}
+  } else [[unlikely]][[likely]] { // expected-error {{'likely' and 'unlikely' attributes are not compatible}} \
+                                  // expected-note {{conflicting attribute is here}}
   }
 }
 #endif

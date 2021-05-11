@@ -141,6 +141,11 @@
 // CHECK-V7S-NOT: __ARM_FEATURE_DIRECTED_ROUNDING
 // CHECK-V7S: #define __ARM_FP 0xe
 
+// RUN: %clang -target arm-arm-none-eabi -march=armv7-m -mfloat-abi=soft -x c -E -dM %s | FileCheck -match-full-lines --check-prefix=CHECK-VFP-FP %s
+// RUN: %clang -target arm-arm-none-eabi -march=armv7-m -mfloat-abi=softfp -x c -E -dM %s | FileCheck -match-full-lines --check-prefix=CHECK-VFP-FP %s
+// RUN: %clang -target arm-arm-none-eabi -march=armv7-m -mfloat-abi=hard -x c -E -dM %s | FileCheck -match-full-lines --check-prefix=CHECK-VFP-FP %s
+// CHECK-VFP-FP: #define __VFP_FP__ 1
+
 // RUN: %clang -target armv8a -mfloat-abi=hard -x c -E -dM %s | FileCheck -match-full-lines --check-prefix=CHECK-V8-BAREHF %s
 // CHECK-V8-BAREHF: #define __ARMEL__ 1
 // CHECK-V8-BAREHF: #define __ARM_ARCH 8
@@ -848,6 +853,11 @@
 // CHECK-V86A: #define __ARM_ARCH 8
 // CHECK-V86A: #define __ARM_ARCH_8_6A__ 1
 // CHECK-V86A: #define __ARM_ARCH_PROFILE 'A'
+
+// RUN: %clang -target armv8.7a-none-none-eabi -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-V87A %s
+// CHECK-V87A: #define __ARM_ARCH 8
+// CHECK-V87A: #define __ARM_ARCH_8_7A__ 1
+// CHECK-V87A: #define __ARM_ARCH_PROFILE 'A'
 
 // RUN: %clang -target arm-none-none-eabi -march=armv7-m -mfpu=softvfp -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SOFTVFP %s
 // CHECK-SOFTVFP-NOT: #define __ARM_FP 0x

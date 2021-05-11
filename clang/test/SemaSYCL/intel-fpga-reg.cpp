@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -pedantic -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -verify -pedantic -fsyntax-only %s
 // RUN: %clang_cc1 -verify -pedantic -fsyntax-only %s
 
 class A {
@@ -19,7 +19,7 @@ struct st {
 static_assert(__has_builtin(__builtin_intel_fpga_reg), "");
 
 struct inner {
-  void (*fp)(); // expected-note {{Field with illegal type declared here}}
+  void (*fp)(); // expected-note {{field with illegal type declared here}}
 };
 
 struct outer {
@@ -42,14 +42,14 @@ void foo() {
   int *bp = __builtin_intel_fpga_reg(ap);
   int intArr[10] = {0};
   int *k = __builtin_intel_fpga_reg(intArr);
-  // expected-error@-1{{Illegal argument of type 'int [10]'  to __builtin_intel_fpga_reg}}
+  // expected-error@-1{{illegal argument of type 'int [10]'  to __builtin_intel_fpga_reg}}
 
   void (*fp1)();
   void (*fp2)() = __builtin_intel_fpga_reg(fp1);
-  //expected-error@-1{{Illegal argument of type 'void (*)()'  to __builtin_intel_fpga_reg.}}
+  //expected-error@-1{{illegal argument of type 'void (*)()'  to __builtin_intel_fpga_reg}}
   struct outer iii;
   struct outer iv = __builtin_intel_fpga_reg(iii);
-  //expected-error@-1{{Illegal field in argument to __builtin_intel_fpga_reg}}
+  //expected-error@-1{{illegal field in argument to __builtin_intel_fpga_reg}}
   void *vp = __builtin_intel_fpga_reg();
   // expected-error@-1{{too few arguments to function call, expected 1, have 0}}
   int tmp = __builtin_intel_fpga_reg(1, 2);

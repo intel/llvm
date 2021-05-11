@@ -34,18 +34,22 @@
 //   pi_device_binary_property_set PropertySetsBegin;
 //   pi_device_binary_property_set PropertySetsEnd;
 // 2. A number of types needed to define pi_device_binary_property_set added.
+// 3. Added new ownership argument to piextContextCreateWithNativeHandle.
+// 4. Add interoperability interfaces for kernel.
 //
-#define _PI_H_VERSION_MAJOR 1
-#define _PI_H_VERSION_MINOR 2
+#include "CL/cl.h"
+#define _PI_H_VERSION_MAJOR 3
+#define _PI_H_VERSION_MINOR 5
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
 #define _PI_H_VERSION_STRING                                                   \
   _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
+
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
-#include <CL/cl_ext_intel.h>
+#include <CL/cl_ext.h>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <cstdint>
@@ -82,6 +86,9 @@ typedef enum {
   PI_INVALID_QUEUE = CL_INVALID_COMMAND_QUEUE,
   PI_OUT_OF_HOST_MEMORY = CL_OUT_OF_HOST_MEMORY,
   PI_INVALID_PROGRAM = CL_INVALID_PROGRAM,
+  PI_INVALID_PROGRAM_EXECUTABLE = CL_INVALID_PROGRAM_EXECUTABLE,
+  PI_INVALID_SAMPLER = CL_INVALID_SAMPLER,
+  PI_INVALID_BUFFER_SIZE = CL_INVALID_BUFFER_SIZE,
   PI_INVALID_MEM_OBJECT = CL_INVALID_MEM_OBJECT,
   PI_OUT_OF_RESOURCES = CL_OUT_OF_RESOURCES,
   PI_INVALID_EVENT = CL_INVALID_EVENT,
@@ -93,8 +100,10 @@ typedef enum {
   PI_PROFILING_INFO_NOT_AVAILABLE = CL_PROFILING_INFO_NOT_AVAILABLE,
   PI_DEVICE_NOT_FOUND = CL_DEVICE_NOT_FOUND,
   PI_INVALID_WORK_ITEM_SIZE = CL_INVALID_WORK_ITEM_SIZE,
+  PI_INVALID_WORK_DIMENSION = CL_INVALID_WORK_DIMENSION,
   PI_INVALID_KERNEL_ARGS = CL_INVALID_KERNEL_ARGS,
   PI_INVALID_IMAGE_SIZE = CL_INVALID_IMAGE_SIZE,
+  PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = CL_INVALID_IMAGE_FORMAT_DESCRIPTOR,
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_ERROR_UNKNOWN = -999
@@ -118,7 +127,8 @@ typedef enum {
 typedef enum {
   PI_PROGRAM_BUILD_INFO_STATUS = CL_PROGRAM_BUILD_STATUS,
   PI_PROGRAM_BUILD_INFO_OPTIONS = CL_PROGRAM_BUILD_OPTIONS,
-  PI_PROGRAM_BUILD_INFO_LOG = CL_PROGRAM_BUILD_LOG
+  PI_PROGRAM_BUILD_INFO_LOG = CL_PROGRAM_BUILD_LOG,
+  PI_PROGRAM_BUILD_INFO_BINARY_TYPE = CL_PROGRAM_BINARY_TYPE
 } _pi_program_build_info;
 
 typedef enum {
@@ -127,6 +137,14 @@ typedef enum {
   PI_PROGRAM_BUILD_STATUS_SUCCESS = CL_BUILD_SUCCESS,
   PI_PROGRAM_BUILD_STATUS_IN_PROGRESS = CL_BUILD_IN_PROGRESS
 } _pi_program_build_status;
+
+typedef enum {
+  PI_PROGRAM_BINARY_TYPE_NONE = CL_PROGRAM_BINARY_TYPE_NONE,
+  PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT =
+      CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT,
+  PI_PROGRAM_BINARY_TYPE_LIBRARY = CL_PROGRAM_BINARY_TYPE_LIBRARY,
+  PI_PROGRAM_BINARY_TYPE_EXECUTABLE = CL_PROGRAM_BINARY_TYPE_EXECUTABLE
+} _pi_program_binary_type;
 
 // NOTE: this is made 64-bit to match the size of cl_device_type to
 // make the translation to OpenCL transparent.
@@ -259,7 +277,15 @@ typedef enum {
   PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT =
       CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
   PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT =
-      CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL
+      CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL,
+  // These are Intel-specific extensions.
+  PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
+  PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
+  PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 0x10022,
+  PI_DEVICE_INFO_GPU_SLICES = 0x10023,
+  PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 0x10024,
+  PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
+  PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026
 } _pi_device_info;
 
 typedef enum {
@@ -494,6 +520,18 @@ constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_ALLOC = CL_MEM_ALLOC_HOST_PTR;
 
+// flags passed to Map operations
+using pi_map_flags = pi_bitfield;
+constexpr pi_map_flags PI_MAP_READ = CL_MAP_READ;
+constexpr pi_map_flags PI_MAP_WRITE = CL_MAP_WRITE;
+constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
+    CL_MAP_WRITE_INVALIDATE_REGION;
+
+// NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
+// make the translation to OpenCL transparent.
+using pi_mem_properties = pi_bitfield;
+constexpr pi_mem_properties PI_MEM_PROPERTIES_CHANNEL = CL_MEM_CHANNEL_INTEL;
+
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
 using pi_queue_properties = pi_bitfield;
@@ -617,28 +655,30 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// triple requires specific binary images. We need
 /// to map the image type onto the device target triple
 ///
-#define PI_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
 /// SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
-#define PI_DEVICE_BINARY_TARGET_SPIRV32 "spir"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32 "spir"
 /// SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
-#define PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
 /// Device-specific binary images produced from SPIR-V 64-bit <->
 /// various "spir64_*" triples for specific 64-bit OpenCL devices
-#define PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
-#define PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
-#define PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
-#define PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
 /// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
 /// PropertySetIO.h
-#define PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
+#define __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
 /// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
-#define PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
+#define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
-#define PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
+#define __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
+/// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
@@ -656,12 +696,15 @@ struct pi_device_binary_struct {
   uint8_t Format;
   /// null-terminated string representation of the device's target architecture
   /// which holds one of:
-  /// PI_DEVICE_BINARY_TARGET_UNKNOWN - unknown
-  /// PI_DEVICE_BINARY_TARGET_SPIRV32 - general value for 32-bit OpenCL devices
-  /// PI_DEVICE_BINARY_TARGET_SPIRV64 - general value for 64-bit OpenCL devices
-  /// PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 - 64-bit OpenCL CPU device
-  /// PI_DEVICE_BINARY_TARGET_SPIRV64_GEN - GEN GPU device (64-bit OpenCL)
-  /// PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA - 64-bit OpenCL FPGA device
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN - unknown
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32 - general value for 32-bit OpenCL
+  /// devices
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 - general value for 64-bit OpenCL
+  /// devices
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 - 64-bit OpenCL CPU device
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN - GEN GPU device (64-bit
+  /// OpenCL)
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA - 64-bit OpenCL FPGA device
   const char *DeviceTargetSpec;
   /// a null-terminated string; target- and compiler-specific options
   /// which are suggested to use to "compile" program at runtime
@@ -935,11 +978,29 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 
 /// Creates PI context object from a native handle.
 /// NOTE: The created PI object takes ownership of the native handle.
+/// NOTE: The number of devices and the list of devices is needed for Level Zero
+/// backend because there is no possilibity to query this information from
+/// context handle for Level Zero. If backend has API to query a list of devices
+/// from the context native handle then these parameters are ignored.
 ///
 /// \param nativeHandle is the native handle to create PI context from.
+/// \param numDevices is the number of devices in the context. Parameter is
+///        ignored if number of devices can be queried from the context native
+///        handle for a backend.
+/// \param devices is the list of devices in the context. Parameter is ignored
+///        if devices can be queried from the context native handle for a
+///        backend.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 /// \param context is the PI context created from the native handle.
+/// \return PI_SUCCESS if successfully created pi_context from the handle.
+///         PI_OUT_OF_HOST_MEMORY if can't allocate memory for the pi_context
+///         object. PI_INVALID_VALUE if numDevices == 0 or devices is NULL but
+///         backend doesn't have API to query a list of devices from the context
+///         native handle. PI_UNKNOWN_ERROR in case of another error.
 __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context *context);
+    pi_native_handle nativeHandle, pi_uint32 numDevices,
+    const pi_device *devices, bool ownNativeHandle, pi_context *context);
 
 //
 // Queue
@@ -979,9 +1040,9 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 //
 // Memory
 //
-__SYCL_EXPORT pi_result piMemBufferCreate(pi_context context,
-                                          pi_mem_flags flags, size_t size,
-                                          void *host_ptr, pi_mem *ret_mem);
+__SYCL_EXPORT pi_result piMemBufferCreate(
+    pi_context context, pi_mem_flags flags, size_t size, void *host_ptr,
+    pi_mem *ret_mem, const pi_mem_properties *properties = nullptr);
 
 __SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                                          const pi_image_format *image_format,
@@ -1186,6 +1247,25 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
                                             size_t param_value_size,
                                             const void *param_value);
 
+/// Creates PI kernel object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI kernel from.
+/// \param context is the PI context of the kernel.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
+/// \param kernel is the PI kernel created from the native handle.
+__SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_kernel *kernel);
+
+/// Gets the native handle of a PI kernel object.
+///
+/// \param kernel is the PI kernel to get the native handle of.
+/// \param nativeHandle is the native handle of kernel.
+__SYCL_EXPORT pi_result
+piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
+
 //
 // Events
 //
@@ -1348,9 +1428,9 @@ piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferMap(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
-    cl_map_flags map_flags, // TODO: untie from OpenCL
-    size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event, void **ret_map);
+    pi_map_flags map_flags, size_t offset, size_t size,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event, void **ret_map);
 
 __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           void *mapped_ptr,
@@ -1549,6 +1629,11 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+
+/// API to notify that the plugin should clean up its resources.
+/// No PI calls should be made until the next piPluginInit call.
+/// \param PluginParameter placeholder for future use, currenly not used.
+__SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

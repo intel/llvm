@@ -17,10 +17,13 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/CallingConvLower.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetCallingConv.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/Value.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MachineValueType.h"
 #include <cstdint>
@@ -31,32 +34,48 @@ namespace llvm {
 class CallBase;
 class DataLayout;
 class Function;
+class FunctionLoweringInfo;
 class MachineIRBuilder;
 struct MachinePointerInfo;
 class MachineRegisterInfo;
 class TargetLowering;
-class Value;
 
 class CallLowering {
   const TargetLowering *TLI;
 
   virtual void anchor();
 public:
-  struct ArgInfo {
+  struct BaseArgInfo {
+    Type *Ty;
+    SmallVector<ISD::ArgFlagsTy, 4> Flags;
+    bool IsFixed;
+
+    BaseArgInfo(Type *Ty,
+                ArrayRef<ISD::ArgFlagsTy> Flags = ArrayRef<ISD::ArgFlagsTy>(),
+                bool IsFixed = true)
+        : Ty(Ty), Flags(Flags.begin(), Flags.end()), IsFixed(IsFixed) {}
+
+    BaseArgInfo() : Ty(nullptr), IsFixed(false) {}
+  };
+
+  struct ArgInfo : public BaseArgInfo {
     SmallVector<Register, 4> Regs;
     // If the argument had to be split into multiple parts according to the
     // target calling convention, then this contains the original vregs
     // if the argument was an incoming arg.
     SmallVector<Register, 2> OrigRegs;
-    Type *Ty;
-    SmallVector<ISD::ArgFlagsTy, 4> Flags;
-    bool IsFixed;
+
+    /// Optionally track the original IR value for the argument. This may not be
+    /// meaningful in all contexts. This should only be used on for forwarding
+    /// through to use for aliasing information in MachinePointerInfo for memory
+    /// arguments.
+    const Value *OrigValue = nullptr;
 
     ArgInfo(ArrayRef<Register> Regs, Type *Ty,
             ArrayRef<ISD::ArgFlagsTy> Flags = ArrayRef<ISD::ArgFlagsTy>(),
-            bool IsFixed = true)
-        : Regs(Regs.begin(), Regs.end()), Ty(Ty),
-          Flags(Flags.begin(), Flags.end()), IsFixed(IsFixed) {
+            bool IsFixed = true, const Value *OrigValue = nullptr)
+        : BaseArgInfo(Ty, Flags, IsFixed), Regs(Regs.begin(), Regs.end()),
+          OrigValue(OrigValue) {
       if (!Regs.empty() && Flags.empty())
         this->Flags.push_back(ISD::ArgFlagsTy());
       // FIXME: We should have just one way of saying "no register".
@@ -65,7 +84,12 @@ public:
              "only void types should have no register");
     }
 
-    ArgInfo() : Ty(nullptr), IsFixed(false) {}
+    ArgInfo(ArrayRef<Register> Regs, const Value &OrigValue,
+            ArrayRef<ISD::ArgFlagsTy> Flags = ArrayRef<ISD::ArgFlagsTy>(),
+            bool IsFixed = true)
+        : ArgInfo(Regs, OrigValue.getType(), Flags, IsFixed, &OrigValue) {}
+
+    ArgInfo() : BaseArgInfo() {}
   };
 
   struct CallLoweringInfo {
@@ -101,6 +125,15 @@ public:
 
     /// True if the call is to a vararg function.
     bool IsVarArg = false;
+
+    /// True if the function's return value can be lowered to registers.
+    bool CanLowerReturn = true;
+
+    /// VReg to hold the hidden sret parameter.
+    Register DemoteRegister;
+
+    /// The stack index for sret demotion.
+    int DemoteStackIndex;
   };
 
   /// Argument handling is mostly uniform between the four places that
@@ -129,7 +162,8 @@ public:
     /// should be initialized to an appropriate description of the
     /// address created.
     virtual Register getStackAddress(uint64_t Size, int64_t Offset,
-                                     MachinePointerInfo &MPO) = 0;
+                                     MachinePointerInfo &MPO,
+                                     ISD::ArgFlagsTy Flags) = 0;
 
     /// The specified value has been assigned to a physical register,
     /// handle the appropriate COPY (either to or from) and mark any
@@ -144,13 +178,14 @@ public:
                                       uint64_t Size, MachinePointerInfo &MPO,
                                       CCValAssign &VA) = 0;
 
-    /// An overload which takes an ArgInfo if additional information about
-    /// the arg is needed.
-    virtual void assignValueToAddress(const ArgInfo &Arg, Register Addr,
-                                      uint64_t Size, MachinePointerInfo &MPO,
+    /// An overload which takes an ArgInfo if additional information about the
+    /// arg is needed. \p ValRegIndex is the index in \p Arg.Regs for the value
+    /// to store.
+    virtual void assignValueToAddress(const ArgInfo &Arg, unsigned ValRegIndex,
+                                      Register Addr, uint64_t Size,
+                                      MachinePointerInfo &MPO,
                                       CCValAssign &VA) {
-      assert(Arg.Regs.size() == 1);
-      assignValueToAddress(Arg.Regs[0], Addr, Size, MPO, VA);
+      assignValueToAddress(Arg.Regs[ValRegIndex], Addr, Size, MPO, VA);
     }
 
     /// Handle custom values, which may be passed into one or more of \p VAs.
@@ -163,6 +198,14 @@ public:
       // about custom values.
       llvm_unreachable("Custom values not supported");
     }
+
+    /// Do a memory copy of \p MemSize bytes from \p SrcPtr to \p DstPtr. This
+    /// is necessary for outgoing stack-passed byval arguments.
+    void
+    copyArgumentMemory(const ArgInfo &Arg, Register DstPtr, Register SrcPtr,
+                       const MachinePointerInfo &DstPtrInfo, Align DstAlign,
+                       const MachinePointerInfo &SrcPtrInfo, Align SrcAlign,
+                       uint64_t MemSize, CCValAssign &VA) const;
 
     /// Extend a register to the location type given in VA, capped at extending
     /// to at most MaxSize bits. If MaxSizeBits is 0 then no maximum is set.
@@ -188,6 +231,14 @@ public:
     IncomingValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
                          CCAssignFn *AssignFn)
         : ValueHandler(true, MIRBuilder, MRI, AssignFn) {}
+
+    /// Insert G_ASSERT_ZEXT/G_ASSERT_SEXT or other hint instruction based on \p
+    /// VA, returning the new register if a hint was inserted.
+    Register buildExtensionHint(CCValAssign &VA, Register SrcReg, LLT NarrowTy);
+
+    /// Provides a default implementation for argument handling.
+    void assignValueToReg(Register ValVReg, Register PhysReg,
+                          CCValAssign &VA) override;
   };
 
   struct OutgoingValueHandler : public ValueHandler {
@@ -223,15 +274,12 @@ protected:
   void setArgFlags(ArgInfo &Arg, unsigned OpIdx, const DataLayout &DL,
                    const FuncInfoTy &FuncInfo) const;
 
-  /// Generate instructions for packing \p SrcRegs into one big register
-  /// corresponding to the aggregate type \p PackedTy.
-  ///
-  /// \param SrcRegs should contain one virtual register for each base type in
-  ///                \p PackedTy, as returned by computeValueLLTs.
-  ///
-  /// \return The packed register.
-  Register packRegs(ArrayRef<Register> SrcRegs, Type *PackedTy,
-                    MachineIRBuilder &MIRBuilder) const;
+  /// Break \p OrigArgInfo into one or more pieces the calling convention can
+  /// process, returned in \p SplitArgs. For example, this should break structs
+  /// down into individual fields.
+  void splitToValueTypes(const ArgInfo &OrigArgInfo,
+                         SmallVectorImpl<ArgInfo> &SplitArgs,
+                         const DataLayout &DL, CallingConv::ID CallConv) const;
 
   /// Generate instructions for unpacking \p SrcReg into the \p DstRegs
   /// corresponding to the aggregate type \p PackedTy.
@@ -246,13 +294,14 @@ protected:
   ///
   /// \return True if everything has succeeded, false otherwise.
   bool handleAssignments(MachineIRBuilder &MIRBuilder,
-                         SmallVectorImpl<ArgInfo> &Args,
-                         ValueHandler &Handler) const;
+                         SmallVectorImpl<ArgInfo> &Args, ValueHandler &Handler,
+                         CallingConv::ID CallConv, bool IsVarArg,
+                         Register ThisReturnReg = Register()) const;
   bool handleAssignments(CCState &CCState,
                          SmallVectorImpl<CCValAssign> &ArgLocs,
                          MachineIRBuilder &MIRBuilder,
-                         SmallVectorImpl<ArgInfo> &Args,
-                         ValueHandler &Handler) const;
+                         SmallVectorImpl<ArgInfo> &Args, ValueHandler &Handler,
+                         Register ThisReturnReg = Register()) const;
 
   /// Analyze passed or returned values from a call, supplied in \p ArgInfo,
   /// incorporating info about the passed values into \p CCState.
@@ -261,6 +310,14 @@ protected:
   bool analyzeArgInfo(CCState &CCState, SmallVectorImpl<ArgInfo> &Args,
                       CCAssignFn &AssignFnFixed,
                       CCAssignFn &AssignFnVarArg) const;
+
+  /// Check whether parameters to a call that are passed in callee saved
+  /// registers are the same as from the calling function.  This needs to be
+  /// checked for tail call eligibility.
+  bool parametersInCSRMatch(const MachineRegisterInfo &MRI,
+                            const uint32_t *CallerPreservedMask,
+                            const SmallVectorImpl<CCValAssign> &ArgLocs,
+                            const SmallVectorImpl<ArgInfo> &OutVals) const;
 
   /// \returns True if the calling convention for a callee and its caller pass
   /// results in the same way. Typically used for tail call eligibility checks.
@@ -292,20 +349,73 @@ public:
     return false;
   }
 
+  /// Load the returned value from the stack into virtual registers in \p VRegs.
+  /// It uses the frame index \p FI and the start offset from \p DemoteReg.
+  /// The loaded data size will be determined from \p RetTy.
+  void insertSRetLoads(MachineIRBuilder &MIRBuilder, Type *RetTy,
+                       ArrayRef<Register> VRegs, Register DemoteReg,
+                       int FI) const;
+
+  /// Store the return value given by \p VRegs into stack starting at the offset
+  /// specified in \p DemoteReg.
+  void insertSRetStores(MachineIRBuilder &MIRBuilder, Type *RetTy,
+                        ArrayRef<Register> VRegs, Register DemoteReg) const;
+
+  /// Insert the hidden sret ArgInfo to the beginning of \p SplitArgs.
+  /// This function should be called from the target specific
+  /// lowerFormalArguments when \p F requires the sret demotion.
+  void insertSRetIncomingArgument(const Function &F,
+                                  SmallVectorImpl<ArgInfo> &SplitArgs,
+                                  Register &DemoteReg, MachineRegisterInfo &MRI,
+                                  const DataLayout &DL) const;
+
+  /// For the call-base described by \p CB, insert the hidden sret ArgInfo to
+  /// the OrigArgs field of \p Info.
+  void insertSRetOutgoingArgument(MachineIRBuilder &MIRBuilder,
+                                  const CallBase &CB,
+                                  CallLoweringInfo &Info) const;
+
+  /// \return True if the return type described by \p Outs can be returned
+  /// without performing sret demotion.
+  bool checkReturn(CCState &CCInfo, SmallVectorImpl<BaseArgInfo> &Outs,
+                   CCAssignFn *Fn) const;
+
+  /// Get the type and the ArgFlags for the split components of \p RetTy as
+  /// returned by \c ComputeValueVTs.
+  void getReturnInfo(CallingConv::ID CallConv, Type *RetTy, AttributeList Attrs,
+                     SmallVectorImpl<BaseArgInfo> &Outs,
+                     const DataLayout &DL) const;
+
+  /// Toplevel function to check the return type based on the target calling
+  /// convention. \return True if the return value of \p MF can be returned
+  /// without performing sret demotion.
+  bool checkReturnTypeForCallConv(MachineFunction &MF) const;
+
+  /// This hook must be implemented to check whether the return values
+  /// described by \p Outs can fit into the return registers. If false
+  /// is returned, an sret-demotion is performed.
+  virtual bool canLowerReturn(MachineFunction &MF, CallingConv::ID CallConv,
+                              SmallVectorImpl<BaseArgInfo> &Outs,
+                              bool IsVarArg) const {
+    return true;
+  }
+
   /// This hook must be implemented to lower outgoing return values, described
   /// by \p Val, into the specified virtual registers \p VRegs.
   /// This hook is used by GlobalISel.
+  ///
+  /// \p FLI is required for sret demotion.
   ///
   /// \p SwiftErrorVReg is non-zero if the function has a swifterror parameter
   /// that needs to be implicitly returned.
   ///
   /// \return True if the lowering succeeds, false otherwise.
   virtual bool lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val,
-                           ArrayRef<Register> VRegs,
+                           ArrayRef<Register> VRegs, FunctionLoweringInfo &FLI,
                            Register SwiftErrorVReg) const {
     if (!supportSwiftError()) {
       assert(SwiftErrorVReg == 0 && "attempt to use unsupported swifterror");
-      return lowerReturn(MIRBuilder, Val, VRegs);
+      return lowerReturn(MIRBuilder, Val, VRegs, FLI);
     }
     return false;
   }
@@ -313,11 +423,14 @@ public:
   /// This hook behaves as the extended lowerReturn function, but for targets
   /// that do not support swifterror value promotion.
   virtual bool lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val,
-                           ArrayRef<Register> VRegs) const {
+                           ArrayRef<Register> VRegs,
+                           FunctionLoweringInfo &FLI) const {
     return false;
   }
 
-  virtual bool fallBackToDAGISel(const Function &F) const { return false; }
+  virtual bool fallBackToDAGISel(const MachineFunction &MF) const {
+    return false;
+  }
 
   /// This hook must be implemented to lower the incoming (formal)
   /// arguments, described by \p VRegs, for GlobalISel. Each argument
@@ -326,12 +439,13 @@ public:
   /// the second in \c VRegs[1], and so on. For each argument, there will be one
   /// register for each non-aggregate type, as returned by \c computeValueLLTs.
   /// \p MIRBuilder is set to the proper insertion for the argument
-  /// lowering.
+  /// lowering. \p FLI is required for sret demotion.
   ///
   /// \return True if the lowering succeeded, false otherwise.
   virtual bool lowerFormalArguments(MachineIRBuilder &MIRBuilder,
                                     const Function &F,
-                                    ArrayRef<ArrayRef<Register>> VRegs) const {
+                                    ArrayRef<ArrayRef<Register>> VRegs,
+                                    FunctionLoweringInfo &FLI) const {
     return false;
   }
 
@@ -373,6 +487,10 @@ public:
                  ArrayRef<Register> ResRegs,
                  ArrayRef<ArrayRef<Register>> ArgRegs, Register SwiftErrorVReg,
                  std::function<unsigned()> GetCalleeReg) const;
+
+  /// For targets which support the "returned" parameter attribute, returns
+  /// true if the given type is a valid one to use with "returned".
+  virtual bool isTypeIsValidForThisReturn(EVT Ty) const { return false; }
 };
 
 } // end namespace llvm

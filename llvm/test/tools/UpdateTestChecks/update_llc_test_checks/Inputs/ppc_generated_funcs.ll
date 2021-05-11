@@ -1,9 +1,10 @@
 ; RUN: llc -enable-machine-outliner -mtriple=ppc32-unknown-linux < %s | FileCheck %s
+; RUN: llc -enable-machine-outliner -mtriple=powerpc-ibm-aix-xcoff < %s | FileCheck %s -check-prefix=AIX
 ;
 ; NOTE: Machine outliner doesn't run.
 @x = global i32 0, align 4
 
-define i32 @check_boundaries() #0 {
+define dso_local i32 @check_boundaries() #0 {
   %1 = alloca i32, align 4
   %2 = alloca i32, align 4
   %3 = alloca i32, align 4
@@ -40,7 +41,7 @@ define i32 @check_boundaries() #0 {
   ret i32 0
 }
 
-define i32 @main() #0 {
+define dso_local i32 @main() #0 {
   %1 = alloca i32, align 4
   %2 = alloca i32, align 4
   %3 = alloca i32, align 4

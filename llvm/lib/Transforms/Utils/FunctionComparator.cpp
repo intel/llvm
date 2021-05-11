@@ -124,12 +124,17 @@ int FunctionComparator::cmpAttrs(const AttributeList L,
 
         Type *TyL = LA.getValueAsType();
         Type *TyR = RA.getValueAsType();
-        if (TyL && TyR)
-          return cmpTypes(TyL, TyR);
+        if (TyL && TyR) {
+          if (int Res = cmpTypes(TyL, TyR))
+            return Res;
+          continue;
+        }
 
         // Two pointers, at least one null, so the comparison result is
         // independent of the value of a real pointer.
-        return cmpNumbers((uint64_t)TyL, (uint64_t)TyR);
+        if (int Res = cmpNumbers((uint64_t)TyL, (uint64_t)TyR))
+          return Res;
+        continue;
       }
       if (LA < RA)
         return -1;
@@ -286,6 +291,7 @@ int FunctionComparator::cmpConstants(const Constant *L,
 
   switch (L->getValueID()) {
   case Value::UndefValueVal:
+  case Value::PoisonValueVal:
   case Value::ConstantTokenNoneVal:
     return TypesRes;
   case Value::ConstantIntVal: {

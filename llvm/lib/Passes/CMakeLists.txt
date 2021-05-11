@@ -9,4 +9,20 @@ add_llvm_component_library(LLVMPasses
 
   DEPENDS
   intrinsics_gen
+
+  LINK_COMPONENTS
+  AggressiveInstCombine
+  Analysis
+  Core
+  Coroutines
+  IPO
+  InstCombine
+  ObjCARC
+  Scalar
+  Support
+  SYCLLowerIR
+  Target
+  TransformUtils
+  Vectorize
+  Instrumentation
   )

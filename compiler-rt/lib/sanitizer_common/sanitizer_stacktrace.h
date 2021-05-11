@@ -25,8 +25,6 @@ static const u32 kStackTraceMax = 256;
 # define SANITIZER_CAN_FAST_UNWIND 0
 #elif SANITIZER_WINDOWS
 # define SANITIZER_CAN_FAST_UNWIND 0
-#elif SANITIZER_OPENBSD
-# define SANITIZER_CAN_FAST_UNWIND 0
 #else
 # define SANITIZER_CAN_FAST_UNWIND 1
 #endif
@@ -34,7 +32,7 @@ static const u32 kStackTraceMax = 256;
 // Fast unwind is the only option on Mac for now; we will need to
 // revisit this macro when slow unwind works on Mac, see
 // https://github.com/google/sanitizers/issues/137
-#if SANITIZER_MAC || SANITIZER_OPENBSD || SANITIZER_RTEMS
+#if SANITIZER_MAC || SANITIZER_RTEMS
 # define SANITIZER_CAN_SLOW_UNWIND 0
 #else
 # define SANITIZER_CAN_SLOW_UNWIND 1
@@ -69,8 +67,6 @@ struct StackTrace {
   static uptr GetCurrentPc();
   static inline uptr GetPreviousInstructionPc(uptr pc);
   static uptr GetNextInstructionPc(uptr pc);
-  typedef bool (*SymbolizeCallback)(const void *pc, char *out_buffer,
-                                    int out_size);
 };
 
 // Performance-critical, must be in the header.

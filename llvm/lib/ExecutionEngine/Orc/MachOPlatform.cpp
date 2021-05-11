@@ -159,7 +159,9 @@ Error MachOPlatform::setupJITDylib(JITDylib &JD) {
   return ObjLinkingLayer.add(JD, std::move(ObjBuffer));
 }
 
-Error MachOPlatform::notifyAdding(JITDylib &JD, const MaterializationUnit &MU) {
+Error MachOPlatform::notifyAdding(ResourceTracker &RT,
+                                  const MaterializationUnit &MU) {
+  auto &JD = RT.getJITDylib();
   const auto &InitSym = MU.getInitializerSymbol();
   if (!InitSym)
     return Error::success();
@@ -173,7 +175,7 @@ Error MachOPlatform::notifyAdding(JITDylib &JD, const MaterializationUnit &MU) {
   return Error::success();
 }
 
-Error MachOPlatform::notifyRemoving(JITDylib &JD, VModuleKey K) {
+Error MachOPlatform::notifyRemoving(ResourceTracker &RT) {
   llvm_unreachable("Not supported yet");
 }
 
@@ -185,7 +187,7 @@ MachOPlatform::getInitializerSequence(JITDylib &JD) {
            << JD.getName() << "\n";
   });
 
-  std::vector<std::shared_ptr<JITDylib>> DFSLinkOrder;
+  std::vector<JITDylibSP> DFSLinkOrder;
 
   while (true) {
 
@@ -247,7 +249,7 @@ MachOPlatform::getInitializerSequence(JITDylib &JD) {
 
 Expected<MachOPlatform::DeinitializerSequence>
 MachOPlatform::getDeinitializerSequence(JITDylib &JD) {
-  std::vector<std::shared_ptr<JITDylib>> DFSLinkOrder = JD.getDFSLinkOrder();
+  std::vector<JITDylibSP> DFSLinkOrder = JD.getDFSLinkOrder();
 
   DeinitializerSequence FullDeinitSeq;
   {
@@ -296,7 +298,7 @@ getSectionExtent(jitlink::LinkGraph &G, StringRef SectionName) {
 }
 
 void MachOPlatform::InitScraperPlugin::modifyPassConfig(
-    MaterializationResponsibility &MR, const Triple &TT,
+    MaterializationResponsibility &MR, jitlink::LinkGraph &LG,
     jitlink::PassConfiguration &Config) {
 
   if (!MR.getInitializerSymbol())
@@ -304,9 +306,12 @@ void MachOPlatform::InitScraperPlugin::modifyPassConfig(
 
   Config.PrePrunePasses.push_back([this, &MR](jitlink::LinkGraph &G) -> Error {
     JITLinkSymbolVector InitSectionSymbols;
-    preserveInitSectionIfPresent(InitSectionSymbols, G, "__mod_init_func");
-    preserveInitSectionIfPresent(InitSectionSymbols, G, "__objc_selrefs");
-    preserveInitSectionIfPresent(InitSectionSymbols, G, "__objc_classlist");
+    preserveInitSectionIfPresent(InitSectionSymbols, G,
+                                 "__DATA,__mod_init_func");
+    preserveInitSectionIfPresent(InitSectionSymbols, G,
+                                 "__DATA,__objc_selrefs");
+    preserveInitSectionIfPresent(InitSectionSymbols, G,
+                                 "__DATA,__objc_classlist");
 
     if (!InitSectionSymbols.empty()) {
       std::lock_guard<std::mutex> Lock(InitScraperMutex);
@@ -325,25 +330,27 @@ void MachOPlatform::InitScraperPlugin::modifyPassConfig(
         ObjCClassList;
 
     JITTargetAddress ObjCImageInfoAddr = 0;
-    if (auto *ObjCImageInfoSec = G.findSectionByName("__objc_image_info")) {
+    if (auto *ObjCImageInfoSec =
+            G.findSectionByName("__DATA,__objc_image_info")) {
       if (auto Addr = jitlink::SectionRange(*ObjCImageInfoSec).getStart())
         ObjCImageInfoAddr = Addr;
     }
 
     // Record __mod_init_func.
-    if (auto ModInitsOrErr = getSectionExtent(G, "__mod_init_func"))
+    if (auto ModInitsOrErr = getSectionExtent(G, "__DATA,__mod_init_func"))
       ModInits = std::move(*ModInitsOrErr);
     else
       return ModInitsOrErr.takeError();
 
     // Record __objc_selrefs.
-    if (auto ObjCSelRefsOrErr = getSectionExtent(G, "__objc_selrefs"))
+    if (auto ObjCSelRefsOrErr = getSectionExtent(G, "__DATA,__objc_selrefs"))
       ObjCSelRefs = std::move(*ObjCSelRefsOrErr);
     else
       return ObjCSelRefsOrErr.takeError();
 
     // Record __objc_classlist.
-    if (auto ObjCClassListOrErr = getSectionExtent(G, "__objc_classlist"))
+    if (auto ObjCClassListOrErr =
+            getSectionExtent(G, "__DATA,__objc_classlist"))
       ObjCClassList = std::move(*ObjCClassListOrErr);
     else
       return ObjCClassListOrErr.takeError();

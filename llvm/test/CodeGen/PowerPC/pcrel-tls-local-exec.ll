@@ -1,18 +1,17 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -enable-ppc-pcrel-tls -mcpu=pwr10 -ppc-asm-full-reg-names \
+; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr10 -ppc-asm-full-reg-names \
 ; RUN:   < %s | FileCheck %s --check-prefix=CHECK-S
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -enable-ppc-pcrel-tls -mcpu=pwr10 -ppc-asm-full-reg-names \
+; RUN:   -mcpu=pwr10 -ppc-asm-full-reg-names \
 ; RUN:   --filetype=obj < %s | llvm-objdump --no-show-raw-insn --mcpu=pwr10 -dr - \
 ; RUN:   | FileCheck %s --check-prefix=CHECK-O
 
 ; These test cases are to ensure that when using pc relative memory operations
 ; ABI correct code and relocations are produced for the Local Exec TLS Model.
 
-@x = thread_local global i32 0, align 4
-@y = thread_local global [5 x i32] [i32 0, i32 0, i32 0, i32 0, i32 0], align 4
+@x = dso_local thread_local global i32 0, align 4
+@y = dso_local thread_local global [5 x i32] [i32 0, i32 0, i32 0, i32 0, i32 0], align 4
 
-define i32* @LocalExecAddressLoad() {
+define dso_local i32* @LocalExecAddressLoad() {
 ; CHECK-S-LABEL: LocalExecAddressLoad:
 ; CHECK-S:       # %bb.0: # %entry
 ; CHECK-S-NEXT:    paddi r3, r13, x@TPREL, 0
@@ -25,7 +24,7 @@ entry:
   ret i32* @x
 }
 
-define i32 @LocalExecValueLoad() {
+define dso_local i32 @LocalExecValueLoad() {
 ; CHECK-S-LABEL: LocalExecValueLoad:
 ; CHECK-S:       # %bb.0: # %entry
 ; CHECK-S-NEXT:    paddi r3, r13, x@TPREL, 0
@@ -41,7 +40,7 @@ entry:
   ret i32 %0
 }
 
-define void @LocalExecValueStore(i32 %in) {
+define dso_local void @LocalExecValueStore(i32 %in) {
 ; CHECK-S-LABEL: LocalExecValueStore:
 ; CHECK-S:       # %bb.0: # %entry
 ; CHECK-S-NEXT:    paddi r4, r13, x@TPREL, 0
@@ -57,7 +56,7 @@ entry:
   ret void
 }
 
-define i32 @LocalExecValueLoadOffset() {
+define dso_local i32 @LocalExecValueLoadOffset() {
 ; CHECK-S-LABEL: LocalExecValueLoadOffset:
 ; CHECK-S:       # %bb.0: # %entry
 ; CHECK-S-NEXT:    paddi r3, r13, y@TPREL, 0
@@ -74,7 +73,7 @@ entry:
 }
 
 
-define i32* @LocalExecValueLoadOffsetNoLoad() {
+define dso_local i32* @LocalExecValueLoadOffsetNoLoad() {
 ; CHECK-S-LABEL: LocalExecValueLoadOffsetNoLoad:
 ; CHECK-S:       # %bb.0: # %entry
 ; CHECK-S-NEXT:    paddi r3, r13, y@TPREL, 0

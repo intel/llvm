@@ -48,11 +48,15 @@ protected: // Can only create subclasses.
   const char *TokStart = nullptr;
   bool SkipSpace = true;
   bool AllowAtInIdentifier;
+  bool AllowHashInIdentifier = false;
   bool IsAtStartOfStatement = true;
   bool LexMasmHexFloats = false;
   bool LexMasmIntegers = false;
+  bool LexMasmStrings = false;
+  bool LexMotorolaIntegers = false;
   bool UseMasmDefaultRadix = false;
   unsigned DefaultRadix = 10;
+  bool LexHLASMIntegers = false;
   AsmCommentConsumer *CommentConsumer = nullptr;
 
   MCAsmLexer();
@@ -146,6 +150,8 @@ public:
   bool getAllowAtInIdentifier() { return AllowAtInIdentifier; }
   void setAllowAtInIdentifier(bool v) { AllowAtInIdentifier = v; }
 
+  void setAllowHashInIdentifier(bool V) { AllowHashInIdentifier = V; }
+
   void setCommentConsumer(AsmCommentConsumer *CommentConsumer) {
     this->CommentConsumer = CommentConsumer;
   }
@@ -163,6 +169,17 @@ public:
 
   /// Set whether to lex masm-style hex float literals, such as 3f800000r.
   void setLexMasmHexFloats(bool V) { LexMasmHexFloats = V; }
+
+  /// Set whether to lex masm-style string literals, such as 'Can''t find file'
+  /// and "This ""value"" not found".
+  void setLexMasmStrings(bool V) { LexMasmStrings = V; }
+
+  /// Set whether to lex Motorola-style integer literals, such as $deadbeef or
+  /// %01010110.
+  void setLexMotorolaIntegers(bool V) { LexMotorolaIntegers = V; }
+
+  /// Set whether to lex HLASM-flavour integers. For now this is only [0-9]*
+  void setLexHLASMIntegers(bool V) { LexHLASMIntegers = V; }
 };
 
 } // end namespace llvm

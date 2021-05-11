@@ -10,13 +10,12 @@
 // https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md
 // TODO:
 // 1) implement the SPIR-V interop part of the proposal
-// 2) support arbitrary spec constant type; only primitive types are
-//    supported currently
-// 3) move to the new upcoming spec constant specification (then 1 above is not
+// 2) move to the new upcoming spec constant specification (then 1 above is not
 //    needed)
 
 #pragma once
 
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/exception.hpp>
 
@@ -41,14 +40,31 @@ private:
   spec_constant(T Cst) : Val(Cst) {}
 
   T Val;
-#endif
+#else
+  char padding[sizeof(T)];
+#endif // __SYCL_DEVICE_ONLY__
   friend class cl::sycl::program;
 
 public:
-  T get() const { // explicit access.
+  template <typename V = T>
+  typename sycl::detail::enable_if_t<std::is_arithmetic<V>::value, V>
+  get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
     const char *TName = __builtin_unique_stable_name(ID);
-    return __sycl_getSpecConstantValue<T>(TName);
+    return __sycl_getScalarSpecConstantValue<T>(TName);
+#else
+    return Val;
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  template <typename V = T>
+  typename sycl::detail::enable_if_t<std::is_class<V>::value &&
+                                         std::is_pod<V>::value,
+                                     V>
+  get() const { // explicit access.
+#ifdef __SYCL_DEVICE_ONLY__
+    const char *TName = __builtin_unique_stable_name(ID);
+    return __sycl_getCompositeSpecConstantValue<T>(TName);
 #else
     return Val;
 #endif // __SYCL_DEVICE_ONLY__

@@ -104,6 +104,15 @@ struct buffer_location {
 } // namespace INTEL
 
 namespace ONEAPI {
+namespace property {
+// Compile time known accessor property
+struct no_alias {
+  template <bool> class instance {};
+};
+} // namespace property
+} // namespace ONEAPI
+
+namespace ONEAPI {
 template <typename... properties>
 class accessor_property_list {};
 } // namespace ONEAPI
@@ -117,6 +126,21 @@ private:
   // kernel wrapper
   int Data;
 };
+
+template <int dim> struct item {
+  template <typename... T>
+  item(T... args) {} // fake constructor
+private:
+  // Some fake field added to see using of item arguments in the
+  // kernel wrapper
+  int Data;
+};
+
+template <int Dims> item<Dims>
+this_item() { return item<Dims>{}; }
+
+template <int Dims> id<Dims>
+this_id() { return id<Dims>{}; }
 
 template <int dim>
 struct range {
@@ -156,6 +180,7 @@ public:
 private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
+  void __init_esimd(__attribute__((opencl_global)) dataT *Ptr) {}
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
@@ -275,14 +300,44 @@ public:
 } // namespace experimental
 } // namespace ONEAPI
 
+class kernel_handler {
+  void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
+};
+
+template <typename T> class specialization_id {
+public:
+  using value_type = T;
+
+  template <class... Args>
+  explicit constexpr specialization_id(Args &&...args)
+      : MDefaultValue(args...) {}
+
+  specialization_id(const specialization_id &rhs) = delete;
+  specialization_id(specialization_id &&rhs) = delete;
+  specialization_id &operator=(const specialization_id &rhs) = delete;
+  specialization_id &operator=(specialization_id &&rhs) = delete;
+
+private:
+  T MDefaultValue;
+};
+
+#if __cplusplus >= 201703L
+template<typename T> specialization_id(T) -> specialization_id<T>;
+#endif // C++17.
+
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTask
   kernelFunc();
 }
 
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
+  kernelFunc(kh);
+}
+
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) { // #KernelSingleTask2017
   kernelFunc();
 }
 
@@ -328,6 +383,16 @@ public:
     kernel_single_task<NameT>(kernelFunc);
 #else
     kernelFunc();
+#endif
+  }
+
+  template <typename KernelName = auto_name, typename KernelType>
+  void single_task(const KernelType &kernelFunc, kernel_handler kh) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task<NameT>(kernelFunc, kh);
+#else
+    kernelFunc(kh);
 #endif
   }
 

@@ -30,44 +30,44 @@ class half;
 // Related spec issue: KhronosGroup/SYCL-Docs#40
 using half = cl::sycl::detail::half_impl::half;
 
-#define MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                                      \
+#define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = cl::sycl::vec<TYPE, N>;
 
-#define MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                            \
-  MAKE_VECTOR_ALIAS(char, char, N)                                             \
-  MAKE_VECTOR_ALIAS(short, short, N)                                           \
-  MAKE_VECTOR_ALIAS(int, int, N)                                               \
-  MAKE_VECTOR_ALIAS(long, long, N)                                             \
-  MAKE_VECTOR_ALIAS(float, float, N)                                           \
-  MAKE_VECTOR_ALIAS(double, double, N)                                         \
-  MAKE_VECTOR_ALIAS(half, half, N)
+#define __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                     \
+  __SYCL_MAKE_VECTOR_ALIAS(char, char, N)                                      \
+  __SYCL_MAKE_VECTOR_ALIAS(short, short, N)                                    \
+  __SYCL_MAKE_VECTOR_ALIAS(int, int, N)                                        \
+  __SYCL_MAKE_VECTOR_ALIAS(long, long, N)                                      \
+  __SYCL_MAKE_VECTOR_ALIAS(float, float, N)                                    \
+  __SYCL_MAKE_VECTOR_ALIAS(double, double, N)                                  \
+  __SYCL_MAKE_VECTOR_ALIAS(half, half, N)
 
-#define MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                                \
-  MAKE_VECTOR_ALIAS(cl_char, cl::sycl::cl_char, N)                             \
-  MAKE_VECTOR_ALIAS(cl_uchar, cl::sycl::cl_uchar, N)                           \
-  MAKE_VECTOR_ALIAS(cl_short, cl::sycl::cl_short, N)                           \
-  MAKE_VECTOR_ALIAS(cl_ushort, cl::sycl::cl_ushort, N)                         \
-  MAKE_VECTOR_ALIAS(cl_int, cl::sycl::cl_int, N)                               \
-  MAKE_VECTOR_ALIAS(cl_uint, cl::sycl::cl_uint, N)                             \
-  MAKE_VECTOR_ALIAS(cl_long, cl::sycl::cl_long, N)                             \
-  MAKE_VECTOR_ALIAS(cl_ulong, cl::sycl::cl_ulong, N)                           \
-  MAKE_VECTOR_ALIAS(cl_float, cl::sycl::cl_float, N)                           \
-  MAKE_VECTOR_ALIAS(cl_double, cl::sycl::cl_double, N)                         \
-  MAKE_VECTOR_ALIAS(cl_half, cl::sycl::cl_half, N)
+#define __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                         \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_char, cl::sycl::cl_char, N)                      \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_uchar, cl::sycl::cl_uchar, N)                    \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_short, cl::sycl::cl_short, N)                    \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_ushort, cl::sycl::cl_ushort, N)                  \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_int, cl::sycl::cl_int, N)                        \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_uint, cl::sycl::cl_uint, N)                      \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_long, cl::sycl::cl_long, N)                      \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_ulong, cl::sycl::cl_ulong, N)                    \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_float, cl::sycl::cl_float, N)                    \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_double, cl::sycl::cl_double, N)                  \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_half, cl::sycl::cl_half, N)
 
-#define MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)                   \
-  MAKE_VECTOR_ALIAS(schar, signed char, N)                                     \
-  MAKE_VECTOR_ALIAS(uchar, unsigned char, N)                                   \
-  MAKE_VECTOR_ALIAS(ushort, unsigned short, N)                                 \
-  MAKE_VECTOR_ALIAS(uint, unsigned int, N)                                     \
-  MAKE_VECTOR_ALIAS(ulong, unsigned long, N)                                   \
-  MAKE_VECTOR_ALIAS(longlong, long long, N)                                    \
-  MAKE_VECTOR_ALIAS(ulonglong, unsigned long long, N)
+#define __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \
+  __SYCL_MAKE_VECTOR_ALIAS(schar, signed char, N)                              \
+  __SYCL_MAKE_VECTOR_ALIAS(uchar, unsigned char, N)                            \
+  __SYCL_MAKE_VECTOR_ALIAS(ushort, unsigned short, N)                          \
+  __SYCL_MAKE_VECTOR_ALIAS(uint, unsigned int, N)                              \
+  __SYCL_MAKE_VECTOR_ALIAS(ulong, unsigned long, N)                            \
+  __SYCL_MAKE_VECTOR_ALIAS(longlong, long long, N)                             \
+  __SYCL_MAKE_VECTOR_ALIAS(ulonglong, unsigned long long, N)
 
-#define MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(N)                               \
-  MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                                  \
-  MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                                      \
-  MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
+#define __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(N)                        \
+  __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                           \
+  __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                               \
+  __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -79,8 +79,6 @@ using uint = unsigned int;
 using ulong = unsigned long;
 using longlong = long long;
 using ulonglong = unsigned long long;
-// TODO cl::sycl::half is not in SYCL specification, but is used by Khronos CTS.
-// Related tests issue: KhronosGroup/SYCL-CTS#37
 using half = cl::sycl::detail::half_impl::half;
 using cl_bool = bool;
 using cl_char = std::int8_t;
@@ -95,16 +93,16 @@ using cl_half = half;
 using cl_float = float;
 using cl_double = double;
 
-MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(2)
-MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
-MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
-MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
-MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(2)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#undef MAKE_VECTOR_ALIAS
-#undef MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES
-#undef MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES
-#undef MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
-#undef MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH
+#undef __SYCL_MAKE_VECTOR_ALIAS
+#undef __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES
+#undef __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES
+#undef __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
+#undef __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH

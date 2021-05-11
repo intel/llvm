@@ -110,7 +110,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Transforms/Utils/MisExpect.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -252,6 +251,34 @@ static cl::opt<bool>
 static cl::opt<bool> PGOInstrumentEntry(
     "pgo-instrument-entry", cl::init(false), cl::Hidden,
     cl::desc("Force to instrument function entry basicblock."));
+
+static cl::opt<bool>
+    PGOFixEntryCount("pgo-fix-entry-count", cl::init(true), cl::Hidden,
+                     cl::desc("Fix function entry count in profile use."));
+
+static cl::opt<bool> PGOVerifyHotBFI(
+    "pgo-verify-hot-bfi", cl::init(false), cl::Hidden,
+    cl::desc("Print out the non-match BFI count if a hot raw profile count "
+             "becomes non-hot, or a cold raw profile count becomes hot. "
+             "The print is enabled under -Rpass-analysis=pgo, or "
+             "internal option -pass-remakrs-analysis=pgo."));
+
+static cl::opt<bool> PGOVerifyBFI(
+    "pgo-verify-bfi", cl::init(false), cl::Hidden,
+    cl::desc("Print out mismatched BFI counts after setting profile metadata "
+             "The print is enabled under -Rpass-analysis=pgo, or "
+             "internal option -pass-remakrs-analysis=pgo."));
+
+static cl::opt<unsigned> PGOVerifyBFIRatio(
+    "pgo-verify-bfi-ratio", cl::init(5), cl::Hidden,
+    cl::desc("Set the threshold for pgo-verify-big -- only print out "
+             "mismatched BFI if the difference percentage is greater than "
+             "this value (in percentage)."));
+
+static cl::opt<unsigned> PGOVerifyBFICutoff(
+    "pgo-verify-bfi-cutoff", cl::init(1), cl::Hidden,
+    cl::desc("Set the threshold for pgo-verify-bfi -- skip the counts whose "
+             "profile count value is below."));
 
 // Command line option to turn on CFG dot dump after profile annotation.
 // Defined in Analysis/BlockFrequencyInfo.cpp:  -pgo-view-counts
@@ -502,7 +529,7 @@ struct PGOEdge {
       : SrcBB(Src), DestBB(Dest), Weight(W) {}
 
   // Return the information string of an edge.
-  const std::string infoString() const {
+  std::string infoString() const {
     return (Twine(Removed ? "-" : " ") + (InMST ? " " : "*") +
             (IsCritical ? "c" : " ") + "  W=" + Twine(Weight)).str();
   }
@@ -517,7 +544,7 @@ struct BBInfo {
   BBInfo(unsigned IX) : Group(this), Index(IX) {}
 
   // Return the information string of this object.
-  const std::string infoString() const {
+  std::string infoString() const {
     return (Twine("Index=") + Twine(Index)).str();
   }
 
@@ -535,9 +562,6 @@ private:
 
   // Is this is context-sensitive instrumentation.
   bool IsCS;
-
-  // If we instrument function entry BB by default.
-  bool InstrumentFuncEntry;
 
   // A map that stores the Comdat group in function F.
   std::unordered_multimap<Comdat *, GlobalValue *> &ComdatMembers;
@@ -963,7 +987,7 @@ struct PGOUseEdge : public PGOEdge {
   }
 
   // Return the information string for this object.
-  const std::string infoString() const {
+  std::string infoString() const {
     if (!CountValid)
       return PGOEdge::infoString();
     return (Twine(PGOEdge::infoString()) + "  Count=" + Twine(CountValue))
@@ -994,7 +1018,7 @@ struct UseBBInfo : public BBInfo {
   }
 
   // Return the information string of this object.
-  const std::string infoString() const {
+  std::string infoString() const {
     if (!CountValid)
       return BBInfo::infoString();
     return (Twine(BBInfo::infoString()) + "  Count=" + Twine(CountValue)).str();
@@ -1123,7 +1147,7 @@ private:
   void setEdgeCount(DirectEdges &Edges, uint64_t Value);
 
   // Return FuncName string;
-  const std::string getFuncName() const { return FuncInfo.FuncName; }
+  std::string getFuncName() const { return FuncInfo.FuncName; }
 
   // Set the hot/cold inline hints based on the count values.
   // FIXME: This function should be removed once the functionality in
@@ -1221,6 +1245,28 @@ void PGOUseFunc::setEdgeCount(DirectEdges &Edges, uint64_t Value) {
   llvm_unreachable("Cannot find the unknown count edge");
 }
 
+// Emit function metadata indicating PGO profile mismatch.
+static void annotateFunctionWithHashMismatch(Function &F,
+                                             LLVMContext &ctx) {
+  const char MetadataName[] = "instr_prof_hash_mismatch";
+  SmallVector<Metadata *, 2> Names;
+  // If this metadata already exists, ignore.
+  auto *Existing = F.getMetadata(LLVMContext::MD_annotation);
+  if (Existing) {
+    MDTuple *Tuple = cast<MDTuple>(Existing);
+    for (auto &N : Tuple->operands()) {
+      if (cast<MDString>(N.get())->getString() ==  MetadataName)
+        return;
+      Names.push_back(N.get());
+    }
+  }
+
+  MDBuilder MDB(ctx);
+  Names.push_back(MDB.createString(MetadataName));
+  MDNode *MD = MDTuple::get(ctx, Names);
+  F.setMetadata(LLVMContext::MD_annotation, MD);
+}
+
 // Read the profile from ProfileFileName and assign the value to the
 // instrumented BB and the edges. This function also updates ProgramMaxCount.
 // Return true if the profile are successfully read, and false on errors.
@@ -1248,6 +1294,8 @@ bool PGOUseFunc::readCounters(IndexedInstrProfReader *PGOReader, bool &AllZeros,
              (F.hasComdat() ||
               F.getLinkage() == GlobalValue::AvailableExternallyLinkage));
         LLVM_DEBUG(dbgs() << "hash mismatch (skip=" << SkipWarning << ")");
+        // Emit function metadata indicating PGO profile mismatch.
+        annotateFunctionWithHashMismatch(F, M->getContext());
       }
 
       LLVM_DEBUG(dbgs() << " IsCS=" << IsCS << "\n");
@@ -1417,8 +1465,8 @@ void PGOUseFunc::setBranchWeights() {
 }
 
 static bool isIndirectBrTarget(BasicBlock *BB) {
-  for (pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E; ++PI) {
-    if (isa<IndirectBrInst>((*PI)->getTerminator()))
+  for (BasicBlock *Pred : predecessors(BB)) {
+    if (isa<IndirectBrInst>(Pred->getTerminator()))
       return true;
   }
   return false;
@@ -1567,6 +1615,8 @@ static bool InstrumentAllFunctions(
   for (auto &F : M) {
     if (F.isDeclaration())
       continue;
+    if (F.hasFnAttribute(llvm::Attribute::NoProfile))
+      continue;
     auto &TLI = LookupTLI(F);
     auto *BPI = LookupBPI(F);
     auto *BFI = LookupBFI(F);
@@ -1615,6 +1665,129 @@ PreservedAnalyses PGOInstrumentationGen::run(Module &M,
     return PreservedAnalyses::all();
 
   return PreservedAnalyses::none();
+}
+
+// Using the ratio b/w sums of profile count values and BFI count values to
+// adjust the func entry count.
+static void fixFuncEntryCount(PGOUseFunc &Func, LoopInfo &LI,
+                              BranchProbabilityInfo &NBPI) {
+  Function &F = Func.getFunc();
+  BlockFrequencyInfo NBFI(F, NBPI, LI);
+#ifndef NDEBUG
+  auto BFIEntryCount = F.getEntryCount();
+  assert(BFIEntryCount.hasValue() && (BFIEntryCount.getCount() > 0) &&
+         "Invalid BFI Entrycount");
+#endif
+  auto SumCount = APFloat::getZero(APFloat::IEEEdouble());
+  auto SumBFICount = APFloat::getZero(APFloat::IEEEdouble());
+  for (auto &BBI : F) {
+    uint64_t CountValue = 0;
+    uint64_t BFICountValue = 0;
+    if (!Func.findBBInfo(&BBI))
+      continue;
+    auto BFICount = NBFI.getBlockProfileCount(&BBI);
+    CountValue = Func.getBBInfo(&BBI).CountValue;
+    BFICountValue = BFICount.getValue();
+    SumCount.add(APFloat(CountValue * 1.0), APFloat::rmNearestTiesToEven);
+    SumBFICount.add(APFloat(BFICountValue * 1.0), APFloat::rmNearestTiesToEven);
+  }
+  if (SumCount.isZero())
+    return;
+
+  assert(SumBFICount.compare(APFloat(0.0)) == APFloat::cmpGreaterThan &&
+         "Incorrect sum of BFI counts");
+  if (SumBFICount.compare(SumCount) == APFloat::cmpEqual)
+    return;
+  double Scale = (SumCount / SumBFICount).convertToDouble();
+  if (Scale < 1.001 && Scale > 0.999)
+    return;
+
+  uint64_t FuncEntryCount = Func.getBBInfo(&*F.begin()).CountValue;
+  uint64_t NewEntryCount = 0.5 + FuncEntryCount * Scale;
+  if (NewEntryCount == 0)
+    NewEntryCount = 1;
+  if (NewEntryCount != FuncEntryCount) {
+    F.setEntryCount(ProfileCount(NewEntryCount, Function::PCT_Real));
+    LLVM_DEBUG(dbgs() << "FixFuncEntryCount: in " << F.getName()
+                      << ", entry_count " << FuncEntryCount << " --> "
+                      << NewEntryCount << "\n");
+  }
+}
+
+// Compare the profile count values with BFI count values, and print out
+// the non-matching ones.
+static void verifyFuncBFI(PGOUseFunc &Func, LoopInfo &LI,
+                          BranchProbabilityInfo &NBPI,
+                          uint64_t HotCountThreshold,
+                          uint64_t ColdCountThreshold) {
+  Function &F = Func.getFunc();
+  BlockFrequencyInfo NBFI(F, NBPI, LI);
+  //  bool PrintFunc = false;
+  bool HotBBOnly = PGOVerifyHotBFI;
+  std::string Msg;
+  OptimizationRemarkEmitter ORE(&F);
+
+  unsigned BBNum = 0, BBMisMatchNum = 0, NonZeroBBNum = 0;
+  for (auto &BBI : F) {
+    uint64_t CountValue = 0;
+    uint64_t BFICountValue = 0;
+
+    if (Func.getBBInfo(&BBI).CountValid)
+      CountValue = Func.getBBInfo(&BBI).CountValue;
+
+    BBNum++;
+    if (CountValue)
+      NonZeroBBNum++;
+    auto BFICount = NBFI.getBlockProfileCount(&BBI);
+    if (BFICount)
+      BFICountValue = BFICount.getValue();
+
+    if (HotBBOnly) {
+      bool rawIsHot = CountValue >= HotCountThreshold;
+      bool BFIIsHot = BFICountValue >= HotCountThreshold;
+      bool rawIsCold = CountValue <= ColdCountThreshold;
+      bool ShowCount = false;
+      if (rawIsHot && !BFIIsHot) {
+        Msg = "raw-Hot to BFI-nonHot";
+        ShowCount = true;
+      } else if (rawIsCold && BFIIsHot) {
+        Msg = "raw-Cold to BFI-Hot";
+        ShowCount = true;
+      }
+      if (!ShowCount)
+        continue;
+    } else {
+      if ((CountValue < PGOVerifyBFICutoff) &&
+          (BFICountValue < PGOVerifyBFICutoff))
+        continue;
+      uint64_t Diff = (BFICountValue >= CountValue)
+                          ? BFICountValue - CountValue
+                          : CountValue - BFICountValue;
+      if (Diff < CountValue / 100 * PGOVerifyBFIRatio)
+        continue;
+    }
+    BBMisMatchNum++;
+
+    ORE.emit([&]() {
+      OptimizationRemarkAnalysis Remark(DEBUG_TYPE, "bfi-verify",
+                                        F.getSubprogram(), &BBI);
+      Remark << "BB " << ore::NV("Block", BBI.getName())
+             << " Count=" << ore::NV("Count", CountValue)
+             << " BFI_Count=" << ore::NV("Count", BFICountValue);
+      if (!Msg.empty())
+        Remark << " (" << Msg << ")";
+      return Remark;
+    });
+  }
+  if (BBMisMatchNum)
+    ORE.emit([&]() {
+      return OptimizationRemarkAnalysis(DEBUG_TYPE, "bfi-verify",
+                                        F.getSubprogram(), &F.getEntryBlock())
+             << "In Func " << ore::NV("Function", F.getName())
+             << ": Num_of_BB=" << ore::NV("Count", BBNum)
+             << ", Num_of_non_zerovalue_BB=" << ore::NV("Count", NonZeroBBNum)
+             << ", Num_of_mis_matching_BB=" << ore::NV("Count", BBMisMatchNum);
+    });
 }
 
 static bool annotateAllFunctions(
@@ -1742,6 +1915,23 @@ static bool annotateAllFunctions(
         Func.dumpInfo();
       }
     }
+
+    if (PGOVerifyBFI || PGOVerifyHotBFI || PGOFixEntryCount) {
+      LoopInfo LI{DominatorTree(F)};
+      BranchProbabilityInfo NBPI(F, LI);
+
+      // Fix func entry count.
+      if (PGOFixEntryCount)
+        fixFuncEntryCount(Func, LI, NBPI);
+
+      // Verify BlockFrequency information.
+      uint64_t HotCountThreshold = 0, ColdCountThreshold = 0;
+      if (PGOVerifyHotBFI) {
+        HotCountThreshold = PSI->getOrCompHotCountThreshold();
+        ColdCountThreshold = PSI->getOrCompColdCountThreshold();
+      }
+      verifyFuncBFI(Func, LI, NBPI, HotCountThreshold, ColdCountThreshold);
+    }
   }
 
   // Set function hotness attribute from the profile.
@@ -1754,6 +1944,17 @@ static bool annotateAllFunctions(
                       << "\n");
   }
   for (auto &F : ColdFunctions) {
+    // Only set when there is no Attribute::Hot set by the user. For Hot
+    // attribute, user's annotation has the precedence over the profile.
+    if (F->hasFnAttribute(Attribute::Hot)) {
+      auto &Ctx = M.getContext();
+      std::string Msg = std::string("Function ") + F->getName().str() +
+                        std::string(" is annotated as a hot function but"
+                                    " the profile is cold");
+      Ctx.diagnose(
+          DiagnosticInfoPGOProfile(M.getName().data(), Msg, DS_Warning));
+      continue;
+    }
     F->addFnAttr(Attribute::Cold);
     LLVM_DEBUG(dbgs() << "Set cold attribute to function: " << F->getName()
                       << "\n");
@@ -1839,8 +2040,6 @@ void llvm::setProfMetadata(Module *M, Instruction *TI,
     dbgs() << W << " ";
   } dbgs() << "\n";);
 
-  misexpect::verifyMisExpect(TI, Weights, TI->getContext());
-
   TI->setMetadata(LLVMContext::MD_prof, MDB.createBranchWeights(Weights));
   if (EmitBranchProbability) {
     std::string BrCondStr = getBranchCondString(TI);
@@ -1925,14 +2124,13 @@ template <> struct DOTGraphTraits<PGOUseFunc *> : DefaultDOTGraphTraits {
     if (!PGOInstrSelect)
       return Result;
 
-    for (auto BI = Node->begin(); BI != Node->end(); ++BI) {
-      auto *I = &*BI;
-      if (!isa<SelectInst>(I))
+    for (const Instruction &I : *Node) {
+      if (!isa<SelectInst>(&I))
         continue;
       // Display scaled counts for SELECT instruction:
       OS << "SELECT : { T = ";
       uint64_t TC, FC;
-      bool HasProf = I->extractProfMetadata(TC, FC);
+      bool HasProf = I.extractProfMetadata(TC, FC);
       if (!HasProf)
         OS << "Unknown, F = Unknown }\\l";
       else

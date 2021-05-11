@@ -65,27 +65,27 @@ T tmain() {
   return T();
 }
 
-// CHECK-DAG: [[TEST:@.+]] = global [[S_FLOAT_TY]] zeroinitializer,
+// CHECK-DAG: [[TEST:@.+]] ={{.*}} global [[S_FLOAT_TY]] zeroinitializer,
 S<float> test;
-// CHECK-DAG: [[T_VAR:@.+]] = global i{{[0-9]+}} 333,
+// CHECK-DAG: [[T_VAR:@.+]] ={{.*}} global i{{[0-9]+}} 333,
 int t_var = 333;
-// CHECK-DAG: [[VEC:@.+]] = global [2 x i{{[0-9]+}}] [i{{[0-9]+}} 1, i{{[0-9]+}} 2],
+// CHECK-DAG: [[VEC:@.+]] ={{.*}} global [2 x i{{[0-9]+}}] [i{{[0-9]+}} 1, i{{[0-9]+}} 2],
 int vec[] = {1, 2};
-// CHECK-DAG: [[S_ARR:@.+]] = global [2 x [[S_FLOAT_TY]]] zeroinitializer,
+// CHECK-DAG: [[S_ARR:@.+]] ={{.*}} global [2 x [[S_FLOAT_TY]]] zeroinitializer,
 S<float> s_arr[] = {1, 2};
-// CHECK-DAG: [[VAR:@.+]] = global [[S_FLOAT_TY]] zeroinitializer,
+// CHECK-DAG: [[VAR:@.+]] ={{.*}} global [[S_FLOAT_TY]] zeroinitializer,
 S<float> var(3);
 // CHECK-DAG: [[SIVAR:@.+]] = internal global i{{[0-9]+}} 0,
 
 int main() {
   static int sivar;
 #ifdef LAMBDA
-  // LAMBDA: [[G:@.+]] = global i{{[0-9]+}} 1212,
+  // LAMBDA: [[G:@.+]] ={{.*}} global i{{[0-9]+}} 1212,
   // LAMBDA-LABEL: @main
   // LAMBDA: call void [[OUTER_LAMBDA:@.+]](
   [&]() {
     // LAMBDA: define{{.*}} internal{{.*}} void [[OUTER_LAMBDA]](
-    // LAMBDA: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 0, i32 1)
+    // LAMBDA: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i8** null, i32 0, i32 1)
     // LAMBDA: call void @[[LOFFL1:.+]](
     // LAMBDA:  ret
 #pragma omp target
@@ -122,7 +122,7 @@ int main() {
     // LAMBDA: call void [[INNER_LAMBDA:@.+]](
     // LAMBDA: call void @__kmpc_for_static_fini(
     [&]() {
-      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* [[ARG_PTR:%.+]])
+      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]]({{.+}} [[ARG_PTR:%.+]])
       // LAMBDA: store %{{.+}}* [[ARG_PTR]], %{{.+}}** [[ARG_PTR_REF:%.+]],
       g = 2;
       g1 = 2;
@@ -155,7 +155,7 @@ int main() {
 }
 
 // CHECK: define {{.*}}i{{[0-9]+}} @main()
-// CHECK: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 0, i8** null, i8** null, i{{64|32}}* null, i64* null, i8** null, i32 0, i32 1)
+// CHECK: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 0, i8** null, i8** null, i{{64|32}}* null, i64* null, i8** null, i8** null, i32 0, i32 1)
 // CHECK: call void @[[OFFL1:.+]]()
 // CHECK: {{%.+}} = call{{.*}} i32 @[[TMAIN_INT:.+]]()
 // CHECK:  ret
@@ -200,7 +200,7 @@ int main() {
 
 
 // CHECK: define{{.*}} i{{[0-9]+}} @[[TMAIN_INT]]()
-// CHECK: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 0,
+// CHECK: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 0,
 // CHECK: call void @[[TOFFL1:.+]]()
 // CHECK:  ret
 

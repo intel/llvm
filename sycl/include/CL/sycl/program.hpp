@@ -28,7 +28,7 @@ namespace detail {
 class program_impl;
 }
 
-enum class program_state { none, compiled, linked };
+enum class program_state { none = 0, compiled = 1, linked = 2 };
 
 /// Provides an abstraction of a SYCL program.
 ///
@@ -36,7 +36,8 @@ enum class program_state { none, compiled, linked };
 /// \sa queue
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT program {
+class __SYCL_EXPORT __SYCL2020_DEPRECATED(
+    "program class is deprecated, use kernel_bundle instead") program {
 public:
   program() = delete;
 
@@ -343,8 +344,8 @@ public:
   template <typename ID, typename T>
   ONEAPI::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
     constexpr const char *Name = detail::SpecConstantInfo<ID>::getName();
-    static_assert(std::is_integral<T>::value ||
-                      std::is_floating_point<T>::value,
+    static_assert(std::is_arithmetic<T>::value ||
+                      (std::is_class<T>::value && std::is_pod<T>::value),
                   "unsupported specialization constant type");
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Cst;
@@ -355,6 +356,11 @@ public:
     return ONEAPI::experimental::spec_constant<T, ID>(Cst);
 #endif // __SYCL_DEVICE_ONLY__
   }
+
+  /// Returns the backend associated with this program.
+  ///
+  /// \return the backend associated with this program.
+  backend get_backend() const noexcept;
 
   /// Gets the native handle of the SYCL platform.
   ///

@@ -147,6 +147,9 @@ test_dir(char ret[PATH_MAX], const char *dir, const char *bin)
 static char *
 getprogpath(char ret[PATH_MAX], const char *bin)
 {
+  if (bin == nullptr)
+    return nullptr;
+
   /* First approach: absolute path. */
   if (bin[0] == '/') {
     if (test_dir(ret, "/", bin) == 0)
@@ -682,8 +685,6 @@ void expand_tilde(const Twine &path, SmallVectorImpl<char> &dest) {
 
   path.toVector(dest);
   expandTildeExpr(dest);
-
-  return;
 }
 
 static file_type typeForMode(mode_t Mode) {
@@ -814,6 +815,9 @@ std::error_code mapped_file_region::init(int FD, uint64_t Offset,
 
   int flags = (Mode == readwrite) ? MAP_SHARED : MAP_PRIVATE;
   int prot = (Mode == readonly) ? PROT_READ : (PROT_READ | PROT_WRITE);
+#if defined(MAP_NORESERVE)
+  flags |= MAP_NORESERVE;
+#endif
 #if defined(__APPLE__)
   //----------------------------------------------------------------------
   // Newer versions of MacOSX have a flag that will allow us to read from
@@ -842,31 +846,16 @@ std::error_code mapped_file_region::init(int FD, uint64_t Offset,
 
 mapped_file_region::mapped_file_region(int fd, mapmode mode, size_t length,
                                        uint64_t offset, std::error_code &ec)
-    : Size(length), Mapping(), Mode(mode) {
+    : Size(length), Mode(mode) {
   (void)Mode;
   ec = init(fd, offset, mode);
   if (ec)
-    Mapping = nullptr;
+    copyFrom(mapped_file_region());
 }
 
-mapped_file_region::~mapped_file_region() {
+void mapped_file_region::unmapImpl() {
   if (Mapping)
     ::munmap(Mapping, Size);
-}
-
-size_t mapped_file_region::size() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return Size;
-}
-
-char *mapped_file_region::data() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return reinterpret_cast<char*>(Mapping);
-}
-
-const char *mapped_file_region::const_data() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return reinterpret_cast<const char*>(Mapping);
 }
 
 int mapped_file_region::alignment() {
@@ -1066,8 +1055,13 @@ file_t getStdoutHandle() { return 1; }
 file_t getStderrHandle() { return 2; }
 
 Expected<size_t> readNativeFile(file_t FD, MutableArrayRef<char> Buf) {
+#if defined(__APPLE__)
+  size_t Size = std::min<size_t>(Buf.size(), INT32_MAX);
+#else
+  size_t Size = Buf.size();
+#endif
   ssize_t NumRead =
-      sys::RetryAfterSignal(-1, ::read, FD, Buf.data(), Buf.size());
+      sys::RetryAfterSignal(-1, ::read, FD, Buf.data(), Size);
   if (ssize_t(NumRead) == -1)
     return errorCodeToError(std::error_code(errno, std::generic_category()));
   return NumRead;
@@ -1075,14 +1069,19 @@ Expected<size_t> readNativeFile(file_t FD, MutableArrayRef<char> Buf) {
 
 Expected<size_t> readNativeFileSlice(file_t FD, MutableArrayRef<char> Buf,
                                      uint64_t Offset) {
+#if defined(__APPLE__)
+  size_t Size = std::min<size_t>(Buf.size(), INT32_MAX);
+#else
+  size_t Size = Buf.size();
+#endif
 #ifdef HAVE_PREAD
   ssize_t NumRead =
-      sys::RetryAfterSignal(-1, ::pread, FD, Buf.data(), Buf.size(), Offset);
+      sys::RetryAfterSignal(-1, ::pread, FD, Buf.data(), Size, Offset);
 #else
   if (lseek(FD, Offset, SEEK_SET) == -1)
     return errorCodeToError(std::error_code(errno, std::generic_category()));
   ssize_t NumRead =
-      sys::RetryAfterSignal(-1, ::read, FD, Buf.data(), Buf.size());
+      sys::RetryAfterSignal(-1, ::read, FD, Buf.data(), Size);
 #endif
   if (NumRead == -1)
     return errorCodeToError(std::error_code(errno, std::generic_category()));
@@ -1197,6 +1196,14 @@ std::error_code real_path(const Twine &path, SmallVectorImpl<char> &dest,
   if (::realpath(P.begin(), Buffer) == nullptr)
     return std::error_code(errno, std::generic_category());
   dest.append(Buffer, Buffer + strlen(Buffer));
+  return std::error_code();
+}
+
+std::error_code changeFileOwnership(int FD, uint32_t Owner, uint32_t Group) {
+  auto FChown = [&]() { return ::fchown(FD, Owner, Group); };
+  // Retry if fchown call fails due to interruption.
+  if ((sys::RetryAfterSignal(-1, FChown)) < 0)
+    return std::error_code(errno, std::generic_category());
   return std::error_code();
 }
 

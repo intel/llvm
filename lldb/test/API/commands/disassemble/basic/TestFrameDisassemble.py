@@ -48,8 +48,8 @@ class FrameDisassembleTestCase(TestBase):
         # Did we hit our breakpoint?
         from lldbsuite.test.lldbutil import get_threads_stopped_at_breakpoint
         threads = get_threads_stopped_at_breakpoint(process, breakpoint)
-        self.assertTrue(
-            len(threads) == 1,
+        self.assertEqual(
+            len(threads), 1,
             "There should be a thread stopped at our breakpoint")
 
         # The hit count for the breakpoint should be 1.
@@ -57,4 +57,6 @@ class FrameDisassembleTestCase(TestBase):
 
         frame = threads[0].GetFrameAtIndex(0)
         disassembly = frame.Disassemble()
-        self.assertNotEqual(len(disassembly), 0, "Disassembly was empty.")
+        self.assertNotEqual(disassembly, "")
+        self.assertNotIn("error", disassembly)
+        self.assertIn(": nop", disassembly)

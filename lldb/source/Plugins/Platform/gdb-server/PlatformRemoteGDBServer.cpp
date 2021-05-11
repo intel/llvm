@@ -30,6 +30,7 @@
 #include "lldb/Utility/UriParser.h"
 
 #include "Plugins/Process/Utility/GDBRemoteSignals.h"
+#include "Plugins/Process/gdb-remote/ProcessGDBRemote.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -202,7 +203,10 @@ Status PlatformRemoteGDBServer::GetFileWithUUID(const FileSpec &platform_file,
 /// Default Constructor
 PlatformRemoteGDBServer::PlatformRemoteGDBServer()
     : Platform(false), // This is a remote platform
-      m_gdb_client() {}
+      m_gdb_client() {
+  m_gdb_client.SetPacketTimeout(
+      process_gdb_remote::ProcessGDBRemote::GetPacketTimeout());
+}
 
 /// Destructor.
 ///
@@ -495,12 +499,10 @@ lldb::ProcessSP PlatformRemoteGDBServer::DebugProcess(
           error.Clear();
 
         if (target && error.Success()) {
-          debugger.GetTargetList().SetSelectedTarget(target);
-
           // The darwin always currently uses the GDB remote debugger plug-in
           // so even when debugging locally we are debugging remotely!
           process_sp = target->CreateProcess(launch_info.GetListener(),
-                                             "gdb-remote", nullptr);
+                                             "gdb-remote", nullptr, true);
 
           if (process_sp) {
             error = process_sp->ConnectRemote(connect_url.c_str());
@@ -581,13 +583,11 @@ lldb::ProcessSP PlatformRemoteGDBServer::Attach(
           error.Clear();
 
         if (target && error.Success()) {
-          debugger.GetTargetList().SetSelectedTarget(target);
-
           // The darwin always currently uses the GDB remote debugger plug-in
           // so even when debugging locally we are debugging remotely!
           process_sp =
               target->CreateProcess(attach_info.GetListenerForProcess(debugger),
-                                    "gdb-remote", nullptr);
+                                    "gdb-remote", nullptr, true);
           if (process_sp) {
             error = process_sp->ConnectRemote(connect_url.c_str());
             if (error.Success()) {
@@ -829,24 +829,12 @@ std::string PlatformRemoteGDBServer::MakeUrl(const char *scheme,
                                              const char *hostname,
                                              uint16_t port, const char *path) {
   StreamString result;
-  result.Printf("%s://%s", scheme, hostname);
+  result.Printf("%s://[%s]", scheme, hostname);
   if (port != 0)
     result.Printf(":%u", port);
   if (path)
     result.Write(path, strlen(path));
   return std::string(result.GetString());
-}
-
-lldb::ProcessSP PlatformRemoteGDBServer::ConnectProcess(
-    llvm::StringRef connect_url, llvm::StringRef plugin_name,
-    lldb_private::Debugger &debugger, lldb_private::Target *target,
-    lldb_private::Status &error) {
-  if (!IsRemote() || !IsConnected()) {
-    error.SetErrorString("Not connected to remote gdb server");
-    return nullptr;
-  }
-  return Platform::ConnectProcess(connect_url, plugin_name, debugger, target,
-                                  error);
 }
 
 size_t PlatformRemoteGDBServer::ConnectToWaitingProcesses(Debugger &debugger,
@@ -855,7 +843,7 @@ size_t PlatformRemoteGDBServer::ConnectToWaitingProcesses(Debugger &debugger,
   GetPendingGdbServerList(connection_urls);
 
   for (size_t i = 0; i < connection_urls.size(); ++i) {
-    ConnectProcess(connection_urls[i].c_str(), "", debugger, nullptr, error);
+    ConnectProcess(connection_urls[i].c_str(), "gdb-remote", debugger, nullptr, error);
     if (error.Fail())
       return i; // We already connected to i process succsessfully
   }

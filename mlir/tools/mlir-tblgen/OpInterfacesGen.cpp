@@ -43,9 +43,13 @@ static void emitMethodNameAndArgs(const InterfaceMethod &method,
                                   raw_ostream &os, StringRef valueType,
                                   bool addThisArg, bool addConst) {
   os << method.getName() << '(';
-  if (addThisArg)
+  if (addThisArg) {
+    if (addConst)
+      os << "const ";
+    os << "const Concept *impl, ";
     emitCPPType(valueType, os)
         << "tablegen_opaque_val" << (method.arg_empty() ? "" : ", ");
+  }
   llvm::interleaveComma(method.getArguments(), os,
                         [&](const InterfaceMethod::Argument &arg) {
                           os << arg.type << " " << arg.name;
@@ -82,6 +86,7 @@ protected:
 
   void emitConceptDecl(Interface &interface);
   void emitModelDecl(Interface &interface);
+  void emitModelMethodsDef(Interface &interface);
   void emitTraitDecl(Interface &interface, StringRef interfaceName,
                      StringRef interfaceTraitsName);
   void emitInterfaceDecl(Interface interface);
@@ -107,7 +112,7 @@ struct AttrInterfaceGenerator : public InterfaceGenerator {
       : InterfaceGenerator(records.getAllDerivedDefinitions("AttrInterface"),
                            os) {
     valueType = "::mlir::Attribute";
-    interfaceBaseType = "AttrInterface";
+    interfaceBaseType = "AttributeInterface";
     valueTemplate = "ConcreteAttr";
     StringRef castCode = "(tablegen_opaque_val.cast<ConcreteAttr>())";
     nonStaticMethodFmt.addSubst("_attr", castCode).withSelf(castCode);
@@ -123,7 +128,9 @@ struct OpInterfaceGenerator : public InterfaceGenerator {
     interfaceBaseType = "OpInterface";
     valueTemplate = "ConcreteOp";
     StringRef castCode = "(llvm::cast<ConcreteOp>(tablegen_opaque_val))";
-    nonStaticMethodFmt.withOp(castCode).withSelf(castCode);
+    nonStaticMethodFmt.addSubst("_this", "impl")
+        .withOp(castCode)
+        .withSelf(castCode);
     traitMethodFmt.withOp("(*static_cast<ConcreteOp *>(this))");
   }
 };
@@ -166,6 +173,7 @@ static void emitInterfaceDef(Interface interface, StringRef valueType,
     // Forward to the method on the concrete operation type.
     os << " {\n      return getImpl()->" << method.getName() << '(';
     if (!method.isStatic()) {
+      os << "getImpl(), ";
       os << (isOpInterface ? "getOperation()" : "*this");
       os << (method.arg_empty() ? "" : ", ");
     }
@@ -189,31 +197,57 @@ bool InterfaceGenerator::emitInterfaceDefs() {
 //===----------------------------------------------------------------------===//
 
 void InterfaceGenerator::emitConceptDecl(Interface &interface) {
-  os << "  class Concept {\n"
-     << "  public:\n"
-     << "    virtual ~Concept() = default;\n";
+  os << "  struct Concept {\n";
 
   // Insert each of the pure virtual concept methods.
   for (auto &method : interface.getMethods()) {
-    os << "    virtual ";
+    os << "    ";
     emitCPPType(method.getReturnType(), os);
-    emitMethodNameAndArgs(method, os, valueType,
-                          /*addThisArg=*/!method.isStatic(), /*addConst=*/true);
-    os << " = 0;\n";
+    os << "(*" << method.getName() << ")(";
+    if (!method.isStatic()) {
+      os << "const Concept *impl, ";
+      emitCPPType(valueType, os) << (method.arg_empty() ? "" : ", ");
+    }
+    llvm::interleaveComma(
+        method.getArguments(), os,
+        [&](const InterfaceMethod::Argument &arg) { os << arg.type; });
+    os << ");\n";
   }
   os << "  };\n";
 }
 
 void InterfaceGenerator::emitModelDecl(Interface &interface) {
-  os << "  template<typename " << valueTemplate << ">\n";
-  os << "  class Model : public Concept {\n  public:\n";
+  for (const char *modelClass : {"Model", "FallbackModel"}) {
+    os << "  template<typename " << valueTemplate << ">\n";
+    os << "  class " << modelClass << " : public Concept {\n  public:\n";
+    os << "    " << modelClass << "() : Concept{";
+    llvm::interleaveComma(
+        interface.getMethods(), os,
+        [&](const InterfaceMethod &method) { os << method.getName(); });
+    os << "} {}\n\n";
 
-  // Insert each of the virtual method overrides.
+    // Insert each of the virtual method overrides.
+    for (auto &method : interface.getMethods()) {
+      emitCPPType(method.getReturnType(), os << "    static inline ");
+      emitMethodNameAndArgs(method, os, valueType,
+                            /*addThisArg=*/!method.isStatic(),
+                            /*addConst=*/false);
+      os << ";\n";
+    }
+    os << "  };\n";
+  }
+}
+
+void InterfaceGenerator::emitModelMethodsDef(Interface &interface) {
   for (auto &method : interface.getMethods()) {
-    emitCPPType(method.getReturnType(), os << "    ");
+    os << "template<typename " << valueTemplate << ">\n";
+    emitCPPType(method.getReturnType(), os);
+    os << "detail::" << interface.getName() << "InterfaceTraits::Model<"
+       << valueTemplate << ">::";
     emitMethodNameAndArgs(method, os, valueType,
-                          /*addThisArg=*/!method.isStatic(), /*addConst=*/true);
-    os << " final {\n      ";
+                          /*addThisArg=*/!method.isStatic(),
+                          /*addConst=*/false);
+    os << " {\n  ";
 
     // Check for a provided body to the function.
     if (Optional<StringRef> body = method.getBody()) {
@@ -221,7 +255,7 @@ void InterfaceGenerator::emitModelDecl(Interface &interface) {
         os << body->trim();
       else
         os << tblgen::tgfmt(body->trim(), &nonStaticMethodFmt);
-      os << "\n    }\n";
+      os << "\n}\n";
       continue;
     }
 
@@ -236,9 +270,34 @@ void InterfaceGenerator::emitModelDecl(Interface &interface) {
     llvm::interleaveComma(
         method.getArguments(), os,
         [&](const InterfaceMethod::Argument &arg) { os << arg.name; });
-    os << ");\n    }\n";
+    os << ");\n}\n";
   }
-  os << "  };\n";
+
+  for (auto &method : interface.getMethods()) {
+    os << "template<typename " << valueTemplate << ">\n";
+    emitCPPType(method.getReturnType(), os);
+    os << "detail::" << interface.getName() << "InterfaceTraits::FallbackModel<"
+       << valueTemplate << ">::";
+    emitMethodNameAndArgs(method, os, valueType,
+                          /*addThisArg=*/!method.isStatic(),
+                          /*addConst=*/false);
+    os << " {\n  ";
+
+    // Forward to the method on the concrete Model implementation.
+    if (method.isStatic())
+      os << "return " << valueTemplate << "::";
+    else
+      os << "return static_cast<const " << valueTemplate << " *>(impl)->";
+
+    // Add the arguments to the call.
+    os << method.getName() << '(';
+    if (!method.isStatic())
+      os << "tablegen_opaque_val" << (method.arg_empty() ? "" : ", ");
+    llvm::interleaveComma(
+        method.getArguments(), os,
+        [&](const InterfaceMethod::Argument &arg) { os << arg.name; });
+    os << ");\n}\n";
+  }
 }
 
 void InterfaceGenerator::emitTraitDecl(Interface &interface,
@@ -300,6 +359,10 @@ void InterfaceGenerator::emitInterfaceDecl(Interface interface) {
   StringRef interfaceName = interface.getName();
   auto interfaceTraitsName = (interfaceName + "InterfaceTraits").str();
 
+  // Emit a forward declaration of the interface class so that it becomes usable
+  // in the signature of its methods.
+  os << "class " << interfaceName << ";\n";
+
   // Emit the traits struct containing the concept and model declarations.
   os << "namespace detail {\n"
      << "struct " << interfaceTraitsName << " {\n";
@@ -332,6 +395,8 @@ void InterfaceGenerator::emitInterfaceDecl(Interface interface) {
 
   os << "};\n";
 
+  emitModelMethodsDef(interface);
+
   for (StringRef ns : llvm::reverse(namespaces))
     os << "} // namespace " << ns << "\n";
 }
@@ -353,7 +418,8 @@ static void emitInterfaceDoc(const llvm::Record &interfaceDef,
   Interface interface(&interfaceDef);
 
   // Emit the interface name followed by the description.
-  os << "## " << interface.getName() << " (" << interfaceDef.getName() << ")";
+  os << "## " << interface.getName() << " (`" << interfaceDef.getName()
+     << "`)\n\n";
   if (auto description = interface.getDescription())
     mlir::tblgen::emitDescription(*description, os);
 

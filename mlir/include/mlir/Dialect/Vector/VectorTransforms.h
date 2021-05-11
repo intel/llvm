@@ -11,13 +11,14 @@
 
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/Vector/VectorUtils.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 
 namespace mlir {
 class MLIRContext;
-class OwningRewritePatternList;
 class VectorTransferOpInterface;
+class RewritePatternSet;
+using OwningRewritePatternList = RewritePatternSet;
 
 namespace scf {
 class IfOp;
@@ -26,7 +27,7 @@ class IfOp;
 /// Collect a set of patterns to convert from the Vector dialect to itself.
 /// Should be merged with populateVectorToSCFLoweringPattern.
 void populateVectorToVectorConversionPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns,
+    MLIRContext *context, RewritePatternSet &patterns,
     ArrayRef<int64_t> coarseVectorShape = {},
     ArrayRef<int64_t> fineVectorShape = {});
 
@@ -69,35 +70,92 @@ SmallVector<Value, 1> unrollSingleResultVectorOp(OpBuilder &builder,
                                                  Operation *op,
                                                  ArrayRef<int64_t> targetShape);
 
+/// Unroll a transfer_write op. Break up the vector source into a tuple of
+/// vectors matching the given shape. Then store each element with its own
+/// transfer_write. If the transfer_write takes a tensor source, return the
+/// unrolled Value in result.
+///
+/// Example:
+/// vector.transfer_write %A, %M[%c0, %c0] : vector<4x4xf32>, memref<4x4xf32>
+/// ->
+/// %0 = vector.extract_slices %A, [2, 4], [1, 1] :
+///                vector<4x4xf32> into tuple<vector<2x4xf32>, vector<2x4xf32>>
+/// %1 = vector.tuple_get %0, 0 : tuple<vector<2x4xf32>, vector<2x4xf32>>
+/// vector.transfer_write %1, %M[%c0, %c0] : vector<2x4xf32>, memref<4x4xf32>
+/// %2 = vector.tuple_get %0, 1 : tuple<vector<2x4xf32>, vector<2x4xf32>>
+/// vector.transfer_write %2, %M[%c2, %c0] : vector<2x4xf32>, memref<4x4xf32>
+LogicalResult unrollTransferWriteOp(OpBuilder &builder, Operation *op,
+                                    ArrayRef<int64_t> targetShape,
+                                    SmallVector<Value, 1> &result);
+
+/// Options that control the vector unrolling.
+struct UnrollVectorOptions {
+  using FilterConstraintFnType = std::function<LogicalResult(Operation *op)>;
+  /// Callback function that indicates whether vector unrolling should be
+  /// attempted on the operation.
+  FilterConstraintFnType filterConstraint = nullptr;
+  UnrollVectorOptions &setFilterConstraint(FilterConstraintFnType constraint) {
+    filterConstraint = constraint;
+    return *this;
+  }
+
+  using NativeShapeFnType =
+      std::function<Optional<SmallVector<int64_t, 4>>(Operation *op)>;
+  /// Function that returns the shape of the vector to unroll to for a given
+  /// operation. The unrolling is aborted if the function returns `llvm::None`.
+  NativeShapeFnType nativeShape = nullptr;
+  UnrollVectorOptions &setNativeShapeFn(NativeShapeFnType fn) {
+    nativeShape = fn;
+    return *this;
+  }
+
+  /// Set the native shape to use for unrolling.
+  UnrollVectorOptions &setNativeShape(ArrayRef<int64_t> shape) {
+    SmallVector<int64_t, 4> tsShape(shape.begin(), shape.end());
+    nativeShape = [=](Operation *) -> Optional<SmallVector<int64_t, 4>> {
+      return tsShape;
+    };
+    return *this;
+  }
+};
 /// Pattern to apply `unrollSingleResultVectorOp` to a `targetShape`
 /// declaratively.
-template <typename OpTy>
-struct UnrollVectorPattern : public OpRewritePattern<OpTy> {
-  using FilterConstraintType = std::function<LogicalResult(OpTy op)>;
-  UnrollVectorPattern(
-      ArrayRef<int64_t> targetShape, MLIRContext *context,
-      FilterConstraintType constraint = [](OpTy op) { return success(); })
-      : OpRewritePattern<OpTy>(context),
-        targetShape(targetShape.begin(), targetShape.end()),
-        filter(constraint) {}
-  LogicalResult matchAndRewrite(OpTy op,
+struct UnrollVectorPattern : public RewritePattern {
+  using FilterConstraintType = std::function<LogicalResult(Operation *op)>;
+  UnrollVectorPattern(MLIRContext *context, UnrollVectorOptions options)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context),
+        options(options) {}
+  LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    if (failed(filter(op)))
+    if (options.filterConstraint && failed(options.filterConstraint(op)))
       return failure();
-    auto unrollableVectorOp =
-        dyn_cast<VectorUnrollOpInterface>(op.getOperation());
+    if (!options.nativeShape) {
+      return op->emitError("vector unrolling expects the native shape or native"
+                           "shape call back function to be set");
+    }
+    auto unrollableVectorOp = dyn_cast<VectorUnrollOpInterface>(op);
     if (!unrollableVectorOp)
       return failure();
     auto maybeUnrollShape = unrollableVectorOp.getShapeForUnroll();
     if (!maybeUnrollShape)
       return failure();
-    auto maybeShapeRatio = shapeRatio(*maybeUnrollShape, targetShape);
+    Optional<SmallVector<int64_t, 4>> targetShape = options.nativeShape(op);
+    if (!targetShape)
+      return op->emitError("failed to get target shape for vector unroll");
+    auto maybeShapeRatio = shapeRatio(*maybeUnrollShape, *targetShape);
     if (!maybeShapeRatio ||
         llvm::all_of(*maybeShapeRatio, [](int64_t v) { return v == 1; }))
       return failure();
-    if (op.getOperation()->getNumResults() != 1)
+    if (isa<TransferWriteOp>(op)) {
+      SmallVector<Value, 1> result;
+      if (failed(unrollTransferWriteOp(rewriter, op, *targetShape, result)))
+        return failure();
+      rewriter.replaceOp(op, result);
+      return success();
+    }
+    if (op->getNumResults() != 1)
       return failure();
-    auto resultVector = unrollSingleResultVectorOp(rewriter, op, targetShape);
+    auto resultVector = unrollSingleResultVectorOp(rewriter, op, *targetShape);
     if (resultVector.size() != 1)
       return failure();
     rewriter.replaceOp(op, resultVector.front());
@@ -105,11 +163,11 @@ struct UnrollVectorPattern : public OpRewritePattern<OpTy> {
   }
 
 private:
-  SmallVector<int64_t, 4> targetShape;
-  FilterConstraintType filter;
+  UnrollVectorOptions options;
 };
 
-/// Split a vector.transfer operation into an unmasked fastpath and a slowpath.
+/// Split a vector.transfer operation into an in-bounds (i.e., no out-of-bounds
+/// masking) fastpath and a slowpath.
 /// If `ifOp` is not null and the result is `success, the `ifOp` points to the
 /// newly created conditional upon function return.
 /// To accomodate for the fact that the original vector.transfer indexing may be
@@ -125,14 +183,14 @@ private:
 /// ```
 ///    %1:3 = scf.if (%inBounds) {
 ///      // fastpath, direct cast
-///      memref_cast %A: memref<A...> to compatibleMemRefType
+///      memref.cast %A: memref<A...> to compatibleMemRefType
 ///      scf.yield %view : compatibleMemRefType, index, index
 ///    } else {
-///      // slowpath, masked vector.transfer or linalg.copy.
-///      memref_cast %alloc: memref<B...> to compatibleMemRefType
+///      // slowpath, not in-bounds vector.transfer or linalg.copy.
+///      memref.cast %alloc: memref<B...> to compatibleMemRefType
 ///      scf.yield %4 : compatibleMemRefType, index, index
 //     }
-///    %0 = vector.transfer_read %1#0[%1#1, %1#2] {masked = [false ... false]}
+///    %0 = vector.transfer_read %1#0[%1#1, %1#2] {in_bounds = [true ... true]}
 /// ```
 /// where `alloc` is a top of the function alloca'ed buffer of one vector.
 ///
@@ -160,7 +218,7 @@ struct VectorTransferFullPartialRewriter : public RewritePattern {
       FilterConstraintType filter =
           [](VectorTransferOpInterface op) { return success(); },
       PatternBenefit benefit = 1)
-      : RewritePattern(benefit, MatchAnyOpTypeTag()), options(options),
+      : RewritePattern(MatchAnyOpTypeTag(), benefit, context), options(options),
         filter(filter) {}
 
   /// Performs the rewrite.
@@ -177,7 +235,7 @@ struct DistributeOps {
   InsertMapOp insert;
 };
 
-/// Distribute a 1D vector pointwise operation over a range of given IDs taking
+/// Distribute a N-D vector pointwise operation over a range of given ids taking
 /// *all* values in [0 .. multiplicity - 1] (e.g. loop induction variable or
 /// SPMD id). This transformation only inserts
 /// vector.extract_map/vector.insert_map. It is meant to be used with
@@ -186,12 +244,13 @@ struct DistributeOps {
 /// Transforms:
 //  %v = addf %a, %b : vector<32xf32>
 /// to:
-/// %v = addf %a, %b : vector<32xf32> %ev =
-/// vector.extract_map %v, %id, 32 : vector<32xf32> into vector<1xf32> %nv =
-/// vector.insert_map %ev, %id, 32 : vector<1xf32> into vector<32xf32>
-Optional<DistributeOps> distributPointwiseVectorOp(OpBuilder &builder,
-                                                   Operation *op, Value id,
-                                                   int64_t multiplicity);
+/// %v = addf %a, %b : vector<32xf32>
+/// %ev = vector.extract_map %v, %id, 32 : vector<32xf32> into vector<1xf32>
+/// %nv = vector.insert_map %ev, %id, 32 : vector<1xf32> into vector<32xf32>
+Optional<DistributeOps>
+distributPointwiseVectorOp(OpBuilder &builder, Operation *op,
+                           ArrayRef<Value> id, ArrayRef<int64_t> multiplicity,
+                           const AffineMap &map);
 /// Canonicalize an extra element using the result of a pointwise operation.
 /// Transforms:
 /// %v = addf %a, %b : vector32xf32>
@@ -212,6 +271,10 @@ struct PointwiseExtractPattern : public OpRewritePattern<ExtractMapOp> {
 private:
   FilterConstraintType filter;
 };
+
+/// Implements transfer op write to read forwarding and dead transfer write
+/// optimizations.
+void transferOpflowOpt(FuncOp func);
 
 } // namespace vector
 

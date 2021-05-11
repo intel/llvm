@@ -106,7 +106,7 @@ public:
 
   /// Get allocation size in bits. Returns None if size can't be determined,
   /// e.g. in case of a VLA.
-  Optional<uint64_t> getAllocationSizeInBits(const DataLayout &DL) const;
+  Optional<TypeSize> getAllocationSizeInBits(const DataLayout &DL) const;
 
   /// Return the type that is being allocated by the instruction.
   Type *getAllocatedType() const { return AllocatedType; }
@@ -1122,7 +1122,9 @@ public:
   /// must be at least as wide as the IntPtr type for the address space of
   /// the base GEP pointer.
   bool accumulateConstantOffset(const DataLayout &DL, APInt &Offset) const;
-
+  bool collectOffset(const DataLayout &DL, unsigned BitWidth,
+                     SmallDenseMap<Value *, APInt, 8> &VariableOffsets,
+                     APInt &ConstantOffset) const;
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::GetElementPtr);
@@ -1288,6 +1290,30 @@ public:
   ///
   static bool isRelational(Predicate P) {
     return !isEquality(P);
+  }
+
+  /// Return true if the predicate is SGT or UGT.
+  ///
+  static bool isGT(Predicate P) {
+    return P == ICMP_SGT || P == ICMP_UGT;
+  }
+
+  /// Return true if the predicate is SLT or ULT.
+  ///
+  static bool isLT(Predicate P) {
+    return P == ICMP_SLT || P == ICMP_ULT;
+  }
+
+  /// Return true if the predicate is SGE or UGE.
+  ///
+  static bool isGE(Predicate P) {
+    return P == ICMP_SGE || P == ICMP_UGE;
+  }
+
+  /// Return true if the predicate is SLE or ULE.
+  ///
+  static bool isLE(Predicate P) {
+    return P == ICMP_SLE || P == ICMP_ULE;
   }
 
   /// Exchange the two operands to this instruction in such a way that it does
@@ -1560,16 +1586,6 @@ public:
   /// in \p Bundles.
   static CallInst *Create(CallInst *CI, ArrayRef<OperandBundleDef> Bundles,
                           Instruction *InsertPt = nullptr);
-
-  /// Create a clone of \p CI with a different set of operand bundles and
-  /// insert it before \p InsertPt.
-  ///
-  /// The returned call instruction is identical \p CI in every way except that
-  /// the operand bundle for the new instruction is set to the operand bundle
-  /// in \p Bundle.
-  static CallInst *CreateWithReplacedBundle(CallInst *CI,
-                                            OperandBundleDef Bundle,
-                                            Instruction *InsertPt = nullptr);
 
   /// Generate the IR for a call to malloc:
   /// 1. Compute the malloc call's argument as the specified type's size,
@@ -2057,8 +2073,9 @@ public:
   /// elements than its source vectors.
   /// Example: shufflevector <2 x n> A, <2 x n> B, <1,2,3>
   bool increasesLength() const {
-    unsigned NumSourceElts =
-        cast<FixedVectorType>(Op<0>()->getType())->getNumElements();
+    unsigned NumSourceElts = cast<VectorType>(Op<0>()->getType())
+                                 ->getElementCount()
+                                 .getKnownMinValue();
     unsigned NumMaskElts = ShuffleMask.size();
     return NumSourceElts < NumMaskElts;
   }
@@ -2244,6 +2261,10 @@ public:
   static bool isExtractSubvectorMask(const Constant *Mask, int NumSrcElts,
                                      int &Index) {
     assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
+    // Not possible to express a shuffle mask for a scalable vector for this
+    // case.
+    if (isa<ScalableVectorType>(Mask->getType()))
+      return false;
     SmallVector<int, 16> MaskAsInts;
     getShuffleMask(Mask, MaskAsInts);
     return isExtractSubvectorMask(MaskAsInts, NumSrcElts, Index);
@@ -2251,6 +2272,11 @@ public:
 
   /// Return true if this shuffle mask is an extract subvector mask.
   bool isExtractSubvectorMask(int &Index) const {
+    // Not possible to express a shuffle mask for a scalable vector for this
+    // case.
+    if (isa<ScalableVectorType>(getType()))
+      return false;
+
     int NumSrcElts =
         cast<FixedVectorType>(Op<0>()->getType())->getNumElements();
     return isExtractSubvectorMask(ShuffleMask, NumSrcElts, Index);
@@ -3789,16 +3815,6 @@ public:
   /// bundles in \p Bundles.
   static InvokeInst *Create(InvokeInst *II, ArrayRef<OperandBundleDef> Bundles,
                             Instruction *InsertPt = nullptr);
-
-  /// Create a clone of \p II with a different set of operand bundles and
-  /// insert it before \p InsertPt.
-  ///
-  /// The returned invoke instruction is identical to \p II in every way except
-  /// that the operand bundle for the new instruction is set to the operand
-  /// bundle in \p Bundle.
-  static InvokeInst *CreateWithReplacedBundle(InvokeInst *II,
-                                              OperandBundleDef Bundles,
-                                              Instruction *InsertPt = nullptr);
 
   // get*Dest - Return the destination basic blocks...
   BasicBlock *getNormalDest() const {

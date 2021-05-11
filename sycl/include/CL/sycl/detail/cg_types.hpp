@@ -15,6 +15,7 @@
 #include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/interop_handler.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/kernel_handler.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
@@ -122,6 +123,97 @@ public:
   size_t Dims;
 };
 
+template <typename, typename T> struct check_fn_signature {
+  static_assert(std::integral_constant<T, false>::value,
+                "Second template parameter is required to be of function type");
+};
+
+template <typename F, typename RetT, typename... Args>
+struct check_fn_signature<F, RetT(Args...)> {
+private:
+  template <typename T>
+  static constexpr auto check(T *) -> typename std::is_same<
+      decltype(std::declval<T>().operator()(std::declval<Args>()...)),
+      RetT>::type;
+
+  template <typename> static constexpr std::false_type check(...);
+
+  using type = decltype(check<F>(0));
+
+public:
+  static constexpr bool value = type::value;
+};
+
+template <typename F, typename... Args>
+static constexpr bool check_kernel_lambda_takes_args() {
+  return check_fn_signature<std::remove_reference_t<F>, void(Args...)>::value;
+}
+
+// isKernelLambdaCallableWithKernelHandlerImpl checks if LambdaArgType is void
+// (e.g., in single_task), and based on that, calls
+// check_kernel_lambda_takes_args with proper set of arguments. Also this type
+// trait workarounds compilation error which happens only with msvc.
+
+template <typename KernelType, typename LambdaArgType,
+          typename std::enable_if_t<std::is_same<LambdaArgType, void>::value>
+              * = nullptr>
+constexpr bool isKernelLambdaCallableWithKernelHandlerImpl() {
+  return check_kernel_lambda_takes_args<KernelType, kernel_handler>();
+}
+
+template <typename KernelType, typename LambdaArgType,
+          typename std::enable_if_t<!std::is_same<LambdaArgType, void>::value>
+              * = nullptr>
+constexpr bool isKernelLambdaCallableWithKernelHandlerImpl() {
+  return check_kernel_lambda_takes_args<KernelType, LambdaArgType,
+                                        kernel_handler>();
+}
+
+// Type traits to find out if kernal lambda has kernel_handler argument
+
+template <typename KernelType>
+constexpr bool isKernelLambdaCallableWithKernelHandler() {
+  return check_kernel_lambda_takes_args<KernelType, kernel_handler>();
+}
+
+template <typename KernelType, typename LambdaArgType>
+constexpr bool isKernelLambdaCallableWithKernelHandler() {
+  return isKernelLambdaCallableWithKernelHandlerImpl<KernelType,
+                                                     LambdaArgType>();
+}
+
+// Helpers for running kernel lambda on the host device
+
+template <typename KernelType,
+          typename std::enable_if_t<isKernelLambdaCallableWithKernelHandler<
+              KernelType>()> * = nullptr>
+constexpr void runKernelWithoutArg(KernelType KernelName) {
+  kernel_handler KH;
+  KernelName(KH);
+}
+
+template <typename KernelType,
+          typename std::enable_if_t<!isKernelLambdaCallableWithKernelHandler<
+              KernelType>()> * = nullptr>
+constexpr void runKernelWithoutArg(KernelType KernelName) {
+  KernelName();
+}
+
+template <typename ArgType, typename KernelType,
+          typename std::enable_if_t<isKernelLambdaCallableWithKernelHandler<
+              KernelType, ArgType>()> * = nullptr>
+constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
+  kernel_handler KH;
+  KernelName(Arg, KH);
+}
+
+template <typename ArgType, typename KernelType,
+          typename std::enable_if_t<!isKernelLambdaCallableWithKernelHandler<
+              KernelType, ArgType>()> * = nullptr>
+constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
+  KernelName(Arg);
+}
+
 // The pure virtual class aimed to store lambda/functors of any type.
 class HostKernelBase {
 public:
@@ -158,7 +250,7 @@ public:
 };
 
 // Class which stores specific lambda object.
-template <class KernelType, class KernelArgType, int Dims>
+template <class KernelType, class KernelArgType, int Dims, typename KernelName>
 class HostKernel : public HostKernelBase {
   using IDBuilder = sycl::detail::Builder;
   KernelType MKernel;
@@ -195,34 +287,50 @@ public:
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<std::is_same<ArgT, void>::value>::type
+  typename detail::enable_if_t<std::is_same<ArgT, void>::value>
   runOnHost(const NDRDescT &) {
-    MKernel();
+    runKernelWithoutArg(MKernel);
   }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value>::type
+  typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
+    sycl::range<Dims> Stride(
+        InitializedVal<Dims, range>::template get<1>()); // initialized to 1
+    sycl::range<Dims> UpperBound(
+        InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       Range[I] = NDRDesc.GlobalSize[I];
       Offset[I] = NDRDesc.GlobalOffset[I];
+      UpperBound[I] = Range[I] + Offset[I];
     }
 
-    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
-      sycl::item<Dims, /*Offset=*/true> Item =
-          IDBuilder::createItem<Dims, true>(Range, ID, Offset);
-      store_id(&ID);
-      store_item(&Item);
-      MKernel(ID);
-    });
+    detail::NDLoop<Dims>::iterate(
+        /*LowerBound=*/Offset, Stride, UpperBound,
+        [&](const sycl::id<Dims> &ID) {
+          sycl::item<Dims, /*Offset=*/true> Item =
+              IDBuilder::createItem<Dims, true>(Range, ID, Offset);
+
+          if (StoreLocation) {
+            store_id(&ID);
+            store_item(&Item);
+          }
+          runKernelWithArg<const sycl::id<Dims> &>(MKernel, ID);
+        });
   }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<
-      std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>::type
+  typename detail::enable_if_t<
+      std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I)
@@ -232,36 +340,54 @@ public:
       sycl::item<Dims, /*Offset=*/false> Item =
           IDBuilder::createItem<Dims, false>(Range, ID);
       sycl::item<Dims, /*Offset=*/true> ItemWithOffset = Item;
-      store_id(&ID);
-      store_item(&ItemWithOffset);
-      MKernel(Item);
+
+      if (StoreLocation) {
+        store_id(&ID);
+        store_item(&ItemWithOffset);
+      }
+      runKernelWithArg<sycl::item<Dims, /*Offset=*/false>>(MKernel, Item);
     });
   }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<
-      std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>::type
+  typename detail::enable_if_t<
+      std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
+    sycl::range<Dims> Stride(
+        InitializedVal<Dims, range>::template get<1>()); // initialized to 1
+    sycl::range<Dims> UpperBound(
+        InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       Range[I] = NDRDesc.GlobalSize[I];
       Offset[I] = NDRDesc.GlobalOffset[I];
+      UpperBound[I] = Range[I] + Offset[I];
     }
 
-    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
-      sycl::id<Dims> OffsetID = ID + Offset;
-      sycl::item<Dims, /*Offset=*/true> Item =
-          IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
-      store_id(&OffsetID);
-      store_item(&Item);
-      MKernel(Item);
-    });
+    detail::NDLoop<Dims>::iterate(
+        /*LowerBound=*/Offset, Stride, UpperBound,
+        [&](const sycl::id<Dims> &ID) {
+          sycl::item<Dims, /*Offset=*/true> Item =
+              IDBuilder::createItem<Dims, true>(Range, ID, Offset);
+
+          if (StoreLocation) {
+            store_id(&ID);
+            store_item(&Item);
+          }
+          runKernelWithArg<sycl::item<Dims, /*Offset=*/true>>(MKernel, Item);
+        });
   }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<std::is_same<ArgT, nd_item<Dims>>::value>::type
+  typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
@@ -294,12 +420,15 @@ public:
             IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
         const sycl::nd_item<Dims> NDItem =
             IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-        store_id(&GlobalID);
-        store_item(&GlobalItem);
-        store_nd_item(&NDItem);
-        auto g = NDItem.get_group();
-        store_group(&g);
-        MKernel(NDItem);
+
+        if (StoreLocation) {
+          store_id(&GlobalID);
+          store_item(&GlobalItem);
+          store_nd_item(&NDItem);
+          auto g = NDItem.get_group();
+          store_group(&g);
+        }
+        runKernelWithArg<const sycl::nd_item<Dims>>(MKernel, NDItem);
       });
     });
   }
@@ -327,7 +456,7 @@ public:
     detail::NDLoop<Dims>::iterate(NGroups, [&](const id<Dims> &GroupID) {
       sycl::group<Dims> Group =
           IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, NGroups, GroupID);
-      MKernel(Group);
+      runKernelWithArg<sycl::group<Dims>>(MKernel, Group);
     });
   }
 

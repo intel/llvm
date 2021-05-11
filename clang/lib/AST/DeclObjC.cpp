@@ -826,7 +826,8 @@ ObjCMethodDecl *ObjCMethodDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
 }
 
 bool ObjCMethodDecl::isDirectMethod() const {
-  return hasAttr<ObjCDirectAttr>();
+  return hasAttr<ObjCDirectAttr>() &&
+         !getASTContext().getLangOpts().ObjCDisableDirectMethodsForTesting;
 }
 
 bool ObjCMethodDecl::isThisDeclarationADesignatedInitializer() const {
@@ -950,7 +951,8 @@ ObjCMethodDecl *ObjCMethodDecl::getNextRedeclarationImpl() {
   if (!Redecl && isRedeclaration()) {
     // This is the last redeclaration, go back to the first method.
     return cast<ObjCContainerDecl>(CtxD)->getMethod(getSelector(),
-                                                    isInstanceMethod());
+                                                    isInstanceMethod(),
+                                                    /*AllowHidden=*/true);
   }
 
   return Redecl ? Redecl : this;
@@ -983,7 +985,8 @@ ObjCMethodDecl *ObjCMethodDecl::getCanonicalDecl() {
   if (isRedeclaration()) {
     // It is possible that we have not done deserializing the ObjCMethod yet.
     ObjCMethodDecl *MD =
-        cast<ObjCContainerDecl>(CtxD)->getMethod(Sel, isInstanceMethod());
+        cast<ObjCContainerDecl>(CtxD)->getMethod(Sel, isInstanceMethod(),
+                                                 /*AllowHidden=*/true);
     return MD ? MD : this;
   }
 
@@ -1308,8 +1311,9 @@ void ObjCMethodDecl::getOverriddenMethods(
   const ObjCMethodDecl *Method = this;
 
   if (Method->isRedeclaration()) {
-    Method = cast<ObjCContainerDecl>(Method->getDeclContext())->
-                   getMethod(Method->getSelector(), Method->isInstanceMethod());
+    Method = cast<ObjCContainerDecl>(Method->getDeclContext())
+                 ->getMethod(Method->getSelector(), Method->isInstanceMethod(),
+                             /*AllowHidden=*/true);
   }
 
   if (Method->isOverriding()) {
@@ -1458,9 +1462,7 @@ SourceRange ObjCTypeParamDecl::getSourceRange() const {
 ObjCTypeParamList::ObjCTypeParamList(SourceLocation lAngleLoc,
                                      ArrayRef<ObjCTypeParamDecl *> typeParams,
                                      SourceLocation rAngleLoc)
-    : NumParams(typeParams.size()) {
-  Brackets.Begin = lAngleLoc.getRawEncoding();
-  Brackets.End = rAngleLoc.getRawEncoding();
+    : Brackets(lAngleLoc, rAngleLoc), NumParams(typeParams.size()) {
   std::copy(typeParams.begin(), typeParams.end(), begin());
 }
 
@@ -2292,6 +2294,11 @@ ObjCPropertyDecl *ObjCPropertyDecl::CreateDeserialized(ASTContext &C,
 QualType ObjCPropertyDecl::getUsageType(QualType objectType) const {
   return DeclType.substObjCMemberType(objectType, getDeclContext(),
                                       ObjCSubstitutionContext::Property);
+}
+
+bool ObjCPropertyDecl::isDirectProperty() const {
+  return (PropertyAttributes & ObjCPropertyAttribute::kind_direct) &&
+         !getASTContext().getLangOpts().ObjCDisableDirectMethodsForTesting;
 }
 
 //===----------------------------------------------------------------------===//

@@ -5,10 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+/// \file
 /// Interface for Targets to specify which operations they can successfully
 /// select and how the others should be expanded most efficiently.
-//
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CODEGEN_GLOBALISEL_LEGALIZERINFO_H
@@ -37,7 +37,6 @@ extern cl::opt<bool> DisableGISelLegalityCheck;
 
 class LegalizerHelper;
 class MachineInstr;
-class MachineIRBuilder;
 class MachineRegisterInfo;
 class MCInstrInfo;
 class GISelChangeObserver;

@@ -26,11 +26,12 @@
 using namespace lldb;
 using namespace lldb_private;
 
-ScriptInterpreter::ScriptInterpreter(Debugger &debugger,
-                                     lldb::ScriptLanguage script_lang)
-    : m_debugger(debugger), m_script_lang(script_lang) {}
-
-ScriptInterpreter::~ScriptInterpreter() {}
+ScriptInterpreter::ScriptInterpreter(
+    Debugger &debugger, lldb::ScriptLanguage script_lang,
+    lldb::ScriptedProcessInterfaceUP scripted_process_interface_up)
+    : m_debugger(debugger), m_script_lang(script_lang),
+      m_scripted_process_interface_up(
+          std::move(scripted_process_interface_up)) {}
 
 void ScriptInterpreter::CollectDataForBreakpointCommandCallback(
     std::vector<BreakpointOptions *> &bp_options_vec,
@@ -47,9 +48,11 @@ void ScriptInterpreter::CollectDataForWatchpointCommandCallback(
       "This script interpreter does not support watchpoint callbacks.");
 }
 
-bool ScriptInterpreter::LoadScriptingModule(
-    const char *filename, bool init_session, lldb_private::Status &error,
-    StructuredData::ObjectSP *module_sp) {
+bool ScriptInterpreter::LoadScriptingModule(const char *filename,
+                                            bool init_session,
+                                            lldb_private::Status &error,
+                                            StructuredData::ObjectSP *module_sp,
+                                            FileSpec extra_search_dir) {
   error.SetErrorString(
       "This script interpreter does not support importing modules.");
   return false;
@@ -67,6 +70,19 @@ std::string ScriptInterpreter::LanguageToString(lldb::ScriptLanguage language) {
     return "Unknown";
   }
   llvm_unreachable("Unhandled ScriptInterpreter!");
+}
+
+lldb::DataExtractorSP
+ScriptInterpreter::GetDataExtractorFromSBData(const lldb::SBData &data) const {
+  return data.m_opaque_sp;
+}
+
+Status
+ScriptInterpreter::GetStatusFromSBError(const lldb::SBError &error) const {
+  if (error.m_opaque_up)
+    return *error.m_opaque_up.get();
+
+  return Status();
 }
 
 lldb::ScriptLanguage

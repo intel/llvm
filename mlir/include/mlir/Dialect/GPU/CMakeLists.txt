@@ -1,5 +1,10 @@
 add_mlir_dialect(GPUOps gpu)
-add_mlir_doc(GPUOps -gen-op-doc GPUOps Dialects/)
+add_mlir_doc(GPUOps GPUOps Dialects/ -gen-op-doc)
+
+set(LLVM_TARGET_DEFINITIONS GPUBase.td)
+mlir_tablegen(GPUOpInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(GPUOpInterfaces.cpp.inc -gen-op-interface-defs)
+add_public_tablegen_target(MLIRGPUOpInterfacesIncGen)
 
 set(LLVM_TARGET_DEFINITIONS ParallelLoopMapperAttr.td)
 mlir_tablegen(ParallelLoopMapperAttr.h.inc -gen-struct-attr-decls)
@@ -15,4 +20,4 @@ set(LLVM_TARGET_DEFINITIONS Passes.td)
 mlir_tablegen(Passes.h.inc -gen-pass-decls -name GPU)
 add_public_tablegen_target(MLIRGPUPassIncGen)
 
-add_mlir_doc(Passes -gen-pass-doc GPUPasses ./)
+add_mlir_doc(Passes GPUPasses ./ -gen-pass-doc)

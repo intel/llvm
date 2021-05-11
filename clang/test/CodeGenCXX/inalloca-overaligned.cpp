@@ -28,7 +28,7 @@ int receive_inalloca_overaligned(NonTrivial nt, OverAligned o) {
 }
 
 // CHECK-LABEL: define dso_local i32 @"?receive_inalloca_overaligned@@Y{{.*}}"
-// CHECK-SAME: (<{ %struct.NonTrivial, %struct.OverAligned* }>* inalloca %0)
+// CHECK-SAME: (<{ %struct.NonTrivial, %struct.OverAligned* }>* inalloca(<{ %struct.NonTrivial, %struct.OverAligned* }>) %0)
 
 int pass_inalloca_overaligned() {
   gvi32 = receive_inalloca_overaligned(NonTrivial(), OverAligned());
@@ -41,16 +41,16 @@ int pass_inalloca_overaligned() {
 // CHECK: alloca inalloca <{ %struct.NonTrivial, %struct.OverAligned* }>
 
 // Construct OverAligned into TMP.
-// CHECK: call x86_thiscallcc %struct.OverAligned* @"??0OverAligned@@QAE@XZ"(%struct.OverAligned* [[TMP]])
+// CHECK: call x86_thiscallcc %struct.OverAligned* @"??0OverAligned@@QAE@XZ"(%struct.OverAligned* {{[^,]*}} [[TMP]])
 
 // Construct NonTrivial into the GEP.
 // CHECK: [[GEP:%[^ ]*]] = getelementptr inbounds <{ %struct.NonTrivial, %struct.OverAligned* }>, <{ %struct.NonTrivial, %struct.OverAligned* }>* %{{.*}}, i32 0, i32 0
-// CHECK: call x86_thiscallcc %struct.NonTrivial* @"??0NonTrivial@@QAE@XZ"(%struct.NonTrivial* [[GEP]])
+// CHECK: call x86_thiscallcc %struct.NonTrivial* @"??0NonTrivial@@QAE@XZ"(%struct.NonTrivial* {{[^,]*}} [[GEP]])
 
 // Store the address of an OverAligned temporary into the struct.
 // CHECK: getelementptr inbounds <{ %struct.NonTrivial, %struct.OverAligned* }>, <{ %struct.NonTrivial, %struct.OverAligned* }>* %{{.*}}, i32 0, i32 1
 // CHECK: store %struct.OverAligned* [[TMP]], %struct.OverAligned** %{{.*}}, align 4
-// CHECK: call i32 @"?receive_inalloca_overaligned@@Y{{.*}}"(<{ %struct.NonTrivial, %struct.OverAligned* }>* inalloca %argmem)
+// CHECK: call i32 @"?receive_inalloca_overaligned@@Y{{.*}}"(<{ %struct.NonTrivial, %struct.OverAligned* }>* inalloca(<{ %struct.NonTrivial, %struct.OverAligned* }>) %argmem)
 
 int receive_both(Both o) {
   return o.x + o.y;
@@ -66,7 +66,7 @@ int pass_both() {
 
 // CHECK-LABEL: define dso_local i32 @"?pass_both@@Y{{.*}}"
 // CHECK: [[TMP:%[^ ]*]] = alloca %struct.Both, align 8
-// CHECK: call x86_thiscallcc %struct.Both* @"??0Both@@QAE@XZ"(%struct.Both* [[TMP]])
+// CHECK: call x86_thiscallcc %struct.Both* @"??0Both@@QAE@XZ"(%struct.Both* {{[^,]*}} [[TMP]])
 // CHECK: call i32 @"?receive_both@@Y{{.*}}"(%struct.Both* [[TMP]])
 
 int receive_inalloca_both(NonTrivial nt, Both o) {
@@ -74,7 +74,7 @@ int receive_inalloca_both(NonTrivial nt, Both o) {
 }
 
 // CHECK-LABEL: define dso_local i32 @"?receive_inalloca_both@@Y{{.*}}"
-// CHECK-SAME: (<{ %struct.NonTrivial, %struct.Both* }>* inalloca %0)
+// CHECK-SAME: (<{ %struct.NonTrivial, %struct.Both* }>* inalloca(<{ %struct.NonTrivial, %struct.Both* }>) %0)
 
 int pass_inalloca_both() {
   gvi32 = receive_inalloca_both(NonTrivial(), Both());
@@ -83,8 +83,8 @@ int pass_inalloca_both() {
 
 // CHECK-LABEL: define dso_local i32 @"?pass_inalloca_both@@Y{{.*}}"
 // CHECK: [[TMP:%[^ ]*]] = alloca %struct.Both, align 8
-// CHECK: call x86_thiscallcc %struct.Both* @"??0Both@@QAE@XZ"(%struct.Both* [[TMP]])
-// CHECK: call i32 @"?receive_inalloca_both@@Y{{.*}}"(<{ %struct.NonTrivial, %struct.Both* }>* inalloca %argmem)
+// CHECK: call x86_thiscallcc %struct.Both* @"??0Both@@QAE@XZ"(%struct.Both* {{[^,]*}} [[TMP]])
+// CHECK: call i32 @"?receive_inalloca_both@@Y{{.*}}"(<{ %struct.NonTrivial, %struct.Both* }>* inalloca(<{ %struct.NonTrivial, %struct.Both* }>) %argmem)
 
 // Here we have a type that is:
 // - overaligned
@@ -107,5 +107,5 @@ int passMyPtr() { return receiveMyPtr(MyPtr()); }
 
 // CHECK-LABEL: define dso_local i32 @"?passMyPtr@@Y{{.*}}"
 // CHECK: [[TMP:%[^ ]*]] = alloca %struct.MyPtr, align 8
-// CHECK: call x86_thiscallcc %struct.MyPtr* @"??0MyPtr@@QAE@XZ"(%struct.MyPtr* [[TMP]])
+// CHECK: call x86_thiscallcc %struct.MyPtr* @"??0MyPtr@@QAE@XZ"(%struct.MyPtr* {{[^,]*}} [[TMP]])
 // CHECK: call i32 @"?receiveMyPtr@@Y{{.*}}"(%struct.MyPtr* [[TMP]])

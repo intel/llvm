@@ -4,7 +4,7 @@ set(LLVM_TARGETS_TO_BUILD X86;ARM;AArch64;RISCV CACHE STRING "")
 
 set(PACKAGE_VENDOR Fuchsia CACHE STRING "")
 
-set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra;lld;llvm" CACHE STRING "")
+set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra;lld;llvm;polly" CACHE STRING "")
 set(LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx;libcxxabi;libunwind" CACHE STRING "")
 
 set(LLVM_ENABLE_BACKTRACES OFF CACHE BOOL "")
@@ -69,7 +69,7 @@ if(APPLE)
   set(LIBCXX_ABI_VERSION 2 CACHE STRING "")
   set(DARWIN_ios_ARCHS armv7;armv7s;arm64 CACHE STRING "")
   set(DARWIN_iossim_ARCHS i386;x86_64 CACHE STRING "")
-  set(DARWIN_osx_ARCHS x86_64 CACHE STRING "")
+  set(DARWIN_osx_ARCHS arm64;x86_64 CACHE STRING "")
   set(SANITIZER_MIN_OSX_VERSION 10.7 CACHE STRING "")
 endif()
 
@@ -179,7 +179,7 @@ if(FUCHSIA_SDK)
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_SYSROOT ${FUCHSIA_${target}_SYSROOT} CACHE PATH "")
     set(RUNTIMES_${target}-unknown-fuchsia_COMPILER_RT_USE_BUILTINS_LIBRARY ON CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia_LIBUNWIND_USE_COMPILER_RT ON CACHE BOOL "")
-    set(RUNTIMES_${target}-unknown-fuchsia_LIBUNWIND_HERMETIC_STATIC_LIBRARY ON CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia_LIBUNWIND_HIDE_SYMBOLS ON CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia_LIBUNWIND_INSTALL_STATIC_LIBRARY OFF CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia_LIBCXXABI_USE_COMPILER_RT ON CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia_LIBCXXABI_USE_LLVM_UNWINDER ON CACHE BOOL "")
@@ -211,19 +211,44 @@ if(FUCHSIA_SDK)
     set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
 
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables_CMAKE_CXX_FLAGS "${RUNTIMES_${target}-unknown-fuchsia+relative-vtables_CMAKE_CXX_FLAGS} -Xclang -fexperimental-relative-c++-abi-vtables" CACHE STRING "")
+
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan_LLVM_USE_SANITIZER "Address" CACHE STRING "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan_LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan_LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan_CMAKE_CXX_FLAGS "${RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan_CMAKE_CXX_FLAGS} -Xclang -fexperimental-relative-c++-abi-vtables" CACHE STRING "")
+
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+noexcept_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+noexcept_CMAKE_CXX_FLAGS "${RUNTIMES_${target}-unknown-fuchsia+relative-vtables+noexcept_CMAKE_CXX_FLAGS} -Xclang -fexperimental-relative-c++-abi-vtables" CACHE STRING "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
+
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan+noexcept_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan+noexcept_LLVM_USE_SANITIZER "Address" CACHE STRING "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan+noexcept_LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan+noexcept_LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan+noexcept_CMAKE_CXX_FLAGS "${RUNTIMES_${target}-unknown-fuchsia+relative-vtables+asan+noexcept_CMAKE_CXX_FLAGS} -Xclang -fexperimental-relative-c++-abi-vtables" CACHE STRING "")
+
     # Use .build-id link.
     list(APPEND RUNTIME_BUILD_ID_LINK "${target}-unknown-fuchsia")
   endforeach()
 
-  set(LLVM_RUNTIME_MULTILIBS "asan;noexcept;asan+noexcept" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIBS "asan;noexcept;asan+noexcept;relative-vtables;relative-vtables+noexcept;relative-vtables+asan;relative-vtables+asan+noexcept" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_asan_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_asan+noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIB_relative-vtables_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIB_relative-vtables+noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIB_relative-vtables+asan_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIB_relative-vtables+asan+noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
 endif()
 
 set(LLVM_BUILTIN_TARGETS "${BUILTIN_TARGETS}" CACHE STRING "")
 set(LLVM_RUNTIME_TARGETS "${RUNTIME_TARGETS}" CACHE STRING "")
-set(LLVM_RUNTIME_BUILD_ID_LINK_TARGETS "${RUNTIME_BUILD_ID_LINK}" CACHE STRING "")
 
 # Setup toolchain.
 set(LLVM_INSTALL_TOOLCHAIN_ONLY ON CACHE BOOL "")
@@ -235,8 +260,10 @@ set(LLVM_TOOLCHAIN_TOOLS
   llvm-dlltool
   llvm-dwarfdump
   llvm-dwp
+  llvm-elfabi
   llvm-gsymutil
   llvm-lib
+  llvm-lipo
   llvm-mt
   llvm-nm
   llvm-objcopy

@@ -52,6 +52,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -87,19 +88,12 @@ namespace SPIRV {
 /// Propagates block_func to each spir_get_block_invoke through def-use chain of
 /// spir_block_bind, so that
 /// ret = block_func(context, args)
-class SPIRVLowerSPIRBlocks : public ModulePass {
+class SPIRVLowerSPIRBlocksBase {
 public:
-  SPIRVLowerSPIRBlocks() : ModulePass(ID), M(nullptr) {
-    initializeSPIRVLowerSPIRBlocksPass(*PassRegistry::getPassRegistry());
-  }
+  SPIRVLowerSPIRBlocksBase() : M(nullptr) {}
+  virtual ~SPIRVLowerSPIRBlocksBase() {}
 
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<CallGraphWrapperPass>();
-    AU.addRequired<AAResultsWrapperPass>();
-    AU.addRequired<AssumptionCacheTracker>();
-  }
-
-  bool runOnModule(Module &Module) override {
+  bool runLowerSPIRBlocks(Module &Module) {
     M = &Module;
     if (!lowerBlockBind()) {
       // There are no SPIR2 blocks in the module.
@@ -117,9 +111,12 @@ public:
     return true;
   }
 
-  static char ID;
+  virtual AssumptionCache *getAssumptionCache(llvm::Function &) = 0;
+  void setCallGraph(CallGraph *CallG) { CG = CallG; }
+  CallGraph *getCallGraph() { return CG; }
 
 private:
+  CallGraph *CG = nullptr;
   const static int MaxIter = 1000;
   Module *M;
 
@@ -161,8 +158,7 @@ private:
         continue;
       }
 
-      auto &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-      CallGraphNode *CGN = CG[F];
+      CallGraphNode *CGN = (*CG)[F];
 
       if (CGN->getNumReferences() != 0) {
         continue;
@@ -209,6 +205,7 @@ private:
       Value *CtxAlign = nullptr;
       getBlockInvokeFuncAndContext(CallBlkBind, &InvF, &Ctx, &CtxLen,
                                    &CtxAlign);
+      assert(Ctx && "Invalid context");
       for (auto II = CallBlkBind->user_begin(), EE = CallBlkBind->user_end();
            II != EE;) {
         auto BlkUser = *II++;
@@ -247,6 +244,7 @@ private:
     if (!Ctx)
       getBlockInvokeFuncAndContext(CallGetBlkCtx->getArgOperand(0), nullptr,
                                    &Ctx);
+    assert(Ctx && "Invalid context");
     CallGetBlkCtx->replaceAllUsesWith(Ctx);
     LLVM_DEBUG(dbgs() << "  [lowerGetBlockContext] " << *CallGetBlkCtx << " => "
                       << *Ctx << "\n\n");
@@ -340,10 +338,9 @@ private:
 
       LLVM_DEBUG(dbgs() << "[lowerReturnBlock] inline " << F->getName()
                         << '\n');
-      auto CG = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
-      auto ACT = &getAnalysis<AssumptionCacheTracker>();
-      auto GetAssumptionCache = [&ACT](Function &F) -> AssumptionCache & {
-        return ACT->getAssumptionCache(F);
+
+      auto GetAssumptionCache = [&](Function &F) -> AssumptionCache & {
+        return *getAssumptionCache(F);
       };
       InlineFunctionInfo IFI(CG, GetAssumptionCache);
       InlineFunction(*cast<CallBase>(CI), IFI);
@@ -566,15 +563,14 @@ private:
 
     F->dropAllReferences();
 
-    auto &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-    CallGraphNode *CGN = CG[F];
+    CallGraphNode *CGN = (*CG)[F];
 
     if (CGN->getNumReferences() != 0) {
       return;
     }
 
     CGN->removeAllCalledFunctions();
-    delete CG.removeFunctionFromModule(CGN);
+    delete CG->removeFunctionFromModule(CGN);
   }
 
   llvm::PointerType *getOCLClkEventType() {
@@ -603,17 +599,69 @@ private:
   }
 };
 
-char SPIRVLowerSPIRBlocks::ID = 0;
+class SPIRVLowerSPIRBlocksPass
+    : public llvm::PassInfoMixin<SPIRVLowerSPIRBlocksPass>,
+      public SPIRVLowerSPIRBlocksBase {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    MAManager = &MAM;
+    setCallGraph(&MAM.getResult<CallGraphAnalysis>(M));
+    return runLowerSPIRBlocks(M) ? llvm::PreservedAnalyses::none()
+                                 : llvm::PreservedAnalyses::all();
+  }
+
+  AssumptionCache *getAssumptionCache(llvm::Function &F) override {
+    return &(MAManager
+                 ->getResult<FunctionAnalysisManagerModuleProxy>(*F.getParent())
+                 .getManager())
+                .getResult<AssumptionAnalysis>(F);
+  }
+
+private:
+  llvm::ModuleAnalysisManager *MAManager = nullptr;
+};
+
+class SPIRVLowerSPIRBlocksLegacy : public ModulePass, SPIRVLowerSPIRBlocksBase {
+public:
+  SPIRVLowerSPIRBlocksLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerSPIRBlocksLegacyPass(*PassRegistry::getPassRegistry());
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<CallGraphWrapperPass>();
+    AU.addRequired<AAResultsWrapperPass>();
+    AU.addRequired<AssumptionCacheTracker>();
+  }
+
+  bool runOnModule(Module &Module) override {
+    setCallGraph(&(getAnalysis<CallGraphWrapperPass>().getCallGraph()));
+    ACT = &getAnalysis<AssumptionCacheTracker>();
+
+    return runLowerSPIRBlocks(Module);
+  }
+
+  AssumptionCache *getAssumptionCache(llvm::Function &F) override {
+    return &ACT->getAssumptionCache(F);
+  }
+
+  static char ID;
+
+private:
+  AssumptionCacheTracker *ACT = nullptr;
+};
+
+char SPIRVLowerSPIRBlocksLegacy::ID = 0;
 } // namespace SPIRV
 
-INITIALIZE_PASS_BEGIN(SPIRVLowerSPIRBlocks, "spv-lower-spir-blocks",
+INITIALIZE_PASS_BEGIN(SPIRVLowerSPIRBlocksLegacy, "spv-lower-spir-blocks",
                       "SPIR-V lower SPIR blocks", false, false)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
-INITIALIZE_PASS_END(SPIRVLowerSPIRBlocks, "spv-lower-spir-blocks",
+INITIALIZE_PASS_END(SPIRVLowerSPIRBlocksLegacy, "spv-lower-spir-blocks",
                     "SPIR-V lower SPIR blocks", false, false)
 
-ModulePass *llvm::createSPIRVLowerSPIRBlocks() {
-  return new SPIRVLowerSPIRBlocks();
+ModulePass *llvm::createSPIRVLowerSPIRBlocksLegacy() {
+  return new SPIRVLowerSPIRBlocksLegacy();
 }

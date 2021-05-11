@@ -9,7 +9,9 @@
 // UNSUPPORTED: libcpp-has-no-threads
 // UNSUPPORTED: c++03, c++11
 
-// This test requires the dylib support introduced in D68480
+// This test requires the dylib support introduced in D68480,
+// which hasn't shipped yet.
+// XFAIL: with_system_cxx_lib=macosx
 // XFAIL: with_system_cxx_lib=macosx10.15
 // XFAIL: with_system_cxx_lib=macosx10.14
 // XFAIL: with_system_cxx_lib=macosx10.13
@@ -24,6 +26,7 @@
 #include <thread>
 #include <cassert>
 
+#include "make_test_thread.h"
 #include "test_macros.h"
 
 int main(int, char**)
@@ -32,7 +35,7 @@ int main(int, char**)
   auto comp = [&]() { x += 1; };
   std::barrier<decltype(comp)> b(2, comp);
 
-  std::thread t([&](){
+  std::thread t = support::make_test_thread([&](){
       for(int i = 0; i < 10; ++i)
         b.arrive_and_wait();
   });

@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,29 +37,6 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
-#endif
-
-#if defined(__FreeBSD__) && defined(__i386__)
-#define I386_FREEBSD 1
-#else
-#define I386_FREEBSD 0
-#endif
-
-#if !defined(_MSC_VER) && !I386_FREEBSD
-#include <stdint.h>
-#endif
-
-#if defined(_MSC_VER)
-typedef unsigned char uint8_t;
-typedef unsigned int uint32_t;
-typedef unsigned long long uint64_t;
-#elif I386_FREEBSD
-/* System headers define 'size_t' incorrectly on x64 FreeBSD (prior to
- * FreeBSD 10, r232261) when compiled in 32-bit mode.
- */
-typedef unsigned char uint8_t;
-typedef unsigned int uint32_t;
-typedef unsigned long long uint64_t;
 #endif
 
 #include "InstrProfiling.h"
@@ -303,16 +281,11 @@ static void unmap_file() {
 
   mmap_handle = NULL;
 #else
-  if (msync(write_buffer, file_size, MS_SYNC) == -1) {
+  if (munmap(write_buffer, file_size) == -1) {
     int errnum = errno;
-    fprintf(stderr, "profiling: %s: cannot msync: %s\n", filename,
+    fprintf(stderr, "profiling: %s: cannot munmap: %s\n", filename,
             strerror(errnum));
   }
-
-  /* We explicitly ignore errors from unmapping because at this point the data
-   * is written and we don't care.
-   */
-  (void)munmap(write_buffer, file_size);
 #endif
 
   write_buffer = NULL;

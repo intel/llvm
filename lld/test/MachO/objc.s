@@ -1,12 +1,10 @@
 # REQUIRES: x86
-# RUN: split-file %s %t
+# RUN: rm -rf %t; split-file %s %t
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/has-objc-symbol.s -o %t/has-objc-symbol.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/has-objc-category.s -o %t/has-objc-category.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/has-swift.s -o %t/has-swift.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/no-objc.s -o %t/no-objc.o
-
-# RUN: rm -f %t/libHasSomeObjC.a
 # RUN: llvm-ar rcs %t/libHasSomeObjC.a %t/has-objc-symbol.o %t/has-objc-category.o %t/has-swift.o %t/no-objc.o
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/test.s -o %t/test.o
@@ -34,6 +32,7 @@
 # NO-OBJC-EMPTY:
 # NO-OBJC-NEXT:  SYMBOL TABLE:
 # NO-OBJC-NEXT:  g     F __TEXT,__text _main
+# NO-OBJC-NEXT:  g     F __TEXT,__text __mh_execute_header
 # NO-OBJC-EMPTY:
 
 #--- has-objc-symbol.s
@@ -41,11 +40,11 @@
 _OBJC_CLASS_$_MyObject:
 
 #--- has-objc-category.s
-.section	__DATA,__objc_catlist
+.section __DATA,__objc_catlist
 .quad 0x1234
 
 #--- has-swift.s
-.section	__TEXT,__swift
+.section __TEXT,__swift
 .quad 0x1234
 
 #--- no-objc.s

@@ -321,6 +321,10 @@ class MachineFunction {
   /// construct a table of valid longjmp targets for Windows Control Flow Guard.
   std::vector<MCSymbol *> LongjmpTargets;
 
+  /// List of basic blocks that are the target of catchrets. Used to construct
+  /// a table of valid targets for Windows EHCont Guard.
+  std::vector<MCSymbol *> CatchretTargets;
+
   /// \name Exception Handling
   /// \{
 
@@ -341,6 +345,7 @@ class MachineFunction {
 
   bool CallsEHReturn = false;
   bool CallsUnwindInit = false;
+  bool HasEHCatchret = false;
   bool HasEHScopes = false;
   bool HasEHFunclets = false;
 
@@ -435,6 +440,34 @@ public:
   /// assigned to them. Used for debug value tracking, to determine the
   /// next instruction number.
   unsigned DebugInstrNumberingCount = 0;
+
+  /// Set value of DebugInstrNumberingCount field. Avoid using this unless
+  /// you're deserializing this data.
+  void setDebugInstrNumberingCount(unsigned Num);
+
+  /// Pair of instruction number and operand number.
+  using DebugInstrOperandPair = std::pair<unsigned, unsigned>;
+
+  /// Substitution map: from one <inst,operand> pair to another. Used to
+  /// record changes in where a value is defined, so that debug variable
+  /// locations can find it later.
+  std::map<DebugInstrOperandPair, DebugInstrOperandPair>
+      DebugValueSubstitutions;
+
+  /// Create a substitution between one <instr,operand> value to a different,
+  /// new value.
+  void makeDebugValueSubstitution(DebugInstrOperandPair, DebugInstrOperandPair);
+
+  /// Create substitutions for any tracked values in \p Old, to point at
+  /// \p New. Needed when we re-create an instruction during optimization,
+  /// which has the same signature (i.e., def operands in the same place) but
+  /// a modified instruction type, flags, or otherwise. An example: X86 moves
+  /// are sometimes transformed into equivalent LEAs.
+  /// If the two instructions are not the same opcode, limit which operands to
+  /// examine for substitutions to the first N operands by setting
+  /// \p MaxOperand.
+  void substituteDebugValuesForInst(const MachineInstr &Old, MachineInstr &New,
+                                    unsigned MaxOperand = UINT_MAX);
 
   MachineFunction(Function &F, const LLVMTargetMachine &Target,
                   const TargetSubtargetInfo &STI, unsigned FunctionNum,
@@ -902,6 +935,18 @@ public:
   /// Control Flow Guard.
   void addLongjmpTarget(MCSymbol *Target) { LongjmpTargets.push_back(Target); }
 
+  /// Returns a reference to a list of symbols that we have catchrets.
+  /// Used to construct the catchret target table used by Windows EHCont Guard.
+  const std::vector<MCSymbol *> &getCatchretTargets() const {
+    return CatchretTargets;
+  }
+
+  /// Add the specified symbol to the list of valid catchret targets for Windows
+  /// EHCont Guard.
+  void addCatchretTarget(MCSymbol *Target) {
+    CatchretTargets.push_back(Target);
+  }
+
   /// \name Exception Handling
   /// \{
 
@@ -910,6 +955,9 @@ public:
 
   bool callsUnwindInit() const { return CallsUnwindInit; }
   void setCallsUnwindInit(bool b) { CallsUnwindInit = b; }
+
+  bool hasEHCatchret() const { return HasEHCatchret; }
+  void setHasEHCatchret(bool V) { HasEHCatchret = V; }
 
   bool hasEHScopes() const { return HasEHScopes; }
   void setHasEHScopes(bool V) { HasEHScopes = V; }

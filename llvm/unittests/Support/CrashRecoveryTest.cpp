@@ -109,8 +109,9 @@ TEST(CrashRecoveryTest, LimitedStackTrace) {
   std::string Str = RawStream.str();
   // FIXME: Handle "Depth" parameter in PrintStackTrace() function
   // to print stack trace upto a specified Depth.
-  if (!Triple(sys::getProcessTriple()).isOSWindows())
+  if (!Triple(sys::getProcessTriple()).isOSWindows()) {
     EXPECT_EQ(std::string::npos, Str.find("#1"));
+  }
 }
 
 #ifdef _WIN32
@@ -156,8 +157,12 @@ TEST(CrashRecoveryTest, UnixCRCReturnCode) {
   if (getenv("LLVM_CRC_UNIXCRCRETURNCODE")) {
     llvm::CrashRecoveryContext::Enable();
     CrashRecoveryContext CRC;
-    EXPECT_FALSE(CRC.RunSafely(abort));
-    EXPECT_EQ(CRC.RetCode, 128 + SIGABRT);
+    // This path runs in a subprocess that exits by signalling, so don't use
+    // the googletest macros to verify things as they won't report properly.
+    if (CRC.RunSafely(abort))
+      llvm_unreachable("RunSafely returned true!");
+    if (CRC.RetCode != 128 + SIGABRT)
+      llvm_unreachable("Unexpected RetCode!");
     // re-throw signal
     llvm::sys::unregisterHandlers();
     raise(CRC.RetCode - 128);

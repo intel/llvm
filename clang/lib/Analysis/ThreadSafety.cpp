@@ -983,7 +983,7 @@ private:
     } else {
       FSet.removeLock(FactMan, !Cp);
       FSet.addLock(FactMan,
-                   std::make_unique<LockableFactEntry>(Cp, kind, loc));
+                   std::make_unique<LockableFactEntry>(Cp, kind, loc, true));
     }
   }
 
@@ -1266,13 +1266,29 @@ ClassifyDiagnostic(const AttrTy *A) {
 }
 
 bool ThreadSafetyAnalyzer::inCurrentScope(const CapabilityExpr &CapE) {
-  if (!CurrentMethod)
+  const threadSafety::til::SExpr *SExp = CapE.sexpr();
+  assert(SExp && "Null expressions should be ignored");
+
+  if (const auto *LP = dyn_cast<til::LiteralPtr>(SExp)) {
+    const ValueDecl *VD = LP->clangDecl();
+    // Variables defined in a function are always inaccessible.
+    if (!VD->isDefinedOutsideFunctionOrMethod())
       return false;
-  if (const auto *P = dyn_cast_or_null<til::Project>(CapE.sexpr())) {
-    const auto *VD = P->clangDecl();
-    if (VD)
-      return VD->getDeclContext() == CurrentMethod->getDeclContext();
+    // For now we consider static class members to be inaccessible.
+    if (isa<CXXRecordDecl>(VD->getDeclContext()))
+      return false;
+    // Global variables are always in scope.
+    return true;
   }
+
+  // Members are in scope from methods of the same class.
+  if (const auto *P = dyn_cast<til::Project>(SExp)) {
+    if (!CurrentMethod)
+      return false;
+    const ValueDecl *VD = P->clangDecl();
+    return VD->getDeclContext() == CurrentMethod->getDeclContext();
+  }
+
   return false;
 }
 
@@ -2035,15 +2051,11 @@ void BuildLockset::VisitCallExpr(const CallExpr *Exp) {
 
     if (ME && MD) {
       if (ME->isArrow()) {
-        if (MD->isConst())
-          checkPtAccess(CE->getImplicitObjectArgument(), AK_Read);
-        else // FIXME -- should be AK_Written
-          checkPtAccess(CE->getImplicitObjectArgument(), AK_Read);
+        // Should perhaps be AK_Written if !MD->isConst().
+        checkPtAccess(CE->getImplicitObjectArgument(), AK_Read);
       } else {
-        if (MD->isConst())
-          checkAccess(CE->getImplicitObjectArgument(), AK_Read);
-        else     // FIXME -- should be AK_Written
-          checkAccess(CE->getImplicitObjectArgument(), AK_Read);
+        // Should perhaps be AK_Written if !MD->isConst().
+        checkAccess(CE->getImplicitObjectArgument(), AK_Read);
       }
     }
 

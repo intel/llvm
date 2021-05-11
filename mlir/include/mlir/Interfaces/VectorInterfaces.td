@@ -33,7 +33,7 @@ def VectorUnrollOpInterface : OpInterface<"VectorUnrollOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        assert($_op.getOperation()->getNumResults() == 1);
+        assert($_op->getNumResults() == 1);
         auto vt = $_op.getResult().getType().
           template dyn_cast<VectorType>();
         if (!vt)
@@ -47,18 +47,18 @@ def VectorUnrollOpInterface : OpInterface<"VectorUnrollOpInterface"> {
 
 def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
   let description = [{
-    Encodes properties of an operation on vectors that can be unrolled.
+    Encodes properties of a transfer read or write operation.
   }];
   let cppNamespace = "::mlir";
 
   let methods = [
     StaticInterfaceMethod<
-      /*desc=*/"Return the `masked` attribute name.",
+      /*desc=*/"Return the `in_bounds` attribute name.",
       /*retTy=*/"StringRef",
-      /*methodName=*/"getMaskedAttrName",
+      /*methodName=*/"getInBoundsAttrName",
       /*args=*/(ins),
       /*methodBody=*/"",
-      /*defaultImplementation=*/ [{ return "masked"; }]
+      /*defaultImplementation=*/ [{ return "in_bounds"; }]
     >,
     StaticInterfaceMethod<
       /*desc=*/"Return the `permutation_map` attribute name.",
@@ -70,24 +70,24 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
-      Return `false` when the `masked` attribute at dimension
-      `dim` is set to `false`. Return `true` otherwise.}],
+      Return `true` when the `in_bounds` attribute at dimension
+      `dim` is set to `true`. Return `false` otherwise.}],
       /*retTy=*/"bool",
-      /*methodName=*/"isMaskedDim",
+      /*methodName=*/"isDimInBounds",
       /*args=*/(ins "unsigned":$dim),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return !$_op.masked() ||
-          $_op.masked()->template cast<ArrayAttr>()[dim]
-                        .template cast<BoolAttr>().getValue();
+        return $_op.in_bounds() &&
+          $_op.in_bounds()->template cast<ArrayAttr>()[dim]
+                          .template cast<BoolAttr>().getValue();
       }]
     >,
     InterfaceMethod<
-      /*desc=*/"Return the memref operand.",
+      /*desc=*/"Return the memref or ranked tensor operand.",
       /*retTy=*/"Value",
-      /*methodName=*/"memref",
+      /*methodName=*/"source",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.memref();"
+      /*methodBody=*/"return $_op.source();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
@@ -115,21 +115,36 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
-      /*desc=*/"Return the `masked` boolean ArrayAttr.",
-      /*retTy=*/"Optional<ArrayAttr>",
-      /*methodName=*/"masked",
+      /*desc=*/[{ Returns true if at least one of the dimensions in the
+                  permutation map is a broadcast.}],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasBroadcastDim",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.masked();"
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return llvm::any_of(
+            $_op.permutation_map().getResults(),
+            [](AffineExpr e) {
+                return e.isa<AffineConstantExpr>() &&
+                       e.dyn_cast<AffineConstantExpr>().getValue() == 0; });
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Return the `in_bounds` boolean ArrayAttr.",
+      /*retTy=*/"Optional<ArrayAttr>",
+      /*methodName=*/"in_bounds",
+      /*args=*/(ins),
+      /*methodBody=*/"return $_op.in_bounds();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
-      /*desc=*/"Return the MemRefType.",
-      /*retTy=*/"MemRefType",
-      /*methodName=*/"getMemRefType",
+      /*desc=*/"Return the ShapedType.",
+      /*retTy=*/"ShapedType",
+      /*methodName=*/"getShapedType",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/
-        "return $_op.memref().getType().template cast<MemRefType>();"
+        "return $_op.source().getType().template cast<ShapedType>();"
     >,
     InterfaceMethod<
       /*desc=*/"Return the VectorType.",
@@ -152,24 +167,25 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
         "return $_op.permutation_map().getNumResults();"
     >,
     InterfaceMethod<
-      /*desc=*/[{ Return the number of leading memref dimensions that do not
+      /*desc=*/[{ Return the number of leading shaped dimensions that do not
                   participate in the permutation map.}],
       /*retTy=*/"unsigned",
-      /*methodName=*/"getLeadingMemRefRank",
+      /*methodName=*/"getLeadingShapedRank",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/
-        "return $_op.getMemRefType().getRank() - $_op.getTransferRank();"
+        "return $_op.getShapedType().getRank() - $_op.getTransferRank();"
     >,
     InterfaceMethod<
-      /*desc=*/[{ Returns true if at least one of the dimensions is masked.}],
+      /*desc=*/[{ Returns true if at least one of the dimensions may be
+                  out-of-bounds.}],
       /*retTy=*/"bool",
-      /*methodName=*/"hasMaskedDim",
+      /*methodName=*/"hasOutOfBoundsDim",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         for (unsigned idx = 0, e = $_op.getTransferRank(); idx < e; ++idx)
-          if ($_op.isMaskedDim(idx))
+          if (!$_op.isDimInBounds(idx))
             return true;
         return false;
       }]
@@ -178,8 +194,8 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*desc=*/[{
       Helper function to account for the fact that `permutationMap` results and
       `op.indices` sizes may not match and may not be aligned. The first
-      `getLeadingMemRefRank()` indices may just be indexed and not transferred
-      from/into the vector.
+      `getLeadingShapedRank()` indices may just be indexed and not
+      transferred from/into the vector.
       For example:
       ```
          vector.transfer %0[%i, %j, %k, %c0] :
@@ -195,7 +211,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         for (int64_t resultIdx = 0,
-                   indicesIdx = $_op.getLeadingMemRefRank(),
+                   indicesIdx = $_op.getLeadingShapedRank(),
                    eResult = $_op.getTransferRank();
            resultIdx < eResult;
            ++resultIdx, ++indicesIdx)

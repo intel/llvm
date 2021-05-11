@@ -105,18 +105,19 @@ llvm::Expected<RenameResult> runRename(ClangdServer &Server, PathRef File,
   return std::move(*Result);
 }
 
-llvm::Expected<RenameResult> runPrepareRename(ClangdServer &Server,
-                                              PathRef File, Position Pos,
-                                              const RenameOptions &RenameOpts) {
+llvm::Expected<RenameResult>
+runPrepareRename(ClangdServer &Server, PathRef File, Position Pos,
+                 llvm::Optional<std::string> NewName,
+                 const RenameOptions &RenameOpts) {
   llvm::Optional<llvm::Expected<RenameResult>> Result;
-  Server.prepareRename(File, Pos, RenameOpts, capture(Result));
+  Server.prepareRename(File, Pos, NewName, RenameOpts, capture(Result));
   return std::move(*Result);
 }
 
 llvm::Expected<tooling::Replacements>
-runFormatFile(ClangdServer &Server, PathRef File, StringRef Code) {
+runFormatFile(ClangdServer &Server, PathRef File, llvm::Optional<Range> Rng) {
   llvm::Optional<llvm::Expected<tooling::Replacements>> Result;
-  Server.formatFile(File, Code, capture(Result));
+  Server.formatFile(File, Rng, capture(Result));
   return std::move(*Result);
 }
 

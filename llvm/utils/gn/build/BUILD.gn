@@ -1,5 +1,6 @@
 import("//llvm/utils/gn/build/buildflags.gni")
 import("//llvm/utils/gn/build/mac_sdk.gni")
+import("//llvm/utils/gn/build/sysroot.gni")
 import("//llvm/utils/gn/build/toolchain/compiler.gni")
 import("//llvm/utils/gn/build/toolchain/target_flags.gni")
 
@@ -42,20 +43,41 @@ config("compiler_defaults") {
   cflags = target_flags
   ldflags = target_flags + target_ldflags
 
-  if (host_os == "mac" && clang_base_path != "") {
-    cflags += [
-      "-isysroot",
-      mac_sdk_path,
-    ]
-    ldflags += [
-      "-isysroot",
-      mac_sdk_path,
-    ]
+  # Mostly for compiler-rt, see compiler-rt/cmake/config-ix.cmake
+  if (current_os == "ios") {
+    asmflags += [ "-miphoneos-version-min=8.0" ]
+    cflags += [ "-miphoneos-version-min=8.0" ]
+    ldflags += [ "-miphoneos-version-min=8.0" ]
+  }
+  if (current_os == "mac") {
+    asmflags += [ "-mmacosx-version-min=10.10" ]
+    cflags += [ "-mmacosx-version-min=10.10" ]
+    ldflags += [ "-mmacosx-version-min=10.10" ]
   }
 
+  assert(symbol_level == 0 || symbol_level == 1 || symbol_level == 2,
+         "Unexpected symbol_level")
   if (host_os != "win") {
-    if (is_debug) {
+    if (symbol_level == 2) {
       cflags += [ "-g" ]
+
+      # For full debug-info -g builds, --gdb-index makes links ~15% slower, and
+      # gdb symbol reading time 1500% faster (lld links in 4.4 instead of 3.9s,
+      # and gdb loads and runs it in 2s instead of in 30s).  It's likely that
+      # people doing symbol_level=2 want to run a debugger (since
+      # symbol_level=2 isn't the default). So this seems like the right
+      # tradeoff.
+      if (host_os != "mac" && use_lld) {
+        cflags += [ "-ggnu-pubnames" ]  # PR34820
+        ldflags += [ "-Wl,--gdb-index" ]
+      }
+    } else if (symbol_level == 1) {
+      cflags += [ "-g1" ]
+      # For linetable-only -g1 builds, --gdb-index makes links ~8% slower, but
+      # links are 4x faster than -g builds so it's a fairly small absolute cost.
+      # On the other hand, gdb startup is well below 1s with and without the
+      # index, and people using -g1 likely don't use a debugger. So don't use
+      # the flag here.
     }
     if (is_optimized) {
       cflags += [ "-O3" ]
@@ -69,11 +91,14 @@ config("compiler_defaults") {
       "-fvisibility-inlines-hidden",
     ]
   } else {
-    if (is_debug) {
+    if (symbol_level != 0) {
       cflags += [
         "/Zi",
         "/FS",
       ]
+      if (symbol_level == 1 && is_clang) {
+        cflags += [ "-gline-tables-only" ]
+      }
       ldflags += [ "/DEBUG" ]
 
       # Speed up links with ghash on windows.
@@ -235,6 +260,38 @@ config("compiler_defaults") {
       ]
     }
   }
+  if (sysroot != "") {
+    if (current_os == "win") {
+      assert(is_clang, "sysroot only works with clang-cl as host compiler")
+      cflags += [ "/winsysroot" + rebase_path(sysroot, root_build_dir) ]
+    } else if (current_os != "ios" && current_os != "mac") {
+      cflags += [ "--sysroot=" + rebase_path(sysroot, root_build_dir) ]
+    }
+  }
+  if ((current_os == "ios" || current_os == "mac") &&
+      (clang_base_path != "" || sysroot != "")) {
+    if (current_os == "ios" && current_cpu == "arm64") {
+      sdk_path = ios_sdk_path
+    } else if (current_os == "ios" && current_cpu == "x64") {
+      sdk_path = iossim_sdk_path
+    } else if (current_os == "mac") {
+      sdk_path = mac_sdk_path
+    }
+    cflags += [
+      "-isysroot",
+      rebase_path(sdk_path, root_build_dir),
+    ]
+    ldflags += [
+      "-isysroot",
+      rebase_path(sdk_path, root_build_dir),
+    ]
+  }
+  if (sysroot != "" && current_os != "win" && is_clang) {
+    cflags += [ "-Wpoison-system-directories" ]
+  }
+  assert(
+      !use_goma || sysroot != "",
+      "goma needs a sysroot: run `llvm/utils/sysroot.py make-fake --out-dir=sysroot` and add `sysroot = \"//sysroot\"` to your args.gn")
 
   if (use_ubsan) {
     assert(is_clang && current_os == "linux",
@@ -296,7 +353,7 @@ config("no_rtti") {
 # To make an archive that can be distributed, you need to remove this config and
 # set complete_static_lib.
 config("thin_archive") {
-  if (current_os != "win" && current_os != "mac") {
+  if (current_os != "ios" && current_os != "mac" && current_os != "win") {
     arflags = [ "-T" ]
   }
 }

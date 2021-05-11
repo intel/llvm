@@ -10,8 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Rewrite/PatternApplicator.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "llvm/ADT/DenseMap.h"
@@ -36,7 +37,7 @@ namespace {
 class GreedyPatternRewriteDriver : public PatternRewriter {
 public:
   explicit GreedyPatternRewriteDriver(MLIRContext *ctx,
-                                      const OwningRewritePatternList &patterns)
+                                      const FrozenRewritePatternSet &patterns)
       : PatternRewriter(ctx), matcher(patterns), folder(ctx) {
     worklist.reserve(64);
 
@@ -106,14 +107,15 @@ private:
   // be re-added to the worklist. This function should be called when an
   // operation is modified or removed, as it may trigger further
   // simplifications.
-  template <typename Operands> void addToWorklist(Operands &&operands) {
+  template <typename Operands>
+  void addToWorklist(Operands &&operands) {
     for (Value operand : operands) {
       // If the use count of this operand is now < 2, we re-add the defining
       // operation to the worklist.
       // TODO: This is based on the fact that zero use operations
       // may be deleted, and that single use values often have more
       // canonicalization opportunities.
-      if (!operand.use_empty() && !operand.hasOneUse())
+      if (!operand || (!operand.use_empty() && !operand.hasOneUse()))
         continue;
       if (auto *defInst = operand.getDefiningOp())
         addToWorklist(defInst);
@@ -201,10 +203,7 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions,
 
     // After applying patterns, make sure that the CFG of each of the regions is
     // kept up to date.
-    if (succeeded(simplifyRegions(regions))) {
-      folder.clear();
-      changed = true;
-    }
+    changed |= succeeded(simplifyRegions(*this, regions));
   } while (changed && ++i < maxIterations);
   // Whether the rewrite converges, i.e. wasn't changed in the last iteration.
   return !changed;
@@ -218,13 +217,27 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions,
 ///
 LogicalResult
 mlir::applyPatternsAndFoldGreedily(Operation *op,
-                                   const OwningRewritePatternList &patterns) {
-  return applyPatternsAndFoldGreedily(op->getRegions(), patterns);
+                                   const FrozenRewritePatternSet &patterns) {
+  return applyPatternsAndFoldGreedily(op, patterns, maxPatternMatchIterations);
+}
+LogicalResult
+mlir::applyPatternsAndFoldGreedily(Operation *op,
+                                   const FrozenRewritePatternSet &patterns,
+                                   unsigned maxIterations) {
+  return applyPatternsAndFoldGreedily(op->getRegions(), patterns,
+                                      maxIterations);
 }
 /// Rewrite the given regions, which must be isolated from above.
 LogicalResult
 mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
-                                   const OwningRewritePatternList &patterns) {
+                                   const FrozenRewritePatternSet &patterns) {
+  return applyPatternsAndFoldGreedily(regions, patterns,
+                                      maxPatternMatchIterations);
+}
+LogicalResult
+mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
+                                   const FrozenRewritePatternSet &patterns,
+                                   unsigned maxIterations) {
   if (regions.empty())
     return success();
 
@@ -232,7 +245,7 @@ mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
   // prevent performing canonicalizations on operations defined at or above
   // the region containing 'op'.
   auto regionIsIsolated = [](Region &region) {
-    return region.getParentOp()->isKnownIsolatedFromAbove();
+    return region.getParentOp()->hasTrait<OpTrait::IsIsolatedFromAbove>();
   };
   (void)regionIsIsolated;
   assert(llvm::all_of(regions, regionIsIsolated) &&
@@ -240,10 +253,10 @@ mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
 
   // Start the pattern driver.
   GreedyPatternRewriteDriver driver(regions[0].getContext(), patterns);
-  bool converged = driver.simplify(regions, maxPatternMatchIterations);
+  bool converged = driver.simplify(regions, maxIterations);
   LLVM_DEBUG(if (!converged) {
     llvm::dbgs() << "The pattern rewrite doesn't converge after scanning "
-                 << maxPatternMatchIterations << " times";
+                 << maxIterations << " times\n";
   });
   return success(converged);
 }
@@ -258,7 +271,7 @@ namespace {
 class OpPatternRewriteDriver : public PatternRewriter {
 public:
   explicit OpPatternRewriteDriver(MLIRContext *ctx,
-                                  const OwningRewritePatternList &patterns)
+                                  const FrozenRewritePatternSet &patterns)
       : PatternRewriter(ctx), matcher(patterns), folder(ctx) {
     // Apply a simple cost model based solely on pattern benefit.
     matcher.applyDefaultCostModel();
@@ -306,6 +319,8 @@ LogicalResult OpPatternRewriteDriver::simplifyLocally(Operation *op,
   // Iterate until convergence or until maxIterations. Deletion of the op as
   // a result of being dead or folded is convergence.
   do {
+    changed = false;
+
     // If the operation is trivially dead - remove it.
     if (isOpTriviallyDead(op)) {
       op->erase();
@@ -340,7 +355,7 @@ LogicalResult OpPatternRewriteDriver::simplifyLocally(Operation *op,
 /// folding. `erased` is set to true if the op is erased as a result of being
 /// folded, replaced, or dead.
 LogicalResult mlir::applyOpPatternsAndFold(
-    Operation *op, const OwningRewritePatternList &patterns, bool *erased) {
+    Operation *op, const FrozenRewritePatternSet &patterns, bool *erased) {
   // Start the pattern driver.
   OpPatternRewriteDriver driver(op->getContext(), patterns);
   bool opErased;

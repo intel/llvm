@@ -28,7 +28,9 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
 #include <cstring>
@@ -42,32 +44,25 @@ namespace id = itanium_demangle;
 #define SLM_BTI 254
 
 namespace {
-class SYCLLowerESIMDLegacyPass : public FunctionPass {
+SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
+void generateKernelMetadata(Module &);
+
+class SYCLLowerESIMDLegacyPass : public ModulePass {
 public:
   static char ID; // Pass identification, replacement for typeid
-  SYCLLowerESIMDLegacyPass() : FunctionPass(ID) {
+  SYCLLowerESIMDLegacyPass() : ModulePass(ID) {
     initializeSYCLLowerESIMDLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
   // run the LowerESIMD pass on the specified module
-  bool runOnFunction(Function &F) override {
-    FunctionAnalysisManager FAM;
-    auto PA = Impl.run(F, FAM, GenXVolatileTypeSet);
+  bool runOnModule(Module &M) override {
+    ModuleAnalysisManager MAM;
+    auto PA = Impl.run(M, MAM);
     return !PA.areAllPreserved();
-  }
-
-  bool doInitialization(Module &M) override {
-    // emit ESIMD backend compatible metadata.
-    generateKernelMetadata(M);
-    collectGenXVolatileType(M);
-    return false;
   }
 
 private:
   SYCLLowerESIMDPass Impl;
-  SmallPtrSet<Type *, 4> GenXVolatileTypeSet;
-  void generateKernelMetadata(Module &M);
-  void collectGenXVolatileType(Module &M);
 };
 } // namespace
 
@@ -76,7 +71,7 @@ INITIALIZE_PASS(SYCLLowerESIMDLegacyPass, "LowerESIMD",
                 "Lower constructs specific to Close To Metal", false, false)
 
 // Public interface to the SYCLLowerESIMDPass.
-FunctionPass *llvm::createSYCLLowerESIMDPass() {
+ModulePass *llvm::createSYCLLowerESIMDPass() {
   return new SYCLLowerESIMDLegacyPass();
 }
 
@@ -85,7 +80,7 @@ namespace {
 // /^_Z(\d+)__esimd_\w+/
 static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
 static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
-static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_";
+static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
 
 static constexpr char GENX_KERNEL_METADATA[] = "genx.kernels";
 
@@ -144,7 +139,7 @@ struct ESIMDIntrinDesc {
 
   std::string GenXSpelling;
   SmallVector<ArgRule, 16> ArgRules;
-  NameRule SuffixRule = {NO_RULE, 0};
+  NameRule SuffixRule = {NO_RULE, {0}};
 
   int getNumGenXArgs() const {
     auto NRules = ArgRules.size();
@@ -169,7 +164,7 @@ private:
 
 #define DEF_ARG_RULE(Nm, Kind)                                                 \
   static constexpr ESIMDIntrinDesc::ArgRule Nm(int16_t N) {                    \
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::Kind, N};                 \
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::Kind, {{N, {}}}};         \
   }
   DEF_ARG_RULE(l, SRC_CALL_ALL)
   DEF_ARG_RULE(t, SRC_TMPL_ARG)
@@ -179,39 +174,39 @@ private:
   static constexpr ESIMDIntrinDesc::ArgRule a(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::NONE}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule ai1(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule aSI(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c16(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT16, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT16, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c32(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT32, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT32, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c64(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT64, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT64, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::NameRule bo(int16_t N) {
-    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::BIN_OP, N};
+    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::BIN_OP, {N}};
   }
 
   static constexpr ESIMDIntrinDesc::NameRule nk(int16_t N) {
-    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::NUM_KIND, N};
+    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::NUM_KIND, {N}};
   }
 
 public:
@@ -237,9 +232,15 @@ public:
         //          for integer, "f" - for floating point
         {"rdregion",
          {"rdregion", {a(0), t(3), t(4), t(5), a(1), t(6)}, nk(-1)}},
+        {"rdindirect",
+         {"rdregion", {a(0), c32(0), t(2), c32(0), a(1), t(3)}, nk(-1)}},
         {{"wrregion"},
          {{"wrregion"},
           {a(0), a(1), t(3), t(4), t(5), a(2), t(6), ai1(3)},
+          nk(-1)}},
+        {{"wrindirect"},
+         {{"wrregion"},
+          {a(0), a(1), c32(0), t(2), c32(0), a(2), t(3), ai1(3)},
           nk(-1)}},
         {"vload", {"vload", {l(0)}}},
         {"vstore", {"vstore", {a(1), a(0)}}},
@@ -252,6 +253,15 @@ public:
         {"flat_write", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
         {"flat_write4",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
+
+        // surface index-based gather/scatter:
+        // num blocks, scale, surface index, global offset, elem offsets
+        {"surf_read", {"gather.scaled2", {t(3), c16(0), aSI(1), a(2), a(3)}}},
+        // pred, num blocks, scale, surface index, global offset, elem offsets,
+        // data to write
+        {"surf_write",
+         {"scatter.scaled", {ai1(0), t(3), c16(0), aSI(2), a(3), a(4), a(5)}}},
+
         // intrinsics to query thread's coordinates:
         {"group_id_x", {"group.id.x", {}}},
         {"group_id_y", {"group.id.y", {}}},
@@ -280,10 +290,10 @@ public:
          {"media.st", {a(0), aSI(1), a(2), a(3), a(4), a(5), a(6)}}},
         {"slm_fence", {"fence", {a(0)}}},
         {"barrier", {"barrier", {}}},
+        {"sbarrier", {"sbarrier", {a(0)}}},
         {"block_read", {"oword.ld.unaligned", {c32(0), aSI(0), a(1)}}},
         {"block_write", {"oword.st", {aSI(0), a(1), a(2)}}},
-        {"slm_block_read",
-         {"oword.ld.unaligned", {c32(0), c32(SLM_BTI), a(0)}}},
+        {"slm_block_read", {"oword.ld", {c32(0), c32(SLM_BTI), a(0)}}},
         {"slm_block_write", {"oword.st", {c32(SLM_BTI), a(0), a(1)}}},
         {"slm_read",
          {"gather.scaled",
@@ -363,10 +373,17 @@ public:
         {"cos", {"cos", {a(0)}}},
         {"pow", {"pow", {a(0), a(1)}}},
         {"div_ieee", {"ieee.div", {a(0), a(1)}}},
-        {"dp4a", {"dp4a", {a(0), a(1), a(2)}}},
+        {"uudp4a", {"uudp4a", {a(0), a(1), a(2)}}},
+        {"usdp4a", {"usdp4a", {a(0), a(1), a(2)}}},
+        {"sudp4a", {"sudp4a", {a(0), a(1), a(2)}}},
+        {"ssdp4a", {"ssdp4a", {a(0), a(1), a(2)}}},
+        {"uudp4a_sat", {"uudp4a.sat", {a(0), a(1), a(2)}}},
+        {"usdp4a_sat", {"usdp4a.sat", {a(0), a(1), a(2)}}},
+        {"sudp4a_sat", {"sudp4a.sat", {a(0), a(1), a(2)}}},
+        {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
-    };
+        {"lane_id", {"lane.id", {}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -704,7 +721,8 @@ static void translateUnPackMask(CallInst &CI) {
   llvm::Value *TransCI = Builder.CreateZExt(
       Arg0, llvm::FixedVectorType::get(llvm::Type::getInt16Ty(Context), N));
   TransCI->takeName(&CI);
-  cast<llvm::Instruction>(TransCI)->setDebugLoc(CI.getDebugLoc());
+  if (llvm::Instruction *TransCInst = dyn_cast<llvm::Instruction>(TransCI))
+    TransCInst->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(TransCI);
 }
 
@@ -712,7 +730,7 @@ static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   if (GVTS.find(CI.getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
-  auto LI = Builder.CreateLoad(CI.getArgOperand(0), CI.getName());
+  auto LI = Builder.CreateLoad(CI.getType(), CI.getArgOperand(0), CI.getName());
   LI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(LI);
   return true;
@@ -746,9 +764,6 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
   Type *NITy = NewI->getType();
   Type *OITy = OldI->getType();
   if (OITy != NITy) {
-    assert(
-        CastInst::isCastable(OITy, NITy) &&
-        "Cannot add cast instruction while translating ESIMD intrinsic call");
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
                             NewI->getName() + ".cast.ty", OldI);
@@ -764,108 +779,133 @@ static int getIndexForSuffix(StringRef Suff) {
       .Default(-1);
 }
 
-// Helper function to convert SPIRV intrinsic into GenX intrinsic,
-// that returns vector of coordinates.
-// Example:
-//   %call = call spir_func i64 @_Z23__spirv_WorkgroupSize_xv()
-//     =>
-//   %call.esimd = tail call <3 x i32> @llvm.genx.local.size.v3i32()
-//   %wgsize.x = extractelement <3 x i32> %call.esimd, i32 0
-//   %wgsize.x.cast.ty = zext i32 %wgsize.x to i64
-static Instruction *generateVectorGenXForSpirv(CallInst &CI, StringRef Suff,
+// Helper function to convert extractelement instruction associated with the
+// load from SPIRV builtin global, into the GenX intrinsic that returns vector
+// of coordinates. It also generates required extractelement and cast
+// instructions. Example:
+//  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast
+//       (<3 x i64> addrspace(1)* @__spirv_BuiltInLocalInvocationId
+//       to <3 x i64> addrspace(4)*), align 32
+//  %1 = extractelement <3 x i64> %0, i64 0
+//
+//    =>
+//
+//  %.esimd = call <3 x i32> @llvm.genx.local.id.v3i32()
+//  %local_id.x = extractelement <3 x i32> %.esimd, i32 0
+//  %local_id.x.cast.ty = zext i32 %local_id.x to i64
+static Instruction *generateVectorGenXForSpirv(ExtractElementInst *EEI,
+                                               StringRef Suff,
                                                const std::string &IntrinName,
                                                StringRef ValueName) {
   std::string IntrName =
       std::string(GenXIntrinsic::getGenXIntrinsicPrefix()) + IntrinName;
   auto ID = GenXIntrinsic::lookupGenXIntrinsicID(IntrName);
-  LLVMContext &Ctx = CI.getModule()->getContext();
+  LLVMContext &Ctx = EEI->getModule()->getContext();
   Type *I32Ty = Type::getInt32Ty(Ctx);
   Function *NewFDecl = GenXIntrinsic::getGenXDeclaration(
-      CI.getModule(), ID, {FixedVectorType::get(I32Ty, 3)});
+      EEI->getModule(), ID, {FixedVectorType::get(I32Ty, 3)});
   Instruction *IntrI =
-      IntrinsicInst::Create(NewFDecl, {}, CI.getName() + ".esimd", &CI);
+      IntrinsicInst::Create(NewFDecl, {}, EEI->getName() + ".esimd", EEI);
   int ExtractIndex = getIndexForSuffix(Suff);
   assert(ExtractIndex != -1 && "Extract index is invalid.");
   Twine ExtractName = ValueName + Suff;
+
   Instruction *ExtrI = ExtractElementInst::Create(
-      IntrI, ConstantInt::get(I32Ty, ExtractIndex), ExtractName, &CI);
-  Instruction *CastI = addCastInstIfNeeded(&CI, ExtrI);
+      IntrI, ConstantInt::get(I32Ty, ExtractIndex), ExtractName, EEI);
+  Instruction *CastI = addCastInstIfNeeded(EEI, ExtrI);
+  if (EEI->getDebugLoc()) {
+    IntrI->setDebugLoc(EEI->getDebugLoc());
+    ExtrI->setDebugLoc(EEI->getDebugLoc());
+    // It's OK if ExtrI and CastI is the same instruction
+    CastI->setDebugLoc(EEI->getDebugLoc());
+  }
   return CastI;
 }
 
-// Helper function to convert SPIRV intrinsic into GenX intrinsic,
-// that has exact mapping.
-// Example:
-//   %call = call spir_func i64 @_Z21__spirv_WorkgroupId_xv()
-//     =>
-//   %group.id.x = tail call i32 @llvm.genx.group.id.x()
-//   %group.id.x.cast.ty = zext i32 %group.id.x to i64
-static Instruction *generateGenXForSpirv(CallInst &CI, StringRef Suff,
+// Helper function to convert extractelement instruction associated with the
+// load from SPIRV builtin global, into the GenX intrinsic. It also generates
+// required cast instructions. Example:
+//  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64>
+//  addrspace(1)* @__spirv_BuiltInWorkgroupId to <3 x i64> addrspace(4)*), align
+//  32 %1 = extractelement <3 x i64> %0, i64 0
+//   =>
+//  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64>
+//  addrspace(1)* @__spirv_BuiltInWorkgroupId to <3 x i64> addrspace(4)*), align
+//  32 %group.id.x = call i32 @llvm.genx.group.id.x() %group.id.x.cast.ty = zext
+//  i32 %group.id.x to i64
+static Instruction *generateGenXForSpirv(ExtractElementInst *EEI,
+                                         StringRef Suff,
                                          const std::string &IntrinName) {
   std::string IntrName = std::string(GenXIntrinsic::getGenXIntrinsicPrefix()) +
                          IntrinName + Suff.str();
   auto ID = GenXIntrinsic::lookupGenXIntrinsicID(IntrName);
   Function *NewFDecl =
-      GenXIntrinsic::getGenXDeclaration(CI.getModule(), ID, {});
+      GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID, {});
+
   Instruction *IntrI =
-      IntrinsicInst::Create(NewFDecl, {}, IntrinName + Suff.str(), &CI);
-  Instruction *CastI = addCastInstIfNeeded(&CI, IntrI);
+      IntrinsicInst::Create(NewFDecl, {}, IntrinName + Suff.str(), EEI);
+  Instruction *CastI = addCastInstIfNeeded(EEI, IntrI);
+  if (EEI->getDebugLoc()) {
+    IntrI->setDebugLoc(EEI->getDebugLoc());
+    // It's OK if IntrI and CastI is the same instruction
+    CastI->setDebugLoc(EEI->getDebugLoc());
+  }
   return CastI;
 }
 
-// This function translates SPIRV intrinsic into GenX intrinsic.
-// TODO: Currently, we do not support mixing SYCL and ESIMD kernels.
-// Later for ESIMD and SYCL kernels to coexist, we likely need to
-// clone call graph that lead from ESIMD kernel to SPIRV intrinsic and
-// translate SPIRV intrinsics to GenX intrinsics only in cloned subgraph.
-static void
-translateSpirvIntrinsic(CallInst *CI, StringRef SpirvIntrName,
-                        SmallVector<Instruction *, 8> &ESIMDToErases) {
-  auto translateSpirvIntr = [&SpirvIntrName, &ESIMDToErases,
-                             CI](StringRef SpvIName, auto TranslateFunc) {
-    if (SpirvIntrName.consume_front(SpvIName)) {
-      Value *TranslatedV = TranslateFunc(*CI, SpirvIntrName.substr(1, 1));
-      CI->replaceAllUsesWith(TranslatedV);
-      ESIMDToErases.push_back(CI);
-    }
-  };
+// This function translates one occurence of SPIRV builtin use into GenX
+// intrinsic.
+static Value *translateSpirvGlobalUse(ExtractElementInst *EEI,
+                                      StringRef SpirvGlobalName) {
+  Value *IndexV = EEI->getIndexOperand();
+  assert(isa<ConstantInt>(IndexV) &&
+         "Extract element index should be a constant");
 
-  translateSpirvIntr("WorkgroupSize", [](CallInst &CI, StringRef Suff) {
-    return generateVectorGenXForSpirv(CI, Suff, "local.size.v3i32", "wgsize.");
-  });
-  translateSpirvIntr("LocalInvocationId", [](CallInst &CI, StringRef Suff) {
-    return generateVectorGenXForSpirv(CI, Suff, "local.id.v3i32", "local_id.");
-  });
-  translateSpirvIntr("WorkgroupId", [](CallInst &CI, StringRef Suff) {
-    return generateGenXForSpirv(CI, Suff, "group.id.");
-  });
-  translateSpirvIntr("GlobalInvocationId", [](CallInst &CI, StringRef Suff) {
+  // Get the suffix based on the index of extractelement instruction
+  ConstantInt *IndexC = cast<ConstantInt>(IndexV);
+  std::string Suff;
+  if (IndexC->equalsInt(0))
+    Suff = 'x';
+  else if (IndexC->equalsInt(1))
+    Suff = 'y';
+  else if (IndexC->equalsInt(2))
+    Suff = 'z';
+  else
+    assert(false && "Extract element index should be either 0, 1, or 2");
+
+  // Translate SPIRV into GenX intrinsic.
+  if (SpirvGlobalName == "WorkgroupSize") {
+    return generateVectorGenXForSpirv(EEI, Suff, "local.size.v3i32", "wgsize.");
+  } else if (SpirvGlobalName == "LocalInvocationId") {
+    return generateVectorGenXForSpirv(EEI, Suff, "local.id.v3i32", "local_id.");
+  } else if (SpirvGlobalName == "WorkgroupId") {
+    return generateGenXForSpirv(EEI, Suff, "group.id.");
+  } else if (SpirvGlobalName == "GlobalInvocationId") {
     // GlobalId = LocalId + WorkGroupSize * GroupId
     Instruction *LocalIdI =
-        generateVectorGenXForSpirv(CI, Suff, "local.id.v3i32", "local_id.");
+        generateVectorGenXForSpirv(EEI, Suff, "local.id.v3i32", "local_id.");
     Instruction *WGSizeI =
-        generateVectorGenXForSpirv(CI, Suff, "local.size.v3i32", "wgsize.");
-    Instruction *GroupIdI = generateGenXForSpirv(CI, Suff, "group.id.");
+        generateVectorGenXForSpirv(EEI, Suff, "local.size.v3i32", "wgsize.");
+    Instruction *GroupIdI = generateGenXForSpirv(EEI, Suff, "group.id.");
     Instruction *MulI =
-        BinaryOperator::CreateMul(WGSizeI, GroupIdI, "mul", &CI);
-    return BinaryOperator::CreateAdd(LocalIdI, MulI, "add", &CI);
-  });
-  translateSpirvIntr("GlobalSize", [](CallInst &CI, StringRef Suff) {
+        BinaryOperator::CreateMul(WGSizeI, GroupIdI, "mul", EEI);
+    return BinaryOperator::CreateAdd(LocalIdI, MulI, "add", EEI);
+  } else if (SpirvGlobalName == "GlobalSize") {
     // GlobalSize = WorkGroupSize * NumWorkGroups
     Instruction *WGSizeI =
-        generateVectorGenXForSpirv(CI, Suff, "local.size.v3i32", "wgsize.");
+        generateVectorGenXForSpirv(EEI, Suff, "local.size.v3i32", "wgsize.");
     Instruction *NumWGI = generateVectorGenXForSpirv(
-        CI, Suff, "group.count.v3i32", "group_count.");
-    return BinaryOperator::CreateMul(WGSizeI, NumWGI, "mul", &CI);
-  });
-  // TODO: Support GlobalOffset SPIRV intrinsics
-  translateSpirvIntr("GlobalOffset", [](CallInst &CI, StringRef Suff) {
-    return llvm::Constant::getNullValue(CI.getType());
-  });
-  translateSpirvIntr("NumWorkgroups", [](CallInst &CI, StringRef Suff) {
-    return generateVectorGenXForSpirv(CI, Suff, "group.count.v3i32",
+        EEI, Suff, "group.count.v3i32", "group_count.");
+    return BinaryOperator::CreateMul(WGSizeI, NumWGI, "mul", EEI);
+  } else if (SpirvGlobalName == "GlobalOffset") {
+    // TODO: Support GlobalOffset SPIRV intrinsics
+    return llvm::Constant::getNullValue(EEI->getType());
+  } else if (SpirvGlobalName == "NumWorkgroups") {
+    return generateVectorGenXForSpirv(EEI, Suff, "group.count.v3i32",
                                       "group_count.");
-  });
+  }
+
+  return nullptr;
 }
 
 static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
@@ -957,8 +997,6 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       GenXArgs.push_back(llvm::ConstantInt::get(Ty, Rule.I.ArgConst));
       break;
     }
-    default:
-      llvm_unreachable_internal("unknown argument rule kind");
     }
   }
 }
@@ -1066,6 +1104,8 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);
+  if (CI.getDebugLoc())
+    NewCI->setDebugLoc(CI.getDebugLoc());
   NewCI = addCastInstIfNeeded(&CI, NewCI);
   CI.replaceAllUsesWith(NewCI);
   CI.eraseFromParent();
@@ -1086,7 +1126,7 @@ static std::string getMDString(MDNode *N, unsigned I) {
   return "";
 }
 
-void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
+void generateKernelMetadata(Module &M) {
   if (M.getNamedMetadata(GENX_KERNEL_METADATA))
     return;
 
@@ -1127,6 +1167,7 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
     SmallVector<Metadata *, 8> ArgTypeDescs;
 
     auto *KernelArgTypes = F.getMetadata("kernel_arg_type");
+    auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
     unsigned Idx = 0;
 
     // Iterate argument list to gather argument kinds and generate argument
@@ -1139,14 +1180,29 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
 
       if (ArgType.find("image1d_t") != std::string::npos ||
           ArgType.find("image2d_t") != std::string::npos ||
-          ArgType.find("image3d_t") != std::string::npos ||
-          ArgType.find("image1d_buffer_t") != std::string::npos) {
+          ArgType.find("image3d_t") != std::string::npos) {
         Kind = AK_SURFACE;
         ArgTypeDescs.push_back(MDString::get(Ctx, ArgType));
       } else {
         StringRef ArgDesc = "";
-        if (Arg.getType()->isPointerTy())
-          ArgDesc = "svmptr_t";
+
+        if (Arg.getType()->isPointerTy()) {
+          const auto *IsAccMD =
+              KernelArgAccPtrs
+                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
+                  : nullptr;
+          unsigned IsAcc =
+              IsAccMD
+                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
+                                              ->getValue()
+                                              .getZExtValue())
+                  : 0;
+          if (IsAcc) {
+            ArgDesc = "buffer_t";
+            Kind = AK_SURFACE;
+          } else
+            ArgDesc = "svmptr_t";
+        }
         ArgTypeDescs.push_back(MDString::get(Ctx, ArgDesc));
       }
 
@@ -1177,7 +1233,9 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
 }
 
 // collect all the vector-types that are used by genx-volatiles
-void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
+// TODO: can we make the Module argument `const`?
+SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
+  SmallPtrSet<Type *, 4> GenXVolatileTypeSet;
   for (auto &G : M.getGlobalList()) {
     if (!G.hasAttribute("genx_volatile"))
       continue;
@@ -1185,23 +1243,45 @@ void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
     if (!PTy)
       continue;
     auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
-    if (!GTy || !GTy->getName().endswith("cl::sycl::INTEL::gpu::simd"))
+    // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
+    if (!GTy || !GTy->getName().endswith(
+                    "cl::sycl::ext::intel::experimental::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
     assert(VTy->isVectorTy());
     GenXVolatileTypeSet.insert(VTy);
   }
+  return GenXVolatileTypeSet;
 }
 
 } // namespace
 
-PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
-                                          FunctionAnalysisManager &FAM,
-                                          SmallPtrSet<Type *, 4> &GVTS) {
-  // Only consider functions marked with !sycl_explicit_simd
-  if (F.getMetadata("sycl_explicit_simd") == nullptr)
-    return PreservedAnalyses::all();
+PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
+                                          ModuleAnalysisManager &) {
+  generateKernelMetadata(M);
+  SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
+
+  size_t AmountOfESIMDIntrCalls = 0;
+  for (auto &F : M.functions()) {
+    AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
+  }
+
+  // TODO FIXME ESIMD figure out less conservative result
+  return AmountOfESIMDIntrCalls > 0 ? PreservedAnalyses::none()
+                                    : PreservedAnalyses::all();
+}
+
+size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
+                                         SmallPtrSet<Type *, 4> &GVTS) {
+  // There is a current limitation of GPU vector backend that requires kernel
+  // functions to be inlined into the kernel itself. To overcome this
+  // limitation, mark every function called from ESIMD kernel with
+  // 'alwaysinline' attribute.
+  if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
+      !F.hasFnAttribute(Attribute::NoInline) &&
+      !F.hasFnAttribute(Attribute::AlwaysInline))
+    F.addFnAttr(Attribute::AlwaysInline);
 
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ESIMDToErases;
@@ -1210,10 +1290,11 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
       auto CastOpcode = CastOp->getOpcode();
-      if ((CastOpcode == llvm::Instruction::FPToUI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
-          (CastOpcode == llvm::Instruction::FPToSI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() < 32)) {
+      if (isa<FixedVectorType>(DstTy) &&
+          ((CastOpcode == llvm::Instruction::FPToUI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
+           (CastOpcode == llvm::Instruction::FPToSI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() < 32))) {
         IRBuilder<> Builder(&I);
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy = llvm::FixedVectorType::get(
@@ -1230,68 +1311,107 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
 
     auto *CI = dyn_cast<CallInst>(&I);
     Function *Callee = nullptr;
-    if (!CI || !(Callee = CI->getCalledFunction()))
-      continue;
-    StringRef Name = Callee->getName();
-
-    // See if the Name represents an ESIMD intrinsic and demangle only if it
-    // does.
-    if (!Name.consume_front(ESIMD_INTRIN_PREF0))
-      continue;
-    // now skip the digits
-    Name = Name.drop_while([](char C) { return std::isdigit(C); });
-
-    // process ESIMD builtins that go through special handling instead of
-    // the translation procedure
-    if (Name.startswith("N2cl4sycl5INTEL3gpu8slm_init")) {
-      // tag the kernel with meta-data SLMSize, and remove this builtin
-      translateSLMInit(*CI);
-      ESIMDToErases.push_back(CI);
-      continue;
-    }
-    if (Name.startswith("__esimd_pack_mask")) {
-      translatePackMask(*CI);
-      ESIMDToErases.push_back(CI);
-      continue;
-    }
-    if (Name.startswith("__esimd_unpack_mask")) {
-      translateUnPackMask(*CI);
-      ESIMDToErases.push_back(CI);
-      continue;
-    }
-    // If vload/vstore is not about the vector-types used by
-    // those globals marked as genx_volatile, We can translate
-    // them directly into generic load/store inst. In this way
-    // those insts can be optimized by llvm ASAP.
-    if (Name.startswith("__esimd_vload")) {
-      if (translateVLoad(*CI, GVTS)) {
+    if (CI && (Callee = CI->getCalledFunction())) {
+      // TODO workaround for ESIMD BE until it starts supporting @llvm.assume
+      if (match(&I, PatternMatch::m_Intrinsic<Intrinsic::assume>())) {
         ESIMDToErases.push_back(CI);
         continue;
       }
-    }
-    if (Name.startswith("__esimd_vstore")) {
-      if (translateVStore(*CI, GVTS)) {
+      StringRef Name = Callee->getName();
+
+      // See if the Name represents an ESIMD intrinsic and demangle only if it
+      // does.
+      if (!Name.consume_front(ESIMD_INTRIN_PREF0))
+        continue;
+      // now skip the digits
+      Name = Name.drop_while([](char C) { return std::isdigit(C); });
+
+      // process ESIMD builtins that go through special handling instead of
+      // the translation procedure
+      // TODO FIXME slm_init should be made top-level __esimd_slm_init
+      if (Name.startswith("N2cl4sycl3ext5intel12experimental5esimd8slm_init")) {
+        // tag the kernel with meta-data SLMSize, and remove this builtin
+        translateSLMInit(*CI);
         ESIMDToErases.push_back(CI);
         continue;
       }
+      if (Name.startswith("__esimd_pack_mask")) {
+        translatePackMask(*CI);
+        ESIMDToErases.push_back(CI);
+        continue;
+      }
+      if (Name.startswith("__esimd_unpack_mask")) {
+        translateUnPackMask(*CI);
+        ESIMDToErases.push_back(CI);
+        continue;
+      }
+      // If vload/vstore is not about the vector-types used by
+      // those globals marked as genx_volatile, We can translate
+      // them directly into generic load/store inst. In this way
+      // those insts can be optimized by llvm ASAP.
+      if (Name.startswith("__esimd_vload")) {
+        if (translateVLoad(*CI, GVTS)) {
+          ESIMDToErases.push_back(CI);
+          continue;
+        }
+      }
+      if (Name.startswith("__esimd_vstore")) {
+        if (translateVStore(*CI, GVTS)) {
+          ESIMDToErases.push_back(CI);
+          continue;
+        }
+      }
+
+      if (Name.startswith("__esimd_get_value")) {
+        translateGetValue(*CI);
+        ESIMDToErases.push_back(CI);
+        continue;
+      }
+
+      if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
+        continue;
+      // this is ESIMD intrinsic - record for later translation
+      ESIMDIntrCalls.push_back(CI);
     }
 
-    if (Name.startswith("__esimd_get_value")) {
-      translateGetValue(*CI);
-      ESIMDToErases.push_back(CI);
-      continue;
-    }
+    // Translate loads from SPIRV builtin globals into GenX intrinsics
+    auto *LI = dyn_cast<LoadInst>(&I);
+    if (LI) {
+      Value *LoadPtrOp = LI->getPointerOperand();
+      Value *SpirvGlobal = nullptr;
+      // Look through casts to find SPIRV builtin globals
+      auto *CE = dyn_cast<ConstantExpr>(LoadPtrOp);
+      if (CE) {
+        assert(CE->isCast() && "ConstExpr should be a cast");
+        SpirvGlobal = CE->getOperand(0);
+      } else {
+        SpirvGlobal = LoadPtrOp;
+      }
 
-    if (Name.consume_front(SPIRV_INTRIN_PREF)) {
-      translateSpirvIntrinsic(CI, Name, ESIMDToErases);
-      // For now: if no match, just let it go untranslated.
-      continue;
-    }
+      if (!isa<GlobalVariable>(SpirvGlobal) ||
+          !SpirvGlobal->getName().startswith(SPIRV_INTRIN_PREF))
+        continue;
 
-    if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
-      continue;
-    // this is ESIMD intrinsic - record for later translation
-    ESIMDIntrCalls.push_back(CI);
+      auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
+
+      // Go through all the uses of the load instruction from SPIRV builtin
+      // globals, which are required to be extractelement instructions.
+      // Translate each of them.
+      for (auto *LU : LI->users()) {
+        auto *EEI = dyn_cast<ExtractElementInst>(LU);
+        assert(EEI && "User of load from global SPIRV builtin is not an "
+                      "extractelement instruction");
+        Value *TranslatedVal = translateSpirvGlobalUse(
+            EEI, SpirvGlobal->getName().drop_front(PrefLen));
+        assert(TranslatedVal &&
+               "Load from global SPIRV builtin was not translated");
+        EEI->replaceAllUsesWith(TranslatedVal);
+        ESIMDToErases.push_back(EEI);
+      }
+      // After all users of load were translated, we get rid of the load
+      // itself.
+      ESIMDToErases.push_back(LI);
+    }
   }
   // Now demangle and translate found ESIMD intrinsic calls
   for (auto *CI : ESIMDIntrCalls) {
@@ -1301,7 +1421,5 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     CI->eraseFromParent();
   }
 
-  // TODO FIXME ESIMD figure out less conservative result
-  return ESIMDIntrCalls.size() > 0 ? PreservedAnalyses::none()
-                                   : PreservedAnalyses::all();
+  return ESIMDIntrCalls.size();
 }

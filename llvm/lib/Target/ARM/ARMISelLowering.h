@@ -130,7 +130,8 @@ class VectorType;
       WIN__CHKSTK,  // Windows' __chkstk call to do stack probing.
       WIN__DBZCHK,  // Windows' divide by zero check
 
-      WLS,          // Low-overhead loops, While Loop Start
+      WLS,          // Low-overhead loops, While Loop Start branch. See t2WhileLoopStart
+      WLSSETUP,     // Setup for the iteration count of a WLS. See t2WhileLoopSetup.
       LOOP_DEC,     // Really a part of LE, performs the sub
       LE,           // Low-overhead loops, Loop End
 
@@ -216,6 +217,8 @@ class VectorType;
       VMULLs,       // ...signed
       VMULLu,       // ...unsigned
 
+      VQDMULH,      // MVE vqdmulh instruction
+
       // MVE reductions
       VADDVs,       // sign- or zero-extend the elements of a vector to i32,
       VADDVu,       //   add them all together, and return an i32 of their sum
@@ -241,6 +244,10 @@ class VectorType;
       VMLALVAu,     //   provided as low and high halves
       VMLALVAps,    // Same as VMLALVA[su] with a v4i1 predicate mask
       VMLALVApu,
+      VMINVu,        // Find minimum unsigned value of a vector and register
+      VMINVs,        // Find minimum signed value of a vector and register
+      VMAXVu,        // Find maximum unsigned value of a vector and register
+      VMAXVs,        // Find maximum signed value of a vector and register
 
       SMULWB,       // Signed multiply word by half word, bottom
       SMULWT,       // Signed multiply word by half word, top
@@ -326,6 +333,21 @@ class VectorType;
 
   } // end namespace ARMISD
 
+  namespace ARM {
+  /// Possible values of current rounding mode, which is specified in bits
+  /// 23:22 of FPSCR.
+  enum Rounding {
+    RN = 0,    // Round to Nearest
+    RP = 1,    // Round towards Plus infinity
+    RM = 2,    // Round towards Minus infinity
+    RZ = 3,    // Round towards Zero
+    rmMask = 3 // Bit mask selecting rounding mode
+  };
+
+  // Bit position of rounding mode bits in FPSCR.
+  const unsigned RoundingBitsPos = 22;
+  } // namespace ARM
+
   /// Define some predicates that are used for node matching.
   namespace ARM {
 
@@ -390,7 +412,7 @@ class VectorType;
     /// unaligned memory accesses of the specified type. Returns whether it
     /// is "fast" by reference in the second argument.
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
-                                        unsigned Align,
+                                        Align Alignment,
                                         MachineMemOperand::Flags Flags,
                                         bool *Fast) const override;
 
@@ -492,8 +514,6 @@ class VectorType;
     getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
       if (ConstraintCode == "Q")
         return InlineAsm::Constraint_Q;
-      else if (ConstraintCode == "o")
-        return InlineAsm::Constraint_o;
       else if (ConstraintCode.size() == 2) {
         if (ConstraintCode[0] == 'U') {
           switch(ConstraintCode[1]) {
@@ -654,6 +674,7 @@ class VectorType;
     /// function checks the vector element type and the overall width of the
     /// vector.
     bool isLegalInterleavedAccessType(unsigned Factor, FixedVectorType *VecTy,
+                                      Align Alignment,
                                       const DataLayout &DL) const;
 
     bool alignLoopsWithOptSize() const override;
@@ -760,6 +781,7 @@ class VectorType;
     SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerConstantFP(SDValue Op, SelectionDAG &DAG,
                             const ARMSubtarget *ST) const;
     SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,

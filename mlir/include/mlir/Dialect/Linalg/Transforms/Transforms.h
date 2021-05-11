@@ -10,14 +10,21 @@
 #define DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H_
 
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
+#include "mlir/Dialect/SCF/Utils.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/Bufferize.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/SmallSet.h"
 
 namespace mlir {
+class BufferizeTypeConverter;
+class FrozenRewritePatternSet;
+
 namespace linalg {
 
+struct LinalgElementwiseFusionOptions;
 struct LinalgFusionOptions;
 struct LinalgTilingOptions;
 
@@ -26,23 +33,82 @@ struct LinalgTilingOptions;
 //===----------------------------------------------------------------------===//
 using LinalgLoops = SmallVector<Operation *, 4>;
 
-struct TiledLinalgOp {
-  LinalgOp op;
-  SmallVector<Operation *, 8> loops;
-};
-
-struct TiledAndFusedLinalgOps {
-  LinalgOp op;
-  SmallVector<LinalgOp, 1> fusedProducers;
-  SmallVector<LinalgOp, 1> originalProducers;
-  SmallVector<Operation *, 4> fusedLoops;
-  SmallVector<Operation *, 4> unfusedLoops;
-};
-
 /// Populates patterns for vectorization of all ConvN-D ops.
 void populateConvVectorizationPatterns(
-    MLIRContext *context, SmallVectorImpl<OwningRewritePatternList> &patterns,
+    MLIRContext *context, SmallVectorImpl<RewritePatternSet> &patterns,
     ArrayRef<int64_t> tileSizes);
+
+/// Populate patterns that convert `ElementwiseMappable` ops to linalg
+/// parallel loops.
+void populateElementwiseToLinalgConversionPatterns(RewritePatternSet &patterns);
+
+/// Patterns to fold an expanding (collapsing) tensor_reshape operation with its
+/// producer (consumer) generic operation by expanding the dimensionality of the
+/// loop in the generic op.
+void populateFoldReshapeOpsByExpansionPatterns(
+    RewritePatternSet &patterns, bool allowFoldingUnitDimReshapes = false);
+
+/// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
+/// producer (consumer) generic/indexed_generic operation by linearizing the
+/// indexing map used to access the source (target) of the reshape operation in
+/// the generic/indexed_generic operation.
+void populateFoldReshapeOpsByLinearizationPatterns(RewritePatternSet &patterns);
+
+/// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
+/// producer (consumer) generic/indexed_generic operation by linearizing the
+/// indexing map used to access the source (target) of the reshape operation in
+/// the generic/indexed_generic operation. The patterns are applied only when
+/// the tensor reshape involved is collapsing (introducing) unit-extent
+/// dimensions.
+void populateFoldUnitDimsReshapeOpsByLinearizationPatterns(
+    RewritePatternSet &patterns);
+
+/// Populates the given list with patterns to bufferize linalg ops.
+void populateLinalgBufferizePatterns(BufferizeTypeConverter &converter,
+                                     RewritePatternSet &patterns);
+
+/// Patterns to fold unit-extent dimensions in operands/results of linalg ops on
+/// tensors.
+void populateFoldUnitExtentDimsPatterns(RewritePatternSet &patterns);
+
+using ControlElementwiseOpsFusionFn =
+    std::function<bool(const OpResult &producer, const OpOperand &consumer)>;
+
+/// Options that control fusion of elementwise operations.
+struct LinalgElementwiseFusionOptions {
+  /// Enable fusion of reshapes that are introducing unit-dimensions into the
+  /// shape with elementwise operations. By default this is disabled.
+  bool allowFoldingUnitDimReshapes = false;
+
+  LinalgElementwiseFusionOptions &setAllowFoldingUnitDimReshapes(bool val) {
+    allowFoldingUnitDimReshapes = val;
+    return *this;
+  }
+
+  /// Function that allows the caller to control when to stop fusion. Once a
+  /// producer is deemed fusable with the consumer (structurally), this callback
+  /// can be used to abort the fusion based on non-structural constraints. This
+  /// is the hook for cost models to control the amount of fusion done.
+  ControlElementwiseOpsFusionFn controlElementwiseOpsFusionFn =
+      [](const OpResult & /*producer */, const OpOperand & /*consumer */) {
+        return true;
+      };
+
+  LinalgElementwiseFusionOptions &
+  setControlElementwiseOpsFusionFn(ControlElementwiseOpsFusionFn fun) {
+    controlElementwiseOpsFusionFn = std::move(fun);
+    return *this;
+  }
+};
+
+/// Patterns for fusing linalg operation on tensors.
+void populateElementwiseOpsFusionPatterns(
+    RewritePatternSet &patterns,
+    LinalgElementwiseFusionOptions options = LinalgElementwiseFusionOptions());
+
+/// Patterns to push reshape op towards the end of the graph in order to expose
+/// more fusion opportunities.
+void populatePushReshapeOpsPatterns(RewritePatternSet &patterns);
 
 /// Performs standalone tiling of a single LinalgOp by `tileSizes`.
 /// and permute the loop nest according to `interchangeVector`
@@ -59,17 +125,20 @@ void populateConvVectorizationPatterns(
 /// `interchangeVector = [1,2,0]`. All values in `interchangeVector` must be
 /// integers, in the range 0..`tileSizes.size()` without duplications
 /// (i.e. `[1,1,2]` is an invalid permutation).
+struct TiledLinalgOp {
+  LinalgOp op;
+  SmallVector<Operation *, 8> loops;
+  SmallVector<Value, 4> tensorResults;
+  TiledLinalgOp &operator=(const TiledLinalgOp &) = default;
+};
 Optional<TiledLinalgOp> tileLinalgOp(OpBuilder &b, LinalgOp op,
                                      const LinalgTilingOptions &options);
 
-/// Tile and fuse the `op` with its producers. The tile and fuse proceeds in
-/// three steps
-/// - Find tile loops that are fusable with its producer tile loops (a.k.a. tile
-///   + fuse loops).
-/// - Tile just these loops of the consumer (root operation) and fuse with
-///   the producer.
-/// - Tile again the tiled consumer operation produced above to do rest of
-///   the tiling specified by the `tilingOptions`.
+/// Fuse a sequence of linalg operations (`ops`) using tile-and-fuse. This
+/// proceeds as follows:
+/// - Find outer parallel loops in these ops that can be fused.
+/// - Tile fusable outer parallel loops of the last operation in the sequence.
+/// - Fuse the remaining operations with the tiled operation
 ///
 /// For example, consider the sequence of matmul below
 ///
@@ -96,47 +165,51 @@ Optional<TiledLinalgOp> tileLinalgOp(OpBuilder &b, LinalgOp op,
 ///     : memref<256x32xf32> to memref<16x32xf32, #map0>
 ///   %3 = subview %arg1[0, 0] [32, 32] [1, 1]
 ///     : memref<32x32xf32> to memref<32x32xf32, #map1>
+///   %4 = subview %arg3[0, 0] [32, 32] [1, 1]
+///     : memref<32x32xf32> to memref<32x32xf32, #map1>
 ///   linalg.matmul
 ///     ins(%2, %3 : memref<16x32xf32, #map0>, memref<32x32xf32, #map1>)
 ///     outs(%0 : memref<16x32xf32, #map0>)
-///   scf.parallel (%arg6) = (%c0) to (%c32) step (%c8) {
-///   scf.for %arg7 = %c0 to %c32 step %c4 {
-///     %4 = subview %0[0, %arg7] [16, 4] [1, 1]
-///       : memref<16x32xf32, #map0> to memref<16x4xf32, #map0>
-///     %5 = subview %arg3[%arg7, %arg6] [4, 8] [1, 1]
-///       : memref<32x32xf32> to memref<4x8xf32, #map0>
-///     %6 = subview %1[0, %arg6] [16, 8] [1, 1]
-///       : memref<16x32xf32, #map0> to memref<16x8xf32, #map0>
-///     linalg.matmul
-///       ins(%4, %5 : memref<16x4xf32, #map0>, memref<4x8xf32, #map0>)
-///       outs(%6 : memref<16x8xf32, #map0>)
-///     }
-///     scf.yield
-///   }
-///   scf.yield
+///   linalg.matmul
+///     ins(%0, %4 : memref<16x4xf32, #map0>, memref<4x8xf32, #map0>)
+///     outs(%1 : memref<16x8xf32, #map0>)
 /// }
 ///
-/// The following tiling options are handled differently in tile+fuse (compared
-/// to tile only)
+/// `tilingOptions` are used to tile the corresponding operation in `ops` (the
+/// size of the former should be same as size of the latter. Based on how
+/// tile+fuse is implemented, the fused loops are generated based on the last
+/// operation in the sequence. For example, the tile sizes for the fused loops
+/// is obtained from `tilingOptions.back()`. The following tiling options are
+/// handled differently in tile+fuse (compared to tile only)
 /// - Interchange of the tiling loops is not supported right now.
-/// - Distribution is only done for the tile+fuse loops. The tiled loops
-///   generated by the second tiling is not distributed.
+/// - Only the fused loops are distributed.
+struct TiledAndFusedLinalgOps {
+  /// Operation obtained by tiling the last operation in sequence of `ops`
+  /// passed to `tileAndFuseLinalgOps`.
+  LinalgOp op;
+  /// The dimension of the loops that are fused.
+  std::set<unsigned> fusedLoopDims;
+  /// The generated fused operations (created within the fused loops).
+  SmallVector<LinalgOp, 1> fusedProducers;
+  /// The fused loop generated.
+  SmallVector<Operation *, 4> fusedLoops;
+};
 Optional<TiledAndFusedLinalgOps>
-tileAndFuseLinalgOps(PatternRewriter &rewriter, LinalgOp op,
+tileAndFuseLinalgOps(OpBuilder &builder, ArrayRef<LinalgOp> ops,
                      const LinalgDependenceGraph &dependenceGraph,
-                     const LinalgTilingOptions &tilingOptions,
-                     const LinalgFusionOptions &fusionOptions);
+                     const LinalgTilingOptions &tilingOptions);
 
-/// Interchanges the `iterator_types` and `iterator_maps` dimensions of `op`.
-/// This is an in-place transformation controlled by `interchangeVector`.
-/// An empty vector is interpreted as the identity permutation and the
-/// transformation returns early.
+/// Interchanges the `iterator_types` and `iterator_maps` dimensions and adapts
+/// the index accesses of `op`. This is an in-place transformation controlled by
+/// `interchangeVector`. An empty vector is interpreted as the identity
+/// permutation and the transformation returns early.
 ///
 /// E.g. the permutation `(i,j,k) -> (j,k,i)` is expressed with
 /// `interchangeVector = [1,2,0]`. All values in `interchangeVector` must be
 /// integers, in the range 0..`op.rank` without duplications
 /// (i.e. `[1,1,2]` is an invalid permutation).
-LinalgOp interchange(LinalgOp op, ArrayRef<unsigned> interchangeVector);
+void interchange(PatternRewriter &rewriter, LinalgOp op,
+                 ArrayRef<unsigned> interchangeVector);
 
 /// Callback function type used to perform the allocation for the promoted
 /// `subView`. In `boundingSubViewsize` a best attempt is made to find the
@@ -144,8 +217,8 @@ LinalgOp interchange(LinalgOp op, ArrayRef<unsigned> interchangeVector);
 /// dimension. If that is not possible, contains the dynamic size of the
 /// subview. The call back should return the buffer to use.
 using AllocBufferCallbackFn = std::function<Optional<Value>(
-    OpBuilder &b, SubViewOp subView, ArrayRef<Value> boundingSubViewSize,
-    OperationFolder *folder)>;
+    OpBuilder &b, memref::SubViewOp subView,
+    ArrayRef<Value> boundingSubViewSize, OperationFolder *folder)>;
 
 /// Callback function type used to deallocate the buffers used to hold the
 /// promoted subview.
@@ -231,6 +304,20 @@ struct LinalgPromotionOptions {
   }
 };
 
+/// Creates a new buffer using the `allocationFn` provided. The size of this
+/// buffer is the smallest constant bounding size along each dimension that can
+/// be computed for the size of the result of `subView`. Returns the allocated
+/// buffer as `fullLocalView` and the view that matches the size of the result
+/// of subview operation as `partialLocalView`.
+struct PromotionInfo {
+  Value fullLocalView;
+  Value partialLocalView;
+};
+Optional<PromotionInfo>
+promoteSubviewAsNewBuffer(OpBuilder &b, Location loc, memref::SubViewOp subView,
+                          AllocBufferCallbackFn allocationFn,
+                          OperationFolder *folder = nullptr);
+
 /// Promotes the `subViews` into a new buffer allocated at the insertion point
 /// `b`. Promotion occurs in 3 steps:
 ///   1. Create a new buffer for a full tile (i.e. not clipped at the boundary).
@@ -246,7 +333,8 @@ Optional<LinalgOp> promoteSubViews(OpBuilder &b, LinalgOp op,
                                    OperationFolder *folder = nullptr);
 
 /// Emit a suitable vector form for a Linalg op with fully static shape.
-void vectorizeLinalgOp(OpBuilder &builder, Operation *op);
+LogicalResult vectorizeLinalgOp(OpBuilder &builder, Operation *op,
+                                SmallVectorImpl<Value> &newResults);
 
 /// Emits a loop nest of `LoopTy` with the proper body for `op`.
 template <typename LoopTy>
@@ -286,17 +374,44 @@ struct LinalgTransforms {
   static const StringLiteral kLinalgTransformMarker;
 };
 
-/// Helper class to control common attribute matching and setting behavior.
-struct LinalgMarker {
-  explicit LinalgMarker(ArrayRef<Identifier> matchDisjunction = {},
-                        Optional<Identifier> replacement = None);
-  LinalgMarker(LinalgMarker &&) = default;
-  LinalgMarker(const LinalgMarker &) = default;
+/// Helper class to control application of linalg transformation patterns.
+/// Control comes in 2 forms:
+///   1. attribute matching and setting behavior using the attribute named
+///      `kLinalgTransformMarker`. This can be used to build a state machine
+///      using attributes and incrementally applying patterns to advance states.
+///   2. filter function, which is a simple lambda on the Operation* that
+///      returns a LogicalResult.
+struct LinalgTransformationFilter {
+  using FilterFunction = std::function<LogicalResult(Operation *)>;
+
+  explicit LinalgTransformationFilter(
+      ArrayRef<Identifier> matchDisjunction = {},
+      Optional<Identifier> replacement = None);
+
+  explicit LinalgTransformationFilter(
+      FilterFunction f, ArrayRef<Identifier> matchDisjunction = {},
+      Optional<Identifier> replacement = None);
+
+  LinalgTransformationFilter(LinalgTransformationFilter &&) = default;
+  LinalgTransformationFilter(const LinalgTransformationFilter &) = default;
   LogicalResult checkAndNotify(PatternRewriter &rewriter, Operation *op) const;
-  void replaceLinalgMarker(PatternRewriter &rewriter, Operation *op) const;
+  void replaceLinalgTransformationFilter(PatternRewriter &rewriter,
+                                         Operation *op) const;
+
+  LinalgTransformationFilter &addFilter(FilterFunction f) {
+    if (f)
+      filters.push_back(f);
+    return *this;
+  }
+  template <typename... OpTypes>
+  LinalgTransformationFilter &addOpFilter() {
+    return addFilter(
+        [](Operation *op) { return success(isa<OpTypes...>(op)); });
+  }
 
 private:
-  SmallVector<Identifier, 4> matchDisjunction;
+  SmallVector<FilterFunction> filters;
+  SmallVector<Identifier> matchDisjunction;
   Optional<Identifier> replacement;
 };
 
@@ -304,32 +419,38 @@ private:
 /// Linalg tiling patterns.
 ///
 /// Apply the `tileLinalgOp` transformation as a pattern.
-/// `marker` controls LinalgTransformMarker matching and update when specified.
+/// `filter` controls LinalgTransformMarker matching and update when specified.
 /// See `tileLinalgOp` for more details.
 enum class LinalgTilingLoopType {
   Loops = 0,
   AffineLoops = 1,
   ParallelLoops = 2,
 };
+
 using TileSizeComputationFunction =
     std::function<SmallVector<Value, 4>(OpBuilder &, Operation *)>;
+
+/// Specify the padding value for an OpOperand. This should be a function of
+/// both the operation and the operand type.
+using PaddingValueComputationFunction =
+    std::function<Value(OpBuilder &, OpOperand &)>;
+
 struct LinalgTilingOptions {
   /// Computation function that returns the tile sizes for each operation.
   /// Delayed construction of constant tile sizes should occur to interoperate
   /// with folding.
   TileSizeComputationFunction tileSizeComputationFunction = nullptr;
+
   LinalgTilingOptions &
-  setTileSizeComputationFunction(TileSizeComputationFunction &fun) {
-    tileSizeComputationFunction = fun;
+  setTileSizeComputationFunction(TileSizeComputationFunction fun) {
+    tileSizeComputationFunction = std::move(fun);
     return *this;
   }
   /// Set the `tileSizeComputationFunction` to return the values `ts`. The
   /// values must not fold away when tiling. Otherwise, use a more robust
   /// `tileSizeComputationFunction`.
   LinalgTilingOptions &setTileSizes(SmallVector<Value, 4> ts) {
-    tileSizeComputationFunction = [=](OpBuilder &, Operation *) {
-      return ts;
-    };
+    tileSizeComputationFunction = [=](OpBuilder &, Operation *) { return ts; };
     return *this;
   }
   /// Convenience function to set the `tileSizeComputationFunction` to a
@@ -338,13 +459,16 @@ struct LinalgTilingOptions {
   LinalgTilingOptions &setTileSizes(ArrayRef<int64_t> ts);
 
   /// The interchange vector to reorder the tiled loops.
-  SmallVector<unsigned, 4> interchangeVector{};
+  SmallVector<unsigned, 4> interchangeVector = {};
+
   LinalgTilingOptions &setInterchange(ArrayRef<unsigned> interchange) {
     interchangeVector.assign(interchange.begin(), interchange.end());
     return *this;
   }
+
   /// The type of tile loops to generate.
-  LinalgTilingLoopType loopType{LinalgTilingLoopType::Loops};
+  LinalgTilingLoopType loopType = LinalgTilingLoopType::Loops;
+
   LinalgTilingOptions &setLoopType(LinalgTilingLoopType lt) {
     loopType = lt;
     return *this;
@@ -353,9 +477,22 @@ struct LinalgTilingOptions {
   /// When specified, specifies distribution of generated tile loops to
   /// processors.
   Optional<LinalgLoopDistributionOptions> distribution = None;
+
   LinalgTilingOptions &
-  setDistributionOptions(LinalgLoopDistributionOptions &distributionOptions) {
-    distribution = distributionOptions;
+  setDistributionOptions(LinalgLoopDistributionOptions distributionOptions) {
+    distribution = std::move(distributionOptions);
+    return *this;
+  }
+
+  /// Computation function that returns a padding value to use when padding to
+  /// force static sizes. When `paddingValueComputationFunction` is set, padding
+  /// operations are introduced, that guarantee the underlying op is statically
+  /// shaped and can thus be vectorized.
+  PaddingValueComputationFunction paddingValueComputationFunction = nullptr;
+
+  LinalgTilingOptions &
+  setPaddingValueComputationFunction(PaddingValueComputationFunction fun) {
+    paddingValueComputationFunction = std::move(fun);
     return *this;
   }
 };
@@ -363,60 +500,87 @@ struct LinalgTilingOptions {
 /// Canonicalization patterns relevant to apply after tiling patterns. These are
 /// applied automatically by the tiling pass but need to be applied manually
 /// when tiling is called programmatically.
-OwningRewritePatternList
-getLinalgTilingCanonicalizationPatterns(MLIRContext *ctx);
+RewritePatternSet getLinalgTilingCanonicalizationPatterns(MLIRContext *ctx);
+void populateLinalgTilingCanonicalizationPatterns(RewritePatternSet &patterns);
 
+/// Base pattern that applied the tiling transformation specified by `options`.
+/// Abort and return failure in 2 cases:
+///   1. if the tiling specification is invalid and tiling fails to occur.
+///   2. if tiling occurs but `options.paddingValueComputationFunction` is set
+///      and some operand shape cannot be bounded statically.
 struct LinalgBaseTilingPattern : public RewritePattern {
-  LinalgBaseTilingPattern(StringRef opName, MLIRContext *context,
-                          LinalgTilingOptions options,
-                          LinalgMarker marker = LinalgMarker(),
-                          PatternBenefit benefit = 1);
-  LogicalResult matchAndRewrite(Operation *op,
-                                PatternRewriter &rewriter) const override;
+  // Entry point to match any LinalgOp OpInterface.
+  LinalgBaseTilingPattern(
+      MLIRContext *context, LinalgTilingOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
+  // Entry point to match a specific Linalg op.
+  LinalgBaseTilingPattern(
+      StringRef opName, MLIRContext *context, LinalgTilingOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
+  LogicalResult matchAndRewriteBase(Operation *op, PatternRewriter &rewriter,
+                                    TiledLinalgOp &result) const;
 
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
-  LinalgMarker marker;
+  LinalgTransformationFilter filter;
   /// Options to control tiling;
   LinalgTilingOptions options;
 };
 
 template <typename OpTy>
 struct LinalgTilingPattern : public LinalgBaseTilingPattern {
-  LinalgTilingPattern(MLIRContext *context, LinalgTilingOptions options,
-                      LinalgMarker marker = LinalgMarker(),
-                      PatternBenefit benefit = 1)
-      : LinalgBaseTilingPattern(OpTy::getOperationName(), context, options,
-                                marker, benefit) {}
+  /// SFINAE: This constructor can only trigger for concrete ops that have a
+  /// static `getOperationName` method.
+  template <typename ConcreateOpTy = OpTy>
+  LinalgTilingPattern(
+      MLIRContext *context, LinalgTilingOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : LinalgBaseTilingPattern(ConcreateOpTy::getOperationName(), context,
+                                options, filter, benefit) {}
+
+  /// This constructor is available to anyone.
+  LinalgTilingPattern(
+      StringRef opName, MLIRContext *context, LinalgTilingOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : LinalgBaseTilingPattern(opName, context, options, filter, benefit) {}
+
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    if (failed(LinalgBaseTilingPattern::matchAndRewrite(op, rewriter)))
+    TiledLinalgOp tiledLinalgOp;
+    if (failed(LinalgBaseTilingPattern::matchAndRewriteBase(op, rewriter,
+                                                            tiledLinalgOp)))
       return failure();
-    rewriter.eraseOp(op);
+    if (tiledLinalgOp.tensorResults.empty())
+      rewriter.eraseOp(op);
+    else
+      rewriter.replaceOp(op, tiledLinalgOp.tensorResults);
     return success();
   }
 };
 
 struct LinalgFusionOptions {
-  /// Optional list of operands indices to use for fusion. When unspecified,
-  /// only one fusion is done, i.e., the pattern returns after the first fusion.
-  Optional<DenseSet<unsigned>> indicesToFuse = None;
+  /// List of operands indices to use for fusion.
+  llvm::SmallSet<unsigned, 1> indicesToFuse = {};
   LinalgFusionOptions &setIndicesToFuse(ArrayRef<int64_t> operands) {
-    indicesToFuse = DenseSet<unsigned>();
-    indicesToFuse->insert(operands.begin(), operands.end());
+    indicesToFuse.insert(operands.begin(), operands.end());
     return *this;
   }
 };
 
 struct LinalgBaseTileAndFusePattern : public RewritePattern {
-  LinalgBaseTileAndFusePattern(StringRef opName, MLIRContext *context,
-                               const LinalgDependenceGraph &dependenceGraph,
-                               LinalgTilingOptions tilingOptions,
-                               LinalgFusionOptions fusionOptions,
-                               LinalgMarker marker = LinalgMarker(),
-                               LinalgMarker fusedOpMarker = LinalgMarker(),
-                               LinalgMarker originalOpMarker = LinalgMarker(),
-                               PatternBenefit benefit = 1);
+  LinalgBaseTileAndFusePattern(
+      StringRef opName, MLIRContext *context,
+      const LinalgDependenceGraph &dependenceGraph,
+      LinalgTilingOptions tilingOptions, LinalgFusionOptions fusionOptions,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      LinalgTransformationFilter fusedOpMarker = LinalgTransformationFilter(),
+      LinalgTransformationFilter originalOpMarker =
+          LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override;
 
@@ -428,125 +592,197 @@ private:
   /// Options to control fusion.
   LinalgFusionOptions fusionOptions;
   /// Marker to control application of the pattern.
-  LinalgMarker marker;
+  LinalgTransformationFilter filter;
   /// Marker set on the fused op after tile and fuse.
-  LinalgMarker fusedOpMarker;
+  LinalgTransformationFilter fusedOpMarker;
   /// The dependenceGraph is not modifiable, i.e. if the Linalg operations used
   /// to build the dependence graph changes then the dependenceGraph needs to be
   /// recomputed right now. To not invalidate the dependenceGraph as
-  /// transformation happens, the original producer can be tagged with a marker
+  /// transformation happens, the original producer can be tagged with a filter
   /// that can be later used to delete the original operations.
-  LinalgMarker originalOpMarker;
+  LinalgTransformationFilter originalOpMarker;
 };
 
 template <typename OpTy>
 struct LinalgTileAndFusePattern : public LinalgBaseTileAndFusePattern {
-  LinalgTileAndFusePattern(MLIRContext *context,
-                           const LinalgDependenceGraph &dependenceGraph,
-                           LinalgTilingOptions tilingOptions,
-                           LinalgFusionOptions fusionOptions,
-                           LinalgMarker marker = LinalgMarker(),
-                           LinalgMarker fusedOpMarker = LinalgMarker(),
-                           LinalgMarker originalOpMarker = LinalgMarker(),
-                           PatternBenefit benefit = 1)
+  LinalgTileAndFusePattern(
+      MLIRContext *context, const LinalgDependenceGraph &dependenceGraph,
+      LinalgTilingOptions tilingOptions, LinalgFusionOptions fusionOptions,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      LinalgTransformationFilter fusedOpMarker = LinalgTransformationFilter(),
+      LinalgTransformationFilter originalOpMarker =
+          LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
       : LinalgBaseTileAndFusePattern(
             OpTy::getOperationName(), context, dependenceGraph, tilingOptions,
-            fusionOptions, marker, fusedOpMarker, originalOpMarker, benefit) {}
+            fusionOptions, filter, fusedOpMarker, originalOpMarker, benefit) {}
 };
 
 ///
 /// Linalg interchange patterns.
 ///
 /// Apply the `interchange` transformation as a pattern.
-/// `marker` controls LinalgTransformMarker matching and update when specified.
+/// `filter` controls LinalgTransformMarker matching and update when specified.
 /// See `interchange` for more details.
 struct LinalgBaseInterchangePattern : public RewritePattern {
-  LinalgBaseInterchangePattern(StringRef opName, MLIRContext *context,
-                               ArrayRef<unsigned> interchangeVector,
-                               LinalgMarker marker = LinalgMarker(),
-                               PatternBenefit benefit = 1);
+  LinalgBaseInterchangePattern(
+      StringRef opName, MLIRContext *context,
+      ArrayRef<unsigned> interchangeVector,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override;
 
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
-  LinalgMarker marker;
+  LinalgTransformationFilter filter;
   /// The interchange vector to reorder the iterators and indexing_maps dims.
   SmallVector<unsigned, 8> interchangeVector;
 };
 
 template <typename OpTy>
 struct LinalgInterchangePattern : public LinalgBaseInterchangePattern {
-  LinalgInterchangePattern(MLIRContext *context,
-                           ArrayRef<unsigned> interchangeVector,
-                           LinalgMarker marker = LinalgMarker(),
-                           PatternBenefit benefit = 1)
+  LinalgInterchangePattern(
+      MLIRContext *context, ArrayRef<unsigned> interchangeVector,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
       : LinalgBaseInterchangePattern(OpTy::getOperationName(), context,
-                                     interchangeVector, marker, benefit) {}
+                                     interchangeVector, filter, benefit) {}
 };
 
 ///
 /// Linalg promotion patterns.
 ///
 /// Apply the `promoteSubViews` transformation as a pattern.
-/// `marker` controls LinalgTransformMarker matching and update when specified.
+/// `filter` controls LinalgTransformMarker matching and update when specified.
 /// See `promoteSubViews` for more details.
 struct LinalgBasePromotionPattern : public RewritePattern {
-  LinalgBasePromotionPattern(StringRef opName, MLIRContext *context,
-                             LinalgPromotionOptions options,
-                             LinalgMarker marker = LinalgMarker(),
-                             PatternBenefit benefit = 1);
+  LinalgBasePromotionPattern(
+      StringRef opName, MLIRContext *context, LinalgPromotionOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
+
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override;
 
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
-  LinalgMarker marker;
+  LinalgTransformationFilter filter;
   /// Promotion options.
   LinalgPromotionOptions options;
 };
 
 template <typename OpTy>
 struct LinalgPromotionPattern : public LinalgBasePromotionPattern {
-  LinalgPromotionPattern(MLIRContext *context, LinalgPromotionOptions options,
-                         LinalgMarker marker = LinalgMarker(),
-                         PatternBenefit benefit = 1)
+  /// SFINAE: This constructor can only trigger for concrete ops that have a
+  /// static `getOperationName` method.
+  template <typename ConcreateOpTy = OpTy>
+  LinalgPromotionPattern(
+      MLIRContext *context, LinalgPromotionOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
       : LinalgBasePromotionPattern(OpTy::getOperationName(), context, options,
-                                   marker, benefit) {}
+                                   filter, benefit) {}
+  /// This constructor is available to anyone.
+  LinalgPromotionPattern(
+      StringRef opName, MLIRContext *context, LinalgPromotionOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : LinalgBasePromotionPattern(opName, context, options, filter, benefit) {}
 };
 
 ///
 /// Linalg vectorization patterns.
 ///
 /// Apply the `vectorizeLinalgOp` transformation as a pattern.
-/// `marker` controls LinalgTransformMarker matching and update when specified.
+/// `filter` controls LinalgTransformMarker matching and update when specified.
 /// See `vectorizeLinalgOp` for more details.
+
+/// Empty for now, used for SFINAE purposes only.
+struct LinalgVectorizationOptions {};
+
 struct LinalgBaseVectorizationPattern : public RewritePattern {
-  LinalgBaseVectorizationPattern(StringRef opName, MLIRContext *context,
-                                 LinalgMarker marker = LinalgMarker(),
+  /// MatchAnyOpTag-based constructor with a mandatory `filter`.
+  LinalgBaseVectorizationPattern(MLIRContext *context,
+                                 LinalgTransformationFilter filter,
                                  PatternBenefit benefit = 1);
+  /// Name-based constructor with an optional `filter`.
+  LinalgBaseVectorizationPattern(
+      StringRef opName, MLIRContext *context,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override;
 
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
-  LinalgMarker marker;
+  LinalgTransformationFilter filter;
 };
 
-template <typename OpTy>
 struct LinalgVectorizationPattern : public LinalgBaseVectorizationPattern {
-  LinalgVectorizationPattern(MLIRContext *context,
-                             LinalgMarker marker = LinalgMarker(),
-                             PatternBenefit benefit = 1)
-      : LinalgBaseVectorizationPattern(OpTy::getOperationName(), context,
-                                       marker, benefit) {}
+  /// These constructors are available to anyone.
+  /// MatchAnyOpTag-based constructor with a mandatory `filter`.
+  LinalgVectorizationPattern(
+      MLIRContext *context, LinalgTransformationFilter filter,
+      LinalgVectorizationOptions options = LinalgVectorizationOptions(),
+      PatternBenefit benefit = 1)
+      : LinalgBaseVectorizationPattern(context, filter, benefit) {}
+  /// Name-based constructor with an optional `filter`.
+  LinalgVectorizationPattern(
+      StringRef opName, MLIRContext *context,
+      LinalgVectorizationOptions options = LinalgVectorizationOptions(),
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : LinalgBaseVectorizationPattern(opName, context, filter, benefit) {}
 };
+
+/// Trait to check if T provides a `getOperationName` method.
+template <typename T, typename... Args>
+using has_get_operation_name = decltype(T::getOperationName());
+template <typename T>
+using detect_has_get_operation_name =
+    llvm::is_detected<has_get_operation_name, T>;
+
+/// SFINAE helper for single C++ op with a `getOperationName` method.
+template <
+    typename OpType,
+    typename = std::enable_if_t<detect_has_get_operation_name<OpType>::value>,
+    typename = void>
+void insertVectorizationPatternImpl(RewritePatternSet &patternList,
+                                    linalg::LinalgVectorizationOptions options,
+                                    linalg::LinalgTransformationFilter f) {
+  patternList.add<linalg::LinalgVectorizationPattern>(
+      OpType::getOperationName(), patternList.getContext(), options, f);
+}
+
+/// SFINAE helper for single C++ class without a `getOperationName` method (e.g.
+/// an OpInterface).
+template <typename OpType, typename = std::enable_if_t<
+                               !detect_has_get_operation_name<OpType>::value>>
+void insertVectorizationPatternImpl(RewritePatternSet &patternList,
+                                    linalg::LinalgVectorizationOptions options,
+                                    linalg::LinalgTransformationFilter f) {
+  patternList.add<linalg::LinalgVectorizationPattern>(
+      patternList.getContext(), f.addOpFilter<OpType>(), options);
+}
+
+/// Variadic helper function to insert vectorization patterns for C++ ops.
+template <typename... OpTypes>
+void insertVectorizationPatterns(RewritePatternSet &patternList,
+                                 linalg::LinalgVectorizationOptions options,
+                                 linalg::LinalgTransformationFilter f =
+                                     linalg::LinalgTransformationFilter()) {
+  // FIXME: In c++17 this can be simplified by using 'fold expressions'.
+  (void)std::initializer_list<int>{
+      0,
+      (insertVectorizationPatternImpl<OpTypes>(patternList, options, f), 0)...};
+}
 
 ///
 /// Linalg lowering patterns.
 ///
 /// Apply the `linalgLowerOpToLoops` transformation as a pattern.
-/// `marker` controls LinalgTransformMarker matching and update when specified.
+/// `filter` controls LinalgTransformMarker matching and update when specified.
 /// See `linalgLowerOpToLoops` for more details.
 enum class LinalgLoweringType {
   LibraryCall = 0,
@@ -554,53 +790,86 @@ enum class LinalgLoweringType {
   AffineLoops = 2,
   ParallelLoops = 3
 };
+
 template <typename OpTy>
 struct LinalgLoweringPattern : public RewritePattern {
-  LinalgLoweringPattern(MLIRContext *context, LinalgLoweringType loweringType,
-                        LinalgMarker marker = LinalgMarker(),
-                        PatternBenefit benefit = 1)
-      : RewritePattern(OpTy::getOperationName(), {}, benefit, context),
-        marker(marker), loweringType(loweringType) {}
+  LinalgLoweringPattern(
+      MLIRContext *context, LinalgLoweringType loweringType,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : RewritePattern(OpTy::getOperationName(), benefit, context),
+        filter(filter), loweringType(loweringType) {}
+
   // TODO: Move implementation to .cpp once named ops are auto-generated.
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
     LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
     if (!linalgOp)
       return failure();
-    if (failed(marker.checkAndNotify(rewriter, linalgOp)))
+    if (failed(filter.checkAndNotify(rewriter, linalgOp)))
       return failure();
 
-    if (loweringType == LinalgLoweringType::LibraryCall) {
+    switch (loweringType) {
+    case LinalgLoweringType::LibraryCall:
       // TODO: Move lowering to library calls here.
       return failure();
-    } else if (loweringType == LinalgLoweringType::Loops) {
+    case LinalgLoweringType::Loops:
       if (failed(linalgOpToLoops(rewriter, op)))
         return failure();
-    } else if (loweringType == LinalgLoweringType::AffineLoops) {
+      break;
+    case LinalgLoweringType::AffineLoops:
       if (failed(linalgOpToAffineLoops(rewriter, op)))
         return failure();
-    } else if (failed(linalgOpToParallelLoops(rewriter, op))) {
-      return failure();
+      break;
+    case LinalgLoweringType::ParallelLoops:
+      if (failed(linalgOpToParallelLoops(rewriter, op)))
+        return failure();
+      break;
     }
+
     rewriter.eraseOp(op);
     return success();
   }
 
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
-  LinalgMarker marker;
+  LinalgTransformationFilter filter;
   /// Controls whether the pattern lowers to library calls, scf.for, affine.for
   /// or scf.parallel.
   LinalgLoweringType loweringType;
 };
 
+/// Linalg generalization patterns
+
+/// Populates `patterns` with patterns to convert spec-generated named ops to
+/// linalg.generic ops.
+void populateLinalgNamedOpsGeneralizationPatterns(
+    RewritePatternSet &patterns,
+    LinalgTransformationFilter filter = LinalgTransformationFilter());
+
+/// Populates `patterns` with patterns to convert linalg.conv ops to
+/// linalg.generic ops.
+void populateLinalgConvGeneralizationPatterns(
+    RewritePatternSet &patterns,
+    LinalgTransformationFilter filter = LinalgTransformationFilter());
+
 //===----------------------------------------------------------------------===//
 // Op-specific patterns.
 //===----------------------------------------------------------------------===//
+
+/// PadTensorOp does not implement the LinalgStructuredOpInterface `LinalgOp`,
+/// it needs a specific pattern to vectorize.
+struct PadTensorOpVectorizationPattern : public OpRewritePattern<PadTensorOp> {
+  using OpRewritePattern<PadTensorOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(PadTensorOp padOp,
+                                PatternRewriter &rewriter) const override;
+};
+
 /// Match and rewrite for the pattern:
 /// ```
 ///    %alloc = ...
-///    [optional] %view = std.view %alloc ...
+///    [optional] %view = memref.view %alloc ...
 ///    %subView = subview %allocOrView ...
 ///    [optional] linalg.fill(%allocOrView, %cst) ...
 ///    ...
@@ -610,7 +879,7 @@ private:
 /// into
 /// ```
 ///    [unchanged] %alloc = ...
-///    [unchanged] [optional] %view = std.view %alloc ...
+///    [unchanged] [optional] %view = memref.view %alloc ...
 ///    [unchanged] [unchanged] %subView = subview %allocOrView ...
 ///    ...
 ///    vector.transfer_read %in[...], %cst ...
@@ -631,7 +900,7 @@ struct LinalgCopyVTRForwardingPattern
 /// Match and rewrite for the pattern:
 /// ```
 ///    %alloc = ...
-///    [optional] %view = std.view %alloc ...
+///    [optional] %view = memref.view %alloc ...
 ///    %subView = subview %allocOrView...
 ///    ...
 ///    vector.transfer_write %..., %allocOrView[...]
@@ -640,7 +909,7 @@ struct LinalgCopyVTRForwardingPattern
 /// into
 /// ```
 ///    [unchanged] %alloc = ...
-///    [unchanged] [optional] %view = std.view %alloc ...
+///    [unchanged] [optional] %view = memref.view %alloc ...
 ///    [unchanged] %subView = subview %allocOrView...
 ///    ...
 ///    vector.transfer_write %..., %out[...]
@@ -655,25 +924,68 @@ struct LinalgCopyVTWForwardingPattern
                                 PatternRewriter &rewriter) const override;
 };
 
-/// Canonicalize AffineMinOp operations in the context of enclosing scf.for and
-/// scf.parallel by:
-///   1. building an affine map where uses of the induction variable of a loop
-///   are replaced by either the min (i.e. `%lb`) of the max
-///   (i.e. `%lb + %step * floordiv(%ub -1 - %lb, %step)`) expression, depending
-///   on whether the induction variable is used with a positive or negative
-///   coefficient.
+using GetMinMaxExprFn =
+    std::function<Optional<std::pair<AffineExpr, AffineExpr>>(
+        Value value, SmallVectorImpl<Value> &dims,
+        SmallVectorImpl<Value> &symbols)>;
+
+/// Canonicalize AffineMinOp operations in the context of ops with a known range
+/// by:
+///   1. building an affine map where uses of the known ops are replaced by
+///   their min annd max expressions returned by the lambda `getMinMaxFn`.
 ///   2. checking whether any of the results of this affine map is known to be
 ///   greater than all other results.
 ///   3. replacing the AffineMinOp by the result of (2).
+struct AffineMinRangeCanonicalizationPattern
+    : public OpRewritePattern<AffineMinOp> {
+  AffineMinRangeCanonicalizationPattern(MLIRContext *context,
+                                        GetMinMaxExprFn getMinMaxFn)
+      : OpRewritePattern<AffineMinOp>(context), getMinMaxFn(getMinMaxFn) {}
+  LogicalResult matchAndRewrite(AffineMinOp minOp,
+                                PatternRewriter &rewriter) const override;
+
+protected:
+  GetMinMaxExprFn getMinMaxFn;
+};
+
+/// Specialized version of `AffineMinRangeCanonicalizationPattern` pattern
+/// using `getSCFMinMaxExpr` to know the min and max expression of induction
+/// variables from scf loops.
 // TODO: move to a more appropriate place when it is determined. For now Linalg
 // depends both on Affine and SCF but they do not depend on each other.
 struct AffineMinSCFCanonicalizationPattern
-    : public OpRewritePattern<AffineMinOp> {
-  using OpRewritePattern<AffineMinOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(AffineMinOp minOp,
-                                PatternRewriter &rewriter) const override;
+    : public AffineMinRangeCanonicalizationPattern {
+  static Optional<std::pair<AffineExpr, AffineExpr>>
+  getMinMax(Value value, SmallVectorImpl<Value> &dims,
+            SmallVectorImpl<Value> &symbols) {
+    return getSCFMinMaxExpr(value, dims, symbols);
+  }
+  AffineMinSCFCanonicalizationPattern(MLIRContext *context)
+      : AffineMinRangeCanonicalizationPattern(context, getMinMax) {}
 };
+
+/// Helper struct to return the results of `substituteMin`.
+struct AffineMapAndOperands {
+  AffineMap map;
+  SmallVector<Value> dims;
+  SmallVector<Value> symbols;
+};
+
+/// Traverse the dims of the AffineMap of `affineMinOp` and substitute
+/// dimensions with known range by new expressions involving the min or max
+/// expression:
+///   - If the AffineDimExpr mapped to a known value has a positive sign, it
+///     is replaced by the min expression.
+///   - If the AffineDimExpr mapped to a known value has a negative sign, it is
+///     replaced by the max expression.
+/// All known values are iteratively replaced.
+/// This is used as an intermediate step in computing bounding boxes and
+/// canonicalize AffineMinOps. All dim and symbol operands are assumed to have
+/// positive values (positive orthant assumptions).
+/// Return a new AffineMap, dims and symbols that have been canonicalized and
+/// simplified.
+AffineMapAndOperands substituteMin(AffineMinOp affineMinOp,
+                                   GetMinMaxExprFn getMinMaxExpr);
 
 /// Converts Convolution op into vector contraction.
 ///
@@ -728,8 +1040,8 @@ public:
 //===----------------------------------------------------------------------===//
 /// Helper function to allow applying rewrite patterns, interleaved with more
 /// global transformations, in a staged fashion:
-///   1. the first stage consists of a list of OwningRewritePatternList. Each
-///   OwningRewritePatternList in this list is applied once, in order.
+///   1. the first stage consists of a list of FrozenRewritePatternSet. Each
+///   FrozenRewritePatternSet in this list is applied once, in order.
 ///   2. the second stage consists of a single OwningRewritePattern that is
 ///   applied greedily until convergence.
 ///   3. the third stage consists of applying a lambda, generally used for
@@ -737,9 +1049,86 @@ public:
 ///   transformations where patterns can be ordered and applied at a finer
 ///   granularity than a sequence of traditional compiler passes.
 LogicalResult applyStagedPatterns(
-    Operation *op, ArrayRef<OwningRewritePatternList> stage1Patterns,
-    const OwningRewritePatternList &stage2Patterns,
+    Operation *op, ArrayRef<FrozenRewritePatternSet> stage1Patterns,
+    const FrozenRewritePatternSet &stage2Patterns,
     function_ref<LogicalResult(Operation *)> stage3Lambda = nullptr);
+
+//===----------------------------------------------------------------------===//
+// Support for sparse tensor code generation.
+//
+// The sparse compiler part of MLIR lowers a tensor expression formulated as a
+// Linalg operation into a sequence of loops depending on what dimensions of the
+// tensors are marked dense or sparse. The generated code distinguishes between:
+// (1) for-loops that iterate over a single dense dimension,
+// (2) for-loops that iterate over a single sparse dimension,
+// (3) while-loops that co-iterate over several sparse dimensions.
+// The for-loops may be subsequently optimized for parallel or vector execution.
+//
+// For more details, the Dialect/Linalg/Transforms/Sparsification.cpp file.
+//===----------------------------------------------------------------------===//
+
+/// Defines a parallelization strategy. Any implicit loop in the Linalg
+/// operation that is marked "parallel" (thus not "reduction") is a candidate
+/// for parallelization. The loop is made parallel if (1) allowed by the
+/// strategy (e.g., AnyStorageOuterLoop considers either a dense or sparse
+/// outermost loop only), and (2) the generated code is an actual for-loop
+/// (and not a co-iterating while-loop).
+enum class SparseParallelizationStrategy {
+  kNone,
+  kDenseOuterLoop,
+  kAnyStorageOuterLoop,
+  kDenseAnyLoop,
+  kAnyStorageAnyLoop
+  // TODO: support reduction parallelization too?
+};
+
+/// Defines a vectorization strategy. Any implicit inner loop in the Linalg
+/// operation is a candidate (full SIMD for "parallel" loops and horizontal
+/// SIMD for "reduction" loops). A loop is actually vectorized if (1) allowed
+/// by the strategy, and (2) the emitted code is an actual for-loop (and not
+/// a co-iterating while-loop).
+enum class SparseVectorizationStrategy {
+  kNone,
+  kDenseInnerLoop,
+  kAnyStorageInnerLoop
+};
+
+/// Defines a type for "pointer" and "index" storage in the sparse storage
+/// scheme, with a choice between the native platform-dependent index width
+/// or any of 64-/32-/16-/8-bit integers. A narrow width obviously reduces
+/// the memory footprint of the sparse storage scheme, but the width should
+/// suffice to define the total required range (viz. the maximum number of
+/// stored entries per indirection level for the "pointers" and the maximum
+/// value of each tensor index over all dimensions for the "indices").
+enum class SparseIntType { kNative, kI64, kI32, kI16, kI8 };
+
+/// Sparsification options.
+struct SparsificationOptions {
+  SparsificationOptions(SparseParallelizationStrategy p,
+                        SparseVectorizationStrategy v, unsigned vl,
+                        SparseIntType pt, SparseIntType it, bool fo)
+      : parallelizationStrategy(p), vectorizationStrategy(v), vectorLength(vl),
+        ptrType(pt), indType(it), fastOutput(fo) {}
+  SparsificationOptions()
+      : SparsificationOptions(SparseParallelizationStrategy::kNone,
+                              SparseVectorizationStrategy::kNone, 1u,
+                              SparseIntType::kNative, SparseIntType::kNative,
+                              false) {}
+  SparseParallelizationStrategy parallelizationStrategy;
+  SparseVectorizationStrategy vectorizationStrategy;
+  unsigned vectorLength;
+  SparseIntType ptrType;
+  SparseIntType indType;
+  bool fastOutput; // experimental: fast output buffers
+};
+
+/// Sets up sparsification rewriting rules with the given options.
+void populateSparsificationPatterns(
+    RewritePatternSet &patterns,
+    const SparsificationOptions &options = SparsificationOptions());
+
+/// Sets up sparsification conversion rules with the given options.
+void populateSparsificationConversionPatterns(RewritePatternSet &patterns);
 
 } // namespace linalg
 } // namespace mlir

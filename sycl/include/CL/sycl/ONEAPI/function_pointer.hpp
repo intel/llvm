@@ -9,11 +9,10 @@
 #pragma once
 
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
-
-#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -37,17 +36,17 @@ using device_func_ptr_holder_t = cl_ulong;
 /// to the provided function pointer type.
 template <
     class FuncType,
-    typename FuncPtrType = typename std::add_pointer<FuncType>::type,
-    typename std::enable_if<std::is_function<FuncType>::value, int>::type = 0>
+    typename FuncPtrType = typename detail::add_pointer_t<FuncType>,
+    typename detail::enable_if_t<std::is_function<FuncType>::value, int> = 0>
 inline FuncPtrType to_device_func_ptr(device_func_ptr_holder_t FptrHolder) {
   return reinterpret_cast<FuncPtrType>(FptrHolder);
 }
 
 template <class FuncType>
-using enable_if_is_function_pointer_t = typename std::enable_if<
+using enable_if_is_function_pointer_t = typename detail::enable_if_t<
     std::is_pointer<FuncType>::value &&
         std::is_function<typename std::remove_pointer<FuncType>::type>::value,
-    int>::type;
+    int>;
 
 /// \brief this function can be used only on host side to obtain device
 /// function pointer for the specified function.

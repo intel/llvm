@@ -10,6 +10,7 @@
 ; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      MVE gather/scatter lowering
+; CHECK-NEXT:      MVE lane interleaving
 ; CHECK-NEXT:      Module Verifier
 ; CHECK-NEXT:      Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:      Canonicalize natural loops
@@ -29,17 +30,15 @@
 ; CHECK-NEXT:      Shadow Stack GC Lowering
 ; CHECK-NEXT:      Lower constant intrinsics
 ; CHECK-NEXT:      Remove unreachable blocks from the CFG
-; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      Post-Dominator Tree Construction
 ; CHECK-NEXT:      Branch Probability Analysis
 ; CHECK-NEXT:      Block Frequency Analysis
 ; CHECK-NEXT:      Constant Hoisting
+; CHECK-NEXT:      Replace intrinsics with calls to vector library
 ; CHECK-NEXT:      Partially inline calls to library functions
-; CHECK-NEXT:      Instrument function entry/exit with calls to e.g. mcount() (post inlining)
 ; CHECK-NEXT:      Scalarize Masked Memory Intrinsics
 ; CHECK-NEXT:      Expand reduction intrinsics
-; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      Scalar Evolution Analysis
 ; CHECK-NEXT:      Basic Alias Analysis (stateless AA impl)
@@ -55,7 +54,6 @@
 ; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Exception handling preparation
 ; CHECK-NEXT:      Merge internal globals
-; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      Scalar Evolution Analysis
 ; CHECK-NEXT:      Lazy Branch Probability Analysis
@@ -68,7 +66,6 @@
 ; CHECK-NEXT:      Safe Stack instrumentation pass
 ; CHECK-NEXT:      Insert stack protectors
 ; CHECK-NEXT:      Module Verifier
-; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:      Function Alias Analysis Results
 ; CHECK-NEXT:      Natural Loop Information
@@ -96,7 +93,8 @@
 ; CHECK-NEXT:      Machine code sinking
 ; CHECK-NEXT:      Peephole Optimizations
 ; CHECK-NEXT:      Remove dead machine instructions
-; CHECK-NEXT:      MVE VPT Optimisation Pass
+; CHECK-NEXT:      MachineDominator Tree Construction
+; CHECK-NEXT:      MVE TailPred and VPT Optimisation Pass
 ; CHECK-NEXT:      ARM MLA / MLS expansion pass
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      ARM pre- register allocation load / store optimization pass
@@ -158,7 +156,11 @@
 ; CHECK-NEXT:      Machine Natural Loop Construction
 ; CHECK-NEXT:      PostRA Machine Instruction Scheduler
 ; CHECK-NEXT:      Post RA top-down list latency scheduler
+; CHECK-NEXT:      ARM Indirect Thunks
+; CHECK-NEXT:      ARM sls hardening pass
 ; CHECK-NEXT:      Analyze Machine Code For Garbage Collection
+; CHECK-NEXT:      MachineDominator Tree Construction
+; CHECK-NEXT:      Machine Natural Loop Construction
 ; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      MachinePostDominator Tree Construction
 ; CHECK-NEXT:      Branch Probability Basic Block Placement
@@ -167,6 +169,9 @@
 ; CHECK-NEXT:      Implement the 'patchable-function' attribute
 ; CHECK-NEXT:      Thumb2 instruction size reduce pass
 ; CHECK-NEXT:      Unpack machine instruction bundles
+; CHECK-NEXT:      MachineDominator Tree Construction
+; CHECK-NEXT:      Machine Natural Loop Construction
+; CHECK-NEXT:      ARM block placement
 ; CHECK-NEXT:      optimise barriers pass
 ; CHECK-NEXT:      Contiguously Lay Out Funclets
 ; CHECK-NEXT:      StackMap Liveness Analysis

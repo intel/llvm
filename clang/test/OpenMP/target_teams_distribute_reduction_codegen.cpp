@@ -46,7 +46,7 @@ int main() {
   // LAMBDA: call void [[OUTER_LAMBDA:@.+]](
   [&]() {
     // LAMBDA: define{{.*}} internal{{.*}} void [[OUTER_LAMBDA]](
-    // LAMBDA: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 0, i32 0)
+    // LAMBDA: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i8** null, i32 0, i32 0)
     // LAMBDA: call void @[[LOFFL1:.+]](
     // LAMBDA:  ret
 #pragma omp target teams distribute reduction(+: sivar)
@@ -91,13 +91,13 @@ int main() {
     // LAMBDA: br
     // LAMBDA: [[CASE2]]:
     // LAMBDA-DAG: [[SIVAR_PRIV_VAL:%.+]] = load{{.+}}, {{.+}} [[SIVAR_PRIV]],
-    // LAMBDA-DAG: [[ATOMIC_RES:%.+]] = atomicrmw add{{.+}} [[SIVAR_REF]], {{.+}} [[SIVAR_PRIV_VAL]]
+    // LAMBDA-DAG: [[ATOMIC_RES:%.+]] = atomicrmw add{{.+}} [[SIVAR_REF]], {{.+}} [[SIVAR_PRIV_VAL]] monotonic, align {{.+}}
     // LAMBDA: call void @__kmpc_end_reduce({{.+}}, {{.+}}, {{.+}} [[RED_VAR]])
     // LAMBDA: br
     sivar += i;
 
     [&]() {
-      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* [[ARG_PTR:%.+]])
+      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]]({{.+}} [[ARG_PTR:%.+]])
       // LAMBDA: store %{{.+}}* [[ARG_PTR]], %{{.+}}** [[ARG_PTR_REF:%.+]],
 
       sivar += 4;
@@ -124,7 +124,7 @@ int main() {
 // CHECK: [[RED_VAR:@.+]] = common global [8 x {{.+}}] zeroinitializer
 
 // CHECK: define {{.*}}i{{[0-9]+}} @main()
-// CHECK: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 0, i32 0)
+// CHECK: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i8** null, i32 0, i32 0)
 // CHECK: call void @[[OFFL1:.+]](i32* {{.+}})
 // CHECK: [[RES:%.+]] = call{{.*}} i32 @[[TMAIN_INT:[^(]+]]()
 // CHECK: ret i32 [[RES]]
@@ -168,13 +168,13 @@ int main() {
 // CHECK: br
 // CHECK: [[CASE2]]:
 // CHECK-DAG: [[SIVAR_PRIV_VAL:%.+]] = load{{.+}}, {{.+}} [[SIVAR_PRIV]],
-// CHECK-DAG: [[ATOMIC_RES:%.+]] = atomicrmw add{{.+}} [[SIVAR_REF]], {{.+}} [[SIVAR_PRIV_VAL]]
+// CHECK-DAG: [[ATOMIC_RES:%.+]] = atomicrmw add{{.+}} [[SIVAR_REF]], {{.+}} [[SIVAR_PRIV_VAL]] monotonic, align {{.+}}
 // CHECK: call void @__kmpc_end_reduce({{.+}}, {{.+}}, {{.+}} [[RED_VAR]])
 // CHECK: br
 
 
 // CHECK: define{{.*}} i{{[0-9]+}} @[[TMAIN_INT]]()
-// CHECK: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 1,
+// CHECK: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 1,
 // CHECK: call void @[[TOFFL1:.+]]({{.+}}* {{.+}})
 // CHECK:  ret
 
@@ -217,7 +217,7 @@ int main() {
 // CHECK: br
 // CHECK: [[CASE2]]:
 // CHECK-DAG: [[TVAR_PRIV_VAL:%.+]] = load{{.+}}, {{.+}} [[TVAR_PRIV]],
-// CHECK-DAG: [[ATOMIC_RES:%.+]] = atomicrmw add{{.+}} [[TVAR_REF]], {{.+}} [[TVAR_PRIV_VAL]]
+// CHECK-DAG: [[ATOMIC_RES:%.+]] = atomicrmw add{{.+}} [[TVAR_REF]], {{.+}} [[TVAR_PRIV_VAL]] monotonic, align {{.+}}
 // CHECK: call void @__kmpc_end_reduce({{.+}}, {{.+}}, {{.+}} [[RED_VAR]])
 // CHECK: br
 

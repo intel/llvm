@@ -61,15 +61,28 @@ void LLVMToSPIRVDbgTran::transDebugMetadata() {
   for (const DIType *T : DIF.types())
     transDbgEntry(T);
 
+  // When translating a debug lexical block, we expect the translation of its
+  // parent scope (say it's a subprogram) already been created in MDMap.
+  // Otherwise, we have to dive into the details of subprogram translation
+  // first. During this process, we will try to resolve all retainedNodes
+  // (aka, variables) owned by this subprogram.
+  // And local variable's scope could be the original lexical block that we
+  // haven't finish translating yet. In other words, the block hasn't been
+  // inserted into MDMap cache yet.
+  // So we try to invoke transDbgEntryImpl on the same lexical block again,
+  // then we get a duplicated lexical block messing up the debug info.
+  //
+  // Scheduling the translation of subprograms ahead of scopes (lexical blocks)
+  // solves this dependency cycle issue.
+  for (const DISubprogram *F : DIF.subprograms())
+    transDbgEntry(F);
+
   for (const DIScope *S : DIF.scopes())
     transDbgEntry(S);
 
   for (const DIGlobalVariableExpression *G : DIF.global_variables()) {
     transDbgEntry(G->getVariable());
   }
-
-  for (const DISubprogram *F : DIF.subprograms())
-    transDbgEntry(F);
 
   for (const DbgVariableIntrinsic *DDI : DbgDeclareIntrinsics)
     finalizeDebugDeclare(DDI);
@@ -101,7 +114,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(
     return;
   SPIRVExtInst *DD = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DD->getBasicBlock();
-  llvm::Value *Alloca = DbgDecl->getVariableLocation();
+  llvm::Value *Alloca = DbgDecl->getVariableLocationOp(0);
 
   using namespace SPIRVDebug::Operand::DebugDeclare;
   SPIRVWordVec Ops(OperandCount);
@@ -116,7 +129,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(
 
 SPIRVValue *LLVMToSPIRVDbgTran::createDebugValuePlaceholder(
     const DbgVariableIntrinsic *DbgValue, SPIRVBasicBlock *BB) {
-  if (!DbgValue->getVariableLocation(/* AllowNullOp = */ false))
+  if (!DbgValue->getVariableLocationOp(0))
     return nullptr; // It is pointless without new value
 
   DbgValueIntrinsics.push_back(DbgValue);
@@ -136,7 +149,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(
     return;
   SPIRVExtInst *DV = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DV->getBasicBlock();
-  Value *Val = DbgValue->getVariableLocation(/* AllowNullOp = */ false);
+  Value *Val = DbgValue->getVariableLocationOp(0);
 
   using namespace SPIRVDebug::Operand::DebugValue;
   SPIRVWordVec Ops(MinOperandCount);
@@ -437,6 +450,21 @@ SPIRVWord transDebugFlags(const DINode *DN) {
   return Flags;
 }
 
+/// Clang doesn't emit access flags for members with default access specifier
+/// See clang/lib/CodeGen/CGDebugInfo.cpp: getAccessFlag()
+/// In SPIR-V we set the flags even for members with default access specifier
+SPIRVWord adjustAccessFlags(DIScope *Scope, SPIRVWord Flags) {
+  if (Scope && (Flags & SPIRVDebug::FlagAccess) == 0) {
+    unsigned Tag = Scope->getTag();
+    if (Tag == dwarf::DW_TAG_class_type)
+      Flags |= SPIRVDebug::FlagIsPrivate;
+    else if (Tag == dwarf::DW_TAG_structure_type ||
+             Tag == dwarf::DW_TAG_union_type)
+      Flags |= SPIRVDebug::FlagIsPublic;
+  }
+  return Flags;
+}
+
 /// The following methods (till the end of the file) implement translation of
 /// debug instrtuctions described in the spec.
 
@@ -528,8 +556,12 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
       Ops[ComponentCountIdx] = static_cast<SPIRVWord>(Count->getZExtValue());
       return BM->addDebugInfo(SPIRVDebug::TypeVector, getVoidTy(), Ops);
     }
-    SPIRVValue *C = SPIRVWriter->transValue(Count, nullptr);
-    Ops[ComponentCountIdx + I] = C->getId();
+    if (Count) {
+      Ops[ComponentCountIdx + I] =
+          SPIRVWriter->transValue(Count, nullptr)->getId();
+    } else {
+      Ops[ComponentCountIdx + I] = getDebugInfoNoneId();
+    }
   }
   return BM->addDebugInfo(SPIRVDebug::TypeArray, getVoidTy(), Ops);
 }
@@ -666,7 +698,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgMemberType(const DIDerivedType *MT) {
   Ops[OffsetIdx] = SPIRVWriter->transValue(Offset, nullptr)->getId();
   ConstantInt *Size = getUInt(M, MT->getSizeInBits());
   Ops[SizeIdx] = SPIRVWriter->transValue(Size, nullptr)->getId();
-  Ops[FlagsIdx] = transDebugFlags(MT);
+  Ops[FlagsIdx] = adjustAccessFlags(MT->getScope(), transDebugFlags(MT));
   if (MT->isStaticMember()) {
     if (llvm::Constant *C = MT->getConstant()) {
       SPIRVValue *Val = SPIRVWriter->transValue(C, nullptr);
@@ -816,7 +848,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
   else
     Ops[ParentIdx] = getScope(Scope)->getId();
   Ops[LinkageNameIdx] = BM->getString(Func->getLinkageName().str())->getId();
-  Ops[FlagsIdx] = transDebugFlags(Func);
+  Ops[FlagsIdx] = adjustAccessFlags(Scope, transDebugFlags(Func));
 
   SPIRVEntry *DebugFunc = nullptr;
   if (!Func->isDefinition()) {
@@ -923,7 +955,15 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
   using namespace SPIRVDebug::Operand::Source;
   SPIRVWordVec Ops(OperandCount);
   Ops[FileIdx] = BM->getString(FileName)->getId();
-  Ops[TextIdx] = getDebugInfoNone()->getId();
+  DIFile *F = DIEntry ? DIEntry->getFile() : nullptr;
+  if (F && F->getRawChecksum()) {
+    auto CheckSum = F->getChecksum().getValue();
+    Ops[TextIdx] = BM->getString("//__" + CheckSum.getKindAsString().str() +
+                                 ":" + CheckSum.Value.str())
+                       ->getId();
+  } else {
+    Ops[TextIdx] = getDebugInfoNone()->getId();
+  }
   SPIRVExtInst *Source = static_cast<SPIRVExtInst *>(
       BM->addDebugInfo(SPIRVDebug::Source, getVoidTy(), Ops));
   FileMap[FileName] = Source;

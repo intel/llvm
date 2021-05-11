@@ -15,6 +15,27 @@
 // or remove any item in this file.
 // TODO: generate the DeviceLibFuncMap in sycl-post-link.cpp automatically
 // during the build based on libdevice to avoid manually sync.
+
+DEVICE_EXTERN_C
+int __devicelib_abs(int x) { return x < 0 ? -x : x; }
+
+DEVICE_EXTERN_C
+long int __devicelib_labs(long int x) { return x < 0 ? -x : x; }
+
+DEVICE_EXTERN_C
+long long int __devicelib_llabs(long long int x) { return x < 0 ? -x : x; }
+
+DEVICE_EXTERN_C
+div_t __devicelib_div(int x, int y) { return {x / y, x % y}; }
+
+DEVICE_EXTERN_C
+ldiv_t __devicelib_ldiv(long int x, long int y) { return {x / y, x % y}; }
+
+DEVICE_EXTERN_C
+lldiv_t __devicelib_lldiv(long long int x, long long int y) {
+  return {x / y, x % y};
+}
+
 DEVICE_EXTERN_C
 float __devicelib_scalbnf(float x, int n) { return __spirv_ocl_ldexp(x, n); }
 

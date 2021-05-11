@@ -20,6 +20,7 @@
 #include "lldb/Host/PseudoTerminal.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/ProcessInfo.h"
+#include "lldb/Utility/StructuredData.h"
 
 namespace lldb_private {
 
@@ -94,10 +95,9 @@ public:
 
   void Clear();
 
-  bool ConvertArgumentsForLaunchingInShell(Status &error, bool localhost,
-                                           bool will_debug,
+  bool ConvertArgumentsForLaunchingInShell(Status &error, bool will_debug,
                                            bool first_arg_is_full_shell_command,
-                                           int32_t num_resumes);
+                                           uint32_t num_resumes);
 
   void
   SetMonitorProcessCallback(const Host::MonitorChildProcessCallback &callback,
@@ -147,6 +147,28 @@ public:
     return m_flags.Test(lldb::eLaunchFlagDetachOnError);
   }
 
+  bool IsScriptedProcess() const {
+    return !m_scripted_process_class_name.empty();
+  }
+
+  std::string GetScriptedProcessClassName() const {
+    return m_scripted_process_class_name;
+  }
+
+  void SetScriptedProcessClassName(std::string name) {
+    m_scripted_process_class_name = name;
+  }
+
+  lldb_private::StructuredData::DictionarySP
+  GetScriptedProcessDictionarySP() const {
+    return m_scripted_process_dictionary_sp;
+  }
+
+  void SetScriptedProcessDictionarySP(
+      lldb_private::StructuredData::DictionarySP dictionary_sp) {
+    m_scripted_process_dictionary_sp = dictionary_sp;
+  }
+
 protected:
   FileSpec m_working_dir;
   std::string m_plugin_name;
@@ -162,6 +184,11 @@ protected:
                             // meaning to the upper levels of lldb.
   lldb::ListenerSP m_listener_sp;
   lldb::ListenerSP m_hijack_listener_sp;
+  std::string m_scripted_process_class_name; // The name of the class that will
+                                             // manage a scripted process.
+  StructuredData::DictionarySP
+      m_scripted_process_dictionary_sp; // A dictionary that holds key/value
+                                        // pairs passed to the scripted process.
 };
 }
 

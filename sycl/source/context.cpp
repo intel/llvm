@@ -15,6 +15,7 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
 
 #include <algorithm>
@@ -63,12 +64,14 @@ context::context(const vector_class<device> &DeviceList,
                                                   PropList);
   else {
     const device &NonHostDevice = *NonHostDeviceIter;
-    const auto &NonHostPlatform = NonHostDevice.get_platform().get();
+    const auto &NonHostPlatform =
+        detail::getSyclObjImpl(NonHostDevice.get_platform())->getHandleRef();
     if (std::any_of(DeviceList.begin(), DeviceList.end(),
                     [&](const device &CurrentDevice) {
-                        return (CurrentDevice.is_host() ||
-                                (CurrentDevice.get_platform().get() !=
-                                 NonHostPlatform));
+                      return (
+                          CurrentDevice.is_host() ||
+                          (detail::getSyclObjImpl(CurrentDevice.get_platform())
+                               ->getHandleRef() != NonHostPlatform));
                     }))
       throw invalid_parameter_error(
           "Can't add devices across platforms to a single context.",
@@ -84,7 +87,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
       detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <>                                                                  \
   __SYCL_EXPORT ret_type context::get_info<info::param_type::param>() const {  \
     return impl->get_info<info::param_type::param>();                          \
@@ -92,28 +95,30 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
 
 #include <CL/sycl/info/context_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-#define PARAM_TRAITS_SPEC(param_type)                                          \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
   template <> __SYCL_EXPORT bool context::has_property<param_type>() const {   \
     return impl->has_property<param_type>();                                   \
   }
 #include <CL/sycl/detail/properties_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-#define PARAM_TRAITS_SPEC(param_type)                                          \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
   template <>                                                                  \
   __SYCL_EXPORT param_type context::get_property<param_type>() const {         \
     return impl->get_property<param_type>();                                   \
   }
 #include <CL/sycl/detail/properties_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 cl_context context::get() const { return impl->get(); }
 
 bool context::is_host() const { return impl->is_host(); }
+
+backend context::get_backend() const noexcept { return getImplBackend(impl); }
 
 platform context::get_platform() const {
   return impl->get_info<info::context::platform>();

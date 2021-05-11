@@ -86,7 +86,8 @@ protected:
     EXPECT_EQ(N->kind(), NodeType) << Selection;
 
     std::vector<PrintedDecl> ActualDecls;
-    for (const auto &Entry : allTargetDecls(N->ASTNode))
+    for (const auto &Entry :
+         allTargetDecls(N->ASTNode, AST.getHeuristicResolver()))
       ActualDecls.emplace_back(Entry.first, Entry.second);
     return ActualDecls;
   }
@@ -148,6 +149,17 @@ TEST_F(TargetDeclTest, Exprs) {
   EXPECT_DECLS("LabelStmt", "label:");
 }
 
+TEST_F(TargetDeclTest, RecoveryForC) {
+  Flags = {"-xc", "-Xclang", "-frecovery-ast"};
+  Code = R"cpp(
+    // error-ok: testing behavior on broken code
+    // int f();
+    int f(int);
+    int x = [[f]]();
+  )cpp";
+  EXPECT_DECLS("DeclRefExpr", "int f(int)");
+}
+
 TEST_F(TargetDeclTest, Recovery) {
   Code = R"cpp(
     // error-ok: testing behavior on broken code
@@ -181,8 +193,7 @@ TEST_F(TargetDeclTest, UsingDecl) {
     int x = [[f]](42);
   )cpp";
   // f(char) is not referenced!
-  EXPECT_DECLS("DeclRefExpr", {"using foo::f", Rel::Alias},
-               {"int f(int)", Rel::Underlying});
+  EXPECT_DECLS("DeclRefExpr", {"using foo::f", Rel::Alias}, {"int f(int)"});
 
   Code = R"cpp(
     namespace foo {
@@ -192,9 +203,8 @@ TEST_F(TargetDeclTest, UsingDecl) {
     [[using foo::f]];
   )cpp";
   // All overloads are referenced.
-  EXPECT_DECLS("UsingDecl", {"using foo::f", Rel::Alias},
-               {"int f(int)", Rel::Underlying},
-               {"int f(char)", Rel::Underlying});
+  EXPECT_DECLS("UsingDecl", {"using foo::f", Rel::Alias}, {"int f(int)"},
+               {"int f(char)"});
 
   Code = R"cpp(
     struct X {
@@ -205,8 +215,7 @@ TEST_F(TargetDeclTest, UsingDecl) {
     };
     int x = Y().[[foo]]();
   )cpp";
-  EXPECT_DECLS("MemberExpr", {"using X::foo", Rel::Alias},
-               {"int foo()", Rel::Underlying});
+  EXPECT_DECLS("MemberExpr", {"using X::foo", Rel::Alias}, {"int foo()"});
 
   Code = R"cpp(
       template <typename T>
@@ -219,7 +228,25 @@ TEST_F(TargetDeclTest, UsingDecl) {
       };
     )cpp";
   EXPECT_DECLS("UnresolvedUsingValueDecl", {"using Base<T>::waldo", Rel::Alias},
-               {"void waldo()", Rel::Underlying});
+               {"void waldo()"});
+}
+
+TEST_F(TargetDeclTest, BaseSpecifier) {
+  Code = R"cpp(
+    struct X {};
+    struct Y : [[private]] X {};
+  )cpp";
+  EXPECT_DECLS("CXXBaseSpecifier", "struct X");
+  Code = R"cpp(
+    struct X {};
+    struct Y : [[private X]] {};
+  )cpp";
+  EXPECT_DECLS("CXXBaseSpecifier", "struct X");
+  Code = R"cpp(
+    struct X {};
+    struct Y : private [[X]] {};
+  )cpp";
+  EXPECT_DECLS("RecordTypeLoc", "struct X");
 }
 
 TEST_F(TargetDeclTest, ConstructorInitList) {
@@ -300,9 +327,6 @@ TEST_F(TargetDeclTest, Types) {
   EXPECT_DECLS("TypedefTypeLoc", {"typedef ns::S X", Rel::Alias},
                {"struct S", Rel::Underlying});
 
-  // FIXME: Auto-completion in a template requires disabling delayed template
-  // parsing.
-  Flags = {"-fno-delayed-template-parsing"};
   Code = R"cpp(
     template<class T>
     void foo() { [[T]] x; }
@@ -310,9 +334,6 @@ TEST_F(TargetDeclTest, Types) {
   EXPECT_DECLS("TemplateTypeParmTypeLoc", "class T");
   Flags.clear();
 
-  // FIXME: Auto-completion in a template requires disabling delayed template
-  // parsing.
-  Flags = {"-fno-delayed-template-parsing"};
   Code = R"cpp(
     template<template<typename> class T>
     void foo() { [[T<int>]] x; }
@@ -589,9 +610,6 @@ TEST_F(TargetDeclTest, Lambda) {
 }
 
 TEST_F(TargetDeclTest, OverloadExpr) {
-  // FIXME: Auto-completion in a template requires disabling delayed template
-  // parsing.
-  Flags = {"-fno-delayed-template-parsing"};
   Flags.push_back("--target=x86_64-pc-linux-gnu");
 
   Code = R"cpp(
@@ -650,8 +668,6 @@ TEST_F(TargetDeclTest, OverloadExpr) {
 }
 
 TEST_F(TargetDeclTest, DependentExprs) {
-  Flags = {"-fno-delayed-template-parsing"};
-
   // Heuristic resolution of method of dependent field
   Code = R"cpp(
         struct A { void foo() {} };
@@ -731,6 +747,93 @@ TEST_F(TargetDeclTest, DependentExprs) {
                "template <typename T> T convert() const");
 }
 
+TEST_F(TargetDeclTest, DependentTypes) {
+  // Heuristic resolution of dependent type name
+  Code = R"cpp(
+        template <typename>
+        struct A { struct B {}; };
+
+        template <typename T>
+        void foo(typename A<T>::[[B]]);
+      )cpp";
+  EXPECT_DECLS("DependentNameTypeLoc", "struct B");
+
+  // Heuristic resolution of dependent type name which doesn't get a TypeLoc
+  Code = R"cpp(
+        template <typename>
+        struct A { struct B { struct C {}; }; };
+
+        template <typename T>
+        void foo(typename A<T>::[[B]]::C);
+      )cpp";
+  EXPECT_DECLS("NestedNameSpecifierLoc", "struct B");
+
+  // Heuristic resolution of dependent type name whose qualifier is also
+  // dependent
+  Code = R"cpp(
+        template <typename>
+        struct A { struct B { struct C {}; }; };
+
+        template <typename T>
+        void foo(typename A<T>::B::[[C]]);
+      )cpp";
+  EXPECT_DECLS("DependentNameTypeLoc", "struct C");
+
+  // Heuristic resolution of dependent template name
+  Code = R"cpp(
+        template <typename>
+        struct A {
+          template <typename> struct B {};
+        };
+
+        template <typename T>
+        void foo(typename A<T>::template [[B]]<int>);
+      )cpp";
+  EXPECT_DECLS("DependentTemplateSpecializationTypeLoc",
+               "template <typename> struct B");
+}
+
+TEST_F(TargetDeclTest, TypedefCascade) {
+  Code = R"cpp(
+        struct C {
+          using type = int;
+        };
+        struct B {
+          using type = C::type;
+        };
+        struct A {
+          using type = B::type;
+        };
+        A::[[type]] waldo;
+  )cpp";
+  EXPECT_DECLS("TypedefTypeLoc",
+               {"using type = int", Rel::Alias | Rel::Underlying},
+               {"using type = C::type", Rel::Alias | Rel::Underlying},
+               {"using type = B::type", Rel::Alias});
+}
+
+TEST_F(TargetDeclTest, RecursiveTemplate) {
+  Flags.push_back("-std=c++20"); // the test case uses concepts
+
+  Code = R"cpp(
+        template <typename T>
+        concept Leaf = false;
+
+        template <typename Tree>
+        struct descend_left {
+          using type = typename descend_left<typename Tree::left>::[[type]];
+        };
+
+        template <Leaf Tree>
+        struct descend_left<Tree> {
+          using type = typename Tree::value;
+        };
+  )cpp";
+  EXPECT_DECLS("DependentNameTypeLoc",
+               {"using type = typename descend_left<typename Tree::left>::type",
+                Rel::Alias | Rel::Underlying});
+}
+
 TEST_F(TargetDeclTest, ObjC) {
   Flags = {"-xobjective-c"};
   Code = R"cpp(
@@ -774,6 +877,24 @@ TEST_F(TargetDeclTest, ObjC) {
   )cpp";
   EXPECT_DECLS("ObjCPropertyRefExpr",
                "@property(atomic, retain, readwrite) I *x");
+
+  Code = R"cpp(
+    @interface MYObject
+    @end
+    @interface Interface
+    @property(retain) [[MYObject]] *x;
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCInterfaceTypeLoc", "@interface MYObject");
+
+  Code = R"cpp(
+    @interface MYObject2
+    @end
+    @interface Interface
+    @property(retain, nonnull) [[MYObject2]] *x;
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCInterfaceTypeLoc", "@interface MYObject2");
 
   Code = R"cpp(
     @protocol Foo
@@ -848,7 +969,6 @@ protected:
 
     // FIXME: Auto-completion in a template requires disabling delayed template
     // parsing.
-    TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
     TU.ExtraArgs.push_back("-std=c++20");
     TU.ExtraArgs.push_back("-xobjective-c++");
 
@@ -859,16 +979,20 @@ protected:
 
     std::vector<ReferenceLoc> Refs;
     if (const auto *Func = llvm::dyn_cast<FunctionDecl>(TestDecl))
-      findExplicitReferences(Func->getBody(), [&Refs](ReferenceLoc R) {
-        Refs.push_back(std::move(R));
-      });
+      findExplicitReferences(
+          Func->getBody(),
+          [&Refs](ReferenceLoc R) { Refs.push_back(std::move(R)); },
+          AST.getHeuristicResolver());
     else if (const auto *NS = llvm::dyn_cast<NamespaceDecl>(TestDecl))
-      findExplicitReferences(NS, [&Refs, &NS](ReferenceLoc R) {
-        // Avoid adding the namespace foo decl to the results.
-        if (R.Targets.size() == 1 && R.Targets.front() == NS)
-          return;
-        Refs.push_back(std::move(R));
-      });
+      findExplicitReferences(
+          NS,
+          [&Refs, &NS](ReferenceLoc R) {
+            // Avoid adding the namespace foo decl to the results.
+            if (R.Targets.size() == 1 && R.Targets.front() == NS)
+              return;
+            Refs.push_back(std::move(R));
+          },
+          AST.getHeuristicResolver());
     else
       ADD_FAILURE() << "Failed to find ::foo decl for test";
 
@@ -1469,6 +1593,35 @@ TEST_F(FindExplicitReferencesTest, All) {
               "0: targets = {f}\n"
               "1: targets = {I::x}\n"
               "2: targets = {I::setY:}\n"},
+          {
+          // Objective-C: methods
+              R"cpp(
+            @interface I
+              -(void) a:(int)x b:(int)y;
+            @end
+            void foo(I *i) {
+              [$0^i $1^a:1 b:2];
+            }
+          )cpp",
+              "0: targets = {i}\n"
+              "1: targets = {I::a:b:}\n"
+          },
+          {
+          // Objective-C: protocols
+              R"cpp(
+            @interface I
+            @end
+            @protocol P
+            @end
+            void foo() {
+              // FIXME: should reference P
+              $0^I<P> *$1^x;
+            }
+          )cpp",
+              "0: targets = {I}\n"
+              "1: targets = {x}, decl\n"
+          },
+
           // Designated initializers.
           {R"cpp(
             void foo() {

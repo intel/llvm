@@ -298,14 +298,6 @@ void IoChecker::Enter(const parser::InputItem &spec) {
     return;
   }
   CheckForDefinableVariable(*var, "Input");
-  const auto &name{GetLastName(*var)};
-  const auto *expr{GetExpr(*var)};
-  if (name.symbol && IsAssumedSizeArray(*name.symbol) && expr &&
-      !evaluate::IsArrayElement(*GetExpr(*var))) {
-    context_.Say(name.source,
-        "Whole assumed size array '%s' may not be an input item"_err_en_US,
-        name.source); // C1231
-  }
 }
 
 void IoChecker::Enter(const parser::InquireSpec &spec) {
@@ -558,7 +550,8 @@ void IoChecker::Enter(const parser::OutputItem &item) {
   flags_.set(Flag::DataList);
   if (const auto *x{std::get_if<parser::Expr>(&item.u)}) {
     if (const auto *expr{GetExpr(*x)}) {
-      if (IsProcedurePointer(*expr)) {
+      const Symbol *last{GetLastSymbol(*expr)};
+      if (last && IsProcedurePointer(*last)) {
         context_.Say(parser::FindSourceLocation(*x),
             "Output item must not be a procedure pointer"_err_en_US); // C1233
       }
@@ -933,12 +926,19 @@ void IoChecker::CheckForProhibitedSpecifier(
 
 template <typename A>
 void IoChecker::CheckForDefinableVariable(
-    const A &var, const std::string &s) const {
-  const Symbol *sym{
-      GetFirstName(*parser::Unwrap<parser::Variable>(var)).symbol};
-  if (WhyNotModifiable(*sym, context_.FindScope(*context_.location()))) {
-    context_.Say(parser::FindSourceLocation(var),
-        "%s variable '%s' must be definable"_err_en_US, s, sym->name());
+    const A &variable, const std::string &s) const {
+  if (const auto *var{parser::Unwrap<parser::Variable>(variable)}) {
+    if (auto expr{AnalyzeExpr(context_, *var)}) {
+      auto at{var->GetSource()};
+      if (auto whyNot{WhyNotModifiable(at, *expr, context_.FindScope(at),
+              true /*vectorSubscriptIsOk*/)}) {
+        const Symbol *base{GetFirstSymbol(*expr)};
+        context_
+            .Say(at, "%s variable '%s' must be definable"_err_en_US, s,
+                (base ? base->name() : at).ToString())
+            .Attach(std::move(*whyNot));
+      }
+    }
   }
 }
 

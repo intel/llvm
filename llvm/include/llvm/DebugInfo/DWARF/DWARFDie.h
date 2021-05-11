@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEBUGINFO_DWARFDIE_H
-#define LLVM_DEBUGINFO_DWARFDIE_H
+#ifndef LLVM_DEBUGINFO_DWARF_DWARFDIE_H
+#define LLVM_DEBUGINFO_DWARF_DWARFDIE_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
@@ -382,11 +382,6 @@ inline bool operator==(const DWARFDie::iterator &LHS,
   return LHS.Die == RHS.Die;
 }
 
-inline bool operator!=(const DWARFDie::iterator &LHS,
-                       const DWARFDie::iterator &RHS) {
-  return !(LHS == RHS);
-}
-
 // These inline functions must follow the DWARFDie::iterator definition above
 // as they use functions from that class.
 inline DWARFDie::iterator DWARFDie::begin() const {
@@ -483,4 +478,4 @@ inline std::reverse_iterator<DWARFDie::iterator> DWARFDie::rend() const {
 
 } // end namespace llvm
 
-#endif // LLVM_DEBUGINFO_DWARFDIE_H
+#endif // LLVM_DEBUGINFO_DWARF_DWARFDIE_H

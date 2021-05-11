@@ -17,7 +17,13 @@ SystemZMCAsmInfo::SystemZMCAsmInfo(const Triple &TT) {
   CalleeSaveStackSlotSize = 8;
   IsLittleEndian = false;
 
-  CommentString = "#";
+  AssemblerDialect = TT.isOSzOS() ? AD_HLASM : AD_ATT;
+
+  MaxInstLength = 6;
+
+  CommentString = AssemblerDialect == AD_HLASM ? "*" : "#";
+  RestrictCommentStringToStartOfStatement = (AssemblerDialect == AD_HLASM);
+  AllowAdditionalComments = (AssemblerDialect == AD_ATT);
   ZeroDirective = "\t.space\t";
   Data64bitsDirective = "\t.quad\t";
   UsesELFSectionDirectiveForBSS = true;

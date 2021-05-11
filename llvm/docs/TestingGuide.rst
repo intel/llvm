@@ -23,7 +23,7 @@ Requirements
 ============
 
 In order to use the LLVM testing infrastructure, you will need all of the
-software required to build LLVM, as well as `Python <http://python.org>`_ 2.7 or
+software required to build LLVM, as well as `Python <http://python.org>`_ 3.6 or
 later.
 
 LLVM Testing Infrastructure Organization
@@ -44,8 +44,8 @@ in use although we run them much more often than nightly.
 Unit tests
 ----------
 
-Unit tests are written using `Google Test <https://github.com/google/googletest/blob/master/googletest/docs/primer.md>`_
-and `Google Mock <https://github.com/google/googletest/blob/master/googlemock/docs/for_dummies.md>`_
+Unit tests are written using `Google Test <https://github.com/google/googletest/blob/master/docs/primer.md>`_
+and `Google Mock <https://github.com/google/googletest/blob/master/docs/gmock_for_dummies.md>`_
 and are located in the ``llvm/unittests`` directory.
 In general unit tests are reserved for targeting the support library and other
 generic data structure, we prefer relying on regression tests for testing
@@ -73,7 +73,7 @@ transforming it. They are tested in general using the same infrastructure as the
 regression tests, by creating a separate "Printer" pass to consume the analysis
 result and print it on the standard output in a textual format suitable for
 FileCheck.
-See `llvm/test/Analysis/BranchProbabilityInfo/loop.ll <https://github.com/llvm/llvm-project/blob/master/llvm/test/Analysis/BranchProbabilityInfo/loop.ll>`_
+See `llvm/test/Analysis/BranchProbabilityInfo/loop.ll <https://github.com/llvm/llvm-project/blob/main/llvm/test/Analysis/BranchProbabilityInfo/loop.ll>`_
 for an example of such test.
 
 ``test-suite``
@@ -537,6 +537,17 @@ RUN lines:
 
    Example: ``%:s: C\Desktop Files\foo_test.s.tmp``
 
+``%errc_<ERRCODE>``
+
+ Some error messages may be substituted to allow different spellings
+ based on the host platform.
+
+   The following error codes are currently supported:
+   ENOENT, EISDIR, EINVAL, EACCES.
+
+   Example: ``Linux %errc_ENOENT: No such file or directory``
+
+   Example: ``Windows %errc_ENOENT: no such file or directory``
 
 **LLVM-specific substitutions:**
 

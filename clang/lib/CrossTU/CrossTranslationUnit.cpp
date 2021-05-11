@@ -157,13 +157,12 @@ parseCrossTUIndex(StringRef IndexPath) {
   unsigned LineNo = 1;
   while (std::getline(ExternalMapFile, Line)) {
     StringRef LineRef{Line};
-    const size_t Delimiter = LineRef.find(" ");
+    const size_t Delimiter = LineRef.find(' ');
     if (Delimiter > 0 && Delimiter != std::string::npos) {
       StringRef LookupName = LineRef.substr(0, Delimiter);
 
       // Store paths with posix-style directory separator.
-      SmallVector<char, 32> FilePath;
-      llvm::Twine{LineRef.substr(Delimiter + 1)}.toVector(FilePath);
+      SmallString<32> FilePath(LineRef.substr(Delimiter + 1));
       llvm::sys::path::native(FilePath, llvm::sys::path::Style::posix);
 
       bool InsertionOccured;
@@ -624,15 +623,14 @@ parseInvocationList(StringRef FileContent, llvm::sys::path::Style PathStyle) {
       return llvm::make_error<IndexError>(
           index_error_code::invocation_list_wrong_format);
 
-    SmallVector<char, 32> ValueStorage;
+    SmallString<32> ValueStorage;
     StringRef SourcePath = Key->getValue(ValueStorage);
 
     // Store paths with PathStyle directory separator.
-    SmallVector<char, 32> NativeSourcePath;
-    llvm::Twine{SourcePath}.toVector(NativeSourcePath);
+    SmallString<32> NativeSourcePath(SourcePath);
     llvm::sys::path::native(NativeSourcePath, PathStyle);
 
-    StringRef InvocationKey{NativeSourcePath.begin(), NativeSourcePath.size()};
+    StringRef InvocationKey(NativeSourcePath);
 
     if (InvocationList.find(InvocationKey) != InvocationList.end())
       return llvm::make_error<IndexError>(
@@ -756,31 +754,15 @@ CrossTranslationUnitContext::getOrCreateASTImporter(ASTUnit *Unit) {
   ASTImporter *NewImporter = new ASTImporter(
       Context, Context.getSourceManager().getFileManager(), From,
       From.getSourceManager().getFileManager(), false, ImporterSharedSt);
-  NewImporter->setFileIDImportHandler([this, Unit](FileID ToID, FileID FromID) {
-    assert(ImportedFileIDs.find(ToID) == ImportedFileIDs.end() &&
-           "FileID already imported, should not happen.");
-    ImportedFileIDs[ToID] = std::make_pair(FromID, Unit);
-  });
   ASTUnitImporterMap[From.getTranslationUnitDecl()].reset(NewImporter);
   return *NewImporter;
 }
 
-llvm::Optional<std::pair<SourceLocation, ASTUnit *>>
-CrossTranslationUnitContext::getImportedFromSourceLocation(
+llvm::Optional<clang::MacroExpansionContext>
+CrossTranslationUnitContext::getMacroExpansionContextForSourceLocation(
     const clang::SourceLocation &ToLoc) const {
-  const SourceManager &SM = Context.getSourceManager();
-  auto DecToLoc = SM.getDecomposedLoc(ToLoc);
-
-  auto I = ImportedFileIDs.find(DecToLoc.first);
-  if (I == ImportedFileIDs.end())
-    return {};
-
-  FileID FromID = I->second.first;
-  clang::ASTUnit *Unit = I->second.second;
-  SourceLocation FromLoc =
-      Unit->getSourceManager().getComposedLoc(FromID, DecToLoc.second);
-
-  return std::make_pair(FromLoc, Unit);
+  // FIXME: Implement: Record such a context for every imported ASTUnit; lookup.
+  return llvm::None;
 }
 
 } // namespace cross_tu

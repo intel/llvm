@@ -25,8 +25,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 
-using llvm::SetVector;
-
 using namespace mlir;
 
 /// Return the number of elements of basis, `0` if empty.
@@ -211,29 +209,29 @@ static AffineMap makePermutationMap(
 /// TODO: could also be implemented as a collect parents followed by a
 /// filter and made available outside this file.
 template <typename T>
-static SetVector<Operation *> getParentsOfType(Operation *op) {
+static SetVector<Operation *> getParentsOfType(Block *block) {
   SetVector<Operation *> res;
-  auto *current = op;
-  while (auto *parent = current->getParentOp()) {
-    if (auto typedParent = dyn_cast<T>(parent)) {
-      assert(res.count(parent) == 0 && "Already inserted");
-      res.insert(parent);
+  auto *current = block->getParentOp();
+  while (current) {
+    if (auto typedParent = dyn_cast<T>(current)) {
+      assert(res.count(current) == 0 && "Already inserted");
+      res.insert(current);
     }
-    current = parent;
+    current = current->getParentOp();
   }
   return res;
 }
 
 /// Returns the enclosing AffineForOp, from closest to farthest.
-static SetVector<Operation *> getEnclosingforOps(Operation *op) {
-  return getParentsOfType<AffineForOp>(op);
+static SetVector<Operation *> getEnclosingforOps(Block *block) {
+  return getParentsOfType<AffineForOp>(block);
 }
 
 AffineMap mlir::makePermutationMap(
-    Operation *op, ArrayRef<Value> indices,
+    Block *insertPoint, ArrayRef<Value> indices,
     const DenseMap<Operation *, unsigned> &loopToVectorDim) {
   DenseMap<Operation *, unsigned> enclosingLoopToVectorDim;
-  auto enclosingLoops = getEnclosingforOps(op);
+  auto enclosingLoops = getEnclosingforOps(insertPoint);
   for (auto *forInst : enclosingLoops) {
     auto it = loopToVectorDim.find(forInst);
     if (it != loopToVectorDim.end()) {
@@ -243,16 +241,22 @@ AffineMap mlir::makePermutationMap(
   return ::makePermutationMap(indices, enclosingLoopToVectorDim);
 }
 
-AffineMap mlir::getTransferMinorIdentityMap(MemRefType memRefType,
+AffineMap mlir::makePermutationMap(
+    Operation *op, ArrayRef<Value> indices,
+    const DenseMap<Operation *, unsigned> &loopToVectorDim) {
+  return makePermutationMap(op->getBlock(), indices, loopToVectorDim);
+}
+
+AffineMap mlir::getTransferMinorIdentityMap(ShapedType shapedType,
                                             VectorType vectorType) {
   int64_t elementVectorRank = 0;
   VectorType elementVectorType =
-      memRefType.getElementType().dyn_cast<VectorType>();
+      shapedType.getElementType().dyn_cast<VectorType>();
   if (elementVectorType)
     elementVectorRank += elementVectorType.getRank();
   return AffineMap::getMinorIdentityMap(
-      memRefType.getRank(), vectorType.getRank() - elementVectorRank,
-      memRefType.getContext());
+      shapedType.getRank(), vectorType.getRank() - elementVectorRank,
+      shapedType.getContext());
 }
 
 bool matcher::operatesOnSuperVectorsOf(Operation &op,
@@ -312,3 +316,57 @@ bool matcher::operatesOnSuperVectorsOf(Operation &op,
   return true;
 }
 
+bool mlir::isDisjointTransferIndices(VectorTransferOpInterface transferA,
+                                     VectorTransferOpInterface transferB) {
+  // For simplicity only look at transfer of same type.
+  if (transferA.getVectorType() != transferB.getVectorType())
+    return false;
+  unsigned rankOffset = transferA.getLeadingShapedRank();
+  for (unsigned i = 0, e = transferA.indices().size(); i < e; i++) {
+    auto indexA = transferA.indices()[i].getDefiningOp<ConstantOp>();
+    auto indexB = transferB.indices()[i].getDefiningOp<ConstantOp>();
+    // If any of the indices are dynamic we cannot prove anything.
+    if (!indexA || !indexB)
+      continue;
+
+    if (i < rankOffset) {
+      // For leading dimensions, if we can prove that index are different we
+      // know we are accessing disjoint slices.
+      if (indexA.getValue().cast<IntegerAttr>().getInt() !=
+          indexB.getValue().cast<IntegerAttr>().getInt())
+        return true;
+    } else {
+      // For this dimension, we slice a part of the memref we need to make sure
+      // the intervals accessed don't overlap.
+      int64_t distance =
+          std::abs(indexA.getValue().cast<IntegerAttr>().getInt() -
+                   indexB.getValue().cast<IntegerAttr>().getInt());
+      if (distance >= transferA.getVectorType().getDimSize(i - rankOffset))
+        return true;
+    }
+  }
+  return false;
+}
+
+bool mlir::isDisjointTransferSet(VectorTransferOpInterface transferA,
+                                 VectorTransferOpInterface transferB) {
+  if (transferA.source() != transferB.source())
+    return false;
+  return isDisjointTransferIndices(transferA, transferB);
+}
+
+bool mlir::checkSameValueRAW(vector::TransferWriteOp defWrite,
+                             vector::TransferReadOp read) {
+  return !defWrite.hasOutOfBoundsDim() && !defWrite.mask() && !read.mask() &&
+         defWrite.indices() == read.indices() &&
+         defWrite.getVectorType() == read.getVectorType() &&
+         defWrite.permutation_map() == read.permutation_map();
+}
+
+bool mlir::checkSameValueWAW(vector::TransferWriteOp write,
+                             vector::TransferWriteOp priorWrite) {
+  return priorWrite.indices() == write.indices() &&
+         priorWrite.mask() == write.mask() &&
+         priorWrite.getVectorType() == write.getVectorType() &&
+         priorWrite.permutation_map() == write.permutation_map();
+}

@@ -42,8 +42,19 @@ TEST(ScudoWrappersCTest, Malloc) {
   EXPECT_NE(P, nullptr);
   EXPECT_LE(Size, malloc_usable_size(P));
   EXPECT_EQ(reinterpret_cast<uintptr_t>(P) % FIRST_32_SECOND_64(8U, 16U), 0U);
+
+  // An update to this warning in Clang now triggers in this line, but it's ok
+  // because the check is expecting a bad pointer and should fail.
+#if defined(__has_warning) && __has_warning("-Wfree-nonheap-object")
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+#endif
   EXPECT_DEATH(
       free(reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(P) | 1U)), "");
+#if defined(__has_warning) && __has_warning("-Wfree-nonheap-object")
+#pragma GCC diagnostic pop
+#endif
+
   free(P);
   EXPECT_DEATH(free(P), "");
 
@@ -303,8 +314,10 @@ TEST(ScudoWrappersCTest, MallocIterateBoundary) {
   }
 }
 
-// We expect heap operations within a disable/enable scope to deadlock.
+// Fuchsia doesn't have alarm, fork or malloc_info.
+#if !SCUDO_FUCHSIA
 TEST(ScudoWrappersCTest, MallocDisableDeadlock) {
+  // We expect heap operations within a disable/enable scope to deadlock.
   EXPECT_DEATH(
       {
         void *P = malloc(Size);
@@ -317,9 +330,6 @@ TEST(ScudoWrappersCTest, MallocDisableDeadlock) {
       },
       "");
 }
-
-// Fuchsia doesn't have fork or malloc_info.
-#if !SCUDO_FUCHSIA
 
 TEST(ScudoWrappersCTest, MallocInfo) {
   // Use volatile so that the allocations don't get optimized away.

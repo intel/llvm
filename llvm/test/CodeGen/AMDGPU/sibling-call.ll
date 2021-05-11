@@ -1,6 +1,6 @@
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=fiji -mattr=-flat-for-global -enable-ipra=0 -amdgpu-sroa=0 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,VI,CIVI,MESA %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=hawaii -enable-ipra=0 -amdgpu-sroa=0 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CI,CIVI,MESA %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=-flat-for-global -enable-ipra=0 -amdgpu-sroa=0 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9,MESA %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=fiji -mattr=-flat-for-global -enable-ipra=0 -amdgpu-sroa=0 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=hawaii -enable-ipra=0 -amdgpu-sroa=0 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -mattr=-flat-for-global -enable-ipra=0 -amdgpu-sroa=0 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9 %s
 target datalayout = "A5"
 
 ; FIXME: Why is this commuted only sometimes?
@@ -91,7 +91,7 @@ entry:
 ; GFX9-NEXT: v_add_u32_e32 v0, v0, v1
 
 ; GCN-NEXT: s_setpc_b64 s[30:31]
-define hidden fastcc i32 @i32_fastcc_i32_byval_i32(i32 %arg0, i32 addrspace(5)* byval align 4 %arg1) #1 {
+define hidden fastcc i32 @i32_fastcc_i32_byval_i32(i32 %arg0, i32 addrspace(5)* byval(i32) align 4 %arg1) #1 {
   %arg1.load = load i32, i32 addrspace(5)* %arg1, align 4
   %add0 = add i32 %arg0, %arg1.load
   ret i32 %add0
@@ -104,9 +104,9 @@ define hidden fastcc i32 @i32_fastcc_i32_byval_i32(i32 %arg0, i32 addrspace(5)* 
 ; GCN: s_swappc_b64
 ; GCN-NOT: v_readlane_b32 s32
 ; GCN: s_setpc_b64
-define fastcc i32 @sibling_call_i32_fastcc_i32_byval_i32_byval_parent(i32 %a, i32 addrspace(5)* byval %b.byval, i32 %c) #1 {
+define fastcc i32 @sibling_call_i32_fastcc_i32_byval_i32_byval_parent(i32 %a, i32 addrspace(5)* byval(i32) %b.byval, i32 %c) #1 {
 entry:
-  %ret = tail call fastcc i32 @i32_fastcc_i32_byval_i32(i32 %a, i32 addrspace(5)* %b.byval)
+  %ret = tail call fastcc i32 @i32_fastcc_i32_byval_i32(i32 %a, i32 addrspace(5)* byval(i32) %b.byval)
   ret i32 %ret
 }
 
@@ -122,7 +122,7 @@ entry:
 ; GCN-NEXT: s_setpc_b64
 define fastcc i32 @sibling_call_i32_fastcc_i32_byval_i32(i32 %a, [32 x i32] %large) #1 {
 entry:
-  %ret = tail call fastcc i32 @i32_fastcc_i32_byval_i32(i32 %a, i32 addrspace(5)* inttoptr (i32 16 to i32 addrspace(5)*))
+  %ret = tail call fastcc i32 @i32_fastcc_i32_byval_i32(i32 %a, i32 addrspace(5)* byval(i32) inttoptr (i32 16 to i32 addrspace(5)*))
   ret i32 %ret
 }
 
@@ -214,15 +214,15 @@ entry:
 
 ; GCN: s_swappc_b64
 
-; GCN-DAG: v_readlane_b32 s34, v42, 0
-; GCN-DAG: v_readlane_b32 s35, v42, 1
-
-; GCN: buffer_load_dword v41, off, s[0:3], s33 ; 4-byte Folded Reload
-; GCN: buffer_load_dword v40, off, s[0:3], s33 offset:4 ; 4-byte Folded Reload
+; GCN-DAG: buffer_load_dword v41, off, s[0:3], s33 ; 4-byte Folded Reload
+; GCN-DAG: buffer_load_dword v40, off, s[0:3], s33 offset:4 ; 4-byte Folded Reload
 
 ; GCN: s_getpc_b64 s[4:5]
 ; GCN-NEXT: s_add_u32 s4, s4, sibling_call_i32_fastcc_i32_i32@rel32@lo+4
 ; GCN-NEXT: s_addc_u32 s5, s5, sibling_call_i32_fastcc_i32_i32@rel32@hi+12
+
+; GCN-DAG: v_readlane_b32 s34, v42, 0
+; GCN-DAG: v_readlane_b32 s35, v42, 1
 
 ; GCN: s_sub_u32 s32, s32, 0x400
 ; GCN-NEXT: v_readlane_b32 s33,
@@ -269,6 +269,36 @@ entry:
   %gep = getelementptr inbounds [16 x i32], [16 x i32] addrspace(5)* %alloca, i32 0, i32 5
   store volatile i32 9, i32 addrspace(5)* %gep
   %ret = tail call fastcc i32 @i32_fastcc_i32_i32_a32i32(i32 %a, i32 %b, [32 x i32] zeroinitializer)
+  ret i32 %ret
+}
+
+@func_ptr_gv = external unnamed_addr addrspace(4) constant i32(i32, i32)*, align 4
+
+; Do support tail calls with a uniform, but unknown, callee.
+; GCN-LABEL: {{^}}indirect_uniform_sibling_call_i32_fastcc_i32_i32:
+; GCN: s_load_dwordx2 [[GV_ADDR:s\[[0-9]+:[0-9]+\]]]
+; GCN: s_load_dwordx2 [[FUNC_PTR:s\[[0-9]+:[0-9]+\]]], [[GV_ADDR]]
+; GCN: s_setpc_b64 [[FUNC_PTR]]
+define hidden fastcc i32 @indirect_uniform_sibling_call_i32_fastcc_i32_i32(i32 %a, i32 %b, i32 %c) #1 {
+entry:
+  %func.ptr.load = load i32(i32, i32)*, i32(i32, i32)* addrspace(4)* @func_ptr_gv
+  %ret = tail call fastcc i32 %func.ptr.load(i32 %a, i32 %b)
+  ret i32 %ret
+}
+
+; We can't support a tail call to a divergent target. Use a waterfall
+; loop around a regular call
+; GCN-LABEL: {{^}}indirect_divergent_sibling_call_i32_fastcc_i32_i32:
+; GCN: v_readfirstlane_b32
+; GCN: v_readfirstlane_b32
+; GCN: s_and_saveexec_b64
+; GCN: s_swappc_b64
+; GCN: s_cbranch_execnz
+; GCN: s_setpc_b64
+define hidden fastcc i32 @indirect_divergent_sibling_call_i32_fastcc_i32_i32(i32(i32, i32)* %func.ptr, i32 %a, i32 %b, i32 %c) #1 {
+entry:
+  %add = add i32 %b, %c
+  %ret = tail call fastcc i32 %func.ptr(i32 %a, i32 %add)
   ret i32 %ret
 }
 

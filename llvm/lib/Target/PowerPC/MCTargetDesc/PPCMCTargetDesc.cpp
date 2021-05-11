@@ -78,7 +78,17 @@ static MCRegisterInfo *createPPCMCRegisterInfo(const Triple &TT) {
 
 static MCSubtargetInfo *createPPCMCSubtargetInfo(const Triple &TT,
                                                  StringRef CPU, StringRef FS) {
-  return createPPCMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
+  // Set some default feature to MC layer.
+  std::string FullFS = std::string(FS);
+
+  if (TT.isOSAIX()) {
+    if (!FullFS.empty())
+      FullFS = "+aix," + FullFS;
+    else
+      FullFS = "+aix";
+  }
+
+  return createPPCMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FullFS);
 }
 
 static MCAsmInfo *createPPCMCAsmInfo(const MCRegisterInfo &MRI,
@@ -120,12 +130,19 @@ public:
   PPCTargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS)
       : PPCTargetStreamer(S), OS(OS) {}
 
-  void emitTCEntry(const MCSymbol &S) override {
+  void emitTCEntry(const MCSymbol &S,
+                   MCSymbolRefExpr::VariantKind Kind) override {
     if (const MCSymbolXCOFF *XSym = dyn_cast<MCSymbolXCOFF>(&S)) {
       MCSymbolXCOFF *TCSym =
           cast<MCSectionXCOFF>(Streamer.getCurrentSectionOnly())
               ->getQualNameSymbol();
-      OS << "\t.tc " << TCSym->getName() << "," << XSym->getName() << '\n';
+      // If the variant kind is TLSGD the entry represents the region handle for
+      // the symbol, we prefix the name with a dot and we add the @m
+      // relocation specifier.
+      if (Kind == MCSymbolRefExpr::VariantKind::VK_PPC_TLSGD)
+        OS << "\t.tc ." << TCSym->getName() << "," << XSym->getName() << "@m\n";
+      else
+        OS << "\t.tc " << TCSym->getName() << "," << XSym->getName() << '\n';
 
       if (TCSym->hasRename())
         Streamer.emitXCOFFRenameDirective(TCSym, TCSym->getSymbolTableName());
@@ -162,7 +179,8 @@ public:
     return static_cast<MCELFStreamer &>(Streamer);
   }
 
-  void emitTCEntry(const MCSymbol &S) override {
+  void emitTCEntry(const MCSymbol &S,
+                   MCSymbolRefExpr::VariantKind Kind) override {
     // Creates a R_PPC64_TOC relocation
     Streamer.emitValueToAlignment(8);
     Streamer.emitSymbolValue(&S, 8);
@@ -266,7 +284,8 @@ class PPCTargetMachOStreamer : public PPCTargetStreamer {
 public:
   PPCTargetMachOStreamer(MCStreamer &S) : PPCTargetStreamer(S) {}
 
-  void emitTCEntry(const MCSymbol &S) override {
+  void emitTCEntry(const MCSymbol &S,
+                   MCSymbolRefExpr::VariantKind Kind) override {
     llvm_unreachable("Unknown pseudo-op: .tc");
   }
 
@@ -288,7 +307,8 @@ class PPCTargetXCOFFStreamer : public PPCTargetStreamer {
 public:
   PPCTargetXCOFFStreamer(MCStreamer &S) : PPCTargetStreamer(S) {}
 
-  void emitTCEntry(const MCSymbol &S) override {
+  void emitTCEntry(const MCSymbol &S,
+                   MCSymbolRefExpr::VariantKind Kind) override {
     const MCAsmInfo *MAI = Streamer.getContext().getAsmInfo();
     const unsigned PointerSize = MAI->getCodePointerSize();
     Streamer.emitValueToAlignment(PointerSize);
@@ -336,8 +356,8 @@ static MCInstPrinter *createPPCMCInstPrinter(const Triple &T,
 }
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCTargetMC() {
-  for (Target *T :
-       {&getThePPC32Target(), &getThePPC64Target(), &getThePPC64LETarget()}) {
+  for (Target *T : {&getThePPC32Target(), &getThePPC32LETarget(),
+                    &getThePPC64Target(), &getThePPC64LETarget()}) {
     // Register the MC asm info.
     RegisterMCAsmInfoFn C(*T, createPPCMCAsmInfo);
 

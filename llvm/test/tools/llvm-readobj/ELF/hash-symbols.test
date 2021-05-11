@@ -104,12 +104,10 @@ DynamicSymbols:
     Value:   0x0000000000001001
     Type:    [[TYPE=STT_NOTYPE]]
 ProgramHeaders:
-  - Type:  PT_LOAD
-    Flags: [ PF_R, PF_X ]
-    Sections:
-      - Section: .hash
-      - Section: .gnu.hash
-      - Section: .dynamic
+  - Type:      PT_LOAD
+    Flags:     [ PF_R, PF_X ]
+    FirstSec:  .hash
+    LastSec:   .dynamic
 
 ## Check what we print for unnamed section symbols.
 # RUN: yaml2obj --docnum=1 -DBITS=64 -DTYPE=STT_SECTION -DNAME="''" %s -o %t1-sec-syms.so
@@ -188,11 +186,10 @@ DynamicSymbols:
     Binding: STB_WEAK
     Value:   0x0000000000001001
 ProgramHeaders:
-  - Type:  PT_LOAD
-    Flags: [ PF_R, PF_X ]
-    Sections:
-      - Section: .hash
-      - Section: .dynamic
+  - Type:     PT_LOAD
+    Flags:    [ PF_R, PF_X ]
+    FirstSec: .hash
+    LastSec:  .dynamic
 
 ## Check the output when only .gnu.hash section is present.
 
@@ -252,11 +249,10 @@ DynamicSymbols:
     Binding: STB_WEAK
     Value:   0x0000000000001001
 ProgramHeaders:
-  - Type:  PT_LOAD
-    Flags: [ PF_R, PF_X ]
-    Sections:
-      - Section: .gnu.hash
-      - Section: .dynamic
+  - Type:     PT_LOAD
+    Flags:    [ PF_R, PF_X ]
+    FirstSec: .gnu.hash
+    LastSec:  .dynamic
 
 ## Show that if there are no hash sections, we do not print anything.
 # RUN: yaml2obj --docnum=4 %s -o %t4.so
@@ -317,30 +313,30 @@ DynamicSymbols:
   - Name:    _Z3fooi
     Binding: STB_GLOBAL
 ProgramHeaders:
-  - Type:  PT_LOAD
-    Flags: [ PF_R, PF_X ]
-    VAddr: 0x0
-    Sections:
-      - Section: .dynstr
-      - Section: .dynsym
-      - Section: .dynamic
-      - Section: .text.foo
-  - Type:  PT_DYNAMIC
-    Flags: [ PF_R ]
-    VAddr: 0x1000
-    Sections:
-      - Section: .dynamic
+  - Type:     PT_LOAD
+    Flags:    [ PF_R, PF_X ]
+    VAddr:    0x0
+    FirstSec: .dynstr
+    LastSec:  .text.foo
+  - Type:     PT_DYNAMIC
+    Flags:    [ PF_R ]
+    VAddr:    0x1000
+    FirstSec: .dynamic
+    LastSec:  .dynamic
 
 ## Show that we report a warning for a hash table which contains an entry of
 ## the bucket array pointing to a cycle.
 
 # RUN: yaml2obj --docnum=5 %s -o %t5.so
-# RUN: llvm-readelf --hash-symbols %t5.so 2>&1 | FileCheck %s -DFILE=%t5.so --check-prefix=BROKEN
+# RUN: llvm-readelf --hash-symbols %t5.so 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t5.so --check-prefix=BROKEN --implicit-check-not=warning:
 
 # BROKEN:      Symbol table of .hash for image:
 # BROKEN-NEXT:  Num Buc:    Value  Size   Type   Bind Vis      Ndx Name
 # BROKEN-NEXT:    1   0: 00000000     0 NOTYPE  LOCAL  DEFAULT UND aaa
 # BROKEN: warning: '[[FILE]]': .hash section is invalid: bucket 1: a cycle was detected in the linked chain
+# BROKEN-NEXT:    1   1: 00000000     0 NOTYPE  LOCAL  DEFAULT UND aaa
+# BROKEN-NOT: {{.}}
 
 --- !ELF
 FileHeader:
@@ -351,7 +347,7 @@ Sections:
   - Name:    .hash
     Type:    SHT_HASH
     Link:    .dynsym
-    Bucket:  [ 1 ]
+    Bucket:  [ 1, 1 ]
     Chain:   [ 1, 1 ]
   - Name:  .dynamic
     Type:  SHT_DYNAMIC
@@ -362,13 +358,11 @@ Sections:
       - Tag:   DT_HASH
         Value: 0x0
 DynamicSymbols:
-  - Name:    aaa
-  - Name:    bbb
+  - Name: aaa
 ProgramHeaders:
-  - Type:  PT_LOAD
-    Sections:
-      - Section: .hash
-      - Section: .dynamic
+  - Type:     PT_LOAD
+    FirstSec: .hash
+    LastSec:  .dynamic
 
 ## Each SHT_HASH section starts with two 32-bit fields: nbucket and nchain.
 ## Check we report an error when a DT_HASH value points to data that has size less than 8 bytes.
@@ -401,9 +395,8 @@ DynamicSymbols: []
 ProgramHeaders:
   - Type:     PT_LOAD
     FileSize: 0x23a
-    Sections:
-      - Section: .hash
-      - Section: .dynamic
+    FirstSec: .hash
+    LastSec:  .dynamic
 
 ## Check we report a warning when the hash table goes past the end of the file.
 
@@ -465,10 +458,9 @@ Sections:
         Value: 0x0
 DynamicSymbols: []
 ProgramHeaders:
-  - Type: PT_LOAD
-    Sections:
-      - Section: .hash
-      - Section: .dynamic
+  - Type:     PT_LOAD
+    FirstSec: .hash
+    LastSec:  .dynamic
 
 ## Check we report a proper warning when a GNU hash table goes past the end of the file.
 
@@ -524,11 +516,10 @@ DynamicSymbols:
   - Name:    ddd
     Binding: STB_GLOBAL
 ProgramHeaders:
-  - Type:  PT_LOAD
-    Flags: [ PF_R, PF_X ]
-    Sections:
-      - Section: .gnu.hash
-      - Section: .dynamic
+  - Type:     PT_LOAD
+    Flags:    [ PF_R, PF_X ]
+    FirstSec: .gnu.hash
+    LastSec:  .dynamic
 
 ## Check the behavior when the dynamic symbol table is empty or not found.
 
@@ -576,12 +567,10 @@ Sections:
     Flags: [ SHF_ALLOC ]
     Size:  0
 ProgramHeaders:
-  - Type:  PT_LOAD
-    Flags: [ PF_R, PF_X ]
-    Sections:
-      - Section: .hash
-      - Section: .dynamic
-      - Section: .dynstr
+  - Type:     PT_LOAD
+    Flags:    [ PF_R, PF_X ]
+    FirstSec: .hash
+    LastSec:  .dynstr
 
 ## Case A.2: similar to A.1, but now check that we report a warning when the dynamic symbol table was not found.
 ##           To do that, set the type of the .dynsym to SHT_PROGBITS to hide it.
@@ -649,9 +638,84 @@ Sections:
     Flags: [ SHF_ALLOC ]
     Size:  0
 ProgramHeaders:
-  - Type:  PT_LOAD
-    Flags: [ PF_R, PF_X ]
-    Sections:
-      - Section: .gnu.hash
-      - Section: .dynamic
-      - Section: .dynstr
+  - Type:     PT_LOAD
+    Flags:    [ PF_R, PF_X ]
+    FirstSec: .gnu.hash
+    LastSec:  .dynstr
+
+## In this case we have a broken value in the hash buckets array. Normally it contains an
+## index into the dynamic symbol table and also is used to get a hash value from the hash values array.
+## llvm-readelf attempts to read a symbol that is past the end of the dynamic symbol table.
+
+# RUN: yaml2obj --docnum=11 -DVALUE=0x2 %s -o %t11.past.dynsym.so
+# RUN: llvm-readelf --hash-symbols %t11.past.dynsym.so 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t11.past.dynsym.so --check-prefix=BUCKET-PAST-DYNSYM
+
+# BUCKET-PAST-DYNSYM:      Symbol table of .gnu.hash for image:
+# BUCKET-PAST-DYNSYM-NEXT:   Num Buc:    Value          Size   Type   Bind Vis      Ndx Name
+# BUCKET-PAST-DYNSYM-NEXT: warning: '[[FILE]]': unable to print hashed symbol with index 2, which is greater than or equal to the number of dynamic symbols (2)
+# BUCKET-PAST-DYNSYM-NEXT:     1   2: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT UND foo
+# BUCKET-PAST-DYNSYM-NOT:  {{.}}
+
+--- !ELF
+FileHeader:
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
+Sections:
+  - Name:  .gnu.hash
+    Type:  SHT_GNU_HASH
+    Flags: [ SHF_ALLOC ]
+    Link:  .dynsym
+    Header:
+      SymNdx: [[SYMNDX=0x0]]
+      Shift2: 0x0
+    BloomFilter: [ 0x0 ]
+    HashBuckets: [ 0x0, [[VALUE]], 0x1 ]
+    HashValues:  [ 0x0 ]
+  - Name:  .dynamic
+    Type:  SHT_DYNAMIC
+    Flags: [ SHF_ALLOC ]
+    Link:  .dynstr
+    Entries:
+      - Tag:   DT_GNU_HASH
+        Value: 0x0
+      - Tag:   DT_NULL
+        Value: 0x0
+DynamicSymbols:
+  - Name:    foo
+    Binding: STB_GLOBAL
+ProgramHeaders:
+  - Type:     PT_LOAD
+    Flags:    [ PF_R, PF_X ]
+    FirstSec: .gnu.hash
+    LastSec:  .dynamic
+
+## In this case we are unable to read a hash value for a symbol with
+## an index that is less than the index of the first hashed symbol.
+
+# RUN: yaml2obj --docnum=11 -DSYMNDX=0x2 -DVALUE=0x1 %s -o %t11.first.hashed.so
+# RUN: llvm-readelf --hash-symbols %t11.first.hashed.so 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t11.first.hashed.so --check-prefix=FIRST-HASHED
+
+# FIRST-HASHED:      Symbol table of .gnu.hash for image:
+# FIRST-HASHED-NEXT:   Num Buc:    Value          Size   Type   Bind Vis      Ndx Name
+# FIRST-HASHED-NEXT: warning: '[[FILE]]': unable to get hash values for the SHT_GNU_HASH section: the first hashed symbol index (2) is greater than or equal to the number of dynamic symbols (2)
+# FIRST-HASHED-NEXT:     1   1: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT UND foo
+# FIRST-HASHED-NEXT: warning: '[[FILE]]': unable to read the hash value for symbol with index 1, which is less than the index of the first hashed symbol (2)
+# FIRST-HASHED-NEXT:     1   2: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT UND foo
+# FIRST-HASHED-NOT:  {{.}}
+
+## In this case one of the chain values doesn't end with a stopper bit and llvm-readelf attempts to read
+## a dynamic symbol with an index that is equal to the number of dynamic symbols.
+
+# RUN: yaml2obj --docnum=11 -DSYMNDX=0x1 -DVALUE=0x1 %s -o %t11.chain.bit.so
+# RUN: llvm-readelf --hash-symbols %t11.chain.bit.so 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t11.chain.bit.so --check-prefix=CHAIN-BIT
+
+# CHAIN-BIT:      Symbol table of .gnu.hash for image:
+# CHAIN-BIT-NEXT:   Num Buc:    Value          Size   Type   Bind Vis      Ndx Name
+# CHAIN-BIT-NEXT:     1   1: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT UND foo
+# CHAIN-BIT-NEXT: warning: '[[FILE]]': unable to print hashed symbol with index 2, which is greater than or equal to the number of dynamic symbols (2)
+# CHAIN-BIT-NEXT:     1   2: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT UND foo
+# CHAIN-BIT-NOT:  {{.}}

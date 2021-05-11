@@ -1,4 +1,5 @@
 set(LLVM_OPTIONAL_SOURCES
+  DebugCounter.cpp
   FileUtilities.cpp
   IndentedOstream.cpp
   MlirOptMain.cpp
@@ -7,6 +8,7 @@ set(LLVM_OPTIONAL_SOURCES
 )
 
 add_mlir_library(MLIRSupport
+  DebugCounter.cpp
   FileUtilities.cpp
   StorageUniquer.cpp
   ToolUtilities.cpp
@@ -34,6 +36,8 @@ add_mlir_library(MLIROptLib
 add_llvm_library(MLIRSupportIndentedOstream
   IndentedOstream.cpp
 
-  LINK_LIBS PUBLIC
-  LLVMSupport
+  DISABLE_LLVM_LINK_LLVM_DYLIB
+
+  LINK_COMPONENTS
+  Support
   )

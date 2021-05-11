@@ -19,6 +19,7 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaConsumer.h"
 #include "clang/Serialization/ASTBitCodes.h"
 #include "clang/Serialization/ASTDeserializationListener.h"
@@ -83,7 +84,7 @@ class RecordDecl;
 class Sema;
 class SourceManager;
 class Stmt;
-struct StoredDeclsList;
+class StoredDeclsList;
 class SwitchCase;
 class TemplateParameterList;
 class Token;
@@ -555,6 +556,11 @@ public:
             bool IncludeTimestamps = true);
   ~ASTWriter() override;
 
+  ASTContext &getASTContext() const {
+    assert(Context && "requested AST context when not writing AST");
+    return *Context;
+  }
+
   const LangOptions &getLangOpts() const;
 
   /// Get a timestamp for output into the AST file. The actual timestamp
@@ -583,6 +589,10 @@ public:
 
   /// Emit a token.
   void AddToken(const Token &Tok, RecordDataImpl &Record);
+
+  /// Emit a AlignPackInfo.
+  void AddAlignPackInfo(const Sema::AlignPackInfo &Info,
+                        RecordDataImpl &Record);
 
   /// Emit a source location.
   void AddSourceLocation(SourceLocation Loc, RecordDataImpl &Record);

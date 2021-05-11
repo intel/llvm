@@ -101,11 +101,15 @@ public:
   /// lane, the constants still match.
   bool isElementWiseEqual(Value *Y) const;
 
-  /// Return true if this is a vector constant that includes any undefined
-  /// elements. Since it is impossible to inspect a scalable vector element-
-  /// wise at compile time, this function returns true only if the entire
-  /// vector is undef
-  bool containsUndefElement() const;
+  /// Return true if this is a vector constant that includes any undef or
+  /// poison elements. Since it is impossible to inspect a scalable vector
+  /// element- wise at compile time, this function returns true only if the
+  /// entire vector is undef or poison.
+  bool containsUndefOrPoisonElement() const;
+
+  /// Return true if this is a vector constant that includes any poison
+  /// elements.
+  bool containsPoisonElement() const;
 
   /// Return true if this is a fixed width vector constant that includes
   /// any constant expressions.
@@ -126,11 +130,13 @@ public:
   bool isConstantUsed() const;
 
   /// This method classifies the entry according to whether or not it may
-  /// generate a relocation entry.  This must be conservative, so if it might
-  /// codegen to a relocatable entry, it should say so.
+  /// generate a relocation entry (either static or dynamic). This must be
+  /// conservative, so if it might codegen to a relocatable entry, it should say
+  /// so.
   ///
   /// FIXME: This really should not be in IR.
   bool needsRelocation() const;
+  bool needsDynamicRelocation() const;
 
   /// For aggregates (struct/array/vector) return the constant that corresponds
   /// to the specified element if possible, or null if not. This can return null
@@ -204,6 +210,30 @@ public:
   /// Try to replace undefined constant C or undefined elements in C with
   /// Replacement. If no changes are made, the constant C is returned.
   static Constant *replaceUndefsWith(Constant *C, Constant *Replacement);
+
+  /// Merges undefs of a Constant with another Constant, along with the
+  /// undefs already present. Other doesn't have to be the same type as C, but
+  /// both must either be scalars or vectors with the same element count. If no
+  /// changes are made, the constant C is returned.
+  static Constant *mergeUndefsWith(Constant *C, Constant *Other);
+
+private:
+  enum PossibleRelocationsTy {
+    /// This constant requires no relocations. That is, it holds simple
+    /// constants (like integrals).
+    NoRelocation = 0,
+
+    /// This constant holds static relocations that can be resolved by the
+    /// static linker.
+    LocalRelocation = 1,
+
+    /// This constant holds dynamic relocations that the dynamic linker will
+    /// need to resolve.
+    GlobalRelocation = 2,
+  };
+
+  /// Determine what potential relocations may be needed by this constant.
+  PossibleRelocationsTy getRelocationInfo() const;
 };
 
 } // end namespace llvm

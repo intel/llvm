@@ -49,9 +49,9 @@
 // ==================
 //
 // With -fbasic-block-sections=labels, we emit the offsets of BB addresses of
-// every function into a .bb_addr_map section. Along with the function symbols,
-// this allows for mapping of virtual addresses in PMU profiles back to the
-// corresponding basic blocks. This logic is implemented in AsmPrinter. This
+// every function into the .llvm_bb_addr_map section. Along with the function
+// symbols, this allows for mapping of virtual addresses in PMU profiles back to
+// the corresponding basic blocks. This logic is implemented in AsmPrinter. This
 // pass only assigns the BBSectionType of every function to ``labels``.
 //
 //===----------------------------------------------------------------------===//
@@ -81,12 +81,18 @@ using namespace llvm;
 
 // Placing the cold clusters in a separate section mitigates against poor
 // profiles and allows optimizations such as hugepage mapping to be applied at a
-// section granularity. Where necessary, users should set this to ".text.split."
-// which is recognized by lld via the `-z keep-text-section-prefix` flag.
+// section granularity. Defaults to ".text.split." which is recognized by lld
+// via the `-z keep-text-section-prefix` flag.
 cl::opt<std::string> llvm::BBSectionsColdTextPrefix(
     "bbsections-cold-text-prefix",
     cl::desc("The text prefix to use for cold basic block clusters"),
-    cl::init(".text.unlikely."), cl::Hidden);
+    cl::init(".text.split."), cl::Hidden);
+
+cl::opt<bool> BBSectionsDetectSourceDrift(
+    "bbsections-detect-source-drift",
+    cl::desc("This checks if there is a fdo instr. profile hash "
+             "mismatch for this function"),
+    cl::init(true), cl::Hidden);
 
 namespace {
 
@@ -303,20 +309,51 @@ static bool avoidZeroOffsetLandingPad(MachineFunction &MF) {
       MachineBasicBlock::iterator MI = MBB.begin();
       while (!MI->isEHLabel())
         ++MI;
-      MCInst Noop;
-      MF.getSubtarget().getInstrInfo()->getNoop(Noop);
+      MCInst Nop = MF.getSubtarget().getInstrInfo()->getNop();
       BuildMI(MBB, MI, DebugLoc(),
-              MF.getSubtarget().getInstrInfo()->get(Noop.getOpcode()));
+              MF.getSubtarget().getInstrInfo()->get(Nop.getOpcode()));
       return false;
     }
   }
   return true;
 }
 
+// This checks if the source of this function has drifted since this binary was
+// profiled previously.  For now, we are piggy backing on what PGO does to
+// detect this with instrumented profiles.  PGO emits an hash of the IR and
+// checks if the hash has changed.  Advanced basic block layout is usually done
+// on top of PGO optimized binaries and hence this check works well in practice.
+static bool hasInstrProfHashMismatch(MachineFunction &MF) {
+  if (!BBSectionsDetectSourceDrift)
+    return false;
+
+  const char MetadataName[] = "instr_prof_hash_mismatch";
+  auto *Existing = MF.getFunction().getMetadata(LLVMContext::MD_annotation);
+  if (Existing) {
+    MDTuple *Tuple = cast<MDTuple>(Existing);
+    for (auto &N : Tuple->operands())
+      if (cast<MDString>(N.get())->getString() == MetadataName)
+        return true;
+  }
+
+  return false;
+}
+
 bool BasicBlockSections::runOnMachineFunction(MachineFunction &MF) {
   auto BBSectionsType = MF.getTarget().getBBSectionsType();
   assert(BBSectionsType != BasicBlockSection::None &&
          "BB Sections not enabled!");
+
+  // Check for source drift.  If the source has changed since the profiles
+  // were obtained, optimizing basic blocks might be sub-optimal.
+  // This only applies to BasicBlockSection::List as it creates
+  // clusters of basic blocks using basic block ids. Source drift can
+  // invalidate these groupings leading to sub-optimal code generation with
+  // regards to performance.
+  if (BBSectionsType == BasicBlockSection::List &&
+      hasInstrProfHashMismatch(MF))
+    return true;
+
   // Renumber blocks before sorting them for basic block sections.  This is
   // useful during sorting, basic blocks in the same section will retain the
   // default order.  This renumbering should also be done for basic block

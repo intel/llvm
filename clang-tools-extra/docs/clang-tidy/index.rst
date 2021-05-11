@@ -64,6 +64,8 @@ Name prefix            Description
 ``bugprone-``          Checks that target bugprone code constructs.
 ``cert-``              Checks related to CERT Secure Coding Guidelines.
 ``clang-analyzer-``    Clang Static Analyzer checks.
+``concurrency-``       Checks related to concurrent programming (including
+                       threads, fibers, coroutines, etc.).
 ``cppcoreguidelines-`` Checks related to C++ Core Guidelines.
 ``darwin-``            Checks related to Darwin coding conventions.
 ``fuchsia-``           Checks related to Fuchsia coding conventions.
@@ -171,6 +173,12 @@ An overview of all the command-line options:
                                      errors were found. If compiler errors have
                                      attached fix-its, clang-tidy will apply them as
                                      well.
+    --fix-notes                    - 
+                                     If a warning has no fix, but a single fix can 
+                                     be found through an associated diagnostic note, 
+                                     apply the fix. 
+                                     Specifying this flag will implicitly enable the 
+                                     '--fix' flag.
     --format-style=<string>        -
                                      Style for formatting code around applied fixes:
                                        - 'none' (default) turns off formatting

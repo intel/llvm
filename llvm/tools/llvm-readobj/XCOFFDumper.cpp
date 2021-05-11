@@ -24,7 +24,7 @@ class XCOFFDumper : public ObjDumper {
 
 public:
   XCOFFDumper(const XCOFFObjectFile &Obj, ScopedPrinter &Writer)
-      : ObjDumper(Writer), Obj(Obj) {}
+      : ObjDumper(Writer, Obj.getFileName()), Obj(Obj) {}
 
   void printFileHeaders() override;
   void printSectionHeaders() override;
@@ -182,13 +182,12 @@ static const EnumEntry<XCOFF::StorageMappingClass> CsectStorageMappingClass[] =
     {
 #define ECase(X)                                                               \
   { #X, XCOFF::X }
-        ECase(XMC_PR),   ECase(XMC_RO),     ECase(XMC_DB),
-        ECase(XMC_GL),   ECase(XMC_XO),     ECase(XMC_SV),
-        ECase(XMC_SV64), ECase(XMC_SV3264), ECase(XMC_TI),
-        ECase(XMC_TB),   ECase(XMC_RW),     ECase(XMC_TC0),
-        ECase(XMC_TC),   ECase(XMC_TD),     ECase(XMC_DS),
-        ECase(XMC_UA),   ECase(XMC_BS),     ECase(XMC_UC),
-        ECase(XMC_TL),   ECase(XMC_TE)
+        ECase(XMC_PR), ECase(XMC_RO), ECase(XMC_DB),   ECase(XMC_GL),
+        ECase(XMC_XO), ECase(XMC_SV), ECase(XMC_SV64), ECase(XMC_SV3264),
+        ECase(XMC_TI), ECase(XMC_TB), ECase(XMC_RW),   ECase(XMC_TC0),
+        ECase(XMC_TC), ECase(XMC_TD), ECase(XMC_DS),   ECase(XMC_UA),
+        ECase(XMC_BS), ECase(XMC_UC), ECase(XMC_TL),   ECase(XMC_UL),
+        ECase(XMC_TE)
 #undef ECase
 };
 

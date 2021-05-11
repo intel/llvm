@@ -310,7 +310,7 @@ Cookie IONAME(BeginEndfile)(
     ExternalUnit unitNumber, const char *sourceFile, int sourceLine) {
   Terminator terminator{sourceFile, sourceLine};
   ExternalFileUnit &unit{ExternalFileUnit::LookUpOrCreateAnonymous(
-      unitNumber, Direction::Output, true /*formatted*/, terminator)};
+      unitNumber, Direction::Output, false /*formatted*/, terminator)};
   return &unit.BeginIoStatement<ExternalMiscIoStatementState>(
       unit, ExternalMiscIoStatementState::Endfile, sourceFile, sourceLine);
 }
@@ -319,7 +319,7 @@ Cookie IONAME(BeginRewind)(
     ExternalUnit unitNumber, const char *sourceFile, int sourceLine) {
   Terminator terminator{sourceFile, sourceLine};
   ExternalFileUnit &unit{ExternalFileUnit::LookUpOrCreateAnonymous(
-      unitNumber, Direction::Input, true /*formatted*/, terminator)};
+      unitNumber, Direction::Input, false /*formatted*/, terminator)};
   return &unit.BeginIoStatement<ExternalMiscIoStatementState>(
       unit, ExternalMiscIoStatementState::Rewind, sourceFile, sourceLine);
 }
@@ -856,26 +856,6 @@ bool IONAME(SetFile)(Cookie cookie, const char *path, std::size_t chars) {
   return false;
 }
 
-template <typename INT>
-static bool SetInteger(INT &x, int kind, std::int64_t value) {
-  switch (kind) {
-  case 1:
-    reinterpret_cast<std::int8_t &>(x) = value;
-    return true;
-  case 2:
-    reinterpret_cast<std::int16_t &>(x) = value;
-    return true;
-  case 4:
-    reinterpret_cast<std::int32_t &>(x) = value;
-    return true;
-  case 8:
-    reinterpret_cast<std::int64_t &>(x) = value;
-    return true;
-  default:
-    return false;
-  }
-}
-
 bool IONAME(GetNewUnit)(Cookie cookie, int &unit, int kind) {
   IoStatementState &io{*cookie};
   auto *open{io.get_if<OpenStatementState>()};
@@ -914,6 +894,9 @@ bool IONAME(InputUnformattedBlock)(
     Cookie cookie, char *x, std::size_t length, std::size_t elementBytes) {
   IoStatementState &io{*cookie};
   io.BeginReadingRecord();
+  if (io.GetIoErrorHandler().InError()) {
+    return false;
+  }
   if (auto *unf{io.get_if<UnformattedIoStatementState<Direction::Input>>()}) {
     return unf->Receive(x, length, elementBytes);
   }
@@ -1057,7 +1040,7 @@ bool IONAME(InputLogical)(Cookie cookie, bool &truth) {
 
 void IONAME(GetIoMsg)(Cookie cookie, char *msg, std::size_t length) {
   IoErrorHandler &handler{cookie->GetIoErrorHandler()};
-  if (handler.GetIoStat()) { // leave "msg" alone when no error
+  if (handler.InError()) { // leave "msg" alone when no error
     handler.GetIoMsg(msg, length);
   }
 }

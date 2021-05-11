@@ -68,30 +68,27 @@ Providing a generic group abstraction encapsulating the shared functionality of 
 
 === Attributes
 
-The +[[intel::reqd_sub_group_size(n)]]+ attribute indicates that the kernel must be compiled and executed with a sub-group of size _n_.  The value of _n_ must be a compile-time integral constant expression.  The value of _n_ must be set to a sub-group size that is both supported by the device and compatible with all language features used by the kernel, or device compilation will fail.  The set of valid sub-group sizes can be queried as described below.
+The +[[intel::sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression.  The kernel should only be submitted to a device that supports that sub-group size (as reported by +info::device::sub_group_sizes+).  If the kernel is submitted to a device that does not support the requested sub-group size, or a device on which the requested sub-group size is incompatible with any language features used by the kernel, the implementation must throw a synchronous exception with the `errc::feature_not_supported` error code from the kernel invocation command.
 
-In addition to device functions, the required sub-group size attribute may also be specified in the definition of a named functor object, as in the example below:
+The +[[intel::named_sub_group_size(NAME)]]+ attribute indicates that the kernel must be compiled and executed with a named sub-group size.  _NAME_ must be one of the following special tokens: +automatic+, +primary+.  If _NAME_ is +automatic+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If _NAME_ is +primary+, the implementation will select the device's primary sub-group size (as reported by the +info::device::primary_sub_group_size+ query) for all kernels with this attribute.
 
-[source, c++]
-----
-class Functor
-{
-  void operator()(item<1> item) [[intel::reqd_sub_group_size(16)]]
-  {
-    /* kernel code */
-  }
-}
-----
+There are special requirements whenever a device function defined in one translation unit makes a call to a device function that is defined in a second translation unit. In such a case, the second device function is always declared using +SYCL_EXTERNAL+. If the kernel calling these device functions is defined using a sub-group size attribute, the functions declared using +SYCL_EXTERNAL+ must be similarly decorated to ensure that the same sub-group size is used. This decoration must exist in both the translation unit making the call and also in the translation unit that defines the function. If the sub-group size attribute is missing in the translation unit that makes the call, or if the sub-group size of the called function does not match the sub-group size of the calling function, the program is ill-formed and the compiler must raise a diagnostic.
 
-It is illegal for a kernel or function to call a function with a mismatched sub-group size requirement, and the compiler should produce an error in this case.  The +reqd_sub_group_size+ attribute is not propagated from a device function to callers of the function, and must be specified explicitly when a kernel is defined.
+If no sub-group size attribute appears on a kernel or +SYCL_EXTERNAL+ function, the default behavior is as-if +[[intel::named_sub_group_size(primary)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).  Only one sub-group size attribute may appear on a kernel or +SYCL_EXTERNAL+ function.
+
+Note that a compiler may choose a different sub-group size for each kernel and +SYCL_EXTERNAL+ function using an +automatic+ sub-group size.  If kernels with an +automatic+ sub-group size call +SYCL_EXTERNAL+ functions using an +automatic+ sub-group size, the program may be ill-formed.  The behavior when +SYCL_EXTERNAL+ is used in conjunction with an +automatic+ sub-group size is implementation-defined, and code relying on specific behavior should not be expected to be portable across implementations.  If a kernel calls a +SYCL_EXTERNAL+ function with an incompatible sub-group size, the compiler must raise a diagnostic -- it is expected that this diagnostic will be raised during link-time, since this is the first time the compiler will see both translation units together.
+
+=== Compiler Flags
+
+The +-fsycl-default-sub-group-size+ flag controls the default sub-group size used within a translation unit, which applies to all kernels and +SYCL_EXTERNAL+ functions without an explicitly specified sub-group size.  If the argument passed to +-fsycl-default-sub-group-size+ is an integer _S_, all kernels and functions without an explicitly specified sub-group size are compiled as-if +[[intel::sub_group_size(S)]]+ was specified.  If the argument passed to +-fsycl-default-sub-group-size+ is a string _NAME_, all kernels and functions without an explicitly specified sub-group size are compiled as-if +[[intel::named_sub_group_size(NAME)]]+ was specified.
 
 === Sub-group Queries
 
-Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.  The sub-group size for a given combination of kernel and launch configuration is fixed, and guaranteed to be reflected by device and kernel queries.
+Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups for certain work-group sizes is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.  The sub-group size for a given combination of kernel, device and work-group size is fixed.
 
-Each sub-group in a work-group is one-dimensional.  If the total number of work-items in a work-group is evenly divisible by the sub-group size, all sub-groups in the work-group will contain the same number of work-items.  If the total number of work-items in a work-group is not evenly divisible by the sub-group size, the number of work-items in the final sub-group is equal to the remainder of the total work-group size divided by the sub-group size.
+Each sub-group in a work-group is one-dimensional.  If the number of work-items in the highest-numbered dimension of a work-group is evenly divisible by the sub-group size, all sub-groups in the work-group will contain the same number of work-items.  Additionally, the numbering of work-items in a sub-group reflects the linear numbering of the work-items in the work-group.  Specifically, if a work-item has linear ID i~s~ in the sub-group and linear ID i~w~ in the work-group, the work-item with linear ID i~s~+1 in the sub-group has linear ID i~w~+1 in the work-group.
 
-To maximize portability across devices, developers should not assume that work-items within a sub-group execute in lockstep, nor that two sub-groups within a work-group will make independent forward progress with respect to one another.
+To maximize portability across devices, developers should not assume that work-items within a sub-group execute in lockstep, that two sub-groups within a work-group will make independent forward progress with respect to one another, nor that remainders arising from work-group division will be handled in a specific way.
 
 The device descriptors below are added to the +info::device+ enumeration class:
 
@@ -106,9 +103,13 @@ The device descriptors below are added to the +info::device+ enumeration class:
 |+bool+
 |Returns +true+ if the device supports independent forward progress of sub-groups with respect to other sub-groups in the same work-group.
 
+|+info::device::primary_sub_group_size+
+|+size_t+
+|Return a sub-group size supported by this device that is guaranteed to support all core language features for the device.
+
 |+info::device::sub_group_sizes+
 |+vector_class<size_t>+
-|Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.
+|Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.  Each sub-group size is a power of 2 in the range [1, 2^31^].  Not all sub-group sizes are guaranteed to be compatible with all core language features; any incompatibilities are implementation-defined.
 |===
 
 An additional query is added to the +kernel+ class, enabling an input value to be passed to `get_info`.  The original `get_info` query from the SYCL_INTEL_device_specific_kernel_queries extension should be used for queries that do not specify an input type.
@@ -143,7 +144,7 @@ The kernel descriptors below are added to the +info::kernel_device_specific+ enu
 |+info::kernel_device_specific::compile_sub_group_size+
 |N/A
 |+uint32_t+
-|Returns the required sub-group size specified by the kernel, or 0 (if not specified).
+|Returns the sub-group size of the kernel, set implicitly by the implementation or explicitly using a kernel attribute. Returns 0 if the requested size was `automatic`, and returns the device's primary sub-group size if the requested size was `primary`.
 |===
 
 === The sub_group Class
@@ -295,6 +296,21 @@ Yes, this is required by OpenCL devices.  Devices that do not require the work-g
 Yes, the four shuffles in this extension are a defining feature of sub-groups.  Higher-level algorithms (such as those in the +SubGroupAlgorithms+ proposal) may build on them, the same way as higher-level algorithms using work-groups build on work-group local memory.
 --
 
+. What should the sub-group size compatible with all features be called?
++
+--
+*RESOLVED*:
+The name adopted is "primary", to convey that it is an integral part of sub-group support provided by the device.  Other names considered are listed here for posterity: "default", "stable", "fixed", "core".  These terms are easy to misunderstand (i.e. the "default" size may not be chosen by default, the "stable" size is unrelated to the software release cycle, the "fixed" sub-group size may change between devices or compiler releases, the "core" size is unrelated to hardware cores).
+--
+
+. How does sub-group size interact with `SYCL_EXTERNAL` functions?
+The current behavior requires exact matching.  Should this be relaxed to allow alternative implementations (e.g. link-time optimization, multi-versioning)?
++
+--
+*RESOLVED*:
+Exact matching is required to ensure that developers can reason about the portability of their code across different implementations.  Setting the default sub-group size to "primary" and providing an override flag to select "automatic" everywhere means that only advanced developers who are tuning sub-group size on a per-kernel basis will have to worry about potential matching issues.
+--
+
 //. asd
 //+
 //--
@@ -315,6 +331,8 @@ Yes, the four shuffles in this extension are a defining feature of sub-groups.  
 |5|2020-04-21|John Pennycook|*Restore sub-group shuffles as member functions*
 |6|2020-04-22|John Pennycook|*Align with SYCL_INTEL_device_specific_kernel_queries*
 |7|2020-07-13|John Pennycook|*Clarify that reqd_sub_group_size must be a compile-time constant*
+|8|2020-10-21|John Pennycook|*Define default behavior and reduce verbosity*
+|9|2021-03-30|John Pennycook|*Rename auto to automatic*
 |========================================
 
 //************************************************************************

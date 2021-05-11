@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+/// \file
 /// Target-Independent Code Generator Pass Configuration Options pass.
-//
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CODEGEN_TARGETPASSCONFIG_H
@@ -25,6 +25,7 @@ struct MachineSchedContext;
 class PassConfigImpl;
 class ScheduleDAGInstrs;
 class CSEConfigBase;
+class PassInstrumentationCallbacks;
 
 // The old pass manager infrastructure is hidden in a legacy namespace now.
 namespace legacy {
@@ -313,6 +314,9 @@ public:
   /// Add a pass to remove debug info from the MIR.
   void addStripDebugPass();
 
+  /// Add a pass to check synthesized debug info for MIR.
+  void addCheckDebugPass();
+
   /// Add standard passes before a pass that's about to be added. For example,
   /// the DebugifyMachineModulePass if it is enabled.
   void addMachinePrePasses(bool AllowDebugify = true);
@@ -456,11 +460,14 @@ protected:
   /// regalloc pass.
   virtual FunctionPass *createRegAllocPass(bool Optimized);
 
-  /// Add core register alloator passes which do the actual register assignment
+  /// Add core register allocator passes which do the actual register assignment
   /// and rewriting. \returns true if any passes were added.
-  virtual bool addRegAssignmentFast();
-  virtual bool addRegAssignmentOptimized();
+  virtual bool addRegAssignAndRewriteFast();
+  virtual bool addRegAssignAndRewriteOptimized();
 };
+
+void registerCodeGenCallback(PassInstrumentationCallbacks &PIC,
+                             LLVMTargetMachine &);
 
 } // end namespace llvm
 

@@ -132,7 +132,7 @@ macro returns a nonzero value based on the year and month in which the attribute
 was voted into the working draft. See `WG21 SD-6
 <https://isocpp.org/std/standing-documents/sd-6-sg10-feature-test-recommendations>`_
 for the list of values returned for standards-based attributes. If the attribute
-is not supported by the current compliation target, this macro evaluates to 0.
+is not supported by the current compilation target, this macro evaluates to 0.
 It can be used like this:
 
 .. code-block:: c++
@@ -383,6 +383,18 @@ Builtin Macros
   Defined to a string that captures the Clang marketing version, including the
   Subversion tag or revision number, e.g., "``1.5 (trunk 102332)``".
 
+``__clang_literal_encoding__``
+  Defined to a narrow string literal that represents the current encoding of
+  narrow string literals, e.g., ``"hello"``. This macro typically expands to
+  "UTF-8" (but may change in the future if the
+  ``-fexec-charset="Encoding-Name"`` option is implemented.)
+
+``__clang_wide_literal_encoding__``
+  Defined to a narrow string literal that represents the current encoding of
+  wide string literals, e.g., ``L"hello"``. This macro typically expands to
+  "UTF-16" or "UTF-32" (but may change in the future if the
+  ``-fwide-exec-charset="Encoding-Name"`` option is implemented.)
+
 .. _langext-vectors:
 
 Vectors and Extended Vectors
@@ -524,6 +536,7 @@ targets pending ABI standardization:
 
 * 32-bit ARM
 * 64-bit ARM (AArch64)
+* AMDGPU
 * SPIR
 
 ``_Float16`` will be supported on more targets as they define ABIs for it.
@@ -541,7 +554,7 @@ The behavior of ``__fp16`` is specified by the ARM C Language Extensions (`ACLE 
 Clang uses the ``binary16`` format from IEEE 754-2008 for ``__fp16``, not the ARM
 alternative format.
 
-``_Float16`` is an extended floating-point type.  This means that, just like arithmetic on
+``_Float16`` is an interchange floating-point type.  This means that, just like arithmetic on
 ``float`` or ``double``, arithmetic on ``_Float16`` operands is formally performed in the
 ``_Float16`` type, so that e.g. the result of adding two ``_Float16`` values has type
 ``_Float16``.  The behavior of ``_Float16`` is specified by ISO/IEC TS 18661-3:2015
@@ -1193,7 +1206,9 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_sealed`` (Microsoft):
   Synonym for ``__is_final``.
 * ``__is_signed`` (C++, Embarcadero):
-  Returns false for enumeration types, and returns true for floating-point types. Note, before Clang 10, returned true for enumeration types if the underlying type was signed, and returned false for floating-point types.
+  Returns false for enumeration types, and returns true for floating-point
+  types. Note, before Clang 10, returned true for enumeration types if the
+  underlying type was signed, and returned false for floating-point types.
 * ``__is_standard_layout`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_trivial`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_trivially_assignable`` (C++, GNU, Microsoft)
@@ -1201,10 +1216,9 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_trivially_copyable`` (C++, GNU, Microsoft)
 * ``__is_trivially_destructible`` (C++, MSVC 2013)
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
-* ``__is_unsigned`` (C++, Embarcadero)
-  Note that this currently returns true for enumeration types if the underlying
-  type is unsigned, in violation of the requirements for ``std::is_unsigned``.
-  This behavior is likely to change in a future version of Clang.
+* ``__is_unsigned`` (C++, Embarcadero):
+  Returns false for enumeration types. Note, before Clang 13, returned true for
+  enumeration types if the underlying type was unsigned.
 * ``__is_void`` (C++, Embarcadero)
 * ``__is_volatile`` (C++, Embarcadero)
 * ``__reference_binds_to_temporary(T, U)`` (Clang):  Determines whether a
@@ -1722,6 +1736,83 @@ syntax to be used with ``std::complex`` with the same meaning.)
 For GCC compatibility, ``__builtin_complex(re, im)`` can also be used to
 construct a complex number from the given real and imaginary components.
 
+OpenCL Features
+===============
+
+Clang supports internal OpenCL extensions documented below.
+
+``__cl_clang_function_pointers``
+--------------------------------
+
+With this extension it is possible to enable various language features that
+are relying on function pointers using regular OpenCL extension pragma
+mechanism detailed in `the OpenCL Extension Specification,
+section 1.2
+<https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#extensions-overview>`_.
+
+In C++ for OpenCL this also enables:
+
+- Use of member function pointers;
+
+- Unrestricted use of references to functions;
+
+- Virtual member functions.
+
+Such functionality is not conformant and does not guarantee to compile
+correctly in any circumstances. It can be used if:
+
+- the kernel source does not contain call expressions to (member-) function
+  pointers, or virtual functions. For example this extension can be used in
+  metaprogramming algorithms to be able to specify/detect types generically.
+
+- the generated kernel binary does not contain indirect calls because they
+  are eliminated using compiler optimizations e.g. devirtualization. 
+
+- the selected target supports the function pointer like functionality e.g.
+  most CPU targets.
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  #pragma OPENCL EXTENSION __cl_clang_function_pointers : enable
+  void foo()
+  {
+    void (*fp)(); // compiled - no diagnostic generated
+  }
+
+  #pragma OPENCL EXTENSION __cl_clang_function_pointers : disable
+  void bar()
+  {
+    void (*fp)(); // error - pointers to function are not allowed
+  }
+
+``__cl_clang_variadic_functions``
+---------------------------------
+
+With this extension it is possible to enable variadic arguments in functions
+using regular OpenCL extension pragma mechanism detailed in `the OpenCL
+Extension Specification, section 1.2
+<https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#extensions-overview>`_.
+
+This is not conformant behavior and it can only be used portably when the
+functions with variadic prototypes do not get generated in binary e.g. the
+variadic prototype is used to specify a function type with any number of
+arguments in metaprogramming algorithms in C++ for OpenCL.
+
+This extensions can also be used when the kernel code is intended for targets
+supporting the variadic arguments e.g. majority of CPU targets.
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  #pragma OPENCL EXTENSION __cl_clang_variadic_functions : enable
+  void foo(int a, ...); // compiled - no diagnostic generated
+
+  #pragma OPENCL EXTENSION __cl_clang_variadic_functions : disable
+  void bar(int a, ...); // error - variadic prototype is not allowed
+
 Builtin Functions
 =================
 
@@ -1739,6 +1830,8 @@ portable wrappers for these.  Many of the Clang versions of these functions are
 implemented directly in terms of :ref:`extended vector support
 <langext-vectors>` instead of builtins, in order to reduce the number of
 builtins that we need to implement.
+
+.. _langext-__builtin_assume:
 
 ``__builtin_assume``
 ------------------------------
@@ -2439,7 +2532,7 @@ guarantees not to call any external functions. See LLVM IR `llvm.memcpy.inline
 <https://llvm.org/docs/LangRef.html#llvm-memcpy-inline-intrinsic>`_ intrinsic 
 for more information.
 
-This is useful to implement a custom version of ``memcpy``, implemement a
+This is useful to implement a custom version of ``memcpy``, implement a
 ``libc`` memcpy or work around the absence of a ``libc``.
 
 Note that the `size` argument must be a compile time constant.
@@ -3052,8 +3145,18 @@ manually enable vectorization or interleaving.
     ...
   }
 
-The vector width is specified by ``vectorize_width(_value_)`` and the interleave
-count is specified by ``interleave_count(_value_)``, where
+The vector width is specified by
+``vectorize_width(_value_[, fixed|scalable])``, where _value_ is a positive
+integer and the type of vectorization can be specified with an optional
+second parameter. The default for the second parameter is 'fixed' and
+refers to fixed width vectorization, whereas 'scalable' indicates the
+compiler should use scalable vectors instead. Another use of vectorize_width
+is ``vectorize_width(fixed|scalable)`` where the user can hint at the type
+of vectorization to use without specifying the exact width. In both variants
+of the pragma the vectorizer may decide to fall back on fixed width
+vectorization if the target does not support scalable vectors.
+
+The interleave count is specified by ``interleave_count(_value_)``, where
 _value_ is a positive integer. This is useful for specifying the optimal
 width/count of the set of target architectures supported by your application.
 
@@ -3206,7 +3309,7 @@ The pragma can take two values: ``on`` and ``off``.
   float f(float x, float y, float z)
   {
     // Enable floating point reassociation across statements
-    #pragma fp reassociate(on)
+    #pragma clang fp reassociate(on)
     float t = x + y;
     float v = t + z;
   }
@@ -3233,7 +3336,33 @@ statements in C).
 
 The pragma can also be used with ``off`` which turns FP contraction off for a
 section of the code. This can be useful when fast contraction is otherwise
-enabled for the translation unit with the ``-ffp-contract=fast`` flag.
+enabled for the translation unit with the ``-ffp-contract=fast-honor-pragmas`` flag.
+Note that ``-ffp-contract=fast`` will override pragmas to fuse multiply and
+addition across statements regardless of any controlling pragmas.
+
+``#pragma clang fp exceptions`` specifies floating point exception behavior. It
+may take one the the values: ``ignore``, ``maytrap`` or ``strict``. Meaning of
+these values is same as for `constrained floating point intrinsics <http://llvm.org/docs/LangRef.html#constrained-floating-point-intrinsics>`_.
+
+.. code-block:: c++
+
+  {
+    // Preserve floating point exceptions
+    #pragma clang fp exceptions(strict)
+    z = x + y;
+    if (fetestexcept(FE_OVERFLOW))
+	  ...
+  }
+
+A ``#pragma clang fp`` pragma may contain any number of options:
+
+.. code-block:: c++
+
+  void func(float *dest, float a, float b) {
+    #pragma clang fp exceptions(maytrap) contract(fast) reassociate(on)
+    ...
+  }
+
 
 The ``#pragma float_control`` pragma allows precise floating-point
 semantics and floating-point exception behavior to be specified

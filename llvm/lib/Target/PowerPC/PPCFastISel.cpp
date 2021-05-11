@@ -86,7 +86,6 @@ typedef struct Address {
 class PPCFastISel final : public FastISel {
 
   const TargetMachine &TM;
-  const PPCSubtarget *PPCSubTarget;
   const PPCSubtarget *Subtarget;
   PPCFunctionInfo *PPCFuncInfo;
   const TargetInstrInfo &TII;
@@ -97,7 +96,6 @@ class PPCFastISel final : public FastISel {
     explicit PPCFastISel(FunctionLoweringInfo &FuncInfo,
                          const TargetLibraryInfo *LibInfo)
         : FastISel(FuncInfo, LibInfo), TM(FuncInfo.MF->getTarget()),
-          PPCSubTarget(&FuncInfo.MF->getSubtarget<PPCSubtarget>()),
           Subtarget(&FuncInfo.MF->getSubtarget<PPCSubtarget>()),
           PPCFuncInfo(FuncInfo.MF->getInfo<PPCFunctionInfo>()),
           TII(*Subtarget->getInstrInfo()), TLI(*Subtarget->getTargetLowering()),
@@ -114,15 +112,12 @@ class PPCFastISel final : public FastISel {
     unsigned fastEmit_i(MVT Ty, MVT RetTy, unsigned Opc, uint64_t Imm) override;
     unsigned fastEmitInst_ri(unsigned MachineInstOpcode,
                              const TargetRegisterClass *RC,
-                             unsigned Op0, bool Op0IsKill,
-                             uint64_t Imm);
+                             unsigned Op0, uint64_t Imm);
     unsigned fastEmitInst_r(unsigned MachineInstOpcode,
-                            const TargetRegisterClass *RC,
-                            unsigned Op0, bool Op0IsKill);
+                            const TargetRegisterClass *RC, unsigned Op0);
     unsigned fastEmitInst_rr(unsigned MachineInstOpcode,
                              const TargetRegisterClass *RC,
-                             unsigned Op0, bool Op0IsKill,
-                             unsigned Op1, bool Op1IsKill);
+                             unsigned Op0, unsigned Op1);
 
     bool fastLowerCall(CallLoweringInfo &CLI) override;
 
@@ -1626,7 +1621,10 @@ bool PPCFastISel::fastLowerCall(CallLoweringInfo &CLI) {
     if (!isTypeLegal(ArgTy, ArgVT) && ArgVT != MVT::i16 && ArgVT != MVT::i8)
       return false;
 
-    if (ArgVT.isVector())
+    // FIXME: FastISel cannot handle non-simple types yet, including 128-bit FP
+    // types, which is passed through vector register. Skip these types and
+    // fallback to default SelectionDAG based selection.
+    if (ArgVT.isVector() || ArgVT == MVT::f128)
       return false;
 
     unsigned Arg = getRegForValue(ArgValue);
@@ -2425,7 +2423,7 @@ unsigned PPCFastISel::fastEmit_i(MVT Ty, MVT VT, unsigned Opc, uint64_t Imm) {
 // where those regs have another meaning.
 unsigned PPCFastISel::fastEmitInst_ri(unsigned MachineInstOpcode,
                                       const TargetRegisterClass *RC,
-                                      unsigned Op0, bool Op0IsKill,
+                                      unsigned Op0,
                                       uint64_t Imm) {
   if (MachineInstOpcode == PPC::ADDI)
     MRI.setRegClass(Op0, &PPC::GPRC_and_GPRC_NOR0RegClass);
@@ -2436,8 +2434,7 @@ unsigned PPCFastISel::fastEmitInst_ri(unsigned MachineInstOpcode,
     (RC == &PPC::GPRCRegClass ? &PPC::GPRC_and_GPRC_NOR0RegClass :
      (RC == &PPC::G8RCRegClass ? &PPC::G8RC_and_G8RC_NOX0RegClass : RC));
 
-  return FastISel::fastEmitInst_ri(MachineInstOpcode, UseRC,
-                                   Op0, Op0IsKill, Imm);
+  return FastISel::fastEmitInst_ri(MachineInstOpcode, UseRC, Op0, Imm);
 }
 
 // Override for instructions with one register operand to avoid use of
@@ -2445,12 +2442,12 @@ unsigned PPCFastISel::fastEmitInst_ri(unsigned MachineInstOpcode,
 // we must be conservative.
 unsigned PPCFastISel::fastEmitInst_r(unsigned MachineInstOpcode,
                                      const TargetRegisterClass* RC,
-                                     unsigned Op0, bool Op0IsKill) {
+                                     unsigned Op0) {
   const TargetRegisterClass *UseRC =
     (RC == &PPC::GPRCRegClass ? &PPC::GPRC_and_GPRC_NOR0RegClass :
      (RC == &PPC::G8RCRegClass ? &PPC::G8RC_and_G8RC_NOX0RegClass : RC));
 
-  return FastISel::fastEmitInst_r(MachineInstOpcode, UseRC, Op0, Op0IsKill);
+  return FastISel::fastEmitInst_r(MachineInstOpcode, UseRC, Op0);
 }
 
 // Override for instructions with two register operands to avoid use
@@ -2458,14 +2455,12 @@ unsigned PPCFastISel::fastEmitInst_r(unsigned MachineInstOpcode,
 // so we must be conservative.
 unsigned PPCFastISel::fastEmitInst_rr(unsigned MachineInstOpcode,
                                       const TargetRegisterClass* RC,
-                                      unsigned Op0, bool Op0IsKill,
-                                      unsigned Op1, bool Op1IsKill) {
+                                      unsigned Op0, unsigned Op1) {
   const TargetRegisterClass *UseRC =
     (RC == &PPC::GPRCRegClass ? &PPC::GPRC_and_GPRC_NOR0RegClass :
      (RC == &PPC::G8RCRegClass ? &PPC::G8RC_and_G8RC_NOX0RegClass : RC));
 
-  return FastISel::fastEmitInst_rr(MachineInstOpcode, UseRC, Op0, Op0IsKill,
-                                   Op1, Op1IsKill);
+  return FastISel::fastEmitInst_rr(MachineInstOpcode, UseRC, Op0, Op1);
 }
 
 namespace llvm {

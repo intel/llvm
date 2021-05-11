@@ -32,6 +32,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/InstructionCost.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -151,7 +152,7 @@ void DiagnosticInfoWithLocationBase::getLocation(StringRef &RelativePath,
   Column = Loc.getColumn();
 }
 
-const std::string DiagnosticInfoWithLocationBase::getLocationStr() const {
+std::string DiagnosticInfoWithLocationBase::getLocationStr() const {
   StringRef Filename("<unknown>");
   unsigned Line = 0;
   unsigned Column = 0;
@@ -218,6 +219,13 @@ DiagnosticInfoOptimizationBase::Argument::Argument(StringRef Key,
     : Key(std::string(Key)) {
   raw_string_ostream OS(Val);
   EC.print(OS);
+}
+
+DiagnosticInfoOptimizationBase::Argument::Argument(StringRef Key,
+                                                   InstructionCost C)
+    : Key(std::string(Key)) {
+  raw_string_ostream OS(Val);
+  C.print(OS);
 }
 
 DiagnosticInfoOptimizationBase::Argument::Argument(StringRef Key, DebugLoc Loc)
@@ -322,6 +330,10 @@ void DiagnosticInfoMIRParser::print(DiagnosticPrinter &DP) const {
   DP << Diagnostic;
 }
 
+void DiagnosticInfoSrcMgr::print(DiagnosticPrinter &DP) const {
+  DP << Diagnostic;
+}
+
 DiagnosticInfoOptimizationFailure::DiagnosticInfoOptimizationFailure(
     const char *PassName, StringRef RemarkName, const DiagnosticLocation &Loc,
     const Value *CodeRegion)
@@ -373,17 +385,6 @@ std::string DiagnosticInfoOptimizationBase::getMsg() const {
                                     : Args.begin() + FirstExtraArgIndex))
     OS << Arg.Val;
   return OS.str();
-}
-
-DiagnosticInfoMisExpect::DiagnosticInfoMisExpect(const Instruction *Inst,
-                                                 Twine &Msg)
-    : DiagnosticInfoWithLocationBase(DK_MisExpect, DS_Warning,
-                                     *Inst->getParent()->getParent(),
-                                     Inst->getDebugLoc()),
-      Msg(Msg) {}
-
-void DiagnosticInfoMisExpect::print(DiagnosticPrinter &DP) const {
-  DP << getLocationStr() << ": " << getMsg();
 }
 
 void OptimizationRemarkAnalysisFPCommute::anchor() {}

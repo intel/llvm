@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.spv
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.spv
 // RUN: FileCheck %s --input-file=%t.h
 
 // Checks that functors are supported as SYCL kernels.

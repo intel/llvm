@@ -39,15 +39,17 @@ void TestMemRefBoundCheck::runOnFunction() {
   getFunction().walk([](Operation *opInst) {
     TypeSwitch<Operation *>(opInst)
         .Case<AffineReadOpInterface, AffineWriteOpInterface>(
-            [](auto op) { boundCheckLoadOrStoreOp(op); });
+            [](auto op) { (void)boundCheckLoadOrStoreOp(op); });
 
     // TODO: do this for DMA ops as well.
   });
 }
 
 namespace mlir {
+namespace test {
 void registerMemRefBoundCheck() {
   PassRegistration<TestMemRefBoundCheck>(
       "test-memref-bound-check", "Check memref access bounds in a Function");
 }
+} // namespace test
 } // namespace mlir

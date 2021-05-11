@@ -17,7 +17,7 @@ vector signed int vsia, vsib;
 vector unsigned int vuia, vuib, vuic;
 vector signed long long vslla, vsllb;
 vector unsigned long long vulla, vullb, vullc;
-vector signed __int128 vsi128a, vsi128b;
+vector signed __int128 vsi128a, vsi128b, vsi128c;
 vector unsigned __int128 vui128a, vui128b, vui128c;
 vector float vfa, vfb;
 vector double vda, vdb;
@@ -1359,12 +1359,12 @@ vector float test_vec_vec_splati_f(void) {
 
 vector double test_vec_vec_splatid(void) {
   // CHECK-BE: [[T1:%.+]] = fpext float %{{.+}} to double
-  // CHECK-BE-NEXT: [[T2:%.+]] = insertelement <2 x double> undef, double [[T1:%.+]], i32 0
-  // CHECK-BE-NEXT: [[T3:%.+]] = shufflevector <2 x double> [[T2:%.+]], <2 x double> undef, <2 x i32> zeroinitialize
+  // CHECK-BE-NEXT: [[T2:%.+]] = insertelement <2 x double> poison, double [[T1:%.+]], i32 0
+  // CHECK-BE-NEXT: [[T3:%.+]] = shufflevector <2 x double> [[T2:%.+]], <2 x double> poison, <2 x i32> zeroinitialize
   // CHECK-BE-NEXT: ret <2 x double> [[T3:%.+]]
   // CHECK-LE: [[T1:%.+]] = fpext float %{{.+}} to double
-  // CHECK-LE-NEXT: [[T2:%.+]] = insertelement <2 x double> undef, double [[T1:%.+]], i32 0
-  // CHECK-LE-NEXT: [[T3:%.+]] = shufflevector <2 x double> [[T2:%.+]], <2 x double> undef, <2 x i32> zeroinitialize
+  // CHECK-LE-NEXT: [[T2:%.+]] = insertelement <2 x double> poison, double [[T1:%.+]], i32 0
+  // CHECK-LE-NEXT: [[T3:%.+]] = shufflevector <2 x double> [[T2:%.+]], <2 x double> poison, <2 x i32> zeroinitialize
   // CHECK-LE-NEXT: ret <2 x double> [[T3:%.+]]
   return vec_splatid(1.0);
 }
@@ -1879,4 +1879,54 @@ int test_vec_all_ge_u128(void) {
   // CHECK: call i32 @llvm.ppc.altivec.vcmpgtuq.p(i32 0, <1 x i128> %2, <1 x i128> %3)
   // CHECK-NEXT: ret i32
   return vec_all_ge(vui128a, vui128b);
+}
+
+vector signed __int128 test_vec_rl_s128(void) {
+  // CHECK-LABEL: @test_vec_rl_s128(
+  // CHECK: sub <1 x i128>
+  // CHECK-NEXT: lshr <1 x i128>
+  // CHECK-NEXT: or <1 x i128>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_rl(vsi128a, vsi128b);
+}
+
+vector unsigned __int128 test_vec_rl_u128(void) {
+  // CHECK-LABEL: @test_vec_rl_u128(
+  // CHECK: sub <1 x i128>
+  // CHECK: lshr <1 x i128>
+  // CHECK: or <1 x i128>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_rl(vui128a, vui128b);
+}
+
+vector signed __int128 test_vec_rlnm_s128(void) {
+  // CHECK-LABEL: @test_vec_rlnm_s128(
+  // CHECK-LE: %shuffle.i = shufflevector <16 x i8> %7, <16 x i8> %8, <16 x i32> <i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 16, i32 0, i32 1, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
+  // CHECK-BE: %shuffle.i = shufflevector <16 x i8> %7, <16 x i8> %8, <16 x i32> <i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 31, i32 30, i32 15, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
+  // CHECK: call <1 x i128> @llvm.ppc.altivec.vrlqnm(<1 x i128>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_rlnm(vsi128a, vsi128b, vsi128c);
+}
+
+vector unsigned __int128 test_vec_rlnm_u128(void) {
+  // CHECK-LABEL: @test_vec_rlnm_u128(
+  // CHECK-LE:  %shuffle.i = shufflevector <16 x i8> %7, <16 x i8> %8, <16 x i32> <i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 16, i32 0, i32 1, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
+  // CHECK-BE: %shuffle.i = shufflevector <16 x i8> %7, <16 x i8> %8, <16 x i32> <i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 31, i32 30, i32 15, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
+  // CHECK: call <1 x i128> @llvm.ppc.altivec.vrlqnm(<1 x i128>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_rlnm(vui128a, vui128b, vui128c);
+}
+
+vector signed __int128 test_vec_rlmi_s128(void) {
+  // CHECK-LABEL: @test_vec_rlmi_s128(
+  // CHECK: call <1 x i128> @llvm.ppc.altivec.vrlqmi(<1 x i128>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_rlmi(vsi128a, vsi128b, vsi128c);
+}
+
+vector unsigned __int128 test_vec_rlmi_u128(void) {
+  // CHECK-LABEL: @test_vec_rlmi_u128(
+  // CHECK: call <1 x i128> @llvm.ppc.altivec.vrlqmi(<1 x i128>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_rlmi(vui128a, vui128b, vui128c);
 }

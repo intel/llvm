@@ -117,14 +117,22 @@ to supply the function name prepended by the module name:"
 
     --python-function myutils.breakpoint_callback
 
-The function itself must have the following prototype:
+The function itself must have either of the following prototypes:
 
-def breakpoint_callback(frame, bp_loc, dict):
+def breakpoint_callback(frame, bp_loc, internal_dict):
+  # Your code goes here
+
+or:
+
+def breakpoint_callback(frame, bp_loc, extra_args, internal_dict):
   # Your code goes here
 
 )"
         "The arguments are the same as the arguments passed to generated functions as \
-described above.  Note that the global variable 'lldb.frame' will NOT be updated when \
+described above.  In the second form, any -k and -v pairs provided to the command will \
+be packaged into a SBDictionary in an SBStructuredData and passed as the extra_args parameter. \
+\n\n\
+Note that the global variable 'lldb.frame' will NOT be updated when \
 this function is called, so be sure to use the 'frame' argument. The 'frame' argument \
 can get you to the thread via frame.GetThread(), the thread can get you to the \
 process via thread.GetProcess(), and the process can get you back to the target \
@@ -414,22 +422,23 @@ protected:
       // to set or collect command callback.  Otherwise, call the methods
       // associated with this object.
       if (m_options.m_use_script_language) {
+        Status error;
         ScriptInterpreter *script_interp = GetDebugger().GetScriptInterpreter(
             /*can_create=*/true, m_options.m_script_language);
         // Special handling for one-liner specified inline.
         if (m_options.m_use_one_liner) {
-          script_interp->SetBreakpointCommandCallback(
+          error = script_interp->SetBreakpointCommandCallback(
               m_bp_options_vec, m_options.m_one_liner.c_str());
         } else if (!m_func_options.GetName().empty()) {
-          Status error = script_interp->SetBreakpointCommandCallbackFunction(
+          error = script_interp->SetBreakpointCommandCallbackFunction(
               m_bp_options_vec, m_func_options.GetName().c_str(),
               m_func_options.GetStructuredData());
-          if (!error.Success())
-            result.SetError(error);
         } else {
           script_interp->CollectDataForBreakpointCommandCallback(
               m_bp_options_vec, result);
         }
+        if (!error.Success())
+          result.SetError(error);
       } else {
         // Special handling for one-liner specified inline.
         if (m_options.m_use_one_liner)

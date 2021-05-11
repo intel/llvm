@@ -127,11 +127,18 @@ bool SymbolContext::DumpStopContext(Stream *s, ExecutionContextScope *exe_scope,
           s->Printf(" + %" PRIu64, inlined_function_offset);
         }
       }
-      const Declaration &call_site = inlined_block_info->GetCallSite();
-      if (call_site.IsValid()) {
+      // "line_entry" will always be valid as GetParentOfInlinedScope(...) will
+      // fill it in correctly with the calling file and line. Previous code
+      // was extracting the calling file and line from inlined_block_info and
+      // using it right away which is not correct. On the first call to this
+      // function "line_entry" will contain the actual line table entry. On
+      // susequent calls "line_entry" will contain the calling file and line
+      // from the previous inline info.
+      if (line_entry.IsValid()) {
         s->PutCString(" at ");
-        call_site.DumpStopContext(s, show_fullpaths);
+        line_entry.DumpStopContext(s, show_fullpaths);
       }
+
       if (show_inlined_frames) {
         s->EOL();
         s->Indent();

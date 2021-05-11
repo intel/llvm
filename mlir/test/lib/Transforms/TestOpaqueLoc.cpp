@@ -44,7 +44,7 @@ struct TestOpaqueLoc
       op->setLoc(
           OpaqueLoc::get<MyLocation *>(myLocs.back().get(), &getContext()));
 
-      if (isa<FuncOp>(op) || op->isKnownTerminator())
+      if (isa<FuncOp>(op) || op->hasTrait<OpTrait::IsTerminator>())
         return;
 
       OpBuilder builder(op);
@@ -82,8 +82,10 @@ struct TestOpaqueLoc
 } // end anonymous namespace
 
 namespace mlir {
+namespace test {
 void registerTestOpaqueLoc() {
   PassRegistration<TestOpaqueLoc> pass(
       "test-opaque-loc", "Changes all leaf locations to opaque locations");
 }
+} // namespace test
 } // namespace mlir

@@ -58,11 +58,11 @@
 
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-generate=/tmp/somefile.profraw -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE-FILE %s
-// CHECK-PROFILE-INSTR-GENERATE: "-fprofile-instrument=clang" "--dependent-lib=clang_rt.profile-{{[^"]*}}.lib"
+// CHECK-PROFILE-INSTR-GENERATE: "-fprofile-instrument=clang" "--dependent-lib=clang_rt.profile{{[^"]*}}.lib"
 // CHECK-PROFILE-INSTR-GENERATE-FILE: "-fprofile-instrument-path=/tmp/somefile.profraw"
 
 // RUN: %clang_cl -### /FA -fprofile-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE %s
-// CHECK-PROFILE-GENERATE: "-fprofile-instrument=llvm" "--dependent-lib=clang_rt.profile-{{[^"]*}}.lib"
+// CHECK-PROFILE-GENERATE: "-fprofile-instrument=llvm" "--dependent-lib=clang_rt.profile{{[^"]*}}.lib"
 
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -fprofile-instr-use=file -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
@@ -118,7 +118,8 @@
 // RUN: %clang_cl /imsvcmyincludedir -### -- %s 2>&1 | FileCheck -check-prefix=SLASH_imsvc %s
 // RUN: %clang_cl /imsvc myincludedir -### -- %s 2>&1 | FileCheck -check-prefix=SLASH_imsvc %s
 // Clang's resource header directory should be first:
-// SLASH_imsvc: "-internal-isystem" "{{[^"]*}}lib{{(64)?/|\\\\}}clang{{[^"]*}}include"
+// SLASH_imsvc: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
+// SLASH_imsvc: "-internal-isystem" "[[RESOURCE_DIR]]{{[/\\]+}}include"
 // SLASH_imsvc: "-internal-isystem" "myincludedir"
 
 // RUN: %clang_cl /J -### -- %s 2>&1 | FileCheck -check-prefix=J %s
@@ -311,6 +312,14 @@
 // RUN: %clang_cl -c -fno-strict-aliasing -### -- %s 2>&1 | FileCheck -check-prefix=NOSTRICT %s
 // NOSTRICT: "-relaxed-aliasing"
 
+// We recognize -f[no-]delete-null-pointer-checks.
+// RUN: %clang_cl -c -### -- %s 2>&1 | FileCheck -check-prefix=DEFAULTNULL %s
+// DEFAULTNULL-NOT: "-fno-delete-null-pointer-checks"
+// RUN: %clang_cl -c -fdelete-null-pointer-checks -### -- %s 2>&1 | FileCheck -check-prefix=NULL %s
+// NULL-NOT: "-fno-delete-null-pointer-checks"
+// RUN: %clang_cl -c -fno-delete-null-pointer-checks -### -- %s 2>&1 | FileCheck -check-prefix=NONULL %s
+// NONULL: "-fno-delete-null-pointer-checks"
+
 // We recognize -f[no-]delayed-template-parsing.
 // /Zc:twoPhase[-] has the opposite meaning.
 // RUN: %clang_cl -c -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDDEFAULT %s
@@ -328,6 +337,9 @@
 // CHECK-CHAR8_T: "-fchar8_t"
 // RUN: %clang_cl -c -### /Zc:char8_t- -- %s 2>&1 | FileCheck -check-prefix CHECK-CHAR8_T_ %s
 // CHECK-CHAR8_T_: "-fno-char8_t"
+
+// RUN: %clang_cl -c -### /std:c11 -- %s 2>&1 | FileCheck -check-prefix CHECK-C11 %s
+// CHECK-C11: -std=c11
 
 // For some warning ids, we can map from MSVC warning to Clang warning.
 // RUN: %clang_cl -wd4005 -wd4100 -wd4910 -wd4996 -### -- %s 2>&1 | FileCheck -check-prefix=Wno %s
@@ -519,8 +531,6 @@
 // NoDllExportInlines: "-fno-dllexport-inlines"
 // RUN: %clang_cl /Zc:dllexportInlines /c -### -- %s 2>&1 | FileCheck -check-prefix=DllExportInlines %s
 // DllExportInlines-NOT: "-fno-dllexport-inlines"
-// RUN: %clang_cl /fallback /Zc:dllexportInlines- /c -### -- %s 2>&1 | FileCheck -check-prefix=DllExportInlinesFallback %s
-// DllExportInlinesFallback: error: option '/Zc:dllexportInlines-' is ABI-changing and not compatible with '/fallback'
 
 // RUN: %clang_cl /Zi /c -### -- %s 2>&1 | FileCheck -check-prefix=Zi %s
 // Zi: "-gcodeview"
@@ -529,10 +539,6 @@
 // RUN: %clang_cl /Z7 /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7 %s
 // Z7: "-gcodeview"
 // Z7: "-debug-info-kind=limited"
-
-// RUN: %clang_cl /Zd /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7GMLT %s
-// Z7GMLT: "-gcodeview"
-// Z7GMLT: "-debug-info-kind=line-tables-only"
 
 // RUN: %clang_cl -gline-tables-only /c -### -- %s 2>&1 | FileCheck -check-prefix=ZGMLT %s
 // ZGMLT: "-gcodeview"
@@ -609,6 +615,13 @@
 // RUN: %clang_cl /guard:nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARDNOCHECKSINVALID %s
 // CFGUARDNOCHECKSINVALID: invalid value 'nochecks' in '/guard:'
 
+// RUN: %clang_cl  -### -- %s 2>&1 | FileCheck -check-prefix=NOEHCONTGUARD %s
+// RUN: %clang_cl /guard:ehcont- -### -- %s 2>&1 | FileCheck -check-prefix=NOEHCONTGUARD %s
+// NOEHCONTGUARD-NOT: -ehcontguard
+
+// RUN: %clang_cl /guard:ehcont -### -- %s 2>&1 | FileCheck -check-prefix=EHCONTGUARD %s
+// EHCONTGUARD: -ehcontguard
+
 // RUN: %clang_cl /guard:foo -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARDINVALID %s
 // CFGUARDINVALID: invalid value 'foo' in '/guard:'
 
@@ -631,9 +644,12 @@
 // RUN:     -fno-diagnostics-color \
 // RUN:     -fdebug-compilation-dir . \
 // RUN:     -fdebug-compilation-dir=. \
+// RUN:     -ffile-compilation-dir=. \
 // RUN:     -fdiagnostics-parseable-fixits \
 // RUN:     -fdiagnostics-absolute-paths \
 // RUN:     -ferror-limit=10 \
+// RUN:     -fident \
+// RUN:     -fno-ident \
 // RUN:     -fmsc-version=1800 \
 // RUN:     -fno-strict-aliasing \
 // RUN:     -fstrict-aliasing \
@@ -682,13 +698,26 @@
 // CLANG-NOT: "--dependent-lib=libcmt"
 // CLANG-NOT: "-vectorize-slp"
 
+// Cover PR42501: clang-cl /clang: pass-through causes read-after-free with aliased options.
+// RUN: %clang_cl /clang:-save-temps /clang:-Wl,test1,test2 -### -- %s 2>&1 | FileCheck -check-prefix=SAVETEMPS %s
+// SAVETEMPS: "-save-temps=cwd"
+// SAVETEMPS: "test1" "test2"
+
 // Validate that the default triple is used when run an empty tools dir is specified
 // RUN: %clang_cl -vctoolsdir "" -### -- %s 2>&1 | FileCheck %s --check-prefix VCTOOLSDIR
 // VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.11.0"
 
 // Validate that built-in include paths are based on the supplied path
-// RUN: %clang_cl -vctoolsdir "/fake" -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR
+// RUN: %clang_cl --target=aarch64-pc-windows-msvc -vctoolsdir "/fake" -winsdkdir "/foo" -winsdkversion 10.0.12345.0 -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR
 // FAKEDIR: "-internal-isystem" "/fake{{/|\\\\}}include"
 // FAKEDIR: "-internal-isystem" "/fake{{/|\\\\}}atlmfc{{/|\\\\}}include"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}ucrt"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}shared"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}um"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}winrt"
+// FAKEDIR: "-libpath:/fake{{/|\\\\}}lib{{/|\\\\}}
+// FAKEDIR: "-libpath:/fake{{/|\\\\}}atlmfc{{/|\\\\}}lib{{/|\\\\}}
+// FAKEDIR: "-libpath:/foo{{/|\\\\}}Lib{{/|\\\\}}10.0.12345.0{{/|\\\\}}ucrt
+// FAKEDIR: "-libpath:/foo{{/|\\\\}}Lib{{/|\\\\}}10.0.12345.0{{/|\\\\}}um
 
 void f() { }

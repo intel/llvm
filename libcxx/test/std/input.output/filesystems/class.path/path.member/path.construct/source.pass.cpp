@@ -8,6 +8,9 @@
 
 // UNSUPPORTED: c++03
 
+// These tests require locale for non-char paths
+// UNSUPPORTED: libcpp-has-no-localization
+
 // <filesystem>
 
 // class path
@@ -31,7 +34,7 @@
 template <class CharT, class ...Args>
 void RunTestCaseImpl(MultiStringType const& MS, Args... args) {
   using namespace fs;
-  const char* Expect = MS;
+  const fs::path::value_type* Expect = MS;
   const CharT* TestPath = MS;
   const CharT* TestPathEnd = StrEnd(TestPath);
   const std::size_t Size = TestPathEnd - TestPath;
@@ -84,6 +87,9 @@ void RunTestCase(MultiStringType const& MS) {
   RunTestCaseImpl<CharT>(MS, fs::path::format::auto_format);
   RunTestCaseImpl<CharT>(MS, fs::path::format::native_format);
   RunTestCaseImpl<CharT>(MS, fs::path::format::generic_format);
+  RunTestCaseImpl<CharT>(MS, fs::path::auto_format);
+  RunTestCaseImpl<CharT>(MS, fs::path::native_format);
+  RunTestCaseImpl<CharT>(MS, fs::path::generic_format);
 }
 
 void test_sfinae() {
@@ -120,6 +126,9 @@ void test_sfinae() {
 int main(int, char**) {
   for (auto const& MS : PathList) {
     RunTestCase<char>(MS);
+#if TEST_STD_VER > 17 && defined(__cpp_char8_t)
+    RunTestCase<char8_t>(MS);
+#endif
     RunTestCase<wchar_t>(MS);
     RunTestCase<char16_t>(MS);
     RunTestCase<char32_t>(MS);

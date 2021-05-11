@@ -8,6 +8,12 @@
 
 // UNSUPPORTED: c++03
 
+// XFAIL: LIBCXX-WINDOWS-FIXME
+
+// The string reported on errors changed, which makes those tests fail when run
+// against already-released libc++'s.
+// XFAIL: with_system_cxx_lib=macosx10.15
+
 // <filesystem>
 
 // file_time_type last_write_time(const path& p);
@@ -17,25 +23,24 @@
 //                      std::error_code& ec) noexcept;
 
 #include "filesystem_include.h"
-#include <type_traits>
 #include <chrono>
-#include <fstream>
+#include <cstdio>
 #include <cstdlib>
+#include <ctime>
+#include <type_traits>
 
 #include "test_macros.h"
 #include "rapid-cxx-test.h"
 #include "filesystem_test_helper.h"
 
-#include <sys/stat.h>
-#include <iostream>
-
 #include <fcntl.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 
 using namespace fs;
 
-using TimeSpec = struct ::timespec;
-using StatT = struct ::stat;
+using TimeSpec = timespec;
+using StatT = struct stat;
 
 using Sec = std::chrono::duration<file_time_type::rep>;
 using Hours = std::chrono::hours;
@@ -108,12 +113,11 @@ struct Times {
 
 Times GetTimes(path const& p) {
     StatT st;
-    if (::stat(p.c_str(), &st) == -1) {
+    if (::stat(p.string().c_str(), &st) == -1) {
         std::error_code ec(errno, std::generic_category());
 #ifndef TEST_HAS_NO_EXCEPTIONS
         throw ec;
 #else
-        std::cerr << ec.message() << std::endl;
         std::exit(EXIT_FAILURE);
 #endif
     }
@@ -126,12 +130,11 @@ TimeSpec LastWriteTime(path const& p) { return GetTimes(p).write; }
 
 Times GetSymlinkTimes(path const& p) {
   StatT st;
-  if (::lstat(p.c_str(), &st) == -1) {
+  if (::lstat(p.string().c_str(), &st) == -1) {
     std::error_code ec(errno, std::generic_category());
 #ifndef TEST_HAS_NO_EXCEPTIONS
         throw ec;
 #else
-        std::cerr << ec.message() << std::endl;
         std::exit(EXIT_FAILURE);
 #endif
     }
@@ -399,9 +402,9 @@ TEST_CASE(get_last_write_time_dynamic_env_test)
     SleepFor(Sec(2));
 
     // update file and add a file to the directory. Make sure the times increase.
-    std::ofstream of(file, std::ofstream::app);
-    of << "hello";
-    of.close();
+    std::FILE* of = std::fopen(file.string().c_str(), "a");
+    std::fwrite("hello", 1, sizeof("hello"), of);
+    std::fclose(of);
     env.create_file("dir/file1", 1);
 
     file_time_type ftime2 = last_write_time(file);
@@ -454,7 +457,6 @@ TEST_CASE(set_last_write_time_dynamic_env_test)
         {"dir, just_before_epoch_time", dir, just_before_epoch_time}
     };
     for (const auto& TC : cases) {
-        std::cerr << "Test Case = " << TC.case_name << "\n";
         const auto old_times = GetTimes(TC.p);
         file_time_type old_time;
         TEST_REQUIRE(ConvertFromTimeSpec(old_time, old_times.write));
@@ -571,6 +573,9 @@ TEST_CASE(test_value_on_failure)
     TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
 }
 
+// Windows doesn't support setting perms::none to trigger failures
+// reading directories.
+#ifndef TEST_WIN_NO_FILESYSTEM_PERMS_NONE
 TEST_CASE(test_exists_fails)
 {
     scoped_test_env env;
@@ -586,5 +591,6 @@ TEST_CASE(test_exists_fails)
                              "last_write_time");
     TEST_CHECK_THROW_RESULT(filesystem_error, Checker, last_write_time(file));
 }
+#endif
 
 TEST_SUITE_END()

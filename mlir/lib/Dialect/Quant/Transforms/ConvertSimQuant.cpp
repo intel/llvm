@@ -11,9 +11,8 @@
 #include "mlir/Dialect/Quant/Passes.h"
 #include "mlir/Dialect/Quant/QuantOps.h"
 #include "mlir/Dialect/Quant/UniformSupport.h"
-#include "mlir/IR/Attributes.h"
-#include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
 using namespace mlir::quant;
@@ -125,12 +124,12 @@ public:
 
 void ConvertSimulatedQuantPass::runOnFunction() {
   bool hadFailure = false;
-  OwningRewritePatternList patterns;
   auto func = getFunction();
+  RewritePatternSet patterns(func.getContext());
   auto ctx = func.getContext();
-  patterns.insert<ConstFakeQuantRewrite, ConstFakeQuantPerAxisRewrite>(
+  patterns.add<ConstFakeQuantRewrite, ConstFakeQuantPerAxisRewrite>(
       ctx, &hadFailure);
-  applyPatternsAndFoldGreedily(func, patterns);
+  (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   if (hadFailure)
     signalPassFailure();
 }

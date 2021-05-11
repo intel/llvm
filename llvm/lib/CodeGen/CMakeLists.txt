@@ -14,6 +14,7 @@ add_llvm_component_library(LLVMCodeGen
   CFGuardLongjmp.cpp
   CFIInstrInserter.cpp
   CodeGen.cpp
+  CodeGenPassBuilder.cpp
   CodeGenPrepare.cpp
   CommandFlags.cpp
   CriticalAntiDepBreaker.cpp
@@ -23,6 +24,7 @@ add_llvm_component_library(LLVMCodeGen
   DwarfEHPrepare.cpp
   EarlyIfConversion.cpp
   EdgeBundles.cpp
+  EHContGuardCatchret.cpp
   ExecutionDomainFix.cpp
   ExpandMemCmp.cpp
   ExpandPostRAPseudos.cpp
@@ -74,6 +76,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineCombiner.cpp
   MachineCopyPropagation.cpp
   MachineCSE.cpp
+  MachineCheckDebugify.cpp
   MachineDebugify.cpp
   MachineDominanceFrontier.cpp
   MachineDominators.cpp
@@ -105,6 +108,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineTraceMetrics.cpp
   MachineVerifier.cpp
   ModuloSchedule.cpp
+  MultiHazardRecognizer.cpp
   PatchableFunction.cpp
   MBFIWrapper.cpp
   MIRPrinter.cpp
@@ -121,6 +125,7 @@ add_llvm_component_library(LLVMCodeGen
   PreISelIntrinsicLowering.cpp
   ProcessImplicitDefs.cpp
   PrologEpilogInserter.cpp
+  PseudoProbeInserter.cpp
   PseudoSourceValue.cpp
   RDFGraph.cpp
   RDFLiveness.cpp
@@ -143,10 +148,10 @@ add_llvm_component_library(LLVMCodeGen
   RegisterUsageInfo.cpp
   RegUsageInfoCollector.cpp
   RegUsageInfoPropagate.cpp
+  ReplaceWithVeclib.cpp
   ResetMachineFunctionPass.cpp
   SafeStack.cpp
   SafeStackLayout.cpp
-  ScalarizeMaskedMemIntrin.cpp
   ScheduleDAG.cpp
   ScheduleDAGInstrs.cpp
   ScheduleDAGPrinter.cpp
@@ -196,6 +201,18 @@ add_llvm_component_library(LLVMCodeGen
 
   DEPENDS
   intrinsics_gen
+
+  LINK_COMPONENTS
+  Analysis
+  BitReader
+  BitWriter
+  Core
+  MC
+  ProfileData
+  Scalar
+  Support
+  Target
+  TransformUtils
   )
 
 add_subdirectory(SelectionDAG)

@@ -159,14 +159,14 @@ static bool ParseOneFlag(const char *Param) {
     const char *Str = FlagValue(Param, Name);
     if (Str)  {
       if (FlagDescriptions[F].IntFlag) {
-        int Val = MyStol(Str);
-        *FlagDescriptions[F].IntFlag = Val;
+        auto Val = MyStol(Str);
+        *FlagDescriptions[F].IntFlag = static_cast<int>(Val);
         if (Flags.verbosity >= 2)
           Printf("Flag: %s %d\n", Name, Val);
         return true;
       } else if (FlagDescriptions[F].UIntFlag) {
-        unsigned int Val = std::stoul(Str);
-        *FlagDescriptions[F].UIntFlag = Val;
+        auto Val = std::stoul(Str);
+        *FlagDescriptions[F].UIntFlag = static_cast<unsigned int>(Val);
         if (Flags.verbosity >= 2)
           Printf("Flag: %s %u\n", Name, Val);
         return true;
@@ -321,7 +321,12 @@ int RunOneTest(Fuzzer *F, const char *InputFilePath, size_t MaxLen) {
   if (MaxLen && MaxLen < U.size())
     U.resize(MaxLen);
   F->ExecuteCallback(U.data(), U.size());
-  F->TryDetectingAMemoryLeak(U.data(), U.size(), true);
+  if (Flags.print_full_coverage) {
+    // Leak detection is not needed when collecting full coverage data.
+    F->TPCUpdateObservedPCs();
+  } else {
+    F->TryDetectingAMemoryLeak(U.data(), U.size(), true);
+  }
   return 0;
 }
 
@@ -743,6 +748,7 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   Options.PrintFinalStats = Flags.print_final_stats;
   Options.PrintCorpusStats = Flags.print_corpus_stats;
   Options.PrintCoverage = Flags.print_coverage;
+  Options.PrintFullCoverage = Flags.print_full_coverage;
   if (Flags.exit_on_src_pos)
     Options.ExitOnSrcPos = Flags.exit_on_src_pos;
   if (Flags.exit_on_item)
@@ -783,8 +789,8 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   unsigned Seed = Flags.seed;
   // Initialize Seed.
   if (Seed == 0)
-    Seed =
-        std::chrono::system_clock::now().time_since_epoch().count() + GetPid();
+    Seed = static_cast<unsigned>(
+        std::chrono::system_clock::now().time_since_epoch().count() + GetPid());
   if (Flags.verbosity)
     Printf("INFO: Seed: %u\n", Seed);
 
@@ -823,6 +829,8 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   Options.HandleXfsz = Flags.handle_xfsz;
   Options.HandleUsr1 = Flags.handle_usr1;
   Options.HandleUsr2 = Flags.handle_usr2;
+  Options.HandleWinExcept = Flags.handle_winexcept;
+
   SetSignalHandler(Options);
 
   std::atexit(Fuzzer::StaticExitCallback);

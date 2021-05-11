@@ -93,8 +93,8 @@ void RISCVAsmPrinter::emitInstruction(const MachineInstr *MI) {
     return;
 
   MCInst TmpInst;
-  LowerRISCVMachineInstrToMCInst(MI, TmpInst, *this);
-  EmitToStreamer(*OutStreamer, TmpInst);
+  if (!lowerRISCVMachineInstrToMCInst(MI, TmpInst, *this))
+    EmitToStreamer(*OutStreamer, TmpInst);
 }
 
 bool RISCVAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
@@ -198,7 +198,9 @@ void RISCVAsmPrinter::emitAttributes() {
   StringRef CPU = TM.getTargetCPU();
   StringRef FS = TM.getTargetFeatureString();
   const RISCVTargetMachine &RTM = static_cast<const RISCVTargetMachine &>(TM);
-  const RISCVSubtarget STI(TT, CPU, FS, /*ABIName=*/"", RTM);
+  /* TuneCPU doesn't impact emission of ELF attributes, ELF attributes only
+     care about arch related features, so we can set TuneCPU as CPU.  */
+  const RISCVSubtarget STI(TT, CPU, /*TuneCPU=*/CPU, FS, /*ABIName=*/"", RTM);
 
   RTS.emitTargetAttributes(STI);
 }

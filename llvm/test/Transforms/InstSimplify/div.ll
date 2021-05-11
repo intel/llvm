@@ -45,7 +45,7 @@ define <2 x i8> @udiv_zero_elt_vec_constfold(<2 x i8> %x) {
 
 define <2 x i8> @sdiv_zero_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @sdiv_zero_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %div = sdiv <2 x i8> %x, <i8 -42, i8 0>
   ret <2 x i8> %div
@@ -53,7 +53,7 @@ define <2 x i8> @sdiv_zero_elt_vec(<2 x i8> %x) {
 
 define <2 x i8> @udiv_zero_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @udiv_zero_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %div = udiv <2 x i8> %x, <i8 0, i8 42>
   ret <2 x i8> %div
@@ -61,7 +61,7 @@ define <2 x i8> @udiv_zero_elt_vec(<2 x i8> %x) {
 
 define <2 x i8> @sdiv_undef_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @sdiv_undef_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %div = sdiv <2 x i8> %x, <i8 -42, i8 undef>
   ret <2 x i8> %div
@@ -69,7 +69,7 @@ define <2 x i8> @sdiv_undef_elt_vec(<2 x i8> %x) {
 
 define <2 x i8> @udiv_undef_elt_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @udiv_undef_elt_vec(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %div = udiv <2 x i8> %x, <i8 undef, i8 42>
   ret <2 x i8> %div
@@ -185,7 +185,7 @@ declare i32 @external()
 
 define i32 @div1() {
 ; CHECK-LABEL: @div1(
-; CHECK-NEXT:    [[CALL:%.*]] = call i32 @external(), !range !0
+; CHECK-NEXT:    [[CALL:%.*]] = call i32 @external(), [[RNG0:!range !.*]]
 ; CHECK-NEXT:    ret i32 0
 ;
   %call = call i32 @external(), !range !0

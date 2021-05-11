@@ -24,15 +24,13 @@ class Type;
 
 namespace mlir {
 
+class Type;
 class MLIRContext;
 
 namespace LLVM {
 
-class LLVMType;
-
 namespace detail {
 class TypeToLLVMIRTranslatorImpl;
-class TypeFromLLVMIRTranslatorImpl;
 } // namespace detail
 
 /// Utility class to translate MLIR LLVM dialect types to LLVM IR. Stores the
@@ -43,35 +41,18 @@ public:
   TypeToLLVMIRTranslator(llvm::LLVMContext &context);
   ~TypeToLLVMIRTranslator();
 
-  /// Returns the perferred alignment for the type given the data layout. Note
+  /// Returns the preferred alignment for the type given the data layout. Note
   /// that this will perform type conversion and store its results for future
   /// uses.
   // TODO: this should be removed when MLIR has proper data layout.
-  unsigned getPreferredAlignment(LLVM::LLVMType type,
-                                 const llvm::DataLayout &layout);
+  unsigned getPreferredAlignment(Type type, const llvm::DataLayout &layout);
 
   /// Translates the given MLIR LLVM dialect type to LLVM IR.
-  llvm::Type *translateType(LLVM::LLVMType type);
+  llvm::Type *translateType(Type type);
 
 private:
   /// Private implementation.
   std::unique_ptr<detail::TypeToLLVMIRTranslatorImpl> impl;
-};
-
-/// Utility class to translate LLVM IR types to the MLIR LLVM dialect. Stores
-/// the translation state, in particular any identified structure types that are
-/// reused across translations.
-class TypeFromLLVMIRTranslator {
-public:
-  TypeFromLLVMIRTranslator(MLIRContext &context);
-  ~TypeFromLLVMIRTranslator();
-
-  /// Translates the given LLVM IR type to the MLIR LLVM dialect.
-  LLVM::LLVMType translateType(llvm::Type *type);
-
-private:
-  /// Private implementation.
-  std::unique_ptr<detail::TypeFromLLVMIRTranslatorImpl> impl;
 };
 
 } // namespace LLVM

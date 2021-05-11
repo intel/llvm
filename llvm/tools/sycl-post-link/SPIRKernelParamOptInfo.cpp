@@ -36,10 +36,10 @@ SPIRKernelParamOptInfoAnalysis::run(Module &M, ModuleAnalysisManager &AM) {
     assert(Ins.second && "duplicate kernel?");
     BitVector &ParamDropped = Ins.first->second;
 
-    for (unsigned int I = 0; I < MD->getNumOperands(); ++I) {
-      const auto *MDInt1 = cast<ConstantAsMetadata>(MD->getOperand(I));
+    for (const MDOperand &MDOp : MD->operands()) {
+      const auto *MDConst = cast<ConstantAsMetadata>(MDOp);
       unsigned ID = static_cast<unsigned>(
-          cast<ConstantInt>(MDInt1->getValue())->getValue().getZExtValue());
+          cast<ConstantInt>(MDConst->getValue())->getValue().getZExtValue());
       ParamDropped.push_back(ID != 0);
     }
   }

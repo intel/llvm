@@ -52,8 +52,8 @@ declare hidden i32 @external_i32_func_i32(i32) #0
 
 ; Structs
 declare hidden void @external_void_func_struct_i8_i32({ i8, i32 }) #0
-declare hidden void @external_void_func_byval_struct_i8_i32({ i8, i32 } addrspace(5)* byval) #0
-declare hidden void @external_void_func_sret_struct_i8_i32_byval_struct_i8_i32({ i8, i32 } addrspace(5)* sret, { i8, i32 } addrspace(5)* byval) #0
+declare hidden void @external_void_func_byval_struct_i8_i32({ i8, i32 } addrspace(5)* byval({ i8, i32 })) #0
+declare hidden void @external_void_func_sret_struct_i8_i32_byval_struct_i8_i32({ i8, i32 } addrspace(5)* sret({ i8, i32 }), { i8, i32 } addrspace(5)* byval({ i8, i32 })) #0
 
 declare hidden void @external_void_func_v16i8(<16 x i8>) #0
 
@@ -87,8 +87,6 @@ define amdgpu_kernel void @test_call_external_void_func_i1_imm() #0 {
 ; GCN: s_getpc_b64 s{{\[}}[[PC_LO:[0-9]+]]:[[PC_HI:[0-9]+]]{{\]}}
 ; GCN-NEXT: s_add_u32 s[[PC_LO]], s[[PC_LO]], external_void_func_i1_signext@rel32@lo+4
 ; GCN-NEXT: s_addc_u32 s[[PC_HI]], s[[PC_HI]], external_void_func_i1_signext@rel32@hi+12
-
-; GCN: s_waitcnt vmcnt(0)
 ; GCN-NEXT: v_bfe_i32 v0, v0, 0, 1
 ; GCN-NEXT: s_swappc_b64 s[30:31], s{{\[}}[[PC_LO]]:[[PC_HI]]{{\]}}
 ; GCN-NEXT: s_endpgm
@@ -110,9 +108,6 @@ define amdgpu_kernel void @test_call_external_void_func_i1_signext(i32) #0 {
 ; GCN: s_getpc_b64 s{{\[}}[[PC_LO:[0-9]+]]:[[PC_HI:[0-9]+]]{{\]}}
 ; GCN-NEXT: s_add_u32 s[[PC_LO]], s[[PC_LO]], external_void_func_i1_zeroext@rel32@lo+4
 ; GCN-NEXT: s_addc_u32 s[[PC_HI]], s[[PC_HI]], external_void_func_i1_zeroext@rel32@hi+12
-
-
-; GCN: s_waitcnt vmcnt(0)
 ; GCN-NEXT: v_and_b32_e32 v0, 1, v0
 ; GCN-NEXT: s_swappc_b64 s[30:31], s{{\[}}[[PC_LO]]:[[PC_HI]]{{\]}}
 ; GCN-NEXT: s_endpgm
@@ -681,7 +676,7 @@ define amdgpu_kernel void @test_call_external_void_func_byval_struct_i8_i32() #0
   %gep1 = getelementptr inbounds { i8, i32 }, { i8, i32 } addrspace(5)* %val, i32 0, i32 1
   store i8 3, i8 addrspace(5)* %gep0
   store i32 8, i32 addrspace(5)* %gep1
-  call void @external_void_func_byval_struct_i8_i32({ i8, i32 } addrspace(5)* %val)
+  call void @external_void_func_byval_struct_i8_i32({ i8, i32 } addrspace(5)* byval({ i8, i32 }) %val)
   ret void
 }
 
@@ -713,7 +708,7 @@ define amdgpu_kernel void @test_call_external_void_func_sret_struct_i8_i32_byval
   %in.gep1 = getelementptr inbounds { i8, i32 }, { i8, i32 } addrspace(5)* %in.val, i32 0, i32 1
   store i8 3, i8 addrspace(5)* %in.gep0
   store i32 8, i32 addrspace(5)* %in.gep1
-  call void @external_void_func_sret_struct_i8_i32_byval_struct_i8_i32({ i8, i32 } addrspace(5)* %out.val, { i8, i32 } addrspace(5)* %in.val)
+  call void @external_void_func_sret_struct_i8_i32_byval_struct_i8_i32({ i8, i32 } addrspace(5)* %out.val, { i8, i32 } addrspace(5)* byval({ i8, i32 }) %in.val)
   %out.gep0 = getelementptr inbounds { i8, i32 }, { i8, i32 } addrspace(5)* %out.val, i32 0, i32 0
   %out.gep1 = getelementptr inbounds { i8, i32 }, { i8, i32 } addrspace(5)* %out.val, i32 0, i32 1
   %out.val0 = load i8, i8 addrspace(5)* %out.gep0
@@ -744,19 +739,19 @@ entry:
 
 ; GCN-LABEL: {{^}}tail_call_byval_align16:
 ; GCN-NOT: s32
-; GCN: buffer_load_dword v32, off, s[0:3], s32 offset:12
-; GCN: buffer_load_dword v33, off, s[0:3], s32 offset:8
+; GCN: buffer_load_dword [[VREG1:v[0-9]+]], off, s[0:3], s32 offset:8
+; GCN: buffer_load_dword [[VREG2:v[0-9]+]], off, s[0:3], s32 offset:12
 
 ; GCN: s_getpc_b64
 
-; GCN: buffer_store_dword v32, off, s[0:3], s32 offset:4
-; GCN: buffer_store_dword v33, off, s[0:3], s32{{$}}
+; GCN: buffer_store_dword [[VREG2]], off, s[0:3], s32 offset:4
+; GCN: buffer_store_dword [[VREG1]], off, s[0:3], s32{{$}}
 ; GCN-NOT: s32
 ; GCN: s_setpc_b64
 define void @tail_call_byval_align16(<32 x i32> %val, double %tmp) #0 {
 entry:
   %alloca = alloca double, align 8, addrspace(5)
-  tail call void @byval_align16_f64_arg(<32 x i32> %val, double addrspace(5)* byval align 16 %alloca)
+  tail call void @byval_align16_f64_arg(<32 x i32> %val, double addrspace(5)* byval(double) align 16 %alloca)
   ret void
 }
 
@@ -902,7 +897,7 @@ entry:
   ret void
 }
 
-declare hidden void @byval_align16_f64_arg(<32 x i32>, double addrspace(5)* byval align 16) #0
+declare hidden void @byval_align16_f64_arg(<32 x i32>, double addrspace(5)* byval(double) align 16) #0
 declare hidden void @stack_passed_f64_arg(<32 x i32>, double) #0
 declare hidden void @external_void_func_12xv3i32(<3 x i32>, <3 x i32>, <3 x i32>, <3 x i32>,
     <3 x i32>, <3 x i32>, <3 x i32>, <3 x i32>, <3 x i32>, <3 x i32>, <3 x i32>, <3 x i32>) #0

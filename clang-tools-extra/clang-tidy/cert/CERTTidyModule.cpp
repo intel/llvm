@@ -11,9 +11,11 @@
 #include "../ClangTidyModuleRegistry.h"
 #include "../bugprone/BadSignalToKillThreadCheck.h"
 #include "../bugprone/ReservedIdentifierCheck.h"
+#include "../bugprone/SignalHandlerCheck.h"
 #include "../bugprone/SignedCharMisuseCheck.h"
 #include "../bugprone/SpuriouslyWakeUpFunctionsCheck.h"
 #include "../bugprone/UnhandledSelfAssignmentCheck.h"
+#include "../concurrency/ThreadCanceltypeAsynchronousCheck.h"
 #include "../google/UnnamedNamespaceInHeaderCheck.h"
 #include "../misc/NewDeleteOverloadsCheck.h"
 #include "../misc/NonCopyableObjects.h"
@@ -109,6 +111,11 @@ public:
     // POS
     CheckFactories.registerCheck<bugprone::BadSignalToKillThreadCheck>(
         "cert-pos44-c");
+    CheckFactories
+        .registerCheck<concurrency::ThreadCanceltypeAsynchronousCheck>(
+            "cert-pos47-c");
+    // SIG
+    CheckFactories.registerCheck<bugprone::SignalHandlerCheck>("cert-sig30-c");
     // STR
     CheckFactories.registerCheck<bugprone::SignedCharMisuseCheck>(
         "cert-str34-c");

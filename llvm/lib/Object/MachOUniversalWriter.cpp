@@ -75,6 +75,11 @@ static uint32_t calculateAlignment(const MachOObjectFile &ObjectFile) {
   }
 }
 
+Slice::Slice(const Archive &A, uint32_t CPUType, uint32_t CPUSubType,
+             std::string ArchName, uint32_t Align)
+    : B(&A), CPUType(CPUType), CPUSubType(CPUSubType),
+      ArchName(std::move(ArchName)), P2Alignment(Align) {}
+
 Slice::Slice(const MachOObjectFile &O, uint32_t Align)
     : B(&O), CPUType(O.getHeader().cputype),
       CPUSubType(O.getHeader().cpusubtype),
@@ -258,8 +263,8 @@ buildFatArchList(ArrayRef<Slice> Slices) {
   return FatArchList;
 }
 
-static Error writeUniversalBinaryToStream(ArrayRef<Slice> Slices,
-                                          raw_ostream &Out) {
+Error object::writeUniversalBinaryToStream(ArrayRef<Slice> Slices,
+                                           raw_ostream &Out) {
   MachO::fat_header FatHeader;
   FatHeader.magic = MachO::FAT_MAGIC;
   FatHeader.nfat_arch = Slices.size();
@@ -318,15 +323,4 @@ Error object::writeUniversalBinary(ArrayRef<Slice> Slices,
     return E;
   }
   return Temp->keep(OutputFileName);
-}
-
-Expected<std::unique_ptr<MemoryBuffer>>
-object::writeUniversalBinaryToBuffer(ArrayRef<Slice> Slices) {
-  SmallVector<char, 0> Buffer;
-  raw_svector_ostream Out(Buffer);
-
-  if (Error E = writeUniversalBinaryToStream(Slices, Out))
-    return std::move(E);
-
-  return std::make_unique<SmallVectorMemoryBuffer>(std::move(Buffer));
 }

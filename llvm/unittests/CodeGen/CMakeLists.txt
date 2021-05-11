@@ -10,6 +10,7 @@ set(LLVM_LINK_COMPONENTS
   Passes
   SelectionDAG
   Support
+  SYCLLowerIR
   Target
   )
 
@@ -26,6 +27,7 @@ add_llvm_unittest(CodeGenTests
   MachineOperandTest.cpp
   PassManagerTest.cpp
   ScalableVectorMVTsTest.cpp
+  SelectionDAGAddressAnalysisTest.cpp
   TypeTraitsTest.cpp
   TargetOptionsTest.cpp
   TestAsmPrinter.cpp

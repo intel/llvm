@@ -64,7 +64,7 @@ using is_validImageDataT = typename detail::is_contained<
 
 template <typename DataT>
 using EnableIfImgAccDataT =
-    typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
+    typename detail::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
 
 template <int Dimensions>
 class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
@@ -73,8 +73,7 @@ class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
 
 private:
   template <bool B>
-  using EnableIfPitchT =
-      typename std::enable_if<B, range<Dimensions - 1>>::type;
+  using EnableIfPitchT = typename detail::enable_if_t<B, range<Dimensions - 1>>;
   static_assert(Dimensions >= 1 || Dimensions <= 3,
                 "Dimensions of cl::sycl::image can be 1, 2 or 3");
 
@@ -82,6 +81,7 @@ private:
     size_t WHD[3] = {1, 1, 1}; // Width, Height, Depth.
     for (int I = 0; I < Dimensions; I++)
       WHD[I] = MRange[I];
+
     MRowPitch = MElementSize * WHD[0];
     MSlicePitch = MRowPitch * WHD[1];
     BaseT::MSizeInBytes = MSlicePitch * WHD[2];
@@ -95,6 +95,7 @@ private:
     // NumSlices is depth when dim==3, and height when dim==2.
     size_t NumSlices =
         (Dimensions == 3) ? MRange[2] : MRange[1]; // Dimensions will be 2/3.
+
     BaseT::MSizeInBytes = MSlicePitch * NumSlices;
   }
 
@@ -190,7 +191,7 @@ public:
   // Return a range object representing the pitch of the image in bytes.
   // Available only when: Dimensions == 2.
   template <bool B = (Dimensions == 2)>
-  typename std::enable_if<B, range<1>>::type get_pitch() const {
+  typename detail::enable_if_t<B, range<1>> get_pitch() const {
     range<1> Temp = range<1>(MRowPitch);
     return Temp;
   }
@@ -198,7 +199,7 @@ public:
   // Return a range object representing the pitch of the image in bytes.
   // Available only when: Dimensions == 3.
   template <bool B = (Dimensions == 3)>
-  typename std::enable_if<B, range<2>>::type get_pitch() const {
+  typename detail::enable_if_t<B, range<2>> get_pitch() const {
     range<2> Temp = range<2>(MRowPitch, MSlicePitch);
     return Temp;
   }
@@ -245,15 +246,19 @@ private:
   RT::PiMemImageDesc getImageDesc(bool InitFromHostPtr) {
     RT::PiMemImageDesc Desc;
     Desc.image_type = getImageType();
-    Desc.image_width = MRange[0];
-    Desc.image_height = Dimensions > 1 ? MRange[1] : 1;
-    Desc.image_depth = Dimensions > 2 ? MRange[2] : 1;
+
+    // MRange<> is [width], [width,height], or [width,height,depth] (which
+    // is different than MAccessRange, etc in bufffers)
+    static constexpr int XTermPos = 0, YTermPos = 1, ZTermPos = 2;
+    Desc.image_width = MRange[XTermPos];
+    Desc.image_height = Dimensions > 1 ? MRange[YTermPos] : 1;
+    Desc.image_depth = Dimensions > 2 ? MRange[ZTermPos] : 1;
+
     // TODO handle cases with IMAGE1D_ARRAY and IMAGE2D_ARRAY
     Desc.image_array_size = 0;
     // Pitches must be 0 if host ptr is not provided.
     Desc.image_row_pitch = InitFromHostPtr ? MRowPitch : 0;
     Desc.image_slice_pitch = InitFromHostPtr ? MSlicePitch : 0;
-
     Desc.num_mip_levels = 0;
     Desc.num_samples = 0;
     Desc.buffer = nullptr;

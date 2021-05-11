@@ -29,11 +29,9 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::ElementsAre;
-using ::testing::Eq;
 using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::Matcher;
-using ::testing::Pointee;
 using ::testing::UnorderedElementsAre;
 
 // GMock helpers for matching TypeHierarchyItem.
@@ -321,6 +319,18 @@ struct Child3 : T {};
   EXPECT_THAT(typeParents(Child3), ElementsAre());
 }
 
+TEST(TypeParents, IncompleteClass) {
+  Annotations Source(R"cpp(
+    class Incomplete;
+  )cpp");
+  TestTU TU = TestTU::withCode(Source.code());
+  auto AST = TU.build();
+
+  const CXXRecordDecl *Incomplete =
+      dyn_cast<CXXRecordDecl>(&findDecl(AST, "Incomplete"));
+  EXPECT_THAT(typeParents(Incomplete), IsEmpty());
+}
+
 // Parts of getTypeHierarchy() are tested in more detail by the
 // FindRecordTypeAt.* and TypeParents.* tests above. This test exercises the
 // entire operation.
@@ -388,7 +398,7 @@ TEST(TypeHierarchy, RecursiveHierarchyUnbounded) {
 
   // The compiler should produce a diagnostic for hitting the
   // template instantiation depth.
-  ASSERT_TRUE(!AST.getDiagnostics().empty());
+  ASSERT_TRUE(!AST.getDiagnostics()->empty());
 
   // Make sure getTypeHierarchy() doesn't get into an infinite recursion.
   // The parent is reported as "S" because "S<0>" is an invalid instantiation.

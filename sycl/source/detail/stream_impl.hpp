@@ -23,6 +23,8 @@ namespace detail {
 
 class __SYCL_EXPORT stream_impl {
 public:
+  // TODO: Handler argument is not used in constructor.
+  // To be removed when API/ABI changes are allowed.
   stream_impl(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 
   // Method to provide an access to the global stream buffer
@@ -35,7 +37,7 @@ public:
   // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
-  // Copy stream buffer to the host and print the contents
+  // Enqueue task to copy stream buffer to the host and print the contents
   void flush();
 
   size_t get_size() const;

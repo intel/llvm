@@ -1370,10 +1370,8 @@ bool HexagonHardwareLoops::isLoopFeeder(MachineLoop *L, MachineBasicBlock *A,
     LLVM_DEBUG(dbgs() << "\nhw_loop head, "
                       << printMBBReference(**L->block_begin()));
     // Ignore all BBs that form Loop.
-    for (MachineBasicBlock *MBB : L->getBlocks()) {
-      if (A == MBB)
-        return false;
-    }
+    if (llvm::is_contained(L->getBlocks(), A))
+      return false;
     MachineInstr *Def = MRI->getVRegDef(MO->getReg());
     LoopFeederPhi.insert(std::make_pair(MO->getReg(), Def));
     return true;
@@ -1432,7 +1430,7 @@ bool HexagonHardwareLoops::loopCountMayWrapOrUnderFlow(
   Register Reg = InitVal->getReg();
 
   // We don't know the value of a physical register.
-  if (!Register::isVirtualRegister(Reg))
+  if (!Reg.isVirtual())
     return true;
 
   MachineInstr *Def = MRI->getVRegDef(Reg);
@@ -1510,7 +1508,7 @@ bool HexagonHardwareLoops::checkForImmediate(const MachineOperand &MO,
   int64_t TV;
 
   Register R = MO.getReg();
-  if (!Register::isVirtualRegister(R))
+  if (!R.isVirtual())
     return false;
   MachineInstr *DI = MRI->getVRegDef(R);
   unsigned DOpc = DI->getOpcode();

@@ -382,8 +382,9 @@ public:
                   int64_t a) const override;
   uint32_t getThunkSectionSpacing() const override;
   bool inBranchRange(RelType type, uint64_t src, uint64_t dst) const override;
-  RelExpr adjustRelaxExpr(RelType type, const uint8_t *data,
-                          RelExpr expr) const override;
+  RelExpr adjustTlsExpr(RelType type, RelExpr expr) const override;
+  RelExpr adjustGotPcExpr(RelType type, int64_t addend,
+                          const uint8_t *loc) const override;
   void relaxGot(uint8_t *loc, const Relocation &rel,
                 uint64_t val) const override;
   void relaxTlsGdToIe(uint8_t *loc, const Relocation &rel,
@@ -406,7 +407,7 @@ public:
 // document.
 static uint16_t lo(uint64_t v) { return v; }
 static uint16_t hi(uint64_t v) { return v >> 16; }
-static uint16_t ha(uint64_t v) { return (v + 0x8000) >> 16; }
+static uint64_t ha(uint64_t v) { return (v + 0x8000) >> 16; }
 static uint16_t higher(uint64_t v) { return v >> 32; }
 static uint16_t highera(uint64_t v) { return (v + 0x8000) >> 32; }
 static uint16_t highest(uint64_t v) { return v >> 48; }
@@ -788,16 +789,40 @@ void PPC64::relaxTlsLdToLe(uint8_t *loc, const Relocation &rel,
   case R_PPC64_GOT_TLSLD16_LO:
     writeFromHalf16(loc, 0x3c6d0000); // addis r3, r13, 0
     break;
-  case R_PPC64_TLSLD:
-    write32(loc, NOP);
-    write32(loc + 4, 0x38631000); // addi r3, r3, 4096
+  case R_PPC64_GOT_TLSLD_PCREL34:
+    // Relax from paddi r3, 0, x1@got@tlsld@pcrel, 1 to
+    //            paddi r3, r13, 0x1000, 0
+    writePrefixedInstruction(loc, 0x06000000386d1000);
     break;
+  case R_PPC64_TLSLD: {
+    // PC Relative Relaxation:
+    // Relax from bl __tls_get_addr@notoc(x@tlsld)
+    // to
+    //            nop
+    // TOC Relaxation:
+    // Relax from bl __tls_get_addr(x@tlsld)
+    //            nop
+    // to
+    //            nop
+    //            addi r3, r3, 4096
+    const uintptr_t locAsInt = reinterpret_cast<uintptr_t>(loc);
+    if (locAsInt % 4 == 0) {
+      write32(loc, NOP);
+      write32(loc + 4, 0x38631000); // addi r3, r3, 4096
+    } else if (locAsInt % 4 == 1) {
+      write32(loc - 1, NOP);
+    } else {
+      errorOrWarn("R_PPC64_TLSLD has unexpected byte alignment");
+    }
+    break;
+  }
   case R_PPC64_DTPREL16:
   case R_PPC64_DTPREL16_HA:
   case R_PPC64_DTPREL16_HI:
   case R_PPC64_DTPREL16_DS:
   case R_PPC64_DTPREL16_LO:
   case R_PPC64_DTPREL16_LO_DS:
+  case R_PPC64_DTPREL34:
     relocate(loc, rel, val);
     break;
   default:
@@ -895,7 +920,15 @@ void PPC64::relaxTlsIeToLe(uint8_t *loc, const Relocation &rel,
       // that comes before it will already have computed the address of the
       // symbol.
       if (secondaryOp == 266) {
-        write32(loc - 1, NOP);
+        // Check if the add uses the same result register as the input register.
+        uint32_t rt = (tlsInstr & 0x03E00000) >> 21; // bits 6-10
+        uint32_t ra = (tlsInstr & 0x001F0000) >> 16; // bits 11-15
+        if (ra == rt) {
+          write32(loc - 1, NOP);
+        } else {
+          // mr rt, ra
+          write32(loc - 1, 0x7C000378 | (rt << 16) | (ra << 21) | (ra << 11));
+        }
       } else {
         uint32_t dFormOp = getPPCDFormOp(secondaryOp);
         if (dFormOp == 0)
@@ -923,6 +956,7 @@ RelExpr PPC64::getRelExpr(RelType type, const Symbol &s,
   case R_PPC64_ADDR16_DS:
   case R_PPC64_ADDR16_HA:
   case R_PPC64_ADDR16_HI:
+  case R_PPC64_ADDR16_HIGH:
   case R_PPC64_ADDR16_HIGHER:
   case R_PPC64_ADDR16_HIGHERA:
   case R_PPC64_ADDR16_HIGHEST:
@@ -977,6 +1011,8 @@ RelExpr PPC64::getRelExpr(RelType type, const Symbol &s,
   case R_PPC64_GOT_TLSLD16_HI:
   case R_PPC64_GOT_TLSLD16_LO:
     return R_TLSLD_GOT;
+  case R_PPC64_GOT_TLSLD_PCREL34:
+    return R_TLSLD_PC;
   case R_PPC64_GOT_TPREL16_HA:
   case R_PPC64_GOT_TPREL16_LO_DS:
   case R_PPC64_GOT_TPREL16_DS:
@@ -998,7 +1034,7 @@ RelExpr PPC64::getRelExpr(RelType type, const Symbol &s,
   case R_PPC64_TPREL16_HIGHEST:
   case R_PPC64_TPREL16_HIGHESTA:
   case R_PPC64_TPREL34:
-    return R_TLS;
+    return R_TPREL;
   case R_PPC64_DTPREL16:
   case R_PPC64_DTPREL16_DS:
   case R_PPC64_DTPREL16_HA:
@@ -1010,6 +1046,7 @@ RelExpr PPC64::getRelExpr(RelType type, const Symbol &s,
   case R_PPC64_DTPREL16_LO:
   case R_PPC64_DTPREL16_LO_DS:
   case R_PPC64_DTPREL64:
+  case R_PPC64_DTPREL34:
     return R_DTPREL;
   case R_PPC64_TLSGD:
     return R_TLSDESC_CALL;
@@ -1191,12 +1228,18 @@ void PPC64::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   case R_PPC64_TPREL16_HA:
     if (config->tocOptimize && shouldTocOptimize && ha(val) == 0)
       writeFromHalf16(loc, NOP);
-    else
+    else {
+      checkInt(loc, val + 0x8000, 32, rel);
       write16(loc, ha(val));
+    }
     break;
   case R_PPC64_ADDR16_HI:
   case R_PPC64_REL16_HI:
   case R_PPC64_TPREL16_HI:
+    checkInt(loc, val, 32, rel);
+    write16(loc, hi(val));
+    break;
+  case R_PPC64_ADDR16_HIGH:
     write16(loc, hi(val));
     break;
   case R_PPC64_ADDR16_HIGHER:
@@ -1284,9 +1327,16 @@ void PPC64::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   case R_PPC64_DTPREL64:
     write64(loc, val - dynamicThreadPointerOffset);
     break;
+  case R_PPC64_DTPREL34:
+    // The Dynamic Thread Vector actually points 0x8000 bytes past the start
+    // of the TLS block. Therefore, in the case of R_PPC64_DTPREL34 we first
+    // need to subtract that value then fallthrough to the general case.
+    val -= dynamicThreadPointerOffset;
+    LLVM_FALLTHROUGH;
   case R_PPC64_PCREL34:
   case R_PPC64_GOT_PCREL34:
   case R_PPC64_GOT_TLSGD_PCREL34:
+  case R_PPC64_GOT_TLSLD_PCREL34:
   case R_PPC64_GOT_TPREL_PCREL34:
   case R_PPC64_TPREL34: {
     const uint64_t si0Mask = 0x00000003ffff0000;
@@ -1356,22 +1406,24 @@ bool PPC64::inBranchRange(RelType type, uint64_t src, uint64_t dst) const {
   llvm_unreachable("unsupported relocation type used in branch");
 }
 
-RelExpr PPC64::adjustRelaxExpr(RelType type, const uint8_t *data,
-                               RelExpr expr) const {
-  if ((type == R_PPC64_GOT_PCREL34 || type == R_PPC64_PCREL_OPT) &&
-      config->pcRelOptimize) {
-    // It only makes sense to optimize pld since paddi means that the address
-    // of the object in the GOT is required rather than the object itself.
-    assert(data && "Expecting an instruction encoding here");
-    if ((readPrefixedInstruction(data) & 0xfc000000) == 0xe4000000)
-      return R_PPC64_RELAX_GOT_PC;
-  }
-
+RelExpr PPC64::adjustTlsExpr(RelType type, RelExpr expr) const {
   if (type != R_PPC64_GOT_TLSGD_PCREL34 && expr == R_RELAX_TLS_GD_TO_IE)
     return R_RELAX_TLS_GD_TO_IE_GOT_OFF;
   if (expr == R_RELAX_TLS_LD_TO_LE)
     return R_RELAX_TLS_LD_TO_LE_ABS;
   return expr;
+}
+
+RelExpr PPC64::adjustGotPcExpr(RelType type, int64_t addend,
+                               const uint8_t *loc) const {
+  if ((type == R_PPC64_GOT_PCREL34 || type == R_PPC64_PCREL_OPT) &&
+      config->pcRelOptimize) {
+    // It only makes sense to optimize pld since paddi means that the address
+    // of the object in the GOT is required rather than the object itself.
+    if ((readPrefixedInstruction(loc) & 0xfc000000) == 0xe4000000)
+      return R_PPC64_RELAX_GOT_PC;
+  }
+  return R_GOT_PC;
 }
 
 // Reference: 3.7.4.1 of the 64-bit ELF V2 abi supplement.

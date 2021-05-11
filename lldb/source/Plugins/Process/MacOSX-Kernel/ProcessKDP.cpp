@@ -111,7 +111,8 @@ void ProcessKDP::Terminate() {
 
 lldb::ProcessSP ProcessKDP::CreateInstance(TargetSP target_sp,
                                            ListenerSP listener_sp,
-                                           const FileSpec *crash_file_path) {
+                                           const FileSpec *crash_file_path,
+                                           bool can_connect) {
   lldb::ProcessSP process_sp;
   if (crash_file_path == NULL)
     process_sp = std::make_shared<ProcessKDP>(target_sp, listener_sp);
@@ -507,8 +508,8 @@ lldb::ThreadSP ProcessKDP::GetKernelThread() {
   return thread_sp;
 }
 
-bool ProcessKDP::UpdateThreadList(ThreadList &old_thread_list,
-                                  ThreadList &new_thread_list) {
+bool ProcessKDP::DoUpdateThreadList(ThreadList &old_thread_list,
+                                    ThreadList &new_thread_list) {
   // locker will keep a mutex locked until it goes out of scope
   Log *log(ProcessKDPLog::GetLogIfAllCategoriesSet(KDP_LOG_THREAD));
   LLDB_LOGV(log, "pid = {0}", GetID());

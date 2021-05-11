@@ -33,17 +33,22 @@ static inline T remquo(T x, T y, int &q) {
   if (xbits.isInf() || ybits.isZero())
     return FPBits<T>::buildNaN(1);
 
-  if (xbits.isZero() || ybits.isInf()) {
+  if (xbits.isZero()) {
     q = 0;
     return __llvm_libc::fputil::copysign(T(0.0), x);
   }
 
-  bool resultSign = (xbits.sign == ybits.sign ? false : true);
+  if (ybits.isInf()) {
+    q = 0;
+    return x;
+  }
+
+  bool resultSign = (xbits.encoding.sign == ybits.encoding.sign ? false : true);
 
   // Once we know the sign of the result, we can just operate on the absolute
   // values. The correct sign can be applied to the result after the result
   // is evaluated.
-  xbits.sign = ybits.sign = 0;
+  xbits.encoding.sign = ybits.encoding.sign = 0;
 
   NormalFloat<T> normalx(xbits), normaly(ybits);
   int exp = normalx.exponent - normaly.exponent;
@@ -65,8 +70,10 @@ static inline T remquo(T x, T y, int &q) {
       q |= (1 << exp);
 
     mx = n - my;
-    if (mx == 0)
+    if (mx == 0) {
+      q = resultSign ? -q : q;
       return __llvm_libc::fputil::copysign(T(0.0), x);
+    }
   }
 
   NormalFloat<T> remainder(exp + normaly.exponent, mx, 0);

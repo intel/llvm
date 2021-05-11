@@ -46,17 +46,12 @@ struct DepCollectorPPCallbacks : public PPCallbacks {
     // Dependency generation really does want to go all the way to the
     // file entry for a source location to find out what is depended on.
     // We do not want #line markers to affect dependency generation!
-    Optional<FileEntryRef> File =
-        SM.getFileEntryRefForID(SM.getFileID(SM.getExpansionLoc(Loc)));
-    if (!File)
-      return;
-
-    StringRef Filename =
-        llvm::sys::path::remove_leading_dotslash(File->getName());
-
-    DepCollector.maybeAddDependency(Filename, /*FromModule*/false,
-                                    isSystem(FileType),
-                                    /*IsModuleFile*/false, /*IsMissing*/false);
+    if (Optional<StringRef> Filename = SM.getNonBuiltinFilenameForID(
+            SM.getFileID(SM.getExpansionLoc(Loc))))
+      DepCollector.maybeAddDependency(
+          llvm::sys::path::remove_leading_dotslash(*Filename),
+          /*FromModule*/ false, isSystem(FileType), /*IsModuleFile*/ false,
+          /*IsMissing*/ false);
   }
 
   void FileSkipped(const FileEntryRef &SkippedFile, const Token &FilenameTok,
@@ -188,7 +183,7 @@ DependencyFileGenerator::DependencyFileGenerator(
       IncludeModuleFiles(Opts.IncludeModuleFiles),
       OutputFormat(Opts.OutputFormat), InputFileIndex(0) {
   for (const auto &ExtraDep : Opts.ExtraDeps) {
-    if (addDependency(ExtraDep))
+    if (addDependency(ExtraDep.first))
       ++InputFileIndex;
   }
 }
@@ -319,7 +314,7 @@ void DependencyFileGenerator::outputDependencyFile(DiagnosticsEngine &Diags) {
   }
 
   std::error_code EC;
-  llvm::raw_fd_ostream OS(OutputFile, EC, llvm::sys::fs::OF_Text);
+  llvm::raw_fd_ostream OS(OutputFile, EC, llvm::sys::fs::OF_TextWithCRLF);
   if (EC) {
     Diags.Report(diag::err_fe_error_opening) << OutputFile << EC.message();
     return;

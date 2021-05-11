@@ -24,7 +24,9 @@
 #include "lldb/Utility/StringList.h"
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private.h"
+
 #include <mutex>
+#include <stack>
 
 namespace lldb_private {
 class CommandInterpreter;
@@ -245,7 +247,7 @@ public:
 
   CommandInterpreter(Debugger &debugger, bool synchronous_execution);
 
-  ~CommandInterpreter() override;
+  ~CommandInterpreter() override = default;
 
   // These two functions fill out the Broadcaster interface:
 
@@ -265,7 +267,7 @@ public:
                       bool can_replace);
 
   lldb::CommandObjectSP GetCommandSPExact(llvm::StringRef cmd,
-                                          bool include_aliases) const;
+                                          bool include_aliases = false) const;
 
   CommandObject *GetCommandObject(llvm::StringRef cmd,
                                   StringList *matches = nullptr,
@@ -300,10 +302,11 @@ public:
                                   CommandReturnObject &result);
 
   bool HandleCommand(const char *command_line, LazyBool add_to_history,
-                     CommandReturnObject &result,
-                     ExecutionContext *override_context = nullptr,
-                     bool repeat_on_empty_command = true,
-                     bool no_context_switching = false);
+                     const ExecutionContext &override_context,
+                     CommandReturnObject &result);
+
+  bool HandleCommand(const char *command_line, LazyBool add_to_history,
+                     CommandReturnObject &result);
 
   bool WasInterrupted() const;
 
@@ -312,9 +315,7 @@ public:
   /// \param[in] commands
   ///    The list of commands to execute.
   /// \param[in,out] context
-  ///    The execution context in which to run the commands. Can be nullptr in
-  ///    which case the default
-  ///    context will be used.
+  ///    The execution context in which to run the commands.
   /// \param[in] options
   ///    This object holds the options used to control when to stop, whether to
   ///    execute commands,
@@ -324,8 +325,13 @@ public:
   ///    safely,
   ///    and failed with some explanation if we aborted executing the commands
   ///    at some point.
-  void HandleCommands(const StringList &commands, ExecutionContext *context,
-                      CommandInterpreterRunOptions &options,
+  void HandleCommands(const StringList &commands,
+                      const ExecutionContext &context,
+                      const CommandInterpreterRunOptions &options,
+                      CommandReturnObject &result);
+
+  void HandleCommands(const StringList &commands,
+                      const CommandInterpreterRunOptions &options,
                       CommandReturnObject &result);
 
   /// Execute a list of commands from a file.
@@ -333,9 +339,7 @@ public:
   /// \param[in] file
   ///    The file from which to read in commands.
   /// \param[in,out] context
-  ///    The execution context in which to run the commands. Can be nullptr in
-  ///    which case the default
-  ///    context will be used.
+  ///    The execution context in which to run the commands.
   /// \param[in] options
   ///    This object holds the options used to control when to stop, whether to
   ///    execute commands,
@@ -345,8 +349,12 @@ public:
   ///    safely,
   ///    and failed with some explanation if we aborted executing the commands
   ///    at some point.
-  void HandleCommandsFromFile(FileSpec &file, ExecutionContext *context,
-                              CommandInterpreterRunOptions &options,
+  void HandleCommandsFromFile(FileSpec &file, const ExecutionContext &context,
+                              const CommandInterpreterRunOptions &options,
+                              CommandReturnObject &result);
+
+  void HandleCommandsFromFile(FileSpec &file,
+                              const CommandInterpreterRunOptions &options,
                               CommandReturnObject &result);
 
   CommandObject *GetCommandObjectForCommand(llvm::StringRef &command_line);
@@ -391,12 +399,7 @@ public:
 
   Debugger &GetDebugger() { return m_debugger; }
 
-  ExecutionContext GetExecutionContext() {
-    const bool thread_and_frame_only_if_stopped = true;
-    return m_exe_ctx_ref.Lock(thread_and_frame_only_if_stopped);
-  }
-
-  void UpdateExecutionContext(ExecutionContext *override_context);
+  ExecutionContext GetExecutionContext() const;
 
   lldb::PlatformSP GetPlatform(bool prefer_target_platform);
 
@@ -501,6 +504,8 @@ public:
   bool GetEchoCommentCommands() const;
   void SetEchoCommentCommands(bool enable);
 
+  bool GetRepeatPreviousCommand() const;
+
   const CommandObject::CommandMap &GetUserCommands() const {
     return m_user_dict;
   }
@@ -551,6 +556,8 @@ public:
   bool SaveTranscript(CommandReturnObject &result,
                       llvm::Optional<std::string> output_file = llvm::None);
 
+  FileSpec GetCurrentSourceDir();
+
 protected:
   friend class Debugger;
 
@@ -579,6 +586,10 @@ protected:
                                      StringList *descriptions = nullptr) const;
 
 private:
+  void OverrideExecutionContext(const ExecutionContext &override_context);
+
+  void RestoreExecutionContext();
+
   Status PreprocessCommand(std::string &command);
 
   void SourceInitFile(FileSpec file, CommandReturnObject &result);
@@ -617,8 +628,9 @@ private:
 
   Debugger &m_debugger; // The debugger session that this interpreter is
                         // associated with
-  ExecutionContextRef m_exe_ctx_ref; // The current execution context to use
-                                     // when handling commands
+  // Execution contexts that were temporarily set by some of HandleCommand*
+  // overloads.
+  std::stack<ExecutionContext> m_overriden_exe_contexts;
   bool m_synchronous_execution;
   bool m_skip_lldbinit_files;
   bool m_skip_app_init_files;
@@ -637,7 +649,13 @@ private:
   ChildrenTruncatedWarningStatus m_truncation_warning; // Whether we truncated
                                                        // children and whether
                                                        // the user has been told
+
+  // FIXME: Stop using this to control adding to the history and then replace
+  // this with m_command_source_dirs.size().
   uint32_t m_command_source_depth;
+  /// A stack of directory paths. When not empty, the last one is the directory
+  /// of the file that's currently sourced.
+  std::vector<FileSpec> m_command_source_dirs;
   std::vector<uint32_t> m_command_source_flags;
   CommandInterpreterRunResult m_result;
 

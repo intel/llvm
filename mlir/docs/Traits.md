@@ -56,6 +56,47 @@ Note: It is generally good practice to define the implementation of the
 `verifyTrait` hook out-of-line as a free function when possible to avoid
 instantiating the implementation for every concrete operation type.
 
+Operation traits may also provide a `foldTrait` hook that is called when
+folding the concrete operation. The trait folders will only be invoked if
+the concrete operation fold is either not implemented, fails, or performs
+an in-place fold.
+
+The following signature of fold will be called if it is implemented
+and the op has a single result.
+
+```c++
+template <typename ConcreteType>
+class MyTrait : public OpTrait::TraitBase<ConcreteType, MyTrait> {
+public:
+  /// Override the 'foldTrait' hook to support trait based folding on the
+  /// concrete operation.
+  static OpFoldResult foldTrait(Operation *op, ArrayRef<Attribute> operands) { {
+    // ...
+  }
+};
+```
+
+Otherwise, if the operation has a single result and the above signature is
+not implemented, or the operation has multiple results, then the following signature
+will be used (if implemented):
+
+```c++
+template <typename ConcreteType>
+class MyTrait : public OpTrait::TraitBase<ConcreteType, MyTrait> {
+public:
+  /// Override the 'foldTrait' hook to support trait based folding on the
+  /// concrete operation.
+  static LogicalResult foldTrait(Operation *op, ArrayRef<Attribute> operands,
+                                 SmallVectorImpl<OpFoldResult> &results) { {
+    // ...
+  }
+};
+```
+
+Note: It is generally good practice to define the implementation of the
+`foldTrait` hook out-of-line as a free function when possible to avoid
+instantiating the implementation for every concrete operation type.
+
 ### Parametric Traits
 
 The above demonstrates the definition of a simple self-contained trait. It is
@@ -170,7 +211,7 @@ are nested inside of other operations that themselves have this trait.
 This trait is carried by region holding operations that define a new scope for
 automatic allocation. Such allocations are automatically freed when control is
 transferred back from the regions of such operations. As an example, allocations
-performed by [`std.alloca`](Dialects/Standard.md#stdalloca-allocaop) are
+performed by [`memref.alloca`](Dialects/MemRef.md#memrefalloca-allocaop) are
 automatically freed when control leaves the region of its closest surrounding op
 that has the trait AutomaticAllocationScope.
 
@@ -198,6 +239,20 @@ This trait requires that the operands are either vector or tensor types.
 This trait adds the property that the operation is commutative, i.e. `X op Y ==
 Y op X`
 
+### ElementwiseMappable
+
+* `OpTrait::ElementwiseMappable` -- `ElementwiseMappable`
+
+This trait tags scalar ops that also can be applied to vectors/tensors, with
+their semantics on vectors/tensors being elementwise application. This trait
+establishes a set of properties that allow reasoning about / converting between
+scalar/vector/tensor code. These same properties allow blanket implementations
+of various analyses/transformations for all `ElementwiseMappable` ops.
+
+Note: Not all ops that are "elementwise" in some abstract sense satisfy this
+trait. In particular, broadcasting behavior is not allowed. See the comments on
+`OpTrait::ElementwiseMappable` for the precise requirements.
+
 ### Function-Like
 
 *   `OpTrait::FunctionLike`
@@ -208,21 +263,28 @@ particular:
 -   Ops must be symbols, i.e. also have the `Symbol` trait;
 -   Ops have a single region with multiple blocks that corresponds to the body
     of the function;
--   the absence of a region corresponds to an external function;
+-   An op with a single empty region corresponds to an external function;
 -   arguments of the first block of the region are treated as function
     arguments;
 -   they can have argument and result attributes that are stored in dictionary
     attributes on the operation itself.
 
-This trait does *NOT* provide type support for the functions, meaning that
-concrete Ops must handle the type of the declared or defined function.
-`getTypeAttrName()` is a convenience function that returns the name of the
-attribute that can be used to store the function type, but the trait makes no
-assumption based on it.
+This trait provides limited type support for the declared or defined functions.
+The convenience function `getTypeAttrName()` returns the name of an attribute
+that can be used to store the function type. In addition, this trait provides
+`getType` and `setType` helpers to store a `FunctionType` in the attribute named
+by `getTypeAttrName()`.
+
+In general, this trait assumes concrete ops use `FunctionType` under the hood.
+If this is not the case, in order to use the function type support, concrete ops
+must define the following methods, using the same name, to hide the ones defined
+for `FunctionType`: `addBodyBlock`, `getType`, `getTypeWithoutArgsAndResults`
+and `setType`.
 
 ### HasParent
 
-*   `OpTrait::HasParent<typename ParentOpType>` -- `HasParent<string op>`
+*   `OpTrait::HasParent<typename ParentOpType>` -- `HasParent<string op>` or
+    `ParentOneOf<list<string> opList>`
 
 This trait provides APIs and verifiers for operations that can only be nested
 within regions that are attached to operations of `ParentOpType`.
@@ -261,13 +323,20 @@ index expression that can express the equivalent of the memory-layout
 specification of the MemRef type. See [the -normalize-memrefs pass].
 (https://mlir.llvm.org/docs/Passes/#-normalize-memrefs-normalize-memrefs)
 
-### Single Block with Implicit Terminator
+### Single Block Region
 
-*   `OpTrait::SingleBlockImplicitTerminator<typename TerminatorOpType>` :
-    `SingleBlockImplicitTerminator<string op>`
+*   `OpTrait::SingleBlock` -- `SingleBlock`
 
 This trait provides APIs and verifiers for operations with regions that have a
-single block that must terminate with `TerminatorOpType`.
+single block.
+
+### Single Block with Implicit Terminator
+
+*   `OpTrait::SingleBlockImplicitTerminator<typename TerminatorOpType>` --
+    `SingleBlockImplicitTerminator<string op>`
+
+This trait implies the `SingleBlock` above, but adds the additional requirement
+that the single block must terminate with `TerminatorOpType`.
 
 ### SymbolTable
 
@@ -282,3 +351,10 @@ This trait is used for operations that define a
 
 This trait provides verification and functionality for operations that are known
 to be [terminators](LangRef.md#terminator-operations).
+
+*   `OpTrait::NoTerminator` -- `NoTerminator`
+
+This trait removes the requirement on regions held by an operation to have
+[terminator operations](LangRef.md#terminator-operations) at the end of a block.
+This requires that these regions have a single block. An example of operation
+using this trait is the top-level `ModuleOp`.

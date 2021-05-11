@@ -37,7 +37,6 @@ static bool IsDescriptor(const ObjectEntityDetails &details) {
   if (IsDescriptor(details.type())) {
     return true;
   }
-  // TODO: Automatic (adjustable) arrays - are they descriptors?
   for (const ShapeSpec &shapeSpec : details.shape()) {
     const auto &lb{shapeSpec.lbound().GetExplicit()};
     const auto &ub{shapeSpec.ubound().GetExplicit()};
@@ -112,7 +111,7 @@ std::optional<Expr<SubscriptInteger>> DynamicType::GetCharLength() const {
   return std::nullopt;
 }
 
-static constexpr int RealKindBytes(int kind) {
+static constexpr std::size_t RealKindBytes(int kind) {
   switch (kind) {
   case 3: // non-IEEE 16-bit format (truncated 32-bit)
     return 2;
@@ -124,8 +123,26 @@ static constexpr int RealKindBytes(int kind) {
   }
 }
 
+std::size_t DynamicType::GetAlignment(const FoldingContext &context) const {
+  switch (category_) {
+  case TypeCategory::Integer:
+  case TypeCategory::Character:
+  case TypeCategory::Logical:
+    return std::min<std::size_t>(kind_, context.maxAlignment());
+  case TypeCategory::Real:
+  case TypeCategory::Complex:
+    return std::min(RealKindBytes(kind_), context.maxAlignment());
+  case TypeCategory::Derived:
+    if (derived_ && derived_->scope()) {
+      return derived_->scope()->alignment().value_or(1);
+    }
+    break;
+  }
+  return 1; // needs to be after switch to dodge a bogus gcc warning
+}
+
 std::optional<Expr<SubscriptInteger>> DynamicType::MeasureSizeInBytes(
-    FoldingContext *context) const {
+    FoldingContext &context, bool aligned) const {
   switch (category_) {
   case TypeCategory::Integer:
     return Expr<SubscriptInteger>{kind_};
@@ -135,20 +152,18 @@ std::optional<Expr<SubscriptInteger>> DynamicType::MeasureSizeInBytes(
     return Expr<SubscriptInteger>{2 * RealKindBytes(kind_)};
   case TypeCategory::Character:
     if (auto len{GetCharLength()}) {
-      auto result{Expr<SubscriptInteger>{kind_} * std::move(*len)};
-      if (context) {
-        return Fold(*context, std::move(result));
-      } else {
-        return std::move(result);
-      }
+      return Fold(context, Expr<SubscriptInteger>{kind_} * std::move(*len));
     }
     break;
   case TypeCategory::Logical:
     return Expr<SubscriptInteger>{kind_};
   case TypeCategory::Derived:
     if (derived_ && derived_->scope()) {
+      auto size{derived_->scope()->size()};
+      auto align{aligned ? derived_->scope()->alignment().value_or(0) : 0};
+      auto alignedSize{align > 0 ? ((size + align - 1) / align) * align : size};
       return Expr<SubscriptInteger>{
-          static_cast<common::ConstantSubscript>(derived_->scope()->size())};
+          static_cast<ConstantSubscript>(alignedSize)};
     }
     break;
   }
@@ -301,26 +316,6 @@ static bool AreCompatibleDerivedTypes(const semantics::DerivedTypeSpec *x,
   }
 }
 
-bool IsKindTypeParameter(const semantics::Symbol &symbol) {
-  const auto *param{symbol.detailsIf<semantics::TypeParamDetails>()};
-  return param && param->attr() == common::TypeParamAttr::Kind;
-}
-
-// Do the kind type parameters of type1 have the same values as the
-// corresponding kind type parameters of type2?
-static bool AreKindCompatible(const semantics::DerivedTypeSpec &type1,
-    const semantics::DerivedTypeSpec &type2) {
-  for (const auto &[name, param1] : type1.parameters()) {
-    if (param1.isKind()) {
-      const semantics::ParamValue *param2{type2.FindParameter(name)};
-      if (!PointeeComparison(&param1, param2)) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
 // See 7.3.2.3 (5) & 15.5.2.4
 bool DynamicType::IsTkCompatibleWith(const DynamicType &that) const {
   if (IsUnlimitedPolymorphic()) {
@@ -332,7 +327,7 @@ bool DynamicType::IsTkCompatibleWith(const DynamicType &that) const {
   } else if (derived_) {
     return that.derived_ &&
         AreCompatibleDerivedTypes(derived_, that.derived_, IsPolymorphic()) &&
-        AreKindCompatible(*derived_, *that.derived_);
+        AreTypeParamCompatible(*derived_, *that.derived_);
   } else {
     return kind_ == that.kind_;
   }

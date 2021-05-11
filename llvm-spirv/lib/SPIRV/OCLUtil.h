@@ -254,6 +254,8 @@ const static char IsNormal[] = "isnormal";
 const static char IsInf[] = "isinf";
 const static char Max[] = "max";
 const static char MemFence[] = "mem_fence";
+const static char ReadMemFence[] = "read_mem_fence";
+const static char WriteMemFence[] = "write_mem_fence";
 const static char Min[] = "min";
 const static char Mix[] = "mix";
 const static char NDRangePrefix[] = "ndrange_";
@@ -303,10 +305,10 @@ const unsigned int OCLImageChannelOrderOffset = 0x10B0;
 const unsigned int OCLImageChannelDataTypeOffset = 0x10D0;
 
 /// OCL 1.x atomic memory order when translated to 2.0 atomics.
-const OCLMemOrderKind OCLLegacyAtomicMemOrder = OCLMO_seq_cst;
+const OCLMemOrderKind OCLLegacyAtomicMemOrder = OCLMO_relaxed;
 
 /// OCL 1.x atomic memory scope when translated to 2.0 atomics.
-const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_device;
+const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_work_group;
 
 enum IntelFPGAMemoryAccessesVal {
   BurstCoalesce = 0x1,
@@ -468,7 +470,7 @@ Instruction *mutateCallInstOCL(
     std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
         ArgMutate,
     std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr);
+    AttributeList *Attrs = nullptr, bool TakeFuncName = false);
 
 /// Check if instruction is bitcast from spirv.ConstantSampler to spirv.Sampler
 bool isSamplerInitializer(Instruction *Inst);

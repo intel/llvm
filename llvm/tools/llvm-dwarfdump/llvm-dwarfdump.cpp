@@ -624,11 +624,11 @@ int main(int argc, char **argv) {
   if (Diff && Verbose) {
     WithColor::error() << "incompatible arguments: specifying both -diff and "
                           "-verbose is currently not supported";
-    return 0;
+    return 1;
   }
 
   std::error_code EC;
-  ToolOutputFile OutputFile(OutputFilename, EC, sys::fs::OF_Text);
+  ToolOutputFile OutputFile(OutputFilename, EC, sys::fs::OF_TextWithCRLF);
   error("Unable to open output file" + OutputFilename, EC);
   // Don't remove output file if we exit with an error.
   OutputFile.keep();
@@ -670,7 +670,7 @@ int main(int argc, char **argv) {
   std::vector<std::string> Objects;
   for (const auto &F : InputFilenames) {
     auto Objs = expandBundle(F);
-    Objects.insert(Objects.end(), Objs.begin(), Objs.end());
+    llvm::append_range(Objects, Objs);
   }
 
   bool Success = true;

@@ -11,12 +11,12 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <type_traits>
 // 4.6.2 Context class
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -148,6 +148,7 @@ public:
   ///
   /// \param ClContext is an instance of OpenCL cl_context.
   /// \param AsyncHandler is an instance of async_handler.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   context(cl_context ClContext, async_handler AsyncHandler = {});
 
   /// Queries this SYCL context for information.
@@ -187,12 +188,18 @@ public:
   /// The OpenCL cl_context handle is retained on return.
   ///
   /// \return a valid instance of OpenCL cl_context.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   cl_context get() const;
 
   /// Checks if this context is a SYCL host context.
   ///
   /// \return true if this context is a SYCL host context.
   bool is_host() const;
+
+  /// Returns the backend associated with this context.
+  ///
+  /// \return the backend associated with this context.
+  backend get_backend() const noexcept;
 
   /// Gets platform associated with this SYCL context.
   ///
@@ -225,7 +232,7 @@ private:
 
   template <class T>
   friend
-      typename std::add_pointer<typename decltype(T::impl)::element_type>::type
+      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
       detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>

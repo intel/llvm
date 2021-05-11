@@ -201,13 +201,24 @@ void OpMethod::writeDeclTo(raw_ostream &os) const {
   os.indent(2);
   if (isStatic())
     os << "static ";
+  if (properties & MP_Constexpr)
+    os << "constexpr ";
   methodSignature.writeDeclTo(os);
-  os << ";";
+  if (!isInline())
+    os << ";";
+  else {
+    os << " {\n";
+    methodBody.writeTo(os);
+    os << "}";
+  }
 }
 
 void OpMethod::writeDefTo(raw_ostream &os, StringRef namePrefix) const {
   // Do not write definition if the method is decl only.
   if (properties & MP_Declaration)
+    return;
+  // Do not generate separate definition for inline method
+  if (isInline())
     return;
   methodSignature.writeDefTo(os, namePrefix);
   os << " {\n";
@@ -303,9 +314,10 @@ void OpClass::writeDeclTo(raw_ostream &os) const {
   os << "class " << className << " : public ::mlir::Op<" << className;
   for (const auto &trait : traitsVec)
     os << ", " << trait;
-  os << "> {\npublic:\n";
-  os << "  using Op::Op;\n";
-  os << "  using Adaptor = " << className << "Adaptor;\n";
+  os << "> {\npublic:\n"
+     << "  using Op::Op;\n"
+     << "  using Op::print;\n"
+     << "  using Adaptor = " << className << "Adaptor;\n";
 
   bool hasPrivateMethod = false;
   forAllMethods([&](const OpMethod &method) {

@@ -9,15 +9,15 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/SymbolTable.h"
 #include "llvm/Support/raw_ostream.h"
-using namespace mlir;
 
-Builder::Builder(ModuleOp module) : context(module.getContext()) {}
+using namespace mlir;
 
 Identifier Builder::getIdentifier(StringRef str) {
   return Identifier::get(str, context);
@@ -28,11 +28,6 @@ Identifier Builder::getIdentifier(StringRef str) {
 //===----------------------------------------------------------------------===//
 
 Location Builder::getUnknownLoc() { return UnknownLoc::get(context); }
-
-Location Builder::getFileLineColLoc(Identifier filename, unsigned line,
-                                    unsigned column) {
-  return FileLineColLoc::get(filename, line, column, context);
-}
 
 Location Builder::getFusedLoc(ArrayRef<Location> locs, Attribute metadata) {
   return FusedLoc::get(locs, metadata, context);
@@ -50,29 +45,33 @@ FloatType Builder::getF32Type() { return FloatType::getF32(context); }
 
 FloatType Builder::getF64Type() { return FloatType::getF64(context); }
 
+FloatType Builder::getF80Type() { return FloatType::getF80(context); }
+
+FloatType Builder::getF128Type() { return FloatType::getF128(context); }
+
 IndexType Builder::getIndexType() { return IndexType::get(context); }
 
-IntegerType Builder::getI1Type() { return IntegerType::get(1, context); }
+IntegerType Builder::getI1Type() { return IntegerType::get(context, 1); }
 
-IntegerType Builder::getI32Type() { return IntegerType::get(32, context); }
+IntegerType Builder::getI32Type() { return IntegerType::get(context, 32); }
 
-IntegerType Builder::getI64Type() { return IntegerType::get(64, context); }
+IntegerType Builder::getI64Type() { return IntegerType::get(context, 64); }
 
 IntegerType Builder::getIntegerType(unsigned width) {
-  return IntegerType::get(width, context);
+  return IntegerType::get(context, width);
 }
 
 IntegerType Builder::getIntegerType(unsigned width, bool isSigned) {
   return IntegerType::get(
-      width, isSigned ? IntegerType::Signed : IntegerType::Unsigned, context);
+      context, width, isSigned ? IntegerType::Signed : IntegerType::Unsigned);
 }
 
 FunctionType Builder::getFunctionType(TypeRange inputs, TypeRange results) {
-  return FunctionType::get(inputs, results, context);
+  return FunctionType::get(context, inputs, results);
 }
 
 TupleType Builder::getTupleType(TypeRange elementTypes) {
-  return TupleType::get(elementTypes, context);
+  return TupleType::get(context, elementTypes);
 }
 
 NoneType Builder::getNoneType() { return NoneType::get(context); }
@@ -88,11 +87,11 @@ NamedAttribute Builder::getNamedAttr(StringRef name, Attribute val) {
 UnitAttr Builder::getUnitAttr() { return UnitAttr::get(context); }
 
 BoolAttr Builder::getBoolAttr(bool value) {
-  return BoolAttr::get(value, context);
+  return BoolAttr::get(context, value);
 }
 
 DictionaryAttr Builder::getDictionaryAttr(ArrayRef<NamedAttribute> value) {
-  return DictionaryAttr::get(value, context);
+  return DictionaryAttr::get(context, value);
 }
 
 IntegerAttr Builder::getIndexAttr(int64_t value) {
@@ -118,6 +117,12 @@ DenseIntElementsAttr Builder::getI32VectorAttr(ArrayRef<int32_t> values) {
 DenseIntElementsAttr Builder::getI64VectorAttr(ArrayRef<int64_t> values) {
   return DenseIntElementsAttr::get(
       VectorType::get(static_cast<int64_t>(values.size()), getIntegerType(64)),
+      values);
+}
+
+DenseIntElementsAttr Builder::getIndexVectorAttr(ArrayRef<int64_t> values) {
+  return DenseIntElementsAttr::get(
+      VectorType::get(static_cast<int64_t>(values.size()), getIndexType()),
       values);
 }
 
@@ -196,11 +201,11 @@ FloatAttr Builder::getFloatAttr(Type type, const APFloat &value) {
 }
 
 StringAttr Builder::getStringAttr(StringRef bytes) {
-  return StringAttr::get(bytes, context);
+  return StringAttr::get(context, bytes);
 }
 
 ArrayAttr Builder::getArrayAttr(ArrayRef<Attribute> value) {
-  return ArrayAttr::get(value, context);
+  return ArrayAttr::get(context, value);
 }
 
 FlatSymbolRefAttr Builder::getSymbolRefAttr(Operation *value) {
@@ -210,12 +215,12 @@ FlatSymbolRefAttr Builder::getSymbolRefAttr(Operation *value) {
   return getSymbolRefAttr(symName.getValue());
 }
 FlatSymbolRefAttr Builder::getSymbolRefAttr(StringRef value) {
-  return SymbolRefAttr::get(value, getContext());
+  return SymbolRefAttr::get(getContext(), value);
 }
 SymbolRefAttr
 Builder::getSymbolRefAttr(StringRef value,
                           ArrayRef<FlatSymbolRefAttr> nestedReferences) {
-  return SymbolRefAttr::get(value, nestedReferences, getContext());
+  return SymbolRefAttr::get(getContext(), value, nestedReferences);
 }
 
 ArrayAttr Builder::getBoolArrayAttr(ArrayRef<bool> values) {
@@ -458,4 +463,24 @@ LogicalResult OpBuilder::tryFold(Operation *op,
     insert(cst);
 
   return success();
+}
+
+Operation *OpBuilder::clone(Operation &op, BlockAndValueMapping &mapper) {
+  Operation *newOp = op.clone(mapper);
+  // The `insert` call below handles the notification for inserting `newOp`
+  // itself. But if `newOp` has any regions, we need to notify the listener
+  // about any ops that got inserted inside those regions as part of cloning.
+  if (listener) {
+    auto walkFn = [&](Operation *walkedOp) {
+      listener->notifyOperationInserted(walkedOp);
+    };
+    for (Region &region : newOp->getRegions())
+      region.walk(walkFn);
+  }
+  return insert(newOp);
+}
+
+Operation *OpBuilder::clone(Operation &op) {
+  BlockAndValueMapping mapper;
+  return clone(op, mapper);
 }

@@ -3,6 +3,16 @@
 # header file spirv.hpp.
 #
 
+# The NameMaps that will be generated into SPIRVNameMapEnum.h
+nameMapEnums="LinkageType Decoration BuiltIn Capability"
+
+# The isValid functions that will be generated into SPIRVIsValidEnum.h
+isValidEnums="ExecutionModel AddressingModel MemoryModel StorageClass \
+              LinkageType AccessQualifier FunctionParameterAttribute BuiltIn"
+
+# The isValidxxxMask functions that will be generated into SPIRVIsValidEnum.h
+isValidMaskEnums="FunctionControlMask"
+
 
 ######################
 #
@@ -38,12 +48,20 @@ prefix=$1
 echo "inline bool isValid(spv::$prefix V) {
   switch (V) {"
 
+  prevValue=
   cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\(.*\).*:\1 \2:p"  | while read a b; do
-  if [[ $a == CapabilityNone ]]; then
-    continue
-  fi
-  printf "  case ${prefix}%s:\n" $a
-done
+    if [[ "$a" == "Max" ]]; then
+      # The "Max" enum value is not valid.
+      continue
+    fi
+    if [[ "$b" == "$prevValue" ]]; then
+      # This enum value is an alias for the previous.  Skip to avoid duplicate case values.
+      continue
+    fi
+
+    printf "  case ${prefix}%s:\n" "$a"
+    prevValue=$b
+  done
 
 echo "    return true;
   default:
@@ -74,18 +92,15 @@ echo "
 gen() {
 type=$1
 if [[ "$type" == NameMap ]]; then
-  for prefix in LinkageType Decoration BuiltIn Capability; do
-    genNameMap $prefix
+  for prefix in ${nameMapEnums} ; do
+    genNameMap "$prefix"
   done
 elif [[ "$type" == isValid ]]; then
-  for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel ExecutionMode StorageClass Dim SamplerAddressingMode SamplerFilterMode ImageFormat \
-      ImageChannelOrder ImageChannelDataType FPRoundingMode LinkageType AccessQualifier FunctionParameterAttribute Decoration BuiltIn Scope GroupOperation \
-      KernelEnqueueFlags Capability; do
-    genIsValid $prefix
+  for prefix in ${isValidEnums} ; do
+    genIsValid "$prefix"
   done
-  for prefix in ImageOperandsMask FPFastMathModeMask SelectionControlMask LoopControlMask FunctionControlMask MemorySemanticsMask MemoryAccessMask \
-      KernelProfilingInfoMask; do
-    genMaskIsValid $prefix
+  for prefix in ${isValidMaskEnums} ; do
+    genMaskIsValid "$prefix"
   done
 else
   echo "invalid type \"$type\"."
@@ -93,31 +108,13 @@ else
 fi
 }
 
-####################
-#
-# main
-#
-####################
+genFile() {
+  outputFile=$1
+  genType=$2
+  outputBasename="$(basename ${outputFile})"
+  includeGuard="SPIRV_LIBSPIRV_`echo ${outputBasename} | tr '[:lower:]' '[:upper:]' | sed -e 's/[\.\/]/_/g'`"
 
-if [[ $# -ne 2 ]]; then
-  echo "usage: gen_spirv path_to_spirv.hpp [NameMap|isValid]"
-  exit
-fi
-
-spirvHeader=$1
-type=$2
-if [[ "$type" == NameMap ]]; then
-  outputFile="lib/SPIRV/libSPIRV/SPIRVNameMapEnum.h"
-elif [[ "$type" == isValid ]]; then
-  outputFile="lib/SPIRV/libSPIRV/SPIRVIsValidEnum.h"
-else
-  echo "Unknown type $type"
-  exit 1
-fi
-outputBasename="$(basename ${outputFile})"
-includeGuard="SPIRV_LIBSPIRV_`echo ${outputBasename} | tr '[:lower:]' '[:upper:]' | sed -e 's/[\.\/]/_/g'`"
-
-echo "//===- ${outputBasename} - SPIR-V ${type} enums ----------------*- C++ -*-===//
+  echo "//===- ${outputBasename} - SPIR-V ${genType} enums ----------------*- C++ -*-===//
 //
 //                     The LLVM/SPIRV Translator
 //
@@ -152,7 +149,7 @@ echo "//===- ${outputBasename} - SPIR-V ${type} enums ----------------*- C++ -*-
 //===----------------------------------------------------------------------===//
 /// \\file
 ///
-/// This file defines SPIR-V ${type} enums.
+/// This file defines SPIR-V ${genType} enums.
 ///
 //===----------------------------------------------------------------------===//
 // WARNING:
@@ -173,8 +170,24 @@ using namespace spv;
 namespace SPIRV {
 " > ${outputFile}
 
-gen $type >> ${outputFile}
+  gen $genType >> ${outputFile}
 
-echo "} /* namespace SPIRV */
+  echo "} /* namespace SPIRV */
 
 #endif // ${includeGuard}" >> ${outputFile}
+}
+
+####################
+#
+# main
+#
+####################
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: gen_spirv path_to_spirv.hpp"
+  exit
+fi
+
+spirvHeader=$1
+genFile "lib/SPIRV/libSPIRV/SPIRVNameMapEnum.h" NameMap
+genFile "lib/SPIRV/libSPIRV/SPIRVIsValidEnum.h" isValid

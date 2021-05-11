@@ -94,7 +94,7 @@ declare void @foo(...)
 ; CHECK-ORIGINS: %[[ORIGIN:.*]] = load
 ; CHECK: call void @__msan_warning_with_origin_noreturn(i32
 ; CHECK-ORIGINS-SAME %[[ORIGIN]])
-; CHECK-CONT: 
+; CHECK-CONT:
 ; CHECK-NEXT: unreachable
 ; CHECK: br i1 %tobool
 ; CHECK: ret void
@@ -920,7 +920,7 @@ entry:
   %agg.tmp.sroa.2.0.copyload = load i64, i64* %agg.tmp.sroa.2.0..sroa_cast, align 4
   %1 = bitcast %struct.StructByVal* %agg.tmp2 to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %1, i8* align 4 %0, i64 16, i1 false)
-  call void (i32, ...) @VAArgStructFn(i32 undef, i64 %agg.tmp.sroa.0.0.copyload, i64 %agg.tmp.sroa.2.0.copyload, i64 %agg.tmp.sroa.0.0.copyload, i64 %agg.tmp.sroa.2.0.copyload, %struct.StructByVal* byval align 8 %agg.tmp2)
+  call void (i32, ...) @VAArgStructFn(i32 undef, i64 %agg.tmp.sroa.0.0.copyload, i64 %agg.tmp.sroa.2.0.copyload, i64 %agg.tmp.sroa.0.0.copyload, i64 %agg.tmp.sroa.2.0.copyload, %struct.StructByVal* byval(%struct.StructByVal) align 8 %agg.tmp2)
   ret void
 }
 
@@ -955,7 +955,7 @@ entry:
   %agg.tmp.sroa.2.0.copyload = load i64, i64* %agg.tmp.sroa.2.0..sroa_cast, align 4
   %1 = bitcast %struct.StructByVal* %agg.tmp2 to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %1, i8* align 4 %0, i64 16, i1 false)
-  call void (i32, ...) @VAArgStructFn(i32 undef, i64 %agg.tmp.sroa.0.0.copyload, i64 %agg.tmp.sroa.2.0.copyload, i64 %agg.tmp.sroa.0.0.copyload, i64 %agg.tmp.sroa.2.0.copyload, %struct.StructByVal* byval align 8 %agg.tmp2)
+  call void (i32, ...) @VAArgStructFn(i32 undef, i64 %agg.tmp.sroa.0.0.copyload, i64 %agg.tmp.sroa.2.0.copyload, i64 %agg.tmp.sroa.0.0.copyload, i64 %agg.tmp.sroa.2.0.copyload, %struct.StructByVal* byval(%struct.StructByVal) align 8 %agg.tmp2)
   ret void
 }
 
@@ -1013,7 +1013,7 @@ define i8* @MismatchingCallMustTailCall(i32 %a) sanitize_memory {
 ; CHECK-NEXT: ret i8*
 
 
-; CHECK-LABEL: define internal void @msan.module_ctor() {
+; CHECK-LABEL: define internal void @msan.module_ctor() #[[#ATTR:]] {
 ; CHECK: call void @__msan_init()
 
 ; CHECK-CALLS: declare void @__msan_maybe_warning_1(i8 zeroext, i32 zeroext)
@@ -1024,3 +1024,5 @@ define i8* @MismatchingCallMustTailCall(i32 %a) sanitize_memory {
 ; CHECK-CALLS: declare void @__msan_maybe_store_origin_4(i32 zeroext, i8*, i32 zeroext)
 ; CHECK-CALLS: declare void @__msan_maybe_warning_8(i64 zeroext, i32 zeroext)
 ; CHECK-CALLS: declare void @__msan_maybe_store_origin_8(i64 zeroext, i8*, i32 zeroext)
+
+; CHECK:       attributes #[[#ATTR]] = { nounwind }

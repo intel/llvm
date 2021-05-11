@@ -15,6 +15,9 @@
 using namespace mlir;
 using namespace mlir::edsc;
 
+mlir::edsc::ScopedContext::ScopedContext(OpBuilder &b)
+    : ScopedContext(b, b.getInsertionPoint()->getLoc()) {}
+
 mlir::edsc::ScopedContext::ScopedContext(OpBuilder &b, Location location)
     : builder(b), guard(builder), location(location),
       enclosingScopedContext(ScopedContext::getCurrentScopedContext()) {
@@ -82,7 +85,7 @@ void mlir::edsc::appendToBlock(Block *block,
   OpBuilder &builder = ScopedContext::getBuilderRef();
 
   OpBuilder::InsertionGuard guard(builder);
-  if (block->empty() || block->back().isKnownNonTerminator())
+  if (block->empty() || !block->back().mightHaveTrait<OpTrait::IsTerminator>())
     builder.setInsertionPointToEnd(block);
   else
     builder.setInsertionPoint(&block->back());

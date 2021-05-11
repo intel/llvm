@@ -5,14 +5,24 @@
 
 # RUN: %lld -pie -o %t-pie %t.o
 # RUN: llvm-objdump --macho --rebase %t-pie | FileCheck %s --check-prefix=PIE
+# RUN: %lld -pie -no_pie -o %t-no-pie %t.o
+# RUN: llvm-objdump --macho --rebase %t-no-pie | FileCheck %s --check-prefix=NO-PIE
+# RUN: %lld -no_pie -pie -o %t-no-pie %t.o
+# RUN: llvm-objdump --macho --rebase %t-no-pie | FileCheck %s --check-prefix=NO-PIE
+
+# RUN: %lld -platform_version macos 10.6.0 11.0 -o %t-pie %t.o
+# RUN: llvm-objdump --macho --rebase %t-pie | FileCheck %s --check-prefix=PIE
+# RUN: %lld -platform_version macos 10.5.0 11.0 -o %t-no-pie %t.o
+# RUN: llvm-objdump --macho --rebase %t-no-pie | FileCheck %s --check-prefix=NO-PIE
+# RUN: %lld -platform_version ios-simulator 11.0.0 14.2 -o %t-pie %t.o
+# RUN: llvm-objdump --macho --rebase %t-pie | FileCheck %s --check-prefix=PIE
+# RUN: %lld -platform_version driverkit 19.0 20.0 -o %t-pie %t.o
+# RUN: llvm-objdump --macho --rebase %t-pie | FileCheck %s --check-prefix=PIE
 
 # CHECK:       Contents of section __DATA,foo:
 # CHECK-NEXT:  100001000 08100000 01000000
 # CHECK:       Contents of section __DATA,bar:
 # CHECK-NEXT:  100001008 011000f0 11211111 02000000
-# CHECK:       Rebase table:
-# CHECK-NEXT:  segment  section            address     type
-# CHECK-EMPTY:
 
 # PIE:      Rebase table:
 # PIE-NEXT: segment  section            address           type
@@ -20,6 +30,10 @@
 # PIE-DAG:  __DATA   bar                0x[[#ADDR + 8]]   pointer
 # PIE-DAG:  __DATA   bar                0x[[#ADDR + 12]]  pointer
 # PIE-DAG:  __DATA   baz                0x[[#ADDR + 20]]  pointer
+
+# NO-PIE:      Rebase table:
+# NO-PIE-NEXT: segment  section            address           type
+# NO-PIE-EMPTY:
 
 .globl _main, _foo, _bar
 

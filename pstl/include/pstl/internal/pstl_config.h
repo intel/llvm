@@ -13,7 +13,7 @@
 #include <__pstl_config_site>
 
 // The version is XYYZ, where X is major, YY is minor, and Z is patch (i.e. X.YY.Z)
-#define _PSTL_VERSION 12000
+#define _PSTL_VERSION 13000
 #define _PSTL_VERSION_MAJOR (_PSTL_VERSION / 1000)
 #define _PSTL_VERSION_MINOR ((_PSTL_VERSION % 1000) / 10)
 #define _PSTL_VERSION_PATCH (_PSTL_VERSION % 10)
@@ -29,6 +29,11 @@
 // Check the internal macro for warnings
 #elif !defined(_PSTL_USAGE_WARNINGS)
 #    define _PSTL_USAGE_WARNINGS 0
+#endif
+
+#if !defined(_PSTL_ASSERT)
+#    include <cassert>
+#    define _PSTL_ASSERT(pred) (assert((pred)))
 #endif
 
 // Portability "#pragma" definition

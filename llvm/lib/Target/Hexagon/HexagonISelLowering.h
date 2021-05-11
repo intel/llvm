@@ -53,8 +53,6 @@ enum NodeType : unsigned {
   CP,          // Constant pool.
 
   COMBINE,
-  VSPLAT,      // Generic splat, selection depends on argument/return
-               // types.
   VASL,
   VASR,
   VLSR,
@@ -81,8 +79,6 @@ enum NodeType : unsigned {
   QCAT,
   QTRUE,
   QFALSE,
-  VZERO,
-  VSPLATW,     // HVX splat of a 32-bit word with an arbitrary result type.
   TYPECAST,    // No-op that's used to convert between different legal
                // types in a register.
   VALIGN,      // Align two vectors (in Op0, Op1) to one that would have
@@ -96,6 +92,9 @@ enum NodeType : unsigned {
                // unspecified.
   VUNPACK,     // Unpacking into low elements with sign extension.
   VUNPACKU,    // Unpacking into low elements with zero extension.
+  ISEL,        // Marker for nodes that were created during ISel, and
+               // which need explicit selection (would have been left
+               // unselected otherwise).
   OP_END
 };
 
@@ -279,13 +278,6 @@ public:
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
 
-  unsigned
-  getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
-    if (ConstraintCode == "o")
-      return InlineAsm::Constraint_o;
-    return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
-  }
-
   // Intrinsics
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
@@ -319,8 +311,9 @@ public:
                           bool *Fast) const override;
 
   bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
-      unsigned Alignment, MachineMemOperand::Flags Flags, bool *Fast)
-      const override;
+                                      Align Alignment,
+                                      MachineMemOperand::Flags Flags,
+                                      bool *Fast) const override;
 
   /// Returns relocation base for the given PIC jumptable.
   SDValue getPICJumpTableRelocBase(SDValue Table, SelectionDAG &DAG)
@@ -478,6 +471,7 @@ private:
   SDValue LowerHvxMulh(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxSetCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxExtend(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerHvxSelect(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxShift(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxIntrinsic(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxMaskedOp(SDValue Op, SelectionDAG &DAG) const;
@@ -486,6 +480,7 @@ private:
   SDValue SplitHvxMemOp(SDValue Op, SelectionDAG &DAG) const;
   SDValue WidenHvxLoad(SDValue Op, SelectionDAG &DAG) const;
   SDValue WidenHvxStore(SDValue Op, SelectionDAG &DAG) const;
+  SDValue WidenHvxSetCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue WidenHvxExtend(SDValue Op, SelectionDAG &DAG) const;
   SDValue WidenHvxTruncate(SDValue Op, SelectionDAG &DAG) const;
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -pedantic -fsyntax-only -x c++ %s
+// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -verify -pedantic -fsyntax-only -x c++ %s
 // RUN: %clang_cc1 -verify -pedantic -fsyntax-only -x c++ %s
 
 #define PARAM_1 1U << 7
@@ -12,7 +12,7 @@ struct State {
 };
 
 struct inner {
-  void (*fp)(); // expected-note {{Field with illegal type declared here}}
+  void (*fp)(); // expected-note {{field with illegal type declared here}}
 };
 
 struct outer {
@@ -37,22 +37,22 @@ void foo(float *A, int *B, State *C) {
   z = __builtin_intel_fpga_mem(C, i, 0);
   // expected-error@-1{{argument to '__builtin_intel_fpga_mem' must be a constant integer}}
   z = __builtin_intel_fpga_mem(U, 0, 0);
-  // expected-error@-1{{illegal pointer argument of type 'void *'  to __builtin_intel_fpga_mem. Only pointers to a first class lvalue or to an rvalue are allowed}}
+  // expected-error@-1{{illegal pointer argument of type 'void *'  to __builtin_intel_fpga_mem; only pointers to a first class lvalue or to an rvalue are allowed}}
 
   int intArr[10] = {0};
   int *k1 = __builtin_intel_fpga_mem(intArr, 0, 0);
   // expected-error@-1{{builtin parameter must be a pointer}}
 
   int **k2 = __builtin_intel_fpga_mem(&intArr, 0, 0);
-  // expected-error@-1{{illegal pointer argument of type 'int (*)[10]'  to __builtin_intel_fpga_mem. Only pointers to a first class lvalue or to an rvalue are allowed}}
+  // expected-error@-1{{illegal pointer argument of type 'int (*)[10]'  to __builtin_intel_fpga_mem; only pointers to a first class lvalue or to an rvalue are allowed}}
 
   void (*fp1)();
   void (*fp2)() = __builtin_intel_fpga_mem(fp1, 0, 0);
-  // expected-error@-1{{illegal pointer argument of type 'void (*)()'  to __builtin_intel_fpga_mem. Only pointers to a first class lvalue or to an rvalue are allowed}}
+  // expected-error@-1{{illegal pointer argument of type 'void (*)()'  to __builtin_intel_fpga_mem; only pointers to a first class lvalue or to an rvalue are allowed}}
 
   struct outer *iii;
   struct outer *iv = __builtin_intel_fpga_mem(iii, 0, 0);
-  // expected-error@-1{{illegal field in type pointed to by pointer argument to __builtin_intel_fpga_mem. Only pointers to a first class lvalue or to an rvalue are allowed}}
+  // expected-error@-1{{illegal field in type pointed to by pointer argument to __builtin_intel_fpga_mem; only pointers to a first class lvalue or to an rvalue are allowed}}
 }
 
 template <typename name, typename Func>

@@ -23,20 +23,26 @@ void StackTrace::Print() const {
     Printf("    <empty stack>\n\n");
     return;
   }
-  InternalScopedString frame_desc(GetPageSizeCached() * 2);
-  InternalScopedString dedup_token(GetPageSizeCached());
+  InternalScopedString frame_desc;
+  InternalScopedString dedup_token;
   int dedup_frames = common_flags()->dedup_token_length;
+  bool symbolize = RenderNeedsSymbolization(common_flags()->stack_trace_format);
   uptr frame_num = 0;
   for (uptr i = 0; i < size && trace[i]; i++) {
     // PCs in stack traces are actually the return addresses, that is,
     // addresses of the next instructions after the call.
     uptr pc = GetPreviousInstructionPc(trace[i]);
-    SymbolizedStack *frames = Symbolizer::GetOrInit()->SymbolizePC(pc);
+    SymbolizedStack *frames;
+    if (symbolize)
+      frames = Symbolizer::GetOrInit()->SymbolizePC(pc);
+    else
+      frames = SymbolizedStack::New(pc);
     CHECK(frames);
     for (SymbolizedStack *cur = frames; cur; cur = cur->next) {
       frame_desc.clear();
       RenderFrame(&frame_desc, common_flags()->stack_trace_format, frame_num++,
-                  cur->info, common_flags()->symbolize_vs_style,
+                  cur->info.address, symbolize ? &cur->info : nullptr,
+                  common_flags()->symbolize_vs_style,
                   common_flags()->strip_path_prefix);
       Printf("%s\n", frame_desc.data());
       if (dedup_frames-- > 0) {
@@ -108,20 +114,26 @@ void __sanitizer_symbolize_pc(uptr pc, const char *fmt, char *out_buf,
                               uptr out_buf_size) {
   if (!out_buf_size) return;
   pc = StackTrace::GetPreviousInstructionPc(pc);
-  SymbolizedStack *frame = Symbolizer::GetOrInit()->SymbolizePC(pc);
+  SymbolizedStack *frame;
+  bool symbolize = RenderNeedsSymbolization(fmt);
+  if (symbolize)
+    frame = Symbolizer::GetOrInit()->SymbolizePC(pc);
+  else
+    frame = SymbolizedStack::New(pc);
   if (!frame) {
     internal_strncpy(out_buf, "<can't symbolize>", out_buf_size);
     out_buf[out_buf_size - 1] = 0;
     return;
   }
-  InternalScopedString frame_desc(GetPageSizeCached());
+  InternalScopedString frame_desc;
   uptr frame_num = 0;
   // Reserve one byte for the final 0.
   char *out_end = out_buf + out_buf_size - 1;
   for (SymbolizedStack *cur = frame; cur && out_buf < out_end;
        cur = cur->next) {
     frame_desc.clear();
-    RenderFrame(&frame_desc, fmt, frame_num++, cur->info,
+    RenderFrame(&frame_desc, fmt, frame_num++, cur->info.address,
+                symbolize ? &cur->info : nullptr,
                 common_flags()->symbolize_vs_style,
                 common_flags()->strip_path_prefix);
     if (!frame_desc.length())
@@ -144,7 +156,7 @@ void __sanitizer_symbolize_global(uptr data_addr, const char *fmt,
   out_buf[0] = 0;
   DataInfo DI;
   if (!Symbolizer::GetOrInit()->SymbolizeData(data_addr, &DI)) return;
-  InternalScopedString data_desc(GetPageSizeCached());
+  InternalScopedString data_desc;
   RenderData(&data_desc, fmt, &DI, common_flags()->strip_path_prefix);
   internal_strncpy(out_buf, data_desc.data(), out_buf_size);
   out_buf[out_buf_size - 1] = 0;

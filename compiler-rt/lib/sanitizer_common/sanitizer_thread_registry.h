@@ -39,8 +39,6 @@ enum class ThreadType {
 class ThreadContextBase {
  public:
   explicit ThreadContextBase(u32 tid);
-  ~ThreadContextBase();  // Should never be called.
-
   const u32 tid;  // Thread ID. Main thread should have tid = 0.
   u64 unique_id;  // Unique thread ID.
   u32 reuse_count;  // Number of times this tid was reused.
@@ -80,6 +78,9 @@ class ThreadContextBase {
   virtual void OnCreated(void *arg) {}
   virtual void OnReset() {}
   virtual void OnDetached(void *arg) {}
+
+ protected:
+  ~ThreadContextBase();
 };
 
 typedef ThreadContextBase* (*ThreadContextFactory)(u32 tid);
@@ -125,7 +126,8 @@ class ThreadRegistry {
   void SetThreadNameByUserId(uptr user_id, const char *name);
   void DetachThread(u32 tid, void *arg);
   void JoinThread(u32 tid, void *arg);
-  void FinishThread(u32 tid);
+  // Finishes thread and returns previous status.
+  ThreadStatus FinishThread(u32 tid);
   void StartThread(u32 tid, tid_t os_id, ThreadType thread_type, void *arg);
   void SetThreadUserId(u32 tid, uptr user_id);
 

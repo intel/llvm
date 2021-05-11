@@ -363,14 +363,11 @@ void MemorySSAUpdater::insertDef(MemoryDef *MD, bool RenameUses) {
     // place, compute IDF and place phis.
     SmallPtrSet<BasicBlock *, 2> DefiningBlocks;
 
-    // If this is the last Def in the block, also compute IDF based on MD, since
-    // this may a new Def added, and we may need additional Phis.
-    auto Iter = MD->getDefsIterator();
-    ++Iter;
-    auto IterEnd = MSSA->getBlockDefs(MD->getBlock())->end();
-    if (Iter == IterEnd)
-      DefiningBlocks.insert(MD->getBlock());
-
+    // If this is the last Def in the block, we may need additional Phis.
+    // Compute IDF in all cases, as renaming needs to be done even when MD is
+    // not the last access, because it can introduce a new access past which a
+    // previous access was optimized; that access needs to be reoptimized.
+    DefiningBlocks.insert(MD->getBlock());
     for (const auto &VH : InsertedPHIs)
       if (const auto *RealPHI = cast_or_null<MemoryPhi>(VH))
         DefiningBlocks.insert(RealPHI->getBlock());
@@ -431,10 +428,11 @@ void MemorySSAUpdater::insertDef(MemoryDef *MD, bool RenameUses) {
   if (NewPhiSize)
     tryRemoveTrivialPhis(ArrayRef<WeakVH>(&InsertedPHIs[NewPhiIndex], NewPhiSize));
 
-  // Now that all fixups are done, rename all uses if we are asked.
-  if (RenameUses) {
+  // Now that all fixups are done, rename all uses if we are asked. Skip
+  // renaming for defs in unreachable blocks.
+  BasicBlock *StartBlock = MD->getBlock();
+  if (RenameUses && MSSA->getDomTree().getNode(StartBlock)) {
     SmallPtrSet<BasicBlock *, 16> Visited;
-    BasicBlock *StartBlock = MD->getBlock();
     // We are guaranteed there is a def in the block, because we just got it
     // handed to us in this function.
     MemoryAccess *FirstDef = &*MSSA->getWritableBlockDefs(StartBlock)->begin();
@@ -810,7 +808,7 @@ void MemorySSAUpdater::updateExitBlocksForClonedLoop(
 }
 
 void MemorySSAUpdater::applyUpdates(ArrayRef<CFGUpdate> Updates,
-                                    DominatorTree &DT) {
+                                    DominatorTree &DT, bool UpdateDT) {
   SmallVector<CFGUpdate, 4> DeleteUpdates;
   SmallVector<CFGUpdate, 4> RevDeleteUpdates;
   SmallVector<CFGUpdate, 4> InsertUpdates;
@@ -824,10 +822,15 @@ void MemorySSAUpdater::applyUpdates(ArrayRef<CFGUpdate> Updates,
   }
 
   if (!DeleteUpdates.empty()) {
-    SmallVector<CFGUpdate, 0> Empty;
-    // Deletes are reversed applied, because this CFGView is pretending the
-    // deletes did not happen yet, hence the edges still exist.
-    DT.applyUpdates(Empty, RevDeleteUpdates);
+    if (!UpdateDT) {
+      SmallVector<CFGUpdate, 0> Empty;
+      // Deletes are reversed applied, because this CFGView is pretending the
+      // deletes did not happen yet, hence the edges still exist.
+      DT.applyUpdates(Empty, RevDeleteUpdates);
+    } else {
+      // Apply all updates, with the RevDeleteUpdates as PostCFGView.
+      DT.applyUpdates(Updates, RevDeleteUpdates);
+    }
 
     // Note: the MSSA update below doesn't distinguish between a GD with
     // (RevDelete,false) and (Delete, true), but this matters for the DT
@@ -839,6 +842,8 @@ void MemorySSAUpdater::applyUpdates(ArrayRef<CFGUpdate> Updates,
     // the standard update without a postview of the CFG.
     DT.applyUpdates(DeleteUpdates);
   } else {
+    if (UpdateDT)
+      DT.applyUpdates(Updates);
     GraphDiff<BasicBlock *> GD;
     applyInsertUpdates(InsertUpdates, DT, &GD);
   }
@@ -1387,11 +1392,9 @@ void MemorySSAUpdater::removeBlocks(
     MemorySSA::AccessList *Acc = MSSA->getWritableBlockAccesses(BB);
     if (!Acc)
       continue;
-    for (auto AB = Acc->begin(), AE = Acc->end(); AB != AE;) {
-      MemoryAccess *MA = &*AB;
-      ++AB;
-      MSSA->removeFromLookups(MA);
-      MSSA->removeFromLists(MA);
+    for (MemoryAccess &MA : llvm::make_early_inc_range(*Acc)) {
+      MSSA->removeFromLookups(&MA);
+      MSSA->removeFromLists(&MA);
     }
   }
 }

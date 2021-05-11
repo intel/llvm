@@ -14,7 +14,7 @@ class ProcessSaveCoreTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @not_remote_testsuite_ready
+    @skipIfRemote
     @skipUnlessWindows
     def test_cannot_save_core_unless_process_stopped(self):
         """Test that SaveCore fails if the process isn't stopped."""
@@ -28,7 +28,7 @@ class ProcessSaveCoreTestCase(TestBase):
         error = process.SaveCore(core)
         self.assertTrue(error.Fail())
 
-    @not_remote_testsuite_ready
+    @skipIfRemote
     @skipUnlessWindows
     def test_save_windows_mini_dump(self):
         """Test that we can save a Windows mini dump."""
@@ -56,7 +56,7 @@ class ProcessSaveCoreTestCase(TestBase):
                 os.path.join(
                     f.GetDirectory(),
                     f.GetFilename()) for f in files]
-            self.assertTrue(exe in paths)
+            self.assertIn(exe, paths)
 
         finally:
             # Clean up the mini dump file.

@@ -95,42 +95,6 @@ static Value *simplifyValueKnownNonZero(Value *V, InstCombinerImpl &IC,
   return MadeChange ? V : nullptr;
 }
 
-/// A helper routine of InstCombiner::visitMul().
-///
-/// If C is a scalar/fixed width vector of known powers of 2, then this
-/// function returns a new scalar/fixed width vector obtained from logBase2
-/// of C.
-/// Return a null pointer otherwise.
-static Constant *getLogBase2(Type *Ty, Constant *C) {
-  // Note that log2(iN undef) is *NOT* iN undef, because log2(iN undef) u< N.
-  // FIXME: just assert that C there is no undef in \p C.
-
-  const APInt *IVal;
-  if (match(C, m_APInt(IVal)) && IVal->isPowerOf2())
-    return ConstantInt::get(Ty, IVal->logBase2());
-
-  // FIXME: We can extract pow of 2 of splat constant for scalable vectors.
-  if (!isa<FixedVectorType>(Ty))
-    return nullptr;
-
-  SmallVector<Constant *, 4> Elts;
-  for (unsigned I = 0, E = cast<FixedVectorType>(Ty)->getNumElements(); I != E;
-       ++I) {
-    Constant *Elt = C->getAggregateElement(I);
-    if (!Elt)
-      return nullptr;
-    if (isa<UndefValue>(Elt)) {
-      Elts.push_back(UndefValue::get(Ty->getScalarType()));
-      continue;
-    }
-    if (!match(Elt, m_APInt(IVal)) || !IVal->isPowerOf2())
-      return nullptr;
-    Elts.push_back(ConstantInt::get(Ty->getScalarType(), IVal->logBase2()));
-  }
-
-  return ConstantVector::get(Elts);
-}
-
 // TODO: This is a specific form of a much more general pattern.
 //       We could detect a select with any binop identity constant, or we
 //       could use SimplifyBinOp to see if either arm of the select reduces.
@@ -189,8 +153,10 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
   if (Value *V = SimplifyUsingDistributiveLaws(I))
     return replaceInstUsesWith(I, V);
 
-  // X * -1 == 0 - X
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
+  unsigned BitWidth = I.getType()->getScalarSizeInBits();
+
+  // X * -1 == 0 - X
   if (match(Op1, m_AllOnes())) {
     BinaryOperator *BO = BinaryOperator::CreateNeg(Op0, I.getName());
     if (I.hasNoSignedWrap())
@@ -220,11 +186,7 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
 
     if (match(&I, m_Mul(m_Value(NewOp), m_Constant(C1)))) {
       // Replace X*(2^C) with X << C, where C is either a scalar or a vector.
-      // Note that we need to sanitize undef multipliers to 1,
-      // to avoid introducing poison.
-      Constant *SafeC1 = Constant::replaceUndefsWith(
-          C1, ConstantInt::get(C1->getType()->getScalarType(), 1));
-      if (Constant *NewCst = getLogBase2(NewOp->getType(), SafeC1)) {
+      if (Constant *NewCst = ConstantExpr::getExactLogBase2(C1)) {
         BinaryOperator *Shl = BinaryOperator::CreateShl(NewOp, NewCst);
 
         if (I.hasNoUnsignedWrap())
@@ -399,6 +361,19 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
     return BinaryOperator::CreateAnd(Builder.CreateAShr(X, *C), Op1);
   if (match(Op1, m_LShr(m_Value(X), m_APInt(C))) && *C == C->getBitWidth() - 1)
     return BinaryOperator::CreateAnd(Builder.CreateAShr(X, *C), Op0);
+
+  // ((ashr X, 31) | 1) * X --> abs(X)
+  // X * ((ashr X, 31) | 1) --> abs(X)
+  if (match(&I, m_c_BinOp(m_Or(m_AShr(m_Value(X),
+                                    m_SpecificIntAllowUndef(BitWidth - 1)),
+                             m_One()),
+                        m_Deferred(X)))) {
+    Value *Abs = Builder.CreateBinaryIntrinsic(
+        Intrinsic::abs, X,
+        ConstantInt::getBool(I.getContext(), I.hasNoSignedWrap()));
+    Abs->takeName(&I);
+    return replaceInstUsesWith(I, Abs);
+  }
 
   if (Instruction *Ext = narrowMathIfNoOverflow(I))
     return Ext;
@@ -686,13 +661,12 @@ bool InstCombinerImpl::simplifyDivRemOfSelectWithZeroOp(BinaryOperator &I) {
       break;
 
     // Replace uses of the select or its condition with the known values.
-    for (Instruction::op_iterator I = BBI->op_begin(), E = BBI->op_end();
-         I != E; ++I) {
-      if (*I == SI) {
-        replaceUse(*I, SI->getOperand(NonNullOperand));
+    for (Use &Op : BBI->operands()) {
+      if (Op == SI) {
+        replaceUse(Op, SI->getOperand(NonNullOperand));
         Worklist.push(&*BBI);
-      } else if (*I == SelectCond) {
-        replaceUse(*I, NonNullOperand == 1 ? ConstantInt::getTrue(CondTy)
+      } else if (Op == SelectCond) {
+        replaceUse(Op, NonNullOperand == 1 ? ConstantInt::getTrue(CondTy)
                                            : ConstantInt::getFalse(CondTy));
         Worklist.push(&*BBI);
       }
@@ -913,7 +887,7 @@ struct UDivFoldAction {
 static Instruction *foldUDivPow2Cst(Value *Op0, Value *Op1,
                                     const BinaryOperator &I,
                                     InstCombinerImpl &IC) {
-  Constant *C1 = getLogBase2(Op0->getType(), cast<Constant>(Op1));
+  Constant *C1 = ConstantExpr::getExactLogBase2(cast<Constant>(Op1));
   if (!C1)
     llvm_unreachable("Failed to constant fold udiv -> logbase2");
   BinaryOperator *LShr = BinaryOperator::CreateLShr(Op0, C1);
@@ -934,7 +908,7 @@ static Instruction *foldUDivShl(Value *Op0, Value *Op1, const BinaryOperator &I,
   Value *N;
   if (!match(ShiftLeft, m_Shl(m_Constant(CI), m_Value(N))))
     llvm_unreachable("match should never fail here!");
-  Constant *Log2Base = getLogBase2(N->getType(), CI);
+  Constant *Log2Base = ConstantExpr::getExactLogBase2(CI);
   if (!Log2Base)
     llvm_unreachable("getLogBase2 should never fail here!");
   N = IC.Builder.CreateAdd(N, Log2Base);
@@ -1151,7 +1125,7 @@ Instruction *InstCombinerImpl::visitSDiv(BinaryOperator &I) {
     if (DivisorWasNegative)
       Op1 = ConstantExpr::getNeg(cast<Constant>(Op1));
     auto *AShr = BinaryOperator::CreateExactAShr(
-        Op0, getLogBase2(Ty, cast<Constant>(Op1)), I.getName());
+        Op0, ConstantExpr::getExactLogBase2(cast<Constant>(Op1)), I.getName());
     if (!DivisorWasNegative)
       return AShr;
     Builder.Insert(AShr);
@@ -1300,6 +1274,48 @@ static Instruction *foldFDivConstantDividend(BinaryOperator &I) {
   return BinaryOperator::CreateFDivFMF(NewC, X, &I);
 }
 
+/// Negate the exponent of pow/exp to fold division-by-pow() into multiply.
+static Instruction *foldFDivPowDivisor(BinaryOperator &I,
+                                       InstCombiner::BuilderTy &Builder) {
+  Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
+  auto *II = dyn_cast<IntrinsicInst>(Op1);
+  if (!II || !II->hasOneUse() || !I.hasAllowReassoc() ||
+      !I.hasAllowReciprocal())
+    return nullptr;
+
+  // Z / pow(X, Y) --> Z * pow(X, -Y)
+  // Z / exp{2}(Y) --> Z * exp{2}(-Y)
+  // In the general case, this creates an extra instruction, but fmul allows
+  // for better canonicalization and optimization than fdiv.
+  Intrinsic::ID IID = II->getIntrinsicID();
+  SmallVector<Value *> Args;
+  switch (IID) {
+  case Intrinsic::pow:
+    Args.push_back(II->getArgOperand(0));
+    Args.push_back(Builder.CreateFNegFMF(II->getArgOperand(1), &I));
+    break;
+  case Intrinsic::powi:
+    // Require 'ninf' assuming that makes powi(X, -INT_MIN) acceptable.
+    // That is, X ** (huge negative number) is 0.0, ~1.0, or INF and so
+    // dividing by that is INF, ~1.0, or 0.0. Code that uses powi allows
+    // non-standard results, so this corner case should be acceptable if the
+    // code rules out INF values.
+    if (!I.hasNoInfs())
+      return nullptr;
+    Args.push_back(II->getArgOperand(0));
+    Args.push_back(Builder.CreateNeg(II->getArgOperand(1)));
+    break;
+  case Intrinsic::exp:
+  case Intrinsic::exp2:
+    Args.push_back(Builder.CreateFNegFMF(II->getArgOperand(0), &I));
+    break;
+  default:
+    return nullptr;
+  }
+  Value *Pow = Builder.CreateIntrinsic(IID, I.getType(), Args, &I);
+  return BinaryOperator::CreateFMulFMF(Op0, Pow, &I);
+}
+
 Instruction *InstCombinerImpl::visitFDiv(BinaryOperator &I) {
   if (Value *V = SimplifyFDivInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
@@ -1398,6 +1414,10 @@ Instruction *InstCombinerImpl::visitFDiv(BinaryOperator &I) {
         Intrinsic::copysign, ConstantFP::get(I.getType(), 1.0), X, &I);
     return replaceInstUsesWith(I, V);
   }
+
+  if (Instruction *Mul = foldFDivPowDivisor(I, Builder))
+    return Mul;
+
   return nullptr;
 }
 

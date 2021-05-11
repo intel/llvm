@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 // Test code generation for sycl_device attribute.
 
 int bar(int b);
@@ -9,11 +9,11 @@ int bar20(int a) { return a + 20; }
 class A {
 public:
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A3fooEv
-  // CHECK-DAG: define spir_func i32 @_Z5bar20i
+  // CHECK-DAG: define {{.*}}spir_func i32 @_Z5bar20i
   __attribute__((sycl_device)) void foo() { bar20(10); }
 
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev
-  // CHECK-DAG: define spir_func i32 @_Z5bar10i
+  // CHECK-DAG: define {{.*}}spir_func i32 @_Z5bar10i
   __attribute__((sycl_device))
   A() { bar10(10); }
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AD1Ev
@@ -81,26 +81,26 @@ struct Finalizer1 : Base {
   void BaseWithAttr() final { int a = 20; }
 };
 
-// CHECK-DAG: define spir_func i32 @_Z3fooii
+// CHECK-DAG: define {{.*}}spir_func i32 @_Z3fooii
 __attribute__((sycl_device))
 int foo(int a, int b) { return a + bar(b); }
 
-// CHECK-DAG: define spir_func i32 @_Z3bari
+// CHECK-DAG: define {{.*}}spir_func i32 @_Z3bari
 int bar(int b) { return b; }
 
-// CHECK-DAG: define spir_func i32 @_Z3fari
+// CHECK-DAG: define {{.*}}spir_func i32 @_Z3fari
 int far(int b) { return b; }
 
-// CHECK-DAG: define spir_func i32 @_Z3booii
+// CHECK-DAG: define {{.*}}spir_func i32 @_Z3booii
 __attribute__((sycl_device))
 int boo(int a, int b) { return a + far(b); }
 
-// CHECK-DAG: define spir_func i32 @_Z3cari
+// CHECK-DAG: define {{.*}}spir_func i32 @_Z3cari
 __attribute__((sycl_device))
 int car(int b);
 int car(int b) { return b; }
 
-// CHECK-DAG: define spir_func i32 @_Z3cazi
+// CHECK-DAG: define {{.*}}spir_func i32 @_Z3cazi
 int caz(int b);
 __attribute__((sycl_device))
 int caz(int b) { return b; }
@@ -112,13 +112,13 @@ void taf(T t) {}
 // CHECK-DAG: define weak_odr spir_func void @_Z3tafIiEvT_
 template void taf<int>(int t);
 
-// CHECK-DAG: define spir_func void @_Z3tafIcEvT_
+// CHECK-DAG: define {{.*}}spir_func void @_Z3tafIcEvT_
 template<> void taf<char>(char t) {}
 
 template<typename T>
 void tar(T t) {}
 
-// CHECK-DAG: define spir_func void @_Z3tarIcEvT_
+// CHECK-DAG: define {{.*}}spir_func void @_Z3tarIcEvT_
 template<>
 __attribute__((sycl_device))
 void tar<char>(char t) {}

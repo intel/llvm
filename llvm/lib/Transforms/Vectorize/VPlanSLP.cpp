@@ -122,7 +122,9 @@ bool VPlanSlp::areVectorizable(ArrayRef<VPValue *> Operands) const {
     unsigned LoadsSeen = 0;
     VPBasicBlock *Parent = cast<VPInstruction>(Operands[0])->getParent();
     for (auto &I : *Parent) {
-      auto *VPI = cast<VPInstruction>(&I);
+      auto *VPI = dyn_cast<VPInstruction>(&I);
+      if (!VPI)
+        break;
       if (VPI->getOpcode() == Instruction::Load &&
           llvm::is_contained(Operands, VPI))
         LoadsSeen++;
@@ -347,6 +349,7 @@ SmallVector<VPlanSlp::MultiNodeOpTy, 4> VPlanSlp::reorderMultiNodeOps() {
   return FinalOrder;
 }
 
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void VPlanSlp::dumpBundle(ArrayRef<VPValue *> Values) {
   dbgs() << " Ops: ";
   for (auto Op : Values) {
@@ -359,6 +362,7 @@ void VPlanSlp::dumpBundle(ArrayRef<VPValue *> Values) {
   }
   dbgs() << "\n";
 }
+#endif
 
 VPInstruction *VPlanSlp::buildGraph(ArrayRef<VPValue *> Values) {
   assert(!Values.empty() && "Need some operands!");
@@ -466,8 +470,8 @@ VPInstruction *VPlanSlp::buildGraph(ArrayRef<VPValue *> Values) {
   auto *VPI = new VPInstruction(Opcode, CombinedOperands);
   VPI->setUnderlyingInstr(cast<VPInstruction>(Values[0])->getUnderlyingInstr());
 
-  LLVM_DEBUG(dbgs() << "Create VPInstruction "; VPI->print(dbgs());
-             cast<VPInstruction>(Values[0])->print(dbgs()); dbgs() << "\n");
+  LLVM_DEBUG(dbgs() << "Create VPInstruction " << *VPI << " "
+                    << *cast<VPInstruction>(Values[0]) << "\n");
   addCombined(Values, VPI);
   return VPI;
 }

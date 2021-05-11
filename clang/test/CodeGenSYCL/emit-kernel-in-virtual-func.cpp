@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -emit-llvm %s -o - | FileCheck %s
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
@@ -26,5 +26,4 @@ int main() {
 }
 
 // Ensure that the SPIR-Kernel function is actually emitted.
-// CHECK: define spir_kernel void @_ZTSZN7DERIVEDIiE10initializeEvE2FF
-
+// CHECK: define {{.*}}spir_kernel void @_ZTSZN7DERIVEDIiE10initializeEvE2FF

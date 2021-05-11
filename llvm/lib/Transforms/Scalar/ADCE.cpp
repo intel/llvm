@@ -325,7 +325,7 @@ void AggressiveDeadCodeElimination::initialize() {
 
 bool AggressiveDeadCodeElimination::isAlwaysLive(Instruction &I) {
   // TODO -- use llvm::isInstructionTriviallyDead
-  if (I.isEHPad() || I.mayHaveSideEffects()) {
+  if (I.isEHPad() || I.mayHaveSideEffects() || !I.willReturn()) {
     // Skip any value profile instrumentation calls if they are
     // instrumenting constants.
     if (isInstrumentsConstant(I))
@@ -521,10 +521,14 @@ bool AggressiveDeadCodeElimination::removeDeadInstructions() {
         // If intrinsic is pointing at a live SSA value, there may be an
         // earlier optimization bug: if we know the location of the variable,
         // why isn't the scope of the location alive?
-        if (Value *V = DII->getVariableLocation())
-          if (Instruction *II = dyn_cast<Instruction>(V))
-            if (isLive(II))
+        for (Value *V : DII->location_ops()) {
+          if (Instruction *II = dyn_cast<Instruction>(V)) {
+            if (isLive(II)) {
               dbgs() << "Dropping debug info for " << *DII << "\n";
+              break;
+            }
+          }
+        }
       }
     }
   });
@@ -643,7 +647,7 @@ void AggressiveDeadCodeElimination::computeReversePostOrder() {
   SmallPtrSet<BasicBlock*, 16> Visited;
   unsigned PostOrder = 0;
   for (auto &BB : F) {
-    if (succ_begin(&BB) != succ_end(&BB))
+    if (!succ_empty(&BB))
       continue;
     for (BasicBlock *Block : inverse_post_order_ext(&BB,Visited))
       BlockInfo[Block].PostOrder = PostOrder++;

@@ -82,6 +82,10 @@ static lto::Config createConfig() {
   c.MAttrs = getMAttrs();
   c.CGOptLevel = args::getCGOptLevel(config->ltoo);
   c.AlwaysEmitRegularLTOObj = !config->ltoObjPath.empty();
+  c.UseNewPM = config->ltoNewPassManager;
+  c.DebugPassManager = config->ltoDebugPassManager;
+  c.CSIRProfile = std::string(config->ltoCSProfileFile);
+  c.RunCSIRInstr = config->ltoCSProfileGenerate;
 
   if (config->saveTemps)
     checkError(c.addSaveTemps(std::string(config->outputFile) + ".",
@@ -139,6 +143,11 @@ void BitcodeCompiler::add(BitcodeFile &f) {
     r.VisibleToRegularObj = sym->isUsedInRegularObj;
     if (r.Prevailing)
       undefine(sym);
+
+    // We tell LTO to not apply interprocedural optimization for wrapped
+    // (with -wrap) symbols because otherwise LTO would inline them while
+    // their values are still not final.
+    r.LinkerRedefined = !sym->canInline;
   }
   checkError(ltoObj->add(std::move(f.obj), resols));
 }

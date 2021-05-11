@@ -18,8 +18,7 @@ config.name = 'lld'
 
 # testFormat: The test format to use to interpret tests.
 #
-# For now we require '&&' between commands, until they get globally killed and
-# the test runner updated.
+# For now we require '&&' between commands, until they get globally killed and the test runner updated.
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
@@ -91,6 +90,9 @@ if (lit.util.which('cvtres', config.environment['PATH']) or
         config.have_libxml2):
     config.available_features.add('manifest_tool')
 
+if config.have_libxar:
+    config.available_features.add('xar')
+
 if config.have_libxml2:
     config.available_features.add('libxml2')
 
@@ -102,11 +104,17 @@ if config.sizeof_void_p == 8:
 
 tar_executable = lit.util.which('tar', config.environment['PATH'])
 if tar_executable:
+    env = os.environ
+    env['LANG'] = 'C'
     tar_version = subprocess.Popen(
         [tar_executable, '--version'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        env={'LANG': 'C'})
+        env=env)
     sout, _ = tar_version.communicate()
     if 'GNU tar' in sout.decode():
         config.available_features.add('gnutar')
+
+# ELF tests expect the default target for ld.lld to be ELF.
+if config.ld_lld_default_mingw:
+    config.excludes.append('ELF')

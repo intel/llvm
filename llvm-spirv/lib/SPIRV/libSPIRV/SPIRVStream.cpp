@@ -240,7 +240,7 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
 
   if (OpExtension == OpCode) {
     auto *OpExt = static_cast<SPIRVExtension *>(Entry);
-    ExtensionID ExtID;
+    ExtensionID ExtID = {};
     bool ExtIsKnown = SPIRVMap<ExtensionID, std::string>::rfind(
         OpExt->getExtensionName(), &ExtID);
     if (!M.getErrorLog().checkError(
@@ -294,6 +294,31 @@ spv_ostream &operator<<(spv_ostream &O, const SPIRVNL &E) {
     O << '\n';
 #endif
   return O;
+}
+
+// Read the next word from the stream and if OpCode matches the argument,
+// decode the whole instruction. Multiple such instructions are possible. If
+// OpCode doesn't match the argument, set position of the next character to be
+// extracted from the stream to the beginning of the non-matching instruction.
+// Returns vector of extracted instructions.
+// Used to decode SPIRVTypeStructContinuedINTEL,
+// SPIRVConstantCompositeContinuedINTEL and
+// SPIRVSpecConstantCompositeContinuedINTEL.
+std::vector<SPIRVEntry *>
+SPIRVDecoder::getContinuedInstructions(const spv::Op ContinuedOpCode) {
+  std::vector<SPIRVEntry *> ContinuedInst;
+  std::streampos Pos = IS.tellg(); // remember position
+  getWordCountAndOpCode();
+  while (OpCode == ContinuedOpCode) {
+    SPIRVEntry *Entry = getEntry();
+    assert(Entry && "Failed to decode entry! Invalid instruction!");
+    M.add(Entry);
+    ContinuedInst.push_back(Entry);
+    Pos = IS.tellg();
+    getWordCountAndOpCode();
+  }
+  IS.seekg(Pos); // restore position
+  return ContinuedInst;
 }
 
 } // namespace SPIRV

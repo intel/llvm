@@ -44,6 +44,7 @@
 #include "SPIRVModule.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/IR/GlobalValue.h" // llvm::GlobalValue::LinkageTypes
 
 namespace llvm {
@@ -76,6 +77,7 @@ class SPIRVToLLVM {
 public:
   SPIRVToLLVM(Module *LLVMModule, SPIRVModule *TheSPIRVModule);
 
+  static const StringSet<> BuiltInConstFunc;
   std::string getOCLBuiltinName(SPIRVInstruction *BI);
   std::string getOCLConvertBuiltinName(SPIRVInstruction *BI);
   std::string getOCLGenericCastToPtrName(SPIRVInstruction *BI);
@@ -105,6 +107,7 @@ public:
   bool transMetadata();
   bool transOCLMetadata(SPIRVFunction *BF);
   bool transVectorComputeMetadata(SPIRVFunction *BF);
+  bool transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F);
   Value *transAsmINTEL(SPIRVAsmINTEL *BA);
   CallInst *transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
                               BasicBlock *BB);
@@ -112,7 +115,11 @@ public:
   CallInst *transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                               bool IsBinaryInst = false);
   bool transNonTemporalMetadata(Instruction *I);
-  bool transSourceLanguage();
+  template <typename SPIRVInstType>
+  void transAliasingMemAccess(SPIRVInstType *BI, Instruction *I);
+  void addMemAliasMetadata(Instruction *I, SPIRVId AliasListId,
+                           uint32_t AliasMDKind);
+  void transSourceLanguage();
   bool transSourceExtension();
   void transGeneratorMD();
   Value *transConvertInst(SPIRVValue *BV, Function *F, BasicBlock *BB);
@@ -139,16 +146,6 @@ public:
   /// first, then post-processed to have pointer arguments.
   bool postProcessOCLBuiltinWithArrayArguments(Function *F,
                                                StringRef DemangledName);
-
-  /// \brief Post-process OpImageSampleExplicitLod.
-  ///   sampled_image = __spirv_SampledImage__(image, sampler);
-  ///   return __spirv_ImageSampleExplicitLod__(sampled_image, image_operands,
-  ///                                           ...);
-  /// =>
-  ///   read_image(image, sampler, ...)
-  /// \return transformed call instruction.
-  Instruction *postProcessOCLReadImage(SPIRVInstruction *BI, CallInst *CI,
-                                       const std::string &DemangledName);
 
   /// \brief Post-process OpImageWrite.
   ///   return write_image(image, coord, color, image_operands, ...);
@@ -180,6 +177,7 @@ public:
   typedef DenseMap<SPIRVValue *, Value *> SPIRVBlockToLLVMStructMap;
   typedef DenseMap<SPIRVFunction *, Function *> SPIRVToLLVMFunctionMap;
   typedef DenseMap<GlobalVariable *, SPIRVBuiltinVariableKind> BuiltinVarMap;
+  typedef std::unordered_map<SPIRVId, MDNode *> SPIRVToLLVMMDAliasInstMap;
 
   // A SPIRV value may be translated to a load instruction of a placeholder
   // global variable. This map records load instruction of these placeholders
@@ -207,6 +205,12 @@ private:
   // metadata SPIR-V instruction in SPIR-V representation of this basic block.
   SPIRVToLLVMLoopMetadataMap FuncLoopMetadataMap;
 
+  // These storages are used to prevent duplication of alias.scope/noalias
+  // metadata
+  SPIRVToLLVMMDAliasInstMap MDAliasDomainMap;
+  SPIRVToLLVMMDAliasInstMap MDAliasScopeMap;
+  SPIRVToLLVMMDAliasInstMap MDAliasListMap;
+
   Type *mapType(SPIRVType *BT, Type *T);
 
   // If a value is mapped twice, the existing mapped value is a placeholder,
@@ -220,6 +224,11 @@ private:
   // OpenCL function always has NoUnwind attribute.
   // Change this if it is no longer true.
   bool isFuncNoUnwind() const { return true; }
+
+  bool isFuncReadNone(const std::string &Name) const {
+    return BuiltInConstFunc.count(Name);
+  }
+
   bool isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const;
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
   bool transOCLBuiltinsFromVariables();
@@ -274,6 +283,7 @@ private:
   void createCXXStructor(const char *ListName,
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
+  void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
 }; // class SPIRVToLLVM
 
 } // namespace SPIRV

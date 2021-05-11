@@ -216,15 +216,11 @@ void DynamicLoaderDarwin::UnloadAllImages() {
   const ModuleList &target_modules = target.GetImages();
   std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
 
-  size_t num_modules = target_modules.GetSize();
   ModuleSP dyld_sp(GetDYLDModule());
-
-  for (size_t i = 0; i < num_modules; i++) {
-    ModuleSP module_sp = target_modules.GetModuleAtIndexUnlocked(i);
-
+  for (ModuleSP module_sp : target_modules.Modules()) {
     // Don't remove dyld - else we'll lose our breakpoint notifying us about
     // libraries being re-loaded...
-    if (module_sp.get() != nullptr && module_sp.get() != dyld_sp.get()) {
+    if (module_sp && module_sp != dyld_sp) {
       UnloadSections(module_sp);
       unloaded_modules_list.Append(module_sp);
     }
@@ -1090,7 +1086,7 @@ DynamicLoaderDarwin::GetThreadLocalData(const lldb::ModuleSP module_sp,
     Status error;
     const size_t tsl_data_size = addr_size * 3;
     Target &target = m_process->GetTarget();
-    if (target.ReadMemory(tls_addr, false, buf, tsl_data_size, error) ==
+    if (target.ReadMemory(tls_addr, buf, tsl_data_size, error, true) ==
         tsl_data_size) {
       const ByteOrder byte_order = m_process->GetByteOrder();
       DataExtractor data(buf, sizeof(buf), byte_order, addr_size);
@@ -1113,7 +1109,7 @@ DynamicLoaderDarwin::GetThreadLocalData(const lldb::ModuleSP module_sp,
         StackFrameSP frame_sp = thread_sp->GetStackFrameAtIndex(0);
         if (frame_sp) {
           TypeSystemClang *clang_ast_context =
-              TypeSystemClang::GetScratch(target);
+              ScratchTypeSystemClang::GetForTarget(target);
 
           if (!clang_ast_context)
             return LLDB_INVALID_ADDRESS;

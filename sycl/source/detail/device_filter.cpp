@@ -40,16 +40,6 @@ device_filter::device_filter(const std::string &FilterString) {
     Cursor = Found;
     return true;
   };
-  auto selectElement = [&](auto It, auto Map, auto EltIfNotFound) {
-    if (It == Map.end())
-      return EltIfNotFound;
-    ColonPos = FilterString.find(":", Cursor);
-    if (ColonPos != std::string::npos)
-      Cursor = ColonPos + 1;
-    else
-      Cursor = Cursor + It->first.size();
-    return It->second;
-  };
 
   // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
@@ -57,8 +47,16 @@ device_filter::device_filter(const std::string &FilterString) {
       std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), findElement);
   // If no match is found, set the backend type backend::all
   // which actually means 'any backend' will be a match.
-  Backend = selectElement(It, SyclBeMap, backend::all);
-
+  if (It == SyclBeMap.end())
+    Backend = backend::all;
+  else {
+    Backend = It->second;
+    ColonPos = FilterString.find(":", Cursor);
+    if (ColonPos != std::string::npos)
+      Cursor = ColonPos + 1;
+    else
+      Cursor = Cursor + It->first.size();
+  }
   // Handle the optional 2nd field of the filter - device type.
   // Check if the 2nd entry matches with any known device type.
   if (Cursor >= FilterString.size()) {
@@ -68,7 +66,16 @@ device_filter::device_filter(const std::string &FilterString) {
                              std::end(SyclDeviceTypeMap), findElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
-    DeviceType = selectElement(Iter, SyclDeviceTypeMap, info::device_type::all);
+    if (Iter == SyclDeviceTypeMap.end())
+      DeviceType = info::device_type::all;
+    else {
+      DeviceType = Iter->second;
+      ColonPos = FilterString.find(":", Cursor);
+      if (ColonPos != std::string::npos)
+        Cursor = ColonPos + 1;
+      else
+        Cursor = Cursor + Iter->first.size();
+    }
   }
 
   // Handle the optional 3rd field of the filter, device number
@@ -76,7 +83,7 @@ device_filter::device_filter(const std::string &FilterString) {
   // If succeessful, the converted integer is the desired device num.
   if (Cursor < FilterString.size()) {
     try {
-      DeviceNum = stoi(FilterString.substr(ColonPos + 1));
+      DeviceNum = stoi(FilterString.substr(Cursor));
       HasDeviceNum = true;
     } catch (...) {
       std::string Message =
@@ -115,6 +122,49 @@ device_filter_list::device_filter_list(device_filter &Filter) {
 
 void device_filter_list::addFilter(device_filter &Filter) {
   FilterList.push_back(Filter);
+}
+
+// Backend is compatible with the SYCL_DEVICE_FILTER in the following cases.
+// 1. Filter backend is '*' which means ANY backend.
+// 2. Filter backend match exactly with the given 'Backend'
+bool device_filter_list::backendCompatible(backend Backend) {
+  for (const device_filter &Filter : FilterList) {
+    backend FilterBackend = Filter.Backend;
+    if (FilterBackend == Backend || FilterBackend == backend::all)
+      return true;
+  }
+  return false;
+}
+
+bool device_filter_list::deviceTypeCompatible(info::device_type DeviceType) {
+  for (const device_filter &Filter : FilterList) {
+    info::device_type FilterDevType = Filter.DeviceType;
+    if (FilterDevType == DeviceType || FilterDevType == info::device_type::all)
+      return true;
+  }
+  return false;
+}
+
+bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
+  for (const device_filter &Filter : FilterList) {
+    int FilterDevNum = Filter.DeviceNum;
+    if (!Filter.HasDeviceNum || FilterDevNum == DeviceNum)
+      return true;
+  }
+  return false;
+}
+
+bool device_filter_list::containsHost() {
+  for (const device_filter &Filter : FilterList) {
+    if (Filter.Backend == backend::host || Filter.Backend == backend::all)
+      if (Filter.DeviceType == info::device_type::host ||
+          Filter.DeviceType == info::device_type::all)
+        // SYCL RT never creates more than one HOST device.
+        // All device numbers other than 0 are rejected.
+        if (!Filter.HasDeviceNum || Filter.DeviceNum == 0)
+          return true;
+  }
+  return false;
 }
 
 } // namespace detail

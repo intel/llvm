@@ -247,7 +247,7 @@ define i32 @test5(i32 %X, i8 %B) {
 
 define i32 @test6(i32 %A) {
 ; CHECK-LABEL: @test6(
-; CHECK-NEXT:    ret i32 undef
+; CHECK-NEXT:    ret i32 poison
 ;
   %B = srem i32 %A, 0	;; undef
   ret i32 %B
@@ -735,6 +735,28 @@ define i1 @test28(i32 %A) {
 ;
   %B = srem i32 %A, 2147483648 ; signbit
   %C = icmp eq i32 %B, 0 ; another equality predicate
+  ret i1 %C
+}
+
+define i1 @positive_and_odd(i32 %A) {
+; CHECK-LABEL: @positive_and_odd(
+; CHECK-NEXT:    [[B:%.*]] = srem i32 [[A:%.*]], 2
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i32 [[B]], 1
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %B = srem i32 %A, 2
+  %C = icmp eq i32 %B, 1
+  ret i1 %C
+}
+
+define i1 @negative_and_odd(i32 %A) {
+; CHECK-LABEL: @negative_and_odd(
+; CHECK-NEXT:    [[B:%.*]] = srem i32 [[A:%.*]], 2
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i32 [[B]], -1
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %B = srem i32 %A, 2
+  %C = icmp eq i32 %B, -1
   ret i1 %C
 }
 

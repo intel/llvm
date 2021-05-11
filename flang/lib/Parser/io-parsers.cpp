@@ -24,7 +24,7 @@ namespace Fortran::parser {
 // R905 char-variable -> variable
 // "char-variable" is attempted first since it's not type constrained but
 // syntactically ambiguous with "file-unit-number", which is constrained.
-TYPE_PARSER(construct<IoUnit>(variable / !"="_tok) ||
+TYPE_PARSER(construct<IoUnit>(variable / lookAhead(space / ",);\n"_ch)) ||
     construct<IoUnit>(fileUnitNumber) || construct<IoUnit>(star))
 
 // R1202 file-unit-number -> scalar-int-expr
@@ -139,6 +139,10 @@ TYPE_CONTEXT_PARSER("CLOSE statement"_en_US,
 // R1210 read-stmt ->
 //         READ ( io-control-spec-list ) [input-item-list] |
 //         READ format [, input-item-list]
+// The ambiguous READ(CVAR) is parsed as if CVAR were the unit.
+// As Fortran doesn't have internal unformatted I/O, it should
+// be parsed as if (CVAR) were a format; this is corrected by
+// rewriting in semantics when we know that CVAR is character.
 constexpr auto inputItemList{
     extension<LanguageFeature::IOListLeadingComma>(
         some("," >> inputItem)) || // legacy extension: leading comma
@@ -310,7 +314,7 @@ TYPE_CONTEXT_PARSER("BACKSPACE statement"_en_US,
 // R1225 endfile-stmt ->
 //         ENDFILE file-unit-number | ENDFILE ( position-spec-list )
 TYPE_CONTEXT_PARSER("ENDFILE statement"_en_US,
-    construct<EndfileStmt>("ENDFILE" >> positionOrFlushSpecList))
+    construct<EndfileStmt>("END FILE" >> positionOrFlushSpecList))
 
 // R1226 rewind-stmt -> REWIND file-unit-number | REWIND ( position-spec-list )
 TYPE_CONTEXT_PARSER("REWIND statement"_en_US,

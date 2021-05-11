@@ -1,13 +1,15 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff  < %s | FileCheck --check-prefixes=CHECK,CHECK32 %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff < %s | FileCheck --check-prefixes=CHECK,CHECK64 %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff -data-sections=false < %s | \
+; RUN:   FileCheck --check-prefixes=CHECK,CHECK32 %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff -data-sections=false < %s | \
+; RUN:   FileCheck --check-prefixes=CHECK,CHECK64 %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff -filetype=obj -o %t.o < %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff -data-sections=false -filetype=obj -o %t.o < %s
 ; RUN: llvm-readobj --section-headers --file-header %t.o | \
 ; RUN: FileCheck --check-prefix=OBJ %s
 ; RUN: llvm-readobj --syms %t.o | FileCheck --check-prefix=SYMS %s
 ; RUN: llvm-objdump -D %t.o | FileCheck --check-prefix=DIS %s
 
-; RUN: not --crash llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff -filetype=obj < %s 2>&1 | \
+; RUN: not --crash llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff -data-sections=false -filetype=obj < %s 2>&1 | \
 ; RUN: FileCheck --check-prefix=XCOFF64 %s
 ; XCOFF64: LLVM ERROR: 64-bit XCOFF object files are not supported yet.
 
@@ -80,7 +82,7 @@
 ; OBJ-NEXT:   NumberOfSections: 1
 ; OBJ-NEXT:   TimeStamp: None (0x0)
 ; OBJ-NEXT:   SymbolTableOffset: 0x8C
-; OBJ-NEXT:   SymbolTableEntries: 20
+; OBJ-NEXT:   SymbolTableEntries: 21
 ; OBJ-NEXT:   OptionalHeaderSize: 0x0
 ; OBJ-NEXT:   Flags: 0x0
 ; OBJ-NEXT: }
@@ -136,7 +138,7 @@
 ; SYMS-NEXT:     NumberOfAuxEntries: 1
 ; SYMS-NEXT:     CSECT Auxiliary Entry {
 ; SYMS-NEXT:       Index: [[#INDX+3]]
-; SYMS-NEXT:       ContainingCsectSymbolIndex: 2
+; SYMS-NEXT:       ContainingCsectSymbolIndex: [[#INDX]]
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
 ; SYMS-NEXT:       SymbolAlignmentLog2: 0
@@ -157,7 +159,7 @@
 ; SYMS-NEXT:     NumberOfAuxEntries: 1
 ; SYMS-NEXT:     CSECT Auxiliary Entry {
 ; SYMS-NEXT:       Index: [[#INDX+5]]
-; SYMS-NEXT:       ContainingCsectSymbolIndex: 2
+; SYMS-NEXT:       ContainingCsectSymbolIndex: [[#INDX]]
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
 ; SYMS-NEXT:       SymbolAlignmentLog2: 0
@@ -178,7 +180,7 @@
 ; SYMS-NEXT:     NumberOfAuxEntries: 1
 ; SYMS-NEXT:     CSECT Auxiliary Entry {
 ; SYMS-NEXT:       Index: [[#INDX+7]]
-; SYMS-NEXT:       ContainingCsectSymbolIndex: 2
+; SYMS-NEXT:       ContainingCsectSymbolIndex: [[#INDX]]
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
 ; SYMS-NEXT:       SymbolAlignmentLog2: 0
@@ -199,7 +201,7 @@
 ; SYMS-NEXT:     NumberOfAuxEntries: 1
 ; SYMS-NEXT:     CSECT Auxiliary Entry {
 ; SYMS-NEXT:       Index: [[#INDX+9]]
-; SYMS-NEXT:       ContainingCsectSymbolIndex: 2
+; SYMS-NEXT:       ContainingCsectSymbolIndex: [[#INDX]]
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
 ; SYMS-NEXT:       SymbolAlignmentLog2: 0
@@ -220,7 +222,7 @@
 ; SYMS-NEXT:     NumberOfAuxEntries: 1
 ; SYMS-NEXT:     CSECT Auxiliary Entry {
 ; SYMS-NEXT:       Index: [[#INDX+11]]
-; SYMS-NEXT:       ContainingCsectSymbolIndex: 2
+; SYMS-NEXT:       ContainingCsectSymbolIndex: [[#INDX]]
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
 ; SYMS-NEXT:       SymbolAlignmentLog2: 0
@@ -241,7 +243,7 @@
 ; SYMS-NEXT:     NumberOfAuxEntries: 1
 ; SYMS-NEXT:     CSECT Auxiliary Entry {
 ; SYMS-NEXT:       Index: [[#INDX+13]]
-; SYMS-NEXT:       ContainingCsectSymbolIndex: 2
+; SYMS-NEXT:       ContainingCsectSymbolIndex: [[#INDX]]
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
 ; SYMS-NEXT:       SymbolAlignmentLog2: 0
@@ -262,7 +264,7 @@
 ; SYMS-NEXT:     NumberOfAuxEntries: 1
 ; SYMS-NEXT:     CSECT Auxiliary Entry {
 ; SYMS-NEXT:       Index: [[#INDX+15]]
-; SYMS-NEXT:       ContainingCsectSymbolIndex: 2
+; SYMS-NEXT:       ContainingCsectSymbolIndex: [[#INDX]]
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
 ; SYMS-NEXT:       SymbolAlignmentLog2: 0
@@ -283,7 +285,7 @@
 ; SYMS-NEXT:     NumberOfAuxEntries: 1
 ; SYMS-NEXT:     CSECT Auxiliary Entry {
 ; SYMS-NEXT:       Index: [[#INDX+17]]
-; SYMS-NEXT:       ContainingCsectSymbolIndex: 2
+; SYMS-NEXT:       ContainingCsectSymbolIndex: [[#INDX]]
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
 ; SYMS-NEXT:       SymbolAlignmentLog2: 0

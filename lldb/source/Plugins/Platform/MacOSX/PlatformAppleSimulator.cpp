@@ -460,8 +460,8 @@ Status PlatformAppleSimulator::GetSymbolFile(const FileSpec &platform_file,
 
 Status PlatformAppleSimulator::GetSharedModule(
     const ModuleSpec &module_spec, Process *process, ModuleSP &module_sp,
-    const FileSpecList *module_search_paths_ptr, ModuleSP *old_module_sp_ptr,
-    bool *did_create_ptr) {
+    const FileSpecList *module_search_paths_ptr,
+    llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules, bool *did_create_ptr) {
   // For iOS/tvOS/watchOS, the SDK files are all cached locally on the
   // host system. So first we ask for the file in the cached SDK, then
   // we attempt to get a shared module for the right architecture with
@@ -476,9 +476,9 @@ Status PlatformAppleSimulator::GetSharedModule(
                               module_search_paths_ptr);
   } else {
     const bool always_create = false;
-    error = ModuleList::GetSharedModule(
-        module_spec, module_sp, module_search_paths_ptr, old_module_sp_ptr,
-        did_create_ptr, always_create);
+    error = ModuleList::GetSharedModule(module_spec, module_sp,
+                                        module_search_paths_ptr, old_modules,
+                                        did_create_ptr, always_create);
   }
   if (module_sp)
     module_sp->SetPlatformFileSpec(platform_file);
@@ -503,6 +503,16 @@ uint32_t PlatformAppleSimulator::FindProcesses(
     }
   }
   return process_infos.size();
+}
+
+/// Whether to skip creating a simulator platform.
+static bool shouldSkipSimulatorPlatform(bool force, const ArchSpec *arch) {
+  // If the arch is known not to specify a simulator environment, skip creating
+  // the simulator platform (we can create it later if there's a matching arch).
+  // This avoids very slow xcrun queries for non-simulator archs (the slowness
+  // is due to xcrun not caching negative queries (rdar://74882205)).
+  return !force && arch && arch->IsValid() &&
+         !arch->TripleEnvironmentWasSpecified();
 }
 
 static llvm::StringRef GetXcodeSDKDir(std::string preferred,
@@ -530,6 +540,8 @@ struct PlatformiOSSimulator {
   }
 
   static PlatformSP CreateInstance(bool force, const ArchSpec *arch) {
+    if (shouldSkipSimulatorPlatform(force, arch))
+      return nullptr;
     llvm::StringRef sdk;
     sdk = HostInfo::GetXcodeSDKPath(XcodeSDK("iPhoneSimulator.Internal.sdk"));
     if (sdk.empty())
@@ -578,6 +590,8 @@ struct PlatformAppleTVSimulator {
   }
 
   static PlatformSP CreateInstance(bool force, const ArchSpec *arch) {
+    if (shouldSkipSimulatorPlatform(force, arch))
+      return nullptr;
     return PlatformAppleSimulator::CreateInstance(
         "PlatformAppleTVSimulator", g_tvos_description,
         ConstString(g_tvos_plugin_name),
@@ -619,6 +633,8 @@ struct PlatformAppleWatchSimulator {
   }
 
   static PlatformSP CreateInstance(bool force, const ArchSpec *arch) {
+    if (shouldSkipSimulatorPlatform(force, arch))
+      return nullptr;
     return PlatformAppleSimulator::CreateInstance(
         "PlatformAppleWatchSimulator", g_watchos_description,
         ConstString(g_watchos_plugin_name),

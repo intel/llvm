@@ -40,6 +40,9 @@ void writeI32Const(raw_ostream &os, int32_t number, const Twine &msg);
 
 void writeI64Const(raw_ostream &os, int64_t number, const Twine &msg);
 
+void writePtrConst(raw_ostream &os, int64_t number, bool is64,
+                   const Twine &msg);
+
 void writeMemArg(raw_ostream &os, uint32_t alignment, uint64_t offset);
 
 void writeInitExpr(raw_ostream &os, const llvm::wasm::WasmInitExpr &initExpr);
@@ -48,13 +51,11 @@ void writeLimits(raw_ostream &os, const llvm::wasm::WasmLimits &limits);
 
 void writeGlobalType(raw_ostream &os, const llvm::wasm::WasmGlobalType &type);
 
-void writeGlobal(raw_ostream &os, const llvm::wasm::WasmGlobal &global);
-
 void writeEventType(raw_ostream &os, const llvm::wasm::WasmEventType &type);
 
 void writeEvent(raw_ostream &os, const llvm::wasm::WasmEvent &event);
 
-void writeTableType(raw_ostream &os, const llvm::wasm::WasmTable &type);
+void writeTableType(raw_ostream &os, const llvm::wasm::WasmTableType &type);
 
 void writeImport(raw_ostream &os, const llvm::wasm::WasmImport &import);
 
@@ -66,6 +67,7 @@ std::string toString(llvm::wasm::ValType type);
 std::string toString(const llvm::wasm::WasmSignature &sig);
 std::string toString(const llvm::wasm::WasmGlobalType &type);
 std::string toString(const llvm::wasm::WasmEventType &type);
+std::string toString(const llvm::wasm::WasmTableType &type);
 
 } // namespace lld
 

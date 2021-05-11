@@ -1054,7 +1054,7 @@ CPlusPlusLanguage::GetHardcodedSummaries() {
                       .SetSkipReferences(false),
                   lldb_private::formatters::VectorTypeSummaryProvider,
                   "vector_type pointer summary provider"));
-          if (valobj.GetCompilerType().IsVectorType(nullptr, nullptr)) {
+          if (valobj.GetCompilerType().IsVectorType()) {
             if (fmt_mgr.GetCategory(g_vectortypes)->IsEnabled())
               return formatter_sp;
           }
@@ -1074,7 +1074,7 @@ CPlusPlusLanguage::GetHardcodedSummaries() {
                       .SetSkipReferences(false),
                   lldb_private::formatters::BlockPointerSummaryProvider,
                   "block pointer summary provider"));
-          if (valobj.GetCompilerType().IsBlockPointerType(nullptr)) {
+          if (valobj.GetCompilerType().IsBlockPointerType()) {
             return formatter_sp;
           }
           return nullptr;
@@ -1104,7 +1104,7 @@ CPlusPlusLanguage::GetHardcodedSynthetics() {
                   .SetNonCacheable(true),
               "vector_type synthetic children",
               lldb_private::formatters::VectorTypeSyntheticFrontEndCreator));
-      if (valobj.GetCompilerType().IsVectorType(nullptr, nullptr)) {
+      if (valobj.GetCompilerType().IsVectorType()) {
         if (fmt_mgr.GetCategory(g_vectortypes)->IsEnabled())
           return formatter_sp;
       }
@@ -1123,7 +1123,7 @@ CPlusPlusLanguage::GetHardcodedSynthetics() {
                   .SetNonCacheable(true),
               "block pointer synthetic children",
               lldb_private::formatters::BlockPointerSyntheticFrontEndCreator));
-      if (valobj.GetCompilerType().IsBlockPointerType(nullptr)) {
+      if (valobj.GetCompilerType().IsBlockPointerType()) {
         return formatter_sp;
       }
       return nullptr;
@@ -1132,6 +1132,15 @@ CPlusPlusLanguage::GetHardcodedSynthetics() {
   });
 
   return g_formatters;
+}
+
+bool CPlusPlusLanguage::IsNilReference(ValueObject &valobj) {
+  if (!Language::LanguageIsCPlusPlus(valobj.GetObjectRuntimeLanguage()) ||
+      !valobj.IsPointerType())
+    return false;
+  bool canReadValue = true;
+  bool isZero = valobj.GetValueAsUnsigned(0, &canReadValue) == 0;
+  return canReadValue && isZero;
 }
 
 bool CPlusPlusLanguage::IsSourceFile(llvm::StringRef file_path) const {

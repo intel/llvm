@@ -18,17 +18,77 @@
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/SCF/EDSC/Builders.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineExpr.h"
+#include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/FoldUtils.h"
+#include "mlir/Transforms/LoopUtils.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "linalg-utils"
 
 using namespace mlir;
+using namespace mlir::edsc;
+using namespace mlir::edsc::intrinsics;
 using namespace mlir::linalg;
 using namespace mlir::scf;
+
+static bool isZero(Value v) {
+  if (auto cst = v.getDefiningOp<ConstantIndexOp>())
+    return cst.getValue() == 0;
+  return false;
+}
+
+namespace {
+
+// Helper visitor to determine whether an AffineExpr is tiled.
+// This is achieved by traversing every AffineDimExpr with position `pos` and
+// checking whether the corresponding `tileSizes[pos]` is non-zero.
+// This also enforces only positive coefficients occur in multiplications.
+//
+// Example:
+//   `d0 + 2 * d1 + d3` is tiled by [0, 0, 0, 2] but not by [0, 0, 2, 0]
+//
+struct TileCheck : public AffineExprVisitor<TileCheck> {
+  TileCheck(ValueRange tileSizes) : isTiled(false), tileSizes(tileSizes) {}
+
+  void visitDimExpr(AffineDimExpr expr) {
+    isTiled |= !isZero(tileSizes[expr.getPosition()]);
+  }
+  void visitAffineBinaryOpExpr(AffineBinaryOpExpr expr) {
+    visit(expr.getLHS());
+    visit(expr.getRHS());
+    if (expr.getKind() == mlir::AffineExprKind::Mul)
+      assert(expr.getRHS().cast<AffineConstantExpr>().getValue() > 0 &&
+             "nonpositive multiplying coefficient");
+  }
+  bool isTiled;
+  ValueRange tileSizes;
+};
+
+} // namespace
+
+static bool isTiled(AffineExpr expr, ValueRange tileSizes) {
+  if (!expr)
+    return false;
+  TileCheck t(tileSizes);
+  t.visit(expr);
+  return t.isTiled;
+}
+
+// Checks whether the `map  varies with respect to a non-zero `tileSize`.
+static bool isTiled(AffineMap map, ValueRange tileSizes) {
+  if (!map)
+    return false;
+  for (unsigned r = 0; r < map.getNumResults(); ++r)
+    if (isTiled(map.getResult(r), tileSizes))
+      return true;
+  return false;
+}
 
 Optional<RegionMatcher::BinaryOpKind>
 RegionMatcher::matchAsScalarBinaryOp(GenericOp op) {
@@ -55,54 +115,6 @@ RegionMatcher::matchAsScalarBinaryOp(GenericOp op) {
     return BinaryOpKind::IAdd;
 
   return llvm::None;
-}
-
-static Value emitOrFoldComposedAffineApply(OpBuilder &b, Location loc,
-                                           AffineMap map,
-                                           ValueRange operandsRef,
-                                           OperationFolder *folder) {
-  SmallVector<Value, 4> operands(operandsRef.begin(), operandsRef.end());
-  fullyComposeAffineMapAndOperands(&map, &operands);
-  canonicalizeMapAndOperands(&map, &operands);
-  return folder ? folder->create<AffineApplyOp>(b, loc, map, operands)
-                : b.create<AffineApplyOp>(loc, map, operands);
-}
-
-SmallVector<Value, 4> mlir::linalg::applyMapToValues(OpBuilder &b, Location loc,
-                                                     AffineMap map,
-                                                     ValueRange values,
-                                                     OperationFolder *folder) {
-  SmallVector<Value, 4> res;
-  res.reserve(map.getNumResults());
-  unsigned numDims = map.getNumDims(), numSym = map.getNumSymbols();
-  // For each `expr` in `map`, applies the `expr` to the values extracted from
-  // ranges. If the resulting application can be folded into a Value, the
-  // folding occurs eagerly. Otherwise, an affine.apply operation is emitted.
-  for (auto expr : map.getResults()) {
-    AffineMap map = AffineMap::get(numDims, numSym, expr);
-    res.push_back(emitOrFoldComposedAffineApply(b, loc, map, values, folder));
-  }
-  return res;
-}
-
-/// Returns all the operands of `linalgOp` that are not views.
-/// Asserts that these operands are value types to allow transformations like
-/// tiling to just use the values when cloning `linalgOp`.
-SmallVector<Value, 4>
-mlir::linalg::getAssumedNonViewOperands(LinalgOp linalgOp) {
-  auto *op = linalgOp.getOperation();
-  unsigned numViews = linalgOp.getNumInputsAndOutputs();
-  unsigned nOperands = op->getNumOperands() - numViews;
-  SmallVector<Value, 4> res;
-  res.reserve(nOperands);
-  for (unsigned i = 0; i < nOperands; ++i) {
-    res.push_back(op->getOperand(numViews + i));
-    auto t = res.back().getType();
-    (void)t;
-    assert((t.isSignlessIntOrIndexOrFloat() || t.isa<VectorType>()) &&
-           "expected scalar or vector type");
-  }
-  return res;
 }
 
 bool mlir::linalg::isParallelIteratorType(Attribute attr) {
@@ -146,48 +158,29 @@ static void unpackRanges(ArrayRef<Range> ranges, SmallVectorImpl<Value> &lbs,
 namespace mlir {
 namespace linalg {
 
-/// Return the linearized list of all view dimensions in a linalgOp.
-SmallVector<Value, 8> getViewSizes(OpBuilder &builder, LinalgOp linalgOp) {
-  auto loc = linalgOp.getLoc();
-  SmallVector<Value, 8> res;
-  SmallVector<unsigned, 4> ranks;
-  for (auto v : linalgOp.getInputsAndOutputBuffers()) {
-    MemRefType t = v.getType().template cast<MemRefType>();
-    ranks.push_back(t.getRank());
-    for (unsigned i = 0; i < t.getRank(); ++i)
-      res.push_back(builder.create<DimOp>(loc, v, i));
+/// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
+/// is a constant then return a new value set to the smallest such constant.
+/// Otherwise returngetSmallestBoundingIndex nullptr.
+IntegerAttr getSmallestBoundingIndex(Value size) {
+  Optional<int64_t> boundingConst = {};
+  if (auto affineMinOp = size.getDefiningOp<AffineMinOp>()) {
+    for (auto e : affineMinOp.getAffineMap().getResults())
+      if (auto cst = e.dyn_cast<AffineConstantExpr>())
+        boundingConst = boundingConst
+                            ? std::min(boundingConst.getValue(), cst.getValue())
+                            : cst.getValue();
+  } else if (auto constIndexOp = size.getDefiningOp<ConstantOp>()) {
+    if (constIndexOp.getType().isa<IndexType>())
+      boundingConst = constIndexOp.value().cast<IntegerAttr>().getInt();
+  } else if (auto affineApplyOp = size.getDefiningOp<AffineApplyOp>()) {
+    if (auto cExpr = affineApplyOp.getAffineMap()
+                         .getResult(0)
+                         .dyn_cast<AffineConstantExpr>())
+      boundingConst = cExpr.getValue();
   }
-
-  auto attr = linalgOp.template getAttrOfType<IntegerAttr>("symbol_source");
-  if (attr) {
-    // Find the correct position for inserting values for symbols.
-    unsigned numSymb = ranks[attr.getInt()], symbolsPos = 0;
-    for (unsigned idx = 0; idx < attr.getInt(); idx++)
-      symbolsPos += ranks[idx];
-
-    // Append the end of the value list that corresponds to the
-    // values mapping to symbols. Since inside concatinated map symbols are
-    // repeated we have to repeat the sizes as well.
-
-    // Reserve is mandatory to avoid a potential undefined behavior with
-    // pushing back to smallvector from itself.
-    res.reserve(res.size() + ranks.size() * numSymb);
-    for (unsigned idx = 0, s = ranks.size(); idx < s; ++idx)
-      for (unsigned idx2 = 0; idx2 < numSymb; ++idx2)
-        res.push_back(res[symbolsPos + idx2]);
-  }
-  return res;
-}
-
-Optional<SmallVector<Value, 4>>
-getLoopRanges(OpBuilder &builder, LinalgOp linalgOp, OperationFolder *folder) {
-  SmallVector<Value, 8> viewSizes = getViewSizes(builder, linalgOp);
-  AffineMap invertedMap =
-      inversePermutation(concatAffineMaps(linalgOp.getIndexingMaps()));
-  if (!invertedMap)
-    return {};
-  return applyMapToValues(builder, linalgOp.getLoc(), invertedMap, viewSizes,
-                          folder);
+  if (boundingConst && *boundingConst >= 0)
+    return Builder(size.getContext()).getIndexAttr(*boundingConst);
+  return nullptr;
 }
 
 /// Specialization to build an scf "for" nest.
@@ -196,10 +189,28 @@ void GenerateLoopNest<scf::ForOp>::doit(
     ArrayRef<Range> loopRanges, ValueRange iterArgInitValues,
     ArrayRef<Attribute> iteratorTypes,
     function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
-    Optional<LinalgLoopDistributionOptions>) {
+    Optional<LinalgLoopDistributionOptions> distributionOptions) {
+  // Create procInfo so it dominates loops, if appropriate.
+  OpBuilder &builder = edsc::ScopedContext::getBuilderRef();
+  Location loc = edsc::ScopedContext::getLocation();
+  SmallVector<ProcInfo, 2> procInfo;
+  if (distributionOptions.hasValue())
+    procInfo = distributionOptions->procInfo(builder, loc, loopRanges);
+
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(loopRanges, lbs, ubs, steps);
-  edsc::loopNestBuilder(lbs, ubs, steps, iterArgInitValues, bodyBuilderFn);
+  LoopNest loopNest =
+      edsc::loopNestBuilder(lbs, ubs, steps, iterArgInitValues, bodyBuilderFn);
+
+  if (!distributionOptions.hasValue() || loopNest.loops.empty())
+    return;
+
+  // Only supports cyclic distribution for now.
+  for (auto it : llvm::zip(loopNest.loops, procInfo,
+                           distributionOptions->distributionMethod))
+    if (std::get<2>(it) == DistributionMethod::Cyclic)
+      mapLoopToProcessorIds(std::get<0>(it), std::get<1>(it).procId,
+                            std::get<1>(it).nprocs);
 }
 
 /// Specialization to build affine "for" nest.
@@ -230,10 +241,9 @@ void GenerateLoopNest<AffineForOp>::doit(
 }
 
 /// Update the `lb`, `ub` and `step` to get per processor `lb`, `ub` and `step`.
-static void updateBoundsForCyclicDistribution(OpBuilder &builder, Location loc,
-                                              Value procId, Value nprocs,
-                                              Value &lb, Value &ub,
-                                              Value &step) {
+void updateBoundsForCyclicDistribution(OpBuilder &builder, Location loc,
+                                       Value procId, Value nprocs, Value &lb,
+                                       Value &ub, Value &step) {
   using edsc::op::operator+;
   using edsc::op::operator*;
   lb = lb + (procId * step);
@@ -421,6 +431,118 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
                            distributionMethod);
 
   assert(ivs.size() == iteratorTypes.size() && "did not generate enough loops");
+}
+
+SmallVector<Value, 4> makeTiledShapes(OpBuilder &builder, Location loc,
+                                      LinalgOp linalgOp,
+                                      ArrayRef<Value> tiledOperands,
+                                      ValueRange ivs, ValueRange tileSizes,
+                                      ArrayRef<Value> sizeBounds) {
+  assert(ivs.size() == static_cast<size_t>(llvm::count_if(
+                           llvm::make_range(tileSizes.begin(), tileSizes.end()),
+                           [](Value v) { return !isZero(v); })) &&
+         "expected as many ivs as non-zero sizes");
+
+  using namespace edsc::op;
+
+  // Construct (potentially temporary) mins and maxes on which to apply maps
+  // that define tile subshapes.
+  SmallVector<Value, 8> lbs, subShapeSizes;
+  for (unsigned idx = 0, idxIvs = 0, e = tileSizes.size(); idx < e; ++idx) {
+    LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for loop#" << idx << "\n");
+    bool isTiled = !isZero(tileSizes[idx]);
+    lbs.push_back(isTiled ? ivs[idxIvs++] : (Value)std_constant_index(0));
+    // Before composing, we need to make range a closed interval.
+    Value size = isTiled ? tileSizes[idx] : sizeBounds[idx];
+    subShapeSizes.push_back(size - std_constant_index(1));
+    LLVM_DEBUG(llvm::dbgs() << "lb: " << lbs.back() << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "size: " << subShapeSizes.back() << "\n");
+  }
+
+  MLIRContext *context = builder.getContext();
+  SmallVector<Value, 4> tiledShapes;
+  tiledShapes.reserve(tiledOperands.size());
+  for (auto en : llvm::enumerate(tiledOperands)) {
+    Value shapedOp = en.value();
+    LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for operand " << shapedOp);
+    ShapedType shapedType = shapedOp.getType().cast<ShapedType>();
+    unsigned rank = shapedType.getRank();
+    AffineMap map = linalgOp.getIndexingMap(en.index());
+    // If the shape is not tiled, we can use it as is.
+    if (!isTiled(map, tileSizes)) {
+      tiledShapes.push_back(shapedOp);
+      LLVM_DEBUG(llvm::dbgs()
+                 << ": not tiled: use shape: " << shapedType << "\n");
+      continue;
+    }
+    LLVM_DEBUG(llvm::dbgs() << ": tiled: figure out subshape...\n");
+
+    // Construct a new subview / subtensor for the tile.
+    SmallVector<OpFoldResult, 4> offsets, sizes, strides;
+    offsets.reserve(rank);
+    sizes.reserve(rank);
+    strides.reserve(rank);
+    for (unsigned r = 0; r < rank; ++r) {
+      LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for dim#" << r);
+      if (!isTiled(map.getSubMap({r}), tileSizes)) {
+        offsets.push_back(builder.getIndexAttr(0));
+        Value dim = memref_dim(shapedOp, r).value;
+        sizes.push_back(dim);
+        strides.push_back(builder.getIndexAttr(1));
+        LLVM_DEBUG(llvm::dbgs() << ": not tiled: use size: " << dim << "\n");
+        continue;
+      }
+      LLVM_DEBUG(llvm::dbgs() << ": tiled: figure out subsize...\n");
+
+      // Tiling creates a new slice at the proper index, the slice step is 1
+      // (i.e. the op does not subsample, stepping occurs in the loop).
+      auto m = map.getSubMap({r});
+      LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: submap: " << map << "\n");
+      auto offset = applyMapToValues(builder, loc, m, lbs).front();
+      offsets.push_back(offset);
+      auto closedIntSize =
+          applyMapToValues(builder, loc, m, subShapeSizes).front();
+      // Resulting size needs to be made half open interval again.
+      auto size = closedIntSize + std_constant_index(1);
+      LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: raw size: " << size << "\n");
+
+      // The size of the subview / subtensor should be trimmed to avoid
+      // out-of-bounds accesses, unless we statically know the subshape size
+      // divides the shape size evenly.
+      int64_t shapeSize = shapedType.getDimSize(r);
+      auto sizeCst = size.getDefiningOp<ConstantIndexOp>();
+      if (ShapedType::isDynamic(shapeSize) || !sizeCst ||
+          (shapeSize % sizeCst.getValue()) != 0) {
+        LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: shapeSize=" << shapeSize
+                                << ", size: " << size
+                                << ": make sure in bound with affine.min\n");
+        AffineExpr dim0, dim1, dim2;
+        bindDims(context, dim0, dim1, dim2);
+        // Compute min(size, dim - offset) to avoid out-of-bounds accesses.
+        auto minMap = AffineMap::get(
+            /*dimCount=*/3, /*symbolCount=*/0, {dim0, dim1 - dim2}, context);
+        Value d = memref_dim(shapedOp, r);
+        SmallVector<Value, 4> operands{size, d, offset};
+        fullyComposeAffineMapAndOperands(&minMap, &operands);
+        size = affine_min(builder.getIndexType(), minMap, operands);
+      }
+
+      sizes.push_back(size);
+      LLVM_DEBUG(llvm::dbgs()
+                 << "makeTiledShapes: new offset: " << offset << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: new size: " << size << "\n");
+      strides.push_back(builder.getIndexAttr(1));
+    }
+
+    if (shapedType.isa<MemRefType>())
+      tiledShapes.push_back(builder.create<memref::SubViewOp>(
+          loc, shapedOp, offsets, sizes, strides));
+    else
+      tiledShapes.push_back(
+          builder.create<SubTensorOp>(loc, shapedOp, offsets, sizes, strides));
+  }
+
+  return tiledShapes;
 }
 
 } // namespace linalg

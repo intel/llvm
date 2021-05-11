@@ -115,6 +115,11 @@ public:
       return allocator.Allocate(size, alignment);
     }
 
+    /// Returns true if this allocator allocated the provided object pointer.
+    bool allocated(const void *ptr) {
+      return allocator.identifyObject(ptr).hasValue();
+    }
+
   private:
     /// The raw allocator for type storage objects.
     llvm::BumpPtrAllocator allocator;
@@ -130,7 +135,13 @@ public:
   /// instances of this class type. `id` is the type identifier that will be
   /// used to identify this type when creating instances of it via 'get'.
   template <typename Storage> void registerParametricStorageType(TypeID id) {
-    registerParametricStorageTypeImpl(id);
+    // If the storage is trivially destructible, we don't need a destructor
+    // function.
+    if (std::is_trivially_destructible<Storage>::value)
+      return registerParametricStorageTypeImpl(id, nullptr);
+    registerParametricStorageTypeImpl(id, [](BaseStorage *storage) {
+      static_cast<Storage *>(storage)->~Storage();
+    });
   }
   /// Utility override when the storage type represents the type id.
   template <typename Storage> void registerParametricStorageType() {
@@ -157,8 +168,7 @@ public:
   }
   /// Utility override when the storage type represents the type id.
   template <typename Storage>
-  void registerSingletonStorageType(
-      function_ref<void(Storage *)> initFn = llvm::None) {
+  void registerSingletonStorageType(function_ref<void(Storage *)> initFn = {}) {
     registerSingletonStorageType<Storage>(TypeID::get<Storage>(), initFn);
   }
 
@@ -228,29 +238,7 @@ public:
       return static_cast<Storage &>(*storage).mutate(
           allocator, std::forward<Args>(args)...);
     };
-    return mutateImpl(id, mutationFn);
-  }
-
-  /// Erases a uniqued instance of 'Storage'. This function is used for derived
-  /// types that have complex storage or uniquing constraints.
-  template <typename Storage, typename Arg, typename... Args>
-  void erase(TypeID id, Arg &&arg, Args &&...args) {
-    // Construct a value of the derived key type.
-    auto derivedKey =
-        getKey<Storage>(std::forward<Arg>(arg), std::forward<Args>(args)...);
-
-    // Create a hash of the derived key.
-    unsigned hashValue = getHash<Storage>(derivedKey);
-
-    // Generate an equality function for the derived storage.
-    auto isEqual = [&derivedKey](const BaseStorage *existing) {
-      return static_cast<const Storage &>(*existing) == derivedKey;
-    };
-
-    // Attempt to erase the storage instance.
-    eraseImpl(id, hashValue, isEqual, [](BaseStorage *storage) {
-      static_cast<Storage *>(storage)->cleanup();
-    });
+    return mutateImpl(id, storage, mutationFn);
   }
 
 private:
@@ -262,8 +250,10 @@ private:
       function_ref<BaseStorage *(StorageAllocator &)> ctorFn);
 
   /// Implementation for registering an instance of a derived type with
-  /// parametric storage.
-  void registerParametricStorageTypeImpl(TypeID id);
+  /// parametric storage. This method takes an optional destructor function that
+  /// destructs storage instances when necessary.
+  void registerParametricStorageTypeImpl(
+      TypeID id, function_ref<void(BaseStorage *)> destructorFn);
 
   /// Implementation for getting an instance of a derived type with default
   /// storage.
@@ -275,15 +265,9 @@ private:
   registerSingletonImpl(TypeID id,
                         function_ref<BaseStorage *(StorageAllocator &)> ctorFn);
 
-  /// Implementation for erasing an instance of a derived type with complex
-  /// storage.
-  void eraseImpl(TypeID id, unsigned hashValue,
-                 function_ref<bool(const BaseStorage *)> isEqual,
-                 function_ref<void(BaseStorage *)> cleanupFn);
-
   /// Implementation for mutating an instance of a derived storage.
   LogicalResult
-  mutateImpl(TypeID id,
+  mutateImpl(TypeID id, BaseStorage *storage,
              function_ref<LogicalResult(StorageAllocator &)> mutationFn);
 
   /// The internal implementation class.

@@ -109,7 +109,7 @@ void Flags::SetDefaults() {
 
 // keep_going is an old name for halt_on_error,
 // and it has inverse meaning.
-class FlagHandlerKeepGoing : public FlagHandlerBase {
+class FlagHandlerKeepGoing final : public FlagHandlerBase {
   bool *halt_on_error_;
 
  public:
@@ -151,7 +151,6 @@ static void InitializeFlags() {
     // FIXME: test and enable.
     cf.check_printf = false;
     cf.intercept_tls_get_addr = true;
-    cf.exitcode = 77;
     OverrideCommonFlags(cf);
   }
 

@@ -14,6 +14,7 @@
 #define LLVM_ADT_DENSEMAPINFO_H
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/StringRef.h"
@@ -257,7 +258,7 @@ template <typename... Ts> struct DenseMapInfo<std::tuple<Ts...>> {
   }
 
   template <unsigned I>
-  static unsigned getHashValueImpl(const Tuple &values, std::true_type) {
+  static unsigned getHashValueImpl(const Tuple &, std::true_type) {
     return 0;
   }
 
@@ -275,7 +276,7 @@ template <typename... Ts> struct DenseMapInfo<std::tuple<Ts...>> {
   }
 
   template <unsigned I>
-  static bool isEqualImpl(const Tuple &lhs, const Tuple &rhs, std::true_type) {
+  static bool isEqualImpl(const Tuple &, const Tuple &, std::true_type) {
     return true;
   }
 
@@ -368,6 +369,26 @@ template <> struct DenseMapInfo<APInt> {
 
   static bool isEqual(const APInt &LHS, const APInt &RHS) {
     return LHS.getBitWidth() == RHS.getBitWidth() && LHS == RHS;
+  }
+};
+
+/// Provide DenseMapInfo for APSInt, using the DenseMapInfo for APInt.
+template <> struct DenseMapInfo<APSInt> {
+  static inline APSInt getEmptyKey() {
+    return APSInt(DenseMapInfo<APInt>::getEmptyKey());
+  }
+
+  static inline APSInt getTombstoneKey() {
+    return APSInt(DenseMapInfo<APInt>::getTombstoneKey());
+  }
+
+  static unsigned getHashValue(const APSInt &Key) {
+    return static_cast<unsigned>(hash_value(Key));
+  }
+
+  static bool isEqual(const APSInt &LHS, const APSInt &RHS) {
+    return LHS.getBitWidth() == RHS.getBitWidth() &&
+           LHS.isUnsigned() == RHS.isUnsigned() && LHS == RHS;
   }
 };
 

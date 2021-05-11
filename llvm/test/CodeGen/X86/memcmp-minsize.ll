@@ -10,7 +10,7 @@
 
 @.str = private constant [65 x i8] c"0123456789012345678901234567890123456789012345678901234567890123\00", align 1
 
-declare i32 @memcmp(i8*, i8*, i64)
+declare dso_local i32 @memcmp(i8*, i8*, i64)
 
 define i32 @length2(i8* %X, i8* %Y) nounwind minsize {
 ; X86-LABEL: length2:
@@ -456,7 +456,7 @@ define i1 @length16_eq_const(i8* %X) nounwind minsize {
 ; X86-SSE2:       # %bb.0:
 ; X86-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-SSE2-NEXT:    movdqu (%eax), %xmm0
-; X86-SSE2-NEXT:    pcmpeqb {{\.LCPI.*}}, %xmm0
+; X86-SSE2-NEXT:    pcmpeqb {{\.LCPI[0-9]+_[0-9]+}}, %xmm0
 ; X86-SSE2-NEXT:    pmovmskb %xmm0, %eax
 ; X86-SSE2-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
 ; X86-SSE2-NEXT:    sete %al

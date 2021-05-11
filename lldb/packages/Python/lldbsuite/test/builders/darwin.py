@@ -43,12 +43,12 @@ def get_triple():
 
     # Get the SDK from the os and env.
     sdk = lldbutil.get_xcode_sdk(os, env)
-    if not sdk:
+    if sdk is None:
         return None, None, None, None
 
     # Get the version from the SDK.
     version = lldbutil.get_xcode_sdk_version(sdk)
-    if not version:
+    if version is None:
         return None, None, None, None
 
     return vendor, os, version, env
@@ -65,11 +65,15 @@ class BuilderDarwin(Builder):
         if configuration.dsymutil:
             args['DSYMUTIL'] = configuration.dsymutil
 
-        operating_system, _ = get_os_and_env()
+        operating_system, env = get_os_and_env()
         if operating_system and operating_system != "macosx":
             builder_dir = os.path.dirname(os.path.abspath(__file__))
             test_dir = os.path.dirname(builder_dir)
-            entitlements = os.path.join(test_dir, 'make', 'entitlements.plist')
+            if env == "simulator":
+              entitlements_file = 'entitlements-simulator.plist'
+            else:
+              entitlements_file = 'entitlements.plist'
+            entitlements = os.path.join(test_dir, 'make', entitlements_file)
             args['CODESIGN'] = 'codesign --entitlements {}'.format(
                 entitlements)
 
@@ -82,7 +86,7 @@ class BuilderDarwin(Builder):
         """Returns the ARCH_CFLAGS for the make system."""
         # Get the triple components.
         vendor, os, version, env = get_triple()
-        if not vendor or not os or not version or not env:
+        if vendor is None or os is None or version is None or env is None:
             return ""
 
         # Construct the triple from its components.

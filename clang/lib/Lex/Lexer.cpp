@@ -13,7 +13,9 @@
 #include "clang/Lex/Lexer.h"
 #include "UnicodeCharSets.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -24,19 +26,16 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Lex/Token.h"
-#include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/LLVM.h"
-#include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/NativeFormatting.h"
 #include "llvm/Support/UnicodeCharRanges.h"
 #include <algorithm>
@@ -133,12 +132,13 @@ void Lexer::InitLexer(const char *BufStart, const char *BufPtr,
 /// with the specified preprocessor managing the lexing process.  This lexer
 /// assumes that the associated file buffer and Preprocessor objects will
 /// outlive it, so it doesn't take ownership of either of them.
-Lexer::Lexer(FileID FID, const llvm::MemoryBuffer *InputFile, Preprocessor &PP)
+Lexer::Lexer(FileID FID, const llvm::MemoryBufferRef &InputFile,
+             Preprocessor &PP)
     : PreprocessorLexer(&PP, FID),
       FileLoc(PP.getSourceManager().getLocForStartOfFile(FID)),
       LangOpts(PP.getLangOpts()) {
-  InitLexer(InputFile->getBufferStart(), InputFile->getBufferStart(),
-            InputFile->getBufferEnd());
+  InitLexer(InputFile.getBufferStart(), InputFile.getBufferStart(),
+            InputFile.getBufferEnd());
 
   resetExtendedTokenMode();
 }
@@ -158,10 +158,10 @@ Lexer::Lexer(SourceLocation fileloc, const LangOptions &langOpts,
 /// Lexer constructor - Create a new raw lexer object.  This object is only
 /// suitable for calls to 'LexFromRawLexer'.  This lexer assumes that the text
 /// range will outlive it, so it doesn't take ownership of it.
-Lexer::Lexer(FileID FID, const llvm::MemoryBuffer *FromFile,
+Lexer::Lexer(FileID FID, const llvm::MemoryBufferRef &FromFile,
              const SourceManager &SM, const LangOptions &langOpts)
-    : Lexer(SM.getLocForStartOfFile(FID), langOpts, FromFile->getBufferStart(),
-            FromFile->getBufferStart(), FromFile->getBufferEnd()) {}
+    : Lexer(SM.getLocForStartOfFile(FID), langOpts, FromFile.getBufferStart(),
+            FromFile.getBufferStart(), FromFile.getBufferEnd()) {}
 
 void Lexer::resetExtendedTokenMode() {
   assert(PP && "Cannot reset token mode without a preprocessor");
@@ -194,7 +194,7 @@ Lexer *Lexer::Create_PragmaLexer(SourceLocation SpellingLoc,
 
   // Create the lexer as if we were going to lex the file normally.
   FileID SpellingFID = SM.getFileID(SpellingLoc);
-  const llvm::MemoryBuffer *InputFile = SM.getBuffer(SpellingFID);
+  llvm::MemoryBufferRef InputFile = SM.getBufferOrFake(SpellingFID);
   Lexer *L = new Lexer(SpellingFID, InputFile, PP);
 
   // Now that the lexer is created, change the start/end locations so that we
@@ -1788,12 +1788,14 @@ bool Lexer::LexNumericConstant(Token &Result, const char *CurPtr) {
   }
 
   // If we have a digit separator, continue.
-  if (C == '\'' && getLangOpts().CPlusPlus14) {
+  if (C == '\'' && (getLangOpts().CPlusPlus14 || getLangOpts().C2x)) {
     unsigned NextSize;
     char Next = getCharAndSizeNoWarn(CurPtr + Size, NextSize, getLangOpts());
     if (isIdentifierBody(Next)) {
       if (!isLexingRawMode())
-        Diag(CurPtr, diag::warn_cxx11_compat_digit_separator);
+        Diag(CurPtr, getLangOpts().CPlusPlus
+                         ? diag::warn_cxx11_compat_digit_separator
+                         : diag::warn_c2x_compat_digit_separator);
       CurPtr = ConsumeChar(CurPtr, Size, Result);
       CurPtr = ConsumeChar(CurPtr, NextSize, Result);
       return LexNumericConstant(Result, CurPtr);
@@ -2059,7 +2061,7 @@ bool Lexer::LexAngledStringLiteral(Token &Result, const char *CurPtr) {
     if (C == '\\')
       C = getAndAdvanceChar(CurPtr, Result);
 
-    if (C == '\n' || C == '\r' ||                // Newline.
+    if (isVerticalWhitespace(C) ||               // Newline.
         (C == 0 && (CurPtr - 1 == BufferEnd))) { // End of file.
       // If the filename is unterminated, then it must just be a lone <
       // character.  Return this as such.
@@ -3206,10 +3208,10 @@ LexNextToken:
   const char *CurPtr = BufferPtr;
 
   // Small amounts of horizontal whitespace is very common between tokens.
-  if ((*CurPtr == ' ') || (*CurPtr == '\t')) {
-    ++CurPtr;
-    while ((*CurPtr == ' ') || (*CurPtr == '\t'))
+  if (isHorizontalWhitespace(*CurPtr)) {
+    do {
       ++CurPtr;
+    } while (isHorizontalWhitespace(*CurPtr));
 
     // If we are keeping whitespace and other tokens, just return what we just
     // skipped.  The next lexer invocation will return the token after the

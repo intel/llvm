@@ -22,6 +22,7 @@
 #include "Targets/Hexagon.h"
 #include "Targets/Lanai.h"
 #include "Targets/Le64.h"
+#include "Targets/M68k.h"
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
 #include "Targets/NVPTX.h"
@@ -303,6 +304,16 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new MipsTargetInfo(Triple, Opts);
     }
 
+  case llvm::Triple::m68k:
+    switch (os) {
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<M68kTargetInfo>(Triple, Opts);
+    case llvm::Triple::NetBSD:
+      return new NetBSDTargetInfo<M68kTargetInfo>(Triple, Opts);
+    default:
+      return new M68kTargetInfo(Triple, Opts);
+    }
+
   case llvm::Triple::le32:
     switch (os) {
     case llvm::Triple::NaCl:
@@ -330,6 +341,16 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new RTEMSTargetInfo<PPC32TargetInfo>(Triple, Opts);
     case llvm::Triple::AIX:
       return new AIXPPC32TargetInfo(Triple, Opts);
+    default:
+      return new PPC32TargetInfo(Triple, Opts);
+    }
+
+  case llvm::Triple::ppcle:
+    switch (os) {
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<PPC32TargetInfo>(Triple, Opts);
+    case llvm::Triple::FreeBSD:
+      return new FreeBSDTargetInfo<PPC32TargetInfo>(Triple, Opts);
     default:
       return new PPC32TargetInfo(Triple, Opts);
     }
@@ -620,7 +641,7 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
         Triple.getVendor() != llvm::Triple::UnknownVendor ||
         !Triple.isOSBinFormatWasm())
       return nullptr;
-    switch (Triple.getOS()) {
+    switch (os) {
       case llvm::Triple::WASI:
         return new WASITargetInfo<WebAssembly32TargetInfo>(Triple, Opts);
       case llvm::Triple::Emscripten:
@@ -635,7 +656,7 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
         Triple.getVendor() != llvm::Triple::UnknownVendor ||
         !Triple.isOSBinFormatWasm())
       return nullptr;
-    switch (Triple.getOS()) {
+    switch (os) {
       case llvm::Triple::WASI:
         return new WASITargetInfo<WebAssembly64TargetInfo>(Triple, Opts);
       case llvm::Triple::Emscripten:
@@ -725,7 +746,7 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
     return nullptr;
 
   Target->setSupportedOpenCLOpts();
-  Target->setOpenCLExtensionOpts();
+  Target->setCommandLineOpenCLOpts();
   Target->setMaxAtomicWidth();
 
   if (!Target->validateTarget(Diags))
@@ -734,4 +755,31 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
   Target->CheckFixedPointBits();
 
   return Target.release();
+}
+
+/// getOpenCLFeatureDefines - Define OpenCL macros based on target settings
+/// and language version
+void TargetInfo::getOpenCLFeatureDefines(const LangOptions &Opts,
+                                         MacroBuilder &Builder) const {
+  // FIXME: OpenCL options which affect language semantics/syntax
+  // should be moved into LangOptions, thus macro definitions of
+  // such options is better to be done in clang::InitializePreprocessor.
+  auto defineOpenCLExtMacro = [&](llvm::StringRef Name, unsigned AvailVer,
+                                  unsigned CoreVersions,
+                                  unsigned OptionalVersions) {
+    // Check if extension is supported by target and is available in this
+    // OpenCL version
+    auto It = getTargetOpts().OpenCLFeaturesMap.find(Name);
+    if ((It != getTargetOpts().OpenCLFeaturesMap.end()) && It->getValue() &&
+        OpenCLOptions::OpenCLOptionInfo(false, AvailVer, CoreVersions,
+                                        OptionalVersions)
+            .isAvailableIn(Opts))
+      Builder.defineMacro(Name);
+  };
+#define OPENCL_GENERIC_EXTENSION(Ext, WithPragma, Avail, Core, Opt)            \
+  defineOpenCLExtMacro(#Ext, Avail, Core, Opt);
+#include "clang/Basic/OpenCLExtensions.def"
+
+  // Assume compiling for FULL profile
+  Builder.defineMacro("__opencl_c_int64");
 }

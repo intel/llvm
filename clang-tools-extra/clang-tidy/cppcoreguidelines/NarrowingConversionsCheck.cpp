@@ -46,28 +46,31 @@ void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
   //   i = 0.5;
   //   void f(int); f(0.5);
   Finder->addMatcher(
-      traverse(
-          ast_type_traits::TK_AsIs,
-          implicitCastExpr(hasImplicitDestinationType(builtinType()),
-                           hasSourceExpression(hasType(builtinType())),
-                           unless(hasSourceExpression(IsCeilFloorCallExpr)),
-                           unless(hasParent(castExpr())),
-                           unless(isInTemplateInstantiation()))
-              .bind("cast")),
+      traverse(TK_AsIs, implicitCastExpr(
+                            hasImplicitDestinationType(
+                                hasUnqualifiedDesugaredType(builtinType())),
+                            hasSourceExpression(hasType(
+                                hasUnqualifiedDesugaredType(builtinType()))),
+                            unless(hasSourceExpression(IsCeilFloorCallExpr)),
+                            unless(hasParent(castExpr())),
+                            unless(isInTemplateInstantiation()))
+                            .bind("cast")),
       this);
 
   // Binary operators:
   //   i += 0.5;
-  Finder->addMatcher(binaryOperator(isAssignmentOperator(),
-                                    hasLHS(expr(hasType(builtinType()))),
-                                    hasRHS(expr(hasType(builtinType()))),
-                                    unless(hasRHS(IsCeilFloorCallExpr)),
-                                    unless(isInTemplateInstantiation()),
-                                    // The `=` case generates an implicit cast
-                                    // which is covered by the previous matcher.
-                                    unless(hasOperatorName("=")))
-                         .bind("binary_op"),
-                     this);
+  Finder->addMatcher(
+      binaryOperator(
+          isAssignmentOperator(),
+          hasLHS(expr(hasType(hasUnqualifiedDesugaredType(builtinType())))),
+          hasRHS(expr(hasType(hasUnqualifiedDesugaredType(builtinType())))),
+          unless(hasRHS(IsCeilFloorCallExpr)),
+          unless(isInTemplateInstantiation()),
+          // The `=` case generates an implicit cast
+          // which is covered by the previous matcher.
+          unless(hasOperatorName("=")))
+          .bind("binary_op"),
+      this);
 }
 
 static const BuiltinType *getBuiltinType(const Expr &E) {
@@ -108,12 +111,12 @@ static bool getFloatingConstantExprValue(const ASTContext &Context,
 namespace {
 
 struct IntegerRange {
-  bool Contains(const IntegerRange &From) const {
+  bool contains(const IntegerRange &From) const {
     return llvm::APSInt::compareValues(Lower, From.Lower) <= 0 &&
            llvm::APSInt::compareValues(Upper, From.Upper) >= 0;
   }
 
-  bool Contains(const llvm::APSInt &Value) const {
+  bool contains(const llvm::APSInt &Value) const {
     return llvm::APSInt::compareValues(Lower, Value) <= 0 &&
            llvm::APSInt::compareValues(Upper, Value) >= 0;
   }
@@ -157,14 +160,14 @@ static bool isWideEnoughToHold(const ASTContext &Context,
                                const BuiltinType &ToType) {
   IntegerRange FromIntegerRange = createFromType(Context, FromType);
   IntegerRange ToIntegerRange = createFromType(Context, ToType);
-  return ToIntegerRange.Contains(FromIntegerRange);
+  return ToIntegerRange.contains(FromIntegerRange);
 }
 
 static bool isWideEnoughToHold(const ASTContext &Context,
                                const llvm::APSInt &IntegerConstant,
                                const BuiltinType &ToType) {
   IntegerRange ToIntegerRange = createFromType(Context, ToType);
-  return ToIntegerRange.Contains(IntegerConstant);
+  return ToIntegerRange.contains(IntegerConstant);
 }
 
 static llvm::SmallString<64> getValueAsString(const llvm::APSInt &Value,

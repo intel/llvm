@@ -31,6 +31,7 @@
 using namespace lldb_private;
 
 #define PREFIX_NAME "<lldb wrapper prefix>"
+#define SUFFIX_NAME "<lldb wrapper suffix>"
 
 const llvm::StringRef ClangExpressionSourceCode::g_prefix_file_name = PREFIX_NAME;
 
@@ -72,6 +73,9 @@ extern "C"
     int printf(const char * __restrict, ...);
 }
 )";
+
+const char *ClangExpressionSourceCode::g_expression_suffix =
+    "\n;\n#line 1 \"" SUFFIX_NAME "\"\n";
 
 namespace {
 
@@ -180,7 +184,7 @@ lldb_private::ClangExpressionSourceCode::ClangExpressionSourceCode(
   // containing only the user expression. This will hide our wrapper code
   // from the user when we render diagnostics with Clang.
   m_start_marker = "#line 1 \"" + filename.str() + "\"\n";
-  m_end_marker = "\n;\n#line 1 \"<lldb wrapper suffix>\"\n";
+  m_end_marker = g_expression_suffix;
 }
 
 namespace {
@@ -221,7 +225,7 @@ TokenVerifier::TokenVerifier(std::string body) {
   clang::SourceManager SM(diags, file_mgr);
   auto buf = llvm::MemoryBuffer::getMemBuffer(body);
 
-  FileID FID = SM.createFileID(clang::SourceManager::Unowned, buf.get());
+  FileID FID = SM.createFileID(buf->getMemBufferRef());
 
   // Let's just enable the latest ObjC and C++ which should get most tokens
   // right.
@@ -231,7 +235,7 @@ TokenVerifier::TokenVerifier(std::string body) {
   Opts.CPlusPlus17 = true;
   Opts.LineComment = true;
 
-  Lexer lex(FID, buf.get(), SM, Opts);
+  Lexer lex(FID, buf->getMemBufferRef(), SM, Opts);
 
   Token token;
   bool exit = false;
@@ -297,6 +301,7 @@ bool ClangExpressionSourceCode::GetText(
     bool force_add_all_locals, llvm::ArrayRef<std::string> modules) const {
   const char *target_specific_defines = "typedef signed char BOOL;\n";
   std::string module_macros;
+  llvm::raw_string_ostream module_macros_stream(module_macros);
 
   Target *target = exe_ctx.GetTargetPtr();
   if (target) {
@@ -344,9 +349,13 @@ bool ClangExpressionSourceCode::GetText(
 
       decl_vendor->ForEachMacro(
           modules_for_macros,
-          [&module_macros](const std::string &expansion) -> bool {
-            module_macros.append(expansion);
-            module_macros.append("\n");
+          [&module_macros_stream](llvm::StringRef token,
+                                  llvm::StringRef expansion) -> bool {
+            // Check if the macro hasn't already been defined in the
+            // g_expression_prefix (which defines a few builtin macros).
+            module_macros_stream << "#ifndef " << token << "\n";
+            module_macros_stream << expansion << "\n";
+            module_macros_stream << "#endif\n";
             return false;
           });
     }
@@ -387,8 +396,8 @@ bool ClangExpressionSourceCode::GetText(
 
     StreamString wrap_stream;
 
-    wrap_stream.Printf("%s\n%s\n%s\n%s\n%s\n", module_macros.c_str(),
-                       debug_macros_stream.GetData(), g_expression_prefix,
+    wrap_stream.Printf("%s\n%s\n%s\n%s\n%s\n", g_expression_prefix,
+                       module_macros.c_str(), debug_macros_stream.GetData(),
                        target_specific_defines, m_prefix.c_str());
 
     // First construct a tagged form of the user expression so we can find it
@@ -410,6 +419,7 @@ bool ClangExpressionSourceCode::GetText(
                          module_imports.c_str(), m_name.c_str(),
                          lldb_local_var_decls.GetData(), tagged_body.c_str());
       break;
+    case WrapKind::CppStaticMemberFunction:
     case WrapKind::CppMemberFunction:
       wrap_stream.Printf("%s"
                          "void                                   \n"

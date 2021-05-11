@@ -5,8 +5,10 @@
 
 # RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libpi_opencl.so
 # REQUIRES: linux
+# UNSUPPORTED: libcxx
 
 piContextCreate
+piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
@@ -23,6 +25,7 @@ piProgramCreateWithBinary
 piProgramLink
 piQueueCreate
 piSamplerCreate
+piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle
 piextContextGetNativeHandle
@@ -31,6 +34,8 @@ piextDeviceGetNativeHandle
 piextDeviceSelectBinary
 piextEventCreateWithNativeHandle
 piextGetDeviceFunctionPointer
+piextKernelCreateWithNativeHandle
+piextKernelGetNativeHandle
 piextKernelSetArgMemObj
 piextKernelSetArgPointer
 piextKernelSetArgSampler

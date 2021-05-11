@@ -39,13 +39,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PluginLoader.h"
-#include "llvm/Support/Signals.h"
 #include <cstdlib>
-
-#if !defined(_MSC_VER) && !defined(__MINGW32__)
-#include <signal.h> // for raise
-#include <unistd.h> // for _exit
-#endif
 
 using namespace lld;
 using namespace llvm;
@@ -56,7 +50,7 @@ enum Flavor {
   Gnu,       // -flavor gnu
   WinLink,   // -flavor link
   Darwin,    // -flavor darwin
-  DarwinNew, // -flavor darwinnew
+  DarwinOld, // -flavor darwinold
   Wasm,      // -flavor wasm
 };
 
@@ -70,8 +64,9 @@ static Flavor getFlavor(StringRef s) {
       .CasesLower("ld", "ld.lld", "gnu", Gnu)
       .CasesLower("wasm", "ld-wasm", Wasm)
       .CaseLower("link", WinLink)
-      .CasesLower("ld64", "ld64.lld", "darwin", Darwin)
-      .CaseLower("darwinnew", DarwinNew)
+      .CasesLower("ld64", "ld64.lld", "darwin", "darwinnew",
+                  "ld64.lld.darwinnew", Darwin)
+      .CasesLower("darwinold", "ld64.lld.darwinold", DarwinOld)
       .Default(Invalid);
 }
 
@@ -154,9 +149,9 @@ static int lldMain(int argc, const char **argv, llvm::raw_ostream &stdoutOS,
   case WinLink:
     return !coff::link(args, exitEarly, stdoutOS, stderrOS);
   case Darwin:
-    return !mach_o::link(args, exitEarly, stdoutOS, stderrOS);
-  case DarwinNew:
     return !macho::link(args, exitEarly, stdoutOS, stderrOS);
+  case DarwinOld:
+    return !mach_o::link(args, exitEarly, stdoutOS, stderrOS);
   case Wasm:
     return !lld::wasm::link(args, exitEarly, stdoutOS, stderrOS);
   default:
@@ -179,7 +174,7 @@ SafeReturn lld::safeLldMain(int argc, const char **argv,
     if (!crc.RunSafely([&]() {
           r = lldMain(argc, argv, stdoutOS, stderrOS, /*exitEarly=*/false);
         }))
-      r = crc.RetCode;
+      return {crc.RetCode, /*canRunAgain=*/false};
   }
 
   // Cleanup memory and reset everything back in pristine condition. This path
@@ -221,7 +216,7 @@ int main(int argc, const char **argv) {
     // Execute one iteration.
     auto r = safeLldMain(argc, argv, llvm::outs(), llvm::errs());
     if (!r.canRunAgain)
-      _exit(r.ret); // Exit now, can't re-execute again.
+      exitLld(r.ret); // Exit now, can't re-execute again.
 
     if (!mainRet) {
       mainRet = r.ret;
@@ -230,14 +225,5 @@ int main(int argc, const char **argv) {
       return r.ret;
     }
   }
-#if LLVM_ON_UNIX
-  // Re-throw the signal so it can be caught by WIFSIGNALED in
-  // llvm/lib/Support/Unix/Program.inc. This is required to correctly handle
-  // usages of `not --crash`.
-  if (*mainRet > 128) {
-    llvm::sys::unregisterHandlers();
-    raise(*mainRet - 128);
-  }
-#endif
   return *mainRet;
 }

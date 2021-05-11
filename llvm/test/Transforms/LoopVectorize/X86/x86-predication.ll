@@ -1,4 +1,4 @@
-; RUN: opt < %s -mattr=avx -force-vector-width=2 -force-vector-interleave=1 -loop-vectorize -simplifycfg -S | FileCheck %s
+; RUN: opt < %s -mattr=avx -force-vector-width=2 -force-vector-interleave=1 -loop-vectorize -simplifycfg -simplifycfg-require-and-preserve-domtree=1 -S | FileCheck %s
 ; RUN: opt -mcpu=skylake-avx512 -S -force-vector-width=8 -force-vector-interleave=1 -loop-vectorize < %s | FileCheck %s --check-prefix=SINK-GATHER
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
@@ -16,10 +16,10 @@ target triple = "x86_64-apple-macosx10.8.0"
 ; CHECK: [[IF0]]:
 ; CHECK:   %[[T0:.+]] = extractelement <2 x i32> %wide.masked.load, i32 0
 ; CHECK:   %[[T1:.+]] = sdiv i32 %[[T0]], %x
-; CHECK:   %[[T2:.+]] = insertelement <2 x i32> undef, i32 %[[T1]], i32 0
+; CHECK:   %[[T2:.+]] = insertelement <2 x i32> poison, i32 %[[T1]], i32 0
 ; CHECK:   br label %[[CONT0]]
 ; CHECK: [[CONT0]]:
-; CHECK:   %[[T3:.+]] = phi <2 x i32> [ undef, %vector.body ], [ %[[T2]], %[[IF0]] ]
+; CHECK:   %[[T3:.+]] = phi <2 x i32> [ poison, %vector.body ], [ %[[T2]], %[[IF0]] ]
 ; CHECK:   br i1 {{.*}}, label %[[IF1:.+]], label %[[CONT1:.+]]
 ; CHECK: [[IF1]]:
 ; CHECK:   %[[T4:.+]] = extractelement <2 x i32> %wide.masked.load, i32 1
@@ -65,9 +65,12 @@ for.end:
 ; sink-scalar-operands optimization for predicated instructions.
 ;
 ; SINK-GATHER: vector.body:
-; SINK-GATHER: pred.udiv.if:
+; SINK-GATHER: pred.load.if:
 ; SINK-GATHER:   %[[T0:.+]] = load i32, i32* %{{.*}}, align 4
-; SINK-GATHER:   %{{.*}} = udiv i32 %[[T0]], %{{.*}}
+; SINK-GATHER: pred.load.continue:
+; SINK-GATHER:   %[[T1:.+]] = phi i32 [ poison, %vector.body ], [ %[[T0]], %pred.load.if ]
+; SINK-GATHER: pred.udiv.if:
+; SINK-GATHER:   %{{.*}} = udiv i32 %[[T1]], %{{.*}}
 ; SINK-GATHER: pred.udiv.continue:
 define i32 @scalarize_and_sink_gather(i32* %a, i1 %c, i32 %x, i64 %n) {
 entry:

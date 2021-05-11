@@ -12,16 +12,18 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
-#include "mlir/Target/LLVMIR.h"
-#include "mlir/Target/LLVMIR/TypeTranslation.h"
+#include "mlir/Target/LLVMIR/Import.h"
 #include "mlir/Translation.h"
 
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IRReader/IRReader.h"
@@ -43,13 +45,174 @@ static std::string diag(llvm::Value &v) {
   return os.str();
 }
 
+namespace mlir {
+namespace LLVM {
+namespace detail {
+/// Support for translating LLVM IR types to MLIR LLVM dialect types.
+class TypeFromLLVMIRTranslatorImpl {
+public:
+  /// Constructs a class creating types in the given MLIR context.
+  TypeFromLLVMIRTranslatorImpl(MLIRContext &context) : context(context) {}
+
+  /// Translates the given type.
+  Type translateType(llvm::Type *type) {
+    if (knownTranslations.count(type))
+      return knownTranslations.lookup(type);
+
+    Type translated =
+        llvm::TypeSwitch<llvm::Type *, Type>(type)
+            .Case<llvm::ArrayType, llvm::FunctionType, llvm::IntegerType,
+                  llvm::PointerType, llvm::StructType, llvm::FixedVectorType,
+                  llvm::ScalableVectorType>(
+                [this](auto *type) { return this->translate(type); })
+            .Default([this](llvm::Type *type) {
+              return translatePrimitiveType(type);
+            });
+    knownTranslations.try_emplace(type, translated);
+    return translated;
+  }
+
+private:
+  /// Translates the given primitive, i.e. non-parametric in MLIR nomenclature,
+  /// type.
+  Type translatePrimitiveType(llvm::Type *type) {
+    if (type->isVoidTy())
+      return LLVM::LLVMVoidType::get(&context);
+    if (type->isHalfTy())
+      return Float16Type::get(&context);
+    if (type->isBFloatTy())
+      return BFloat16Type::get(&context);
+    if (type->isFloatTy())
+      return Float32Type::get(&context);
+    if (type->isDoubleTy())
+      return Float64Type::get(&context);
+    if (type->isFP128Ty())
+      return Float128Type::get(&context);
+    if (type->isX86_FP80Ty())
+      return Float80Type::get(&context);
+    if (type->isPPC_FP128Ty())
+      return LLVM::LLVMPPCFP128Type::get(&context);
+    if (type->isX86_MMXTy())
+      return LLVM::LLVMX86MMXType::get(&context);
+    if (type->isLabelTy())
+      return LLVM::LLVMLabelType::get(&context);
+    if (type->isMetadataTy())
+      return LLVM::LLVMMetadataType::get(&context);
+    llvm_unreachable("not a primitive type");
+  }
+
+  /// Translates the given array type.
+  Type translate(llvm::ArrayType *type) {
+    return LLVM::LLVMArrayType::get(translateType(type->getElementType()),
+                                    type->getNumElements());
+  }
+
+  /// Translates the given function type.
+  Type translate(llvm::FunctionType *type) {
+    SmallVector<Type, 8> paramTypes;
+    translateTypes(type->params(), paramTypes);
+    return LLVM::LLVMFunctionType::get(translateType(type->getReturnType()),
+                                       paramTypes, type->isVarArg());
+  }
+
+  /// Translates the given integer type.
+  Type translate(llvm::IntegerType *type) {
+    return IntegerType::get(&context, type->getBitWidth());
+  }
+
+  /// Translates the given pointer type.
+  Type translate(llvm::PointerType *type) {
+    return LLVM::LLVMPointerType::get(translateType(type->getElementType()),
+                                      type->getAddressSpace());
+  }
+
+  /// Translates the given structure type.
+  Type translate(llvm::StructType *type) {
+    SmallVector<Type, 8> subtypes;
+    if (type->isLiteral()) {
+      translateTypes(type->subtypes(), subtypes);
+      return LLVM::LLVMStructType::getLiteral(&context, subtypes,
+                                              type->isPacked());
+    }
+
+    if (type->isOpaque())
+      return LLVM::LLVMStructType::getOpaque(type->getName(), &context);
+
+    LLVM::LLVMStructType translated =
+        LLVM::LLVMStructType::getIdentified(&context, type->getName());
+    knownTranslations.try_emplace(type, translated);
+    translateTypes(type->subtypes(), subtypes);
+    LogicalResult bodySet = translated.setBody(subtypes, type->isPacked());
+    assert(succeeded(bodySet) &&
+           "could not set the body of an identified struct");
+    (void)bodySet;
+    return translated;
+  }
+
+  /// Translates the given fixed-vector type.
+  Type translate(llvm::FixedVectorType *type) {
+    return LLVM::getFixedVectorType(translateType(type->getElementType()),
+                                    type->getNumElements());
+  }
+
+  /// Translates the given scalable-vector type.
+  Type translate(llvm::ScalableVectorType *type) {
+    return LLVM::LLVMScalableVectorType::get(
+        translateType(type->getElementType()), type->getMinNumElements());
+  }
+
+  /// Translates a list of types.
+  void translateTypes(ArrayRef<llvm::Type *> types,
+                      SmallVectorImpl<Type> &result) {
+    result.reserve(result.size() + types.size());
+    for (llvm::Type *type : types)
+      result.push_back(translateType(type));
+  }
+
+  /// Map of known translations. Serves as a cache and as recursion stopper for
+  /// translating recursive structs.
+  llvm::DenseMap<llvm::Type *, Type> knownTranslations;
+
+  /// The context in which MLIR types are created.
+  MLIRContext &context;
+};
+} // end namespace detail
+
+/// Utility class to translate LLVM IR types to the MLIR LLVM dialect. Stores
+/// the translation state, in particular any identified structure types that are
+/// reused across translations.
+class TypeFromLLVMIRTranslator {
+public:
+  TypeFromLLVMIRTranslator(MLIRContext &context);
+  ~TypeFromLLVMIRTranslator();
+
+  /// Translates the given LLVM IR type to the MLIR LLVM dialect.
+  Type translateType(llvm::Type *type);
+
+private:
+  /// Private implementation.
+  std::unique_ptr<detail::TypeFromLLVMIRTranslatorImpl> impl;
+};
+
+} // end namespace LLVM
+} // end namespace mlir
+
+LLVM::TypeFromLLVMIRTranslator::TypeFromLLVMIRTranslator(MLIRContext &context)
+    : impl(new detail::TypeFromLLVMIRTranslatorImpl(context)) {}
+
+LLVM::TypeFromLLVMIRTranslator::~TypeFromLLVMIRTranslator() {}
+
+Type LLVM::TypeFromLLVMIRTranslator::translateType(llvm::Type *type) {
+  return impl->translateType(type);
+}
+
 // Handles importing globals and functions from an LLVM module.
 namespace {
 class Importer {
 public:
   Importer(MLIRContext *context, ModuleOp module)
       : b(context), context(context), module(module),
-        unknownLoc(FileLineColLoc::get("imported-bitcode", 0, 0, context)),
+        unknownLoc(FileLineColLoc::get(context, "imported-bitcode", 0, 0)),
         typeTranslator(*context) {
     b.setInsertionPointToStart(module.getBody());
   }
@@ -67,8 +230,8 @@ private:
   LogicalResult processBasicBlock(llvm::BasicBlock *bb, Block *block);
   /// Imports `inst` and populates instMap[inst] with the imported Value.
   LogicalResult processInstruction(llvm::Instruction *inst);
-  /// Creates an LLVMType for `type`.
-  LLVMType processType(llvm::Type *type);
+  /// Creates an LLVM-compatible MLIR type for `type`.
+  Type processType(llvm::Type *type);
   /// `value` is an SSA-use. Return the remapped version of `value` or a
   /// placeholder that will be remapped later if this is an instruction that
   /// has not yet been visited.
@@ -84,9 +247,9 @@ private:
   LogicalResult processBranchArgs(llvm::Instruction *br,
                                   llvm::BasicBlock *target,
                                   SmallVectorImpl<Value> &blockArguments);
-  /// Returns the standard type equivalent to be used in attributes for the
-  /// given LLVM IR dialect type.
-  Type getStdTypeForAttr(LLVMType type);
+  /// Returns the builtin type equivalent to be used in attributes for the given
+  /// LLVM IR dialect type.
+  Type getStdTypeForAttr(Type type);
   /// Return `value` as an attribute to attach to a GlobalOp.
   Attribute getConstantAsAttr(llvm::Constant *value);
   /// Return `c` as an MLIR Value. This could either be a ConstantOp, or
@@ -106,10 +269,11 @@ private:
 
   /// Globals are inserted before the first function, if any.
   Block::iterator getGlobalInsertPt() {
-    auto i = module.getBody()->begin();
-    while (!isa<LLVMFuncOp, ModuleTerminatorOp>(i))
-      ++i;
-    return i;
+    auto it = module.getBody()->begin();
+    auto endIt = module.getBody()->end();
+    while (it != endIt && !isa<LLVMFuncOp>(it))
+      ++it;
+    return it;
   }
 
   /// Functions are always inserted before the module terminator.
@@ -140,17 +304,17 @@ Location Importer::processDebugLoc(const llvm::DebugLoc &loc,
     llvm::raw_string_ostream os(s);
     os << "llvm-imported-inst-%";
     inst->printAsOperand(os, /*PrintType=*/false);
-    return FileLineColLoc::get(os.str(), 0, 0, context);
+    return FileLineColLoc::get(context, os.str(), 0, 0);
   } else if (!loc) {
     return unknownLoc;
   }
   // FIXME: Obtain the filename from DILocationInfo.
-  return FileLineColLoc::get("imported-bitcode", loc.getLine(), loc.getCol(),
-                             context);
+  return FileLineColLoc::get(context, "imported-bitcode", loc.getLine(),
+                             loc.getCol());
 }
 
-LLVMType Importer::processType(llvm::Type *type) {
-  if (LLVMType result = typeTranslator.translateType(type))
+Type Importer::processType(llvm::Type *type) {
+  if (Type result = typeTranslator.translateType(type))
     return result;
 
   // FIXME: Diagnostic should be able to natively handle types that have
@@ -167,61 +331,55 @@ LLVMType Importer::processType(llvm::Type *type) {
 // equivalents. Array types are converted to ranked tensors; nested array types
 // are converted to multi-dimensional tensors or vectors, depending on the
 // innermost type being a scalar or a vector.
-Type Importer::getStdTypeForAttr(LLVMType type) {
+Type Importer::getStdTypeForAttr(Type type) {
   if (!type)
     return nullptr;
 
-  if (type.isIntegerTy())
-    return b.getIntegerType(type.getIntegerBitWidth());
-
-  if (type.isFloatTy())
-    return b.getF32Type();
-
-  if (type.isDoubleTy())
-    return b.getF64Type();
+  if (type.isa<IntegerType, FloatType>())
+    return type;
 
   // LLVM vectors can only contain scalars.
-  if (type.isVectorTy()) {
-    auto numElements = type.getVectorElementCount();
+  if (LLVM::isCompatibleVectorType(type)) {
+    auto numElements = LLVM::getVectorNumElements(type);
     if (numElements.isScalable()) {
       emitError(unknownLoc) << "scalable vectors not supported";
       return nullptr;
     }
-    Type elementType = getStdTypeForAttr(type.getVectorElementType());
+    Type elementType = getStdTypeForAttr(LLVM::getVectorElementType(type));
     if (!elementType)
       return nullptr;
     return VectorType::get(numElements.getKnownMinValue(), elementType);
   }
 
   // LLVM arrays can contain other arrays or vectors.
-  if (type.isArrayTy()) {
+  if (auto arrayType = type.dyn_cast<LLVMArrayType>()) {
     // Recover the nested array shape.
     SmallVector<int64_t, 4> shape;
-    shape.push_back(type.getArrayNumElements());
-    while (type.getArrayElementType().isArrayTy()) {
-      type = type.getArrayElementType();
-      shape.push_back(type.getArrayNumElements());
+    shape.push_back(arrayType.getNumElements());
+    while (arrayType.getElementType().isa<LLVMArrayType>()) {
+      arrayType = arrayType.getElementType().cast<LLVMArrayType>();
+      shape.push_back(arrayType.getNumElements());
     }
 
     // If the innermost type is a vector, use the multi-dimensional vector as
     // attribute type.
-    if (type.getArrayElementType().isVectorTy()) {
-      LLVMType vectorType = type.getArrayElementType();
-      auto numElements = vectorType.getVectorElementCount();
+    if (LLVM::isCompatibleVectorType(arrayType.getElementType())) {
+      auto numElements = LLVM::getVectorNumElements(arrayType.getElementType());
       if (numElements.isScalable()) {
         emitError(unknownLoc) << "scalable vectors not supported";
         return nullptr;
       }
       shape.push_back(numElements.getKnownMinValue());
 
-      Type elementType = getStdTypeForAttr(vectorType.getVectorElementType());
+      Type elementType = getStdTypeForAttr(
+          LLVM::getVectorElementType(arrayType.getElementType()));
       if (!elementType)
         return nullptr;
       return VectorType::get(shape, elementType);
     }
 
     // Otherwise use a tensor.
-    Type elementType = getStdTypeForAttr(type.getArrayElementType());
+    Type elementType = getStdTypeForAttr(arrayType.getElementType());
     if (!elementType)
       return nullptr;
     return RankedTensorType::get(shape, elementType);
@@ -235,7 +393,7 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
 Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
   if (auto *ci = dyn_cast<llvm::ConstantInt>(value))
     return b.getIntegerAttr(
-        IntegerType::get(ci->getType()->getBitWidth(), context),
+        IntegerType::get(context, ci->getType()->getBitWidth()),
         ci->getValue());
   if (auto *c = dyn_cast<llvm::ConstantDataArray>(value))
     if (c->isString())
@@ -243,7 +401,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
   if (auto *c = dyn_cast<llvm::ConstantFP>(value)) {
     if (c->getType()->isDoubleTy())
       return b.getFloatAttr(FloatType::getF64(context), c->getValueAPF());
-    else if (c->getType()->isFloatingPointTy())
+    if (c->getType()->isFloatingPointTy())
       return b.getFloatAttr(FloatType::getF32(context), c->getValueAPF());
   }
   if (auto *f = dyn_cast<llvm::Function>(value))
@@ -251,7 +409,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
 
   // Convert constant data to a dense elements attribute.
   if (auto *cd = dyn_cast<llvm::ConstantDataSequential>(value)) {
-    LLVMType type = processType(cd->getElementType());
+    Type type = processType(cd->getElementType());
     if (!type)
       return nullptr;
 
@@ -260,7 +418,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
     if (!attrType)
       return nullptr;
 
-    if (type.isIntegerTy()) {
+    if (type.isa<IntegerType>()) {
       SmallVector<APInt, 8> values;
       values.reserve(cd->getNumElements());
       for (unsigned i = 0, e = cd->getNumElements(); i < e; ++i)
@@ -268,7 +426,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
       return DenseElementsAttr::get(attrType, values);
     }
 
-    if (type.isFloatTy() || type.isDoubleTy()) {
+    if (type.isa<Float32Type, Float64Type>()) {
       SmallVector<APFloat, 8> values;
       values.reserve(cd->getNumElements());
       for (unsigned i = 0, e = cd->getNumElements(); i < e; ++i)
@@ -314,7 +472,7 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *GV) {
   Attribute valueAttr;
   if (GV->hasInitializer())
     valueAttr = getConstantAsAttr(GV->getInitializer());
-  LLVMType type = processType(GV->getValueType());
+  Type type = processType(GV->getValueType());
   if (!type)
     return nullptr;
   GlobalOp op = b.create<GlobalOp>(
@@ -329,6 +487,9 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *GV) {
       return nullptr;
     b.create<ReturnOp>(op.getLoc(), ArrayRef<Value>({v}));
   }
+  if (GV->hasAtLeastLocalUnnamedAddr())
+    op.unnamed_addrAttr(UnnamedAddrAttr::get(
+        context, convertUnnamedAddrFromLLVM(GV->getUnnamedAddr())));
   return globals[GV] = op;
 }
 
@@ -337,7 +498,7 @@ Value Importer::processConstant(llvm::Constant *c) {
   if (Attribute attr = getConstantAsAttr(c)) {
     // These constants can be represented as attributes.
     OpBuilder b(currentEntryBlock, currentEntryBlock->begin());
-    LLVMType type = processType(c->getType());
+    Type type = processType(c->getType());
     if (!type)
       return nullptr;
     if (auto symbolRef = attr.dyn_cast<FlatSymbolRefAttr>())
@@ -346,7 +507,7 @@ Value Importer::processConstant(llvm::Constant *c) {
     return instMap[c] = bEntry.create<ConstantOp>(unknownLoc, type, attr);
   }
   if (auto *cn = dyn_cast<llvm::ConstantPointerNull>(c)) {
-    LLVMType type = processType(cn->getType());
+    Type type = processType(cn->getType());
     if (!type)
       return nullptr;
     return instMap[c] = bEntry.create<NullOp>(unknownLoc, type);
@@ -369,7 +530,7 @@ Value Importer::processConstant(llvm::Constant *c) {
     return instMap[c] = instMap[i];
   }
   if (auto *ue = dyn_cast<llvm::UndefValue>(c)) {
-    LLVMType type = processType(ue->getType());
+    Type type = processType(ue->getType());
     if (!type)
       return nullptr;
     return instMap[c] = bEntry.create<UndefOp>(UnknownLoc::get(context), type);
@@ -387,7 +548,7 @@ Value Importer::processValue(llvm::Value *value) {
   // this instruction yet, create an unknown op and remap it later.
   if (isa<llvm::Instruction>(value)) {
     OperationState state(UnknownLoc::get(context), "llvm.unknown");
-    LLVMType type = processType(value->getType());
+    Type type = processType(value->getType());
     if (!type)
       return nullptr;
     state.addTypes(type);
@@ -577,7 +738,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     }
     state.addOperands(ops);
     if (!inst->getType()->isVoidTy()) {
-      LLVMType type = processType(inst->getType());
+      Type type = processType(inst->getType());
       if (!type)
         return failure();
       state.addTypes(type);
@@ -628,7 +789,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     return success();
   }
   case llvm::Instruction::PHI: {
-    LLVMType type = processType(inst->getType());
+    Type type = processType(inst->getType());
     if (!type)
       return failure();
     v = b.getInsertionBlock()->addArgument(type);
@@ -647,7 +808,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
 
     SmallVector<Type, 2> tys;
     if (!ci->getType()->isVoidTy()) {
-      LLVMType type = processType(inst->getType());
+      Type type = processType(inst->getType());
       if (!type)
         return failure();
       tys.push_back(type);
@@ -694,8 +855,8 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
       ops.push_back(processValue(op.get()));
 
     SmallVector<Value, 4> normalArgs, unwindArgs;
-    processBranchArgs(ii, ii->getNormalDest(), normalArgs);
-    processBranchArgs(ii, ii->getUnwindDest(), unwindArgs);
+    (void)processBranchArgs(ii, ii->getNormalDest(), normalArgs);
+    (void)processBranchArgs(ii, ii->getUnwindDest(), unwindArgs);
 
     Operation *op;
     if (llvm::Function *callee = ii->getCalledFunction()) {
@@ -776,7 +937,8 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
   instMap.clear();
   unknownInstMap.clear();
 
-  LLVMType functionType = processType(f->getFunctionType());
+  auto functionType =
+      processType(f->getFunctionType()).dyn_cast<LLVMFunctionType>();
   if (!functionType)
     return failure();
 
@@ -786,7 +948,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
                            convertLinkageFromLLVM(f->getLinkage()));
 
   if (FlatSymbolRefAttr personality = getPersonalityAsAttr(f))
-    fop.setAttr(b.getIdentifier("personality"), personality);
+    fop->setAttr(b.getIdentifier("personality"), personality);
   else if (f->hasPersonalityFn())
     emitWarning(UnknownLoc::get(context),
                 "could not deduce personality, skipping it");
@@ -804,8 +966,8 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
 
   // Add function arguments to the entry block.
   for (auto kv : llvm::enumerate(f->args()))
-    instMap[&kv.value()] = blockList[0]->addArgument(
-        functionType.getFunctionParamType(kv.index()));
+    instMap[&kv.value()] =
+        blockList[0]->addArgument(functionType.getParamType(kv.index()));
 
   for (auto bbs : llvm::zip(*f, blockList)) {
     if (failed(processBasicBlock(&std::get<0>(bbs), std::get<1>(bbs))))
@@ -838,7 +1000,7 @@ mlir::translateLLVMIRToModule(std::unique_ptr<llvm::Module> llvmModule,
                               MLIRContext *context) {
   context->loadDialect<LLVMDialect>();
   OwningModuleRef module(ModuleOp::create(
-      FileLineColLoc::get("", /*line=*/0, /*column=*/0, context)));
+      FileLineColLoc::get(context, "", /*line=*/0, /*column=*/0)));
 
   Importer deserializer(context, module.get());
   for (llvm::GlobalVariable &gv : llvmModule->globals()) {

@@ -1,0 +1,74 @@
+UNSUPPORTED: system-windows
+REQUIRES: libsycldevice
+
+Verify that the wrapper functions and the fallback functions are not marked
+with noinline attribute.
+
+RUN: llvm-spirv -r %libsycldevice_spv_dir/libsycl-fallback-cassert.spv -o %t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: llvm-spirv -r %libsycldevice_spv_dir/libsycl-fallback-cmath.spv -o %t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: llvm-spirv -r %libsycldevice_spv_dir/libsycl-fallback-cmath-fp64.spv -o %t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: llvm-spirv -r %libsycldevice_spv_dir/libsycl-fallback-complex.spv -o %t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: llvm-spirv -r %libsycldevice_spv_dir/libsycl-fallback-complex-fp64.spv -o %t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-fallback-cassert.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-fallback-cmath.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-fallback-cmath-fp64.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-fallback-complex.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-fallback-complex-fp64.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-crt.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-cmath.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-cmath-fp64.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-complex.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+RUN: clang-offload-bundler -type=o -unbundle \
+RUN:     -targets=sycl-spir64-unknown-unknown-sycldevice \
+RUN:     -inputs=%libsycldevice_obj_dir/libsycl-complex-fp64.o -outputs=%t.bc
+RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+CHECK: target triple ={{.*}}spir64
+CHECK-NOT: ; Function Attrs:{{.*}}noinline
+CHECK-NOT: attributes #{{[0-9]+}} ={{.*}}noinline

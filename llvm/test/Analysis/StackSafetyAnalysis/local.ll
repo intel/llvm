@@ -1,6 +1,6 @@
-; RUN: opt -S -analyze -stack-safety-local < %s | FileCheck %s --check-prefixes=CHECK,LOCAL
+; RUN: opt -S -analyze -stack-safety-local < %s -enable-new-pm=0 | FileCheck %s --check-prefixes=CHECK,LOCAL
 ; RUN: opt -S -passes="print<stack-safety-local>" -disable-output < %s 2>&1 | FileCheck %s --check-prefixes=CHECK,LOCAL
-; RUN: opt -S -analyze -stack-safety < %s | FileCheck %s --check-prefixes=CHECK,GLOBAL
+; RUN: opt -S -analyze -stack-safety < %s -enable-new-pm=0 | FileCheck %s --check-prefixes=CHECK,GLOBAL
 ; RUN: opt -S -passes="print-stack-safety" -disable-output < %s 2>&1 | FileCheck %s --check-prefixes=CHECK,GLOBAL
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -205,7 +205,7 @@ define void @NonConstantOffset(i1 zeroext %z) {
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
 ; FIXME: SCEV can't look through selects.
-; CHECK-NEXT: x[4]: [-4,4){{$}}
+; CHECK-NEXT: x[4]: [0,4){{$}}
 ; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
@@ -246,7 +246,7 @@ define void @NonConstantOffsetOOB(i1 zeroext %z) {
 ; CHECK-LABEL: @NonConstantOffsetOOB dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
-; CHECK-NEXT: x[4]: [-8,8){{$}}
+; CHECK-NEXT: x[4]: [0,6){{$}}
 ; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
@@ -445,7 +445,7 @@ entry:
   ret void
 }
 
-define void @ByVal(i16* byval %p) {
+define void @ByVal(i16* byval(i16) %p) {
   ; CHECK-LABEL: @ByVal dso_preemptable{{$}}
   ; CHECK-NEXT: args uses:
   ; CHECK-NEXT: allocas uses:
@@ -463,16 +463,16 @@ define void @TestByVal() {
 ; CHECK-EMPTY:
 entry:
   %x = alloca i16, align 4
-  call void @ByVal(i16* byval %x)
+  call void @ByVal(i16* byval(i16) %x)
 
   %y = alloca i64, align 4
   %y1 = bitcast i64* %y to i16*
-  call void @ByVal(i16* byval %y1)
-  
+  call void @ByVal(i16* byval(i16) %y1)
+
   ret void
 }
 
-declare void @ByValArray([100000 x i64]* byval %p)
+declare void @ByValArray([100000 x i64]* byval([100000 x i64]) %p)
 
 define void @TestByValArray() {
 ; CHECK-LABEL: @TestByValArray dso_preemptable{{$}}
@@ -485,7 +485,7 @@ entry:
   %z1 = bitcast [100000 x i64]* %z to i8*
   %z2 = getelementptr i8, i8* %z1, i64 500000
   %z3 = bitcast i8* %z2 to [100000 x i64]*
-  call void @ByValArray([100000 x i64]* byval %z3)
+  call void @ByValArray([100000 x i64]* byval([100000 x i64]) %z3)
   ret void
 }
 

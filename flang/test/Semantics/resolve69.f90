@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 subroutine s1()
   ! C701 (R701) The type-param-value for a kind type parameter shall be a
   ! constant expression.
@@ -36,7 +36,7 @@ subroutine s1()
   end type derived
 
   type (derived(constVal, 3)) :: constDerivedKind
-!ERROR: Value of kind type parameter 'typekind' (nonconstval) is not a scalar INTEGER constant
+!ERROR: Value of kind type parameter 'typekind' (nonconstval) must be a scalar INTEGER constant
 !ERROR: Invalid specification expression: reference to local entity 'nonconstval'
   type (derived(nonConstVal, 3)) :: nonConstDerivedKind
 

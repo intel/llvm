@@ -30,7 +30,7 @@ struct RTLInfoTy {
   typedef int32_t(number_of_devices_ty)();
   typedef int32_t(init_device_ty)(int32_t);
   typedef __tgt_target_table *(load_binary_ty)(int32_t, void *);
-  typedef void *(data_alloc_ty)(int32_t, int64_t, void *);
+  typedef void *(data_alloc_ty)(int32_t, int64_t, void *, int32_t);
   typedef int32_t(data_submit_ty)(int32_t, void *, void *, int64_t);
   typedef int32_t(data_submit_async_ty)(int32_t, void *, void *, int64_t,
                                         __tgt_async_info *);
@@ -53,6 +53,9 @@ struct RTLInfoTy {
                                             __tgt_async_info *);
   typedef int64_t(init_requires_ty)(int64_t);
   typedef int64_t(synchronize_ty)(int32_t, __tgt_async_info *);
+  typedef int32_t (*register_lib_ty)(__tgt_bin_desc *);
+  typedef int32_t(supports_empty_images_ty)();
+  typedef void(set_info_flag_ty)(uint32_t);
 
   int32_t Idx = -1;             // RTL index, index is the number of devices
                                 // of other RTLs that were registered before,
@@ -86,6 +89,10 @@ struct RTLInfoTy {
   run_team_region_async_ty *run_team_region_async = nullptr;
   init_requires_ty *init_requires = nullptr;
   synchronize_ty *synchronize = nullptr;
+  register_lib_ty register_lib = nullptr;
+  register_lib_ty unregister_lib = nullptr;
+  supports_empty_images_ty *supports_empty_images = nullptr;
+  set_info_flag_ty *set_info_flag = nullptr;
 
   // Are there images associated with this RTL.
   bool isUsed = false;
@@ -94,50 +101,10 @@ struct RTLInfoTy {
   // It is easier to enforce thread-safety at the libomptarget level,
   // so that developers of new RTLs do not have to worry about it.
   std::mutex Mtx;
-
-  // The existence of the mutex above makes RTLInfoTy non-copyable.
-  // We need to provide a copy constructor explicitly.
-  RTLInfoTy() = default;
-
-  RTLInfoTy(const RTLInfoTy &r) {
-    Idx = r.Idx;
-    NumberOfDevices = r.NumberOfDevices;
-    LibraryHandler = r.LibraryHandler;
-#ifdef OMPTARGET_DEBUG
-    RTLName = r.RTLName;
-#endif
-    is_valid_binary = r.is_valid_binary;
-    is_data_exchangable = r.is_data_exchangable;
-    number_of_devices = r.number_of_devices;
-    init_device = r.init_device;
-    load_binary = r.load_binary;
-    data_alloc = r.data_alloc;
-    data_submit = r.data_submit;
-    data_submit_async = r.data_submit_async;
-    data_retrieve = r.data_retrieve;
-    data_retrieve_async = r.data_retrieve_async;
-    data_exchange = r.data_exchange;
-    data_exchange_async = r.data_exchange_async;
-    data_delete = r.data_delete;
-    run_region = r.run_region;
-    run_region_async = r.run_region_async;
-    run_team_region = r.run_team_region;
-    run_team_region_async = r.run_team_region_async;
-    init_requires = r.init_requires;
-    isUsed = r.isUsed;
-    synchronize = r.synchronize;
-  }
 };
 
 /// RTLs identified in the system.
-class RTLsTy {
-private:
-  // Mutex-like object to guarantee thread-safety and unique initialization
-  // (i.e. the library attempts to load the RTLs (plugins) only once).
-  std::once_flag initFlag;
-  void LoadRTLs(); // not thread-safe
-
-public:
+struct RTLsTy {
   // List of the detected runtime libraries.
   std::list<RTLInfoTy> AllRTLs;
 
@@ -157,10 +124,12 @@ public:
 
   // Unregister a shared library from all RTLs.
   void UnregisterLib(__tgt_bin_desc *desc);
-};
-extern RTLsTy *RTLs;
-extern std::mutex *RTLsMtx;
 
+  // Mutex-like object to guarantee thread-safety and unique initialization
+  // (i.e. the library attempts to load the RTLs (plugins) only once).
+  std::once_flag initFlag;
+  void LoadRTLs(); // not thread-safe
+};
 
 /// Map between the host entry begin and the translation table. Each
 /// registered library gets one TranslationTable. Use the map from
@@ -177,8 +146,6 @@ struct TranslationTable {
 };
 typedef std::map<__tgt_offload_entry *, TranslationTable>
     HostEntriesBeginToTransTableTy;
-extern HostEntriesBeginToTransTableTy *HostEntriesBeginToTransTable;
-extern std::mutex *TrlTblMtx;
 
 /// Map between the host ptr and a table index
 struct TableMap {
@@ -189,7 +156,5 @@ struct TableMap {
       : Table(table), Index(index) {}
 };
 typedef std::map<void *, TableMap> HostPtrToTableMapTy;
-extern HostPtrToTableMapTy *HostPtrToTableMap;
-extern std::mutex *TblMapMtx;
 
 #endif

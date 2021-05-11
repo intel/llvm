@@ -239,6 +239,7 @@ inline void SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>::init() {
   add(Attribute::StructRet, FunctionParameterAttributeSret);
   add(Attribute::NoAlias, FunctionParameterAttributeNoAlias);
   add(Attribute::NoCapture, FunctionParameterAttributeNoCapture);
+  add(Attribute::ReadOnly, FunctionParameterAttributeNoWrite);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>
     SPIRSPIRVFuncParamAttrMap;
@@ -250,6 +251,7 @@ SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>::init() {
   add(Attribute::ReadOnly, FunctionControlConstMask);
   add(Attribute::AlwaysInline, FunctionControlInlineMask);
   add(Attribute::NoInline, FunctionControlDontInlineMask);
+  add(Attribute::OptimizeNone, internal::FunctionControlOptNoneINTELMask);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>
     SPIRSPIRVFuncCtlMaskMap;
@@ -398,6 +400,9 @@ const static char MaxWGSize[] = "max_work_group_size";
 const static char NoGlobalOffset[] = "no_global_work_offset";
 const static char MaxWGDim[] = "max_global_work_dim";
 const static char NumSIMD[] = "num_simd_work_items";
+const static char StallEnable[] = "stall_enable";
+const static char FmaxMhz[] = "scheduler_target_fmax_mhz";
+const static char LoopFuse[] = "loop_fuse";
 } // namespace kSPIR2MD
 
 enum Spir2SamplerKind {
@@ -938,7 +943,19 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
 /// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
 /// manner
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
-                                           ArrayRef<Type *> ArgTys);
+                                           ArrayRef<Type *> ArgTys,
+                                           Type *RetTy = nullptr);
+
+/// Mangle a function in SPIR-V friendly IR manner
+/// \param UniqName full unmangled name of the SPIR-V built-in function that
+/// contains possible postfixes that depend not on opcode but on decorations or
+/// return type, for example __spirv_UConvert_Rint_sat.
+/// \param OC opcode of corresponding built-in instruction. Used to gather info
+/// for unsigned/constant arguments.
+/// \param Types of arguments of SPIR-V built-in function
+/// \return IA64 mangled name.
+std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
+                                           spv::Op OC, ArrayRef<Type *> ArgTys);
 
 /// Remove cast from a value.
 Value *removeCast(Value *V);

@@ -69,6 +69,18 @@ Pass *llvm::createRedundantDbgInstEliminationPass() {
   return new RedundantDbgInstElimination();
 }
 
+PreservedAnalyses
+RedundantDbgInstEliminationPass::run(Function &F, FunctionAnalysisManager &AM) {
+  bool Changed = false;
+  for (auto &BB : F)
+    Changed |= RemoveRedundantDbgInstrs(&BB);
+  if (!Changed)
+    return PreservedAnalyses::all();
+  PreservedAnalyses PA;
+  PA.preserveSet<CFGAnalyses>();
+  return PA;
+}
+
 //===--------------------------------------------------------------------===//
 // DeadCodeElimination pass implementation
 //
@@ -113,14 +125,11 @@ static bool eliminateDeadCode(Function &F, TargetLibraryInfo *TLI) {
   // Iterate over the original function, only adding insts to the worklist
   // if they actually need to be revisited. This avoids having to pre-init
   // the worklist with the entire function's worth of instructions.
-  for (inst_iterator FI = inst_begin(F), FE = inst_end(F); FI != FE;) {
-    Instruction *I = &*FI;
-    ++FI;
-
+  for (Instruction &I : llvm::make_early_inc_range(instructions(F))) {
     // We're visiting this instruction now, so make sure it's not in the
     // worklist from an earlier visit.
-    if (!WorkList.count(I))
-      MadeChange |= DCEInstruction(I, WorkList, TLI);
+    if (!WorkList.count(&I))
+      MadeChange |= DCEInstruction(&I, WorkList, TLI);
   }
 
   while (!WorkList.empty()) {
@@ -131,7 +140,7 @@ static bool eliminateDeadCode(Function &F, TargetLibraryInfo *TLI) {
 }
 
 PreservedAnalyses DCEPass::run(Function &F, FunctionAnalysisManager &AM) {
-  if (!eliminateDeadCode(F, AM.getCachedResult<TargetLibraryAnalysis>(F)))
+  if (!eliminateDeadCode(F, &AM.getResult<TargetLibraryAnalysis>(F)))
     return PreservedAnalyses::all();
 
   PreservedAnalyses PA;
@@ -150,13 +159,14 @@ struct DCELegacyPass : public FunctionPass {
     if (skipFunction(F))
       return false;
 
-    auto *TLIP = getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
-    TargetLibraryInfo *TLI = TLIP ? &TLIP->getTLI(F) : nullptr;
+    TargetLibraryInfo *TLI =
+        &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
 
     return eliminateDeadCode(F, TLI);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.setPreservesCFG();
   }
 };

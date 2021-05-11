@@ -20,3 +20,33 @@ add_entrypoint_object(
     libc.src.signal.raise
     ._Exit
 )
+
+add_entrypoint_object(
+  abs
+  SRCS
+    abs.cpp
+  HDRS
+    abs.h
+  DEPENDS
+    libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  labs
+  SRCS
+    labs.cpp
+  HDRS
+    labs.h
+  DEPENDS
+    libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  llabs
+  SRCS
+    llabs.cpp
+  HDRS
+    llabs.h
+  DEPENDS
+    libc.src.__support.integer_operations
+)

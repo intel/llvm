@@ -197,42 +197,36 @@ bool PlatformRemoteDarwinDevice::UpdateSDKDirectoryInfosIfNeeded() {
         }
       }
 
-      std::vector<std::string>  device_support_dirnames;
-      GetDeviceSupportDirectoryNames (device_support_dirnames);
-
-      for (std::string &dirname : device_support_dirnames)
-      {
-        const uint32_t num_installed = m_sdk_directory_infos.size();
-        std::string local_sdk_cache_str = "~/Library/Developer/Xcode/";
-        local_sdk_cache_str += dirname;
-        FileSpec local_sdk_cache(local_sdk_cache_str.c_str());
-        FileSystem::Instance().Resolve(local_sdk_cache);
-        if (FileSystem::Instance().Exists(local_sdk_cache)) {
-          if (log) {
-            LLDB_LOGF(
-                log,
-                "PlatformRemoteDarwinDevice::UpdateSDKDirectoryInfosIfNeeded "
-                "searching %s for additional SDKs",
-                local_sdk_cache.GetPath().c_str());
-          }
-            char path[PATH_MAX];
-            if (local_sdk_cache.GetPath(path, sizeof(path))) {
-              FileSystem::Instance().EnumerateDirectory(
-                  path, find_directories, find_files, find_other,
-                  GetContainedFilesIntoVectorOfStringsCallback,
-                  &m_sdk_directory_infos);
-              const uint32_t num_sdk_infos = m_sdk_directory_infos.size();
-              // First try for an exact match of major, minor and update
-              for (uint32_t i = num_installed; i < num_sdk_infos; ++i) {
-                m_sdk_directory_infos[i].user_cached = true;
-                if (log) {
-                  LLDB_LOGF(
-                      log,
-                      "PlatformRemoteDarwinDevice::"
-                      "UpdateSDKDirectoryInfosIfNeeded "
-                      "user SDK directory %s",
-                      m_sdk_directory_infos[i].directory.GetPath().c_str());
-                }
+      const uint32_t num_installed = m_sdk_directory_infos.size();
+      llvm::StringRef dirname = GetDeviceSupportDirectoryName();
+      std::string local_sdk_cache_str = "~/Library/Developer/Xcode/";
+      local_sdk_cache_str += std::string(dirname);
+      FileSpec local_sdk_cache(local_sdk_cache_str.c_str());
+      FileSystem::Instance().Resolve(local_sdk_cache);
+      if (FileSystem::Instance().Exists(local_sdk_cache)) {
+        if (log) {
+          LLDB_LOGF(
+              log,
+              "PlatformRemoteDarwinDevice::UpdateSDKDirectoryInfosIfNeeded "
+              "searching %s for additional SDKs",
+              local_sdk_cache.GetPath().c_str());
+        }
+        char path[PATH_MAX];
+        if (local_sdk_cache.GetPath(path, sizeof(path))) {
+          FileSystem::Instance().EnumerateDirectory(
+              path, find_directories, find_files, find_other,
+              GetContainedFilesIntoVectorOfStringsCallback,
+              &m_sdk_directory_infos);
+          const uint32_t num_sdk_infos = m_sdk_directory_infos.size();
+          // First try for an exact match of major, minor and update
+          for (uint32_t i = num_installed; i < num_sdk_infos; ++i) {
+            m_sdk_directory_infos[i].user_cached = true;
+            if (log) {
+              LLDB_LOGF(log,
+                        "PlatformRemoteDarwinDevice::"
+                        "UpdateSDKDirectoryInfosIfNeeded "
+                        "user SDK directory %s",
+                        m_sdk_directory_infos[i].directory.GetPath().c_str());
             }
           }
         }
@@ -341,7 +335,8 @@ PlatformRemoteDarwinDevice::GetSDKDirectoryForLatestOSVersion() {
 }
 
 const char *PlatformRemoteDarwinDevice::GetDeviceSupportDirectory() {
-  std::string platform_dir = "/Platforms/" + GetPlatformName() + "/DeviceSupport";
+  std::string platform_dir =
+      ("/Platforms/" + GetPlatformName() + "/DeviceSupport").str();
   if (m_device_support_directory.empty()) {
     if (FileSpec fspec = HostInfo::GetXcodeDeveloperDirectory()) {
       m_device_support_directory = fspec.GetPath();
@@ -504,8 +499,8 @@ Status PlatformRemoteDarwinDevice::GetSymbolFile(const FileSpec &platform_file,
 
 Status PlatformRemoteDarwinDevice::GetSharedModule(
     const ModuleSpec &module_spec, Process *process, ModuleSP &module_sp,
-    const FileSpecList *module_search_paths_ptr, ModuleSP *old_module_sp_ptr,
-    bool *did_create_ptr) {
+    const FileSpecList *module_search_paths_ptr,
+    llvm::SmallVectorImpl<ModuleSP> *old_modules, bool *did_create_ptr) {
   // For iOS, the SDK files are all cached locally on the host system. So first
   // we ask for the file in the cached SDK, then we attempt to get a shared
   // module for the right architecture with the right UUID.
@@ -608,24 +603,25 @@ Status PlatformRemoteDarwinDevice::GetSharedModule(
   // This may not be an SDK-related module.  Try whether we can bring in the
   // thing to our local cache.
   error = GetSharedModuleWithLocalCache(module_spec, module_sp,
-                                        module_search_paths_ptr,
-                                        old_module_sp_ptr, did_create_ptr);
+                                        module_search_paths_ptr, old_modules,
+                                        did_create_ptr);
   if (error.Success())
     return error;
 
   // See if the file is present in any of the module_search_paths_ptr
   // directories.
   if (!module_sp)
-    error = PlatformDarwin::FindBundleBinaryInExecSearchPaths (module_spec, process, module_sp,
-            module_search_paths_ptr, old_module_sp_ptr, did_create_ptr);
+    error = PlatformDarwin::FindBundleBinaryInExecSearchPaths(
+        module_spec, process, module_sp, module_search_paths_ptr, old_modules,
+        did_create_ptr);
 
   if (error.Success())
     return error;
 
   const bool always_create = false;
-  error = ModuleList::GetSharedModule(
-      module_spec, module_sp, module_search_paths_ptr, old_module_sp_ptr,
-      did_create_ptr, always_create);
+  error = ModuleList::GetSharedModule(module_spec, module_sp,
+                                      module_search_paths_ptr, old_modules,
+                                      did_create_ptr, always_create);
 
   if (module_sp)
     module_sp->SetPlatformFileSpec(platform_file);

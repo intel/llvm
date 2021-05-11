@@ -83,6 +83,9 @@ struct TestEachIntegralType {
         TestFunctor<long long>()();
         TestFunctor<unsigned long long>()();
         TestFunctor<wchar_t>();
+#if TEST_STD_VER > 17 && defined(__cpp_char8_t)
+        TestFunctor<char8_t>()();
+#endif
 #ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
         TestFunctor<char16_t>()();
         TestFunctor<char32_t>()();
@@ -103,13 +106,14 @@ struct TestEachAtomicType {
     void operator()() const {
         TestEachIntegralType<TestFunctor>()();
         TestFunctor<UserAtomicType>()();
-#ifndef __APPLE__
         /*
-            These aren't going to be lock-free,
-            so some libatomic.a is necessary.
+            Note: These aren't going to be lock-free,
+            so some libatomic.a is necessary. To handle
+            the case where the support functions are
+            missing, all tests that use this file should add:
+            XFAIL: !non-lockfree-atomics
         */
         TestFunctor<LargeUserAtomicType>()();
-#endif
 /*
     Enable these once we have P0528 
     

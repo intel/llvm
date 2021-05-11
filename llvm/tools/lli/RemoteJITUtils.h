@@ -13,7 +13,7 @@
 #ifndef LLVM_TOOLS_LLI_REMOTEJITUTILS_H
 #define LLVM_TOOLS_LLI_REMOTEJITUTILS_H
 
-#include "llvm/ExecutionEngine/Orc/RPC/FDRawByteChannel.h"
+#include "llvm/ExecutionEngine/Orc/Shared/FDRawByteChannel.h"
 #include "llvm/ExecutionEngine/RTDyldMemoryManager.h"
 #include <mutex>
 
@@ -24,7 +24,7 @@
 #endif
 
 // launch the remote process (see lli.cpp) and return a channel to it.
-std::unique_ptr<llvm::orc::rpc::FDRawByteChannel> launchRemote();
+std::unique_ptr<llvm::orc::shared::FDRawByteChannel> launchRemote();
 
 namespace llvm {
 
@@ -98,6 +98,27 @@ public:
 private:
   std::unique_ptr<RuntimeDyld::MemoryManager> MemMgr;
   std::shared_ptr<LegacyJITSymbolResolver> Resolver;
+};
+
+template <typename RemoteT>
+class RemoteResolver : public LegacyJITSymbolResolver {
+public:
+
+  RemoteResolver(RemoteT &R) : R(R) {}
+
+  JITSymbol findSymbol(const std::string &Name) override {
+    if (auto Addr = R.getSymbolAddress(Name))
+      return JITSymbol(*Addr, JITSymbolFlags::Exported);
+    else
+      return Addr.takeError();
+  }
+
+  JITSymbol findSymbolInLogicalDylib(const std::string &Name) override {
+    return nullptr;
+  }
+
+public:
+  RemoteT &R;
 };
 }
 

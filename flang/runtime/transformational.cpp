@@ -7,32 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "transformational.h"
-#include "memory.h"
 #include "terminator.h"
+#include "tools.h"
 #include <algorithm>
 #include <cinttypes>
 
 namespace Fortran::runtime {
 
-static inline std::int64_t GetInt64(const char *p, std::size_t bytes) {
-  switch (bytes) {
-  case 1:
-    return *reinterpret_cast<const std::int8_t *>(p);
-  case 2:
-    return *reinterpret_cast<const std::int16_t *>(p);
-  case 4:
-    return *reinterpret_cast<const std::int32_t *>(p);
-  case 8:
-    return *reinterpret_cast<const std::int64_t *>(p);
-  default:
-    Terminator terminator{__FILE__, __LINE__};
-    terminator.Crash("no case for %dz bytes", bytes);
-  }
-}
-
 // F2018 16.9.163
-OwningPtr<Descriptor> RESHAPE(const Descriptor &source, const Descriptor &shape,
-    const Descriptor *pad, const Descriptor *order) {
+OwningPtr<Descriptor> RTNAME(Reshape)(const Descriptor &source,
+    const Descriptor &shape, const Descriptor *pad, const Descriptor *order) {
   // Compute and check the rank of the result.
   Terminator terminator{__FILE__, __LINE__};
   RUNTIME_CHECK(terminator, shape.rank() == 1);
@@ -90,7 +74,7 @@ OwningPtr<Descriptor> RESHAPE(const Descriptor &source, const Descriptor &shape,
 
   // Create and populate the result's descriptor.
   const DescriptorAddendum *sourceAddendum{source.Addendum()};
-  const DerivedType *sourceDerivedType{
+  const typeInfo::DerivedType *sourceDerivedType{
       sourceAddendum ? sourceAddendum->derivedType() : nullptr};
   OwningPtr<Descriptor> result;
   if (sourceDerivedType) {
@@ -105,7 +89,7 @@ OwningPtr<Descriptor> RESHAPE(const Descriptor &source, const Descriptor &shape,
   RUNTIME_CHECK(terminator, resultAddendum);
   resultAddendum->flags() |= DescriptorAddendum::DoNotFinalize;
   if (sourceDerivedType) {
-    std::size_t lenParameters{sourceDerivedType->lenParameters()};
+    std::size_t lenParameters{sourceAddendum->LenParameters()};
     for (std::size_t j{0}; j < lenParameters; ++j) {
       resultAddendum->SetLenParameterValue(
           j, sourceAddendum->LenParameterValue(j));

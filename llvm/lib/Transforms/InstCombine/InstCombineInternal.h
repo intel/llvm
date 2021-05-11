@@ -97,9 +97,7 @@ public:
   Instruction *visitSRem(BinaryOperator &I);
   Instruction *visitFRem(BinaryOperator &I);
   bool simplifyDivRemOfSelectWithZeroOp(BinaryOperator &I);
-  Instruction *commonRemTransforms(BinaryOperator &I);
   Instruction *commonIRemTransforms(BinaryOperator &I);
-  Instruction *commonDivTransforms(BinaryOperator &I);
   Instruction *commonIDivTransforms(BinaryOperator &I);
   Instruction *visitUDiv(BinaryOperator &I);
   Instruction *visitSDiv(BinaryOperator &I);
@@ -107,6 +105,7 @@ public:
   Value *simplifyRangeCheck(ICmpInst *Cmp0, ICmpInst *Cmp1, bool Inverted);
   Instruction *visitAnd(BinaryOperator &I);
   Instruction *visitOr(BinaryOperator &I);
+  bool sinkNotIntoOtherHandOfAndOrOr(BinaryOperator &I);
   Instruction *visitXor(BinaryOperator &I);
   Instruction *visitShl(BinaryOperator &I);
   Value *reassociateShiftAmtsOfTwoSameDirectionShifts(
@@ -184,15 +183,11 @@ public:
   bool replacedSelectWithOperand(SelectInst *SI, const ICmpInst *Icmp,
                                  const unsigned SIOpd);
 
-  /// Try to replace instruction \p I with value \p V which are pointers
-  /// in different address space.
-  /// \return true if successful.
-  bool replacePointer(Instruction &I, Value *V);
-
   LoadInst *combineLoadToNewType(LoadInst &LI, Type *NewTy,
                                  const Twine &Suffix = "");
 
 private:
+  void annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI);
   bool shouldChangeType(unsigned FromBitWidth, unsigned ToBitWidth) const;
   bool shouldChangeType(Type *From, Type *To) const;
   Value *dyn_castNegVal(Value *V) const;
@@ -326,9 +321,11 @@ private:
   Instruction *narrowBinOp(TruncInst &Trunc);
   Instruction *narrowMaskedBinOp(BinaryOperator &And);
   Instruction *narrowMathIfNoOverflow(BinaryOperator &I);
-  Instruction *narrowRotate(TruncInst &Trunc);
+  Instruction *narrowFunnelShift(TruncInst &Trunc);
   Instruction *optimizeBitCastFromPhi(CastInst &CI, PHINode *PN);
   Instruction *matchSAddSubSat(SelectInst &MinMax1);
+
+  void freelyInvertAllUsersOf(Value *V);
 
   /// Determine if a pair of casts can be replaced by a single cast.
   ///
@@ -402,6 +399,7 @@ public:
                       << "    with " << *V << '\n');
 
     I.replaceAllUsesWith(V);
+    MadeIRChange = true;
     return &I;
   }
 
@@ -713,17 +711,16 @@ public:
   Instruction *foldSelectInstWithICmp(SelectInst &SI, ICmpInst *ICI);
   Instruction *foldSelectValueEquivalence(SelectInst &SI, ICmpInst &ICI);
 
-  Instruction *OptAndOp(BinaryOperator *Op, ConstantInt *OpRHS,
-                        ConstantInt *AndRHS, BinaryOperator &TheAnd);
-
   Value *insertRangeTest(Value *V, const APInt &Lo, const APInt &Hi,
                          bool isSigned, bool Inside);
   Instruction *PromoteCastOfAllocation(BitCastInst &CI, AllocaInst &AI);
   bool mergeStoreIntoSuccessor(StoreInst &SI);
 
-  /// Given an 'or' instruction, check to see if it is part of a bswap idiom.
-  /// If so, return the equivalent bswap intrinsic.
-  Instruction *matchBSwap(BinaryOperator &Or);
+  /// Given an initial instruction, check to see if it is the root of a
+  /// bswap/bitreverse idiom. If so, return the equivalent bswap/bitreverse
+  /// intrinsic.
+  Instruction *matchBSwapOrBitReverse(Instruction &I, bool MatchBSwaps,
+                                      bool MatchBitReversals);
 
   Instruction *SimplifyAnyMemTransfer(AnyMemTransferInst *MI);
   Instruction *SimplifyAnyMemSet(AnyMemSetInst *MI);
@@ -761,6 +758,8 @@ class Negator final {
 
   using Result = std::pair<ArrayRef<Instruction *> /*NewInstructions*/,
                            Value * /*NegatedRoot*/>;
+
+  std::array<Value *, 2> getSortedOperandsOfBinOp(Instruction *I);
 
   LLVM_NODISCARD Value *visitImpl(Value *V, unsigned Depth);
 

@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
 ! Test 15.7 (C1583-C1590, C1592-C1599) constraints and restrictions
 ! for pure procedures.
 ! (C1591 is tested in call11.f90; C1594 in call12.f90.)
@@ -157,8 +157,9 @@ module m
     close(1) ! C1597
     !ERROR: External I/O is not allowed in a pure subprogram
     backspace(1) ! C1597
+    !Also checks parsing of variant END FILE spelling
     !ERROR: External I/O is not allowed in a pure subprogram
-    endfile(1) ! C1597
+    end file(1) ! C1597
     !ERROR: External I/O is not allowed in a pure subprogram
     rewind(1) ! C1597
     !ERROR: External I/O is not allowed in a pure subprogram

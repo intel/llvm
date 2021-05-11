@@ -198,7 +198,7 @@ JSONCompilationDatabase::loadFromFile(StringRef FilePath,
                                       JSONCommandLineSyntax Syntax) {
   // Don't mmap: if we're a long-lived process, the build system may overwrite.
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> DatabaseBuffer =
-      llvm::MemoryBuffer::getFile(FilePath, /*FileSize=*/-1,
+      llvm::MemoryBuffer::getFile(FilePath, /*IsText=*/false,
                                   /*RequiresNullTerminator=*/true,
                                   /*IsVolatile=*/true);
   if (std::error_code Result = DatabaseBuffer.getError()) {
@@ -217,7 +217,7 @@ JSONCompilationDatabase::loadFromBuffer(StringRef DatabaseString,
                                         std::string &ErrorMessage,
                                         JSONCommandLineSyntax Syntax) {
   std::unique_ptr<llvm::MemoryBuffer> DatabaseBuffer(
-      llvm::MemoryBuffer::getMemBuffer(DatabaseString));
+      llvm::MemoryBuffer::getMemBufferCopy(DatabaseString));
   std::unique_ptr<JSONCompilationDatabase> Database(
       new JSONCompilationDatabase(std::move(DatabaseBuffer), Syntax));
   if (!Database->parse(ErrorMessage))
@@ -272,7 +272,8 @@ static bool unwrapCommand(std::vector<std::string> &Args) {
     return false;
   StringRef Wrapper =
       stripExecutableExtension(llvm::sys::path::filename(Args.front()));
-  if (Wrapper == "distcc" || Wrapper == "gomacc" || Wrapper == "ccache") {
+  if (Wrapper == "distcc" || Wrapper == "gomacc" || Wrapper == "ccache" ||
+      Wrapper == "sccache") {
     // Most of these wrappers support being invoked 3 ways:
     // `distcc g++ file.c` This is the mode we're trying to match.
     //                     We need to drop `distcc`.

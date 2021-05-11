@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -verify -pedantic -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -Wno-sycl-2017-compat -verify -pedantic -DTRIGGER_ERROR %s
 
 #include "Inputs/sycl.hpp"
 
@@ -86,7 +86,7 @@ int main() {
         accessorD.use();
         //expected-error@+1{{sixth template parameter of the accessor must be of accessor_property_list type}}
         accessorE.use();
-        //expected-error@+1{{Can't apply buffer_location property twice to the same accessor}}
+        //expected-error@+1{{can't apply buffer_location property twice to the same accessor}}
         accessorF.use();
 #endif
       });

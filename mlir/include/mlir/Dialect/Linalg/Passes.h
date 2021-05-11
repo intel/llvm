@@ -16,10 +16,12 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+std::unique_ptr<OperationPass<FuncOp>> createConvertElementwiseToLinalgPass();
+
 std::unique_ptr<OperationPass<FuncOp>> createLinalgFoldUnitExtentDimsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createLinalgFusionPass();
 std::unique_ptr<Pass> createLinalgFusionOfTensorOpsPass();
+std::unique_ptr<Pass> createFoldReshapeOpsByLinearizationPass();
 
 std::unique_ptr<OperationPass<FuncOp>>
 createLinalgTilingPass(ArrayRef<int64_t> tileSizes = {});
@@ -32,11 +34,11 @@ createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca);
 std::unique_ptr<OperationPass<FuncOp>> createLinalgPromotionPass();
 
 /// Create a pass to convert Linalg operations to scf.for loops and
-/// std.load/std.store accesses.
+/// memref.load/memref.store accesses.
 std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToLoopsPass();
 
 /// Create a pass to convert Linalg operations to scf.parallel loops and
-/// std.load/std.store accesses.
+/// memref.load/memref.store accesses.
 std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToParallelLoopsPass();
 
 /// Create a pass to convert Linalg operations to affine.for loops and
@@ -46,17 +48,15 @@ std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToAffineLoopsPass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.
-std::unique_ptr<OperationPass<ModuleOp>>
-createConvertLinalgOnTensorsToBuffersPass();
+std::unique_ptr<OperationPass<FuncOp>> createLinalgBufferizePass();
 
-/// Patterns for fusing linalg operation on tensors.
-void populateLinalgTensorOpsFusionPatterns(MLIRContext *context,
-                                           OwningRewritePatternList &patterns);
+/// Create a pass to conver named Linalg operations to Linalg generic
+/// operations.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgGeneralizationPass();
 
-/// Patterns to fold unit-extent dimensions in operands/results of linalg ops on
-/// tensors.
-void populateLinalgFoldUnitExtentDimsPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns);
+/// Create a pass to convert Linalg operations to equivalent operations that
+/// work on primitive types, if possible.
+std::unique_ptr<Pass> createLinalgDetensorizePass();
 
 //===----------------------------------------------------------------------===//
 // Registration

@@ -6,10 +6,9 @@ define void @to_4(float* nocapture readonly %x, half* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI0_0
 ; CHECK-NEXT:    mov.w lr, #256
+; CHECK-NEXT:    adr r2, .LCPI0_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB0_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q1, [r0], #16
@@ -52,10 +51,9 @@ define void @to_8(float* nocapture readonly %x, half* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI1_0
 ; CHECK-NEXT:    mov.w lr, #128
+; CHECK-NEXT:    adr r2, .LCPI1_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB1_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q1, [r0, #16]
@@ -102,10 +100,9 @@ define void @to_16(float* nocapture readonly %x, half* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI2_0
 ; CHECK-NEXT:    mov.w lr, #64
+; CHECK-NEXT:    adr r2, .LCPI2_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB2_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q1, [r0, #48]
@@ -160,10 +157,9 @@ define void @from_4(half* nocapture readonly %x, float* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI3_0
 ; CHECK-NEXT:    mov.w lr, #256
+; CHECK-NEXT:    adr r2, .LCPI3_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB3_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrh.u32 q1, [r0], #8
@@ -206,10 +202,9 @@ define void @from_8(half* nocapture readonly %x, float* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI4_0
 ; CHECK-NEXT:    mov.w lr, #128
+; CHECK-NEXT:    adr r2, .LCPI4_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB4_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrh.u32 q1, [r0, #8]
@@ -256,10 +251,9 @@ define void @from_16(half* nocapture readonly %x, float* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI5_0
 ; CHECK-NEXT:    mov.w lr, #64
+; CHECK-NEXT:    adr r2, .LCPI5_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB5_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrh.u32 q1, [r0, #24]
@@ -314,10 +308,9 @@ define void @both_4(half* nocapture readonly %x, half* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI6_0
 ; CHECK-NEXT:    mov.w lr, #256
+; CHECK-NEXT:    adr r2, .LCPI6_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB6_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrh.u32 q1, [r0], #8
@@ -362,22 +355,19 @@ define void @both_8(half* nocapture readonly %x, half* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI7_0
 ; CHECK-NEXT:    mov.w lr, #128
+; CHECK-NEXT:    adr r2, .LCPI7_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB7_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    vldrh.u32 q1, [r0, #8]
-; CHECK-NEXT:    vcvtb.f32.f16 q1, q1
+; CHECK-NEXT:    vldrh.u16 q1, [r0], #16
+; CHECK-NEXT:    vcvtb.f32.f16 q2, q1
+; CHECK-NEXT:    vcvtt.f32.f16 q1, q1
+; CHECK-NEXT:    vmul.f32 q2, q2, q0
 ; CHECK-NEXT:    vmul.f32 q1, q1, q0
-; CHECK-NEXT:    vcvtb.f16.f32 q1, q1
-; CHECK-NEXT:    vstrh.32 q1, [r1, #8]
-; CHECK-NEXT:    vldrh.u32 q1, [r0], #16
-; CHECK-NEXT:    vcvtb.f32.f16 q1, q1
-; CHECK-NEXT:    vmul.f32 q1, q1, q0
-; CHECK-NEXT:    vcvtb.f16.f32 q1, q1
-; CHECK-NEXT:    vstrh.32 q1, [r1], #16
+; CHECK-NEXT:    vcvtb.f16.f32 q2, q2
+; CHECK-NEXT:    vcvtt.f16.f32 q2, q1
+; CHECK-NEXT:    vstrb.8 q2, [r1], #16
 ; CHECK-NEXT:    le lr, .LBB7_1
 ; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r7, pc}
@@ -415,32 +405,27 @@ define void @both_16(half* nocapture readonly %x, half* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI8_0
 ; CHECK-NEXT:    mov.w lr, #64
+; CHECK-NEXT:    adr r2, .LCPI8_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB8_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    vldrh.u32 q1, [r0, #24]
-; CHECK-NEXT:    vcvtb.f32.f16 q1, q1
+; CHECK-NEXT:    vldrh.u16 q1, [r0, #16]
+; CHECK-NEXT:    vcvtb.f32.f16 q2, q1
+; CHECK-NEXT:    vcvtt.f32.f16 q1, q1
+; CHECK-NEXT:    vmul.f32 q2, q2, q0
 ; CHECK-NEXT:    vmul.f32 q1, q1, q0
-; CHECK-NEXT:    vcvtb.f16.f32 q1, q1
-; CHECK-NEXT:    vstrh.32 q1, [r1, #24]
-; CHECK-NEXT:    vldrh.u32 q1, [r0, #16]
-; CHECK-NEXT:    vcvtb.f32.f16 q1, q1
+; CHECK-NEXT:    vcvtb.f16.f32 q2, q2
+; CHECK-NEXT:    vcvtt.f16.f32 q2, q1
+; CHECK-NEXT:    vldrh.u16 q1, [r0], #32
+; CHECK-NEXT:    vstrh.16 q2, [r1, #16]
+; CHECK-NEXT:    vcvtb.f32.f16 q2, q1
+; CHECK-NEXT:    vcvtt.f32.f16 q1, q1
+; CHECK-NEXT:    vmul.f32 q2, q2, q0
 ; CHECK-NEXT:    vmul.f32 q1, q1, q0
-; CHECK-NEXT:    vcvtb.f16.f32 q1, q1
-; CHECK-NEXT:    vstrh.32 q1, [r1, #16]
-; CHECK-NEXT:    vldrh.u32 q1, [r0, #8]
-; CHECK-NEXT:    vcvtb.f32.f16 q1, q1
-; CHECK-NEXT:    vmul.f32 q1, q1, q0
-; CHECK-NEXT:    vcvtb.f16.f32 q1, q1
-; CHECK-NEXT:    vstrh.32 q1, [r1, #8]
-; CHECK-NEXT:    vldrh.u32 q1, [r0], #32
-; CHECK-NEXT:    vcvtb.f32.f16 q1, q1
-; CHECK-NEXT:    vmul.f32 q1, q1, q0
-; CHECK-NEXT:    vcvtb.f16.f32 q1, q1
-; CHECK-NEXT:    vstrh.32 q1, [r1], #32
+; CHECK-NEXT:    vcvtb.f16.f32 q2, q2
+; CHECK-NEXT:    vcvtt.f16.f32 q2, q1
+; CHECK-NEXT:    vstrh.16 q2, [r1], #32
 ; CHECK-NEXT:    le lr, .LBB8_1
 ; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r7, pc}
@@ -478,10 +463,9 @@ define void @both_8_I(half* nocapture readonly %x, half* noalias nocapture %y) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI9_0
 ; CHECK-NEXT:    mov.w lr, #128
+; CHECK-NEXT:    adr r2, .LCPI9_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB9_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrh.u16 q1, [r0], #16
@@ -534,10 +518,9 @@ define void @both_16_I(half* nocapture readonly %x, half* noalias nocapture %y) 
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
 ; CHECK-NEXT:    push {r7, lr}
-; CHECK-NEXT:    adr r2, .LCPI10_0
 ; CHECK-NEXT:    mov.w lr, #128
+; CHECK-NEXT:    adr r2, .LCPI10_0
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB10_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrh.u16 q1, [r0]

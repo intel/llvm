@@ -92,26 +92,20 @@ namespace llvm {
     /// with the element type converted to an integer type with the same
     /// bitwidth.
     EVT changeVectorElementTypeToInteger() const {
-      if (!isSimple())
-        return changeExtendedVectorElementTypeToInteger();
-      MVT EltTy = getSimpleVT().getVectorElementType();
-      unsigned BitWidth = EltTy.getSizeInBits();
-      MVT IntTy = MVT::getIntegerVT(BitWidth);
-      MVT VecTy = MVT::getVectorVT(IntTy, getVectorElementCount());
-      assert(VecTy.SimpleTy != MVT::INVALID_SIMPLE_VALUE_TYPE &&
-             "Simple vector VT not representable by simple integer vector VT!");
-      return VecTy;
+      if (isSimple())
+        return getSimpleVT().changeVectorElementTypeToInteger();
+      return changeExtendedVectorElementTypeToInteger();
     }
 
     /// Return a VT for a vector type whose attributes match ourselves
     /// with the exception of the element type that is chosen by the caller.
     EVT changeVectorElementType(EVT EltVT) const {
-      if (!isSimple())
-        return changeExtendedVectorElementType(EltVT);
-      MVT VecTy = MVT::getVectorVT(EltVT.V, getVectorElementCount());
-      assert(VecTy.SimpleTy != MVT::INVALID_SIMPLE_VALUE_TYPE &&
-             "Simple vector VT not representable by simple integer vector VT!");
-      return VecTy;
+      if (isSimple()) {
+        assert(EltVT.isSimple() &&
+               "Can't change simple vector VT to have extended element VT");
+        return getSimpleVT().changeVectorElementType(EltVT.getSimpleVT());
+      }
+      return changeExtendedVectorElementType(EltVT);
     }
 
     /// Return the type converted to an equivalently sized integer or vector
@@ -122,8 +116,7 @@ namespace llvm {
         return changeVectorElementTypeToInteger();
 
       if (isSimple())
-        return MVT::getIntegerVT(getSizeInBits());
-
+        return getSimpleVT().changeTypeToInteger();
       return changeExtendedTypeToInteger();
     }
 
@@ -214,9 +207,7 @@ namespace llvm {
     }
 
     /// Return true if the bit size is a multiple of 8.
-    bool isByteSized() const {
-      return getSizeInBits().isByteSized();
-    }
+    bool isByteSized() const { return getSizeInBits().isKnownMultipleOf(8); }
 
     /// Return true if the size is a power-of-two number of bytes.
     bool isRound() const {
@@ -308,19 +299,16 @@ namespace llvm {
 
     /// Given a vector type, return the number of elements it contains.
     unsigned getVectorNumElements() const {
-#ifdef STRICT_FIXED_SIZE_VECTORS
-      assert(isFixedLengthVector() && "Invalid vector type!");
-#else
       assert(isVector() && "Invalid vector type!");
+
       if (isScalableVector())
-        WithColor::warning()
-            << "Possible incorrect use of EVT::getVectorNumElements() for "
-               "scalable vector. Scalable flag may be dropped, use"
-               "EVT::getVectorElementCount() instead\n";
-#endif
-      if (isSimple())
-        return V.getVectorNumElements();
-      return getExtendedVectorNumElements();
+        llvm::reportInvalidSizeRequest(
+            "Possible incorrect use of EVT::getVectorNumElements() for "
+            "scalable vector. Scalable flag may be dropped, use "
+            "EVT::getVectorElementCount() instead");
+
+      return isSimple() ? V.getVectorNumElements()
+                        : getExtendedVectorNumElements();
     }
 
     // Given a (possibly scalable) vector type, return the ElementCount

@@ -15,6 +15,7 @@
 
 #include "index/SymbolID.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclObjC.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Lex/MacroInfo.h"
@@ -64,19 +65,26 @@ std::string printName(const ASTContext &Ctx, const NamedDecl &ND);
 /// string if decl is not a template specialization.
 std::string printTemplateSpecializationArgs(const NamedDecl &ND);
 
-/// Gets the symbol ID for a declaration, if possible.
-llvm::Optional<SymbolID> getSymbolID(const Decl *D);
+/// Print the Objective-C method name, including the full container name, e.g.
+/// `-[MyClass(Category) method:]`
+std::string printObjCMethod(const ObjCMethodDecl &Method);
 
-/// Gets the symbol ID for a macro, if possible.
+/// Print the Objective-C container name including categories, e.g. `MyClass`,
+// `MyClass()`, `MyClass(Category)`, and `MyProtocol`.
+std::string printObjCContainer(const ObjCContainerDecl &C);
+
+/// Gets the symbol ID for a declaration. Returned SymbolID might be null.
+SymbolID getSymbolID(const Decl *D);
+
+/// Gets the symbol ID for a macro. Returned SymbolID might be null.
 /// Currently, this is an encoded USR of the macro, which incorporates macro
 /// locations (e.g. file name, offset in file).
 /// FIXME: the USR semantics might not be stable enough as the ID for index
 /// macro (e.g. a change in definition offset can result in a different USR). We
 /// could change these semantics in the future by reimplementing this funcure
 /// (e.g. avoid USR for macros).
-llvm::Optional<SymbolID> getSymbolID(const llvm::StringRef MacroName,
-                                     const MacroInfo *MI,
-                                     const SourceManager &SM);
+SymbolID getSymbolID(const llvm::StringRef MacroName, const MacroInfo *MI,
+                     const SourceManager &SM);
 
 /// Returns a QualType as string. The result doesn't contain unwritten scopes
 /// like anonymous/inline namespace.
@@ -110,6 +118,7 @@ QualType declaredType(const TypeDecl *D);
 
 /// Retrieves the deduced type at a given location (auto, decltype).
 /// It will return the underlying type.
+/// If the type is an undeduced auto, returns the type itself.
 llvm::Optional<QualType> getDeducedType(ASTContext &, SourceLocation Loc);
 
 /// Gets the nested name specifier necessary for spelling \p ND in \p

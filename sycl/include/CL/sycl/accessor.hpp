@@ -203,17 +203,19 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+namespace detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
-} // namespace gpu
-} // namespace INTEL
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+} // namespace detail
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 
 template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,
@@ -286,6 +288,8 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
+  constexpr static bool IsAccessAtomic = AccessMode == access::mode::atomic;
+
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
@@ -321,6 +325,14 @@ protected:
     template <int CurDims = SubDims,
               typename = detail::enable_if_t<CurDims == 1 && IsAccessAnyWrite>>
     RefType operator[](size_t Index) const {
+      MIDs[Dims - CurDims] = Index;
+      return MAccessor[MIDs];
+    }
+
+    template <int CurDims = SubDims>
+    typename detail::enable_if_t<CurDims == 1 && IsAccessAtomic,
+                                 atomic<DataT, AS>>
+    operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
@@ -459,11 +471,12 @@ private:
 #endif
 
 private:
-  friend class sycl::INTEL::gpu::AccessorPrivateProxy;
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#ifdef __SYCL_DEVICE_ONLY__
   const OCLImageTy getNativeImageObj() const { return MImageObj; }
-#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+#endif // __SYCL_DEVICE_ONLY__
 
 public:
   using value_type = DataT;
@@ -798,7 +811,7 @@ protected:
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
+  using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
@@ -858,27 +871,13 @@ protected:
 
   detail::AccessorImplDevice<AdjustedDim> impl;
 
-#ifdef __SYCL_EXPLICIT_SIMD__
-  using OCLImage1dBufferTy =
-      typename detail::opencl_image1d_buffer_type<AccessMode>::type;
-#endif // __SYCL_EXPLICIT_SIMD__
-
   union {
     ConcreteASPtrType MData;
-#ifdef __SYCL_EXPLICIT_SIMD__
-    OCLImage1dBufferTy ImageBuffer;
-#endif // __SYCL_EXPLICIT_SIMD__
   };
 
-#ifdef __SYCL_EXPLICIT_SIMD__
-  // TODO In ESIMD accessors usage is limited for now - access range, mem
-  // range and offset are not supported. The cl_mem object allocated for
-  // a global accessor is always wrapped into a 1d image buffer to enable
-  // surface index-based addressing.
-  void __init(OCLImage1dBufferTy ImgBuf) { ImageBuffer = ImgBuf; }
+  // TODO replace usages with getQualifiedPtr
+  const ConcreteASPtrType getNativeImageObj() const { return MData; }
 
-  const OCLImage1dBufferTy getNativeImageObj() const { return ImageBuffer; }
-#else
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
@@ -893,7 +892,12 @@ protected:
     if (1 == AdjustedDim)
       MData += Offset[0];
   }
-#endif // __SYCL_EXPLICIT_SIMD__
+
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(ConcreteASPtrType Ptr) { MData = Ptr; }
+
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
   template <typename, int, access::mode, access::target, access::placeholder,
@@ -925,7 +929,8 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-  friend class sycl::INTEL::gpu::AccessorPrivateProxy;
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      AccessorPrivateProxy;
 
 public:
   using value_type = DataT;
@@ -1510,9 +1515,17 @@ public:
     return detail::convertToArrayOfN<Dimensions, 0>(getOffset());
   }
 
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessAnyWrite>>
+  template <int Dims = Dimensions, typename RefT = RefType,
+            typename = detail::enable_if_t<Dims == 0 && IsAccessAnyWrite &&
+                                           !std::is_const<RefT>::value>>
   operator RefType() const {
+    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
+    return *(getQualifiedPtr() + LinearIndex);
+  }
+
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
+  operator ConstRefType() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
   }
@@ -1522,13 +1535,6 @@ public:
   RefType operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
-  }
-
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
-  operator DataT() const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return *(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions>
@@ -1789,7 +1795,7 @@ protected:
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
+  using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
@@ -1853,6 +1859,18 @@ public:
   }
 #endif
 
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
+  accessor(handler &, const property_list &propList)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(range<AdjustedDim>{1}) {
+    (void)propList;
+  }
+#else
+      : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
+    (void)propList;
+  }
+#endif
+
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   accessor(range<Dimensions> AllocationSize, handler &)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1861,6 +1879,20 @@ public:
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
+  }
+#endif
+
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
+  accessor(range<Dimensions> AllocationSize, handler &,
+           const property_list &propList)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(AllocationSize) {
+    (void)propList;
+  }
+#else
+      : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
+                              AdjustedDim, sizeof(DataT)) {
+    (void)propList;
   }
 #endif
 
@@ -1953,6 +1985,20 @@ public:
                                  access::target::image);
 #endif
   }
+
+  template <typename AllocatorT>
+  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+           handler &CommandGroupHandler, const property_list &propList)
+      : detail::image_accessor<DataT, Dimensions, AccessMode,
+                               access::target::image, IsPlaceholder>(
+            Image, CommandGroupHandler,
+            (detail::getSyclObjImpl(Image))->getElementSize()) {
+    (void)propList;
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::associateWithHandler(CommandGroupHandler, this,
+                                 access::target::image);
+#endif
+  }
 #ifdef __SYCL_DEVICE_ONLY__
 private:
   using OCLImageTy =
@@ -1962,6 +2008,9 @@ private:
   // Front End requires this method to be defined in the accessor class.
   // It does not call the base class's init method.
   void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
+
+  // __init variant used by the device compiler for ESIMD kernels.
+  void __init_esimd(OCLImageTy Image) { this->imageAccessorInit(Image); }
 
 public:
   // Default constructor for objects later initialized with __init member.
@@ -1988,6 +2037,15 @@ public:
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
+
+  template <typename AllocatorT>
+  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+           const property_list &propList)
+      : detail::image_accessor<DataT, Dimensions, AccessMode,
+                               access::target::host_image, IsPlaceholder>(
+            Image, (detail::getSyclObjImpl(Image))->getElementSize()) {
+    (void)propList;
+  }
 };
 
 /// Image array accessor.
@@ -2014,6 +2072,9 @@ private:
   // It does not call the base class's init method.
   void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  void __init_esimd(OCLImageTy Image) { this->imageAccessorInit(Image); }
+
 public:
   // Default constructor for objects later initialized with __init member.
   accessor() = default;
@@ -2026,6 +2087,20 @@ public:
                                access::target::image, IsPlaceholder>(
             Image, CommandGroupHandler,
             (detail::getSyclObjImpl(Image))->getElementSize()) {
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::associateWithHandler(CommandGroupHandler, this,
+                                 access::target::image_array);
+#endif
+  }
+
+  template <typename AllocatorT>
+  accessor(cl::sycl::image<Dimensions + 1, AllocatorT> &Image,
+           handler &CommandGroupHandler, const property_list &propList)
+      : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
+                               access::target::image, IsPlaceholder>(
+            Image, CommandGroupHandler,
+            (detail::getSyclObjImpl(Image))->getElementSize()) {
+    (void)propList;
 #ifndef __SYCL_DEVICE_ONLY__
     detail::associateWithHandler(CommandGroupHandler, this,
                                  access::target::image_array);

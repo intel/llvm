@@ -59,6 +59,25 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  memcmp
+  SRCS
+    memcmp.cpp
+  HDRS
+    memcmp.h
+)
+
+add_entrypoint_object(
+  memmove
+  SRCS
+    memmove.cpp
+  HDRS
+    memmove.h
+  DEPENDS
+    libc.src.__support.integer_operations
+    libc.src.string.memcpy
+)
+
+add_entrypoint_object(
   strchr
   SRCS
     strchr.cpp
@@ -72,6 +91,14 @@ add_entrypoint_object(
     strstr.cpp
   HDRS
     strstr.h
+)
+
+add_entrypoint_object(
+  strncpy
+  SRCS
+    strncpy.cpp
+  HDRS
+    strncpy.h
 )
 
 add_entrypoint_object(
@@ -187,6 +214,11 @@ endfunction()
 if(${LIBC_TARGET_MACHINE} STREQUAL "x86_64")
   set(LIBC_STRING_TARGET_ARCH "x86")
   set(MEMCPY_SRC ${LIBC_SOURCE_DIR}/src/string/x86/memcpy.cpp)
+elseif(${LIBC_TARGET_MACHINE} STREQUAL "aarch64")
+  set(LIBC_STRING_TARGET_ARCH "aarch64")
+  set(MEMCPY_SRC ${LIBC_SOURCE_DIR}/src/string/aarch64/memcpy.cpp)
+#Disable tail merging as it leads to lower performance
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mllvm --tail-merge-threshold=0")
 else()
   set(LIBC_STRING_TARGET_ARCH ${LIBC_TARGET_MACHINE})
   set(MEMCPY_SRC ${LIBC_SOURCE_DIR}/src/string/memcpy.cpp)

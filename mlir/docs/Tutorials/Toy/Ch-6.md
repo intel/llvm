@@ -37,10 +37,11 @@ static FlatSymbolRefAttr getOrInsertPrintf(PatternRewriter &rewriter,
 
   // Create a function declaration for printf, the signature is:
   //   * `i32 (i8*, ...)`
-  auto llvmI32Ty = LLVM::LLVMType::getInt32Ty(llvmDialect);
-  auto llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(llvmDialect);
-  auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI32Ty, llvmI8PtrTy,
-                                                  /*isVarArg=*/true);
+  auto llvmI32Ty = IntegerType::get(context, 32);
+  auto llvmI8PtrTy =
+      LLVM::LLVMPointerType::get(IntegerType::get(context, 8));
+  auto llvmFnType = LLVM::LLVMFunctionType::get(llvmI32Ty, llvmI8PtrTy,
+                                                /*isVarArg=*/true);
 
   // Insert the printf function into the body of the parent module.
   PatternRewriter::InsertionGuard insertGuard(rewriter);
@@ -62,7 +63,7 @@ everything to the LLVM dialect.
 ```c++
   mlir::ConversionTarget target(getContext());
   target.addLegalDialect<mlir::LLVMDialect>();
-  target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
+  target.addLegalOp<mlir::ModuleOp>();
 ```
 
 ### Type Converter
@@ -89,14 +90,14 @@ into LLVM dialect. These patterns allow for lowering the IR in multiple stages
 by relying on [transitive lowering](../../../getting_started/Glossary.md#transitive-lowering).
 
 ```c++
-  mlir::OwningRewritePatternList patterns;
+  mlir::RewritePatternSet patterns(&getContext());
   mlir::populateAffineToStdConversionPatterns(patterns, &getContext());
   mlir::populateLoopToStdConversionPatterns(patterns, &getContext());
   mlir::populateStdToLLVMConversionPatterns(typeConverter, patterns);
 
   // The only remaining operation, to lower from the `toy` dialect, is the
   // PrintOp.
-  patterns.insert<PrintOpLowering>(&getContext());
+  patterns.add<PrintOpLowering>(&getContext());
 ```
 
 ### Full Lowering
@@ -126,28 +127,28 @@ We can now lower down to the LLVM dialect, which produces the following code:
 
 ```mlir
 llvm.func @free(!llvm<"i8*">)
-llvm.func @printf(!llvm<"i8*">, ...) -> !llvm.i32
-llvm.func @malloc(!llvm.i64) -> !llvm<"i8*">
+llvm.func @printf(!llvm<"i8*">, ...) -> i32
+llvm.func @malloc(i64) -> !llvm<"i8*">
 llvm.func @main() {
-  %0 = llvm.mlir.constant(1.000000e+00 : f64) : !llvm.double
-  %1 = llvm.mlir.constant(2.000000e+00 : f64) : !llvm.double
+  %0 = llvm.mlir.constant(1.000000e+00 : f64) : f64
+  %1 = llvm.mlir.constant(2.000000e+00 : f64) : f64
 
   ...
 
 ^bb16:
   %221 = llvm.extractvalue %25[0 : index] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
-  %222 = llvm.mlir.constant(0 : index) : !llvm.i64
-  %223 = llvm.mlir.constant(2 : index) : !llvm.i64
-  %224 = llvm.mul %214, %223 : !llvm.i64
-  %225 = llvm.add %222, %224 : !llvm.i64
-  %226 = llvm.mlir.constant(1 : index) : !llvm.i64
-  %227 = llvm.mul %219, %226 : !llvm.i64
-  %228 = llvm.add %225, %227 : !llvm.i64
-  %229 = llvm.getelementptr %221[%228] : (!llvm<"double*">, !llvm.i64) -> !llvm<"double*">
+  %222 = llvm.mlir.constant(0 : index) : i64
+  %223 = llvm.mlir.constant(2 : index) : i64
+  %224 = llvm.mul %214, %223 : i64
+  %225 = llvm.add %222, %224 : i64
+  %226 = llvm.mlir.constant(1 : index) : i64
+  %227 = llvm.mul %219, %226 : i64
+  %228 = llvm.add %225, %227 : i64
+  %229 = llvm.getelementptr %221[%228] : (!llvm."double*">, i64) -> !llvm<"f64*">
   %230 = llvm.load %229 : !llvm<"double*">
-  %231 = llvm.call @printf(%207, %230) : (!llvm<"i8*">, !llvm.double) -> !llvm.i32
-  %232 = llvm.add %219, %218 : !llvm.i64
-  llvm.br ^bb15(%232 : !llvm.i64)
+  %231 = llvm.call @printf(%207, %230) : (!llvm<"i8*">, f64) -> i32
+  %232 = llvm.add %219, %218 : i64
+  llvm.br ^bb15(%232 : i64)
 
   ...
 

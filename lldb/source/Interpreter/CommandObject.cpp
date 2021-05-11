@@ -42,14 +42,11 @@ CommandObject::CommandObject(CommandInterpreter &interpreter,
                              llvm::StringRef name, llvm::StringRef help,
                              llvm::StringRef syntax, uint32_t flags)
     : m_interpreter(interpreter), m_cmd_name(std::string(name)),
-      m_cmd_help_short(), m_cmd_help_long(), m_cmd_syntax(), m_flags(flags),
-      m_arguments(), m_deprecated_command_override_callback(nullptr),
+      m_flags(flags), m_deprecated_command_override_callback(nullptr),
       m_command_override_callback(nullptr), m_command_override_baton(nullptr) {
   m_cmd_help_short = std::string(help);
   m_cmd_syntax = std::string(syntax);
 }
-
-CommandObject::~CommandObject() {}
 
 Debugger &CommandObject::GetDebugger() { return m_interpreter.GetDebugger(); }
 
@@ -258,6 +255,15 @@ bool CommandObject::CheckRequirements(CommandReturnObject &result) {
       }
     }
   }
+
+  if (GetFlags().Test(eCommandProcessMustBeTraced)) {
+    Target *target = m_exe_ctx.GetTargetPtr();
+    if (target && !target->GetTrace()) {
+      result.SetError("Process is not being traced.");
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -930,11 +936,11 @@ const char *CommandObject::GetArgumentDescriptionAsCString(
 }
 
 Target &CommandObject::GetDummyTarget() {
-  return *m_interpreter.GetDebugger().GetDummyTarget();
+  return m_interpreter.GetDebugger().GetDummyTarget();
 }
 
 Target &CommandObject::GetSelectedOrDummyTarget(bool prefer_dummy) {
-  return *m_interpreter.GetDebugger().GetSelectedOrDummyTarget(prefer_dummy);
+  return m_interpreter.GetDebugger().GetSelectedOrDummyTarget(prefer_dummy);
 }
 
 Target &CommandObject::GetSelectedTarget() {

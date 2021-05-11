@@ -15,9 +15,9 @@ To better understand Fortran as a language
 and the specific grammar accepted by flang,
 read [Fortran For C Programmers](docs/FortranForCProgrammers.md)
 and
-flang's specifications of the [Fortran grammar](docs/f2018-grammar.txt)
+flang's specifications of the [Fortran grammar](docs/f2018-grammar.md)
 and
-the [OpenMP grammar](docs/OpenMP-4.5-grammar.txt).
+the [OpenMP grammar](docs/OpenMP-4.5-grammar.md).
 
 Treatment of language extensions is covered
 in [this document](docs/Extensions.md).
@@ -34,7 +34,7 @@ and
 also review [how flang uses modern C++ features](docs/C++17.md).
 
 If you are interested in writing new documentation, follow 
-[markdown style guide from LLVM](https://github.com/llvm/llvm-project/blob/master/llvm/docs/MarkdownQuickstartTemplate.md).
+[markdown style guide from LLVM](https://github.com/llvm/llvm-project/blob/main/llvm/docs/MarkdownQuickstartTemplate.md).
 
 ## Supported C++ compilers
 

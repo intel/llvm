@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS
   AsmParser
   Core
   Passes
+  SYCLLowerIR
   Support
   ScalarOpts
   TransformUtils

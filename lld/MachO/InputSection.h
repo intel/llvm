@@ -9,9 +9,10 @@
 #ifndef LLD_MACHO_INPUT_SECTION_H
 #define LLD_MACHO_INPUT_SECTION_H
 
+#include "Relocations.h"
+
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/PointerUnion.h"
 #include "llvm/BinaryFormat/MachO.h"
 
 namespace lld {
@@ -21,36 +22,13 @@ class InputFile;
 class InputSection;
 class OutputSection;
 class Symbol;
-
-struct Reloc {
-  uint8_t type;
-  bool pcrel;
-  uint8_t length;
-  // The offset from the start of the subsection that this relocation belongs
-  // to.
-  uint32_t offset;
-  // Adding this offset to the address of the referent symbol or subsection
-  // gives the destination that this relocation refers to.
-  uint64_t addend;
-  llvm::PointerUnion<Symbol *, InputSection *> referent;
-};
-
-inline bool isZeroFill(uint8_t flags) {
-  return llvm::MachO::isVirtualSection(flags & llvm::MachO::SECTION_TYPE);
-}
-
-inline bool isThreadLocalVariables(uint8_t flags) {
-  return (flags & llvm::MachO::SECTION_TYPE) ==
-         llvm::MachO::S_THREAD_LOCAL_VARIABLES;
-}
+class Defined;
 
 class InputSection {
 public:
   virtual ~InputSection() = default;
   virtual uint64_t getSize() const { return data.size(); }
-  virtual uint64_t getFileSize() const {
-    return isZeroFill(flags) ? 0 : getSize();
-  }
+  virtual uint64_t getFileSize() const;
   uint64_t getFileOffset() const;
   uint64_t getVA() const;
 
@@ -71,7 +49,61 @@ public:
   std::vector<Reloc> relocs;
 };
 
+inline uint8_t sectionType(uint32_t flags) {
+  return flags & llvm::MachO::SECTION_TYPE;
+}
+
+inline bool isZeroFill(uint32_t flags) {
+  return llvm::MachO::isVirtualSection(sectionType(flags));
+}
+
+inline bool isThreadLocalVariables(uint32_t flags) {
+  return sectionType(flags) == llvm::MachO::S_THREAD_LOCAL_VARIABLES;
+}
+
+// These sections contain the data for initializing thread-local variables.
+inline bool isThreadLocalData(uint32_t flags) {
+  return sectionType(flags) == llvm::MachO::S_THREAD_LOCAL_REGULAR ||
+         sectionType(flags) == llvm::MachO::S_THREAD_LOCAL_ZEROFILL;
+}
+
+inline bool isDebugSection(uint32_t flags) {
+  return (flags & llvm::MachO::SECTION_ATTRIBUTES_USR) ==
+         llvm::MachO::S_ATTR_DEBUG;
+}
+
+bool isCodeSection(InputSection *);
+
 extern std::vector<InputSection *> inputSections;
+
+namespace section_names {
+
+constexpr const char pageZero[] = "__pagezero";
+constexpr const char common[] = "__common";
+constexpr const char header[] = "__mach_header";
+constexpr const char rebase[] = "__rebase";
+constexpr const char binding[] = "__binding";
+constexpr const char weakBinding[] = "__weak_binding";
+constexpr const char lazyBinding[] = "__lazy_binding";
+constexpr const char export_[] = "__export";
+constexpr const char functionStarts[] = "__func_starts";
+constexpr const char symbolTable[] = "__symbol_table";
+constexpr const char indirectSymbolTable[] = "__ind_sym_tab";
+constexpr const char stringTable[] = "__string_table";
+constexpr const char codeSignature[] = "__code_signature";
+constexpr const char got[] = "__got";
+constexpr const char threadPtrs[] = "__thread_ptrs";
+constexpr const char unwindInfo[] = "__unwind_info";
+constexpr const char compactUnwind[] = "__compact_unwind";
+constexpr const char ehFrame[] = "__eh_frame";
+constexpr const char text[] = "__text";
+constexpr const char stubs[] = "__stubs";
+constexpr const char stubHelper[] = "__stub_helper";
+constexpr const char laSymbolPtr[] = "__la_symbol_ptr";
+constexpr const char data[] = "__data";
+constexpr const char bitcodeBundle[] = "__bundle";
+
+} // namespace section_names
 
 } // namespace macho
 

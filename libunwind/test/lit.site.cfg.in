@@ -7,7 +7,7 @@ config.cxx_under_test           = "@CMAKE_CXX_COMPILER@"
 config.project_obj_root         = "@CMAKE_BINARY_DIR@"
 config.libunwind_src_root       = "@LIBUNWIND_SOURCE_DIR@"
 config.libunwind_obj_root       = "@LIBUNWIND_BINARY_DIR@"
-config.abi_library_path         = "@LIBUNWIND_LIBRARY_DIR@"
+config.abi_library_root         = "@LIBUNWIND_LIBRARY_DIR@"
 config.libcxx_src_root          = "@LIBUNWIND_LIBCXX_PATH@"
 config.libunwind_headers        = "@LIBUNWIND_SOURCE_DIR@/include"
 config.cxx_library_root         = "@LIBUNWIND_LIBCXX_LIBRARY_PATH@"
@@ -43,10 +43,6 @@ config.test_source_root = os.path.join(config.libunwind_src_root, 'test')
 
 # Allow expanding substitutions that are based on other substitutions
 config.recursiveExpansionLimit = 10
-
-# Make symbols available in the tests.
-config.test_compiler_flags += " -funwind-tables "
-config.test_linker_flags += " -Wl,--export-dynamic "
 
 # Infer the test_exec_root from the build directory.
 config.test_exec_root = os.path.join(config.libunwind_obj_root, 'test')

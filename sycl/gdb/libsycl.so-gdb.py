@@ -2,18 +2,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import re
 import gdb
 import gdb.xmethod
 import gdb.printing
-import itertools
-import re
 
 ### XMethod implementations ###
 
-"""
-Generalized base class for buffer index calculation
-"""
 class Accessor:
+    """Generalized base class for buffer index calculation"""
+
     def memory_range(self, dim):
         pass
 
@@ -31,6 +29,11 @@ class Accessor:
     def index(self, arg):
         if arg.type.code == gdb.TYPE_CODE_INT:
             return int(arg)
+        # unwrap if inside item
+        try:
+            arg = arg['MImpl']['MIndex']
+        except:
+            pass
         # https://github.com/intel/llvm/blob/97272b7ebd569bfa13811913a31e30f926559217/sycl/include/CL/sycl/accessor.hpp#L678-L690
         result = 0
         for dim in range(self.depth):
@@ -43,10 +46,9 @@ class Accessor:
         return self.data().cast(self.result_type.pointer())[self.index(arg)]
 
 
-"""
-For Host device memory layout
-"""
 class HostAccessor(Accessor):
+    """For Host device memory layout"""
+
     def payload(self):
         return self.obj['impl']['_M_ptr'].dereference()
 
@@ -59,10 +61,26 @@ class HostAccessor(Accessor):
     def data(self):
         return self.payload()['MData']
 
-"""
-For CPU/GPU memory layout
-"""
+class HostAccessorLocal(HostAccessor):
+    """For Host device memory layout"""
+
+    def index(self, arg):
+        if arg.type.code == gdb.TYPE_CODE_INT:
+            return int(arg)
+        # https://github.com/intel/llvm/blob/97272b7ebd569bfa13811913a31e30f926559217/sycl/include/CL/sycl/accessor.hpp#L1049-L1053
+        result = 0;
+        for dim in range(self.depth):
+            result = result * \
+                self.payload()['MSize']['common_array'][dim] + \
+                arg['common_array'][dim];
+        return result;
+
+    def data(self):
+        return self.payload()['MMem']
+
 class DeviceAccessor(Accessor):
+    """For CPU/GPU memory layout"""
+
     def memory_range(self, dim):
         return self.obj['impl']['MemRange']['common_array'][dim]
 
@@ -73,10 +91,9 @@ class DeviceAccessor(Accessor):
         return self.obj['MData']
 
 
-"""
-Generic implementation for N-dimensional ID
-"""
 class AccessorOpIndex(gdb.xmethod.XMethodWorker):
+    """Generic implementation for N-dimensional ID"""
+
     def __init__(self, class_type, result_type, depth):
         self.class_type = class_type
         self.result_type = result_type
@@ -93,7 +110,8 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
         # try all accessor implementations until one of them works:
         accessors = [
             DeviceAccessor(obj, self.result_type, self.depth),
-            HostAccessor(obj, self.result_type, self.depth)
+            HostAccessor(obj, self.result_type, self.depth),
+            HostAccessorLocal(obj, self.result_type, self.depth)
         ]
         for accessor in accessors:
             try:
@@ -106,25 +124,36 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
         return None
 
 
-"""
-Introduces an extra overload for 1D case that takes plain size_t
-"""
 class AccessorOpIndex1D(AccessorOpIndex):
+    """Introduces an extra overload for 1D case that takes plain size_t"""
+
     def get_arg_types(self):
-        assert(self.depth == 1)
+        assert self.depth == 1
         return gdb.lookup_type('size_t')
 
+class AccessorOpIndexItemTrue(AccessorOpIndex):
+    """Introduces an extra overload for item wrapper"""
 
-class AccessorOpIndexMatcher(gdb.xmethod.XMethodMatcher):
+    def get_arg_types(self):
+        return gdb.lookup_type("cl::sycl::item<%s, true>" % self.depth)
+
+class AccessorOpIndexItemFalse(AccessorOpIndex):
+    """Introduces an extra overload for item wrapper"""
+
+    def get_arg_types(self):
+        return gdb.lookup_type("cl::sycl::item<%s, false>" % self.depth)
+
+class AccessorMatcher(gdb.xmethod.XMethodMatcher):
+    """Entry point for cl::sycl::accessor"""
     def __init__(self):
-        gdb.xmethod.XMethodMatcher.__init__(self, 'AccessorOpIndexMatcher')
+        gdb.xmethod.XMethodMatcher.__init__(self, 'AccessorMatcher')
 
     def match(self, class_type, method_name):
         if method_name != 'operator[]':
             return None
 
         result = re.match('^cl::sycl::accessor<.+>$', class_type.tag)
-        if (result == None):
+        if result is None:
             return None
 
         depth = int(class_type.template_argument(1))
@@ -133,19 +162,101 @@ class AccessorOpIndexMatcher(gdb.xmethod.XMethodMatcher):
         methods = [
             AccessorOpIndex(class_type, result_type, depth)
         ]
+        try:
+            method = AccessorOpIndexItemTrue(class_type, result_type, depth)
+            method.get_arg_types()
+            methods.append(method)
+        except:
+            pass
+        try:
+            method = AccessorOpIndexItemFalse(class_type, result_type, depth)
+            method.get_arg_types()
+            methods.append(method)
+        except:
+            pass
         if depth == 1:
             methods.append(AccessorOpIndex1D(class_type, result_type, depth))
         return methods
 
+class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
+    """Provides operator() overload for h_item argument"""
 
-gdb.xmethod.register_xmethod_matcher(None, AccessorOpIndexMatcher(), replace=True)
+    class ItemBase:
+        """Wrapper for cl::sycl::detail::ItemBase which reimplements index calculation"""
+
+        def __init__(self, obj, ):
+            result = re.match('^cl::sycl::detail::ItemBase<(.+), (.+)>$', str(obj.type))
+            self.dim = int(result[1])
+            self.with_offset = (result[2] == 'true')
+            self.obj = obj
+
+        def get_linear_id(self):
+            index  = self.obj['MIndex']['common_array']
+            extent = self.obj['MExtent']['common_array']
+
+            if self.with_offset:
+                offset = self.obj['MOffset']['common_array']
+                if self.dim == 1:
+                    return index[0] - offset[0]
+                elif self.dim == 2:
+                    return (index[0] - offset[0]) * extent[1] + (index[1] - offset[1])
+                else:
+                    return ((index[0] - offset[0]) * extent[1] * extent[2]) + \
+                           ((index[1] - offset[1]) * extent[2]) + (index[2] - offset[2])
+            else:
+                if self.dim == 1:
+                    return index[0]
+                elif self.dim == 2:
+                    return index[0] * extent[1] + index[1]
+                else:
+                    return (index[0] * extent[1] * extent[2]) + (index[1] * extent[2]) + index[2]
+
+    def __init__(self, result_type, dim):
+        self.result_type = result_type
+        self.dim = dim
+
+    def get_arg_types(self):
+        return gdb.lookup_type("cl::sycl::h_item<%s>" % self.dim)
+
+    def get_result_type(self, *args):
+        return self.result_type
+
+    def __call__(self, obj, *args):
+        if obj['Val'].type.tag.endswith(self.result_type):
+            # On device private_memory is a simple wrapper over actual value
+            return obj['Val']
+        else:
+            # On host it wraps a unique_ptr to an array of items
+            item_base = args[0]['localItem']['MImpl']
+            item_base = self.ItemBase(item_base)
+            index = item_base.get_linear_id()
+            return obj['Val']['_M_t']['_M_t']['_M_head_impl'][index]
+
+class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
+    """Entry point for cl::sycl::private_memory"""
+
+    def __init__(self):
+        gdb.xmethod.XMethodMatcher.__init__(self, 'PrivateMemoryMatcher')
+
+    def match(self, class_type, method_name):
+        if method_name != 'operator()':
+            return None
+
+        result = re.match('^cl::sycl::private_memory<((cl::)?(sycl::)?id<.+>), (.+)>$', class_type.tag)
+        if result is None:
+            return None
+        return PrivateMemoryOpCall(result[1], result[4])
+
+
+
+gdb.xmethod.register_xmethod_matcher(None, AccessorMatcher(), replace=True)
+gdb.xmethod.register_xmethod_matcher(None, PrivateMemoryMatcher(), replace=True)
 
 ### Pretty-printer implementations ###
 
-"""
-Print an object deriving from cl::sycl::detail::array
-"""
 class SyclArrayPrinter:
+    """Print an object deriving from cl::sycl::detail::array"""
+
     class ElementIterator:
         def __init__(self, data, size):
             self.data = data
@@ -168,7 +279,7 @@ class SyclArrayPrinter:
 
     def __init__(self, value):
         if value.type.code == gdb.TYPE_CODE_REF:
-            if hasattr(gdb.Value,"referenced_value"):
+            if hasattr(gdb.Value, "referenced_value"):
                 value = value.referenced_value()
 
         self.value = value
@@ -182,7 +293,7 @@ class SyclArrayPrinter:
             # There is no way to return an error from this method. Return an
             # empty iterable to make GDB happy and rely on to_string method
             # to take care of formatting.
-            return [ ]
+            return []
 
     def to_string(self):
         try:
@@ -197,10 +308,9 @@ class SyclArrayPrinter:
     def display_hint(self):
         return 'array'
 
-"""
-Print a cl::sycl::buffer
-"""
 class SyclBufferPrinter:
+    """Print a cl::sycl::buffer"""
+
     def __init__(self, value):
         self.value = value
         self.type = value.type.unqualified().strip_typedefs()
@@ -217,8 +327,7 @@ class SyclBufferPrinter:
                    self.value['impl'].address))
 
 sycl_printer = gdb.printing.RegexpCollectionPrettyPrinter("SYCL")
-sycl_printer.add_printer("cl::sycl::id",     '^cl::sycl::id<.*$',     SyclArrayPrinter)
-sycl_printer.add_printer("cl::sycl::range",  '^cl::sycl::range<.*$',  SyclArrayPrinter)
+sycl_printer.add_printer("cl::sycl::id", '^cl::sycl::id<.*$', SyclArrayPrinter)
+sycl_printer.add_printer("cl::sycl::range", '^cl::sycl::range<.*$', SyclArrayPrinter)
 sycl_printer.add_printer("cl::sycl::buffer", '^cl::sycl::buffer<.*$', SyclBufferPrinter)
 gdb.printing.register_pretty_printer(None, sycl_printer, True)
-

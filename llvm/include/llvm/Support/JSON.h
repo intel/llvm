@@ -456,12 +456,12 @@ private:
   friend class Object;
 
   template <typename T, typename... U> void create(U &&... V) {
-    new (reinterpret_cast<T *>(Union.buffer)) T(std::forward<U>(V)...);
+    new (reinterpret_cast<T *>(&Union)) T(std::forward<U>(V)...);
   }
   template <typename T> T &as() const {
     // Using this two-step static_cast via void * instead of reinterpret_cast
     // silences a -Wstrict-aliasing false positive from GCC6 and earlier.
-    void *Storage = static_cast<void *>(Union.buffer);
+    void *Storage = static_cast<void *>(&Union);
     return *static_cast<T *>(Storage);
   }
 
@@ -741,10 +741,9 @@ template <typename T> Value toJSON(const llvm::Optional<T> &Opt) {
 /// \code
 ///   bool fromJSON(const Value &E, MyStruct &R, Path P) {
 ///     ObjectMapper O(E, P);
-///     if (!O || !O.map("mandatory_field", R.MandatoryField))
-///       return false; // error details are already reported
-///     O.map("optional_field", R.OptionalField);
-///     return true;
+///     // When returning false, error details were already reported.
+///     return O && O.map("mandatory_field", R.MandatoryField) &&
+///         O.mapOptional("optional_field", R.OptionalField);
 ///   }
 /// \endcode
 class ObjectMapper {
@@ -777,6 +776,16 @@ public:
     if (const Value *E = O->get(Prop))
       return fromJSON(*E, Out, P.field(Prop));
     Out = llvm::None;
+    return true;
+  }
+
+  /// Maps a property to a field, if it exists.
+  /// If the property exists and is invalid, reports an error.
+  /// If the property does not exist, Out is unchanged.
+  template <typename T> bool mapOptional(StringLiteral Prop, T &Out) {
+    assert(*this && "Must check this is an object before calling map()");
+    if (const Value *E = O->get(Prop))
+      return fromJSON(*E, Out, P.field(Prop));
     return true;
   }
 
@@ -909,6 +918,17 @@ class OStream {
     Contents();
     objectEnd();
   }
+  /// Emit an externally-serialized value.
+  /// The caller must write exactly one valid JSON value to the provided stream.
+  /// No validation or formatting of this value occurs.
+  void rawValue(llvm::function_ref<void(raw_ostream &)> Contents) {
+    rawValueBegin();
+    Contents(OS);
+    rawValueEnd();
+  }
+  void rawValue(llvm::StringRef Contents) {
+    rawValue([&](raw_ostream &OS) { OS << Contents; });
+  }
   /// Emit a JavaScript comment associated with the next printed value.
   /// The string must be valid until the next attribute or value is emitted.
   /// Comments are not part of standard JSON, and many parsers reject them!
@@ -939,8 +959,10 @@ class OStream {
   void objectEnd();
   void attributeBegin(llvm::StringRef Key);
   void attributeEnd();
+  raw_ostream &rawValueBegin();
+  void rawValueEnd();
 
- private:
+private:
   void attributeImpl(llvm::StringRef Key, Block Contents) {
     attributeBegin(Key);
     Contents();
@@ -955,6 +977,7 @@ class OStream {
     Singleton, // Top level, or object attribute.
     Array,
     Object,
+    RawValue, // External code writing a value to OS directly.
   };
   struct State {
     Context Ctx = Singleton;

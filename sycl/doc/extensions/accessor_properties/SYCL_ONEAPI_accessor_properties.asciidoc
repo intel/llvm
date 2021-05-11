@@ -11,10 +11,11 @@ Joe Garvey, Intel +
 Roland Schulz, Intel +
 Ilya Burylov, Intel +
 Michael Kinsner, Intel +
-John Pennycook, Intel
+John Pennycook, Intel +
+Jessica Davies, Intel
 
 == Notice
-Copyright (c) 2019-2020 Intel Corporation.  All rights reserved.
+Copyright (c) 2019-2021 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -23,7 +24,7 @@ Working Draft - *DO NOT SHIP*
 == Version
 
 Built On: {docdate} +
-Revision: 1
+Revision: 3
 
 == Dependencies
 
@@ -51,7 +52,7 @@ Adding a new compile-time-constant property consists of adding a class for it, e
 
 This extension introduces two compile-time-constant properties: no_offset and no_alias. 
 no_offset indicates that the corresponding accessor will never contain an offset.  
-no_alias indicates that the corresponding accessor will not alias with any other accessor or USM pointer used in the kernel.  
+no_alias indicates that all modifications to the memory locations accessed (directly or indirectly) by this accessor, that occur during kernel execution, will be done through this accessor (directly or indirectly) and no other accessor or USM pointer in the kernel.
 
 === Examples
 Due to type deduction, users should rarely need to specify the template parameters of accessor_property_list or accessor directly.  
@@ -474,7 +475,7 @@ Rewrite Table 4.50: Properties supported by the SYCL accessor class as follows, 
 | Property | Description | Compile-time Constant
 | sycl::property::noinit | The noinit property notifies the SYCL runtime that previous contents of a buffer can be discarded. Replaces deprecated discard_write and discard_read_write access modes. | No
 | ONEAPI::property::no_offset | The no_offset property notifies the SYCL device compiler that the accessor will never contain an offset.  This may enable the compiler to make assumptions about the alignment of the accessor that it couldn't make otherwise. | Yes
-| ONEAPI::property::no_alias | The no_alias property notifies the SYCL device compiler that the accessor will not alias with any other accessors or USM pointers accessed in the same kernel.  This is an unchecked assertion by the programmer and results in undefined behaviour if it is violated.  | Yes
+| ONEAPI::property::no_alias | The no_alias property notifies the SYCL device compiler that all modifications to the memory locations accessed (directly or indirectly) by this accessor, that occur during kernel execution, will be done through this accessor (directly or indirectly) and no other accessor or USM pointer in the kernel.  This is an unchecked assertion by the programmer and results in undefined behaviour if it is violated.  | Yes
 |====
 --
 
@@ -487,6 +488,7 @@ NOTE: The constructors for no_offset and no_alias are unspecified as users must 
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2020-06-18|Joe Garvey|Initial public draft
-|B|2020-09-08|Joe Garvey|Rewrote as a vendor extension in the ONEAPI namespace.  
+|1|2020-06-18|Joe Garvey|Initial public draft
+|2|2020-09-08|Joe Garvey|Rewrote as a vendor extension in the ONEAPI namespace.
+|3|2021-01-28|Jessica Davies|Modify semantics of no_alias
 |======================================== 

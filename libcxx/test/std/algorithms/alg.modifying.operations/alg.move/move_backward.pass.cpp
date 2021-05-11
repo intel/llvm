@@ -25,7 +25,7 @@
 #include "test_iterators.h"
 
 template <class InIter, class OutIter>
-_LIBCPP_CONSTEXPR_AFTER_CXX17 bool
+TEST_CONSTEXPR_CXX17 bool
 test()
 {
     const unsigned N = 1000;
@@ -89,18 +89,42 @@ int main(int, char**)
 #endif // TEST_STD_VER >= 11
 
 #if TEST_STD_VER > 17
+    test<bidirectional_iterator<const int*>, contiguous_iterator<int*>>();
+    test<random_access_iterator<const int*>, contiguous_iterator<int*>>();
+    test<const int*, contiguous_iterator<int*>>();
+    test<contiguous_iterator<const int*>, bidirectional_iterator<int*>>();
+    test<contiguous_iterator<const int*>, random_access_iterator<int*>>();
+    test<contiguous_iterator<const int*>, int*>();
+    test<contiguous_iterator<const int*>, contiguous_iterator<int*>>();
+
+    test1<bidirectional_iterator<std::unique_ptr<int>*>, contiguous_iterator<std::unique_ptr<int>*>>();
+    test1<random_access_iterator<std::unique_ptr<int>*>, contiguous_iterator<std::unique_ptr<int>*>>();
+    test1<std::unique_ptr<int>*, contiguous_iterator<std::unique_ptr<int>*>>();
+    test1<contiguous_iterator<std::unique_ptr<int>*>, bidirectional_iterator<std::unique_ptr<int>*>>();
+    test1<contiguous_iterator<std::unique_ptr<int>*>, random_access_iterator<std::unique_ptr<int>*>>();
+    test1<contiguous_iterator<std::unique_ptr<int>*>, std::unique_ptr<int>*>();
+    test1<contiguous_iterator<std::unique_ptr<int>*>, contiguous_iterator<std::unique_ptr<int>*>>();
+
     static_assert(test<bidirectional_iterator<const int*>, bidirectional_iterator<int*> >());
     static_assert(test<bidirectional_iterator<const int*>, random_access_iterator<int*> >());
+    static_assert(test<bidirectional_iterator<const int*>, contiguous_iterator<int*> >());
     static_assert(test<bidirectional_iterator<const int*>, int*>());
 
     static_assert(test<random_access_iterator<const int*>, bidirectional_iterator<int*> >());
     static_assert(test<random_access_iterator<const int*>, random_access_iterator<int*> >());
+    static_assert(test<random_access_iterator<const int*>, contiguous_iterator<int*> >());
     static_assert(test<random_access_iterator<const int*>, int*>());
+
+    static_assert(test<contiguous_iterator<const int*>, bidirectional_iterator<int*> >());
+    static_assert(test<contiguous_iterator<const int*>, random_access_iterator<int*> >());
+    static_assert(test<contiguous_iterator<const int*>, contiguous_iterator<int*> >());
+    static_assert(test<contiguous_iterator<const int*>, int*>());
 
     static_assert(test<const int*, bidirectional_iterator<int*> >());
     static_assert(test<const int*, random_access_iterator<int*> >());
+    static_assert(test<const int*, contiguous_iterator<int*> >());
     static_assert(test<const int*, int*>());
-#endif  // TEST_STD_VER > 17
+#endif // TEST_STD_VER > 17
 
   return 0;
 }

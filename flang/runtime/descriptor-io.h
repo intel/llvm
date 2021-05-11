@@ -11,6 +11,7 @@
 
 // Implementation of I/O data list item transfers based on descriptors.
 
+#include "cpp-type.h"
 #include "descriptor.h"
 #include "edit-input.h"
 #include "edit-output.h"
@@ -61,21 +62,22 @@ inline bool FormattedIntegerIO(
   return true;
 }
 
-template <int PREC, typename A, Direction DIR>
+template <int KIND, Direction DIR>
 inline bool FormattedRealIO(
     IoStatementState &io, const Descriptor &descriptor) {
   std::size_t numElements{descriptor.Elements()};
   SubscriptValue subscripts[maxRank];
   descriptor.GetLowerBounds(subscripts);
+  using RawType = typename RealOutputEditing<KIND>::BinaryFloatingPoint;
   for (std::size_t j{0}; j < numElements; ++j) {
     if (auto edit{io.GetNextDataEdit()}) {
-      A &x{ExtractElement<A>(io, descriptor, subscripts)};
+      RawType &x{ExtractElement<RawType>(io, descriptor, subscripts)};
       if constexpr (DIR == Direction::Output) {
-        if (!RealOutputEditing<PREC>{io, x}.Edit(*edit)) {
+        if (!RealOutputEditing<KIND>{io, x}.Edit(*edit)) {
           return false;
         }
       } else if (edit->descriptor != DataEdit::ListDirectedNullValue) {
-        if (!EditRealInput<PREC>(io, *edit, reinterpret_cast<void *>(&x))) {
+        if (!EditRealInput<KIND>(io, *edit, reinterpret_cast<void *>(&x))) {
           return false;
         }
       }
@@ -90,7 +92,7 @@ inline bool FormattedRealIO(
   return true;
 }
 
-template <int PREC, typename A, Direction DIR>
+template <int KIND, Direction DIR>
 inline bool FormattedComplexIO(
     IoStatementState &io, const Descriptor &descriptor) {
   std::size_t numElements{descriptor.Elements()};
@@ -98,14 +100,15 @@ inline bool FormattedComplexIO(
   descriptor.GetLowerBounds(subscripts);
   bool isListOutput{
       io.get_if<ListDirectedStatementState<Direction::Output>>() != nullptr};
+  using RawType = typename RealOutputEditing<KIND>::BinaryFloatingPoint;
   for (std::size_t j{0}; j < numElements; ++j) {
-    A *x{&ExtractElement<A>(io, descriptor, subscripts)};
+    RawType *x{&ExtractElement<RawType>(io, descriptor, subscripts)};
     if (isListOutput) {
       DataEdit rEdit, iEdit;
       rEdit.descriptor = DataEdit::ListDirectedRealPart;
       iEdit.descriptor = DataEdit::ListDirectedImaginaryPart;
-      if (!RealOutputEditing<PREC>{io, x[0]}.Edit(rEdit) ||
-          !RealOutputEditing<PREC>{io, x[1]}.Edit(iEdit)) {
+      if (!RealOutputEditing<KIND>{io, x[0]}.Edit(rEdit) ||
+          !RealOutputEditing<KIND>{io, x[1]}.Edit(iEdit)) {
         return false;
       }
     } else {
@@ -114,12 +117,12 @@ inline bool FormattedComplexIO(
         if (!edit) {
           return false;
         } else if constexpr (DIR == Direction::Output) {
-          if (!RealOutputEditing<PREC>{io, *x}.Edit(*edit)) {
+          if (!RealOutputEditing<KIND>{io, *x}.Edit(*edit)) {
             return false;
           }
         } else if (edit->descriptor == DataEdit::ListDirectedNullValue) {
           break;
-        } else if (!EditRealInput<PREC>(
+        } else if (!EditRealInput<KIND>(
                        io, *edit, reinterpret_cast<void *>(x))) {
           return false;
         }
@@ -217,7 +220,9 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
     return false;
   }
   if constexpr (DIR == Direction::Input) {
-    io.BeginReadingRecord();
+    if (!io.BeginReadingRecord()) {
+      return false;
+    }
   }
   if (auto *unf{io.get_if<UnformattedIoStatementState<DIR>>()}) {
     std::size_t elementBytes{descriptor.ElementBytes()};
@@ -258,15 +263,20 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
     case TypeCategory::Integer:
       switch (kind) {
       case 1:
-        return FormattedIntegerIO<std::int8_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 1>, DIR>(
+            io, descriptor);
       case 2:
-        return FormattedIntegerIO<std::int16_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 2>, DIR>(
+            io, descriptor);
       case 4:
-        return FormattedIntegerIO<std::int32_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 4>, DIR>(
+            io, descriptor);
       case 8:
-        return FormattedIntegerIO<std::int64_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 8>, DIR>(
+            io, descriptor);
       case 16:
-        return FormattedIntegerIO<common::uint128_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 16>, DIR>(
+            io, descriptor);
       default:
         io.GetIoErrorHandler().Crash(
             "DescriptorIO: Unimplemented INTEGER kind (%d) in descriptor",
@@ -275,18 +285,19 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
       }
     case TypeCategory::Real:
       switch (kind) {
+      case 2:
+        return FormattedRealIO<2, DIR>(io, descriptor);
+      case 3:
+        return FormattedRealIO<3, DIR>(io, descriptor);
       case 4:
-        return FormattedRealIO<24, float, DIR>(io, descriptor);
+        return FormattedRealIO<4, DIR>(io, descriptor);
       case 8:
-        return FormattedRealIO<53, double, DIR>(io, descriptor);
-#if __x86_64__
+        return FormattedRealIO<8, DIR>(io, descriptor);
       case 10:
-        return FormattedRealIO<64, long double, DIR>(io, descriptor);
-#else
+        return FormattedRealIO<10, DIR>(io, descriptor);
+      // TODO: case double/double
       case 16:
-        return FormattedRealIO<113, long double, DIR>(io, descriptor);
-#endif
-      // TODO cases 2, 3
+        return FormattedRealIO<16, DIR>(io, descriptor);
       default:
         io.GetIoErrorHandler().Crash(
             "DescriptorIO: Unimplemented REAL kind (%d) in descriptor", kind);
@@ -294,18 +305,19 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
       }
     case TypeCategory::Complex:
       switch (kind) {
+      case 2:
+        return FormattedComplexIO<2, DIR>(io, descriptor);
+      case 3:
+        return FormattedComplexIO<3, DIR>(io, descriptor);
       case 4:
-        return FormattedComplexIO<24, float, DIR>(io, descriptor);
+        return FormattedComplexIO<4, DIR>(io, descriptor);
       case 8:
-        return FormattedComplexIO<53, double, DIR>(io, descriptor);
-#if __x86_64__
+        return FormattedComplexIO<8, DIR>(io, descriptor);
       case 10:
-        return FormattedComplexIO<64, long double, DIR>(io, descriptor);
-#else
+        return FormattedComplexIO<10, DIR>(io, descriptor);
+      // TODO: case double/double
       case 16:
-        return FormattedComplexIO<113, long double, DIR>(io, descriptor);
-#endif
-      // TODO cases 2, 3
+        return FormattedComplexIO<16, DIR>(io, descriptor);
       default:
         io.GetIoErrorHandler().Crash(
             "DescriptorIO: Unimplemented COMPLEX kind (%d) in descriptor",
@@ -326,13 +338,17 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
     case TypeCategory::Logical:
       switch (kind) {
       case 1:
-        return FormattedLogicalIO<std::int8_t, DIR>(io, descriptor);
+        return FormattedLogicalIO<CppTypeFor<TypeCategory::Integer, 1>, DIR>(
+            io, descriptor);
       case 2:
-        return FormattedLogicalIO<std::int16_t, DIR>(io, descriptor);
+        return FormattedLogicalIO<CppTypeFor<TypeCategory::Integer, 2>, DIR>(
+            io, descriptor);
       case 4:
-        return FormattedLogicalIO<std::int32_t, DIR>(io, descriptor);
+        return FormattedLogicalIO<CppTypeFor<TypeCategory::Integer, 4>, DIR>(
+            io, descriptor);
       case 8:
-        return FormattedLogicalIO<std::int64_t, DIR>(io, descriptor);
+        return FormattedLogicalIO<CppTypeFor<TypeCategory::Integer, 8>, DIR>(
+            io, descriptor);
       default:
         io.GetIoErrorHandler().Crash(
             "DescriptorIO: Unimplemented LOGICAL kind (%d) in descriptor",

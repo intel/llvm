@@ -48,6 +48,7 @@ class DataExtractor;
 class Debugger;
 class Disassembler;
 class Module;
+class StackFrame;
 class Stream;
 class SymbolContext;
 class SymbolContextList;
@@ -270,6 +271,13 @@ public:
 
   lldb::InstructionSP GetInstructionAtIndex(size_t idx) const;
 
+  /// Get the instruction at the given address.
+  ///
+  /// \return
+  ///    A valid \a InstructionSP if the address could be found, or null
+  ///    otherwise.
+  lldb::InstructionSP GetInstructionAtAddress(const Address &addr);
+
   //------------------------------------------------------------------
   /// Get the index of the next branch instruction.
   ///
@@ -386,10 +394,12 @@ public:
     lldb::addr_t value;
   };
 
-  static lldb::DisassemblerSP
-  DisassembleRange(const ArchSpec &arch, const char *plugin_name,
-                   const char *flavor, Target &target,
-                   const AddressRange &disasm_range, bool prefer_file_cache);
+  static lldb::DisassemblerSP DisassembleRange(const ArchSpec &arch,
+                                               const char *plugin_name,
+                                               const char *flavor,
+                                               Target &target,
+                                               const AddressRange &disasm_range,
+                                               bool force_live_memory = false);
 
   static lldb::DisassemblerSP
   DisassembleBytes(const ArchSpec &arch, const char *plugin_name,
@@ -404,11 +414,8 @@ public:
                           uint32_t num_mixed_context_lines, uint32_t options,
                           Stream &strm);
 
-  static bool
-  Disassemble(Debugger &debugger, const ArchSpec &arch, const char *plugin_name,
-              const char *flavor, const ExecutionContext &exe_ctx,
-              uint32_t num_instructions, bool mixed_source_and_assembly,
-              uint32_t num_mixed_context_lines, uint32_t options, Stream &strm);
+  static bool Disassemble(Debugger &debugger, const ArchSpec &arch,
+                          StackFrame &frame, Stream &strm);
 
   // Constructors and Destructors
   Disassembler(const ArchSpec &arch, const char *flavor);
@@ -421,7 +428,8 @@ public:
                          Stream &strm);
 
   size_t ParseInstructions(Target &target, Address address, Limit limit,
-                           Stream *error_strm_ptr, bool prefer_file_cache);
+                           Stream *error_strm_ptr,
+                           bool force_live_memory = false);
 
   virtual size_t DecodeInstructions(const Address &base_addr,
                                     const DataExtractor &data,

@@ -52,7 +52,6 @@ accepted if enabled by command-line options.
 * `X` prefix/suffix as synonym for `Z` on hexadecimal literals
 * `B`, `O`, `Z`, and `X` accepted as suffixes as well as prefixes
 * Triplets allowed in array constructors
-* Old-style `PARAMETER pi=3.14` statement without parentheses
 * `%LOC`, `%VAL`, and `%REF`
 * Leading comma allowed before I/O item list
 * Empty parentheses allowed in `PROGRAM P()`
@@ -129,6 +128,12 @@ accepted if enabled by command-line options.
 * A `RETURN` statement may appear in a main program.
 * DATA statement initialization is allowed for procedure pointers outside
   structure constructors.
+* Nonstandard intrinsic functions: ISNAN, SIZEOF
+* A forward reference to a default INTEGER scalar dummy argument is
+  permitted to appear in a specification expression, such as an array
+  bound, in a scope with IMPLICIT NONE(TYPE) if the name
+  of the dummy argument would have caused it to be implicitly typed
+  as default INTEGER if IMPLICIT NONE(TYPE) were absent.
 
 ### Extensions supported when enabled by options
 
@@ -143,14 +148,17 @@ accepted if enabled by command-line options.
   rule imposes an artificially small constraint in some cases
   where Fortran mandates that something have the default `INTEGER`
   type: specifically, the results of references to the intrinsic functions
-  `SIZE`, `LBOUND`, `UBOUND`, `SHAPE`, and the location reductions
+  `SIZE`, `STORAGE_SIZE`,`LBOUND`, `UBOUND`, `SHAPE`, and the location reductions
   `FINDLOC`, `MAXLOC`, and `MINLOC` in the absence of an explicit
   `KIND=` actual argument.  We return `INTEGER(KIND=8)` by default in
   these cases when the `-flarge-sizes` option is enabled.
+  `SIZEOF` and `C_SIZEOF` always return `INTEGER(KIND=8)`.
 * Treat each specification-part like is has `IMPLICIT NONE`
   [-fimplicit-none-type-always]
 * Ignore occurrences of `IMPLICIT NONE` and `IMPLICIT NONE(TYPE)`
   [-fimplicit-none-type-never]
+* Old-style `PARAMETER pi=3.14` statement without parentheses
+  [-falternative-parameter-statement]
 
 ### Extensions and legacy features deliberately not supported
 
@@ -202,3 +210,12 @@ accepted if enabled by command-line options.
 * We respect Fortran comments in macro actual arguments (like GNU, Intel, NAG;
   unlike PGI and XLF) on the principle that macro calls should be treated
   like function references.  Fortran's line continuation methods also work.
+
+## Standard features not silently accepted
+
+* Fortran explicitly ignores type declaration statements when they
+  attempt to type the name of a generic intrinsic function (8.2 p3).
+  One can declare `CHARACTER::COS` and still get a real result
+  from `COS(3.14159)`, for example.  f18 will complain when a
+  generic intrinsic function's inferred result type does not
+  match an explicit declaration.  This message is a warning.

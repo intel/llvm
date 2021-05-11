@@ -44,6 +44,8 @@
 #include "SPIRVExtInst.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
+#include "SPIRVMemAliasingINTEL.h"
+#include "SPIRVNameMapEnum.h"
 #include "SPIRVStream.h"
 #include "SPIRVType.h"
 #include "SPIRVValue.h"
@@ -239,6 +241,7 @@ public:
   SPIRVTypePipeStorage *addPipeStorageType() override;
   SPIRVTypeSampledImage *addSampledImageType(SPIRVTypeImage *T) override;
   SPIRVTypeStruct *openStructType(unsigned, const std::string &) override;
+  SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
   SPIRVType *addOpaqueGenericType(Op) override;
@@ -259,6 +262,13 @@ public:
                                              SPIRVBasicBlock *) override;
   SPIRVValue *addCompositeConstant(SPIRVType *,
                                    const std::vector<SPIRVValue *> &) override;
+  SPIRVEntry *addCompositeConstantContinuedINTEL(
+      const std::vector<SPIRVValue *> &) override;
+  SPIRVValue *
+  addSpecConstantComposite(SPIRVType *Ty,
+                           const std::vector<SPIRVValue *> &Elements) override;
+  SPIRVEntry *addSpecConstantCompositeContinuedINTEL(
+      const std::vector<SPIRVValue *> &) override;
   SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
                                            SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
@@ -434,6 +444,15 @@ public:
   SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy, SPIRVValue *Value,
                                        SPIRVValue *ExpectedValue,
                                        SPIRVBasicBlock *BB) override;
+  template <typename AliasingInstType>
+  SPIRVEntry *getOrAddMemAliasingINTELInst(std::vector<SPIRVId> Args,
+                                           llvm::MDNode *MD);
+  SPIRVEntry *getOrAddAliasDomainDeclINTELInst(std::vector<SPIRVId> Args,
+                                               llvm::MDNode *MD) override;
+  SPIRVEntry *getOrAddAliasScopeDeclINTELInst(std::vector<SPIRVId> Args,
+                                              llvm::MDNode *MD) override;
+  SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
+                                                  llvm::MDNode *MD) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -478,6 +497,8 @@ private:
   typedef std::unordered_map<std::string, SPIRVString *> SPIRVStringMap;
   typedef std::map<SPIRVTypeStruct *, std::vector<std::pair<unsigned, SPIRVId>>>
       SPIRVUnknownStructFieldMap;
+  typedef std::vector<SPIRVEntry *> SPIRVAliasInstMDVec;
+  typedef std::unordered_map<llvm::MDNode *, SPIRVEntry *> SPIRVAliasInstMDMap;
 
   SPIRVForwardPointerVec ForwardPointerVec;
   SPIRVTypeVec TypeVec;
@@ -505,6 +526,8 @@ private:
   std::map<unsigned, SPIRVTypeInt *> IntTypeMap;
   std::map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
+  SPIRVAliasInstMDVec AliasInstMDVec;
+  SPIRVAliasInstMDMap AliasInstMDMap;
 
   void layoutEntry(SPIRVEntry *Entry);
 };
@@ -563,7 +586,8 @@ void SPIRVModuleImpl::addExtension(ExtensionID Ext) {
 
 void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
   addCapabilities(SPIRV::getCapability(Cap));
-  SPIRVDBG(spvdbgs() << "addCapability: " << Cap << '\n');
+  SPIRVDBG(spvdbgs() << "addCapability: " << SPIRVCapabilityNameMap::map(Cap)
+                     << '\n');
   if (hasCapability(Cap))
     return;
 
@@ -601,7 +625,8 @@ SPIRVConstant *SPIRVModuleImpl::getLiteralAsConstant(unsigned Literal) {
 
 void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
   auto OC = E->getOpCode();
-  switch (OC) {
+  int IntOC = static_cast<int>(OC);
+  switch (IntOC) {
   case OpString:
     addTo(StringVec, E);
     break;
@@ -629,6 +654,12 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
     addTo(AsmTargetVec, E);
     break;
   }
+  case internal::OpAliasDomainDeclINTEL:
+  case internal::OpAliasScopeDeclINTEL:
+  case internal::OpAliasScopeListDeclINTEL: {
+    addTo(AliasInstMDVec, E);
+    break;
+  }
   case OpAsmINTEL: {
     addTo(AsmVec, E);
     break;
@@ -653,7 +684,7 @@ SPIRVEntry *SPIRVModuleImpl::addEntry(SPIRVEntry *Entry) {
     assert(Entry->getId() != SPIRVID_INVALID && "Invalid id");
     SPIRVEntry *Mapped = nullptr;
     if (exist(Id, &Mapped)) {
-      if (Mapped->getOpCode() == OpForward) {
+      if (Mapped->getOpCode() == internal::OpForward) {
         replaceForward(static_cast<SPIRVForward *>(Mapped), Entry);
       } else {
         assert(Mapped == Entry && "Id used twice");
@@ -843,6 +874,10 @@ SPIRVTypeStruct *SPIRVModuleImpl::openStructType(unsigned NumMembers,
   return T;
 }
 
+SPIRVEntry *SPIRVModuleImpl::addTypeStructContinuedINTEL(unsigned NumMembers) {
+  return add(new SPIRVTypeStructContinuedINTEL(this, NumMembers));
+}
+
 void SPIRVModuleImpl::closeStructType(SPIRVTypeStruct *T, bool Packed) {
   addType(T);
   T->setPacked(Packed);
@@ -1024,21 +1059,6 @@ SPIRVValue *SPIRVModuleImpl::addConstant(SPIRVType *Ty, uint64_t V) {
   return addConstant(new SPIRVConstant(this, Ty, getId(), V));
 }
 
-// Complete constructor for AP integer constant
-template <spv::Op OC>
-SPIRVConstantBase<OC>::SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType,
-                                         SPIRVId TheId, llvm::APInt &TheValue)
-    : SPIRVValue(M, 0, OC, TheType, TheId) {
-  const uint64_t *BigValArr = TheValue.getRawData();
-  for (size_t I = 0; I != TheValue.getNumWords(); ++I) {
-    Union.Words[I * 2 + 1] =
-        (uint32_t)((BigValArr[I] & 0xFFFFFFFF00000000LL) >> 32);
-    Union.Words[I * 2] = (uint32_t)(BigValArr[I] & 0xFFFFFFFFLL);
-  }
-  recalculateWordCount();
-  validate();
-}
-
 SPIRVValue *SPIRVModuleImpl::addConstant(SPIRVType *Ty, llvm::APInt V) {
   return addConstant(new SPIRVConstant(this, Ty, getId(), V));
 }
@@ -1066,7 +1086,72 @@ SPIRVValue *SPIRVModuleImpl::addNullConstant(SPIRVType *Ty) {
 
 SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
     SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
-  return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
+  constexpr int MaxNumElements = MaxWordCount - SPIRVConstantComposite::FixedWC;
+  const int NumElements = Elements.size();
+
+  // In case number of elements is greater than maximum WordCount and
+  // SPV_INTEL_long_constant_composite is not enabled, the error will be emitted
+  // by validate functionality of SPIRVCompositeConstant class.
+  if (NumElements <= MaxNumElements ||
+      !isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_constant_composite))
+    return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
+
+  auto Start = Elements.begin();
+  auto End = Start + MaxNumElements;
+  std::vector<SPIRVValue *> Slice(Start, End);
+  auto *Res =
+      static_cast<SPIRVConstantComposite *>(addCompositeConstant(Ty, Slice));
+  for (; End != Elements.end();) {
+    Start = End;
+    End = ((Elements.end() - End) > MaxNumElements) ? End + MaxNumElements
+                                                    : Elements.end();
+    Slice.assign(Start, End);
+    auto Continued = static_cast<SPIRVConstantComposite::ContinuedInstType>(
+        addCompositeConstantContinuedINTEL(Slice));
+    Res->addContinuedInstruction(Continued);
+  }
+  return Res;
+}
+
+SPIRVEntry *SPIRVModuleImpl::addCompositeConstantContinuedINTEL(
+    const std::vector<SPIRVValue *> &Elements) {
+  return add(new SPIRVConstantCompositeContinuedINTEL(this, Elements));
+}
+
+SPIRVValue *SPIRVModuleImpl::addSpecConstantComposite(
+    SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
+  constexpr int MaxNumElements =
+      MaxWordCount - SPIRVSpecConstantComposite::FixedWC;
+  const int NumElements = Elements.size();
+
+  // In case number of elements is greater than maximum WordCount and
+  // SPV_INTEL_long_constant_composite is not enabled, the error will be emitted
+  // by validate functionality of SPIRVSpecConstantComposite class.
+  if (NumElements <= MaxNumElements ||
+      !isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_constant_composite))
+    return addConstant(
+        new SPIRVSpecConstantComposite(this, Ty, getId(), Elements));
+
+  auto Start = Elements.begin();
+  auto End = Start + MaxNumElements;
+  std::vector<SPIRVValue *> Slice(Start, End);
+  auto *Res = static_cast<SPIRVSpecConstantComposite *>(
+      addSpecConstantComposite(Ty, Slice));
+  for (; End != Elements.end();) {
+    Start = End;
+    End = ((Elements.end() - End) > MaxNumElements) ? End + MaxNumElements
+                                                    : Elements.end();
+    Slice.assign(Start, End);
+    auto Continued = static_cast<SPIRVSpecConstantComposite::ContinuedInstType>(
+        addSpecConstantCompositeContinuedINTEL(Slice));
+    Res->addContinuedInstruction(Continued);
+  }
+  return Res;
+}
+
+SPIRVEntry *SPIRVModuleImpl::addSpecConstantCompositeContinuedINTEL(
+    const std::vector<SPIRVValue *> &Elements) {
+  return add(new SPIRVSpecConstantCompositeContinuedINTEL(this, Elements));
 }
 
 SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
@@ -1413,7 +1498,7 @@ SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
     Op OC, SPIRVType *ResTy, SPIRVValue *InA, SPIRVValue *InB,
     const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB) {
   // SPIR-V format:
-  //   A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout]
+  //   A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout] [Literal Sign]
   //   [Literal EnableSubnormals Literal RoundingMode Literal RoundingAccuracy]
   auto OpsItr = Ops.begin();
   std::vector<SPIRVWord> TheOps = getVec(InA->getId(), *OpsItr++);
@@ -1516,14 +1601,46 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
                                                       SPIRVValue *ExpectedValue,
                                                       SPIRVBasicBlock *BB) {
   return addInstruction(SPIRVInstTemplateBase::create(
-                            OpExpectINTEL, ResultTy, getId(),
+                            internal::OpExpectINTEL, ResultTy, getId(),
                             getVec(Value->getId(), ExpectedValue->getId()), BB,
                             this),
                         BB);
 }
 
+// Create AliasDomainDeclINTEL/AliasScopeDeclINTEL/AliasScopeListDeclINTEL
+// instructions
+template <typename AliasingInstType>
+SPIRVEntry *SPIRVModuleImpl::getOrAddMemAliasingINTELInst(
+    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
+  assert(MD && "noalias/alias.scope metadata can't be null");
+  // Don't duplicate aliasing instruction. For that use a map with a MDNode key
+  if (AliasInstMDMap.find(MD) != AliasInstMDMap.end())
+    return AliasInstMDMap[MD];
+  SPIRVEntry *AliasInst = add(new AliasingInstType(this, getId(), Args));
+  AliasInstMDMap.emplace(std::make_pair(MD, AliasInst));
+  return AliasInst;
+}
+
+// Create AliasDomainDeclINTEL instruction
+SPIRVEntry *SPIRVModuleImpl::getOrAddAliasDomainDeclINTELInst(
+    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
+  return getOrAddMemAliasingINTELInst<SPIRVAliasDomainDeclINTEL>(Args, MD);
+}
+
+// Create AliasScopeDeclINTEL instruction
+SPIRVEntry *SPIRVModuleImpl::getOrAddAliasScopeDeclINTELInst(
+    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
+  return getOrAddMemAliasingINTELInst<SPIRVAliasScopeDeclINTEL>(Args, MD);
+}
+
+// Create AliasScopeListDeclINTEL instruction
+SPIRVEntry *SPIRVModuleImpl::getOrAddAliasScopeListDeclINTELInst(
+    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
+  return getOrAddMemAliasingINTELInst<SPIRVAliasScopeListDeclINTEL>(Args, MD);
+}
+
 SPIRVInstruction *SPIRVModuleImpl::addVariable(
-    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageType,
+    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
     SPIRVValue *Initializer, const std::string &Name,
     SPIRVStorageClassKind StorageClass, SPIRVBasicBlock *BB) {
   SPIRVVariable *Variable = new SPIRVVariable(Type, getId(), Initializer, Name,
@@ -1532,8 +1649,8 @@ SPIRVInstruction *SPIRVModuleImpl::addVariable(
     return addInstruction(Variable, BB);
 
   add(Variable);
-  if (LinkageType != LinkageTypeInternal)
-    Variable->setLinkageType(LinkageType);
+  if (LinkageTy != internal::LinkageTypeInternal)
+    Variable->setLinkageType(LinkageTy);
   Variable->setIsConstant(IsConstant);
   return Variable;
 }
@@ -1693,6 +1810,11 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
       }
     if (!IsEntryPoint)
       M.getEntry(I)->encodeName(O);
+  }
+
+  if (M.isAllowedToUseExtension(
+        ExtensionID::SPV_INTEL_memory_access_aliasing)) {
+    O << SPIRVNL() << MI.AliasInstMDVec;
   }
 
   O << MI.MemberNameVec << MI.DecGroupVec << MI.DecorateSet << MI.GroupDecVec

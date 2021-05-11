@@ -37,6 +37,7 @@
 
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/PatternMatch.h"
 
 namespace llvm {
 
@@ -133,7 +134,9 @@ struct SimplifyQuery {
   bool isUndefValue(Value *V) const {
     if (!CanUseUndef)
       return false;
-    return isa<UndefValue>(V);
+
+    using namespace PatternMatch;
+    return match(V, m_Undef());
   }
 };
 
@@ -294,8 +297,8 @@ Value *SimplifyInstruction(Instruction *I, const SimplifyQuery &Q,
 
 /// See if V simplifies when its operand Op is replaced with RepOp. If not,
 /// return null.
-/// AllowRefinement specifies whether the simplification can be a refinement,
-/// or whether it needs to be strictly identical.
+/// AllowRefinement specifies whether the simplification can be a refinement
+/// (e.g. 0 instead of poison), or whether it needs to be strictly identical.
 Value *SimplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
                               const SimplifyQuery &Q, bool AllowRefinement);
 
@@ -312,17 +315,6 @@ bool replaceAndRecursivelySimplify(
     Instruction *I, Value *SimpleV, const TargetLibraryInfo *TLI = nullptr,
     const DominatorTree *DT = nullptr, AssumptionCache *AC = nullptr,
     SmallSetVector<Instruction *, 8> *UnsimplifiedUsers = nullptr);
-
-/// Recursively attempt to simplify an instruction.
-///
-/// This routine uses SimplifyInstruction to simplify 'I', and if successful
-/// replaces uses of 'I' with the simplified value. It then recurses on each
-/// of the users impacted. It returns true if any simplifications were
-/// performed.
-bool recursivelySimplifyInstruction(Instruction *I,
-                                    const TargetLibraryInfo *TLI = nullptr,
-                                    const DominatorTree *DT = nullptr,
-                                    AssumptionCache *AC = nullptr);
 
 // These helper functions return a SimplifyQuery structure that contains as
 // many of the optional analysis we use as are currently valid.  This is the

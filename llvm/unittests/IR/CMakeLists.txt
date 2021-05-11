@@ -4,7 +4,9 @@ set(LLVM_LINK_COMPONENTS
   Core
   Support
   Passes
+  SYCLLowerIR
   TransformUtils
+  ScalarOpts
   )
 
 add_llvm_unittest(IRTests

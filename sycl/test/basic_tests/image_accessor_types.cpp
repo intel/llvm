@@ -1,4 +1,4 @@
-// RUN: not %clangxx -fsyntax-only %s -I %sycl_include 2>&1 | FileCheck %s
+// RUN: not %clangxx -fsyntax-only -std=c++17 %s -I %sycl_include/sycl 2>&1 | FileCheck %s
 #include <CL/sycl.hpp>
 #include <iostream>
 

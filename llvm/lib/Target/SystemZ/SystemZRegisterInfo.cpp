@@ -9,12 +9,13 @@
 #include "SystemZRegisterInfo.h"
 #include "SystemZInstrInfo.h"
 #include "SystemZSubtarget.h"
-#include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/VirtRegMap.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 using namespace llvm;
 
@@ -109,8 +110,9 @@ bool SystemZRegisterInfo::getRegAllocationHints(
 
         auto tryAddHint = [&](const MachineOperand *MO) -> void {
           Register Reg = MO->getReg();
-          Register PhysReg =
-            Register::isPhysicalRegister(Reg) ? Reg : VRM->getPhys(Reg);
+          Register PhysReg = Register::isPhysicalRegister(Reg)
+                                 ? Reg
+                                 : Register(VRM->getPhys(Reg));
           if (PhysReg) {
             if (MO->getSubReg())
               PhysReg = getSubReg(PhysReg, MO->getSubReg());
@@ -201,7 +203,7 @@ SystemZRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
       MF->getFunction().getAttributes().hasAttrSomewhere(
           Attribute::SwiftError))
     return CSR_SystemZ_SwiftError_SaveList;
-  return CSR_SystemZ_SaveList;
+  return CSR_SystemZ_ELF_SaveList;
 }
 
 const uint32_t *
@@ -217,7 +219,7 @@ SystemZRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
       MF.getFunction().getAttributes().hasAttrSomewhere(
           Attribute::SwiftError))
     return CSR_SystemZ_SwiftError_RegMask;
-  return CSR_SystemZ_RegMask;
+  return CSR_SystemZ_ELF_RegMask;
 }
 
 BitVector
@@ -265,13 +267,23 @@ SystemZRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
   // Decompose the frame index into a base and offset.
   int FrameIndex = MI->getOperand(FIOperandNum).getIndex();
   Register BasePtr;
-  int64_t Offset = (TFI->getFrameIndexReference(MF, FrameIndex, BasePtr) +
-                    MI->getOperand(FIOperandNum + 1).getImm());
+  int64_t Offset =
+      (TFI->getFrameIndexReference(MF, FrameIndex, BasePtr).getFixed() +
+       MI->getOperand(FIOperandNum + 1).getImm());
 
   // Special handling of dbg_value instructions.
   if (MI->isDebugValue()) {
     MI->getOperand(FIOperandNum).ChangeToRegister(BasePtr, /*isDef*/ false);
-    MI->getDebugOffset().ChangeToImmediate(Offset);
+    if (MI->isNonListDebugValue()) {
+      MI->getDebugOffset().ChangeToImmediate(Offset);
+    } else {
+      unsigned OpIdx = MI->getDebugOperandIndex(&MI->getOperand(FIOperandNum));
+      SmallVector<uint64_t, 3> Ops;
+      DIExpression::appendOffset(
+          Ops, TFI->getFrameIndexReference(MF, FrameIndex, BasePtr).getFixed());
+      MI->getDebugExpressionOp().setMetadata(
+          DIExpression::appendOpsToArg(MI->getDebugExpression(), Ops, OpIdx));
+    }
     return;
   }
 
@@ -321,8 +333,8 @@ SystemZRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
         // Load the high offset into the scratch register and use it as
         // an index.
         TII->loadImmediate(MBB, MI, ScratchReg, HighOffset);
-        BuildMI(MBB, MI, DL, TII->get(SystemZ::AGR),ScratchReg)
-          .addReg(ScratchReg, RegState::Kill).addReg(BasePtr);
+        BuildMI(MBB, MI, DL, TII->get(SystemZ::LA), ScratchReg)
+          .addReg(BasePtr, RegState::Kill).addImm(0).addReg(ScratchReg);
       }
 
       // Use the scratch register as the base.  It then dies here.

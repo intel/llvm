@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -I%S \
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -I%S \
 // RUN:      -fcxx-exceptions -fexceptions -disable-llvm-passes \
 // RUN:      -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-DEVICE
 //
@@ -44,7 +44,7 @@ void foo_cleanup() {
   // Regular + exception cleanup
   // CHECK-HOST-LIN: call void @_ZN1AD1Ev
   // CHECK-HOST-LIN: call void @_ZN1AD2Ev
-  // CHECK-HOST-WIN: call void @"??1A@@QEAA@XZ"(%struct.A* %a)
+  // CHECK-HOST-WIN: call void @"??1A@@QEAA@XZ"(%struct.A* {{[^,]*}} %a)
 }
 
 template <typename name, typename Func>

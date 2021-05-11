@@ -70,6 +70,7 @@
 #include "llvm/Support/ScopedPrinter.h"
 #include <algorithm>
 #include <iterator>
+#include <limits>
 
 // We log detailed candidate here if you run with -debug-only=codecomplete.
 #define DEBUG_TYPE "CodeComplete"
@@ -173,9 +174,28 @@ struct CompletionCandidate {
 
   // Returns a token identifying the overload set this is part of.
   // 0 indicates it's not part of any overload set.
-  size_t overloadSet(const CodeCompleteOptions &Opts) const {
+  size_t overloadSet(const CodeCompleteOptions &Opts, llvm::StringRef FileName,
+                     IncludeInserter *Inserter) const {
     if (!Opts.BundleOverloads.getValueOr(false))
       return 0;
+
+    // Depending on the index implementation, we can see different header
+    // strings (literal or URI) mapping to the same file. We still want to
+    // bundle those, so we must resolve the header to be included here.
+    std::string HeaderForHash;
+    if (Inserter) {
+      if (auto Header = headerToInsertIfAllowed(Opts)) {
+        if (auto HeaderFile = toHeaderFile(*Header, FileName)) {
+          if (auto Spelled =
+                  Inserter->calculateIncludePath(*HeaderFile, FileName))
+            HeaderForHash = *Spelled;
+        } else {
+          vlog("Code completion header path manipulation failed {0}",
+               HeaderFile.takeError());
+        }
+      }
+    }
+
     llvm::SmallString<256> Scratch;
     if (IndexResult) {
       switch (IndexResult->SymInfo.Kind) {
@@ -192,7 +212,7 @@ struct CompletionCandidate {
         // This could break #include insertion.
         return llvm::hash_combine(
             (IndexResult->Scope + IndexResult->Name).toStringRef(Scratch),
-            headerToInsertIfAllowed(Opts).getValueOr(""));
+            HeaderForHash);
       default:
         return 0;
       }
@@ -206,8 +226,7 @@ struct CompletionCandidate {
         llvm::raw_svector_ostream OS(Scratch);
         D->printQualifiedName(OS);
       }
-      return llvm::hash_combine(Scratch,
-                                headerToInsertIfAllowed(Opts).getValueOr(""));
+      return llvm::hash_combine(Scratch, HeaderForHash);
     }
     assert(IdentifierResult);
     return 0;
@@ -259,7 +278,7 @@ struct CodeCompletionBuilder {
                         CodeCompletionContext::Kind ContextKind,
                         const CodeCompleteOptions &Opts,
                         bool IsUsingDeclaration, tok::TokenKind NextTokenKind)
-      : ASTCtx(ASTCtx), ExtractDocumentation(Opts.IncludeComments),
+      : ASTCtx(ASTCtx),
         EnableFunctionArgSnippets(Opts.EnableFunctionArgSnippets),
         IsUsingDeclaration(IsUsingDeclaration), NextTokenKind(NextTokenKind) {
     add(C, SemaCCS);
@@ -375,7 +394,7 @@ struct CodeCompletionBuilder {
       S.SnippetSuffix = std::string(C.IndexResult->CompletionSnippetSuffix);
       S.ReturnType = std::string(C.IndexResult->ReturnType);
     }
-    if (ExtractDocumentation && !Completion.Documentation) {
+    if (!Completion.Documentation) {
       auto SetDoc = [&](llvm::StringRef Doc) {
         if (!Doc.empty()) {
           Completion.Documentation.emplace();
@@ -433,18 +452,52 @@ private:
   std::string summarizeSnippet() const {
     if (IsUsingDeclaration)
       return "";
-    // Suppress function argument snippets if args are already present.
-    if ((Completion.Kind == CompletionItemKind::Function ||
-         Completion.Kind == CompletionItemKind::Method ||
-         Completion.Kind == CompletionItemKind::Constructor) &&
-        NextTokenKind == tok::l_paren)
-      return "";
     auto *Snippet = onlyValue<&BundledEntry::SnippetSuffix>();
     if (!Snippet)
       // All bundles are function calls.
       // FIXME(ibiryukov): sometimes add template arguments to a snippet, e.g.
       // we need to complete 'forward<$1>($0)'.
       return "($0)";
+    // Suppress function argument snippets cursor is followed by left
+    // parenthesis (and potentially arguments) or if there are potentially
+    // template arguments. There are cases where it would be wrong (e.g. next
+    // '<' token is a comparison rather than template argument list start) but
+    // it is less common and suppressing snippet provides better UX.
+    if (Completion.Kind == CompletionItemKind::Function ||
+        Completion.Kind == CompletionItemKind::Method ||
+        Completion.Kind == CompletionItemKind::Constructor) {
+      // If there is a potential template argument list, drop snippet and just
+      // complete symbol name. Ideally, this could generate an edit that would
+      // paste function arguments after template argument list but it would be
+      // complicated. Example:
+      //
+      // fu^<int> -> function<int>
+      if (NextTokenKind == tok::less && Snippet->front() == '<')
+        return "";
+      // Potentially followed by argument list.
+      if (NextTokenKind == tok::l_paren) {
+        // If snippet contains template arguments we will emit them and drop
+        // function arguments. Example:
+        //
+        // fu^(42) -> function<int>(42);
+        if (Snippet->front() == '<') {
+          // Find matching '>'. Snippet->find('>') will not work in cases like
+          // template <typename T=std::vector<int>>. Hence, iterate through
+          // the snippet until the angle bracket balance reaches zero.
+          int Balance = 0;
+          size_t I = 0;
+          do {
+            if (Snippet->at(I) == '>')
+              --Balance;
+            else if (Snippet->at(I) == '<')
+              ++Balance;
+            ++I;
+          } while (Balance > 0);
+          return Snippet->substr(0, I);
+        }
+        return "";
+      }
+    }
     if (EnableFunctionArgSnippets)
       return *Snippet;
 
@@ -494,7 +547,6 @@ private:
   ASTContext *ASTCtx;
   CodeCompletion Completion;
   llvm::SmallVector<BundledEntry, 1> Bundled;
-  bool ExtractDocumentation;
   bool EnableFunctionArgSnippets;
   // No snippets will be generated for using declarations and when the function
   // arguments are already present.
@@ -503,20 +555,19 @@ private:
 };
 
 // Determine the symbol ID for a Sema code completion result, if possible.
-llvm::Optional<SymbolID> getSymbolID(const CodeCompletionResult &R,
-                                     const SourceManager &SM) {
+SymbolID getSymbolID(const CodeCompletionResult &R, const SourceManager &SM) {
   switch (R.Kind) {
   case CodeCompletionResult::RK_Declaration:
   case CodeCompletionResult::RK_Pattern: {
     // Computing USR caches linkage, which may change after code completion.
     if (hasUnstableLinkage(R.Declaration))
-      return llvm::None;
+      return {};
     return clang::clangd::getSymbolID(R.Declaration);
   }
   case CodeCompletionResult::RK_Macro:
     return clang::clangd::getSymbolID(R.Macro->getName(), R.MacroDefInfo, SM);
   case CodeCompletionResult::RK_Keyword:
-    return None;
+    return {};
   }
   llvm_unreachable("unknown CodeCompletionResult kind");
 }
@@ -811,9 +862,9 @@ private:
 };
 
 struct ScoredSignature {
-  // When set, requires documentation to be requested from the index with this
-  // ID.
-  llvm::Optional<SymbolID> IDForDoc;
+  // When not null, requires documentation to be requested from the index with
+  // this ID.
+  SymbolID IDForDoc;
   SignatureInformation Signature;
   SignatureQualitySignals Quality;
 };
@@ -877,7 +928,7 @@ public:
       for (const auto &S : ScoredSignatures) {
         if (!S.IDForDoc)
           continue;
-        IndexRequest.IDs.insert(*S.IDForDoc);
+        IndexRequest.IDs.insert(S.IDForDoc);
       }
       Index->lookup(IndexRequest, [&](const Symbol &S) {
         if (!S.Documentation.empty())
@@ -922,7 +973,7 @@ public:
 
     for (auto &SS : ScoredSignatures) {
       auto IndexDocIt =
-          SS.IDForDoc ? FetchedDocs.find(*SS.IDForDoc) : FetchedDocs.end();
+          SS.IDForDoc ? FetchedDocs.find(SS.IDForDoc) : FetchedDocs.end();
       if (IndexDocIt != FetchedDocs.end())
         SS.Signature.documentation = IndexDocIt->second;
 
@@ -1094,8 +1145,8 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
       offsetToClangLineColumn(Input.ParseInput.Contents, Input.Offset);
 
   std::unique_ptr<llvm::MemoryBuffer> ContentsBuffer =
-      llvm::MemoryBuffer::getMemBufferCopy(Input.ParseInput.Contents,
-                                           Input.FileName);
+      llvm::MemoryBuffer::getMemBuffer(Input.ParseInput.Contents,
+                                       Input.FileName);
   // The diagnostic options must be set before creating a CompilerInstance.
   CI->getDiagnosticOpts().IgnoreWarnings = true;
   // We reuse the preamble whether it's valid or not. This is a
@@ -1105,8 +1156,10 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   // overriding the preamble will break sema completion. Fortunately we can just
   // skip all includes in this case; these completions are really simple.
   PreambleBounds PreambleRegion =
-      ComputePreambleBounds(*CI->getLangOpts(), ContentsBuffer.get(), 0);
-  bool CompletingInPreamble = PreambleRegion.Size > Input.Offset;
+      ComputePreambleBounds(*CI->getLangOpts(), *ContentsBuffer, 0);
+  bool CompletingInPreamble = Input.Offset < PreambleRegion.Size ||
+                              (!PreambleRegion.PreambleEndsAtStartOfLine &&
+                               Input.Offset == PreambleRegion.Size);
   if (Input.Patch)
     Input.Patch->apply(*CI);
   // NOTE: we must call BeginSourceFile after prepareCompilerInstance. Otherwise
@@ -1571,7 +1624,8 @@ private:
         assert(IdentifierResult);
         C.Name = IdentifierResult->Name;
       }
-      if (auto OverloadSet = C.overloadSet(Opts)) {
+      if (auto OverloadSet = C.overloadSet(
+              Opts, FileName, Inserter ? Inserter.getPointer() : nullptr)) {
         auto Ret = BundleLookup.try_emplace(OverloadSet, Bundles.size());
         if (Ret.second)
           Bundles.emplace_back();
@@ -1586,7 +1640,7 @@ private:
         [&](const CodeCompletionResult &SemaResult) -> const Symbol * {
       if (auto SymID =
               getSymbolID(SemaResult, Recorder->CCSema->getSourceManager())) {
-        auto I = IndexResults.find(*SymID);
+        auto I = IndexResults.find(SymID);
         if (I != IndexResults.end()) {
           UsedIndexResults.insert(&*I);
           return &*I;
@@ -1638,25 +1692,17 @@ private:
           evaluateSymbolAndRelevance(Scores.Quality, Scores.Relevance);
       // NameMatch is in fact a multiplier on total score, so rescoring is
       // sound.
-      Scores.ExcludingName = Relevance.NameMatch
-                                 ? Scores.Total / Relevance.NameMatch
-                                 : Scores.Quality;
+      Scores.ExcludingName =
+          Relevance.NameMatch > std::numeric_limits<float>::epsilon()
+              ? Scores.Total / Relevance.NameMatch
+              : Scores.Quality;
       return Scores;
 
     case RM::DecisionForest:
-      Scores.Quality = 0;
-      Scores.Relevance = 0;
-      // Exponentiating DecisionForest prediction makes the score of each tree a
-      // multiplciative boost (like NameMatch). This allows us to weigh the
-      // prediciton score and NameMatch appropriately.
-      Scores.ExcludingName = pow(Opts.DecisionForestBase,
-                                 evaluateDecisionForest(Quality, Relevance));
-      // NeedsFixIts is not part of the DecisionForest as generating training
-      // data that needs fixits is not-feasible.
-      if (Relevance.NeedsFixIts)
-        Scores.ExcludingName *= 0.5;
-      // NameMatch should be a multiplier on total score to support rescoring.
-      Scores.Total = Relevance.NameMatch * Scores.ExcludingName;
+      DecisionForestScores DFScores = Opts.DecisionForestScorer(
+          Quality, Relevance, Opts.DecisionForestBase);
+      Scores.ExcludingName = DFScores.ExcludingName;
+      Scores.Total = DFScores.Total;
       return Scores;
     }
     llvm_unreachable("Unhandled CodeCompletion ranking model.");
@@ -1677,6 +1723,7 @@ private:
     if (PreferredType)
       Relevance.HadContextType = true;
     Relevance.ContextWords = &ContextWords;
+    Relevance.MainFileSignals = Opts.MainFileSignals;
 
     auto &First = Bundle.front();
     if (auto FuzzyScore = fuzzyScore(First))
@@ -1756,8 +1803,8 @@ private:
 
 clang::CodeCompleteOptions CodeCompleteOptions::getClangCompleteOpts() const {
   clang::CodeCompleteOptions Result;
-  Result.IncludeCodePatterns = EnableSnippets && IncludeCodePatterns;
-  Result.IncludeMacros = IncludeMacros;
+  Result.IncludeCodePatterns = EnableSnippets;
+  Result.IncludeMacros = true;
   Result.IncludeGlobals = true;
   // We choose to include full comments and not do doxygen parsing in
   // completion.

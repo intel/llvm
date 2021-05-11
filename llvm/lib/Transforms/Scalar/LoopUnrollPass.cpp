@@ -76,7 +76,7 @@ using namespace llvm;
 cl::opt<bool> llvm::ForgetSCEVInLoopUnroll(
     "forget-scev-loop-unroll", cl::init(false), cl::Hidden,
     cl::desc("Forget everything in SCEV when doing LoopUnroll, instead of just"
-             " the current top-most loop. This is somtimes preferred to reduce"
+             " the current top-most loop. This is sometimes preferred to reduce"
              " compile time."));
 
 static cl::opt<unsigned>
@@ -218,8 +218,10 @@ TargetTransformInfo::UnrollingPreferences llvm::gatherUnrollingPreferences(
 
   // Apply size attributes
   bool OptForSize = L->getHeader()->getParent()->hasOptSize() ||
-                    llvm::shouldOptimizeForSize(L->getHeader(), PSI, BFI,
-                                                PGSOQueryType::IRPass);
+                    // Let unroll hints / pragmas take precedence over PGSO.
+                    (hasUnrollTransformation(L) != TM_ForcedByUser &&
+                     llvm::shouldOptimizeForSize(L->getHeader(), PSI, BFI,
+                                                 PGSOQueryType::IRPass));
   if (OptForSize) {
     UP.Threshold = UP.OptSizeThreshold;
     UP.PartialThreshold = UP.PartialOptSizeThreshold;
@@ -359,14 +361,14 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
 
   // The estimated cost of the unrolled form of the loop. We try to estimate
   // this by simplifying as much as we can while computing the estimate.
-  unsigned UnrolledCost = 0;
+  InstructionCost UnrolledCost = 0;
 
   // We also track the estimated dynamic (that is, actually executed) cost in
   // the rolled form. This helps identify cases when the savings from unrolling
   // aren't just exposing dead control flows, but actual reduced dynamic
   // instructions due to the simplifications which we expect to occur after
   // unrolling.
-  unsigned RolledDynamicCost = 0;
+  InstructionCost RolledDynamicCost = 0;
 
   // We track the simplification of each instruction in each iteration. We use
   // this to recursively merge costs into the unrolled cost on-demand so that
@@ -637,10 +639,15 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
     }
   }
 
+  assert(UnrolledCost.isValid() && RolledDynamicCost.isValid() &&
+         "All instructions must have a valid cost, whether the "
+         "loop is rolled or unrolled.");
+
   LLVM_DEBUG(dbgs() << "Analysis finished:\n"
                     << "UnrolledCost: " << UnrolledCost << ", "
                     << "RolledDynamicCost: " << RolledDynamicCost << "\n");
-  return {{UnrolledCost, RolledDynamicCost}};
+  return {{unsigned(*UnrolledCost.getValue()),
+           unsigned(*RolledDynamicCost.getValue())}};
 }
 
 /// ApproximateLoopSize - Approximate the size of the loop.
@@ -1041,7 +1048,7 @@ static LoopUnrollResult tryToUnrollLoop(
     return LoopUnrollResult::Unmodified;
   }
 
-  // When automtatic unrolling is disabled, do not unroll unless overridden for
+  // When automatic unrolling is disabled, do not unroll unless overridden for
   // this loop.
   if (OnlyWhenForced && !(TM & TM_Enable))
     return LoopUnrollResult::Unmodified;
@@ -1103,7 +1110,7 @@ static LoopUnrollResult tryToUnrollLoop(
   // If the loop contains a convergent operation, the prelude we'd add
   // to do the first few instructions before we hit the unrolled loop
   // is unsafe -- it adds a control-flow dependency to the convergent
-  // operation.  Therefore restrict remainder loop (try unrollig without).
+  // operation.  Therefore restrict remainder loop (try unrolling without).
   //
   // TODO: This is quite conservative.  In practice, convergent_op()
   // is likely to be called unconditionally in the loop.  In this
@@ -1299,7 +1306,7 @@ Pass *llvm::createLoopUnrollPass(int OptLevel, bool OnlyWhenForced,
 Pass *llvm::createSimpleLoopUnrollPass(int OptLevel, bool OnlyWhenForced,
                                        bool ForgetAllSCEV) {
   return createLoopUnrollPass(OptLevel, OnlyWhenForced, ForgetAllSCEV, -1, -1,
-                              0, 0, 0, 0);
+                              0, 0, 0, 1);
 }
 
 PreservedAnalyses LoopFullUnrollPass::run(Loop &L, LoopAnalysisManager &AM,
@@ -1327,7 +1334,7 @@ PreservedAnalyses LoopFullUnrollPass::run(Loop &L, LoopAnalysisManager &AM,
                                  OnlyWhenForced, ForgetSCEV, /*Count*/ None,
                                  /*Threshold*/ None, /*AllowPartial*/ false,
                                  /*Runtime*/ false, /*UpperBound*/ false,
-                                 /*AllowPeeling*/ false,
+                                 /*AllowPeeling*/ true,
                                  /*AllowProfileBasedPeeling*/ false,
                                  /*FullUnrollMaxCount*/ None) !=
                  LoopUnrollResult::Unmodified;
@@ -1369,7 +1376,7 @@ PreservedAnalyses LoopFullUnrollPass::run(Loop &L, LoopAnalysisManager &AM,
     }
 
     // Otherwise erase the loop from the list if it was in the old loops.
-    return OldLoops.count(SibLoop) != 0;
+    return OldLoops.contains(SibLoop);
   });
   Updater.addSiblingLoops(SibLoops);
 

@@ -239,6 +239,23 @@ extern const short *_tolower_tab_;
     COMMON_INTERCEPT_FUNCTION(fn)
 #endif
 
+#if SANITIZER_GLIBC
+// If we could not find the versioned symbol, fall back to an unversioned
+// lookup. This is needed to work around a GLibc bug that causes dlsym
+// with RTLD_NEXT to return the oldest versioned symbol.
+// See https://sourceware.org/bugzilla/show_bug.cgi?id=14932.
+// For certain symbols (e.g. regexec) we have to perform a versioned lookup,
+// but that versioned symbol will only exist for architectures where the
+// oldest Glibc version pre-dates support for that architecture.
+// For example, regexec@GLIBC_2.3.4 exists on x86_64, but not RISC-V.
+// See also https://gcc.gnu.org/bugzilla/show_bug.cgi?id=98920.
+#define COMMON_INTERCEPT_FUNCTION_GLIBC_VER_MIN(fn, ver) \
+  COMMON_INTERCEPT_FUNCTION_VER_UNVERSIONED_FALLBACK(fn, ver)
+#else
+#define COMMON_INTERCEPT_FUNCTION_GLIBC_VER_MIN(fn, ver) \
+  COMMON_INTERCEPT_FUNCTION(fn)
+#endif
+
 #ifndef COMMON_INTERCEPTOR_MEMSET_IMPL
 #define COMMON_INTERCEPTOR_MEMSET_IMPL(ctx, dst, v, size) \
   {                                                       \
@@ -1864,7 +1881,7 @@ UNUSED static void unpoison_passwd(void *ctx, __sanitizer_passwd *pwd) {
       COMMON_INTERCEPTOR_WRITE_RANGE(ctx, pwd->pw_gecos,
                                      REAL(strlen)(pwd->pw_gecos) + 1);
 #endif
-#if SANITIZER_MAC || SANITIZER_FREEBSD || SANITIZER_NETBSD || SANITIZER_OPENBSD
+#if SANITIZER_MAC || SANITIZER_FREEBSD || SANITIZER_NETBSD
     if (pwd->pw_class)
       COMMON_INTERCEPTOR_WRITE_RANGE(ctx, pwd->pw_class,
                                      REAL(strlen)(pwd->pw_class) + 1);
@@ -2178,6 +2195,7 @@ INTERCEPTOR(int, clock_gettime, u32 clk_id, void *tp) {
   }
   return res;
 }
+#if SANITIZER_GLIBC
 namespace __sanitizer {
 extern "C" {
 int real_clock_gettime(u32 clk_id, void *tp) {
@@ -2187,6 +2205,7 @@ int real_clock_gettime(u32 clk_id, void *tp) {
 }
 }  // extern "C"
 }  // namespace __sanitizer
+#endif
 INTERCEPTOR(int, clock_settime, u32 clk_id, const void *tp) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, clock_settime, clk_id, tp);
@@ -3750,7 +3769,7 @@ INTERCEPTOR(char *, strerror, int errnum) {
 //    static storage.
 #if ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !_GNU_SOURCE) || \
     SANITIZER_MAC || SANITIZER_ANDROID || SANITIZER_NETBSD ||                 \
-    SANITIZER_FREEBSD || SANITIZER_OPENBSD
+    SANITIZER_FREEBSD
 // POSIX version. Spec is not clear on whether buf is NULL-terminated.
 // At least on OSX, buf contents are valid even when the call fails.
 INTERCEPTOR(int, strerror_r, int errnum, char *buf, SIZE_T buflen) {
@@ -4088,23 +4107,31 @@ INTERCEPTOR(int, sigfillset, __sanitizer_sigset_t *set) {
 #endif
 
 #if SANITIZER_INTERCEPT_SIGSET_LOGICOPS
-INTERCEPTOR(int, sigandset, __sanitizer_sigset_t *dst, __sanitizer_sigset_t *src1, __sanitizer_sigset_t *src2) {
+INTERCEPTOR(int, sigandset, __sanitizer_sigset_t *dst,
+            __sanitizer_sigset_t *src1, __sanitizer_sigset_t *src2) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, sigandset, dst, src1, src2);
-  if (src1) COMMON_INTERCEPTOR_READ_RANGE(ctx, src1, sizeof(*src1));
-  if (src2) COMMON_INTERCEPTOR_READ_RANGE(ctx, src2, sizeof(*src2));
+  if (src1)
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, src1, sizeof(*src1));
+  if (src2)
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, src2, sizeof(*src2));
   int res = REAL(sigandset)(dst, src1, src2);
-  if (!res && dst) COMMON_INTERCEPTOR_WRITE_RANGE(ctx, dst, sizeof(*dst));
+  if (!res && dst)
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, dst, sizeof(*dst));
   return res;
 }
 
-INTERCEPTOR(int, sigorset, __sanitizer_sigset_t *dst, __sanitizer_sigset_t *src1, __sanitizer_sigset_t *src2) {
+INTERCEPTOR(int, sigorset, __sanitizer_sigset_t *dst,
+            __sanitizer_sigset_t *src1, __sanitizer_sigset_t *src2) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, sigorset, dst, src1, src2);
-  if (src1) COMMON_INTERCEPTOR_READ_RANGE(ctx, src1, sizeof(*src1));
-  if (src2) COMMON_INTERCEPTOR_READ_RANGE(ctx, src2, sizeof(*src2));
+  if (src1)
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, src1, sizeof(*src1));
+  if (src2)
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, src2, sizeof(*src2));
   int res = REAL(sigorset)(dst, src1, src2);
-  if (!res && dst) COMMON_INTERCEPTOR_WRITE_RANGE(ctx, dst, sizeof(*dst));
+  if (!res && dst)
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, dst, sizeof(*dst));
   return res;
 }
 #define INIT_SIGSET_LOGICOPS                    \
@@ -5897,7 +5924,7 @@ INTERCEPTOR(void, xdrrec_create, __sanitizer_XDR *xdr, unsigned sndsize,
   COMMON_INTERCEPTOR_ENTER(ctx, xdrrec_create, xdr, sndsize, rcvsize,
                            handle, rd, wr);
   COMMON_INTERCEPTOR_READ_RANGE(ctx, &xdr->x_op, sizeof xdr->x_op);
-  
+
   // We can't allocate a wrapper on the stack, as the handle is used outside
   // this stack frame. So we put it on the heap, and keep track of it with
   // the HashMap (keyed by x_private). When we later need to xdr_destroy,
@@ -5970,6 +5997,9 @@ void unpoison_file(__sanitizer_FILE *fp) {
   if (fp->_IO_read_base && fp->_IO_read_base < fp->_IO_read_end)
     COMMON_INTERCEPTOR_INITIALIZE_RANGE(fp->_IO_read_base,
                                         fp->_IO_read_end - fp->_IO_read_base);
+  if (fp->_IO_write_base && fp->_IO_write_base < fp->_IO_write_end)
+    COMMON_INTERCEPTOR_INITIALIZE_RANGE(fp->_IO_write_base,
+                                        fp->_IO_write_end - fp->_IO_write_base);
 #endif
 #endif  // SANITIZER_HAS_STRUCT_FILE
 }
@@ -6196,6 +6226,8 @@ INTERCEPTOR(void, _obstack_newchunk, __sanitizer_obstack *obstack, int length) {
 INTERCEPTOR(int, fflush, __sanitizer_FILE *fp) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, fflush, fp);
+  if (fp)
+    unpoison_file(fp);
   int res = REAL(fflush)(fp);
   // FIXME: handle fp == NULL
   if (fp) {
@@ -6215,6 +6247,8 @@ INTERCEPTOR(int, fclose, __sanitizer_FILE *fp) {
   COMMON_INTERCEPTOR_ENTER(ctx, fclose, fp);
   COMMON_INTERCEPTOR_FILE_CLOSE(ctx, fp);
   const FileMetadata *m = GetInterceptorMetadata(fp);
+  if (fp)
+    unpoison_file(fp);
   int res = REAL(fclose)(fp);
   if (m) {
     COMMON_INTERCEPTOR_INITIALIZE_RANGE(*m->addr, *m->size);
@@ -7764,7 +7798,7 @@ INTERCEPTOR(void, regfree, const void *preg) {
 }
 #define INIT_REGEX                                                             \
   COMMON_INTERCEPT_FUNCTION(regcomp);                                          \
-  COMMON_INTERCEPT_FUNCTION(regexec);                                          \
+  COMMON_INTERCEPT_FUNCTION_GLIBC_VER_MIN(regexec, "GLIBC_2.3.4");             \
   COMMON_INTERCEPT_FUNCTION(regerror);                                         \
   COMMON_INTERCEPT_FUNCTION(regfree);
 #else

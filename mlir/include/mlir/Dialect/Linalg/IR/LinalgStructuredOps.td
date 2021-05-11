@@ -15,42 +15,47 @@
 #define LINALG_STRUCTURED_OPS
 
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
-include "mlir/Dialect/Linalg/IR/LinalgStructuredOpsInterface.td"
+include "mlir/Dialect/Linalg/IR/LinalgInterfaces.td"
 include "mlir/Interfaces/CopyOpInterface.td"
-
-// The Linalg `NInputs` trait provides the API for ops that are known
-// to have a specified number of inputs, all passed as operands.
-// See Linalg/LinalgTraits.h for implementation details and usage.
-class NInputs<int n> :
-  NativeOpTrait<"linalg::NInputs<" # !cast<string>(n) # ">::Impl"> {}
-
-// The Linalg `ZeroInitTensors` trait provides the API for ops that are known
-// to not have input tensor operands.
-// See Linalg/LinalgTraits.h for implementation details and usage.
-def ZeroInitTensors : NativeOpTrait<"linalg::ZeroInitTensors"> {}
-
-// The Linalg `NOutputs` trait provides the API for ops that are known
-// to have a specified number of outputs, all passed as operands.
-// See Linalg/LinalgTraits.h for implementation details and usage.
-class NOutputs<int n> :
-  NativeOpTrait<"linalg::NOutputs<" # !cast<string>(n) # ">::Impl"> {}
-
-def StructuredOpTraits : NativeOpTrait<"linalg::StructuredOpTraits">;
-def NamedStructuredOpTrait : NativeOpTrait<"linalg::NamedStructuredOpTrait">;
+include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // Base Tablegen class for Linalg ops.
-// Linalg ops that correspond to library calls operate on linalg::View as their
+// Linalg ops that correspond to library calls operate on ShapedType as their
 // first operands. These may be optionally followed by non-view operands
 // depending on the specific Linalg op.
 class LinalgStructuredBase_Op<string mnemonic, list<OpTrait> props>
-  : Op<Linalg_Dialect, mnemonic,
-       !listconcat(props, [LinalgStructuredInterface])> {
+  : Op<Linalg_Dialect, mnemonic, !listconcat(props, [
+       LinalgStructuredInterface, InferShapedTypeOpInterface])> {
+  code structuredOpsBaseDecls = [{
+    // Return the number of induction variables in the basic block. This should
+    // always be 0 for index-free linalg ops. For IndexedGeneric, this must be
+    // equal to numLoops.
+    unsigned getNumPayloadInductionVariables() {
+      return isa<IndexedGenericOp>(this->getOperation()) ? getNumLoops() : 0;
+    }
+
+    // Return whether the op accesses the iteration indices.
+    bool hasIndexSemantics() {
+      Operation *op = this->getOperation();
+      if(op->getNumRegions() == 0 || op->getRegion(0).empty())
+        return false;
+      return !op->getRegion(0).front().getOps<IndexOp>().empty();
+    }
+
+    LogicalResult reifyReturnTypeShapesPerResultDim(OpBuilder &b,
+        SmallVectorImpl<SmallVector<Value>> &reifiedReturnShapes) {
+      return cast<LinalgOp>(getOperation()).reifyReturnTypeShapesPerResultDim(b,
+          reifiedReturnShapes);
+    }
+  }];
 }
 
 class LinalgStructured_Op<string mnemonic, list<OpTrait> props>
   : LinalgStructuredBase_Op<mnemonic,
-       !listconcat(props, [StructuredOpTraits])> {
-  code libraryCallName = [{
+       !listconcat(props, [
+         DeclareOpInterfaceMethods<MemoryEffectsOpInterface>])> {
+  code structuredOpsDecls = structuredOpsBaseDecls # [{
     std::string getLibraryCallName() {
       return generateLibraryCallName(getOperation());
     }
@@ -63,12 +68,7 @@ class LinalgStructured_Op<string mnemonic, list<OpTrait> props>
 //===----------------------------------------------------------------------===//
 // At the moment these are not declarative and require a bunch of C++ code.
 // In the future, these should be migrated to a declarative specification.
-def CopyOp : LinalgStructured_Op<"copy", [
-    CopyOpInterface,
-    NInputs<1>,
-    ZeroInitTensors,
-    NOutputs<1>
-  ]> {
+def CopyOp : LinalgStructured_Op<"copy", [CopyOpInterface]> {
   let description = [{
     Copies the data in the input view into the output view.
 
@@ -125,16 +125,18 @@ def CopyOp : LinalgStructured_Op<"copy", [
     AnyStridedMemRef:$output,
     OptionalAttr<AffineMapAttr>:$inputPermutation,
     OptionalAttr<AffineMapAttr>:$outputPermutation);
+  let regions = (region AnyRegion:$region);
 
-  // TODO: this should go away once the usage of OptionalAttr triggers emission
-  // of builders with default arguments left unspecified.
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value input, Value output", [{
-    return build(
-      builder, result, input, output, AffineMapAttr(), AffineMapAttr());
-  }]>];
+  let builders = [
+    OpBuilder<(ins "Value":$input, "Value":$output,
+      CArg<"AffineMap", "AffineMap()">:$inputPermutation,
+      CArg<"AffineMap", "AffineMap()">:$outputPermutation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>];
 
-  let extraClassDeclaration = libraryCallName # [{
+  let extraClassDeclaration = structuredOpsDecls # [{
+    ValueRange inputs() { return getOperands().take_front(); }
+    ValueRange outputs() { return getOperands().take_back(); }
+
     // Rank-polymorphic.
     //   filling_value -> O(ivs) with parallel iterators.
     ArrayAttr iterator_types() {
@@ -157,21 +159,36 @@ def CopyOp : LinalgStructured_Op<"copy", [
 
     Value getSource() { return input();}
     Value getTarget() { return output(); }
+
+    static void regionBuilder(Block &block, ValueRange captures);
+    static std::function<void(Block &block, ValueRange captures)>
+    getRegionBuilder() {
+      return &regionBuilder;
+    }
+    static unsigned getNumRegionArgs() { return 2; }
   }];
   let verifier = [{ return ::verify(*this); }];
 
+  let assemblyFormat = [{
+    `(` $input `,` $output `)` attr-dict `:`
+        type($input) `,` type($output)
+      custom<CopyOpRegion>($region, ref(type($input)), ref(type($input)))
+  }];
+
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+  let skipDefaultBuilders = 1;
 }
 
-def FillOp : LinalgStructured_Op<"fill", [
-    NInputs<0>,
-    ZeroInitTensors,
-    NOutputs<1>]> {
-
-  let arguments = (ins AnyStridedMemRef:$output,
+def FillOp : LinalgStructured_Op<"fill", []> {
+  let arguments = (ins AnyShaped:$output,
                    AnyTypeOf<[AnyFloat, AnySignlessInteger, AnyVector]>:$value);
-  let extraClassDeclaration = libraryCallName # [{
+  let results = (outs Optional<AnyRankedTensor>:$result);
+  let regions = (region AnyRegion:$region);
+  let extraClassDeclaration = structuredOpsDecls # [{
+    ValueRange inputs() { return {}; }
+    ValueRange outputs() { return getOperands().take_front(); }
+
     // Rank-polymorphic.
     //   filling_value -> O(ivs) with parallel iterators.
     ArrayAttr iterator_types() {
@@ -186,7 +203,24 @@ def FillOp : LinalgStructured_Op<"fill", [
       return Builder(getContext()).getAffineMapArrayAttr({
           extractOrIdentityMap(llvm::None, getNumParallelLoops(), context)});
     }
+
+    static void regionBuilder(Block &block, ValueRange captures);
+    static std::function<void(Block &block, ValueRange captures)>
+    getRegionBuilder() {
+      return &regionBuilder;
+    }
+    static unsigned getNumRegionArgs() { return 1; }
   }];
+
+  let assemblyFormat = [{
+    `(` $output `,` $value `)` attr-dict `:`
+        type($output) `,` type($value) (`->` type($result)^)?
+      custom<FillOpRegion>($region, ref(type($output)), ref($value))
+  }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$output, "Value":$value)>
+  ];
 
   let verifier = [{ return ::verify(*this); }];
 
@@ -233,7 +267,7 @@ class PoolingBase_Op<string mnemonic, list<OpTrait> props>
     for both low and high in each of the dimensions, if not specified.
   }];
 
-  code commonUtils = libraryCallName # [{
+  code commonUtils = structuredOpsDecls # [{
     int64_t getStride(unsigned i) {
       assert(i < getNumWindowLoops());
       if (!strides().hasValue()) return 1;
@@ -259,16 +293,16 @@ class PoolingBase_Op<string mnemonic, list<OpTrait> props>
       if (!padding().hasValue()) return 0;
       return padding().getValue().getValue<int64_t>({i, 1});
     }
+
+    static std::function<void(Block &, ValueRange captures)> getRegionBuilder()
+    {
+      return nullptr;
+    }
   }];
 }
 
-def ConvOp : PoolingBase_Op<"conv", [
-    NInputs<2>,
-    // Despite having reductions, this manually defined ConvOp may only take
-    // memref operands and can never have init tensors.
-    ZeroInitTensors,
-    NOutputs<1>]> {
-
+// Only support buffer semantics.
+def ConvOp : PoolingBase_Op<"conv", []> {
   let description = [{
     Generic n-D convolution as described in the TF documentation:
     https://www.tensorflow.org/versions/r2.0/api_docs/python/tf/nn/convolution
@@ -299,6 +333,9 @@ def ConvOp : PoolingBase_Op<"conv", [
                    OptionalAttr<I64ElementsAttr>:$padding);
 
   let extraClassDeclaration = commonUtils # [{
+    ValueRange inputs() { return getOperands().slice(0, 2); }
+    ValueRange outputs() { return getOperands().take_back(); }
+
     // TODO: extend to support more than 1 dimensions and potentially grouping
     // too.
     unsigned getNumBatchDimensions() { return 1; }
@@ -321,15 +358,18 @@ def ConvOp : PoolingBase_Op<"conv", [
       // parallelized across; i.e. [zs] in the TF notation above whose number
       // match `xs` (i.e. 1 window loop per "image" dimension).
       // This may evolve in the future.
+      // Conditionally check nPar is large enough for cases of ill-formed op:
+      // this avoids overflows before hitting the verifier.
+      assert(nPar > getNumBatchDimensions() + getNumInputFeatureDimensions() &&
+             "expected at least one window dimension (i.e. memref ranks greater "
+             "than 2). See 'func @conv_rank_limit' in "
+             "mlir/test/Dialect/Linalg/invalid.mlir");
       unsigned nWin =
         nPar - getNumBatchDimensions() - getNumInputFeatureDimensions();
-      SmallVector<StringRef, 8> iters;
+      SmallVector<StringRef, 8> iters(nPar, getParallelIteratorTypeName());
       iters.reserve(nPar + nRed + nWin);
-      iters.append(nPar - getNumOutputFeatureDimensions(),
-                   getParallelIteratorTypeName());
-      iters.append(nWin, getWindowIteratorTypeName());
       iters.append(nRed, getReductionIteratorTypeName());
-      iters.append(getNumOutputFeatureDimensions(), getParallelIteratorTypeName());
+      iters.append(nWin, getWindowIteratorTypeName());
       return Builder(getContext()).getStrArrayAttr(iters);
     }
 
@@ -341,7 +381,8 @@ def ConvOp : PoolingBase_Op<"conv", [
     ArrayAttr indexing_maps() {
       MLIRContext *context = getContext();
       auto nWin = getNumWindowLoops();
-      assert(nWin > 0 && "expected at least one window dimension");
+      assert(nWin > 0 && "expected at least one window dimension (i.e. memref "
+                         "ranks greater than 2)");
       unsigned idx = 0;
       // In the following, AffineDimExprs are indexed in loop order:
       //   [ b, xs, k,           q,                     zs]
@@ -354,13 +395,13 @@ def ConvOp : PoolingBase_Op<"conv", [
       //  * output filter dimensions (ks with #ks = 1 for now)
       auto bs = makeAffineDimExprs(getNumBatchDimensions(), idx, context);
       auto xs = makeAffineDimExprs(nWin, idx, context);
-      // Window reduction dims: sum_{z[0], ..., z[N-1], q}
-      auto zs = makeAffineDimExprs(nWin, idx, context);
+      auto ks = makeAffineDimExprs(
+        getNumOutputFeatureDimensions(), idx, context);
       // Non-window reduction dim: sum_{z[0], ..., z[N-1], q}
       auto qs = makeAffineDimExprs(
         getNumInputFeatureDimensions(), idx, context);
-      auto ks = makeAffineDimExprs(
-        getNumOutputFeatureDimensions(), idx, context);
+      // Window reduction dims: sum_{z[0], ..., z[N-1], q}
+      auto zs = makeAffineDimExprs(nWin, idx, context);
       // Construct the weighedSum expression.
       auto ws = weightedPoolingInputIndex(*this, xs, zs);
       return Builder(getContext()).getAffineMapArrayAttr({
@@ -383,13 +424,9 @@ def ConvOp : PoolingBase_Op<"conv", [
   let hasCanonicalizer = 1;
 }
 
+// Only support buffer semantics.
 class SingleInputPoolingBase_Op<string mnemonic>
-  : PoolingBase_Op<mnemonic, [
-    NInputs<2>,
-    // Despite having reductions, this manually defined ConvOp may only take
-    // memref operands and can never have init tensors.
-    ZeroInitTensors,
-    NOutputs<1>]> {
+    : PoolingBase_Op<mnemonic, []> {
   let description = [{
     A base class for single input pooling function.
 
@@ -409,6 +446,9 @@ class SingleInputPoolingBase_Op<string mnemonic>
                    OptionalAttr<I64ElementsAttr>:$padding);
 
   let extraClassDeclaration = commonUtils# [{
+    ValueRange inputs() { return getOperands().slice(0, 2); }
+    ValueRange outputs() { return getOperands().take_back(); }
+
     ArrayAttr iterator_types() {
       // Outer parallel loops are always the number of output dimensions.
       unsigned nPar = getOutputShapedType(0).getRank();
@@ -471,8 +511,6 @@ def PoolingSumOp: SingleInputPoolingBase_Op<"pooling_sum"> {
 //===----------------------------------------------------------------------===//
 // Generic Linalg ops.
 //===----------------------------------------------------------------------===//
-def LinalgOperand: AnyTypeOf<[AnyRankedTensor, AnyStridedMemRef]>;
-
 class LinalgOperandOfRank<int rank>: Type<
   And<[
     LinalgOperand.predicate,
@@ -480,35 +518,34 @@ class LinalgOperandOfRank<int rank>: Type<
   >>;
 
 class GenericOpBase<string mnemonic> : LinalgStructuredBase_Op<mnemonic, [
-    NamedStructuredOpTrait,
     AttrSizedOperandSegments,
+    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
     SingleBlockImplicitTerminator<"YieldOp">]> {
   let arguments = (ins Variadic<AnyShaped>:$inputs,
-                       Variadic<AnyMemRef>:$output_buffers,
-                       Variadic<AnyRankedTensor>:$init_tensors,
+                       Variadic<AnyShaped>:$outputs,
                        AffineMapArrayAttr:$indexing_maps,
                        ArrayAttr:$iterator_types,
                        OptionalAttr<StrAttr>:$doc,
                        OptionalAttr<StrAttr>:$library_call,
-                       Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>
-                         :$symbol_source);
+                       // ArrayAttr of StrArrayAttr:
+                       OptionalAttr<ArrayAttr>:$sparse);
   let results = (outs Variadic<AnyRankedTensor>:$result_tensors);
   let regions = (region AnyRegion:$region);
-  let extraClassDeclaration = [{
+  let extraClassDeclaration = structuredOpsBaseDecls # [{
     SmallVector<StringRef, 8> linalgTraitAttrNames() {
       return SmallVector<StringRef, 8>{
         getDocAttrName(),
         getIndexingMapsAttrName(), getLibraryCallAttrName(),
-        getIteratorTypesAttrName(), getSymbolSourceAttrName()
+        getIteratorTypesAttrName(),
       };
     }
-    StringRef getLibraryCallName() {
-      return library_call().hasValue() ? library_call().getValue() : "";
+    std::string getLibraryCallName() {
+      return library_call().hasValue() ?
+        library_call()->str() : "op_has_no_registered_library_name";
     }
-    llvm::Optional<unsigned> getSymbolSource() {
-      auto ss = symbol_source();
-      return ss.hasValue() ?
-        llvm::Optional<unsigned>(ss.getValue()) : llvm::None;
+
+    static std::function<void(Block &, ValueRange)> getRegionBuilder() {
+      return nullptr;
     }
   }];
   let printer = [{ return ::print(p, *this); }];
@@ -545,10 +582,8 @@ def GenericOp : GenericOpBase<"generic"> {
         Each element of the list represents and iterator of one of the following
         types:
           parallel, reduction, window
-      - symbol_source: index of the operand whose dimensions will be propagated
-        as symbols to the indexing maps. When specified the number of symbols
-        in each of the indexing maps has to be either 0 or the rank of the
-        specified operand.
+      - sparse: an optional list with per-dimension sparsity annotations (either
+        "D" for dense or "S" for sparse) for each input and output view.
 
     Example:
     Defining a #matmul_trait attribute in MLIR can be done as follows:
@@ -612,77 +647,30 @@ def GenericOp : GenericOpBase<"generic"> {
     ```mlir
     %C = linalg.generic #trait_attribute
       ins(%A, %B : tensor<?x?xf32>, memref<?x?xf32, stride_specification>)
-      init(%C : tensor<?x?xf32>)
+      outs(%C : tensor<?x?xf32>)
       {other-optional-attributes}
       {region}
       -> (tensor<?x?xf32>)
     ```
-
-    The `init` operand and the conventions around mixing tensors and buffers are
-    described in more detail in the "Tensors and Buffers: Conventions and
-    Limitations" section in the [Linalg Document](../docs/Linalg.md)
-
-    Tensor values must be legalized by a buffer allocation pass before most
-    transformations can be applied. Such legalizations move tensor return values
-    into output buffer operands and updates the region arguments accordingly.
-
-    The `symbol_source` attribute allows selecting a particular operand and
-    introducing symbols for each operand dimension. Such symbols can then be
-    used in the indexing maps.
-
-    Example of 1D convolution with symbols:
-    ```mlir
-    #conv_1d_accesses = [
-      affine_map<(m, n)[dimN] -> (m + n - dimN floordiv 2)>, // in
-      affine_map<(m, n)[dimN] -> (n)>, // filter
-      affine_map<(m, n)[dimN] -> (m)> // out
-    ]
-
-    #conv_1d_trait = {
-      doc = "O(m) += I(m + n - size(n) floordiv 2) * K(n)",
-      indexing_maps = #conv_1d_accesses,
-      library_call  = "linalg_conv_1d",
-      iterator_types = ["parallel", "parallel"],
-      symbol_source = 1
-    }
-
-    linalg.generic #conv_1d_trait
-      ins(%in, %filter : memref<?xf32>, memref<?xf32>)
-      outs(%out : memref<?xf32>) {
-      ^bb0(%a: f32, %b: f32, %c: f32) :
-        %d = mulf %a, %b : f32
-        %e = addf %c, %d : f32
-        linalg.yield %e : f32
-    }
-    ```
-    where symbol s0 will be substituted with `dim %filter, %c0` i.e. the first
-    and only dimension of the second operand as specified by the symbol_source
-    attribute.
   }];
 
   let builders = [
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,"
-      "ValueRange inputs, ValueRange outputBuffers, ValueRange initTensors, "
-      "ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes, "
-      "StringRef doc, StringRef libraryCall, IntegerAttr symbolSource, "
-      "function_ref<void(OpBuilder &, Location, ValueRange)> = nullptr">,
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, "
-      "ValueRange inputs, ValueRange outputBuffers, "
-      "ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes, "
-      "StringRef doc, StringRef libraryCall, IntegerAttr symbolSource, "
-      "function_ref<void(OpBuilder &, Location, ValueRange)> = nullptr">,
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,"
-      "ValueRange inputs, ValueRange outputBuffers, ValueRange initTensors, "
-      "ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes, "
-      "function_ref<void(OpBuilder &, Location, ValueRange)> = nullptr">,
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, ValueRange inputs, "
-      "ValueRange outputBuffers, ArrayRef<AffineMap> indexingMaps, "
-      "ArrayRef<StringRef> iteratorTypes, "
-      "function_ref<void(OpBuilder &, Location, ValueRange)> = nullptr">
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+      "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
+      "ArrayRef<StringRef>":$iteratorTypes, "StringRef":$doc,
+      "StringRef":$libraryCall,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
+      "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
+      "StringRef":$doc, "StringRef":$libraryCall,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+      "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
+      "ArrayRef<StringRef>":$iteratorTypes,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
+      "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>
   ];
   let verifier = [{ return ::verify(*this); }];
 
@@ -743,8 +731,8 @@ def IndexedGenericOp : GenericOpBase<"indexed_generic"> {
 
     ```mlir
       linalg.indexed_generic #matmul_trait
-        ins(%A, %B : memref<?x?xf32, stride_specification>,
-                     memref<?x?xf32, stride_specification>)
+         ins(%A, %B : memref<?x?xf32, stride_specification>,
+                      memref<?x?xf32, stride_specification>)
         outs(%C : memref<?x?xf32, stride_specification>) {
       (%offset_m: index, %offset_n: index, %offset_k: index,
        %a: f32, %b: f32, %c: f32) :
@@ -790,78 +778,35 @@ def IndexedGenericOp : GenericOpBase<"indexed_generic"> {
 
     ```mlir
     %C = linalg.indexed_generic #trait_attribute
-      ins(%A, %B : tensor<?x?xf32>, memref<?x?xf32, stride_specification>)
-      init(%C : tensor<?x?xf32>)
+       ins(%A, %B : tensor<?x?xf32>, memref<?x?xf32, stride_specification>)
+      outs(%C : tensor<?x?xf32>)
       {other-optional-attributes}
       {region_with_index_arguments}
       -> (tensor<?x?xf32>)
     ```
-
-    The `init` operand and the conventions around mixing tensors and buffers are
-    described in more detail in the "Tensors and Buffers: Conventions and
-    Limitations" section in the [Linalg Document](../docs/Linalg.md)
-
-    Tensor values must be legalized by a buffer allocation pass before most
-    transformations can be applied. Such legalizations move tensor return values
-    into output buffer operands and update the region arguments accordingly.
-
-    The `symbol_source` attribute allows selecting a particular operand and
-    introducing symbols for each operand dimension. Such symbols can then be
-    used in the indexing maps.
-
-    Example of 1D convolution with symbols:
-    ```mlir
-    #conv_1d_accesses = [
-      affine_map<(m, n)[dimN] -> (m + n - dimN floordiv 2)>, // in
-      affine_map<(m, n)[dimN] -> (n)>, // filter
-      affine_map<(m, n)[dimN] -> (m)> // out
-    ]
-
-    #conv_1d_trait = {
-      doc = "O(m) += I(m + n - size(n) floordiv 2) * K(n)",
-      indexing_maps = #conv_1d_accesses,
-      library_call  = "linalg_conv_1d",
-      iterator_types = ["parallel", "parallel"],
-      symbol_source = 1
-    }
-
-    linalg.generic #conv_1d_trait
-      ins(%in, %filter : memref<?xf32>, memref<?xf32>)
-      outs(%out : memref<?xf32>) {
-      ^bb0(%a: f32, %b: f32, %c: f32) :
-        %d = mulf %a, %b : f32
-        %e = addf %c, %d : f32
-        linalg.yield %e : f32
-    }
-    ```
-    where symbol s0 will be substituted with `dim %filter, %c0` i.e. the first
-    and only dimension of the second operand as specified by the symbol_source
-    attribute.
   }];
 
   let builders = [
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,"
-      "ValueRange inputs, ValueRange outputBuffers, ValueRange initTensors, "
-      "ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes, "
-      "StringRef doc, StringRef libraryCall, IntegerAttr symbolSource, "
-      "function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)> = nullptr">,
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, "
-      "ValueRange inputs, ValueRange outputBuffers, "
-      "ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes, "
-      "StringRef doc, StringRef libraryCall, IntegerAttr symbolSource, "
-      "function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)> = nullptr">,
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,"
-      "ValueRange inputs, ValueRange outputBuffers, ValueRange initTensors, "
-      "ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes, "
-      "function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)> = nullptr">,
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, ValueRange inputs, "
-      "ValueRange outputBuffers, ArrayRef<AffineMap> indexingMaps, "
-      "ArrayRef<StringRef> iteratorTypes, "
-      "function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)> = nullptr">
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+      "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
+      "ArrayRef<StringRef>":$iteratorTypes, "StringRef":$doc,
+      "StringRef":$libraryCall,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>",
+           "nullptr">)>,
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
+      "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
+      "StringRef":$doc, "StringRef":$libraryCall,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>",
+           "nullptr">)>,
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+      "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
+      "ArrayRef<StringRef>":$iteratorTypes,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>",
+           "nullptr">)>,
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
+      "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>",
+           "nullptr">)>
   ];
   let verifier = [{ return ::verify(*this); }];
 
@@ -874,6 +819,7 @@ def IndexedGenericOp : GenericOpBase<"indexed_generic"> {
 //===----------------------------------------------------------------------===//
 
 // This file is auto-generated from a TC def specification.
-include "mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.td"
+include "mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.tcgen.td"
+include "mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.yamlgen.td"
 
 #endif // LINALG_STRUCTURED_OPS

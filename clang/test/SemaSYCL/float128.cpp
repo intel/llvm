@@ -1,5 +1,9 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -verify -fsyntax-only %s
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl -fsycl-is-device -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify -fsyntax-only %s
+// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only %s
+
+#include "sycl.hpp"
+
+sycl::queue deviceQueue;
 
 typedef __float128 BIGTY;
 
@@ -62,48 +66,51 @@ void foo2(){};
 // expected-note@+1 2{{'foo' defined here}}
 __float128 foo(__float128 P) { return P; }
 
-template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
-  // expected-note@+1 6{{called by 'kernel}}
-  kernelFunc();
-}
-
 int main() {
   // expected-note@+1 {{'CapturedToDevice' defined here}}
   __float128 CapturedToDevice = 1;
   host_ok();
-  kernel<class variables>([=]() {
-    // expected-error@+1 {{'__float128' is not supported on this target}}
-    decltype(CapturedToDevice) D;
-    // expected-error@+2 {{'CapturedToDevice' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
-    // expected-error@+1 {{'__float128' is not supported on this target}}
-    auto C = CapturedToDevice;
-    // expected-note@+1 3{{used here}}
-    Z<__float128> S;
-    // expected-error@+1 {{'field1' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
-    S.field1 += 1;
-    // expected-error@+1 {{'field' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
-    S.field = 1;
+  deviceQueue.submit([&](sycl::handler &h) {
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<variables, (lambda}}
+    h.single_task<class variables>([=]() {
+      // expected-error@+1 {{'__float128' is not supported on this target}}
+      decltype(CapturedToDevice) D;
+      // expected-error@+2 {{'CapturedToDevice' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
+      // expected-error@+1 {{'__float128' is not supported on this target}}
+      auto C = CapturedToDevice;
+      // expected-note@+1 3{{used here}}
+      Z<__float128> S;
+      // expected-error@+1 {{'field1' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
+      S.field1 += 1;
+      // expected-error@+1 {{'field' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
+      S.field = 1;
+    });
   });
 
-  kernel<class functions>([=]() {
-    // expected-note@+1 2{{called by 'operator()'}}
-    usage();
-    // expected-note@+2 {{'BBBB' defined here}}
-    // expected-error@+1 {{'__float128' is not supported on this target}}
-    BIGTY BBBB;
-    // expected-error@+4 {{'__float128' is not supported on this target}}
-    // expected-note@+3 {{called by 'operator()'}}
-    // expected-error@+2 2{{'foo' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
-    // expected-error@+1 {{'BBBB' requires 128 bit size 'BIGTY' (aka '__float128') type support, but device 'spir64' does not support it}}
-    auto A = foo(BBBB);
+  deviceQueue.submit([&](sycl::handler &h) {
+    // expected-note@#KernelSingleTaskKernelFuncCall 4{{called by 'kernel_single_task<functions, (lambda}}
+    h.single_task<class functions>([=]() {
+      // expected-note@+1 2{{called by 'operator()'}}
+      usage();
+      // expected-note@+2 {{'BBBB' defined here}}
+      // expected-error@+1 {{'__float128' is not supported on this target}}
+      BIGTY BBBB;
+      // expected-error@+4 {{'__float128' is not supported on this target}}
+      // expected-note@+3 {{called by 'operator()'}}
+      // expected-error@+2 2{{'foo' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
+      // expected-error@+1 {{'BBBB' requires 128 bit size 'BIGTY' (aka '__float128') type support, but device 'spir64' does not support it}}
+      auto A = foo(BBBB);
+    });
   });
 
-  kernel<class ok>([=]() {
-    // expected-note@+1 3{{used here}}
-    Z<__float128> S;
-    foo2<__float128>();
-    auto A = sizeof(CapturedToDevice);
+  deviceQueue.submit([&](sycl::handler &h) {
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<ok, (lambda}}
+    h.single_task<class ok>([=]() {
+      // expected-note@+1 3{{used here}}
+      Z<__float128> S;
+      foo2<__float128>();
+      auto A = sizeof(CapturedToDevice);
+    });
   });
 
   return 0;

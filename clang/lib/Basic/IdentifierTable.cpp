@@ -229,6 +229,9 @@ void IdentifierTable::AddKeywords(const LangOptions &LangOpts) {
   if (LangOpts.DeclSpecKeyword)
     AddKeyword("__declspec", tok::kw___declspec, KEYALL, LangOpts, *this);
 
+  if (LangOpts.IEEE128)
+    AddKeyword("__ieee128", tok::kw___float128, KEYALL, LangOpts, *this);
+
   // Add the 'import' contextual keyword.
   get("import").setModulesImport(true);
 }
@@ -715,6 +718,11 @@ StringRef clang::getNullabilitySpelling(NullabilityKind kind,
 
   case NullabilityKind::Nullable:
     return isContextSensitive ? "nullable" : "_Nullable";
+
+  case NullabilityKind::NullableResult:
+    assert(!isContextSensitive &&
+           "_Nullable_result isn't supported as context-sensitive keyword");
+    return "_Nullable_result";
 
   case NullabilityKind::Unspecified:
     return isContextSensitive ? "null_unspecified" : "_Null_unspecified";

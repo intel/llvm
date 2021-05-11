@@ -14,6 +14,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -36,6 +37,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<VectorDialect>();
     registry.insert<linalg::LinalgDialect>();
+    registry.insert<memref::MemRefDialect>();
     registry.insert<scf::SCFDialect>();
     registry.insert<AffineDialect>();
     registry.insert<StandardOpsDialect>();
@@ -54,15 +56,17 @@ void TestConvVectorization::runOnOperation() {
   ConversionTarget target(*context);
   target.addLegalDialect<AffineDialect, scf::SCFDialect, StandardOpsDialect,
                          VectorDialect>();
-  target.addLegalOp<ModuleOp, FuncOp, ModuleTerminatorOp, ReturnOp>();
+  target.addLegalOp<ModuleOp, FuncOp, ReturnOp>();
   target.addLegalOp<linalg::FillOp, linalg::YieldOp>();
 
-  SmallVector<OwningRewritePatternList, 4> stage1Patterns;
+  SmallVector<RewritePatternSet, 4> stage1Patterns;
   linalg::populateConvVectorizationPatterns(context, stage1Patterns, tileSizes);
+  SmallVector<FrozenRewritePatternSet, 4> frozenStage1Patterns;
+  llvm::move(stage1Patterns, std::back_inserter(frozenStage1Patterns));
 
-  OwningRewritePatternList stage2Patterns =
+  RewritePatternSet stage2Patterns =
       linalg::getLinalgTilingCanonicalizationPatterns(context);
-  stage2Patterns.insert<linalg::AffineMinSCFCanonicalizationPattern>(context);
+  stage2Patterns.add<linalg::AffineMinSCFCanonicalizationPattern>(context);
 
   auto stage3Transforms = [](Operation *op) {
     PassManager pm(op->getContext());
@@ -71,14 +75,14 @@ void TestConvVectorization::runOnOperation() {
       llvm_unreachable("Unexpected failure in cleanup pass pipeline.");
     op->walk([](FuncOp func) {
       promoteSingleIterationLoops(func);
-      linalg::hoistViewAllocOps(func);
       linalg::hoistRedundantVectorTransfers(func);
     });
     return success();
   };
 
-  linalg::applyStagedPatterns(module, stage1Patterns, stage2Patterns,
-                              stage3Transforms);
+  (void)linalg::applyStagedPatterns(module, frozenStage1Patterns,
+                                    std::move(stage2Patterns),
+                                    stage3Transforms);
 
   //===--------------------------------------------------------------------===//
   // Post staged patterns transforms
@@ -87,41 +91,44 @@ void TestConvVectorization::runOnOperation() {
   VectorTransformsOptions vectorTransformsOptions{
       VectorContractLowering::Dot, VectorTransposeLowering::EltWise};
 
-  OwningRewritePatternList vectorTransferPatterns;
+  RewritePatternSet vectorTransferPatterns(context);
   // Pattern is not applied because rank-reducing vector transfer is not yet
   // supported as can be seen in splitFullAndPartialTransferPrecondition,
   // VectorTransforms.cpp
-  vectorTransferPatterns.insert<VectorTransferFullPartialRewriter>(
+  vectorTransferPatterns.add<VectorTransferFullPartialRewriter>(
       context, vectorTransformsOptions);
-  applyPatternsAndFoldGreedily(module, vectorTransferPatterns);
+  (void)applyPatternsAndFoldGreedily(module, std::move(vectorTransferPatterns));
 
   // Programmatic controlled lowering of linalg.copy and linalg.fill.
   PassManager pm(context);
-  pm.addPass(createConvertLinalgToLoopsPass());
+  pm.addNestedPass<FuncOp>(createConvertLinalgToLoopsPass());
   if (failed(pm.run(module)))
     llvm_unreachable("Unexpected failure in linalg to loops pass.");
 
   // Programmatic controlled lowering of vector.contract only.
-  OwningRewritePatternList vectorContractLoweringPatterns;
+  RewritePatternSet vectorContractLoweringPatterns(context);
   populateVectorContractLoweringPatterns(vectorContractLoweringPatterns,
-                                         context, vectorTransformsOptions);
-  applyPatternsAndFoldGreedily(module, vectorContractLoweringPatterns);
+                                         vectorTransformsOptions);
+  (void)applyPatternsAndFoldGreedily(module,
+                                     std::move(vectorContractLoweringPatterns));
 
   // Programmatic controlled lowering of vector.transfer only.
-  OwningRewritePatternList vectorToLoopsPatterns;
-  populateVectorToSCFConversionPatterns(vectorToLoopsPatterns, context,
+  RewritePatternSet vectorToLoopsPatterns(context);
+  populateVectorToSCFConversionPatterns(vectorToLoopsPatterns,
                                         VectorTransferToSCFOptions());
-  applyPatternsAndFoldGreedily(module, vectorToLoopsPatterns);
+  (void)applyPatternsAndFoldGreedily(module, std::move(vectorToLoopsPatterns));
 
   // Ensure we drop the marker in the end.
   module.walk([](linalg::LinalgOp op) {
-    op.removeAttr(linalg::LinalgTransforms::kLinalgTransformMarker);
+    op->removeAttr(linalg::LinalgTransforms::kLinalgTransformMarker);
   });
 }
 
 namespace mlir {
+namespace test {
 void registerTestConvVectorization() {
   PassRegistration<TestConvVectorization> testTransformPatternsPass(
       "test-conv-vectorization", "Test vectorization of convolutions");
 }
+} // namespace test
 } // namespace mlir

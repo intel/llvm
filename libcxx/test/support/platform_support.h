@@ -56,8 +56,10 @@
 #include <codecvt>
 #include <locale>
 #include <string>
-#if defined(_WIN32) || defined(__MINGW32__)
+#if defined(_WIN32)
+#   define WIN32_LEAN_AND_MEAN // Reduce overhead of including windows.h
 #   include <io.h> // _mktemp_s
+#   include <windows.h> // MAX_PATH, GetTempPath, GetTempFileName
 #else
 #   include <unistd.h> // close
 #endif
@@ -109,5 +111,19 @@ std::wstring get_wide_temp_file_name()
 #endif // _LIBCPP_HAS_OPEN_WITH_WCHAR
 
 #endif // __CloudABI__
+
+#if defined(_CS_GNU_LIBC_VERSION)
+inline bool glibc_version_less_than(char const* version) {
+  std::string test_version = std::string("glibc ") + version;
+
+  size_t n = confstr(_CS_GNU_LIBC_VERSION, nullptr, (size_t)0);
+  char *current_version = new char[n];
+  confstr(_CS_GNU_LIBC_VERSION, current_version, n);
+
+  bool result = strverscmp(current_version, test_version.c_str()) < 0;
+  delete[] current_version;
+  return result;
+}
+#endif // _CS_GNU_LIBC_VERSION
 
 #endif // PLATFORM_SUPPORT_H

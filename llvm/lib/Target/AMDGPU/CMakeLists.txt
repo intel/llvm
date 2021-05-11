@@ -1,3 +1,5 @@
+add_llvm_component_group(AMDGPU)
+
 set(LLVM_TARGET_DEFINITIONS AMDGPU.td)
 
 tablegen(LLVM AMDGPUGenAsmMatcher.inc -gen-asm-matcher)
@@ -58,17 +60,20 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUISelDAGToDAG.cpp
   AMDGPUISelLowering.cpp
   AMDGPUGlobalISelUtils.cpp
+  AMDGPULateCodeGenPrepare.cpp
   AMDGPULegalizerInfo.cpp
   AMDGPULibCalls.cpp
   AMDGPULibFunc.cpp
   AMDGPULowerIntrinsics.cpp
   AMDGPULowerKernelArguments.cpp
   AMDGPULowerKernelAttributes.cpp
+  AMDGPULowerModuleLDSPass.cpp
   AMDGPUMachineCFGStructurizer.cpp
   AMDGPUMachineFunction.cpp
   AMDGPUMachineModuleInfo.cpp
   AMDGPUMacroFusion.cpp
   AMDGPUMCInstLower.cpp
+  AMDGPUMIRFormatter.cpp
   AMDGPUOpenCLEnqueuedBlockLowering.cpp
   AMDGPUPostLegalizerCombiner.cpp
   AMDGPUPreLegalizerCombiner.cpp
@@ -83,7 +88,6 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUTargetTransformInfo.cpp
   AMDGPUUnifyDivergentExitNodes.cpp
   AMDGPUUnifyMetadata.cpp
-  AMDGPUInline.cpp
   AMDGPUPerfHintAnalysis.cpp
   AMDILCFGStructurizer.cpp
   AMDGPUPrintfRuntimeBinding.cpp
@@ -106,7 +110,6 @@ add_llvm_target(AMDGPUCodeGen
   R600OptimizeVectorRegisters.cpp
   R600Packetizer.cpp
   R600RegisterInfo.cpp
-  SIAddIMGInit.cpp
   SIAnnotateControlFlow.cpp
   SIFixSGPRCopies.cpp
   SIFixVGPRCopies.cpp
@@ -115,7 +118,7 @@ add_llvm_target(AMDGPUCodeGen
   SIFormMemoryClauses.cpp
   SIFrameLowering.cpp
   SIInsertHardClauses.cpp
-  SIInsertSkips.cpp
+  SILateBranchLowering.cpp
   SIInsertWaitcnts.cpp
   SIInstrInfo.cpp
   SIISelLowering.cpp
@@ -131,8 +134,8 @@ add_llvm_target(AMDGPUCodeGen
   SIPeepholeSDWA.cpp
   SIPostRABundler.cpp
   SIPreEmitPeephole.cpp
+  SIProgramInfo.cpp
   SIRegisterInfo.cpp
-  SIRemoveShortExecBranches.cpp
   SIShrinkInstructions.cpp
   SIWholeQuadMode.cpp
   GCNILPSched.cpp
@@ -140,6 +143,30 @@ add_llvm_target(AMDGPUCodeGen
   GCNNSAReassign.cpp
   GCNDPPCombine.cpp
   SIModeRegister.cpp
+
+  LINK_COMPONENTS
+  Analysis
+  AsmPrinter
+  CodeGen
+  Core
+  IPO
+  MC
+  Passes
+  AMDGPUDesc
+  AMDGPUInfo
+  AMDGPUUtils
+  Scalar
+  SelectionDAG
+  Support
+  Target
+  TransformUtils
+  Vectorize
+  GlobalISel
+  BinaryFormat
+  MIRParser
+
+  ADD_TO_COMPONENT
+  AMDGPU
   )
 
 add_subdirectory(AsmParser)

@@ -2234,7 +2234,7 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
                                   *TII);
         }
         // If there's dynamic realignment, adjust for it.
-        if (RI.needsStackRealignment(MF)) {
+        if (RI.hasStackRealignment(MF)) {
           MachineFrameInfo &MFI = MF.getFrameInfo();
           Align MaxAlign = MFI.getMaxAlign();
           assert (!AFI->isThumb1OnlyFunction());
@@ -2251,7 +2251,6 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
               .add(predOps(ARMCC::AL))
               .add(condCodeOp());
         }
-
       }
       MI.eraseFromParent();
       return true;
@@ -2304,8 +2303,9 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
           MIB.addImm(0);
         MIB.add(predOps(ARMCC::AL));
 
-        MIB = BuildMI(MBB, MBBI, MI.getDebugLoc(),
-                      TII->get(Thumb ? ARM::tBLXr : ARM::BLX));
+        MIB =
+            BuildMI(MBB, MBBI, MI.getDebugLoc(),
+                    TII->get(Thumb ? gettBLXrOpcode(*MF) : getBLXOpcode(*MF)));
         if (Thumb)
           MIB.add(predOps(ARMCC::AL));
         MIB.addReg(Reg, RegState::Kill);

@@ -649,7 +649,9 @@ GotSection::GotSection()
   // If ElfSym::globalOffsetTable is relative to .got and is referenced,
   // increase numEntries by the number of entries used to emit
   // ElfSym::globalOffsetTable.
-  if (ElfSym::globalOffsetTable && !target->gotBaseSymInGotPlt)
+  // On PP64 we always add the header at the start.
+  if ((ElfSym::globalOffsetTable && !target->gotBaseSymInGotPlt) ||
+      config->emachine == EM_PPC64)
     numEntries += target->gotHeaderEntriesNum;
 }
 
@@ -686,12 +688,23 @@ uint64_t GotSection::getGlobalDynOffset(const Symbol &b) const {
 }
 
 void GotSection::finalizeContents() {
-  size = numEntries * config->wordsize;
+  if (config->emachine == EM_PPC64 &&
+      numEntries <= target->gotHeaderEntriesNum && !ElfSym::globalOffsetTable)
+    size = 0;
+  else
+    size = numEntries * config->wordsize;
 }
 
 bool GotSection::isNeeded() const {
   // We need to emit a GOT even if it's empty if there's a relocation that is
   // relative to GOT(such as GOTOFFREL).
+
+  // On PPC64 we need to check that the number of entries is more than just the
+  // size of the header since the header is always added. A GOT with just the
+  // header may not actually be needed.
+  if (config->emachine == EM_PPC64)
+    return numEntries > target->gotHeaderEntriesNum || hasGotOffRel;
+
   return numEntries || hasGotOffRel;
 }
 
@@ -1436,6 +1449,13 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
     case EM_SPARCV9:
       addInSec(DT_PLTGOT, in.plt);
       break;
+    case EM_AARCH64:
+      if (llvm::find_if(in.relaPlt->relocs, [](const DynamicReloc &r) {
+           return r.type == target->pltRel &&
+                  r.sym->stOther & STO_AARCH64_VARIANT_PCS;
+          }) != in.relaPlt->relocs.end())
+        addInt(DT_AARCH64_VARIANT_PCS, 0);
+      LLVM_FALLTHROUGH;
     default:
       addInSec(DT_PLTGOT, in.gotPlt);
       break;
@@ -1610,10 +1630,14 @@ void RelocationBaseSection::finalizeContents() {
   else
     getParent()->link = 0;
 
-  if (in.relaPlt == this)
+  if (in.relaPlt == this) {
+    getParent()->flags |= ELF::SHF_INFO_LINK;
     getParent()->info = in.gotPlt->getParent()->sectionIndex;
-  if (in.relaIplt == this)
+  }
+  if (in.relaIplt == this) {
+    getParent()->flags |= ELF::SHF_INFO_LINK;
     getParent()->info = in.igotPlt->getParent()->sectionIndex;
+  }
 }
 
 RelrBaseSection::RelrBaseSection()
@@ -2177,6 +2201,10 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
     // See getPPC64GlobalEntryToLocalEntryOffset() for more details.
     if (config->emachine == EM_PPC64)
       eSym->st_other |= sym->stOther & 0xe0;
+    // The most significant bit of st_other is used by AArch64 ABI for the
+    // variant PCS.
+    else if (config->emachine == EM_AARCH64)
+      eSym->st_other |= sym->stOther & STO_AARCH64_VARIANT_PCS;
 
     eSym->st_name = ent.strTabOffset;
     if (isDefinedHere)
@@ -2194,9 +2222,8 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
     else
       eSym->st_size = sym->getSize();
 
-    // st_value is usually an address of a symbol, but that has a
-    // special meaning for uninstantiated common symbols (this can
-    // occur if -r is given).
+    // st_value is usually an address of a symbol, but that has a special
+    // meaning for uninstantiated common symbols (--no-define-common).
     if (BssSection *commonSec = getCommonSec(ent.sym))
       eSym->st_value = commonSec->alignment;
     else if (isDefinedHere)
@@ -2865,6 +2892,13 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
     else if (isec->name == ".debug_info")
       files.insert(isec->file);
   }
+  // Drop .rel[a].debug_gnu_pub{names,types} for --emit-relocs.
+  llvm::erase_if(inputSections, [](InputSectionBase *s) {
+    if (auto *isec = dyn_cast<InputSection>(s))
+      if (InputSectionBase *rel = isec->getRelocatedSection())
+        return !rel->isLive();
+    return !s->isLive();
+  });
 
   std::vector<GdbChunk> chunks(files.size());
   std::vector<std::vector<NameAttrEntry>> nameAttrs(files.size());
@@ -2914,7 +2948,8 @@ void GdbIndexSection::writeTo(uint8_t *buf) {
   uint32_t cuOff = 0;
   for (GdbChunk &chunk : chunks) {
     for (AddressEntry &e : chunk.addressAreas) {
-      uint64_t baseAddr = e.section->getVA(0);
+      // In the case of ICF there may be duplicate address range entries.
+      const uint64_t baseAddr = e.section->repl->getVA(0);
       write64le(buf, baseAddr + e.lowAddress);
       write64le(buf + 8, baseAddr + e.highAddress);
       write32le(buf + 16, e.cuIndex + cuOff);
@@ -3088,7 +3123,10 @@ size_t VersionTableSection::getSize() const {
 void VersionTableSection::writeTo(uint8_t *buf) {
   buf += 2;
   for (const SymbolTableEntry &s : getPartition().dynSymTab->getSymbols()) {
-    write16(buf, s.sym->versionId);
+    // Use the original versionId for an unfetched lazy symbol (undefined weak),
+    // which must be VER_NDX_GLOBAL (an undefined versioned symbol is an error).
+    write16(buf, s.sym->isLazy() ? static_cast<uint16_t>(VER_NDX_GLOBAL)
+                                 : s.sym->versionId);
     buf += 2;
   }
 }

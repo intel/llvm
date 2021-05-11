@@ -11,13 +11,16 @@ config("features_config") {
 write_cmake_config("features") {
   input = "Features.inc.in"
   output = "$target_gen_dir/Features.inc"
-  values = []
+  values = [
+    "CLANGD_ENABLE_REMOTE=0",
+    "CLANGD_MALLOC_TRIM=1",
+    "ENABLE_GRPC_REFLECTION=0",
+  ]
   if (clangd_build_xpc) {
     values += [ "CLANGD_BUILD_XPC=1" ]
   } else {
     values += [ "CLANGD_BUILD_XPC=0" ]
   }
-  values += [ "CLANGD_ENABLE_REMOTE=0" ]
   public_configs = [ ":features_config" ]
 }
 
@@ -25,6 +28,7 @@ gen_decision_forest("CompletionModel") {
   model = "quality/model"
   filename = "CompletionModel"
   cpp_class = "clang::clangd::Example"
+  deps = [ "//clang/lib/Sema" ]
 }
 
 static_library("clangd") {
@@ -64,6 +68,7 @@ static_library("clangd") {
   ]
   sources = [
     "AST.cpp",
+    "ASTSignals.cpp",
     "ClangdLSPServer.cpp",
     "ClangdServer.cpp",
     "CodeComplete.cpp",
@@ -77,8 +82,10 @@ static_library("clangd") {
     "ConfigYAML.cpp",
     "Diagnostics.cpp",
     "DraftStore.cpp",
+    "DumpAST.cpp",
     "ExpectedTypes.cpp",
     "FS.cpp",
+    "FeatureModule.cpp",
     "FileDistance.cpp",
     "FindSymbols.cpp",
     "FindTarget.cpp",
@@ -87,8 +94,10 @@ static_library("clangd") {
     "GlobalCompilationDatabase.cpp",
     "HeaderSourceSwitch.cpp",
     "Headers.cpp",
+    "HeuristicResolver.cpp",
     "Hover.cpp",
     "IncludeFixer.cpp",
+    "InlayHints.cpp",
     "JSONTransport.cpp",
     "ParsedAST.cpp",
     "PathMapping.cpp",
@@ -102,6 +111,7 @@ static_library("clangd") {
     "SemanticSelection.cpp",
     "SourceCode.cpp",
     "TUScheduler.cpp",
+    "TidyProvider.cpp",
     "URI.cpp",
     "XRefs.cpp",
     "index/Background.cpp",
@@ -115,6 +125,7 @@ static_library("clangd") {
     "index/IndexAction.cpp",
     "index/MemIndex.cpp",
     "index/Merge.cpp",
+    "index/ProjectAware.cpp",
     "index/Ref.cpp",
     "index/Relation.cpp",
     "index/Serialization.cpp",

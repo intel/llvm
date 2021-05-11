@@ -1,0 +1,34 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+import sys
+
+config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
+config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
+config.sycl_tools_dir = lit_config.params.get('SYCL_TOOLS_DIR', "@LLVM_TOOLS_DIR@")
+config.sycl_include = lit_config.params.get('SYCL_INCLUDE', "@SYCL_INCLUDE@")
+config.sycl_obj_root = "@SYCL_BINARY_DIR@"
+config.sycl_source_dir = "@SYCL_SOURCE_DIR@/source"
+config.sycl_libs_dir = lit_config.params.get('SYCL_LIBS_DIR', "@LLVM_LIBS_DIR@")
+config.target_triple = "@TARGET_TRIPLE@"
+config.host_triple = "@LLVM_HOST_TRIPLE@"
+config.opencl_libs_dir = os.path.dirname("@OpenCL_LIBRARIES@")
+config.level_zero_libs_dir = "@LEVEL_ZERO_LIBS_DIR@"
+config.level_zero_include = "@LEVEL_ZERO_INCLUDE@"
+config.opencl_include_dir = "@OpenCL_INCLUDE_DIR@"
+config.cuda_toolkit_include = "@CUDA_TOOLKIT_INCLUDE@"
+config.sycl_tools_src_dir = "@SYCL_TOOLS_SRC_DIR@"
+config.llvm_build_lib_dir = "@LLVM_BUILD_LIBRARY_DIRS@"
+config.llvm_build_bin_dir = "@LLVM_BUILD_BINARY_DIRS@"
+config.sycl_clang_extra_flags = "@SYCL_CLANG_EXTRA_FLAGS@"
+config.level_zero_include_dir = lit_config.params.get('LEVEL_ZERO_INCLUDE_DIR', "@LEVEL_ZERO_INCLUDE_DIR@")
+
+config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
+
+config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
+config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
+
+import lit.llvm
+lit.llvm.initialize(lit_config, config)
+
+# Let the main config do the real work.
+lit_config.load_config(config, "@SYCL_SOURCE_DIR@/test/on-device/lit.cfg.py")

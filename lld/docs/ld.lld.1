@@ -161,6 +161,10 @@ Read a list of dynamic symbols from
 (shared object) References to matched non-local STV_DEFAULT symbols shouldn't be bound to definitions within the shared object. Implies
 .Cm -Bsymbolic
 but does not set DF_SYMBOLIC
+.It Fl -EB
+Select the big-endian format in the OUTPUT_FORMAT command.
+.It Fl -EL
+Select the little-endian format in the OUTPUT_FORMAT command.
 .It Fl -eh-frame-hdr
 Request creation of
 .Li .eh_frame_hdr
@@ -181,6 +185,19 @@ Maximum number of errors to emit before stopping.
 A value of zero indicates that there is no limit.
 .It Fl -error-unresolved-symbols
 Report unresolved symbols as errors.
+.It Fl -error-handing-script Ns = Ns Ar script_path
+Call script
+.Ar script_path
+upon some error, with
+.Ar tag
+as first argument, and an extra parameter as second argument. The script is
+expected to return 0 on success. Any other value is considered a generic error.
+.Ar tag
+may be
+.Cm missing-lib
+followed by the name of the missing library.
+.Cm undefined-symbol
+followed by the name of the undefined symbol.
 .It Fl -execute-only
 Mark executable sections unreadable.
 This option is currently only supported on AArch64.
@@ -298,6 +315,8 @@ Do not demangle symbol names.
 Inhibit output of an
 .Li .interp
 section.
+.It Fl -no-fortran-common
+Do not search archive members for definitions to override COMMON symbols.
 .It Fl -no-gc-sections
 Disable garbage collection of unused sections.
 .It Fl -no-gnu-unique
@@ -468,7 +487,8 @@ Set address of section.
 .It Fl -shared , Fl -Bsharable
 Build a shared object.
 .It Fl -shuffle-sections Ns = Ns Ar seed
-Shuffle input sections using the given seed. If 0, use a random seed.
+Shuffle matched sections using the given seed before mapping them to the output sections.
+If -1, reverse the section order. If 0, use a random seed.
 .It Fl -soname Ns = Ns Ar value , Fl h Ar value
 Set
 .Dv DT_SONAME
@@ -620,7 +640,14 @@ Report unresolved symbols as warnings.
 .It Fl -whole-archive
 Force load of all members in a static library.
 .It Fl -wrap Ns = Ns Ar symbol
-Use wrapper functions for symbol.
+Redirect
+.Ar symbol
+references to
+.Ar __wrap_symbol
+and
+.Ar __real_symbol
+references to
+.Ar symbol.
 .It Fl z Ar option
 Linker option extensions.
 .Bl -tag -width indent -compact
@@ -776,6 +803,8 @@ The stack size is recorded as the size of the
 .Dv PT_GNU_STACK
 program segment.
 .Pp
+.It Cm start-stop-gc
+Don't let __start_/__stop_ references retain non-SHF_LINK_ORDER non-SHF_GROUP C identifier name sections.
 .It Cm text
 Do not allow relocations against read-only segments.
 This is the default.

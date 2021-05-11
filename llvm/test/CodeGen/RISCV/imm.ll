@@ -105,6 +105,57 @@ define signext i32 @neg_i32_hi20_only() nounwind {
   ret i32 -65536 ; -0x10000
 }
 
+; This can be materialized with ADDI+SLLI, improving compressibility.
+
+define signext i32 @imm_left_shifted_addi() nounwind {
+; RV32I-LABEL: imm_left_shifted_addi:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a0, 32
+; RV32I-NEXT:    addi a0, a0, -64
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: imm_left_shifted_addi:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    lui a0, 32
+; RV64I-NEXT:    addiw a0, a0, -64
+; RV64I-NEXT:    ret
+  ret i32 131008 ; 0x1FFC0
+}
+
+; This can be materialized with ADDI+SRLI, improving compressibility.
+
+define signext i32 @imm_right_shifted_addi() nounwind {
+; RV32I-LABEL: imm_right_shifted_addi:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a0, 524288
+; RV32I-NEXT:    addi a0, a0, -1
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: imm_right_shifted_addi:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    lui a0, 524288
+; RV64I-NEXT:    addiw a0, a0, -1
+; RV64I-NEXT:    ret
+  ret i32 2147483647 ; 0x7FFFFFFF
+}
+
+; This can be materialized with LUI+SRLI, improving compressibility.
+
+define signext i32 @imm_right_shifted_lui() nounwind {
+; RV32I-LABEL: imm_right_shifted_lui:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a0, 56
+; RV32I-NEXT:    addi a0, a0, 580
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: imm_right_shifted_lui:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    lui a0, 56
+; RV64I-NEXT:    addiw a0, a0, 580
+; RV64I-NEXT:    ret
+  ret i32 229956 ; 0x38244
+}
+
 define i64 @imm64_1() nounwind {
 ; RV32I-LABEL: imm64_1:
 ; RV32I:       # %bb.0:
@@ -132,9 +183,8 @@ define i64 @imm64_2() nounwind {
 ;
 ; RV64I-LABEL: imm64_2:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    addi a0, zero, 1
-; RV64I-NEXT:    slli a0, a0, 32
-; RV64I-NEXT:    addi a0, a0, -1
+; RV64I-NEXT:    addi a0, zero, -1
+; RV64I-NEXT:    srli a0, a0, 32
 ; RV64I-NEXT:    ret
   ret i64 4294967295 ; 0xFFFF_FFFF
 }
@@ -325,11 +375,8 @@ define i64 @imm_right_shifted_lui_1() nounwind {
 ;
 ; RV64I-LABEL: imm_right_shifted_lui_1:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    addi a0, zero, 1
-; RV64I-NEXT:    slli a0, a0, 36
-; RV64I-NEXT:    addi a0, a0, -1
-; RV64I-NEXT:    slli a0, a0, 12
-; RV64I-NEXT:    addi a0, a0, 1
+; RV64I-NEXT:    lui a0, 983056
+; RV64I-NEXT:    srli a0, a0, 16
 ; RV64I-NEXT:    ret
   ret i64 281474976706561 ; 0xFFFF_FFFF_F001
 }

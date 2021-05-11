@@ -18,9 +18,24 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-enum class backend : char { host, opencl, level_zero, cuda, all };
+enum class backend : char {
+  host = 0,
+  opencl = 1,
+  level_zero = 2,
+  cuda = 3,
+  all = 4
+};
 
-template <backend name, typename SYCLObjectT> struct interop;
+template <backend Backend, typename SYCLObjectT> struct interop;
+
+template <backend Backend> class backend_traits;
+
+template <backend Backend, typename SYCLObjectT>
+using backend_input_t =
+    typename backend_traits<Backend>::template input_type<SYCLObjectT>;
+template <backend Backend, typename SYCLObjectT>
+using backend_return_t =
+    typename backend_traits<Backend>::template return_type<SYCLObjectT>;
 
 inline std::ostream &operator<<(std::ostream &Out, backend be) {
   switch (be) {

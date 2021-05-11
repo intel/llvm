@@ -319,12 +319,6 @@ ToolInvocation::~ToolInvocation() {
     delete Action;
 }
 
-void ToolInvocation::mapVirtualFile(StringRef FilePath, StringRef Content) {
-  SmallString<1024> PathStorage;
-  llvm::sys::path::native(FilePath, PathStorage);
-  MappedFileContents[PathStorage] = Content;
-}
-
 bool ToolInvocation::run() {
   std::vector<const char*> Argv;
   for (const std::string &Str : CommandLine)
@@ -340,6 +334,10 @@ bool ToolInvocation::run() {
   DiagnosticsEngine Diagnostics(
       IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs()), &*DiagOpts,
       DiagConsumer ? DiagConsumer : &DiagnosticPrinter, false);
+  // Although `Diagnostics` are used only for command-line parsing, the custom
+  // `DiagConsumer` might expect a `SourceManager` to be present.
+  SourceManager SrcMgr(Diagnostics, *Files);
+  Diagnostics.setSourceManager(&SrcMgr);
 
   const std::unique_ptr<driver::Driver> Driver(
       newDriver(&Diagnostics, BinaryName, &Files->getVirtualFileSystem()));
@@ -359,14 +357,6 @@ bool ToolInvocation::run() {
     return false;
   std::unique_ptr<CompilerInvocation> Invocation(
       newInvocation(&Diagnostics, *CC1Args, BinaryName));
-  // FIXME: remove this when all users have migrated!
-  for (const auto &It : MappedFileContents) {
-    // Inject the code as the given file name into the preprocessor options.
-    std::unique_ptr<llvm::MemoryBuffer> Input =
-        llvm::MemoryBuffer::getMemBuffer(It.getValue());
-    Invocation->getPreprocessorOpts().addRemappedFile(It.getKey(),
-                                                      Input.release());
-  }
   return runInvocation(BinaryName, Compilation.get(), std::move(Invocation),
                        std::move(PCHContainerOps));
 }
@@ -454,8 +444,9 @@ static void injectResourceDir(CommandLineArguments &Args, const char *Argv0,
       return;
 
   // If there's no override in place add our resource dir.
-  Args.push_back("-resource-dir=" +
-                 CompilerInvocation::GetResourcesPath(Argv0, MainAddr));
+  Args = getInsertArgumentAdjuster(
+      ("-resource-dir=" + CompilerInvocation::GetResourcesPath(Argv0, MainAddr))
+          .c_str())(Args, "");
 }
 
 int ClangTool::run(ToolAction *Action) {
@@ -659,7 +650,7 @@ std::unique_ptr<ASTUnit> buildASTFromCodeWithArgs(
 
   if (!Invocation.run())
     return nullptr;
-
+ 
   assert(ASTs.size() == 1);
   return std::move(ASTs[0]);
 }

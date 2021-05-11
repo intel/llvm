@@ -315,7 +315,8 @@ int main() {
 // CHECK: define internal i32 [[TASK_ENTRY6]](i32 %0, [[KMP_TASK_T]]{{.*}}* noalias %{{.+}})
 // UNTIEDRT: [[S1_ADDR_PTR:%.+]] = alloca %struct.S*,
 // UNTIEDRT: [[S2_ADDR_PTR_REF:%.+]] = alloca %struct.S**,
-// UNTIEDRT: call void (i8*, ...) %{{.+}}(i8* %{{.+}}, %struct.S** [[S1_ADDR_PTR]], %struct.S*** [[S2_ADDR_PTR_REF]])
+// UNTIEDRT: [[FN:%.+]] = bitcast void (i8*, ...)* %{{.*}} to void (i8*,
+// UNTIEDRT: call void [[FN]](i8* %{{.+}}, %struct.S** [[S1_ADDR_PTR]], %struct.S*** [[S2_ADDR_PTR_REF]])
 // UNTIEDRT-DAG: [[S1_ADDR:%.+]] = load %struct.S*, %struct.S** [[S1_ADDR_PTR]],
 // UNTIEDRT-DAG: [[S2_ADDR_PTR:%.+]] = load %struct.S**, %struct.S*** [[S2_ADDR_PTR_REF]],
 // UNTIEDRT-DAG: [[S2_ADDR:%.+]] = load %struct.S*, %struct.S** [[S2_ADDR_PTR]],
@@ -329,7 +330,7 @@ int main() {
 // CHECK: call i32 @__kmpc_omp_task(%
 // UNTIEDRT: br label %[[EXIT:[^,]+]]
 
-// UNTIEDRT: call void [[CONSTR:@.+]](%struct.S* [[S1_ADDR]])
+// UNTIEDRT: call void [[CONSTR:@.+]](%struct.S* {{[^,]*}} [[S1_ADDR]])
 // UNTIEDRT: [[S2_VOID_PTR:%.+]] = call i8* @__kmpc_alloc(i32 %{{.+}}, i64 4, i8* inttoptr (i64 7 to i8*))
 // UNTIEDRT: [[S2_PTR:%.+]] = bitcast i8* [[S2_VOID_PTR]] to %struct.S*
 // UNTIEDRT: store %struct.S* [[S2_PTR]], %struct.S** [[S2_ADDR_PTR]],
@@ -338,7 +339,7 @@ int main() {
 // UNTIEDRT: call i32 @__kmpc_omp_task(%
 // UNTIEDRT: br label %[[EXIT]]
 
-// UNTIEDRT: call void [[CONSTR]](%struct.S* [[S2_ADDR]])
+// UNTIEDRT: call void [[CONSTR]](%struct.S* {{[^,]*}} [[S2_ADDR]])
 // CHECK: call i8* @__kmpc_omp_task_alloc(
 // CHECK: call i32 @__kmpc_omp_task(%
 // CHECK: load i32*, i32** %
@@ -353,11 +354,11 @@ int main() {
 // UNTIEDRT: br label %[[EXIT]]
 
 // s1 = S();
-// UNTIEDRT: call void [[CONSTR]](%struct.S* [[TMP:%.+]])
+// UNTIEDRT: call void [[CONSTR]](%struct.S* {{[^,]*}} [[TMP:%.+]])
 // UNTIEDRT: [[DST:%.+]] = bitcast %struct.S* [[S1_ADDR]] to i8*
 // UNTIEDRT: [[SRC:%.+]] = bitcast %struct.S* [[TMP]] to i8*
 // UNTIEDRT: call void @llvm.memcpy.{{.+}}(i8* {{.*}}[[DST]], i8* {{.*}}[[SRC]], i64 4, i1 false)
-// UNTIEDRT: call void [[DESTR:@.+]](%struct.S* [[TMP]])
+// UNTIEDRT: call void [[DESTR:@.+]](%struct.S* {{[^,]*}} [[TMP]])
 
 // CHECK: call i32 @__kmpc_omp_taskwait(%
 // CHECK: load i32*, i32** %
@@ -365,10 +366,10 @@ int main() {
 // CHECK: call i32 @__kmpc_omp_task(%
 // UNTIEDRT: br label %[[EXIT]]
 
-// UNTIEDRT: call void [[DESTR]](%struct.S* [[S2_ADDR]])
+// UNTIEDRT: call void [[DESTR]](%struct.S* {{[^,]*}} [[S2_ADDR]])
 // UNTIEDRT: [[S2_VOID_PTR:%.+]] = bitcast %struct.S* [[S2_ADDR]] to i8*
 // UNTIEDRT: call void @__kmpc_free(i32 %{{.+}}, i8* [[S2_VOID_PTR]], i8* inttoptr (i64 7 to i8*))
-// UNTIEDRT: call void [[DESTR]](%struct.S* [[S1_ADDR]])
+// UNTIEDRT: call void [[DESTR]](%struct.S* {{[^,]*}} [[S1_ADDR]])
 // CHECK: br label %[[CLEANUP]]
 
 // CHECK: [[CLEANUP]]:
@@ -403,7 +404,7 @@ void foobar() {
   }
 }
 
-// UNTIEDRT: define void @{{.+}}xxxx{{.+}}()
+// UNTIEDRT: define{{.*}} void @{{.+}}xxxx{{.+}}()
 void xxxx() {
   // UNTIEDRT: call void @{{.+}}foobar{{.+}}()
   foobar();

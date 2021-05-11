@@ -208,6 +208,8 @@ StringRef ARMTargetInfo::getCPUAttr() const {
     return "8_5A";
   case llvm::ARM::ArchKind::ARMV8_6A:
     return "8_6A";
+  case llvm::ARM::ArchKind::ARMV8_7A:
+    return "8_7A";
   case llvm::ARM::ArchKind::ARMV8MBaseline:
     return "8M_BASE";
   case llvm::ARM::ArchKind::ARMV8MMainline:
@@ -753,8 +755,12 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   // Note, this is always on in gcc, even though it doesn't make sense.
   Builder.defineMacro("__APCS_32__");
 
+  // __VFP_FP__ means that the floating-point format is VFP, not that a hardware
+  // FPU is present. Moreover, the VFP format is the only one supported by
+  // clang. For these reasons, this macro is always defined.
+  Builder.defineMacro("__VFP_FP__");
+
   if (FPUModeIsVFP((FPUMode)FPU)) {
-    Builder.defineMacro("__VFP_FP__");
     if (FPU & VFP2FPU)
       Builder.defineMacro("__ARM_VFPV2__");
     if (FPU & VFP3FPU)

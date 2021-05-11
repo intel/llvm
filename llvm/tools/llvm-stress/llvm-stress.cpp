@@ -315,8 +315,7 @@ protected:
         Type::getFloatTy(Context),
         Type::getDoubleTy(Context)
       });
-      ScalarTypes.insert(ScalarTypes.end(),
-        AdditionalScalarTypes.begin(), AdditionalScalarTypes.end());
+      llvm::append_range(ScalarTypes, AdditionalScalarTypes);
     }
 
     return ScalarTypes[getRandom() % ScalarTypes.size()];
@@ -719,7 +718,7 @@ static void IntroduceControlFlow(Function *F, Random &R) {
       BoolInst.push_back(&Instr);
   }
 
-  std::shuffle(BoolInst.begin(), BoolInst.end(), R);
+  llvm::shuffle(BoolInst.begin(), BoolInst.end(), R);
 
   for (auto *Instr : BoolInst) {
     BasicBlock *Curr = Instr->getParent();

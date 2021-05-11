@@ -653,10 +653,12 @@ static AliasResult underlyingObjectsAlias(AAResults *AA,
                                           const MemoryLocation &LocB) {
   // Check the original locations (minus size) for noalias, which can happen for
   // tbaa, incompatible underlying object locations, etc.
-  MemoryLocation LocAS(LocA.Ptr, LocationSize::unknown(), LocA.AATags);
-  MemoryLocation LocBS(LocB.Ptr, LocationSize::unknown(), LocB.AATags);
-  if (AA->alias(LocAS, LocBS) == NoAlias)
-    return NoAlias;
+  MemoryLocation LocAS =
+      MemoryLocation::getBeforeOrAfter(LocA.Ptr, LocA.AATags);
+  MemoryLocation LocBS =
+      MemoryLocation::getBeforeOrAfter(LocB.Ptr, LocB.AATags);
+  if (AA->isNoAlias(LocAS, LocBS))
+    return AliasResult::NoAlias;
 
   // Check the underlying objects are the same
   const Value *AObj = getUnderlyingObject(LocA.Ptr);
@@ -664,16 +666,16 @@ static AliasResult underlyingObjectsAlias(AAResults *AA,
 
   // If the underlying objects are the same, they must alias
   if (AObj == BObj)
-    return MustAlias;
+    return AliasResult::MustAlias;
 
   // We may have hit the recursion limit for underlying objects, or have
   // underlying objects where we don't know they will alias.
   if (!isIdentifiedObject(AObj) || !isIdentifiedObject(BObj))
-    return MayAlias;
+    return AliasResult::MayAlias;
 
   // Otherwise we know the objects are different and both identified objects so
   // must not alias.
-  return NoAlias;
+  return AliasResult::NoAlias;
 }
 
 
@@ -871,8 +873,8 @@ void DependenceInfo::removeMatchingExtensions(Subscript *Pair) {
   const SCEV *Dst = Pair->Dst;
   if ((isa<SCEVZeroExtendExpr>(Src) && isa<SCEVZeroExtendExpr>(Dst)) ||
       (isa<SCEVSignExtendExpr>(Src) && isa<SCEVSignExtendExpr>(Dst))) {
-    const SCEVCastExpr *SrcCast = cast<SCEVCastExpr>(Src);
-    const SCEVCastExpr *DstCast = cast<SCEVCastExpr>(Dst);
+    const SCEVIntegralCastExpr *SrcCast = cast<SCEVIntegralCastExpr>(Src);
+    const SCEVIntegralCastExpr *DstCast = cast<SCEVIntegralCastExpr>(Dst);
     const SCEV *SrcCastOp = SrcCast->getOperand();
     const SCEV *DstCastOp = DstCast->getOperand();
     if (SrcCastOp->getType() == DstCastOp->getType()) {
@@ -969,8 +971,8 @@ bool DependenceInfo::isKnownPredicate(ICmpInst::Predicate Pred, const SCEV *X,
          isa<SCEVSignExtendExpr>(Y)) ||
         (isa<SCEVZeroExtendExpr>(X) &&
          isa<SCEVZeroExtendExpr>(Y))) {
-      const SCEVCastExpr *CX = cast<SCEVCastExpr>(X);
-      const SCEVCastExpr *CY = cast<SCEVCastExpr>(Y);
+      const SCEVIntegralCastExpr *CX = cast<SCEVIntegralCastExpr>(X);
+      const SCEVIntegralCastExpr *CY = cast<SCEVIntegralCastExpr>(Y);
       const SCEV *Xop = CX->getOperand();
       const SCEV *Yop = CY->getOperand();
       if (Xop->getType() == Yop->getType()) {
@@ -3499,16 +3501,16 @@ DependenceInfo::depends(Instruction *Src, Instruction *Dst,
   switch (underlyingObjectsAlias(AA, F->getParent()->getDataLayout(),
                                  MemoryLocation::get(Dst),
                                  MemoryLocation::get(Src))) {
-  case MayAlias:
-  case PartialAlias:
+  case AliasResult::MayAlias:
+  case AliasResult::PartialAlias:
     // cannot analyse objects if we don't understand their aliasing.
     LLVM_DEBUG(dbgs() << "can't analyze may or partial alias\n");
     return std::make_unique<Dependence>(Src, Dst);
-  case NoAlias:
+  case AliasResult::NoAlias:
     // If the objects noalias, they are distinct, accesses are independent.
     LLVM_DEBUG(dbgs() << "no alias\n");
     return nullptr;
-  case MustAlias:
+  case AliasResult::MustAlias:
     break; // The underlying objects alias; test accesses for dependence.
   }
 
@@ -3912,9 +3914,9 @@ const SCEV *DependenceInfo::getSplitIteration(const Dependence &Dep,
   assert(isLoadOrStore(Dst));
   Value *SrcPtr = getLoadStorePointerOperand(Src);
   Value *DstPtr = getLoadStorePointerOperand(Dst);
-  assert(underlyingObjectsAlias(AA, F->getParent()->getDataLayout(),
-                                MemoryLocation::get(Dst),
-                                MemoryLocation::get(Src)) == MustAlias);
+  assert(underlyingObjectsAlias(
+             AA, F->getParent()->getDataLayout(), MemoryLocation::get(Dst),
+             MemoryLocation::get(Src)) == AliasResult::MustAlias);
 
   // establish loop nesting levels
   establishNestingLevels(Src, Dst);

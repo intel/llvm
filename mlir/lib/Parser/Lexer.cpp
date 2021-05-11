@@ -44,8 +44,8 @@ Location Lexer::getEncodedSourceLocation(llvm::SMLoc loc) {
   auto lineAndColumn = sourceMgr.getLineAndColumn(loc, mainFileID);
   auto *buffer = sourceMgr.getMemoryBuffer(mainFileID);
 
-  return FileLineColLoc::get(buffer->getBufferIdentifier(), lineAndColumn.first,
-                             lineAndColumn.second, context);
+  return FileLineColLoc::get(context, buffer->getBufferIdentifier(),
+                             lineAndColumn.first, lineAndColumn.second);
 }
 
 /// emitError - Emit an error message and return an Token::error token.
@@ -212,7 +212,7 @@ Token Lexer::lexBareIdentifierOrKeyword(const char *tokStart) {
        isAllDigit(spelling.drop_front(2))))
     return Token(Token::inttype, spelling);
 
-  Token::Kind kind = llvm::StringSwitch<Token::Kind>(spelling)
+  Token::Kind kind = StringSwitch<Token::Kind>(spelling)
 #define TOK_KEYWORD(SPELLING) .Case(#SPELLING, Token::kw_##SPELLING)
 #include "TokenKinds.def"
                          .Default(Token::bare_identifier);

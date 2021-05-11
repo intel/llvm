@@ -71,7 +71,6 @@ class Configuration(object):
         self.link_shared = self.get_lit_bool('enable_shared', default=True)
         self.debug_build = self.get_lit_bool('debug_build',   default=False)
         self.exec_env = dict()
-        self.use_system_cxx_lib = self.get_lit_bool('use_system_cxx_lib', False)
         self.use_clang_verify = False
 
     def get_lit_conf(self, name, default=None):
@@ -110,7 +109,7 @@ class Configuration(object):
 
     def make_static_lib_name(self, name):
         """Return the full filename for the specified library name"""
-        if self.target_info.is_windows():
+        if self.target_info.is_windows() and not self.target_info.is_mingw():
             assert name == 'c++'  # Only allow libc++ to use this function for now.
             return 'lib' + name + '.lib'
         else:
@@ -125,13 +124,12 @@ class Configuration(object):
         self.configure_obj_root()
         self.cxx_stdlib_under_test = self.get_lit_conf('cxx_stdlib_under_test', 'libc++')
         self.cxx_library_root = self.get_lit_conf('cxx_library_root', self.libcxx_obj_root)
-        self.abi_library_root = self.get_lit_conf('abi_library_path', None)
+        self.abi_library_root = self.get_lit_conf('abi_library_root') or self.cxx_library_root
         self.cxx_runtime_root = self.get_lit_conf('cxx_runtime_root', self.cxx_library_root)
+        self.abi_runtime_root = self.get_lit_conf('abi_runtime_root', self.abi_library_root)
         self.configure_compile_flags()
         self.configure_link_flags()
         self.configure_env()
-        self.configure_debug_mode()
-        self.configure_warnings()
         self.configure_sanitizer()
         self.configure_coverage()
         self.configure_modules()
@@ -160,6 +158,8 @@ class Configuration(object):
         self.lit_config.note('Adding environment variables: %r' % show_env_vars)
         self.lit_config.note("Linking against the C++ Library at {}".format(self.cxx_library_root))
         self.lit_config.note("Running against the C++ Library at {}".format(self.cxx_runtime_root))
+        self.lit_config.note("Linking against the ABI Library at {}".format(self.abi_library_root))
+        self.lit_config.note("Running against the ABI Library at {}".format(self.abi_runtime_root))
         sys.stderr.flush()  # Force flushing to avoid broken output on Windows
 
     def get_test_format(self):
@@ -174,7 +174,7 @@ class Configuration(object):
         # Gather various compiler parameters.
         cxx = self.get_lit_conf('cxx_under_test')
         self.cxx_is_clang_cl = cxx is not None and \
-                               os.path.basename(cxx) == 'clang-cl.exe'
+                               os.path.basename(cxx).startswith('clang-cl')
         # If no specific cxx_under_test was given, attempt to infer it as
         # clang++.
         if cxx is None or self.cxx_is_clang_cl:
@@ -206,10 +206,8 @@ class Configuration(object):
 
         assert self.cxx_is_clang_cl
         flags = []
-        compile_flags = _prefixed_env_list('INCLUDE', '-isystem')
+        compile_flags = []
         link_flags = _prefixed_env_list('LIB', '-L')
-        for path in _split_env_var('LIB'):
-            self.add_path(self.exec_env, path)
         return CXXCompiler(self, clang_path, flags=flags,
                            compile_flags=compile_flags,
                            link_flags=link_flags)
@@ -240,18 +238,6 @@ class Configuration(object):
             for f in additional_features.split(','):
                 self.config.available_features.add(f.strip())
 
-        # Write an "available feature" that combines the triple when
-        # use_system_cxx_lib is enabled. This is so that we can easily write
-        # XFAIL markers for tests that are known to fail with versions of
-        # libc++ as were shipped with a particular triple.
-        if self.use_system_cxx_lib:
-            (arch, vendor, platform) = self.config.target_triple.split('-', 2)
-            (sysname, version) = re.match(r'([^0-9]+)([0-9\.]*)', platform).groups()
-
-            self.config.available_features.add('with_system_cxx_lib={}-{}-{}{}'.format(arch, vendor, sysname, version))
-            self.config.available_features.add('with_system_cxx_lib={}{}'.format(sysname, version))
-            self.config.available_features.add('with_system_cxx_lib={}'.format(sysname))
-
         if self.target_info.is_windows():
             if self.cxx_stdlib_under_test == 'libc++':
                 # LIBCXX-WINDOWS-FIXME is the feature name used to XFAIL the
@@ -261,10 +247,20 @@ class Configuration(object):
                 # using this feature. (Also see llvm.org/PR32730)
                 self.config.available_features.add('LIBCXX-WINDOWS-FIXME')
 
-        libcxx_gdb = self.get_lit_conf('libcxx_gdb')
-        if libcxx_gdb and 'NOTFOUND' not in libcxx_gdb:
-            self.config.available_features.add('libcxx_gdb')
-            self.cxx.libcxx_gdb = libcxx_gdb
+        target_triple = getattr(self.config, 'target_triple', None)
+        if target_triple:
+            if re.match(r'^x86_64.*-apple', target_triple):
+                self.config.available_features.add('x86_64-apple')
+            if re.match(r'^x86_64.*-linux', target_triple):
+                self.config.available_features.add('x86_64-linux')
+            if re.match(r'^i.86.*', target_triple):
+                self.config.available_features.add('target-x86')
+            elif re.match(r'^x86_64.*', target_triple):
+                self.config.available_features.add('target-x86_64')
+            elif re.match(r'^aarch64.*', target_triple):
+                self.config.available_features.add('target-aarch64')
+            elif re.match(r'^arm.*', target_triple):
+                self.config.available_features.add('target-arm')
 
     def configure_compile_flags(self):
         self.configure_default_compile_flags()
@@ -272,8 +268,13 @@ class Configuration(object):
         compile_flags_str = self.get_lit_conf('compile_flags', '')
         self.cxx.compile_flags += shlex.split(compile_flags_str)
         if self.target_info.is_windows():
-            # FIXME: Can we remove this?
             self.cxx.compile_flags += ['-D_CRT_SECURE_NO_WARNINGS']
+            # Don't warn about using common but nonstandard unprefixed functions
+            # like chdir, fileno.
+            self.cxx.compile_flags += ['-D_CRT_NONSTDC_NO_WARNINGS']
+            # Build the tests in the same configuration as libcxx itself,
+            # to avoid mismatches if linked statically.
+            self.cxx.compile_flags += ['-D_CRT_STDIO_ISO_WIDE_SPECIFIERS']
             # Required so that tests using min/max don't fail on Windows,
             # and so that those tests don't have to be changed to tolerate
             # this insanity.
@@ -313,10 +314,11 @@ class Configuration(object):
         support_path = os.path.join(self.libcxx_src_root, 'test/support')
         self.cxx.compile_flags += ['-I' + support_path]
 
-        # If we're testing the upstream LLVM libc++, disable availability markup,
-        # which is not relevant for non-shipped flavors of libc++.
-        if not self.use_system_cxx_lib:
-            self.cxx.compile_flags += ['-D_LIBCPP_DISABLE_AVAILABILITY']
+        # On GCC, the libc++ headers cause errors due to throw() decorators
+        # on operator new clashing with those from the test suite, so we
+        # don't enable warnings in system headers on GCC.
+        if self.cxx.type != 'gcc':
+            self.cxx.compile_flags += ['-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER']
 
         # Add includes for the PSTL headers
         pstl_src_root = self.get_lit_conf('pstl_src_root')
@@ -329,9 +331,9 @@ class Configuration(object):
 
     def configure_compile_flags_header_includes(self):
         support_path = os.path.join(self.libcxx_src_root, 'test', 'support')
-        self.configure_config_site_header()
         if self.cxx_stdlib_under_test != 'libstdc++' and \
-           not self.target_info.is_windows():
+           not self.target_info.is_windows() and \
+           not self.target_info.is_zos():
             self.cxx.compile_flags += [
                 '-include', os.path.join(support_path, 'nasty_macros.h')]
         if self.cxx_stdlib_under_test == 'msvc':
@@ -346,32 +348,18 @@ class Configuration(object):
                                          'set_windows_crt_report_mode.h')
             ]
         cxx_headers = self.get_lit_conf('cxx_headers')
-        if cxx_headers == '' or (cxx_headers is None
-                                 and self.cxx_stdlib_under_test != 'libc++'):
+        if cxx_headers is None and self.cxx_stdlib_under_test != 'libc++':
             self.lit_config.note('using the system cxx headers')
             return
         self.cxx.compile_flags += ['-nostdinc++']
-        if cxx_headers is None:
-            cxx_headers = os.path.join(self.libcxx_src_root, 'include')
         if not os.path.isdir(cxx_headers):
-            self.lit_config.fatal("cxx_headers='%s' is not a directory."
-                                  % cxx_headers)
+            self.lit_config.fatal("cxx_headers='{}' is not a directory.".format(cxx_headers))
         self.cxx.compile_flags += ['-I' + cxx_headers]
         if self.libcxx_obj_root is not None:
             cxxabi_headers = os.path.join(self.libcxx_obj_root, 'include',
                                           'c++build')
             if os.path.isdir(cxxabi_headers):
                 self.cxx.compile_flags += ['-I' + cxxabi_headers]
-
-    def configure_config_site_header(self):
-        # Check for a possible __config_site in the build directory. We
-        # use this if it exists.
-        if self.libcxx_obj_root is None:
-            return
-        config_site_header = os.path.join(self.libcxx_obj_root, '__config_site')
-        if not os.path.isfile(config_site_header):
-            return
-        self.cxx.compile_flags += ['-include', config_site_header]
 
     def configure_link_flags(self):
         # Configure library path
@@ -380,9 +368,12 @@ class Configuration(object):
 
         # Configure libraries
         if self.cxx_stdlib_under_test == 'libc++':
-            self.cxx.link_flags += ['-nodefaultlibs']
+            if self.target_info.is_mingw():
+                self.cxx.link_flags += ['-nostdlib++']
+            else:
+                self.cxx.link_flags += ['-nodefaultlibs']
             # FIXME: Handle MSVCRT as part of the ABI library handling.
-            if self.target_info.is_windows():
+            if self.target_info.is_windows() and not self.target_info.is_mingw():
                 self.cxx.link_flags += ['-nostdlib']
             self.configure_link_flags_cxx_library()
             self.configure_link_flags_abi_library()
@@ -419,10 +410,11 @@ class Configuration(object):
         # Configure ABI library paths.
         if self.abi_library_root:
             self.cxx.link_flags += ['-L' + self.abi_library_root]
+        if self.abi_runtime_root:
             if not self.target_info.is_windows():
-                self.cxx.link_flags += ['-Wl,-rpath,' + self.abi_library_root]
+                self.cxx.link_flags += ['-Wl,-rpath,' + self.abi_runtime_root]
             else:
-                self.add_path(self.exec_env, self.abi_library_root)
+                self.add_path(self.exec_env, self.abi_runtime_root)
 
     def configure_link_flags_cxx_library(self):
         if self.link_shared:
@@ -456,7 +448,6 @@ class Configuration(object):
                     if self.abi_library_root:
                         libname = self.make_static_lib_name('c++abi')
                         abs_path = os.path.join(self.abi_library_root, libname)
-                        self.cxx.link_libcxxabi_flag = abs_path
                         self.cxx.link_flags += [abs_path]
                     else:
                         self.cxx.link_flags += ['-lc++abi']
@@ -464,8 +455,10 @@ class Configuration(object):
             self.cxx.link_flags += ['-lcxxrt']
         elif cxx_abi == 'vcruntime':
             debug_suffix = 'd' if self.debug_build else ''
+            # This matches the set of libraries linked in the toplevel
+            # libcxx CMakeLists.txt if building targeting msvc.
             self.cxx.link_flags += ['-l%s%s' % (lib, debug_suffix) for lib in
-                                    ['vcruntime', 'ucrt', 'msvcrt']]
+                                    ['vcruntime', 'ucrt', 'msvcrt', 'msvcprt']]
         elif cxx_abi == 'none' or cxx_abi == 'default':
             if self.target_info.is_windows():
                 debug_suffix = 'd' if self.debug_build else ''
@@ -478,45 +471,6 @@ class Configuration(object):
         if self.get_lit_bool('cxx_ext_threads', default=False):
             self.cxx.link_flags += ['-lc++external_threads']
         self.target_info.add_cxx_link_flags(self.cxx.link_flags)
-
-    def configure_debug_mode(self):
-        debug_level = self.get_lit_conf('debug_level', None)
-        if not debug_level:
-            return
-        if debug_level not in ['0', '1']:
-            self.lit_config.fatal('Invalid value for debug_level "%s".'
-                                  % debug_level)
-        self.cxx.compile_flags += ['-D_LIBCPP_DEBUG=%s' % debug_level]
-
-    def configure_warnings(self):
-        # Turn on warnings by default for Clang based compilers
-        default_enable_warnings = self.cxx.type in ['clang', 'apple-clang']
-        enable_warnings = self.get_lit_bool('enable_warnings',
-                                            default_enable_warnings)
-        self.cxx.useWarnings(enable_warnings)
-        self.cxx.warning_flags += ['-Werror', '-Wall', '-Wextra']
-        # On GCC, the libc++ headers cause errors due to throw() decorators
-        # on operator new clashing with those from the test suite, so we
-        # don't enable warnings in system headers on GCC.
-        if self.cxx.type != 'gcc':
-            self.cxx.warning_flags += ['-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER']
-        self.cxx.addWarningFlagIfSupported('-Wshadow')
-        self.cxx.addWarningFlagIfSupported('-Wno-unused-command-line-argument')
-        self.cxx.addWarningFlagIfSupported('-Wno-attributes')
-        self.cxx.addWarningFlagIfSupported('-Wno-pessimizing-move')
-        self.cxx.addWarningFlagIfSupported('-Wno-c++11-extensions')
-        self.cxx.addWarningFlagIfSupported('-Wno-user-defined-literals')
-        self.cxx.addWarningFlagIfSupported('-Wno-noexcept-type')
-        self.cxx.addWarningFlagIfSupported('-Wno-aligned-allocation-unavailable')
-        self.cxx.addWarningFlagIfSupported('-Wno-atomic-alignment')
-        # These warnings should be enabled in order to support the MSVC
-        # team using the test suite; They enable the warnings below and
-        # expect the test suite to be clean.
-        self.cxx.addWarningFlagIfSupported('-Wsign-compare')
-        self.cxx.addWarningFlagIfSupported('-Wunused-variable')
-        self.cxx.addWarningFlagIfSupported('-Wunused-parameter')
-        self.cxx.addWarningFlagIfSupported('-Wunreachable-code')
-        self.cxx.addWarningFlagIfSupported('-Wno-unused-local-typedef')
 
     def configure_sanitizer(self):
         san = self.get_lit_conf('use_sanitizer', '').strip()
@@ -546,7 +500,7 @@ class Configuration(object):
                 if llvm_symbolizer is not None:
                     self.exec_env['ASAN_SYMBOLIZER_PATH'] = llvm_symbolizer
                 # FIXME: Turn ODR violation back on after PR28391 is resolved
-                # https://bugs.llvm.org/show_bug.cgi?id=28391
+                # https://llvm.org/PR28391
                 self.exec_env['ASAN_OPTIONS'] = 'detect_odr_violation=0'
                 self.config.available_features.add('asan')
                 self.config.available_features.add('sanitizer-new-delete')
@@ -616,7 +570,7 @@ class Configuration(object):
         sub.append(('%{flags}',         ' '.join(map(pipes.quote, flags))))
         sub.append(('%{compile_flags}', ' '.join(map(pipes.quote, compile_flags))))
         sub.append(('%{link_flags}',    ' '.join(map(pipes.quote, self.cxx.link_flags))))
-        sub.append(('%{link_libcxxabi}', pipes.quote(self.cxx.link_libcxxabi_flag)))
+
         codesign_ident = self.get_lit_conf('llvm_codesign_identity', '')
         env_vars = ' '.join('%s=%s' % (k, pipes.quote(v)) for (k, v) in self.exec_env.items())
         exec_args = [
@@ -625,8 +579,6 @@ class Configuration(object):
             '--env {}'.format(env_vars)
         ]
         sub.append(('%{exec}', '{} {} -- '.format(self.executor, ' '.join(exec_args))))
-        if self.get_lit_conf('libcxx_gdb'):
-            sub.append(('%{libcxx_gdb}', self.get_lit_conf('libcxx_gdb')))
 
     def configure_triple(self):
         # Get or infer the target triple.

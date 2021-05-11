@@ -294,11 +294,12 @@ static SourceRange getDeclaratorRange(const SourceManager &SM, TypeLoc T,
                                       SourceRange Initializer) {
   SourceLocation Start = GetStartLoc().Visit(T);
   SourceLocation End = T.getEndLoc();
-  assert(End.isValid());
   if (Name.isValid()) {
     if (Start.isInvalid())
       Start = Name;
-    if (SM.isBeforeInTranslationUnit(End, Name))
+    // End of TypeLoc could be invalid if the type is invalid, fallback to the
+    // NameLoc.
+    if (End.isInvalid() || SM.isBeforeInTranslationUnit(End, Name))
       End = Name;
   }
   if (Initializer.isValid()) {
@@ -367,7 +368,7 @@ class syntax::TreeBuilder {
 public:
   TreeBuilder(syntax::Arena &Arena) : Arena(Arena), Pending(Arena) {
     for (const auto &T : Arena.getTokenBuffer().expandedTokens())
-      LocationToToken.insert({T.location().getRawEncoding(), &T});
+      LocationToToken.insert({T.location(), &T});
   }
 
   llvm::BumpPtrAllocator &allocator() { return Arena.getAllocator(); }
@@ -636,12 +637,11 @@ private:
           (EndChildren == Trees.end() || EndChildren->first == Tokens.end()) &&
           "fold crosses boundaries of existing subtrees");
 
-      // We need to go in reverse order, because we can only prepend.
-      for (auto It = EndChildren; It != BeginChildren; --It) {
-        auto *C = std::prev(It)->second;
+      for (auto It = BeginChildren; It != EndChildren; ++It) {
+        auto *C = It->second;
         if (C->getRole() == NodeRole::Detached)
           C->setRole(NodeRole::Unknown);
-        Node->prependChildLowLevel(C);
+        Node->appendChildLowLevel(C);
       }
 
       // Mark that this node came from the AST and is backed by the source code.
@@ -689,8 +689,7 @@ private:
 
   syntax::Arena &Arena;
   /// To quickly find tokens by their start location.
-  llvm::DenseMap</*SourceLocation*/ unsigned, const syntax::Token *>
-      LocationToToken;
+  llvm::DenseMap<SourceLocation, const syntax::Token *> LocationToToken;
   Forest Pending;
   llvm::DenseSet<Decl *> DeclsWithoutSemicolons;
   ASTToSyntaxMapping Mapping;
@@ -802,6 +801,30 @@ public:
     return true;
   }
 
+  bool TraverseIfStmt(IfStmt *S) {
+    bool Result = [&, this]() {
+      if (S->getInit() && !TraverseStmt(S->getInit())) {
+        return false;
+      }
+      // In cases where the condition is an initialized declaration in a
+      // statement, we want to preserve the declaration and ignore the
+      // implicit condition expression in the syntax tree.
+      if (S->hasVarStorage()) {
+        if (!TraverseStmt(S->getConditionVariableDeclStmt()))
+          return false;
+      } else if (S->getCond() && !TraverseStmt(S->getCond()))
+        return false;
+
+      if (S->getThen() && !TraverseStmt(S->getThen()))
+        return false;
+      if (S->getElse() && !TraverseStmt(S->getElse()))
+        return false;
+      return true;
+    }();
+    WalkUpFromIfStmt(S);
+    return Result;
+  }
+
   bool TraverseCXXForRangeStmt(CXXForRangeStmt *S) {
     // We override to traverse range initializer as VarDecl.
     // RAV traverses it as a statement, we produce invalid node kinds in that
@@ -831,6 +854,11 @@ public:
       return RecursiveASTVisitor::TraverseStmt(IgnoreImplicit(E));
     }
     return RecursiveASTVisitor::TraverseStmt(S);
+  }
+
+  bool TraverseOpaqueValueExpr(OpaqueValueExpr *VE) {
+    // OpaqueValue doesn't correspond to concrete syntax, ignore it.
+    return true;
   }
 
   // Some expressions are not yet handled by syntax trees.
@@ -1428,6 +1456,10 @@ public:
 
   bool WalkUpFromIfStmt(IfStmt *S) {
     Builder.markChildToken(S->getIfLoc(), syntax::NodeRole::IntroducerKeyword);
+    Stmt *ConditionStatement = S->getCond();
+    if (S->hasVarStorage())
+      ConditionStatement = S->getConditionVariableDeclStmt();
+    Builder.markStmtChild(ConditionStatement, syntax::NodeRole::Condition);
     Builder.markStmtChild(S->getThen(), syntax::NodeRole::ThenStatement);
     Builder.markChildToken(S->getElseLoc(), syntax::NodeRole::ElseKeyword);
     Builder.markStmtChild(S->getElse(), syntax::NodeRole::ElseStatement);
@@ -1708,14 +1740,14 @@ void syntax::TreeBuilder::markExprChild(Expr *Child, NodeRole Role) {
 const syntax::Token *syntax::TreeBuilder::findToken(SourceLocation L) const {
   if (L.isInvalid())
     return nullptr;
-  auto It = LocationToToken.find(L.getRawEncoding());
+  auto It = LocationToToken.find(L);
   assert(It != LocationToToken.end());
   return It->second;
 }
 
-syntax::TranslationUnit *
-syntax::buildSyntaxTree(Arena &A, const TranslationUnitDecl &TU) {
+syntax::TranslationUnit *syntax::buildSyntaxTree(Arena &A,
+                                                 ASTContext &Context) {
   TreeBuilder Builder(A);
-  BuildTreeVisitor(TU.getASTContext(), Builder).TraverseAST(TU.getASTContext());
+  BuildTreeVisitor(Context, Builder).TraverseAST(Context);
   return std::move(Builder).finalize();
 }

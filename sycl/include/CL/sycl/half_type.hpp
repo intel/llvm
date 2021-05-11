@@ -35,8 +35,8 @@ namespace host_half_impl {
 class __SYCL_EXPORT half {
 public:
   half() = default;
-  half(const half &) = default;
-  half(half &&) = default;
+  constexpr half(const half &) = default;
+  constexpr half(half &&) = default;
 
   half(const float &rhs);
 
@@ -74,10 +74,19 @@ public:
     return ret;
   }
 
+  // Operator neg
+  constexpr half &operator-() {
+    Buf ^= 0x8000;
+    return *this;
+  }
+
   // Operator float
   operator float() const;
 
   template <typename Key> friend struct std::hash;
+
+  // Initialize underlying data
+  constexpr explicit half(uint16_t x) : Buf(x) {}
 
 private:
   uint16_t Buf;
@@ -136,8 +145,8 @@ class half;
 class half {
 public:
   half() = default;
-  half(const half &) = default;
-  half(half &&) = default;
+  constexpr half(const half &) = default;
+  constexpr half(half &&) = default;
 
   __SYCL_CONSTEXPR_ON_DEVICE half(const float &rhs) : Data(rhs) {}
 
@@ -146,8 +155,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
   // Since StorageT and BIsRepresentationT are different on host, these two
   // helpers are required for 'vec' class
-  half(const detail::host_half_impl::half &rhs) : Data(rhs) {};
-  operator detail::host_half_impl::half() const { return Data; }
+  constexpr half(const detail::host_half_impl::half &rhs) : Data(rhs){};
+  constexpr operator detail::host_half_impl::half() const { return Data; }
 #endif // __SYCL_DEVICE_ONLY__
 
   // Operator +=, -=, *=, /=
@@ -193,7 +202,14 @@ public:
     operator--();
     return ret;
   }
-
+  constexpr half &operator-() {
+    Data = -Data;
+    return *this;
+  }
+  constexpr half operator-() const {
+    half r = *this;
+    return -r;
+  }
   // Operator float
   operator float() const { return static_cast<float>(Data); }
 
@@ -231,102 +247,62 @@ template <> struct hash<cl::sycl::half> {
 };
 
 // Partial specialization of `std::numeric<cl::sycl::half>`
-
-// All following values are either calculated based on description of each
-// function/value on https://en.cppreference.com/w/cpp/types/numeric_limits, or
-// cl_platform.h.
-#define SYCL_HLF_MIN 6.103515625e-05F
-
-#define SYCL_HLF_MAX 65504.0F
-
-#define SYCL_HLF_MAX_10_EXP 4
-
-#define SYCL_HLF_MAX_EXP 16
-
-#define SYCL_HLF_MIN_10_EXP (-4)
-
-#define SYCL_HLF_MIN_EXP (-13)
-
-#define SYCL_HLF_MANT_DIG 11
-
-#define SYCL_HLF_DIG 3
-
-#define SYCL_HLF_DECIMAL_DIG 5
-
-#define SYCL_HLF_EPSILON 9.765625e-04F
-
-#define SYCL_HLF_RADIX 2
-
 template <> struct numeric_limits<cl::sycl::half> {
-  static constexpr const bool is_specialized = true;
-
-  static constexpr const bool is_signed = true;
-
-  static constexpr const bool is_integer = false;
-
-  static constexpr const bool is_exact = false;
-
-  static constexpr const bool has_infinity = true;
-
-  static constexpr const bool has_quiet_NaN = true;
-
-  static constexpr const bool has_signaling_NaN = true;
-
-  static constexpr const float_denorm_style has_denorm = denorm_present;
-
-  static constexpr const bool has_denorm_loss = false;
-
-  static constexpr const bool tinyness_before = false;
-
-  static constexpr const bool traps = false;
-
-  static constexpr const int max_exponent10 = SYCL_HLF_MAX_10_EXP;
-
-  static constexpr const int max_exponent = SYCL_HLF_MAX_EXP;
-
-  static constexpr const int min_exponent10 = SYCL_HLF_MIN_10_EXP;
-
-  static constexpr const int min_exponent = SYCL_HLF_MIN_EXP;
-
-  static constexpr const int radix = SYCL_HLF_RADIX;
-
-  static constexpr const int max_digits10 = SYCL_HLF_DECIMAL_DIG;
-
-  static constexpr const int digits = SYCL_HLF_MANT_DIG;
-
-  static constexpr const bool is_bounded = true;
-
-  static constexpr const int digits10 = SYCL_HLF_DIG;
-
-  static constexpr const bool is_modulo = false;
-
-  static constexpr const bool is_iec559 = true;
-
-  static constexpr const float_round_style round_style = round_to_nearest;
+  // All following values are either calculated based on description of each
+  // function/value on https://en.cppreference.com/w/cpp/types/numeric_limits,
+  // or cl_platform.h.
+  static constexpr bool is_specialized = true;
+  static constexpr bool is_signed = true;
+  static constexpr bool is_integer = false;
+  static constexpr bool is_exact = false;
+  static constexpr bool has_infinity = true;
+  static constexpr bool has_quiet_NaN = true;
+  static constexpr bool has_signaling_NaN = true;
+  static constexpr float_denorm_style has_denorm = denorm_present;
+  static constexpr bool has_denorm_loss = false;
+  static constexpr bool tinyness_before = false;
+  static constexpr bool traps = false;
+  static constexpr int max_exponent10 = 4;
+  static constexpr int max_exponent = 16;
+  static constexpr int min_exponent10 = -4;
+  static constexpr int min_exponent = -13;
+  static constexpr int radix = 2;
+  static constexpr int max_digits10 = 5;
+  static constexpr int digits = 11;
+  static constexpr bool is_bounded = true;
+  static constexpr int digits10 = 3;
+  static constexpr bool is_modulo = false;
+  static constexpr bool is_iec559 = true;
+  static constexpr float_round_style round_style = round_to_nearest;
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half(min)() noexcept {
-    return SYCL_HLF_MIN;
+    return 6.103515625e-05f; // half minimum value
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half(max)() noexcept {
-    return SYCL_HLF_MAX;
+    return 65504.0f; // half maximum value
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half lowest() noexcept {
-    return -SYCL_HLF_MAX;
+    return -65504.0f; // -1*(half maximum value)
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half epsilon() noexcept {
-    return SYCL_HLF_EPSILON;
+    return 9.765625e-04f; // half epsilon
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half
   round_error() noexcept {
-    return 0.5F;
+    return 0.5f;
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half infinity() noexcept {
+  static constexpr const cl::sycl::half infinity() noexcept {
+#ifdef __SYCL_DEVICE_ONLY__
     return __builtin_huge_valf();
+#else
+    return cl::sycl::detail::host_half_impl::half(
+        static_cast<uint16_t>(0x7C00));
+#endif
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half quiet_NaN() noexcept {
@@ -339,7 +315,7 @@ template <> struct numeric_limits<cl::sycl::half> {
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half denorm_min() noexcept {
-    return 5.96046e-08F;
+    return 5.96046e-08f;
   }
 };
 
@@ -358,3 +334,4 @@ inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
 }
 
 #undef __SYCL_CONSTEXPR_ON_DEVICE
+#undef _CPP14_CONSTEXPR

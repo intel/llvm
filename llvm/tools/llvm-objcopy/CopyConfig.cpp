@@ -244,9 +244,10 @@ parseSetSectionAlignment(StringRef FlagValue) {
         "bad format for --set-section-alignment: missing section name");
   uint64_t NewAlign;
   if (Split.second.getAsInteger(0, NewAlign))
-    return createStringError(errc::invalid_argument,
-                             "invalid alignment for --set-section-alignment: '%s'",
-                             Split.second.str().c_str());
+    return createStringError(
+        errc::invalid_argument,
+        "invalid alignment for --set-section-alignment: '%s'",
+        Split.second.str().c_str());
   return std::make_pair(Split.first, NewAlign);
 }
 
@@ -607,13 +608,6 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
     Config.GnuDebugLinkCRC32 =
         llvm::crc32(arrayRefFromStringRef(Debug->getBuffer()));
   }
-  Config.BuildIdLinkDir = InputArgs.getLastArgValue(OBJCOPY_build_id_link_dir);
-  if (InputArgs.hasArg(OBJCOPY_build_id_link_input))
-    Config.BuildIdLinkInput =
-        InputArgs.getLastArgValue(OBJCOPY_build_id_link_input);
-  if (InputArgs.hasArg(OBJCOPY_build_id_link_output))
-    Config.BuildIdLinkOutput =
-        InputArgs.getLastArgValue(OBJCOPY_build_id_link_output);
   Config.SplitDWO = InputArgs.getLastArgValue(OBJCOPY_split_dwo);
   Config.SymbolsPrefix = InputArgs.getLastArgValue(OBJCOPY_prefix_symbols);
   Config.AllocSectionsPrefix =
@@ -727,6 +721,7 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
             : DiscardType::Locals;
   Config.OnlyKeepDebug = InputArgs.hasArg(OBJCOPY_only_keep_debug);
   Config.KeepFileSymbols = InputArgs.hasArg(OBJCOPY_keep_file_symbols);
+  Config.KeepUndefined = InputArgs.hasArg(OBJCOPY_keep_undefined);
   Config.DecompressDebugSections =
       InputArgs.hasArg(OBJCOPY_decompress_debug_sections);
   if (Config.DiscardMode == DiscardType::All) {
@@ -895,6 +890,9 @@ parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr) {
   for (auto Arg : InputArgs.filtered(INSTALL_NAME_TOOL_add_rpath))
     Config.RPathToAdd.push_back(Arg->getValue());
 
+  for (auto *Arg : InputArgs.filtered(INSTALL_NAME_TOOL_prepend_rpath))
+    Config.RPathToPrepend.push_back(Arg->getValue());
+
   for (auto Arg : InputArgs.filtered(INSTALL_NAME_TOOL_delete_rpath)) {
     StringRef RPath = Arg->getValue();
 
@@ -902,7 +900,12 @@ parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr) {
     if (is_contained(Config.RPathToAdd, RPath))
       return createStringError(
           errc::invalid_argument,
-          "cannot specify both -add_rpath %s and -delete_rpath %s",
+          "cannot specify both -add_rpath '%s' and -delete_rpath '%s'",
+          RPath.str().c_str(), RPath.str().c_str());
+    if (is_contained(Config.RPathToPrepend, RPath))
+      return createStringError(
+          errc::invalid_argument,
+          "cannot specify both -prepend_rpath '%s' and -delete_rpath '%s'",
           RPath.str().c_str(), RPath.str().c_str());
 
     Config.RPathsToRemove.insert(RPath);
@@ -922,23 +925,30 @@ parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr) {
         });
     if (It1 != Config.RPathsToUpdate.end())
       return createStringError(errc::invalid_argument,
-                               "cannot specify both -rpath " + It1->getFirst() +
-                                   " " + It1->getSecond() + " and -rpath " +
-                                   Old + " " + New);
+                               "cannot specify both -rpath '" +
+                                   It1->getFirst() + "' '" + It1->getSecond() +
+                                   "' and -rpath '" + Old + "' '" + New + "'");
 
     // Cannot specify the same rpath under both -delete_rpath and -rpath
     auto It2 = find_if(Config.RPathsToRemove, Match);
     if (It2 != Config.RPathsToRemove.end())
       return createStringError(errc::invalid_argument,
-                               "cannot specify both -delete_rpath " + *It2 +
-                                   " and -rpath " + Old + " " + New);
+                               "cannot specify both -delete_rpath '" + *It2 +
+                                   "' and -rpath '" + Old + "' '" + New + "'");
 
     // Cannot specify the same rpath under both -add_rpath and -rpath
     auto It3 = find_if(Config.RPathToAdd, Match);
     if (It3 != Config.RPathToAdd.end())
       return createStringError(errc::invalid_argument,
-                               "cannot specify both -add_rpath " + *It3 +
-                                   " and -rpath " + Old + " " + New);
+                               "cannot specify both -add_rpath '" + *It3 +
+                                   "' and -rpath '" + Old + "' '" + New + "'");
+
+    // Cannot specify the same rpath under both -prepend_rpath and -rpath.
+    auto It4 = find_if(Config.RPathToPrepend, Match);
+    if (It4 != Config.RPathToPrepend.end())
+      return createStringError(errc::invalid_argument,
+                               "cannot specify both -prepend_rpath '" + *It4 +
+                                   "' and -rpath '" + Old + "' '" + New + "'");
 
     Config.RPathsToUpdate.insert({Old, New});
   }
@@ -952,6 +962,9 @@ parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr) {
 
   for (auto *Arg : InputArgs.filtered(INSTALL_NAME_TOOL_change))
     Config.InstallNamesToUpdate.insert({Arg->getValue(0), Arg->getValue(1)});
+
+  Config.RemoveAllRpaths =
+      InputArgs.hasArg(INSTALL_NAME_TOOL_delete_all_rpaths);
 
   SmallVector<StringRef, 2> Positional;
   for (auto Arg : InputArgs.filtered(INSTALL_NAME_TOOL_UNKNOWN))
@@ -1086,6 +1099,7 @@ parseStripOptions(ArrayRef<const char *> ArgsArr,
   Config.StripSwiftSymbols = InputArgs.hasArg(STRIP_strip_swift_symbols);
   Config.OnlyKeepDebug = InputArgs.hasArg(STRIP_only_keep_debug);
   Config.KeepFileSymbols = InputArgs.hasArg(STRIP_keep_file_symbols);
+  Config.KeepUndefined = InputArgs.hasArg(STRIP_keep_undefined);
 
   for (auto Arg : InputArgs.filtered(STRIP_keep_section))
     if (Error E = Config.KeepSection.addMatcher(NameOrPattern::create(

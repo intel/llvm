@@ -965,33 +965,42 @@ public:
   OCLBuiltinFuncMangleInfo(ArrayRef<Type *> ArgTypes)
       : ArgTypes(ArgTypes.vec()) {}
   void init(StringRef UniqName) override {
-    UnmangledName = UniqName.str();
-    size_t Pos = std::string::npos;
+    // Make a local copy as we will modify the string in init function
+    std::string TempStorage = UniqName.str();
+    auto NameRef = StringRef(TempStorage);
 
-    auto EraseSubstring = [](std::string &Str, std::string ToErase) {
-      size_t Pos = Str.find(ToErase);
+    // Helper functions to erase substrings from NameRef (i.e. TempStorage)
+    auto EraseSubstring = [&NameRef, &TempStorage](const std::string &ToErase) {
+      size_t Pos = TempStorage.find(ToErase);
       if (Pos != std::string::npos) {
-        Str.erase(Pos, ToErase.length());
+        TempStorage.erase(Pos, ToErase.length());
+        // re-take StringRef as TempStorage was updated
+        NameRef = StringRef(TempStorage);
       }
     };
+    auto EraseSymbol = [&NameRef, &TempStorage](size_t Index) {
+      TempStorage.erase(Index, 1);
+      // re-take StringRef as TempStorage was updated
+      NameRef = StringRef(TempStorage);
+    };
 
-    if (UnmangledName.find("async_work_group") == 0) {
+    if (NameRef.startswith("async_work_group")) {
       addUnsignedArg(-1);
       setArgAttr(1, SPIR::ATTR_CONST);
-    } else if (UnmangledName.find("write_imageui") == 0)
+    } else if (NameRef.startswith("write_imageui"))
       addUnsignedArg(2);
-    else if (UnmangledName == "prefetch") {
+    else if (NameRef.equals("prefetch")) {
       addUnsignedArg(1);
       setArgAttr(0, SPIR::ATTR_CONST);
-    } else if (UnmangledName == "get_kernel_work_group_size" ||
-               UnmangledName ==
-                   "get_kernel_preferred_work_group_size_multiple") {
+    } else if (NameRef.equals("get_kernel_work_group_size") ||
+               NameRef.equals(
+                   "get_kernel_preferred_work_group_size_multiple")) {
       assert(F && "lack of necessary information");
       const size_t BlockArgIdx = 0;
       FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
       if (InvokeTy->getNumParams() > 1)
         setLocalArgBlock(BlockArgIdx);
-    } else if (UnmangledName == "enqueue_kernel") {
+    } else if (NameRef.equals("enqueue_kernel")) {
       assert(F && "lack of necessary information");
       setEnumArg(1, SPIR::PRIMITIVE_KERNEL_ENQUEUE_FLAGS_T);
       addUnsignedArg(3);
@@ -1005,97 +1014,84 @@ public:
         addUnsignedArg(BlockArgIdx + 1);
         setVarArg(BlockArgIdx + 2);
       }
-    } else if (UnmangledName.find("get_") == 0 || UnmangledName == "nan" ||
-               UnmangledName == "mem_fence" ||
-               UnmangledName.find("shuffle") == 0) {
+    } else if (NameRef.startswith("get_") || NameRef.equals("nan") ||
+               NameRef.equals("mem_fence") || NameRef.startswith("shuffle")) {
       addUnsignedArg(-1);
-      if (UnmangledName.find(kOCLBuiltinName::GetFence) == 0) {
+      if (NameRef.startswith(kOCLBuiltinName::GetFence)) {
         setArgAttr(0, SPIR::ATTR_CONST);
         addVoidPtrArg(0);
       }
-    } else if (UnmangledName.find("barrier") != std::string::npos) {
+    } else if (NameRef.contains("barrier")) {
       addUnsignedArg(0);
-      if (UnmangledName == "work_group_barrier" ||
-          UnmangledName == "sub_group_barrier")
+      if (NameRef.equals("work_group_barrier") ||
+          NameRef.equals("sub_group_barrier"))
         setEnumArg(1, SPIR::PRIMITIVE_MEMORY_SCOPE);
-    } else if (UnmangledName.find("atomic_work_item_fence") == 0) {
+    } else if (NameRef.startswith("atomic_work_item_fence")) {
       addUnsignedArg(0);
       setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
       setEnumArg(2, SPIR::PRIMITIVE_MEMORY_SCOPE);
-    } else if (UnmangledName.find("atom_") == 0) {
+    } else if (NameRef.startswith("atom_")) {
       setArgAttr(0, SPIR::ATTR_VOLATILE);
-      if (UnmangledName.find("atom_umax") == 0 ||
-          UnmangledName.find("atom_umin") == 0) {
-        addUnsignedArg(0);
-        addUnsignedArg(1);
-        UnmangledName.erase(5, 1);
+      if (NameRef.endswith("_umax") || NameRef.endswith("_umin")) {
+        addUnsignedArg(-1);
+        // We need to remove u to match OpenCL C built-in function name
+        EraseSymbol(5);
       }
-    } else if (UnmangledName.find("atomic") == 0) {
+    } else if (NameRef.startswith("atomic")) {
       setArgAttr(0, SPIR::ATTR_VOLATILE);
-      if (UnmangledName.find("atomic_umax") == 0 ||
-          UnmangledName.find("atomic_umin") == 0) {
-        addUnsignedArg(0);
-        addUnsignedArg(1);
-        UnmangledName.erase(7, 1);
-      } else if (UnmangledName.find("atomic_fetch_umin") == 0 ||
-                 UnmangledName.find("atomic_fetch_umax") == 0) {
-        addUnsignedArg(0);
-        addUnsignedArg(1);
-        UnmangledName.erase(13, 1);
+      if (NameRef.contains("_umax") || NameRef.contains("_umin")) {
+        addUnsignedArg(-1);
+        // We need to remove u to match OpenCL C built-in function name
+        if (NameRef.contains("_fetch"))
+          EraseSymbol(13);
+        else
+          EraseSymbol(7);
       }
-      if (UnmangledName.find("store_explicit") != std::string::npos ||
-          UnmangledName.find("exchange_explicit") != std::string::npos ||
-          (UnmangledName.find("atomic_fetch") == 0 &&
-           UnmangledName.find("explicit") != std::string::npos)) {
+      if (NameRef.contains("store_explicit") ||
+          NameRef.contains("exchange_explicit") ||
+          (NameRef.startswith("atomic_fetch") &&
+           NameRef.contains("explicit"))) {
         setEnumArg(2, SPIR::PRIMITIVE_MEMORY_ORDER);
         setEnumArg(3, SPIR::PRIMITIVE_MEMORY_SCOPE);
-      } else if (UnmangledName.find("load_explicit") != std::string::npos ||
-                 (UnmangledName.find("atomic_flag") == 0 &&
-                  UnmangledName.find("explicit") != std::string::npos)) {
+      } else if (NameRef.contains("load_explicit") ||
+                 (NameRef.startswith("atomic_flag") &&
+                  NameRef.contains("explicit"))) {
         setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
         setEnumArg(2, SPIR::PRIMITIVE_MEMORY_SCOPE);
-      } else if (UnmangledName.find("compare_exchange_strong_explicit") !=
-                     std::string::npos ||
-                 UnmangledName.find("compare_exchange_weak_explicit") !=
-                     std::string::npos) {
+      } else if (NameRef.endswith("compare_exchange_strong_explicit") ||
+                 NameRef.endswith("compare_exchange_weak_explicit")) {
         setEnumArg(3, SPIR::PRIMITIVE_MEMORY_ORDER);
         setEnumArg(4, SPIR::PRIMITIVE_MEMORY_ORDER);
         setEnumArg(5, SPIR::PRIMITIVE_MEMORY_SCOPE);
       }
       // Don't set atomic property to the first argument of 1.2 atomic
       // built-ins.
-      if (UnmangledName.find("atomic_add") != 0 &&
-          UnmangledName.find("atomic_sub") != 0 &&
-          UnmangledName.find("atomic_xchg") != 0 &&
-          UnmangledName.find("atomic_inc") != 0 &&
-          UnmangledName.find("atomic_dec") != 0 &&
-          UnmangledName.find("atomic_cmpxchg") != 0 &&
-          UnmangledName.find("atomic_min") != 0 &&
-          UnmangledName.find("atomic_max") != 0 &&
-          UnmangledName.find("atomic_and") != 0 &&
-          UnmangledName.find("atomic_or") != 0 &&
-          UnmangledName.find("atomic_xor") != 0 &&
-          UnmangledName.find("atom_") != 0) {
+      if (!NameRef.endswith("xchg") && // covers _cmpxchg too
+          (NameRef.contains("fetch") ||
+           !(NameRef.endswith("_add") || NameRef.endswith("_sub") ||
+             NameRef.endswith("_inc") || NameRef.endswith("_dec") ||
+             NameRef.endswith("_min") || NameRef.endswith("_max") ||
+             NameRef.endswith("_and") || NameRef.endswith("_or") ||
+             NameRef.endswith("_xor")))) {
         addAtomicArg(0);
       }
-
-    } else if (UnmangledName.find("uconvert_") == 0) {
+    } else if (NameRef.startswith("uconvert_")) {
       addUnsignedArg(0);
+      NameRef = NameRef.drop_front(1);
       UnmangledName.erase(0, 1);
-    } else if (UnmangledName.find("s_") == 0) {
-      if (UnmangledName == "s_upsample")
+    } else if (NameRef.startswith("s_")) {
+      if (NameRef.equals("s_upsample"))
         addUnsignedArg(1);
-      UnmangledName.erase(0, 2);
-    } else if (UnmangledName.find("u_") == 0) {
+      NameRef = NameRef.drop_front(2);
+    } else if (NameRef.startswith("u_")) {
       addUnsignedArg(-1);
-      UnmangledName.erase(0, 2);
-    } else if (UnmangledName == "fclamp") {
-      UnmangledName.erase(0, 1);
+      NameRef = NameRef.drop_front(2);
+    } else if (NameRef.equals("fclamp")) {
+      NameRef = NameRef.drop_front(1);
     }
     // handle [read|write]pipe builtins (plus two i32 literal args
     // required by SPIR 2.0 provisional specification):
-    else if (UnmangledName == "read_pipe_2" ||
-             UnmangledName == "write_pipe_2") {
+    else if (NameRef.equals("read_pipe_2") || NameRef.equals("write_pipe_2")) {
       // with 2 arguments (plus two i32 literals):
       // int read_pipe (read_only pipe gentype p, gentype *ptr)
       // int write_pipe (write_only pipe gentype p, const gentype *ptr)
@@ -1103,16 +1099,16 @@ public:
       addUnsignedArg(2);
       addUnsignedArg(3);
       // OpenCL-like representation of blocking pipes
-    } else if (UnmangledName == "read_pipe_2_bl" ||
-               UnmangledName == "write_pipe_2_bl") {
+    } else if (NameRef.equals("read_pipe_2_bl") ||
+               NameRef.equals("write_pipe_2_bl")) {
       // with 2 arguments (plus two i32 literals):
       // int read_pipe_bl (read_only pipe gentype p, gentype *ptr)
       // int write_pipe_bl (write_only pipe gentype p, const gentype *ptr)
       addVoidPtrArg(1);
       addUnsignedArg(2);
       addUnsignedArg(3);
-    } else if (UnmangledName == "read_pipe_4" ||
-               UnmangledName == "write_pipe_4") {
+    } else if (NameRef.equals("read_pipe_4") ||
+               NameRef.equals("write_pipe_4")) {
       // with 4 arguments (plus two i32 literals):
       // int read_pipe (read_only pipe gentype p, reserve_id_t reserve_id, uint
       // index, gentype *ptr) int write_pipe (write_only pipe gentype p,
@@ -1121,163 +1117,138 @@ public:
       addVoidPtrArg(3);
       addUnsignedArg(4);
       addUnsignedArg(5);
-    } else if (UnmangledName.find("reserve_read_pipe") != std::string::npos ||
-               UnmangledName.find("reserve_write_pipe") != std::string::npos) {
+    } else if (NameRef.contains("reserve_read_pipe") ||
+               NameRef.contains("reserve_write_pipe")) {
       // process [|work_group|sub_group]reserve[read|write]pipe builtins
       addUnsignedArg(1);
       addUnsignedArg(2);
       addUnsignedArg(3);
-    } else if (UnmangledName.find("commit_read_pipe") != std::string::npos ||
-               UnmangledName.find("commit_write_pipe") != std::string::npos) {
+    } else if (NameRef.contains("commit_read_pipe") ||
+               NameRef.contains("commit_write_pipe")) {
       // process [|work_group|sub_group]commit[read|write]pipe builtins
       addUnsignedArg(2);
       addUnsignedArg(3);
-    } else if (UnmangledName == "capture_event_profiling_info") {
+    } else if (NameRef.equals("capture_event_profiling_info")) {
       addVoidPtrArg(2);
       setEnumArg(1, SPIR::PRIMITIVE_CLK_PROFILING_INFO);
-    } else if (UnmangledName == "enqueue_marker") {
+    } else if (NameRef.equals("enqueue_marker")) {
       setArgAttr(2, SPIR::ATTR_CONST);
       addUnsignedArg(1);
-    } else if (UnmangledName.find("vload") == 0) {
+    } else if (NameRef.startswith("vload")) {
       addUnsignedArg(0);
       setArgAttr(1, SPIR::ATTR_CONST);
-    } else if (UnmangledName.find("vstore") == 0) {
+    } else if (NameRef.startswith("vstore")) {
       addUnsignedArg(1);
-    } else if (UnmangledName.find("ndrange_") == 0) {
+    } else if (NameRef.startswith("ndrange_")) {
       addUnsignedArg(-1);
-      if (UnmangledName[8] == '2' || UnmangledName[8] == '3') {
+      if (NameRef[8] == '2' || NameRef[8] == '3') {
         setArgAttr(-1, SPIR::ATTR_CONST);
       }
-    } else if ((Pos = UnmangledName.find("umax")) != std::string::npos ||
-               (Pos = UnmangledName.find("umin")) != std::string::npos) {
+    } else if (NameRef.contains("umax")) {
       addUnsignedArg(-1);
-      UnmangledName.erase(Pos, 1);
-    } else if (UnmangledName.find("broadcast") != std::string::npos) {
+      EraseSymbol(NameRef.find("umax"));
+    } else if (NameRef.contains("umin")) {
       addUnsignedArg(-1);
-    } else if (UnmangledName.find(kOCLBuiltinName::SampledReadImage) == 0) {
-      UnmangledName.erase(0, strlen(kOCLBuiltinName::Sampled));
+      EraseSymbol(NameRef.find("umin"));
+    } else if (NameRef.contains("broadcast")) {
+      addUnsignedArg(-1);
+    } else if (NameRef.startswith(kOCLBuiltinName::SampledReadImage)) {
+      NameRef.consume_front(kOCLBuiltinName::Sampled);
       addSamplerArg(1);
-    } else if (UnmangledName.find(kOCLSubgroupsAVCIntel::Prefix) !=
-               std::string::npos) {
-      if (UnmangledName.find("evaluate_ipe") != std::string::npos)
+    } else if (NameRef.contains(kOCLSubgroupsAVCIntel::Prefix)) {
+      if (NameRef.contains("evaluate_ipe"))
         addSamplerArg(1);
-      else if (UnmangledName.find("evaluate_with_single_reference") !=
-               std::string::npos)
+      else if (NameRef.contains("evaluate_with_single_reference"))
         addSamplerArg(2);
-      else if (UnmangledName.find("evaluate_with_multi_reference") !=
-               std::string::npos) {
+      else if (NameRef.contains("evaluate_with_multi_reference")) {
         addUnsignedArg(1);
         std::string PostFix = "_interlaced";
-        if (UnmangledName.find(PostFix) != std::string::npos) {
+        if (NameRef.contains(PostFix)) {
           addUnsignedArg(2);
           addSamplerArg(3);
-          size_t Pos = UnmangledName.find(PostFix);
-          if (Pos != std::string::npos)
-            UnmangledName.erase(Pos, PostFix.length());
+          EraseSubstring(PostFix);
         } else
           addSamplerArg(2);
-      } else if (UnmangledName.find("evaluate_with_dual_reference") !=
-                 std::string::npos)
+      } else if (NameRef.contains("evaluate_with_dual_reference"))
         addSamplerArg(3);
-      else if (UnmangledName.find("fme_initialize") != std::string::npos)
+      else if (NameRef.contains("fme_initialize"))
         addUnsignedArgs(0, 6);
-      else if (UnmangledName.find("bme_initialize") != std::string::npos)
+      else if (NameRef.contains("bme_initialize"))
         addUnsignedArgs(0, 7);
-      else if (UnmangledName.find("set_inter_base_multi_reference_penalty") !=
-                   std::string::npos ||
-               UnmangledName.find("set_inter_shape_penalty") !=
-                   std::string::npos ||
-               UnmangledName.find("set_inter_direction_penalty") !=
-                   std::string::npos)
+      else if (NameRef.contains("set_inter_base_multi_reference_penalty") ||
+               NameRef.contains("set_inter_shape_penalty") ||
+               NameRef.contains("set_inter_direction_penalty"))
         addUnsignedArg(0);
-      else if (UnmangledName.find("set_motion_vector_cost_function") !=
-               std::string::npos)
+      else if (NameRef.contains("set_motion_vector_cost_function"))
         addUnsignedArgs(0, 2);
-      else if (UnmangledName.find("interlaced_field_polarity") !=
-               std::string::npos)
+      else if (NameRef.contains("interlaced_field_polarity"))
         addUnsignedArg(0);
-      else if (UnmangledName.find("interlaced_field_polarities") !=
-               std::string::npos)
+      else if (NameRef.contains("interlaced_field_polarities"))
         addUnsignedArgs(0, 1);
-      else if (UnmangledName.find(kOCLSubgroupsAVCIntel::MCEPrefix) !=
-               std::string::npos) {
-        if (UnmangledName.find("get_default") != std::string::npos)
+      else if (NameRef.contains(kOCLSubgroupsAVCIntel::MCEPrefix)) {
+        if (NameRef.contains("get_default"))
           addUnsignedArgs(0, 1);
-      } else if (UnmangledName.find(kOCLSubgroupsAVCIntel::IMEPrefix) !=
-                 std::string::npos) {
-        if (UnmangledName.find("initialize") != std::string::npos)
+      } else if (NameRef.contains(kOCLSubgroupsAVCIntel::IMEPrefix)) {
+        if (NameRef.contains("initialize"))
           addUnsignedArgs(0, 2);
-        else if (UnmangledName.find("set_single_reference") !=
-                 std::string::npos)
+        else if (NameRef.contains("set_single_reference"))
           addUnsignedArg(1);
-        else if (UnmangledName.find("set_dual_reference") != std::string::npos)
+        else if (NameRef.contains("set_dual_reference"))
           addUnsignedArg(2);
-        else if (UnmangledName.find("set_weighted_sad") != std::string::npos ||
-                 UnmangledName.find("set_early_search_termination_threshold") !=
-                     std::string::npos)
+        else if (NameRef.contains("set_weighted_sad") ||
+                 NameRef.contains("set_early_search_termination_threshold"))
           addUnsignedArg(0);
-        else if (UnmangledName.find("adjust_ref_offset") != std::string::npos)
+        else if (NameRef.contains("adjust_ref_offset"))
           addUnsignedArgs(1, 3);
-        else if (UnmangledName.find("set_max_motion_vector_count") !=
-                     std::string::npos ||
-                 UnmangledName.find("get_border_reached") != std::string::npos)
+        else if (NameRef.contains("set_max_motion_vector_count") ||
+                 NameRef.contains("get_border_reached"))
           addUnsignedArg(0);
-        else if (UnmangledName.find("shape_distortions") != std::string::npos ||
-                 UnmangledName.find("shape_motion_vectors") !=
-                     std::string::npos ||
-                 UnmangledName.find("shape_reference_ids") !=
-                     std::string::npos) {
-          if (UnmangledName.find("single_reference") != std::string::npos) {
+        else if (NameRef.contains("shape_distortions") ||
+                 NameRef.contains("shape_motion_vectors") ||
+                 NameRef.contains("shape_reference_ids")) {
+          if (NameRef.contains("single_reference")) {
             addUnsignedArg(1);
-            EraseSubstring(UnmangledName, "_single_reference");
-          } else if (UnmangledName.find("dual_reference") !=
-                     std::string::npos) {
+            EraseSubstring("_single_reference");
+          } else if (NameRef.contains("dual_reference")) {
             addUnsignedArgs(1, 2);
-            EraseSubstring(UnmangledName, "_dual_reference");
+            EraseSubstring("_dual_reference");
           }
-        } else if (UnmangledName.find("ref_window_size") != std::string::npos)
+        } else if (NameRef.contains("ref_window_size"))
           addUnsignedArg(0);
-      } else if (UnmangledName.find(kOCLSubgroupsAVCIntel::SICPrefix) !=
-                 std::string::npos) {
-        if (UnmangledName.find("initialize") != std::string::npos ||
-            UnmangledName.find("set_intra_luma_shape_penalty") !=
-                std::string::npos)
+      } else if (NameRef.contains(kOCLSubgroupsAVCIntel::SICPrefix)) {
+        if (NameRef.contains("initialize") ||
+            NameRef.contains("set_intra_luma_shape_penalty"))
           addUnsignedArg(0);
-        else if (UnmangledName.find("configure_ipe") != std::string::npos) {
-          if (UnmangledName.find("_luma") != std::string::npos) {
+        else if (NameRef.contains("configure_ipe")) {
+          if (NameRef.contains("_luma")) {
             addUnsignedArgs(0, 6);
-            EraseSubstring(UnmangledName, "_luma");
+            EraseSubstring("_luma");
           }
-          if (UnmangledName.find("_chroma") != std::string::npos) {
+          if (NameRef.contains("_chroma")) {
             addUnsignedArgs(7, 9);
-            EraseSubstring(UnmangledName, "_chroma");
+            EraseSubstring("_chroma");
           }
-        } else if (UnmangledName.find("configure_skc") != std::string::npos)
+        } else if (NameRef.contains("configure_skc"))
           addUnsignedArgs(0, 4);
-        else if (UnmangledName.find("set_skc") != std::string::npos) {
-          if (UnmangledName.find("forward_transform_enable"))
+        else if (NameRef.contains("set_skc")) {
+          if (NameRef.contains("forward_transform_enable"))
             addUnsignedArg(0);
-        } else if (UnmangledName.find("set_block") != std::string::npos) {
-          if (UnmangledName.find("based_raw_skip_sad") != std::string::npos)
+        } else if (NameRef.contains("set_block")) {
+          if (NameRef.contains("based_raw_skip_sad"))
             addUnsignedArg(0);
-        } else if (UnmangledName.find("get_motion_vector_mask") !=
-                   std::string::npos) {
+        } else if (NameRef.contains("get_motion_vector_mask")) {
           addUnsignedArgs(0, 1);
-        } else if (UnmangledName.find("luma_mode_cost_function") !=
-                   std::string::npos)
+        } else if (NameRef.contains("luma_mode_cost_function"))
           addUnsignedArgs(0, 2);
-        else if (UnmangledName.find("chroma_mode_cost_function") !=
-                 std::string::npos)
+        else if (NameRef.contains("chroma_mode_cost_function"))
           addUnsignedArg(0);
       }
-    } else if (UnmangledName == "intel_sub_group_shuffle_down" ||
-               UnmangledName == "intel_sub_group_shuffle_up") {
-      addUnsignedArg(2);
-    } else if (UnmangledName == "intel_sub_group_shuffle" ||
-               UnmangledName == "intel_sub_group_shuffle_xor") {
-      addUnsignedArg(1);
-    } else if (UnmangledName.find("intel_sub_group_block_write") !=
-               std::string::npos) {
+    } else if (NameRef.startswith("intel_sub_group_shuffle")) {
+      if (NameRef.endswith("_down") || NameRef.endswith("_up"))
+        addUnsignedArg(2);
+      else
+        addUnsignedArg(1);
+    } else if (NameRef.startswith("intel_sub_group_block_write")) {
       // distinguish write to image and other data types as position
       // of uint argument is different though name is the same.
       assert(ArgTypes.size() && "lack of necessary information");
@@ -1288,8 +1259,7 @@ public:
       } else {
         addUnsignedArg(2);
       }
-    } else if (UnmangledName.find("intel_sub_group_block_read") !=
-               std::string::npos) {
+    } else if (NameRef.startswith("intel_sub_group_block_read")) {
       // distinguish read from image and other data types as position
       // of uint argument is different though name is the same.
       assert(ArgTypes.size() && "lack of necessary information");
@@ -1298,26 +1268,24 @@ public:
         setArgAttr(0, SPIR::ATTR_CONST);
         addUnsignedArg(0);
       }
-    } else if (UnmangledName.find("intel_sub_group_media_block_write") !=
-               std::string::npos) {
+    } else if (NameRef.startswith("intel_sub_group_media_block_write")) {
       addUnsignedArg(3);
-    } else if (UnmangledName.find(kOCLBuiltinName::SubGroupPrefix) !=
-               std::string::npos) {
-      if (UnmangledName.find("ballot") != std::string::npos) {
-        if (UnmangledName.find("inverse") != std::string::npos ||
-            UnmangledName.find("bit_count") != std::string::npos ||
-            UnmangledName.find("inclusive_scan") != std::string::npos ||
-            UnmangledName.find("exclusive_scan") != std::string::npos ||
-            UnmangledName.find("find_lsb") != std::string::npos ||
-            UnmangledName.find("find_msb") != std::string::npos)
+    } else if (NameRef.startswith(kOCLBuiltinName::SubGroupPrefix)) {
+      if (NameRef.contains("ballot")) {
+        if (NameRef.contains("inverse") || NameRef.contains("bit_count") ||
+            NameRef.contains("inclusive_scan") ||
+            NameRef.contains("exclusive_scan") ||
+            NameRef.contains("find_lsb") || NameRef.contains("find_msb"))
           addUnsignedArg(0);
-        else if (UnmangledName.find("bit_extract") != std::string::npos) {
+        else if (NameRef.contains("bit_extract")) {
           addUnsignedArgs(0, 1);
         }
-      } else if (UnmangledName.find("shuffle") != std::string::npos ||
-                 UnmangledName.find("clustered") != std::string::npos)
+      } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
         addUnsignedArg(1);
     }
+
+    // Store the final version of a function name
+    UnmangledName = NameRef.str();
   }
   // Auxiliarry information, it is expected that it is relevant at the moment
   // the init method is called.
@@ -1337,9 +1305,11 @@ Instruction *mutateCallInstOCL(
     Module *M, CallInst *CI,
     std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
         ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs) {
+    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs,
+    bool TakeFuncName) {
   OCLBuiltinFuncMangleInfo BtnInfo(CI->getCalledFunction());
-  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs);
+  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs,
+                        TakeFuncName);
 }
 
 static std::pair<StringRef, StringRef>

@@ -14,12 +14,87 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/global_handler.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+handler::handler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
+    : MQueue(std::move(Queue)), MIsHost(IsHost) {
+  MSharedPtrStorage.emplace_back(
+      std::make_shared<std::vector<detail::ExtendedMemberT>>());
+}
+
+// Returns a shared_ptr to kernel_bundle stored in the extended members vector.
+// If there is no kernel_bundle created:
+// returns newly created kernel_bundle if Insert is true
+// returns shared_ptr(nullptr) if Insert is false
+std::shared_ptr<detail::kernel_bundle_impl>
+handler::getOrInsertHandlerKernelBundle(bool Insert) const {
+
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  // Look for the kernel bundle in extended members
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
+  for (const detail::ExtendedMemberT &EMember : *ExendedMembersVec)
+    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+      KernelBundleImpPtr =
+          std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
+      break;
+    }
+
+  // No kernel bundle yet, create one
+  if (!KernelBundleImpPtr && Insert) {
+    KernelBundleImpPtr = detail::getSyclObjImpl(
+        get_kernel_bundle<bundle_state::input>(MQueue->get_context()));
+    if (KernelBundleImpPtr->empty()) {
+      KernelBundleImpPtr = detail::getSyclObjImpl(
+          get_kernel_bundle<bundle_state::executable>(MQueue->get_context()));
+    }
+
+    detail::ExtendedMemberT EMember = {
+        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
+
+    ExendedMembersVec->push_back(EMember);
+  }
+
+  return KernelBundleImpPtr;
+}
+
+// Sets kernel bundle to the provided one. Either replaces existing one or
+// create a new entry in the extended members vector.
+void handler::setHandlerKernelBundle(
+    const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
+  assert(!MSharedPtrStorage.empty());
+
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  for (detail::ExtendedMemberT &EMember : *ExendedMembersVec)
+    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+      EMember.MData = NewKernelBundleImpPtr;
+      return;
+    }
+
+  detail::ExtendedMemberT EMember = {
+      detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
+      NewKernelBundleImpPtr};
+
+  ExendedMembersVec->push_back(EMember);
+}
 
 event handler::finalize() {
   // This block of code is needed only for reduction implementation.
@@ -28,8 +103,35 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  // Kernel_bundles could not be used before CGType version 1
+  if (getCGTypeVersion(MCGType) >
+      static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
+    // If there were uses of set_specialization_constant build the kernel_bundle
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
+        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    if (KernelBundleImpPtr) {
+      switch (KernelBundleImpPtr->get_bundle_state()) {
+      case bundle_state::input: {
+        // Underlying level expects kernel_bundle to be in executable state
+        kernel_bundle<bundle_state::executable> ExecBundle = build(
+            detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+                KernelBundleImpPtr));
+        setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+        break;
+      }
+      case bundle_state::executable:
+        // Nothing to do
+        break;
+      case bundle_state::object:
+        assert(0 && "Expected that the bundle is either in input or executable "
+                    "states.");
+        break;
+      }
+    }
+  }
+
   unique_ptr_class<detail::CG> CommandGroup;
-  switch (MCGType) {
+  switch (getType()) {
   case detail::CG::KERNEL:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
@@ -103,10 +205,12 @@ event handler::finalize() {
     throw runtime_error("Command group submitted without a kernel or a "
                         "explicit memory operation.",
                         PI_INVALID_OPERATION);
-  default:
-    throw runtime_error("Unhandled type of command group",
-                        PI_INVALID_OPERATION);
   }
+
+  if (!CommandGroup)
+    throw sycl::runtime_error(
+        "Internal Error. Command group cannot be constructed.",
+        PI_INVALID_OPERATION);
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
@@ -130,9 +234,17 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    /*index*/ 0);
 }
 
+// TODO remove this one once ABI breaking changes are allowed.
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource) {
+  processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
+             false);
+}
+
+void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
+                         const int Size, const size_t Index, size_t &IndexShift,
+                         bool IsKernelCreatedFromSource, bool IsESIMD) {
   using detail::kernel_param_kind_t;
 
   switch (Kind) {
@@ -162,7 +274,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       // TODO ESIMD currently does not suport offset, memory and access ranges -
       // accessor::init for ESIMD-mode accessor has a single field, translated
       // to a single kernel argument set above.
-      if (!AccImpl->MIsESIMDAcc && !IsKernelCreatedFromSource) {
+      if (!IsKernelCreatedFromSource && !IsESIMD) {
         // Dimensionality of the buffer is 1 when dimensionality of the
         // accessor is 0.
         const size_t SizeAccField =
@@ -231,6 +343,12 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                        Index + IndexShift);
     break;
   }
+  case kernel_param_kind_t::kind_specialization_constants_buffer: {
+    MArgs.emplace_back(
+        kernel_param_kind_t::kind_specialization_constants_buffer, Ptr, Size,
+        Index + IndexShift);
+    break;
+  }
   }
 }
 
@@ -253,13 +371,21 @@ void handler::extractArgsAndReqs() {
     const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
     const int &Size = UnPreparedArgs[I].MSize;
     const int Index = UnPreparedArgs[I].MIndex;
-    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource);
+    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
+               false);
   }
+}
+
+// TODO remove once ABI breaking changes are allowed
+void handler::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, size_t KernelArgsNum,
+    const detail::kernel_param_desc_t *KernelArgs) {
+  extractArgsAndReqsFromLambda(LambdaPtr, KernelArgsNum, KernelArgs, false);
 }
 
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs) {
+    const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
   for (size_t I = 0; I < KernelArgsNum; ++I) {
@@ -284,7 +410,8 @@ void handler::extractArgsAndReqsFromLambda(
         Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
       }
     }
-    processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource);
+    processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource,
+               IsESIMD);
   }
 }
 

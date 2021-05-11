@@ -12,6 +12,7 @@ static_library("Scalar") {
   sources = [
     "ADCE.cpp",
     "AlignmentFromAssumptions.cpp",
+    "AnnotationRemarks.cpp",
     "BDCE.cpp",
     "CallSiteSplitting.cpp",
     "ConstantHoisting.cpp",
@@ -75,6 +76,7 @@ static_library("Scalar") {
     "SCCP.cpp",
     "SROA.cpp",
     "Scalar.cpp",
+    "ScalarizeMaskedMemIntrin.cpp",
     "Scalarizer.cpp",
     "SeparateConstOffsetFromGEP.cpp",
     "SimpleLoopUnswitch.cpp",

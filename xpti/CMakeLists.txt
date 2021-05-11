@@ -47,6 +47,18 @@ if (MSVC)
   set(CMAKE_CXX_FLAGS_DEBUG "")
 endif()
 
+if (SYCL_USE_LIBCXX)
+  if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+    (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+    if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
+      message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
+                          "SYCL_LIBCXX_LIBRARY_PATH should be set")
+    endif()
+    set(CMAKE_CXX_FLAGS "-nostdinc++ -I ${SYCL_LIBCXX_INCLUDE_PATH} ${CMAKE_CXX_FLAGS}")
+  else()
+    message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
+  endif()
+endif()
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE})
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
