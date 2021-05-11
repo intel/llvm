@@ -148,9 +148,10 @@ public:
 
 struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
-             bool isSubDevice = false)
-      : ZeDevice{Device}, Platform{Plt}, IsSubDevice{isSubDevice},
-        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
+             pi_device ParentDevice = nullptr)
+      : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
+        IsSubDevice(RootDevice != nullptr), ZeDeviceProperties{},
+        ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -180,6 +181,9 @@ struct _pi_device : _pi_object {
 
   // PI platform to which this device belongs.
   pi_platform Platform;
+
+  // Root-device of a sub-device, null if this is not a sub-device.
+  pi_device RootDevice;
 
   // Indicates if this is a root-device or a sub-device.
   // Technically this information can be queried from a device handle, but it
@@ -217,7 +221,31 @@ struct _pi_context : _pi_object {
     // we don't need a map with device as key.
     HostMemAllocContext = new USMAllocContext(
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
+
+    // If we have a single device/sub-device, construction is done.
+    if (NumDevices < 2)
+      return;
+
+    // Check if we have context with subdevices of the same device (context may
+    // include root device itself as well)
+    RootDevice = Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+    for (auto &Device : Devices) {
+      if ((!Device->RootDevice && Device != RootDevice) ||
+          (Device->RootDevice && Device->RootDevice != RootDevice)) {
+        RootDevice = nullptr;
+        break;
+      }
+    }
   }
+
+  // Currently support of multi-device contexts is limited in the Level Zero
+  // plugin. For example, device allocations are supported only for contexts
+  // with a single device or when context consist of sub-devices of the same
+  // device. This method picks a "default" device which is used to allocate
+  // device memory and create immediate command lists to initialize allocations.
+  // It is going to be removed when multi-device contexts will be fully
+  // supported.
+  pi_device defaultDevice() { return RootDevice ? RootDevice : Devices[0]; }
 
   // Initialize the PI context.
   pi_result initialize();
@@ -235,6 +263,9 @@ struct _pi_context : _pi_object {
 
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;
+  // If devices in the context are sub-devices of the same device, we want to
+  // save a root-device.
+  pi_device RootDevice = nullptr;
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
