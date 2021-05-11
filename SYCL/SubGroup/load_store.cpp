@@ -57,11 +57,24 @@ template <typename T, int N> void check(queue &Queue) {
               &acc[WGSGoffset]);
           multi_ptr<T, access::address_space::local_space> MPL(
               &LocalMem[SGOffset]);
+
+          // half does not have full support for volatile type qualifier
+          using CVT = std::conditional_t<std::is_same_v<T, half>, const T,
+                                         const volatile T>;
+
+          multi_ptr<CVT, mp.address_space> mp_cv(mp);
+          multi_ptr<CVT, MPL.address_space> MPL_CV(MPL);
           // Add all values in read block
           vec<T, N> v(SG.load<N, T>(mp));
-          SG.store<N, T>(MPL, v);
+          vec<T, N> v_cv(SG.load<N, CVT>(mp_cv));
+          if (utils<T, N>::cmp_vec(
+                  v, v_cv)) // Store result only if same for non-cv and cv
+            SG.store<N, T>(MPL, v);
           vec<T, N> t(utils<T, N>::add_vec(SG.load<N, T>(MPL)));
-          SG.store<N, T>(mp, t);
+          vec<T, N> t_cv(utils<T, N>::add_vec(SG.load<N, CVT>(MPL_CV)));
+          if (utils<T, N>::cmp_vec(
+                  t, t_cv)) // Store result only if same for non-cv and cv
+            SG.store<N, T>(mp, t);
         }
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SGsize;
@@ -130,10 +143,21 @@ template <typename T> void check(queue &Queue) {
         multi_ptr<T, access::address_space::global_space> mp(&acc[WGSGoffset]);
         multi_ptr<T, access::address_space::local_space> MPL(
             &LocalMem[SGOffset]);
+
+        // half does not have full support for volatile type qualifier
+        using CVT = std::conditional_t<std::is_same_v<T, half>, const T,
+                                       const volatile T>;
+
+        multi_ptr<CVT, mp.address_space> mp_cv(mp);
+        multi_ptr<CVT, MPL.address_space> MPL_CV(MPL);
         T s = SG.load<T>(mp) + (T)SG.get_local_id().get(0);
-        SG.store<T>(MPL, s);
+        T s_cv = SG.load<CVT>(mp_cv) + (T)SG.get_local_id().get(0);
+        if (s == s_cv) // Store result only if same for non-cv and cv
+          SG.store<T>(MPL, s);
         T t = SG.load<T>(MPL) + (T)SG.get_local_id().get(0);
-        SG.store<T>(mp, t);
+        T t_cv = SG.load<CVT>(MPL_CV) + (T)SG.get_local_id().get(0);
+        if (t == t_cv) // Store result only if same for non-cv and cv
+          SG.store<T>(mp, t);
       });
     });
     auto acc = syclbuf.template get_access<access::mode::read_write>();

@@ -4,6 +4,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+#include "helper.hpp"
 #include <CL/sycl.hpp>
 #include <cassert>
 #include <cstdint>
@@ -49,11 +50,22 @@ int main(int argc, char *argv[]) {
                     sg.get_max_local_range()[0];
             // Global address space
             auto x = sg.load(&global[i]);
+            auto x_cv1 = sg.load<const volatile sycl::int2>(&global[i]);
+            auto x_cv2 = sg.load(
+                sycl::global_ptr<const volatile sycl::int2>(&global[i]));
 
             // Local address space
             auto y = sg.load(&local[i]);
+            auto y_cv1 = sg.load<const volatile sycl::int2>(&local[i]);
+            auto y_cv2 =
+                sg.load(sycl::local_ptr<const volatile sycl::int2>(&local[i]));
 
-            sg.store(&global[i], x + y);
+            // Store result only if same for non-cv and cv
+            if (utils<int, 2>::cmp_vec(x, x_cv1) &&
+                utils<int, 2>::cmp_vec(x, x_cv2) &&
+                utils<int, 2>::cmp_vec(y, y_cv1) &&
+                utils<int, 2>::cmp_vec(y, y_cv2))
+              sg.store(&global[i], x + y);
           });
     });
   }
