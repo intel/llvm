@@ -73,6 +73,8 @@ list(APPEND CLANG_TEST_DEPS
   clang-scan-deps
   diagtool
   hmaptool
+  libsycldevice
+  sycl-post-link
   )
   
 if(CLANG_ENABLE_STATIC_ANALYZER)
