@@ -219,9 +219,8 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   return Res;
 }
 
-MDNode *generateSpecConstDefaultValueMetadata(Instruction *I, StringRef SymID,
-                                              Value *Default) {
-  LLVMContext &Ctx = I->getContext();
+MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
+  LLVMContext &Ctx = Default->getContext();
   return MDNode::get(Ctx, ConstantAsMetadata::get(cast<Constant>(Default)));
 }
 
@@ -511,7 +510,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   StringMap<SmallVector<unsigned, 1>> IDMap;
   StringMap<unsigned> OffsetMap;
   MapVector<StringRef, MDNode *> SCMetadata;
-  SmallVector<MDNode *, 1> DefaultsMetadata;
+  SmallVector<MDNode *, 4> DefaultsMetadata;
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
@@ -662,12 +661,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           BitCastInst *BitCast = new BitCastInst(
               GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc", CI);
 
-          Instruction *Inst = new LoadInst(SCTy, BitCast, "load", CI);
-          Replacement = Inst;
+          Replacement = new LoadInst(SCTy, BitCast, "load", CI);
 
           if (IsNewSpecConstant && DefaultValue)
-            DefaultsMetadata.push_back(generateSpecConstDefaultValueMetadata(
-                Inst, SymID, DefaultValue));
+            DefaultsMetadata.push_back(
+                generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
         } else {
           // Replace the intrinsic with default C++ value for the spec constant
           // type.

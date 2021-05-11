@@ -183,8 +183,6 @@ public:
   // Specific property category names used by tools.
   static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
       "SYCL/specialization constants";
-  static constexpr char SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS[] =
-      "SYCL/composite specialization constants";
   static constexpr char SYCL_SPEC_CONSTANTS_DEFAULT_VALUES[] =
       "SYCL/specialization constants default values";
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
