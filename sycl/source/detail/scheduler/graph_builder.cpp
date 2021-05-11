@@ -174,7 +174,8 @@ MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
 
 MemObjRecord *
 Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                                 const Requirement *Req) {
+                                                 const Requirement *Req,
+                                                 std::vector<Command *> &ToEnqueue) {
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObject);
 
@@ -214,7 +215,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
 
     MemObject->MRecord.reset(
         new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
-    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr);
+    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr, ToEnqueue);
   } else
     MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
                                               LeafLimit, AllocateDependency});
@@ -486,7 +487,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(
 
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
-  MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
+  MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req, ToEnqueue);
   if (MPrintOptionsArray[BeforeAddHostAcc])
     printGraphAsDot("before_addHostAccessor");
   markModifiedIfWrite(Record, Req);
@@ -524,7 +525,7 @@ Command *Scheduler::GraphBuilder::addCGUpdateHost(
   auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
   Requirement *Req = UpdateHost->getReqToUpdate();
 
-  MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
+  MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req, ToEnqueue);
   return insertMemoryMove(Record, Req, HostQueue, ToEnqueue);
 }
 
@@ -702,7 +703,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 DefaultHostQueue, FullReq, true /* InitFromUserData */,
                 nullptr /* LinkedAllocaCmd */);
             Record->MAllocaCommands.push_back(HostAllocaCmd);
-            Record->MWriteLeaves.push_back(HostAllocaCmd);
+            Record->MWriteLeaves.push_back(HostAllocaCmd, &ToEnqueue);
             ++(HostAllocaCmd->MLeafCounter);
             Record->MCurContext = DefaultHostQueue->getContextImplPtr();
           }
@@ -831,7 +832,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
   EmptyCmd->MBlockReason = Reason;
 
   for (T *Req : Reqs) {
-    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
+    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
     AllocaCommandBase *AllocaCmd =
         getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
     EmptyCmd->addRequirement(Cmd, AllocaCmd, Req);
@@ -913,7 +914,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
               ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
               : Queue;
 
-      Record = getOrInsertMemObjRecord(QueueForAlloca, Req);
+      Record = getOrInsertMemObjRecord(QueueForAlloca, Req, ToEnqueue);
       markModifiedIfWrite(Record, Req);
 
       AllocaCmd =

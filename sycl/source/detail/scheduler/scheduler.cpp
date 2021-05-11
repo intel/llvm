@@ -243,7 +243,6 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
     {
       acquireWriteLock(Lock);
-      lockSharedTimedMutex(Lock);
 
       Record = MGraphBuilder.getMemObjRecord(MemObj);
       if (!Record)

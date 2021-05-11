@@ -51,8 +51,8 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
     throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
   GraphReadLock.unlock();
-
   Cmd->getEvent()->waitInternal();
+  GraphReadLock.lock();
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
