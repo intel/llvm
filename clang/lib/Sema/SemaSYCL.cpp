@@ -358,9 +358,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     // Attributes that should not be propagated from device functions to a
     // kernel in SYCL 1.2.1.
     if (DirectlyCalled) {
-      llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-        return isa<SYCLIntelLoopFuseAttr>(A);
-      });
+      llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs),
+                    [](Attr *A) { return isa<SYCLIntelLoopFuseAttr>(A); });
     }
   } else {
     // Attributes that should not be propagated from device functions to a
