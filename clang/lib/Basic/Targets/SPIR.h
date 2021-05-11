@@ -137,7 +137,7 @@ public:
     // to be pointing to the generic address space. See section 5.9.3 of
     // SYCL 2020 specification.
     // Currently, there is no way of representing SYCL's default address space
-    // language semantic along with the semantics of embedded C's default
+    // language semantics along with the semantics of embedded C's default
     // address space in the same address space map. Hence the map needs to be
     // reset to allow mapping to the desired value of 'Default' entry for SYCL.
     setAddressSpaceMap(/*DefaultIsGeneric=*/Opts.SYCLIsDevice);
