@@ -5784,6 +5784,12 @@ static pi_result piextUSMFreeImpl(pi_context Context, void *Ptr) {
   // We don't need to track this allocation anymore.
   Plt->MemAllocs.erase(MemAlloc);
 
+  if (!UseUSMAllocator) {
+    pi_result Res = USMFreeImpl(Context, Ptr);
+    PI_CALL(piContextRelease(Context));
+    return Res;
+  }
+
   // Query the device of the allocation to determine the right allocator context
   ze_device_handle_t ZeDeviceHandle;
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
