@@ -223,17 +223,20 @@ struct _pi_device_binary_property_struct {
 };
 ```
 
-There's no need for a whole new property set so we reuse `SYCL/misc properties`
-property set. Whenever `isAssertEnabled` property is present, this specific
-device image was built with `NDEBUG` macro undefined and it requires fallback
-implementation of `__devicelib_assert_fail` (i.e. if Device-side Runtime doesn't
-support it).
+A distinct property set `SYCL/assert used` is added. In this set a single
+with the name of the kernel is added whenever the kernel uses assert. Use of
+assert is detected through call to `__devicelib_assert_fail` function after
+linking device binary image with wrapper device library (the `libsycl-crt`
+library).
 
-The property is added to device binary descriptor whenever at least single
-translation unit was compiled with assertions enabled i.e. `NDEBUG` undefined.
+The property set and the underlying properties are added by `sycl-post-link`
+tool with help of building callgraph for each and every kernel in device binary
+image.
 
-The property is added by `sycl-post-link` tool depending on module metadata.
-Metadata is provided by Clang frontend. Metadata name is `is_assert_enabled`.
+The added property is used for:
+ - deciding if online-linking against fallback devicelib is required;
+ - if there's a need to enqueue program scope variable copier kernel and checker
+   host-task.
 
 Suppose the following example user code:
 ```c++
@@ -353,9 +356,13 @@ descriptor structure.
 
 ### Raising assert failure flag and reading it on host
 
-Each and every translation unit provided by user should have `extern`
-declaration of `AssertHappenedMem` i.e. DPCPP headers includes appropriate file
-with [declaration](#prog-scope-var-decl).
+Each and every translation unit provided by user should have declaration of
+assert flag read function:
+```c++
+int __devicelib_assert_read(void);
+```
+Also, the [AssertHappened](#prog-scope-var-decl) structure type should be
+available for the copier kernel.
 
 The definition is only provided within devicelib along with
 `__devicelib_assert_fail` function which raises the flag.
@@ -375,8 +382,9 @@ class queue {
   template <typename T> event submit(T CGF) {
     event Event = submit_impl(CGF);
 #ifndef NDEBUG
+    std::string KernelName = /* get kernel name from calls to parallel_for, etc. */;
     // assert required
-    if (!get_device()->assert_fail_supported()) {
+    if (!get_device()->assert_fail_supported() && isAssertUsed(KernelName)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
