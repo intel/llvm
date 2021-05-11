@@ -689,8 +689,15 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
+/// PropertySetRegistry::SYCL_KERNEL_PROGRAM_METADATA defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA "SYCL/program metadata"
 /// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
+
+/// Program metadata tags recognized by the PI backends. For kernels the tag
+/// must appear after the kernel name.
+#define __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
+  "@reqd_work_group_size"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
@@ -1111,7 +1118,8 @@ __SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
 __SYCL_EXPORT pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
-    pi_int32 *binary_status, pi_program *ret_program);
+    pi_int32 *binary_status, const pi_device_binary_property *metadata,
+    size_t metadata_length, pi_program *ret_program);
 
 __SYCL_EXPORT pi_result piProgramGetInfo(pi_program program,
                                          pi_program_info param_name,

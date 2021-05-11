@@ -109,6 +109,16 @@ Error SimpleTable::replaceColumn(StringRef Name, const SimpleTable &Src,
   return Error::success();
 }
 
+Error SimpleTable::updateCellValue(int Row, StringRef ColName,
+                                   StringRef NewValue) {
+  if (getNumColumns() == 0)
+    return makeError("empty table");
+  if (Row > getNumRows())
+    return makeError("row index out of bounds");
+  Rows[Row][getColumnId(ColName)] = NewValue.str();
+  return Error::success();
+}
+
 Error SimpleTable::renameColumn(StringRef OldName, StringRef NewName) {
   int I = getColumnId(OldName);
 

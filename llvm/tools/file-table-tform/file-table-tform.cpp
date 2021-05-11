@@ -78,12 +78,18 @@ static cl::opt<std::string> Output("o", cl::Required,
                                    cl::cat(FileTableTformCat));
 
 static constexpr char OPT_REPLACE[] = "replace";
+static constexpr char OPT_REPLACE_CELL[] = "replace_cell";
 static constexpr char OPT_RENAME[] = "rename";
 static constexpr char OPT_EXTRACT[] = "extract";
 
 static cl::list<std::string> TformReplace{
     OPT_REPLACE, cl::ZeroOrMore, cl::desc("replace a column"),
     cl::value_desc("<column name or ordinal>"), cl::cat(FileTableTformCat)};
+
+static cl::list<std::string> TformReplaceCell{
+    OPT_REPLACE_CELL, cl::ZeroOrMore, cl::desc("replace a cell"),
+    cl::value_desc("<column name or ordinal>,<row id ordinal>"),
+    cl::cat(FileTableTformCat)};
 
 static cl::list<std::string> TformRename{
     OPT_RENAME, cl::ZeroOrMore, cl::desc("rename a column"),
@@ -97,6 +103,12 @@ static cl::list<std::string> TformExtract{
 static cl::opt<bool> DropTitles{"drop_titles", cl::Optional,
                                 cl::desc("drop column titles"),
                                 cl::cat(FileTableTformCat)};
+
+static cl::opt<std::string> CopySingleFile{
+    "copy_single_file", cl::Optional,
+    cl::desc("copy the only remaining file in specified column after "
+             "transformation"),
+    cl::cat(FileTableTformCat)};
 
 Error makeToolError(Twine Msg) {
   return make_error<StringError>("*** " + llvm::Twine(ToolName) +
@@ -152,6 +164,10 @@ struct TformCmd {
                   [&](TformCmd *Cmd) {
                     return Cmd->consumeSingleInput(Cur, End);
                   })
+            .Case(OPT_REPLACE_CELL,
+                  [&](TformCmd *Cmd) {
+                    return Cmd->consumeSingleInput(Cur, End);
+                  })
             .Case(OPT_RENAME, [&](TformCmd *Cmd) { return Error::success(); })
             .Case(OPT_EXTRACT, [&](TformCmd *Cmd) { return Error::success(); });
     return F(this);
@@ -172,6 +188,18 @@ struct TformCmd {
                     if (Args.size() != 2 || Args[0].empty() || Args[1].empty())
                       return makeUserError("invalid argument in " +
                                            Twine(OPT_REPLACE));
+                    return Error::success();
+                  })
+            .Case(OPT_REPLACE_CELL,
+                  [&](TformCmd *Cmd) -> Error {
+                    // argument is <column name>
+                    if (Arg.empty())
+                      return makeUserError("empty argument in " +
+                                           Twine(OPT_REPLACE_CELL));
+                    Arg.split(Args, ',');
+                    if (Args.size() != 2 || Args[0].empty() || Args[1].empty())
+                      return makeUserError("invalid argument in " +
+                                           Twine(OPT_REPLACE_CELL));
                     return Error::success();
                   })
             .Case(OPT_RENAME,
@@ -215,6 +243,16 @@ struct TformCmd {
                       return Table1.takeError();
                     Error Res =
                         Table.replaceColumn(Args[0], *Table1->get(), Args[1]);
+                    return Res ? std::move(Res) : std::move(Error::success());
+                  })
+            .Case(OPT_REPLACE_CELL,
+                  [&](TformCmd *Cmd) -> Error {
+                    assert(Args.size() == 2 && Cmd->Inputs.size() == 1);
+                    const int Row = std::stoi(Args[1].str());
+                    if (Row > Table.getNumRows())
+                      return makeUserError("row index out of bounds");
+                    Error Res =
+                        Table.updateCellValue(Row, Args[0], Cmd->Inputs[0]);
                     return Res ? std::move(Res) : std::move(Error::success());
                   })
             .Case(OPT_RENAME,
@@ -267,8 +305,8 @@ int main(int argc, char **argv) {
   // yet, as an order across all command line options-commands needs to be
   // established first to properly map inputs to commands.
 
-  auto Lists = {std::addressof(TformReplace), std::addressof(TformRename),
-                std::addressof(TformExtract)};
+  auto Lists = {std::addressof(TformReplace), std::addressof(TformReplaceCell),
+                std::addressof(TformRename), std::addressof(TformExtract)};
 
   for (const auto *L : Lists) {
     for (auto It = L->begin(); It != L->end(); It++) {
@@ -308,16 +346,33 @@ int main(int argc, char **argv) {
     Error Res = Cmd->execute(*Table->get());
     CHECK_AND_EXIT(std::move(Res));
   }
-  // Finally, write the result
-  std::error_code EC;
-  raw_fd_ostream Out{Output, EC, sys::fs::OpenFlags::OF_None};
 
-  if (EC)
-    CHECK_AND_EXIT(createFileError(Output, EC));
-  Table->get()->write(Out, !DropTitles);
+  if (!CopySingleFile.empty()) {
+    // Copy the file from the only remaining row at specified column
+    if (Table.get()->getNumRows() > 1)
+      CHECK_AND_EXIT(makeUserError("cannot copy files from multiple rows"));
+    if (Table.get()->getNumRows() == 0)
+      CHECK_AND_EXIT(makeUserError("no rows remaining after transformation"));
+    StringRef FileToCopy = (*Table.get())[0].getCell(CopySingleFile, "");
 
-  if (Out.has_error())
-    CHECK_AND_EXIT(createFileError(Output, Out.error()));
-  Out.close();
+    if (FileToCopy.empty())
+      CHECK_AND_EXIT(makeUserError("no file found in specified column"));
+
+    std::error_code EC = sys::fs::copy_file(FileToCopy, Output);
+    if (EC)
+      CHECK_AND_EXIT(createFileError(Output, EC));
+  } else {
+    // Write the transformed table to file
+    std::error_code EC;
+    raw_fd_ostream Out{Output, EC, sys::fs::OpenFlags::OF_None};
+
+    if (EC)
+      CHECK_AND_EXIT(createFileError(Output, EC));
+    Table->get()->write(Out, !DropTitles);
+
+    if (Out.has_error())
+      CHECK_AND_EXIT(createFileError(Output, Out.error()));
+    Out.close();
+  }
   return 0;
 }

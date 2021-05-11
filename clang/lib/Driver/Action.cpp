@@ -507,9 +507,19 @@ void FileTableTformJobAction::addReplaceColumnTform(StringRef From,
   Tforms.emplace_back(Tform(Tform::REPLACE, {From, To}));
 }
 
+void FileTableTformJobAction::addReplaceCellTform(StringRef ColumnName,
+                                                  int Row) {
+  Tforms.emplace_back(
+      Tform(Tform::REPLACE_CELL, {ColumnName, std::to_string(Row)}));
+}
+
 void FileTableTformJobAction::addRenameColumnTform(StringRef From,
                                                    StringRef To) {
   Tforms.emplace_back(Tform(Tform::RENAME, {From, To}));
+}
+
+void FileTableTformJobAction::setCopySingleFileColumn(StringRef ColumnName) {
+  CopySingleFileColumnName = ColumnName.str();
 }
 
 void AppendFooterJobAction::anchor() {}

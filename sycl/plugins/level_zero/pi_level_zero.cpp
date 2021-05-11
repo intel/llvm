@@ -2936,12 +2936,13 @@ pi_result piProgramCreate(pi_context Context, const void *ILBytes,
   return PI_SUCCESS;
 }
 
-pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
-                                    const pi_device *DeviceList,
-                                    const size_t *Lengths,
-                                    const unsigned char **Binaries,
-                                    pi_int32 *BinaryStatus,
-                                    pi_program *Program) {
+pi_result piProgramCreateWithBinary(
+    pi_context Context, pi_uint32 NumDevices, const pi_device *DeviceList,
+    const size_t *Lengths, const unsigned char **Binaries,
+    pi_int32 *BinaryStatus, const pi_device_binary_property *Metadata,
+    size_t MetadataLength, pi_program *Program) {
+  (void)Metadata;
+  (void)MetadataLength;
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(DeviceList && NumDevices, PI_INVALID_VALUE);

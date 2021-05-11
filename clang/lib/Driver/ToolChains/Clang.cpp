@@ -8859,6 +8859,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
+  // Enable PI program metadata
+  if (getToolChain().getTriple().isNVPTX())
+    addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
   if (JA.getType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
@@ -8945,6 +8948,15 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {Arg});
       break;
     }
+    case FileTableTformJobAction::Tform::REPLACE_CELL: {
+      assert(Tf.TheArgs.size() == 2 && "column name and row id expected");
+      SmallString<128> Arg("-replace_cell=");
+      Arg += Tf.TheArgs[0];
+      Arg += ",";
+      Arg += Tf.TheArgs[1];
+      addArgs(CmdArgs, TCArgs, {Arg});
+      break;
+    }
     case FileTableTformJobAction::Tform::RENAME: {
       assert(Tf.TheArgs.size() == 2 && "from/to names expected");
       SmallString<128> Arg("-rename=");
@@ -8956,16 +8968,23 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
     }
     }
   }
-  // 2) add output option
+  // 2) add copy_single_file option if requested
+  if (!TformJob.getCopySingleFileColumnName().empty()) {
+    SmallString<128> Arg("-copy_single_file=");
+    Arg += TformJob.getCopySingleFileColumnName();
+    addArgs(CmdArgs, TCArgs, {Arg});
+  }
+
+  // 3) add output option
   assert(Output.isFilename() && "table tform output must be a file");
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
-  // 3) add inputs
+  // 4) add inputs
   for (const auto &Input : Inputs) {
     assert(Input.isFilename() && "table tform input must be a file");
     addArgs(CmdArgs, TCArgs, {Input.getFilename()});
   }
-  // 4) finally construct and add a command to the compilation
+  // 5) finally construct and add a command to the compilation
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
