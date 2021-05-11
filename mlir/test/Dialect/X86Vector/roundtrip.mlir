@@ -46,3 +46,19 @@ func @avx512_mask_compress(%k1: vector<16xi1>, %a1: vector<16xf32>,
   %2 = x86vector.avx512.mask.compress %k2, %a2, %a2 : vector<8xi64>, vector<8xi64>
   return %0, %1, %2 : vector<16xf32>, vector<16xf32>, vector<8xi64>
 }
+
+// CHECK-LABEL: func @avx_rsqrt
+func @avx_rsqrt(%a: vector<8xf32>) -> (vector<8xf32>)
+{
+  // CHECK: x86vector.avx.rsqrt {{.*}} : vector<8xf32>
+  %0 = x86vector.avx.rsqrt %a : vector<8xf32>
+  return %0 : vector<8xf32>
+}
+
+// CHECK-LABEL: func @avx_dot
+func @avx_dot(%a: vector<8xf32>, %b: vector<8xf32>) -> (vector<8xf32>)
+{
+  // CHECK: x86vector.avx.intr.dot {{.*}} : vector<8xf32>
+  %0 = x86vector.avx.intr.dot %a, %b : vector<8xf32>
+  return %0 : vector<8xf32>
+}

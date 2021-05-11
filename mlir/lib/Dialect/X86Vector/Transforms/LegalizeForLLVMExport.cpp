@@ -90,6 +90,39 @@ struct MaskCompressOpConversion
   }
 };
 
+struct RsqrtOpConversion : public ConvertOpToLLVMPattern<RsqrtOp> {
+  using ConvertOpToLLVMPattern<RsqrtOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(RsqrtOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    RsqrtOp::Adaptor adaptor(operands);
+
+    auto opType = adaptor.a().getType();
+    rewriter.replaceOpWithNewOp<RsqrtIntrOp>(op, opType, adaptor.a());
+    return success();
+  }
+};
+
+struct DotOpConversion : public ConvertOpToLLVMPattern<DotOp> {
+  using ConvertOpToLLVMPattern<DotOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(DotOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    DotOp::Adaptor adaptor(operands);
+    auto opType = adaptor.a().getType();
+    Type llvmIntType = IntegerType::get(&getTypeConverter()->getContext(), 8);
+    // Dot product of all elements, broadcasted to all elements.
+    auto attr = rewriter.getI8IntegerAttr(0xff);
+    Value scale =
+        rewriter.create<LLVM::ConstantOp>(op.getLoc(), llvmIntType, attr);
+    rewriter.replaceOpWithNewOp<DotIntrOp>(op, opType, adaptor.a(), adaptor.b(),
+                                           scale);
+    return success();
+  }
+};
+
 /// An entry associating the "main" AVX512 op with its instantiations for
 /// vectors of 32-bit and 64-bit elements.
 template <typename OpTy, typename Intr32OpTy, typename Intr64OpTy>
@@ -131,7 +164,8 @@ using Registry = RegistryImpl<
 void mlir::populateX86VectorLegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   Registry::registerPatterns(converter, patterns);
-  patterns.add<MaskCompressOpConversion>(converter);
+  patterns.add<MaskCompressOpConversion, RsqrtOpConversion, DotOpConversion>(
+      converter);
 }
 
 void mlir::configureX86VectorLegalizeForExportTarget(
@@ -139,4 +173,8 @@ void mlir::configureX86VectorLegalizeForExportTarget(
   Registry::configureTarget(target);
   target.addLegalOp<MaskCompressIntrOp>();
   target.addIllegalOp<MaskCompressOp>();
+  target.addLegalOp<RsqrtIntrOp>();
+  target.addIllegalOp<RsqrtOp>();
+  target.addLegalOp<DotIntrOp>();
+  target.addIllegalOp<DotOp>();
 }

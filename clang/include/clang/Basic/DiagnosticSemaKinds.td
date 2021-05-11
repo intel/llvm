@@ -326,9 +326,10 @@ def err_anyx86_interrupt_attribute : Error<
   "a pointer as the first parameter|a %2 type as the second parameter}1">;
 def err_anyx86_interrupt_called : Error<
   "interrupt service routine cannot be called directly">;
-def err_anyx86_interrupt_regsave : Error<
-  "interrupt service routine may only call a function"
-  " with attribute 'no_caller_saved_registers'">;
+def warn_anyx86_interrupt_regsave : Warning<
+  "interrupt service routine should only call a function"
+  " with attribute 'no_caller_saved_registers'">,
+  InGroup<DiagGroup<"interrupt-service-routine">>;
 def warn_arm_interrupt_calling_convention : Warning<
    "call to function without interrupt attribute could clobber interruptee's VFP registers">,
    InGroup<Extra>;
@@ -599,15 +600,24 @@ def warn_access_decl_deprecated : Warning<
 def err_access_decl : Error<
   "ISO C++11 does not allow access declarations; "
   "use using declarations instead">;
-def warn_deprecated_copy_operation : Warning<
+def warn_deprecated_copy : Warning<
   "definition of implicit copy %select{constructor|assignment operator}1 "
   "for %0 is deprecated because it has a user-declared copy "
   "%select{assignment operator|constructor}1">,
   InGroup<DeprecatedCopy>, DefaultIgnore;
-def warn_deprecated_copy_dtor_operation : Warning<
+def warn_deprecated_copy_with_dtor : Warning<
   "definition of implicit copy %select{constructor|assignment operator}1 "
   "for %0 is deprecated because it has a user-declared destructor">,
-  InGroup<DeprecatedCopyDtor>, DefaultIgnore;
+  InGroup<DeprecatedCopyWithDtor>, DefaultIgnore;
+def warn_deprecated_copy_with_user_provided_copy: Warning<
+  "definition of implicit copy %select{constructor|assignment operator}1 "
+  "for %0 is deprecated because it has a user-provided copy "
+  "%select{assignment operator|constructor}1">,
+  InGroup<DeprecatedCopyWithUserProvidedCopy>, DefaultIgnore;
+def warn_deprecated_copy_with_user_provided_dtor : Warning<
+  "definition of implicit copy %select{constructor|assignment operator}1 "
+  "for %0 is deprecated because it has a user-provided destructor">,
+  InGroup<DeprecatedCopyWithUserProvidedDtor>, DefaultIgnore;
 def warn_cxx17_compat_exception_spec_in_signature : Warning<
   "mangled name of %0 will change in C++17 due to non-throwing exception "
   "specification in function signature">, InGroup<CXX17CompatMangling>;
@@ -2856,6 +2866,53 @@ def warn_nomerge_attribute_ignored_in_stmt: Warning<
   "%0 attribute is ignored because there exists no call expression inside the "
   "statement">,
   InGroup<IgnoredAttributes>;
+
+def err_musttail_needs_trivial_args : Error<
+  "tail call requires that the return value, all parameters, and any "
+  "temporaries created by the expression are trivially destructible">;
+def err_musttail_needs_call : Error<
+  "%0 attribute requires that the return value is the result of a function call"
+  >;
+def err_musttail_needs_prototype : Error<
+  "%0 attribute requires that both caller and callee functions have a "
+  "prototype">;
+def note_musttail_fix_non_prototype : Note<
+  "add 'void' to the parameter list to turn an old-style K&R function "
+  "declaration into a prototype">;
+def err_musttail_structors_forbidden : Error<"cannot perform a tail call "
+  "%select{from|to}0 a %select{constructor|destructor}1">;
+def note_musttail_structors_forbidden : Note<"target "
+  "%select{constructor|destructor}0 is declared here">;
+def err_musttail_forbidden_from_this_context : Error<
+  "%0 attribute cannot be used from "
+  "%select{a block|an Objective-C function|this context}1">;
+def err_musttail_member_mismatch : Error<
+  "%select{non-member|static member|non-static member}0 "
+  "function cannot perform a tail call to "
+  "%select{non-member|static member|non-static member|pointer-to-member}1 "
+  "function%select{| %3}2">;
+def note_musttail_callee_defined_here : Note<"%0 declared here">;
+def note_tail_call_required : Note<"tail call required by %0 attribute here">;
+def err_musttail_mismatch : Error<
+  "cannot perform a tail call to function%select{| %1}0 because its signature "
+  "is incompatible with the calling function">;
+def note_musttail_mismatch : Note<
+    "target function "
+    "%select{is a member of different class%diff{ (expected $ but has $)|}1,2"
+    "|has different number of parameters (expected %1 but has %2)"
+    "|has type mismatch at %ordinal3 parameter"
+    "%diff{ (expected $ but has $)|}1,2"
+    "|has different return type%diff{ ($ expected but has $)|}1,2}0">;
+def err_musttail_callconv_mismatch : Error<
+  "cannot perform a tail call to function%select{| %1}0 because it uses an "
+  "incompatible calling convention">;
+def note_musttail_callconv_mismatch : Note<
+  "target function has calling convention %1 (expected %0)">;
+def err_musttail_scope : Error<
+  "cannot perform a tail call from this return statement">;
+def err_musttail_no_variadic : Error<
+  "%0 attribute may not be used with variadic functions">;
+
 def err_nsobject_attribute : Error<
   "'NSObject' attribute is for pointer types only">;
 def err_attributes_are_not_compatible : Error<
@@ -6826,6 +6883,10 @@ def warn_unsigned_always_true_comparison : Warning<
   "result of comparison of %select{%3|unsigned expression}0 %2 "
   "%select{unsigned expression|%3}0 is always %4">,
   InGroup<TautologicalUnsignedZeroCompare>, DefaultIgnore;
+def warn_unsigned_char_always_true_comparison : Warning<
+  "result of comparison of %select{%3|char expression}0 %2 "
+  "%select{char expression|%3}0 is always %4, since char is interpreted as "
+  "unsigned">, InGroup<TautologicalUnsignedCharZeroCompare>, DefaultIgnore;
 def warn_unsigned_enum_always_true_comparison : Warning<
   "result of comparison of %select{%3|unsigned enum expression}0 %2 "
   "%select{unsigned enum expression|%3}0 is always %4">,
@@ -11230,6 +11291,8 @@ def err_esimd_global_in_sycl_context : Error<
   "ESIMD globals cannot be used in a SYCL context">;
 def err_sycl_device_function_is_called_from_esimd : Error<
   "SYCL device function cannot be called from an ESIMD context">;
+def err_sycl_esimd_vectorize_unsupported_value : Error<
+  "%0 attribute argument must be 8, 16, or 32">;
 
 def err_nullptr_t_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, "
                                         "'std::nullptr_t' is declared in the 'std' namespace ">;
@@ -11265,7 +11328,7 @@ def warn_sycl_kernel_too_big_args : Warning<
   "size of kernel arguments (%0 bytes) may exceed the supported maximum "
   "of %1 bytes on some devices">, InGroup<SyclStrict>, ShowInSystemHeader;
 def err_sycl_virtual_types : Error<
-  "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
+  "no class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
 def err_sycl_non_trivially_copy_ctor_dtor_type
     : Error<"kernel parameter has non-trivially %select{copy "
@@ -11286,7 +11349,7 @@ def err_sycl_attribute_internal_function
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
 def err_sycl_compiletime_property_duplication : Error<
-  "Can't apply %0 property twice to the same accessor">;
+  "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
   "%0 must have exactly one template parameter">;
 def err_sycl_invalid_accessor_property_template_param : Error<
@@ -11300,10 +11363,10 @@ def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
   "%0 attribute must evenly divide the work-group size for the %1 attribute">;
 
 def warn_sycl_pass_by_value_deprecated 
-    : Warning<"Passing kernel functions by value is deprecated in SYCL 2020">,
+    : Warning<"passing kernel functions by value is deprecated in SYCL 2020">,
       InGroup<Sycl2020Compat>, ShowInSystemHeader;
 def warn_sycl_pass_by_reference_future 
-    : Warning<"Passing of kernel functions by reference is a SYCL 2020 extension">,
+    : Warning<"passing of kernel functions by reference is a SYCL 2020 extension">,
       InGroup<Sycl2017Compat>, ShowInSystemHeader;
 def warn_sycl_implicit_decl
     : Warning<"SYCL 1.2.1 specification requires an explicit forward "

@@ -161,14 +161,3 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
 // STATIC_ARCHIVE_UNBUNDLE: clang-offload-bundler{{.*}}
-
-/// Use of static archives with AOT should not split or use llvm-foreach
-// RUN: touch %t.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %t.a -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_SPLIT_CHECK
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %t.a -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_SPLIT_CHECK
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %t.a -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_SPLIT_CHECK
-// STATIC_ARCHIVE_SPLIT_CHECK-NOT: file-table-tform{{.*}}
-// STATIC_ARCHIVE_SPLIT_CHECK-NOT: llvm-foreach{{.*}}

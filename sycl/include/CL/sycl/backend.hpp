@@ -52,6 +52,14 @@ public:
   // TODO define errc once SYCL2020-style exceptions are supported.
 };
 
+template <backend Backend, typename SyclType>
+using backend_input_t =
+    typename backend_traits<Backend>::template input_type<SyclType>;
+
+template <backend Backend, typename SyclType>
+using backend_return_t =
+    typename backend_traits<Backend>::template return_type<SyclType>;
+
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj) ->
     typename interop<BackendName, SyclObjectT>::type {
