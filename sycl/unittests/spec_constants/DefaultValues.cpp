@@ -244,6 +244,11 @@ TEST(DefaultValues, DefaultValuesAreOverriden) {
     std::cerr << "Test is not supported on host, skipping\n";
     return; // test is not supported on host.
   }
+  
+  if (Plt.get_backend() == sycl::backend::cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
 
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
