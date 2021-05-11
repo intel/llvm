@@ -3086,17 +3086,35 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     ZDimExpr = ZDim.get();
 
+    // If the declaration has an [[intel::num_simd_work_items()]] attribute,
+    // check to see if the first argument of [[cl::reqd_work_group_size()]]
+    // or __attribute__((reqd_work_group_size)) attribute and last argument
+    // of [intel::reqd_work_group_size()]] attribute can be evenly divided by
+    // the num_simd_work_items attribute. GNU and [[cl::reqd_work_group_size]]
+    // spelling of ReqdWorkGroupSizeAttr maps to the OpenCL
+    // semantics. First and last argument are only swapped for the Intel
+    // atributes in SYCL and not the OpenCL ones.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      if (XDimVal.getZExtValue() % NumSimdWorkItems != 0) {
+      bool UsesOpenCLArgOrdering =
+          ((AL.getSyntax() == AttributeCommonInfo::AS_CXX11 ||
+            AL.getSyntax() == AttributeCommonInfo::AS_C2x) &&
+           AL.hasScope() && AL.getScopeName()->isStr("cl")) ||
+          AL.getSyntax() == AttributeCommonInfo::AS_GNU;
+
+      unsigned WorkGroupSize = UsesOpenCLArgOrdering ? XDimVal.getZExtValue()
+                                                     : ZDimVal.getZExtValue();
+
+      if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
             << A << AL;
         S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
         return;
       }
     }
+
     if (const auto *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
       // Compare attribute arguments value and warn for a mismatch.
       if (ExistingAttr->getXDimVal(Ctx) != XDimVal ||
@@ -3280,13 +3298,24 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       }
     }
 
-    // If the declaration has an [[intel::reqd_work_group_size]] attribute,
-    // check to see if the first argument can be evenly divided by the
-    // num_simd_work_items attribute.
+    // If the declaration has a [[intel::reqd_work_group_size()]]
+    // attribute, check to see if the last argument can be evenly
+    // divided by the num_simd_work_items attribute.
+    // If the declaration has a __attribute__((reqd_work_group_size))
+    // or [[cl::reqd_work_group_size()]] attribute, check to see if the
+    // first argument can be evenly divided by the num_simd_work_items
+    // attribute. GNU and [[cl::reqd_work_group_size()]] spelling of
+    // ReqdWorkGroupSizeAttr maps to the OpenCL semantics. First and last
+    // argument are only swapped for the Intel atributes in SYCL and not
+    // the OpenCL ones.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
+      Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
 
-      if (*XDimVal % ArgVal != 0) {
+      llvm::APSInt WorkGroupSize =
+	  DeclAttr->usesOpenCLArgOrdering() ? *XDimVal : *ZDimVal;
+
+      if (WorkGroupSize % ArgVal != 0) {
         Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
             << CI << DeclAttr;
         Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
