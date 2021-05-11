@@ -6,85 +6,26 @@
 
 #include "Inputs/sycl.hpp"
 
-class second_base {
+sycl::handler H;
+
+class decomposedbase {
 public:
-  int *e;
+  float decompvar;
+  int *decompptr;
+  sycl::accessor<char, 1, sycl::access::mode::read> decompAcc;
+  sycl::stream decompStream{0, 0, H};
 };
 
-class InnerFieldBase {
-public:
-  int d;
-};
-class InnerField : public InnerFieldBase {
-  int c;
-};
-
-struct base {
+struct notdecomposedbase {
 public:
   int b;
-  InnerField obj;
 };
 
-//CHECK: --- !Passed
-//CHECK: Pass:{{.*}}sycl
-//CHECK: Name:{{.*}}Region
-//CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-//CHECK: Line: 85, Column: 18 }
-//CHECK: Function: _ZTS7derived
-//CHECK: Args:
-//CHECK-NEXT: String:   'Argument '
-//CHECK-NEXT: Argument: '0'
-//CHECK-NEXT: String:   ' for function kernel: '
-//CHECK-NEXT: String:   '&'
-//CHECK-NEXT: String:   ' '
-//CHECK-NEXT: String:   _ZTS7derived
-//CHECK-NEXT: String:   .
-//CHECK-NEXT: String:   ' '
-//CHECK-NEXT: String:   '('
-//CHECK-NEXT: String:   struct base
-//CHECK-NEXT: String:   ')'
-
-//CHECK: --- !Passed
-//CHECK: Pass:{{.*}}sycl
-//CHECK: Name:{{.*}}Region
-//CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-//CHECK: Line: 11, Column: 8 }
-//CHECK: Function: _ZTS7derived
-//CHECK: Args:
-//CHECK-NEXT: String:  'Argument '
-//CHECK-NEXT: Argument: '1'
-//CHECK-NEXT: String:   ' for function kernel: '
-//CHECK-NEXT: String:   ''
-//CHECK-NEXT: String:   ' '
-//CHECK-NEXT: String:   _ZTS7derived
-//CHECK-NEXT: String:   .
-//CHECK-NEXT: String:   e
-//CHECK-NEXT: String:   '('
-//CHECK-NEXT: String:   struct __wrapper_class
-//CHECK-NEXT: String:   ')'
-
-//CHECK: --- !Passed
-//CHECK: Pass:{{.*}}sycl
-//CHECK: Name:{{.*}}Region
-//CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-//CHECK: Line: 86, Column: 7 }
-//CHECK: Function:  _ZTS7derived
-//CHECK: Args:
-//CHECK-NEXT: String:   'Argument '
-//CHECK-NEXT: Argument: '2'
-//CHECK-NEXT: String:   ' for function kernel: '
-//CHECK-NEXT: String:   ''
-//CHECK-NEXT: String:   ' '
-//CHECK-NEXT: String:   _ZTS7derived
-//CHECK-NEXT: String:   .
-//CHECK-NEXT: String:   a
-//CHECK-NEXT: String:   '('
-//CHECK-NEXT: String:   int
-//CHECK-NEXT: String:   ')'
-
-struct derived : base, second_base {
+struct kernelfunctor : notdecomposedbase, decomposedbase {
   int a;
-
+  int *ptr;
+  int array[3];
+  sycl::sampler sampl;
   void operator()() const {
   }
 };
@@ -92,10 +33,346 @@ struct derived : base, second_base {
 int main() {
   sycl::queue q;
 
-  q.submit([&](cl::sycl::handler &cgh) {
-    derived f{};
+  q.submit([&](sycl::handler &cgh) {
+    kernelfunctor f{};
     cgh.single_task(f);
   });
 
   return 0;
 }
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '0'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for base class,
+// CHECK-NEXT: String:          struct notdecomposedbase
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          struct notdecomposedbase
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '4'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '1'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
+// CHECK-NEXT: String:          decomposedbase
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          'Field:decompvar, '
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          float
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '4'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '2'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for nested pointer,
+// CHECK-NEXT: String:          decompptr
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          Compiler generated
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '8'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '3'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for accessor,
+// CHECK-NEXT: String:          decompAcc
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          '__global char *'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '8'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '4'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for accessor,
+// CHECK-NEXT: String:          decompAcc
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          'struct sycl::range<1>'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '1'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '5'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for accessor,
+// CHECK-NEXT: String:          decompAcc
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          'struct sycl::range<1>'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '1'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '6'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for accessor,
+// CHECK-NEXT: String:          decompAcc
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          'struct sycl::id<1>'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '1'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '7'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for stream,
+// CHECK-NEXT: String:          decompStream
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          'sycl::stream'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '3'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '8'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for accessor,
+// CHECK-NEXT: String:          acc
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          '__global int *'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '8'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '9'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for accessor,
+// CHECK-NEXT: String:          acc
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          'struct sycl::range<1>'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '1'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '10'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for accessor,
+// CHECK-NEXT: String:          acc
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          'struct sycl::range<1>'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '1'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '11'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for accessor,
+// CHECK-NEXT: String:          acc
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          'struct sycl::id<1>'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '1'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '12'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          a
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          int
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '4'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '13'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          ptr
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          '__global int *'
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '8'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '14'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for array,
+// CHECK-NEXT: String:          array
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          Compiler generated
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '12'
+// CHECK-NEXT: String:          ')'
+
+// CHECK: --- !Passed
+// CHECK: Pass:{{.*}}sycl
+// CHECK: Name:{{.*}}Region
+// CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// CHECK-NEXT: Line: 24, Column: 8 }
+// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Args:
+// CHECK-NEXT: String:          'Arg '
+// CHECK-NEXT: Argument:        '15'
+// CHECK-NEXT: String:          ':'
+// CHECK-NEXT: String:          Compiler generated argument for sampler,
+// CHECK-NEXT: String:          sampl
+// CHECK-NEXT: String:          '  ('
+// CHECK-NEXT: String:          ''
+// CHECK-NEXT: String:          'Type:'
+// CHECK-NEXT: String:          sampler_t
+// CHECK-NEXT: String:          ', '
+// CHECK-NEXT: String:          'Size: '
+// CHECK-NEXT: Argument:        '8'
+// CHECK-NEXT: String:          ')'

@@ -1768,9 +1768,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
-        KernelDecl, FD->getName().data(), FieldTy.getAsString(),
-        FD->getLocation());
     addParam(newParamDesc, FieldTy);
   }
 
@@ -1781,8 +1778,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     StringRef Name = "_arg__base";
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
-        KernelDecl, "", FieldTy.getAsString(), BS.getBaseTypeLoc());
     addParam(newParamDesc, FieldTy);
   }
   // Add a parameter with specified name and type
@@ -2228,6 +2223,193 @@ public:
     return true;
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
+};
+
+enum class KernelArgDescription {
+  BaseClass,
+  DecomposedMember,
+  WrappedPointer,
+  WrappedArray,
+  Accessor,
+  AccessorBase,
+  Sampler,
+  Stream,
+  KernelHandler,
+  None
+};
+
+StringRef getKernelArgDesc(KernelArgDescription Desc) {
+  switch (Desc) {
+  case KernelArgDescription::BaseClass:
+    return "base class";
+    break;
+  case KernelArgDescription::DecomposedMember:
+    return "decomposed struct/class";
+    break;
+  case KernelArgDescription::WrappedPointer:
+    return "nested pointer";
+    break;
+  case KernelArgDescription::WrappedArray:
+    return "array";
+    break;
+  case KernelArgDescription::Accessor:
+    return "accessor";
+    break;
+  case KernelArgDescription::AccessorBase:
+    return "accessor base class";
+    break;
+  case KernelArgDescription::Sampler:
+    return "sampler";
+    break;
+  case KernelArgDescription::Stream:
+    return "stream";
+    break;
+  case KernelArgDescription::KernelHandler:
+    return "SYCL2020 specialization constant";
+    break;
+  default:
+    return "";
+  }
+}
+
+class SyclOptReportCreator : public SyclKernelFieldHandler {
+  SyclKernelDeclCreator &DC;
+  SourceLocation KernelInvocationLoc;
+
+  void addParam(const FieldDecl *KernelArg, QualType KernelArgType,
+                KernelArgDescription KernelArgDesc) {
+    unsigned KernelArgSize =
+        SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+    const RecordDecl *KernelArgParent = KernelArg->getParent();
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        DC.getKernelDecl(), KernelArg->getName().data(),
+        KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
+        getKernelArgDesc(KernelArgDesc).data(),
+        KernelArgParent ? KernelArgParent->getName().data() : "");
+  }
+
+  void addParam(const FieldDecl *FD, QualType FieldTy) {
+    KernelArgDescription Desc = KernelArgDescription::None;
+    const RecordDecl *RD = FD->getParent();
+    if (RD && RD->hasAttr<SYCLRequiresDecompositionAttr>())
+      Desc = KernelArgDescription::DecomposedMember;
+
+    addParam(FD, FieldTy, Desc);
+  }
+
+  void addParam(QualType KernelArgType, KernelArgDescription KernelArgDesc) {
+    unsigned KernelArgSize =
+        SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        DC.getKernelDecl(), KernelArgType.getAsString(),
+        KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
+        getKernelArgDesc(KernelArgDesc).data(), "");
+  }
+
+  // Handles SYCL special types - accessor, sampler and stream
+  // Also handles modified types - arrays and pointers
+  bool handleSpecialType(const FieldDecl *FD, QualType FieldTy,
+                         KernelArgDescription Desc) {
+    llvm::ArrayRef<ParmVarDecl *> KernelParameters =
+        DC.getParamVarDeclsForCurrentField();
+    for (auto *Param : KernelParameters)
+      addParam(FD, Param->getType(), Desc);
+    return true;
+  }
+
+public:
+  static constexpr const bool VisitInsideSimpleContainers = false;
+  SyclOptReportCreator(Sema &S, SyclKernelDeclCreator &DC, SourceLocation Loc)
+      : SyclKernelFieldHandler(S), DC(DC), KernelInvocationLoc(Loc) {}
+
+  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+    return handleSpecialType(
+        FD, FieldTy, KernelArgDescription(KernelArgDescription::Accessor));
+  }
+
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                              QualType FieldTy) final {
+    llvm::ArrayRef<ParmVarDecl *> KernelParameters =
+        DC.getParamVarDeclsForCurrentField();
+    for (auto *Param : KernelParameters)
+      addParam(Param->getType(),
+               KernelArgDescription(KernelArgDescription::AccessorBase));
+    return true;
+  }
+
+  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
+    return handleSpecialType(
+        FD, FieldTy, KernelArgDescription(KernelArgDescription::Sampler));
+  }
+
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    KernelArgDescription Desc = KernelArgDescription::None;
+    ParmVarDecl *KernelParameter = DC.getParamVarDeclsForCurrentField()[0];
+    // Compiler generated openCL kernel argument for current pointer field
+    // is not a pointer. This means we are processing a nested pointer and
+    // the openCL kernel argument is of type __wrapper_class.
+    if (!KernelParameter->getType()->isPointerType())
+      Desc = KernelArgDescription::WrappedPointer;
+    return handleSpecialType(FD, FieldTy, Desc);
+  }
+
+  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy);
+    return true;
+  }
+
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    // Simple arrays are always wrapped.
+    handleSpecialType(FD, FieldTy,
+                      KernelArgDescription(KernelArgDescription::WrappedArray));
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addParam(FD, Ty);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    addParam(Ty, KernelArgDescription(KernelArgDescription::BaseClass));
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
+
+  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy);
+    return true;
+  }
+
+  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
+    // For the current implementation of stream class, the Visitor 'handles'
+    // stream argument and then visits each accessor field in stream. Therefore
+    // handleSpecialType in this case only adds a single argument for stream.
+    // The arguments corresponding to accessors in stream are handled in
+    // handleSyclAccessorType. The opt-report therefore does not diffrentiate
+    // between the accessors in streams and accessors captured by SYCL kernel.
+    // Once stream API is modified to use __init(), the visitor will no longer
+    // visit the stream object and opt-report output for stream class will be
+    // similar to that of other special types.
+    return handleSpecialType(
+        FD, FieldTy, KernelArgDescription(KernelArgDescription::Stream));
+  }
+
+  void handleSyclKernelHandlerType() {
+    ASTContext &Context = SemaRef.getASTContext();
+    if (isDefaultSPIRArch(Context))
+      return;
+    addParam(DC.getParamVarDeclsForCurrentField()[0]->getType(),
+             KernelArgDescription(KernelArgDescription::KernelHandler));
+  }
+  using SyclKernelFieldHandler::handleSyclHalfType;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::handleSyclStreamType;
 };
 
 static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
@@ -3563,18 +3745,20 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       StableName, KernelCallerFunc);
 
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
+  SyclOptReportCreator opt_report(*this, kernel_decl, KernelObj->getLocation());
 
   KernelObjVisitor Visitor{*this};
   Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                           int_footer);
+                           int_footer, opt_report);
   Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                            int_footer);
+                            int_footer, opt_report);
 
   if (ParmVarDecl *KernelHandlerArg =
           getSyclKernelHandlerArg(KernelCallerFunc)) {
     kernel_decl.handleSyclKernelHandlerType();
     kernel_body.handleSyclKernelHandlerType(KernelHandlerArg);
     int_header.handleSyclKernelHandlerType(KernelHandlerArg->getType());
+    opt_report.handleSyclKernelHandlerType();
   }
 }
 

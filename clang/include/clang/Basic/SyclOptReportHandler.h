@@ -28,18 +28,26 @@ private:
     std::string KernelArgName;
     std::string KernelArgType;
     SourceLocation KernelArgLoc;
+    unsigned KernelArgSize;
+    std::string KernelArgDesc;
+    std::string KernelArgParent;
 
     OptReportInfo(std::string ArgName, std::string ArgType,
-                  SourceLocation ArgLoc)
+                  SourceLocation ArgLoc, unsigned ArgSize, std::string ArgDesc,
+                  std::string ArgParent)
         : KernelArgName(std::move(ArgName)), KernelArgType(std::move(ArgType)),
-          KernelArgLoc(ArgLoc) {}
+          KernelArgLoc(ArgLoc), KernelArgSize(ArgSize),
+          KernelArgDesc(std::move(ArgDesc)),
+          KernelArgParent(std::move(ArgParent)) {}
   };
   llvm::DenseMap<const FunctionDecl *, SmallVector<OptReportInfo>> Map;
 
 public:
   void AddKernelArgs(const FunctionDecl *FD, std::string ArgName,
-                     std::string ArgType, SourceLocation ArgLoc) {
-    Map[FD].emplace_back(ArgName, ArgType, ArgLoc);
+                     std::string ArgType, SourceLocation ArgLoc,
+                     unsigned ArgSize, std::string ArgDesc,
+                     std::string ArgParent) {
+    Map[FD].emplace_back(ArgName, ArgType, ArgLoc, ArgSize, ArgDesc, ArgParent);
   }
   SmallVector<OptReportInfo> &GetInfo(const FunctionDecl *FD) {
     auto It = Map.find(FD);
