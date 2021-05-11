@@ -3500,6 +3500,12 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_KERNEL_NAME;
   _pi_program::ModuleIterator ModIt(Program);
   while (!ModIt.Done()) {
+    // For a module with valid sycl kernel inside, zeKernelCreate API
+    // should return ZE_RESULT_SUCCESS if target kernel is found and
+    // ZE_RESULT_ERROR_INVALID_KERNEL_NAME otherwise. However, some module
+    // may not include any sycl kernel such as device library modules. For such
+    // modules, zeKernelCreate will return ZE_RESULT_ERROR_INVALID_ARGUMENT and
+    // we should skip them.
     uint32_t KernelNum = 0;
     ZE_CALL(zeModuleGetKernelNames, (*ModIt, &KernelNum, nullptr));
     if (KernelNum != 0) {
