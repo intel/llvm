@@ -19,11 +19,17 @@ namespace property {
 
 class no_init : public detail::DataLessProperty<detail::NoInit> {};
 
+class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
+    : public detail::DataLessProperty<detail::NoInit> {};
+
 } // namespace property
 
 #if __cplusplus > 201402L
 
 inline constexpr property::no_init no_init;
+
+inline constexpr property::noinit noinit
+    __SYCL2020_DEPRECATED("spelling is now: no_init");
 
 #else
 
@@ -31,6 +37,10 @@ namespace {
 
 constexpr const auto &no_init =
     sycl::detail::InlineVariableHelper<property::no_init>::value;
+
+constexpr const auto &noinit
+    __SYCL2020_DEPRECATED("spelling is now: no_init") =
+    sycl::detail::InlineVariableHelper<property::noinit>::value;
 }
 
 #endif
