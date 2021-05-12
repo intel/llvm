@@ -34,14 +34,14 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
                        ".decl temp v_type=G type=d num_elts=8 align=dword\n"
                        "mov (M1, 8) %0(0, 0)<1> 0x0:d\n"
                        "cmp.le (M1, 8) P1 %1(0,0)<1;1,0> 0x0:d\n"
-                       "(P1) goto (M1, 8) label0\n"
+                       "(P1) goto (M1, 8) label0%=\n"
                        "mov (M1, 8) temp(0,0)<1> 0x0:d\n"
-                       "label1:\n"
+                       "label1%=:\n"
                        "add (M1, 8) temp(0,0)<1> temp(0,0)<1;1,0> 0x1:w\n"
                        "add (M1, 8) %0(0,0)<1> %0(0,0)<1;1,0> %2(0,0)<1;1,0>\n"
                        "cmp.lt (M1, 8) P2 temp(0,0)<0;8,1> %1(0,0)<0;8,1>\n"
-                       "(P2) goto (M1, 8) label1\n"
-                       "label0:"
+                       "(P2) goto (M1, 8) label1%=\n"
+                       "label0%=:"
                        "}\n"
                        : "+rw"(C[wiID])
                        : "rw"(A[wiID]), "rw"(B[wiID]));
