@@ -3306,18 +3306,38 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
     // First and last argument are only swapped for the atributes in SYCL
     // and not the OpenCL ones.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      const auto *DeclXExpr = dyn_cast<ConstantExpr>(DeclAttr->getXDim());
-      const auto *DeclZExpr = dyn_cast<ConstantExpr>(DeclAttr->getZDim());
+      Expr *XDimExpr = DeclAttr->getXDim();
+      Expr *YDimExpr = DeclAttr->getYDim();
+      Expr *ZDimExpr = DeclAttr->getZDim();
 
-      llvm::APSInt WorkGroupSize = DeclAttr->usesOpenCLArgOrdering()
-                                       ? DeclXExpr->getResultAsAPSInt()
-                                       : DeclZExpr->getResultAsAPSInt();
+      if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent()
+	  && !ZDimExpr->isValueDependent()) {
+        llvm::APSInt XDimVal, YDimVal, ZDimVal;
+        ExprResult XDim = VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
+        ExprResult YDim = VerifyIntegerConstantExpression(YDimExpr, &YDimVal);
+        ExprResult ZDim = VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
 
-      if (WorkGroupSize % ArgVal != 0) {
-        Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
-            << CI << DeclAttr;
-        Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
-        return;
+        if (XDim.isInvalid())
+          return;
+        XDimExpr = XDim.get();
+
+        if (YDim.isInvalid())
+          return;
+        YDimExpr = YDim.get();
+
+        if (ZDim.isInvalid())
+          return;
+        ZDimExpr = ZDim.get();
+
+        llvm::APSInt WorkGroupSize = DeclAttr->usesOpenCLArgOrdering()
+				         ? XDimVal : ZDimVal;
+
+        if (WorkGroupSize % ArgVal != 0) {
+          Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+              << CI << DeclAttr;
+          Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+          return;
+	}
       }
     }
   }
