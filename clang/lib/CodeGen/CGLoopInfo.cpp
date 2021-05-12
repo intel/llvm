@@ -605,6 +605,12 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
+  for (auto &VC : Attrs.SYCLIntelFPGAVariantCount) {
+    Metadata *Vals[] = {MDString::get(Ctx, VC.first),
+                        ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx), VC.second))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
   return createFullUnrollMetadata(Attrs, LoopProperties, HasUserTransforms);
@@ -643,6 +649,7 @@ void LoopAttributes::clear() {
   SYCLMaxInterleavingNInvocations = 0;
   SYCLSpeculatedIterationsEnable = false;
   SYCLSpeculatedIterationsNIterations = 0;
+  SYCLIntelFPGAVariantCount.clear();
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -680,8 +687,9 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLMaxInterleavingNInvocations == 0 &&
       Attrs.SYCLSpeculatedIterationsEnable == false &&
       Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
-      Attrs.UnrollCount == 0 && Attrs.UnrollAndJamCount == 0 &&
-      !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
+      Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
+      Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
+      Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
@@ -1028,6 +1036,19 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       setSYCLMaxConcurrencyNThreads(IntelFPGAMaxConcurrency->getNThreadsExpr()
                                         ->getIntegerConstantExpr(Ctx)
                                         ->getSExtValue());
+    }
+
+    if (const auto *IntelFPGALoopCountAvg =
+            dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
+      unsigned int Count = IntelFPGALoopCountAvg->getNTripCount()
+                               ->getIntegerConstantExpr(Ctx)
+                               ->getSExtValue();
+      const char *Var = IntelFPGALoopCountAvg->isMax()
+                            ? "llvm.loop.intel.loopcount_max"
+                            : IntelFPGALoopCountAvg->isMin()
+                                  ? "llvm.loop.intel.loopcount_min"
+                                  : "llvm.loop.intel.loopcount_avg";
+      setSYCLIntelFPGAVariantCount(Var, Count);
     }
 
     if (const auto *IntelFPGALoopCoalesce =

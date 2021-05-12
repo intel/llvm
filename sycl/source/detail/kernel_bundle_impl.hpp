@@ -270,7 +270,7 @@ public:
             &SpecConsts = ImgImpl->get_spec_const_data_ref();
         const std::vector<unsigned char> &Blob =
             ImgImpl->get_spec_const_blob_ref();
-        for (const std::pair<std::string,
+        for (const std::pair<const std::string,
                              std::vector<device_image_impl::SpecConstDescT>>
                  &SpecConst : SpecConsts) {
           if (SpecConst.second.front().IsSet)
@@ -289,8 +289,8 @@ public:
     MDeviceImages.erase(DevImgIt, MDeviceImages.end());
 
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
-      for (const std::pair<std::string, std::vector<unsigned char>> &SpecConst :
-           Bundle->MSpecConstValues) {
+      for (const std::pair<const std::string, std::vector<unsigned char>>
+               &SpecConst : Bundle->MSpecConstValues) {
         set_specialization_constant_raw_value(SpecConst.first.c_str(),
                                               SpecConst.second.data(),
                                               SpecConst.second.size());
@@ -442,7 +442,11 @@ public:
     return SetInDevImg || MSpecConstValues.count(std::string{SpecName}) != 0;
   }
 
-  const device_image_plain *begin() const { return &MDeviceImages.front(); }
+  const device_image_plain *begin() const {
+    assert(!MDeviceImages.empty() && "MDeviceImages can't be empty");
+    // UB in case MDeviceImages is empty
+    return &MDeviceImages.front();
+  }
 
   const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
 

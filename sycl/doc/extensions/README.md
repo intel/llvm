@@ -39,6 +39,8 @@ DPC++ extensions status:
 | [ITT annotations support](ITTAnnotations/ITTAnnotations.rst) | Supported | |
 | [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
 | [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
+| [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
+| [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
 
 Legend:
 

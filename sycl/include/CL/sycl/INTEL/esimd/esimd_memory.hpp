@@ -20,8 +20,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 // TODO @Pennycook
 // {quote}
@@ -158,14 +160,15 @@ scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
                             pred.data());
 }
 
-// TODO @rolandschulz
-// Should follow existing std::simd naming for similar APIs - "copy_from" and
-// "copy_to" to avoid confusion.
-//
 /// Flat-address block-load.
 /// \ingroup sycl_esimd
+// TODO normally, this function should just delegate to
+// simd::copy_from for the deprecation period, but separate implementations are
+// needed for now, as simd::copy_from does not support cache hints yet.
+// This API, even though deprecated, can't be removed until then.
 template <typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
+__SYCL_DEPRECATED("use simd::copy_from.")
 ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(const T *const addr) {
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -184,30 +187,20 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(const T *const addr) {
 /// Accessor-based block-load.
 /// \ingroup sycl_esimd
 template <typename T, int n, typename AccessorTy>
+__SYCL_DEPRECATED("use simd::copy_from.")
 ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(AccessorTy acc,
                                                  uint32_t offset) {
-  constexpr unsigned Sz = sizeof(T) * n;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                "block size must be at most 8 owords");
-
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-  return __esimd_block_read<T, n>(surf_ind, offset);
-#else
-  return __esimd_block_read<T, n>(acc, offset);
-#endif // __SYCL_DEVICE_ONLY__
+  simd<T, n> Res;
+  Res.copy_from(acc, offset);
+  return Res;
 }
 
 /// Flat-address block-store.
 /// \ingroup sycl_esimd
+// TODO the above note about cache hints applies to this API as well.
 template <typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
+__SYCL_DEPRECATED("use simd::copy_to.")
 ESIMD_INLINE ESIMD_NODEBUG void block_store(T *p, simd<T, n> vals) {
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -226,24 +219,10 @@ ESIMD_INLINE ESIMD_NODEBUG void block_store(T *p, simd<T, n> vals) {
 /// Accessor-based block-store.
 /// \ingroup sycl_esimd
 template <typename T, int n, typename AccessorTy>
-ESIMD_INLINE ESIMD_NODEBUG void block_store(AccessorTy acc, uint32_t offset,
-                                            simd<T, n> vals) {
-  constexpr unsigned Sz = sizeof(T) * n;
-  static_assert(Sz >= detail::OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % detail::OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                "block size must be at most 8 owords");
-
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-  __esimd_block_write<T, n>(surf_ind, offset >> 4, vals.data());
-#else
-  __esimd_block_write<T, n>(acc, offset >> 4, vals.data());
-#endif // __SYCL_DEVICE_ONLY__
+__SYCL_DEPRECATED("use simd::copy_to.")
+ESIMD_INLINE ESIMD_NODEBUG
+    void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals) {
+  vals.copy_to(acc, offset);
 }
 
 /// Accessor-based gather.
@@ -272,8 +251,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     gather(AccessorTy acc, simd<uint32_t, N> offsets,
            uint32_t glob_offset = 0) {
 
-  constexpr int TypeSizeLog2 =
-      sycl::INTEL::gpu::detail::ElemsPerAddrEncoding<sizeof(T)>();
+  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t scale = 0;
   constexpr uint32_t t_scale = sizeof(T);
@@ -298,7 +276,7 @@ ESIMD_INLINE ESIMD_NODEBUG
         __esimd_surf_read<PromoT, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
             scale, acc, glob_offset, offsets);
 #endif
-    return sycl::INTEL::gpu::convert<T>(promo_vals);
+    return convert<T>(promo_vals);
   } else {
 #if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
@@ -340,8 +318,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
             uint32_t glob_offset = 0, simd<uint16_t, N> pred = 1) {
 
-  constexpr int TypeSizeLog2 =
-      sycl::INTEL::gpu::detail::ElemsPerAddrEncoding<sizeof(T)>();
+  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t scale = 0;
   constexpr uint32_t t_scale = sizeof(T);
@@ -356,7 +333,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     using PromoT =
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
-    const simd<PromoT, N> promo_vals = sycl::INTEL::gpu::convert<PromoT>(vals);
+    const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
 #if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     __esimd_surf_write<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
@@ -1017,7 +994,9 @@ esimd_raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
 }
 /// @}
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
