@@ -3087,12 +3087,13 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     ZDimExpr = ZDim.get();
 
     // If the declaration has an [[intel::num_simd_work_items()]] attribute,
-    // check to see if the first argument of __attribute__((reqd_work_group_size))
-    // attribute and last argument of [[cl::reqd_work_group_size()]] or
-    // [intel::reqd_work_group_size()]] attribute can be evenly divided by
-    // the [[intel::num_simd_work_items()]] attribute. GNU spelling of
-    // ReqdWorkGroupSizeAttr maps to the OpenCL semantics. First and last
-    // argument are only swapped for the atributes in SYCL and not the OpenCL ones.
+    // check to see if the first argument of
+    // __attribute__((reqd_work_group_size)) attribute and last argument of
+    // [[cl::reqd_work_group_size()]] or [intel::reqd_work_group_size()]]
+    // attribute can be evenly divided by the [[intel::num_simd_work_items()]]
+    // attribute. GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL
+    // semantics. First and last argument are only swapped for the atributes in
+    // SYCL and not the OpenCL ones.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
@@ -3308,9 +3309,9 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       const auto *DeclXExpr = dyn_cast<ConstantExpr>(DeclAttr->getXDim());
       const auto *DeclZExpr = dyn_cast<ConstantExpr>(DeclAttr->getZDim());
 
-      llvm::APSInt WorkGroupSize =
-          DeclAttr->usesOpenCLArgOrdering() ? DeclXExpr->getResultAsAPSInt() 
-	                                    : DeclZExpr->getResultAsAPSInt();
+      llvm::APSInt WorkGroupSize = DeclAttr->usesOpenCLArgOrdering()
+                                       ? DeclXExpr->getResultAsAPSInt()
+                                       : DeclZExpr->getResultAsAPSInt();
 
       if (WorkGroupSize % ArgVal != 0) {
         Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
