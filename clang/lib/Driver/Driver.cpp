@@ -5165,6 +5165,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       StringRef TmpFileHeader =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
       addIntegrationFiles(TmpFileHeader, SrcFileName);
+
+      // Create/Add the Unique ID used for each FE invocation.
+      SmallString<128> ResultID;
+      llvm::sys::fs::createUniquePath("%%%%%%%%%%%%%%%%", ResultID, false);
+      addSYCLUniqueID(Args.MakeArgString(ResultID.str()), SrcFileName);
     }
   }
 
