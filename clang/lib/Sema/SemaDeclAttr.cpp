@@ -354,6 +354,14 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     }
   }
 
+  // Diagnose SYCL 2020 spellings used in earlier SYCL modes as being an
+  // extension.
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && A.hasScope() &&
+      A.getScopeName()->isStr("sycl")) {
+    Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
+    return;
+  }
+
   // All attributes in the intelfpga vendor namespace are deprecated in favor
   // of a name in the intel vendor namespace. By default, assume the attribute
   // retains its original name but changes the namespace. However, some
