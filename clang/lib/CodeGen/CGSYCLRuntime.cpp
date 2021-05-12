@@ -66,6 +66,14 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
   if (FD.hasAttr<SYCLSimdAttr>())
     F.setMetadata("sycl_explicit_simd", llvm::MDNode::get(F.getContext(), {}));
 
+  // Set the function attribute expected by the vector backend compiler.
+  if (const auto *A = FD.getAttr<SYCLIntelESimdVectorizeAttr>())
+    if (const auto *DeclExpr = cast<ConstantExpr>(A->getValue())) {
+      SmallString<2> Str;
+      DeclExpr->getResultAsAPSInt().toString(Str);
+      F.addFnAttr("CMGenxSIMT", Str);
+    }
+
   SYCLScopeAttr *Scope = FD.getAttr<SYCLScopeAttr>();
   if (!Scope)
     return false;

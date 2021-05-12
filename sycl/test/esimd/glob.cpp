@@ -10,7 +10,7 @@
 #include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 constexpr unsigned VL = 16;
 

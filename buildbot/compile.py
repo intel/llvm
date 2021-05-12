@@ -32,7 +32,6 @@ def do_compile(args):
         "--build", abs_obj_dir,
         "--",
         "deploy-sycl-toolchain",
-        "deploy-opencl-aot",
         "-j", str(cpu_count)]
 
     if args.verbose:
