@@ -2864,12 +2864,12 @@ _SPIRV_OP(GenericPtrMemSemantics, true, 4, false)
 _SPIRV_OP(GenericCastToPtrExplicit, true, 5, false, 1)
 #undef _SPIRV_OP
 
-class SPIRVAssumeTrueINTEL : public SPIRVInstruction {
+class SPIRVAssumeTrueKHR : public SPIRVInstruction {
 public:
-  static const Op OC = internal::OpAssumeTrueINTEL;
+  static const Op OC = OpAssumeTrueKHR;
   static const SPIRVWord FixedWordCount = 2;
 
-  SPIRVAssumeTrueINTEL(SPIRVId TheCondition, SPIRVBasicBlock *BB)
+  SPIRVAssumeTrueKHR(SPIRVId TheCondition, SPIRVBasicBlock *BB)
       : SPIRVInstruction(FixedWordCount, OC, BB), ConditionId(TheCondition) {
     validate();
     setHasNoId();
@@ -2877,17 +2877,17 @@ public:
     assert(BB && "Invalid BB");
   }
 
-  SPIRVAssumeTrueINTEL() : SPIRVInstruction(OC), ConditionId(SPIRVID_MAX) {
+  SPIRVAssumeTrueKHR() : SPIRVInstruction(OC), ConditionId(SPIRVID_MAX) {
     setHasNoId();
     setHasNoType();
   }
 
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityOptimizationHintsINTEL);
+    return getVec(CapabilityExpectAssumeKHR);
   }
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_INTEL_optimization_hints;
+    return ExtensionID::SPV_KHR_expect_assume;
   }
 
   SPIRVValue *getCondition() const { return getValue(ConditionId); }
@@ -2901,22 +2901,21 @@ protected:
   SPIRVId ConditionId;
 };
 
-class SPIRVExpectINTELInstBase : public SPIRVInstTemplateBase {
+class SPIRVExpectKHRInstBase : public SPIRVInstTemplateBase {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityOptimizationHintsINTEL);
+    return getVec(CapabilityExpectAssumeKHR);
   }
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_INTEL_optimization_hints;
+    return ExtensionID::SPV_KHR_expect_assume;
   }
 };
 
-#define _SPIRV_OP_INTERNAL(x, ...)                                             \
-  typedef SPIRVInstTemplate<SPIRVExpectINTELInstBase, internal::Op##x,         \
-                            __VA_ARGS__>                                       \
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVExpectKHRInstBase, Op##x, __VA_ARGS__>        \
       SPIRV##x;
-_SPIRV_OP_INTERNAL(ExpectINTEL, true, 5)
+_SPIRV_OP(ExpectKHR, true, 5)
 #undef _SPIRV_OP_INTERNAL
 
 class SPIRVSubgroupShuffleINTELInstBase : public SPIRVInstTemplateBase {
