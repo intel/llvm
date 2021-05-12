@@ -43,9 +43,9 @@ struct FuncObj {
 
 #ifdef TRIGGER_ERROR
 // If the declaration has a [[intel::reqd_work_group_size]]
-// attribute, tests that check if the work group size attribute
-// argument (the last argument) can be evenly divided by the
-// num_simd_work_items attribute.
+// [[cl::reqd_work_group_size]] attribute, tests that check
+// if the work group size attribute argument (the last argument)
+// can be evenly divided by the [[intel::num_simd_work_items()]] attribute.
 struct TRIFuncObjBad1 {
   [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[intel::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
@@ -88,36 +88,41 @@ struct TRIFuncObjBad6 {
   operator()() const {}
 };
 
-[[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-[[intel::reqd_work_group_size(4, 2, 3)]] void func1(); // expected-note{{conflicting attribute is here}}
-
-// If the declaration has a [[cl::reqd_work_group_size]]
-// or __attribute__((reqd_work_group_size())) attribute,
-// tests that check if the work group size attribute argument
-// (the first argument) can be evenly divided by the num_simd_work_items
-// attribute. GNU and [[cl::reqd_work_group_size]] spelling of
-// ReqdWorkGroupSizeAttr maps to the OpenCL semantics.
-// First and last argument are only swapped for the Intel atributes in
-// SYCL and not the OpenCL ones.
 struct TRIFuncObjBad7 {
-  [[cl::reqd_work_group_size(5, 6, 8)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(2)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[cl::reqd_work_group_size(6, 3, 5)]] // expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad8 {
-  [[intel::num_simd_work_items(2)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[cl::reqd_work_group_size(5, 6, 8)]] // expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[cl::reqd_work_group_size(6, 3, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-__attribute__((reqd_work_group_size(3, 2, 4))) void func2(); // expected-note{{conflicting attribute is here}}
+[[intel::reqd_work_group_size(4, 2, 3)]] void func1(); // expected-note{{conflicting attribute is here}}
+
+[[intel::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}}
+[[intel::num_simd_work_items(2)]] void func2(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-[[cl::reqd_work_group_size(5, 2, 4)]] void func3(); // expected-note{{conflicting attribute is here}}
+[[cl::reqd_work_group_size(4, 2, 3)]] void func3(); // expected-note{{conflicting attribute is here}}
+
+[[cl::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}}
+[[intel::num_simd_work_items(2)]] void func4(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+// If the declaration has a __attribute__((reqd_work_group_size()))
+// attribute, tests that check if the work group size attribute argument
+// (the first argument) can be evenly divided by the [[intel::num_simd_work_items()]]
+// attribute. GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantics.
+// First and last argument are only swapped for the Intel atributes in
+// SYCL and not the OpenCL ones.
+
+[[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+__attribute__((reqd_work_group_size(3, 2, 4))) void func5(); // expected-note{{conflicting attribute is here}}
 
 // Tests for incorrect argument values for Intel FPGA num_simd_work_items and reqd_work_group_size function attributes
 struct TRIFuncObjBad9 {
@@ -182,15 +187,15 @@ struct TRIFuncObjBad18 {
 
 #endif // TRIGGER_ERROR
 // If the declaration has a [[intel::reqd_work_group_size()]]
-// attribute, check to see if the last argument can be evenly
-// divided by the num_simd_work_items attribute.
+// or [[cl::reqd_work_group_size()]] attribute, check to see
+// if the last argument can be evenly divided by the
+// [[intel::num_simd_work_items()]] attribute.
 // If the declaration has a __attribute__((reqd_work_group_size))
-// or [[cl::reqd_work_group_size()]] attribute, check to see if the
-// first argument can be evenly divided by the num_simd_work_items
-// attribute. GNU and [[cl::reqd_work_group_size()]] spelling of
-// ReqdWorkGroupSizeAttr maps to the OpenCL semantics. First and last
-// argument are only swapped for the Intel atributes in SYCL and not
-// the OpenCL ones.
+// attribute, check to see if the first argument can be evenly
+// divided by the [[intel::num_simd_work_items()]] attribute.
+// GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantics.
+// First and last argument are only swapped for the Intel atributes in
+// SYCL and not the OpenCL ones.
 struct TRIFuncObjGood1 {
   [[intel::num_simd_work_items(4)]]
   [[intel::reqd_work_group_size(3, 64, 4)]] void
@@ -205,18 +210,18 @@ struct TRIFuncObjGood2 {
 
 struct TRIFuncObjGood3 {
   [[intel::num_simd_work_items(4)]]
-  [[cl::reqd_work_group_size(4, 64, 5)]] void
+  [[cl::reqd_work_group_size(3, 64, 4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood4 {
-  [[cl::reqd_work_group_size(4, 64, 5)]]
+  [[cl::reqd_work_group_size(3, 64, 4)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
 
 [[intel::num_simd_work_items(2)]]
-__attribute__((reqd_work_group_size(4,3,3))) void func4(); //OK
+__attribute__((reqd_work_group_size(4,3,3))) void func6(); //OK
 
 int main() {
   q.submit([&](handler &h) {
@@ -287,27 +292,27 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  value: Int 3
+    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 5
-    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel7>(TRIFuncObjGood4());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel7
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  value: Int 3
+    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 5
-    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4

@@ -2617,22 +2617,27 @@ In OpenCL C, this attribute is available in GNU spelling
   __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
 
 The order of the arguments to reqd_work_group_size in SYCL and OpenCL are
-reversed. In the OpenCL syntax, ``[[cl::reqd_work_group_size(X, Y, Z)]]`` or
+reversed. In the OpenCL syntax,
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), X is the index that
 increments the fastest, followed by Y, then Z. If we preserve that definition
 of X, Y, and Z, then in SYCL the attribute is specified as
-``[[intel::reqd_work_group_size(Z, Y, X)]]``. This gets more complicated in the
-case where fewer than three arguments are provided since this spelling allows
+``[[intel::reqd_work_group_size(Z, Y, X)]]`` or
+``[[cl::reqd_work_group_size(Z, Y, X)]]``. This gets more complicated in the
+case where fewer than three arguments are provided since
+``[[intel::reqd_work_group_size(Z, Y, X)]]`` attribute spelling allows
 the Y and Z arguments to be optional. In such a case it's not the ``X`` argument
 that is omitted (by the definitions of X, Y, and Z above) it's the ``Z``
 dimension that's omitted. So the two argument version has the syntax
 ``[[intel::reqd_work_group_size(Y, X)]]``. Similarly, the one argument variant
 has syntax ``[[intel::reqd_work_group_size(X)]]``.
-In summary, in SYCL if the ``intel::reqd_work_group_size`` attribute is
-specified on a declaration along with a ``intel::num_simd_work_items``
-attribute, the work group size (the last argument) must be evenly divisible by
-the argument specified in the ``intel::num_simd_work_items``regardless of how
-many arguments req_work_group_size has.
+In summary, in SYCL if the ``intel::reqd_work_group_size`` or
+``cl::reqd_work_group_size`` attribute is specified on a declaration along with
+a ``intel::num_simd_work_items`` attribute, the required work-group size
+(``X`` dimention, which is the last dimension in the reqd_work_group_size) must
+be evenly divisible by the argument specified in the
+``intel::num_simd_work_items``.
+Fore more information, see the documentation about required work-group size.
+..`Specify a Work-Group Size`: https://software.intel.com/content/www/us/en/develop/documentation/oneapi-fpga-optimization-guide/top/optimize-your-design/resource-use/specify-a-work-group-size.html
 
 .. code-block:: c++
 
@@ -2648,25 +2653,34 @@ many arguments req_work_group_size has.
     void operator()() const {}
   };
 
-If the ``cl::reqd_work_group_size`` or ``__attribute__((reqd_work_group_size()))``
-attribute is specified on a declaration along with a ``intel::num_simd_work_items``
-attribute, the work group size (the first argument) must be evenly divisible by
-the argument specified in the ``intel::num_simd_work_items`` attribute.
-GNU and ``cl::reqd_work_group_size`` spelling of ReqdWorkGroupSizeAttr maps to
-the OpenCL semantic. The first and last argument are only swapped for the Intel
-attributes in SYCL and not the OpenCL ones.
-
-.. code-block:: c++
-
   struct func1 {
     [[intel::num_simd_work_items(4)]]
-    [[cl::reqd_work_group_size(64, 4, 3)]]
+    [[cl::reqd_work_group_size(3, 4, 64)]]
+    void operator()() const {}
+  };
+  
+  struct bar1 {
+    [[cl::reqd_work_group_size(3, 4, 64)]]
+    [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
 
-  [[intel::num_simd_work_items(2)]]
-  __attribute__((reqd_work_group_size(4, 2, 3))) void bar();
+If the ``__attribute__((reqd_work_group_size()))`` attribute is specified on
+a declaration along with a ``intel::num_simd_work_items``
+attribute, the required work-group size (``X`` dimention, which is the first
+dimension in the reqd_work_group_size) must be evenly divisible by
+the argument specified in the ``intel::num_simd_work_items`` attribute.
+GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantic. The first and
+last dimension are only swapped for the attributes in SYCL and not the OpenCL ones.
 
+.. code-block:: c++
+
+  [[intel::num_simd_work_items(2)]]
+  __attribute__((reqd_work_group_size(4, 2, 3))) void test();
+
+  __attribute__((reqd_work_group_size(4, 2, 3))) 
+  [[intel::num_simd_work_items(2)]] void test1();
+ 
   }];
 }
 
