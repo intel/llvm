@@ -327,16 +327,8 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
-  // If SYCL is enabled (either host or device) and the language mode is not
-  // greater than SYCL 2020, diagnose.
-  // FIXME: it is weird that -cc1 -fsycl-is-device/-fsycl-is-host does not set
-  // the SYCL version information to something other than SYCL_None. So I am
-  // testing for that value explicitly and treating it as though the user
-  // specified the latest SYCL standards mode. We should correct this in the
-  // frontend options parsing though.
-  if ((LangOpts.SYCLIsDevice || LangOpts.SYCLIsHost) &&
-      (LangOpts.getSYCLVersion() > LangOptions::SYCL_2017 ||
-       LangOpts.getSYCLVersion() == LangOptions::SYCL_None)) {
+  // Diagnose SYCL 2017 spellings in later SYCL modes.
+  if (LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
     // All attributes in the cl vendor namespace are deprecated in favor of a
     // name in the sycl namespace as of SYCL 2020.
     if (A.hasScope() && A.getScopeName()->isStr("cl")) {
@@ -3093,7 +3085,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
                                    : SetDefaultValue(S, AL, AL.getLoc());
 
   // __attribute__((reqd_work_group_size)), [[cl::reqd_work_group_size]], and
-  // [[intell::max_work_group_size]] all require exactly three arguments.
+  // [[intel::max_work_group_size]] all require exactly three arguments.
   if ((AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
        AL.getAttributeSpellingListIndex() ==
            ReqdWorkGroupSizeAttr::CXX11_cl_reqd_work_group_size) ||

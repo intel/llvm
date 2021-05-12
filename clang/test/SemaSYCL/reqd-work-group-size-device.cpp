@@ -21,8 +21,16 @@ queue q;
 [[sycl::reqd_work_group_size(4, 4, 4)]] void four(); // OK
 
 // Same for the default values.
+// FIXME: This turns out to be wrong as there aren't really default values
+// (that is an implementation detail we use but shouldn't expose to the user).
+// Instead, the dimensionality of the attribute needs to match that of the
+// kernel, so the one, two, and three arg forms of the attribute are actually
+// *different* attributes. This means that you should not be able to redeclare
+// the function with a different dimensionality.
 [[intel::reqd_work_group_size(4)]] void four_again();
 [[sycl::reqd_work_group_size(4)]] void four_again(); // OK
+[[intel::reqd_work_group_size(4, 1)]] void four_again(); // OK
+[[sycl::reqd_work_group_size(4, 1)]] void four_again(); // OK
 [[intel::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
 [[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
 
