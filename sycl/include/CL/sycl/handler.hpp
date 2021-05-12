@@ -827,6 +827,7 @@ private:
       AdjustedRange.set_range_dim0(NewValX);
 #ifdef __SYCL_DEVICE_ONLY__
       kernel_parallel_for_wrapper<NameWT, TransformedArgType>(Wrapper);
+      detail::CheckDeviceCopyable<decltype(Wrapper)>();
 #else
       detail::checkValueRange<Dims>(AdjustedRange);
       MNDRDesc.set(std::move(AdjustedRange));
@@ -842,6 +843,7 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
       kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
+      detail::CheckDeviceCopyable<KernelType>();
 #else
       detail::checkValueRange<Dims>(NumWorkItems);
       MNDRDesc.set(std::move(NumWorkItems));
@@ -1177,6 +1179,7 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task_wrapper<NameT>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
@@ -1291,6 +1294,7 @@ public:
     (void)NumWorkItems;
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
@@ -1323,6 +1327,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)ExecutionRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
@@ -1556,6 +1561,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
@@ -1590,6 +1596,7 @@ public:
     (void)NumWorkGroups;
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
@@ -1684,6 +1691,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     kernel_single_task<NameT>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
@@ -1726,6 +1734,7 @@ public:
     (void)Kernel;
     (void)NumWorkItems;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
@@ -1762,6 +1771,7 @@ public:
     (void)NumWorkItems;
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
@@ -1798,6 +1808,7 @@ public:
     (void)Kernel;
     (void)NDRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
@@ -1838,6 +1849,7 @@ public:
     (void)Kernel;
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
@@ -1877,6 +1889,7 @@ public:
     (void)NumWorkGroups;
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
+    detail::CheckDeviceCopyable<KernelType>();
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);

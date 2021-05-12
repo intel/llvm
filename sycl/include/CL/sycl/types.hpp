@@ -2274,6 +2274,73 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef __SYCL_DECLARE_SCALAR_BOOL_CONVERTER
 #undef __SYCL_USE_EXT_VECTOR_TYPE__
 
+/// is_device_copyable is a user specializable class template to indicate
+/// that a type T is device copyable. If is_device_copyable is specialized such
+/// that is_device_copyable_v<T> == true on a T that does not satisfy all
+/// the requirements of a device copyable type, the results are unspecified.
+template <typename T, typename = void>
+struct is_device_copyable : std::false_type {};
+
+template <typename T>
+struct is_device_copyable<
+    T, std::enable_if_t<std::is_trivially_copyable<T>::value>>
+    : std::true_type {};
+
+#if __cplusplus >= 201703L
+template <typename T>
+inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
+#endif // __cplusplus >= 201703L
+
+// std::tuple<> is implicitly device copyable type.
+template <> struct is_device_copyable<std::tuple<>> : std::true_type {};
+
+// std::tuple<Ts...> is implicitly device copyable type if each type T of Ts...
+// is device copyable.
+template <typename T, typename... Ts>
+struct is_device_copyable<std::tuple<T, Ts...>>
+    : detail::bool_constant<is_device_copyable<T>::value &&
+                            is_device_copyable<std::tuple<Ts...>>::value> {};
+
+namespace detail {
+template <typename T, typename = void>
+struct IsDeprecatedDeviceCopyable : std::false_type {};
+
+// TODO: using C++ attrubute [[deprecated]] or the macro __SYCL2020_DEPRECATED
+// does not produce expected warning message for the type 'T'.
+template <typename T>
+struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
+    IsDeprecatedDeviceCopyable<
+        T, std::enable_if_t<std::is_trivially_copy_constructible<T>::value &&
+                            std::is_trivially_destructible<T>::value &&
+                            !is_device_copyable<T>::value>> : std::true_type {};
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename T, unsigned NumToCheck> struct CheckDeviceCopyableHelper;
+
+template <typename T> struct CheckDeviceCopyableHelper<T, 0> {};
+
+template <typename T> struct CheckDeviceCopyableHelper<T, 1> {
+  using FieldT = decltype(__builtin_field_type(T, 0));
+  static_assert(is_device_copyable<FieldT>::value ||
+                    detail::IsDeprecatedDeviceCopyable<FieldT>::value,
+                "Not device copyable!");
+};
+
+template <typename T, unsigned NumToCheck>
+struct CheckDeviceCopyableHelper
+    : CheckDeviceCopyableHelper<T, NumToCheck - 1> {
+  using FieldT = decltype(__builtin_field_type(T, NumToCheck - 1));
+  static_assert(is_device_copyable<FieldT>::value ||
+                    detail::IsDeprecatedDeviceCopyable<FieldT>::value,
+                "Not device copyable!");
+};
+
+template <typename FuncT>
+struct CheckDeviceCopyable
+    : CheckDeviceCopyableHelper<FuncT, __builtin_num_fields(FuncT)> {};
+#endif // __SYCL_DEVICE_ONLY__
+} // namespace detail
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
