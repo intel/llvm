@@ -66,7 +66,7 @@
 // FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 11}, image, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 13: linker, {0, 11}, image, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 15: input, "/export/iusers/mtoguchi/github/llvm/build/tools/clang/test/Driver/Output/sycl-offload-static-lib.cpp.tmp.a", archive
+// FOFFLOAD_STATIC_LIB_SRC: 15: input, "[[INPUTA]]", archive
 // FOFFLOAD_STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive
 // FOFFLOAD_STATIC_LIB_SRC: 17: linker, {5, 14, 16}, ir, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
