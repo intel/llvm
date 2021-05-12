@@ -391,8 +391,8 @@ esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
       ComputationTy;
   ComputationTy Product = convert<long long>(src0);
   Product *= src1;
-  rmd = Product.format<T0>().select<1, 1>[0];
-  return Product.format<T0>().select<1, 1>[1];
+  rmd = Product.bit_cast_view<T0>().select<1, 1>[0];
+  return Product.bit_cast_view<T0>().select<1, 1>[1];
 }
 
 template <typename T0, typename T1, typename U, int SZ>
@@ -405,8 +405,8 @@ esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
       ComputationTy;
   ComputationTy Product = convert<long long>(src0);
   Product *= src1;
-  rmd = Product.format<T0>().select<SZ, 2>(0);
-  return Product.format<T0>().select<SZ, 2>(1);
+  rmd = Product.bit_cast_view<T0>().select<SZ, 2>(0);
+  return Product.bit_cast_view<T0>().select<SZ, 2>(1);
 }
 #endif
 
@@ -907,12 +907,12 @@ esimd_pln(simd<float, 4> src0, simd<float, SZ> src1, simd<float, SZ> src2,
   // the next block of 8 from src1, then the next block of 8 from src2,
   // and so-on.)
   simd<float, (SZ >> 3) * 16> Src12v;
-  auto Src12 = Src12v.template format<float, (SZ >> 3), 16>();
+  auto Src12 = Src12v.template bit_cast_view<float, (SZ >> 3), 16>();
 
   Src12.select<(SZ >> 3), 1, 8, 1>(0, 0) =
-      src1.template format<float, (SZ >> 3), 8>();
+      src1.template bit_cast_view<float, (SZ >> 3), 8>();
   Src12.select<(SZ >> 3), 1, 8, 1>(0, 8) =
-      src2.template format<float, (SZ >> 3), 8>();
+      src2.template bit_cast_view<float, (SZ >> 3), 8>();
 
   simd<float, SZ> Result = __esimd_pln<SZ>(src0, Src12.read());
 
@@ -1266,7 +1266,7 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<(N != 8 && N != 16 && N < 32), uint>
     esimd_pack_mask(simd<ushort, N> src0) {
   simd<ushort, (N < 8 ? 8 : N < 16 ? 16 : 32)> src_0 = 0;
-  src_0.template select<N, 1>() = src0.template format<ushort>();
+  src_0.template select<N, 1>() = src0.template bit_cast_view<ushort>();
   return esimd_pack_mask(src_0);
 }
 
