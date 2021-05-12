@@ -7,8 +7,7 @@ sycl::queue deviceQueue;
 void defined() {
 }
 
-void undefined();
-// expected-note@-1 {{'undefined' declared here}}
+void undefined(); // #UNDEFINED
 
 SYCL_EXTERNAL void undefinedExternal();
 
@@ -79,6 +78,9 @@ struct TplWithTplMethod2<T, true> {
   }
 };
 
+template <typename T>
+void defined_only_in_discarded_stmt(){}
+
 void forwardDeclFn();
 void forwardDeclFn2();
 
@@ -95,21 +97,22 @@ int main() {
   undefined();
 
   deviceQueue.submit([&](sycl::handler &h) {
-    h.single_task<class CallToUndefinedFnTester>([]() {
-      // expected-note@-1 {{called by 'operator()'}}
-      // expected-note@-2 {{called by 'operator()'}}
+    h.single_task<class CallToUndefinedFnTester>([]() { // #CALLOP
 
       // simple functions
       defined();
       undefinedExternal();
       undefined();
       // expected-error@-1 {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
+      // expected-note@#UNDEFINED {{'undefined' declared here}}
+      // expected-note@#CALLOP {{called by 'operator()'}}
 
       // templated functions
       definedTpl<int>();
       undefinedExternalTpl<int>();
       undefinedTpl<int>();
       // expected-error@-1 {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
+      // expected-note@#CALLOP {{called by 'operator()'}}
 
       // partially specialized template function
       definedPartialTpl<int, false>();
@@ -165,6 +168,33 @@ int main() {
       useFwDeclFn();
       forwardDeclFn();
       forwardDeclFn2();
+
+      // expected-warning@+1 {{constexpr if is a C++17 extension}}
+      if constexpr (true) {
+        // expected-error@+3 {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
+        // expected-note@#CALLOP {{called by 'operator()'}}
+        // expected-note@#UNDEFINED {{'undefined' declared here}}
+        undefined();
+      } else {
+        // Should not diagnose.
+        undefined();
+      }
+
+      // Similar to the one above, just make sure the active branch being empty changes nothing.
+      // expected-warning@+1 {{constexpr if is a C++17 extension}}
+      if constexpr (true) {
+      } else {
+        // Should not diagnose.
+        undefined();
+      }
+
+      // Tests that an active 'else' where 'else' doesn't exist won't crash.
+      // expected-warning@+1 {{constexpr if is a C++17 extension}}
+      if constexpr (false) {
+        // Should not diagnose.
+        undefined();
+        defined_only_in_discarded_stmt<int>();
+      }
     });
   });
 }

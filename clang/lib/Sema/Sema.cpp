@@ -1686,6 +1686,15 @@ public:
     InUsePath.erase(FD);
   }
 
+  void VisitIfStmt(IfStmt *If) {
+    if (Optional<Stmt *> SubStmt = If->getNondiscardedCase(S.Context)) {
+      if (*SubStmt)
+        this->Visit(*SubStmt);
+    } else {
+      Inherited::VisitStmt(If);
+    }
+  }
+
   void checkRecordedDecl(Decl *D) {
     if (auto *FD = dyn_cast<FunctionDecl>(D)) {
       ShouldEmitRootNode = S.getEmissionStatus(FD, /*Final=*/true) ==
