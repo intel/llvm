@@ -17,8 +17,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 /// The simd vector class.
 ///
@@ -625,15 +627,18 @@ ESIMD_INLINE
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifndef __SYCL_DEVICE_ONLY__
 template <typename Ty, int N>
-std::ostream &operator<<(std::ostream &OS,
-                         const sycl::INTEL::gpu::simd<Ty, N> &V) {
+std::ostream &
+operator<<(std::ostream &OS,
+           const sycl::ext::intel::experimental::esimd::simd<Ty, N> &V) {
   OS << "{";
   for (int I = 0; I < N; I++) {
     OS << V[I];

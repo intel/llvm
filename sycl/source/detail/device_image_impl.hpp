@@ -218,6 +218,12 @@ private:
           MBinImage->getSpecConstants();
       using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
 
+      // get default values for specialization constants
+      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
+          MBinImage->getSpecConstantsDefaultValues();
+
+      bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
+
       // This variable is used to calculate spec constant value offset in a
       // flat byte array.
       unsigned BlobOffset = 0;
@@ -250,12 +256,20 @@ private:
           // supposed to be called from c'tor.
           MSpecConstSymMap[std::string{SCName}].push_back(
               SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
-                             /*Size*/ It[2], BlobOffset});
+                             /*Size*/ It[2], BlobOffset, HasDefaultValues});
           BlobOffset += /*Size*/ It[2];
           It += NumElements;
         }
       }
       MSpecConstsBlob.resize(BlobOffset);
+
+      if (HasDefaultValues) {
+        pi::ByteArray DefValDescriptors =
+            pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        std::uninitialized_copy(&DefValDescriptors[8],
+                                &DefValDescriptors[8] + MSpecConstsBlob.size(),
+                                MSpecConstsBlob.data());
+      }
     }
   }
 

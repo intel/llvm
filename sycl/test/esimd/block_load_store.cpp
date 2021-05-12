@@ -5,7 +5,7 @@
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 SYCL_EXTERNAL void kernel1(
@@ -13,21 +13,21 @@ SYCL_EXTERNAL void kernel1(
         &buf) SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   // expected-warning@+2 {{deprecated}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:188 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:190 {{}}
   auto v0 = block_load<int, 32>(buf, 0);
   v0 = v0 + v1;
   // expected-warning@+2 {{deprecated}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:220 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:222 {{}}
   block_store<int, 32>(buf, 0, v0);
 }
 
 SYCL_EXTERNAL void kernel2(int *ptr) SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   // expected-warning@+2 {{deprecated}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:169 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:171 {{}}
   auto v0 = block_load<int, 32>(ptr);
   v0 = v0 + v1;
   // expected-warning@+2 {{deprecated}}
-  // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:201 {{}}
+  // expected-note@CL/sycl/INTEL/esimd/esimd_memory.hpp:203 {{}}
   block_store<int, 32>(ptr, v0);
 }

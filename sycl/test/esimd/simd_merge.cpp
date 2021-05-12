@@ -5,7 +5,7 @@
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 bool test_simd_merge1() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;

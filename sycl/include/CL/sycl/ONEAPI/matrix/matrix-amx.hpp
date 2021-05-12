@@ -64,9 +64,6 @@ ELEMS_PER_DWORD(unsigned short, 2)
 } // namespace detail
 
 namespace experimental::matrix {
-using namespace cl::sycl;
-using namespace cl::sycl::ONEAPI;
-
 #ifdef __SYCL_DEVICE_ONLY__
 SYCL_EXTERNAL extern "C" _tile1024i
 _tileloadd64_internal(short row, short col, char *buf, size_t stride);

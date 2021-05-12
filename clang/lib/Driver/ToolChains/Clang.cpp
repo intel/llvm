@@ -8304,7 +8304,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     bool IsPIE;
     std::tie(RelocationModel, PICLevel, IsPIE) =
         ParsePICArgs(getToolChain(), TCArgs);
-    if (PICLevel > 0) {
+    if (PICLevel > 0 || TCArgs.hasArg(options::OPT_shared)) {
       LlcArgs.push_back("-relocation-model=pic");
     }
     if (IsPIE) {

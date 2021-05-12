@@ -79,11 +79,20 @@ struct _pi_platform {
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
 
+  // Cache driver extensions
+  std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
+
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
   std::mutex PiDevicesCacheMutex;
-  pi_device getDeviceFromNativeHandle(ze_device_handle_t);
   bool DeviceCachePopulated = false;
+
+  // Check the device cache and load it if necessary.
+  pi_result populateDeviceCacheIfNeeded();
+
+  // Return the PI device from cache that represents given native device.
+  // If not found, then nullptr is returned.
+  pi_device getDeviceFromNativeHandle(ze_device_handle_t);
 
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
