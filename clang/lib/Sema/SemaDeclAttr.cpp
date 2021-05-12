@@ -3310,8 +3310,8 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       Expr *YDimExpr = DeclAttr->getYDim();
       Expr *ZDimExpr = DeclAttr->getZDim();
 
-      if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent()
-	  && !ZDimExpr->isValueDependent()) {
+      if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+          !ZDimExpr->isValueDependent()) {
         llvm::APSInt XDimVal, YDimVal, ZDimVal;
         ExprResult XDim = VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
         ExprResult YDim = VerifyIntegerConstantExpression(YDimExpr, &YDimVal);
@@ -3329,15 +3329,15 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
           return;
         ZDimExpr = ZDim.get();
 
-        llvm::APSInt WorkGroupSize = DeclAttr->usesOpenCLArgOrdering()
-				         ? XDimVal : ZDimVal;
+        llvm::APSInt WorkGroupSize =
+            DeclAttr->usesOpenCLArgOrdering() ? XDimVal : ZDimVal;
 
         if (WorkGroupSize % ArgVal != 0) {
           Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
               << CI << DeclAttr;
           Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
           return;
-	}
+        }
       }
     }
   }
