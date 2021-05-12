@@ -6,9 +6,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
 
-// Regression in GPU RT 21.16.19610
-// XFAIL: level_zero && gpu
-
 //==----------------- badmalloc.cpp - Bad Mallocs test ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
