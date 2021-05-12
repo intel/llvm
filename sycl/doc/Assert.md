@@ -223,7 +223,7 @@ struct _pi_device_binary_property_struct {
 };
 ```
 
-A distinct property set `SYCL/assert used` is added. In this set a single
+A distinct property set `SYCL/assert used` is added. In this set a property
 with the name of the kernel is added whenever the kernel uses assert. Use of
 assert is detected through call to `__devicelib_assert_fail` function after
 linking device binary image with wrapper device library (the `libsycl-crt`
