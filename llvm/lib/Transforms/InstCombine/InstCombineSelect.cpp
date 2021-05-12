@@ -48,11 +48,6 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
-/// FIXME: Enabled by default until the pattern is supported well.
-static cl::opt<bool> EnableUnsafeSelectTransform(
-    "instcombine-unsafe-select-transform", cl::init(true),
-    cl::desc("Enable poison-unsafe select to and/or transform"));
-
 static Value *createMinMax(InstCombiner::BuilderTy &Builder,
                            SelectPatternFlavor SPF, Value *A, Value *B) {
   CmpInst::Predicate Pred = getMinMaxPred(SPF);
@@ -2664,32 +2659,14 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
 
   if (SelType->isIntOrIntVectorTy(1) &&
       TrueVal->getType() == CondVal->getType()) {
-    auto IsSafeToConvert = [&](Value *OtherVal) {
-      if (impliesPoison(OtherVal, CondVal))
-        return true;
-
-      if (!EnableUnsafeSelectTransform)
-        return false;
-
-      // We block this transformation if OtherVal or its operand can create
-      // poison. See PR49688
-      if (auto *Op = dyn_cast<Operator>(OtherVal)) {
-        if (canCreatePoison(Op))
-          return false;
-        if (propagatesPoison(Op) &&
-            llvm::any_of(Op->operand_values(), [](Value *V) {
-              return isa<Operator>(V) ? canCreatePoison(cast<Operator>(V))
-                                      : false;
-            }))
-          return false;
-      }
-      return true;
-    };
-    if (match(TrueVal, m_One()) && IsSafeToConvert(FalseVal)) {
+    // Folding select to and/or i1 isn't poison safe in general. impliesPoison
+    // checks whether folding it does not convert a well-defined value into
+    // poison.
+    if (match(TrueVal, m_One()) && impliesPoison(FalseVal, CondVal)) {
       // Change: A = select B, true, C --> A = or B, C
       return BinaryOperator::CreateOr(CondVal, FalseVal);
     }
-    if (match(FalseVal, m_Zero()) && IsSafeToConvert(TrueVal)) {
+    if (match(FalseVal, m_Zero()) && impliesPoison(TrueVal, CondVal)) {
       // Change: A = select B, C, false --> A = and B, C
       return BinaryOperator::CreateAnd(CondVal, TrueVal);
     }
@@ -2834,9 +2811,9 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
     }
   }
 
-  // See if we are selecting two values based on a comparison of the two values.
-  if (FCmpInst *FCI = dyn_cast<FCmpInst>(CondVal)) {
-    Value *Cmp0 = FCI->getOperand(0), *Cmp1 = FCI->getOperand(1);
+  if (auto *FCmp = dyn_cast<FCmpInst>(CondVal)) {
+    Value *Cmp0 = FCmp->getOperand(0), *Cmp1 = FCmp->getOperand(1);
+    // Are we selecting a value based on a comparison of the two values?
     if ((Cmp0 == TrueVal && Cmp1 == FalseVal) ||
         (Cmp0 == FalseVal && Cmp1 == TrueVal)) {
       // Canonicalize to use ordered comparisons by swapping the select
@@ -2844,13 +2821,13 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
       //
       // e.g.
       // (X ugt Y) ? X : Y -> (X ole Y) ? Y : X
-      if (FCI->hasOneUse() && FCmpInst::isUnordered(FCI->getPredicate())) {
-        FCmpInst::Predicate InvPred = FCI->getInversePredicate();
+      if (FCmp->hasOneUse() && FCmpInst::isUnordered(FCmp->getPredicate())) {
+        FCmpInst::Predicate InvPred = FCmp->getInversePredicate();
         IRBuilder<>::FastMathFlagGuard FMFG(Builder);
         // FIXME: The FMF should propagate from the select, not the fcmp.
-        Builder.setFastMathFlags(FCI->getFastMathFlags());
+        Builder.setFastMathFlags(FCmp->getFastMathFlags());
         Value *NewCond = Builder.CreateFCmp(InvPred, Cmp0, Cmp1,
-                                            FCI->getName() + ".inv");
+                                            FCmp->getName() + ".inv");
         Value *NewSel = Builder.CreateSelect(NewCond, FalseVal, TrueVal);
         return replaceInstUsesWith(SI, NewSel);
       }
