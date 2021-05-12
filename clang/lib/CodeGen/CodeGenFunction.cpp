@@ -1474,7 +1474,7 @@ enum class ArgDescEncoding {
   None
 };
 
-static ArgDescEncoding getArgDescEncoding(std::string KernelArgDesc) {
+static ArgDescEncoding getArgDescEncoding(StringRef KernelArgDesc) {
   return llvm::StringSwitch<ArgDescEncoding>(KernelArgDesc)
       .Case("base class", ArgDescEncoding::BaseClass)
       .Case("decomposed struct/class", ArgDescEncoding::DecomposedMember)
@@ -1545,11 +1545,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
       llvm::DiagnosticLocation DL =
           SourceLocToDebugLoc(ORI.value().KernelArgLoc);
-      std::string ArgName = ORI.value().KernelArgName;
-      std::string ArgType = ORI.value().KernelArgType;
-      std::string ArgDesc = ORI.value().KernelArgDesc;
+      StringRef ArgName = ORI.value().KernelArgName;
+      StringRef ArgType = ORI.value().KernelArgType;
+      StringRef ArgDesc = ORI.value().KernelArgDesc;
       unsigned ArgSize = ORI.value().KernelArgSize;
-      std::string ArgParent = ORI.value().KernelArgParent;
+      StringRef ArgParent = ORI.value().KernelArgParent;
 
       ArgDescEncoding ArgDescEnc = getArgDescEncoding(ArgDesc);
       bool isWrappedField = (ArgDescEnc == ArgDescEncoding::WrappedPointer ||
@@ -1561,13 +1561,14 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
                                       &Fn->getEntryBlock());
       Remark << "Arg " << llvm::ore::NV("Argument", ORI.index()) << ":"
              << ((ArgDescEnc != ArgDescEncoding::None)
-                     ? ("Compiler generated argument for " + ArgDesc + ",")
+                     ? ("Compiler generated argument for " + ArgDesc.str() +
+                        ",")
                      : "")
              << ((ArgDescEnc == ArgDescEncoding::DecomposedMember) ? ArgParent
                                                                    : ArgName)
              << "  ("
              << ((ArgDescEnc == ArgDescEncoding::DecomposedMember)
-                     ? ("Field:" + ArgName + ", ")
+                     ? ("Field:" + ArgName.str() + ", ")
                      : "")
              << "Type:" << ((isWrappedField) ? "Compiler generated" : ArgType)
              << ", "

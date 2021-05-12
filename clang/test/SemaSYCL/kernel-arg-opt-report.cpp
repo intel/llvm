@@ -8,24 +8,24 @@
 
 sycl::handler H;
 
-class decomposedbase {
+class DecomposedBase {
 public:
-  float decompvar;
-  int *decompptr;
+  float DecompVar;
+  int *DecompPtr;
   sycl::accessor<char, 1, sycl::access::mode::read> decompAcc;
-  sycl::stream decompStream{0, 0, H};
+  sycl::stream DecompStream{0, 0, H};
 };
 
-struct notdecomposedbase {
+struct NotDecomposedBase {
 public:
-  int b;
+  int B;
 };
 
-struct kernelfunctor : notdecomposedbase, decomposedbase {
-  int a;
-  int *ptr;
-  int array[3];
-  sycl::sampler sampl;
+struct KernelFunctor : NotDecomposedBase, DecomposedBase {
+  int A;
+  int *Ptr;
+  int Array[3];
+  sycl::sampler Sampl;
   void operator()() const {
   }
 };
@@ -34,7 +34,7 @@ int main() {
   sycl::queue q;
 
   q.submit([&](sycl::handler &cgh) {
-    kernelfunctor f{};
+    KernelFunctor f{};
     cgh.single_task(f);
   });
 
@@ -46,17 +46,17 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '0'
 // CHECK-NEXT: String:          ':'
 // CHECK-NEXT: String:          Compiler generated argument for base class,
-// CHECK-NEXT: String:          struct notdecomposedbase
+// CHECK-NEXT: String:          struct NotDecomposedBase
 // CHECK-NEXT: String:          '  ('
 // CHECK-NEXT: String:          ''
 // CHECK-NEXT: String:          'Type:'
-// CHECK-NEXT: String:          struct notdecomposedbase
+// CHECK-NEXT: String:          struct NotDecomposedBase
 // CHECK-NEXT: String:          ', '
 // CHECK-NEXT: String:          'Size: '
 // CHECK-NEXT: Argument:        '4'
@@ -67,15 +67,15 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '1'
 // CHECK-NEXT: String:          ':'
 // CHECK-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
-// CHECK-NEXT: String:          decomposedbase
+// CHECK-NEXT: String:          DecomposedBase
 // CHECK-NEXT: String:          '  ('
-// CHECK-NEXT: String:          'Field:decompvar, '
+// CHECK-NEXT: String:          'Field:DecompVar, '
 // CHECK-NEXT: String:          'Type:'
 // CHECK-NEXT: String:          float
 // CHECK-NEXT: String:          ', '
@@ -88,13 +88,13 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '2'
 // CHECK-NEXT: String:          ':'
 // CHECK-NEXT: String:          Compiler generated argument for nested pointer,
-// CHECK-NEXT: String:          decompptr
+// CHECK-NEXT: String:          DecompPtr
 // CHECK-NEXT: String:          '  ('
 // CHECK-NEXT: String:          ''
 // CHECK-NEXT: String:          'Type:'
@@ -109,7 +109,7 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '3'
@@ -130,7 +130,7 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '4'
@@ -151,7 +151,7 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '5'
@@ -172,7 +172,7 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '6'
@@ -193,13 +193,13 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '7'
 // CHECK-NEXT: String:          ':'
 // CHECK-NEXT: String:          Compiler generated argument for stream,
-// CHECK-NEXT: String:          decompStream
+// CHECK-NEXT: String:          DecompStream
 // CHECK-NEXT: String:          '  ('
 // CHECK-NEXT: String:          ''
 // CHECK-NEXT: String:          'Type:'
@@ -214,7 +214,7 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '8'
@@ -235,7 +235,7 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '9'
@@ -256,7 +256,7 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '10'
@@ -277,7 +277,7 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '11'
@@ -298,13 +298,13 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '12'
 // CHECK-NEXT: String:          ':'
 // CHECK-NEXT: String:          ''
-// CHECK-NEXT: String:          a
+// CHECK-NEXT: String:          A
 // CHECK-NEXT: String:          '  ('
 // CHECK-NEXT: String:          ''
 // CHECK-NEXT: String:          'Type:'
@@ -319,13 +319,13 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '13'
 // CHECK-NEXT: String:          ':'
 // CHECK-NEXT: String:          ''
-// CHECK-NEXT: String:          ptr
+// CHECK-NEXT: String:          Ptr
 // CHECK-NEXT: String:          '  ('
 // CHECK-NEXT: String:          ''
 // CHECK-NEXT: String:          'Type:'
@@ -340,13 +340,13 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '14'
 // CHECK-NEXT: String:          ':'
 // CHECK-NEXT: String:          Compiler generated argument for array,
-// CHECK-NEXT: String:          array
+// CHECK-NEXT: String:          Array
 // CHECK-NEXT: String:          '  ('
 // CHECK-NEXT: String:          ''
 // CHECK-NEXT: String:          'Type:'
@@ -361,13 +361,13 @@ int main() {
 // CHECK: Name:{{.*}}Region
 // CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // CHECK-NEXT: Line: 24, Column: 8 }
-// CHECK-NEXT: Function:        _ZTS13kernelfunctor
+// CHECK-NEXT: Function:        _ZTS13KernelFunctor
 // CHECK-NEXT: Args:
 // CHECK-NEXT: String:          'Arg '
 // CHECK-NEXT: Argument:        '15'
 // CHECK-NEXT: String:          ':'
 // CHECK-NEXT: String:          Compiler generated argument for sampler,
-// CHECK-NEXT: String:          sampl
+// CHECK-NEXT: String:          Sampl
 // CHECK-NEXT: String:          '  ('
 // CHECK-NEXT: String:          ''
 // CHECK-NEXT: String:          'Type:'

@@ -43,11 +43,11 @@ private:
   llvm::DenseMap<const FunctionDecl *, SmallVector<OptReportInfo>> Map;
 
 public:
-  void AddKernelArgs(const FunctionDecl *FD, std::string ArgName,
-                     std::string ArgType, SourceLocation ArgLoc,
-                     unsigned ArgSize, std::string ArgDesc,
-                     std::string ArgParent) {
-    Map[FD].emplace_back(ArgName, ArgType, ArgLoc, ArgSize, ArgDesc, ArgParent);
+  void AddKernelArgs(const FunctionDecl *FD, StringRef ArgName,
+                     StringRef ArgType, SourceLocation ArgLoc, unsigned ArgSize,
+                     StringRef ArgDesc, StringRef ArgParent) {
+    Map[FD].emplace_back(ArgName.data(), ArgType.data(), ArgLoc, ArgSize,
+                         ArgDesc.data(), ArgParent.data());
   }
   SmallVector<OptReportInfo> &GetInfo(const FunctionDecl *FD) {
     auto It = Map.find(FD);
