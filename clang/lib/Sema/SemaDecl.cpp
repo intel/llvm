@@ -18469,11 +18469,20 @@ Decl *Sema::getObjCDeclContext() const {
 }
 
 Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
+  // FIXME: This should really be a bitwise-or of the language modes.
   if (FD->hasAttr<SYCLSimdAttr>())
     return Sema::DeviceDiagnosticReason::Esimd;
-  else if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
+  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
     return Sema::DeviceDiagnosticReason::Sycl;
-  // FIXME: Figure out the logic for OMP and CUDA.
+  // FIXME: Refine the logic for CUDA and OpenMP.
+  if (getLangOpts().CUDA && getLangOpts().CUDAIsDevice)
+    return Sema::DeviceDiagnosticReason::CudaDevice;
+  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice)
+    return Sema::DeviceDiagnosticReason::CudaHost;
+  if (getLangOpts().OpenMPIsDevice)
+    return Sema::DeviceDiagnosticReason::OmpDevice;
+  if (getLangOpts().OpenMP && !getLangOpts().OpenMPIsDevice)
+    return Sema::DeviceDiagnosticReason::OmpHost;
   return Sema::DeviceDiagnosticReason::All;
 }
 

@@ -597,6 +597,15 @@ class SingleDeviceFunctionTracker {
       return;
     }
 
+    // If this is a routine that is not defined and it does not have either
+    // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
+    // routines potentially reachable on device.   This is to diagnose such
+    // cases later in finalizeSYCLDeviceAnalysis().
+    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
+        !CurrentDecl->hasAttr<SYCLDeviceAttr>())
+      Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
+                                                    CallStack.back());
+
     // We previously thought we could skip this function if we'd seen it before,
     // but if we haven't seen it before in this call graph, we can end up
     // missing a recursive call.  SO, we have to revisit call-graphs we've
@@ -3885,22 +3894,29 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
 void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                        const FunctionDecl *Callee,
-                                       SourceLocation Loc) {
+                                       SourceLocation Loc,
+                                       DeviceDiagnosticReason Reason) {
   // Somehow an unspecialized template appears to be in callgraph or list of
   // device functions. We don't want to emit diagnostic here.
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
     return;
 
   Callee = Callee->getMostRecentDecl();
-  bool HasAttr =
-      Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>();
 
-  // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-  bool NotDefinedNoAttr = !Callee->isDefined() && !HasAttr;
+  // If the reason for the emission of this diagnostic is not SYCL-specific,
+  // and it is not known to be reachable from a routine on device, do not
+  // issue a diagnostic.
+  if ((Reason & DeviceDiagnosticReason::Sycl) == DeviceDiagnosticReason::None &&
+      !isFDReachableFromSyclDevice(Callee, Caller))
+    return;
 
-  if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
-    Diag(Loc, diag::err_sycl_restrict)
-        << Sema::KernelCallUndefinedFunction;
+  // If Callee has a SYCL attribute, no diagnostic needed.
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+    return;
+
+  // Diagnose if this is an undefined function and it is not a builtin.
+  if (!Callee->isDefined() && !Callee->getBuiltinID()) {
+    Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
     Diag(Caller->getLocation(), diag::note_called_by) << Caller;
   }
