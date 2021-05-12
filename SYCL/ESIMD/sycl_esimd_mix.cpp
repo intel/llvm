@@ -11,7 +11,8 @@
 // REQUIRES: gpu
 // UNSUPPORTED: cuda
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECK,CHECK-WITH-VAR
 
 #include "esimd_test_utils.hpp"
 
@@ -120,3 +121,25 @@ int main(void) {
   }
   return 0;
 }
+
+// Regular SYCL kernel is compiled without -vc-codegen option
+
+// CHECK-LABEL: ---> piProgramBuild(
+// CHECK-NOT: -vc-codegen
+// CHECK-WITH-VAR: -g
+// CHECK-NOT: -vc-codegen
+// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-LABEL: ---> piKernelCreate(
+// CHECK: <const char *>: {{.*}}SyclKernel
+// CHECK: ) ---> pi_result : PI_SUCCESS
+
+// For ESIMD kernels, -vc-codegen option is always preserved,
+// regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
+
+// CHECK-LABEL: ---> piProgramBuild(
+// CHECK-NO-VAR: -vc-codegen
+// CHECK-WITH-VAR: -g -vc-codegen
+// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-LABEL: ---> piKernelCreate(
+// CHECK: <const char *>: {{.*}}EsimdKernel
+// CHECK: ) ---> pi_result : PI_SUCCESS
