@@ -11,14 +11,16 @@
 #pragma once
 
 #include <CL/sycl/INTEL/esimd/detail/esimd_intrin.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_memory_intrin.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_sycl_util.hpp>
 #include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
-
-using namespace sycl::INTEL::gpu::detail;
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 /// The simd vector class.
 ///
@@ -51,13 +53,13 @@ public:
     if constexpr (std::is_same<SrcTy, Ty>::value)
       set(other.data());
     else
-      set(__builtin_convertvector(other.data(), vector_type_t<Ty, N>));
+      set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
   }
   template <typename SrcTy> constexpr simd(simd<SrcTy, N> &&other) {
     if constexpr (std::is_same<SrcTy, Ty>::value)
       set(other.data());
     else
-      set(__builtin_convertvector(other.data(), vector_type_t<Ty, N>));
+      set(__builtin_convertvector(other.data(), detail::vector_type_t<Ty, N>));
   }
   constexpr simd(const vector_type &Val) { set(Val); }
 
@@ -134,7 +136,7 @@ public:
 
   /// View this simd object in a different element type.
   template <typename EltTy> auto format() & {
-    using TopRegionTy = compute_format_type_t<simd, EltTy>;
+    using TopRegionTy = detail::compute_format_type_t<simd, EltTy>;
     using RetTy = simd_view<simd, TopRegionTy>;
     TopRegionTy R(0);
     return RetTy{*this, R};
@@ -144,7 +146,8 @@ public:
   //
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width> auto format() & {
-    using TopRegionTy = compute_format_type_2d_t<simd, EltTy, Height, Width>;
+    using TopRegionTy =
+        detail::compute_format_type_2d_t<simd, EltTy, Height, Width>;
     using RetTy = simd_view<simd, TopRegionTy>;
     TopRegionTy R(0, 0);
     return RetTy{*this, R};
@@ -190,7 +193,7 @@ public:
   /// Read multiple elements by their indices in vector
   template <int Size>
   simd<Ty, Size> iselect(const simd<uint16_t, Size> &Indices) {
-    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
+    detail::vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
     return __esimd_rdindirect<Ty, N, Size>(data(), Offsets);
   }
   // TODO ESIMD_EXPERIMENTAL
@@ -205,7 +208,7 @@ public:
   template <int Size>
   void iupdate(const simd<uint16_t, Size> &Indices, const simd<Ty, Size> &Val,
                mask_type_t<Size> Mask) {
-    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
+    detail::vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
     set(__esimd_wrindirect<Ty, N, Size>(data(), Val.data(), Offsets, Mask));
   }
 
@@ -217,18 +220,18 @@ public:
   //   * if not different, then auto should not be used
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
   ESIMD_INLINE friend auto operator BINOP(const simd &X, const simd &Y) {      \
-    using ComputeTy = compute_type_t<simd>;                                    \
-    auto V0 = convert<typename ComputeTy::vector_type>(X.data());              \
-    auto V1 = convert<typename ComputeTy::vector_type>(Y.data());              \
+    using ComputeTy = detail::compute_type_t<simd>;                            \
+    auto V0 = detail::convert<typename ComputeTy::vector_type>(X.data());      \
+    auto V1 = detail::convert<typename ComputeTy::vector_type>(Y.data());      \
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
-    using ComputeTy = compute_type_t<simd>;                                    \
-    auto V0 = convert<typename ComputeTy::vector_type>(LHS.data());            \
-    auto V1 = convert<typename ComputeTy::vector_type>(RHS.data());            \
+    using ComputeTy = detail::compute_type_t<simd>;                            \
+    auto V0 = detail::convert<typename ComputeTy::vector_type>(LHS.data());    \
+    auto V1 = detail::convert<typename ComputeTy::vector_type>(RHS.data());    \
     auto V2 = V0 BINOP V1;                                                     \
-    LHS.write(convert<vector_type>(V2));                                       \
+    LHS.write(detail::convert<vector_type>(V2));                               \
     return LHS;                                                                \
   }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const Ty &RHS) {      \
@@ -255,7 +258,7 @@ public:
                                                        const simd &Y) {        \
     auto R = X.data() RELOP Y.data();                                          \
     mask_type_t<N> M(1);                                                       \
-    return M & convert<mask_type_t<N>>(R);                                     \
+    return M & detail::convert<mask_type_t<N>>(R);                             \
   }
 
   DEF_RELOP(>)
@@ -276,7 +279,7 @@ public:
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     static_assert(std::is_integral<Ty>(), "not integeral type");               \
     auto V2 = LHS.data() BITWISE_OP RHS.data();                                \
-    LHS.write(convert<vector_type>(V2));                                       \
+    LHS.write(detail::convert<vector_type>(V2));                               \
     return LHS;                                                                \
   }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const Ty &RHS) {      \
@@ -401,17 +404,18 @@ public:
 
   /// Write a simd-vector into a basic region of a simd object.
   template <typename RTy>
-  ESIMD_INLINE void writeRegion(
-      RTy Region,
-      const vector_type_t<typename RTy::element_type, RTy::length> &Val) {
+  ESIMD_INLINE void
+  writeRegion(RTy Region,
+              const detail::vector_type_t<typename RTy::element_type,
+                                          RTy::length> &Val) {
     using ElemTy = typename RTy::element_type;
     if constexpr (N * sizeof(Ty) == RTy::length * sizeof(ElemTy))
       // update the entire vector
-      set(bitcast<Ty, ElemTy, RTy::length>(Val));
+      set(detail::bitcast<Ty, ElemTy, RTy::length>(Val));
     else {
       static_assert(!RTy::Is_2D);
       // If element type differs, do bitcast conversion first.
-      auto Base = bitcast<ElemTy, Ty, N>(data());
+      auto Base = detail::bitcast<ElemTy, Ty, N>(data());
       constexpr int BN = (N * sizeof(Ty)) / sizeof(ElemTy);
       // Access the region information.
       constexpr int M = RTy::Size_x;
@@ -422,15 +426,15 @@ public:
       auto Merged = __esimd_wrregion<ElemTy, BN, M,
                                      /*VS*/ 0, M, Stride>(Base, Val, Offset);
       // Convert back to the original element type, if needed.
-      set(bitcast<Ty, ElemTy, BN>(Merged));
+      set(detail::bitcast<Ty, ElemTy, BN>(Merged));
     }
   }
 
   /// Write a simd-vector into a nested region of a simd object.
   template <typename TR, typename UR>
-  ESIMD_INLINE void
-  writeRegion(std::pair<TR, UR> Region,
-              const vector_type_t<typename TR::element_type, TR::length> &Val) {
+  ESIMD_INLINE void writeRegion(
+      std::pair<TR, UR> Region,
+      const detail::vector_type_t<typename TR::element_type, TR::length> &Val) {
     // parent-region type
     using PaTy = typename shape_type<UR>::type;
     using ElemTy = typename TR::element_type;
@@ -438,12 +442,12 @@ public:
     constexpr int BN = PaTy::length;
 
     if constexpr (PaTy::Size_in_bytes == TR::Size_in_bytes) {
-      writeRegion(Region.second, bitcast<BT, ElemTy, TR::length>(Val));
+      writeRegion(Region.second, detail::bitcast<BT, ElemTy, TR::length>(Val));
     } else {
       // Recursively read the base
-      auto Base = readRegion<Ty, N>(data(), Region.second);
+      auto Base = detail::readRegion<Ty, N>(data(), Region.second);
       // If element type differs, do bitcast conversion first.
-      auto Base1 = bitcast<ElemTy, BT, BN>(Base);
+      auto Base1 = detail::bitcast<ElemTy, BT, BN>(Base);
       constexpr int BN1 = PaTy::Size_in_bytes / sizeof(ElemTy);
 
       if constexpr (!TR::Is_2D) {
@@ -474,12 +478,55 @@ public:
             Base1, Val, Offset);
       }
       // Convert back to the original element type, if needed.
-      auto Merged1 = bitcast<BT, ElemTy, BN1>(Base1);
+      auto Merged1 = detail::bitcast<BT, ElemTy, BN1>(Base1);
       // recursively write it back to the base
       writeRegion(Region.second, Merged1);
     }
   }
 
+  /// @name Memory operations
+  /// TODO NOTE: These APIs do not support cache hint specification yet, as this
+  /// is WIP. Later addition of hints is not expected to break code using these
+  /// APIs.
+  ///
+  /// @{
+
+  /// Copy a contiguous block of data from memory into this simd object.
+  /// The amount of memory copied equals the total size of vector elements in
+  /// this object.
+  /// @param addr the memory address to copy from. Must be a pointer to the
+  /// global address space, otherwise behavior is undefined.
+  ESIMD_INLINE void copy_from(const Ty *const addr) SYCL_ESIMD_FUNCTION;
+
+  /// Copy a contiguous block of data from memory into this simd object.
+  /// The amount of memory copied equals the total size of vector elements in
+  /// this object.
+  /// Source memory location is represented via a global accessor and offset.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from.
+  template <typename AccessorT>
+  ESIMD_INLINE
+      detail::EnableIfAccessor<AccessorT, detail::accessor_mode_cap::can_read,
+                               sycl::access::target::global_buffer, void>
+      copy_from(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// @param addr the memory address to copy to. Must be a pointer to the
+  /// global address space, otherwise behavior is undefined.
+  ESIMD_INLINE void copy_to(Ty *addr) SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// Destination memory location is represented via a global accessor and
+  /// offset.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from.
+  template <typename AccessorT>
+  ESIMD_INLINE
+      detail::EnableIfAccessor<AccessorT, detail::accessor_mode_cap::can_write,
+                               sycl::access::target::global_buffer, void>
+      copy_to(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+
+  /// @} // Memory operations
 private:
   // The underlying data for this vector.
   vector_type M_data;
@@ -495,18 +542,103 @@ private:
 
 template <typename U, typename T, int n>
 ESIMD_INLINE simd<U, n> convert(simd<T, n> val) {
-  return __builtin_convertvector(val.data(), vector_type_t<U, n>);
+  return __builtin_convertvector(val.data(), detail::vector_type_t<U, n>);
 }
 
-} // namespace gpu
-} // namespace INTEL
+// ----------- Outlined implementations of esimd class APIs.
+
+template <typename T, int N> void simd<T, N>::copy_from(const T *const Addr) {
+  constexpr unsigned Sz = sizeof(T) * N;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+
+  uintptr_t AddrVal = reinterpret_cast<uintptr_t>(Addr);
+  *this =
+      __esimd_flat_block_read_unaligned<T, N, CacheHint::None, CacheHint::None>(
+          AddrVal);
+}
+
+template <typename T, int N>
+template <typename AccessorT>
+ESIMD_INLINE
+    detail::EnableIfAccessor<AccessorT, detail::accessor_mode_cap::can_read,
+                             sycl::access::target::global_buffer, void>
+    simd<T, N>::copy_from(AccessorT acc, uint32_t offset) {
+  constexpr unsigned Sz = sizeof(T) * N;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+#if defined(__SYCL_DEVICE_ONLY__)
+  auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
+  *this = __esimd_block_read<T, N>(surf_ind, offset);
+#else
+  *this = __esimd_block_read<T, N>(acc, offset);
+#endif // __SYCL_DEVICE_ONLY__
+}
+
+template <typename T, int N> void simd<T, N>::copy_to(T *addr) {
+  constexpr unsigned Sz = sizeof(T) * N;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+
+  uintptr_t AddrVal = reinterpret_cast<uintptr_t>(addr);
+  __esimd_flat_block_write<T, N, CacheHint::None, CacheHint::None>(AddrVal,
+                                                                   data());
+}
+
+template <typename T, int N>
+template <typename AccessorT>
+ESIMD_INLINE
+    detail::EnableIfAccessor<AccessorT, detail::accessor_mode_cap::can_write,
+                             sycl::access::target::global_buffer, void>
+    simd<T, N>::copy_to(AccessorT acc, uint32_t offset) {
+  constexpr unsigned Sz = sizeof(T) * N;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+
+#if defined(__SYCL_DEVICE_ONLY__)
+  auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
+  __esimd_block_write<T, N>(surf_ind, offset >> 4, data());
+#else
+  __esimd_block_write<T, N>(acc, offset >> 4, data());
+#endif // __SYCL_DEVICE_ONLY__
+}
+
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifndef __SYCL_DEVICE_ONLY__
 template <typename Ty, int N>
-std::ostream &operator<<(std::ostream &OS,
-                         const sycl::INTEL::gpu::simd<Ty, N> &V) {
+std::ostream &
+operator<<(std::ostream &OS,
+           const sycl::ext::intel::experimental::esimd::simd<Ty, N> &V) {
   OS << "{";
   for (int I = 0; I < N; I++) {
     OS << V[I];
@@ -516,4 +648,5 @@ std::ostream &operator<<(std::ostream &OS,
   OS << "}";
   return OS;
 }
+
 #endif

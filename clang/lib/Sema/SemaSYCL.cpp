@@ -3454,9 +3454,6 @@ public:
       * declared within namespace 'std' (at any level)
         e.g., namespace std { namespace literals { class Whatever; } }
         h.single_task<std::literals::Whatever>([]() {});
-      * declared within an anonymous namespace (at any level)
-        e.g., namespace foo { namespace { class Whatever; } }
-        h.single_task<foo::Whatever>([]() {});
       * declared within a function
         e.g., void foo() { struct S { int i; };
         h.single_task<S>([]() {}); }
@@ -3480,21 +3477,13 @@ public:
     if (DeclCtx && !UnnamedLambdaEnabled) {
 
       // Check if the kernel name declaration is declared within namespace
-      // "std" or "anonymous" namespace (at any level).
+      // "std" (at any level).
       while (!DeclCtx->isTranslationUnit() && isa<NamespaceDecl>(DeclCtx)) {
         const auto *NSDecl = cast<NamespaceDecl>(DeclCtx);
         if (NSDecl->isStdNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_invalid_std_type_in_sycl_kernel)
               << KernelNameType << DeclNamed;
-          IsInvalid = true;
-          return;
-        }
-        if (NSDecl->isAnonymousNamespace()) {
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::err_sycl_kernel_incorrectly_named)
-              << /* kernel name should be globally visible */ 0
-              << KernelNameType;
           IsInvalid = true;
           return;
         }
@@ -4808,7 +4797,7 @@ static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
   PrintNSClosingBraces(OS, Decl::castToDeclContext(AnonNS));
 
   ++ShimCounter;
-  return std::move(NewShimName);
+  return NewShimName;
 }
 
 // Emit the list of shims required for a DeclContext, calls itself recursively.
@@ -4854,7 +4843,7 @@ static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
          "Function assumes this is in an anonymous namespace");
   std::string RelativeName = VD->getNameAsString();
   EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
-  return std::move(RelativeName);
+  return RelativeName;
 }
 
 bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
@@ -4875,7 +4864,9 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << "template<>\n";
       OS << "inline const char *get_spec_constant_symbolic_ID<" << TopShim
          << ">() {\n";
-      OS << "  return " << TopShim << ";\n";
+      OS << "  return \"";
+      emitSpecIDName(OS, VD);
+      OS << "\";\n";
     } else {
       OS << "namespace sycl {\n";
       OS << "namespace detail {\n";

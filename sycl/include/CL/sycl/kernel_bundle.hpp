@@ -176,8 +176,8 @@ protected:
 
   bool has_specialization_constant_impl(const char *SpecName) const noexcept;
 
-  void set_specialization_constant_impl(const char *SpecName,
-                                        void *Value) noexcept;
+  void set_specialization_constant_impl(const char *SpecName, void *Value,
+                                        size_t Size) noexcept;
 
   void get_specialization_constant_impl(const char *SpecName, void *Value) const
       noexcept;
@@ -275,7 +275,8 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
     const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
-    set_specialization_constant_impl(SpecSymName, &Value);
+    set_specialization_constant_impl(SpecSymName, &Value,
+                                     sizeof(decltype(Value)));
   }
 
   /// \returns the value of the specialization constant whose address is

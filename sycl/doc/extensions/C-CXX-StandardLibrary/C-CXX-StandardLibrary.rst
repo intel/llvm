@@ -53,6 +53,9 @@ List of supported functions from C standard library:
   - acoshf, acosh         (from <math.h> or <cmath>)
   - asinhf, asinh         (from <math.h> or <cmath>)
   - atanhf, atanh         (from <math.h> or <cmath>)
+  - scalbnf, scalbn       (from <math.h> or <cmath>)
+  - abs, labs, llabs      (from <stdlib.h> or <cstdlib>)
+  - div, ldiv, lldiv      (from <stdlib.h> or <cstdlib>)
   - cimagf, cimag         (from <complex.h>)
   - crealf, creal         (from <complex.h>)
   - cargf, carg           (from <complex.h>)
@@ -84,19 +87,6 @@ a baseline.
 NOTE: Only the GNU glibc, Microsoft C libraries are currently
 supported. Not all functions from <math.h> are supported right now,
 following math functions are not supported now:
- - abs
- - ceilf, ceil
- - copysignf, copysign
- - fabsf, fabs
- - floorf, floor
- - fmaxf, fmax
- - fminf, fmin
- - nextafterf, nextafter
- - rintf, rint
- - roundf, round
- - truncf, trunc
- - scalbnf, scalbn
- - nearbyintf, nearbyint
  - lrintf, lrint
  - nexttowardf, nexttoward
  - nanf, nan

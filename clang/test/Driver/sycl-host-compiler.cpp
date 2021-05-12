@@ -27,13 +27,11 @@
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS %s
 // HOST_PREPROCESS: g++{{.*}} "-E"{{.*}} "-o" "[[PPOUT:.+\.ii]]"
-// HOST_PREPROCESS: g++{{.*}} "-E"{{.*}} "-o" "-"
 // HOST_PREPROCESS: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT]]"
 
 // RUN: %clang_cl -fsycl -fsycl-host-compiler=cl -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS_CL %s
 // HOST_PREPROCESS_CL: cl{{.*}} "-P"{{.*}} "-Fi[[PPOUT:.+\.ii]]"
-// HOST_PREPROCESS_CL: cl{{.*}} "-E"
 // HOST_PREPROCESS_CL: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT]]"
 
 /// obj output
