@@ -5,6 +5,7 @@
 ;; with following commands:
 ;; clang++ -fsycl -fsycl-device-only kernel-and-program.cpp -o kernel_and_program_optimized.bc
 
+; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
 ; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
 
 ; ModuleID = 'kernel_and_program_optimized.bc'
