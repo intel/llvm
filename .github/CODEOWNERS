@@ -9,8 +9,11 @@ clang/**/Driver @mdtoguchi @AGindinson
 # LLVM-SPIRV translator
 llvm-spirv/ @AlexeySotkin @AlexeySachkov
 
+# OpenCL deps
+opencl/ @pvchupin @vladimirlaz
+
 # OpenCL "offline" compiler
-opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
+opencl/opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 
 # Device library
 libdevice/ @vzakhari @jinge90

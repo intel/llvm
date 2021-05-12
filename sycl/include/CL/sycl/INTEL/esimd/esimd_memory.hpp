@@ -20,8 +20,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 // TODO @Pennycook
 // {quote}
@@ -249,8 +251,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     gather(AccessorTy acc, simd<uint32_t, N> offsets,
            uint32_t glob_offset = 0) {
 
-  constexpr int TypeSizeLog2 =
-      sycl::INTEL::gpu::detail::ElemsPerAddrEncoding<sizeof(T)>();
+  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t scale = 0;
   constexpr uint32_t t_scale = sizeof(T);
@@ -275,7 +276,7 @@ ESIMD_INLINE ESIMD_NODEBUG
         __esimd_surf_read<PromoT, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
             scale, acc, glob_offset, offsets);
 #endif
-    return sycl::INTEL::gpu::convert<T>(promo_vals);
+    return convert<T>(promo_vals);
   } else {
 #if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
@@ -317,8 +318,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
             uint32_t glob_offset = 0, simd<uint16_t, N> pred = 1) {
 
-  constexpr int TypeSizeLog2 =
-      sycl::INTEL::gpu::detail::ElemsPerAddrEncoding<sizeof(T)>();
+  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t scale = 0;
   constexpr uint32_t t_scale = sizeof(T);
@@ -333,7 +333,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     using PromoT =
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
-    const simd<PromoT, N> promo_vals = sycl::INTEL::gpu::convert<PromoT>(vals);
+    const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
 #if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     __esimd_surf_write<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
@@ -994,7 +994,9 @@ esimd_raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
 }
 /// @}
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

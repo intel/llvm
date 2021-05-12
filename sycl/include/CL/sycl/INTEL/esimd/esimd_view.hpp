@@ -14,8 +14,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 /// The reference class.
 ///
@@ -443,7 +445,9 @@ private:
   RegionTy M_region;
 };
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
