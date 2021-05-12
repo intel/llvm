@@ -3095,20 +3095,25 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     // semantics. First and last argument are only swapped for the atributes in
     // SYCL and not the OpenCL ones.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-      int64_t NumSimdWorkItems =
-          A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
-
-      bool UsesOpenCLArgOrdering =
+      Expr *E = A->getValue();
+      if (!E->isValueDependent()) {
+        llvm::APSInt ArgVal;
+        ExprResult Res = S.VerifyIntegerConstantExpression(E, &ArgVal);
+        if (Res.isInvalid())
+          return;
+        E = Res.get();
+        bool UsesOpenCLArgOrdering =
           AL.getSyntax() == AttributeCommonInfo::AS_GNU;
 
-      unsigned WorkGroupSize = UsesOpenCLArgOrdering ? XDimVal.getZExtValue()
-                                                     : ZDimVal.getZExtValue();
+        llvm::APSInt WorkGroupSize = UsesOpenCLArgOrdering
+                                         ? XDimVal : ZDimVal;
 
-      if (WorkGroupSize % NumSimdWorkItems != 0) {
-        S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
-            << A << AL;
-        S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
-        return;
+        if (WorkGroupSize % ArgVal != 0) {
+          S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+              << A << AL;
+          S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
+          return;
+        }
       }
     }
 
