@@ -350,14 +350,12 @@ states of definedness of `NDEBUG` macro available:
 | 4 | undefined  | undefined  |
 
 States of definedness of `NDEBUG` macro defines the set of assertions which can
-fail. Having assertions enabled in at least one translation unit with device
-code requires for `isAssertEnabled` property set being present in device image
-descriptor structure.
+fail.
 
 ### Raising assert failure flag and reading it on host
 
 Each and every translation unit provided by user should have declaration of
-assert flag read function:
+assert flag read function available:
 ```c++
 int __devicelib_assert_read(void);
 ```
