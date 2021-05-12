@@ -57,5 +57,10 @@ struct interop<backend::cuda, accessor<DataT, Dimensions, AccessMode,
   using type = CUdeviceptr;
 };
 
+template <typename DataT, int Dimensions>
+struct interop<backend::cuda, buffer<DataT, Dimensions>> {
+  using type = CUdeviceptr;
+};
+
 } // namespace sycl
 } // namespace cl
