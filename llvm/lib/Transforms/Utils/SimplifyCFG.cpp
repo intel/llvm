@@ -2002,13 +2002,15 @@ static bool SinkCommonCodeFromPredecessors(BasicBlock *BB,
   //         [ end ]
   //
   SmallVector<BasicBlock*,4> UnconditionalPreds;
-  bool AllPredsAreUnconditional = false;
-  for (auto *PredBB : predecessors(BB)) {
-    auto *PredBr = dyn_cast<BranchInst>(PredBB->getTerminator());
-    if (PredBr && PredBr->isUnconditional())
-      UnconditionalPreds.push_back(PredBB);
+  Instruction *Cond = nullptr;
+  for (auto *B : predecessors(BB)) {
+    auto *T = B->getTerminator();
+    if (isa<BranchInst>(T) && cast<BranchInst>(T)->isUnconditional())
+      UnconditionalPreds.push_back(B);
+    else if ((isa<BranchInst>(T) || isa<SwitchInst>(T)) && !Cond)
+      Cond = T;
     else
-      AllPredsAreUnconditional = true;
+      return false;
   }
   if (UnconditionalPreds.size() < 2)
     return false;
@@ -2124,7 +2126,7 @@ static bool SinkCommonCodeFromPredecessors(BasicBlock *BB,
 
   bool Changed = false;
 
-  if (AllPredsAreUnconditional) {
+  if (Cond) {
     // It is always legal to sink common instructions from unconditional
     // predecessors. However, if not all predecessors are unconditional,
     // this transformation might be pessimizing. So as a rule of thumb,
