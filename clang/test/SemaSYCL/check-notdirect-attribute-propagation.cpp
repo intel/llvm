@@ -26,7 +26,7 @@ func_three() {
 #endif
 
 template <typename Name, typename Type>
-[[clang::sycl_kernel]] void __my_kernel__(Type bar) {
+[[clang::sycl_kernel]] void __my_kernel__(const Type &bar) {
   bar();
 #ifndef TRIGGER_ERROR
   func_one();

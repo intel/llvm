@@ -994,7 +994,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
       llvm::report_fatal_error(
           "ITT annotations can only by added to a module with spir target");
-    PerModulePasses.add(createSPIRITTAnnotationsPass());
+    PerModulePasses.add(createSPIRITTAnnotationsLegacyPass());
   }
 
   // Allocate static local memory in SYCL kernel scope for each allocation call.

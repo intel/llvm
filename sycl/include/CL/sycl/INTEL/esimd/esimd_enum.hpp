@@ -15,8 +15,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 using uchar = unsigned char;
 using ushort = unsigned short;
@@ -116,8 +118,9 @@ enum class EsimdSbarrierType : uint8_t {
 #define ESIMD_SBARRIER_WAIT EsimdSbarrierType::WAIT
 #define ESIMD_SBARRIER_SIGNAL EsimdSbarrierType::SIGNAL
 
-} // namespace gpu
-
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
