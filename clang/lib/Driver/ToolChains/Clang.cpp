@@ -50,8 +50,6 @@
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Support/YAMLParser.h"
 
-#include <fstream>
-
 using namespace clang::driver;
 using namespace clang::driver::tools;
 using namespace clang;
@@ -4579,12 +4577,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
 
-    // Add the integration footer option to generated the footer.
-    StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
-    if (!Footer.empty()) {
-      SmallString<128> FooterOpt("-fsycl-int-footer=");
-      FooterOpt.append(Footer);
-      CmdArgs.push_back(Args.MakeArgString(FooterOpt));
+    if (Args.hasArg(options::OPT_fsycl_use_footer)) {
+      // Add the integration footer option to generated the footer.
+      StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
+      if (!Footer.empty()) {
+        SmallString<128> FooterOpt("-fsycl-int-footer=");
+        FooterOpt.append(Footer);
+        CmdArgs.push_back(Args.MakeArgString(FooterOpt));
+      }
     }
 
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
