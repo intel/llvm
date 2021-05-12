@@ -11,15 +11,20 @@
 [[sycl::work_group_size_hint(4, 1, 1)]] void f3();
 [[sycl::work_group_size_hint(32, 1, 1)]] void f3() {}
 
+// FIXME: the attribute is like reqd_work_group_size in that it has a one, two,
+// and three arg form that needs to be supported.
+[[sycl::work_group_size_hint(1)]] void f4(); // expected-error {{'work_group_size_hint' attribute requires exactly 3 arguments}}
+[[sycl::work_group_size_hint(1, 1)]] void f5(); // expected-error {{'work_group_size_hint' attribute requires exactly 3 arguments}}
+
 // The GNU spelling is deprecated in SYCL mode, but otherwise these attributes
 // have the same semantics.
-[[sycl::work_group_size_hint(4, 1, 1)]] void f5();
-__attribute__((work_group_size_hint(4, 1, 1))) void f5(); // expected-warning {{attribute 'work_group_size_hint' is deprecated}} \
+[[sycl::work_group_size_hint(4, 1, 1)]] void f6();
+__attribute__((work_group_size_hint(4, 1, 1))) void f6(); // expected-warning {{attribute 'work_group_size_hint' is deprecated}} \
                                                           // expected-note {{did you mean to use '[[sycl::work_group_size_hint]]' instead?}}
 
 // Catch the easy case where the attributes are all specified at once with
 // different arguments.
-[[sycl::work_group_size_hint(4, 1, 1), sycl::work_group_size_hint(32, 1, 1)]] void f6(); // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
+[[sycl::work_group_size_hint(4, 1, 1), sycl::work_group_size_hint(32, 1, 1)]] void f7(); // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
 
 // Show that the attribute works on member functions.
 class Functor {
