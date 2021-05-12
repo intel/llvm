@@ -10,3 +10,4 @@
 [[sycl::reqd_work_group_size(1, 1, 1)]] void f1(); // expected-warning {{use of attribute 'reqd_work_group_size' is a SYCL 2020 extension}}
 [[sycl::work_group_size_hint(1, 1, 1)]] void f2(); // expected-warning {{use of attribute 'work_group_size_hint' is a SYCL 2020 extension}}
 [[sycl::reqd_sub_group_size(1)]] void f3(); // expected-warning {{use of attribute 'reqd_sub_group_size' is a SYCL 2020 extension}}
+[[sycl::vec_type_hint(int)]] void f4(); // expected-warning {{use of attribute 'vec_type_hint' is a SYCL 2020 extension}}

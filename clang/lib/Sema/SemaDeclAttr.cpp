@@ -3647,11 +3647,15 @@ static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
-  // This attribute is deprecated without replacement in SYCL mode.
-  if (S.LangOpts.SYCLIsDevice || S.LangOpts.SYCLIsHost) {
-    S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated)
-        << "'" + AL.getNormalizedFullName() + "'";
-  }
+  // This attribute is deprecated without replacement in SYCL 2020 mode.
+  if (S.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017)
+    S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated) << AL;
+
+  // If the attribute is used with the [[sycl::vec_type_hint]] spelling in SYCL
+  // 2017 mode, we want to warn about using the newer name in the older
+  // standard as a compatibility extension.
+  if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && AL.hasScope())
+    S.Diag(AL.getLoc(), diag::ext_sycl_2020_attr_spelling) << AL;
 
   if (!AL.hasParsedType()) {
     S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;

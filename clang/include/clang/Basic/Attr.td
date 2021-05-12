@@ -3370,8 +3370,7 @@ def VectorSize : TypeAttr {
 }
 
 def VecTypeHint : InheritableAttr {
-  // Does not have a [[]] spelling because it is an OpenCL-related attribute.
-  let Spellings = [GNU<"vec_type_hint">];
+  let Spellings = [GNU<"vec_type_hint">, CXX11<"sycl", "vec_type_hint">];
   let Args = [TypeArgument<"TypeHint">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [Undocumented];
