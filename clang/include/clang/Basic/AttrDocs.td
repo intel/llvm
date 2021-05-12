@@ -2623,7 +2623,7 @@ increments the fastest, followed by Y, then Z. If we preserve that definition
 of X, Y, and Z, then in SYCL the attribute is specified as
 ``[[intel::reqd_work_group_size(Z, Y, X)]]`` or
 ``[[cl::reqd_work_group_size(Z, Y, X)]]``. This gets more complicated in the
-case where fewer than three arguments are provided since
+-case where fewer than three arguments are provided since
 ``[[intel::reqd_work_group_size(Z, Y, X)]]`` attribute spelling allows
 the Y and Z arguments to be optional. In such a case it's not the ``X`` argument
 that is omitted (by the definitions of X, Y, and Z above) it's the ``Z``
@@ -2668,10 +2668,11 @@ Fore more information, see the documentation about required work-group size.
 If the ``__attribute__((reqd_work_group_size()))`` attribute is specified on
 a declaration along with a ``intel::num_simd_work_items``
 attribute, the required work-group size (``X`` dimention, which is the first
-dimension in the reqd_work_group_size) must be evenly divisible by
-the argument specified in the ``intel::num_simd_work_items`` attribute.
-GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantic. The first and
-last dimension are only swapped for the attributes in SYCL and not the OpenCL ones.
+dimension in the reqd_work_group_size by the definitions of X, Y, and Z above)
+must be evenly divisible by the argument specified in the
+``intel::num_simd_work_items`` attribute. GNU spelling of ReqdWorkGroupSizeAttr
+maps to the OpenCL semantic. The first and last dimension are only swapped for
+the attributes in SYCL and not the OpenCL ones.
 
 .. code-block:: c++
 

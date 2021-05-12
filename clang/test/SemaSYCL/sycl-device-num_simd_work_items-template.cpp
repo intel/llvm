@@ -93,3 +93,72 @@ int check() {
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 2
 // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+
+// Tests for num_simd_work_items and reqd_work_group_size arguments check.
+template <int N>
+__attribute__((reqd_work_group_size(3, 6, 4))) void func6(); // expected-note{{conflicting attribute is here}}
+template <int N>
+[[intel::num_simd_work_items(N)]] void func6(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+template <int N>
+[[cl::reqd_work_group_size(8, 4, 5)]] void func7(); // expected-note{{conflicting attribute is here}}
+template <int N>
+[[intel::num_simd_work_items(N)]] void func7(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+template <int N>
+[[intel::reqd_work_group_size(N, N, N)]] void func8(); // expected-note{{conflicting attribute is here}}
+template <int N>
+[[intel::num_simd_work_items(3)]] void func8(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+template <int X, int Y, int Z, int N>
+[[intel::reqd_work_group_size(X, Y, Z)]] void func9(); // expected-note{{conflicting attribute is here}}
+template <int X, int Y, int Z, int N>
+[[intel::num_simd_work_items(N)]] void func9(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+template <int X, int Y, int Z>
+[[intel::reqd_work_group_size(X, Y, Z)]] void func10(); // expected-note{{conflicting attribute is here}}
+template <int X, int Y, int Z>
+[[intel::num_simd_work_items(3)]] void func10(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+template <int X, int Y, int Z>
+[[cl::reqd_work_group_size(X, Y, Z)]] void func11(); // expected-note{{conflicting attribute is here}}
+template <int X, int Y, int Z>
+[[intel::num_simd_work_items(2)]] void func11(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+template <int N>
+[[cl::reqd_work_group_size(N, N, N)]] void func12(); // expected-note{{conflicting attribute is here}}
+template <int N>
+[[intel::num_simd_work_items(2)]] void func12(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+int check1() {
+  // no error expected
+  func6<3>();
+  //expected-note@+1{{in instantiation of function template specialization 'func6<2>' requested here}}
+  func6<2>();
+  //expected-note@+1{{in instantiation of function template specialization 'func7<4>' requested here}}
+  func7<4>();
+  // no error expected
+  func7<5>();
+  //expected-note@+1{{in instantiation of function template specialization 'func8<5>' requested here}}
+  func8<5>();
+  // no error expected
+  func8<3>();
+  //expected-note@+1{{in instantiation of function template specialization 'func9<6, 3, 5, 3>' requested here}}
+  func9<6, 3, 5, 3>();
+  // no error expected
+  func9<9, 6, 3, 3>();
+  //expected-note@+1{{in instantiation of function template specialization 'func10<6, 3, 5>' requested here}}
+  func10<6, 3, 5>();
+  // no error expected
+  func10<9, 6, 3>();
+  //expected-note@+1{{in instantiation of function template specialization 'func11<6, 4, 5>' requested here}}
+  func11<6, 4, 5>();
+  // no error expected
+  func11<8, 6, 2>();
+  //expected-note@+1{{in instantiation of function template specialization 'func12<3>' requested here}}
+  func12<3>();
+  // no error expected
+  func12<2>();
+  return 0;
+}
+
