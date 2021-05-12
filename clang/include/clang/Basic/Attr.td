@@ -1239,6 +1239,23 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+// The attribute denotes that it is a function written in a scalar fashion, which
+// is used in ESIMD context and needs to be vectorized by a vector backend compiler.
+// For now, this attribute will be used only in internal implementation of
+// specific public ESIMD APIs. It is not supposed to be used directly in the
+// user code, hence it is undocumented.
+// The argument of the attribute specifies the number of SIMD lanes, for which
+// the function should be vectorized.
+def SYCLIntelESimdVectorize : InheritableAttr {
+  let Spellings = [CXX11<"intel", "sycl_esimd_vectorize">];
+  let Args = [ExprArgument<"Value">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice];
+  let Documentation = [Undocumented];
+  let SupportsNonconformingLambdaSyntax = 1;
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLScope : Attr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
@@ -1615,6 +1632,12 @@ def NoMerge : DeclOrStmtAttr {
   let SimpleHandler = 1;
 }
 
+def MustTail : StmtAttr {
+  let Spellings = [Clang<"musttail">];
+  let Documentation = [MustTailDocs];
+  let Subjects = SubjectList<[ReturnStmt], ErrorDiag, "return statements">;
+}
+
 def FastCall : DeclOrTypeAttr {
   let Spellings = [GCC<"fastcall">, Keyword<"__fastcall">,
                    Keyword<"_fastcall">];
@@ -1974,6 +1997,21 @@ def : MutualExclusions<[SYCLIntelFPGAIVDep,
                         SYCLIntelFPGADisableLoopPipelining]>;
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
+
+def SYCLIntelFPGALoopCount : StmtAttr {
+  let Spellings = [CXX11<"intel", "loop_count_min">,
+                   CXX11<"intel", "loop_count_max">,
+                   CXX11<"intel", "loop_count_avg">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Accessors = [Accessor<"isMin", [CXX11<"intel", "loop_count_min">]>,
+                   Accessor<"isMax", [CXX11<"intel", "loop_count_max">]>,
+                   Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>];
+  let Args = [ExprArgument<"NTripCount">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let IsStmtDependent = 1;
+  let Documentation = [SYCLIntelFPGALoopCountAttrDocs];
+}
 
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;

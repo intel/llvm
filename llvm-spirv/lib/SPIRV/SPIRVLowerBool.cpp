@@ -54,6 +54,7 @@ namespace SPIRV {
 class SPIRVLowerBoolBase : public InstVisitor<SPIRVLowerBoolBase> {
 public:
   SPIRVLowerBoolBase() : Context(nullptr) {}
+  virtual ~SPIRVLowerBoolBase() {}
   void replace(Instruction *I, Instruction *NewI) {
     NewI->takeName(I);
     I->replaceAllUsesWith(NewI);

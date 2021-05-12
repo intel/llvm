@@ -17,6 +17,8 @@ func @nested_loops_both_having_invariant_code() {
   // CHECK-NEXT: %cst_0 = constant 8.000000e+00 : f32
   // CHECK-NEXT: %1 = addf %cst, %cst_0 : f32
   // CHECK-NEXT: affine.for %arg0 = 0 to 10 {
+  // CHECK-NEXT: }
+  // CHECK-NEXT: affine.for %{{.*}} = 0 to 10 {
   // CHECK-NEXT: affine.store %1, %0[%arg0] : memref<10xf32>
 
   return
@@ -61,6 +63,33 @@ func @nested_loops_code_invariant_to_both() {
   // CHECK-NEXT: %cst = constant 7.000000e+00 : f32
   // CHECK-NEXT: %cst_0 = constant 8.000000e+00 : f32
   // CHECK-NEXT: %1 = addf %cst, %cst_0 : f32
+
+  return
+}
+
+// -----
+
+// CHECK-LABEL: func @nested_loops_inner_loops_invariant_to_outermost_loop
+func @nested_loops_inner_loops_invariant_to_outermost_loop(%m : memref<10xindex>) {
+  affine.for %arg0 = 0 to 20 {
+    affine.for %arg1 = 0 to 30 {
+      %v0 = affine.for %arg2 = 0 to 10 iter_args (%prevAccum = %arg1) -> index {
+        %v1 = affine.load %m[%arg2] : memref<10xindex>
+        %newAccum = addi %prevAccum, %v1 : index
+        affine.yield %newAccum : index
+      }
+    }
+  }
+
+  // CHECK:      affine.for %{{.*}} = 0 to 30 {
+  // CHECK-NEXT:   %{{.*}}  = affine.for %{{.*}}  = 0 to 10 iter_args(%{{.*}} = %{{.*}}) -> (index) {
+  // CHECK-NEXT:     %{{.*}}  = affine.load %{{.*}}[%{{.*}}  : memref<10xindex>
+  // CHECK-NEXT:     %{{.*}}  = addi %{{.*}}, %{{.*}} : index
+  // CHECK-NEXT:     affine.yield %{{.*}} : index
+  // CHECK-NEXT:   }
+  // CHECK-NEXT: }
+  // CHECK-NEXT: affine.for %{{.*}} = 0 to 20 {
+  // CHECK-NEXT: }
 
   return
 }
@@ -228,8 +257,9 @@ func @load_after_load() {
   // CHECK-NEXT: %2 = addf %cst, %cst : f32
   // CHECK-NEXT: affine.for %arg0 = 0 to 10 {
   // CHECK-NEXT: %3 = affine.load %0[%arg0] : memref<10xf32>
-  // CHECK-NEXT: affine.for %arg1 = 0 to 10 {
-  // CHECK-NEXT: %4 = affine.load %0[%arg1] : memref<10xf32>
+  // CHECK-NEXT: }
+  // CHECK-NEXT: affine.for %{{.*}} = 0 to 10 {
+  // CHECK-NEXT: %{{.*}} = affine.load %{{.*}}[%{{.*}}] : memref<10xf32>
 
   return
 }
@@ -252,6 +282,8 @@ func @invariant_affine_if() {
   // CHECK: %0 = memref.alloc() : memref<10xf32>
   // CHECK-NEXT: %cst = constant 8.000000e+00 : f32
   // CHECK-NEXT: affine.for %arg0 = 0 to 10 {
+  // CHECK-NEXT: }
+  // CHECK-NEXT: affine.for %{{.*}} = 0 to 10 {
   // CHECK-NEXT: affine.if #set(%arg0, %arg0) {
   // CHECK-NEXT: %1 = addf %cst, %cst : f32
   // CHECK-NEXT: affine.store %1, %0[%arg0] : memref<10xf32>
@@ -386,6 +418,8 @@ func @invariant_affine_nested_if_else2() {
   // CHECK-NEXT: %1 = memref.alloc() : memref<10xf32>
   // CHECK-NEXT: %cst = constant 8.000000e+00 : f32
   // CHECK-NEXT: affine.for %arg0 = 0 to 10 {
+  // CHECK-NEXT: }
+  // CHECK-NEXT: affine.for %{{.*}} = 0 to 10 {
   // CHECK-NEXT: affine.if #set(%arg0, %arg0) {
   // CHECK-NEXT: %2 = addf %cst, %cst : f32
   // CHECK-NEXT: %3 = affine.load %0[%arg0] : memref<10xf32>
@@ -420,6 +454,8 @@ func @invariant_affine_nested_if2() {
   // CHECK: %0 = memref.alloc() : memref<10xf32>
   // CHECK-NEXT: %cst = constant 8.000000e+00 : f32
   // CHECK-NEXT: affine.for %arg0 = 0 to 10 {
+  // CHECK-NEXT: }
+  // CHECK-NEXT: affine.for %{{.*}} = 0 to 10 {
   // CHECK-NEXT: affine.if #set(%arg0, %arg0) {
   // CHECK-NEXT: %1 = addf %cst, %cst : f32
   // CHECK-NEXT: %2 = affine.load %0[%arg0] : memref<10xf32>
@@ -530,6 +566,8 @@ func @nested_load_store_same_memref2() {
   // CHECK-NEXT: %cst = constant 8.000000e+00 : f32
   // CHECK-NEXT: %c0 = constant 0 : index
   // CHECK-NEXT: affine.for %arg0 = 0 to 10 {
+  // CHECK-NEXT: }
+  // CHECK-NEXT: affine.for %{{.*}} = 0 to 10 {
   // CHECK-NEXT:   affine.store %cst, %0[%c0] : memref<10xf32>
   // CHECK-NEXT:   %1 = affine.load %0[%arg0] : memref<10xf32>
 
@@ -613,3 +651,68 @@ func @vector_loop_all_invariant() {
 // CHECK-NEXT:  addf
 // CHECK-NEXT:  affine.vector_store
 // CHECK-NEXT:  affine.for
+
+// -----
+
+#set = affine_set<(d0): (d0 - 10 >= 0)>
+// CHECK-LABEL:   func @affine_if_not_invariant(
+func @affine_if_not_invariant(%buffer: memref<1024xf32>) -> f32 {
+  %sum_init_0 = constant 0.0 : f32
+  %sum_init_1 = constant 1.0 : f32
+  %res = affine.for %i = 0 to 10 step 2 iter_args(%sum_iter = %sum_init_0) -> f32 {
+    %t = affine.load %buffer[%i] : memref<1024xf32>
+    %sum_next = affine.if #set(%i) -> (f32) {
+      %new_sum = addf %sum_iter, %t : f32
+      affine.yield %new_sum : f32
+    } else {
+      affine.yield %sum_iter : f32
+    }
+    %modified_sum = addf %sum_next, %sum_init_1 : f32
+    affine.yield %modified_sum : f32
+  }
+  return %res : f32
+}
+
+// CHECK:       constant 0.000000e+00 : f32
+// CHECK-NEXT:  constant 1.000000e+00 : f32
+// CHECK-NEXT:  affine.for
+// CHECK-NEXT:  affine.load
+// CHECK-NEXT:  affine.if
+// CHECK-NEXT:  addf
+// CHECK-NEXT:  affine.yield
+// CHECK-NEXT:  } else {
+// CHECK-NEXT:  affine.yield
+// CHECK-NEXT:  }
+// CHECK-NEXT:  addf
+// CHECK-NEXT:  affine.yield
+// CHECK-NEXT:  }
+
+// -----
+
+// CHECK-LABEL:   func @affine_for_not_invariant(
+func @affine_for_not_invariant(%in : memref<30x512xf32, 1>,
+                               %out : memref<30x1xf32, 1>) {
+  %sum_0 = constant 0.0 : f32
+  %cst_0 = constant 1.1 : f32
+  affine.for %j = 0 to 30 {
+    %sum = affine.for %i = 0 to 512 iter_args(%sum_iter = %sum_0) -> (f32) {
+      %t = affine.load %in[%j,%i] : memref<30x512xf32,1>
+      %sum_next = addf %sum_iter, %t : f32
+      affine.yield %sum_next : f32
+    }
+    %mod_sum = mulf %sum, %cst_0 : f32
+    affine.store %mod_sum, %out[%j, 0] : memref<30x1xf32, 1>
+  }
+  return
+}
+
+// CHECK:       constant 0.000000e+00 : f32
+// CHECK-NEXT:  constant 1.100000e+00 : f32
+// CHECK-NEXT:  affine.for
+// CHECK-NEXT:  affine.for
+// CHECK-NEXT:  affine.load
+// CHECK-NEXT:  addf
+// CHECK-NEXT:  affine.yield
+// CHECK-NEXT:  }
+// CHECK-NEXT:  mulf
+// CHECK-NEXT:  affine.store

@@ -35,6 +35,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/LineIterator.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/Signals.h"

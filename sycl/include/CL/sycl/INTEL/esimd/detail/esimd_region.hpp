@@ -17,8 +17,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 // The common base type of region types.
 template <bool Is2D, typename T, int SizeY, int StrideY, int SizeX, int StrideX>
@@ -113,7 +115,9 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
   return Reg.second;
 }
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

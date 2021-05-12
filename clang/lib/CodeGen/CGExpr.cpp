@@ -39,6 +39,7 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
 
 #include <string>
@@ -5323,7 +5324,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
   }
   llvm::CallBase *CallOrInvoke = nullptr;
   RValue Call = EmitCall(FnInfo, Callee, ReturnValue, Args, &CallOrInvoke,
-                         E->getExprLoc());
+                         E == MustTailCall, E->getExprLoc());
 
   // Generate function declaration DISuprogram in order to be used
   // in debug info about call sites.

@@ -5,7 +5,7 @@
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 
 bool test_esimd_mask() __attribute__((sycl_device)) {
   simd<ushort, 16> a(0);

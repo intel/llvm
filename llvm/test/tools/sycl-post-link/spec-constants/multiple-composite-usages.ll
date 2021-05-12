@@ -6,16 +6,26 @@
 ; once
 ;
 ; CHECK-LABEL: @foo1
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}}), !SYCL_SPEC_CONST_SYM_ID ![[#MD0:]]
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
 ; CHECK-LABEL: @_ZTS4Test
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}}), !SYCL_SPEC_CONST_SYM_ID ![[#MD1:]]
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
 ; CHECK-LABEL: @foo2
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}}), !SYCL_SPEC_CONST_SYM_ID ![[#MD0:]]
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
+
+; CHECK: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]]
 ;
-; CHECK-DAG: ![[#MD0]] = !{!"_ZTS3PO2", i32 [[#ID:]],
-; CHECK-SAME: i32 [[#ID + 1]], i32 [[#ID + 2]], i32 [[#ID + 3]], i32 [[#ID + 4]], i32 [[#ID + 5]]}
-; CHECK-DAG: ![[#MD1]] = !{!"_ZTS3POD", i32 [[#ID1:]],
-; CHECK-SAME: i32 [[#ID1 + 1]], i32 [[#ID1 + 2]], i32 [[#ID1 + 3]], i32 [[#ID1 + 4]], i32 [[#ID1 + 5]]}
+; CHECK-DAG: ![[#MD0]] = !{!"_ZTS3PO2", i32 [[#ID:]], i32 0, i32 4,
+; CHECK-SAME: i32 [[#ID + 1]], i32 4, i32 4,
+; CHECK-SAME: i32 [[#ID + 2]], i32 8, i32 4,
+; CHECK-SAME: i32 [[#ID + 3]], i32 12, i32 4,
+; CHECK-SAME: i32 [[#ID + 4]], i32 16, i32 4,
+; CHECK-SAME: i32 [[#ID + 5]], i32 20, i32 4}
+; CHECK-DAG: ![[#MD1]] = !{!"_ZTS3POD", i32 [[#ID1:]], i32 0, i32 4,
+; CHECK-SAME: i32 [[#ID1 + 1]], i32 4, i32 4,
+; CHECK-SAME: i32 [[#ID1 + 2]], i32 8, i32 4,
+; CHECK-SAME: i32 [[#ID1 + 3]], i32 12, i32 4,
+; CHECK-SAME: i32 [[#ID1 + 4]], i32 16, i32 4,
+; CHECK-SAME: i32 [[#ID1 + 5]], i32 20, i32 4}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown-sycldevice"

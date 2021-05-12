@@ -3785,9 +3785,6 @@ class OffloadingActionBuilder final {
     /// Flag to signal if the user requested device code split.
     bool DeviceCodeSplit = false;
 
-    /// Flag to signal if DAE optimization is turned on.
-    bool EnableDAE = false;
-
     /// The SYCL actions for the current input.
     ActionList SYCLDeviceActions;
 
@@ -3854,6 +3851,7 @@ class OffloadingActionBuilder final {
     getDeviceDependences(OffloadAction::DeviceDependences &DA,
                          phases::ID CurPhase, phases::ID FinalPhase,
                          PhasesTy &Phases) override {
+      bool SYCLDeviceOnly = Args.hasArg(options::OPT_fsycl_device_only);
       if (CurPhase == phases::Preprocess) {
         // Do not perform the host compilation when doing preprocessing only
         // with -fsycl-device-only.
@@ -3861,17 +3859,25 @@ class OffloadingActionBuilder final {
             Args.getLastArg(options::OPT_E) ||
             Args.getLastArg(options::OPT__SLASH_EP, options::OPT__SLASH_P) ||
             Args.getLastArg(options::OPT_M, options::OPT_MM);
-        if (Args.hasArg(options::OPT_fsycl_device_only) && IsPreprocessOnly) {
-          for (Action *&A : SYCLDeviceActions)
+        if (IsPreprocessOnly) {
+          for (Action *&A : SYCLDeviceActions) {
             A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                    AssociatedOffloadKind);
-          return ABRT_Ignore_Host;
+            if (SYCLDeviceOnly)
+              continue;
+            // Add an additional compile action to generate the integration
+            // header.
+            Action *CompileAction =
+                C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
+            DA.add(*CompileAction, *ToolChains.front(), nullptr,
+                   Action::OFK_SYCL);
+          }
+          return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
         }
       }
 
       // Device compilation generates LLVM BC.
       if (CurPhase == phases::Compile) {
-        bool SYCLDeviceOnly = Args.hasArg(options::OPT_fsycl_device_only);
         for (Action *&A : SYCLDeviceActions) {
           types::ID OutputType = types::TY_LLVM_BC;
           if (SYCLDeviceOnly) {
@@ -4270,33 +4276,33 @@ class OffloadingActionBuilder final {
         //         .--------------------------------------.
         //         |               PostLink               |
         //         .--------------------------------------.
-        //         [.n]       [.!na!s]    [+*]         [+*]
-        //           |           |          |            |
-        //           |           |  .----------------.   |
-        //           |           |  |FileTableTform  |   |
-        //           |           |  |(extract "Code")|   |
-        //           |           |  .----------------.   |
-        //           |           |         [-]           |
-        //           |           |          |            |
-        //           |         [.a!s]     [-*]           |
-        //    .-------------.  .---------------------.   |
-        //    |finalizeNVPTX|  |   SPIRVTranslator   |   |
-        //    .-------------.  .---------------------.   |
-        //           |         [.a!s]     [-as]  [-!a]   |
-        //           |           |          |      |     |
-        //           |         [.!s]      [-s]     |     |
-        //           |       .----------------.    |     |
-        //           |       | BackendCompile |    |     |
-        //           |       .----------------.    |     |
-        //           |         [.!s]      [-s]     |     |
-        //           |           |          |      |     |
-        //           |           |        [-a]   [-!a]  [+]
-        //           |           |        .----------------.
-        //           |           |        |FileTableTform  |
-        //           |           |        |(replace "Code")|
-        //           |           |        .----------------.
-        //           |           |                |
-        //         [.n]      [.!na!s]           [+*]
+        //         [.n]                [+*]           [+*]
+        //           |                   |              |
+        //           |          .-----------------.     |
+        //           |          | FileTableTform  |     |
+        //           |          | (extract "Code")|     |
+        //           |          .-----------------.     |
+        //           |                  [-]             |
+        //           |                   |              |
+        //           |                 [-*]             |
+        //    .-------------.   .-------------------.   |
+        //    |finalizeNVPTX|   |  SPIRVTranslator  |   |
+        //    .-------------.   .-------------------.   |
+        //           |              [-as]      [-!a]    |
+        //           |                |          |      |
+        //           |              [-s]         |      |
+        //           |       .----------------.  |      |
+        //           |       | BackendCompile |  |      |
+        //           |       .----------------.  |      |
+        //           |              [-s]         |      |
+        //           |                |          |      |
+        //           |              [-a]      [-!a]    [+]
+        //           |              .--------------------.
+        //           |              |   FileTableTform   |
+        //           |              |  (replace "Code")  |
+        //           |              .--------------------.
+        //           |                          |
+        //         [.n]                       [+*]
         //         .--------------------------------------.
         //         |            OffloadWrapper            |
         //         .--------------------------------------.
@@ -4343,10 +4349,8 @@ class OffloadingActionBuilder final {
         ActionList WrapperInputs;
         // post link is not optional - even if not splitting, always need to
         // process specialization constants
-        bool MultiFileActionDeps = !isSpirvAOT || DeviceCodeSplit || EnableDAE;
-        types::ID PostLinkOutType = isNVPTX || !MultiFileActionDeps
-                                        ? types::TY_LLVM_BC
-                                        : types::TY_Tempfiletable;
+        types::ID PostLinkOutType =
+            isNVPTX ? types::TY_LLVM_BC : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
             FullDeviceLinkAction, PostLinkOutType);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
@@ -4358,21 +4362,14 @@ class OffloadingActionBuilder final {
         } else {
           // For SPIRV-based targets - translate to SPIRV then optionally
           // compile ahead-of-time to native architecture
-          Action *SPIRVInput = PostLinkAction;
           constexpr char COL_CODE[] = "Code";
-
-          if (MultiFileActionDeps) {
-            auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
-                PostLinkAction, types::TY_Tempfilelist);
-            // single column w/o title fits TY_Tempfilelist format
-            ExtractIRFilesAction->addExtractColumnTform(COL_CODE,
-                                                        false /*drop titles*/);
-            SPIRVInput = ExtractIRFilesAction;
-          }
-          types::ID SPIRVOutType =
-              MultiFileActionDeps ? types::TY_Tempfilelist : types::TY_SPIRV;
-          Action *BuildCodeAction =
-              C.MakeAction<SPIRVTranslatorJobAction>(SPIRVInput, SPIRVOutType);
+          auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+              PostLinkAction, types::TY_Tempfilelist);
+          // single column w/o title fits TY_Tempfilelist format
+          ExtractIRFilesAction->addExtractColumnTform(COL_CODE,
+                                                      false /*drop titles*/);
+          Action *BuildCodeAction = C.MakeAction<SPIRVTranslatorJobAction>(
+              ExtractIRFilesAction, types::TY_Tempfilelist);
 
           // After the Link, wrap the files before the final host link
           if (isSpirvAOT) {
@@ -4404,14 +4401,11 @@ class OffloadingActionBuilder final {
             BuildCodeAction =
                 C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
           }
-          if (MultiFileActionDeps) {
-            ActionList TformInputs{PostLinkAction, BuildCodeAction};
-            auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Tempfiletable);
-            ReplaceFilesAction->addReplaceColumnTform(COL_CODE, COL_CODE);
-            BuildCodeAction = ReplaceFilesAction;
-          }
-          WrapperInputs.push_back(BuildCodeAction);
+          ActionList TformInputs{PostLinkAction, BuildCodeAction};
+          auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
+              TformInputs, types::TY_Tempfiletable);
+          ReplaceFilesAction->addReplaceColumnTform(COL_CODE, COL_CODE);
+          WrapperInputs.push_back(ReplaceFilesAction);
         }
         // After the Link, wrap the files before the final host link
         auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
@@ -4515,9 +4509,6 @@ class OffloadingActionBuilder final {
       WrapDeviceOnlyBinary = Args.hasArg(options::OPT_fsycl_link_EQ);
       auto *DeviceCodeSplitArg =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
-      EnableDAE =
-          Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
-                       options::OPT_fno_sycl_dead_args_optimization, false);
       // -fsycl-device-code-split is an alias to
       // -fsycl-device-code-split=per_source
       DeviceCodeSplit = DeviceCodeSplitArg &&
@@ -5610,10 +5601,13 @@ void Driver::BuildJobs(Compilation &C) const {
   }
 
   const llvm::Triple &RawTriple = C.getDefaultToolChain().getTriple();
-  if (RawTriple.isOSAIX())
+  if (RawTriple.isOSAIX()) {
     if (Arg *A = C.getArgs().getLastArg(options::OPT_G))
       Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getSpelling() << RawTriple.str();
+    if (LTOMode == LTOK_Thin)
+      Diag(diag::err_drv_clang_unsupported) << "thinLTO on AIX";
+  }
 
   // Collect the list of architectures.
   llvm::StringSet<> ArchNames;
@@ -6214,7 +6208,6 @@ InputInfo Driver::BuildJobsForActionNoCache(
 
   // Only use pipes when there is exactly one input.
   InputInfoList InputInfos;
-  bool JobForPreprocessToStdout = false;
   for (const Action *Input : Inputs) {
     // Treat dsymutil and verify sub-jobs as being at the top-level too, they
     // shouldn't get temporary output names.
@@ -6226,11 +6219,6 @@ InputInfo Driver::BuildJobsForActionNoCache(
         SubJobAtTopLevel, MultipleArchs, LinkingOutput, CachedResults,
         A->getOffloadingDeviceKind()));
   }
-  // Check if we are in sub-work for preprocessing for host side. If so we will
-  // add another job to print information to terminal later.
-  if (!AtTopLevel && A->getKind() == Action::PreprocessJobClass &&
-      C.getJobs().size() == 1)
-    JobForPreprocessToStdout = true;
 
   // Always use the first input as the base input.
   const char *BaseInput = InputInfos[0].getBaseInput();
@@ -6265,7 +6253,6 @@ InputInfo Driver::BuildJobsForActionNoCache(
 
   // Determine the place to write output to, if any.
   InputInfo Result;
-  InputInfo ResultForPreprocessToStdout;
   InputInfoList UnbundlingResults;
   if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(JA)) {
     // If we have an unbundling job, we need to create results for all the
@@ -6470,8 +6457,6 @@ InputInfo Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
-    if (JobForPreprocessToStdout)
-      ResultForPreprocessToStdout = InputInfo(A, "-", BaseInput);
   }
 
   if (CCCPrintBindings && !CCGenDiagnostics) {
@@ -6494,19 +6479,12 @@ InputInfo Driver::BuildJobsForActionNoCache(
       llvm::errs() << "] \n";
     }
   } else {
-    if (UnbundlingResults.empty()) {
+    if (UnbundlingResults.empty())
       T->ConstructJob(
           C, *JA, Result, InputInfos,
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
           LinkingOutput);
-      // Add another job to print information to terminal for host side.
-      if (JobForPreprocessToStdout) {
-        T->ConstructJob(
-            C, *JA, ResultForPreprocessToStdout, InputInfos,
-            C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
-            LinkingOutput);
-      }
-    } else
+    else
       T->ConstructJobMultipleOutputs(
           C, *JA, UnbundlingResults, InputInfos,
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
