@@ -173,6 +173,7 @@ private:
     return nullptr;
   }
   const std::string &getString(const SPIRVId Id);
+  std::string findModuleProducer();
   Optional<DIFile::ChecksumInfo<StringRef>> ParseChecksum(StringRef Text);
 };
 } // namespace SPIRV
