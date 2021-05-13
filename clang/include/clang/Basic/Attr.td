@@ -1197,6 +1197,13 @@ def SYCLDevice : InheritableAttr {
   let Documentation = [SYCLDeviceDocs];
 }
 
+def SYCLGlobalVar : InheritableAttr {
+  let Spellings = [GNU<"sycl_global_var">];
+  let Subjects = SubjectList<[GlobalVar]>;
+  let LangOpts = [SYCLIsDevice];
+  let Documentation = [Undocumented];
+}
+
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
