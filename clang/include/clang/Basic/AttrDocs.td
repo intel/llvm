@@ -2602,7 +2602,7 @@ details.
 
 The ``[[cl::reqd_work_group_size(X, Y, Z)]]`` and
 ``__attribute__((reqd_work_group_size(X, Y, Z)))`` spellings are both
-deprecated in SCYL 2020.
+deprecated in SYCL 2020.
 
 As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
 spelling is supported with the same semantics as the
