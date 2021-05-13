@@ -18475,14 +18475,14 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
     return Sema::DeviceDiagnosticReason::Sycl;
   // FIXME: Refine the logic for CUDA and OpenMP.
-  if (getLangOpts().CUDA && getLangOpts().CUDAIsDevice)
-    return Sema::DeviceDiagnosticReason::CudaDevice;
-  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice)
-    return Sema::DeviceDiagnosticReason::CudaHost;
-  if (getLangOpts().OpenMPIsDevice)
-    return Sema::DeviceDiagnosticReason::OmpDevice;
-  if (getLangOpts().OpenMP && !getLangOpts().OpenMPIsDevice)
-    return Sema::DeviceDiagnosticReason::OmpHost;
+  if (getLangOpts().CUDA)
+    return getLangOpts().CUDAIsDevice ?
+       Sema::DeviceDiagnosticReason::CudaDevice :
+       Sema::DeviceDiagnosticReason::CudaHost;
+  if (getLangOpts().OpenMP)
+    return getLangOpts().OpenMPIsDevice ?
+        Sema::DeviceDiagnosticReason::OmpDevice :
+        Sema::DeviceDiagnosticReason::OmpHost;
   return Sema::DeviceDiagnosticReason::All;
 }
 

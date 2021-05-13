@@ -599,7 +599,7 @@ class SingleDeviceFunctionTracker {
 
     // If this is a routine that is not defined and it does not have either
     // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
-    // routines potentially reachable on device.   This is to diagnose such
+    // routines potentially reachable on device. This is to diagnose such
     // cases later in finalizeSYCLDeviceAnalysis().
     if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
