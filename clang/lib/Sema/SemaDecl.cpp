@@ -18476,13 +18476,12 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
     return Sema::DeviceDiagnosticReason::Sycl;
   // FIXME: Refine the logic for CUDA and OpenMP.
   if (getLangOpts().CUDA)
-    return getLangOpts().CUDAIsDevice ?
-       Sema::DeviceDiagnosticReason::CudaDevice :
-       Sema::DeviceDiagnosticReason::CudaHost;
+    return getLangOpts().CUDAIsDevice ? Sema::DeviceDiagnosticReason::CudaDevice
+                                      : Sema::DeviceDiagnosticReason::CudaHost;
   if (getLangOpts().OpenMP)
-    return getLangOpts().OpenMPIsDevice ?
-        Sema::DeviceDiagnosticReason::OmpDevice :
-        Sema::DeviceDiagnosticReason::OmpHost;
+    return getLangOpts().OpenMPIsDevice
+               ? Sema::DeviceDiagnosticReason::OmpDevice
+               : Sema::DeviceDiagnosticReason::OmpHost;
   return Sema::DeviceDiagnosticReason::All;
 }
 
