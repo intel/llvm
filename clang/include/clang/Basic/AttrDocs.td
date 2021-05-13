@@ -2503,7 +2503,7 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::num_simd_work_items(N)]] void operator()() const {}
   };
 
-The arguments to reqd_work_group_size are ordered based on which index
+The arguments to ``reqd_work_group_size`` are ordered based on which index
 increments the fastest. In OpenCL, the first argument is the index that
 increments the fastest, and in SYCL, the last argument is the index that
 increments the fastest.
@@ -2515,48 +2515,64 @@ form, the last (or only) argument is the index that increments fastest.
 The number of arguments passed to the attribute must match the dimensionality
 of the kernel the attribute is applied to.
 
-If the reqd_work_group_size attribute is specified on a declaration along
-with ``intel::num_simd_work_items``, the required work group size specified
-by ``intel::num_simd_work_items`` attribute must evenly divide the index that
-increments fastest in the reqd_work_group_size attribute.
+If the ``reqd_work_group_size`` attribute is specified on a declaration along
+with ``num_simd_work_items``, the required work group size specified
+by ``num_simd_work_items`` attribute must evenly divide the index that
+increments fastest in the ``reqd_work_group_size`` attribute.
 
 .. code-block:: c++
 
+  // Note, '64' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(3, 4, 64)]]
+    [[intel::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(3, 4, 64)]]
-    [[intel::num_simd_work_items(4)]]
+    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
 
-  [[cl::reqd_work_group_size(7, 10, 20)]]
+  // Note, '10' is evenly divisible by '5'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[cl::reqd_work_group_size(7, 5, 10)]]
   [[intel::num_simd_work_items(5)]] void fun2() {}
 
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   [[intel::num_simd_work_items(4)]]
   [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
 
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct func1 {
-    [[intel::num_simd_work_items(4)]]
-    [[cl::reqd_work_group_size(5, 4, 64)]]
+    [[intel::num_simd_work_items(8)]]
+    [[cl::reqd_work_group_size(1, 1, 8)]]
     void operator()() const {}
   };
 
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct bar1 {
-    [[cl::reqd_work_group_size(3, 4, 64)]]
+    [[cl::reqd_work_group_size(7, 4, 8)]]
     [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
 
+  // Note, '4' is evenly divisible by '2'; in OpenCL, the first
+  // argument to the attribute is the one which increments fastest.
   [[intel::num_simd_work_items(2)]]
   __attribute__((reqd_work_group_size(4, 2, 3))) void test();
 
-  __attribute__((reqd_work_group_size(4, 2, 3)))
-  [[intel::num_simd_work_items(2)]] void test1();
+  // Note, '8' is evenly divisible by '2'; in OpenCL, the first
+  // argument to the attribute is the one which increments fastest.
+  __attribute__((reqd_work_group_size(8, 2, 3)))
+  [intel::num_simd_work_items(2)]] void test();
 
   }];
 }
@@ -2671,7 +2687,7 @@ In OpenCL C, this attribute is available in GNU spelling
 
   __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
 
-The arguments to reqd_work_group_size are ordered based on which index
+The arguments to ``reqd_work_group_size`` are ordered based on which index
 increments the fastest. In OpenCL, the first argument is the index that
 increments the fastest, and in SYCL, the last argument is the index that
 increments the fastest.
@@ -2683,49 +2699,65 @@ form, the last (or only) argument is the index that increments fastest. The
 number of arguments passed to the attribute must match the dimensionality of
 the kernel the attribute is applied to.
 
-If the reqd_work_group_size attribute is specified on a declaration along with
-num_simd_work_items, the required work group size specified by num_simd_work_items
-must evenly divide the index that increments fastest in the reqd_work_group_size
-attribute.
+If the ``reqd_work_group_size attribute`` is specified on a declaration along
+with ``num_simd_work_items``, the required work group size specified by
+``num_simd_work_items`` must evenly divide the index that increments fastest
+in the ``reqd_work_group_size`` attribute.
 
 .. code-block:: c++
 
+  // Note, '64' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(3, 4, 64)]]
+    [[intel::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(3, 4, 64)]]
-    [[intel::num_simd_work_items(4)]]
+    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
 
-  [[cl::reqd_work_group_size(7, 10, 20)]]
+  // Note, '10' is evenly divisible by '5'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[cl::reqd_work_group_size(7, 5, 10)]]
   [[intel::num_simd_work_items(5)]] void fun2() {}
 
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   [[intel::num_simd_work_items(4)]]
   [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
 
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct func1 {
-    [[intel::num_simd_work_items(4)]]
-    [[cl::reqd_work_group_size(5, 4, 64)]]
+    [[intel::num_simd_work_items(8)]]
+    [[cl::reqd_work_group_size(1, 1, 8)]]
     void operator()() const {}
   };
   
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct bar1 {
-    [[cl::reqd_work_group_size(3, 4, 64)]]
+    [[cl::reqd_work_group_size(7, 4, 8)]]
     [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
 
+  // Note, '4' is evenly divisible by '2'; in OpenCL, the first
+  // argument to the attribute is the one which increments fastest.
   [[intel::num_simd_work_items(2)]]
   __attribute__((reqd_work_group_size(4, 2, 3))) void test();
-
-  __attribute__((reqd_work_group_size(4, 2, 3))) 
-  [[intel::num_simd_work_items(2)]] void test1();
  
+  // Note, '8' is evenly divisible by '2'; in OpenCL, the first
+  // argument to the attribute is the one which increments fastest.
+  __attribute__((reqd_work_group_size(8, 2, 3)))
+  [intel::num_simd_work_items(2)]] void test();
+
   }];
 }
 

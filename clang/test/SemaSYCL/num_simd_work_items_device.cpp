@@ -144,9 +144,6 @@ struct TRIFuncObjBad8 {
 // attribute, tests that check if the work group size attribute argument
 // (the first argument) can be evenly divided by the [[intel::num_simd_work_items()]]
 // attribute. GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantics.
-// First and last argument are only swapped for the Intel atributes in
-// SYCL and not the OpenCL ones.
-
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 __attribute__((reqd_work_group_size(3, 2, 4))) void func5(); // expected-note{{conflicting attribute is here}}
 
@@ -219,9 +216,6 @@ struct TRIFuncObjBad18 {
 // If the declaration has a __attribute__((reqd_work_group_size))
 // attribute, check to see if the first argument can be evenly
 // divided by the [[intel::num_simd_work_items()]] attribute.
-// GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantics.
-// First and last argument are only swapped for the Intel atributes in
-// SYCL and not the OpenCL ones.
 struct TRIFuncObjGood1 {
   [[intel::num_simd_work_items(4)]]
   [[intel::reqd_work_group_size(3, 64, 4)]] void

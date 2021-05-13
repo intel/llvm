@@ -3091,18 +3091,16 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     // __attribute__((reqd_work_group_size)) attribute and last argument of
     // [[cl::reqd_work_group_size()]] or [intel::reqd_work_group_size()]]
     // attribute can be evenly divided by the [[intel::num_simd_work_items()]]
-    // attribute. GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL
-    // semantics. First and last argument are only swapped for the atributes in
-    // SYCL and not the OpenCL ones.
+    // attribute.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      bool UsesOpenCLArgOrdering =
+      bool UsesOpenCLSemantics =
           AL.getSyntax() == AttributeCommonInfo::AS_GNU;
 
-      unsigned WorkGroupSize = UsesOpenCLArgOrdering ? XDimVal.getZExtValue()
-                                                     : ZDimVal.getZExtValue();
+      unsigned WorkGroupSize = UsesOpenCLSemantics ? XDimVal.getZExtValue()
+                                                   : ZDimVal.getZExtValue();
 
       if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
@@ -3303,8 +3301,6 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
     // attribute, check to see if the first argument can be evenly
     // divided by the [[intel::num_simd_work_items()]] attribute. GNU
     // spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantics.
-    // First and last argument are only swapped for the atributes in SYCL
-    // and not the OpenCL ones.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Expr *XDimExpr = DeclAttr->getXDim();
       Expr *YDimExpr = DeclAttr->getYDim();
@@ -3330,7 +3326,7 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
         ZDimExpr = ZDim.get();
 
         llvm::APSInt WorkGroupSize =
-            DeclAttr->usesOpenCLArgOrdering() ? XDimVal : ZDimVal;
+            DeclAttr->usesOpenCLSemantics() ? XDimVal : ZDimVal;
 
         if (WorkGroupSize % ArgVal != 0) {
           Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
