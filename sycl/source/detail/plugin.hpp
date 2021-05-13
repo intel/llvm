@@ -36,7 +36,7 @@ public:
 
   plugin(RT::PiPlugin Plugin, backend UseBackend, void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
-        TracingMutex(std::make_shared<std::mutex>()) {}
+        TracingMutex(std::make_shared<std::mutex>()), LastDeviceId(0) {}
 
   plugin &operator=(const plugin &) = default;
   plugin(const plugin &) = default;
@@ -110,13 +110,16 @@ public:
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }
+  int getLastDeviceId() { return LastDeviceId; }
+  void setLastDeviceId(int id) { LastDeviceId = id; }
 
 private:
   RT::PiPlugin MPlugin;
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
-}; // class plugin
+  int LastDeviceId; // represents the unique id of the last device
+};                  // class plugin
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

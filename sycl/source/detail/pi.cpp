@@ -267,8 +267,9 @@ int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 // Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 
-  decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
-      &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
+  decltype(::piPluginInit) *PluginInitializeFunction =
+      (decltype(&::piPluginInit))(getOsLibraryFuncAddress(Library,
+                                                          "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
@@ -295,7 +296,10 @@ const vector_class<plugin> &initialize() {
   std::call_once(PluginsInitDone, []() {
     initializePlugins(&GlobalHandler::instance().getPlugins());
   });
-
+  vector_class<plugin> Plugins = GlobalHandler::instance().getPlugins();
+  for (plugin Plugin : Plugins) {
+    Plugin.setLastDeviceId(0);
+  }
   return GlobalHandler::instance().getPlugins();
 }
 

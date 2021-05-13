@@ -116,9 +116,8 @@ vector_class<platform> platform_impl::get_platforms() {
         platform Platform = detail::createSyclObjFromImpl<platform>(
             getOrMakePlatformImpl(PiPlatform, Plugins[i]));
         // Skip platforms which do not contain requested device types
-        if (!IsBannedPlatform(Platform) &&
-            (ForcedType == info::device_type::all ||
-             !Platform.get_devices(ForcedType).empty()))
+        if (!Platform.get_devices(ForcedType).empty() &&
+            !IsBannedPlatform(Platform))
           Platforms.push_back(Platform);
       }
     }
@@ -299,30 +298,22 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
 // This function matches devices in the order of backend, device_type, and
 // device_num.
 static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
-                               const plugin &Plugin) {
+                               std::shared_ptr<plugin> Plugin) {
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList)
     return;
 
-  // remember the last backend that has gone through this filter function
-  // to assign a unique device id number across platforms that belong to
-  // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
-  static backend lastBackend = backend::all;
-  backend Backend = Plugin.getBackend();
+  backend Backend = Plugin->getBackend();
   int InsertIDx = 0;
-  // DeviceNums should be given consecutive numbers across platforms.
-  // So, we keep the device num for the successive calls to this function.
-  static int DeviceNum = 0;
-  if (lastBackend != Backend) {
-    DeviceNum = 0;
-    lastBackend = Backend;
-  }
+  // DeviceIds should be given consecutive numbers across platforms in the same
+  // backend
+  int DeviceNum = Plugin->getLastDeviceId();
 
   for (RT::PiDevice Device : PiDevices) {
     RT::PiDeviceType PiDevType;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
-                                            sizeof(RT::PiDeviceType),
-                                            &PiDevType, nullptr);
+    Plugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
+                                             sizeof(RT::PiDeviceType),
+                                             &PiDevType, nullptr);
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
@@ -350,6 +341,10 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
     DeviceNum++;
   }
   PiDevices.resize(InsertIDx);
+  // remember the last backend that has gone through this filter function
+  // to assign a unique device id number across platforms that belong to
+  // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
+  Plugin->setLastDeviceId(DeviceNum);
 }
 
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
@@ -409,7 +404,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
   // Filter out devices that are not compatible with SYCL_DEVICE_FILTER
-  filterDeviceFilter(PiDevices, Plugin);
+  filterDeviceFilter(PiDevices, MPlugin);
 
   PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
   std::transform(
