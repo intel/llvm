@@ -108,9 +108,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   {
     std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
-    // enqueueCommand() func below may throw an exception, so use shared_ptr
+    // enqueueCommand() func below may throw an exception, so use unique_ptr
     // here to avoid memory leak
-    std::shared_ptr<Command> NewCmd(
+    std::unique_ptr<Command> NewCmd(
         static_cast<Command *>(NewEvent->getCommand()));
 
     if (NewCmd) {
@@ -124,13 +124,15 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // Though, dismiss ownership of native kernel command group as it's
       // resources may be in use by backend and synchronization point here is
       // at native kernel execution finish.
-      if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0) {
+      if (NewCmd.get()->MDeps.size() == 0 &&
+          NewCmd.get()->MUsers.size() == 0) {
         if (IsHostKernel)
           static_cast<ExecCGCommand *>(NewCmd.get())->releaseCG();
 
         NewEvent->setCommand(nullptr);
       }
     }
+    NewCmd.release();
   }
 
   for (auto StreamImplPtr : Streams) {
