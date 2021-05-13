@@ -52,7 +52,7 @@
 #include <CL/cl_ext.h>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
-#include <array>
+
 #include <cstdint>
 
 #ifdef __cplusplus
