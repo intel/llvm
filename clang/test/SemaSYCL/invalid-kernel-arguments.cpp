@@ -50,6 +50,7 @@ class H {
 
 int GlobalNoAttribute;
 __attribute__((sycl_global_var)) int GlobalWithAttribute;
+__SYCL_GLOBAL_VAR__ int GlobalWithAttributeViaMacro;
 
 int main() {
   A Obj{};
@@ -70,6 +71,7 @@ int main() {
         (void)Obj6;
         (void)GlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@Inputs/sycl.hpp:* {{called by}}
         (void)GlobalWithAttribute;
+        (void)GlobalWithAttributeViaMacro;
       });
   return 0;
 }
