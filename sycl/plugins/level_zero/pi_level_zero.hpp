@@ -183,6 +183,7 @@ struct _pi_device : _pi_object {
 
   // Root-device of a sub-device, null if this is not a sub-device.
   pi_device RootDevice;
+  bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
@@ -232,12 +233,6 @@ struct _pi_context : _pi_object {
     }
   }
 
-  // Utility function which returns a root-device if the context consists of
-  // sub-devices of a same device or returns the first device otherwise.
-  pi_device getFirstOrRootDevice() {
-    return RootDevice ? RootDevice : Devices[0];
-  }
-
   // Initialize the PI context.
   pi_result initialize();
 
@@ -254,9 +249,11 @@ struct _pi_context : _pi_object {
 
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;
+
   // If devices in the context are sub-devices of the same device, we want to
   // save a root-device.
   pi_device RootDevice = nullptr;
+  bool isContextOfSubDevices() { return RootDevice != nullptr; }
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
