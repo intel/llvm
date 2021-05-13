@@ -248,19 +248,23 @@ inline std::istream &operator>>(std::istream &I, half &rhs) {
   rhs = ValFloat;
   return I;
 }
+
+// internal implementation for the mask type
+template <typename T, int N> struct mask_impl {
+  static_assert(N > 0, "mask must have at least one element");
+
+  static constexpr int length = N;
+  using type = T __attribute__((ext_vector_type(N)));
+  using value_type = T;
+};
+
+template <typename T, int N> using mask_impl_t = typename mask_impl<T, N>::type;
+
+template <int N> using simd_mask_impl = mask_impl<unsigned short, N>;
+
+template <int N> using simd_mask_impl_t = typename simd_mask_impl<N>::type;
+
 } // namespace detail
-
-// TODO @rolandschulz on May 21
-// {quote}
-// - The mask should also be a wrapper around the clang - vector type rather
-//   than the clang - vector type itself.
-// - The internal storage should be implementation defined.uint16_t is a bad
-//   choice for some HW.Nor is it how clang - vector types works(using the same
-//   size int as the corresponding vector type used for comparison(e.g. long for
-//   double and int for float)).
-template <int N>
-using mask_type_t = typename detail::vector_type<uint16_t, N>::type;
-
 } // namespace esimd
 } // namespace experimental
 } // namespace intel

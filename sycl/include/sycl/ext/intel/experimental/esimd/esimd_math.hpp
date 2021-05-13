@@ -1108,8 +1108,8 @@ ESIMD_NODEBUG ESIMD_INLINE
     esimd_atan(simd<T, SZ> src0, int flag = GENX_NOSAT) {
   simd<T, SZ> Src0 = esimd_abs(src0);
 
-  simd<ushort, SZ> Neg = src0 < T(0.0);
-  simd<ushort, SZ> Gt1 = Src0 > T(1.0);
+  simd_mask<SZ> Neg = src0 < T(0.0);
+  simd_mask<SZ> Gt1 = Src0 > T(1.0);
 
   Src0.merge(esimd_inv(Src0), Gt1);
 
@@ -1151,8 +1151,8 @@ ESIMD_NODEBUG ESIMD_INLINE
     esimd_acos(simd<T, SZ> src0, int flag = GENX_NOSAT) {
   simd<T, SZ> Src0 = esimd_abs(src0);
 
-  simd<ushort, SZ> Neg = src0 < T(0.0);
-  simd<ushort, SZ> TooBig = Src0 >= T(0.999998);
+  simd_mask<SZ> Neg = src0 < T(0.0);
+  simd_mask<SZ> TooBig = Src0 >= T(0.999998);
 
   // Replace oversized values to ensure no possibility of sqrt of
   // a negative value later
@@ -1194,7 +1194,7 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<std::is_floating_point<T>::value,
                                        simd<T, SZ>>
     esimd_asin(simd<T, SZ> src0, int flag = GENX_NOSAT) {
-  simd<ushort, SZ> Neg = src0 < T(0.0);
+  simd_mask<SZ> Neg = src0 < T(0.0);
 
   simd<T, SZ> Result =
       T(ESIMD_HDR_CONST_PI / 2.0) - esimd_acos(esimd_abs(src0));
@@ -1487,7 +1487,7 @@ ESIMD_INLINE simd<float, N> esimd_atan2_fast(simd<float, N> y, simd<float, N> x,
   simd<float, N> a1;
   simd<float, N> atan2;
 
-  simd<unsigned short, N> mask = (y >= 0.0f);
+  simd_mask<N> mask = (y >= 0.0f);
   a0.merge(ESIMD_CONST_PI * 0.5f, ESIMD_CONST_PI * 1.5f, mask);
   a1.merge(0, ESIMD_CONST_PI * 2.0f, mask);
 
@@ -1523,7 +1523,7 @@ ESIMD_INLINE simd<float, N> esimd_atan2(simd<float, N> y, simd<float, N> x,
   simd<float, N> v_distance;
   simd<float, N> v_y0;
   simd<float, N> atan2;
-  simd<unsigned short, N> mask;
+  simd_mask<N> mask;
 
   mask = (x < 0);
   v_y0.merge(ESIMD_CONST_PI, 0, mask);
@@ -1541,10 +1541,10 @@ template <> ESIMD_INLINE float esimd_atan2(float y, float x, const uint flags) {
   float v_distance;
   float v_y0;
   simd<float, 1> atan2;
-  unsigned short mask;
+  simd_mask<1> mask;
 
   mask = (x < 0);
-  v_y0 = mask ? ESIMD_CONST_PI : 0;
+  v_y0 = mask[0] ? ESIMD_CONST_PI : 0;
   v_distance = esimd_sqrt<float>(x * x + y * y);
   mask = (esimd_abs<float>(y) < 0.000001f);
   atan2.merge(v_y0, (2 * esimd_atan((v_distance - x) / y)), mask);

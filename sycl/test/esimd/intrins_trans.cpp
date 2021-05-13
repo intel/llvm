@@ -42,7 +42,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   simd<uint32_t, VL> v1(0, x + z);
   simd<uint64_t, VL> offsets(0, y);
   simd<uintptr_t, VL> v_addr(reinterpret_cast<uintptr_t>(ptr));
-  simd<ushort, VL> pred;
+  simd_mask<VL> pred;
   v_addr += offsets;
 
   __esimd_flat_atomic0<EsimdAtomicOpType::ATOMIC_INC, uint32_t, VL>(

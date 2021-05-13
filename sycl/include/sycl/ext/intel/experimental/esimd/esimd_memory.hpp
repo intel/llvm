@@ -76,7 +76,7 @@ ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
     ((n == 8 || n == 16 || n == 32) &&
      (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
     simd<T, n * ElemsPerAddr>>
-gather(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+gather(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
@@ -126,7 +126,7 @@ ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
      (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
     void>
 scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
-        simd<uint16_t, n> pred = 1) {
+        simd_mask<n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -317,7 +317,7 @@ ESIMD_INLINE ESIMD_NODEBUG
                                            !std::is_pointer<AccessorTy>::value,
                                        void>
     scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-            uint32_t glob_offset = 0, simd<uint16_t, N> pred = 1) {
+            uint32_t glob_offset = 0, simd_mask<N> pred = simd_mask<N>{1}) {
 
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
@@ -338,19 +338,19 @@ ESIMD_INLINE ESIMD_NODEBUG
 #if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     __esimd_surf_write<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
-        pred, scale, surf_ind, glob_offset, offsets, promo_vals);
+        pred.data(), scale, surf_ind, glob_offset, offsets, promo_vals);
 #else
     __esimd_surf_write<PromoT, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
-        pred, scale, acc, glob_offset, offsets, promo_vals);
+        pred.data(), scale, acc, glob_offset, offsets, promo_vals);
 #endif
   } else {
 #if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     __esimd_surf_write<T, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
-        pred, scale, surf_ind, glob_offset, offsets, vals);
+        pred.data(), scale, surf_ind, glob_offset, offsets, vals);
 #else
     __esimd_surf_write<T, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
-        pred, scale, acc, glob_offset, offsets, vals);
+        pred.data(), scale, acc, glob_offset, offsets, vals);
 #endif
   }
 }
@@ -385,7 +385,7 @@ template <typename T, int n, ChannelMaskType Mask,
 ESIMD_INLINE ESIMD_NODEBUG
     typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
                                        simd<T, n * NumChannels(Mask)>>
-    gather4(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+    gather4(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
@@ -401,7 +401,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
                                        void>
     scatter4(T *p, simd<T, n * NumChannels(Mask)> vals,
-             simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+             simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -525,7 +525,7 @@ template <EsimdAtomicOpType Op, typename T, int n,
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
                                        simd<T, n>>
-    flat_atomic(T *p, simd<unsigned, n> offset, simd<ushort, n> pred) {
+    flat_atomic(T *p, simd<unsigned, n> offset, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
@@ -540,7 +540,7 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
                                        simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
-                simd<ushort, n> pred) {
+                simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
@@ -556,7 +556,7 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
                                        simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
-                simd<T, n> src1, simd<ushort, n> pred) {
+                simd<T, n> src1, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
@@ -625,8 +625,8 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size);
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG
     typename sycl::detail::enable_if_t<(n == 16 || n == 32), simd<T, n>>
-    slm_load(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
-  return __esimd_slm_read<T, n>(offsets.data(), pred.data());
+    slm_load(simd<uint32_t, n> offsets, simd_mask<n> Pred = 1) {
+  return __esimd_slm_read<T, n>(offsets.data(), Pred.data());
 }
 
 /// SLM scatter.
@@ -634,7 +634,7 @@ template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG
     typename sycl::detail::enable_if_t<(n == 16 || n == 32), void>
     slm_store(simd<T, n> vals, simd<uint32_t, n> offsets,
-              simd<uint16_t, n> pred = 1) {
+              simd_mask<n> pred = 1) {
   __esimd_slm_write<T, n>(offsets.data(), vals.data(), pred.data());
 }
 
@@ -646,7 +646,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     typename sycl::detail::enable_if_t<(n == 8 || n == 16 || n == 32) &&
                                            (sizeof(T) == 4),
                                        simd<T, n * NumChannels(Mask)>>
-    slm_load4(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+    slm_load4(simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
   return __esimd_slm_read4<T, n, Mask>(offsets.data(), pred.data());
 }
 
@@ -655,7 +655,7 @@ template <typename T, int n, ChannelMaskType Mask>
 typename sycl::detail::enable_if_t<
     (n == 8 || n == 16 || n == 32) && (sizeof(T) == 4), void>
 slm_store4(simd<T, n * NumChannels(Mask)> vals, simd<uint32_t, n> offsets,
-           simd<uint16_t, n> pred = 1) {
+           simd_mask<n> pred = 1) {
   __esimd_slm_write4<T, n, Mask>(offsets.data(), vals.data(), pred.data());
 }
 
@@ -698,7 +698,7 @@ template <EsimdAtomicOpType Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
                                        simd<T, n>>
-    slm_atomic(simd<uint32_t, n> offsets, simd<ushort, n> pred) {
+    slm_atomic(simd<uint32_t, n> offsets, simd_mask<n> pred) {
   return __esimd_slm_atomic0<Op, T, n>(offsets.data(), pred.data());
 }
 
@@ -707,8 +707,7 @@ template <EsimdAtomicOpType Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
                                        simd<T, n>>
-    slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0,
-               simd<ushort, n> pred) {
+    slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd_mask<n> pred) {
   return __esimd_slm_atomic1<Op, T, n>(offsets.data(), src0.data(),
                                        pred.data());
 }
@@ -719,7 +718,7 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
                                        simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd<T, n> src1,
-               simd<ushort, n> pred) {
+               simd_mask<n> pred) {
   return __esimd_slm_atomic2<Op, T, n>(offsets.data(), src0.data(), src1.data(),
                                        pred.data());
 }
@@ -873,7 +872,7 @@ esimd_raw_sends_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0,
                      simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
                      uint8_t execSize, uint8_t sfid, uint8_t numSrc0,
                      uint8_t numSrc1, uint8_t numDst, uint8_t isEOT = 0,
-                     uint8_t isSendc = 0, simd<uint16_t, N> mask = 1) {
+                     uint8_t isSendc = 0, simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -913,7 +912,7 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T1, n1>
 esimd_raw_send_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0, uint32_t exDesc,
                     uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
                     uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
-                    uint8_t isSendc = 0, simd<uint16_t, N> mask = 1) {
+                    uint8_t isSendc = 0, simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -951,7 +950,7 @@ esimd_raw_sends_store(simd<T1, n1> msgSrc0, simd<T2, n2> msgSrc1,
                       uint32_t exDesc, uint32_t msgDesc, uint8_t execSize,
                       uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
                       uint8_t isEOT = 0, uint8_t isSendc = 0,
-                      simd<uint16_t, N> mask = 1) {
+                      simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -985,7 +984,7 @@ ESIMD_INLINE ESIMD_NODEBUG void
 esimd_raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                      uint8_t execSize, uint8_t sfid, uint8_t numSrc0,
                      uint8_t isEOT = 0, uint8_t isSendc = 0,
-                     simd<uint16_t, N> mask = 1) {
+                     simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
 

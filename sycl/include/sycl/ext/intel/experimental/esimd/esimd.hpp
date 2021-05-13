@@ -14,6 +14,7 @@
 #include <sycl/ext/intel/experimental/esimd/detail/esimd_memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/esimd_sycl_util.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
+#include <sycl/ext/intel/experimental/esimd/simd_mask.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -32,6 +33,7 @@ namespace esimd {
 /// \ingroup sycl_esimd
 template <typename Ty, int N> class simd {
   template <typename, typename> friend class simd_view;
+  template <int> friend class simd_mask;
 
 public:
   /// The underlying builtin data type.
@@ -127,7 +129,7 @@ public:
   /// Whole region update with predicates.
   void merge(const simd &Val, const mask_type_t<N> &Mask) {
     set(__esimd_wrregion<element_type, N, N, 0 /*VS*/, N, 1, N>(
-        data(), Val.data(), 0, Mask));
+        data(), Val.data(), 0, Mask.data()));
   }
   void merge(const simd &Val1, simd Val2, const mask_type_t<N> &Mask) {
     Val2.merge(Val1, Mask);
@@ -247,18 +249,12 @@ public:
 
 #undef DEF_BINOP
 
-  // TODO @rolandschulz, @mattkretz
-  // Introduce simd_mask type and let user use this type instead of specific
-  // type representation (simd<uint16_t, N>) to make it more portable
-  // TODO @iburyl should be mask_type_t, which might become more abstracted in
-  // the future revisions.
-  //
 #define DEF_RELOP(RELOP)                                                       \
-  ESIMD_INLINE friend simd<uint16_t, N> operator RELOP(const simd &X,          \
-                                                       const simd &Y) {        \
+  ESIMD_INLINE friend simd_mask<N> operator RELOP(const simd &X,               \
+                                                  const simd &Y) {             \
     auto R = X.data() RELOP Y.data();                                          \
-    mask_type_t<N> M(1);                                                       \
-    return M & detail::convert<mask_type_t<N>>(R);                             \
+    using mask_elem_t = std::remove_reference_t<decltype(R[0])>;               \
+    return simd_mask<N>::template create<mask_elem_t>(R);                      \
   }
 
   DEF_RELOP(>)
@@ -625,6 +621,31 @@ ESIMD_INLINE
 #else
   __esimd_block_write<T, N>(acc, offset >> 4, data());
 #endif // __SYCL_DEVICE_ONLY__
+}
+
+// Some simd_mask member definitions. Put here because their implementation
+// needs full definition of the simd class.
+
+template <int N>
+simd_mask<N>::simd_mask(const simd<unsigned short, N> &v) noexcept {
+  set(__builtin_convertvector(v.data(), simd_mask_impl_t));
+}
+
+template <int N> simd_mask<N>::simd_mask(simd<unsigned short, N> &&v) noexcept {
+  set(__builtin_convertvector(v.data(), simd_mask_impl_t));
+}
+
+template <int N>
+simd_mask<N> &
+simd_mask<N>::operator=(const simd<unsigned short, N> &v) noexcept {
+  set(__builtin_convertvector(v.data(), simd_mask_impl_t));
+  return *this;
+}
+
+template <int N>
+simd_mask<N> &simd_mask<N>::operator=(simd<unsigned short, N> &&v) noexcept {
+  set(__builtin_convertvector(v.data(), simd_mask_impl_t));
+  return *this;
 }
 
 } // namespace esimd
