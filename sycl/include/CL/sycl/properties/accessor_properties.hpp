@@ -26,9 +26,9 @@ class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
 
 #if __cplusplus > 201402L
 
-inline constexpr property::no_init no_init;
+__SYCL_INLINE_CONSTEXPR property::no_init no_init;
 
-inline constexpr property::noinit
+__SYCL_INLINE_CONSTEXPR property::noinit
     __SYCL2020_DEPRECATED("spelling is now: no_init") noinit;
 
 #else
