@@ -29,7 +29,7 @@ class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
 inline constexpr property::no_init no_init;
 
 inline constexpr property::noinit
-    noinit __SYCL2020_DEPRECATED("spelling is now: no_init");
+    __SYCL2020_DEPRECATED("spelling is now: no_init") noinit;
 
 #else
 
