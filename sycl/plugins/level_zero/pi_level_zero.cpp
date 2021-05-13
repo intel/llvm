@@ -4785,7 +4785,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   ze_fence_handle_t ZeFence = nullptr;
 
   bool PreferCopyEngine = false;
-  bool MaxPatternSize =
+  size_t MaxPatternSize =
       Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
 
   // Performance analysis on a simple SYCL data "fill" test shows copy engine
@@ -4794,8 +4794,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Make sure that pattern size matches the capability of the copy queue.
   //
   if (Queue->Device->hasCopyEngine() &&
-      (PatternSize <=
-       Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize)) {
+      PatternSize <=
+          Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize) {
     MaxPatternSize =
         Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize;
     PreferCopyEngine = true;
