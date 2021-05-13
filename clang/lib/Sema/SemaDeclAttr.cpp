@@ -3538,15 +3538,15 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
         ExprResult ZDim = VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
 
         if (XDim.isInvalid())
-          return true;
+          return false;
         XDimExpr = XDim.get();
 
         if (YDim.isInvalid())
-          return true;
+          return false;
         YDimExpr = YDim.get();
 
         if (ZDim.isInvalid())
-          return true;
+          return false;
         ZDimExpr = ZDim.get();
 
         if (XDimVal != 1 || YDimVal != 1 || ZDimVal != 1) {
