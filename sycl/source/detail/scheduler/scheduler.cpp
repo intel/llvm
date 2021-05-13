@@ -124,8 +124,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // Though, dismiss ownership of native kernel command group as it's
       // resources may be in use by backend and synchronization point here is
       // at native kernel execution finish.
-      if (NewCmd.get()->MDeps.size() == 0 &&
-          NewCmd.get()->MUsers.size() == 0) {
+      if (NewCmd.get()->MDeps.size() == 0 && NewCmd.get()->MUsers.size() == 0) {
         if (IsHostKernel)
           static_cast<ExecCGCommand *>(NewCmd.get())->releaseCG();
 
