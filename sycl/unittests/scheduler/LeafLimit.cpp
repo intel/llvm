@@ -48,7 +48,7 @@ TEST_F(SchedulerTest, LeafLimit) {
   std::vector<cl::sycl::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit
   for (auto &LeafPtr : LeavesToAdd) {
-    MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::read, ToEnqueue);
+    MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::write, ToEnqueue);
   }
   // Check that the oldest leaf has been removed from the leaf list
   // and added as a dependency of the newest one instead
