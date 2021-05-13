@@ -2963,8 +2963,6 @@ def ReqdWorkGroupSize : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
-// Default arguments can only be used with the sycl::work_group_size_hint
-// spelling.
 def WorkGroupSizeHint :  InheritableAttr {
   let Spellings = [GNU<"work_group_size_hint">,
                    CXX11<"sycl", "work_group_size_hint">];
