@@ -7132,6 +7132,25 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
     }
+
+    // Set reqntid if reqd_work_group_size attribute is set
+    if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
+      ASTContext &ClangCtx = FD->getASTContext();
+      Optional<llvm::APSInt> XDimVal = A->getXDimVal(ClangCtx);
+      Optional<llvm::APSInt> YDimVal = A->getYDimVal(ClangCtx);
+      Optional<llvm::APSInt> ZDimVal = A->getZDimVal(ClangCtx);
+
+      // For a SYCLDevice ReqdWorkGroupSizeAttr arguments are reversed.
+      if (M.getLangOpts().SYCLIsDevice)
+        std::swap(XDimVal, ZDimVal);
+
+      // Create !{<func-ref>, metadata !"reqntidx", i32 <ReqdWorkGroupSize x>}
+      addNVVMMetadata(F, "reqntidx", XDimVal->getZExtValue());
+      // Create !{<func-ref>, metadata !"reqntidy", i32 <ReqdWorkGroupSize y>}
+      addNVVMMetadata(F, "reqntidy", YDimVal->getZExtValue());
+      // Create !{<func-ref>, metadata !"reqntidz", i32 <ReqdWorkGroupSize z>}
+      addNVVMMetadata(F, "reqntidz", ZDimVal->getZExtValue());
+    }
   }
 
   // Perform special handling in CUDA mode.
