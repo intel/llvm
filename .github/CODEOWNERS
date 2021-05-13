@@ -9,8 +9,11 @@ clang/**/Driver @mdtoguchi @AGindinson
 # LLVM-SPIRV translator
 llvm-spirv/ @AlexeySotkin @AlexeySachkov
 
+# OpenCL deps
+opencl/ @pvchupin @vladimirlaz
+
 # OpenCL "offline" compiler
-opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
+opencl/opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 
 # Device library
 libdevice/ @vzakhari @jinge90
@@ -89,6 +92,7 @@ llvm/lib/Support/Base64.cpp @mlychkov @AlexeySachkov @kbobrovs
 clang/tools/clang-offload-bundler/ @mlychkov @sndmitriev @AlexeySachkov
 clang/tools/clang-offload-wrapper/ @mlychkov @sndmitriev @AlexeySachkov @kbobrovs
 clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
+clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
 SYCLLowerIR/ @kbobrovs @DenisBakhvalov

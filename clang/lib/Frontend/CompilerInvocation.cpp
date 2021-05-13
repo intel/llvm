@@ -3624,25 +3624,6 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       LangStd = OpenCLLangStd;
   }
 
-  if (Args.hasArg(OPT_fsycl_is_device) || Args.hasArg(OPT_fsycl_is_host)) {
-    // -sycl-std applies to any SYCL source, not only those containing kernels,
-    // but also those using the SYCL API
-    if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
-      Opts.setSYCLVersion(
-          llvm::StringSwitch<LangOptions::SYCLMajorVersion>(A->getValue())
-              .Cases("2017", "1.2.1", "121", "sycl-1.2.1",
-                     LangOptions::SYCL_2017)
-              .Case("2020", LangOptions::SYCL_2020)
-              .Default(LangOptions::SYCL_None));
-
-      if (Opts.getSYCLVersion() == LangOptions::SYCL_None) {
-        // User has passed an invalid value to the flag, this is an error
-        Diags.Report(diag::err_drv_invalid_value)
-            << A->getAsString(Args) << A->getValue();
-      }
-    }
-  }
-
   // Parse SYCL Default Sub group size.
   if (const Arg *A = Args.getLastArg(OPT_fsycl_default_sub_group_size)) {
     StringRef Value = A->getValue();
@@ -3691,6 +3672,16 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (Name == "full" || Name == "branch") {
       Opts.CFProtectionBranch = 1;
     }
+  }
+
+  if ((Args.hasArg(OPT_fsycl_is_device) || Args.hasArg(OPT_fsycl_is_host)) &&
+      !Args.hasArg(OPT_sycl_std_EQ)) {
+    // If the user supplied -fsycl-is-device or -fsycl-is-host, but failed to
+    // provide -sycl-std=, we want to default it to whatever the default SYCL
+    // version is. I could not find a way to express this with the options
+    // tablegen because we still want this value to be SYCL_None when the user
+    // is not in device or host mode.
+    Opts.setSYCLVersion(LangOptions::SYCL_Default);
   }
 
   if (Opts.ObjC) {
