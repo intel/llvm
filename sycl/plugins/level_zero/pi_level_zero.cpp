@@ -2747,7 +2747,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZeImageDesc.miplevels = ImageDesc->num_mip_levels;
 
   // Have the "0" device in context to own the image. Currently images are not
-  // supported in contexts with multiple root-devices expect the case when
+  // supported in contexts with multiple root-devices except the case when
   // context consists of subdevices of a same device.
   //
   // TODO: Implement explicit copying for acessing the image from other devices
