@@ -1819,14 +1819,14 @@ public:
   // Helper routine to add a pair of Callee-Caller pair of FunctionDecl *
   // to UndefinedReachableFromSyclDevice.
   void addFDToReachableFromSyclDevice(FunctionDecl *Callee,
-                                      FunctionDecl* Caller) {
+                                      FunctionDecl *Caller) {
     UndefinedReachableFromSyclDevice.push_back(std::make_pair(Callee, Caller));
   }
   // Helper routine to check if a pair of Callee-Caller FunctionDecl *
   // is in UndefinedReachableFromSyclDevice.
   bool isFDReachableFromSyclDevice(const FunctionDecl *Callee,
                                    const FunctionDecl *Caller) {
-    for (auto It: UndefinedReachableFromSyclDevice)
+    for (auto It : UndefinedReachableFromSyclDevice)
       if (It.first == Callee && It.second == Caller)
         return true;
     return false;
