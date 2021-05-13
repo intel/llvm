@@ -1155,19 +1155,26 @@ static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
   }
 }
 
-BinaryOperator *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV,
-                                                          BasicBlock *BB,
-                                                          Function *F) {
+Value *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
+                                                 Function *F) {
   SPIRVBinary *BBN = static_cast<SPIRVBinary *>(BV);
-  assert(BB && "Invalid BB");
   Instruction::BinaryOps BO;
   auto OP = BBN->getOpCode();
   if (isLogicalOpCode(OP))
     OP = IntBoolOpMap::rmap(OP);
   BO = static_cast<Instruction::BinaryOps>(OpCodeMap::rmap(OP));
-  auto Inst = BinaryOperator::Create(BO, transValue(BBN->getOperand(0), F, BB),
-                                     transValue(BBN->getOperand(1), F, BB),
-                                     BV->getName(), BB);
+
+  auto *Op0Constant = dyn_cast<Constant>(transValue(BBN->getOperand(0), F, BB));
+  auto *Op1Constant = dyn_cast<Constant>(transValue(BBN->getOperand(1), F, BB));
+  if (Op0Constant && Op1Constant) {
+    // If both operands are constant, create a constant expression.
+    // This can be used for initializers.
+    return ConstantExpr::get(BO, Op0Constant, Op1Constant);
+  }
+  assert(BB && "Invalid BB");
+  auto *Inst = BinaryOperator::Create(BO, transValue(BBN->getOperand(0), F, BB),
+                                      transValue(BBN->getOperand(1), F, BB),
+                                      BV->getName(), BB);
   applyNoIntegerWrapDecorations(BV, Inst);
   applyFPFastMathModeDecorations(BV, Inst);
   return Inst;
