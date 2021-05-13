@@ -2241,23 +2241,23 @@ enum class KernelArgDescription {
 StringRef getKernelArgDesc(KernelArgDescription Desc) {
   switch (Desc) {
   case KernelArgDescription::BaseClass:
-    return "base class";
+    return "Compiler generated argument for base class,";
   case KernelArgDescription::DecomposedMember:
-    return "decomposed struct/class";
+    return "Compiler generated argument for decomposed struct/class,";
   case KernelArgDescription::WrappedPointer:
-    return "nested pointer";
+    return "Compiler generated argument for nested pointer,";
   case KernelArgDescription::WrappedArray:
-    return "array";
+    return "Compiler generated argument for array,";
   case KernelArgDescription::Accessor:
-    return "accessor";
+    return "Compiler generated argument for accessor,";
   case KernelArgDescription::AccessorBase:
-    return "accessor base class";
+    return "Compiler generated argument for accessor base class,";
   case KernelArgDescription::Sampler:
-    return "sampler";
+    return "Compiler generated argument for sampler,";
   case KernelArgDescription::Stream:
-    return "stream";
+    return "Compiler generated argument for stream,";
   case KernelArgDescription::KernelHandler:
-    return "SYCL2020 specialization constant";
+    return "Compiler generated argument for SYCL2020 specialization constant";
   case KernelArgDescription::None:
     return "";
   }
@@ -2269,13 +2269,29 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *KernelArg, QualType KernelArgType,
                 KernelArgDescription KernelArgDesc) {
+    StringRef NameToEmitInDescription = KernelArg->getName();
+    const RecordDecl *KernelArgParent = KernelArg->getParent();
+    if (KernelArgParent &&
+        KernelArgDesc == KernelArgDescription::DecomposedMember) {
+      NameToEmitInDescription = KernelArgParent->getName();
+    }
+
+    bool isWrappedField =
+        (KernelArgDesc == KernelArgDescription::WrappedPointer ||
+         KernelArgDesc == KernelArgDescription::WrappedArray)
+            ? true
+            : false;
+
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
-    const RecordDecl *KernelArgParent = KernelArg->getParent();
+
     SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
-        DC.getKernelDecl(), KernelArg->getName(), KernelArgType.getAsString(),
+        DC.getKernelDecl(), NameToEmitInDescription,
+        (isWrappedField) ? "Compiler generated" : KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
-        KernelArgParent ? KernelArgParent->getName() : "");
+        (KernelArgDesc == KernelArgDescription::DecomposedMember)
+            ? ("Field:" + KernelArg->getName().str() + ", ")
+            : "");
   }
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
@@ -2287,13 +2303,25 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
     addParam(FD, FieldTy, Desc);
   }
 
-  void addParam(QualType KernelArgType, KernelArgDescription KernelArgDesc) {
+  // Handles base classes
+  void addParam(const CXXBaseSpecifier &, QualType KernelArgType,
+                KernelArgDescription KernelArgDesc) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
     SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
         DC.getKernelDecl(), KernelArgType.getAsString(),
         KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
         getKernelArgDesc(KernelArgDesc), "");
+  }
+
+  // Handles specialization constants
+  void addParam(QualType KernelArgType, KernelArgDescription KernelArgDesc) {
+    unsigned KernelArgSize =
+        SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        DC.getKernelDecl(), "", KernelArgType.getAsString(),
+        KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
+        "");
   }
 
   // Handles SYCL special types - accessor, sampler and stream
@@ -2317,9 +2345,18 @@ public:
 
   bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
-    for (const auto *Param : DC.getParamVarDeclsForCurrentField())
-      addParam(Param->getType(),
-               KernelArgDescription(KernelArgDescription::AccessorBase));
+    for (const auto *Param : DC.getParamVarDeclsForCurrentField()) {
+      QualType KernelArgType = Param->getType();
+      unsigned KernelArgSize = SemaRef.getASTContext()
+                                   .getTypeSizeInChars(KernelArgType)
+                                   .getQuantity();
+      SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+          DC.getKernelDecl(), FieldTy.getAsString(),
+          KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
+          getKernelArgDesc(
+              KernelArgDescription(KernelArgDescription::AccessorBase)),
+          "");
+    }
     return true;
   }
 
@@ -2359,7 +2396,7 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *Base,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
-    addParam(Ty, KernelArgDescription(KernelArgDescription::BaseClass));
+    addParam(BS, Ty, KernelArgDescription(KernelArgDescription::BaseClass));
     return true;
   }
 

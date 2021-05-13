@@ -1461,33 +1461,6 @@ QualType CodeGenFunction::BuildFunctionArgList(GlobalDecl GD,
   return ResTy;
 }
 
-enum class ArgDescEncoding {
-  BaseClass,
-  DecomposedMember,
-  WrappedPointer,
-  WrappedArray,
-  Accessor,
-  AccessorBase,
-  Sampler,
-  Stream,
-  KernelHandler,
-  None
-};
-
-static ArgDescEncoding getArgDescEncoding(StringRef KernelArgDesc) {
-  return llvm::StringSwitch<ArgDescEncoding>(KernelArgDesc)
-      .Case("base class", ArgDescEncoding::BaseClass)
-      .Case("decomposed struct/class", ArgDescEncoding::DecomposedMember)
-      .Case("nested pointer", ArgDescEncoding::WrappedPointer)
-      .Case("array", ArgDescEncoding::WrappedArray)
-      .Case("accessor", ArgDescEncoding::Accessor)
-      .Case("accessor base class", ArgDescEncoding::AccessorBase)
-      .Case("sampler", ArgDescEncoding::Sampler)
-      .Case("stream", ArgDescEncoding::Stream)
-      .Case("SYCL2020 specialization constant", ArgDescEncoding::KernelHandler)
-      .Default(ArgDescEncoding::None);
-}
-
 void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
                                    const CGFunctionInfo &FnInfo) {
   const FunctionDecl *FD = cast<FunctionDecl>(GD.getDecl());
@@ -1545,33 +1518,17 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
       llvm::DiagnosticLocation DL =
           SourceLocToDebugLoc(ORI.value().KernelArgLoc);
-      StringRef ArgName = ORI.value().KernelArgName;
+      StringRef NameInDesc = ORI.value().KernelArgDescName;
       StringRef ArgType = ORI.value().KernelArgType;
       StringRef ArgDesc = ORI.value().KernelArgDesc;
       unsigned ArgSize = ORI.value().KernelArgSize;
-      StringRef ArgParent = ORI.value().KernelArgParent;
-
-      ArgDescEncoding ArgDescEnc = getArgDescEncoding(ArgDesc);
-      bool isWrappedField = (ArgDescEnc == ArgDescEncoding::WrappedPointer ||
-                             ArgDescEnc == ArgDescEncoding::WrappedArray)
-                                ? true
-                                : false;
+      StringRef ArgDecomposedField = ORI.value().KernelArgDecomposedField;
 
       llvm::OptimizationRemark Remark("sycl", "Region", DL,
                                       &Fn->getEntryBlock());
       Remark << "Arg " << llvm::ore::NV("Argument", ORI.index()) << ":"
-             << ((ArgDescEnc != ArgDescEncoding::None)
-                     ? ("Compiler generated argument for " + ArgDesc.str() +
-                        ",")
-                     : "")
-             << ((ArgDescEnc == ArgDescEncoding::DecomposedMember) ? ArgParent
-                                                                   : ArgName)
-             << "  ("
-             << ((ArgDescEnc == ArgDescEncoding::DecomposedMember)
-                     ? ("Field:" + ArgName.str() + ", ")
-                     : "")
-             << "Type:" << ((isWrappedField) ? "Compiler generated" : ArgType)
-             << ", "
+             << ArgDesc << NameInDesc << "  (" << ArgDecomposedField
+             << "Type:" << ArgType << ", "
              << "Size: " << llvm::ore::NV("Argument", ArgSize) << ")";
       ORE.emit(Remark);
     }
