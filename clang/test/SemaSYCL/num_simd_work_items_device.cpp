@@ -62,7 +62,7 @@ struct TRIFuncObjBad2 {
 
 // Tests for the default values of [[intel::reqd_work_group_size()]].
 
-// FIXME: This should be accepted instaed of error which turns out to be
+// FIXME: This should be accepted instead of error which turns out to be
 // an implementation bug that shouldn't be visible to the user as there
 // aren't really any default values. The dimensionality of the attribute
 // must match the kernel, so three different forms of the attribute
@@ -75,7 +75,7 @@ struct TRIFuncObjBad3 {
   operator()() const {}
 };
 
-// FIXME: This should be accepted instaed of error which turns out to be
+// FIXME: This should be accepted instead of error which turns out to be
 // an implementation bug that shouldn't be visible to the user as there
 // aren't really any default values. The dimensionality of the attribute
 // must match the kernel, so three different forms of the attribute
@@ -88,7 +88,7 @@ struct TRIFuncObjBad4 {
   operator()() const {}
 };
 
-// FIXME: This should be accepted instaed of error which turns out to be
+// FIXME: This should be accepted instead of error which turns out to be
 // an implementation bug that shouldn't be visible to the user as there
 // aren't really any default values. The dimensionality of the attribute
 // must match the kernel, so three different forms of the attribute
@@ -101,7 +101,7 @@ struct TRIFuncObjBad5 {
   operator()() const {}
 };
 
-// FIXME: This should be accepted instaed of error which turns out to be
+// FIXME: This should be accepted instead of error which turns out to be
 // an implementation bug that shouldn't be visible to the user as there
 // aren't really any default values. The dimensionality of the attribute
 // must match the kernel, so three different forms of the attribute
