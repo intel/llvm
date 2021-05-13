@@ -74,26 +74,22 @@ template <int size>
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).
 template <int N>
-// expected-error@+1{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-[[intel::max_work_group_size(N, N, N)]] void func5();
+[[intel::max_work_group_size(N, N, N)]] void func5(); // expected-error {{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func5();
 
 template <int N>
-// expected-error@+1{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-[[intel::reqd_work_group_size(N)]] void func6();
+[[intel::reqd_work_group_size(N)]] void func6(); // expected-error {{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func6();
 
 template <int N>
-// expected-error@+1{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-[[intel::reqd_work_group_size(N, N)]] void func7();
+[[intel::reqd_work_group_size(N, N)]] void func7(); // expected-error {{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func7();
 
 template <int N>
-// expected-error@+1{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-[[intel::reqd_work_group_size(N, N, N)]] void func8();
+[[intel::reqd_work_group_size(N, N, N)]] void func8(); // expected-error {{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func8();
 
@@ -113,25 +109,18 @@ template <int N>
 [[intel::max_global_work_dim(0)]] void func11();
 
 template <int N>
-[[intel::reqd_work_group_size(N, N, N)]] void func12();
+[[cl::reqd_work_group_size(N, N, N)]] void func12();
 template <int N>
 [[intel::max_global_work_dim(0)]] void func12();
 
 int check() {
-  // no error expected
-  func3<3>();
-  //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
-  func3<-1>();
-  //expected-note@+1 {{in instantiation of function template specialization 'func4<2>' requested here}}
-  func4<2>();
-  //expected-note@+1 {{in instantiation of function template specialization 'func5<2>' requested here}}
-  func5<2>();
-  //expected-note@+1 {{in instantiation of function template specialization 'func6<2>' requested here}}
-  func6<2>();
-  //expected-note@+1 {{in instantiation of function template specialization 'func7<2>' requested here}}
-  func7<2>();
-  //expected-note@+1 {{in instantiation of function template specialization 'func8<2>' requested here}}
-  func8<2>();
+  func3<3>();  // OK
+  func3<-1>(); // expected-note {{in instantiation of function template specialization 'func3<-1>' requested here}}
+  func4<2>();  // expected-note {{in instantiation of function template specialization 'func4<2>' requested here}}
+  func5<2>();  // expected-note {{in instantiation of function template specialization 'func5<2>' requested here}}
+  func6<2>();  // expected-note {{in instantiation of function template specialization 'func6<2>' requested here}}
+  func7<2>();  // expected-note {{in instantiation of function template specialization 'func7<2>' requested here}}
+  func8<2>();  // expected-note {{in instantiation of function template specialization 'func8<2>' requested here}}
   func9<1>();  // OK
   func10<1>(); // OK
   func11<1>(); // OK

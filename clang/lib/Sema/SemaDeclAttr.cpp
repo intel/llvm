@@ -3525,26 +3525,50 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
     // ReqdWorkGroupSizeAttr, check to see if they hold equal values
     // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
     // equals to 0.
-    auto Check = [this, &CI](const auto *A) {
-      Optional<llvm::APSInt> XDimVal = A->getXDimVal(Context);
-      Optional<llvm::APSInt> YDimVal = A->getYDimVal(Context);
-      Optional<llvm::APSInt> ZDimVal = A->getZDimVal(Context);
-      if (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1) {
-        Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
-            << A << CI;
-        return false;
+    auto Check = [this, &CI](const auto *A) -> bool {
+      Expr *XDimExpr = A->getXDim();
+      Expr *YDimExpr = A->getYDim();
+      Expr *ZDimExpr = A->getZDim();
+
+      if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+          !ZDimExpr->isValueDependent()) {
+        llvm::APSInt XDimVal, YDimVal, ZDimVal;
+        ExprResult XDim = VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
+        ExprResult YDim = VerifyIntegerConstantExpression(YDimExpr, &YDimVal);
+        ExprResult ZDim = VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
+
+        if (XDim.isInvalid())
+          return true;
+        XDimExpr = XDim.get();
+
+        if (YDim.isInvalid())
+          return true;
+        YDimExpr = YDim.get();
+
+        if (ZDim.isInvalid())
+          return true;
+        ZDimExpr = ZDim.get();
+
+        if (XDimVal != 1 || YDimVal != 1 || ZDimVal != 1) {
+	  Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+              << A << CI;
+          return false;
+        }
       }
       return true;
     };
+
     if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       if (ArgVal == 0 && !Check(DeclAttr))
         return;
     }
+
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       if (ArgVal == 0 && !Check(DeclAttr))
         return;
     }
   }
+
   D->addAttr(::new (Context) SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
 }
 
