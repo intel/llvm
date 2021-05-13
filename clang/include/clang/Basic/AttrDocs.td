@@ -2534,14 +2534,6 @@ increments fastest in the reqd_work_group_size attribute.
     void operator()() const {}
   };
 
-  [[intel::reqd_work_group_size(5)]]
-  // identical to [[intel::reqd_work_group_size(5, 1, 1)]]
-  [[intel::num_simd_work_items(5)]] void fun() {}
-
-  [[intel::reqd_work_group_size(5, 10)]]
-  // identical to [[intel::reqd_work_group_size(5, 10, 1)]]
-  [[intel::num_simd_work_items(5)]] void fun1() {}
-
   [[cl::reqd_work_group_size(7, 10, 20)]]
   [[intel::num_simd_work_items(5)]] void fun2() {}
 
@@ -2709,14 +2701,6 @@ attribute.
     [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
-
-  [[intel::reqd_work_group_size(5)]]
-  // identical to [[intel::reqd_work_group_size(5, 1, 1)]]
-  [[intel::num_simd_work_items(5)]] void fun() {}
-
-  [[intel::reqd_work_group_size(5, 10)]]
-  // identical to [[intel::reqd_work_group_size(5, 10, 1)]]
-  [[intel::num_simd_work_items(5)]] void fun1() {}
 
   [[cl::reqd_work_group_size(7, 10, 20)]]
   [[intel::num_simd_work_items(5)]] void fun2() {}
