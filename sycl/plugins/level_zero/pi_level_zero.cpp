@@ -570,11 +570,11 @@ pi_result _pi_context::initialize() {
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
   ze_command_queue_desc_t ZeCommandQueueDesc = {};
-  ZeCommandQueueDesc.ordinal = defaultDevice()->ZeComputeQueueGroupIndex;
+  ZeCommandQueueDesc.ordinal = getFirstOrRootDevice()->ZeComputeQueueGroupIndex;
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
   ZE_CALL(zeCommandListCreateImmediate,
-          (ZeContext, defaultDevice()->ZeDevice, &ZeCommandQueueDesc,
+          (ZeContext, getFirstOrRootDevice()->ZeDevice, &ZeCommandQueueDesc,
            &ZeCommandListInit));
   return PI_SUCCESS;
 }
@@ -1364,7 +1364,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
     // devices cache also keeps sub-devices.
-    if (D->IsSubDevice)
+    if (D->RootDevice)
       continue;
 
     bool Matched = false;
@@ -1477,7 +1477,7 @@ pi_result piDeviceRetain(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   // The root-device ref-count remains unchanged (always 1).
-  if (Device->IsSubDevice) {
+  if (Device->RootDevice) {
     ++(Device->RefCount);
   }
   return PI_SUCCESS;
@@ -1491,7 +1491,7 @@ pi_result piDeviceRelease(pi_device Device) {
     die("piDeviceRelease: the device has been already released");
 
   // Root devices are destroyed during the piTearDown process.
-  if (Device->IsSubDevice) {
+  if (Device->RootDevice) {
     if (--(Device->RefCount) == 0) {
       delete Device;
     }
@@ -1709,7 +1709,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    if (Device->IsSubDevice) {
+    if (Device->RootDevice) {
       struct {
         pi_device_partition_property Arr[3];
       } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
@@ -2131,6 +2131,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   (void)Properties;
   (void)PFnNotify;
   (void)UserData;
+  PI_ASSERT(NumDevices, PI_INVALID_VALUE);
   PI_ASSERT(Devices, PI_INVALID_DEVICE);
   PI_ASSERT(RetContext, PI_INVALID_VALUE);
 
@@ -2443,7 +2444,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   // Attach the queue to the default ("0" or root-device) device.
   // TODO: see if we need to let user choose the device.
-  pi_device Device = Context->defaultDevice();
+  pi_device Device = Context->getFirstOrRootDevice();
   // TODO: see what we can do to correctly initialize PI queue for
   // compute vs. copy Level-Zero queue.
   *Queue =
@@ -2474,13 +2475,14 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   // For integrated devices, allocating the buffer in host shared memory
   // enables automatic access from the device, and makes copying
   // unnecessary in the map/unmap operations. This improves performance.
-  bool DeviceIsIntegrated = Context->Devices.size() == 1 &&
-                            Context->defaultDevice()->ZeDeviceProperties.flags &
-                                ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+  bool DeviceIsIntegrated =
+      Context->Devices.size() == 1 &&
+      Context->getFirstOrRootDevice()->ZeDeviceProperties.flags &
+          ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
   bool SingleDiscreteDevice =
       Context->Devices.size() == 1 &&
-      !(Context->defaultDevice()->ZeDeviceProperties.flags &
+      !(Context->getFirstOrRootDevice()->ZeDeviceProperties.flags &
         ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
@@ -2516,7 +2518,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   } else if (SingleDiscreteDevice || Context->RootDevice) {
     // If we have a single discrete device or all devices in the context are
     // sub-devices of the same device
-    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->defaultDevice(),
+    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->getFirstOrRootDevice(),
                                  nullptr, Size, Alignment);
   } else {
     // Context with several gpu cards. Temporarily use host allocation because
@@ -2745,7 +2747,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   // TODO: figure out if we instead need explicit copying for acessing
   // the image from other devices in the context.
   //
-  pi_device Device = Context->defaultDevice();
+  pi_device Device = Context->getFirstOrRootDevice();
   ze_image_handle_t ZeHImage;
   ZE_CALL(zeImageCreate,
           (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));
@@ -2889,7 +2891,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     return ReturnValue(pi_uint32{1});
   case PI_PROGRAM_INFO_DEVICES:
     // TODO: return all devices this program exists for.
-    return ReturnValue(Program->Context->defaultDevice());
+    return ReturnValue(Program->Context->getFirstOrRootDevice());
   case PI_PROGRAM_INFO_BINARY_SIZES: {
     size_t SzBinary;
     if (Program->State == _pi_program::IL ||
@@ -3022,7 +3024,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
   (void)Options;
 
   // We only support one device with Level Zero currently.
-  pi_device Device = Context->defaultDevice();
+  pi_device Device = Context->getFirstOrRootDevice();
   if (NumDevices != 1)
     die("piProgramLink: level_zero supports only one device.");
 
@@ -4021,7 +4023,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
     // HW timestamps.
     //
     if (ContextEndTime <= ContextStartTime) {
-      pi_device Device = Event->Context->defaultDevice();
+      pi_device Device = Event->Context->getFirstOrRootDevice();
       const uint64_t TimestampMaxValue =
           (1LL << Device->ZeDeviceProperties.kernelTimestampValidBits) - 1;
       ContextEndTime += TimestampMaxValue - ContextStartTime;
@@ -4256,7 +4258,7 @@ pi_result piSamplerCreate(pi_context Context,
   // TODO: figure out if we instead need explicit copying for acessing
   // the sampler from other devices in the context.
   //
-  pi_device Device = Context->defaultDevice();
+  pi_device Device = Context->getFirstOrRootDevice();
 
   ze_sampler_handle_t ZeSampler;
   ze_sampler_desc_t ZeSamplerDesc = {};

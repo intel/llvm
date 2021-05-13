@@ -150,8 +150,7 @@ struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
              pi_device ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        IsSubDevice(RootDevice != nullptr), ZeDeviceProperties{},
-        ZeDeviceComputeProperties{} {
+        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -184,11 +183,6 @@ struct _pi_device : _pi_object {
 
   // Root-device of a sub-device, null if this is not a sub-device.
   pi_device RootDevice;
-
-  // Indicates if this is a root-device or a sub-device.
-  // Technically this information can be queried from a device handle, but it
-  // seems better to just keep it here.
-  bool IsSubDevice;
 
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
@@ -223,7 +217,7 @@ struct _pi_context : _pi_object {
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
 
     // If we have a single device/sub-device, construction is done.
-    if (NumDevices < 2)
+    if (NumDevices == 1)
       return;
 
     // Check if we have context with subdevices of the same device (context may
@@ -238,14 +232,11 @@ struct _pi_context : _pi_object {
     }
   }
 
-  // Currently support of multi-device contexts is limited in the Level Zero
-  // plugin. For example, device allocations are supported only for contexts
-  // with a single device or when context consist of sub-devices of the same
-  // device. This method picks a "default" device which is used to allocate
-  // device memory and create immediate command lists to initialize allocations.
-  // It is going to be removed when multi-device contexts will be fully
-  // supported.
-  pi_device defaultDevice() { return RootDevice ? RootDevice : Devices[0]; }
+  // Utility function which returns a root-device if the context consists of
+  // sub-devices of a same device or returns the first device otherwise.
+  pi_device getFirstOrRootDevice() {
+    return RootDevice ? RootDevice : Devices[0];
+  }
 
   // Initialize the PI context.
   pi_result initialize();
