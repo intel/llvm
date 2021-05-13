@@ -95,8 +95,9 @@ class MockScheduler : public cl::sycl::detail::Scheduler {
 public:
   cl::sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(const cl::sycl::detail::QueueImplPtr &Queue,
-                          cl::sycl::detail::Requirement *Req) {
-    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
+                          cl::sycl::detail::Requirement *Req,
+                          std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
   }
 
   void removeRecordForMemObj(cl::sycl::detail::SYCLMemObjI *MemObj) {
@@ -138,14 +139,16 @@ public:
   cl::sycl::detail::Command *
   insertMemoryMove(cl::sycl::detail::MemObjRecord *Record,
                    cl::sycl::detail::Requirement *Req,
-                   const cl::sycl::detail::QueueImplPtr &Queue) {
-    return MGraphBuilder.insertMemoryMove(Record, Req, Queue);
+                   const cl::sycl::detail::QueueImplPtr &Queue,
+                   std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.insertMemoryMove(Record, Req, Queue, ToEnqueue);
   }
 
   cl::sycl::detail::Command *
   addCG(std::unique_ptr<cl::sycl::detail::CG> CommandGroup,
-        cl::sycl::detail::QueueImplPtr Queue) {
-    return MGraphBuilder.addCG(std::move(CommandGroup), Queue);
+        cl::sycl::detail::QueueImplPtr Queue,
+        std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue);
   }
 };
 

@@ -481,8 +481,8 @@ protected:
     /// \sa queue::submit, Scheduler::addCG
     ///
     /// \return a command that represents command group execution.
-    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
-                   QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
+    Command *addCG(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+                   std::vector<Command *> &ToEnqueue);
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
@@ -621,9 +621,10 @@ protected:
     /// Searches for suitable alloca in memory record.
     ///
     /// If none found, creates new one.
-    AllocaCommandBase *getOrCreateAllocaForReq(
-        MemObjRecord *Record, const Requirement *Req, QueueImplPtr Queue,
-        std::vector<Command *> &ToEnqueue);
+    AllocaCommandBase *
+    getOrCreateAllocaForReq(MemObjRecord *Record, const Requirement *Req,
+                            QueueImplPtr Queue,
+                            std::vector<Command *> &ToEnqueue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
@@ -728,8 +729,7 @@ protected:
 
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
-    static void waitForEvent(EventImplPtr Event,
-                             ReadLockT &GraphReadLock);
+    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock);
 
     /// Enqueues the command and all its dependencies.
     ///

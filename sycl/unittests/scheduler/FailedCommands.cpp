@@ -16,7 +16,7 @@ TEST_F(SchedulerTest, FailedDependency) {
   MockCommand MDep(detail::getSyclObjImpl(MQueue));
   MockCommand MUser(detail::getSyclObjImpl(MQueue));
   MDep.addUser(&MUser);
-  MUser.addDep(detail::DepDesc{&MDep, &MockReq, nullptr});
+  (void)MUser.addDep(detail::DepDesc{&MDep, &MockReq, nullptr});
   MUser.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   MDep.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueFailed;
 

@@ -108,10 +108,10 @@ public:
   Command(CommandType Type, QueueImplPtr Queue);
 
   /// \return an optional connection cmd to enqueue
-  Command *addDep(DepDesc NewDep);
+  [[nodiscard]] Command *addDep(DepDesc NewDep);
 
   /// \return an optional connection cmd to enqueue
-  Command *addDep(EventImplPtr Event);
+  [[nodiscard]] Command *addDep(EventImplPtr Event);
 
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
@@ -213,7 +213,7 @@ protected:
   /// command. Context of this command is fetched via getWorkerContext().
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
-  Command *processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
+  [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
 
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;

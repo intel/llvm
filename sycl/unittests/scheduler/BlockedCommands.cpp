@@ -154,7 +154,7 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
       new cl::sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
   DepEvent->setCommand(&B);
 
-  A.addDep(DepEvent);
+  (void)A.addDep(DepEvent);
 
   // We have such a "graph":
   //

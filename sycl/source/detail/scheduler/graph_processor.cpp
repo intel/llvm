@@ -71,8 +71,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   // Recursively enqueue all the dependencies first and
   // exit immediately if any of the commands cannot be enqueued.
   for (DepDesc &Dep : Cmd->MDeps) {
-    if (!enqueueCommand(
-             Dep.MDepCommand, EnqueueResult, GraphReadLock, Blocking))
+    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, GraphReadLock,
+                        Blocking))
       return false;
   }
 

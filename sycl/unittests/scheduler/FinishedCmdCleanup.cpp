@@ -21,8 +21,9 @@ TEST_F(SchedulerTest, FinishedCmdCleanup) {
   detail::Requirement MockReqA = getMockRequirement(BufA);
   detail::Requirement MockReqB = getMockRequirement(BufB);
   detail::Requirement MockReqC = getMockRequirement(BufC);
-  detail::MemObjRecord *RecC =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &MockReqC);
+  std::vector<detail::Command *> AuxCmds;
+  detail::MemObjRecord *RecC = MS.getOrInsertMemObjRecord(
+      detail::getSyclObjImpl(MQueue), &MockReqC, AuxCmds);
 
   // Create a graph and check that all inner nodes have been deleted and
   // their users have had the corresponding dependency replaced with a

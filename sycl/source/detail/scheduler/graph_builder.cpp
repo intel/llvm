@@ -173,9 +173,9 @@ MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
 }
 
 MemObjRecord *
-Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                                 const Requirement *Req,
-                                                 std::vector<Command *> &ToEnqueue) {
+Scheduler::GraphBuilder::getOrInsertMemObjRecord(
+    const QueueImplPtr &Queue, const Requirement *Req,
+    std::vector<Command *> &ToEnqueue) {
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObject);
 
@@ -215,7 +215,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
 
     MemObject->MRecord.reset(
         new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
-    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr, ToEnqueue);
+    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
+                            ToEnqueue);
   } else
     MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
                                               LeafLimit, AllocateDependency});
@@ -238,11 +239,9 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
   }
 }
 
-void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
-                                              Command *Cmd,
-                                              access::mode AccessMode,
-                                              std::vector<Command *> &ToEnqueue)
-{
+void Scheduler::GraphBuilder::addNodeToLeaves(
+    MemObjRecord *Record, Command *Cmd, access::mode AccessMode,
+    std::vector<Command *> &ToEnqueue) {
   LeavesCollection &Leaves{AccessMode == access::mode::read
                                ? Record->MReadLeaves
                                : Record->MWriteLeaves};
@@ -306,10 +305,9 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
 }
 
 Command *
-Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
-                                          Requirement *Req,
-                                          const QueueImplPtr &Queue,
-                                          std::vector<Command *> &ToEnqueue) {
+Scheduler::GraphBuilder::insertMemoryMove(
+    MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
+    std::vector<Command *> &ToEnqueue) {
 
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
@@ -439,9 +437,9 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
 
 // The function adds copy operation of the up to date'st memory to the memory
 // pointed by Req.
-Command *Scheduler::GraphBuilder::addCopyBack(
-    Requirement *Req, std::vector<Command *> &ToEnqueue) {
-
+Command *
+Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
+                                     std::vector<Command *> &ToEnqueue) {
   QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
   SYCLMemObjI *MemObj = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObj);
@@ -482,8 +480,9 @@ Command *Scheduler::GraphBuilder::addCopyBack(
 
 // The function implements SYCL host accessor logic: host accessor
 // should provide access to the buffer in user space.
-Command *Scheduler::GraphBuilder::addHostAccessor(
-    Requirement *Req, std::vector<Command *> &ToEnqueue) {
+Command *
+Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
+                                         std::vector<Command *> &ToEnqueue) {
 
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
@@ -506,9 +505,9 @@ Command *Scheduler::GraphBuilder::addHostAccessor(
       insertUpdateHostReqCmd(Record, Req, HostQueue, ToEnqueue);
 
   // Need empty command to be blocked until host accessor is destructed
-  EmptyCommand *EmptyCmd = addEmptyCmd<Requirement>(
-      UpdateHostAccCmd, {Req}, HostQueue, Command::BlockReason::HostAccessor,
-      ToEnqueue);
+  EmptyCommand *EmptyCmd =
+      addEmptyCmd<Requirement>(UpdateHostAccCmd, {Req}, HostQueue,
+                               Command::BlockReason::HostAccessor, ToEnqueue);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -750,9 +749,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
       // Update linked command
       if (LinkedAllocaCmd) {
-        Command *ConnCmd = AllocaCmd->addDep(
-            DepDesc{LinkedAllocaCmd, AllocaCmd->getRequirement(),
-                    LinkedAllocaCmd});
+        Command *ConnCmd = AllocaCmd->addDep(DepDesc{
+            LinkedAllocaCmd, AllocaCmd->getRequirement(), LinkedAllocaCmd});
         if (ConnCmd)
           ToEnqueue.push_back(ConnCmd);
         LinkedAllocaCmd->addUser(AllocaCmd);
@@ -983,9 +981,9 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
-    NewCmd->MEmptyCmd = addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements,
-                                    Queue, Command::BlockReason::HostTask,
-                                    ToEnqueue);
+    NewCmd->MEmptyCmd =
+        addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
+                    Command::BlockReason::HostTask, ToEnqueue);
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
@@ -1211,7 +1209,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
     // make ConnectCmd depend on requirement
     // Dismiss the result here as it's not a connection now,
     // 'cause ConnectCmd is host one
-    ConnectCmd->addDep(Dep);
+    (void)ConnectCmd->addDep(Dep);
     assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
            Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
@@ -1238,7 +1236,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
 
       // Dismiss the result here as it's not a connection now,
       // 'cause EmptyCmd is host one
-      Cmd->addDep(CmdDep);
+      (void)Cmd->addDep(CmdDep);
     }
   } else {
     std::vector<Command *> ToEnqueue;
@@ -1251,13 +1249,13 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
     // ConnectCmd via its event.
     // Dismiss the result here as it's not a connection now,
     // 'cause ConnectCmd is host one.
-    EmptyCmd->addDep(ConnectCmd->getEvent());
-    ConnectCmd->addDep(DepEvent);
+    (void)EmptyCmd->addDep(ConnectCmd->getEvent());
+    (void)ConnectCmd->addDep(DepEvent);
 
     // Depend Cmd on empty command
     // Dismiss the result here as it's not a connection now,
     // 'cause EmptyCmd is host one
-    Cmd->addDep(EmptyCmd->getEvent());
+    (void)Cmd->addDep(EmptyCmd->getEvent());
   }
 
   EmptyCmd->addUser(Cmd);
