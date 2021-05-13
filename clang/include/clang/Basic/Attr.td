@@ -1202,6 +1202,7 @@ def SYCLGlobalVar : InheritableAttr {
   let Subjects = SubjectList<[GlobalVar]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [Undocumented];
+  let SimpleHandler = 1;
 }
 
 def SYCLKernel : InheritableAttr {

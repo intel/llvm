@@ -9171,9 +9171,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLDeviceIndirectlyCallable:
     handleSYCLDeviceIndirectlyCallableAttr(S, D, AL);
     break;
-  case ParsedAttr::AT_SYCLGlobalVar:
-    handleSimpleAttribute<SYCLGlobalVarAttr>(S, D, AL);
-    break;
   case ParsedAttr::AT_SYCLRegisterNum:
     handleSYCLRegisterNumAttr(S, D, AL);
     break;
