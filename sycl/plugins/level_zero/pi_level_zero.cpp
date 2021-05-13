@@ -17,14 +17,15 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
-#include <level_zero/zes_api.h>
-#include <level_zero/zet_api.h>
 #include <memory>
 #include <set>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
+
+#include <level_zero/zes_api.h>
+#include <level_zero/zet_api.h>
 
 #include "usm_allocator.hpp"
 
