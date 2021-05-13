@@ -108,11 +108,15 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   {
     std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
-    Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
+    // enqueueCommand() func below may throw an exception, so use shared_ptr
+    // here to avoid memory leak
+    std::shared_ptr<Command> NewCmd(
+        static_cast<Command *>(NewEvent->getCommand()));
+
     if (NewCmd) {
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd.get(), Res);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
@@ -122,10 +126,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // at native kernel execution finish.
       if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0) {
         if (IsHostKernel)
-          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
+          static_cast<ExecCGCommand *>(NewCmd.get())->releaseCG();
 
         NewEvent->setCommand(nullptr);
-        delete NewCmd;
       }
     }
   }
