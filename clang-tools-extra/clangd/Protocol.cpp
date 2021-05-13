@@ -70,6 +70,7 @@ bool fromJSON(const llvm::json::Value &E, URIForFile &R, llvm::json::Path P) {
   if (auto S = E.getAsString()) {
     auto Parsed = URI::parse(*S);
     if (!Parsed) {
+      consumeError(Parsed.takeError());
       P.report("failed to parse URI");
       return false;
     }
@@ -403,12 +404,22 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R,
         }
       }
     }
+    if (auto *SemanticTokens = Workspace->getObject("semanticTokens")) {
+      if (auto RefreshSupport = SemanticTokens->getBoolean("refreshSupport"))
+        R.SemanticTokenRefreshSupport = *RefreshSupport;
+    }
   }
   if (auto *Window = O->getObject("window")) {
     if (auto WorkDoneProgress = Window->getBoolean("workDoneProgress"))
       R.WorkDoneProgress = *WorkDoneProgress;
     if (auto Implicit = Window->getBoolean("implicitWorkDoneProgressCreate"))
       R.ImplicitProgressCreation = *Implicit;
+  }
+  if (auto *General = O->getObject("general")) {
+    if (auto *StaleRequestSupport = General->getObject("staleRequestSupport")) {
+      if (auto Cancel = StaleRequestSupport->getBoolean("cancel"))
+        R.CancelsStaleRequests = *Cancel;
+    }
   }
   if (auto *OffsetEncoding = O->get("offsetEncoding")) {
     R.offsetEncoding.emplace();
@@ -430,6 +441,8 @@ bool fromJSON(const llvm::json::Value &Params, InitializeParams &R,
   O.map("rootUri", R.rootUri);
   O.map("rootPath", R.rootPath);
   O.map("capabilities", R.capabilities);
+  if (auto *RawCaps = Params.getAsObject()->getObject("capabilities"))
+    R.rawCapabilities = *RawCaps;
   O.map("trace", R.trace);
   O.map("initializationOptions", R.initializationOptions);
   return true;
@@ -587,6 +600,8 @@ llvm::json::Value toJSON(const Diagnostic &D) {
     Diag["source"] = D.source;
   if (D.relatedInformation)
     Diag["relatedInformation"] = *D.relatedInformation;
+  if (!D.data.empty())
+    Diag["data"] = llvm::json::Object(D.data);
   // FIXME: workaround for older gcc/clang
   return std::move(Diag);
 }
@@ -594,7 +609,11 @@ llvm::json::Value toJSON(const Diagnostic &D) {
 bool fromJSON(const llvm::json::Value &Params, Diagnostic &R,
               llvm::json::Path P) {
   llvm::json::ObjectMapper O(Params, P);
-  return O && O.map("range", R.range) && O.map("message", R.message) &&
+  if (!O)
+    return false;
+  if (auto *Data = Params.getAsObject()->getObject("data"))
+    R.data = *Data;
+  return O.map("range", R.range) && O.map("message", R.message) &&
          mapOptOrNull(Params, "severity", R.severity, P) &&
          mapOptOrNull(Params, "category", R.category, P) &&
          mapOptOrNull(Params, "code", R.code, P) &&
@@ -738,7 +757,8 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &O, const SymbolDetails &S) {
 bool fromJSON(const llvm::json::Value &Params, WorkspaceSymbolParams &R,
               llvm::json::Path P) {
   llvm::json::ObjectMapper O(Params, P);
-  return O && O.map("query", R.query);
+  return O && O.map("query", R.query) &&
+         mapOptOrNull(Params, "limit", R.limit, P);
 }
 
 llvm::json::Value toJSON(const Command &C) {
@@ -839,7 +859,8 @@ bool fromJSON(const llvm::json::Value &Params, CompletionContext &R,
 
 bool fromJSON(const llvm::json::Value &Params, CompletionParams &R,
               llvm::json::Path P) {
-  if (!fromJSON(Params, static_cast<TextDocumentPositionParams &>(R), P))
+  if (!fromJSON(Params, static_cast<TextDocumentPositionParams &>(R), P) ||
+      !mapOptOrNull(Params, "limit", R.limit, P))
     return false;
   if (auto *Context = Params.getAsObject()->get("context"))
     return fromJSON(*Context, R.context, P.field("context"));
@@ -1280,6 +1301,25 @@ bool fromJSON(const llvm::json::Value &Params,
 
 llvm::json::Value toJSON(const CallHierarchyOutgoingCall &C) {
   return llvm::json::Object{{"to", C.to}, {"fromRanges", C.fromRanges}};
+}
+
+bool fromJSON(const llvm::json::Value &Params, InlayHintsParams &R,
+              llvm::json::Path P) {
+  llvm::json::ObjectMapper O(Params, P);
+  return O && O.map("textDocument", R.textDocument);
+}
+
+llvm::json::Value toJSON(InlayHintKind K) {
+  switch (K) {
+  case InlayHintKind::ParameterHint:
+    return "parameter";
+  }
+  llvm_unreachable("Unknown clang.clangd.InlayHintKind");
+}
+
+llvm::json::Value toJSON(const InlayHint &H) {
+  return llvm::json::Object{
+      {"range", H.range}, {"kind", H.kind}, {"label", H.label}};
 }
 
 static const char *toString(OffsetEncoding OE) {

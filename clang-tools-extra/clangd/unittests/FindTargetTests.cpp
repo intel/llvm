@@ -86,7 +86,8 @@ protected:
     EXPECT_EQ(N->kind(), NodeType) << Selection;
 
     std::vector<PrintedDecl> ActualDecls;
-    for (const auto &Entry : allTargetDecls(N->ASTNode))
+    for (const auto &Entry :
+         allTargetDecls(N->ASTNode, AST.getHeuristicResolver()))
       ActualDecls.emplace_back(Entry.first, Entry.second);
     return ActualDecls;
   }
@@ -978,16 +979,20 @@ protected:
 
     std::vector<ReferenceLoc> Refs;
     if (const auto *Func = llvm::dyn_cast<FunctionDecl>(TestDecl))
-      findExplicitReferences(Func->getBody(), [&Refs](ReferenceLoc R) {
-        Refs.push_back(std::move(R));
-      });
+      findExplicitReferences(
+          Func->getBody(),
+          [&Refs](ReferenceLoc R) { Refs.push_back(std::move(R)); },
+          AST.getHeuristicResolver());
     else if (const auto *NS = llvm::dyn_cast<NamespaceDecl>(TestDecl))
-      findExplicitReferences(NS, [&Refs, &NS](ReferenceLoc R) {
-        // Avoid adding the namespace foo decl to the results.
-        if (R.Targets.size() == 1 && R.Targets.front() == NS)
-          return;
-        Refs.push_back(std::move(R));
-      });
+      findExplicitReferences(
+          NS,
+          [&Refs, &NS](ReferenceLoc R) {
+            // Avoid adding the namespace foo decl to the results.
+            if (R.Targets.size() == 1 && R.Targets.front() == NS)
+              return;
+            Refs.push_back(std::move(R));
+          },
+          AST.getHeuristicResolver());
     else
       ADD_FAILURE() << "Failed to find ::foo decl for test";
 
@@ -1588,6 +1593,35 @@ TEST_F(FindExplicitReferencesTest, All) {
               "0: targets = {f}\n"
               "1: targets = {I::x}\n"
               "2: targets = {I::setY:}\n"},
+          {
+          // Objective-C: methods
+              R"cpp(
+            @interface I
+              -(void) a:(int)x b:(int)y;
+            @end
+            void foo(I *i) {
+              [$0^i $1^a:1 b:2];
+            }
+          )cpp",
+              "0: targets = {i}\n"
+              "1: targets = {I::a:b:}\n"
+          },
+          {
+          // Objective-C: protocols
+              R"cpp(
+            @interface I
+            @end
+            @protocol P
+            @end
+            void foo() {
+              // FIXME: should reference P
+              $0^I<P> *$1^x;
+            }
+          )cpp",
+              "0: targets = {I}\n"
+              "1: targets = {x}, decl\n"
+          },
+
           // Designated initializers.
           {R"cpp(
             void foo() {

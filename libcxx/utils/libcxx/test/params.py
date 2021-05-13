@@ -7,13 +7,14 @@
 #===----------------------------------------------------------------------===##
 
 from libcxx.test.dsl import *
+from libcxx.test.features import _isMSVC
 
-_allStandards = ['c++03', 'c++11', 'c++14', 'c++17', 'c++2a', 'c++2b']
 _warningFlags = [
   '-Werror',
   '-Wall',
   '-Wextra',
   '-Wshadow',
+  '-Wundef',
   '-Wno-unused-command-line-argument',
   '-Wno-attributes',
   '-Wno-pessimizing-move',
@@ -37,14 +38,28 @@ _warningFlags = [
   '-Wno-unused-local-typedef',
 ]
 
+_allStandards = ['c++03', 'c++11', 'c++14', 'c++17', 'c++20', 'c++2b']
+def getStdFlag(cfg, std):
+  fallbacks = {
+    'c++11': 'c++0x',
+    'c++14': 'c++1y',
+    'c++17': 'c++1z',
+    'c++20': 'c++2a',
+  }
+  if hasCompileFlag(cfg, '-std='+std):
+    return '-std='+std
+  if std in fallbacks and hasCompileFlag(cfg, '-std='+fallbacks[std]):
+    return '-std='+fallbacks[std]
+  return None
+
 DEFAULT_PARAMETERS = [
   # Core parameters of the test suite
   Parameter(name='std', choices=_allStandards, type=str,
             help="The version of the standard to compile the test suite with.",
-            default=lambda cfg: next(s for s in reversed(_allStandards) if hasCompileFlag(cfg, '-std='+s)),
+            default=lambda cfg: next(s for s in reversed(_allStandards) if getStdFlag(cfg, s)),
             actions=lambda std: [
               AddFeature(std),
-              AddCompileFlag('-std={}'.format(std)),
+              AddCompileFlag(lambda cfg: getStdFlag(cfg, std)),
             ]),
 
   Parameter(name='enable_exceptions', choices=[True, False], type=bool, default=True,
@@ -85,12 +100,24 @@ DEFAULT_PARAMETERS = [
               AddCompileFlag('-D_LIBCPP_DISABLE_AVAILABILITY')
             ]),
 
+  Parameter(name='debug_level', choices=['', '0', '1'], type=str, default='',
+            help="The debugging level to enable in the test suite.",
+            actions=lambda debugLevel: [] if debugLevel is '' else [
+              AddFeature('debug_level={}'.format(debugLevel)),
+              AddCompileFlag('-D_LIBCPP_DEBUG={}'.format(debugLevel))
+            ]),
+
   # Parameters to enable or disable parts of the test suite
   Parameter(name='enable_experimental', choices=[True, False], type=bool, default=False,
             help="Whether to enable tests for experimental C++ libraries (typically Library Fundamentals TSes).",
             actions=lambda experimental: [] if not experimental else [
               AddFeature('c++experimental'),
-              AddLinkFlag('-lc++experimental')
+              # When linking in MSVC mode via the Clang driver, a -l<foo>
+              # maps to <foo>.lib, so we need to use -llibc++experimental here
+              # to make it link against the static libc++experimental.lib.
+              # We can't check for the feature 'msvc' in available_features
+              # as those features are added after processing parameters.
+              PrependLinkFlag(lambda config: '-llibc++experimental' if _isMSVC(config) else '-lc++experimental')
             ]),
 
   Parameter(name='long_tests', choices=[True, False], type=bool, default=True,

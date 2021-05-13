@@ -68,6 +68,7 @@ set(cuda_sources
   ${devicertl_base_directory}/common/src/parallel.cu
   ${devicertl_base_directory}/common/src/reduction.cu
   ${devicertl_base_directory}/common/src/support.cu
+  ${devicertl_base_directory}/common/src/shuffle.cpp
   ${devicertl_base_directory}/common/src/sync.cu
   ${devicertl_base_directory}/common/src/task.cu)
 
@@ -100,7 +101,8 @@ macro(add_cuda_bc_library)
     -xc++
     -c
     -std=c++14
-    -target amdgcn
+    -ffreestanding
+    -target amdgcn-amd-amdhsa
     -emit-llvm
     -Xclang -aux-triple -Xclang x86_64-unknown-linux-gnu # see nvptx
     -fopenmp -fopenmp-cuda-mode -Xclang -fopenmp-is-device
@@ -112,6 +114,7 @@ macro(add_cuda_bc_library)
     -O${optimization_level}
     ${CUDA_DEBUG}
     -I${CMAKE_CURRENT_SOURCE_DIR}/src
+    -I${devicertl_base_directory}/common/include
     -I${devicertl_base_directory})
 
   set(bc1_files)

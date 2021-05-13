@@ -130,6 +130,12 @@ public:
   /// Parse an optional integer value from the stream.
   OptionalParseResult parseOptionalInteger(uint64_t &result);
 
+  /// Parse a floating point value from an integer literal token.
+  ParseResult parseFloatFromIntegerLiteral(Optional<APFloat> &result,
+                                           const Token &tok, bool isNegative,
+                                           const llvm::fltSemantics &semantics,
+                                           size_t typeSizeInBits);
+
   //===--------------------------------------------------------------------===//
   // Type Parsing
   //===--------------------------------------------------------------------===//
@@ -262,7 +268,7 @@ public:
                          function_ref<ParseResult(bool)> parseElement,
                          OpAsmParser::Delimiter delimiter);
 
-private:
+protected:
   /// The Parser is subclassed and reinstantiated.  Do not add additional
   /// non-trivial state here, add it to the ParserState class.
   ParserState &state;

@@ -44,7 +44,7 @@ llvm.mlir.global weak @weak() : i64
 // CHECK: llvm.mlir.global common
 llvm.mlir.global common @common() : i64
 // CHECK: llvm.mlir.global appending
-llvm.mlir.global appending @appending() : i64
+llvm.mlir.global appending @appending() : !llvm.array<2 x i64>
 // CHECK: llvm.mlir.global extern_weak
 llvm.mlir.global extern_weak @extern_weak() : i64
 // CHECK: llvm.mlir.global linkonce_odr
@@ -62,6 +62,12 @@ func @references() {
 
   llvm.return
 }
+
+// CHECK: llvm.mlir.global private local_unnamed_addr constant @local(42 : i64) : i64
+llvm.mlir.global private local_unnamed_addr constant @local(42 : i64) : i64
+
+// CHECK: llvm.mlir.global private unnamed_addr constant @foo(42 : i64) : i64
+llvm.mlir.global private unnamed_addr constant @foo(42 : i64) : i64
 
 // -----
 

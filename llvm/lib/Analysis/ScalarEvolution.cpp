@@ -321,12 +321,9 @@ void SCEV::print(raw_ostream &OS) const {
       llvm_unreachable("There are no other nary expression types.");
     }
     OS << "(";
-    for (SCEVNAryExpr::op_iterator I = NAry->op_begin(), E = NAry->op_end();
-         I != E; ++I) {
-      OS << **I;
-      if (std::next(I) != E)
-        OS << OpStr;
-    }
+    ListSeparator LS(OpStr);
+    for (const SCEV *Op : NAry->operands())
+      OS << LS << *Op;
     OS << ")";
     switch (NAry->getSCEVType()) {
     case scAddExpr:
@@ -1046,15 +1043,18 @@ const SCEV *SCEVAddRecExpr::evaluateAtIteration(const SCEV *It,
 //                    SCEV Expression folder implementations
 //===----------------------------------------------------------------------===//
 
-const SCEV *ScalarEvolution::getPtrToIntExpr(const SCEV *Op, Type *Ty,
-                                             unsigned Depth) {
-  assert(Ty->isIntegerTy() && "Target type must be an integer type!");
-  assert(Depth <= 1 && "getPtrToIntExpr() should self-recurse at most once.");
+const SCEV *ScalarEvolution::getLosslessPtrToIntExpr(const SCEV *Op,
+                                                     unsigned Depth) {
+  assert(Depth <= 1 &&
+         "getLosslessPtrToIntExpr() should self-recurse at most once.");
 
   // We could be called with an integer-typed operands during SCEV rewrites.
   // Since the operand is an integer already, just perform zext/trunc/self cast.
   if (!Op->getType()->isPointerTy())
-    return getTruncateOrZeroExtend(Op, Ty);
+    return Op;
+
+  assert(!getDataLayout().isNonIntegralPointerType(Op->getType()) &&
+         "Source pointer type must be integral for ptrtoint!");
 
   // What would be an ID for such a SCEV cast expression?
   FoldingSetNodeID ID;
@@ -1065,27 +1065,37 @@ const SCEV *ScalarEvolution::getPtrToIntExpr(const SCEV *Op, Type *Ty,
 
   // Is there already an expression for such a cast?
   if (const SCEV *S = UniqueSCEVs.FindNodeOrInsertPos(ID, IP))
-    return getTruncateOrZeroExtend(S, Ty);
+    return S;
+
+  Type *IntPtrTy = getDataLayout().getIntPtrType(Op->getType());
+
+  // We can only model ptrtoint if SCEV's effective (integer) type
+  // is sufficiently wide to represent all possible pointer values.
+  if (getDataLayout().getTypeSizeInBits(getEffectiveSCEVType(Op->getType())) !=
+      getDataLayout().getTypeSizeInBits(IntPtrTy))
+    return getCouldNotCompute();
 
   // If not, is this expression something we can't reduce any further?
-  if (isa<SCEVUnknown>(Op)) {
+  if (auto *U = dyn_cast<SCEVUnknown>(Op)) {
+    // Perform some basic constant folding. If the operand of the ptr2int cast
+    // is a null pointer, don't create a ptr2int SCEV expression (that will be
+    // left as-is), but produce a zero constant.
+    // NOTE: We could handle a more general case, but lack motivational cases.
+    if (isa<ConstantPointerNull>(U->getValue()))
+      return getZero(IntPtrTy);
+
     // Create an explicit cast node.
     // We can reuse the existing insert position since if we get here,
     // we won't have made any changes which would invalidate it.
-    Type *IntPtrTy = getDataLayout().getIntPtrType(Op->getType());
-    assert(getDataLayout().getTypeSizeInBits(getEffectiveSCEVType(
-               Op->getType())) == getDataLayout().getTypeSizeInBits(IntPtrTy) &&
-           "We can only model ptrtoint if SCEV's effective (integer) type is "
-           "sufficiently wide to represent all possible pointer values.");
     SCEV *S = new (SCEVAllocator)
         SCEVPtrToIntExpr(ID.Intern(SCEVAllocator), Op, IntPtrTy);
     UniqueSCEVs.InsertNode(S, IP);
     addToLoopUseLists(S);
-    return getTruncateOrZeroExtend(S, Ty);
+    return S;
   }
 
-  assert(Depth == 0 &&
-         "getPtrToIntExpr() should not self-recurse for non-SCEVUnknown's.");
+  assert(Depth == 0 && "getLosslessPtrToIntExpr() should not self-recurse for "
+                       "non-SCEVUnknown's.");
 
   // Otherwise, we've got some expression that is more complex than just a
   // single SCEVUnknown. But we don't want to have a SCEVPtrToIntExpr of an
@@ -1139,11 +1149,9 @@ const SCEV *ScalarEvolution::getPtrToIntExpr(const SCEV *Op, Type *Ty,
     }
 
     const SCEV *visitUnknown(const SCEVUnknown *Expr) {
-      Type *ExprPtrTy = Expr->getType();
-      assert(ExprPtrTy->isPointerTy() &&
+      assert(Expr->getType()->isPointerTy() &&
              "Should only reach pointer-typed SCEVUnknown's.");
-      Type *ExprIntPtrTy = SE.getDataLayout().getIntPtrType(ExprPtrTy);
-      return SE.getPtrToIntExpr(Expr, ExprIntPtrTy, /*Depth=*/1);
+      return SE.getLosslessPtrToIntExpr(Expr, /*Depth=*/1);
     }
   };
 
@@ -1152,6 +1160,16 @@ const SCEV *ScalarEvolution::getPtrToIntExpr(const SCEV *Op, Type *Ty,
   assert(IntOp->getType()->isIntegerTy() &&
          "We must have succeeded in sinking the cast, "
          "and ending up with an integer-typed expression!");
+  return IntOp;
+}
+
+const SCEV *ScalarEvolution::getPtrToIntExpr(const SCEV *Op, Type *Ty) {
+  assert(Ty->isIntegerTy() && "Target type must be an integer type!");
+
+  const SCEV *IntOp = getLosslessPtrToIntExpr(Op);
+  if (isa<SCEVCouldNotCompute>(IntOp))
+    return IntOp;
+
   return getTruncateOrZeroExtend(IntOp, Ty);
 }
 
@@ -3498,11 +3516,6 @@ const SCEV *ScalarEvolution::getAbsExpr(const SCEV *Op, bool IsNSW) {
   return getSMaxExpr(Op, getNegativeSCEV(Op, Flags));
 }
 
-const SCEV *ScalarEvolution::getSignumExpr(const SCEV *Op) {
-  Type *Ty = Op->getType();
-  return getSMinExpr(getSMaxExpr(Op, getMinusOne(Ty)), getOne(Ty));
-}
-
 const SCEV *ScalarEvolution::getMinMaxExpr(SCEVTypes Kind,
                                            SmallVectorImpl<const SCEV *> &Ops) {
   assert(!Ops.empty() && "Cannot get empty (u|s)(min|max)!");
@@ -4554,7 +4567,6 @@ struct BinaryOp {
   Value *RHS;
   bool IsNSW = false;
   bool IsNUW = false;
-  bool IsExact = false;
 
   /// Op is set if this BinaryOp corresponds to a concrete LLVM instruction or
   /// constant expression.
@@ -4567,14 +4579,11 @@ struct BinaryOp {
       IsNSW = OBO->hasNoSignedWrap();
       IsNUW = OBO->hasNoUnsignedWrap();
     }
-    if (auto *PEO = dyn_cast<PossiblyExactOperator>(Op))
-      IsExact = PEO->isExact();
   }
 
   explicit BinaryOp(unsigned Opcode, Value *LHS, Value *RHS, bool IsNSW = false,
-                    bool IsNUW = false, bool IsExact = false)
-      : Opcode(Opcode), LHS(LHS), RHS(RHS), IsNSW(IsNSW), IsNUW(IsNUW),
-        IsExact(IsExact) {}
+                    bool IsNUW = false)
+      : Opcode(Opcode), LHS(LHS), RHS(RHS), IsNSW(IsNSW), IsNUW(IsNUW) {}
 };
 
 } // end anonymous namespace
@@ -5640,6 +5649,110 @@ void ScalarEvolution::setNoWrapFlags(SCEVAddRecExpr *AddRec,
   }
 }
 
+ConstantRange ScalarEvolution::
+getRangeForUnknownRecurrence(const SCEVUnknown *U) {
+  const DataLayout &DL = getDataLayout();
+
+  unsigned BitWidth = getTypeSizeInBits(U->getType());
+  ConstantRange CR(BitWidth, /*isFullSet=*/true);
+
+  // Match a simple recurrence of the form: <start, ShiftOp, Step>, and then
+  // use information about the trip count to improve our available range.  Note
+  // that the trip count independent cases are already handled by known bits.
+  // WARNING: The definition of recurrence used here is subtly different than
+  // the one used by AddRec (and thus most of this file).  Step is allowed to
+  // be arbitrarily loop varying here, where AddRec allows only loop invariant
+  // and other addrecs in the same loop (for non-affine addrecs).  The code
+  // below intentionally handles the case where step is not loop invariant.
+  auto *P = dyn_cast<PHINode>(U->getValue());
+  if (!P)
+    return CR;
+
+  // Make sure that no Phi input comes from an unreachable block. Otherwise,
+  // even the values that are not available in these blocks may come from them,
+  // and this leads to false-positive recurrence test.
+  for (auto *Pred : predecessors(P->getParent()))
+    if (!DT.isReachableFromEntry(Pred))
+      return CR;
+
+  BinaryOperator *BO;
+  Value *Start, *Step;
+  if (!matchSimpleRecurrence(P, BO, Start, Step))
+    return CR;
+
+  // If we found a recurrence in reachable code, we must be in a loop. Note
+  // that BO might be in some subloop of L, and that's completely okay.
+  auto *L = LI.getLoopFor(P->getParent());
+  assert(L && L->getHeader() == P->getParent());
+  if (!L->contains(BO->getParent()))
+    // NOTE: This bailout should be an assert instead.  However, asserting
+    // the condition here exposes a case where LoopFusion is querying SCEV
+    // with malformed loop information during the midst of the transform.
+    // There doesn't appear to be an obvious fix, so for the moment bailout
+    // until the caller issue can be fixed.  PR49566 tracks the bug.
+    return CR;
+
+  // TODO: Extend to other opcodes such as ashr, mul, and div
+  switch (BO->getOpcode()) {
+  default:
+    return CR;
+  case Instruction::LShr:
+  case Instruction::Shl:
+    break;
+  };
+
+  if (BO->getOperand(0) != P)
+    // TODO: Handle the power function forms some day.
+    return CR;
+
+  unsigned TC = getSmallConstantMaxTripCount(L);
+  if (!TC || TC >= BitWidth)
+    return CR;
+
+  auto KnownStart = computeKnownBits(Start, DL, 0, &AC, nullptr, &DT);
+  auto KnownStep = computeKnownBits(Step, DL, 0, &AC, nullptr, &DT);
+  assert(KnownStart.getBitWidth() == BitWidth &&
+         KnownStep.getBitWidth() == BitWidth);
+
+  // Compute total shift amount, being careful of overflow and bitwidths.
+  auto MaxShiftAmt = KnownStep.getMaxValue();
+  APInt TCAP(BitWidth, TC-1);
+  bool Overflow = false;
+  auto TotalShift = MaxShiftAmt.umul_ov(TCAP, Overflow);
+  if (Overflow)
+    return CR;
+
+  switch (BO->getOpcode()) {
+  default:
+    llvm_unreachable("filtered out above");
+  case Instruction::LShr: {
+    // For each lshr, three cases:
+    //   shift = 0 => unchanged value
+    //   saturation => 0
+    //   other => a smaller positive number
+    // Thus, the low end of the unsigned range is the last value produced.
+    auto KnownEnd = KnownBits::lshr(KnownStart,
+                                    KnownBits::makeConstant(TotalShift));
+    auto R = ConstantRange::getNonEmpty(KnownEnd.getMinValue(),
+                                        KnownStart.getMaxValue() + 1);
+    CR = CR.intersectWith(R);
+    break;
+  }
+  case Instruction::Shl: {
+    // Iff no bits are shifted out, value increases on every shift.
+    auto KnownEnd = KnownBits::shl(KnownStart,
+                                   KnownBits::makeConstant(TotalShift));
+    if (TotalShift.ult(KnownStart.countMinLeadingZeros()))
+      CR = CR.intersectWith(ConstantRange(KnownStart.getMinValue(),
+                                          KnownEnd.getMaxValue() + 1));
+    break;
+  }
+  };
+  return CR;
+}
+
+
+
 /// Determine the range for a particular SCEV.  If SignHint is
 /// HINT_RANGE_UNSIGNED (resp. HINT_RANGE_SIGNED) then getRange prefers ranges
 /// with a "cleaner" unsigned (resp. signed) representation.
@@ -5840,45 +5953,54 @@ ScalarEvolution::getRangeRef(const SCEV *S,
   }
 
   if (const SCEVUnknown *U = dyn_cast<SCEVUnknown>(S)) {
+
     // Check if the IR explicitly contains !range metadata.
     Optional<ConstantRange> MDRange = GetRangeFromMetadata(U->getValue());
     if (MDRange.hasValue())
       ConservativeResult = ConservativeResult.intersectWith(MDRange.getValue(),
                                                             RangeType);
 
-    // Split here to avoid paying the compile-time cost of calling both
-    // computeKnownBits and ComputeNumSignBits.  This restriction can be lifted
-    // if needed.
+    // Use facts about recurrences in the underlying IR.  Note that add
+    // recurrences are AddRecExprs and thus don't hit this path.  This
+    // primarily handles shift recurrences.
+    auto CR = getRangeForUnknownRecurrence(U);
+    ConservativeResult = ConservativeResult.intersectWith(CR);
+
+    // See if ValueTracking can give us a useful range.
     const DataLayout &DL = getDataLayout();
-    if (SignHint == ScalarEvolution::HINT_RANGE_UNSIGNED) {
-      // For a SCEVUnknown, ask ValueTracking.
-      KnownBits Known = computeKnownBits(U->getValue(), DL, 0, &AC, nullptr, &DT);
-      if (Known.getBitWidth() != BitWidth)
-        Known = Known.zextOrTrunc(BitWidth);
-      // If Known does not result in full-set, intersect with it.
-      if (Known.getMinValue() != Known.getMaxValue() + 1)
-        ConservativeResult = ConservativeResult.intersectWith(
-            ConstantRange(Known.getMinValue(), Known.getMaxValue() + 1),
-            RangeType);
-    } else {
-      assert(SignHint == ScalarEvolution::HINT_RANGE_SIGNED &&
-             "generalize as needed!");
-      unsigned NS = ComputeNumSignBits(U->getValue(), DL, 0, &AC, nullptr, &DT);
+    KnownBits Known = computeKnownBits(U->getValue(), DL, 0, &AC, nullptr, &DT);
+    if (Known.getBitWidth() != BitWidth)
+      Known = Known.zextOrTrunc(BitWidth);
+
+    // ValueTracking may be able to compute a tighter result for the number of
+    // sign bits than for the value of those sign bits.
+    unsigned NS = ComputeNumSignBits(U->getValue(), DL, 0, &AC, nullptr, &DT);
+    if (U->getType()->isPointerTy()) {
       // If the pointer size is larger than the index size type, this can cause
       // NS to be larger than BitWidth. So compensate for this.
-      if (U->getType()->isPointerTy()) {
-        unsigned ptrSize = DL.getPointerTypeSizeInBits(U->getType());
-        int ptrIdxDiff = ptrSize - BitWidth;
-        if (ptrIdxDiff > 0 && ptrSize > BitWidth && NS > (unsigned)ptrIdxDiff)
-          NS -= ptrIdxDiff;
-      }
-
-      if (NS > 1)
-        ConservativeResult = ConservativeResult.intersectWith(
-            ConstantRange(APInt::getSignedMinValue(BitWidth).ashr(NS - 1),
-                          APInt::getSignedMaxValue(BitWidth).ashr(NS - 1) + 1),
-            RangeType);
+      unsigned ptrSize = DL.getPointerTypeSizeInBits(U->getType());
+      int ptrIdxDiff = ptrSize - BitWidth;
+      if (ptrIdxDiff > 0 && ptrSize > BitWidth && NS > (unsigned)ptrIdxDiff)
+        NS -= ptrIdxDiff;
     }
+
+    if (NS > 1) {
+      // If we know any of the sign bits, we know all of the sign bits.
+      if (!Known.Zero.getHiBits(NS).isNullValue())
+        Known.Zero.setHighBits(NS);
+      if (!Known.One.getHiBits(NS).isNullValue())
+        Known.One.setHighBits(NS);
+    }
+
+    if (Known.getMinValue() != Known.getMaxValue() + 1)
+      ConservativeResult = ConservativeResult.intersectWith(
+          ConstantRange(Known.getMinValue(), Known.getMaxValue() + 1),
+          RangeType);
+    if (NS > 1)
+      ConservativeResult = ConservativeResult.intersectWith(
+          ConstantRange(APInt::getSignedMinValue(BitWidth).ashr(NS - 1),
+                        APInt::getSignedMaxValue(BitWidth).ashr(NS - 1) + 1),
+          RangeType);
 
     // A range of Phi is a subset of union of all ranges of its input.
     if (const PHINode *Phi = dyn_cast<PHINode>(U->getValue())) {
@@ -6367,9 +6489,6 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
       return getUnknown(UndefValue::get(V->getType()));
   } else if (ConstantInt *CI = dyn_cast<ConstantInt>(V))
     return getConstant(CI);
-  else if (isa<ConstantPointerNull>(V))
-    // FIXME: we shouldn't special-case null pointer constant.
-    return getZero(V->getType());
   else if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V))
     return GA->isInterposable() ? getUnknown(V) : getSCEV(GA->getAliasee());
   else if (!isa<ConstantExpr>(V))
@@ -6659,15 +6778,6 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
           }
         }
       }
-      if (BO->IsExact) {
-        // Given exact arithmetic in-bounds right-shift by a constant,
-        // we can lower it into:  (abs(x) EXACT/u (1<<C)) * signum(x)
-        const SCEV *X = getSCEV(BO->LHS);
-        const SCEV *AbsX = getAbsExpr(X, /*IsNSW=*/false);
-        APInt Mult = APInt::getOneBitSet(BitWidth, AShrAmt);
-        const SCEV *Div = getUDivExactExpr(AbsX, getConstant(Mult));
-        return getMulExpr(Div, getSignumExpr(X), SCEV::FlagNSW);
-      }
       break;
     }
     }
@@ -6706,22 +6816,14 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
 
   case Instruction::PtrToInt: {
     // Pointer to integer cast is straight-forward, so do model it.
-    Value *Ptr = U->getOperand(0);
-    const SCEV *Op = getSCEV(Ptr);
+    const SCEV *Op = getSCEV(U->getOperand(0));
     Type *DstIntTy = U->getType();
-    // SCEV doesn't have constant pointer expression type, but it supports
-    // nullptr constant (and only that one), which is modelled in SCEV as a
-    // zero integer constant. So just skip the ptrtoint cast for constants.
-    if (isa<SCEVConstant>(Op))
-      return getTruncateOrZeroExtend(Op, DstIntTy);
-    Type *PtrTy = Ptr->getType();
-    Type *IntPtrTy = getDataLayout().getIntPtrType(PtrTy);
     // But only if effective SCEV (integer) type is wide enough to represent
     // all possible pointer values.
-    if (getDataLayout().getTypeSizeInBits(getEffectiveSCEVType(PtrTy)) !=
-        getDataLayout().getTypeSizeInBits(IntPtrTy))
+    const SCEV *IntOp = getPtrToIntExpr(Op, DstIntTy);
+    if (isa<SCEVCouldNotCompute>(IntOp))
       return getUnknown(V);
-    return getPtrToIntExpr(Op, DstIntTy);
+    return IntOp;
   }
   case Instruction::IntToPtr:
     // Just don't deal with inttoptr casts.
@@ -9535,12 +9637,39 @@ bool ScalarEvolution::isKnownPredicate(ICmpInst::Predicate Pred,
   return isKnownViaNonRecursiveReasoning(Pred, LHS, RHS);
 }
 
+Optional<bool> ScalarEvolution::evaluatePredicate(ICmpInst::Predicate Pred,
+                                                  const SCEV *LHS,
+                                                  const SCEV *RHS) {
+  if (isKnownPredicate(Pred, LHS, RHS))
+    return true;
+  else if (isKnownPredicate(ICmpInst::getInversePredicate(Pred), LHS, RHS))
+    return false;
+  return None;
+}
+
 bool ScalarEvolution::isKnownPredicateAt(ICmpInst::Predicate Pred,
                                          const SCEV *LHS, const SCEV *RHS,
                                          const Instruction *Context) {
   // TODO: Analyze guards and assumes from Context's block.
   return isKnownPredicate(Pred, LHS, RHS) ||
          isBasicBlockEntryGuardedByCond(Context->getParent(), Pred, LHS, RHS);
+}
+
+Optional<bool>
+ScalarEvolution::evaluatePredicateAt(ICmpInst::Predicate Pred, const SCEV *LHS,
+                                     const SCEV *RHS,
+                                     const Instruction *Context) {
+  Optional<bool> KnownWithoutContext = evaluatePredicate(Pred, LHS, RHS);
+  if (KnownWithoutContext)
+    return KnownWithoutContext;
+
+  if (isBasicBlockEntryGuardedByCond(Context->getParent(), Pred, LHS, RHS))
+    return true;
+  else if (isBasicBlockEntryGuardedByCond(Context->getParent(),
+                                          ICmpInst::getInversePredicate(Pred),
+                                          LHS, RHS))
+    return false;
+  return None;
 }
 
 bool ScalarEvolution::isKnownOnEveryIteration(ICmpInst::Predicate Pred,
@@ -9735,10 +9864,9 @@ bool ScalarEvolution::isKnownPredicateViaConstantRanges(
   // This code is split out from isKnownPredicate because it is called from
   // within isLoopEntryGuardedByCond.
 
-  auto CheckRanges =
-      [&](const ConstantRange &RangeLHS, const ConstantRange &RangeRHS) {
-    return ConstantRange::makeSatisfyingICmpRegion(Pred, RangeRHS)
-        .contains(RangeLHS);
+  auto CheckRanges = [&](const ConstantRange &RangeLHS,
+                         const ConstantRange &RangeRHS) {
+    return RangeLHS.icmp(Pred, RangeRHS);
   };
 
   // The check at the top of the function catches the case where the values are
@@ -9992,9 +10120,6 @@ bool ScalarEvolution::isBasicBlockEntryGuardedByCond(const BasicBlock *BB,
     assert(!verifyFunction(*BB->getParent(), &dbgs()) &&
            "This cannot be done on broken IR!");
 
-  if (isKnownViaNonRecursiveReasoning(Pred, LHS, RHS))
-    return true;
-
   // If we cannot prove strict comparison (e.g. a > b), maybe we can prove
   // the facts (a >= b && a != b) separately. A typical situation is when the
   // non-strict comparison is known from ranges and non-equality is known from
@@ -10005,12 +10130,22 @@ bool ScalarEvolution::isBasicBlockEntryGuardedByCond(const BasicBlock *BB,
   bool ProvedNonStrictComparison = false;
   bool ProvedNonEquality = false;
 
-  if (ProvingStrictComparison) {
-    ProvedNonStrictComparison =
-        isKnownViaNonRecursiveReasoning(NonStrictPredicate, LHS, RHS);
-    ProvedNonEquality =
-        isKnownViaNonRecursiveReasoning(ICmpInst::ICMP_NE, LHS, RHS);
+  auto SplitAndProve =
+    [&](std::function<bool(ICmpInst::Predicate)> Fn) -> bool {
+    if (!ProvedNonStrictComparison)
+      ProvedNonStrictComparison = Fn(NonStrictPredicate);
+    if (!ProvedNonEquality)
+      ProvedNonEquality = Fn(ICmpInst::ICMP_NE);
     if (ProvedNonStrictComparison && ProvedNonEquality)
+      return true;
+    return false;
+  };
+
+  if (ProvingStrictComparison) {
+    auto ProofFn = [&](ICmpInst::Predicate P) {
+      return isKnownViaNonRecursiveReasoning(P, LHS, RHS);
+    };
+    if (SplitAndProve(ProofFn))
       return true;
   }
 
@@ -10019,13 +10154,10 @@ bool ScalarEvolution::isBasicBlockEntryGuardedByCond(const BasicBlock *BB,
     if (isImpliedViaGuard(Block, Pred, LHS, RHS))
       return true;
     if (ProvingStrictComparison) {
-      if (!ProvedNonStrictComparison)
-        ProvedNonStrictComparison =
-            isImpliedViaGuard(Block, NonStrictPredicate, LHS, RHS);
-      if (!ProvedNonEquality)
-        ProvedNonEquality =
-            isImpliedViaGuard(Block, ICmpInst::ICMP_NE, LHS, RHS);
-      if (ProvedNonStrictComparison && ProvedNonEquality)
+      auto ProofFn = [&](ICmpInst::Predicate P) {
+        return isImpliedViaGuard(Block, P, LHS, RHS);
+      };
+      if (SplitAndProve(ProofFn))
         return true;
     }
     return false;
@@ -10037,13 +10169,10 @@ bool ScalarEvolution::isBasicBlockEntryGuardedByCond(const BasicBlock *BB,
     if (isImpliedCond(Pred, LHS, RHS, Condition, Inverse, Context))
       return true;
     if (ProvingStrictComparison) {
-      if (!ProvedNonStrictComparison)
-        ProvedNonStrictComparison = isImpliedCond(NonStrictPredicate, LHS, RHS,
-                                                  Condition, Inverse, Context);
-      if (!ProvedNonEquality)
-        ProvedNonEquality = isImpliedCond(ICmpInst::ICMP_NE, LHS, RHS,
-                                          Condition, Inverse, Context);
-      if (ProvedNonStrictComparison && ProvedNonEquality)
+      auto ProofFn = [&](ICmpInst::Predicate P) {
+        return isImpliedCond(P, LHS, RHS, Condition, Inverse, Context);
+      };
+      if (SplitAndProve(ProofFn))
         return true;
     }
     return false;
@@ -10103,6 +10232,10 @@ bool ScalarEvolution::isLoopEntryGuardedByCond(const Loop *L,
          "LHS is not available at Loop Entry");
   assert(isAvailableAtLoopEntry(RHS, L) &&
          "RHS is not available at Loop Entry");
+
+  if (isKnownViaNonRecursiveReasoning(Pred, LHS, RHS))
+    return true;
+
   return isBasicBlockEntryGuardedByCond(L->getHeader(), Pred, LHS, RHS);
 }
 
@@ -10110,6 +10243,11 @@ bool ScalarEvolution::isImpliedCond(ICmpInst::Predicate Pred, const SCEV *LHS,
                                     const SCEV *RHS,
                                     const Value *FoundCondValue, bool Inverse,
                                     const Instruction *Context) {
+  // False conditions implies anything. Do not bother analyzing it further.
+  if (FoundCondValue ==
+      ConstantInt::getBool(FoundCondValue->getContext(), Inverse))
+    return true;
+
   if (!PendingLoopPredicates.insert(FoundCondValue).second)
     return false;
 
@@ -10117,20 +10255,15 @@ bool ScalarEvolution::isImpliedCond(ICmpInst::Predicate Pred, const SCEV *LHS,
       make_scope_exit([&]() { PendingLoopPredicates.erase(FoundCondValue); });
 
   // Recursively handle And and Or conditions.
-  if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(FoundCondValue)) {
-    if (BO->getOpcode() == Instruction::And) {
-      if (!Inverse)
-        return isImpliedCond(Pred, LHS, RHS, BO->getOperand(0), Inverse,
-                             Context) ||
-               isImpliedCond(Pred, LHS, RHS, BO->getOperand(1), Inverse,
-                             Context);
-    } else if (BO->getOpcode() == Instruction::Or) {
-      if (Inverse)
-        return isImpliedCond(Pred, LHS, RHS, BO->getOperand(0), Inverse,
-                             Context) ||
-               isImpliedCond(Pred, LHS, RHS, BO->getOperand(1), Inverse,
-                             Context);
-    }
+  const Value *Op0, *Op1;
+  if (match(FoundCondValue, m_LogicalAnd(m_Value(Op0), m_Value(Op1)))) {
+    if (!Inverse)
+      return isImpliedCond(Pred, LHS, RHS, Op0, Inverse, Context) ||
+              isImpliedCond(Pred, LHS, RHS, Op1, Inverse, Context);
+  } else if (match(FoundCondValue, m_LogicalOr(m_Value(Op0), m_Value(Op1)))) {
+    if (Inverse)
+      return isImpliedCond(Pred, LHS, RHS, Op0, Inverse, Context) ||
+              isImpliedCond(Pred, LHS, RHS, Op1, Inverse, Context);
   }
 
   const ICmpInst *ICI = dyn_cast<ICmpInst>(FoundCondValue);
@@ -10232,11 +10365,26 @@ bool ScalarEvolution::isImpliedCondBalancedTypes(
   // Check whether swapping the found predicate makes it the same as the
   // desired predicate.
   if (ICmpInst::getSwappedPredicate(FoundPred) == Pred) {
-    if (isa<SCEVConstant>(RHS))
+    // We can write the implication
+    // 0.  LHS Pred      RHS  <-   FoundLHS SwapPred  FoundRHS
+    // using one of the following ways:
+    // 1.  LHS Pred      RHS  <-   FoundRHS Pred      FoundLHS
+    // 2.  RHS SwapPred  LHS  <-   FoundLHS SwapPred  FoundRHS
+    // 3.  LHS Pred      RHS  <-  ~FoundLHS Pred     ~FoundRHS
+    // 4. ~LHS SwapPred ~RHS  <-   FoundLHS SwapPred  FoundRHS
+    // Forms 1. and 2. require swapping the operands of one condition. Don't
+    // do this if it would break canonical constant/addrec ordering.
+    if (!isa<SCEVConstant>(RHS) && !isa<SCEVAddRecExpr>(LHS))
+      return isImpliedCondOperands(FoundPred, RHS, LHS, FoundLHS, FoundRHS,
+                                   Context);
+    if (!isa<SCEVConstant>(FoundRHS) && !isa<SCEVAddRecExpr>(FoundLHS))
       return isImpliedCondOperands(Pred, LHS, RHS, FoundRHS, FoundLHS, Context);
-    else
-      return isImpliedCondOperands(ICmpInst::getSwappedPredicate(Pred), RHS,
-                                   LHS, FoundLHS, FoundRHS, Context);
+
+    // There's no clear preference between forms 3. and 4., try both.
+    return isImpliedCondOperands(FoundPred, getNotSCEV(LHS), getNotSCEV(RHS),
+                                 FoundLHS, FoundRHS, Context) ||
+           isImpliedCondOperands(Pred, LHS, RHS, getNotSCEV(FoundLHS),
+                                 getNotSCEV(FoundRHS), Context);
   }
 
   // Unsigned comparison is the same as signed comparison when both the operands
@@ -10659,11 +10807,7 @@ bool ScalarEvolution::isImpliedCondOperands(ICmpInst::Predicate Pred,
     return true;
 
   return isImpliedCondOperandsHelper(Pred, LHS, RHS,
-                                     FoundLHS, FoundRHS) ||
-         // ~x < ~y --> x > y
-         isImpliedCondOperandsHelper(Pred, LHS, RHS,
-                                     getNotSCEV(FoundRHS),
-                                     getNotSCEV(FoundLHS));
+                                     FoundLHS, FoundRHS);
 }
 
 /// Is MaybeMinMaxExpr an (U|S)(Min|Max) of Candidate and some other values?
@@ -11024,12 +11168,9 @@ bool ScalarEvolution::isImpliedCondOperandsViaRanges(ICmpInst::Predicate Pred,
   // We can also compute the range of values for `LHS` that satisfy the
   // consequent, "`LHS` `Pred` `RHS`":
   const APInt &ConstRHS = cast<SCEVConstant>(RHS)->getAPInt();
-  ConstantRange SatisfyingLHSRange =
-      ConstantRange::makeSatisfyingICmpRegion(Pred, ConstRHS);
-
   // The antecedent implies the consequent if every value of `LHS` that
   // satisfies the antecedent also satisfies the consequent.
-  return SatisfyingLHSRange.contains(LHSRange);
+  return LHSRange.icmp(Pred, ConstRHS);
 }
 
 bool ScalarEvolution::doesIVOverflowOnLT(const SCEV *RHS, const SCEV *Stride,

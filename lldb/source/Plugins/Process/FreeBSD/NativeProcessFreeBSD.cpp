@@ -213,8 +213,9 @@ void NativeProcessFreeBSD::MonitorSIGTRAP(lldb::pid_t pid) {
       llvm::Error error = t.CopyWatchpointsFrom(
           static_cast<NativeThreadFreeBSD &>(*GetCurrentThread()));
       if (error) {
-        LLDB_LOG(log, "failed to copy watchpoints to new thread {0}: {1}",
-                 info.pl_lwpid, llvm::toString(std::move(error)));
+        LLDB_LOG_ERROR(log, std::move(error),
+                       "failed to copy watchpoints to new thread {1}: {0}",
+                       info.pl_lwpid);
         SetState(StateType::eStateInvalid);
         return;
       }
@@ -246,6 +247,19 @@ void NativeProcessFreeBSD::MonitorSIGTRAP(lldb::pid_t pid) {
     return;
   }
 
+  if (info.pl_flags & PL_FLAG_FORKED) {
+    MonitorClone(info.pl_child_pid);
+    return;
+  }
+
+  if (info.pl_flags & PL_FLAG_VFORK_DONE) {
+    Status error =
+        PtraceWrapper(PT_CONTINUE, pid, reinterpret_cast<void *>(1), 0);
+    if (error.Fail())
+      SetState(StateType::eStateInvalid);
+    return;
+  }
+
   if (info.pl_lwpid > 0) {
     for (const auto &t : m_threads) {
       if (t->GetID() == static_cast<lldb::tid_t>(info.pl_lwpid))
@@ -264,6 +278,9 @@ void NativeProcessFreeBSD::MonitorSIGTRAP(lldb::pid_t pid) {
 
     switch (info.pl_siginfo.si_code) {
     case TRAP_BRKPT:
+      LLDB_LOG(log, "SIGTRAP/TRAP_BRKPT: si_addr: {0}",
+               info.pl_siginfo.si_addr);
+
       if (thread) {
         auto thread_info =
             m_threads_stepping_with_breakpoint.find(thread->GetID());
@@ -281,12 +298,15 @@ void NativeProcessFreeBSD::MonitorSIGTRAP(lldb::pid_t pid) {
       SetState(StateType::eStateStopped, true);
       return;
     case TRAP_TRACE:
+      LLDB_LOG(log, "SIGTRAP/TRAP_TRACE: si_addr: {0}",
+               info.pl_siginfo.si_addr);
+
       if (thread) {
         auto &regctx = static_cast<NativeRegisterContextFreeBSD &>(
             thread->GetRegisterContext());
         uint32_t wp_index = LLDB_INVALID_INDEX32;
-        Status error =
-            regctx.GetWatchpointHitIndex(wp_index, LLDB_INVALID_ADDRESS);
+        Status error = regctx.GetWatchpointHitIndex(
+            wp_index, reinterpret_cast<uintptr_t>(info.pl_siginfo.si_addr));
         if (error.Fail())
           LLDB_LOG(log,
                    "received error while checking for watchpoint hits, pid = "
@@ -654,9 +674,8 @@ size_t NativeProcessFreeBSD::UpdateThreads() { return m_threads.size(); }
 Status NativeProcessFreeBSD::SetBreakpoint(lldb::addr_t addr, uint32_t size,
                                            bool hardware) {
   if (hardware)
-    return Status("NativeProcessFreeBSD does not support hardware breakpoints");
-  else
-    return SetSoftwareBreakpoint(addr, size);
+    return SetHardwareBreakpoint(addr, size);
+  return SetSoftwareBreakpoint(addr, size);
 }
 
 Status NativeProcessFreeBSD::GetLoadedModuleFileSpec(const char *module_path,
@@ -699,17 +718,17 @@ NativeProcessFreeBSD::GetFileLoadAddress(const llvm::StringRef &file_name,
 
 void NativeProcessFreeBSD::SigchldHandler() {
   Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_PROCESS));
-  // Process all pending waitpid notifications.
   int status;
   ::pid_t wait_pid =
       llvm::sys::RetryAfterSignal(-1, waitpid, GetID(), &status, WNOHANG);
 
   if (wait_pid == 0)
-    return; // We are done.
+    return;
 
   if (wait_pid == -1) {
     Status error(errno, eErrorTypePOSIX);
     LLDB_LOG(log, "waitpid ({0}, &status, _) failed: {1}", GetID(), error);
+    return;
   }
 
   WaitStatus wait_status = WaitStatus::Decode(status);
@@ -879,7 +898,7 @@ Status NativeProcessFreeBSD::SetupTrace() {
       PtraceWrapper(PT_GET_EVENT_MASK, GetID(), &events, sizeof(events));
   if (status.Fail())
     return status;
-  events |= PTRACE_LWP;
+  events |= PTRACE_LWP | PTRACE_FORK | PTRACE_VFORK;
   status = PtraceWrapper(PT_SET_EVENT_MASK, GetID(), &events, sizeof(events));
   if (status.Fail())
     return status;
@@ -912,4 +931,40 @@ Status NativeProcessFreeBSD::ReinitializeThreads() {
 
 bool NativeProcessFreeBSD::SupportHardwareSingleStepping() const {
   return !m_arch.IsMIPS();
+}
+
+void NativeProcessFreeBSD::MonitorClone(::pid_t child_pid) {
+  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_PROCESS));
+  LLDB_LOG(log, "fork, child_pid={0}", child_pid);
+
+  int status;
+  ::pid_t wait_pid =
+      llvm::sys::RetryAfterSignal(-1, ::waitpid, child_pid, &status, 0);
+  if (wait_pid != child_pid) {
+    LLDB_LOG(log,
+             "waiting for pid {0} failed. Assuming the pid has "
+             "disappeared in the meantime",
+             child_pid);
+    return;
+  }
+  if (WIFEXITED(status)) {
+    LLDB_LOG(log,
+             "waiting for pid {0} returned an 'exited' event. Not "
+             "tracking it.",
+             child_pid);
+    return;
+  }
+
+  MainLoop unused_loop;
+  NativeProcessFreeBSD child_process{static_cast<::pid_t>(child_pid),
+                                     m_terminal_fd, m_delegate, m_arch,
+                                     unused_loop};
+  child_process.Detach();
+  Status pt_error =
+      PtraceWrapper(PT_CONTINUE, GetID(), reinterpret_cast<void *>(1), 0);
+  if (pt_error.Fail()) {
+    LLDB_LOG_ERROR(log, pt_error.ToError(),
+                   "unable to resume parent process {1}: {0}", GetID());
+    SetState(StateType::eStateInvalid);
+  }
 }

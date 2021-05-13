@@ -219,8 +219,29 @@ HexagonTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   // Copy the result values into the output registers.
   for (unsigned i = 0; i != RVLocs.size(); ++i) {
     CCValAssign &VA = RVLocs[i];
+    SDValue Val = OutVals[i];
 
-    Chain = DAG.getCopyToReg(Chain, dl, VA.getLocReg(), OutVals[i], Flag);
+    switch (VA.getLocInfo()) {
+      default:
+        // Loc info must be one of Full, BCvt, SExt, ZExt, or AExt.
+        llvm_unreachable("Unknown loc info!");
+      case CCValAssign::Full:
+        break;
+      case CCValAssign::BCvt:
+        Val = DAG.getBitcast(VA.getLocVT(), Val);
+        break;
+      case CCValAssign::SExt:
+        Val = DAG.getNode(ISD::SIGN_EXTEND, dl, VA.getLocVT(), Val);
+        break;
+      case CCValAssign::ZExt:
+        Val = DAG.getNode(ISD::ZERO_EXTEND, dl, VA.getLocVT(), Val);
+        break;
+      case CCValAssign::AExt:
+        Val = DAG.getNode(ISD::ANY_EXTEND, dl, VA.getLocVT(), Val);
+        break;
+    }
+
+    Chain = DAG.getCopyToReg(Chain, dl, VA.getLocReg(), Val, Flag);
 
     // Guarantee that all emitted copies are stuck together with flags.
     Flag = Chain.getValue(1);
@@ -308,6 +329,8 @@ Register HexagonTargetLowering::getRegisterByName(
                      .Case("m1", Hexagon::M1)
                      .Case("usr", Hexagon::USR)
                      .Case("ugp", Hexagon::UGP)
+                     .Case("cs0", Hexagon::CS0)
+                     .Case("cs1", Hexagon::CS1)
                      .Default(Register());
   if (Reg)
     return Reg;
@@ -701,7 +724,7 @@ SDValue HexagonTargetLowering::LowerREADCYCLECOUNTER(SDValue Op,
                                                      SelectionDAG &DAG) const {
   SDValue Chain = Op.getOperand(0);
   SDLoc dl(Op);
-  SDVTList VTs = DAG.getVTList(MVT::i32, MVT::Other);
+  SDVTList VTs = DAG.getVTList(MVT::i64, MVT::Other);
   return DAG.getNode(HexagonISD::READCYCLE, dl, VTs, Chain);
 }
 

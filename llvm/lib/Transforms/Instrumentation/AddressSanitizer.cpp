@@ -105,9 +105,10 @@ static const uint64_t kSystemZ_ShadowOffset64 = 1ULL << 52;
 static const uint64_t kMIPS32_ShadowOffset32 = 0x0aaa0000;
 static const uint64_t kMIPS64_ShadowOffset64 = 1ULL << 37;
 static const uint64_t kAArch64_ShadowOffset64 = 1ULL << 36;
-static const uint64_t kRISCV64_ShadowOffset64 = 0x20000000;
+static const uint64_t kRISCV64_ShadowOffset64 = 0xd55550000;
 static const uint64_t kFreeBSD_ShadowOffset32 = 1ULL << 30;
 static const uint64_t kFreeBSD_ShadowOffset64 = 1ULL << 46;
+static const uint64_t kFreeBSDKasan_ShadowOffset64 = 0xdffff7c000000000;
 static const uint64_t kNetBSD_ShadowOffset32 = 1ULL << 30;
 static const uint64_t kNetBSD_ShadowOffset64 = 1ULL << 46;
 static const uint64_t kNetBSDKasan_ShadowOffset64 = 0xdfff900000000000;
@@ -383,6 +384,15 @@ static cl::opt<bool>
                  cl::desc("Place ASan constructors in comdat sections"),
                  cl::Hidden, cl::init(true));
 
+static cl::opt<AsanDtorKind> ClOverrideDestructorKind(
+    "asan-destructor-kind",
+    cl::desc("Sets the ASan destructor kind. The default is to use the value "
+             "provided to the pass constructor"),
+    cl::values(clEnumValN(AsanDtorKind::None, "none", "No destructors"),
+               clEnumValN(AsanDtorKind::Global, "global",
+                          "Use global destructors")),
+    cl::init(AsanDtorKind::Invalid), cl::Hidden);
+
 // Debug flags.
 
 static cl::opt<int> ClDebug("asan-debug", cl::desc("debug"), cl::Hidden,
@@ -484,9 +494,12 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       Mapping.Offset = kPPC64_ShadowOffset64;
     else if (IsSystemZ)
       Mapping.Offset = kSystemZ_ShadowOffset64;
-    else if (IsFreeBSD && !IsMIPS64)
-      Mapping.Offset = kFreeBSD_ShadowOffset64;
-    else if (IsNetBSD) {
+    else if (IsFreeBSD && !IsMIPS64) {
+      if (IsKasan)
+        Mapping.Offset = kFreeBSDKasan_ShadowOffset64;
+      else
+        Mapping.Offset = kFreeBSD_ShadowOffset64;
+    } else if (IsNetBSD) {
       if (IsKasan)
         Mapping.Offset = kNetBSDKasan_ShadowOffset64;
       else
@@ -741,7 +754,8 @@ class ModuleAddressSanitizer {
 public:
   ModuleAddressSanitizer(Module &M, const GlobalsMetadata *GlobalsMD,
                          bool CompileKernel = false, bool Recover = false,
-                         bool UseGlobalsGC = true, bool UseOdrIndicator = false)
+                         bool UseGlobalsGC = true, bool UseOdrIndicator = false,
+                         AsanDtorKind DestructorKind = AsanDtorKind::Global)
       : GlobalsMD(*GlobalsMD),
         CompileKernel(ClEnableKasan.getNumOccurrences() > 0 ? ClEnableKasan
                                                             : CompileKernel),
@@ -757,12 +771,17 @@ public:
         // argument is designed as workaround. Therefore, disable both
         // ClWithComdat and ClUseGlobalsGC unless the frontend says it's ok to
         // do globals-gc.
-        UseCtorComdat(UseGlobalsGC && ClWithComdat && !this->CompileKernel) {
+        UseCtorComdat(UseGlobalsGC && ClWithComdat && !this->CompileKernel),
+        DestructorKind(DestructorKind) {
     C = &(M.getContext());
     int LongSize = M.getDataLayout().getPointerSizeInBits();
     IntptrTy = Type::getIntNTy(*C, LongSize);
     TargetTriple = Triple(M.getTargetTriple());
     Mapping = getShadowMapping(TargetTriple, LongSize, this->CompileKernel);
+
+    if (ClOverrideDestructorKind != AsanDtorKind::Invalid)
+      this->DestructorKind = ClOverrideDestructorKind;
+    assert(this->DestructorKind != AsanDtorKind::Invalid);
   }
 
   bool instrumentModule(Module &);
@@ -811,6 +830,7 @@ private:
   bool UsePrivateAlias;
   bool UseOdrIndicator;
   bool UseCtorComdat;
+  AsanDtorKind DestructorKind;
   Type *IntptrTy;
   LLVMContext *C;
   Triple TargetTriple;
@@ -832,12 +852,13 @@ class ModuleAddressSanitizerLegacyPass : public ModulePass {
 public:
   static char ID;
 
-  explicit ModuleAddressSanitizerLegacyPass(bool CompileKernel = false,
-                                            bool Recover = false,
-                                            bool UseGlobalGC = true,
-                                            bool UseOdrIndicator = false)
+  explicit ModuleAddressSanitizerLegacyPass(
+      bool CompileKernel = false, bool Recover = false, bool UseGlobalGC = true,
+      bool UseOdrIndicator = false,
+      AsanDtorKind DestructorKind = AsanDtorKind::Global)
       : ModulePass(ID), CompileKernel(CompileKernel), Recover(Recover),
-        UseGlobalGC(UseGlobalGC), UseOdrIndicator(UseOdrIndicator) {
+        UseGlobalGC(UseGlobalGC), UseOdrIndicator(UseOdrIndicator),
+        DestructorKind(DestructorKind) {
     initializeModuleAddressSanitizerLegacyPassPass(
         *PassRegistry::getPassRegistry());
   }
@@ -852,7 +873,8 @@ public:
     GlobalsMetadata &GlobalsMD =
         getAnalysis<ASanGlobalsMetadataWrapperPass>().getGlobalsMD();
     ModuleAddressSanitizer ASanModule(M, &GlobalsMD, CompileKernel, Recover,
-                                      UseGlobalGC, UseOdrIndicator);
+                                      UseGlobalGC, UseOdrIndicator,
+                                      DestructorKind);
     return ASanModule.instrumentModule(M);
   }
 
@@ -861,6 +883,7 @@ private:
   bool Recover;
   bool UseGlobalGC;
   bool UseOdrIndicator;
+  AsanDtorKind DestructorKind;
 };
 
 // Stack poisoning does not play well with exception handling.
@@ -1186,18 +1209,18 @@ PreservedAnalyses AddressSanitizerPass::run(Function &F,
   return PreservedAnalyses::all();
 }
 
-ModuleAddressSanitizerPass::ModuleAddressSanitizerPass(bool CompileKernel,
-                                                       bool Recover,
-                                                       bool UseGlobalGC,
-                                                       bool UseOdrIndicator)
+ModuleAddressSanitizerPass::ModuleAddressSanitizerPass(
+    bool CompileKernel, bool Recover, bool UseGlobalGC, bool UseOdrIndicator,
+    AsanDtorKind DestructorKind)
     : CompileKernel(CompileKernel), Recover(Recover), UseGlobalGC(UseGlobalGC),
-      UseOdrIndicator(UseOdrIndicator) {}
+      UseOdrIndicator(UseOdrIndicator), DestructorKind(DestructorKind) {}
 
 PreservedAnalyses ModuleAddressSanitizerPass::run(Module &M,
                                                   AnalysisManager<Module> &AM) {
   GlobalsMetadata &GlobalsMD = AM.getResult<ASanGlobalsMetadataAnalysis>(M);
   ModuleAddressSanitizer Sanitizer(M, &GlobalsMD, CompileKernel, Recover,
-                                   UseGlobalGC, UseOdrIndicator);
+                                   UseGlobalGC, UseOdrIndicator,
+                                   DestructorKind);
   if (Sanitizer.instrumentModule(M))
     return PreservedAnalyses::none();
   return PreservedAnalyses::all();
@@ -1237,10 +1260,11 @@ INITIALIZE_PASS(
     false, false)
 
 ModulePass *llvm::createModuleAddressSanitizerLegacyPassPass(
-    bool CompileKernel, bool Recover, bool UseGlobalsGC, bool UseOdrIndicator) {
+    bool CompileKernel, bool Recover, bool UseGlobalsGC, bool UseOdrIndicator,
+    AsanDtorKind Destructor) {
   assert(!CompileKernel || Recover);
-  return new ModuleAddressSanitizerLegacyPass(CompileKernel, Recover,
-                                              UseGlobalsGC, UseOdrIndicator);
+  return new ModuleAddressSanitizerLegacyPass(
+      CompileKernel, Recover, UseGlobalsGC, UseOdrIndicator, Destructor);
 }
 
 static size_t TypeSizeToSizeIndex(uint32_t TypeSize) {
@@ -1899,9 +1923,8 @@ bool ModuleAddressSanitizer::shouldInstrumentGlobal(GlobalVariable *G) const {
       StringRef ParsedSegment, ParsedSection;
       unsigned TAA = 0, StubSize = 0;
       bool TAAParsed;
-      std::string ErrorCode = MCSectionMachO::ParseSectionSpecifier(
-          Section, ParsedSegment, ParsedSection, TAA, TAAParsed, StubSize);
-      assert(ErrorCode.empty() && "Invalid section specifier.");
+      cantFail(MCSectionMachO::ParseSectionSpecifier(
+          Section, ParsedSegment, ParsedSection, TAA, TAAParsed, StubSize));
 
       // Ignore the globals from the __OBJC section. The ObjC runtime assumes
       // those conform to /usr/lib/objc/runtime.h, so we can't add redzones to
@@ -2058,9 +2081,11 @@ ModuleAddressSanitizer::CreateMetadataGlobal(Module &M, Constant *Initializer,
 }
 
 Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor(Module &M) {
-  AsanDtorFunction =
-      Function::Create(FunctionType::get(Type::getVoidTy(*C), false),
-                       GlobalValue::InternalLinkage, kAsanModuleDtorName, &M);
+  AsanDtorFunction = Function::createWithDefaultAttr(
+      FunctionType::get(Type::getVoidTy(*C), false),
+      GlobalValue::InternalLinkage, 0, kAsanModuleDtorName, &M);
+  AsanDtorFunction->addAttribute(AttributeList::FunctionIndex,
+                                 Attribute::NoUnwind);
   BasicBlock *AsanDtorBB = BasicBlock::Create(*C, "", AsanDtorFunction);
 
   return ReturnInst::Create(*C, AsanDtorBB);
@@ -2105,6 +2130,12 @@ void ModuleAddressSanitizer::InstrumentGlobalsELF(
     const std::string &UniqueModuleId) {
   assert(ExtendedGlobals.size() == MetadataInitializers.size());
 
+  // Putting globals in a comdat changes the semantic and potentially cause
+  // false negative odr violations at link time. If odr indicators are used, we
+  // keep the comdat sections, as link time odr violations will be dectected on
+  // the odr indicator symbols.
+  bool UseComdatForGlobalsGC = UseOdrIndicator;
+
   SmallVector<GlobalValue *, 16> MetadataGlobals(ExtendedGlobals.size());
   for (size_t i = 0; i < ExtendedGlobals.size(); i++) {
     GlobalVariable *G = ExtendedGlobals[i];
@@ -2114,7 +2145,8 @@ void ModuleAddressSanitizer::InstrumentGlobalsELF(
     Metadata->setMetadata(LLVMContext::MD_associated, MD);
     MetadataGlobals[i] = Metadata;
 
-    SetComdatForGlobalMetadata(G, Metadata, UniqueModuleId);
+    if (UseComdatForGlobalsGC)
+      SetComdatForGlobalMetadata(G, Metadata, UniqueModuleId);
   }
 
   // Update llvm.compiler.used, adding the new metadata globals. This is
@@ -2151,11 +2183,13 @@ void ModuleAddressSanitizer::InstrumentGlobalsELF(
 
   // We also need to unregister globals at the end, e.g., when a shared library
   // gets closed.
-  IRBuilder<> IRB_Dtor(CreateAsanModuleDtor(M));
-  IRB_Dtor.CreateCall(AsanUnregisterElfGlobals,
-                      {IRB.CreatePointerCast(RegisteredFlag, IntptrTy),
-                       IRB.CreatePointerCast(StartELFMetadata, IntptrTy),
-                       IRB.CreatePointerCast(StopELFMetadata, IntptrTy)});
+  if (DestructorKind != AsanDtorKind::None) {
+    IRBuilder<> IrbDtor(CreateAsanModuleDtor(M));
+    IrbDtor.CreateCall(AsanUnregisterElfGlobals,
+                       {IRB.CreatePointerCast(RegisteredFlag, IntptrTy),
+                        IRB.CreatePointerCast(StartELFMetadata, IntptrTy),
+                        IRB.CreatePointerCast(StopELFMetadata, IntptrTy)});
+  }
 }
 
 void ModuleAddressSanitizer::InstrumentGlobalsMachO(
@@ -2210,9 +2244,11 @@ void ModuleAddressSanitizer::InstrumentGlobalsMachO(
 
   // We also need to unregister globals at the end, e.g., when a shared library
   // gets closed.
-  IRBuilder<> IRB_Dtor(CreateAsanModuleDtor(M));
-  IRB_Dtor.CreateCall(AsanUnregisterImageGlobals,
-                      {IRB.CreatePointerCast(RegisteredFlag, IntptrTy)});
+  if (DestructorKind != AsanDtorKind::None) {
+    IRBuilder<> IrbDtor(CreateAsanModuleDtor(M));
+    IrbDtor.CreateCall(AsanUnregisterImageGlobals,
+                       {IRB.CreatePointerCast(RegisteredFlag, IntptrTy)});
+  }
 }
 
 void ModuleAddressSanitizer::InstrumentGlobalsWithMetadataArray(
@@ -2238,10 +2274,12 @@ void ModuleAddressSanitizer::InstrumentGlobalsWithMetadataArray(
 
   // We also need to unregister globals at the end, e.g., when a shared library
   // gets closed.
-  IRBuilder<> IRB_Dtor(CreateAsanModuleDtor(M));
-  IRB_Dtor.CreateCall(AsanUnregisterGlobals,
-                      {IRB.CreatePointerCast(AllGlobals, IntptrTy),
-                       ConstantInt::get(IntptrTy, N)});
+  if (DestructorKind != AsanDtorKind::None) {
+    IRBuilder<> IrbDtor(CreateAsanModuleDtor(M));
+    IrbDtor.CreateCall(AsanUnregisterGlobals,
+                       {IRB.CreatePointerCast(AllGlobals, IntptrTy),
+                        ConstantInt::get(IntptrTy, N)});
+  }
 }
 
 // This function replaces all global variables with new variables that have

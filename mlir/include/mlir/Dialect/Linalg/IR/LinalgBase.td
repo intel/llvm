@@ -15,6 +15,8 @@
 
 include "mlir/IR/OpBase.td"
 
+def LinalgOperand: AnyTypeOf<[AnyRankedTensor, AnyStridedMemRef]>;
+
 def Linalg_Dialect : Dialect {
   let name = "linalg";
   let description = [{
@@ -35,6 +37,14 @@ def Linalg_Dialect : Dialect {
   let dependentDialects = [
     "AffineDialect", "StandardOpsDialect", "tensor::TensorDialect"
   ];
+  let extraClassDeclaration = [{
+    using RegionBuilderFunType = llvm::function_ref<void(Block &, ValueRange)>;
+    RegionBuilderFunType getRegionBuilder(StringRef name) {
+      return namedStructuredOpRegionBuilders.lookup(name);
+    }
+    private:
+      llvm::StringMap<RegionBuilderFunType> namedStructuredOpRegionBuilders;
+  }];
 }
 
 // Whether a type is a RangeType.

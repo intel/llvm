@@ -44,7 +44,7 @@ static void convertOmpOpRegions(Region &region, StringRef blockName,
 
   // Convert blocks one by one in topological order to ensure
   // defs are converted before uses.
-  llvm::SetVector<Block *> blocks =
+  SetVector<Block *> blocks =
       LLVM::detail::getTopologicallySortedBlocks(region);
   for (Block *bb : blocks) {
     llvm::BasicBlock *llvmBB = moduleTranslation.lookupBlock(bb);
@@ -58,14 +58,9 @@ static void convertOmpOpRegions(Region &region, StringRef blockName,
       sourceTerminator->setSuccessor(0, llvmBB);
     }
 
-    llvm::IRBuilder<>::InsertPointGuard guard(builder);
-    if (failed(moduleTranslation.convertBlock(
-            *bb, bb->isEntryBlock(),
-            // TODO: this downcast should be removed after all of
-            // ModuleTranslation migrated to using IRBuilderBase &; the cast is
-            // safe in practice because the builder always comes from
-            // ModuleTranslation itself that only uses this subclass.
-            static_cast<llvm::IRBuilder<> &>(builder)))) {
+    llvm::IRBuilderBase::InsertPointGuard guard(builder);
+    if (failed(
+            moduleTranslation.convertBlock(*bb, bb->isEntryBlock(), builder))) {
       bodyGenStatus = failure();
       return;
     }
@@ -173,8 +168,9 @@ convertOmpMaster(Operation &opInst, llvm::IRBuilderBase &builder,
 }
 
 /// Converts an OpenMP workshare loop into LLVM IR using OpenMPIRBuilder.
-LogicalResult convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
-                               LLVM::ModuleTranslation &moduleTranslation) {
+static LogicalResult
+convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
+                 LLVM::ModuleTranslation &moduleTranslation) {
   auto loop = cast<omp::WsLoopOp>(opInst);
   // TODO: this should be in the op verifier instead.
   if (loop.lowerBound().empty())
@@ -183,11 +179,17 @@ LogicalResult convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   if (loop.getNumLoops() != 1)
     return opInst.emitOpError("collapsed loops not yet supported");
 
-  if (loop.schedule_val().hasValue() &&
-      omp::symbolizeClauseScheduleKind(loop.schedule_val().getValue()) !=
-          omp::ClauseScheduleKind::Static)
-    return opInst.emitOpError(
-        "only static (default) loop schedule is currently supported");
+  bool isStatic = true;
+
+  if (loop.schedule_val().hasValue()) {
+    auto schedule =
+        omp::symbolizeClauseScheduleKind(loop.schedule_val().getValue());
+    if (schedule != omp::ClauseScheduleKind::Static &&
+        schedule != omp::ClauseScheduleKind::Dynamic)
+      return opInst.emitOpError("only static (default) and dynamic loop "
+                                "schedule is currently supported");
+    isStatic = (schedule == omp::ClauseScheduleKind::Static);
+  }
 
   // Find the loop configuration.
   llvm::Value *lowerBound = moduleTranslation.lookupValue(loop.lowerBound()[0]);
@@ -245,17 +247,43 @@ LogicalResult convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   // Put them at the start of the current block for now.
   llvm::OpenMPIRBuilder::InsertPointTy allocaIP(
       insertBlock, insertBlock->getFirstInsertionPt());
-  loopInfo = moduleTranslation.getOpenMPBuilder()->createStaticWorkshareLoop(
-      ompLoc, loopInfo, allocaIP, !loop.nowait(), chunk);
+  llvm::OpenMPIRBuilder::InsertPointTy afterIP;
+  llvm::OpenMPIRBuilder *ompBuilder = moduleTranslation.getOpenMPBuilder();
+  if (isStatic) {
+    loopInfo = ompBuilder->createStaticWorkshareLoop(ompLoc, loopInfo, allocaIP,
+                                                     !loop.nowait(), chunk);
+    afterIP = loopInfo->getAfterIP();
+  } else {
+    afterIP = ompBuilder->createDynamicWorkshareLoop(ompLoc, loopInfo, allocaIP,
+                                                     !loop.nowait(), chunk);
+  }
 
   // Continue building IR after the loop.
-  builder.restoreIP(loopInfo->getAfterIP());
+  builder.restoreIP(afterIP);
   return success();
 }
 
+namespace {
+
+/// Implementation of the dialect interface that converts operations belonging
+/// to the OpenMP dialect to LLVM IR.
+class OpenMPDialectLLVMIRTranslationInterface
+    : public LLVMTranslationDialectInterface {
+public:
+  using LLVMTranslationDialectInterface::LLVMTranslationDialectInterface;
+
+  /// Translates the given operation to LLVM IR using the provided IR builder
+  /// and saving the state in `moduleTranslation`.
+  LogicalResult
+  convertOperation(Operation *op, llvm::IRBuilderBase &builder,
+                   LLVM::ModuleTranslation &moduleTranslation) const final;
+};
+
+} // end namespace
+
 /// Given an OpenMP MLIR operation, create the corresponding LLVM IR
 /// (including OpenMP runtime calls).
-LogicalResult mlir::OpenMPDialectLLVMIRTranslationInterface::convertOperation(
+LogicalResult OpenMPDialectLLVMIRTranslationInterface::convertOperation(
     Operation *op, llvm::IRBuilderBase &builder,
     LLVM::ModuleTranslation &moduleTranslation) const {
 
@@ -306,4 +334,16 @@ LogicalResult mlir::OpenMPDialectLLVMIRTranslationInterface::convertOperation(
         return inst->emitError("unsupported OpenMP operation: ")
                << inst->getName();
       });
+}
+
+void mlir::registerOpenMPDialectTranslation(DialectRegistry &registry) {
+  registry.insert<omp::OpenMPDialect>();
+  registry.addDialectInterface<omp::OpenMPDialect,
+                               OpenMPDialectLLVMIRTranslationInterface>();
+}
+
+void mlir::registerOpenMPDialectTranslation(MLIRContext &context) {
+  DialectRegistry registry;
+  registerOpenMPDialectTranslation(registry);
+  context.appendDialectRegistry(registry);
 }

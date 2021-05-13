@@ -11,6 +11,7 @@
 
 // Implementation of I/O data list item transfers based on descriptors.
 
+#include "cpp-type.h"
 #include "descriptor.h"
 #include "edit-input.h"
 #include "edit-output.h"
@@ -219,7 +220,9 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
     return false;
   }
   if constexpr (DIR == Direction::Input) {
-    io.BeginReadingRecord();
+    if (!io.BeginReadingRecord()) {
+      return false;
+    }
   }
   if (auto *unf{io.get_if<UnformattedIoStatementState<DIR>>()}) {
     std::size_t elementBytes{descriptor.ElementBytes()};
@@ -260,15 +263,20 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
     case TypeCategory::Integer:
       switch (kind) {
       case 1:
-        return FormattedIntegerIO<std::int8_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 1>, DIR>(
+            io, descriptor);
       case 2:
-        return FormattedIntegerIO<std::int16_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 2>, DIR>(
+            io, descriptor);
       case 4:
-        return FormattedIntegerIO<std::int32_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 4>, DIR>(
+            io, descriptor);
       case 8:
-        return FormattedIntegerIO<std::int64_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 8>, DIR>(
+            io, descriptor);
       case 16:
-        return FormattedIntegerIO<common::uint128_t, DIR>(io, descriptor);
+        return FormattedIntegerIO<CppTypeFor<TypeCategory::Integer, 16>, DIR>(
+            io, descriptor);
       default:
         io.GetIoErrorHandler().Crash(
             "DescriptorIO: Unimplemented INTEGER kind (%d) in descriptor",
@@ -330,13 +338,17 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
     case TypeCategory::Logical:
       switch (kind) {
       case 1:
-        return FormattedLogicalIO<std::int8_t, DIR>(io, descriptor);
+        return FormattedLogicalIO<CppTypeFor<TypeCategory::Integer, 1>, DIR>(
+            io, descriptor);
       case 2:
-        return FormattedLogicalIO<std::int16_t, DIR>(io, descriptor);
+        return FormattedLogicalIO<CppTypeFor<TypeCategory::Integer, 2>, DIR>(
+            io, descriptor);
       case 4:
-        return FormattedLogicalIO<std::int32_t, DIR>(io, descriptor);
+        return FormattedLogicalIO<CppTypeFor<TypeCategory::Integer, 4>, DIR>(
+            io, descriptor);
       case 8:
-        return FormattedLogicalIO<std::int64_t, DIR>(io, descriptor);
+        return FormattedLogicalIO<CppTypeFor<TypeCategory::Integer, 8>, DIR>(
+            io, descriptor);
       default:
         io.GetIoErrorHandler().Crash(
             "DescriptorIO: Unimplemented LOGICAL kind (%d) in descriptor",

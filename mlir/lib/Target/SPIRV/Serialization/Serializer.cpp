@@ -42,8 +42,8 @@ static Block *getStructuredControlFlowOpMergeBlock(Operation *op) {
 /// that should be used as the parent block for SPIR-V OpPhi instructions
 /// corresponding to the block arguments.
 static Block *getPhiIncomingBlock(Block *block) {
-  // If the predecessor block in question is the entry block for a spv.loop,
-  // we jump to this spv.loop from its enclosing block.
+  // If the predecessor block in question is the entry block for a
+  // spv.mlir.loop, we jump to this spv.mlir.loop from its enclosing block.
   if (block->isEntryBlock()) {
     if (auto loopOp = dyn_cast<spirv::LoopOp>(block->getParentOp())) {
       // Then the incoming parent block for OpPhi should be the merge block of
@@ -175,7 +175,7 @@ void Serializer::processDebugInfo() {
   if (!emitDebugInfo)
     return;
   auto fileLoc = module.getLoc().dyn_cast<FileLineColLoc>();
-  auto fileName = fileLoc ? fileLoc.getFilename() : "<unknown>";
+  auto fileName = fileLoc ? fileLoc.getFilename().strref() : "<unknown>";
   fileID = getNextID();
   SmallVector<uint32_t, 16> operands;
   operands.push_back(fileID);
@@ -321,13 +321,13 @@ LogicalResult Serializer::processType(Location loc, Type type,
                                       uint32_t &typeID) {
   // Maintains a set of names for nested identified struct types. This is used
   // to properly serialize recursive references.
-  llvm::SetVector<StringRef> serializationCtx;
+  SetVector<StringRef> serializationCtx;
   return processTypeImpl(loc, type, typeID, serializationCtx);
 }
 
 LogicalResult
 Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
-                            llvm::SetVector<StringRef> &serializationCtx) {
+                            SetVector<StringRef> &serializationCtx) {
   typeID = getTypeID(type);
   if (typeID) {
     return success();
@@ -380,7 +380,7 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
 LogicalResult Serializer::prepareBasicType(
     Location loc, Type type, uint32_t resultID, spirv::Opcode &typeEnum,
     SmallVectorImpl<uint32_t> &operands, bool &deferSerialization,
-    llvm::SetVector<StringRef> &serializationCtx) {
+    SetVector<StringRef> &serializationCtx) {
   deferSerialization = false;
 
   if (isVoidType(type)) {
@@ -966,9 +966,9 @@ LogicalResult Serializer::emitPhiForBlockArguments(Block *block) {
     // structure. It does not directly map to the incoming parent block for the
     // OpPhi instructions at SPIR-V binary level. This is because structured
     // control flow ops are serialized to multiple SPIR-V blocks. If there is a
-    // spv.selection/spv.loop op in the MLIR predecessor block, the branch op
-    // jumping to the OpPhi's block then resides in the previous structured
-    // control flow op's merge block.
+    // spv.mlir.selection/spv.mlir.loop op in the MLIR predecessor block, the
+    // branch op jumping to the OpPhi's block then resides in the previous
+    // structured control flow op's merge block.
     predecessor = getPhiIncomingBlock(predecessor);
     if (auto branchOp = dyn_cast<spirv::BranchOp>(terminator)) {
       predecessors.emplace_back(predecessor, branchOp.operand_begin());

@@ -1451,6 +1451,18 @@ function(add_unittest test_suite test_name)
 
   list(APPEND LLVM_LINK_COMPONENTS Support) # gtest needs it for raw_ostream
   add_llvm_executable(${test_name} IGNORE_EXTERNALIZE_DEBUGINFO NO_INSTALL_RPATH ${ARGN})
+
+  # The runtime benefits of ThinLTO don't outweight the compile time costs for tests.
+  if(uppercase_LLVM_ENABLE_LTO STREQUAL "THIN")
+    if((UNIX OR MINGW) AND LLVM_USE_LINKER STREQUAL "lld")
+      set_property(TARGET ${test_name} APPEND_STRING PROPERTY
+                    LINK_FLAGS " -Wl,--lto-O0")
+    elseif(LINKER_IS_LLD_LINK)
+      set_property(TARGET ${test_name} APPEND_STRING PROPERTY
+                    LINK_FLAGS " /opt:lldlto=0")
+    endif()
+  endif()
+
   set(outdir ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR})
   set_output_directory(${test_name} BINARY_DIR ${outdir} LIBRARY_DIR ${outdir})
   # libpthreads overrides some standard library symbols, so main
@@ -2093,6 +2105,12 @@ function(llvm_setup_rpath name)
   if (APPLE)
     set(_install_name_dir INSTALL_NAME_DIR "@rpath")
     set(_install_rpath "@loader_path/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
+  elseif(${CMAKE_SYSTEM_NAME} MATCHES "AIX" AND BUILD_SHARED_LIBS)
+    # $ORIGIN is not interpreted at link time by aix ld.
+    # Since BUILD_SHARED_LIBS is only recommended for use by developers,
+    # hardcode the rpath to build/install lib dir first in this mode.
+    # FIXME: update this when there is better solution.
+    set(_install_rpath "${LLVM_LIBRARY_OUTPUT_INTDIR}" "${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
   elseif(UNIX)
     set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
     if(${CMAKE_SYSTEM_NAME} MATCHES "(FreeBSD|DragonFly)")

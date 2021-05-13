@@ -9,7 +9,7 @@ optimizations. The [specification](https://github.com/intel/llvm/blob/sycl/sycl/
 [working code examples](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) are available on the Intel DPC++ project's github.
 
 **_NOTE:_** _This extension is under active development and lots of APIs are
-subject to change. There are currenly a number of restrictions specified
+subject to change. There are currently a number of restrictions specified
 below._
 
 ESIMD kernels and functions always require the subgroup size of one, which means
@@ -56,17 +56,20 @@ Full runnable code sample can be found on the
 [github repo](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/ESIMD/vadd_usm.cpp).
 
 #### Compiling and running ESIMD code.
-To compile a code which uses the ESIMD extension, a special compiler switch
-`-fsycl-explicit-simd` switch must be used:
 
-> `$ clang++ -fsycl -fsycl-explicit-simd vadd_usm.cpp`
+A code, which uses the ESIMD extension can be compiled and run using the same
+options as the regular SYCL code, e.g.:
+
+> `$ clang++ -fsycl vadd_usm.cpp`
+> `$ SYCL_DEVICE_FILTER=level_zero:gpu ./a.out`
 
 The resulting executable can only be run on Intel GPU hardware, such as
-Intel HD Graphics 600 or later. To run it, couple additional environment
-variables must be used - `SYCL_BE=PI_OPENCL` and
-`SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen`:
+Intel HD Graphics 600 or later. Both Linux and Windows platforms are supported,
+including OpenCL and LevelZero backends.
 
-> `$ SYCL_BE=PI_OPENCL SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen ./a.out`
+Regular SYCL and ESIMD kernels can co-exist in the same translation unit and in
+the same application, however interoperability (e.g. invocation of ESIMD
+functions from a standard SYCL code) between them is not yet supported.
 
 #### Restrictions
 
@@ -75,7 +78,6 @@ some of them are not enforced by the compiler, which may lead to undefined
 program behavior if violated.
 
 ##### Features not supported with ESIMD extension:
-- Windows target
 - Ahead-of-time compilation
 - The [C and C++ Standard libraries support](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/C-CXX-StandardLibrary/C-CXX-StandardLibrary.rst)
 - The [Device library extensions](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst)
@@ -84,10 +86,9 @@ program behavior if violated.
 ##### Unsupported standard SYCL APIs:
 - Local accessors
 - Most of image APIs
-- Specialization constants
 - Memory access through a raw pointer returned by `sycl::accessor::get_pointer()`
 
 ##### Other restrictions:
 - Only Intel GPU device is supported
-- Usual and ESIMD DPC++ kernels can not co-exist in the same application in most
-  cases
+- Interoperability between regular SYCL and ESIMD kernels is not yet supported.
+  I.e., it's not possible to invoke an ESIMD kernel from SYCL kernel and vice-versa.

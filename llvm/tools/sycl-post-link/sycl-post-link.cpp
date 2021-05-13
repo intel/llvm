@@ -35,6 +35,7 @@
 #include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SystemUtils.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -410,19 +411,15 @@ static string_vector saveDeviceImageProperty(
       PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
                   RMEntry);
     }
-    if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
+    if (ImgPSInfo.DoSpecConst) {
       if (ImgPSInfo.SpecConstsMet) {
         // extract spec constant maps per each module
-        ScalarSpecIDMapTy TmpScalarSpecIDMap;
-        CompositeSpecIDMapTy TmpCompositeSpecIDMap;
-        SpecConstantsPass::collectSpecConstantMetadata(
-            *ResultModules[I].get(), TmpScalarSpecIDMap, TmpCompositeSpecIDMap);
+        SpecIDMapTy TmpSpecIDMap;
+        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
+                                                       TmpSpecIDMap);
         PropSet.add(
             llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
-            TmpScalarSpecIDMap);
-        PropSet.add(llvm::util::PropertySetRegistry::
-                        SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS,
-                    TmpCompositeSpecIDMap);
+            TmpSpecIDMap);
       }
     }
     if (ImgPSInfo.EmitKernelParamInfo) {

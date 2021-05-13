@@ -225,9 +225,11 @@ public:
 
   bool hasInvocation() const { return Invocation != nullptr; }
 
-  CompilerInvocation &getInvocation() {
+  CompilerInvocation &getInvocation() { return *getInvocationPtr(); }
+
+  std::shared_ptr<CompilerInvocation> getInvocationPtr() {
     assert(Invocation && "Compiler instance has no invocation!");
-    return *Invocation;
+    return Invocation;
   }
 
   /// setInvocation - Replace the current invocation.
@@ -381,6 +383,9 @@ public:
 
   /// Replace the current AuxTarget.
   void setAuxTarget(TargetInfo *Value);
+
+  // Create Target and AuxTarget based on current options
+  bool createTarget();
 
   /// }
   /// @name Virtual File System

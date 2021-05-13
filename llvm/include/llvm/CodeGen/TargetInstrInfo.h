@@ -951,6 +951,19 @@ public:
     llvm_unreachable("Target didn't implement TargetInstrInfo::copyPhysReg!");
   }
 
+  /// Allow targets to tell MachineVerifier whether a specific register
+  /// MachineOperand can be used as part of PC-relative addressing.
+  /// PC-relative addressing modes in many CISC architectures contain
+  /// (non-PC) registers as offsets or scaling values, which inherently
+  /// tags the corresponding MachineOperand with OPERAND_PCREL.
+  ///
+  /// @param MO The MachineOperand in question. MO.isReg() should always
+  /// be true.
+  /// @return Whether this operand is allowed to be used PC-relatively.
+  virtual bool isPCRelRegisterOperandLegal(const MachineOperand &MO) const {
+    return false;
+  }
+
 protected:
   /// Target-dependent implementation for IsCopyInstr.
   /// If the specific machine instruction is a instruction that moves/copies
@@ -1050,6 +1063,16 @@ public:
   /// target-independent code, moving this responsibility to the targets
   /// has the potential of causing nasty silent breakage in out-of-tree targets.
   virtual bool isSubregFoldable() const { return false; }
+
+  /// For a patchpoint, stackmap, or statepoint intrinsic, return the range of
+  /// operands which can't be folded into stack references. Operands outside
+  /// of the range are most likely foldable but it is not guaranteed.
+  /// These instructions are unique in that stack references for some operands
+  /// have the same execution cost (e.g. none) as the unfolded register forms.
+  /// The ranged return is guaranteed to include all operands which can't be
+  /// folded at zero cost.
+  virtual std::pair<unsigned, unsigned>
+  getPatchpointUnfoldableRange(const MachineInstr &MI) const;
 
   /// Attempt to fold a load or store of the specified stack
   /// slot into the specified machine instruction for the specified operand(s).
@@ -1382,7 +1405,7 @@ public:
                            unsigned Quantity) const;
 
   /// Return the noop instruction to use for a noop.
-  virtual void getNoop(MCInst &NopInst) const;
+  virtual MCInst getNop() const;
 
   /// Return true for post-incremented instructions.
   virtual bool isPostIncrement(const MachineInstr &MI) const { return false; }

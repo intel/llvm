@@ -41,6 +41,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
+#include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -82,10 +83,10 @@
 #include "llvm/Transforms/Scalar/LowerMatrixIntrinsics.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
+#include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
-#include "llvm/Transforms/Utils/UniqueInternalLinkageNames.h"
 #include <memory>
 using namespace clang;
 using namespace llvm;
@@ -288,10 +289,12 @@ static void addAddressSanitizerPasses(const PassManagerBuilder &Builder,
   bool UseAfterScope = CGOpts.SanitizeAddressUseAfterScope;
   bool UseOdrIndicator = CGOpts.SanitizeAddressUseOdrIndicator;
   bool UseGlobalsGC = asanUseGlobalsGC(T, CGOpts);
+  llvm::AsanDtorKind DestructorKind = CGOpts.getSanitizeAddressDtorKind();
   PM.add(createAddressSanitizerFunctionPass(/*CompileKernel*/ false, Recover,
                                             UseAfterScope));
   PM.add(createModuleAddressSanitizerLegacyPassPass(
-      /*CompileKernel*/ false, Recover, UseGlobalsGC, UseOdrIndicator));
+      /*CompileKernel*/ false, Recover, UseGlobalsGC, UseOdrIndicator,
+      DestructorKind));
 }
 
 static void addKernelAddressSanitizerPasses(const PassManagerBuilder &Builder,
@@ -363,8 +366,18 @@ static void addDataFlowSanitizerPass(const PassManagerBuilder &Builder,
   const PassManagerBuilderWrapper &BuilderWrapper =
       static_cast<const PassManagerBuilderWrapper&>(Builder);
   const LangOptions &LangOpts = BuilderWrapper.getLangOpts();
-  PM.add(
-      createDataFlowSanitizerLegacyPassPass(LangOpts.SanitizerBlacklistFiles));
+  PM.add(createDataFlowSanitizerLegacyPassPass(LangOpts.NoSanitizeFiles));
+}
+
+static void addEntryExitInstrumentationPass(const PassManagerBuilder &Builder,
+                                            legacy::PassManagerBase &PM) {
+  PM.add(createEntryExitInstrumenterPass());
+}
+
+static void
+addPostInlineEntryExitInstrumentationPass(const PassManagerBuilder &Builder,
+                                          legacy::PassManagerBase &PM) {
+  PM.add(createPostInlineEntryExitInstrumenterPass());
 }
 
 static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
@@ -539,7 +552,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.EnableMachineFunctionSplitter = CodeGenOpts.SplitMachineFunctions;
   Options.FunctionSections = CodeGenOpts.FunctionSections;
   Options.DataSections = CodeGenOpts.DataSections;
-  Options.IgnoreXCOFFVisibility = CodeGenOpts.IgnoreXCOFFVisibility;
+  Options.IgnoreXCOFFVisibility = LangOpts.IgnoreXCOFFVisibility;
   Options.UniqueSectionNames = CodeGenOpts.UniqueSectionNames;
   Options.UniqueBasicBlockSectionNames =
       CodeGenOpts.UniqueBasicBlockSectionNames;
@@ -783,6 +796,20 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
                            addDataFlowSanitizerPass);
   }
 
+  if (CodeGenOpts.InstrumentFunctions ||
+      CodeGenOpts.InstrumentFunctionEntryBare ||
+      CodeGenOpts.InstrumentFunctionsAfterInlining ||
+      CodeGenOpts.InstrumentForProfiling) {
+    PMBuilder.addExtension(PassManagerBuilder::EP_EarlyAsPossible,
+                           addEntryExitInstrumentationPass);
+    PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
+                           addEntryExitInstrumentationPass);
+    PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
+                           addPostInlineEntryExitInstrumentationPass);
+    PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
+                           addPostInlineEntryExitInstrumentationPass);
+  }
+
   // Set up the per-function pass manager.
   FPM.add(new TargetLibraryInfoWrapperPass(*TLII));
   if (CodeGenOpts.VerifyModule)
@@ -791,12 +818,6 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   // Set up the per-module pass manager.
   if (!CodeGenOpts.RewriteMapFiles.empty())
     addSymbolRewriterPass(CodeGenOpts, &MPM);
-
-  // Add UniqueInternalLinkageNames Pass which renames internal linkage symbols
-  // with unique names.
-  if (CodeGenOpts.UniqueInternalLinkageNames) {
-    MPM.add(createUniqueInternalLinkageNamesPass());
-  }
 
   if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts, LangOpts)) {
     MPM.add(createGCOVProfilerPass(*Options));
@@ -852,7 +873,15 @@ static void setCommandLineOpts(const CodeGenOptions &CodeGenOpts) {
     BackendArgs.push_back("-limit-float-precision");
     BackendArgs.push_back(CodeGenOpts.LimitFloatPrecision.c_str());
   }
+  // Check for the default "clang" invocation that won't set any cl::opt values.
+  // Skip trying to parse the command line invocation to avoid the issues
+  // described below.
+  if (BackendArgs.size() == 1)
+    return;
   BackendArgs.push_back(nullptr);
+  // FIXME: The command line parser below is not thread-safe and shares a global
+  // state, so this call might crash or overwrite the options of another Clang
+  // instance in the same process.
   llvm::cl::ParseCommandLineOptions(BackendArgs.size() - 1,
                                     BackendArgs.data());
 }
@@ -927,7 +956,16 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   if (TM)
     TheModule->setDataLayout(TM->createDataLayout());
 
-  legacy::PassManager PerModulePasses;
+  DebugifyCustomPassManager PerModulePasses;
+  DebugInfoPerPassMap DIPreservationMap;
+  if (CodeGenOpts.EnableDIPreservationVerify) {
+    PerModulePasses.setDebugifyMode(DebugifyMode::OriginalDebugInfo);
+    PerModulePasses.setDIPreservationMap(DIPreservationMap);
+
+    if (!CodeGenOpts.DIBugsReportFilePath.empty())
+      PerModulePasses.setOrigDIVerifyBugsReportFilePath(
+          CodeGenOpts.DIBugsReportFilePath);
+  }
   PerModulePasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
 
@@ -956,7 +994,17 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
       llvm::report_fatal_error(
           "ITT annotations can only by added to a module with spir target");
-    PerModulePasses.add(createSPIRITTAnnotationsPass());
+    PerModulePasses.add(createSPIRITTAnnotationsLegacyPass());
+  }
+
+  // Allocate static local memory in SYCL kernel scope for each allocation call.
+  if (LangOpts.SYCLIsDevice) {
+    // Group local memory pass depends on inlining. Turn it on even in case if
+    // all llvm passes or SYCL early optimizations are disabled.
+    // FIXME: Remove this workaround when dependency on inlining is eliminated.
+    if (CodeGenOpts.DisableLLVMPasses)
+      PerModulePasses.add(createAlwaysInlinerLegacyPass(false));
+    PerModulePasses.add(createSYCLLowerWGLocalMemoryLegacyPass());
   }
 
   switch (Action) {
@@ -1129,9 +1177,12 @@ static void addSanitizers(const Triple &TargetTriple,
         bool UseAfterScope = CodeGenOpts.SanitizeAddressUseAfterScope;
         bool ModuleUseAfterScope = asanUseGlobalsGC(TargetTriple, CodeGenOpts);
         bool UseOdrIndicator = CodeGenOpts.SanitizeAddressUseOdrIndicator;
+        llvm::AsanDtorKind DestructorKind =
+            CodeGenOpts.getSanitizeAddressDtorKind();
         MPM.addPass(RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
         MPM.addPass(ModuleAddressSanitizerPass(
-            CompileKernel, Recover, ModuleUseAfterScope, UseOdrIndicator));
+            CompileKernel, Recover, ModuleUseAfterScope, UseOdrIndicator,
+            DestructorKind));
         MPM.addPass(createModuleToFunctionPassAdaptor(
             AddressSanitizerPass(CompileKernel, Recover, UseAfterScope)));
       }
@@ -1149,7 +1200,7 @@ static void addSanitizers(const Triple &TargetTriple,
     HWASanPass(SanitizerKind::KernelHWAddress, true);
 
     if (LangOpts.Sanitize.has(SanitizerKind::DataFlow)) {
-      MPM.addPass(DataFlowSanitizerPass(LangOpts.SanitizerBlacklistFiles));
+      MPM.addPass(DataFlowSanitizerPass(LangOpts.NoSanitizeFiles));
     }
   });
 }
@@ -1244,11 +1295,15 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   // non-integrated assemblers don't recognize .cgprofile section.
   PTO.CallGraphProfile = !CodeGenOpts.DisableIntegratedAS;
   PTO.Coroutines = LangOpts.Coroutines;
-  PTO.UniqueLinkageNames = CodeGenOpts.UniqueInternalLinkageNames;
+
+  LoopAnalysisManager LAM(CodeGenOpts.DebugPassManager);
+  FunctionAnalysisManager FAM(CodeGenOpts.DebugPassManager);
+  CGSCCAnalysisManager CGAM(CodeGenOpts.DebugPassManager);
+  ModuleAnalysisManager MAM(CodeGenOpts.DebugPassManager);
 
   PassInstrumentationCallbacks PIC;
   StandardInstrumentations SI(CodeGenOpts.DebugPassManager);
-  SI.registerCallbacks(PIC);
+  SI.registerCallbacks(PIC, &FAM);
   PassBuilder PB(CodeGenOpts.DebugPassManager, TM.get(), PTO, PGOOpt, &PIC);
 
   // Attempt to load pass plugins and register their callbacks with PB.
@@ -1264,11 +1319,6 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
 #define HANDLE_EXTENSION(Ext)                                                  \
   get##Ext##PluginInfo().RegisterPassBuilderCallbacks(PB);
 #include "llvm/Support/Extension.def"
-
-  LoopAnalysisManager LAM(CodeGenOpts.DebugPassManager);
-  FunctionAnalysisManager FAM(CodeGenOpts.DebugPassManager);
-  CGSCCAnalysisManager CGAM(CodeGenOpts.DebugPassManager);
-  ModuleAnalysisManager MAM(CodeGenOpts.DebugPassManager);
 
   // Register the AA manager first so that our version is the one used.
   FAM.registerPass([&] { return PB.buildDefaultAAPipeline(); });
@@ -1318,10 +1368,11 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
 
     // If we reached here with a non-empty index file name, then the index
     // file was empty and we are not performing ThinLTO backend compilation
-    // (used in testing in a distributed build environment). Drop any the type
-    // test assume sequences inserted for whole program vtables so that
-    // codegen doesn't complain.
-    if (!CodeGenOpts.ThinLTOIndexFile.empty())
+    // (used in testing in a distributed build environment).
+    bool IsThinLTOPostLink = !CodeGenOpts.ThinLTOIndexFile.empty();
+    // If so drop any the type test assume sequences inserted for whole program
+    // vtables so that codegen doesn't complain.
+    if (IsThinLTOPostLink)
       PB.registerPipelineStartEPCallback(
           [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
             MPM.addPass(LowerTypeTestsPass(/*ExportSummary=*/nullptr,
@@ -1329,11 +1380,19 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
                                            /*DropTypeTests=*/true));
           });
 
-    if (Level != PassBuilder::OptimizationLevel::O0) {
+    if (CodeGenOpts.InstrumentFunctions ||
+        CodeGenOpts.InstrumentFunctionEntryBare ||
+        CodeGenOpts.InstrumentFunctionsAfterInlining ||
+        CodeGenOpts.InstrumentForProfiling) {
       PB.registerPipelineStartEPCallback(
           [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
             MPM.addPass(createModuleToFunctionPassAdaptor(
                 EntryExitInstrumenterPass(/*PostInlining=*/false)));
+          });
+      PB.registerOptimizerLastEPCallback(
+          [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+            MPM.addPass(createModuleToFunctionPassAdaptor(
+                EntryExitInstrumenterPass(/*PostInlining=*/true)));
           });
     }
 
@@ -1345,7 +1404,10 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
             FPM.addPass(BoundsCheckingPass());
           });
 
-    addSanitizers(TargetTriple, CodeGenOpts, LangOpts, PB);
+    // Don't add sanitizers if we are here from ThinLTO PostLink. That already
+    // done on PreLink stage.
+    if (!IsThinLTOPostLink)
+      addSanitizers(TargetTriple, CodeGenOpts, LangOpts, PB);
 
     if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts, LangOpts))
       PB.registerPipelineStartEPCallback(
@@ -1477,10 +1539,7 @@ static void runThinLTOBackend(
   // we should only invoke this using the individual indexes written out
   // via a WriteIndexesThinBackend.
   FunctionImporter::ImportMapTy ImportList;
-  std::vector<std::unique_ptr<llvm::MemoryBuffer>> OwnedImports;
-  MapVector<llvm::StringRef, llvm::BitcodeModule> ModuleMap;
-  if (!lto::loadReferencedModules(*M, *CombinedIndex, ImportList, ModuleMap,
-                                  OwnedImports))
+  if (!lto::initImportList(*M, *CombinedIndex, ImportList))
     return;
 
   auto AddStream = [&](size_t Task) {
@@ -1557,7 +1616,7 @@ static void runThinLTOBackend(
   if (Error E =
           thinBackend(Conf, -1, AddStream, *M, *CombinedIndex, ImportList,
                       ModuleToDefinedGVSummaries[M->getModuleIdentifier()],
-                      ModuleMap, CGOpts.CmdArgs)) {
+                      /* ModuleMap */ nullptr, CGOpts.CmdArgs)) {
     handleAllErrors(std::move(E), [&](ErrorInfoBase &EIB) {
       errs() << "Error running ThinLTO backend: " << EIB.message() << '\n';
     });

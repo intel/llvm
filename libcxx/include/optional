@@ -150,6 +150,7 @@ template<class T>
 #include <__availability>
 #include <__debug>
 #include <__functional_base>
+#include <compare>
 #include <functional>
 #include <initializer_list>
 #include <new>
@@ -1414,8 +1415,8 @@ struct _LIBCPP_TEMPLATE_VIS hash<
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif  // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER > 14
 
 _LIBCPP_POP_MACROS
 
-#endif  // _LIBCPP_OPTIONAL
+#endif // _LIBCPP_OPTIONAL

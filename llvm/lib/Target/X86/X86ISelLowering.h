@@ -1118,12 +1118,8 @@ namespace llvm {
 
     unsigned
     getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
-      if (ConstraintCode == "o")
-        return InlineAsm::Constraint_o;
-      else if (ConstraintCode == "v")
+      if (ConstraintCode == "v")
         return InlineAsm::Constraint_v;
-      else if (ConstraintCode == "X")
-        return InlineAsm::Constraint_X;
       return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
     }
 
@@ -1586,10 +1582,6 @@ namespace llvm {
     EmitVAARGWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const;
 
     /// Utility function to emit the xmm reg save portion of va_start.
-    MachineBasicBlock *
-    EmitVAStartSaveXMMRegsWithCustomInserter(MachineInstr &BInstr,
-                                             MachineBasicBlock *BB) const;
-
     MachineBasicBlock *EmitLoweredCascadedSelect(MachineInstr &MI1,
                                                  MachineInstr &MI2,
                                                  MachineBasicBlock *BB) const;

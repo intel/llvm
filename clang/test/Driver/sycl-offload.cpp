@@ -24,3 +24,17 @@
 // RUN:  %clang -### -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 // CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-host"
+
+/// Check that -fcoverage-mapping is disabled for device
+// RUN: %clang -### -fsycl -fprofile-instr-generate -fcoverage-mapping -target x86_64-unknown-linux-gnu -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK_COVERAGE_MAPPING %s
+// CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-fprofile-instrument=clang"
+// CHECK_COVERAGE_MAPPING-NOT: "-fcoverage-mapping"
+// CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-fprofile-instrument=clang"{{.*}} "-fcoverage-mapping"{{.*}}
+
+/// check for PIC for device wrap compilation when using -shared or -fPIC
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -shared %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fPIC %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
+// CHECK_SHARED: llc{{.*}} "-relocation-model=pic"

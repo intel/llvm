@@ -512,7 +512,8 @@ public:
   const SCEV *getConstant(ConstantInt *V);
   const SCEV *getConstant(const APInt &Val);
   const SCEV *getConstant(Type *Ty, uint64_t V, bool isSigned = false);
-  const SCEV *getPtrToIntExpr(const SCEV *Op, Type *Ty, unsigned Depth = 0);
+  const SCEV *getLosslessPtrToIntExpr(const SCEV *Op, unsigned Depth = 0);
+  const SCEV *getPtrToIntExpr(const SCEV *Op, Type *Ty);
   const SCEV *getTruncateExpr(const SCEV *Op, Type *Ty, unsigned Depth = 0);
   const SCEV *getZeroExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth = 0);
   const SCEV *getSignExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth = 0);
@@ -575,7 +576,6 @@ public:
   const SCEV *getGEPExpr(GEPOperator *GEP,
                          const SmallVectorImpl<const SCEV *> &IndexExprs);
   const SCEV *getAbsExpr(const SCEV *Op, bool IsNSW);
-  const SCEV *getSignumExpr(const SCEV *Op);
   const SCEV *getMinMaxExpr(SCEVTypes Kind,
                             SmallVectorImpl<const SCEV *> &Operands);
   const SCEV *getSMaxExpr(const SCEV *LHS, const SCEV *RHS);
@@ -938,10 +938,23 @@ public:
   bool isKnownPredicate(ICmpInst::Predicate Pred, const SCEV *LHS,
                         const SCEV *RHS);
 
+  /// Check whether the condition described by Pred, LHS, and RHS is true or
+  /// false. If we know it, return the evaluation of this condition. If neither
+  /// is proved, return None.
+  Optional<bool> evaluatePredicate(ICmpInst::Predicate Pred, const SCEV *LHS,
+                                   const SCEV *RHS);
+
   /// Test if the given expression is known to satisfy the condition described
   /// by Pred, LHS, and RHS in the given Context.
   bool isKnownPredicateAt(ICmpInst::Predicate Pred, const SCEV *LHS,
                         const SCEV *RHS, const Instruction *Context);
+
+  /// Check whether the condition described by Pred, LHS, and RHS is true or
+  /// false in the given \p Context. If we know it, return the evaluation of
+  /// this condition. If neither is proved, return None.
+  Optional<bool> evaluatePredicateAt(ICmpInst::Predicate Pred, const SCEV *LHS,
+                                     const SCEV *RHS,
+                                     const Instruction *Context);
 
   /// Test if the condition described by Pred, LHS, RHS is known to be true on
   /// every iteration of the loop of the recurrency LHS.
@@ -1560,6 +1573,12 @@ private:
   /// Helper called by \c getRange.
   ConstantRange getRangeViaFactoring(const SCEV *Start, const SCEV *Stop,
                                      const SCEV *MaxBECount, unsigned BitWidth);
+
+  /// If the unknown expression U corresponds to a simple recurrence, return
+  /// a constant range which represents the entire recurrence.  Note that
+  /// *add* recurrences with loop invariant steps aren't represented by
+  /// SCEVUnknowns and thus don't use this mechanism.
+  ConstantRange getRangeForUnknownRecurrence(const SCEVUnknown *U);
 
   /// We know that there is no SCEV for the specified value.  Analyze the
   /// expression.

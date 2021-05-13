@@ -653,8 +653,7 @@ def ProcessorFeatures {
   list<SubtargetFeature> SKLAdditionalFeatures = [FeatureAES,
                                                   FeatureXSAVEC,
                                                   FeatureXSAVES,
-                                                  FeatureCLFLUSHOPT,
-                                                  FeatureSGX];
+                                                  FeatureCLFLUSHOPT];
   list<SubtargetFeature> SKLTuning = [FeatureHasFastGather,
                                       FeatureMacroFusion,
                                       FeatureSlow3OpsLEA,
@@ -740,7 +739,6 @@ def ProcessorFeatures {
                                                   FeatureVPCLMULQDQ,
                                                   FeatureVPOPCNTDQ,
                                                   FeatureGFNI,
-                                                  FeatureCLWB,
                                                   FeatureRDPID,
                                                   FeatureFSRM];
   list<SubtargetFeature> ICLTuning = CNLTuning;
@@ -749,13 +747,15 @@ def ProcessorFeatures {
 
   // Icelake Server
   list<SubtargetFeature> ICXAdditionalFeatures = [FeaturePCONFIG,
+                                                  FeatureCLWB,
                                                   FeatureWBNOINVD];
   list<SubtargetFeature> ICXTuning = CNLTuning;
   list<SubtargetFeature> ICXFeatures =
     !listconcat(ICLFeatures, ICXAdditionalFeatures);
 
-  //Tigerlake
+  // Tigerlake
   list<SubtargetFeature> TGLAdditionalFeatures = [FeatureVP2INTERSECT,
+                                                  FeatureCLWB,
                                                   FeatureMOVDIRI,
                                                   FeatureMOVDIR64B,
                                                   FeatureSHSTK];
@@ -763,7 +763,7 @@ def ProcessorFeatures {
   list<SubtargetFeature> TGLFeatures =
     !listconcat(ICLFeatures, TGLAdditionalFeatures );
 
-  //Sapphirerapids
+  // Sapphirerapids
   list<SubtargetFeature> SPRAdditionalFeatures = [FeatureAMXTILE,
                                                   FeatureAMXINT8,
                                                   FeatureAMXBF16,
@@ -783,17 +783,6 @@ def ProcessorFeatures {
   list<SubtargetFeature> SPRTuning = ICXTuning;
   list<SubtargetFeature> SPRFeatures =
     !listconcat(ICXFeatures, SPRAdditionalFeatures);
-
-  // Alderlake
-  list<SubtargetFeature> ADLAdditionalFeatures = [FeatureAVXVNNI,
-                                                  FeatureCLDEMOTE,
-                                                  FeatureHRESET,
-                                                  FeaturePTWRITE,
-                                                  FeatureSERIALIZE,
-                                                  FeatureWAITPKG];
-  list<SubtargetFeature> ADLTuning = SKLTuning;
-  list<SubtargetFeature> ADLFeatures =
-    !listconcat(SKLFeatures, ADLAdditionalFeatures);
 
   // Atom
   list<SubtargetFeature> AtomFeatures = [FeatureX87,
@@ -856,8 +845,7 @@ def ProcessorFeatures {
 
   // Goldmont Plus
   list<SubtargetFeature> GLPAdditionalFeatures = [FeaturePTWRITE,
-                                                  FeatureRDPID,
-                                                  FeatureSGX];
+                                                  FeatureRDPID];
   list<SubtargetFeature> GLPTuning = [FeatureUseGLMDivSqrtCosts,
                                       FeatureSlowTwoMemOps,
                                       FeatureSlowLEA,
@@ -872,6 +860,31 @@ def ProcessorFeatures {
   list<SubtargetFeature> TRMTuning = GLPTuning;
   list<SubtargetFeature> TRMFeatures =
     !listconcat(GLPFeatures, TRMAdditionalFeatures);
+
+  // Alderlake
+  list<SubtargetFeature> ADLAdditionalFeatures = [FeatureSERIALIZE,
+                                                  FeaturePCONFIG,
+                                                  FeatureSHSTK,
+                                                  FeatureWIDEKL,
+                                                  FeatureINVPCID,
+                                                  FeatureADX,
+                                                  FeatureFMA,
+                                                  FeatureVAES,
+                                                  FeatureVPCLMULQDQ,
+                                                  FeatureF16C,
+                                                  FeatureBMI,
+                                                  FeatureBMI2,
+                                                  FeatureLZCNT,
+                                                  FeatureAVXVNNI,
+                                                  FeaturePKU,
+                                                  FeatureHRESET,
+                                                  FeatureCLDEMOTE,
+                                                  FeatureMOVDIRI,
+                                                  FeatureMOVDIR64B,
+                                                  FeatureWAITPKG];
+  list<SubtargetFeature> ADLTuning = SKLTuning;
+  list<SubtargetFeature> ADLFeatures =
+    !listconcat(TRMFeatures, ADLAdditionalFeatures);
 
   // Knights Landing
   list<SubtargetFeature> KNLFeatures = [FeatureX87,
@@ -1076,7 +1089,9 @@ def ProcessorFeatures {
                                                   FeaturePKU,
                                                   FeatureVAES,
                                                   FeatureVPCLMULQDQ];
-  list<SubtargetFeature> ZN3Tuning = ZNTuning;
+  list<SubtargetFeature> ZN3AdditionalTuning = [FeatureMacroFusion];
+  list<SubtargetFeature> ZN3Tuning =
+    !listconcat(ZNTuning, ZN3AdditionalTuning);
   list<SubtargetFeature> ZN3Features =
     !listconcat(ZN2Features, ZN3AdditionalFeatures);
 }
@@ -1290,6 +1305,8 @@ def : ProcModel<"cooperlake", SkylakeServerModel,
 def : ProcModel<"cannonlake", SkylakeServerModel,
                 ProcessorFeatures.CNLFeatures, ProcessorFeatures.CNLTuning>;
 def : ProcModel<"icelake-client", SkylakeServerModel,
+                ProcessorFeatures.ICLFeatures, ProcessorFeatures.ICLTuning>;
+def : ProcModel<"rocketlake", SkylakeServerModel,
                 ProcessorFeatures.ICLFeatures, ProcessorFeatures.ICLTuning>;
 def : ProcModel<"icelake-server", SkylakeServerModel,
                 ProcessorFeatures.ICXFeatures, ProcessorFeatures.ICXTuning>;

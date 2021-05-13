@@ -8,6 +8,12 @@
 
 // UNSUPPORTED: c++03
 
+// XFAIL: LIBCXX-WINDOWS-FIXME
+
+// The string reported on errors changed, which makes those tests fail when run
+// against already-released libc++'s.
+// XFAIL: with_system_cxx_lib=macosx10.15
+
 // <filesystem>
 
 // file_time_type last_write_time(const path& p);
@@ -567,6 +573,9 @@ TEST_CASE(test_value_on_failure)
     TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
 }
 
+// Windows doesn't support setting perms::none to trigger failures
+// reading directories.
+#ifndef TEST_WIN_NO_FILESYSTEM_PERMS_NONE
 TEST_CASE(test_exists_fails)
 {
     scoped_test_env env;
@@ -582,5 +591,6 @@ TEST_CASE(test_exists_fails)
                              "last_write_time");
     TEST_CHECK_THROW_RESULT(filesystem_error, Checker, last_write_time(file));
 }
+#endif
 
 TEST_SUITE_END()

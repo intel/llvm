@@ -31,6 +31,26 @@ RankedTensorType shape::getExtentTensorType(MLIRContext *ctx) {
   return RankedTensorType::get({ShapedType::kDynamicSize}, IndexType::get(ctx));
 }
 
+LogicalResult shape::getShapeVec(Value input,
+                                 SmallVectorImpl<int64_t> &shapeValues) {
+  if (auto inputOp = input.getDefiningOp<ShapeOfOp>()) {
+    auto type = inputOp.arg().getType().dyn_cast<ShapedType>();
+    if (!type.hasRank())
+      return failure();
+    shapeValues = llvm::to_vector<6>(type.getShape());
+    return success();
+  } else if (auto inputOp = input.getDefiningOp<ConstShapeOp>()) {
+    shapeValues = llvm::to_vector<6>(inputOp.shape().getValues<int64_t>());
+    return success();
+  } else if (auto inputOp = input.getDefiningOp<ConstantOp>()) {
+    shapeValues = llvm::to_vector<6>(
+        inputOp.value().cast<DenseIntElementsAttr>().getValues<int64_t>());
+    return success();
+  } else {
+    return failure();
+  }
+}
+
 static bool isErrorPropagationPossible(TypeRange operandTypes) {
   return llvm::any_of(operandTypes, [](Type ty) {
     return ty.isa<SizeType, ShapeType, ValueShapeType>();
@@ -250,7 +270,7 @@ static void print(OpAsmPrinter &p, AssumingOp op) {
   p.printRegion(op.doRegion(),
                 /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/yieldsResults);
-  p.printOptionalAttrDict(op.getAttrs());
+  p.printOptionalAttrDict(op->getAttrs());
 }
 
 namespace {
@@ -268,12 +288,57 @@ struct AssumingWithTrue : public OpRewritePattern<AssumingOp> {
     return success();
   }
 };
+
+struct AssumingOpRemoveUnusedResults : public OpRewritePattern<AssumingOp> {
+  using OpRewritePattern<AssumingOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AssumingOp op,
+                                PatternRewriter &rewriter) const override {
+    Block *body = op.getBody();
+    auto yieldOp = llvm::cast<AssumingYieldOp>(body->getTerminator());
+
+    // Find used values.
+    SmallVector<Value, 4> newYieldOperands;
+    Value opResult, yieldOperand;
+    for (auto it : llvm::zip(op.getResults(), yieldOp.operands())) {
+      std::tie(opResult, yieldOperand) = it;
+      if (!opResult.getUses().empty()) {
+        newYieldOperands.push_back(yieldOperand);
+      }
+    }
+
+    // Rewrite only if redundant results exist.
+    if (newYieldOperands.size() == yieldOp->getNumOperands())
+      return failure();
+
+    // Replace yield op in the old assuming op's body and move the entire region
+    // to the new assuming op.
+    rewriter.setInsertionPointToEnd(body);
+    auto newYieldOp =
+        rewriter.replaceOpWithNewOp<AssumingYieldOp>(yieldOp, newYieldOperands);
+    rewriter.setInsertionPoint(op);
+    auto newOp = rewriter.create<AssumingOp>(
+        op.getLoc(), newYieldOp->getOperandTypes(), op.witness());
+    newOp.doRegion().takeBody(op.doRegion());
+
+    // Use the new results to replace the previously used ones.
+    SmallVector<Value, 4> replacementValues;
+    auto src = newOp.getResults().begin();
+    for (auto it : op.getResults()) {
+      if (it.getUses().empty())
+        replacementValues.push_back(nullptr);
+      else
+        replacementValues.push_back(*src++);
+    }
+    rewriter.replaceOp(op, replacementValues);
+    return success();
+  }
+};
 } // namespace
 
-void AssumingOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
+void AssumingOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
-  // If taking a passing witness, inline region.
-  patterns.insert<AssumingWithTrue>(context);
+  patterns.add<AssumingOpRemoveUnusedResults, AssumingWithTrue>(context);
 }
 
 // See RegionBranchOpInterface in Interfaces/ControlFlowInterfaces.td
@@ -311,13 +376,59 @@ void AssumingOp::inlineRegionIntoParent(AssumingOp &op,
   rewriter.mergeBlocks(blockAfterAssuming, blockBeforeAssuming);
 }
 
+void AssumingOp::build(
+    OpBuilder &builder, OperationState &result, Value witness,
+    function_ref<SmallVector<Value, 2>(OpBuilder &, Location)> bodyBuilder) {
+
+  result.addOperands(witness);
+  Region *bodyRegion = result.addRegion();
+  bodyRegion->push_back(new Block);
+  Block &bodyBlock = bodyRegion->front();
+
+  // Build body.
+  OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(&bodyBlock);
+  SmallVector<Value, 2> yieldValues = bodyBuilder(builder, result.location);
+  builder.create<AssumingYieldOp>(result.location, yieldValues);
+
+  SmallVector<Type, 2> assumingTypes;
+  for (Value v : yieldValues)
+    assumingTypes.push_back(v.getType());
+  result.addTypes(assumingTypes);
+}
+
 //===----------------------------------------------------------------------===//
 // AssumingAllOp
 //===----------------------------------------------------------------------===//
 
-void AssumingAllOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<AssumingAllOneOp>(context);
+namespace {
+struct AssumingAllToCstrEqCanonicalization
+    : public OpRewritePattern<AssumingAllOp> {
+  using OpRewritePattern<AssumingAllOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AssumingAllOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value, 8> shapes;
+    for (Value w : op.inputs()) {
+      auto cstrEqOp = w.getDefiningOp<CstrEqOp>();
+      if (!cstrEqOp)
+        return failure();
+      bool disjointShapes = llvm::none_of(cstrEqOp.shapes(), [&](Value s) {
+        return llvm::is_contained(shapes, s);
+      });
+      if (!shapes.empty() && !cstrEqOp.shapes().empty() && disjointShapes)
+        return failure();
+      shapes.append(cstrEqOp.shapes().begin(), cstrEqOp.shapes().end());
+    }
+    rewriter.replaceOpWithNewOp<CstrEqOp>(op, shapes);
+    return success();
+  }
+};
+} // namespace
+
+void AssumingAllOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.add<AssumingAllOneOp, AssumingAllToCstrEqCanonicalization>(context);
 }
 
 OpFoldResult AssumingAllOp::fold(ArrayRef<Attribute> operands) {
@@ -349,46 +460,154 @@ static LogicalResult verify(AssumingAllOp op) {
   return success();
 }
 
+void AssumingAllOp::build(OpBuilder &b, OperationState &state,
+                          ValueRange inputs) {
+  build(b, state, b.getType<WitnessType>(), inputs);
+}
+
 //===----------------------------------------------------------------------===//
 // BroadcastOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult BroadcastOp::fold(ArrayRef<Attribute> operands) {
-  if (!operands[1])
-    return nullptr;
+  if (shapes().size() == 1)
+    return shapes().front();
 
   // TODO: Support folding with more than 2 input shapes
-  if (operands.size() > 2 && !operands[2].isa<StringAttr>())
+  if (shapes().size() > 2)
     return nullptr;
 
-  auto rhsShape = llvm::to_vector<6>(
-      operands[1].cast<DenseIntElementsAttr>().getValues<int64_t>());
-  if (rhsShape.empty())
-    return shapes()[0];
-
-  if (!operands[0])
+  if (!operands[0] || !operands[1])
     return nullptr;
-
   auto lhsShape = llvm::to_vector<6>(
       operands[0].cast<DenseIntElementsAttr>().getValues<int64_t>());
-  if (lhsShape.empty())
-    return shapes()[1];
-
+  auto rhsShape = llvm::to_vector<6>(
+      operands[1].cast<DenseIntElementsAttr>().getValues<int64_t>());
   SmallVector<int64_t, 6> resultShape;
+
   // If the shapes are not compatible, we can't fold it.
   // TODO: Fold to an "error".
   if (!OpTrait::util::getBroadcastedShape(lhsShape, rhsShape, resultShape))
     return nullptr;
+
   Builder builder(getContext());
   return builder.getIndexTensorAttr(resultShape);
 }
 
 static LogicalResult verify(BroadcastOp op) {
-  // Ensure that AssumingAllOp contains at least one operand
-  if (op.getNumOperands() < 2)
-    return op.emitOpError("required at least 2 input shapes");
-
   return verifyShapeOrExtentTensorOp(op);
+}
+
+namespace {
+template <typename OpTy>
+struct RemoveDuplicateOperandsPattern : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    // Find unique operands.
+    SmallVector<Value, 2> unique;
+    for (Value v : op.getOperands()) {
+      if (!llvm::is_contained(unique, v))
+        unique.push_back(v);
+    }
+
+    // Reduce op to equivalent with unique operands.
+    if (unique.size() < op.getNumOperands()) {
+      rewriter.replaceOpWithNewOp<OpTy>(op, op->getResultTypes(), unique,
+                                        op->getAttrs());
+      return success();
+    }
+
+    return failure();
+  }
+};
+
+template <typename OpTy>
+struct RemoveEmptyShapeOperandsPattern : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    auto isPotentiallyNonEmptyShape = [](Value shape) {
+      if (auto constShape = shape.getDefiningOp<ConstShapeOp>())
+        return constShape.shape().size() != 0;
+      return true;
+    };
+    auto newOperands = llvm::to_vector<8>(
+        llvm::make_filter_range(op->getOperands(), isPotentiallyNonEmptyShape));
+
+    // Reduce op to equivalent without empty shape operands.
+    if (newOperands.size() < op.getNumOperands()) {
+      rewriter.replaceOpWithNewOp<OpTy>(op, op->getResultTypes(), newOperands,
+                                        op->getAttrs());
+      return success();
+    }
+
+    return failure();
+  }
+};
+
+struct BroadcastForwardSingleOperandPattern
+    : public OpRewritePattern<BroadcastOp> {
+  using OpRewritePattern<BroadcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BroadcastOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.getNumOperands() == 1) {
+      Value uniqueShapeOperand = op.shapes().front();
+      rewriter.replaceOp(op, uniqueShapeOperand);
+      return success();
+    }
+    return failure();
+  }
+};
+
+struct BroadcastFoldConstantOperandsPattern
+    : public OpRewritePattern<BroadcastOp> {
+  using OpRewritePattern<BroadcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BroadcastOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<int64_t, 8> foldedConstantShape;
+    SmallVector<Value, 8> newShapeOperands;
+    for (Value shape : op.shapes()) {
+      if (auto constShape = shape.getDefiningOp<ConstShapeOp>()) {
+        SmallVector<int64_t, 8> newFoldedConstantShape;
+        if (OpTrait::util::getBroadcastedShape(
+                foldedConstantShape,
+                llvm::to_vector<8>(constShape.shape().getValues<int64_t>()),
+                newFoldedConstantShape)) {
+          foldedConstantShape = newFoldedConstantShape;
+          continue;
+        }
+      }
+      newShapeOperands.push_back(shape);
+    }
+
+    // Need at least two constant operands to fold anything.
+    if (op.getNumOperands() - newShapeOperands.size() < 2)
+      return failure();
+
+    auto foldedConstantOperandsTy = RankedTensorType::get(
+        {static_cast<int64_t>(foldedConstantShape.size())},
+        rewriter.getIndexType());
+    newShapeOperands.push_back(rewriter.create<ConstShapeOp>(
+        op.getLoc(), foldedConstantOperandsTy,
+        rewriter.getIndexTensorAttr(foldedConstantShape)));
+    rewriter.replaceOpWithNewOp<BroadcastOp>(op, op.getType(),
+                                             newShapeOperands);
+    return success();
+  }
+};
+} // namespace
+
+void BroadcastOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                              MLIRContext *context) {
+  patterns.add<BroadcastFoldConstantOperandsPattern,
+               BroadcastForwardSingleOperandPattern,
+               RemoveDuplicateOperandsPattern<BroadcastOp>,
+               RemoveEmptyShapeOperandsPattern<BroadcastOp>>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -415,7 +634,7 @@ OpFoldResult ConcatOp::fold(ArrayRef<Attribute> operands) {
 
 static void print(OpAsmPrinter &p, ConstShapeOp &op) {
   p << "shape.const_shape ";
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"shape"});
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{"shape"});
   p << "[";
   interleaveComma(op.shape().getValues<int64_t>(), p,
                   [&](int64_t i) { p << i; });
@@ -455,73 +674,66 @@ static ParseResult parseConstShapeOp(OpAsmParser &parser,
 
 OpFoldResult ConstShapeOp::fold(ArrayRef<Attribute>) { return shapeAttr(); }
 
-void ConstShapeOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<TensorCastConstShape>(context);
+void ConstShapeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add<TensorCastConstShape>(context);
 }
 
 //===----------------------------------------------------------------------===//
 // CstrBroadcastableOp
 //===----------------------------------------------------------------------===//
 
-namespace {
-// Given an input shape Value, try to obtain the shape's values.
-LogicalResult getShapeVec(Value input, SmallVectorImpl<int64_t> &shapeValues) {
-  if (auto inputOp = input.getDefiningOp<ShapeOfOp>()) {
-    auto type = inputOp.arg().getType().dyn_cast<ShapedType>();
-    if (!type.hasRank())
-      return failure();
-    shapeValues = llvm::to_vector<6>(type.getShape());
-    return success();
-  } else if (auto inputOp = input.getDefiningOp<ConstShapeOp>()) {
-    shapeValues = llvm::to_vector<6>(inputOp.shape().getValues<int64_t>());
-    return success();
-  } else {
-    return failure();
-  }
-}
-} // namespace
-
 void CstrBroadcastableOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
+    RewritePatternSet &patterns, MLIRContext *context) {
   // Canonicalization patterns have overlap with the considerations during
   // folding in case additional shape information is inferred at some point that
   // does not result in folding.
-  patterns.insert<CstrBroadcastableEqOps>(context);
+  patterns.add<CstrBroadcastableEqOps,
+               RemoveDuplicateOperandsPattern<CstrBroadcastableOp>>(context);
+}
+
+// Return true if there is exactly one attribute not representing a scalar
+// broadcast.
+static bool hasAtMostSingleNonScalar(ArrayRef<Attribute> attributes) {
+  bool nonScalarSeen = false;
+  for (Attribute a : attributes) {
+    if (!a || a.cast<DenseIntElementsAttr>().getNumElements() != 0) {
+      if (nonScalarSeen)
+        return false;
+      nonScalarSeen = true;
+    }
+  }
+  return true;
 }
 
 OpFoldResult CstrBroadcastableOp::fold(ArrayRef<Attribute> operands) {
-  // TODO: Add folding for the nary case
-  if (operands.size() != 2)
-    return nullptr;
-
-  // Both operands are not needed if one is a scalar.
-  if (operands[0] &&
-      operands[0].cast<DenseIntElementsAttr>().getNumElements() == 0)
-    return BoolAttr::get(getContext(), true);
-  if (operands[1] &&
-      operands[1].cast<DenseIntElementsAttr>().getNumElements() == 0)
+  // No broadcasting is needed if all operands but one are scalar.
+  if (hasAtMostSingleNonScalar(operands))
     return BoolAttr::get(getContext(), true);
 
-  if (operands[0] && operands[1]) {
-    auto lhsShape = llvm::to_vector<6>(
-        operands[0].cast<DenseIntElementsAttr>().getValues<int64_t>());
-    auto rhsShape = llvm::to_vector<6>(
-        operands[1].cast<DenseIntElementsAttr>().getValues<int64_t>());
-    SmallVector<int64_t, 6> resultShape;
-    if (OpTrait::util::staticallyKnownBroadcastable(lhsShape, rhsShape))
-      return BoolAttr::get(getContext(), true);
-  }
+  if ([&] {
+        SmallVector<SmallVector<int64_t, 6>, 6> extents;
+        for (const auto &operand : operands) {
+          if (!operand)
+            return false;
+          extents.push_back(llvm::to_vector<6>(
+              operand.cast<DenseIntElementsAttr>().getValues<int64_t>()));
+        }
+        return OpTrait::util::staticallyKnownBroadcastable(extents);
+      }())
+    return BoolAttr::get(getContext(), true);
 
   // Lastly, see if folding can be completed based on what constraints are known
   // on the input shapes.
-  SmallVector<int64_t, 6> lhsShape, rhsShape;
-  if (failed(getShapeVec(shapes()[0], lhsShape)))
-    return nullptr;
-  if (failed(getShapeVec(shapes()[1], rhsShape)))
-    return nullptr;
-
-  if (OpTrait::util::staticallyKnownBroadcastable(lhsShape, rhsShape))
+  if ([&] {
+        SmallVector<SmallVector<int64_t, 6>, 6> extents;
+        for (auto shapeValue : shapes()) {
+          extents.emplace_back();
+          if (failed(getShapeVec(shapeValue, extents.back())))
+            return false;
+        }
+        return OpTrait::util::staticallyKnownBroadcastable(extents);
+      }())
     return BoolAttr::get(getContext(), true);
 
   // Because a failing witness result here represents an eventual assertion
@@ -540,10 +752,10 @@ static LogicalResult verify(CstrBroadcastableOp op) {
 // CstrEqOp
 //===----------------------------------------------------------------------===//
 
-void CstrEqOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
+void CstrEqOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                            MLIRContext *context) {
   // If inputs are equal, return passing witness
-  patterns.insert<CstrEqEqOps>(context);
+  patterns.add<CstrEqEqOps>(context);
 }
 
 OpFoldResult CstrEqOp::fold(ArrayRef<Attribute> operands) {
@@ -591,19 +803,43 @@ OpFoldResult CstrRequireOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// DivOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult DivOp::fold(ArrayRef<Attribute> operands) {
+  auto lhs = operands[0].dyn_cast_or_null<IntegerAttr>();
+  if (!lhs)
+    return nullptr;
+  auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  if (!rhs)
+    return nullptr;
+
+  // Division in APInt does not follow floor(lhs, rhs) when the result is
+  // negative. Rather, APInt rounds toward zero.
+  APInt quotient, remainder;
+  APInt::sdivrem(lhs.getValue(), rhs.getValue(), quotient, remainder);
+  if (quotient.isNegative() && !remainder.isNullValue()) {
+    quotient -= 1;
+  }
+
+  Type indexTy = IndexType::get(getContext());
+  return IntegerAttr::get(indexTy, quotient);
+}
+
+//===----------------------------------------------------------------------===//
 // ShapeEqOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ShapeEqOp::fold(ArrayRef<Attribute> operands) {
-  if (lhs() == rhs())
-    return BoolAttr::get(getContext(), true);
-  auto lhs = operands[0].dyn_cast_or_null<DenseIntElementsAttr>();
-  if (lhs == nullptr)
+  bool allSame = true;
+  if (!operands.empty() && !operands[0])
     return {};
-  auto rhs = operands[1].dyn_cast_or_null<DenseIntElementsAttr>();
-  if (rhs == nullptr)
-    return {};
-  return BoolAttr::get(getContext(), lhs == rhs);
+  for (Attribute operand : operands.drop_front(1)) {
+    if (!operand)
+      return {};
+    allSame = allSame && operand == operands[0];
+  }
+  return BoolAttr::get(getContext(), allSame);
 }
 
 //===----------------------------------------------------------------------===//
@@ -618,9 +854,9 @@ OpFoldResult IndexToSizeOp::fold(ArrayRef<Attribute> operands) {
   return {};
 }
 
-void IndexToSizeOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<SizeToIndexToSizeCanonicalization>(context);
+void IndexToSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.add<SizeToIndexToSizeCanonicalization>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -643,7 +879,6 @@ OpFoldResult FromExtentsOp::fold(ArrayRef<Attribute> operands) {
 
 void FunctionLibraryOp::build(OpBuilder &builder, OperationState &result,
                               StringRef name) {
-  ensureTerminator(*result.addRegion(), builder, result.location);
   result.attributes.push_back(builder.getNamedAttr(
       ::mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(name)));
 }
@@ -672,8 +907,6 @@ ParseResult parseFunctionLibraryOp(OpAsmParser &parser,
   if (parser.parseRegion(*bodyRegion))
     return failure();
 
-  FunctionLibraryOp::ensureTerminator(*bodyRegion, parser.getBuilder(),
-                                      result.location);
   if (parser.parseKeyword("mapping"))
     return failure();
 
@@ -689,7 +922,7 @@ void print(OpAsmPrinter &p, FunctionLibraryOp op) {
   p << op.getOperationName() << ' ';
   p.printSymbolName(op.getName());
   p.printOptionalAttrDictWithKeyword(
-      op.getAttrs(), {SymbolTable::getSymbolAttrName(), "mapping"});
+      op->getAttrs(), {SymbolTable::getSymbolAttrName(), "mapping"});
   p.printRegion(op.getOperation()->getRegion(0), /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/false);
   p << " mapping ";
@@ -738,11 +971,18 @@ void GetExtentOp::build(OpBuilder &builder, OperationState &result, Value shape,
 // IsBroadcastableOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(IsBroadcastableOp op) {
-  // Ensure that AssumingAllOp contains at least one operand
-  if (op.getNumOperands() < 2)
-    return op.emitOpError("required at least 2 input shapes");
-  return success();
+void IsBroadcastableOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add<RemoveDuplicateOperandsPattern<IsBroadcastableOp>>(context);
+}
+
+OpFoldResult IsBroadcastableOp::fold(ArrayRef<Attribute> operands) {
+  // Can always broadcast fewer than two shapes.
+  if (operands.size() < 2) {
+    return BoolAttr::get(getContext(), true);
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -799,9 +1039,9 @@ struct RankShapeOfCanonicalizationPattern
 };
 } // namespace
 
-void shape::RankOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<RankShapeOfCanonicalizationPattern>(context);
+void shape::RankOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.add<RankShapeOfCanonicalizationPattern>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -830,6 +1070,28 @@ void NumElementsOp::build(OpBuilder &builder, OperationState &result,
   }
   auto type = SizeType::get(builder.getContext());
   return build(builder, result, type, shape);
+}
+
+//===----------------------------------------------------------------------===//
+// MaxOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult MaxOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  // If operands are equal, just propagate one.
+  if (lhs() == rhs())
+    return lhs();
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// MinOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult MinOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  // If operands are equal, just propagate one.
+  if (lhs() == rhs())
+    return lhs();
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -882,11 +1144,43 @@ struct ShapeOfWithTensor : public OpRewritePattern<shape::ShapeOfOp> {
     return success();
   }
 };
+
+// Canonicalize
+// ```
+// %0 = shape.shape_of %arg : tensor<?x?x?xf32> -> tensor<3xindex>
+// %1 = tensor.cast %0 : tensor<3xindex> to tensor<?xindex>
+// ```
+// to
+// ```
+// %1 = shape.shape_of %arg : tensor<?x?x?xf32> -> tensor<?xindex>
+// ```
+struct ShapeOfCastedExtentTensor : public OpRewritePattern<tensor::CastOp> {
+  using OpRewritePattern<tensor::CastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::CastOp op,
+                                PatternRewriter &rewriter) const override {
+    auto ty = op.getType().dyn_cast<RankedTensorType>();
+    if (!ty || ty.getRank() != 1)
+      return failure();
+
+    auto shapeOfOp = op.source().getDefiningOp<ShapeOfOp>();
+    if (!shapeOfOp)
+      return failure();
+
+    // Argument type must be ranked and must not conflict.
+    auto argTy = shapeOfOp.arg().getType().dyn_cast<RankedTensorType>();
+    if (!argTy || (!ty.isDynamicDim(0) && ty.getDimSize(0) != argTy.getRank()))
+      return failure();
+
+    rewriter.replaceOpWithNewOp<ShapeOfOp>(op, ty, shapeOfOp.arg());
+    return success();
+  }
+};
 } // namespace
 
-void ShapeOfOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
+void ShapeOfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                             MLIRContext *context) {
-  patterns.insert<ShapeOfWithTensor>(context);
+  patterns.add<ShapeOfCastedExtentTensor, ShapeOfWithTensor>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -901,9 +1195,9 @@ OpFoldResult SizeToIndexOp::fold(ArrayRef<Attribute> operands) {
   return impl::foldCastOp(*this);
 }
 
-void SizeToIndexOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<IndexToSizeToIndexCanonicalization>(context);
+void SizeToIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.add<IndexToSizeToIndexCanonicalization>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1066,7 +1360,7 @@ static void print(OpAsmPrinter &p, ReduceOp op) {
     << ") : " << op.shape().getType();
   p.printOptionalArrowTypeList(op.getResultTypes());
   p.printRegion(op.region());
-  p.printOptionalAttrDict(op.getAttrs());
+  p.printOptionalAttrDict(op->getAttrs());
 }
 
 #define GET_OP_CLASSES

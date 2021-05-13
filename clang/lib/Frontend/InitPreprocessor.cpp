@@ -576,7 +576,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_aggregate_bases", "201603L");
     Builder.defineMacro("__cpp_structured_bindings", "201606L");
     Builder.defineMacro("__cpp_nontype_template_args",
-                        LangOpts.CPlusPlus20 ? "201911L" : "201411L");
+                        "201411L"); // (not latest)
     Builder.defineMacro("__cpp_fold_expressions", "201603L");
     Builder.defineMacro("__cpp_guaranteed_copy_elision", "201606L");
     Builder.defineMacro("__cpp_nontype_template_parameter_auto", "201606L");
@@ -600,6 +600,9 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     //Builder.defineMacro("__cpp_modules", "201907L");
     //Builder.defineMacro("__cpp_using_enum", "201907L");
   }
+  // C++2b features.
+  if (LangOpts.CPlusPlus2b)
+    Builder.defineMacro("__cpp_size_t_suffix", "202011L");
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "201811L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
@@ -784,6 +787,21 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("_WCHAR_T_DEFINED");
       Builder.defineMacro("_NATIVE_WCHAR_T_DEFINED");
     }
+  }
+
+  // Macros to help identify the narrow and wide character sets
+  // FIXME: clang currently ignores -fexec-charset=. If this changes,
+  // then this may need to be updated.
+  Builder.defineMacro("__clang_literal_encoding__", "\"UTF-8\"");
+  if (TI.getTypeWidth(TI.getWCharType()) >= 32) {
+    // FIXME: 32-bit wchar_t signals UTF-32. This may change
+    // if -fwide-exec-charset= is ever supported.
+    Builder.defineMacro("__clang_wide_literal_encoding__", "\"UTF-32\"");
+  } else {
+    // FIXME: Less-than 32-bit wchar_t generally means UTF-16
+    // (e.g., Windows, 32-bit IBM). This may need to be
+    // updated if -fwide-exec-charset= is ever supported.
+    Builder.defineMacro("__clang_wide_literal_encoding__", "\"UTF-16\"");
   }
 
   if (LangOpts.Optimize)
@@ -1129,12 +1147,16 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
+    // Enable __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
+    // all FPGA compilations.
+    if (TI.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+      Builder.defineMacro("__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__", "1");
+    }
+
     if (TI.getTriple().isNVPTX()) {
         Builder.defineMacro("__SYCL_NVPTX__", "1");
     }
   }
-  if (LangOpts.SYCLExplicitSIMD)
-    Builder.defineMacro("__SYCL_EXPLICIT_SIMD__", "1");
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
 

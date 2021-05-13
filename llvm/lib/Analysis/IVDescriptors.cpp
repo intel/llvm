@@ -189,6 +189,32 @@ static void collectCastsToIgnore(Loop *TheLoop, Instruction *Exit,
   }
 }
 
+// Check if a given Phi node can be recognized as an ordered reduction for
+// vectorizing floating point operations without unsafe math.
+static bool checkOrderedReduction(RecurKind Kind, Instruction *ExactFPMathInst,
+                                  Instruction *Exit, PHINode *Phi) {
+  // Currently only FAdd is supported
+  if (Kind != RecurKind::FAdd)
+    return false;
+
+  bool IsOrdered =
+      Exit->getOpcode() == Instruction::FAdd && Exit == ExactFPMathInst;
+
+  // The only pattern accepted is the one in which the reduction PHI
+  // is used as one of the operands of the exit instruction
+  auto *LHS = Exit->getOperand(0);
+  auto *RHS = Exit->getOperand(1);
+  IsOrdered &= ((LHS == Phi) || (RHS == Phi));
+
+  if (!IsOrdered)
+    return false;
+
+  LLVM_DEBUG(dbgs() << "LV: Found an ordered reduction: Phi: " << *Phi
+                    << ", ExitInst: " << *Exit << "\n");
+
+  return true;
+}
+
 bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
                                            Loop *TheLoop, FastMathFlags FuncFMF,
                                            RecurrenceDescriptor &RedDes,
@@ -243,11 +269,14 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   if (RecurrenceType->isFloatingPointTy()) {
     if (!isFloatingPointRecurrenceKind(Kind))
       return false;
-  } else {
+  } else if (RecurrenceType->isIntegerTy()) {
     if (!isIntegerRecurrenceKind(Kind))
       return false;
     if (isArithmeticRecurrenceKind(Kind))
       Start = lookThroughAnd(Phi, RecurrenceType, VisitedInsts, CastInsts);
+  } else {
+    // Pointer min/max may exist, but it is not supported as a reduction op.
+    return false;
   }
 
   Worklist.push_back(Start);
@@ -413,6 +442,9 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   if (!FoundStartPHI || !FoundReduxOp || !ExitInstruction)
     return false;
 
+  const bool IsOrdered = checkOrderedReduction(
+      Kind, ReduxDesc.getExactFPMathInst(), ExitInstruction, Phi);
+
   if (Start != Phi) {
     // If the starting value is not the same as the phi node, we speculatively
     // looked through an 'and' instruction when evaluating a potential
@@ -466,8 +498,8 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
 
   // Save the description of this reduction variable.
   RecurrenceDescriptor RD(RdxStart, ExitInstruction, Kind, FMF,
-                          ReduxDesc.getUnsafeAlgebraInst(), RecurrenceType,
-                          IsSigned, CastInsts);
+                          ReduxDesc.getExactFPMathInst(), RecurrenceType,
+                          IsSigned, IsOrdered, CastInsts);
   RedDes = RD;
 
   return true;
@@ -562,15 +594,11 @@ RecurrenceDescriptor::isConditionalRdxPattern(RecurKind Kind, Instruction *I) {
 RecurrenceDescriptor::InstDesc
 RecurrenceDescriptor::isRecurrenceInstr(Instruction *I, RecurKind Kind,
                                         InstDesc &Prev, FastMathFlags FMF) {
-  Instruction *UAI = Prev.getUnsafeAlgebraInst();
-  if (!UAI && isa<FPMathOperator>(I) && !I->hasAllowReassoc())
-    UAI = I; // Found an unsafe (unvectorizable) algebra instruction.
-
   switch (I->getOpcode()) {
   default:
     return InstDesc(false, I);
   case Instruction::PHI:
-    return InstDesc(I, Prev.getRecKind(), Prev.getUnsafeAlgebraInst());
+    return InstDesc(I, Prev.getRecKind(), Prev.getExactFPMathInst());
   case Instruction::Sub:
   case Instruction::Add:
     return InstDesc(Kind == RecurKind::Add, I);
@@ -584,10 +612,12 @@ RecurrenceDescriptor::isRecurrenceInstr(Instruction *I, RecurKind Kind,
     return InstDesc(Kind == RecurKind::Xor, I);
   case Instruction::FDiv:
   case Instruction::FMul:
-    return InstDesc(Kind == RecurKind::FMul, I, UAI);
+    return InstDesc(Kind == RecurKind::FMul, I,
+                    I->hasAllowReassoc() ? nullptr : I);
   case Instruction::FSub:
   case Instruction::FAdd:
-    return InstDesc(Kind == RecurKind::FAdd, I, UAI);
+    return InstDesc(Kind == RecurKind::FAdd, I,
+                    I->hasAllowReassoc() ? nullptr : I);
   case Instruction::Select:
     if (Kind == RecurKind::FAdd || Kind == RecurKind::FMul)
       return isConditionalRdxPattern(Kind, I);
@@ -595,8 +625,7 @@ RecurrenceDescriptor::isRecurrenceInstr(Instruction *I, RecurKind Kind,
   case Instruction::FCmp:
   case Instruction::ICmp:
     if (isIntMinMaxRecurrenceKind(Kind) ||
-        (FMF.noNaNs() && FMF.noSignedZeros() &&
-         isFPMinMaxRecurrenceKind(Kind)))
+        (FMF.noNaNs() && FMF.noSignedZeros() && isFPMinMaxRecurrenceKind(Kind)))
       return isMinMaxSelectCmpPattern(I, Prev);
     return InstDesc(false, I);
   }
@@ -606,9 +635,8 @@ bool RecurrenceDescriptor::hasMultipleUsesOf(
     Instruction *I, SmallPtrSetImpl<Instruction *> &Insts,
     unsigned MaxNumUses) {
   unsigned NumUses = 0;
-  for (User::op_iterator Use = I->op_begin(), E = I->op_end(); Use != E;
-       ++Use) {
-    if (Insts.count(dyn_cast<Instruction>(*Use)))
+  for (const Use &U : I->operands()) {
+    if (Insts.count(dyn_cast<Instruction>(U)))
       ++NumUses;
     if (NumUses > MaxNumUses)
       return true;
@@ -625,9 +653,9 @@ bool RecurrenceDescriptor::isReductionPHI(PHINode *Phi, Loop *TheLoop,
   Function &F = *Header->getParent();
   FastMathFlags FMF;
   FMF.setNoNaNs(
-      F.getFnAttribute("no-nans-fp-math").getValueAsString() == "true");
+      F.getFnAttribute("no-nans-fp-math").getValueAsBool());
   FMF.setNoSignedZeros(
-      F.getFnAttribute("no-signed-zeros-fp-math").getValueAsString() == "true");
+      F.getFnAttribute("no-signed-zeros-fp-math").getValueAsBool());
 
   if (AddReductionVar(Phi, RecurKind::Add, TheLoop, FMF, RedDes, DB, AC, DT)) {
     LLVM_DEBUG(dbgs() << "Found an ADD reduction PHI." << *Phi << "\n");
@@ -762,7 +790,8 @@ bool RecurrenceDescriptor::isFirstOrderRecurrence(
 
 /// This function returns the identity element (or neutral element) for
 /// the operation K.
-Constant *RecurrenceDescriptor::getRecurrenceIdentity(RecurKind K, Type *Tp) {
+Constant *RecurrenceDescriptor::getRecurrenceIdentity(RecurKind K, Type *Tp,
+                                                      FastMathFlags FMF) {
   switch (K) {
   case RecurKind::Xor:
   case RecurKind::Add:
@@ -780,7 +809,14 @@ Constant *RecurrenceDescriptor::getRecurrenceIdentity(RecurKind K, Type *Tp) {
     return ConstantFP::get(Tp, 1.0L);
   case RecurKind::FAdd:
     // Adding zero to a number does not change it.
-    return ConstantFP::get(Tp, 0.0L);
+    // FIXME: Ideally we should not need to check FMF for FAdd and should always
+    // use -0.0. However, this will currently result in mixed vectors of 0.0/-0.0.
+    // Instead, we should ensure that 1) the FMF from FAdd are propagated to the PHI
+    // nodes where possible, and 2) PHIs with the nsz flag + -0.0 use 0.0. This would
+    // mean we can then remove the check for noSignedZeros() below (see D98963).
+    if (FMF.noSignedZeros())
+      return ConstantFP::get(Tp, 0.0L);
+    return ConstantFP::get(Tp, -0.0L);
   case RecurKind::UMin:
     return ConstantInt::get(Tp, -1);
   case RecurKind::UMax:

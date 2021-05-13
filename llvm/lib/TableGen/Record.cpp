@@ -615,6 +615,12 @@ Init *ListInit::convertInitializerTo(RecTy *Ty) const {
 }
 
 Init *ListInit::convertInitListSlice(ArrayRef<unsigned> Elements) const {
+  if (Elements.size() == 1) {
+    if (Elements[0] >= size())
+      return nullptr;
+    return getElement(Elements[0]);
+  }
+
   SmallVector<Init*, 8> Vals;
   Vals.reserve(Elements.size());
   for (unsigned Element : Elements) {
@@ -647,6 +653,14 @@ Init *ListInit::resolveReferences(Resolver &R) const {
   if (Changed)
     return ListInit::get(Resolved, getElementType());
   return const_cast<ListInit *>(this);
+}
+
+bool ListInit::isComplete() const {
+  for (Init *Element : *this) {
+    if (!Element->isComplete())
+      return false;
+  }
+  return true;
 }
 
 bool ListInit::isConcrete() const {
@@ -1800,6 +1814,9 @@ DefInit *VarDefInit::instantiate() {
     for (const RecordVal &Val : Class->getValues())
       NewRec->addValue(Val);
 
+    // Copy assertions from class to instance.
+    NewRec->appendAssertions(Class);
+
     // Substitute and resolve template arguments
     ArrayRef<Init *> TArgs = Class->getTemplateArgs();
     MapResolver R(NewRec);
@@ -1827,6 +1844,9 @@ DefInit *VarDefInit::instantiate() {
     // Resolve internal references and store in record keeper
     NewRec->resolveReferences();
     Records.addDef(std::move(NewRecOwner));
+
+    // Check the assertions.
+    NewRec->checkRecordAssertions();
 
     Def = DefInit::get(NewRec);
   }
@@ -1912,7 +1932,7 @@ Init *FieldInit::Fold(Record *CurRec) const {
                       FieldName->getAsUnquotedString() + "' of '" +
                       Rec->getAsString() + "' is a forbidden self-reference");
     Init *FieldVal = Def->getValue(FieldName)->getValue();
-    if (FieldVal->isComplete())
+    if (FieldVal->isConcrete())
       return FieldVal;
   }
   return const_cast<FieldInit *>(this);
@@ -2334,6 +2354,8 @@ void Record::resolveReferences(Resolver &R, const RecordVal *SkipVal) {
     // Re-register with RecordKeeper.
     setName(NewName);
   }
+
+  // Resolve the field values.
   for (RecordVal &Value : Values) {
     if (SkipVal == &Value) // Skip resolve the same field as the given one
       continue;
@@ -2344,15 +2366,23 @@ void Record::resolveReferences(Resolver &R, const RecordVal *SkipVal) {
         if (TypedInit *VRT = dyn_cast<TypedInit>(VR))
           Type =
               (Twine("of type '") + VRT->getType()->getAsString() + "' ").str();
-        PrintFatalError(getLoc(), Twine("Invalid value ") + Type +
-                                      "is found when setting '" +
-                                      Value.getNameInitAsString() +
-                                      "' of type '" +
-                                      Value.getType()->getAsString() +
-                                      "' after resolving references: " +
-                                      VR->getAsUnquotedString() + "\n");
+        PrintFatalError(
+            getLoc(),
+            Twine("Invalid value ") + Type + "found when setting field '" +
+                Value.getNameInitAsString() + "' of type '" +
+                Value.getType()->getAsString() +
+                "' after resolving references: " + VR->getAsUnquotedString() +
+                "\n");
       }
     }
+  }
+
+  // Resolve the assertion expressions.
+  for (auto &Assertion : Assertions) {
+    Init *Value = std::get<1>(Assertion)->resolveReferences(R);
+    std::get<1>(Assertion) = Value;
+    Value = std::get<2>(Assertion)->resolveReferences(R);
+    std::get<2>(Assertion) = Value;
   }
 }
 
@@ -2593,6 +2623,21 @@ DagInit *Record::getValueAsDag(StringRef FieldName) const {
     return DI;
   PrintFatalError(getLoc(), "Record `" + getName() + "', field `" +
     FieldName + "' does not have a dag initializer!");
+}
+
+// Check all record assertions: For each one, resolve the condition
+// and message, then call CheckAssert().
+// Note: The condition and message are probably already resolved,
+//       but resolving again allows calls before records are resolved.
+void Record::checkRecordAssertions() {
+  RecordResolver R(*this);
+  R.setFinal(true);
+
+  for (auto Assertion : getAssertions()) {
+    Init *Condition = std::get<1>(Assertion)->resolveReferences(R);
+    Init *Message = std::get<2>(Assertion)->resolveReferences(R);
+    CheckAssert(std::get<0>(Assertion), Condition, Message);
+  }
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)

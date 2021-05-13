@@ -14,10 +14,12 @@
 #include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 #include <CL/sycl/INTEL/esimd/detail/esimd_util.hpp>
 #include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
 
 #include <assert.h>
 #include <cstdint>
+
+#define __SEIEED sycl::ext::intel::experimental::esimd::detail
+#define __SEIEE sycl::ext::intel::experimental::esimd
 
 // \brief __esimd_rdregion: region access intrinsic.
 //
@@ -63,13 +65,13 @@
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, M>
-__esimd_rdregion(sycl::INTEL::gpu::vector_type_t<T, N> Input, uint16_t Offset);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, M>
+__esimd_rdregion(__SEIEED::vector_type_t<T, N> Input, uint16_t Offset);
 
 template <typename T, int N, int M, int ParentWidth = 0>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, M>
-__esimd_rdindirect(sycl::INTEL::gpu::vector_type_t<T, N> Input,
-                   sycl::INTEL::gpu::vector_type_t<uint16_t, M> Offset);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, M>
+__esimd_rdindirect(__SEIEED::vector_type_t<T, N> Input,
+                   __SEIEED::vector_type_t<uint16_t, M> Offset);
 
 // __esimd_wrregion returns the updated vector with the region updated.
 //
@@ -120,46 +122,30 @@ __esimd_rdindirect(sycl::INTEL::gpu::vector_type_t<T, N> Input,
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
-__esimd_wrregion(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
-                 sycl::INTEL::gpu::vector_type_t<T, M> NewVal, uint16_t Offset,
-                 sycl::INTEL::gpu::mask_type_t<M> Mask = 1);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__esimd_wrregion(__SEIEED::vector_type_t<T, N> OldVal,
+                 __SEIEED::vector_type_t<T, M> NewVal, uint16_t Offset,
+                 __SEIEE::mask_type_t<M> Mask = 1);
 
 template <typename T, int N, int M, int ParentWidth = 0>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
-__esimd_wrindirect(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
-                   sycl::INTEL::gpu::vector_type_t<T, M> NewVal,
-                   sycl::INTEL::gpu::vector_type_t<uint16_t, M> Offset,
-                   sycl::INTEL::gpu::mask_type_t<M> Mask = 1);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
+                   __SEIEED::vector_type_t<T, M> NewVal,
+                   __SEIEED::vector_type_t<uint16_t, M> Offset,
+                   __SEIEE::mask_type_t<M> Mask = 1);
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
-// TODO dependencies on the std SYCL concepts like images
-// should be refactored in a separate header
-class AccessorPrivateProxy {
-public:
-#ifdef __SYCL_DEVICE_ONLY__
-  template <typename AccessorTy>
-  static auto getNativeImageObj(const AccessorTy &Acc) {
-    return Acc.getNativeImageObj();
-  }
-#else
-  template <typename AccessorTy>
-  static auto getImageRange(const AccessorTy &Acc) {
-    return Acc.getAccessRange();
-  }
-  static auto getElemSize(const sycl::detail::AccessorBaseHost &Acc) {
-    return Acc.getElemSize();
-  }
-#endif
-};
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+namespace detail {
 
 /// read from a basic region of a vector, return a vector
 template <typename BT, int BN, typename RTy>
-vector_type_t<typename RTy::element_type, RTy::length>
-    ESIMD_INLINE readRegion(const vector_type_t<BT, BN> &Base, RTy Region) {
+__SEIEED::vector_type_t<typename RTy::element_type, RTy::length> ESIMD_INLINE
+readRegion(const __SEIEED::vector_type_t<BT, BN> &Base, RTy Region) {
   using ElemTy = typename RTy::element_type;
   auto Base1 = bitcast<ElemTy, BT, BN>(Base);
   constexpr int Bytes = BN * sizeof(BT);
@@ -180,8 +166,9 @@ vector_type_t<typename RTy::element_type, RTy::length>
 
 /// read from a nested region of a vector, return a vector
 template <typename BT, int BN, typename T, typename U>
-ESIMD_INLINE vector_type_t<typename T::element_type, T::length>
-readRegion(const vector_type_t<BT, BN> &Base, std::pair<T, U> Region) {
+ESIMD_INLINE __SEIEED::vector_type_t<typename T::element_type, T::length>
+readRegion(const __SEIEED::vector_type_t<BT, BN> &Base,
+           std::pair<T, U> Region) {
   // parent-region type
   using PaTy = typename shape_type<U>::type;
   constexpr int BN1 = PaTy::length;
@@ -222,8 +209,12 @@ readRegion(const vector_type_t<BT, BN> &Base, std::pair<T, U> Region) {
   }
 }
 
-} // namespace gpu
-} // namespace INTEL
+} // namespace detail
+
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
@@ -233,37 +224,40 @@ readRegion(const vector_type_t<BT, BN> &Base, std::pair<T, U> Region) {
 // optimization on simd object
 //
 template <typename T, int N>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
-__esimd_vload(const sycl::INTEL::gpu::vector_type_t<T, N> *ptr);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__esimd_vload(const __SEIEED::vector_type_t<T, N> *ptr);
 
 // vstore
 //
 // map to the backend vstore intrinsic, used by compiler to control
 // optimization on simd object
 template <typename T, int N>
-SYCL_EXTERNAL void __esimd_vstore(sycl::INTEL::gpu::vector_type_t<T, N> *ptr,
-                                  sycl::INTEL::gpu::vector_type_t<T, N> vals);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
+__esimd_vstore(__SEIEED::vector_type_t<T, N> *ptr,
+               __SEIEED::vector_type_t<T, N> vals);
 
 template <typename T, int N>
-SYCL_EXTERNAL uint16_t __esimd_any(sycl::INTEL::gpu::vector_type_t<T, N> src);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint16_t
+__esimd_any(__SEIEED::vector_type_t<T, N> src);
 
 template <typename T, int N>
-SYCL_EXTERNAL uint16_t __esimd_all(sycl::INTEL::gpu::vector_type_t<T, N> src);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint16_t
+__esimd_all(__SEIEED::vector_type_t<T, N> src);
 
 #ifndef __SYCL_DEVICE_ONLY__
 
 // Implementations of ESIMD intrinsics for the SYCL host device
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, M>
-__esimd_rdregion(sycl::INTEL::gpu::vector_type_t<T, N> Input, uint16_t Offset) {
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, M>
+__esimd_rdregion(__SEIEED::vector_type_t<T, N> Input, uint16_t Offset) {
   uint16_t EltOffset = Offset / sizeof(T);
   assert(Offset % sizeof(T) == 0);
 
   int NumRows = M / Width;
   assert(M % Width == 0);
 
-  sycl::INTEL::gpu::vector_type_t<T, M> Result;
+  __SEIEED::vector_type_t<T, M> Result;
   int Index = 0;
   for (int i = 0; i < NumRows; ++i) {
     for (int j = 0; j < Width; ++j) {
@@ -274,10 +268,10 @@ __esimd_rdregion(sycl::INTEL::gpu::vector_type_t<T, N> Input, uint16_t Offset) {
 }
 
 template <typename T, int N, int M, int ParentWidth>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, M>
-__esimd_rdindirect(sycl::INTEL::gpu::vector_type_t<T, N> Input,
-                   sycl::INTEL::gpu::vector_type_t<uint16_t, M> Offset) {
-  sycl::INTEL::gpu::vector_type_t<T, M> Result;
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, M>
+__esimd_rdindirect(__SEIEED::vector_type_t<T, N> Input,
+                   __SEIEED::vector_type_t<uint16_t, M> Offset) {
+  __SEIEED::vector_type_t<T, M> Result;
   for (int i = 0; i < M; ++i) {
     uint16_t EltOffset = Offset[i] / sizeof(T);
     assert(Offset[i] % sizeof(T) == 0);
@@ -289,17 +283,17 @@ __esimd_rdindirect(sycl::INTEL::gpu::vector_type_t<T, N> Input,
 
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
-__esimd_wrregion(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
-                 sycl::INTEL::gpu::vector_type_t<T, M> NewVal, uint16_t Offset,
-                 sycl::INTEL::gpu::mask_type_t<M> Mask) {
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__esimd_wrregion(__SEIEED::vector_type_t<T, N> OldVal,
+                 __SEIEED::vector_type_t<T, M> NewVal, uint16_t Offset,
+                 __SEIEE::mask_type_t<M> Mask) {
   uint16_t EltOffset = Offset / sizeof(T);
   assert(Offset % sizeof(T) == 0);
 
   int NumRows = M / Width;
   assert(M % Width == 0);
 
-  sycl::INTEL::gpu::vector_type_t<T, N> Result = OldVal;
+  __SEIEED::vector_type_t<T, N> Result = OldVal;
   int Index = 0;
   for (int i = 0; i < NumRows; ++i) {
     for (int j = 0; j < Width; ++j) {
@@ -312,12 +306,12 @@ __esimd_wrregion(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
 }
 
 template <typename T, int N, int M, int ParentWidth>
-SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
-__esimd_wrindirect(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
-                   sycl::INTEL::gpu::vector_type_t<T, M> NewVal,
-                   sycl::INTEL::gpu::vector_type_t<uint16_t, M> Offset,
-                   sycl::INTEL::gpu::mask_type_t<M> Mask) {
-  sycl::INTEL::gpu::vector_type_t<T, N> Result = OldVal;
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
+                   __SEIEED::vector_type_t<T, M> NewVal,
+                   __SEIEED::vector_type_t<uint16_t, M> Offset,
+                   __SEIEE::mask_type_t<M> Mask) {
+  __SEIEED::vector_type_t<T, N> Result = OldVal;
   for (int i = 0; i < M; ++i) {
     if (Mask[i]) {
       uint16_t EltOffset = Offset[i] / sizeof(T);
@@ -330,3 +324,6 @@ __esimd_wrindirect(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
 }
 
 #endif // __SYCL_DEVICE_ONLY__
+
+#undef __SEIEE
+#undef __SEIEED

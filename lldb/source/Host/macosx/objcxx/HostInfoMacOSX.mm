@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/Host/macosx/HostInfoMacOSX.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Host/macosx/HostInfoMacOSX.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/Utility/Timer.h"
 #include "Utility/UuidCompatibility.h"
 
 #include "llvm/ADT/SmallString.h"
@@ -241,6 +242,12 @@ void HostInfoMacOSX::ComputeHostArchitectureSupport(ArchSpec &arch_32,
 
     len = sizeof(is_64_bit_capable);
     ::sysctlbyname("hw.cpu64bit_capable", &is_64_bit_capable, &len, NULL, 0);
+
+    if (cputype == CPU_TYPE_ARM64 && cpusubtype == CPU_SUBTYPE_ARM64E) {
+      // The arm64e architecture is a preview. Pretend the host architecture
+      // is arm64.
+      cpusubtype = CPU_SUBTYPE_ARM64_ALL;
+    }
 
     if (is_64_bit_capable) {
       if (cputype & CPU_ARCH_ABI64) {
@@ -473,6 +480,8 @@ llvm::StringRef HostInfoMacOSX::GetXcodeSDKPath(XcodeSDK sdk) {
   static std::mutex g_sdk_path_mutex;
 
   std::lock_guard<std::mutex> guard(g_sdk_path_mutex);
+  LLDB_SCOPED_TIMER();
+
   auto it = g_sdk_path.find(sdk.GetString());
   if (it != g_sdk_path.end())
     return it->second;

@@ -13,6 +13,7 @@ set(SCUDO_UNITTEST_CFLAGS
   -I${COMPILER_RT_SOURCE_DIR}/lib/scudo/standalone/include
   -DGTEST_HAS_RTTI=0
   -DSCUDO_DEBUG=1
+  -g
   # Extra flags for the C++ tests
   # TODO(kostyak): find a way to make -fsized-deallocation work
   -Wno-mismatched-new-delete)
@@ -36,7 +37,9 @@ list(APPEND LINK_FLAGS -pthread)
 # Linking against libatomic is required with some compilers
 list(APPEND LINK_FLAGS -latomic)
 
-set(SCUDO_TEST_HEADERS)
+set(SCUDO_TEST_HEADERS
+  scudo_unit_test.h
+  )
 foreach (header ${SCUDO_HEADERS})
   list(APPEND SCUDO_TEST_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../${header})
 endforeach()

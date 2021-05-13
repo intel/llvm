@@ -27,6 +27,7 @@
 #include "flang/Version.inc"
 #include "llvm/Support/Errno.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
@@ -102,6 +103,7 @@ struct DriverOptions {
   bool dumpSymbols{false};
   bool debugNoSemantics{false};
   bool debugModuleWriter{false};
+  bool defaultReal8{false};
   bool measureTree{false};
   bool unparseTypedExprsToF18_FC{false};
   std::vector<std::string> F18_FCArgs;
@@ -254,6 +256,15 @@ std::string CompileFortran(std::string path, Fortran::parser::Options options,
     Fortran::semantics::Semantics semantics{semanticsContext, parseTree,
         parsing.cooked().AsCharBlock(), driver.debugModuleWriter};
     semantics.Perform();
+    Fortran::semantics::RuntimeDerivedTypeTables tables;
+    if (!semantics.AnyFatalError()) {
+      tables =
+          Fortran::semantics::BuildRuntimeDerivedTypeTables(semanticsContext);
+      if (!tables.schemata) {
+        llvm::errs() << driver.prefix
+                     << "could not find module file for __fortran_type_info\n";
+      }
+    }
     semantics.EmitMessages(llvm::errs());
     if (semantics.AnyFatalError()) {
       if (driver.dumpSymbols) {
@@ -265,12 +276,6 @@ std::string CompileFortran(std::string path, Fortran::parser::Options options,
         Fortran::parser::DumpTree(llvm::outs(), parseTree, &asFortran);
       }
       return {};
-    }
-    auto tables{
-        Fortran::semantics::BuildRuntimeDerivedTypeTables(semanticsContext)};
-    if (!tables.schemata) {
-      llvm::errs() << driver.prefix
-                   << "could not find module file for __fortran_type_info\n";
     }
     if (driver.dumpSymbols) {
       semantics.DumpSymbols(llvm::outs());
@@ -394,6 +399,16 @@ int printVersion() {
   return exitStatus;
 }
 
+// Generate the path to look for intrinsic modules
+static std::string getIntrinsicDir() {
+  // TODO: Find a system independent API
+  llvm::SmallString<128> driverPath;
+  driverPath.assign(llvm::sys::fs::getMainExecutable(nullptr, nullptr));
+  llvm::sys::path::remove_filename(driverPath);
+  driverPath.append("/../include/flang/");
+  return std::string(driverPath);
+}
+
 int main(int argc, char *const argv[]) {
 
   atexit(CleanUpAtExit);
@@ -429,6 +444,10 @@ int main(int argc, char *const argv[]) {
 
   std::vector<std::string> fortranSources, otherSources;
   bool anyFiles{false};
+
+  // Add the default intrinsic module directory to the list of search
+  // directories
+  driver.searchDirectories.push_back(getIntrinsicDir());
 
   while (!args.empty()) {
     std::string arg{std::move(args.front())};
@@ -486,7 +505,8 @@ int main(int argc, char *const argv[]) {
       options.features.Enable(
           Fortran::common::LanguageFeature::BackslashEscapes, true);
     } else if (arg == "-Mstandard" || arg == "-std=f95" ||
-        arg == "-std=f2003" || arg == "-std=f2008" || arg == "-std=legacy") {
+        arg == "-std=f2003" || arg == "-std=f2008" || arg == "-std=legacy" ||
+        arg == "-std=f2018" || arg == "-pedantic") {
       driver.warnOnNonstandardUsage = true;
     } else if (arg == "-fopenacc") {
       options.features.Enable(Fortran::common::LanguageFeature::OpenACC);
@@ -494,8 +514,9 @@ int main(int argc, char *const argv[]) {
     } else if (arg == "-fopenmp") {
       options.features.Enable(Fortran::common::LanguageFeature::OpenMP);
       predefinitions.emplace_back("_OPENMP", "201511");
-    } else if (arg == "-Werror") {
-      driver.warningsAreErrors = true;
+    } else if (arg.find("-W") != std::string::npos) {
+      if (arg == "-Werror")
+        driver.warningsAreErrors = true;
     } else if (arg == "-ed") {
       options.features.Enable(Fortran::common::LanguageFeature::OldDebugLines);
     } else if (arg == "-E") {
@@ -512,9 +533,13 @@ int main(int argc, char *const argv[]) {
       options.features.Enable(
           Fortran::parser::LanguageFeature::LogicalAbbreviations,
           arg == "-flogical-abbreviations");
-    } else if (arg == "-fimplicit-none-type-always") {
+    } else if (arg == "-fimplicit-none-type-always" ||
+        arg == "-fimplicit-none") {
       options.features.Enable(
           Fortran::common::LanguageFeature::ImplicitNoneTypeAlways);
+    } else if (arg == "-fno-implicit-none") {
+      options.features.Enable(
+          Fortran::common::LanguageFeature::ImplicitNoneTypeAlways, false);
     } else if (arg == "-fimplicit-none-type-never") {
       options.features.Enable(
           Fortran::common::LanguageFeature::ImplicitNoneTypeNever);
@@ -526,21 +551,32 @@ int main(int argc, char *const argv[]) {
       options.needProvenanceRangeToCharBlockMappings = true;
     } else if (arg == "-fdebug-dump-parse-tree") {
       driver.dumpParseTree = true;
+      driver.syntaxOnly = true;
     } else if (arg == "-fdebug-pre-fir-tree") {
       driver.dumpPreFirTree = true;
     } else if (arg == "-fdebug-dump-symbols") {
       driver.dumpSymbols = true;
+      driver.syntaxOnly = true;
     } else if (arg == "-fdebug-module-writer") {
       driver.debugModuleWriter = true;
     } else if (arg == "-fdebug-measure-parse-tree") {
       driver.measureTree = true;
-    } else if (arg == "-fdebug-instrumented-parse") {
+    } else if (arg == "-fdebug-instrumented-parse" ||
+        arg == "-fdebug-dump-parsing-log") {
       options.instrumentedParse = true;
     } else if (arg == "-fdebug-no-semantics") {
       driver.debugNoSemantics = true;
-    } else if (arg == "-funparse") {
+    } else if (arg == "-fdebug-unparse-no-sema") {
+      driver.debugNoSemantics = true;
       driver.dumpUnparse = true;
-    } else if (arg == "-funparse-with-symbols") {
+    } else if (arg == "-fdebug-dump-parse-tree-no-sema") {
+      driver.debugNoSemantics = true;
+      driver.dumpParseTree = true;
+      driver.syntaxOnly = true;
+    } else if (arg == "-funparse" || arg == "-fdebug-unparse") {
+      driver.dumpUnparse = true;
+    } else if (arg == "-funparse-with-symbols" ||
+        arg == "-fdebug-unparse-with-symbols") {
       driver.dumpUnparseWithSymbols = true;
     } else if (arg == "-funparse-typed-exprs-to-f18-fc") {
       driver.unparseTypedExprsToF18_FC = true;
@@ -560,10 +596,20 @@ int main(int argc, char *const argv[]) {
       }
     } else if (arg.substr(0, 2) == "-U") {
       predefinitions.emplace_back(arg.substr(2), std::optional<std::string>{});
-    } else if (arg == "-fdefault-double-8") {
-      defaultKinds.set_defaultRealKind(4);
     } else if (arg == "-r8" || arg == "-fdefault-real-8") {
+      driver.defaultReal8 = true;
       defaultKinds.set_defaultRealKind(8);
+      defaultKinds.set_doublePrecisionKind(16);
+    } else if (arg == "-fdefault-double-8") {
+      if (!driver.defaultReal8) {
+        // -fdefault-double-8 has to be used with -fdefault-real-8
+        // to be compatible with gfortran. See:
+        // https://gcc.gnu.org/onlinedocs/gfortran/Fortran-Dialect-Options.html
+        llvm::errs()
+            << "Use of `-fdefault-double-8` requires `-fdefault-real-8`\n";
+        return EXIT_FAILURE;
+      }
+      defaultKinds.set_doublePrecisionKind(8);
     } else if (arg == "-i8" || arg == "-fdefault-integer-8") {
       defaultKinds.set_defaultIntegerKind(8);
       defaultKinds.set_subscriptIntegerKind(8);
@@ -580,11 +626,18 @@ int main(int argc, char *const argv[]) {
     } else if (arg == "-module") {
       driver.moduleDirectory = args.front();
       args.pop_front();
+    } else if (arg == "-module-dir") {
+      driver.moduleDirectory = args.front();
+      driver.searchDirectories.push_back(driver.moduleDirectory);
+      args.pop_front();
     } else if (arg == "-module-suffix") {
       driver.moduleFileSuffix = args.front();
       args.pop_front();
-    } else if (arg == "-intrinsic-module-directory") {
-      driver.searchDirectories.push_back(args.front());
+    } else if (arg == "-intrinsic-module-directory" ||
+        arg == "-fintrinsic-modules-path") {
+      // prepend to the list of search directories
+      driver.searchDirectories.insert(
+          driver.searchDirectories.begin(), args.front());
       args.pop_front();
     } else if (arg == "-futf-8") {
       driver.encoding = Fortran::parser::Encoding::UTF_8;
@@ -603,8 +656,8 @@ int main(int argc, char *const argv[]) {
         }
         arguments[i] = std::strtol(args.front().c_str(), &endptr, 10);
         if (*endptr != '\0') {
-          llvm::errs() << "Invalid argument to -fget-definitions: "
-                       << args.front() << '\n';
+          llvm::errs() << "error: invalid value '" << args.front()
+                       << "' in 'fget-definition'" << '\n';
           return EXIT_FAILURE;
         }
         args.pop_front();
@@ -649,9 +702,11 @@ int main(int argc, char *const argv[]) {
           << "  -ed                  enable fixed form D lines\n"
           << "  -E                   prescan & preprocess only\n"
           << "  -module dir          module output directory (default .)\n"
+          << "  -module-dir/-J <dir> Put MODULE files in <dir>\n"
           << "  -flatin              interpret source as Latin-1 (ISO 8859-1) "
              "rather than UTF-8\n"
-          << "  -fsyntax-only        parsing and semantics only, no output except messages\n"
+          << "  -fsyntax-only        parsing and semantics only, no output "
+             "except messages\n"
           << "  -funparse            parse & reformat only, no code "
              "generation\n"
           << "  -funparse-with-symbols  parse, resolve symbols, and unparse\n"
@@ -688,6 +743,14 @@ int main(int argc, char *const argv[]) {
         args.pop_front();
       } else if (arg.substr(0, 2) == "-I") {
         driver.searchDirectories.push_back(arg.substr(2));
+      } else if (arg == "-J") {
+        driver.F18_FCArgs.push_back(args.front());
+        driver.moduleDirectory = args.front();
+        driver.searchDirectories.push_back(driver.moduleDirectory);
+        args.pop_front();
+      } else if (arg.substr(0, 2) == "-J") {
+        driver.moduleDirectory = arg.substr(2);
+        driver.searchDirectories.push_back(driver.moduleDirectory);
       }
     }
   }

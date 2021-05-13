@@ -28,7 +28,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         server = self.connect_to_debug_monitor()
         self.assertIsNotNone(server)
 
-        self.add_no_ack_remote_stream()
+        self.do_handshake()
         self.test_sequence.add_log_lines(
             ["lldb-server <  26> read packet: $QThreadSuffixSupported#e4",
              "lldb-server <   6> send packet: $OK#9a"],
@@ -41,7 +41,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         server = self.connect_to_debug_monitor()
         self.assertIsNotNone(server)
 
-        self.add_no_ack_remote_stream()
+        self.do_handshake()
         self.test_sequence.add_log_lines(
             ["lldb-server <  27> read packet: $QListThreadsInStopReply#21",
              "lldb-server <   6> send packet: $OK#9a"],
@@ -78,13 +78,14 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.test_sequence.add_log_lines(["read packet: $qC#00",
                                           {"direction": "send",
                                            "regex": r"^\$QC([0-9a-fA-F]+)#",
-                                           "capture": {1: "thread_id"}},
+                                           "capture": {1: "thread_id_QC"}},
                                           "read packet: $?#00",
                                           {"direction": "send",
                                               "regex": r"^\$T[0-9a-fA-F]{2}thread:([0-9a-fA-F]+)",
-                                              "expect_captures": {1: "thread_id"}}],
+                                              "capture": {1: "thread_id_?"}}],
                                          True)
-        self.expect_gdbremote_sequence()
+        context = self.expect_gdbremote_sequence()
+        self.assertEqual(context.get("thread_id_QC"), context.get("thread_id_?"))
 
     def test_attach_commandline_continue_app_exits(self):
         self.build()
@@ -208,6 +209,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         return " avx " in cpuinfo
 
     @expectedFailureAll(oslist=["windows"]) # no avx for now.
+    @skipIf(archs=no_match(['amd64', 'i386', 'x86_64']))
     @add_test_categories(["llgs"])
     def test_qRegisterInfo_contains_avx_registers(self):
         self.build()
@@ -348,7 +350,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             # Increment loop
             reg_index += 1
 
-    def Hg_switches_to_3_threads(self):
+    def Hg_switches_to_3_threads(self, pass_pid=False):
         # Startup the inferior with three threads (main + 2 new ones).
         procs = self.prep_debug_monitor_and_inferior(
             inferior_args=["thread:new", "thread:new"])
@@ -362,12 +364,16 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         threads = self.wait_for_thread_count(3)
         self.assertEqual(len(threads), 3)
 
+        pid_str = ""
+        if pass_pid:
+            pid_str = "p{0:x}.".format(procs["inferior"].pid)
+
         # verify we can $H to each thead, and $qC matches the thread we set.
         for thread in threads:
             # Change to each thread, verify current thread id.
             self.reset_test_sequence()
             self.test_sequence.add_log_lines(
-                ["read packet: $Hg{0:x}#00".format(thread),  # Set current thread.
+                ["read packet: $Hg{0}{1:x}#00".format(pid_str, thread),  # Set current thread.
                  "send packet: $OK#00",
                  "read packet: $qC#00",
                  {"direction": "send", "regex": r"^\$QC([0-9a-fA-F]+)#", "capture": {1: "thread_id"}}],
@@ -391,6 +397,57 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.build()
         self.set_inferior_startup_attach()
         self.Hg_switches_to_3_threads()
+
+    @expectedFailureAll(oslist=["windows"]) # expect 4 threads
+    @add_test_categories(["llgs"])
+    def test_Hg_switches_to_3_threads_attach_pass_correct_pid(self):
+        self.build()
+        self.set_inferior_startup_attach()
+        self.Hg_switches_to_3_threads(pass_pid=True)
+
+    def Hg_fails_on_pid(self, pass_pid):
+        # Start the inferior.
+        procs = self.prep_debug_monitor_and_inferior(
+            inferior_args=["thread:new"])
+
+        self.run_process_then_stop(run_seconds=1)
+
+        threads = self.wait_for_thread_count(2)
+        self.assertEqual(len(threads), 2)
+
+        if pass_pid == -1:
+            pid_str = "p-1."
+        else:
+            pid_str = "p{0:x}.".format(pass_pid)
+        thread = threads[1]
+
+        self.test_sequence.add_log_lines(
+            ["read packet: $Hg{0}{1:x}#00".format(pid_str, thread),  # Set current thread.
+             "send packet: $Eff#00"],
+            True)
+
+        self.expect_gdbremote_sequence()
+
+    @expectedFailureAll(oslist=["windows"])
+    @add_test_categories(["llgs"])
+    def test_Hg_fails_on_another_pid(self):
+        self.build()
+        self.set_inferior_startup_launch()
+        self.Hg_fails_on_pid(1)
+
+    @expectedFailureAll(oslist=["windows"])
+    @add_test_categories(["llgs"])
+    def test_Hg_fails_on_zero_pid(self):
+        self.build()
+        self.set_inferior_startup_launch()
+        self.Hg_fails_on_pid(0)
+
+    @expectedFailureAll(oslist=["windows"])
+    @add_test_categories(["llgs"])
+    def test_Hg_fails_on_minus_one_pid(self):
+        self.build()
+        self.set_inferior_startup_launch()
+        self.Hg_fails_on_pid(-1)
 
     def Hc_then_Csignal_signals_correct_thread(self, segfault_signo):
         # NOTE only run this one in inferior-launched mode: we can't grab inferior stdout when running attached,

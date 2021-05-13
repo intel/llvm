@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -fsyntax-only
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -sycl-std=2020 -fsyntax-only
 // RUN: FileCheck -input-file=%t.h %s
 
 #include "Inputs/sycl.hpp"

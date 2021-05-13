@@ -32,10 +32,7 @@ function(add_sycl_rt_library LIB_NAME)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
 
-  #To-Do: Remove dependency on icd loader and opencl headers.
   add_dependencies(${LIB_OBJ_NAME}
-    ocl-icd
-    ocl-headers
     sycl-headers
   )
 
@@ -61,19 +58,24 @@ function(add_sycl_rt_library LIB_NAME)
     endif()
   endif()
 
+  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+
   target_include_directories(
     ${LIB_OBJ_NAME}
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
       "${sycl_inc_dir}"
-      ${OpenCL_INCLUDE_DIRS}
+  )
+  #TODO: Remove dependency on icd loader and opencl headers.
+  target_link_libraries(${LIB_OBJ_NAME}
+    PRIVATE OpenCL-Headers
   )
 
   find_package(Threads REQUIRED)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      ${OpenCL_LIBRARIES}
+      OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
     PUBLIC
@@ -135,6 +137,7 @@ set(SYCL_SOURCES
     "detail/queue_impl.cpp"
     "detail/online_compiler/online_compiler.cpp"
     "detail/os_util.cpp"
+    "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"

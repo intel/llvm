@@ -187,6 +187,7 @@ public:
                                  const Twine &Suffix = "");
 
 private:
+  void annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI);
   bool shouldChangeType(unsigned FromBitWidth, unsigned ToBitWidth) const;
   bool shouldChangeType(Type *From, Type *To) const;
   Value *dyn_castNegVal(Value *V) const;
@@ -715,10 +716,10 @@ public:
   Instruction *PromoteCastOfAllocation(BitCastInst &CI, AllocaInst &AI);
   bool mergeStoreIntoSuccessor(StoreInst &SI);
 
-  /// Given an 'or' instruction, check to see if it is part of a
+  /// Given an initial instruction, check to see if it is the root of a
   /// bswap/bitreverse idiom. If so, return the equivalent bswap/bitreverse
   /// intrinsic.
-  Instruction *matchBSwapOrBitReverse(BinaryOperator &Or, bool MatchBSwaps,
+  Instruction *matchBSwapOrBitReverse(Instruction &I, bool MatchBSwaps,
                                       bool MatchBitReversals);
 
   Instruction *SimplifyAnyMemTransfer(AnyMemTransferInst *MI);

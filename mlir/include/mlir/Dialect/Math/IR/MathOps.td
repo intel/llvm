@@ -17,10 +17,9 @@ class MathOp<string mnemonic, list<OpTrait> traits = []>
     : Op<Math_Dialect, mnemonic, traits # [NoSideEffect]>;
 
 class FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
-    MathOp<mnemonic,
-      traits # [DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
-                ElementwiseMappable,
-                SameOperandsAndResultType]> {
+    MathOp<mnemonic, traits #
+    [DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
+    SameOperandsAndResultType] # ElementwiseMappable.traits> {
   let arguments = (ins FloatLike:$operand);
 
   let results = (outs FloatLike:$result);
@@ -29,10 +28,9 @@ class FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
 }
 
 class FloatBinaryOp<string mnemonic, list<OpTrait> traits = []> :
-    MathOp<mnemonic,
-      traits # [DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
-                ElementwiseMappable,
-                SameOperandsAndResultType]> {
+    MathOp<mnemonic, traits # [
+    DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
+    SameOperandsAndResultType] # ElementwiseMappable.traits> {
   let arguments = (ins FloatLike:$lhs, FloatLike:$rhs);
   let results = (outs FloatLike:$result);
 
@@ -240,6 +238,40 @@ def Exp2Op : FloatUnaryOp<"exp2"> {
 
     // Tensor element-wise natural exponential.
     %x = math.exp2 %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// ExpM1Op
+//===----------------------------------------------------------------------===//
+
+def ExpM1Op : FloatUnaryOp<"expm1"> {
+  let summary = "base-e exponential of the specified value minus 1";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `math.expm1` ssa-use `:` type
+    ```
+
+    expm1(x) := exp(x) - 1
+
+    The `expm1` operation takes one operand and returns one result of the same
+    type. This type may be a float scalar type, a vector whose element type is
+    float, or a tensor of floats. It has no standard attributes.
+
+    Example:
+
+    ```mlir
+    // Scalar natural exponential minus 1.
+    %a = math.expm1 %b : f64
+
+    // SIMD vector element-wise natural exponential minus 1.
+    %f = math.expm1 %g : vector<4xf32>
+
+    // Tensor element-wise natural exponential minus 1.
+    %x = math.expm1 %y : tensor<4x?xf8>
     ```
   }];
 }

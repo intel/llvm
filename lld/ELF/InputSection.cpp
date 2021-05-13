@@ -839,7 +839,7 @@ uint64_t InputSectionBase::getRelocTargetVA(const InputFile *file, RelType type,
   case R_TLSGD_GOT:
     return in.got->getGlobalDynOffset(sym) + a;
   case R_TLSGD_GOTPLT:
-    return in.got->getVA() + in.got->getGlobalDynOffset(sym) + a - in.gotPlt->getVA();
+    return in.got->getGlobalDynAddr(sym) + a - in.gotPlt->getVA();
   case R_TLSGD_PC:
     return in.got->getGlobalDynAddr(sym) + a - p;
   case R_TLSLD_GOTPLT:
@@ -1429,8 +1429,7 @@ SectionPiece *MergeInputSection::getSectionPiece(uint64_t offset) {
 uint64_t MergeInputSection::getParentOffset(uint64_t offset) const {
   // If Offset is not at beginning of a section piece, it is not in the map.
   // In that case we need to search from the original section piece vector.
-  const SectionPiece &piece =
-      *(const_cast<MergeInputSection *>(this)->getSectionPiece (offset));
+  const SectionPiece &piece = *getSectionPiece(offset);
   uint64_t addend = offset - piece.inputOff;
   return piece.outputOff + addend;
 }

@@ -144,6 +144,7 @@ using TypeMatcher = internal::Matcher<QualType>;
 using TypeLocMatcher = internal::Matcher<TypeLoc>;
 using NestedNameSpecifierMatcher = internal::Matcher<NestedNameSpecifier>;
 using NestedNameSpecifierLocMatcher = internal::Matcher<NestedNameSpecifierLoc>;
+using CXXBaseSpecifierMatcher = internal::Matcher<CXXBaseSpecifier>;
 using CXXCtorInitializerMatcher = internal::Matcher<CXXCtorInitializer>;
 using TemplateArgumentMatcher = internal::Matcher<TemplateArgument>;
 using TemplateArgumentLocMatcher = internal::Matcher<TemplateArgumentLoc>;
@@ -516,6 +517,15 @@ extern const internal::VariadicDynCastAllOfMatcher<Decl, ParmVarDecl>
 extern const internal::VariadicDynCastAllOfMatcher<Decl, AccessSpecDecl>
     accessSpecDecl;
 
+/// Matches class bases.
+///
+/// Examples matches \c public virtual B.
+/// \code
+///   class B {};
+///   class C : public virtual B {};
+/// \endcode
+extern const internal::VariadicAllOfMatcher<CXXBaseSpecifier> cxxBaseSpecifier;
+
 /// Matches constructor initializers.
 ///
 /// Examples matches \c i(42).
@@ -835,26 +845,16 @@ traverse(TraversalKind TK, const internal::ArgumentAdaptingMatcherFuncAdaptor<
                                                    ToTypes>>(TK, InnerMatcher);
 }
 
-template <template <typename T, typename P1> class MatcherT, typename P1,
+template <template <typename T, typename... P> class MatcherT, typename... P,
           typename ReturnTypesF>
 internal::TraversalWrapper<
-    internal::PolymorphicMatcherWithParam1<MatcherT, P1, ReturnTypesF>>
-traverse(TraversalKind TK, const internal::PolymorphicMatcherWithParam1<
-                               MatcherT, P1, ReturnTypesF> &InnerMatcher) {
+    internal::PolymorphicMatcher<MatcherT, ReturnTypesF, P...>>
+traverse(TraversalKind TK,
+         const internal::PolymorphicMatcher<MatcherT, ReturnTypesF, P...>
+             &InnerMatcher) {
   return internal::TraversalWrapper<
-      internal::PolymorphicMatcherWithParam1<MatcherT, P1, ReturnTypesF>>(
-      TK, InnerMatcher);
-}
-
-template <template <typename T, typename P1, typename P2> class MatcherT,
-          typename P1, typename P2, typename ReturnTypesF>
-internal::TraversalWrapper<
-    internal::PolymorphicMatcherWithParam2<MatcherT, P1, P2, ReturnTypesF>>
-traverse(TraversalKind TK, const internal::PolymorphicMatcherWithParam2<
-                               MatcherT, P1, P2, ReturnTypesF> &InnerMatcher) {
-  return internal::TraversalWrapper<
-      internal::PolymorphicMatcherWithParam2<MatcherT, P1, P2, ReturnTypesF>>(
-      TK, InnerMatcher);
+      internal::PolymorphicMatcher<MatcherT, ReturnTypesF, P...>>(TK,
+                                                                  InnerMatcher);
 }
 
 template <typename... T>
@@ -2172,6 +2172,17 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt, BreakStmt> breakStmt;
 extern const internal::VariadicDynCastAllOfMatcher<Stmt, ContinueStmt>
     continueStmt;
 
+/// Matches co_return statements.
+///
+/// Given
+/// \code
+///   while (true) { co_return; }
+/// \endcode
+/// coreturnStmt()
+///   matches 'co_return'
+extern const internal::VariadicDynCastAllOfMatcher<Stmt, CoreturnStmt>
+    coreturnStmt;
+
 /// Matches return statements.
 ///
 /// Given
@@ -2388,6 +2399,30 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt, UserDefinedLiteral>
 /// \endcode
 extern const internal::VariadicDynCastAllOfMatcher<Stmt, CompoundLiteralExpr>
     compoundLiteralExpr;
+
+/// Matches co_await expressions.
+///
+/// Given
+/// \code
+///   co_await 1;
+/// \endcode
+/// coawaitExpr()
+///   matches 'co_await 1'
+extern const internal::VariadicDynCastAllOfMatcher<Stmt, CoawaitExpr>
+    coawaitExpr;
+/// Matches co_await expressions where the type of the promise is dependent
+extern const internal::VariadicDynCastAllOfMatcher<Stmt, DependentCoawaitExpr>
+    dependentCoawaitExpr;
+/// Matches co_yield expressions.
+///
+/// Given
+/// \code
+///   co_yield 1;
+/// \endcode
+/// coyieldExpr()
+///   matches 'co_yield 1'
+extern const internal::VariadicDynCastAllOfMatcher<Stmt, CoyieldExpr>
+    coyieldExpr;
 
 /// Matches nullptr literal.
 extern const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNullPtrLiteralExpr>
@@ -2996,14 +3031,15 @@ AST_MATCHER_REGEX(NamedDecl, matchesName, RegExp) {
 /// matches the declaration of \c A.
 ///
 /// Usable as: Matcher<CXXOperatorCallExpr>, Matcher<FunctionDecl>
-inline internal::PolymorphicMatcherWithParam1<
-    internal::HasOverloadedOperatorNameMatcher, std::vector<std::string>,
-    AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl)>
+inline internal::PolymorphicMatcher<
+    internal::HasOverloadedOperatorNameMatcher,
+    AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl),
+    std::vector<std::string>>
 hasOverloadedOperatorName(StringRef Name) {
-  return internal::PolymorphicMatcherWithParam1<
-      internal::HasOverloadedOperatorNameMatcher, std::vector<std::string>,
-      AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl)>(
-      {std::string(Name)});
+  return internal::PolymorphicMatcher<
+      internal::HasOverloadedOperatorNameMatcher,
+      AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl),
+      std::vector<std::string>>({std::string(Name)});
 }
 
 /// Matches overloaded operator names.
@@ -3015,9 +3051,10 @@ hasOverloadedOperatorName(StringRef Name) {
 /// Is equivalent to
 ///   anyOf(hasOverloadedOperatorName("+"), hasOverloadedOperatorName("-"))
 extern const internal::VariadicFunction<
-    internal::PolymorphicMatcherWithParam1<
-        internal::HasOverloadedOperatorNameMatcher, std::vector<std::string>,
-        AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl)>,
+    internal::PolymorphicMatcher<internal::HasOverloadedOperatorNameMatcher,
+                                 AST_POLYMORPHIC_SUPPORTED_TYPES(
+                                     CXXOperatorCallExpr, FunctionDecl),
+                                 std::vector<std::string>>,
     StringRef, internal::hasAnyOverloadedOperatorNameFunc>
     hasAnyOverloadedOperatorName;
 
@@ -3506,13 +3543,14 @@ extern const internal::VariadicOperatorMatcherFunc<1, 1> unless;
 ///   Matcher<TagType>, Matcher<TemplateSpecializationType>,
 ///   Matcher<TemplateTypeParmType>, Matcher<TypedefType>,
 ///   Matcher<UnresolvedUsingType>
-inline internal::PolymorphicMatcherWithParam1<
-    internal::HasDeclarationMatcher, internal::Matcher<Decl>,
-    void(internal::HasDeclarationSupportedTypes)>
+inline internal::PolymorphicMatcher<
+    internal::HasDeclarationMatcher,
+    void(internal::HasDeclarationSupportedTypes), internal::Matcher<Decl>>
 hasDeclaration(const internal::Matcher<Decl> &InnerMatcher) {
-  return internal::PolymorphicMatcherWithParam1<
-      internal::HasDeclarationMatcher, internal::Matcher<Decl>,
-      void(internal::HasDeclarationSupportedTypes)>(InnerMatcher);
+  return internal::PolymorphicMatcher<
+      internal::HasDeclarationMatcher,
+      void(internal::HasDeclarationSupportedTypes), internal::Matcher<Decl>>(
+      InnerMatcher);
 }
 
 /// Matches a \c NamedDecl whose underlying declaration matches the given
@@ -3797,16 +3835,19 @@ AST_MATCHER_P_OVERLOAD(CallExpr, callee, internal::Matcher<Decl>, InnerMatcher,
 ///             and z (matcher = varDecl(hasType(cxxRecordDecl(hasName("X")))))
 ///             and U (matcher = typedefDecl(hasType(asString("int")))
 ///             and friend class X (matcher = friendDecl(hasType("X"))
+///             and public virtual X (matcher = cxxBaseSpecifier(hasType(
+///                                               asString("class X")))
 /// \code
 ///  class X {};
 ///  void y(X &x) { x; X z; }
 ///  typedef int U;
 ///  class Y { friend class X; };
+///  class Z : public virtual X {};
 /// \endcode
 AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
     hasType,
     AST_POLYMORPHIC_SUPPORTED_TYPES(Expr, FriendDecl, TypedefNameDecl,
-                                    ValueDecl),
+                                    ValueDecl, CXXBaseSpecifier),
     internal::Matcher<QualType>, InnerMatcher, 0) {
   QualType QT = internal::getUnderlyingType(Node);
   if (!QT.isNull())
@@ -3826,10 +3867,13 @@ AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
 /// Example matches x (matcher = expr(hasType(cxxRecordDecl(hasName("X")))))
 ///             and z (matcher = varDecl(hasType(cxxRecordDecl(hasName("X")))))
 ///             and friend class X (matcher = friendDecl(hasType("X"))
+///             and public virtual X (matcher = cxxBaseSpecifier(hasType(
+///                                               cxxRecordDecl(hasName("X"))))
 /// \code
 ///  class X {};
 ///  void y(X &x) { x; X z; }
 ///  class Y { friend class X; };
+///  class Z : public virtual X {};
 /// \endcode
 ///
 /// Example matches class Derived
@@ -5224,7 +5268,7 @@ AST_POLYMORPHIC_MATCHER_P(hasBody,
 ///   void f() {}
 ///   void g();
 /// \endcode
-/// hasAnyBody(functionDecl())
+/// functionDecl(hasAnyBody(compoundStmt()))
 ///   matches both 'void f();'
 ///   and 'void f() {}'
 /// with compoundStmt()
@@ -5299,11 +5343,12 @@ AST_MATCHER_P(CompoundStmt, statementCountIs, unsigned, N) {
 /// Usable as: Matcher<CharacterLiteral>, Matcher<CXXBoolLiteralExpr>,
 ///            Matcher<FloatingLiteral>, Matcher<IntegerLiteral>
 template <typename ValueT>
-internal::PolymorphicMatcherWithParam1<internal::ValueEqualsMatcher, ValueT>
+internal::PolymorphicMatcher<internal::ValueEqualsMatcher,
+                             void(internal::AllNodeBaseTypes), ValueT>
 equals(const ValueT &Value) {
-  return internal::PolymorphicMatcherWithParam1<
-    internal::ValueEqualsMatcher,
-    ValueT>(Value);
+  return internal::PolymorphicMatcher<internal::ValueEqualsMatcher,
+                                      void(internal::AllNodeBaseTypes), ValueT>(
+      Value);
 }
 
 AST_POLYMORPHIC_MATCHER_P_OVERLOAD(equals,
@@ -5358,11 +5403,11 @@ AST_POLYMORPHIC_MATCHER_P(
 ///  Is equivalent to
 ///    anyOf(hasOperatorName("+"), hasOperatorName("-"))
 extern const internal::VariadicFunction<
-    internal::PolymorphicMatcherWithParam1<
-        internal::HasAnyOperatorNameMatcher, std::vector<std::string>,
-        AST_POLYMORPHIC_SUPPORTED_TYPES(BinaryOperator, CXXOperatorCallExpr,
-                                        CXXRewrittenBinaryOperator,
-                                        UnaryOperator)>,
+    internal::PolymorphicMatcher<internal::HasAnyOperatorNameMatcher,
+                                 AST_POLYMORPHIC_SUPPORTED_TYPES(
+                                     BinaryOperator, CXXOperatorCallExpr,
+                                     CXXRewrittenBinaryOperator, UnaryOperator),
+                                 std::vector<std::string>>,
     StringRef, internal::hasAnyOperatorNameFunc>
     hasAnyOperatorName;
 
@@ -7384,9 +7429,10 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt, CUDAKernelCallExpr>
 /// expr(nullPointerConstant())
 ///   matches the initializer for v1, v2, v3, cp, and ip. Does not match the
 ///   initializer for i.
-AST_MATCHER(Expr, nullPointerConstant) {
-  return Node.isNullPointerConstant(Finder->getASTContext(),
-                                    Expr::NPC_ValueDependentIsNull);
+AST_MATCHER_FUNCTION(internal::Matcher<Expr>, nullPointerConstant) {
+  return anyOf(
+      gnuNullExpr(), cxxNullPtrLiteralExpr(),
+      integerLiteral(equals(0), hasParent(expr(hasType(pointerType())))));
 }
 
 /// Matches the DecompositionDecl the binding belongs to.

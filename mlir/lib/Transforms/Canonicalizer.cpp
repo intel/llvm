@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
@@ -24,7 +25,7 @@ struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
   /// Initialize the canonicalizer by building the set of patterns used during
   /// execution.
   LogicalResult initialize(MLIRContext *context) override {
-    OwningRewritePatternList owningPatterns;
+    RewritePatternSet owningPatterns(context);
     for (auto *op : context->getRegisteredOperations())
       op->getCanonicalizationPatterns(owningPatterns, context);
     patterns = std::move(owningPatterns);
@@ -34,7 +35,7 @@ struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
     (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(), patterns);
   }
 
-  FrozenRewritePatternList patterns;
+  FrozenRewritePatternSet patterns;
 };
 } // end anonymous namespace
 

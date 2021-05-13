@@ -22,6 +22,6 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 
-ModulePass *createSPIRITTAnnotationsPass();
+ModulePass *createSPIRITTAnnotationsLegacyPass();
 
 } // namespace llvm

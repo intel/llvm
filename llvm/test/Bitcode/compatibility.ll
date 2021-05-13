@@ -532,8 +532,8 @@ declare void @f.param.inreg(i8 inreg)
 ; CHECK: declare void @f.param.inreg(i8 inreg)
 declare void @f.param.byval({ i8, i8 }* byval({ i8, i8 }))
 ; CHECK: declare void @f.param.byval({ i8, i8 }* byval({ i8, i8 }))
-declare void @f.param.inalloca(i8* inalloca)
-; CHECK: declare void @f.param.inalloca(i8* inalloca)
+declare void @f.param.inalloca(i8* inalloca(i8))
+; CHECK: declare void @f.param.inalloca(i8* inalloca(i8))
 declare void @f.param.sret(i8* sret(i8))
 ; CHECK: declare void @f.param.sret(i8* sret(i8))
 declare void @f.param.noalias(i8* noalias)
@@ -550,6 +550,8 @@ declare void @f.param.dereferenceable(i8* dereferenceable(4))
 ; CHECK: declare void @f.param.dereferenceable(i8* dereferenceable(4))
 declare void @f.param.dereferenceable_or_null(i8* dereferenceable_or_null(4))
 ; CHECK: declare void @f.param.dereferenceable_or_null(i8* dereferenceable_or_null(4))
+declare void @f.param.stack_align([2 x double] alignstack(16))
+; CHECK: declare void @f.param.stack_align([2 x double] alignstack(16))
 
 ; Functions -- unnamed_addr and local_unnamed_addr
 declare void @f.unnamed_addr() unnamed_addr
@@ -1520,9 +1522,9 @@ exit:
   ret void
 }
 
-define void @instructions.call_musttail(i8* inalloca %val) {
-  musttail call void @f.param.inalloca(i8* inalloca %val)
-  ; CHECK: musttail call void @f.param.inalloca(i8* inalloca %val)
+define void @instructions.call_musttail(i8* inalloca(i8) %val) {
+  musttail call void @f.param.inalloca(i8* inalloca(i8) %val)
+  ; CHECK: musttail call void @f.param.inalloca(i8* inalloca(i8) %val)
 
   ret void
 }

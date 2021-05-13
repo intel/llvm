@@ -1,4 +1,4 @@
-// RUN: %clangxx %s -o %t.out -I %sycl_include -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_FILTER=level_zero:gpu %t.out
 // RUN: env SYCL_DEVICE_FILTER=opencl:gpu %t.out
 //

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/ArmSVE/ArmSVEDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -19,6 +20,12 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
+
+#define GET_OP_CLASSES
+#include "mlir/Dialect/ArmSVE/ArmSVE.cpp.inc"
+
+#define GET_TYPEDEF_CLASSES
+#include "mlir/Dialect/ArmSVE/ArmSVETypes.cpp.inc"
 
 void arm_sve::ArmSVEDialect::initialize() {
   addOperations<
@@ -31,21 +38,19 @@ void arm_sve::ArmSVEDialect::initialize() {
       >();
 }
 
-#define GET_OP_CLASSES
-#include "mlir/Dialect/ArmSVE/ArmSVE.cpp.inc"
-
-#define GET_TYPEDEF_CLASSES
-#include "mlir/Dialect/ArmSVE/ArmSVETypes.cpp.inc"
-
 //===----------------------------------------------------------------------===//
 // ScalableVectorType
 //===----------------------------------------------------------------------===//
 
 Type arm_sve::ArmSVEDialect::parseType(DialectAsmParser &parser) const {
   llvm::SMLoc typeLoc = parser.getCurrentLocation();
-  auto genType = generatedTypeParser(getContext(), parser, "vector");
-  if (genType != Type())
-    return genType;
+  {
+    Type genType;
+    auto parseResult = generatedTypeParser(parser.getBuilder().getContext(),
+                                           parser, "vector", genType);
+    if (parseResult.hasValue())
+      return genType;
+  }
   parser.emitError(typeLoc, "unknown type in ArmSVE dialect");
   return Type();
 }

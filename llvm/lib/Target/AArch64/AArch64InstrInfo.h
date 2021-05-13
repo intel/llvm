@@ -209,7 +209,7 @@ public:
                     const DebugLoc &DL, Register DstReg,
                     ArrayRef<MachineOperand> Cond, Register TrueReg,
                     Register FalseReg) const override;
-  void getNoop(MCInst &NopInst) const override;
+  MCInst getNop() const override;
 
   bool isSchedulingBoundary(const MachineInstr &MI,
                             const MachineBasicBlock *MBB,
@@ -334,7 +334,9 @@ private:
                              MachineBasicBlock *TBB,
                              ArrayRef<MachineOperand> Cond) const;
   bool substituteCmpToZero(MachineInstr &CmpInstr, unsigned SrcReg,
-                           const MachineRegisterInfo *MRI) const;
+                           const MachineRegisterInfo &MRI) const;
+  bool removeCmpToZeroOrOne(MachineInstr &CmpInstr, unsigned SrcReg,
+                            int CmpValue, const MachineRegisterInfo &MRI) const;
 
   /// Returns an unused general-purpose register which can be used for
   /// constructing an outlined call if one exists. Returns 0 otherwise.

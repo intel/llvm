@@ -17,6 +17,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBank.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -25,6 +26,7 @@
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/IR/IntrinsicsAArch64.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <cassert>
@@ -466,11 +468,24 @@ AArch64RegisterBankInfo::getSameKindOfOperandsMapping(
                                getValueMapping(RBIdx, Size), NumOperands);
 }
 
+/// \returns true if a given intrinsic \p ID only uses and defines FPRs.
+static bool isFPIntrinsic(unsigned ID) {
+  // TODO: Add more intrinsics.
+  switch (ID) {
+  default:
+    return false;
+  case Intrinsic::aarch64_neon_uaddlv:
+    return true;
+  }
+}
+
 bool AArch64RegisterBankInfo::hasFPConstraints(const MachineInstr &MI,
                                                const MachineRegisterInfo &MRI,
                                                const TargetRegisterInfo &TRI,
                                                unsigned Depth) const {
   unsigned Op = MI.getOpcode();
+  if (Op == TargetOpcode::G_INTRINSIC && isFPIntrinsic(getIntrinsicID(MI)))
+    return true;
 
   // Do we have an explicit floating point instruction?
   if (isPreISelGenericFloatingPointOpcode(Op))
@@ -527,6 +542,8 @@ bool AArch64RegisterBankInfo::onlyDefinesFP(const MachineInstr &MI,
   case TargetOpcode::G_UITOFP:
   case TargetOpcode::G_EXTRACT_VECTOR_ELT:
   case TargetOpcode::G_INSERT_VECTOR_ELT:
+  case TargetOpcode::G_BUILD_VECTOR:
+  case TargetOpcode::G_BUILD_VECTOR_TRUNC:
     return true;
   default:
     break;
@@ -666,9 +683,12 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   switch (Opc) {
   case AArch64::G_DUP: {
     Register ScalarReg = MI.getOperand(1).getReg();
+    LLT ScalarTy = MRI.getType(ScalarReg);
     auto ScalarDef = MRI.getVRegDef(ScalarReg);
-    if (getRegBank(ScalarReg, MRI, TRI) == &AArch64::FPRRegBank ||
-        onlyDefinesFP(*ScalarDef, MRI, TRI))
+    // s8 is an exception for G_DUP, which we always want on gpr.
+    if (ScalarTy.getSizeInBits() != 8 &&
+        (getRegBank(ScalarReg, MRI, TRI) == &AArch64::FPRRegBank ||
+         onlyDefinesFP(*ScalarDef, MRI, TRI)))
       OpRegBankIdx = {PMI_FirstFPR, PMI_FirstFPR};
     else
       OpRegBankIdx = {PMI_FirstFPR, PMI_FirstGPR};
@@ -699,10 +719,15 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       break;
     OpRegBankIdx = {PMI_FirstGPR, PMI_FirstFPR};
     break;
-  case TargetOpcode::G_FCMP:
-    OpRegBankIdx = {PMI_FirstGPR,
+  case TargetOpcode::G_FCMP: {
+    // If the result is a vector, it must use a FPR.
+    AArch64GenRegisterBankInfo::PartialMappingIdx Idx0 =
+        MRI.getType(MI.getOperand(0).getReg()).isVector() ? PMI_FirstFPR
+                                                          : PMI_FirstGPR;
+    OpRegBankIdx = {Idx0,
                     /* Predicate */ PMI_None, PMI_FirstFPR, PMI_FirstFPR};
     break;
+  }
   case TargetOpcode::G_BITCAST:
     // This is going to be a cross register bank copy and this is expensive.
     if (OpRegBankIdx[0] != OpRegBankIdx[1])
@@ -877,7 +902,8 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
         }))
       break;
     if (isPreISelGenericFloatingPointOpcode(DefOpc) ||
-        SrcTy.getSizeInBits() < 32) {
+        SrcTy.getSizeInBits() < 32 ||
+        getRegBank(VReg, MRI, TRI) == &AArch64::FPRRegBank) {
       // Have a floating point op.
       // Make sure every operand gets mapped to a FPR register class.
       unsigned NumOperands = MI.getNumOperands();
@@ -909,6 +935,20 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     // Assign them FPR for now.
     OpRegBankIdx = {PMI_FirstFPR, PMI_FirstFPR, PMI_FirstFPR};
     break;
+  case TargetOpcode::G_INTRINSIC: {
+    // Check if we know that the intrinsic has any constraints on its register
+    // banks. If it does, then update the mapping accordingly.
+    unsigned ID = getIntrinsicID(MI);
+    unsigned Idx = 0;
+    if (!isFPIntrinsic(ID))
+      break;
+    for (const auto &Op : MI.explicit_operands()) {
+      if (Op.isReg())
+        OpRegBankIdx[Idx] = PMI_FirstFPR;
+      ++Idx;
+    }
+    break;
+  }
   }
 
   // Finally construct the computed mapping.

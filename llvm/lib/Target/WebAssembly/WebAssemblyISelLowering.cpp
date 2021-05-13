@@ -13,10 +13,10 @@
 
 #include "WebAssemblyISelLowering.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
 #include "WebAssemblyTargetMachine.h"
-#include "WebAssemblyUtilities.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -121,6 +121,11 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
         setOperationAction(Op, T, Expand);
   }
 
+  if (Subtarget->hasNontrappingFPToInt())
+    for (auto Op : {ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT})
+      for (auto T : {MVT::i32, MVT::i64})
+        setOperationAction(Op, T, Custom);
+
   // SIMD-specific configuration
   if (Subtarget->hasSIMD128()) {
     // Hoist bitcasts out of shuffles
@@ -129,6 +134,14 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     // Combine extends of extract_subvectors into widening ops
     setTargetDAGCombine(ISD::SIGN_EXTEND);
     setTargetDAGCombine(ISD::ZERO_EXTEND);
+
+    // Combine int_to_fp of extract_vectors and vice versa into conversions ops
+    setTargetDAGCombine(ISD::SINT_TO_FP);
+    setTargetDAGCombine(ISD::UINT_TO_FP);
+    setTargetDAGCombine(ISD::EXTRACT_SUBVECTOR);
+
+    // Combine concat of {s,u}int_to_fp_sat to i32x4.trunc_sat_f64x2_zero_{s,u}
+    setTargetDAGCombine(ISD::CONCAT_VECTORS);
 
     // Support saturating add for i8x16 and i16x8
     for (auto Op : {ISD::SADDSAT, ISD::UADDSAT})
@@ -180,21 +193,24 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
         setOperationAction(Op, T, Legal);
 
     // Expand float operations supported for scalars but not SIMD
-    for (auto Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FNEARBYINT,
-                    ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
+    for (auto Op : {ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
                     ISD::FEXP, ISD::FEXP2, ISD::FRINT})
       for (auto T : {MVT::v4f32, MVT::v2f64})
         setOperationAction(Op, T, Expand);
 
-    // Expand operations not supported for i64x2 vectors
-    for (unsigned CC = 0; CC < ISD::SETCC_INVALID; ++CC)
-      setCondCodeAction(static_cast<ISD::CondCode>(CC), MVT::v2i64, Custom);
+    // Unsigned comparison operations are unavailable for i64x2 vectors.
+    for (auto CC : {ISD::SETUGT, ISD::SETUGE, ISD::SETULT, ISD::SETULE})
+      setCondCodeAction(CC, MVT::v2i64, Custom);
 
     // 64x2 conversions are not in the spec
     for (auto Op :
          {ISD::SINT_TO_FP, ISD::UINT_TO_FP, ISD::FP_TO_SINT, ISD::FP_TO_UINT})
       for (auto T : {MVT::v2i64, MVT::v2f64})
         setOperationAction(Op, T, Expand);
+
+    // But saturating fp_to_int converstions are
+    for (auto Op : {ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT})
+      setOperationAction(Op, MVT::v4i32, Custom);
   }
 
   // As a special case, these operators use the type to mean the type to
@@ -426,9 +442,10 @@ static MachineBasicBlock *LowerFPToInt(MachineInstr &MI, DebugLoc DL,
   return DoneMBB;
 }
 
-static MachineBasicBlock *LowerCallResults(MachineInstr &CallResults,
-                                           DebugLoc DL, MachineBasicBlock *BB,
-                                           const TargetInstrInfo &TII) {
+static MachineBasicBlock *
+LowerCallResults(MachineInstr &CallResults, DebugLoc DL, MachineBasicBlock *BB,
+                 const WebAssemblySubtarget *Subtarget,
+                 const TargetInstrInfo &TII) {
   MachineInstr &CallParams = *CallResults.getPrevNode();
   assert(CallParams.getOpcode() == WebAssembly::CALL_PARAMS);
   assert(CallResults.getOpcode() == WebAssembly::CALL_RESULTS ||
@@ -476,19 +493,21 @@ static MachineBasicBlock *LowerCallResults(MachineInstr &CallResults,
   for (auto Def : CallResults.defs())
     MIB.add(Def);
 
-  // Add placeholders for the type index and immediate flags
   if (IsIndirect) {
+    // Placeholder for the type index.
     MIB.addImm(0);
-    MIB.addImm(0);
-
-    // Ensure that the object file has a __indirect_function_table import, as we
-    // call_indirect against it.
-    MCSymbolWasm *Sym = WebAssembly::getOrCreateFunctionTableSymbol(
-        MF.getContext(), "__indirect_function_table");
-    // Until call_indirect emits TABLE_NUMBER relocs against this symbol, mark
-    // it as NO_STRIP so as to ensure that the indirect function table makes it
-    // to linked output.
-    Sym->setNoStrip();
+    // The table into which this call_indirect indexes.
+    MCSymbolWasm *Table =
+        WebAssembly::getOrCreateFunctionTableSymbol(MF.getContext(), Subtarget);
+    if (Subtarget->hasReferenceTypes()) {
+      MIB.addSym(Table);
+    } else {
+      // For the MVP there is at most one table whose number is 0, but we can't
+      // write a table symbol or issue relocations.  Instead we just ensure the
+      // table is live and write a zero.
+      Table->setNoStrip();
+      MIB.addImm(0);
+    }
   }
 
   for (auto Use : CallParams.uses())
@@ -535,7 +554,7 @@ MachineBasicBlock *WebAssemblyTargetLowering::EmitInstrWithCustomInserter(
                         WebAssembly::I64_TRUNC_U_F64);
   case WebAssembly::CALL_RESULTS:
   case WebAssembly::RET_CALL_RESULTS:
-    return LowerCallResults(MI, DL, BB, TII);
+    return LowerCallResults(MI, DL, BB, Subtarget, TII);
   }
 }
 
@@ -756,16 +775,6 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MemVT;
     Info.offset = 0;
     Info.align = MemAlign;
-    return true;
-  }
-  case Intrinsic::wasm_prefetch_t:
-  case Intrinsic::wasm_prefetch_nt: {
-    Info.opc = ISD::INTRINSIC_VOID;
-    Info.memVT = MVT::i8;
-    Info.ptrVal = I.getArgOperand(0);
-    Info.offset = 0;
-    Info.align = Align(1);
-    Info.flags = MachineMemOperand::MOLoad;
     return true;
   }
   default:
@@ -1241,6 +1250,9 @@ SDValue WebAssemblyTargetLowering::LowerOperation(SDValue Op,
   case ISD::SRA:
   case ISD::SRL:
     return LowerShift(Op, DAG);
+  case ISD::FP_TO_SINT_SAT:
+  case ISD::FP_TO_UINT_SAT:
+    return LowerFP_TO_INT_SAT(Op, DAG);
   }
 }
 
@@ -1611,8 +1623,8 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
   // TODO: Tune this. For example, lanewise swizzling is very expensive, so
   // swizzled lanes should be given greater weight.
 
-  // TODO: Investigate building vectors by shuffling together vectors built by
-  // separately specialized means.
+  // TODO: Investigate looping rather than always extracting/replacing specific
+  // lanes to fill gaps.
 
   auto IsConstant = [](const SDValue &V) {
     return V.getOpcode() == ISD::Constant || V.getOpcode() == ISD::ConstantFP;
@@ -1643,11 +1655,29 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
     return std::make_pair(SwizzleSrc, SwizzleIndices);
   };
 
+  // If the lane is extracted from another vector at a constant index, return
+  // that vector. The source vector must not have more lanes than the dest
+  // because the shufflevector indices are in terms of the destination lanes and
+  // would not be able to address the smaller individual source lanes.
+  auto GetShuffleSrc = [&](const SDValue &Lane) {
+    if (Lane->getOpcode() != ISD::EXTRACT_VECTOR_ELT)
+      return SDValue();
+    if (!isa<ConstantSDNode>(Lane->getOperand(1).getNode()))
+      return SDValue();
+    if (Lane->getOperand(0).getValueType().getVectorNumElements() >
+        VecT.getVectorNumElements())
+      return SDValue();
+    return Lane->getOperand(0);
+  };
+
   using ValueEntry = std::pair<SDValue, size_t>;
   SmallVector<ValueEntry, 16> SplatValueCounts;
 
   using SwizzleEntry = std::pair<std::pair<SDValue, SDValue>, size_t>;
   SmallVector<SwizzleEntry, 16> SwizzleCounts;
+
+  using ShuffleEntry = std::pair<SDValue, size_t>;
+  SmallVector<ShuffleEntry, 16> ShuffleCounts;
 
   auto AddCount = [](auto &Counts, const auto &Val) {
     auto CountIt =
@@ -1677,9 +1707,11 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
 
     AddCount(SplatValueCounts, Lane);
 
-    if (IsConstant(Lane)) {
+    if (IsConstant(Lane))
       NumConstantLanes++;
-    } else if (CanSwizzle) {
+    if (auto ShuffleSrc = GetShuffleSrc(Lane))
+      AddCount(ShuffleCounts, ShuffleSrc);
+    if (CanSwizzle) {
       auto SwizzleSrcs = GetSwizzleSrcs(I, Lane);
       if (SwizzleSrcs.first)
         AddCount(SwizzleCounts, SwizzleSrcs);
@@ -1697,23 +1729,82 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
     std::forward_as_tuple(std::tie(SwizzleSrc, SwizzleIndices),
                           NumSwizzleLanes) = GetMostCommon(SwizzleCounts);
 
+  // Shuffles can draw from up to two vectors, so find the two most common
+  // sources.
+  SDValue ShuffleSrc1, ShuffleSrc2;
+  size_t NumShuffleLanes = 0;
+  if (ShuffleCounts.size()) {
+    std::tie(ShuffleSrc1, NumShuffleLanes) = GetMostCommon(ShuffleCounts);
+    ShuffleCounts.erase(std::remove_if(ShuffleCounts.begin(),
+                                       ShuffleCounts.end(),
+                                       [&](const auto &Pair) {
+                                         return Pair.first == ShuffleSrc1;
+                                       }),
+                        ShuffleCounts.end());
+  }
+  if (ShuffleCounts.size()) {
+    size_t AdditionalShuffleLanes;
+    std::tie(ShuffleSrc2, AdditionalShuffleLanes) =
+        GetMostCommon(ShuffleCounts);
+    NumShuffleLanes += AdditionalShuffleLanes;
+  }
+
   // Predicate returning true if the lane is properly initialized by the
   // original instruction
   std::function<bool(size_t, const SDValue &)> IsLaneConstructed;
   SDValue Result;
-  // Prefer swizzles over vector consts over splats
-  if (NumSwizzleLanes >= NumSplatLanes &&
-      (!Subtarget->hasUnimplementedSIMD128() ||
-       NumSwizzleLanes >= NumConstantLanes)) {
+  // Prefer swizzles over shuffles over vector consts over splats
+  if (NumSwizzleLanes >= NumShuffleLanes &&
+      NumSwizzleLanes >= NumConstantLanes && NumSwizzleLanes >= NumSplatLanes) {
     Result = DAG.getNode(WebAssemblyISD::SWIZZLE, DL, VecT, SwizzleSrc,
                          SwizzleIndices);
     auto Swizzled = std::make_pair(SwizzleSrc, SwizzleIndices);
     IsLaneConstructed = [&, Swizzled](size_t I, const SDValue &Lane) {
       return Swizzled == GetSwizzleSrcs(I, Lane);
     };
-  } else if (NumConstantLanes >= NumSplatLanes &&
-             Subtarget->hasUnimplementedSIMD128()) {
-    // If we support v128.const, emit it directly
+  } else if (NumShuffleLanes >= NumConstantLanes &&
+             NumShuffleLanes >= NumSplatLanes) {
+    size_t DestLaneSize = VecT.getVectorElementType().getFixedSizeInBits() / 8;
+    size_t DestLaneCount = VecT.getVectorNumElements();
+    size_t Scale1 = 1;
+    size_t Scale2 = 1;
+    SDValue Src1 = ShuffleSrc1;
+    SDValue Src2 = ShuffleSrc2 ? ShuffleSrc2 : DAG.getUNDEF(VecT);
+    if (Src1.getValueType() != VecT) {
+      size_t LaneSize =
+          Src1.getValueType().getVectorElementType().getFixedSizeInBits() / 8;
+      assert(LaneSize > DestLaneSize);
+      Scale1 = LaneSize / DestLaneSize;
+      Src1 = DAG.getBitcast(VecT, Src1);
+    }
+    if (Src2.getValueType() != VecT) {
+      size_t LaneSize =
+          Src2.getValueType().getVectorElementType().getFixedSizeInBits() / 8;
+      assert(LaneSize > DestLaneSize);
+      Scale2 = LaneSize / DestLaneSize;
+      Src2 = DAG.getBitcast(VecT, Src2);
+    }
+
+    int Mask[16];
+    assert(DestLaneCount <= 16);
+    for (size_t I = 0; I < DestLaneCount; ++I) {
+      const SDValue &Lane = Op->getOperand(I);
+      SDValue Src = GetShuffleSrc(Lane);
+      if (Src == ShuffleSrc1) {
+        Mask[I] = Lane->getConstantOperandVal(1) * Scale1;
+      } else if (Src && Src == ShuffleSrc2) {
+        Mask[I] = DestLaneCount + Lane->getConstantOperandVal(1) * Scale2;
+      } else {
+        Mask[I] = -1;
+      }
+    }
+    ArrayRef<int> MaskRef(Mask, DestLaneCount);
+    Result = DAG.getVectorShuffle(VecT, DL, Src1, Src2, MaskRef);
+    IsLaneConstructed = [&](size_t, const SDValue &Lane) {
+      auto Src = GetShuffleSrc(Lane);
+      return Src == ShuffleSrc1 || (Src && Src == ShuffleSrc2);
+    };
+  } else if (NumConstantLanes >= NumSplatLanes) {
     SmallVector<SDValue, 16> ConstLanes;
     for (const SDValue &Lane : Op->op_values()) {
       if (IsConstant(Lane)) {
@@ -1725,55 +1816,6 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
       }
     }
     Result = DAG.getBuildVector(VecT, DL, ConstLanes);
-    IsLaneConstructed = [&IsConstant](size_t _, const SDValue &Lane) {
-      return IsConstant(Lane);
-    };
-  } else if (NumConstantLanes >= NumSplatLanes && VecT.isInteger()) {
-    // Otherwise, if this is an integer vector, pack the lane values together so
-    // we can construct the 128-bit constant from a pair of i64s using a splat
-    // followed by at most one i64x2.replace_lane. Also keep track of the lanes
-    // that actually matter so we can avoid the replace_lane in more cases.
-    std::array<uint64_t, 2> I64s{{0, 0}};
-    std::array<uint64_t, 2> ConstLaneMasks{{0, 0}};
-    size_t LaneBits = 128 / Lanes;
-    size_t HalfLanes = Lanes / 2;
-    for (size_t I = 0; I < Lanes; ++I) {
-      const SDValue &Lane = Op.getOperand(I);
-      if (IsConstant(Lane)) {
-        // How much we need to shift Val to position it in an i64
-        auto Shift = LaneBits * (I % HalfLanes);
-        auto Mask = maskTrailingOnes<uint64_t>(LaneBits);
-        auto Val = cast<ConstantSDNode>(Lane.getNode())->getZExtValue() & Mask;
-        I64s[I / HalfLanes] |= Val << Shift;
-        ConstLaneMasks[I / HalfLanes] |= Mask << Shift;
-      }
-    }
-    // Check whether all constant lanes in the second half of the vector are
-    // equivalent in the first half or vice versa to determine whether splatting
-    // either side will be sufficient to materialize the constant. As a special
-    // case, if the first and second halves have no constant lanes in common, we
-    // can just combine them.
-    bool FirstHalfSufficient = (I64s[0] & ConstLaneMasks[1]) == I64s[1];
-    bool SecondHalfSufficient = (I64s[1] & ConstLaneMasks[0]) == I64s[0];
-    bool CombinedSufficient = (ConstLaneMasks[0] & ConstLaneMasks[1]) == 0;
-
-    uint64_t Splatted;
-    if (SecondHalfSufficient) {
-      Splatted = I64s[1];
-    } else if (CombinedSufficient) {
-      Splatted = I64s[0] | I64s[1];
-    } else {
-      Splatted = I64s[0];
-    }
-
-    Result = DAG.getSplatBuildVector(MVT::v2i64, DL,
-                                     DAG.getConstant(Splatted, DL, MVT::i64));
-    if (!FirstHalfSufficient && !SecondHalfSufficient && !CombinedSufficient) {
-      Result = DAG.getNode(ISD::INSERT_VECTOR_ELT, DL, MVT::v2i64, Result,
-                           DAG.getConstant(I64s[1], DL, MVT::i64),
-                           DAG.getConstant(1, DL, MVT::i32));
-    }
-    Result = DAG.getBitcast(VecT, Result);
     IsLaneConstructed = [&IsConstant](size_t _, const SDValue &Lane) {
       return IsConstant(Lane);
     };
@@ -1839,11 +1881,8 @@ WebAssemblyTargetLowering::LowerVECTOR_SHUFFLE(SDValue Op,
 SDValue WebAssemblyTargetLowering::LowerSETCC(SDValue Op,
                                               SelectionDAG &DAG) const {
   SDLoc DL(Op);
-  // The legalizer does not know how to expand the comparison modes of i64x2
-  // vectors because no comparison modes are supported. We could solve this by
-  // expanding all i64x2 SETCC nodes, but that seems to expand f64x2 SETCC nodes
-  // (which return i64x2 results) as well. So instead we manually unroll i64x2
-  // comparisons here.
+  // The legalizer does not know how to expand the unsupported comparison modes
+  // of i64x2 vectors, so we manually unroll them here.
   assert(Op->getOperand(0)->getSimpleValueType(0) == MVT::v2i64);
   SmallVector<SDValue, 2> LHS, RHS;
   DAG.ExtractVectorElements(Op->getOperand(0), LHS);
@@ -1930,6 +1969,21 @@ SDValue WebAssemblyTargetLowering::LowerShift(SDValue Op,
   return DAG.getNode(Opcode, DL, Op.getValueType(), Op.getOperand(0), ShiftVal);
 }
 
+SDValue WebAssemblyTargetLowering::LowerFP_TO_INT_SAT(SDValue Op,
+                                                      SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  EVT ResT = Op.getValueType();
+  uint64_t Width = Op.getConstantOperandVal(1);
+
+  if ((ResT == MVT::i32 || ResT == MVT::i64) && (Width == 32 || Width == 64))
+    return Op;
+
+  if (ResT == MVT::v4i32 && Width == 32)
+    return Op;
+
+  return SDValue();
+}
+
 //===----------------------------------------------------------------------===//
 //   Custom DAG combine hooks
 //===----------------------------------------------------------------------===//
@@ -1958,8 +2012,8 @@ performVECTOR_SHUFFLECombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
   return DAG.getBitcast(DstType, NewShuffle);
 }
 
-static SDValue performVectorWidenCombine(SDNode *N,
-                                         TargetLowering::DAGCombinerInfo &DCI) {
+static SDValue
+performVectorExtendCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
   auto &DAG = DCI.DAG;
   assert(N->getOpcode() == ISD::SIGN_EXTEND ||
          N->getOpcode() == ISD::ZERO_EXTEND);
@@ -1975,8 +2029,8 @@ static SDValue performVectorWidenCombine(SDNode *N,
     return SDValue();
   auto Index = IndexNode->getZExtValue();
 
-  // Only v8i8 and v4i16 extracts can be widened, and only if the extracted
-  // subvector is the low or high half of its source.
+  // Only v8i8, v4i16, and v2i32 extracts can be widened, and only if the
+  // extracted subvector is the low or high half of its source.
   EVT ResVT = N->getValueType(0);
   if (ResVT == MVT::v8i16) {
     if (Extract.getValueType() != MVT::v8i8 ||
@@ -1986,6 +2040,10 @@ static SDValue performVectorWidenCombine(SDNode *N,
     if (Extract.getValueType() != MVT::v4i16 ||
         Source.getValueType() != MVT::v8i16 || (Index != 0 && Index != 4))
       return SDValue();
+  } else if (ResVT == MVT::v2i64) {
+    if (Extract.getValueType() != MVT::v2i32 ||
+        Source.getValueType() != MVT::v4i32 || (Index != 0 && Index != 2))
+      return SDValue();
   } else {
     return SDValue();
   }
@@ -1993,10 +2051,118 @@ static SDValue performVectorWidenCombine(SDNode *N,
   bool IsSext = N->getOpcode() == ISD::SIGN_EXTEND;
   bool IsLow = Index == 0;
 
-  unsigned Op = IsSext ? (IsLow ? WebAssemblyISD::WIDEN_LOW_S
-                                : WebAssemblyISD::WIDEN_HIGH_S)
-                       : (IsLow ? WebAssemblyISD::WIDEN_LOW_U
-                                : WebAssemblyISD::WIDEN_HIGH_U);
+  unsigned Op = IsSext ? (IsLow ? WebAssemblyISD::EXTEND_LOW_S
+                                : WebAssemblyISD::EXTEND_HIGH_S)
+                       : (IsLow ? WebAssemblyISD::EXTEND_LOW_U
+                                : WebAssemblyISD::EXTEND_HIGH_U);
+
+  return DAG.getNode(Op, SDLoc(N), ResVT, Source);
+}
+
+static SDValue
+performVectorConvertLowCombine(SDNode *N,
+                               TargetLowering::DAGCombinerInfo &DCI) {
+  auto &DAG = DCI.DAG;
+
+  EVT ResVT = N->getValueType(0);
+  if (ResVT != MVT::v2f64)
+    return SDValue();
+
+  if (N->getOpcode() == ISD::SINT_TO_FP || N->getOpcode() == ISD::UINT_TO_FP) {
+    // Combine this:
+    //
+    //   (v2f64 ({s,u}int_to_fp
+    //     (v2i32 (extract_subvector (v4i32 $x), 0))))
+    //
+    // into (f64x2.convert_low_i32x4_{s,u} $x).
+    auto Extract = N->getOperand(0);
+    if (Extract.getOpcode() != ISD::EXTRACT_SUBVECTOR)
+      return SDValue();
+    if (Extract.getValueType() != MVT::v2i32)
+      return SDValue();
+    auto Source = Extract.getOperand(0);
+    if (Source.getValueType() != MVT::v4i32)
+      return SDValue();
+    auto *IndexNode = dyn_cast<ConstantSDNode>(Extract.getOperand(1));
+    if (IndexNode == nullptr || IndexNode->getZExtValue() != 0)
+      return SDValue();
+
+    unsigned Op = N->getOpcode() == ISD::SINT_TO_FP
+                      ? WebAssemblyISD::CONVERT_LOW_S
+                      : WebAssemblyISD::CONVERT_LOW_U;
+
+    return DAG.getNode(Op, SDLoc(N), ResVT, Source);
+
+  } else if (N->getOpcode() == ISD::EXTRACT_SUBVECTOR) {
+    // Combine this:
+    //
+    //   (v2f64 (extract_subvector
+    //     (v4f64 ({s,u}int_to_fp (v4i32 $x))), 0))
+    //
+    // into (f64x2.convert_low_i32x4_{s,u} $x).
+    auto IntToFP = N->getOperand(0);
+    if (IntToFP.getOpcode() != ISD::SINT_TO_FP &&
+        IntToFP.getOpcode() != ISD::UINT_TO_FP)
+      return SDValue();
+    if (IntToFP.getValueType() != MVT::v4f64)
+      return SDValue();
+    auto Source = IntToFP.getOperand(0);
+    if (Source.getValueType() != MVT::v4i32)
+      return SDValue();
+    auto IndexNode = dyn_cast<ConstantSDNode>(N->getOperand(1));
+    if (IndexNode == nullptr || IndexNode->getZExtValue() != 0)
+      return SDValue();
+
+    unsigned Op = IntToFP->getOpcode() == ISD::SINT_TO_FP
+                      ? WebAssemblyISD::CONVERT_LOW_S
+                      : WebAssemblyISD::CONVERT_LOW_U;
+
+    return DAG.getNode(Op, SDLoc(N), ResVT, Source);
+
+  } else {
+    llvm_unreachable("unexpected opcode");
+  }
+}
+
+static SDValue
+performVectorTruncSatLowCombine(SDNode *N,
+                                TargetLowering::DAGCombinerInfo &DCI) {
+  auto &DAG = DCI.DAG;
+  assert(N->getOpcode() == ISD::CONCAT_VECTORS);
+
+  // Combine this:
+  //
+  //   (concat_vectors (v2i32 (fp_to_{s,u}int_sat $x, 32)), (v2i32 (splat 0)))
+  //
+  // into (i32x4.trunc_sat_f64x2_zero_{s,u} $x).
+  EVT ResVT = N->getValueType(0);
+  if (ResVT != MVT::v4i32)
+    return SDValue();
+
+  auto FPToInt = N->getOperand(0);
+  auto FPToIntOp = FPToInt.getOpcode();
+  if (FPToIntOp != ISD::FP_TO_SINT_SAT && FPToIntOp != ISD::FP_TO_UINT_SAT)
+    return SDValue();
+  if (FPToInt.getConstantOperandVal(1) != 32)
+    return SDValue();
+
+  auto Source = FPToInt.getOperand(0);
+  if (Source.getValueType() != MVT::v2f64)
+    return SDValue();
+
+  auto *Splat = dyn_cast<BuildVectorSDNode>(N->getOperand(1));
+  APInt SplatValue, SplatUndef;
+  unsigned SplatBitSize;
+  bool HasAnyUndefs;
+  if (!Splat || !Splat->isConstantSplat(SplatValue, SplatUndef, SplatBitSize,
+                                        HasAnyUndefs))
+    return SDValue();
+  if (SplatValue != 0)
+    return SDValue();
+
+  unsigned Op = FPToIntOp == ISD::FP_TO_SINT_SAT
+                    ? WebAssemblyISD::TRUNC_SAT_ZERO_S
+                    : WebAssemblyISD::TRUNC_SAT_ZERO_U;
 
   return DAG.getNode(Op, SDLoc(N), ResVT, Source);
 }
@@ -2011,6 +2177,12 @@ WebAssemblyTargetLowering::PerformDAGCombine(SDNode *N,
     return performVECTOR_SHUFFLECombine(N, DCI);
   case ISD::SIGN_EXTEND:
   case ISD::ZERO_EXTEND:
-    return performVectorWidenCombine(N, DCI);
+    return performVectorExtendCombine(N, DCI);
+  case ISD::SINT_TO_FP:
+  case ISD::UINT_TO_FP:
+  case ISD::EXTRACT_SUBVECTOR:
+    return performVectorConvertLowCombine(N, DCI);
+  case ISD::CONCAT_VECTORS:
+    return performVectorTruncSatLowCombine(N, DCI);
   }
 }

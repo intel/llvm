@@ -211,7 +211,7 @@ std::list<SourceName> OrderParameterNames(const Symbol &);
 
 // Return an existing or new derived type instance
 const DeclTypeSpec &FindOrInstantiateDerivedType(Scope &, DerivedTypeSpec &&,
-    SemanticsContext &, DeclTypeSpec::Category = DeclTypeSpec::TypeDerived);
+    DeclTypeSpec::Category = DeclTypeSpec::TypeDerived);
 
 // When a subprogram defined in a submodule defines a separate module
 // procedure whose interface is defined in an ancestor (sub)module,
@@ -257,9 +257,13 @@ bool ExprTypeKindIsDefault(
     const SomeExpr &expr, const SemanticsContext &context);
 
 struct GetExprHelper {
+  // Specializations for parse tree nodes that have a typedExpr member.
   static const SomeExpr *Get(const parser::Expr &);
   static const SomeExpr *Get(const parser::Variable &);
   static const SomeExpr *Get(const parser::DataStmtConstant &);
+  static const SomeExpr *Get(const parser::AllocateObject &);
+  static const SomeExpr *Get(const parser::PointerObject &);
+
   template <typename T>
   static const SomeExpr *Get(const common::Indirection<T> &x) {
     return Get(x.value());
@@ -268,6 +272,8 @@ struct GetExprHelper {
     return x ? Get(*x) : nullptr;
   }
   template <typename T> static const SomeExpr *Get(const T &x) {
+    static_assert(
+        !parser::HasTypedExpr<T>::value, "explicit Get overload must be added");
     if constexpr (ConstraintTrait<T>) {
       return Get(x.thing);
     } else if constexpr (WrapperTrait<T>) {

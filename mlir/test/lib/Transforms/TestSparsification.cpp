@@ -17,7 +17,7 @@ using namespace mlir;
 namespace {
 
 struct TestSparsification
-    : public PassWrapper<TestSparsification, FunctionPass> {
+    : public PassWrapper<TestSparsification, OperationPass<ModuleOp>> {
 
   TestSparsification() = default;
   TestSparsification(const TestSparsification &pass) {}
@@ -50,8 +50,8 @@ struct TestSparsification
 
   /// Registers all dialects required by testing.
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<scf::SCFDialect, vector::VectorDialect, LLVM::LLVMDialect>();
+    registry.insert<memref::MemRefDialect, scf::SCFDialect,
+                    vector::VectorDialect, LLVM::LLVMDialect>();
   }
 
   /// Returns parallelization strategy given on command line.
@@ -99,27 +99,27 @@ struct TestSparsification
   }
 
   /// Runs the test on a function.
-  void runOnFunction() override {
+  void runOnOperation() override {
     auto *ctx = &getContext();
-    OwningRewritePatternList patterns;
+    RewritePatternSet patterns(ctx);
     // Translate strategy flags to strategy options.
     linalg::SparsificationOptions options(parallelOption(), vectorOption(),
                                           vectorLength, typeOption(ptrType),
                                           typeOption(indType), fastOutput);
     // Apply rewriting.
-    linalg::populateSparsificationPatterns(ctx, patterns, options);
-    vector::populateVectorToVectorCanonicalizationPatterns(patterns, ctx);
-    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    linalg::populateSparsificationPatterns(patterns, options);
+    vector::populateVectorToVectorCanonicalizationPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
     // Lower sparse primitives to calls into runtime support library.
     if (lower) {
-      OwningRewritePatternList conversionPatterns;
+      RewritePatternSet conversionPatterns(ctx);
       ConversionTarget target(*ctx);
       target.addIllegalOp<linalg::SparseTensorFromPointerOp,
                           linalg::SparseTensorToPointersMemRefOp,
                           linalg::SparseTensorToIndicesMemRefOp,
                           linalg::SparseTensorToValuesMemRefOp>();
       target.addLegalOp<CallOp>();
-      linalg::populateSparsificationConversionPatterns(ctx, conversionPatterns);
+      linalg::populateSparsificationConversionPatterns(conversionPatterns);
       if (failed(applyPartialConversion(getOperation(), target,
                                         std::move(conversionPatterns))))
         signalPassFailure();
@@ -134,8 +134,7 @@ namespace test {
 
 void registerTestSparsification() {
   PassRegistration<TestSparsification> sparsificationPass(
-      "test-sparsification",
-      "Test automatic generation of sparse tensor code");
+      "test-sparsification", "Test automatic generation of sparse tensor code");
 }
 
 } // namespace test

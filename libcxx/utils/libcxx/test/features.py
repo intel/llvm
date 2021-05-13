@@ -14,6 +14,8 @@ import sys
 _isClang      = lambda cfg: '__clang__' in compilerMacros(cfg) and '__apple_build_version__' not in compilerMacros(cfg)
 _isAppleClang = lambda cfg: '__apple_build_version__' in compilerMacros(cfg)
 _isGCC        = lambda cfg: '__GNUC__' in compilerMacros(cfg) and '__clang__' not in compilerMacros(cfg)
+_isMSVC       = lambda cfg: '_MSC_VER' in compilerMacros(cfg)
+_msvcVersion  = lambda cfg: (int(compilerMacros(cfg)['_MSC_VER']) // 100, int(compilerMacros(cfg)['_MSC_VER']) % 100)
 
 DEFAULT_FEATURES = [
   Feature(name='fcoroutines-ts',
@@ -36,7 +38,7 @@ DEFAULT_FEATURES = [
   Feature(name='libcpp-no-if-constexpr',        when=lambda cfg: '__cpp_if_constexpr' not in featureTestMacros(cfg)),
   Feature(name='libcpp-no-structured-bindings', when=lambda cfg: '__cpp_structured_bindings' not in featureTestMacros(cfg)),
   Feature(name='libcpp-no-deduction-guides',    when=lambda cfg: featureTestMacros(cfg).get('__cpp_deduction_guides', 0) < 201611),
-  Feature(name='libcpp-no-concepts',            when=lambda cfg: featureTestMacros(cfg).get('__cpp_concepts', 0) < 201811),
+  Feature(name='libcpp-no-concepts',            when=lambda cfg: featureTestMacros(cfg).get('__cpp_concepts', 0) < 201907),
   Feature(name='has-fobjc-arc',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc') and
                                                                  sys.platform.lower().strip() == 'darwin'), # TODO: this doesn't handle cross-compiling to Apple platforms.
   Feature(name='objective-c++',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc')),
@@ -81,6 +83,10 @@ DEFAULT_FEATURES = [
   Feature(name=lambda cfg: 'gcc-{__GNUC__}'.format(**compilerMacros(cfg)),                                                         when=_isGCC),
   Feature(name=lambda cfg: 'gcc-{__GNUC__}.{__GNUC_MINOR__}'.format(**compilerMacros(cfg)),                                        when=_isGCC),
   Feature(name=lambda cfg: 'gcc-{__GNUC__}.{__GNUC_MINOR__}.{__GNUC_PATCHLEVEL__}'.format(**compilerMacros(cfg)),                  when=_isGCC),
+
+  Feature(name='msvc',                                                                                                             when=_isMSVC),
+  Feature(name=lambda cfg: 'msvc-{}'.format(*_msvcVersion(cfg)),                                                                   when=_isMSVC),
+  Feature(name=lambda cfg: 'msvc-{}.{}'.format(*_msvcVersion(cfg)),                                                                when=_isMSVC),
 ]
 
 # Deduce and add the test features that that are implied by the #defines in

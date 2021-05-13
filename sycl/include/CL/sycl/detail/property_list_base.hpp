@@ -62,7 +62,7 @@ protected:
       std::is_base_of<DataLessPropertyBase, PropT>::value, bool>
   has_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
-    if (PropKind >= detail::DataLessPropKind::DataLessPropKindSize)
+    if (PropKind > detail::DataLessPropKind::LastKnownDataLessPropKind)
       return false;
     return MDataLessProps[PropKind];
   }

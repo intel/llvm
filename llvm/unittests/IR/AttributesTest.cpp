@@ -180,11 +180,41 @@ TEST(Attributes, StringRepresentation) {
   Attribute A = Attribute::getWithByValType(C, Ty);
   EXPECT_EQ(A.getAsString(), "byval(%mystruct)");
 
-  A = Attribute::getWithByValType(C, nullptr);
-  EXPECT_EQ(A.getAsString(), "byval");
-
   A = Attribute::getWithByValType(C, Type::getInt32Ty(C));
   EXPECT_EQ(A.getAsString(), "byval(i32)");
+}
+
+TEST(Attributes, HasParentContext) {
+  LLVMContext C1, C2;
+
+  {
+    Attribute Attr1 = Attribute::get(C1, Attribute::AlwaysInline);
+    Attribute Attr2 = Attribute::get(C2, Attribute::AlwaysInline);
+    EXPECT_TRUE(Attr1.hasParentContext(C1));
+    EXPECT_FALSE(Attr1.hasParentContext(C2));
+    EXPECT_FALSE(Attr2.hasParentContext(C1));
+    EXPECT_TRUE(Attr2.hasParentContext(C2));
+  }
+
+  {
+    AttributeSet AS1 = AttributeSet::get(
+        C1, makeArrayRef(Attribute::get(C1, Attribute::NoReturn)));
+    AttributeSet AS2 = AttributeSet::get(
+        C2, makeArrayRef(Attribute::get(C2, Attribute::NoReturn)));
+    EXPECT_TRUE(AS1.hasParentContext(C1));
+    EXPECT_FALSE(AS1.hasParentContext(C2));
+    EXPECT_FALSE(AS2.hasParentContext(C1));
+    EXPECT_TRUE(AS2.hasParentContext(C2));
+  }
+
+  {
+    AttributeList AL1 = AttributeList::get(C1, 1, Attribute::ZExt);
+    AttributeList AL2 = AttributeList::get(C2, 1, Attribute::ZExt);
+    EXPECT_TRUE(AL1.hasParentContext(C1));
+    EXPECT_FALSE(AL1.hasParentContext(C2));
+    EXPECT_FALSE(AL2.hasParentContext(C1));
+    EXPECT_TRUE(AL2.hasParentContext(C2));
+  }
 }
 
 } // end anonymous namespace

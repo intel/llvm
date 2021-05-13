@@ -184,47 +184,24 @@ class VOP3_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR> : VOPProf
   let IsPacked = !if(Features.IsPacked, 1, P.IsPacked);
 
   let HasModifiers = !if(Features.IsMAI, 0, !or(Features.IsPacked, P.HasModifiers));
-
-  // FIXME: Hack to stop printing _e64
-  let Outs64 = (outs DstRC.RegClass:$vdst);
-  let Asm64 =
-    " " # !if(Features.HasOpSel,
-              getAsmVOP3OpSel<NumSrcArgs,
-                              HasIntClamp,
-                              P.HasOMod,
-                              HasSrc0FloatMods,
-                              HasSrc1FloatMods,
-                              HasSrc2FloatMods>.ret,
-              !if(Features.HasClamp,
-                  getAsm64<HasDst, NumSrcArgs, HasIntClamp,
-                           HasModifiers, HasOMod, DstVT>.ret,
-                  P.Asm64));
-  let NeedPatGen = P.NeedPatGen;
+  let IsSingle = 1;
 }
 
 class VOP3b_Profile<ValueType vt> : VOPProfile<[vt, vt, vt, vt]> {
   let Outs64 = (outs DstRC:$vdst, VOPDstS64orS32:$sdst);
-  let Asm64 = " $vdst, $sdst, $src0_modifiers, $src1_modifiers, $src2_modifiers$clamp$omod";
+  let Asm64 = "$vdst, $sdst, $src0_modifiers, $src1_modifiers, $src2_modifiers$clamp$omod";
+  let IsSingle = 1;
 }
 
-def VOP3b_F32_I1_F32_F32_F32 : VOP3b_Profile<f32> {
-  // FIXME: Hack to stop printing _e64
-  let DstRC = RegisterOperand<VGPR_32>;
-}
-
-def VOP3b_F64_I1_F64_F64_F64 : VOP3b_Profile<f64> {
-  // FIXME: Hack to stop printing _e64
-  let DstRC = RegisterOperand<VReg_64>;
-}
+def VOP3b_F32_I1_F32_F32_F32 : VOP3b_Profile<f32>;
+def VOP3b_F64_I1_F64_F64_F64 : VOP3b_Profile<f64>;
 
 def VOP3b_I64_I1_I32_I32_I64 : VOPProfile<[i64, i32, i32, i64]> {
   let HasClamp = 1;
-
-  // FIXME: Hack to stop printing _e64
-  let DstRC = RegisterOperand<VReg_64>;
+  let IsSingle = 1;
 
   let Outs64 = (outs DstRC:$vdst, VOPDstS64orS32:$sdst);
-  let Asm64 = " $vdst, $sdst, $src0, $src1, $src2$clamp";
+  let Asm64 = "$vdst, $sdst, $src0, $src1, $src2$clamp";
 }
 
 //===----------------------------------------------------------------------===//
@@ -325,12 +302,12 @@ defm V_MIN_F64 : VOP3Inst <"v_min_f64", VOP3_Profile<VOP_F64_F64_F64>, fminnum_l
 defm V_MAX_F64 : VOP3Inst <"v_max_f64", VOP3_Profile<VOP_F64_F64_F64>, fmaxnum_like, 1>;
 } // End SchedRW = [WriteDoubleAdd]
 
-let SchedRW = [WriteQuarterRate32] in {
+let SchedRW = [WriteIntMul] in {
 defm V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>, mul>;
 defm V_MUL_HI_U32 : VOP3Inst <"v_mul_hi_u32", VOP3_Profile<VOP_I32_I32_I32>, mulhu>;
 defm V_MUL_LO_I32 : VOP3Inst <"v_mul_lo_i32", VOP3_Profile<VOP_I32_I32_I32>>;
 defm V_MUL_HI_I32 : VOP3Inst <"v_mul_hi_i32", VOP3_Profile<VOP_I32_I32_I32>, mulhs>;
-} // End SchedRW = [WriteQuarterRate32]
+} // End SchedRW = [WriteIntMul]
 
 let Uses = [MODE, VCC, EXEC] in {
 // v_div_fmas_f32:
@@ -447,10 +424,10 @@ defm V_MQSAD_U32_U8 : VOP3Inst <"v_mqsad_u32_u8", VOP3_Profile<VOP_V4I32_I64_I32
 } // End Constraints = "@earlyclobber $vdst", SchedRW = [WriteQuarterRate32]
 
 let isCommutable = 1 in {
-let SchedRW = [WriteQuarterRate32, WriteSALU] in {
+let SchedRW = [WriteIntMul, WriteSALU] in {
 defm V_MAD_U64_U32 : VOP3Inst <"v_mad_u64_u32", VOP3b_I64_I1_I32_I32_I64>;
 defm V_MAD_I64_I32 : VOP3Inst <"v_mad_i64_i32", VOP3b_I64_I1_I32_I32_I64>;
-} // End SchedRW = [WriteQuarterRate32, WriteSALU]
+} // End SchedRW = [WriteIntMul, WriteSALU]
 } // End isCommutable = 1
 
 } // End SubtargetPredicate = isGFX7Plus
@@ -476,6 +453,7 @@ let renamedInGFX9 = 1 in {
   let FPDPRounding = 1 in {
     defm V_MAD_F16 : VOP3Inst <"v_mad_f16", VOP3_Profile<VOP_F16_F16_F16_F16>, fmad>;
     let Uses = [MODE, M0, EXEC] in {
+    let OtherPredicates = [isNotGFX90APlus] in
     // For some reason the intrinsic operands are in a different order
     // from the instruction operands.
     def V_INTERP_P2_F16 : VOP3Interp <"v_interp_p2_f16", VOP3_INTERP16<[f16, f32, i32, f32]>,
@@ -497,24 +475,24 @@ let SubtargetPredicate = isGFX9Only, FPDPRounding = 1 in {
 let SubtargetPredicate = isGFX9Plus in {
 defm V_MAD_U16_gfx9   : VOP3Inst <"v_mad_u16_gfx9", VOP3_Profile<VOP_I16_I16_I16_I16, VOP3_OPSEL>>;
 defm V_MAD_I16_gfx9   : VOP3Inst <"v_mad_i16_gfx9", VOP3_Profile<VOP_I16_I16_I16_I16, VOP3_OPSEL>>;
+let OtherPredicates = [isNotGFX90APlus] in
 def V_INTERP_P2_F16_gfx9 : VOP3Interp <"v_interp_p2_f16_gfx9", VOP3_INTERP16<[f16, f32, i32, f32]>>;
 } // End SubtargetPredicate = isGFX9Plus
 
-let Uses = [MODE, M0, EXEC], FPDPRounding = 1 in {
+// This predicate should only apply to the selection pattern. The
+// instruction still exists and should decode on subtargets with
+// other bank counts.
+let OtherPredicates = [isNotGFX90APlus, has32BankLDS], Uses = [MODE, M0, EXEC], FPDPRounding = 1 in {
 def V_INTERP_P1LL_F16 : VOP3Interp <"v_interp_p1ll_f16", VOP3_INTERP16<[f32, f32, i32, untyped]>,
        [(set f32:$vdst, (int_amdgcn_interp_p1_f16 (VOP3Mods f32:$src0, i32:$src0_modifiers),
                                                   (i32 timm:$attrchan),
                                                   (i32 timm:$attr),
-                                                  (i1 timm:$high), M0))]> {
-  // This predicate should only apply to the selection pattern. The
-  // instruction still exists and should decode on subtargets with
-  // other bank counts.
-  let OtherPredicates = [has32BankLDS];
-}
+                                                  (i1 timm:$high), M0))]>;
+} // End OtherPredicates = [isNotGFX90APlus, has32BankLDS], Uses = [MODE, M0, EXEC], FPDPRounding = 1
 
-
+let OtherPredicates = [isNotGFX90APlus], Uses = [MODE, M0, EXEC], FPDPRounding = 1 in {
 def V_INTERP_P1LV_F16 : VOP3Interp <"v_interp_p1lv_f16", VOP3_INTERP16<[f32, f32, i32, f16]>>;
-} // End Uses = [MODE, M0, EXEC], FPDPRounding = 1
+} // End OtherPredicates = [isNotGFX90APlus], Uses = [MODE, M0, EXEC], FPDPRounding = 1
 
 } // End SubtargetPredicate = Has16BitInsts, isCommutable = 1
 
@@ -527,11 +505,11 @@ def : GCNPat<
       ), VGPR_32)), sub1)
 >;
 
-let SubtargetPredicate = isGFX8Plus, Uses = [MODE, M0, EXEC] in {
+let SubtargetPredicate = isGFX8Plus, Uses = [MODE, M0, EXEC], OtherPredicates = [isNotGFX90APlus] in {
 def V_INTERP_P1_F32_e64  : VOP3Interp <"v_interp_p1_f32", VOP3_INTERP>;
 def V_INTERP_P2_F32_e64  : VOP3Interp <"v_interp_p2_f32", VOP3_INTERP>;
 def V_INTERP_MOV_F32_e64 : VOP3Interp <"v_interp_mov_f32", VOP3_INTERP_MOV>;
-} // End SubtargetPredicate = isGFX8Plus, Uses = [MODE, M0, EXEC]
+} // End SubtargetPredicate = isGFX8Plus, Uses = [MODE, M0, EXEC], OtherPredicates = [isNotGFX90APlus]
 
 let Predicates = [Has16BitInsts, isGFX6GFX7GFX8GFX9] in {
 
@@ -833,6 +811,7 @@ let AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10" in {
       VOP3e_gfx10<op, !cast<VOP3_Pseudo>(opName#"_e64").Pfl> {
         VOP3_Pseudo ps = !cast<VOP3_Pseudo>(opName#"_e64");
         let AsmString = asmName # ps.AsmOperands;
+        let IsSingle = 1;
       }
   }
   multiclass VOP3be_Real_gfx10<bits<10> op> {

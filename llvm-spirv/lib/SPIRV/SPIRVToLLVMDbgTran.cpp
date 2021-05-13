@@ -46,12 +46,21 @@
 
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/ADT/StringExtras.h"
 
 using namespace std;
 using namespace SPIRVDebug::Operand;
 
 namespace SPIRV {
 
+static uint64_t getDerivedSizeInBits(const DIType *Ty) {
+  if (auto Size = Ty->getSizeInBits())
+    return Size;
+  if (auto *DT = llvm::dyn_cast<const llvm::DIDerivedType>(Ty))
+    if (auto *BT = llvm::dyn_cast<const llvm::DIType>(DT->getRawBaseType()))
+      return getDerivedSizeInBits(BT);
+  return 0;
+}
 SPIRVToLLVMDbgTran::SPIRVToLLVMDbgTran(SPIRVModule *TBM, Module *TM,
                                        SPIRVToLLVM *Reader)
     : BM(TBM), M(TM), Builder(*M), SPIRVReader(Reader) {
@@ -65,11 +74,13 @@ void SPIRVToLLVMDbgTran::addDbgInfoVersion() {
                    DEBUG_METADATA_VERSION);
 }
 
-DIFile *SPIRVToLLVMDbgTran::getDIFile(const string &FileName) {
+DIFile *
+SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
+                              Optional<DIFile::ChecksumInfo<StringRef>> CS) {
   return getOrInsert(FileMap, FileName, [=]() {
     SplitFileName Split(FileName);
     if (!Split.BaseName.empty())
-      return Builder.createFile(Split.BaseName, Split.Path);
+      return Builder.createFile(Split.BaseName, Split.Path, CS);
     return static_cast<DIFile *>(nullptr);
   });
 }
@@ -191,13 +202,17 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
   size_t TotalCount = 1;
   SmallVector<llvm::Metadata *, 8> Subscripts;
   for (size_t I = ComponentCountIdx, E = Ops.size(); I < E; ++I) {
+    if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[I])) {
+      Subscripts.push_back(Builder.getOrCreateSubrange(1, nullptr));
+      continue;
+    }
     SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
     int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
     Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
     TotalCount *= static_cast<uint64_t>(Count);
   }
   DINodeArray SubscriptArray = Builder.getOrCreateArray(Subscripts);
-  size_t Size = BaseTy->getSizeInBits() * TotalCount;
+  size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
   return Builder.createArrayType(Size, 0 /*align*/, BaseTy, SubscriptArray);
 }
 
@@ -209,7 +224,7 @@ SPIRVToLLVMDbgTran::transTypeVector(const SPIRVExtInst *DebugInst) {
   DIType *BaseTy =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
   SPIRVWord Count = Ops[ComponentCountIdx];
-  uint64_t Size = BaseTy->getSizeInBits() * Count;
+  uint64_t Size = getDerivedSizeInBits(BaseTy) * Count;
 
   SmallVector<llvm::Metadata *, 8> Subscripts;
   Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
@@ -255,10 +270,12 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   DICompositeType *CT = nullptr;
   switch (Ops[TagIdx]) {
   case SPIRVDebug::Class:
-    CT = Builder.createClassType(
-        ParentScope, Name, File, LineNo, Size, Align, 0, Flags, DerivedFrom,
-        DINodeArray() /*elements*/, nullptr /*VTableHolder*/,
-        nullptr /*TemplateParams*/, Identifier);
+    // TODO: should be replaced with createClassType, when bug with creating
+    // ClassType with llvm::dwarf::DW_TAG_struct_type tag will be fixed
+    CT = Builder.createReplaceableCompositeType(
+        llvm::dwarf::DW_TAG_class_type, Name, ParentScope, File, LineNo, 0,
+        Size, Align, Flags, Identifier);
+    CT = llvm::MDNode::replaceWithDistinct(llvm::TempDICompositeType(CT));
     break;
   case SPIRVDebug::Structure:
     CT = Builder.createStructType(ParentScope, Name, File, LineNo, Size, Align,
@@ -602,7 +619,7 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     // replaceAllUsesWith call makes VarDecl non-temp.
     // Otherwise DIBuilder will crash at finalization.
     llvm::TempMDNode TMP(VarDecl);
-    Builder.replaceTemporary(std::move(TMP), VarDecl);
+    VarDecl = Builder.replaceTemporary(std::move(TMP), VarDecl);
   }
   // If the variable has no initializer Ops[VariableIdx] is OpDebugInfoNone.
   // Otherwise Ops[VariableIdx] may be a global variable or a constant(C++
@@ -757,6 +774,9 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
   DIFile *File = getFile(Ops[SourceIdx]);
   auto *Entity = transDebugInst<DINode>(BM->get<SPIRVExtInst>(Ops[EntityIdx]));
   if (Ops[TagIdx] == SPIRVDebug::ImportedModule) {
+    if (!Entity)
+      return Builder.createImportedModule(
+          Scope, static_cast<DIImportedEntity *>(nullptr), File, Line);
     if (DIImportedEntity *IE = dyn_cast<DIImportedEntity>(Entity))
       return Builder.createImportedModule(Scope, IE, File, Line);
     if (DINamespace *NS = dyn_cast<DINamespace>(Entity))
@@ -986,7 +1006,8 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
          "DebugSource instruction is expected");
   SPIRVWordVec SourceArgs = Source->getArguments();
   assert(SourceArgs.size() == OperandCount && "Invalid number of operands");
-  return getDIFile(getString(SourceArgs[FileIdx]));
+  StringRef Checksum(getString(SourceArgs[TextIdx]));
+  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(Checksum));
 }
 
 SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
@@ -998,6 +1019,25 @@ SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
     BaseName = FileName;
     Path = ".";
   }
+}
+
+Optional<DIFile::ChecksumInfo<StringRef>>
+SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
+  // Example of "Text" variable:
+  // "SomeInfo//__CSK_MD5:7bb56387968a9caa6e9e35fff94eaf7b:OtherInfo"
+  Optional<DIFile::ChecksumInfo<StringRef>> CS;
+  auto KindPos = Text.find(SPIRVDebug::ChecksumKindPrefx);
+  if (KindPos != StringRef::npos) {
+    auto ColonPos = Text.find(":", KindPos);
+    KindPos += string("//__").size();
+    auto KindStr = Text.substr(KindPos, ColonPos - KindPos);
+    auto Checksum = Text.substr(ColonPos).ltrim(':');
+    if (auto Kind = DIFile::getChecksumKind(KindStr)) {
+      size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
+      CS.emplace(Kind.getValue(), Checksum.substr(0, ChecksumEndPos));
+    }
+  }
+  return CS;
 }
 
 } // namespace SPIRV

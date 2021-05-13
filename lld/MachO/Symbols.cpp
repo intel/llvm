@@ -21,9 +21,7 @@ static std::string demangle(StringRef symName) {
   return std::string(symName);
 }
 
-std::string lld::toString(const Symbol &sym) {
-  return demangle(sym.getName());
-}
+std::string lld::toString(const Symbol &sym) { return demangle(sym.getName()); }
 
 std::string lld::toMachOString(const object::Archive::Symbol &b) {
   return demangle(b.getName());
@@ -45,9 +43,3 @@ uint64_t Defined::getFileOffset() const {
 }
 
 void LazySymbol::fetchArchiveMember() { getFile()->fetch(sym); }
-
-uint64_t DSOHandle::getVA() const { return header->addr; }
-
-uint64_t DSOHandle::getFileOffset() const { return header->fileOff; }
-
-constexpr StringRef DSOHandle::name;

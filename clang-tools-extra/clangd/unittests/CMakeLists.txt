@@ -55,6 +55,7 @@ add_unittest(ClangdUnitTests ClangdTests
   DraftStoreTests.cpp
   DumpASTTests.cpp
   ExpectedTypeTest.cpp
+  FeatureModulesTests.cpp
   FileDistanceTests.cpp
   FileIndexTests.cpp
   FindSymbolsTests.cpp
@@ -68,6 +69,7 @@ add_unittest(ClangdUnitTests ClangdTests
   HoverTests.cpp
   IndexActionTests.cpp
   IndexTests.cpp
+  InlayHintTests.cpp
   JSONTransportTests.cpp
   LoggerTests.cpp
   LSPBinderTests.cpp
@@ -105,6 +107,7 @@ add_unittest(ClangdUnitTests ClangdTests
   support/FunctionTests.cpp
   support/MarkupTests.cpp
   support/MemoryTreeTests.cpp
+  support/PathTests.cpp
   support/ThreadingTests.cpp
   support/TestTracer.cpp
   support/TraceTests.cpp

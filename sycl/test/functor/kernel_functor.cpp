@@ -3,6 +3,7 @@
 // RUN: %RUN_ON_HOST %t.out
 
 //==--- kernel_functor.cpp - Functors as SYCL kernel test ------------------==//
+// This test illustrates defining kernels as named function objects (functors)
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,9 +37,9 @@ private:
   int X;
   cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> Acc;
 };
-}
+} // namespace
 
-// Case 2:
+// Case 1:
 // - functor class is defined in a namespace
 // - the '()' operator:
 //   * does not have parameters (to be used in 'single_task').
@@ -60,7 +61,7 @@ private:
 };
 }
 
-// Case 3:
+// Case 2:
 // - functor class is templated and defined in the translation unit scope
 // - the '()' operator:
 //   * has a parameter of type cl::sycl::id<1> (to be used in 'parallel_for').
@@ -78,7 +79,7 @@ private:
   cl::sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> Acc;
 };
 
-// Case 4:
+// Case 3:
 // - functor class is templated and defined in the translation unit scope
 // - the '()' operator:
 //   * has a parameter of type cl::sycl::id<1> (to be used in 'parallel_for').
@@ -109,6 +110,7 @@ int foo(int X) {
 
       cgh.single_task(F);
     });
+
     Q.submit([&](cl::sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
       ns::Functor2 F(X, Acc);

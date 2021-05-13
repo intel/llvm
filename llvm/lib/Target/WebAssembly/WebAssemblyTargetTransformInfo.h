@@ -57,8 +57,8 @@ public:
   /// @{
 
   unsigned getNumberOfRegisters(unsigned ClassID) const;
-  unsigned getRegisterBitWidth(bool Vector) const;
-  unsigned getArithmeticInstrCost(
+  TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const;
+  InstructionCost getArithmeticInstrCost(
       unsigned Opcode, Type *Ty,
       TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
       TTI::OperandValueKind Opd1Info = TTI::OK_AnyValue,
@@ -67,7 +67,8 @@ public:
       TTI::OperandValueProperties Opd2PropInfo = TTI::OP_None,
       ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
       const Instruction *CxtI = nullptr);
-  unsigned getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
+  InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
+                                     unsigned Index);
 
   /// @}
 

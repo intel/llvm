@@ -14,17 +14,17 @@
 //
 // Debug and information messages are controlled by the environment variables
 // LIBOMPTARGET_DEBUG and LIBOMPTARGET_INFO which is set upon initialization
-// of libomptarget or the plugin RTL. 
+// of libomptarget or the plugin RTL.
 //
 // To printf a pointer in hex with a fixed width of 16 digits and a leading 0x,
 // use printf("ptr=" DPxMOD "...\n", DPxPTR(ptr));
-// 
+//
 // DPxMOD expands to:
 //   "0x%0*" PRIxPTR
 // where PRIxPTR expands to an appropriate modifier for the type uintptr_t on a
 // specific platform, e.g. "lu" if uintptr_t is typedef'd as unsigned long:
 //   "0x%0*lu"
-// 
+//
 // Ultimately, the whole statement expands to:
 //   printf("ptr=0x%0*lu...\n",  // the 0* modifier expects an extra argument
 //                               // specifying the width of the output
@@ -37,6 +37,7 @@
 #ifndef _OMPTARGET_DEBUG_H
 #define _OMPTARGET_DEBUG_H
 
+#include <atomic>
 #include <mutex>
 
 /// 32-Bit field data attributes controlling information presented to the user.
@@ -47,26 +48,39 @@ enum OpenMPInfoType : uint32_t {
   OMP_INFOTYPE_MAPPING_EXISTS = 0x0002,
   // Dump the contents of the device pointer map at kernel exit or failure.
   OMP_INFOTYPE_DUMP_TABLE = 0x0004,
+  // Indicate when an address is added to the device mapping table.
+  OMP_INFOTYPE_MAPPING_CHANGED = 0x0008,
   // Print kernel information from target device plugins.
   OMP_INFOTYPE_PLUGIN_KERNEL = 0x0010,
   // Enable every flag.
   OMP_INFOTYPE_ALL = 0xffffffff,
 };
 
+#define GCC_VERSION                                                            \
+  (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+
+#if !defined(__clang__) && defined(__GNUC__) && GCC_VERSION < 70100
+#define USED __attribute__((used))
+#else
+#define USED
+#endif
+
+// Interface to the InfoLevel variable defined by each library.
+extern std::atomic<uint32_t> InfoLevel;
+
 // Add __attribute__((used)) to work around a bug in gcc 5/6.
-static inline uint32_t __attribute__((used)) getInfoLevel() {
-  static uint32_t InfoLevel = 0;
+USED static inline uint32_t getInfoLevel() {
   static std::once_flag Flag{};
   std::call_once(Flag, []() {
     if (char *EnvStr = getenv("LIBOMPTARGET_INFO"))
-      InfoLevel = std::stoi(EnvStr);
+      InfoLevel.store(std::stoi(EnvStr));
   });
 
-  return InfoLevel;
+  return InfoLevel.load();
 }
 
 // Add __attribute__((used)) to work around a bug in gcc 5/6.
-static inline uint32_t __attribute__((used)) getDebugLevel() {
+USED static inline uint32_t getDebugLevel() {
   static uint32_t DebugLevel = 0;
   static std::once_flag Flag{};
   std::call_once(Flag, []() {
@@ -76,6 +90,9 @@ static inline uint32_t __attribute__((used)) getDebugLevel() {
 
   return DebugLevel;
 }
+
+#undef USED
+#undef GCC_VERSION
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS

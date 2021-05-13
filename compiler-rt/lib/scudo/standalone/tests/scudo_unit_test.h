@@ -10,8 +10,10 @@
 
 #if SCUDO_FUCHSIA
 #include <zxtest/zxtest.h>
+using Test = ::zxtest::Test;
 #else
 #include "gtest/gtest.h"
+using Test = ::testing::Test;
 #endif
 
 // If EXPECT_DEATH isn't defined, make it a no-op.

@@ -173,6 +173,10 @@ static cl::opt<bool> LexMasmHexFloats(
     "masm-hexfloats",
     cl::desc("Enable MASM-style hex float initializers (3F800000r)"));
 
+static cl::opt<bool> LexMotorolaIntegers(
+    "motorola-integers",
+    cl::desc("Enable binary and hex Motorola integers (%110 and $ABC)"));
+
 static cl::opt<bool> NoExecStack("no-exec-stack",
                                  cl::desc("File doesn't need an exec stack"));
 
@@ -305,6 +309,7 @@ static int AssembleInput(const char *ProgName, const Target *TheTarget,
   Parser->setTargetParser(*TAP);
   Parser->getLexer().setLexMasmIntegers(LexMasmIntegers);
   Parser->getLexer().setLexMasmHexFloats(LexMasmHexFloats);
+  Parser->getLexer().setLexMotorolaIntegers(LexMotorolaIntegers);
 
   int Res = Parser->Run(NoInitialTextSection);
 
@@ -338,7 +343,7 @@ int main(int argc, char **argv) {
   Triple TheTriple(TripleName);
 
   ErrorOr<std::unique_ptr<MemoryBuffer>> BufferPtr =
-      MemoryBuffer::getFileOrSTDIN(InputFilename);
+      MemoryBuffer::getFileOrSTDIN(InputFilename, /*IsText=*/true);
   if (std::error_code EC = BufferPtr.getError()) {
     WithColor::error(errs(), ProgName)
         << InputFilename << ": " << EC.message() << '\n';
@@ -447,8 +452,9 @@ int main(int argc, char **argv) {
     FeaturesStr = Features.getString();
   }
 
-  sys::fs::OpenFlags Flags = (FileType == OFT_AssemblyFile) ? sys::fs::OF_Text
-                                                            : sys::fs::OF_None;
+  sys::fs::OpenFlags Flags = (FileType == OFT_AssemblyFile)
+                                 ? sys::fs::OF_TextWithCRLF
+                                 : sys::fs::OF_None;
   std::unique_ptr<ToolOutputFile> Out = GetOutputStream(OutputFilename, Flags);
   if (!Out)
     return 1;

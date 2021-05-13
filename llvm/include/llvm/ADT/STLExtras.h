@@ -79,13 +79,6 @@ template <typename T> struct make_const_ref {
       typename std::add_const<T>::type>::type;
 };
 
-/// Utilities for detecting if a given trait holds for some set of arguments
-/// 'Args'. For example, the given trait could be used to detect if a given type
-/// has a copy assignment operator:
-///   template<class T>
-///   using has_copy_assign_t = decltype(std::declval<T&>()
-///                                                 = std::declval<const T&>());
-///   bool fooHasCopyAssign = is_detected<has_copy_assign_t, FooClass>::value;
 namespace detail {
 template <typename...> using void_t = void;
 template <class, template <class...> class Op, class... Args> struct detector {
@@ -97,16 +90,23 @@ struct detector<void_t<Op<Args...>>, Op, Args...> {
 };
 } // end namespace detail
 
+/// Detects if a given trait holds for some set of arguments 'Args'.
+/// For example, the given trait could be used to detect if a given type
+/// has a copy assignment operator:
+///   template<class T>
+///   using has_copy_assign_t = decltype(std::declval<T&>()
+///                                                 = std::declval<const T&>());
+///   bool fooHasCopyAssign = is_detected<has_copy_assign_t, FooClass>::value;
 template <template <class...> class Op, class... Args>
 using is_detected = typename detail::detector<void, Op, Args...>::value_t;
 
-/// Check if a Callable type can be invoked with the given set of arg types.
 namespace detail {
 template <typename Callable, typename... Args>
 using is_invocable =
     decltype(std::declval<Callable &>()(std::declval<Args>()...));
 } // namespace detail
 
+/// Check if a Callable type can be invoked with the given set of arg types.
 template <typename Callable, typename... Args>
 using is_invocable = is_detected<detail::is_invocable, Callable, Args...>;
 
@@ -1114,9 +1114,9 @@ public:
 
   iterator begin() const { return iterator(base, 0); }
   iterator end() const { return iterator(base, count); }
-  ReferenceT operator[](unsigned index) const {
-    assert(index < size() && "invalid index for value range");
-    return DerivedT::dereference_iterator(base, index);
+  ReferenceT operator[](size_t Index) const {
+    assert(Index < size() && "invalid index for value range");
+    return DerivedT::dereference_iterator(base, static_cast<ptrdiff_t>(Index));
   }
   ReferenceT front() const {
     assert(!empty() && "expected non-empty range");
@@ -1332,8 +1332,15 @@ template <class Iterator, class RNG>
 void shuffle(Iterator first, Iterator last, RNG &&g) {
   // It would be better to use a std::uniform_int_distribution,
   // but that would be stdlib dependent.
-  for (auto size = last - first; size > 1; ++first, (void)--size)
-    std::iter_swap(first, first + g() % size);
+  typedef
+      typename std::iterator_traits<Iterator>::difference_type difference_type;
+  for (auto size = last - first; size > 1; ++first, (void)--size) {
+    difference_type offset = g() % size;
+    // Avoid self-assignment due to incorrect assertions in libstdc++
+    // containers (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85828).
+    if (offset != difference_type(0))
+      std::iter_swap(first, first + offset);
+  }
 }
 
 /// Find the length of an array.
@@ -1373,7 +1380,7 @@ inline unsigned presortShuffleEntropy() {
 template <class IteratorTy>
 inline void presortShuffle(IteratorTy Start, IteratorTy End) {
   std::mt19937 Generator(presortShuffleEntropy());
-  std::shuffle(Start, End, Generator);
+  llvm::shuffle(Start, End, Generator);
 }
 
 } // end namespace detail
@@ -1820,9 +1827,9 @@ template <typename R> struct result_pair {
   result_pair(std::size_t Index, IterOfRange<R> Iter)
       : Index(Index), Iter(Iter) {}
 
-  result_pair<R>(const result_pair<R> &Other)
+  result_pair(const result_pair<R> &Other)
       : Index(Other.Index), Iter(Other.Iter) {}
-  result_pair<R> &operator=(const result_pair<R> &Other) {
+  result_pair &operator=(const result_pair &Other) {
     Index = Other.Index;
     Iter = Other.Iter;
     return *this;
@@ -1856,22 +1863,22 @@ public:
   result_type &operator*() { return Result; }
   const result_type &operator*() const { return Result; }
 
-  enumerator_iter<R> &operator++() {
+  enumerator_iter &operator++() {
     assert(Result.Index != std::numeric_limits<size_t>::max());
     ++Result.Iter;
     ++Result.Index;
     return *this;
   }
 
-  bool operator==(const enumerator_iter<R> &RHS) const {
+  bool operator==(const enumerator_iter &RHS) const {
     // Don't compare indices here, only iterators.  It's possible for an end
     // iterator to have different indices depending on whether it was created
     // by calling std::end() versus incrementing a valid iterator.
     return Result.Iter == RHS.Result.Iter;
   }
 
-  enumerator_iter<R>(const enumerator_iter<R> &Other) : Result(Other.Result) {}
-  enumerator_iter<R> &operator=(const enumerator_iter<R> &Other) {
+  enumerator_iter(const enumerator_iter &Other) : Result(Other.Result) {}
+  enumerator_iter &operator=(const enumerator_iter &Other) {
     Result = Other.Result;
     return *this;
   }

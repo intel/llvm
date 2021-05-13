@@ -2957,6 +2957,8 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
     // Space between the type and the * in:
     //   operator void*()
     //   operator char*()
+    //   operator void const*()
+    //   operator void volatile*()
     //   operator /*comment*/ const char*()
     //   operator volatile /*comment*/ char*()
     //   operator Foo*()
@@ -2964,11 +2966,15 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
     //   operator std::Foo*()
     //   operator C<T>::D<U>*()
     // dependent on PointerAlignment style.
-    if (Previous &&
-        (Previous->endsSequence(tok::kw_operator) ||
-         Previous->endsSequence(tok::kw_const, tok::kw_operator) ||
-         Previous->endsSequence(tok::kw_volatile, tok::kw_operator)))
-      return (Style.PointerAlignment != FormatStyle::PAS_Left);
+    if (Previous) {
+      if (Previous->endsSequence(tok::kw_operator))
+        return (Style.PointerAlignment != FormatStyle::PAS_Left);
+      if (Previous->is(tok::kw_const) || Previous->is(tok::kw_volatile))
+        return (Style.PointerAlignment != FormatStyle::PAS_Left) ||
+               (Style.SpaceAroundPointerQualifiers ==
+                FormatStyle::SAPQ_After) ||
+               (Style.SpaceAroundPointerQualifiers == FormatStyle::SAPQ_Both);
+    }
   }
   const auto SpaceRequiredForArrayInitializerLSquare =
       [](const FormatToken &LSquareTok, const FormatStyle &Style) {
@@ -3370,6 +3376,12 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
              Style.BitFieldColonSpacing == FormatStyle::BFCS_Before;
     return true;
   }
+  // Do not merge "- -" into "--".
+  if ((Left.isOneOf(tok::minus, tok::minusminus) &&
+       Right.isOneOf(tok::minus, tok::minusminus)) ||
+      (Left.isOneOf(tok::plus, tok::plusplus) &&
+       Right.isOneOf(tok::plus, tok::plusplus)))
+    return true;
   if (Left.is(TT_UnaryOperator)) {
     if (!Right.is(tok::l_paren)) {
       // The alternative operators for ~ and ! are "compl" and "not".
@@ -3841,6 +3853,9 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
          Left.isOneOf(tok::r_square, tok::r_paren)) &&
         Right.isOneOf(tok::l_square, tok::l_paren))
       return false; // Otherwise automatic semicolon insertion would trigger.
+    if (NonComment && NonComment->is(tok::identifier) &&
+        NonComment->TokenText == "asserts")
+      return false;
     if (Left.is(TT_JsFatArrow) && Right.is(tok::l_brace))
       return false;
     if (Left.is(TT_JsTypeColon))

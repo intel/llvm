@@ -342,13 +342,12 @@ void SubtargetEmitter::FormItineraryOperandCycleString(Record *ItinData,
     ItinData->getValueAsListOfInts("OperandCycles");
 
   // For each operand cycle
-  unsigned N = NOperandCycles = OperandCycleList.size();
-  for (unsigned i = 0; i < N;) {
+  NOperandCycles = OperandCycleList.size();
+  ListSeparator LS;
+  for (int OCycle : OperandCycleList) {
     // Next operand cycle
-    const int OCycle = OperandCycleList[i];
-
+    ItinString += LS;
     ItinString += "  " + itostr(OCycle);
-    if (++i < N) ItinString += ", ";
   }
 }
 
@@ -359,13 +358,14 @@ void SubtargetEmitter::FormItineraryBypassString(const std::string &Name,
   RecVec BypassList = ItinData->getValueAsListOfDefs("Bypasses");
   unsigned N = BypassList.size();
   unsigned i = 0;
-  for (; i < N;) {
+  ListSeparator LS;
+  for (; i < N; ++i) {
+    ItinString += LS;
     ItinString += Name + "Bypass::" + BypassList[i]->getName().str();
-    if (++i < NOperandCycles) ItinString += ", ";
   }
-  for (; i < NOperandCycles;) {
+  for (; i < NOperandCycles; ++i) {
+    ItinString += LS;
     ItinString += " 0";
-    if (++i < NOperandCycles) ItinString += ", ";
   }
 }
 
@@ -993,6 +993,7 @@ void SubtargetEmitter::GenSchedClassTables(const CodeGenProcModel &ProcModel,
     SCDesc.NumMicroOps = 0;
     SCDesc.BeginGroup = false;
     SCDesc.EndGroup = false;
+    SCDesc.RetireOOO = false;
     SCDesc.WriteProcResIdx = 0;
     SCDesc.WriteLatencyIdx = 0;
     SCDesc.ReadAdvanceIdx = 0;
@@ -1095,6 +1096,7 @@ void SubtargetEmitter::GenSchedClassTables(const CodeGenProcModel &ProcModel,
         SCDesc.EndGroup |= WriteRes->getValueAsBit("EndGroup");
         SCDesc.BeginGroup |= WriteRes->getValueAsBit("SingleIssue");
         SCDesc.EndGroup |= WriteRes->getValueAsBit("SingleIssue");
+        SCDesc.RetireOOO |= WriteRes->getValueAsBit("RetireOOO");
 
         // Create an entry for each ProcResource listed in WriteRes.
         RecVec PRVec = WriteRes->getValueAsListOfDefs("ProcResources");
@@ -1293,7 +1295,7 @@ void SubtargetEmitter::EmitSchedClassTables(SchedClassTables &SchedTables,
     std::vector<MCSchedClassDesc> &SCTab =
       SchedTables.ProcSchedClasses[1 + (PI - SchedModels.procModelBegin())];
 
-    OS << "\n// {Name, NumMicroOps, BeginGroup, EndGroup,"
+    OS << "\n// {Name, NumMicroOps, BeginGroup, EndGroup, RetireOOO,"
        << " WriteProcResIdx,#, WriteLatencyIdx,#, ReadAdvanceIdx,#}\n";
     OS << "static const llvm::MCSchedClassDesc "
        << PI->ModelName << "SchedClasses[] = {\n";
@@ -1304,7 +1306,7 @@ void SubtargetEmitter::EmitSchedClassTables(SchedClassTables &SchedTables,
            && "invalid class not first");
     OS << "  {DBGFIELD(\"InvalidSchedClass\")  "
        << MCSchedClassDesc::InvalidNumMicroOps
-       << ", false, false,  0, 0,  0, 0,  0, 0},\n";
+       << ", false, false, false, 0, 0,  0, 0,  0, 0},\n";
 
     for (unsigned SCIdx = 1, SCEnd = SCTab.size(); SCIdx != SCEnd; ++SCIdx) {
       MCSchedClassDesc &MCDesc = SCTab[SCIdx];
@@ -1315,6 +1317,7 @@ void SubtargetEmitter::EmitSchedClassTables(SchedClassTables &SchedTables,
       OS << MCDesc.NumMicroOps
          << ", " << ( MCDesc.BeginGroup ? "true" : "false" )
          << ", " << ( MCDesc.EndGroup ? "true" : "false" )
+         << ", " << ( MCDesc.RetireOOO ? "true" : "false" )
          << ", " << format("%2d", MCDesc.WriteProcResIdx)
          << ", " << MCDesc.NumWriteProcResEntries
          << ", " << format("%2d", MCDesc.WriteLatencyIdx)

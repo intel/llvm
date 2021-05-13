@@ -155,9 +155,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_NT>::enumeration(
   ECase(NT_FREEBSD_PROCSTAT_PSSTRINGS);
   ECase(NT_FREEBSD_PROCSTAT_AUXV);
   // AMD specific notes. (Code Object V2)
-  ECase(NT_AMD_AMDGPU_HSA_METADATA);
-  ECase(NT_AMD_AMDGPU_ISA);
-  ECase(NT_AMD_AMDGPU_PAL_METADATA);
+  ECase(NT_AMD_HSA_METADATA);
+  ECase(NT_AMD_HSA_ISA_NAME);
+  ECase(NT_AMD_PAL_METADATA);
   // AMDGPU specific notes. (Code Object V3)
   ECase(NT_AMDGPU_METADATA);
 #undef ECase
@@ -459,6 +459,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCase(EF_HEXAGON_MACH_V66);
     BCase(EF_HEXAGON_MACH_V67);
     BCase(EF_HEXAGON_MACH_V67T);
+    BCase(EF_HEXAGON_MACH_V68);
     BCase(EF_HEXAGON_ISA_V2);
     BCase(EF_HEXAGON_ISA_V3);
     BCase(EF_HEXAGON_ISA_V4);
@@ -469,25 +470,28 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCase(EF_HEXAGON_ISA_V65);
     BCase(EF_HEXAGON_ISA_V66);
     BCase(EF_HEXAGON_ISA_V67);
+    BCase(EF_HEXAGON_ISA_V68);
     break;
   case ELF::EM_AVR:
-    BCase(EF_AVR_ARCH_AVR1);
-    BCase(EF_AVR_ARCH_AVR2);
-    BCase(EF_AVR_ARCH_AVR25);
-    BCase(EF_AVR_ARCH_AVR3);
-    BCase(EF_AVR_ARCH_AVR31);
-    BCase(EF_AVR_ARCH_AVR35);
-    BCase(EF_AVR_ARCH_AVR4);
-    BCase(EF_AVR_ARCH_AVR51);
-    BCase(EF_AVR_ARCH_AVR6);
-    BCase(EF_AVR_ARCH_AVRTINY);
-    BCase(EF_AVR_ARCH_XMEGA1);
-    BCase(EF_AVR_ARCH_XMEGA2);
-    BCase(EF_AVR_ARCH_XMEGA3);
-    BCase(EF_AVR_ARCH_XMEGA4);
-    BCase(EF_AVR_ARCH_XMEGA5);
-    BCase(EF_AVR_ARCH_XMEGA6);
-    BCase(EF_AVR_ARCH_XMEGA7);
+    BCaseMask(EF_AVR_ARCH_AVR1, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR2, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR25, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR3, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR31, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR35, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR4, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR5, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR51, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVR6, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_AVRTINY, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_XMEGA1, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_XMEGA2, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_XMEGA3, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_XMEGA4, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_XMEGA5, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_XMEGA6, EF_AVR_ARCH_MASK);
+    BCaseMask(EF_AVR_ARCH_XMEGA7, EF_AVR_ARCH_MASK);
+    BCase(EF_AVR_LINKRELAX_PREPARED);
     break;
   case ELF::EM_RISCV:
     BCase(EF_RISCV_RVC);
@@ -535,6 +539,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX906, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX908, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX909, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX90A, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX90C, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1010, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1011, EF_AMDGPU_MACH);
@@ -543,8 +548,33 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1031, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1032, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1033, EF_AMDGPU_MACH);
-    BCase(EF_AMDGPU_XNACK);
-    BCase(EF_AMDGPU_SRAM_ECC);
+    switch (Object->Header.ABIVersion) {
+    default:
+      // ELFOSABI_AMDGPU_PAL, ELFOSABI_AMDGPU_MESA3D support *_V3 flags.
+      LLVM_FALLTHROUGH;
+    case ELF::ELFABIVERSION_AMDGPU_HSA_V3:
+      BCase(EF_AMDGPU_FEATURE_XNACK_V3);
+      BCase(EF_AMDGPU_FEATURE_SRAMECC_V3);
+      break;
+    case ELF::ELFABIVERSION_AMDGPU_HSA_V4:
+      BCaseMask(EF_AMDGPU_FEATURE_XNACK_UNSUPPORTED_V4,
+                EF_AMDGPU_FEATURE_XNACK_V4);
+      BCaseMask(EF_AMDGPU_FEATURE_XNACK_ANY_V4,
+                EF_AMDGPU_FEATURE_XNACK_V4);
+      BCaseMask(EF_AMDGPU_FEATURE_XNACK_OFF_V4,
+                EF_AMDGPU_FEATURE_XNACK_V4);
+      BCaseMask(EF_AMDGPU_FEATURE_XNACK_ON_V4,
+                EF_AMDGPU_FEATURE_XNACK_V4);
+      BCaseMask(EF_AMDGPU_FEATURE_SRAMECC_UNSUPPORTED_V4,
+                EF_AMDGPU_FEATURE_SRAMECC_V4);
+      BCaseMask(EF_AMDGPU_FEATURE_SRAMECC_ANY_V4,
+                EF_AMDGPU_FEATURE_SRAMECC_V4);
+      BCaseMask(EF_AMDGPU_FEATURE_SRAMECC_OFF_V4,
+                EF_AMDGPU_FEATURE_SRAMECC_V4);
+      BCaseMask(EF_AMDGPU_FEATURE_SRAMECC_ON_V4,
+                EF_AMDGPU_FEATURE_SRAMECC_V4);
+      break;
+    }
     break;
   default:
     break;
@@ -785,6 +815,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
     break;
   case ELF::EM_PPC64:
 #include "llvm/BinaryFormat/ELFRelocs/PowerPC64.def"
+    break;
+  case ELF::EM_68K:
+#include "llvm/BinaryFormat/ELFRelocs/M68k.def"
     break;
   default:
     // Nothing to do.
@@ -1664,6 +1697,7 @@ void MappingTraits<ELFYAML::BBAddrMapEntry>::mapping(
     IO &IO, ELFYAML::BBAddrMapEntry &E) {
   assert(IO.getContext() && "The IO context is not initialized");
   IO.mapOptional("Address", E.Address, Hex64(0));
+  IO.mapOptional("NumBlocks", E.NumBlocks);
   IO.mapOptional("BBEntries", E.BBEntries);
 }
 

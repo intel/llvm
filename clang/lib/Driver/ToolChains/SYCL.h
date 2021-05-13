@@ -72,6 +72,12 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
+
+private:
+  void constructOpenCLAOTCommand(Compilation &C, const JobAction &JA,
+                                 const InputInfo &Output,
+                                 const InputInfoList &InputFiles,
+                                 const llvm::opt::ArgList &Args) const;
 };
 
 } // end namespace fpga
@@ -130,6 +136,9 @@ public:
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args,
                          Action::OffloadKind DeviceOffloadKind) const override;
+  void AddImpliedTargetArgs(const llvm::Triple &Triple,
+                            const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs) const;
   void TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CmdArgs) const;
   void TranslateLinkerTargetArgs(const llvm::opt::ArgList &Args,

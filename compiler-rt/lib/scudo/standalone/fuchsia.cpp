@@ -49,7 +49,7 @@ static void *allocateVmar(uptr Size, MapPlatformData *Data, bool AllowNoMem) {
 
 void *map(void *Addr, uptr Size, const char *Name, uptr Flags,
           MapPlatformData *Data) {
-  DCHECK_EQ(Size % PAGE_SIZE, 0);
+  DCHECK_EQ(Size % getPageSizeCached(), 0);
   const bool AllowNoMem = !!(Flags & MAP_ALLOWNOMEM);
 
   // For MAP_NOACCESS, just allocate a Vmar and return.
@@ -96,8 +96,10 @@ void *map(void *Addr, uptr Size, const char *Name, uptr Flags,
   // No need to track the Vmo if we don't intend on resizing it. Close it.
   if (Flags & MAP_RESIZABLE) {
     DCHECK(Data);
-    DCHECK_EQ(Data->Vmo, ZX_HANDLE_INVALID);
-    Data->Vmo = Vmo;
+    if (Data->Vmo == ZX_HANDLE_INVALID)
+      Data->Vmo = Vmo;
+    else
+      DCHECK_EQ(Data->Vmo, Vmo);
   } else {
     CHECK_EQ(_zx_handle_close(Vmo), ZX_OK);
   }
@@ -132,6 +134,16 @@ void unmap(void *Addr, uptr Size, uptr Flags, MapPlatformData *Data) {
       CHECK_EQ(_zx_handle_close(Data->Vmo), ZX_OK);
     memset(Data, 0, sizeof(*Data));
   }
+}
+
+void setMemoryPermission(UNUSED uptr Addr, UNUSED uptr Size, UNUSED uptr Flags,
+                         UNUSED MapPlatformData *Data) {
+  const zx_vm_option_t Prot =
+      (Flags & MAP_NOACCESS) ? 0 : (ZX_VM_PERM_READ | ZX_VM_PERM_WRITE);
+  DCHECK(Data);
+  DCHECK_NE(Data->Vmar, ZX_HANDLE_INVALID);
+  if (_zx_vmar_protect(Data->Vmar, Prot, Addr, Size) != ZX_OK)
+    dieOnMapUnmapError();
 }
 
 void releasePagesToOS(UNUSED uptr BaseAddress, uptr Offset, uptr Size,

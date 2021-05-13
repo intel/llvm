@@ -28,26 +28,20 @@ def SDTSplatI64 : SDTypeProfile<1, 1, [
 
 def rv32_splat_i64 : SDNode<"RISCVISD::SPLAT_VECTOR_I64", SDTSplatI64>;
 
-def riscv_trunc_vector : SDNode<"RISCVISD::TRUNCATE_VECTOR",
-                                SDTypeProfile<1, 1,
-                                 [SDTCisVec<0>, SDTCisVec<1>]>>;
-
 // Give explicit Complexity to prefer simm5/uimm5.
 def SplatPat       : ComplexPattern<vAny, 1, "selectVSplat",      [splat_vector, rv32_splat_i64], [], 1>;
 def SplatPat_simm5 : ComplexPattern<vAny, 1, "selectVSplatSimm5", [splat_vector, rv32_splat_i64], [], 2>;
 def SplatPat_uimm5 : ComplexPattern<vAny, 1, "selectVSplatUimm5", [splat_vector, rv32_splat_i64], [], 2>;
+def SplatPat_simm5_plus1
+    : ComplexPattern<vAny, 1, "selectVSplatSimm5Plus1",
+                     [splat_vector, rv32_splat_i64], [], 2>;
+def SplatPat_simm5_plus1_nonzero
+    : ComplexPattern<vAny, 1, "selectVSplatSimm5Plus1NonZero",
+                     [splat_vector, rv32_splat_i64], [], 2>;
 
 class SwapHelper<dag Prefix, dag A, dag B, dag Suffix, bit swap> {
    dag Value = !con(Prefix, !if(swap, B, A), !if(swap, A, B), Suffix);
 }
-
-def SDTRVVVecReduce : SDTypeProfile<1, 2, [
-  SDTCisVec<0>, SDTCisVec<1>, SDTCisSameAs<0, 2>
-]>;
-
-foreach kind = ["ADD", "UMAX", "SMAX", "UMIN", "SMIN", "AND", "OR", "XOR",
-                "FADD", "SEQ_FADD"] in
-  def rvv_vecreduce_#kind : SDNode<"RISCVISD::VECREDUCE_"#kind, SDTRVVVecReduce>;
 
 multiclass VPatUSLoadStoreSDNode<ValueType type,
                                  int sew,
@@ -65,21 +59,15 @@ multiclass VPatUSLoadStoreSDNode<ValueType type,
             (store_instr reg_class:$rs2, BaseAddr:$rs1, avl, sew)>;
 }
 
-multiclass VPatUSLoadStoreWholeVRSDNode<LLVMType type,
+multiclass VPatUSLoadStoreWholeVRSDNode<ValueType type,
                                         int sew,
                                         LMULInfo vlmul,
                                         VReg reg_class>
 {
   defvar load_instr =
-    !cond(!eq(vlmul.value, V_M1.value): !cast<Instruction>("VL1RE"#sew#"_V"),
-          !eq(vlmul.value, V_M2.value): !cast<Instruction>("VL2RE"#sew#"_V"),
-          !eq(vlmul.value, V_M4.value): !cast<Instruction>("VL4RE"#sew#"_V"),
-          !eq(vlmul.value, V_M8.value): !cast<Instruction>("VL8RE"#sew#"_V"));
+    !cast<Instruction>("VL"#!substr(vlmul.MX, 1)#"RE"#sew#"_V");
   defvar store_instr =
-    !cond(!eq(vlmul.value, V_M1.value): VS1R_V,
-          !eq(vlmul.value, V_M2.value): VS2R_V,
-          !eq(vlmul.value, V_M4.value): VS4R_V,
-          !eq(vlmul.value, V_M8.value): VS8R_V);
+    !cast<Instruction>("VS"#!substr(vlmul.MX, 1)#"R_V");
 
   // Load
   def : Pat<(type (load BaseAddr:$rs1)),
@@ -273,43 +261,40 @@ multiclass VPatIntegerSetCCSDNode_VX_VI<CondCode cc,
                                    SplatPat_simm5, simm5, swap>;
 }
 
-multiclass VPatFPSetCCSDNode_VV<CondCode cc, string instruction_name> {
-  foreach fvti = AllFloatVectors in
-    def : Pat<(fvti.Mask (setcc (fvti.Vector fvti.RegClass:$rs1),
-                                (fvti.Vector fvti.RegClass:$rs2),
-                                cc)),
-              (!cast<Instruction>(instruction_name#"_VV_"#fvti.LMul.MX)
-                  fvti.RegClass:$rs1, fvti.RegClass:$rs2, fvti.AVL, fvti.SEW)>;
-}
-
-multiclass VPatFPSetCCSDNode_VF<CondCode cc, string instruction_name> {
-  foreach fvti = AllFloatVectors in
-    def : Pat<(fvti.Mask (setcc (fvti.Vector fvti.RegClass:$rs1),
-                                (fvti.Vector (splat_vector fvti.ScalarRegClass:$rs2)),
-                                cc)),
-              (!cast<Instruction>(instruction_name#"_V"#fvti.ScalarSuffix#"_"#fvti.LMul.MX)
-                  fvti.RegClass:$rs1,
-                  (fvti.Scalar fvti.ScalarRegClass:$rs2),
-                  fvti.AVL, fvti.SEW)>;
-}
-
-multiclass VPatFPSetCCSDNode_FV<CondCode cc, string swapped_op_instruction_name> {
-  foreach fvti = AllFloatVectors in
-    def : Pat<(fvti.Mask (setcc (fvti.Vector (splat_vector fvti.ScalarRegClass:$rs2)),
-                                (fvti.Vector fvti.RegClass:$rs1),
-                                cc)),
-              (!cast<Instruction>(swapped_op_instruction_name#"_V"#fvti.ScalarSuffix#"_"#fvti.LMul.MX)
-                  fvti.RegClass:$rs1,
-                  (fvti.Scalar fvti.ScalarRegClass:$rs2),
-                  fvti.AVL, fvti.SEW)>;
+multiclass VPatIntegerSetCCSDNode_VIPlus1<CondCode cc, string instruction_name,
+                                          ComplexPattern splatpat_kind> {
+  foreach vti = AllIntegerVectors in {
+    defvar instruction = !cast<Instruction>(instruction_name#"_VI_"#vti.LMul.MX);
+    def : Pat<(vti.Mask (setcc (vti.Vector vti.RegClass:$rs1),
+                               (vti.Vector (splatpat_kind simm5:$rs2)),
+                               cc)),
+              (instruction vti.RegClass:$rs1, (DecImm simm5:$rs2),
+                           vti.AVL, vti.SEW)>;
+  }
 }
 
 multiclass VPatFPSetCCSDNode_VV_VF_FV<CondCode cc,
                                       string inst_name,
                                       string swapped_op_inst_name> {
-  defm : VPatFPSetCCSDNode_VV<cc, inst_name>;
-  defm : VPatFPSetCCSDNode_VF<cc, inst_name>;
-  defm : VPatFPSetCCSDNode_FV<cc, swapped_op_inst_name>;
+  foreach fvti = AllFloatVectors in {
+    def : Pat<(fvti.Mask (setcc (fvti.Vector fvti.RegClass:$rs1),
+                                (fvti.Vector fvti.RegClass:$rs2),
+                                cc)),
+              (!cast<Instruction>(inst_name#"_VV_"#fvti.LMul.MX)
+                  fvti.RegClass:$rs1, fvti.RegClass:$rs2, fvti.AVL, fvti.SEW)>;
+    def : Pat<(fvti.Mask (setcc (fvti.Vector fvti.RegClass:$rs1),
+                                (splat_vector fvti.ScalarRegClass:$rs2),
+                                cc)),
+              (!cast<Instruction>(inst_name#"_V"#fvti.ScalarSuffix#"_"#fvti.LMul.MX)
+                  fvti.RegClass:$rs1, fvti.ScalarRegClass:$rs2,
+                  fvti.AVL, fvti.SEW)>;
+    def : Pat<(fvti.Mask (setcc (splat_vector fvti.ScalarRegClass:$rs2),
+                                (fvti.Vector fvti.RegClass:$rs1),
+                                cc)),
+              (!cast<Instruction>(swapped_op_inst_name#"_V"#fvti.ScalarSuffix#"_"#fvti.LMul.MX)
+                  fvti.RegClass:$rs1, fvti.ScalarRegClass:$rs2,
+                  fvti.AVL, fvti.SEW)>;
+  }
 }
 
 multiclass VPatExtendSDNode_V<list<SDNode> ops, string inst_name, string suffix,
@@ -382,18 +367,6 @@ multiclass VPatNConvertFP2ISDNode_V<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatReductionSDNode<SDNode vop, string instruction_name, bit is_float> {
-  foreach vti = !if(is_float, AllFloatVectors, AllIntegerVectors) in {
-    defvar vti_m1 = !cast<VTypeInfo>(!if(is_float, "VF", "VI") # vti.SEW # "M1");
-    def: Pat<(vti_m1.Vector (vop (vti.Vector vti.RegClass:$rs1), VR:$rs2)),
-        (!cast<Instruction>(instruction_name#"_VS_"#vti.LMul.MX)
-            (vti_m1.Vector (IMPLICIT_DEF)),
-            (vti.Vector vti.RegClass:$rs1),
-            (vti_m1.Vector VR:$rs2),
-            vti.AVL, vti.SEW)>;
-  }
-}
-
 //===----------------------------------------------------------------------===//
 // Patterns.
 //===----------------------------------------------------------------------===//
@@ -403,20 +376,20 @@ let Predicates = [HasStdExtV] in {
 // 7.4. Vector Unit-Stride Instructions
 foreach vti = !listconcat(FractionalGroupIntegerVectors,
                           FractionalGroupFloatVectors) in
-  defm "" : VPatUSLoadStoreSDNode<vti.Vector, vti.SEW, vti.LMul,
+  defm : VPatUSLoadStoreSDNode<vti.Vector, vti.SEW, vti.LMul,
                                   vti.AVL, vti.RegClass>;
 foreach vti = [VI8M1, VI16M1, VI32M1, VI64M1, VF16M1, VF32M1, VF64M1] in
-  defm "" : VPatUSLoadStoreWholeVRSDNode<vti.Vector, vti.SEW, vti.LMul,
+  defm : VPatUSLoadStoreWholeVRSDNode<vti.Vector, vti.SEW, vti.LMul,
                                          vti.RegClass>;
 foreach vti = !listconcat(GroupIntegerVectors, GroupFloatVectors) in
-  defm "" : VPatUSLoadStoreWholeVRSDNode<vti.Vector, vti.SEW, vti.LMul,
+  defm : VPatUSLoadStoreWholeVRSDNode<vti.Vector, vti.SEW, vti.LMul,
                                          vti.RegClass>;
 foreach mti = AllMasks in
-  defm "" : VPatUSLoadStoreMaskSDNode<mti>;
+  defm : VPatUSLoadStoreMaskSDNode<mti>;
 
 // 12.1. Vector Single-Width Integer Add and Subtract
-defm "" : VPatBinarySDNode_VV_VX_VI<add, "PseudoVADD">;
-defm "" : VPatBinarySDNode_VV_VX<sub, "PseudoVSUB">;
+defm : VPatBinarySDNode_VV_VX_VI<add, "PseudoVADD">;
+defm : VPatBinarySDNode_VV_VX<sub, "PseudoVSUB">;
 // Handle VRSUB specially since it's the only integer binary op with reversed
 // pattern operands
 foreach vti = AllIntegerVectors in {
@@ -431,78 +404,73 @@ foreach vti = AllIntegerVectors in {
 }
 
 // 12.3. Vector Integer Extension
-defm "" : VPatExtendSDNode_V<[zext, anyext], "PseudoVZEXT", "VF2",
-                             AllFractionableVF2IntVectors>;
-defm "" : VPatExtendSDNode_V<[sext],         "PseudoVSEXT", "VF2",
-                             AllFractionableVF2IntVectors>;
-defm "" : VPatExtendSDNode_V<[zext, anyext], "PseudoVZEXT", "VF4",
-                             AllFractionableVF4IntVectors>;
-defm "" : VPatExtendSDNode_V<[sext],         "PseudoVSEXT", "VF4",
-                             AllFractionableVF4IntVectors>;
-defm "" : VPatExtendSDNode_V<[zext, anyext], "PseudoVZEXT", "VF8",
-                             AllFractionableVF8IntVectors>;
-defm "" : VPatExtendSDNode_V<[sext],         "PseudoVSEXT", "VF8",
-                             AllFractionableVF8IntVectors>;
+defm : VPatExtendSDNode_V<[zext, anyext], "PseudoVZEXT", "VF2",
+                          AllFractionableVF2IntVectors>;
+defm : VPatExtendSDNode_V<[sext],         "PseudoVSEXT", "VF2",
+                          AllFractionableVF2IntVectors>;
+defm : VPatExtendSDNode_V<[zext, anyext], "PseudoVZEXT", "VF4",
+                          AllFractionableVF4IntVectors>;
+defm : VPatExtendSDNode_V<[sext],         "PseudoVSEXT", "VF4",
+                          AllFractionableVF4IntVectors>;
+defm : VPatExtendSDNode_V<[zext, anyext], "PseudoVZEXT", "VF8",
+                          AllFractionableVF8IntVectors>;
+defm : VPatExtendSDNode_V<[sext],         "PseudoVSEXT", "VF8",
+                          AllFractionableVF8IntVectors>;
 
 // 12.5. Vector Bitwise Logical Instructions
-defm "" : VPatBinarySDNode_VV_VX_VI<and, "PseudoVAND">;
-defm "" : VPatBinarySDNode_VV_VX_VI<or, "PseudoVOR">;
-defm "" : VPatBinarySDNode_VV_VX_VI<xor, "PseudoVXOR">;
+defm : VPatBinarySDNode_VV_VX_VI<and, "PseudoVAND">;
+defm : VPatBinarySDNode_VV_VX_VI<or, "PseudoVOR">;
+defm : VPatBinarySDNode_VV_VX_VI<xor, "PseudoVXOR">;
 
 // 12.6. Vector Single-Width Bit Shift Instructions
-defm "" : VPatBinarySDNode_VV_VX_VI<shl, "PseudoVSLL", uimm5>;
-defm "" : VPatBinarySDNode_VV_VX_VI<srl, "PseudoVSRL", uimm5>;
-defm "" : VPatBinarySDNode_VV_VX_VI<sra, "PseudoVSRA", uimm5>;
-
-// 12.7. Vector Narrowing Integer Right Shift Instructions
-foreach vtiTofti = AllFractionableVF2IntVectors in {
-  defvar vti = vtiTofti.Vti;
-  defvar fti = vtiTofti.Fti;
-  def : Pat<(fti.Vector (riscv_trunc_vector (vti.Vector vti.RegClass:$rs1))),
-            (!cast<Instruction>("PseudoVNSRL_WI_"#fti.LMul.MX)
-                vti.RegClass:$rs1, 0, fti.AVL, fti.SEW)>;
-}
+defm : VPatBinarySDNode_VV_VX_VI<shl, "PseudoVSLL", uimm5>;
+defm : VPatBinarySDNode_VV_VX_VI<srl, "PseudoVSRL", uimm5>;
+defm : VPatBinarySDNode_VV_VX_VI<sra, "PseudoVSRA", uimm5>;
 
 // 12.8. Vector Integer Comparison Instructions
-defm "" : VPatIntegerSetCCSDNode_VV_VX_VI<SETEQ,  "PseudoVMSEQ">;
-defm "" : VPatIntegerSetCCSDNode_VV_VX_VI<SETNE,  "PseudoVMSNE">;
+defm : VPatIntegerSetCCSDNode_VV_VX_VI<SETEQ,  "PseudoVMSEQ">;
+defm : VPatIntegerSetCCSDNode_VV_VX_VI<SETNE,  "PseudoVMSNE">;
 
-// FIXME: Support immediate forms of these by choosing SLE decrementing the
-// immediate
-defm "" : VPatIntegerSetCCSDNode_VV_VX<SETLT,  "PseudoVMSLT">;
-defm "" : VPatIntegerSetCCSDNode_VV_VX<SETULT, "PseudoVMSLTU">;
+defm : VPatIntegerSetCCSDNode_VV_VX<SETLT,  "PseudoVMSLT">;
+defm : VPatIntegerSetCCSDNode_VV_VX<SETULT, "PseudoVMSLTU">;
+defm : VPatIntegerSetCCSDNode_VIPlus1<SETLT, "PseudoVMSLE",
+                                      SplatPat_simm5_plus1>;
+defm : VPatIntegerSetCCSDNode_VIPlus1<SETULT, "PseudoVMSLEU",
+                                      SplatPat_simm5_plus1_nonzero>;
 
-defm "" : VPatIntegerSetCCSDNode_VV<SETGT,  "PseudoVMSLT", /*swap*/1>;
-defm "" : VPatIntegerSetCCSDNode_VV<SETUGT, "PseudoVMSLTU", /*swap*/1>;
-defm "" : VPatIntegerSetCCSDNode_VX_VI<SETGT,  "PseudoVMSGT">;
-defm "" : VPatIntegerSetCCSDNode_VX_VI<SETUGT, "PseudoVMSGTU">;
+defm : VPatIntegerSetCCSDNode_VV<SETGT,  "PseudoVMSLT", /*swap*/1>;
+defm : VPatIntegerSetCCSDNode_VV<SETUGT, "PseudoVMSLTU", /*swap*/1>;
+defm : VPatIntegerSetCCSDNode_VX_VI<SETGT,  "PseudoVMSGT">;
+defm : VPatIntegerSetCCSDNode_VX_VI<SETUGT, "PseudoVMSGTU">;
 
-defm "" : VPatIntegerSetCCSDNode_VV_VX_VI<SETLE,  "PseudoVMSLE">;
-defm "" : VPatIntegerSetCCSDNode_VV_VX_VI<SETULE, "PseudoVMSLEU">;
+defm : VPatIntegerSetCCSDNode_VV_VX_VI<SETLE,  "PseudoVMSLE">;
+defm : VPatIntegerSetCCSDNode_VV_VX_VI<SETULE, "PseudoVMSLEU">;
 
-// FIXME: Support immediate forms of these by choosing SGT and decrementing the
-// immediate
-defm "" : VPatIntegerSetCCSDNode_VV<SETGE,  "PseudoVMSLE", /*swap*/1>;
-defm "" : VPatIntegerSetCCSDNode_VV<SETUGE, "PseudoVMSLEU", /*swap*/1>;
+defm : VPatIntegerSetCCSDNode_VV<SETGE,  "PseudoVMSLE", /*swap*/1>;
+defm : VPatIntegerSetCCSDNode_VV<SETUGE, "PseudoVMSLEU", /*swap*/1>;
+defm : VPatIntegerSetCCSDNode_VIPlus1<SETGE, "PseudoVMSGT",
+                                      SplatPat_simm5_plus1>;
+defm : VPatIntegerSetCCSDNode_VIPlus1<SETUGE, "PseudoVMSGTU",
+                                      SplatPat_simm5_plus1_nonzero>;
 
 // 12.9. Vector Integer Min/Max Instructions
-defm "" : VPatBinarySDNode_VV_VX<umin, "PseudoVMINU">;
-defm "" : VPatBinarySDNode_VV_VX<smin, "PseudoVMIN">;
-defm "" : VPatBinarySDNode_VV_VX<umax, "PseudoVMAXU">;
-defm "" : VPatBinarySDNode_VV_VX<smax, "PseudoVMAX">;
+defm : VPatBinarySDNode_VV_VX<umin, "PseudoVMINU">;
+defm : VPatBinarySDNode_VV_VX<smin, "PseudoVMIN">;
+defm : VPatBinarySDNode_VV_VX<umax, "PseudoVMAXU">;
+defm : VPatBinarySDNode_VV_VX<smax, "PseudoVMAX">;
 
 // 12.10. Vector Single-Width Integer Multiply Instructions
-defm "" : VPatBinarySDNode_VV_VX<mul, "PseudoVMUL">;
-defm "" : VPatBinarySDNode_VV_VX<mulhs, "PseudoVMULH">;
-defm "" : VPatBinarySDNode_VV_VX<mulhu, "PseudoVMULHU">;
+defm : VPatBinarySDNode_VV_VX<mul, "PseudoVMUL">;
+defm : VPatBinarySDNode_VV_VX<mulhs, "PseudoVMULH">;
+defm : VPatBinarySDNode_VV_VX<mulhu, "PseudoVMULHU">;
 
 // 12.11. Vector Integer Divide Instructions
-defm "" : VPatBinarySDNode_VV_VX<udiv, "PseudoVDIVU">;
-defm "" : VPatBinarySDNode_VV_VX<sdiv, "PseudoVDIV">;
-defm "" : VPatBinarySDNode_VV_VX<urem, "PseudoVREMU">;
-defm "" : VPatBinarySDNode_VV_VX<srem, "PseudoVREM">;
+defm : VPatBinarySDNode_VV_VX<udiv, "PseudoVDIVU">;
+defm : VPatBinarySDNode_VV_VX<sdiv, "PseudoVDIV">;
+defm : VPatBinarySDNode_VV_VX<urem, "PseudoVREMU">;
+defm : VPatBinarySDNode_VV_VX<srem, "PseudoVREM">;
 
-// 12.16. Vector Integer Merge Instructions
+// 12.15. Vector Integer Merge Instructions
 foreach vti = AllIntegerVectors in {
   def : Pat<(vti.Vector (vselect (vti.Mask VMV0:$vm), vti.RegClass:$rs1,
                                                       vti.RegClass:$rs2)),
@@ -520,20 +488,6 @@ foreach vti = AllIntegerVectors in {
             (!cast<Instruction>("PseudoVMERGE_VIM_"#vti.LMul.MX)
                  vti.RegClass:$rs2, simm5:$rs1, VMV0:$vm, vti.AVL, vti.SEW)>;
 }
-
-// 15.1. Vector Single-Width Integer Reduction Instructions
-defm "" : VPatReductionSDNode<rvv_vecreduce_ADD,  "PseudoVREDSUM", /*is_float*/0>;
-defm "" : VPatReductionSDNode<rvv_vecreduce_UMAX, "PseudoVREDMAXU", /*is_float*/0>;
-defm "" : VPatReductionSDNode<rvv_vecreduce_SMAX, "PseudoVREDMAX", /*is_float*/0>;
-defm "" : VPatReductionSDNode<rvv_vecreduce_UMIN, "PseudoVREDMINU", /*is_float*/0>;
-defm "" : VPatReductionSDNode<rvv_vecreduce_SMIN, "PseudoVREDMIN", /*is_float*/0>;
-defm "" : VPatReductionSDNode<rvv_vecreduce_AND,  "PseudoVREDAND", /*is_float*/0>;
-defm "" : VPatReductionSDNode<rvv_vecreduce_OR,   "PseudoVREDOR", /*is_float*/0>;
-defm "" : VPatReductionSDNode<rvv_vecreduce_XOR,  "PseudoVREDXOR", /*is_float*/0>;
-
-// 15.3. Vector Single-Width Floating-Point Reduction Instructions
-defm "" : VPatReductionSDNode<rvv_vecreduce_SEQ_FADD, "PseudoVFREDOSUM", /*is_float*/1>;
-defm "" : VPatReductionSDNode<rvv_vecreduce_FADD,     "PseudoVFREDSUM", /*is_float*/1>;
 
 // 16.1. Vector Mask-Register Logical Instructions
 foreach mti = AllMasks in {
@@ -572,21 +526,17 @@ foreach mti = AllMasks in {
 
 } // Predicates = [HasStdExtV]
 
-def riscv_fncvt_rod
-    : SDNode<"RISCVISD::VFNCVT_ROD",
-             SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>, []>;
-
 let Predicates = [HasStdExtV, HasStdExtF] in {
 
 // 14.2. Vector Single-Width Floating-Point Add/Subtract Instructions
-defm "" : VPatBinaryFPSDNode_VV_VF<fadd, "PseudoVFADD">;
-defm "" : VPatBinaryFPSDNode_VV_VF<fsub, "PseudoVFSUB">;
-defm "" : VPatBinaryFPSDNode_R_VF<fsub, "PseudoVFRSUB">;
+defm : VPatBinaryFPSDNode_VV_VF<fadd, "PseudoVFADD">;
+defm : VPatBinaryFPSDNode_VV_VF<fsub, "PseudoVFSUB">;
+defm : VPatBinaryFPSDNode_R_VF<fsub, "PseudoVFRSUB">;
 
 // 14.4. Vector Single-Width Floating-Point Multiply/Divide Instructions
-defm "" : VPatBinaryFPSDNode_VV_VF<fmul, "PseudoVFMUL">;
-defm "" : VPatBinaryFPSDNode_VV_VF<fdiv, "PseudoVFDIV">;
-defm "" : VPatBinaryFPSDNode_R_VF<fdiv, "PseudoVFRDIV">;
+defm : VPatBinaryFPSDNode_VV_VF<fmul, "PseudoVFMUL">;
+defm : VPatBinaryFPSDNode_VV_VF<fdiv, "PseudoVFDIV">;
+defm : VPatBinaryFPSDNode_R_VF<fdiv, "PseudoVFRDIV">;
 
 // 14.6 Vector Single-Width Floating-Point Fused Multiply-Add Instructions.
 foreach fvti = AllFloatVectors in {
@@ -657,29 +607,54 @@ foreach vti = AllFloatVectors in {
             (!cast<Instruction>("PseudoVFSQRT_V_"# vti.LMul.MX)
                  vti.RegClass:$rs2, vti.AVL, vti.SEW)>;
 
-  // 14.10. Vector Floating-Point Sign-Injection Instructions
+  // 14.12. Vector Floating-Point Sign-Injection Instructions
+  def : Pat<(fabs (vti.Vector vti.RegClass:$rs)),
+            (!cast<Instruction>("PseudoVFSGNJX_VV_"# vti.LMul.MX)
+                 vti.RegClass:$rs, vti.RegClass:$rs, vti.AVL, vti.SEW)>;
   // Handle fneg with VFSGNJN using the same input for both operands.
   def : Pat<(fneg (vti.Vector vti.RegClass:$rs)),
             (!cast<Instruction>("PseudoVFSGNJN_VV_"# vti.LMul.MX)
                  vti.RegClass:$rs, vti.RegClass:$rs, vti.AVL, vti.SEW)>;
+
+  def : Pat<(vti.Vector (fcopysign (vti.Vector vti.RegClass:$rs1),
+                                   (vti.Vector vti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFSGNJ_VV_"# vti.LMul.MX)
+                 vti.RegClass:$rs1, vti.RegClass:$rs2, vti.AVL, vti.SEW)>;
+  def : Pat<(vti.Vector (fcopysign (vti.Vector vti.RegClass:$rs1),
+                                   (vti.Vector (splat_vector vti.ScalarRegClass:$rs2)))),
+            (!cast<Instruction>("PseudoVFSGNJ_V"#vti.ScalarSuffix#"_"#vti.LMul.MX)
+                 vti.RegClass:$rs1, vti.ScalarRegClass:$rs2, vti.AVL, vti.SEW)>;
+
+  def : Pat<(vti.Vector (fcopysign (vti.Vector vti.RegClass:$rs1),
+                                   (vti.Vector (fneg vti.RegClass:$rs2)))),
+            (!cast<Instruction>("PseudoVFSGNJN_VV_"# vti.LMul.MX)
+                 vti.RegClass:$rs1, vti.RegClass:$rs2, vti.AVL, vti.SEW)>;
+  def : Pat<(vti.Vector (fcopysign (vti.Vector vti.RegClass:$rs1),
+                                   (vti.Vector (fneg (splat_vector vti.ScalarRegClass:$rs2))))),
+            (!cast<Instruction>("PseudoVFSGNJN_V"#vti.ScalarSuffix#"_"#vti.LMul.MX)
+                 vti.RegClass:$rs1, vti.ScalarRegClass:$rs2, vti.AVL, vti.SEW)>;
 }
 
-// 14.11. Vector Floating-Point Compare Instructions
-defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETEQ,  "PseudoVMFEQ", "PseudoVMFEQ">;
-defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETOEQ, "PseudoVMFEQ", "PseudoVMFEQ">;
+// 14.11. Vector Floating-Point MIN/MAX Instructions
+defm : VPatBinaryFPSDNode_VV_VF<fminnum, "PseudoVFMIN">;
+defm : VPatBinaryFPSDNode_VV_VF<fmaxnum, "PseudoVFMAX">;
 
-defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETNE,  "PseudoVMFNE", "PseudoVMFNE">;
-defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETUNE, "PseudoVMFNE", "PseudoVMFNE">;
+// 14.13. Vector Floating-Point Compare Instructions
+defm : VPatFPSetCCSDNode_VV_VF_FV<SETEQ,  "PseudoVMFEQ", "PseudoVMFEQ">;
+defm : VPatFPSetCCSDNode_VV_VF_FV<SETOEQ, "PseudoVMFEQ", "PseudoVMFEQ">;
 
-defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETLT,  "PseudoVMFLT", "PseudoVMFGT">;
-defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETOLT, "PseudoVMFLT", "PseudoVMFGT">;
+defm : VPatFPSetCCSDNode_VV_VF_FV<SETNE,  "PseudoVMFNE", "PseudoVMFNE">;
+defm : VPatFPSetCCSDNode_VV_VF_FV<SETUNE, "PseudoVMFNE", "PseudoVMFNE">;
 
-defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETLE,  "PseudoVMFLE", "PseudoVMFGE">;
-defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETOLE, "PseudoVMFLE", "PseudoVMFGE">;
+defm : VPatFPSetCCSDNode_VV_VF_FV<SETLT,  "PseudoVMFLT", "PseudoVMFGT">;
+defm : VPatFPSetCCSDNode_VV_VF_FV<SETOLT, "PseudoVMFLT", "PseudoVMFGT">;
+
+defm : VPatFPSetCCSDNode_VV_VF_FV<SETLE,  "PseudoVMFLE", "PseudoVMFGE">;
+defm : VPatFPSetCCSDNode_VV_VF_FV<SETOLE, "PseudoVMFLE", "PseudoVMFGE">;
 
 // Floating-point vselects:
-// 12.16. Vector Integer Merge Instructions
-// 14.13. Vector Floating-Point Merge Instruction
+// 12.15. Vector Integer Merge Instructions
+// 14.15. Vector Floating-Point Merge Instruction
 foreach fvti = AllFloatVectors in {
   def : Pat<(fvti.Vector (vselect (fvti.Mask VMV0:$vm), fvti.RegClass:$rs1,
                                                         fvti.RegClass:$rs2)),
@@ -702,17 +677,17 @@ foreach fvti = AllFloatVectors in {
                  fvti.RegClass:$rs2, 0, VMV0:$vm, fvti.AVL, fvti.SEW)>;
 }
 
-// 14.15. Vector Single-Width Floating-Point/Integer Type-Convert Instructions
-defm "" : VPatConvertFP2ISDNode_V<fp_to_sint, "PseudoVFCVT_RTZ_X_F_V">;
-defm "" : VPatConvertFP2ISDNode_V<fp_to_uint, "PseudoVFCVT_RTZ_XU_F_V">;
-defm "" : VPatConvertI2FPSDNode_V<sint_to_fp, "PseudoVFCVT_F_X_V">;
-defm "" : VPatConvertI2FPSDNode_V<uint_to_fp, "PseudoVFCVT_F_XU_V">;
+// 14.17. Vector Single-Width Floating-Point/Integer Type-Convert Instructions
+defm : VPatConvertFP2ISDNode_V<fp_to_sint, "PseudoVFCVT_RTZ_X_F_V">;
+defm : VPatConvertFP2ISDNode_V<fp_to_uint, "PseudoVFCVT_RTZ_XU_F_V">;
+defm : VPatConvertI2FPSDNode_V<sint_to_fp, "PseudoVFCVT_F_X_V">;
+defm : VPatConvertI2FPSDNode_V<uint_to_fp, "PseudoVFCVT_F_XU_V">;
 
-// 14.16. Widening Floating-Point/Integer Type-Convert Instructions
-defm "" : VPatWConvertFP2ISDNode_V<fp_to_sint, "PseudoVFWCVT_RTZ_X_F_V">;
-defm "" : VPatWConvertFP2ISDNode_V<fp_to_uint, "PseudoVFWCVT_RTZ_XU_F_V">;
-defm "" : VPatWConvertI2FPSDNode_V<sint_to_fp, "PseudoVFWCVT_F_X_V">;
-defm "" : VPatWConvertI2FPSDNode_V<uint_to_fp, "PseudoVFWCVT_F_XU_V">;
+// 14.18. Widening Floating-Point/Integer Type-Convert Instructions
+defm : VPatWConvertFP2ISDNode_V<fp_to_sint, "PseudoVFWCVT_RTZ_X_F_V">;
+defm : VPatWConvertFP2ISDNode_V<fp_to_uint, "PseudoVFWCVT_RTZ_XU_F_V">;
+defm : VPatWConvertI2FPSDNode_V<sint_to_fp, "PseudoVFWCVT_F_X_V">;
+defm : VPatWConvertI2FPSDNode_V<uint_to_fp, "PseudoVFWCVT_F_XU_V">;
 foreach fvtiToFWti = AllWidenableFloatVectors in {
   defvar fvti = fvtiToFWti.Vti;
   defvar fwti = fvtiToFWti.Wti;
@@ -721,23 +696,18 @@ foreach fvtiToFWti = AllWidenableFloatVectors in {
                 fvti.RegClass:$rs1, fvti.AVL, fvti.SEW)>;
 }
 
-// 14.17. Narrowing Floating-Point/Integer Type-Convert Instructions
-defm "" : VPatNConvertFP2ISDNode_V<fp_to_sint, "PseudoVFNCVT_RTZ_X_F_W">;
-defm "" : VPatNConvertFP2ISDNode_V<fp_to_uint, "PseudoVFNCVT_RTZ_XU_F_W">;
-defm "" : VPatNConvertI2FPSDNode_V<sint_to_fp, "PseudoVFNCVT_F_X_W">;
-defm "" : VPatNConvertI2FPSDNode_V<uint_to_fp, "PseudoVFNCVT_F_XU_W">;
+// 14.19. Narrowing Floating-Point/Integer Type-Convert Instructions
+defm : VPatNConvertFP2ISDNode_V<fp_to_sint, "PseudoVFNCVT_RTZ_X_F_W">;
+defm : VPatNConvertFP2ISDNode_V<fp_to_uint, "PseudoVFNCVT_RTZ_XU_F_W">;
+defm : VPatNConvertI2FPSDNode_V<sint_to_fp, "PseudoVFNCVT_F_X_W">;
+defm : VPatNConvertI2FPSDNode_V<uint_to_fp, "PseudoVFNCVT_F_XU_W">;
 foreach fvtiToFWti = AllWidenableFloatVectors in {
   defvar fvti = fvtiToFWti.Vti;
   defvar fwti = fvtiToFWti.Wti;
   def : Pat<(fvti.Vector (fpround (fwti.Vector fwti.RegClass:$rs1))),
             (!cast<Instruction>("PseudoVFNCVT_F_F_W_"#fvti.LMul.MX)
                 fwti.RegClass:$rs1, fvti.AVL, fvti.SEW)>;
-
-  def : Pat<(fvti.Vector (riscv_fncvt_rod (fwti.Vector fwti.RegClass:$rs1))),
-            (!cast<Instruction>("PseudoVFNCVT_ROD_F_F_W_"#fvti.LMul.MX)
-                fwti.RegClass:$rs1, fvti.AVL, fvti.SEW)>;
 }
-
 } // Predicates = [HasStdExtV, HasStdExtF]
 
 //===----------------------------------------------------------------------===//
@@ -776,47 +746,16 @@ foreach fvti = AllFloatVectors in {
 } // Predicates = [HasStdExtV, HasStdExtF]
 
 //===----------------------------------------------------------------------===//
-// Vector Element Inserts/Extracts
+// Vector Element Extracts
 //===----------------------------------------------------------------------===//
-
-// The built-in TableGen 'insertelt' node must return the same type as the
-// vector element type. On RISC-V, XLenVT is the only legal integer type, so
-// for integer inserts we use a custom node which inserts an XLenVT-typed
-// value.
-def riscv_insert_vector_elt
-    : SDNode<"ISD::INSERT_VECTOR_ELT",
-             SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>, SDTCisVT<2, XLenVT>,
-                                  SDTCisPtrTy<3>]>, []>;
-
-let Predicates = [HasStdExtV] in
-foreach vti = AllIntegerVectors in {
-  def : Pat<(vti.Vector (riscv_insert_vector_elt (vti.Vector vti.RegClass:$merge),
-                                                 vti.ScalarRegClass:$rs1, 0)),
-            (!cast<Instruction>("PseudoVMV_S_X_"#vti.LMul.MX)
-                vti.RegClass:$merge,
-                (vti.Scalar vti.ScalarRegClass:$rs1),
-                vti.AVL, vti.SEW)>;
-}
-
 let Predicates = [HasStdExtV, HasStdExtF] in
 foreach vti = AllFloatVectors in {
-  defvar MX = vti.LMul.MX;
   defvar vmv_f_s_inst = !cast<Instruction>(!strconcat("PseudoVFMV_",
                                                        vti.ScalarSuffix,
-                                                       "_S_", MX));
-  defvar vmv_s_f_inst = !cast<Instruction>(!strconcat("PseudoVFMV_S_",
-                                                       vti.ScalarSuffix,
-                                                       "_", vti.LMul.MX));
-  // Only pattern-match insert/extract-element operations where the index is
-  // 0. Any other index will have been custom-lowered to slide the vector
-  // correctly into place (and, in the case of insert, slide it back again
-  // afterwards).
+                                                       "_S_", vti.LMul.MX));
+  // Only pattern-match extract-element operations where the index is 0. Any
+  // other index will have been custom-lowered to slide the vector correctly
+  // into place.
   def : Pat<(vti.Scalar (extractelt (vti.Vector vti.RegClass:$rs2), 0)),
             (vmv_f_s_inst vti.RegClass:$rs2, vti.SEW)>;
-
-  def : Pat<(vti.Vector (insertelt (vti.Vector vti.RegClass:$merge),
-                                   vti.ScalarRegClass:$rs1, 0)),
-            (vmv_s_f_inst vti.RegClass:$merge,
-                    (vti.Scalar vti.ScalarRegClass:$rs1),
-                    vti.AVL, vti.SEW)>;
 }

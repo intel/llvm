@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -triple spir -cl-std=CL2.0 -emit-llvm-bc -o %t.bc
+// RUN: %clang_cc1 %s -triple spir -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc -o %t.bc
 //
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
@@ -7,40 +7,7 @@
 
 // This test checks that the translator is capable to correctly translate
 // atomic_work_item_fence OpenCL C 2.0 built-in function [1] into corresponding
-// SPIR-V instruction [3] and vice-versa.
-//
-// Forward declarations and defines below are based on the following sources:
-// - llvm/llvm-project [1]:
-//   - clang/lib/Headers/opencl-c-base.h
-//   - clang/lib/Headers/opencl-c.h
-// - OpenCL C 2.0 reference pages [2]
-// TODO: remove these and switch to using -fdeclare-opencl-builtins once
-// atomic_work_item_fence is supported by this flag
-
-typedef unsigned int cl_mem_fence_flags;
-
-#define CLK_LOCAL_MEM_FENCE 0x01
-#define CLK_GLOBAL_MEM_FENCE 0x02
-#define CLK_IMAGE_MEM_FENCE 0x04
-
-typedef enum memory_scope {
-  memory_scope_work_item = __OPENCL_MEMORY_SCOPE_WORK_ITEM,
-  memory_scope_work_group = __OPENCL_MEMORY_SCOPE_WORK_GROUP,
-  memory_scope_device = __OPENCL_MEMORY_SCOPE_DEVICE,
-  memory_scope_all_svm_devices = __OPENCL_MEMORY_SCOPE_ALL_SVM_DEVICES,
-  memory_scope_sub_group = __OPENCL_MEMORY_SCOPE_SUB_GROUP
-} memory_scope;
-
-typedef enum memory_order
-{
-  memory_order_relaxed = __ATOMIC_RELAXED,
-  memory_order_acquire = __ATOMIC_ACQUIRE,
-  memory_order_release = __ATOMIC_RELEASE,
-  memory_order_acq_rel = __ATOMIC_ACQ_REL,
-  memory_order_seq_cst = __ATOMIC_SEQ_CST
-} memory_order;
-
-void __attribute__((overloadable)) atomic_work_item_fence(cl_mem_fence_flags, memory_order, memory_scope);
+// SPIR-V instruction [2] and vice-versa.
 
 __kernel void test_mem_fence_const_flags() {
   atomic_work_item_fence(CLK_LOCAL_MEM_FENCE, memory_order_relaxed, memory_scope_work_item);
@@ -102,5 +69,4 @@ __kernel void test_mem_fence_non_const_flags(cl_mem_fence_flags flags, memory_or
 
 // References:
 // [1]: https://www.khronos.org/registry/OpenCL/sdk/2.0/docs/man/xhtml/atomic_work_item_fence.html
-// [2]: https://github.com/llvm/llvm-project
-// [3]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#OpMemoryBarrier
+// [2]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#OpMemoryBarrier

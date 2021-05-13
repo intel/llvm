@@ -363,8 +363,8 @@ func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
   %c3 = constant 3 : index
   %f0 = constant 0.0 : f32
   %vf0 = splat %f0 : vector<2x3xf32>
-  // expected-error@+1 {{ expects the optional masked attr of same rank as permutation_map results: affine_map<(d0, d1) -> (d0, d1)>}}
-  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {masked = [false], permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
+  // expected-error@+1 {{ expects the optional in_bounds attr of same rank as permutation_map results: affine_map<(d0, d1) -> (d0, d1)>}}
+  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {in_bounds = [true], permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
 }
 
 // -----
@@ -457,6 +457,17 @@ func @test_vector.transfer_write(%arg0: memref<?x?x?xf32>) {
   %cst = constant dense<3.0> : vector<3 x 7 x f32>
   // expected-error@+1 {{requires a permutation_map that is a permutation (found one dim used more than once)}}
   vector.transfer_write %cst, %arg0[%c3, %c3, %c3] {permutation_map = affine_map<(d0, d1, d2)->(d0, d0)>} : vector<3x7xf32>, memref<?x?x?xf32>
+}
+
+// -----
+
+func @test_vector.transfer_write(%arg0: memref<?xf32>, %arg1: vector<7xf32>) {
+  %c3 = constant 3 : index
+  %cst = constant 3.0 : f32
+  // expected-error@+1 {{should not have broadcast dimensions}}
+  vector.transfer_write %arg1, %arg0[%c3]
+      {permutation_map = affine_map<(d0) -> (0)>}
+      : vector<7xf32>, memref<?xf32>
 }
 
 // -----
@@ -1287,17 +1298,29 @@ func @maskedstore_memref_mismatch(%base: memref<?xf32>, %mask: vector<16xi1>, %v
 
 func @gather_base_type_mismatch(%base: memref<?xf64>, %indices: vector<16xi32>,
                                 %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
   // expected-error@+1 {{'vector.gather' op base and result element type should match}}
-  %0 = vector.gather %base[%indices], %mask, %pass_thru
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
     : memref<?xf64>, vector<16xi32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
+}
+
+// -----
+
+func @gather_memref_mismatch(%base: memref<?x?xf64>, %indices: vector<16xi32>,
+                             %mask: vector<16xi1>, %pass_thru: vector<16xf64>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.gather' op requires 2 indices}}
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
+    : memref<?x?xf64>, vector<16xi32>, vector<16xi1>, vector<16xf64> into vector<16xf64>
 }
 
 // -----
 
 func @gather_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
                            %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
   // expected-error@+1 {{'vector.gather' op result #0 must be  of ranks 1, but got 'vector<2x16xf32>'}}
-  %0 = vector.gather %base[%indices], %mask, %pass_thru
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
     : memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<16xf32> into vector<2x16xf32>
 }
 
@@ -1305,8 +1328,9 @@ func @gather_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
 
 func @gather_dim_indices_mismatch(%base: memref<?xf32>, %indices: vector<17xi32>,
                                   %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
   // expected-error@+1 {{'vector.gather' op expected result dim to match indices dim}}
-  %0 = vector.gather %base[%indices], %mask, %pass_thru
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
     : memref<?xf32>, vector<17xi32>, vector<16xi1>, vector<16xf32> into vector<16xf32>
 }
 
@@ -1314,8 +1338,9 @@ func @gather_dim_indices_mismatch(%base: memref<?xf32>, %indices: vector<17xi32>
 
 func @gather_dim_mask_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
                                %mask: vector<17xi1>, %pass_thru: vector<16xf32>) {
+  %c0 = constant 0 : index
   // expected-error@+1 {{'vector.gather' op expected result dim to match mask dim}}
-  %0 = vector.gather %base[%indices], %mask, %pass_thru
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
     : memref<?xf32>, vector<16xi32>, vector<17xi1>, vector<16xf32> into vector<16xf32>
 }
 
@@ -1323,8 +1348,9 @@ func @gather_dim_mask_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
 
 func @gather_pass_thru_type_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
                                      %mask: vector<16xi1>, %pass_thru: vector<16xf64>) {
+  %c0 = constant 0 : index
   // expected-error@+1 {{'vector.gather' op expected pass_thru of same type as result type}}
-  %0 = vector.gather %base[%indices], %mask, %pass_thru
+  %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
     : memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<16xf64> into vector<16xf32>
 }
 
@@ -1332,17 +1358,29 @@ func @gather_pass_thru_type_mismatch(%base: memref<?xf32>, %indices: vector<16xi
 
 func @scatter_base_type_mismatch(%base: memref<?xf64>, %indices: vector<16xi32>,
                                  %mask: vector<16xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
   // expected-error@+1 {{'vector.scatter' op base and valueToStore element type should match}}
-  vector.scatter %base[%indices], %mask, %value
+  vector.scatter %base[%c0][%indices], %mask, %value
     : memref<?xf64>, vector<16xi32>, vector<16xi1>, vector<16xf32>
+}
+
+// -----
+
+func @scatter_memref_mismatch(%base: memref<?x?xf64>, %indices: vector<16xi32>,
+                              %mask: vector<16xi1>, %value: vector<16xf64>) {
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.scatter' op requires 2 indices}}
+  vector.scatter %base[%c0][%indices], %mask, %value
+    : memref<?x?xf64>, vector<16xi32>, vector<16xi1>, vector<16xf64>
 }
 
 // -----
 
 func @scatter_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
                             %mask: vector<16xi1>, %value: vector<2x16xf32>) {
-  // expected-error@+1 {{'vector.scatter' op operand #3 must be  of ranks 1, but got 'vector<2x16xf32>'}}
-  vector.scatter %base[%indices], %mask, %value
+  %c0 = constant 0 : index
+  // expected-error@+1 {{'vector.scatter' op operand #4 must be  of ranks 1, but got 'vector<2x16xf32>'}}
+  vector.scatter %base[%c0][%indices], %mask, %value
     : memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<2x16xf32>
 }
 
@@ -1350,8 +1388,9 @@ func @scatter_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
 
 func @scatter_dim_indices_mismatch(%base: memref<?xf32>, %indices: vector<17xi32>,
                                    %mask: vector<16xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
   // expected-error@+1 {{'vector.scatter' op expected valueToStore dim to match indices dim}}
-  vector.scatter %base[%indices], %mask, %value
+  vector.scatter %base[%c0][%indices], %mask, %value
     : memref<?xf32>, vector<17xi32>, vector<16xi1>, vector<16xf32>
 }
 
@@ -1359,8 +1398,9 @@ func @scatter_dim_indices_mismatch(%base: memref<?xf32>, %indices: vector<17xi32
 
 func @scatter_dim_mask_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
                                 %mask: vector<17xi1>, %value: vector<16xf32>) {
+  %c0 = constant 0 : index
   // expected-error@+1 {{'vector.scatter' op expected valueToStore dim to match mask dim}}
-  vector.scatter %base[%indices], %mask, %value
+  vector.scatter %base[%c0][%indices], %mask, %value
     : memref<?xf32>, vector<16xi32>, vector<17xi1>, vector<16xf32>
 }
 

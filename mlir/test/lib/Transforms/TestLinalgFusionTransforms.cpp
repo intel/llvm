@@ -23,9 +23,9 @@ using namespace mlir::linalg;
 template <LinalgTilingLoopType LoopType>
 static void fillFusionPatterns(MLIRContext *context,
                                const LinalgDependenceGraph &dependenceGraph,
-                               OwningRewritePatternList &patterns) {
-  patterns.insert<LinalgTileAndFusePattern<MatmulOp>,
-                  LinalgTileAndFusePattern<ConvOp>>(
+                               RewritePatternSet &patterns) {
+  patterns.add<LinalgTileAndFusePattern<MatmulOp>,
+               LinalgTileAndFusePattern<ConvOp>>(
       context, dependenceGraph,
       LinalgTilingOptions().setTileSizes({32, 64, 16}).setLoopType(LoopType),
       LinalgFusionOptions().setIndicesToFuse({2}),
@@ -39,7 +39,7 @@ static void fillFusionPatterns(MLIRContext *context,
           ArrayRef<Identifier>(),
           Identifier::get("after_basic_fusion_original", context)));
 
-  patterns.insert<LinalgTileAndFusePattern<MatmulOp>>(
+  patterns.add<LinalgTileAndFusePattern<MatmulOp>>(
       context, dependenceGraph,
       LinalgTilingOptions().setTileSizes({32, 64, 16}).setLoopType(LoopType),
       LinalgFusionOptions().setIndicesToFuse({0}),
@@ -52,7 +52,20 @@ static void fillFusionPatterns(MLIRContext *context,
           ArrayRef<Identifier>(),
           Identifier::get("after_lhs_fusion_original", context)));
 
-  patterns.insert<LinalgTileAndFusePattern<MatmulOp>>(
+  patterns.add<LinalgTileAndFusePattern<MatmulOp>>(
+      context, dependenceGraph,
+      LinalgTilingOptions().setTileSizes({32, 64, 16}).setLoopType(LoopType),
+      LinalgFusionOptions().setIndicesToFuse({2}),
+      LinalgTransformationFilter(Identifier::get("out_fusion", context),
+                                 Identifier::get("after_out_fusion", context)),
+      LinalgTransformationFilter(
+          ArrayRef<Identifier>(),
+          Identifier::get("after_out_fusion_producer", context)),
+      LinalgTransformationFilter(
+          ArrayRef<Identifier>(),
+          Identifier::get("after_out_fusion_original", context)));
+
+  patterns.add<LinalgTileAndFusePattern<MatmulOp>>(
       context, dependenceGraph,
       LinalgTilingOptions().setTileSizes({32, 64, 16}).setLoopType(LoopType),
       LinalgFusionOptions().setIndicesToFuse({1}),
@@ -65,7 +78,7 @@ static void fillFusionPatterns(MLIRContext *context,
           ArrayRef<Identifier>(),
           Identifier::get("after_rhs_fusion_original", context)));
 
-  patterns.insert<LinalgTileAndFusePattern<MatmulOp>>(
+  patterns.add<LinalgTileAndFusePattern<MatmulOp>>(
       context, dependenceGraph,
       LinalgTilingOptions().setTileSizes({32, 64, 16}).setLoopType(LoopType),
       LinalgFusionOptions().setIndicesToFuse({0, 2}),
@@ -79,7 +92,7 @@ static void fillFusionPatterns(MLIRContext *context,
           ArrayRef<Identifier>(),
           Identifier::get("after_two_operand_fusion_original", context)));
 
-  patterns.insert<LinalgTileAndFusePattern<GenericOp>>(
+  patterns.add<LinalgTileAndFusePattern<GenericOp>>(
       context, dependenceGraph,
       LinalgTilingOptions().setTileSizes({32, 64}).setLoopType(LoopType),
       LinalgFusionOptions().setIndicesToFuse({0, 1}),
@@ -102,14 +115,14 @@ struct TestLinalgFusionTransforms
   TestLinalgFusionTransforms(const TestLinalgFusionTransforms &pass) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<AffineDialect, linalg::LinalgDialect, scf::SCFDialect,
-                    StandardOpsDialect>();
+    registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
+                    scf::SCFDialect, StandardOpsDialect>();
   }
 
   void runOnFunction() override {
     MLIRContext *context = &this->getContext();
     FuncOp funcOp = this->getFunction();
-    OwningRewritePatternList fusionPatterns;
+    RewritePatternSet fusionPatterns(context);
     Aliases alias;
     LinalgDependenceGraph dependenceGraph =
         LinalgDependenceGraph::buildDependenceGraph(alias, funcOp);
@@ -179,12 +192,16 @@ static LogicalResult fuseLinalgOpsGreedily(FuncOp f) {
 namespace {
 struct TestLinalgGreedyFusion
     : public PassWrapper<TestLinalgGreedyFusion, FunctionPass> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
+                    scf::SCFDialect>();
+  }
   void runOnFunction() override {
     MLIRContext *context = &getContext();
-    OwningRewritePatternList patterns =
+    RewritePatternSet patterns =
         linalg::getLinalgTilingCanonicalizationPatterns(context);
-    patterns.insert<AffineMinSCFCanonicalizationPattern>(context);
-    FrozenRewritePatternList frozenPatterns(std::move(patterns));
+    patterns.add<AffineMinSCFCanonicalizationPattern>(context);
+    FrozenRewritePatternSet frozenPatterns(std::move(patterns));
     while (succeeded(fuseLinalgOpsGreedily(getFunction()))) {
       (void)applyPatternsAndFoldGreedily(getFunction(), frozenPatterns);
       PassManager pm(context);
@@ -211,7 +228,8 @@ struct TestLinalgTileAndFuseSequencePass
       llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<AffineDialect, linalg::LinalgDialect, scf::SCFDialect>();
+    registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
+                    scf::SCFDialect>();
   }
 
   void runOnFunction() override {

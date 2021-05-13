@@ -29,11 +29,6 @@ Identifier Builder::getIdentifier(StringRef str) {
 
 Location Builder::getUnknownLoc() { return UnknownLoc::get(context); }
 
-Location Builder::getFileLineColLoc(Identifier filename, unsigned line,
-                                    unsigned column) {
-  return FileLineColLoc::get(filename, line, column, context);
-}
-
 Location Builder::getFusedLoc(ArrayRef<Location> locs, Attribute metadata) {
   return FusedLoc::get(locs, metadata, context);
 }
@@ -122,6 +117,12 @@ DenseIntElementsAttr Builder::getI32VectorAttr(ArrayRef<int32_t> values) {
 DenseIntElementsAttr Builder::getI64VectorAttr(ArrayRef<int64_t> values) {
   return DenseIntElementsAttr::get(
       VectorType::get(static_cast<int64_t>(values.size()), getIntegerType(64)),
+      values);
+}
+
+DenseIntElementsAttr Builder::getIndexVectorAttr(ArrayRef<int64_t> values) {
+  return DenseIntElementsAttr::get(
+      VectorType::get(static_cast<int64_t>(values.size()), getIndexType()),
       values);
 }
 

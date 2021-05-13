@@ -121,6 +121,10 @@ public:
   virtual llvm::SMLoc getNameLoc() const = 0;
 
   /// Re-encode the given source location as an MLIR location and return it.
+  /// Note: This method should only be used when a `Location` is necessary, as
+  /// the encoding process is not efficient. In other cases a more suitable
+  /// alternative should be used, such as the `getChecked` methods defined
+  /// below.
   virtual Location getEncodedSourceLoc(llvm::SMLoc loc) = 0;
 
   /// Returns the full specification of the symbol being parsed. This allows for
@@ -161,6 +165,22 @@ public:
     if (uint64_t(result) != uintResult)
       return emitError(loc, "integer value too large");
     return success();
+  }
+
+  /// Invoke the `getChecked` method of the given Attribute or Type class, using
+  /// the provided location to emit errors in the case of failure. Note that
+  /// unlike `OpBuilder::getType`, this method does not implicitly insert a
+  /// context parameter.
+  template <typename T, typename... ParamsT>
+  T getChecked(llvm::SMLoc loc, ParamsT &&...params) {
+    return T::getChecked([&] { return emitError(loc); },
+                         std::forward<ParamsT>(params)...);
+  }
+  /// A variant of `getChecked` that uses the result of `getNameLoc` to emit
+  /// errors.
+  template <typename T, typename... ParamsT> T getChecked(ParamsT &&...params) {
+    return T::getChecked([&] { return emitError(getNameLoc()); },
+                         std::forward<ParamsT>(params)...);
   }
 
   //===--------------------------------------------------------------------===//
@@ -341,6 +361,11 @@ public:
   ///   static-dimension-list ::= (integer `x`)*
   virtual ParseResult parseDimensionList(SmallVectorImpl<int64_t> &dimensions,
                                          bool allowDynamic = true) = 0;
+
+  /// Parse an 'x' token in a dimension list, handling the case where the x is
+  /// juxtaposed with an element type, as in "xf32", leaving the "f32" as the
+  /// next token.
+  virtual ParseResult parseXInDimensionList() = 0;
 };
 
 } // end namespace mlir

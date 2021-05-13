@@ -1948,7 +1948,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     IRBuilder<> IRB(&I);
     Value *Addr = I.getOperand(0);
-    Value *ShadowPtr = getShadowOriginPtr(Addr, IRB, I.getType(), Align(1),
+    Value *Val = I.getOperand(1);
+    Value *ShadowPtr = getShadowOriginPtr(Addr, IRB, Val->getType(), Align(1),
                                           /*isStore*/ true)
                            .first;
 
@@ -1959,9 +1960,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // The other argument can potentially be uninitialized, but we can not
     // detect this situation reliably without possible false positives.
     if (isa<AtomicCmpXchgInst>(I))
-      insertShadowCheck(I.getOperand(1), &I);
+      insertShadowCheck(Val, &I);
 
-    IRB.CreateStore(getCleanShadow(&I), ShadowPtr);
+    IRB.CreateStore(getCleanShadow(Val), ShadowPtr);
 
     setShadow(&I, getCleanShadow(&I));
     setOrigin(&I, getCleanOrigin());
@@ -5027,7 +5028,7 @@ struct VarArgSystemZHelper : public VarArgHelper {
   void visitCallBase(CallBase &CB, IRBuilder<> &IRB) override {
     bool IsSoftFloatABI = CB.getCalledFunction()
                               ->getFnAttribute("use-soft-float")
-                              .getValueAsString() == "true";
+                              .getValueAsBool();
     unsigned GpOffset = SystemZGpOffset;
     unsigned FpOffset = SystemZFpOffset;
     unsigned VrIndex = 0;

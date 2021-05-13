@@ -98,15 +98,18 @@ write_lit_config("lit_site_cfg") {
   }
 
   if (host_os == "win") {
-    extra_values += [ "EXEEXT=.exe" ]
+    extra_values += [
+      "EXEEXT=.exe",
+      "LLVM_ENABLE_PLUGINS=0",
+      "LLVM_LIT_ERRC_MESSAGES=no such file or directory;is a directory;" +
+          "invalid argument;permission denied",
+    ]
   } else {
-    extra_values += [ "EXEEXT=" ]
-  }
-
-  if (host_os == "win") {
-    extra_values += [ "LLVM_ENABLE_PLUGINS=0" ]
-  } else {
-    extra_values += [ "LLVM_ENABLE_PLUGINS=1" ]
+    extra_values += [
+      "EXEEXT=",
+      "LLVM_ENABLE_PLUGINS=1",
+      "LLVM_LIT_ERRC_MESSAGES=",
+    ]
   }
 
   if (host_os == "mac") {
@@ -247,11 +250,12 @@ group("test") {
     "//llvm/tools/llvm-mt",
     "//llvm/tools/llvm-nm",
     "//llvm/tools/llvm-objcopy:symlinks",
-    "//llvm/tools/llvm-objdump",
+    "//llvm/tools/llvm-objdump:symlinks",
     "//llvm/tools/llvm-opt-fuzzer",
     "//llvm/tools/llvm-opt-report",
     "//llvm/tools/llvm-pdbutil",
     "//llvm/tools/llvm-profdata",
+    "//llvm/tools/llvm-profgen",
     "//llvm/tools/llvm-rc",
     "//llvm/tools/llvm-readobj:symlinks",
     "//llvm/tools/llvm-reduce",

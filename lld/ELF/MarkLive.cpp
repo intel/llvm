@@ -270,7 +270,11 @@ template <class ELFT> void MarkLive<ELFT>::run() {
 
     if (isReserved(sec) || script->shouldKeep(sec)) {
       enqueue(sec, 0);
-    } else if (isValidCIdentifier(sec->name)) {
+    } else if ((!config->zStartStopGC || sec->name.startswith("__libc_")) &&
+               isValidCIdentifier(sec->name)) {
+      // As a workaround for glibc libc.a before 2.34
+      // (https://sourceware.org/PR27492), retain __libc_atexit and similar
+      // sections regardless of zStartStopGC.
       cNamedSections[saver.save("__start_" + sec->name)].push_back(sec);
       cNamedSections[saver.save("__stop_" + sec->name)].push_back(sec);
     }

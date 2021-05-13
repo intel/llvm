@@ -46,11 +46,26 @@ if.end.i:                                         ; preds = %entry
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_1]],{{.*}}, i32 896
 ; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 1, i32 0
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(i32 addrspace(1)* %add.ptr.i, i32 1, i32 896, i32 %conv.i.i) #2
+  tail call spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %add.ptr.i)
   br label %_ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit
 
 _ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit: ; preds = %entry, %if.end.i
 ; CHECK: call void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
+  ret void
+}
+
+define weak_odr dso_local spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %ptr) {
+entry:
+; CHECK-LABEL: spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %{{.*}}) {
+; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_S:[0-9a-zA-Z._]+]], i32 1, i32 0)
+; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_S]],{{.*}}, i32 896
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_S]], i32 1, i32 0)
+  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32, !noalias !15
+  %1 = extractelement <3 x i64> %0, i64 0
+  %conv = trunc i64 %1 to i32
+  tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(i32 addrspace(1)* %ptr, i32 1, i32 896, i32 %conv) #2
+; CHECK-NOT: call void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 

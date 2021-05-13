@@ -468,8 +468,10 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   if (const SectionAttr *SA = D.getAttr<SectionAttr>())
     var->setSection(SA->getName());
 
-  if (D.hasAttr<UsedAttr>())
+  if (D.hasAttr<RetainAttr>())
     CGM.addUsedGlobal(var);
+  else if (D.hasAttr<UsedAttr>())
+    CGM.addUsedOrCompilerUsedGlobal(var);
 
   // We may have to cast the constant because of the initializer
   // mismatch above.
@@ -575,6 +577,7 @@ namespace {
   struct CallStackRestore final : EHScopeStack::Cleanup {
     Address Stack;
     CallStackRestore(Address Stack) : Stack(Stack) {}
+    bool isRedundantBeforeReturn() override { return true; }
     void Emit(CodeGenFunction &CGF, Flags flags) override {
       llvm::Value *V = CGF.Builder.CreateLoad(Stack);
       llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stackrestore);
@@ -1812,8 +1815,8 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
     llvm::Value *BaseSizeInChars =
         llvm::ConstantInt::get(IntPtrTy, EltSize.getQuantity());
     Address Begin = Builder.CreateElementBitCast(Loc, Int8Ty, "vla.begin");
-    llvm::Value *End =
-        Builder.CreateInBoundsGEP(Begin.getPointer(), SizeVal, "vla.end");
+    llvm::Value *End = Builder.CreateInBoundsGEP(
+        Begin.getElementType(), Begin.getPointer(), SizeVal, "vla.end");
     llvm::BasicBlock *OriginBB = Builder.GetInsertBlock();
     EmitBlock(LoopBB);
     llvm::PHINode *Cur = Builder.CreatePHI(Begin.getType(), 2, "vla.cur");
@@ -2241,7 +2244,8 @@ void CodeGenFunction::emitDestroy(Address addr, QualType type,
   }
 
   llvm::Value *begin = addr.getPointer();
-  llvm::Value *end = Builder.CreateInBoundsGEP(begin, length);
+  llvm::Value *end =
+      Builder.CreateInBoundsGEP(addr.getElementType(), begin, length);
   emitArrayDestroy(begin, end, type, elementAlign, destroyer,
                    checkZeroLength, useEHCleanupForArray);
 }
@@ -2613,7 +2617,10 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   // Emit debug info for param declarations in non-thunk functions.
   if (CGDebugInfo *DI = getDebugInfo()) {
     if (CGM.getCodeGenOpts().hasReducedDebugInfo() && !CurFuncIsThunk) {
-      DI->EmitDeclareOfArgVariable(&D, DeclPtr.getPointer(), ArgNo, Builder);
+      llvm::DILocalVariable *DILocalVar = DI->EmitDeclareOfArgVariable(
+          &D, DeclPtr.getPointer(), ArgNo, Builder);
+      if (const auto *Var = dyn_cast_or_null<ParmVarDecl>(&D))
+        DI->getParamDbgMappings().insert({Var, DILocalVar});
     }
   }
 

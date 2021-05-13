@@ -610,7 +610,8 @@ ArrayType *ArrayType::get(Type *ElementType, uint64_t NumElements) {
 bool ArrayType::isValidElementType(Type *ElemTy) {
   return !ElemTy->isVoidTy() && !ElemTy->isLabelTy() &&
          !ElemTy->isMetadataTy() && !ElemTy->isFunctionTy() &&
-         !ElemTy->isTokenTy() && !isa<ScalableVectorType>(ElemTy);
+         !ElemTy->isTokenTy() && !ElemTy->isX86_AMXTy() &&
+         !isa<ScalableVectorType>(ElemTy);
 }
 
 //===----------------------------------------------------------------------===//
@@ -711,7 +712,8 @@ PointerType *Type::getPointerTo(unsigned addrs) const {
 
 bool PointerType::isValidElementType(Type *ElemTy) {
   return !ElemTy->isVoidTy() && !ElemTy->isLabelTy() &&
-         !ElemTy->isMetadataTy() && !ElemTy->isTokenTy();
+         !ElemTy->isMetadataTy() && !ElemTy->isTokenTy() &&
+         !ElemTy->isX86_AMXTy();
 }
 
 bool PointerType::isLoadableOrStorableType(Type *ElemTy) {

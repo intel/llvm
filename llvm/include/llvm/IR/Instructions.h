@@ -1122,7 +1122,9 @@ public:
   /// must be at least as wide as the IntPtr type for the address space of
   /// the base GEP pointer.
   bool accumulateConstantOffset(const DataLayout &DL, APInt &Offset) const;
-
+  bool collectOffset(const DataLayout &DL, unsigned BitWidth,
+                     SmallDenseMap<Value *, APInt, 8> &VariableOffsets,
+                     APInt &ConstantOffset) const;
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::GetElementPtr);
@@ -1584,16 +1586,6 @@ public:
   /// in \p Bundles.
   static CallInst *Create(CallInst *CI, ArrayRef<OperandBundleDef> Bundles,
                           Instruction *InsertPt = nullptr);
-
-  /// Create a clone of \p CI with a different set of operand bundles and
-  /// insert it before \p InsertPt.
-  ///
-  /// The returned call instruction is identical \p CI in every way except that
-  /// the operand bundle for the new instruction is set to the operand bundle
-  /// in \p Bundle.
-  static CallInst *CreateWithReplacedBundle(CallInst *CI,
-                                            OperandBundleDef Bundle,
-                                            Instruction *InsertPt = nullptr);
 
   /// Generate the IR for a call to malloc:
   /// 1. Compute the malloc call's argument as the specified type's size,
@@ -3823,16 +3815,6 @@ public:
   /// bundles in \p Bundles.
   static InvokeInst *Create(InvokeInst *II, ArrayRef<OperandBundleDef> Bundles,
                             Instruction *InsertPt = nullptr);
-
-  /// Create a clone of \p II with a different set of operand bundles and
-  /// insert it before \p InsertPt.
-  ///
-  /// The returned invoke instruction is identical to \p II in every way except
-  /// that the operand bundle for the new instruction is set to the operand
-  /// bundle in \p Bundle.
-  static InvokeInst *CreateWithReplacedBundle(InvokeInst *II,
-                                              OperandBundleDef Bundles,
-                                              Instruction *InsertPt = nullptr);
 
   // get*Dest - Return the destination basic blocks...
   BasicBlock *getNormalDest() const {

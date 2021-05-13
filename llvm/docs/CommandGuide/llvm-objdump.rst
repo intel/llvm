@@ -172,6 +172,12 @@ OPTIONS
   When disassembling with the :option:`--source` option, prepend ``prefix`` to
   absolute paths.
 
+.. option:: --prefix-strip=<level>
+
+  When disassembling with the :option:`--source` option, strip out ``level``
+  initial directories from absolute paths. This option has no effect without
+  :option:`--prefix`.
+
 .. option:: --print-imm-hex
 
   Use hex format when printing immediate values in disassembly output.
@@ -304,6 +310,10 @@ MACH-O ONLY OPTIONS AND COMMANDS
 
   Display exported symbols.
 
+.. option:: --function-starts
+
+  Print the function starts table for Mach-O objects.
+
 .. option:: -g
 
   Print line information from debug info if available.
@@ -357,6 +367,10 @@ MACH-O ONLY OPTIONS AND COMMANDS
 
   Display rebasing information.
 
+.. option:: --rpaths
+
+  Display runtime search paths for the binary.
+
 .. option:: --universal-headers
 
   Display universal headers.
@@ -380,4 +394,5 @@ To report bugs, please visit <https://bugs.llvm.org/>.
 SEE ALSO
 --------
 
-:manpage:`llvm-nm(1)`, :manpage:`llvm-readelf(1)`, :manpage:`llvm-readobj(1)`
+:manpage:`llvm-nm(1)`, :manpage:`llvm-otool(1)`, :manpage:`llvm-readelf(1)`,
+:manpage:`llvm-readobj(1)`

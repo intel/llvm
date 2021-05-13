@@ -89,6 +89,7 @@ GDBRemoteCommunicationClient::GDBRemoteCommunicationClient()
       m_supports_jGetSharedCacheInfo(eLazyBoolCalculate),
       m_supports_QPassSignals(eLazyBoolCalculate),
       m_supports_error_string_reply(eLazyBoolCalculate),
+      m_supports_multiprocess(eLazyBoolCalculate),
       m_supports_qProcessInfoPID(true), m_supports_qfProcessInfo(true),
       m_supports_qUserName(true), m_supports_qGroupName(true),
       m_supports_qThreadStopInfo(true), m_supports_z0(true),
@@ -99,11 +100,11 @@ GDBRemoteCommunicationClient::GDBRemoteCommunicationClient()
       m_supports_jThreadsInfo(true), m_supports_jModulesInfo(true),
       m_curr_pid(LLDB_INVALID_PROCESS_ID), m_curr_tid(LLDB_INVALID_THREAD_ID),
       m_curr_tid_run(LLDB_INVALID_THREAD_ID),
-      m_num_supported_hardware_watchpoints(0), m_host_arch(), m_process_arch(),
-      m_os_build(), m_os_kernel(), m_hostname(), m_gdb_server_name(),
-      m_gdb_server_version(UINT32_MAX), m_default_packet_timeout(0),
-      m_max_packet_size(0), m_qSupported_response(),
-      m_supported_async_json_packets_is_valid(false),
+      m_num_supported_hardware_watchpoints(0), m_addressing_bits(0),
+      m_host_arch(), m_process_arch(), m_os_build(), m_os_kernel(),
+      m_hostname(), m_gdb_server_name(), m_gdb_server_version(UINT32_MAX),
+      m_default_packet_timeout(0), m_max_packet_size(0),
+      m_qSupported_response(), m_supported_async_json_packets_is_valid(false),
       m_supported_async_json_packets_sp(), m_qXfer_memory_map(),
       m_qXfer_memory_map_loaded(false) {}
 
@@ -292,6 +293,7 @@ void GDBRemoteCommunicationClient::ResetDiscoverableSettings(bool did_exec) {
     m_prepare_for_reg_writing_reply = eLazyBoolCalculate;
     m_attach_or_wait_reply = eLazyBoolCalculate;
     m_avoid_g_packets = eLazyBoolCalculate;
+    m_supports_multiprocess = eLazyBoolCalculate;
     m_supports_qXfer_auxv_read = eLazyBoolCalculate;
     m_supports_qXfer_libraries_read = eLazyBoolCalculate;
     m_supports_qXfer_libraries_svr4_read = eLazyBoolCalculate;
@@ -342,11 +344,16 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
   m_supports_augmented_libraries_svr4_read = eLazyBoolNo;
   m_supports_qXfer_features_read = eLazyBoolNo;
   m_supports_qXfer_memory_map_read = eLazyBoolNo;
+  m_supports_multiprocess = eLazyBoolNo;
+  m_supports_qEcho = eLazyBoolNo;
+  m_supports_QPassSignals = eLazyBoolNo;
+
   m_max_packet_size = UINT64_MAX; // It's supposed to always be there, but if
                                   // not, we assume no limit
 
   // build the qSupported packet
-  std::vector<std::string> features = {"xmlRegisters=i386,arm,mips,arc"};
+  std::vector<std::string> features = {"xmlRegisters=i386,arm,mips,arc",
+                                       "multiprocess+"};
   StreamString packet;
   packet.PutCString("qSupported");
   for (uint32_t i = 0; i < features.size(); ++i) {
@@ -358,92 +365,51 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
   if (SendPacketAndWaitForResponse(packet.GetString(), response,
                                    /*send_async=*/false) ==
       PacketResult::Success) {
-    const char *response_cstr = response.GetStringRef().data();
-
     // Hang on to the qSupported packet, so that platforms can do custom
     // configuration of the transport before attaching/launching the process.
-    m_qSupported_response = response_cstr;
+    m_qSupported_response = response.GetStringRef().str();
 
-    if (::strstr(response_cstr, "qXfer:auxv:read+"))
-      m_supports_qXfer_auxv_read = eLazyBoolYes;
-    if (::strstr(response_cstr, "qXfer:libraries-svr4:read+"))
-      m_supports_qXfer_libraries_svr4_read = eLazyBoolYes;
-    if (::strstr(response_cstr, "augmented-libraries-svr4-read")) {
-      m_supports_qXfer_libraries_svr4_read = eLazyBoolYes; // implied
-      m_supports_augmented_libraries_svr4_read = eLazyBoolYes;
-    }
-    if (::strstr(response_cstr, "qXfer:libraries:read+"))
-      m_supports_qXfer_libraries_read = eLazyBoolYes;
-    if (::strstr(response_cstr, "qXfer:features:read+"))
-      m_supports_qXfer_features_read = eLazyBoolYes;
-    if (::strstr(response_cstr, "qXfer:memory-map:read+"))
-      m_supports_qXfer_memory_map_read = eLazyBoolYes;
+    llvm::SmallVector<llvm::StringRef, 16> server_features;
+    response.GetStringRef().split(server_features, ';');
 
-    // Look for a list of compressions in the features list e.g.
-    // qXfer:features:read+;PacketSize=20000;qEcho+;SupportedCompressions=zlib-
-    // deflate,lzma
-    const char *features_list = ::strstr(response_cstr, "qXfer:features:");
-    if (features_list) {
-      const char *compressions =
-          ::strstr(features_list, "SupportedCompressions=");
-      if (compressions) {
-        std::vector<std::string> supported_compressions;
-        compressions += sizeof("SupportedCompressions=") - 1;
-        const char *end_of_compressions = strchr(compressions, ';');
-        if (end_of_compressions == nullptr) {
-          end_of_compressions = strchr(compressions, '\0');
+    for (llvm::StringRef x : server_features) {
+      if (x == "qXfer:auxv:read+")
+        m_supports_qXfer_auxv_read = eLazyBoolYes;
+      else if (x == "qXfer:libraries-svr4:read+")
+        m_supports_qXfer_libraries_svr4_read = eLazyBoolYes;
+      else if (x == "augmented-libraries-svr4-read") {
+        m_supports_qXfer_libraries_svr4_read = eLazyBoolYes; // implied
+        m_supports_augmented_libraries_svr4_read = eLazyBoolYes;
+      } else if (x == "qXfer:libraries:read+")
+        m_supports_qXfer_libraries_read = eLazyBoolYes;
+      else if (x == "qXfer:features:read+")
+        m_supports_qXfer_features_read = eLazyBoolYes;
+      else if (x == "qXfer:memory-map:read+")
+        m_supports_qXfer_memory_map_read = eLazyBoolYes;
+      else if (x == "qEcho")
+        m_supports_qEcho = eLazyBoolYes;
+      else if (x == "QPassSignals+")
+        m_supports_QPassSignals = eLazyBoolYes;
+      else if (x == "multiprocess+")
+        m_supports_multiprocess = eLazyBoolYes;
+      // Look for a list of compressions in the features list e.g.
+      // qXfer:features:read+;PacketSize=20000;qEcho+;SupportedCompressions=zlib-
+      // deflate,lzma
+      else if (x.consume_front("SupportedCompressions=")) {
+        llvm::SmallVector<llvm::StringRef, 4> compressions;
+        x.split(compressions, ',');
+        if (!compressions.empty())
+          MaybeEnableCompression(compressions);
+      } else if (x.consume_front("PacketSize=")) {
+        StringExtractorGDBRemote packet_response(x);
+        m_max_packet_size =
+            packet_response.GetHexMaxU64(/*little_endian=*/false, UINT64_MAX);
+        if (m_max_packet_size == 0) {
+          m_max_packet_size = UINT64_MAX; // Must have been a garbled response
+          Log *log(
+              ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
+          LLDB_LOGF(log, "Garbled PacketSize spec in qSupported response");
         }
-        const char *current_compression = compressions;
-        while (current_compression < end_of_compressions) {
-          const char *next_compression_name = strchr(current_compression, ',');
-          const char *end_of_this_word = next_compression_name;
-          if (next_compression_name == nullptr ||
-              end_of_compressions < next_compression_name) {
-            end_of_this_word = end_of_compressions;
-          }
-
-          if (end_of_this_word) {
-            if (end_of_this_word == current_compression) {
-              current_compression++;
-            } else {
-              std::string this_compression(
-                  current_compression, end_of_this_word - current_compression);
-              supported_compressions.push_back(this_compression);
-              current_compression = end_of_this_word + 1;
-            }
-          } else {
-            supported_compressions.push_back(current_compression);
-            current_compression = end_of_compressions;
-          }
-        }
-
-        if (supported_compressions.size() > 0) {
-          MaybeEnableCompression(supported_compressions);
-        }
-      }
-    }
-
-    if (::strstr(response_cstr, "qEcho"))
-      m_supports_qEcho = eLazyBoolYes;
-    else
-      m_supports_qEcho = eLazyBoolNo;
-
-    if (::strstr(response_cstr, "QPassSignals+"))
-      m_supports_QPassSignals = eLazyBoolYes;
-    else
-      m_supports_QPassSignals = eLazyBoolNo;
-
-    const char *packet_size_str = ::strstr(response_cstr, "PacketSize=");
-    if (packet_size_str) {
-      StringExtractorGDBRemote packet_response(packet_size_str +
-                                               strlen("PacketSize="));
-      m_max_packet_size =
-          packet_response.GetHexMaxU64(/*little_endian=*/false, UINT64_MAX);
-      if (m_max_packet_size == 0) {
-        m_max_packet_size = UINT64_MAX; // Must have been a garbled response
-        Log *log(
-            ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
-        LLDB_LOGF(log, "Garbled PacketSize spec in qSupported response");
       }
     }
   }
@@ -729,7 +695,7 @@ lldb::pid_t GDBRemoteCommunicationClient::GetCurrentProcessID(bool allow_lazy) {
         PacketResult::Success) {
       if (response.GetChar() == 'Q') {
         if (response.GetChar() == 'C') {
-          m_curr_pid = response.GetHexMaxU32(false, LLDB_INVALID_PROCESS_ID);
+          m_curr_pid = response.GetHexMaxU64(false, LLDB_INVALID_PROCESS_ID);
           if (m_curr_pid != LLDB_INVALID_PROCESS_ID) {
             m_curr_pid_is_valid = eLazyBoolYes;
             return m_curr_pid;
@@ -741,12 +707,14 @@ lldb::pid_t GDBRemoteCommunicationClient::GetCurrentProcessID(bool allow_lazy) {
     // If we don't get a response for $qC, check if $qfThreadID gives us a
     // result.
     if (m_curr_pid == LLDB_INVALID_PROCESS_ID) {
-      std::vector<lldb::tid_t> thread_ids;
       bool sequence_mutex_unavailable;
-      size_t size;
-      size = GetCurrentThreadIDs(thread_ids, sequence_mutex_unavailable);
-      if (size && !sequence_mutex_unavailable) {
-        m_curr_pid = thread_ids.front();
+      auto ids = GetCurrentProcessAndThreadIDs(sequence_mutex_unavailable);
+      if (!ids.empty() && !sequence_mutex_unavailable) {
+        // If server returned an explicit PID, use that.
+        m_curr_pid = ids.front().first;
+        // Otherwise, use the TID of the first thread (Linux hack).
+        if (m_curr_pid == LLDB_INVALID_PROCESS_ID)
+          m_curr_pid = ids.front().second;
         m_curr_pid_is_valid = eLazyBoolYes;
         return m_curr_pid;
       }
@@ -1025,9 +993,9 @@ bool GDBRemoteCommunicationClient::GetGDBServerVersion() {
 }
 
 void GDBRemoteCommunicationClient::MaybeEnableCompression(
-    std::vector<std::string> supported_compressions) {
+    llvm::ArrayRef<llvm::StringRef> supported_compressions) {
   CompressionType avail_type = CompressionType::None;
-  std::string avail_name;
+  llvm::StringRef avail_name;
 
 #if defined(HAVE_LIBCOMPRESSION)
   if (avail_type == CompressionType::None) {
@@ -1091,8 +1059,8 @@ void GDBRemoteCommunicationClient::MaybeEnableCompression(
 
   if (avail_type != CompressionType::None) {
     StringExtractorGDBRemote response;
-    std::string packet = "QEnableCompression:type:" + avail_name + ";";
-    if (SendPacketAndWaitForResponse(packet, response, false) !=
+    llvm::Twine packet = "QEnableCompression:type:" + avail_name + ";";
+    if (SendPacketAndWaitForResponse(packet.str(), response, false) !=
         PacketResult::Success)
       return;
 
@@ -1125,8 +1093,23 @@ bool GDBRemoteCommunicationClient::GetDefaultThreadId(lldb::tid_t &tid) {
   if (!response.IsNormalResponse())
     return false;
 
-  if (response.GetChar() == 'Q' && response.GetChar() == 'C')
-    tid = response.GetHexMaxU32(true, -1);
+  if (response.GetChar() == 'Q' && response.GetChar() == 'C') {
+    auto pid_tid = response.GetPidTid(0);
+    if (!pid_tid)
+      return false;
+
+    lldb::pid_t pid = pid_tid->first;
+    // invalid
+    if (pid == StringExtractorGDBRemote::AllProcesses)
+      return false;
+
+    // if we get pid as well, update m_curr_pid
+    if (pid != 0) {
+      m_curr_pid = pid;
+      m_curr_pid_is_valid = eLazyBoolYes;
+    }
+    tid = pid_tid->second;
+  }
 
   return true;
 }
@@ -1219,11 +1202,13 @@ bool GDBRemoteCommunicationClient::GetHostInfo(bool force) {
           } else if (name.equals("ptrsize")) {
             if (!value.getAsInteger(0, pointer_byte_size))
               ++num_keys_decoded;
+          } else if (name.equals("addressing_bits")) {
+            if (!value.getAsInteger(0, m_addressing_bits))
+              ++num_keys_decoded;
           } else if (name.equals("os_version") ||
-                     name.equals(
-                         "version")) // Older debugserver binaries used the
-                                     // "version" key instead of
-                                     // "os_version"...
+                     name.equals("version")) // Older debugserver binaries used
+                                             // the "version" key instead of
+                                             // "os_version"...
           {
             if (!m_os_version.tryParse(value))
               ++num_keys_decoded;
@@ -1374,6 +1359,11 @@ GDBRemoteCommunicationClient::GetHostArchitecture() {
   return m_host_arch;
 }
 
+uint32_t GDBRemoteCommunicationClient::GetAddressingBits() {
+  if (m_qHostInfo_is_valid == eLazyBoolCalculate)
+    GetHostInfo();
+  return m_addressing_bits;
+}
 seconds GDBRemoteCommunicationClient::GetHostDefaultPacketTimeout() {
   if (m_qHostInfo_is_valid == eLazyBoolCalculate)
     GetHostInfo();
@@ -2766,9 +2756,10 @@ uint8_t GDBRemoteCommunicationClient::SendGDBStoppointTypePacket(
   return UINT8_MAX;
 }
 
-size_t GDBRemoteCommunicationClient::GetCurrentThreadIDs(
-    std::vector<lldb::tid_t> &thread_ids, bool &sequence_mutex_unavailable) {
-  thread_ids.clear();
+std::vector<std::pair<lldb::pid_t, lldb::tid_t>>
+GDBRemoteCommunicationClient::GetCurrentProcessAndThreadIDs(
+    bool &sequence_mutex_unavailable) {
+  std::vector<std::pair<lldb::pid_t, lldb::tid_t>> ids;
 
   Lock lock(*this, false);
   if (lock) {
@@ -2786,11 +2777,11 @@ size_t GDBRemoteCommunicationClient::GetCurrentThreadIDs(
         break;
       if (ch == 'm') {
         do {
-          tid_t tid = response.GetHexMaxU64(false, LLDB_INVALID_THREAD_ID);
+          auto pid_tid = response.GetPidTid(LLDB_INVALID_PROCESS_ID);
+          if (!pid_tid)
+            return {};
 
-          if (tid != LLDB_INVALID_THREAD_ID) {
-            thread_ids.push_back(tid);
-          }
+          ids.push_back(pid_tid.getValue());
           ch = response.GetChar(); // Skip the command separator
         } while (ch == ',');       // Make sure we got a comma separator
       }
@@ -2803,10 +2794,10 @@ size_t GDBRemoteCommunicationClient::GetCurrentThreadIDs(
      * be as simple as 'S05'. There is no packet which can give us pid and/or
      * tid.
      * Assume pid=tid=1 in such cases.
-    */
+     */
     if ((response.IsUnsupportedResponse() || response.IsNormalResponse()) &&
-        thread_ids.size() == 0 && IsConnected()) {
-      thread_ids.push_back(1);
+        ids.size() == 0 && IsConnected()) {
+      ids.emplace_back(1, 1);
     }
   } else {
     Log *log(ProcessGDBRemoteLog::GetLogIfAnyCategoryIsSet(GDBR_LOG_PROCESS |
@@ -2815,6 +2806,28 @@ size_t GDBRemoteCommunicationClient::GetCurrentThreadIDs(
                   "packet 'qfThreadInfo'");
     sequence_mutex_unavailable = true;
   }
+
+  return ids;
+}
+
+size_t GDBRemoteCommunicationClient::GetCurrentThreadIDs(
+    std::vector<lldb::tid_t> &thread_ids, bool &sequence_mutex_unavailable) {
+  lldb::pid_t pid = GetCurrentProcessID();
+  thread_ids.clear();
+
+  auto ids = GetCurrentProcessAndThreadIDs(sequence_mutex_unavailable);
+  if (ids.empty() || sequence_mutex_unavailable)
+    return 0;
+
+  for (auto id : ids) {
+    // skip threads that do not belong to the current process
+    if (id.first != LLDB_INVALID_PROCESS_ID && id.first != pid)
+      continue;
+    if (id.second != LLDB_INVALID_THREAD_ID &&
+        id.second != StringExtractorGDBRemote::AllThreads)
+      thread_ids.push_back(id.second);
+  }
+
   return thread_ids.size();
 }
 
@@ -3372,110 +3385,12 @@ bool GDBRemoteCommunicationClient::SyncThreadState(lldb::tid_t tid) {
          response.IsOKResponse();
 }
 
-lldb::user_id_t
-GDBRemoteCommunicationClient::SendStartTracePacket(const TraceOptions &options,
-                                                   Status &error) {
-  Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
-  lldb::user_id_t ret_uid = LLDB_INVALID_UID;
-
-  StreamGDBRemote escaped_packet;
-  escaped_packet.PutCString("jTraceStart:");
-
-  StructuredData::Dictionary json_packet;
-  json_packet.AddIntegerItem("type", options.getType());
-  json_packet.AddIntegerItem("buffersize", options.getTraceBufferSize());
-  json_packet.AddIntegerItem("metabuffersize", options.getMetaDataBufferSize());
-
-  if (options.getThreadID() != LLDB_INVALID_THREAD_ID)
-    json_packet.AddIntegerItem("threadid", options.getThreadID());
-
-  StructuredData::DictionarySP custom_params = options.getTraceParams();
-  if (custom_params)
-    json_packet.AddItem("params", custom_params);
-
-  StreamString json_string;
-  json_packet.Dump(json_string, false);
-  escaped_packet.PutEscapedBytes(json_string.GetData(), json_string.GetSize());
-
-  StringExtractorGDBRemote response;
-  if (SendPacketAndWaitForResponse(escaped_packet.GetString(), response,
-                                   true) ==
-      GDBRemoteCommunication::PacketResult::Success) {
-    if (!response.IsNormalResponse()) {
-      error = response.GetStatus();
-      LLDB_LOG(log, "Target does not support Tracing , error {0}", error);
-    } else {
-      ret_uid = response.GetHexMaxU64(false, LLDB_INVALID_UID);
-    }
-  } else {
-    LLDB_LOG(log, "failed to send packet");
-    error.SetErrorStringWithFormat("failed to send packet: '%s'",
-                                   escaped_packet.GetData());
-  }
-  return ret_uid;
-}
-
-Status
-GDBRemoteCommunicationClient::SendStopTracePacket(lldb::user_id_t uid,
-                                                  lldb::tid_t thread_id) {
-  Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
-  StringExtractorGDBRemote response;
-  Status error;
-
-  StructuredData::Dictionary json_packet;
-  StreamGDBRemote escaped_packet;
-  StreamString json_string;
-  escaped_packet.PutCString("jTraceStop:");
-
-  json_packet.AddIntegerItem("traceid", uid);
-
-  if (thread_id != LLDB_INVALID_THREAD_ID)
-    json_packet.AddIntegerItem("threadid", thread_id);
-
-  json_packet.Dump(json_string, false);
-
-  escaped_packet.PutEscapedBytes(json_string.GetData(), json_string.GetSize());
-
-  if (SendPacketAndWaitForResponse(escaped_packet.GetString(), response,
-                                   true) ==
-      GDBRemoteCommunication::PacketResult::Success) {
-    if (!response.IsOKResponse()) {
-      error = response.GetStatus();
-      LLDB_LOG(log, "stop tracing failed");
-    }
-  } else {
-    LLDB_LOG(log, "failed to send packet");
-    error.SetErrorStringWithFormat(
-        "failed to send packet: '%s' with error '%d'", escaped_packet.GetData(),
-        response.GetError());
-  }
-  return error;
-}
-
-Status GDBRemoteCommunicationClient::SendGetDataPacket(
-    lldb::user_id_t uid, lldb::tid_t thread_id,
-    llvm::MutableArrayRef<uint8_t> &buffer, size_t offset) {
-
-  StreamGDBRemote escaped_packet;
-  escaped_packet.PutCString("jTraceBufferRead:");
-  return SendGetTraceDataPacket(escaped_packet, uid, thread_id, buffer, offset);
-}
-
-Status GDBRemoteCommunicationClient::SendGetMetaDataPacket(
-    lldb::user_id_t uid, lldb::tid_t thread_id,
-    llvm::MutableArrayRef<uint8_t> &buffer, size_t offset) {
-
-  StreamGDBRemote escaped_packet;
-  escaped_packet.PutCString("jTraceMetaRead:");
-  return SendGetTraceDataPacket(escaped_packet, uid, thread_id, buffer, offset);
-}
-
-llvm::Expected<TraceTypeInfo>
-GDBRemoteCommunicationClient::SendGetSupportedTraceType() {
+llvm::Expected<TraceSupportedResponse>
+GDBRemoteCommunicationClient::SendTraceSupported() {
   Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
 
   StreamGDBRemote escaped_packet;
-  escaped_packet.PutCString("jLLDBTraceSupportedType");
+  escaped_packet.PutCString("jLLDBTraceSupported");
 
   StringExtractorGDBRemote response;
   if (SendPacketAndWaitForResponse(escaped_packet.GetString(), response,
@@ -3485,127 +3400,150 @@ GDBRemoteCommunicationClient::SendGetSupportedTraceType() {
       return response.GetStatus().ToError();
     if (response.IsUnsupportedResponse())
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "jLLDBTraceSupportedType is unsupported");
+                                     "jLLDBTraceSupported is unsupported");
 
-    if (llvm::Expected<TraceTypeInfo> type =
-            llvm::json::parse<TraceTypeInfo>(response.Peek()))
-      return *type;
-    else
-      return type.takeError();
+    return llvm::json::parse<TraceSupportedResponse>(response.Peek(),
+                                                     "TraceSupportedResponse");
   }
-  LLDB_LOG(log, "failed to send packet: jLLDBTraceSupportedType");
-  return llvm::createStringError(
-      llvm::inconvertibleErrorCode(),
-      "failed to send packet: jLLDBTraceSupportedType");
+  LLDB_LOG(log, "failed to send packet: jLLDBTraceSupported");
+  return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                 "failed to send packet: jLLDBTraceSupported");
 }
 
-Status
-GDBRemoteCommunicationClient::SendGetTraceConfigPacket(lldb::user_id_t uid,
-                                                       TraceOptions &options) {
+llvm::Error
+GDBRemoteCommunicationClient::SendTraceStop(const TraceStopRequest &request) {
   Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
-  StringExtractorGDBRemote response;
-  Status error;
 
-  StreamString json_string;
   StreamGDBRemote escaped_packet;
-  escaped_packet.PutCString("jTraceConfigRead:");
+  escaped_packet.PutCString("jLLDBTraceStop:");
 
-  StructuredData::Dictionary json_packet;
-  json_packet.AddIntegerItem("traceid", uid);
+  std::string json_string;
+  llvm::raw_string_ostream os(json_string);
+  os << toJSON(request);
+  os.flush();
 
-  if (options.getThreadID() != LLDB_INVALID_THREAD_ID)
-    json_packet.AddIntegerItem("threadid", options.getThreadID());
+  escaped_packet.PutEscapedBytes(json_string.c_str(), json_string.size());
 
-  json_packet.Dump(json_string, false);
-  escaped_packet.PutEscapedBytes(json_string.GetData(), json_string.GetSize());
-
+  StringExtractorGDBRemote response;
   if (SendPacketAndWaitForResponse(escaped_packet.GetString(), response,
                                    true) ==
       GDBRemoteCommunication::PacketResult::Success) {
-    if (response.IsNormalResponse()) {
-      uint64_t type = std::numeric_limits<uint64_t>::max();
-      uint64_t buffersize = std::numeric_limits<uint64_t>::max();
-      uint64_t metabuffersize = std::numeric_limits<uint64_t>::max();
-
-      auto json_object = StructuredData::ParseJSON(response.Peek());
-
-      if (!json_object ||
-          json_object->GetType() != lldb::eStructuredDataTypeDictionary) {
-        error.SetErrorString("Invalid Configuration obtained");
-        return error;
-      }
-
-      auto json_dict = json_object->GetAsDictionary();
-
-      json_dict->GetValueForKeyAsInteger<uint64_t>("metabuffersize",
-                                                   metabuffersize);
-      options.setMetaDataBufferSize(metabuffersize);
-
-      json_dict->GetValueForKeyAsInteger<uint64_t>("buffersize", buffersize);
-      options.setTraceBufferSize(buffersize);
-
-      json_dict->GetValueForKeyAsInteger<uint64_t>("type", type);
-      options.setType(static_cast<lldb::TraceType>(type));
-
-      StructuredData::ObjectSP custom_params_sp =
-          json_dict->GetValueForKey("params");
-      if (custom_params_sp) {
-        if (custom_params_sp->GetType() !=
-            lldb::eStructuredDataTypeDictionary) {
-          error.SetErrorString("Invalid Configuration obtained");
-          return error;
-        } else
-          options.setTraceParams(
-              std::static_pointer_cast<StructuredData::Dictionary>(
-                  custom_params_sp));
-      }
-    } else {
-      error = response.GetStatus();
-    }
-  } else {
-    LLDB_LOG(log, "failed to send packet");
-    error.SetErrorStringWithFormat("failed to send packet: '%s'",
-                                   escaped_packet.GetData());
+    if (response.IsErrorResponse())
+      return response.GetStatus().ToError();
+    if (response.IsUnsupportedResponse())
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "jLLDBTraceStop is unsupported");
+    if (response.IsOKResponse())
+      return llvm::Error::success();
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Invalid jLLDBTraceStart response");
   }
-  return error;
+  LLDB_LOG(log, "failed to send packet: jLLDBTraceStop");
+  return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                 "failed to send packet: jLLDBTraceStop '%s'",
+                                 escaped_packet.GetData());
 }
 
-Status GDBRemoteCommunicationClient::SendGetTraceDataPacket(
-    StreamGDBRemote &packet, lldb::user_id_t uid, lldb::tid_t thread_id,
-    llvm::MutableArrayRef<uint8_t> &buffer, size_t offset) {
+llvm::Error
+GDBRemoteCommunicationClient::SendTraceStart(const llvm::json::Value &params) {
   Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
-  Status error;
 
-  StructuredData::Dictionary json_packet;
+  StreamGDBRemote escaped_packet;
+  escaped_packet.PutCString("jLLDBTraceStart:");
 
-  json_packet.AddIntegerItem("traceid", uid);
-  json_packet.AddIntegerItem("offset", offset);
-  json_packet.AddIntegerItem("buffersize", buffer.size());
+  std::string json_string;
+  llvm::raw_string_ostream os(json_string);
+  os << params;
+  os.flush();
 
-  if (thread_id != LLDB_INVALID_THREAD_ID)
-    json_packet.AddIntegerItem("threadid", thread_id);
+  escaped_packet.PutEscapedBytes(json_string.c_str(), json_string.size());
 
-  StreamString json_string;
-  json_packet.Dump(json_string, false);
-
-  packet.PutEscapedBytes(json_string.GetData(), json_string.GetSize());
   StringExtractorGDBRemote response;
-  if (SendPacketAndWaitForResponse(packet.GetString(), response, true) ==
+  if (SendPacketAndWaitForResponse(escaped_packet.GetString(), response,
+                                   true) ==
       GDBRemoteCommunication::PacketResult::Success) {
-    if (response.IsNormalResponse()) {
-      size_t filled_size = response.GetHexBytesAvail(buffer);
-      buffer = llvm::MutableArrayRef<uint8_t>(buffer.data(), filled_size);
-    } else {
-      error = response.GetStatus();
-      buffer = buffer.slice(buffer.size());
-    }
-  } else {
-    LLDB_LOG(log, "failed to send packet");
-    error.SetErrorStringWithFormat("failed to send packet: '%s'",
-                                   packet.GetData());
-    buffer = buffer.slice(buffer.size());
+    if (response.IsErrorResponse())
+      return response.GetStatus().ToError();
+    if (response.IsUnsupportedResponse())
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "jLLDBTraceStart is unsupported");
+    if (response.IsOKResponse())
+      return llvm::Error::success();
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Invalid jLLDBTraceStart response");
   }
-  return error;
+  LLDB_LOG(log, "failed to send packet: jLLDBTraceStart");
+  return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                 "failed to send packet: jLLDBTraceStart '%s'",
+                                 escaped_packet.GetData());
+}
+
+llvm::Expected<std::string>
+GDBRemoteCommunicationClient::SendTraceGetState(llvm::StringRef type) {
+  Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
+
+  StreamGDBRemote escaped_packet;
+  escaped_packet.PutCString("jLLDBTraceGetState:");
+
+  std::string json_string;
+  llvm::raw_string_ostream os(json_string);
+  os << toJSON(TraceGetStateRequest{type.str()});
+  os.flush();
+
+  escaped_packet.PutEscapedBytes(json_string.c_str(), json_string.size());
+
+  StringExtractorGDBRemote response;
+  if (SendPacketAndWaitForResponse(escaped_packet.GetString(), response,
+                                   true) ==
+      GDBRemoteCommunication::PacketResult::Success) {
+    if (response.IsErrorResponse())
+      return response.GetStatus().ToError();
+    if (response.IsUnsupportedResponse())
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "jLLDBTraceGetState is unsupported");
+    return std::string(response.Peek());
+  }
+
+  LLDB_LOG(log, "failed to send packet: jLLDBTraceGetState");
+  return llvm::createStringError(
+      llvm::inconvertibleErrorCode(),
+      "failed to send packet: jLLDBTraceGetState '%s'",
+      escaped_packet.GetData());
+}
+
+llvm::Expected<std::vector<uint8_t>>
+GDBRemoteCommunicationClient::SendTraceGetBinaryData(
+    const TraceGetBinaryDataRequest &request) {
+  Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
+
+  StreamGDBRemote escaped_packet;
+  escaped_packet.PutCString("jLLDBTraceGetBinaryData:");
+
+  std::string json_string;
+  llvm::raw_string_ostream os(json_string);
+  os << toJSON(request);
+  os.flush();
+
+  escaped_packet.PutEscapedBytes(json_string.c_str(), json_string.size());
+
+  StringExtractorGDBRemote response;
+  if (SendPacketAndWaitForResponse(escaped_packet.GetString(), response,
+                                   true) ==
+      GDBRemoteCommunication::PacketResult::Success) {
+    if (response.IsErrorResponse())
+      return response.GetStatus().ToError();
+    if (response.IsUnsupportedResponse())
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "jLLDBTraceGetBinaryData is unsupported");
+    std::string data;
+    response.GetEscapedBinaryData(data);
+    return std::vector<uint8_t>(data.begin(), data.end());
+  }
+  LLDB_LOG(log, "failed to send packet: jLLDBTraceGetBinaryData");
+  return llvm::createStringError(
+      llvm::inconvertibleErrorCode(),
+      "failed to send packet: jLLDBTraceGetBinaryData '%s'",
+      escaped_packet.GetData());
 }
 
 llvm::Optional<QOffsets> GDBRemoteCommunicationClient::GetQOffsets() {

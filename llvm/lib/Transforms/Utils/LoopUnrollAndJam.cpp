@@ -141,6 +141,7 @@ template <typename T>
 static bool processHeaderPhiOperands(BasicBlock *Header, BasicBlock *Latch,
                                      BasicBlockSet &AftBlocks, T Visit) {
   SmallVector<Instruction *, 8> Worklist;
+  SmallPtrSet<Instruction *, 8> VisitedInstr;
   for (auto &Phi : Header->phis()) {
     Value *V = Phi.getIncomingValueForBlock(Latch);
     if (Instruction *I = dyn_cast<Instruction>(V))
@@ -151,11 +152,13 @@ static bool processHeaderPhiOperands(BasicBlock *Header, BasicBlock *Latch,
     Instruction *I = Worklist.pop_back_val();
     if (!Visit(I))
       return false;
+    VisitedInstr.insert(I);
 
     if (AftBlocks.count(I->getParent()))
       for (auto &U : I->operands())
         if (Instruction *II = dyn_cast<Instruction>(U))
-          Worklist.push_back(II);
+          if (!VisitedInstr.count(II))
+            Worklist.push_back(II);
   }
 
   return true;
@@ -432,9 +435,8 @@ llvm::UnrollAndJamLoop(Loop *L, unsigned Count, unsigned TripCount,
     remapInstructionsInBlocks(NewBlocks, LastValueMap);
     for (BasicBlock *NewBlock : NewBlocks) {
       for (Instruction &I : *NewBlock) {
-        if (auto *II = dyn_cast<IntrinsicInst>(&I))
-          if (II->getIntrinsicID() == Intrinsic::assume)
-            AC->registerAssumption(II);
+        if (auto *II = dyn_cast<AssumeInst>(&I))
+          AC->registerAssumption(II);
       }
     }
 

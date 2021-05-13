@@ -235,9 +235,6 @@ public:
   /// if requested with WantDiags::Auto or WantDiags::Yes.
   void remove(PathRef File);
 
-  /// Returns a snapshot of all file buffer contents, per last update().
-  llvm::StringMap<std::string> getAllFileContents() const;
-
   /// Schedule an async task with no dependencies.
   /// Path may be empty (it is used only to set the Context).
   void run(llvm::StringRef Name, llvm::StringRef Path,
@@ -310,6 +307,8 @@ public:
   /// Responsible for retaining and rebuilding idle ASTs. An implementation is
   /// an LRU cache.
   class ASTCache;
+  /// Tracks headers included by open files, to get known-good compile commands.
+  class HeaderIncluderCache;
 
   // The file being built/processed in the current thread. This is a hack in
   // order to get the file name into the index implementations. Do not depend on
@@ -332,6 +331,7 @@ private:
   Semaphore QuickRunBarrier;
   llvm::StringMap<std::unique_ptr<FileData>> Files;
   std::unique_ptr<ASTCache> IdleASTs;
+  std::unique_ptr<HeaderIncluderCache> HeaderIncluders;
   // None when running tasks synchronously and non-None when running tasks
   // asynchronously.
   llvm::Optional<AsyncTaskRunner> PreambleTasks;

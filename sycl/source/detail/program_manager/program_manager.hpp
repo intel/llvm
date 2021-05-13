@@ -91,10 +91,18 @@ public:
                                   const string_class &KernelName,
                                   const program_impl *Prg = nullptr,
                                   bool JITCompilationIsRequired = false);
+
+  RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
+                                  const device &Device,
+                                  const string_class &KernelName,
+                                  const property_list &PropList,
+                                  bool JITCompilationIsRequired = false);
+
   std::pair<RT::PiKernel, std::mutex *>
   getOrCreateKernel(OSModuleHandle M, const context &Context,
                     const device &Device, const string_class &KernelName,
                     const program_impl *Prg);
+
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
 
@@ -135,20 +143,61 @@ public:
                              const device &Device, pi::PiProgram NativePrg,
                              const string_class &KernelName, bool KnownProgram);
 
+  // The function returns a vector of SYCL device images that are compiled with
+  // the required state and at least one device from the passed list of devices.
+  std::vector<device_image_plain>
+  getSYCLDeviceImagesWithCompatibleState(const context &Ctx,
+                                         const std::vector<device> &Devs,
+                                         bundle_state TargetState);
+
+  // Brind images in the passed vector to the required state. Does it inplace
+  void
+  bringSYCLDeviceImagesToState(std::vector<device_image_plain> &DeviceImages,
+                               bundle_state TargetState);
+
   // The function returns a vector of SYCL device images in required state,
   // which are compatible with at least one of the device from Devs.
   std::vector<device_image_plain>
   getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
                       bundle_state State);
 
+  // The function returns a vector of SYCL device images, for which Selector
+  // callable returns true, in required state, which are compatible with at
+  // least one of the device from Devs.
+  std::vector<device_image_plain>
+  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
+                      const DevImgSelectorImpl &Selector,
+                      bundle_state TargetState);
+
+  // The function returns a vector of SYCL device images which represent at
+  // least one kernel from kernel ids vector in required state, which are
+  // compatible with at least one of the device from Devs.
+  std::vector<device_image_plain>
+  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
+                      const std::vector<kernel_id> &KernelIDs,
+                      bundle_state TargetState);
+
+  // Produces new device image by convering input device image to the object
+  // state
   device_image_plain compile(const device_image_plain &DeviceImage,
-                             property_list PropList);
+                             const std::vector<device> &Devs,
+                             const property_list &PropList);
 
-  device_image_plain link(const std::vector<device_image_plain> &DeviceImage,
-                          property_list PropList);
+  // Produces set of device images by convering input device images to object
+  // the executable state
+  std::vector<device_image_plain>
+  link(const std::vector<device_image_plain> &DeviceImages,
+       const std::vector<device> &Devs, const property_list &PropList);
 
+  // Produces new device image by converting input device image to the
+  // executable state
   device_image_plain build(const device_image_plain &DeviceImage,
-                           property_list PropList);
+                           const std::vector<device> &Devs,
+                           const property_list &PropList);
+
+  std::pair<RT::PiKernel, std::mutex *>
+  getOrCreateKernel(const context &Context, const string_class &KernelName,
+                    const property_list &PropList, RT::PiProgram Program);
 
   ProgramManager();
   ~ProgramManager() = default;

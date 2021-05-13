@@ -21,6 +21,8 @@
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Parser.h"
 
+#include "llvm/Support/Debug.h"
+
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
@@ -58,6 +60,14 @@ intptr_t mlirContextGetNumLoadedDialects(MlirContext context) {
 MlirDialect mlirContextGetOrLoadDialect(MlirContext context,
                                         MlirStringRef name) {
   return wrap(unwrap(context)->getOrLoadDialect(unwrap(name)));
+}
+
+bool mlirContextIsRegisteredOperation(MlirContext context, MlirStringRef name) {
+  return unwrap(context)->isOperationRegistered(unwrap(name));
+}
+
+void mlirContextEnableMultithreading(MlirContext context, bool enable) {
+  return unwrap(context)->enableMultithreading(enable);
 }
 
 //===----------------------------------------------------------------------===//
@@ -113,16 +123,16 @@ void mlirOpPrintingFlagsUseLocalScope(MlirOpPrintingFlags flags) {
 MlirLocation mlirLocationFileLineColGet(MlirContext context,
                                         MlirStringRef filename, unsigned line,
                                         unsigned col) {
-  return wrap(
-      FileLineColLoc::get(unwrap(filename), line, col, unwrap(context)));
+  return wrap(Location(
+      FileLineColLoc::get(unwrap(context), unwrap(filename), line, col)));
 }
 
 MlirLocation mlirLocationCallSiteGet(MlirLocation callee, MlirLocation caller) {
-  return wrap(CallSiteLoc::get(unwrap(callee), unwrap(caller)));
+  return wrap(Location(CallSiteLoc::get(unwrap(callee), unwrap(caller))));
 }
 
 MlirLocation mlirLocationUnknownGet(MlirContext context) {
-  return wrap(UnknownLoc::get(unwrap(context)));
+  return wrap(Location(UnknownLoc::get(unwrap(context))));
 }
 
 bool mlirLocationEqual(MlirLocation l1, MlirLocation l2) {

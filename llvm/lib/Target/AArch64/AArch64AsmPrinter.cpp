@@ -377,7 +377,7 @@ void AArch64AsmPrinter::EmitHwasanMemaccessSymbols(Module &M) {
     OutStreamer->SwitchSection(OutContext.getELFSection(
         ".text.hot", ELF::SHT_PROGBITS,
         ELF::SHF_EXECINSTR | ELF::SHF_ALLOC | ELF::SHF_GROUP, 0,
-        Sym->getName()));
+        Sym->getName(), /*IsComdat=*/true));
 
     OutStreamer->emitSymbolAttribute(Sym, MCSA_ELF_TypeFunction);
     OutStreamer->emitSymbolAttribute(Sym, MCSA_Weak);
@@ -793,11 +793,15 @@ void AArch64AsmPrinter::PrintDebugValueComment(const MachineInstr *MI,
   OS << MI->getDebugVariable()->getName();
   OS << " <- ";
   // Frame address.  Currently handles register +- offset only.
-  assert(MI->getDebugOperand(0).isReg() && MI->isDebugOffsetImm());
+  assert(MI->isIndirectDebugValue());
   OS << '[';
-  printOperand(MI, 0, OS);
-  OS << '+';
-  printOperand(MI, 1, OS);
+  for (unsigned I = 0, E = std::distance(MI->debug_operands().begin(),
+                                         MI->debug_operands().end());
+       I < E; ++I) {
+    if (I != 0)
+      OS << ", ";
+    printOperand(MI, I, OS);
+  }
   OS << ']';
   OS << "+";
   printOperand(MI, NOps - 2, OS);
@@ -1087,17 +1091,16 @@ void AArch64AsmPrinter::LowerFAULTING_OP(const MachineInstr &FaultingMI) {
 void AArch64AsmPrinter::EmitFMov0(const MachineInstr &MI) {
   Register DestReg = MI.getOperand(0).getReg();
   if (STI->hasZeroCycleZeroingFP() && !STI->hasZeroCycleZeroingFPWorkaround()) {
-    // Convert H/S/D register to corresponding Q register
+    // Convert H/S register to corresponding D register
     if (AArch64::H0 <= DestReg && DestReg <= AArch64::H31)
-      DestReg = AArch64::Q0 + (DestReg - AArch64::H0);
+      DestReg = AArch64::D0 + (DestReg - AArch64::H0);
     else if (AArch64::S0 <= DestReg && DestReg <= AArch64::S31)
-      DestReg = AArch64::Q0 + (DestReg - AArch64::S0);
-    else {
+      DestReg = AArch64::D0 + (DestReg - AArch64::S0);
+    else
       assert(AArch64::D0 <= DestReg && DestReg <= AArch64::D31);
-      DestReg = AArch64::Q0 + (DestReg - AArch64::D0);
-    }
+
     MCInst MOVI;
-    MOVI.setOpcode(AArch64::MOVIv2d_ns);
+    MOVI.setOpcode(AArch64::MOVID);
     MOVI.addOperand(MCOperand::createReg(DestReg));
     MOVI.addOperand(MCOperand::createImm(0));
     EmitToStreamer(*OutStreamer, MOVI);
@@ -1210,7 +1213,8 @@ void AArch64AsmPrinter::emitInstruction(const MachineInstr *MI) {
     }
     break;
 
-  case AArch64::DBG_VALUE: {
+  case AArch64::DBG_VALUE:
+  case AArch64::DBG_VALUE_LIST: {
     if (isVerbose() && OutStreamer->hasRawTextSupport()) {
       SmallString<128> TmpStr;
       raw_svector_ostream OS(TmpStr);
@@ -1231,7 +1235,7 @@ void AArch64AsmPrinter::emitInstruction(const MachineInstr *MI) {
       OutStreamer->emitCFIBKeyFrame();
       return;
     }
-  }
+    }
 
   // Tail calls use pseudo instructions so they have the proper code-gen
   // attributes (isCall, isReturn, etc.). We lower them to the real

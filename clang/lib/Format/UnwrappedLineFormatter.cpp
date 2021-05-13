@@ -101,8 +101,13 @@ private:
     if (RootToken.isAccessSpecifier(false) ||
         RootToken.isObjCAccessSpecifier() ||
         (RootToken.isOneOf(Keywords.kw_signals, Keywords.kw_qsignals) &&
-         RootToken.Next && RootToken.Next->is(tok::colon)))
-      return Style.AccessModifierOffset;
+         RootToken.Next && RootToken.Next->is(tok::colon))) {
+      // The AccessModifierOffset may be overriden by IndentAccessModifiers,
+      // in which case we take a negative value of the IndentWidth to simulate
+      // the upper indent level.
+      return Style.IndentAccessModifiers ? -Style.IndentWidth
+                                         : Style.AccessModifierOffset;
+    }
     return 0;
   }
 
@@ -1249,16 +1254,17 @@ void UnwrappedLineFormatter::formatFirstToken(
   if (PreviousLine && RootToken.isAccessSpecifier()) {
     switch (Style.EmptyLineBeforeAccessModifier) {
     case FormatStyle::ELBAMS_Never:
-      if (RootToken.NewlinesBefore > 1)
+      if (Newlines > 1)
         Newlines = 1;
       break;
     case FormatStyle::ELBAMS_Leave:
       Newlines = std::max(RootToken.NewlinesBefore, 1u);
       break;
     case FormatStyle::ELBAMS_LogicalBlock:
-      if (PreviousLine->Last->isOneOf(tok::semi, tok::r_brace) &&
-          RootToken.NewlinesBefore <= 1)
+      if (PreviousLine->Last->isOneOf(tok::semi, tok::r_brace) && Newlines <= 1)
         Newlines = 2;
+      if (PreviousLine->First->isAccessSpecifier())
+        Newlines = 1; // Previous is an access modifier remove all new lines.
       break;
     case FormatStyle::ELBAMS_Always: {
       const FormatToken *previousToken;
@@ -1266,27 +1272,37 @@ void UnwrappedLineFormatter::formatFirstToken(
         previousToken = PreviousLine->Last->getPreviousNonComment();
       else
         previousToken = PreviousLine->Last;
-      if ((!previousToken || !previousToken->is(tok::l_brace)) &&
-          RootToken.NewlinesBefore <= 1)
+      if ((!previousToken || !previousToken->is(tok::l_brace)) && Newlines <= 1)
         Newlines = 2;
     } break;
     }
   }
 
-  // Remove empty lines after access specifiers.
+  // Insert or remove empty line after access specifiers.
   if (PreviousLine && PreviousLine->First->isAccessSpecifier() &&
-      (!PreviousLine->InPPDirective || !RootToken.HasUnescapedNewline))
-    Newlines = std::min(1u, Newlines);
+      (!PreviousLine->InPPDirective || !RootToken.HasUnescapedNewline)) {
+    // EmptyLineBeforeAccessModifier is handling the case when two access
+    // modifiers follow each other.
+    if (!RootToken.isAccessSpecifier()) {
+      switch (Style.EmptyLineAfterAccessModifier) {
+      case FormatStyle::ELAAMS_Never:
+        Newlines = 1;
+        break;
+      case FormatStyle::ELAAMS_Leave:
+        Newlines = std::max(Newlines, 1u);
+        break;
+      case FormatStyle::ELAAMS_Always:
+        if (RootToken.is(tok::r_brace)) // Do not add at end of class.
+          Newlines = 1u;
+        else
+          Newlines = std::max(Newlines, 2u);
+        break;
+      }
+    }
+  }
 
   if (Newlines)
     Indent = NewlineIndent;
-
-  // If in Whitemsmiths mode, indent start and end of blocks
-  if (Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths) {
-    if (RootToken.isOneOf(tok::l_brace, tok::r_brace, tok::kw_case,
-                          tok::kw_default))
-      Indent += Style.IndentWidth;
-  }
 
   // Preprocessor directives get indented before the hash only if specified
   if (Style.IndentPPDirectives != FormatStyle::PPDIS_BeforeHash &&

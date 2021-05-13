@@ -244,9 +244,10 @@ parseSetSectionAlignment(StringRef FlagValue) {
         "bad format for --set-section-alignment: missing section name");
   uint64_t NewAlign;
   if (Split.second.getAsInteger(0, NewAlign))
-    return createStringError(errc::invalid_argument,
-                             "invalid alignment for --set-section-alignment: '%s'",
-                             Split.second.str().c_str());
+    return createStringError(
+        errc::invalid_argument,
+        "invalid alignment for --set-section-alignment: '%s'",
+        Split.second.str().c_str());
   return std::make_pair(Split.first, NewAlign);
 }
 
@@ -720,6 +721,7 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
             : DiscardType::Locals;
   Config.OnlyKeepDebug = InputArgs.hasArg(OBJCOPY_only_keep_debug);
   Config.KeepFileSymbols = InputArgs.hasArg(OBJCOPY_keep_file_symbols);
+  Config.KeepUndefined = InputArgs.hasArg(OBJCOPY_keep_undefined);
   Config.DecompressDebugSections =
       InputArgs.hasArg(OBJCOPY_decompress_debug_sections);
   if (Config.DiscardMode == DiscardType::All) {
@@ -1097,6 +1099,7 @@ parseStripOptions(ArrayRef<const char *> ArgsArr,
   Config.StripSwiftSymbols = InputArgs.hasArg(STRIP_strip_swift_symbols);
   Config.OnlyKeepDebug = InputArgs.hasArg(STRIP_only_keep_debug);
   Config.KeepFileSymbols = InputArgs.hasArg(STRIP_keep_file_symbols);
+  Config.KeepUndefined = InputArgs.hasArg(STRIP_keep_undefined);
 
   for (auto Arg : InputArgs.filtered(STRIP_keep_section))
     if (Error E = Config.KeepSection.addMatcher(NameOrPattern::create(

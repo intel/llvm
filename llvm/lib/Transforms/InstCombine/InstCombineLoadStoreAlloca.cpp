@@ -406,7 +406,10 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
     Align SourceAlign = getOrEnforceKnownAlignment(
       TheSrc, AllocaAlign, DL, &AI, &AC, &DT);
     if (AllocaAlign <= SourceAlign &&
-        isDereferenceableForAllocaSize(TheSrc, &AI, DL)) {
+        isDereferenceableForAllocaSize(TheSrc, &AI, DL) &&
+        !isa<Instruction>(TheSrc)) {
+      // FIXME: Can we sink instructions without violating dominance when TheSrc
+      // is an instruction instead of a constant or argument?
       LLVM_DEBUG(dbgs() << "Found alloca equal to global: " << AI << '\n');
       LLVM_DEBUG(dbgs() << "  memcpy = " << *Copy << '\n');
       unsigned SrcAddrSpace = TheSrc->getType()->getPointerAddressSpace();
@@ -956,10 +959,8 @@ Instruction *InstCombinerImpl::visitLoadInst(LoadInst &LI) {
   // Do really simple store-to-load forwarding and load CSE, to catch cases
   // where there are several consecutive memory accesses to the same location,
   // separated by a few arithmetic operations.
-  BasicBlock::iterator BBI(LI);
   bool IsLoadCSE = false;
-  if (Value *AvailableVal = FindAvailableLoadedValue(
-          &LI, LI.getParent(), BBI, DefMaxInstsToScan, AA, &IsLoadCSE)) {
+  if (Value *AvailableVal = FindAvailableLoadedValue(&LI, *AA, &IsLoadCSE)) {
     if (IsLoadCSE)
       combineMetadataForCSE(cast<LoadInst>(AvailableVal), &LI, false);
 
@@ -1064,7 +1065,7 @@ static Value *likeBitCastFromVector(InstCombinerImpl &IC, Value *V) {
       return nullptr;
     V = IV->getAggregateOperand();
   }
-  if (!isa<UndefValue>(V) ||!U)
+  if (!match(V, m_Undef()) || !U)
     return nullptr;
 
   auto *UT = cast<VectorType>(U->getType());

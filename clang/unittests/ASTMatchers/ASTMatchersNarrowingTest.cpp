@@ -3663,7 +3663,7 @@ TEST_P(ASTMatchersTest, NullPointerConstant) {
                       expr(nullPointerConstant())));
   EXPECT_TRUE(matches("char *cp = (char *)0;", expr(nullPointerConstant())));
   EXPECT_TRUE(matches("int *ip = 0;", expr(nullPointerConstant())));
-  EXPECT_TRUE(matches("int i = 0;", expr(nullPointerConstant())));
+  EXPECT_FALSE(matches("int i = 0;", expr(nullPointerConstant())));
 }
 
 TEST_P(ASTMatchersTest, NullPointerConstant_GNUNull) {
@@ -4399,6 +4399,13 @@ TEST_P(ASTMatchersTest, HasDirectBase) {
   if (!GetParam().isCXX()) {
     return;
   }
+
+  DeclarationMatcher ClassHasAnyDirectBase =
+      cxxRecordDecl(hasDirectBase(cxxBaseSpecifier()));
+  EXPECT_TRUE(notMatches("class X {};", ClassHasAnyDirectBase));
+  EXPECT_TRUE(matches("class X {}; class Y : X {};", ClassHasAnyDirectBase));
+  EXPECT_TRUE(matches("class X {}; class Y : public virtual X {};",
+                      ClassHasAnyDirectBase));
 
   EXPECT_TRUE(matches(
       R"cc(

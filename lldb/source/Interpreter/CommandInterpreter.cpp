@@ -122,9 +122,8 @@ CommandInterpreter::CommandInterpreter(Debugger &debugger,
       IOHandlerDelegate(IOHandlerDelegate::Completion::LLDBCommand),
       m_debugger(debugger), m_synchronous_execution(true),
       m_skip_lldbinit_files(false), m_skip_app_init_files(false),
-      m_command_io_handler_sp(), m_comment_char('#'),
-      m_batch_command_mode(false), m_truncation_warning(eNoTruncation),
-      m_command_source_depth(0), m_result(), m_transcript_stream() {
+      m_comment_char('#'), m_batch_command_mode(false),
+      m_truncation_warning(eNoTruncation), m_command_source_depth(0) {
   SetEventName(eBroadcastBitThreadShouldExit, "thread-should-exit");
   SetEventName(eBroadcastBitResetPrompt, "reset-prompt");
   SetEventName(eBroadcastBitQuitCommandReceived, "quit");
@@ -220,6 +219,12 @@ bool CommandInterpreter::GetStopCmdSourceOnError() const {
 
 bool CommandInterpreter::GetSpaceReplPrompts() const {
   const uint32_t idx = ePropertySpaceReplPrompts;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+}
+
+bool CommandInterpreter::GetRepeatPreviousCommand() const {
+  const uint32_t idx = ePropertyRepeatPreviousCommand;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
       nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
@@ -1696,6 +1701,11 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
   }
 
   if (empty_command) {
+    if (!GetRepeatPreviousCommand()) {
+      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      return true;
+    }
+
     if (m_command_history.IsEmpty()) {
       result.AppendError("empty command");
       result.SetStatus(eReturnStatusFailed);
@@ -2234,7 +2244,9 @@ bool CommandInterpreter::DidProcessStopAbnormally() const {
       return false;
 
     const StopReason reason = stop_info->GetStopReason();
-    if (reason == eStopReasonException || reason == eStopReasonInstrumentation)
+    if (reason == eStopReasonException ||
+        reason == eStopReasonInstrumentation ||
+        reason == eStopReasonProcessorTrace)
       return true;
 
     if (reason == eStopReasonSignal) {

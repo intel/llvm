@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/common.hpp>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {

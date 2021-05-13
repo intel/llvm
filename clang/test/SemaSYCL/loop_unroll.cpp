@@ -8,7 +8,7 @@ void bar() {
 }
 
 void foo() {
-  // expected-error@+1 {{'loop_unroll' attribute only applies to 'for', 'while', and 'do' statements}}
+  // expected-error@+1 {{'loop_unroll' attribute cannot be applied to a declaration}}
   [[clang::loop_unroll(8)]] int a[10];
 
   // expected-error@+1 {{'loop_unroll' attribute takes no more than 1 argument}}

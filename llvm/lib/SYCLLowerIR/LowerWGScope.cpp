@@ -303,7 +303,7 @@ shareOutputViaLocalMem(Instruction &I, BasicBlock &BBa, BasicBlock &BBb,
   Bld.CreateStore(&I, WGLocal);
   // 3) Generate a load in the "worker" BB of the value stored by the leader
   Bld.SetInsertPoint(&BBb.front());
-  auto *WGVal = Bld.CreateLoad(WGLocal, "wg_val_" + Twine(I.getName()));
+  auto *WGVal = Bld.CreateLoad(T, WGLocal, "wg_val_" + Twine(I.getName()));
   // 4) Finally, replace usages of I outside the scope
   for (auto *U : Users)
     U->replaceUsesOfWith(&I, WGVal);
@@ -416,7 +416,7 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
 
     if (!Loc2Shadow)
       std::swap(Src, Dst);
-    Value *LocalVal = Builder.CreateLoad(Src, "mat_ld");
+    Value *LocalVal = Builder.CreateLoad(T, Src, "mat_ld");
     Builder.CreateStore(LocalVal, Dst);
   }
 }
@@ -786,7 +786,8 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
     Instruction *I = BB.getFirstNonPHI();
 
     for (; I->getOpcode() == Instruction::Alloca ||
-           I->getOpcode() == Instruction::AddrSpaceCast;
+           I->getOpcode() == Instruction::AddrSpaceCast ||
+           I->isDebugOrPseudoInst();
          I = I->getNextNode()) {
       auto *AllocaI = dyn_cast<AllocaInst>(I);
       // Allocas marked with "work_item_scope" are those originating from

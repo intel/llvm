@@ -24,6 +24,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/SemaInternal.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1006,21 +1007,33 @@ static bool isIdiomaticBraceElisionEntity(const InitializedEntity &Entity) {
   //
   // (where std::array is an aggregate struct containing a single array field.
 
-  // FIXME: Should aggregate initialization of a struct with a single
-  // base class and no members also suppress the warning?
-  if (Entity.getKind() != InitializedEntity::EK_Member || !Entity.getParent())
+  if (!Entity.getParent())
     return false;
 
-  auto *ParentRD =
-      Entity.getParent()->getType()->castAs<RecordType>()->getDecl();
-  if (CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(ParentRD))
-    if (CXXRD->getNumBases())
-      return false;
+  // Allows elide brace initialization for aggregates with empty base.
+  if (Entity.getKind() == InitializedEntity::EK_Base) {
+    auto *ParentRD =
+        Entity.getParent()->getType()->castAs<RecordType>()->getDecl();
+    CXXRecordDecl *CXXRD = cast<CXXRecordDecl>(ParentRD);
+    return CXXRD->getNumBases() == 1 && CXXRD->field_empty();
+  }
 
-  auto FieldIt = ParentRD->field_begin();
-  assert(FieldIt != ParentRD->field_end() &&
-         "no fields but have initializer for member?");
-  return ++FieldIt == ParentRD->field_end();
+  // Allow brace elision if the only subobject is a field.
+  if (Entity.getKind() == InitializedEntity::EK_Member) {
+    auto *ParentRD =
+        Entity.getParent()->getType()->castAs<RecordType>()->getDecl();
+    if (CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(ParentRD)) {
+      if (CXXRD->getNumBases()) {
+        return false;
+      }
+    }
+    auto FieldIt = ParentRD->field_begin();
+    assert(FieldIt != ParentRD->field_end() &&
+           "no fields but have initializer for member?");
+    return ++FieldIt == ParentRD->field_end();
+  }
+
+  return false;
 }
 
 /// Check whether the range of the initializer \p ParentIList from element
@@ -3281,10 +3294,7 @@ InitializedEntity::InitializeBase(ASTContext &Context,
   InitializedEntity Result;
   Result.Kind = EK_Base;
   Result.Parent = Parent;
-  Result.Base = reinterpret_cast<uintptr_t>(Base);
-  if (IsInheritedVirtualBase)
-    Result.Base |= 0x01;
-
+  Result.Base = {Base, IsInheritedVirtualBase};
   Result.Type = Base->getType();
   return Result;
 }
@@ -3293,7 +3303,7 @@ DeclarationName InitializedEntity::getName() const {
   switch (getKind()) {
   case EK_Parameter:
   case EK_Parameter_CF_Audited: {
-    ParmVarDecl *D = reinterpret_cast<ParmVarDecl*>(Parameter & ~0x1);
+    ParmVarDecl *D = Parameter.getPointer();
     return (D ? D->getDeclName() : DeclarationName());
   }
 
@@ -3336,7 +3346,7 @@ ValueDecl *InitializedEntity::getDecl() const {
 
   case EK_Parameter:
   case EK_Parameter_CF_Audited:
-    return reinterpret_cast<ParmVarDecl*>(Parameter & ~0x1);
+    return Parameter.getPointer();
 
   case EK_Result:
   case EK_StmtExprResult:
@@ -5608,8 +5618,8 @@ static bool TryOCLZeroOpaqueTypeInitialization(Sema &S,
   // We should allow zero initialization for all types defined in the
   // cl_intel_device_side_avc_motion_estimation extension, except
   // intel_sub_group_avc_mce_payload_t and intel_sub_group_avc_mce_result_t.
-  if (S.getOpenCLOptions().isEnabled(
-          "cl_intel_device_side_avc_motion_estimation") &&
+  if (S.getOpenCLOptions().isAvailableOption(
+          "cl_intel_device_side_avc_motion_estimation", S.getLangOpts()) &&
       DestType->isOCLIntelSubgroupAVCType()) {
     if (DestType->isOCLIntelSubgroupAVCMcePayloadType() ||
         DestType->isOCLIntelSubgroupAVCMceResultType())
@@ -6320,7 +6330,8 @@ static ExprResult CopyObject(Sema &S,
   // Determine the arguments required to actually perform the
   // constructor call (we might have derived-to-base conversions, or
   // the copy constructor may have default arguments).
-  if (S.CompleteConstructorCall(Constructor, CurInitExpr, Loc, ConstructorArgs))
+  if (S.CompleteConstructorCall(Constructor, T, CurInitExpr, Loc,
+                                ConstructorArgs))
     return ExprError();
 
   // C++0x [class.copy]p32:
@@ -6517,12 +6528,10 @@ PerformConstructorInitialization(Sema &S,
 
   // Determine the arguments required to actually perform the constructor
   // call.
-  if (S.CompleteConstructorCall(Constructor, Args,
-                                Loc, ConstructorArgs,
-                                AllowExplicitConv,
+  if (S.CompleteConstructorCall(Constructor, Step.Type, Args, Loc,
+                                ConstructorArgs, AllowExplicitConv,
                                 IsListInitialization))
     return ExprError();
-
 
   if (isExplicitTemporary(Entity, Kind, NumArgs)) {
     // An explicitly-constructed temporary, e.g., X(1, 2).
@@ -7522,6 +7531,8 @@ static bool pathOnlyInitializesGslPointer(IndirectLocalPath &Path) {
       continue;
     if (It->Kind == IndirectLocalPathEntry::AddressOf)
       continue;
+    if (It->Kind == IndirectLocalPathEntry::LifetimeBoundCall)
+      continue;
     return It->Kind == IndirectLocalPathEntry::GslPointerInit ||
            It->Kind == IndirectLocalPathEntry::GslReferenceInit;
   }
@@ -8298,9 +8309,9 @@ ExprResult InitializationSequence::Perform(Sema &S,
         // Determine the arguments required to actually perform the constructor
         // call.
         Expr *Arg = CurInit.get();
-        if (S.CompleteConstructorCall(Constructor,
-                                      MultiExprArg(&Arg, 1),
-                                      Loc, ConstructorArgs))
+        if (S.CompleteConstructorCall(Constructor, Step->Type,
+                                      MultiExprArg(&Arg, 1), Loc,
+                                      ConstructorArgs))
           return ExprError();
 
         // Build an expression that constructs a temporary.
@@ -8805,8 +8816,8 @@ ExprResult InitializationSequence::Perform(Sema &S,
         unsigned AddressingMode  = (0x0E & SamplerValue) >> 1;
         unsigned FilterMode      = (0x30 & SamplerValue) >> 4;
         if (FilterMode != 1 && FilterMode != 2 &&
-            !S.getOpenCLOptions().isEnabled(
-                "cl_intel_device_side_avc_motion_estimation"))
+            !S.getOpenCLOptions().isAvailableOption(
+                "cl_intel_device_side_avc_motion_estimation", S.getLangOpts()))
           S.Diag(Kind.getLocation(),
                  diag::warn_sampler_initializer_invalid_bits)
                  << "Filter Mode";

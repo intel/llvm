@@ -15,8 +15,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
-namespace gpu {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
 
 using uchar = unsigned char;
 using ushort = unsigned short;
@@ -28,7 +30,8 @@ using uint = unsigned int;
 // Mark a "ESIMD global": accessible from all functions in current translation
 // unit, separate copy per subgroup (work-item), mapped to SPIR-V private
 // storage class.
-#define ESIMD_PRIVATE __attribute__((opencl_private))
+#define ESIMD_PRIVATE                                                          \
+  __attribute__((opencl_private)) __attribute__((sycl_explicit_simd))
 // Bind a ESIMD global variable to a specific register.
 #define ESIMD_REGISTER(n) __attribute__((register_num(n)))
 #else
@@ -47,6 +50,8 @@ using uint = unsigned int;
 #define ESIMD_INLINE inline __attribute__((always_inline))
 
 // Enums
+// TODO FIXME convert the two enums below to nested enum or class enum to
+// remove enum values from the global namespace
 enum { GENX_NOSAT = 0, GENX_SAT };
 
 enum ChannelMaskType {
@@ -113,8 +118,9 @@ enum class EsimdSbarrierType : uint8_t {
 #define ESIMD_SBARRIER_WAIT EsimdSbarrierType::WAIT
 #define ESIMD_SBARRIER_SIGNAL EsimdSbarrierType::SIGNAL
 
-} // namespace gpu
-
-} // namespace INTEL
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
+#include "mlir/Dialect/MemRef/EDSC/Intrinsics.h"
 #include "mlir/Dialect/SCF/EDSC/Builders.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/IR/AffineExpr.h"
@@ -200,7 +201,7 @@ Value getPaddedInput(Value input, ArrayRef<Value> indices,
       conds.push_back(leftOutOfBound);
     else
       conds.push_back(conds.back() || leftOutOfBound);
-    Value rightBound = std_dim(input, idx);
+    Value rightBound = memref_dim(input, idx);
     conds.push_back(conds.back() || (sge(dim, rightBound)));
 
     // When padding is involved, the indices will only be shifted to negative,
@@ -222,14 +223,12 @@ namespace {
 /// The padding value for a given Op depends on the semantics of the Op.
 /// The identity value for ConvOp and PoolingSumOp is 0, for PoolingMaxOp is
 /// -inf or minInt and for PoolingMinOp is inf or maxInt.
-template <typename OpType>
-Attribute getPadValueAttr(Type type) {
+template <typename OpType> Attribute getPadValueAttr(Type type) {
   llvm_unreachable("Unexpected op type for getPadValueAttr");
   return {};
 }
 
-template <>
-Attribute getPadValueAttr<PoolingMaxOp>(Type type) {
+template <> Attribute getPadValueAttr<PoolingMaxOp>(Type type) {
   auto &b = ScopedContext::getBuilderRef();
   if (auto floatType = type.dyn_cast<FloatType>()) {
     return b.getFloatAttr(
@@ -247,8 +246,7 @@ Attribute getPadValueAttr<PoolingMaxOp>(Type type) {
   return {};
 }
 
-template <>
-Attribute getPadValueAttr<PoolingMinOp>(Type type) {
+template <> Attribute getPadValueAttr<PoolingMinOp>(Type type) {
   auto &b = ScopedContext::getBuilderRef();
   if (auto floatType = type.dyn_cast<FloatType>()) {
     return b.getFloatAttr(floatType,
@@ -265,14 +263,12 @@ Attribute getPadValueAttr<PoolingMinOp>(Type type) {
   return {};
 }
 
-template <>
-Attribute getPadValueAttr<PoolingSumOp>(Type type) {
+template <> Attribute getPadValueAttr<PoolingSumOp>(Type type) {
   auto &b = ScopedContext::getBuilderRef();
   return b.getZeroAttr(type);
 }
 
-template <>
-Attribute getPadValueAttr<ConvOp>(Type type) {
+template <> Attribute getPadValueAttr<ConvOp>(Type type) {
   auto &b = ScopedContext::getBuilderRef();
   return b.getZeroAttr(type);
 }
@@ -307,12 +303,12 @@ static void emitScalarImplementation(ArrayRef<Value> allIvs, ConvOp convOp) {
   IndexedValueType F(convOp.filter()), O(convOp.output());
 
   // Emit scalar form. Padded conv involves an affine.max in the memory access
-  // which is not allowed by affine.load. Override to use an StdIndexedValue
+  // which is not allowed by affine.load. Override to use an MemRefIndexedValue
   // when there is non-zero padding.
   if (hasPadding(convOp)) {
     Type type = convOp.input().getType().cast<MemRefType>().getElementType();
     Value padValue = std_constant(type, getPadValueAttr<ConvOp>(type));
-    Value paddedInput = getPaddedInput<StdIndexedValue>(
+    Value paddedInput = getPaddedInput<MemRefIndexedValue>(
         convOp.input(), imIdx,
         /* Only need to pad the window dimensions */
         {0, static_cast<int>(imIdx.size()) - 1}, padValue);
@@ -323,8 +319,7 @@ static void emitScalarImplementation(ArrayRef<Value> allIvs, ConvOp convOp) {
   }
 }
 
-template <typename PoolingOp>
-static bool hasPadding(PoolingOp poolingOp) {
+template <typename PoolingOp> static bool hasPadding(PoolingOp poolingOp) {
   for (unsigned i = 0, e = poolingOp.getNumWindowLoops(); i < e; ++i) {
     if (poolingOp.getLowPad(i) > 0 || poolingOp.getHighPad(i) > 0)
       return true;
@@ -338,9 +333,9 @@ static Value getPoolingInput(PoolingOp op, ArrayRef<Value> inputIndices) {
     Type type =
         op.input().getType().template cast<MemRefType>().getElementType();
     Value padValue = std_constant(type, getPadValueAttr<PoolingOp>(type));
-    return getPaddedInput<StdIndexedValue>(op.input(), inputIndices,
-                                           /*Pad every dimension*/ {},
-                                           padValue);
+    return getPaddedInput<MemRefIndexedValue>(op.input(), inputIndices,
+                                              /*Pad every dimension*/ {},
+                                              padValue);
   }
   IndexedValueType input(op.input());
   return input(inputIndices);
@@ -462,9 +457,8 @@ static void emitScalarImplementation(ArrayRef<Value> allIvs,
 }
 
 template <typename LoopTy>
-static Optional<LinalgLoops>
-linalgOpToLoopsImpl(Operation *op, OpBuilder &builder,
-                    ArrayRef<unsigned> interchangeVector) {
+static Optional<LinalgLoops> linalgOpToLoopsImpl(Operation *op,
+                                                 OpBuilder &builder) {
   using IndexedValueTy = typename GenerateLoopNest<LoopTy>::IndexedValueTy;
   ScopedContext scope(builder, op->getLoc());
 
@@ -476,13 +470,6 @@ linalgOpToLoopsImpl(Operation *op, OpBuilder &builder,
 
   auto loopRanges = linalgOp.createLoopRanges(builder, op->getLoc());
   auto iteratorTypes = llvm::to_vector<4>(linalgOp.iterator_types().getValue());
-
-  if (!interchangeVector.empty()) {
-    assert(interchangeVector.size() == loopRanges.size());
-    assert(interchangeVector.size() == iteratorTypes.size());
-    applyPermutationToVector(loopRanges, interchangeVector);
-    applyPermutationToVector(iteratorTypes, interchangeVector);
-  }
 
   SmallVector<Value, 4> allIvs;
   GenerateLoopNest<LoopTy>::doit(
@@ -500,7 +487,7 @@ linalgOpToLoopsImpl(Operation *op, OpBuilder &builder,
       });
   // Number of loop ops might be different from the number of ivs since some
   // loops like affine.parallel and scf.parallel have multiple ivs.
-  llvm::SetVector<Operation *> loopSet;
+  SetVector<Operation *> loopSet;
   for (Value iv : allIvs) {
     if (!iv)
       return {};
@@ -515,40 +502,70 @@ linalgOpToLoopsImpl(Operation *op, OpBuilder &builder,
   return loops;
 }
 
+/// Replace the index operations in the body of the loop nest by the matching
+/// induction variables.
+static void replaceIndexOpsByInductionVariables(LinalgOp linalgOp,
+                                                PatternRewriter &rewriter,
+                                                ArrayRef<Operation *> loopOps) {
+  // Extract the induction variables of the loop nest from outer to inner.
+  SmallVector<Value> allIvs;
+  for (Operation *loopOp : loopOps) {
+    llvm::TypeSwitch<Operation *>(loopOp)
+        .Case([&](scf::ParallelOp parallelOp) {
+          allIvs.append(parallelOp.getInductionVars().begin(),
+                        parallelOp.getInductionVars().end());
+        })
+        .Case([&](scf::ForOp forOp) {
+          allIvs.push_back(forOp.getInductionVar());
+        })
+        .Case([&](AffineForOp affineForOp) {
+          allIvs.push_back(affineForOp.getInductionVar());
+        })
+        .Default([&](Operation *op) { assert(false && "unexpected op"); });
+  }
+  assert(linalgOp.getNumLoops() == allIvs.size() &&
+         "expected the number of loops and induction variables to match");
+  // Replace the index operations in the body of the innermost loop op.
+  if (!loopOps.empty()) {
+    LoopLikeOpInterface loopOp = loopOps.back();
+    for (IndexOp indexOp :
+         llvm::make_early_inc_range(loopOp.getLoopBody().getOps<IndexOp>()))
+      rewriter.replaceOp(indexOp, allIvs[indexOp.dim()]);
+  }
+}
+
 namespace {
 template <typename LoopType>
 class LinalgRewritePattern : public RewritePattern {
 public:
-  LinalgRewritePattern(ArrayRef<unsigned> interchangeVector)
-      : RewritePattern(/*benefit=*/1, MatchAnyOpTypeTag()),
-        interchangeVector(interchangeVector.begin(), interchangeVector.end()) {}
+  LinalgRewritePattern(MLIRContext *context)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
+    auto linalgOp = dyn_cast<LinalgOp>(op);
     if (!isa<LinalgOp>(op))
       return failure();
-    if (!linalgOpToLoopsImpl<LoopType>(op, rewriter, interchangeVector))
+    Optional<LinalgLoops> loopOps = linalgOpToLoopsImpl<LoopType>(op, rewriter);
+    if (!loopOps.hasValue())
       return failure();
+    replaceIndexOpsByInductionVariables(linalgOp, rewriter, loopOps.getValue());
     rewriter.eraseOp(op);
     return success();
   }
-
-private:
-  SmallVector<unsigned, 4> interchangeVector;
 };
 
 struct FoldAffineOp;
 } // namespace
 
 template <typename LoopType>
-static void lowerLinalgToLoopsImpl(FuncOp funcOp,
-                                   ArrayRef<unsigned> interchangeVector) {
+static void lowerLinalgToLoopsImpl(FuncOp funcOp) {
   MLIRContext *context = funcOp.getContext();
-  OwningRewritePatternList patterns;
-  patterns.insert<LinalgRewritePattern<LoopType>>(interchangeVector);
-  DimOp::getCanonicalizationPatterns(patterns, context);
+  RewritePatternSet patterns(context);
+  patterns.add<LinalgRewritePattern<LoopType>>(context);
+  memref::DimOp::getCanonicalizationPatterns(patterns, context);
   AffineApplyOp::getCanonicalizationPatterns(patterns, context);
-  patterns.insert<FoldAffineOp>(context);
+  patterns.add<FoldAffineOp>(context);
   // Just apply the patterns greedily.
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
 }
@@ -593,21 +610,27 @@ struct FoldAffineOp : public RewritePattern {
 
 struct LowerToAffineLoops
     : public LinalgLowerToAffineLoopsBase<LowerToAffineLoops> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<memref::MemRefDialect>();
+  }
   void runOnFunction() override {
-    lowerLinalgToLoopsImpl<AffineForOp>(getFunction(), interchangeVector);
+    lowerLinalgToLoopsImpl<AffineForOp>(getFunction());
   }
 };
 
 struct LowerToLoops : public LinalgLowerToLoopsBase<LowerToLoops> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<memref::MemRefDialect, scf::SCFDialect>();
+  }
   void runOnFunction() override {
-    lowerLinalgToLoopsImpl<scf::ForOp>(getFunction(), interchangeVector);
+    lowerLinalgToLoopsImpl<scf::ForOp>(getFunction());
   }
 };
 
 struct LowerToParallelLoops
     : public LinalgLowerToParallelLoopsBase<LowerToParallelLoops> {
   void runOnFunction() override {
-    lowerLinalgToLoopsImpl<scf::ParallelOp>(getFunction(), interchangeVector);
+    lowerLinalgToLoopsImpl<scf::ParallelOp>(getFunction());
   }
 };
 } // namespace
@@ -628,43 +651,38 @@ mlir::createConvertLinalgToAffineLoopsPass() {
 
 /// Emits a loop nest with the proper body for `op`.
 template <typename LoopTy>
-Optional<LinalgLoops>
-mlir::linalg::linalgLowerOpToLoops(OpBuilder &builder, Operation *op,
-                                   ArrayRef<unsigned> interchangeVector) {
-  return linalgOpToLoopsImpl<LoopTy>(op, builder, interchangeVector);
+Optional<LinalgLoops> mlir::linalg::linalgLowerOpToLoops(OpBuilder &builder,
+                                                         Operation *op) {
+  return linalgOpToLoopsImpl<LoopTy>(op, builder);
 }
 
-template Optional<LinalgLoops> mlir::linalg::linalgLowerOpToLoops<AffineForOp>(
-    OpBuilder &builder, Operation *op, ArrayRef<unsigned> interchangeVector);
-template Optional<LinalgLoops> mlir::linalg::linalgLowerOpToLoops<scf::ForOp>(
-    OpBuilder &builder, Operation *op, ArrayRef<unsigned> interchangeVector);
 template Optional<LinalgLoops>
-mlir::linalg::linalgLowerOpToLoops<scf::ParallelOp>(
-    OpBuilder &builder, Operation *op, ArrayRef<unsigned> interchangeVector);
+mlir::linalg::linalgLowerOpToLoops<AffineForOp>(OpBuilder &builder,
+                                                Operation *op);
+template Optional<LinalgLoops>
+mlir::linalg::linalgLowerOpToLoops<scf::ForOp>(OpBuilder &builder,
+                                               Operation *op);
+template Optional<LinalgLoops>
+mlir::linalg::linalgLowerOpToLoops<scf::ParallelOp>(OpBuilder &builder,
+                                                    Operation *op);
 
 /// Emits a loop nest of `affine.for` with the proper body for `op`.
-LogicalResult
-mlir::linalg::linalgOpToAffineLoops(OpBuilder &builder, Operation *op,
-                                    ArrayRef<unsigned> interchangeVector) {
-  Optional<LinalgLoops> loops =
-      linalgLowerOpToLoops<AffineForOp>(builder, op, interchangeVector);
+LogicalResult mlir::linalg::linalgOpToAffineLoops(OpBuilder &builder,
+                                                  Operation *op) {
+  Optional<LinalgLoops> loops = linalgLowerOpToLoops<AffineForOp>(builder, op);
   return loops ? success() : failure();
 }
 
 /// Emits a loop nest of `scf.for` with the proper body for `op`.
-LogicalResult
-mlir::linalg::linalgOpToLoops(OpBuilder &builder, Operation *op,
-                              ArrayRef<unsigned> interchangeVector) {
-  Optional<LinalgLoops> loops =
-      linalgLowerOpToLoops<scf::ForOp>(builder, op, interchangeVector);
+LogicalResult mlir::linalg::linalgOpToLoops(OpBuilder &builder, Operation *op) {
+  Optional<LinalgLoops> loops = linalgLowerOpToLoops<scf::ForOp>(builder, op);
   return loops ? success() : failure();
 }
 
 /// Emits a loop nest of `scf.parallel` with the proper body for `op`.
-LogicalResult
-mlir::linalg::linalgOpToParallelLoops(OpBuilder &builder, Operation *op,
-                                      ArrayRef<unsigned> interchangeVector) {
+LogicalResult mlir::linalg::linalgOpToParallelLoops(OpBuilder &builder,
+                                                    Operation *op) {
   Optional<LinalgLoops> loops =
-      linalgLowerOpToLoops<scf::ParallelOp>(builder, op, interchangeVector);
+      linalgLowerOpToLoops<scf::ParallelOp>(builder, op);
   return loops ? success() : failure();
 }
