@@ -3086,7 +3086,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     ZDimExpr = ZDim.get();
 
-    // If the declaration has an [[intel::num_simd_work_items()]] attribute,
+    // If the declaration has a [[intel::num_simd_work_items()]] attribute,
     // check to see if the first argument of
     // __attribute__((reqd_work_group_size)) attribute and last argument of
     // [[cl::reqd_work_group_size()]] or [intel::reqd_work_group_size()]]
@@ -3096,11 +3096,10 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      bool UsesOpenCLSemantics =
-          AL.getSyntax() == AttributeCommonInfo::AS_GNU;
+      bool UsesOpenCLSemantics = AL.getSyntax() == AttributeCommonInfo::AS_GNU;
 
-      unsigned WorkGroupSize = UsesOpenCLSemantics ? XDimVal.getZExtValue()
-                                                   : ZDimVal.getZExtValue();
+      unsigned WorkGroupSize =
+          UsesOpenCLSemantics ? XDimVal.getZExtValue() : ZDimVal.getZExtValue();
 
       if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
