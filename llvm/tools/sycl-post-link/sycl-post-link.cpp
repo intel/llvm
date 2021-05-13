@@ -549,26 +549,6 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   bool SpecConstsMet = false;
   bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
 
-  if (DoSpecConst) {
-    // perform the spec constant intrinsics transformation and enumeration on
-    // the whole module
-    ModulePassManager RunSpecConst;
-    ModuleAnalysisManager MAM;
-    SpecConstantsPass SCP(SetSpecConstAtRT);
-    // Register required analysis
-    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-    RunSpecConst.addPass(SCP);
-    if (!DoSplit)
-      // This pass deletes unreachable globals. Code splitter runs it later.
-      RunSpecConst.addPass(GlobalDCEPass());
-    PreservedAnalyses Res = RunSpecConst.run(*M, MAM);
-    SpecConstsMet = !Res.areAllPreserved();
-  }
-  if (IROutputOnly) {
-    // the result is the transformed input LLVMIR file rather than a file table
-    saveModule(*M, OutputFilename);
-    return TblFiles;
-  }
   if (DoSplit) {
     splitModule(*M, GlobalsSet, ResultModules);
     // post-link always produces a code result, even if it is unmodified input
@@ -576,6 +556,30 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       ResultModules.push_back(std::move(M));
   } else
     ResultModules.push_back(std::move(M));
+
+  if (DoSpecConst) {
+    ModulePassManager RunSpecConst;
+    ModuleAnalysisManager MAM;
+    SpecConstantsPass SCP(SetSpecConstAtRT);
+    // Register required analysis
+    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+    RunSpecConst.addPass(SCP);
+    // This pass deletes unreachable globals.
+    RunSpecConst.addPass(GlobalDCEPass());
+
+    for (auto &MPtr : ResultModules) {
+      // perform the spec constant intrinsics transformation on each resulting
+      // module
+      PreservedAnalyses Res = RunSpecConst.run(*MPtr, MAM);
+      SpecConstsMet |= !Res.areAllPreserved();
+    }
+  }
+
+  if (IROutputOnly) {
+    // the result is the transformed input LLVMIR file rather than a file table
+    saveModule(*ResultModules.front(), OutputFilename);
+    return TblFiles;
+  }
 
   {
     // Reuse input module with only regular SYCL kernels if there were
