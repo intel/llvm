@@ -66,6 +66,7 @@ list(APPEND CLANG_TEST_DEPS
   clang-tblgen
   clang-offload-bundler
   clang-offload-deps
+  clang-offload-extract
   clang-import-test
   clang-rename
   clang-refactor
@@ -122,6 +123,7 @@ if( NOT CLANG_BUILT_STANDALONE )
     llvm-objcopy
     llvm-objdump
     llvm-profdata
+    llvm-rc
     llvm-readelf
     llvm-readobj
     llvm-strip

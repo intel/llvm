@@ -1309,7 +1309,8 @@ void ProgramManager::bringSYCLDeviceImagesToState(
         break;
       }
       case bundle_state::executable:
-        // Device image is already in the desired state.
+        DevImage = build(DevImage, getSyclObjImpl(DevImage)->get_devices(),
+                         /*PropList=*/{});
         break;
       }
       break;

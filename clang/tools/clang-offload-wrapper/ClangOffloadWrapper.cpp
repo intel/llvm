@@ -35,6 +35,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/LineIterator.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/Signals.h"
@@ -957,6 +958,28 @@ private:
       } else
         ImagesInits.push_back(ConstantStruct::get(
             getDeviceImageTy(), Fbin.first, Fbin.second, EntriesB, EntriesE));
+
+      // Create an object that holds <address, size> pair for the device image
+      // and put it into a .tgtimg section. This section can be used for finding
+      // and extracting all device images from the fat binary after linking.
+      Type *IntPtrTy = M.getDataLayout().getIntPtrType(C);
+      auto *ImgInfoArr = ConstantArray::get(
+          ArrayType::get(IntPtrTy, 2),
+          {ConstantExpr::getPointerCast(Fbin.first, IntPtrTy),
+           ConstantInt::get(IntPtrTy, Bin->getBufferSize())});
+      auto *ImgInfoVar = new GlobalVariable(
+          M, ImgInfoArr->getType(), /*isConstant*/ true,
+          GlobalVariable::InternalLinkage, ImgInfoArr,
+          Twine(OffloadKindTag) + Twine(ImgId) + Twine(".info"));
+      ImgInfoVar->setAlignment(
+          MaybeAlign(M.getDataLayout().getTypeStoreSize(IntPtrTy) * 2u));
+      ImgInfoVar->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+      ImgInfoVar->setSection(".tgtimg");
+
+      // Add image info to the used list to force it to be emitted to the
+      // object.
+      appendToUsed(M, ImgInfoVar);
+
       ImgId++;
     }
 

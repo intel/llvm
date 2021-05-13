@@ -35,6 +35,7 @@
 #include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SystemUtils.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -410,7 +411,7 @@ static string_vector saveDeviceImageProperty(
       PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
                   RMEntry);
     }
-    if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
+    if (ImgPSInfo.DoSpecConst) {
       if (ImgPSInfo.SpecConstsMet) {
         // extract spec constant maps per each module
         SpecIDMapTy TmpSpecIDMap;

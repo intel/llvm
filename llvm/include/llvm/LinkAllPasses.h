@@ -75,7 +75,7 @@ namespace {
       (void) llvm::createAggressiveDCEPass();
       (void) llvm::createAggressiveInstCombinerPass();
       (void) llvm::createBitTrackingDCEPass();
-      (void) llvm::createOpenMPOptLegacyPass();
+      (void)llvm::createOpenMPOptCGSCCLegacyPass();
       (void) llvm::createArgumentPromotionPass();
       (void) llvm::createAlignmentFromAssumptionsPass();
       (void) llvm::createBasicAAWrapperPass();
@@ -206,7 +206,7 @@ namespace {
       (void)llvm::createSYCLLowerESIMDPass();
       (void)llvm::createESIMDLowerLoadStorePass();
       (void)llvm::createESIMDLowerVecArgPass();
-      (void)llvm::createSPIRITTAnnotationsPass();
+      (void)llvm::createSPIRITTAnnotationsLegacyPass();
       (void)llvm::createSYCLLowerWGLocalMemoryLegacyPass();
       std::string buf;
       llvm::raw_string_ostream os(buf);
