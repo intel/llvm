@@ -131,34 +131,19 @@ template <int N>
 [[intel::num_simd_work_items(2)]] void func12(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 int check1() {
-  // no error expected
-  func6<3>();
-  //expected-note@+1{{in instantiation of function template specialization 'func6<2>' requested here}}
-  func6<2>();
-  //expected-note@+1{{in instantiation of function template specialization 'func7<4>' requested here}}
-  func7<4>();
-  // no error expected
-  func7<5>();
-  //expected-note@+1{{in instantiation of function template specialization 'func8<5>' requested here}}
-  func8<5>();
-  // no error expected
-  func8<3>();
-  //expected-note@+1{{in instantiation of function template specialization 'func9<6, 3, 5, 3>' requested here}}
-  func9<6, 3, 5, 3>();
-  // no error expected
-  func9<9, 6, 3, 3>();
-  //expected-note@+1{{in instantiation of function template specialization 'func10<6, 3, 5>' requested here}}
-  func10<6, 3, 5>();
-  // no error expected
-  func10<9, 6, 3>();
-  //expected-note@+1{{in instantiation of function template specialization 'func11<6, 4, 5>' requested here}}
-  func11<6, 4, 5>();
-  // no error expected
-  func11<8, 6, 2>();
-  //expected-note@+1{{in instantiation of function template specialization 'func12<3>' requested here}}
-  func12<3>();
-  // no error expected
-  func12<2>();
+  func6<3>(); // OK
+  func6<2>(); // expected-note {{in instantiation of function template specialization 'func6<2>' requested here}}
+  func7<4>(); // expected-note {{in instantiation of function template specialization 'func7<4>' requested here}}
+  func7<5>(); // OK
+  func8<5>(); // expected-note {{in instantiation of function template specialization 'func8<5>' requested here}}
+  func8<3>(); // OK
+  func9<6, 3, 5, 3>(); // expected-note {{in instantiation of function template specialization 'func9<6, 3, 5, 3>' requested here}}
+  func9<9, 6, 3, 3>(); // OK
+  func10<6, 3, 5>(); // expected-note {{in instantiation of function template specialization 'func10<6, 3, 5>' requested here}}
+  func10<9, 6, 3>(); // OK
+  func11<6, 4, 5>(); // expected-note {{in instantiation of function template specialization 'func11<6, 4, 5>' requested here}} 
+  func11<8, 6, 2>(); // OK
+  func12<3>(); // expected-note {{in instantiation of function template specialization 'func12<3>' requested here}} 
+  func12<2>(); // OK
   return 0;
 }
-

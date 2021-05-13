@@ -60,6 +60,14 @@ struct TRIFuncObjBad2 {
   operator()() const {}
 };
 
+// Tests for the default values of [[intel::reqd_work_group_size()]].
+
+// FIXME: This should be accepted instaed of error which turns out to be
+// an implementation bug that shouldn't be visible to the user as there
+// aren't really any default values. The dimensionality of the attribute
+// must match the kernel, so three different forms of the attribute
+// (one, two, and three argument) can be used instead of assuming default
+// values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad3 {
   [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[intel::reqd_work_group_size(3)]] //expected-note{{conflicting attribute is here}}
@@ -67,6 +75,12 @@ struct TRIFuncObjBad3 {
   operator()() const {}
 };
 
+// FIXME: This should be accepted instaed of error which turns out to be
+// an implementation bug that shouldn't be visible to the user as there
+// aren't really any default values. The dimensionality of the attribute
+// must match the kernel, so three different forms of the attribute
+// (one, two, and three argument) can be used instead of assuming default
+// values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad4 {
   [[intel::reqd_work_group_size(3)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
@@ -74,6 +88,12 @@ struct TRIFuncObjBad4 {
   operator()() const {}
 };
 
+// FIXME: This should be accepted instaed of error which turns out to be
+// an implementation bug that shouldn't be visible to the user as there
+// aren't really any default values. The dimensionality of the attribute
+// must match the kernel, so three different forms of the attribute
+// (one, two, and three argument) can be used instead of assuming default
+// values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad5 {
   [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[intel::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
@@ -81,6 +101,12 @@ struct TRIFuncObjBad5 {
   operator()() const {}
 };
 
+// FIXME: This should be accepted instaed of error which turns out to be
+// an implementation bug that shouldn't be visible to the user as there
+// aren't really any default values. The dimensionality of the attribute
+// must match the kernel, so three different forms of the attribute
+// (one, two, and three argument) can be used instead of assuming default
+// values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad6 {
   [[intel::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}

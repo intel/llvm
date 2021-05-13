@@ -2503,6 +2503,69 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::num_simd_work_items(N)]] void operator()() const {}
   };
 
+The arguments to reqd_work_group_size are ordered based on which index
+increments the fastest. In OpenCL, the first argument is the index that
+increments the fastest, and in SYCL, the last argument is the index that
+increments the fastest.
+
+In OpenCL, all three arguments are required.
+
+In SYCL, the attribute accepts either one, two, or three arguments; in each
+form, the last (or only) argument is the index that increments fastest.
+The number of arguments passed to the attribute must match the dimensionality
+of the kernel the attribute is applied to.
+
+If the reqd_work_group_size attribute is specified on a declaration along
+with ``intel::num_simd_work_items``, the required work group size specified
+by ``intel::num_simd_work_items`` attribute must evenly divide the index that
+increments fastest in the reqd_work_group_size attribute.
+
+.. code-block:: c++
+
+  struct func {
+    [[intel::num_simd_work_items(4)]]
+    [[intel::reqd_work_group_size(3, 4, 64)]]
+    void operator()() const {}
+  };
+
+  struct bar {
+    [[intel::reqd_work_group_size(3, 4, 64)]]
+    [[intel::num_simd_work_items(4)]]
+    void operator()() const {}
+  };
+
+  [[intel::reqd_work_group_size(5)]]
+  // identical to [[intel::reqd_work_group_size(5, 1, 1)]]
+  [[intel::num_simd_work_items(5)]] void fun() {}
+
+  [[intel::reqd_work_group_size(5, 10)]]
+  // identical to [[intel::reqd_work_group_size(5, 10, 1)]]
+  [[intel::num_simd_work_items(5)]] void fun1() {}
+
+  [[cl::reqd_work_group_size(7, 10, 20)]]
+  [[intel::num_simd_work_items(5)]] void fun2() {}
+
+  [[intel::num_simd_work_items(4)]]
+  [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
+
+  struct func1 {
+    [[intel::num_simd_work_items(4)]]
+    [[cl::reqd_work_group_size(5, 4, 64)]]
+    void operator()() const {}
+  };
+
+  struct bar1 {
+    [[cl::reqd_work_group_size(3, 4, 64)]]
+    [[intel::num_simd_work_items(4)]]
+    void operator()() const {}
+  };
+
+  [[intel::num_simd_work_items(2)]]
+  __attribute__((reqd_work_group_size(4, 2, 3))) void test();
+
+  __attribute__((reqd_work_group_size(4, 2, 3)))
+  [[intel::num_simd_work_items(2)]] void test1();
+
   }];
 }
 
@@ -2616,28 +2679,22 @@ In OpenCL C, this attribute is available in GNU spelling
 
   __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
 
-The order of the arguments to reqd_work_group_size in SYCL and OpenCL are
-reversed. In the OpenCL syntax,
-(``__attribute__((reqd_work_group_size(X, Y, Z)))``), X is the index that
-increments the fastest, followed by Y, then Z. If we preserve that definition
-of X, Y, and Z, then in SYCL the attribute is specified as
-``[[intel::reqd_work_group_size(Z, Y, X)]]`` or
-``[[cl::reqd_work_group_size(Z, Y, X)]]``. This gets more complicated in the
--case where fewer than three arguments are provided since
-``[[intel::reqd_work_group_size(Z, Y, X)]]`` attribute spelling allows
-the Y and Z arguments to be optional. In such a case it's not the ``X`` argument
-that is omitted (by the definitions of X, Y, and Z above) it's the ``Z``
-dimension that's omitted. So the two argument version has the syntax
-``[[intel::reqd_work_group_size(Y, X)]]``. Similarly, the one argument variant
-has syntax ``[[intel::reqd_work_group_size(X)]]``.
-In summary, in SYCL if the ``intel::reqd_work_group_size`` or
-``cl::reqd_work_group_size`` attribute is specified on a declaration along with
-a ``intel::num_simd_work_items`` attribute, the required work-group size
-(``X`` dimention, which is the last dimension in the reqd_work_group_size) must
-be evenly divisible by the argument specified in the
-``intel::num_simd_work_items``.
-Fore more information, see the documentation about required work-group size.
-..`Specify a Work-Group Size`: https://software.intel.com/content/www/us/en/develop/documentation/oneapi-fpga-optimization-guide/top/optimize-your-design/resource-use/specify-a-work-group-size.html
+The arguments to reqd_work_group_size are ordered based on which index
+increments the fastest. In OpenCL, the first argument is the index that
+increments the fastest, and in SYCL, the last argument is the index that
+increments the fastest.
+
+In OpenCL, all three arguments are required.
+
+In SYCL, the attribute accepts either one, two, or three arguments; in each
+form, the last (or only) argument is the index that increments fastest. The
+number of arguments passed to the attribute must match the dimensionality of
+the kernel the attribute is applied to.
+
+If the reqd_work_group_size attribute is specified on a declaration along with
+num_simd_work_items, the required work group size specified by num_simd_work_items
+must evenly divide the index that increments fastest in the reqd_work_group_size
+attribute.
 
 .. code-block:: c++
 
@@ -2653,9 +2710,23 @@ Fore more information, see the documentation about required work-group size.
     void operator()() const {}
   };
 
+  [[intel::reqd_work_group_size(5)]]
+  // identical to [[intel::reqd_work_group_size(5, 1, 1)]]
+  [[intel::num_simd_work_items(5)]] void fun() {}
+
+  [[intel::reqd_work_group_size(5, 10)]]
+  // identical to [[intel::reqd_work_group_size(5, 10, 1)]]
+  [[intel::num_simd_work_items(5)]] void fun1() {}
+
+  [[cl::reqd_work_group_size(7, 10, 20)]]
+  [[intel::num_simd_work_items(5)]] void fun2() {}
+
+  [[intel::num_simd_work_items(4)]]
+  [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
+
   struct func1 {
     [[intel::num_simd_work_items(4)]]
-    [[cl::reqd_work_group_size(3, 4, 64)]]
+    [[cl::reqd_work_group_size(5, 4, 64)]]
     void operator()() const {}
   };
   
@@ -2664,17 +2735,6 @@ Fore more information, see the documentation about required work-group size.
     [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
-
-If the ``__attribute__((reqd_work_group_size()))`` attribute is specified on
-a declaration along with a ``intel::num_simd_work_items``
-attribute, the required work-group size (``X`` dimention, which is the first
-dimension in the reqd_work_group_size by the definitions of X, Y, and Z above)
-must be evenly divisible by the argument specified in the
-``intel::num_simd_work_items`` attribute. GNU spelling of ReqdWorkGroupSizeAttr
-maps to the OpenCL semantic. The first and last dimension are only swapped for
-the attributes in SYCL and not the OpenCL ones.
-
-.. code-block:: c++
 
   [[intel::num_simd_work_items(2)]]
   __attribute__((reqd_work_group_size(4, 2, 3))) void test();
