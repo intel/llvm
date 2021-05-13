@@ -181,6 +181,7 @@ add_custom_target( sycl-toolchain
           clang-offload-wrapper
           clang-offload-bundler
           clang-offload-deps
+          clang-offload-extract
           file-table-tform
           llc
           llvm-ar
@@ -228,6 +229,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-wrapper
      clang-offload-bundler
      clang-offload-deps
+     clang-offload-extract
      file-table-tform
      level-zero-loader
      level-zero-headers

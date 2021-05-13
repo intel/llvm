@@ -661,6 +661,11 @@ private:
   mutable llvm::StringMap<const std::pair<StringRef, StringRef>>
       IntegrationFileList;
 
+  /// Unique ID used for SYCL compilations.  Each file will use a different
+  /// unique ID, but the same ID will be used for different compilation
+  /// targets.
+  mutable llvm::StringMap<StringRef> SYCLUniqueIDList;
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not
@@ -720,6 +725,16 @@ public:
   /// createAppendedFooterInput - Create new source file.
   void createAppendedFooterInput(Action *&Input, Compilation &C,
                                  const llvm::opt::ArgList &Args) const;
+
+  /// setSYCLUniqueID - set the Unique ID that is used for all FE invocations
+  /// when performing compilations for SYCL.
+  void addSYCLUniqueID(StringRef UniqueID, StringRef FileName) const {
+    SYCLUniqueIDList.insert({FileName, UniqueID});
+  }
+  /// getSYCLUniqueID - Get the Unique ID associated with the file.
+  StringRef getSYCLUniqueID(StringRef FileName) const {
+    return SYCLUniqueIDList[FileName];
+  }
 };
 
 /// \return True if the last defined optimization level is -Ofast.

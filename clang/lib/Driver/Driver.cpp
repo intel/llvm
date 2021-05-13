@@ -5153,13 +5153,20 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   handleArguments(C, Args, Inputs, Actions);
 
-  // When compiling for -fsycl, generate the integration header files that
-  // will be used during the compilation.
+  // When compiling for -fsycl, generate the integration header files and the
+  // Unique ID that will be used during the compilation.
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
     for (auto &I : Inputs) {
+      std::string SrcFileName(I.second->getAsString(Args));
+      if (I.first == types::TY_PP_C || I.first == types::TY_PP_CXX ||
+          types::isSrcFile(I.first)) {
+        // Unique ID is generated for source files and preprocessed files.
+        SmallString<128> ResultID;
+        llvm::sys::fs::createUniquePath("%%%%%%%%%%%%%%%%", ResultID, false);
+        addSYCLUniqueID(Args.MakeArgString(ResultID.str()), SrcFileName);
+      }
       if (!types::isSrcFile(I.first))
         continue;
-      std::string SrcFileName(I.second->getAsString(Args));
       std::string TmpFileNameHeader = C.getDriver().GetTemporaryPath(
           llvm::sys::path::stem(SrcFileName).str() + "-header", "h");
       StringRef TmpFileHeader =
