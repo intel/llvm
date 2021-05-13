@@ -2440,7 +2440,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                     size_t param_value_size, void *param_value,
                                     size_t *param_value_size_ret) {
 
-  // here we want to query about a kernel's cuda blocks!
+  // Here we want to query about a kernel's cuda blocks!
 
   if (kernel != nullptr) {
 
