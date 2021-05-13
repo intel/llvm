@@ -4675,6 +4675,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     VD = VD->getCanonicalDecl();
     if (VD->isInAnonymousNamespace()) {
       std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+      OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
       OS << "namespace sycl {\n";
       OS << "namespace detail {\n";
       OS << "template<>\n";
@@ -4684,6 +4685,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       emitSpecIDName(OS, VD);
       OS << "\";\n";
     } else {
+      OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
       OS << "namespace sycl {\n";
       OS << "namespace detail {\n";
       OS << "template<>\n";
@@ -4697,6 +4699,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "}\n";
     OS << "} // namespace detail\n";
     OS << "} // namespace sycl\n";
+    OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   }
 
   OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
