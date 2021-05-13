@@ -90,8 +90,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     detail::Requirement Req = getMockRequirement(Buf);
 
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(
-        QImpl, &Req, AuxCmds);
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
 
@@ -104,8 +104,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_TRUE(Record->MCurContext->is_host());
 
-    detail::Command *MemoryMove = MS.insertMemoryMove(
-        Record, &Req, QImpl, AuxCmds);
+    detail::Command *MemoryMove =
+        MS.insertMemoryMove(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(MemoryMove->getType(), detail::Command::COPY_MEMORY);
   }
   // Check non-host alloca with discard access modes
@@ -120,8 +120,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     // No need to create a host allocation in this case since the data can be
     // discarded.
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(
-        QImpl, &Req, AuxCmds);
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     MS.getOrCreateAllocaForReq(Record, &DiscardReq, QImpl, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
   }
@@ -133,8 +133,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     // No need to create a host allocation in this case since there's no data to
     // initialize the buffer with.
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(
-        QImpl, &Req, AuxCmds);
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
   }
@@ -158,8 +158,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     EXPECT_TRUE(!HostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
 
-    detail::Command *MemoryMove = MS.insertMemoryMove(
-        Record, &Req, QImpl, AuxCmds);
+    detail::Command *MemoryMove =
+        MS.insertMemoryMove(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(MemoryMove->getType(), detail::Command::COPY_MEMORY);
   }
   // Check that memory movement operations work correctly with/after discard
@@ -173,8 +173,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     DiscardReq.MAccessMode = access::mode::discard_read_write;
 
     std::vector<detail::Command *> AuxCmds;
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(
-        QImpl, &Req, AuxCmds);
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 

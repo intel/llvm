@@ -172,8 +172,7 @@ MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
   return MemObject->MRecord.get();
 }
 
-MemObjRecord *
-Scheduler::GraphBuilder::getOrInsertMemObjRecord(
+MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
     const QueueImplPtr &Queue, const Requirement *Req,
     std::vector<Command *> &ToEnqueue) {
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
@@ -304,8 +303,7 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
   return MapCmd;
 }
 
-Command *
-Scheduler::GraphBuilder::insertMemoryMove(
+Command *Scheduler::GraphBuilder::insertMemoryMove(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
 

@@ -22,9 +22,13 @@
 
 cl::sycl::detail::Requirement getMockRequirement();
 
-namespace cl { namespace sycl { namespace detail {
-  class Command;
-}}}
+namespace cl {
+namespace sycl {
+namespace detail {
+class Command;
+} // namespace detail
+} // namespace sycl
+} // namespace cl
 
 class MockCommand : public cl::sycl::detail::Command {
 public:
@@ -110,10 +114,10 @@ public:
     MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate);
   }
 
-  void addNodeToLeaves(
-      cl::sycl::detail::MemObjRecord *Rec, cl::sycl::detail::Command *Cmd,
-      cl::sycl::access::mode Mode,
-      std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+  void addNodeToLeaves(cl::sycl::detail::MemObjRecord *Rec,
+                       cl::sycl::detail::Command *Cmd,
+                       cl::sycl::access::mode Mode,
+                       std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode, ToEnqueue);
   }
 
@@ -121,7 +125,8 @@ public:
                              cl::sycl::detail::EnqueueResultT &EnqueueResult,
                              ReadLockT &GraphReadLock,
                              cl::sycl::detail::BlockingT Blocking) {
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, GraphReadLock, Blocking);
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, GraphReadLock,
+                                          Blocking);
   }
 
   cl::sycl::detail::AllocaCommandBase *
@@ -132,9 +137,7 @@ public:
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   }
 
-  ReadLockT acquireGraphReadLock() {
-    return ReadLockT{MGraphLock};
-  }
+  ReadLockT acquireGraphReadLock() { return ReadLockT{MGraphLock}; }
 
   cl::sycl::detail::Command *
   insertMemoryMove(cl::sycl::detail::MemObjRecord *Record,

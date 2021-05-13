@@ -213,7 +213,8 @@ protected:
   /// command. Context of this command is fetched via getWorkerContext().
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
-  [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
+  [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent,
+                                         const DepDesc &Dep);
 
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
