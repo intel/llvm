@@ -15,7 +15,7 @@
 @SCSymID = private unnamed_addr constant [10 x i8] c"SpecConst\00", align 1
 @SCSymID2 = private unnamed_addr constant [11 x i8] c"SpecConst2\00", align 1
 ; CHECK-IR-NOT: @SCSymID
-; CHECK-IR-NOT: @SCSymID
+; CHECK-IR-NOT: @SCSymID2
 
 declare dso_local spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)*)
 

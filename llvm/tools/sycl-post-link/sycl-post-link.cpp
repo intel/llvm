@@ -549,12 +549,10 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   bool SpecConstsMet = false;
   bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
 
-  if (DoSplit) {
+  if (DoSplit)
     splitModule(*M, GlobalsSet, ResultModules);
-    // post-link always produces a code result, even if it is unmodified input
-    if (ResultModules.size() == 0)
-      ResultModules.push_back(std::move(M));
-  } else
+  // post-link always produces a code result, even if it is unmodified input
+  if (ResultModules.empty())
     ResultModules.push_back(std::move(M));
 
   if (DoSpecConst) {
