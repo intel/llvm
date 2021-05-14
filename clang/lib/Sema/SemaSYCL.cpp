@@ -2261,6 +2261,8 @@ StringRef getKernelArgDesc(KernelArgDescription Desc) {
   case KernelArgDescription::None:
     return "";
   }
+  llvm_unreachable(
+      "switch should cover all possible values for KernelArgDescription");
 }
 
 class SyclOptReportCreator : public SyclKernelFieldHandler {
