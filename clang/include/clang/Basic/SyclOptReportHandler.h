@@ -27,7 +27,7 @@ private:
   struct OptReportInfo {
     std::string KernelArgDescName; // Kernel argument name itself, or the name
                                    // of the parent class if the kernel argument
-                                   // is a decomposed member
+                                   // is a decomposed member.
     std::string KernelArgType;
     SourceLocation KernelArgLoc;
     unsigned KernelArgSize;

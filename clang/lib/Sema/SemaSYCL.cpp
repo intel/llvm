@@ -2277,17 +2277,15 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
     }
 
     bool isWrappedField =
-        (KernelArgDesc == KernelArgDescription::WrappedPointer ||
-         KernelArgDesc == KernelArgDescription::WrappedArray)
-            ? true
-            : false;
+        KernelArgDesc == KernelArgDescription::WrappedPointer ||
+        KernelArgDesc == KernelArgDescription::WrappedArray;
 
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
 
     SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
         DC.getKernelDecl(), NameToEmitInDescription,
-        (isWrappedField) ? "Compiler generated" : KernelArgType.getAsString(),
+        isWrappedField ? "Compiler generated" : KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
         (KernelArgDesc == KernelArgDescription::DecomposedMember)
             ? ("Field:" + KernelArg->getName().str() + ", ")
@@ -2303,7 +2301,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
     addParam(FD, FieldTy, Desc);
   }
 
-  // Handles base classes
+  // Handles base classes.
   void addParam(const CXXBaseSpecifier &, QualType KernelArgType,
                 KernelArgDescription KernelArgDesc) {
     unsigned KernelArgSize =
@@ -2314,7 +2312,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
         getKernelArgDesc(KernelArgDesc), "");
   }
 
-  // Handles specialization constants
+  // Handles specialization constants.
   void addParam(QualType KernelArgType, KernelArgDescription KernelArgDesc) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
@@ -2324,8 +2322,8 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
         "");
   }
 
-  // Handles SYCL special types - accessor, sampler and stream
-  // Also handles modified types - arrays and pointers
+  // Handles SYCL special types (accessor, sampler and stream) and modified
+  // types (arrays and pointers)
   bool handleSpecialType(const FieldDecl *FD, QualType FieldTy,
                          KernelArgDescription Desc) {
     for (const auto *Param : DC.getParamVarDeclsForCurrentField())
