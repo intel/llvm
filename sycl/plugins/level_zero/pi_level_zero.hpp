@@ -105,15 +105,8 @@ struct _pi_platform {
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
 
-  // We need to store all memory allocations in the platform because there could
-  // be kernels with indirect access. Kernels with indirect access start to
-  // reference all existing memory allocations at the time when they are
-  // submitted to the device. Referenced memory allocations can be released only
-  // when kernel has finished execution.
-  // TODO: this container can be moved to _pi_context when Level Zero will
-  // support isolation of memory allocations in a context.
-  std::map<void *, MemAllocRecord> MemAllocs;
-  std::mutex MemAllocsMutex;
+  std::list<pi_context> Contexts;
+  std::mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -312,6 +305,14 @@ struct _pi_context : _pi_object {
   // Store the host allocator context. It does not depend on any device.
   USMAllocContext *HostMemAllocContext;
 
+  // We need to store all memory allocations in the platform because there could
+  // be kernels with indirect access. Kernels with indirect access start to
+  // reference all existing memory allocations at the time when they are
+  // submitted to the device. Referenced memory allocations can be released only
+  // when kernel has finished execution.
+  // TODO: this container can be moved to _pi_context when Level Zero will
+  // support isolation of memory allocations in a context.
+  std::map<void *, MemAllocRecord> MemAllocs;
 private:
   // Following member variables are used to manage assignment of events
   // to event pools.
