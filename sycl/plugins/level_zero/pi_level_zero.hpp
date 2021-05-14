@@ -63,10 +63,15 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
-// Record for a memory allocation. This structure is used to keep information for each
-// memory allocation.
+// Record for a memory allocation. This structure is used to keep information
+// for each memory allocation.
 struct MemAllocRecord : _pi_object {
   MemAllocRecord(pi_context Context) : Context(Context) {}
+  // Currently kernel can reference memory allocations from different contexts
+  // and we need to know the context of a memory allocation when we release it
+  // in piKernelRelease.
+  // TODO: this should go away when memory isolation issue is fixed in the Level
+  // Zero runtime.
   pi_context Context;
 };
 
@@ -105,6 +110,9 @@ struct _pi_platform {
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
 
+  // Keep track of all contexts in the platform. This is needed to manage
+  // a lifetime of memory allocations in each context when there are kernels
+  // with indirect access.
   std::list<pi_context> Contexts;
   std::mutex ContextsMutex;
 };
@@ -305,14 +313,13 @@ struct _pi_context : _pi_object {
   // Store the host allocator context. It does not depend on any device.
   USMAllocContext *HostMemAllocContext;
 
-  // We need to store all memory allocations in the platform because there could
+  // We need to store all memory allocations in the context because there could
   // be kernels with indirect access. Kernels with indirect access start to
   // reference all existing memory allocations at the time when they are
   // submitted to the device. Referenced memory allocations can be released only
   // when kernel has finished execution.
-  // TODO: this container can be moved to _pi_context when Level Zero will
-  // support isolation of memory allocations in a context.
   std::map<void *, MemAllocRecord> MemAllocs;
+
 private:
   // Following member variables are used to manage assignment of events
   // to event pools.
@@ -854,7 +861,7 @@ struct _pi_program : _pi_object {
 
 struct _pi_kernel : _pi_object {
   _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
-      : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, UsersCount{0} {}
+      : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, SubmissionsCount{0} {}
 
   bool hasIndirectAccess() {
     // Currently indirect access flag is set for all kernels and there is no API
@@ -871,15 +878,25 @@ struct _pi_kernel : _pi_object {
   // If kernel has indirect access we need to make a snapshot of all existing
   // memory allocations to defer deletion of these memory allocations to the
   // moment when kernel execution has finished.
-  // We store iterators to the map in the platform because iterator is not
-  // invalidated by insert/delete for std::map.
+  // We store iterators because iterator is not invalidated by insert/delete for
+  // std::map.
+  // Why need to take a snapshot instead of just reference-counting the
+  // allocations, because picture of active allocations can change during kernel
+  // execution (new allocations can be added) and we need to know which memory
+  // allocations were retained by this kernel to release them (and don't touch
+  // new allocations) at kernel completion.
   std::list<std::map<void *, MemAllocRecord>::iterator> MemAllocs;
 
-  // Track the number of events associated with this kernel.
+  // Counter to track the number of submissions of the kernel.
   // When this value is zero, it means that kernel is not submitted for an
-  // execution. It allows to release memory allocations referenced by this
-  // kernel.
-  std::atomic<pi_uint32> UsersCount;
+  // execution - at this time we can release memory allocations referenced by
+  // this kernel. We can do this when RefCount turns to 0 but it is too late
+  // because kernels are cached in the context by SYCL RT and they are released
+  // only during context object destruction. Regular RefCount is not usable to
+  // track submissions because user/SYCL RT can retain kernel object any number
+  // of times. And that's why there is no value of RefCount which can mean zero
+  // submissions.
+  std::atomic<pi_uint32> SubmissionsCount;
 };
 
 struct _pi_sampler : _pi_object {
