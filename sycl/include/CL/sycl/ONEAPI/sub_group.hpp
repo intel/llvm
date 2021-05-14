@@ -226,31 +226,31 @@ struct sub_group {
   /* these can map to SIMD or block read/write hardware where available */
 #ifdef __SYCL_DEVICE_ONLY__
   // Method for decorated pointer
-  template <typename T>
+  template <typename CVT, typename T = std::remove_cv_t<CVT>>
   detail::enable_if_t<
       !std::is_same<typename detail::remove_AS<T>::type, T>::value, T>
-  load(T *src) const {
+  load(CVT *cv_src) const {
+    T *src = const_cast<T *>(cv_src);
     return load(sycl::multi_ptr<typename detail::remove_AS<T>::type,
                                 sycl::detail::deduce_AS<T>::value>(
         (typename detail::remove_AS<T>::type *)src));
   }
 
   // Method for raw pointer
-  template <typename T>
+  template <typename CVT, typename T = std::remove_cv_t<CVT>>
   detail::enable_if_t<
       std::is_same<typename detail::remove_AS<T>::type, T>::value, T>
-  load(T *src) const {
+  load(CVT *cv_src) const {
+    T *src = const_cast<T *>(cv_src);
 
 #ifdef __NVPTX__
     return src[get_local_id()[0]];
 #else  // __NVPTX__
-    auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
-        src, __spv::StorageClass::Workgroup);
+    auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(src);
     if (l)
       return load(l);
 
-    auto g = __spirv_GenericCastToPtrExplicit_ToGlobal<T>(
-        src, __spv::StorageClass::CrossWorkgroup);
+    auto g = __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(src);
     if (g)
       return load(g);
 
@@ -259,17 +259,20 @@ struct sub_group {
 #endif // __NVPTX__
   }
 #else  //__SYCL_DEVICE_ONLY__
-  template <typename T> T load(T *src) const {
+  template <typename CVT, typename T = std::remove_cv_t<CVT>>
+  T load(CVT *src) const {
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
   }
 #endif //__SYCL_DEVICE_ONLY__
 
-  template <typename T, access::address_space Space>
+  template <typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> cv_src) const {
+    multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
     return src.get()[get_local_id()[0]];
@@ -283,10 +286,12 @@ struct sub_group {
 #endif
   }
 
-  template <typename T, access::address_space Space>
+  template <typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value, T>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> cv_src) const {
+    multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
 #ifdef __SYCL_DEVICE_ONLY__
     return src.get()[get_local_id()[0]];
 #else
@@ -297,11 +302,13 @@ struct sub_group {
   }
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
-  template <int N, typename T, access::address_space Space>
+  template <int N, typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> cv_src) const {
+    multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
     vec<T, N> res;
     for (int i = 0; i < N; ++i) {
       res[i] = *(src.get() + i * get_max_local_range()[0] + get_local_id()[0]);
@@ -309,63 +316,74 @@ struct sub_group {
     return res;
   }
 #else  // __NVPTX__
-  template <int N, typename T, access::address_space Space>
+  template <int N, typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N != 1 && N != 3 && N != 16,
       vec<T, N>>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> cv_src) const {
+    multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
     return sycl::detail::sub_group::load<N, T>(src);
   }
 
-  template <int N, typename T, access::address_space Space>
+  template <int N, typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 16,
       vec<T, 16>>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> cv_src) const {
+    multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
     return {sycl::detail::sub_group::load<8, T>(src),
             sycl::detail::sub_group::load<8, T>(src +
                                                 8 * get_max_local_range()[0])};
   }
 
-  template <int N, typename T, access::address_space Space>
+  template <int N, typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 3,
       vec<T, 3>>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> cv_src) const {
+    multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
     return {
         sycl::detail::sub_group::load<1, T>(src),
         sycl::detail::sub_group::load<2, T>(src + get_max_local_range()[0])};
   }
 
-  template <int N, typename T, access::address_space Space>
+  template <int N, typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 1,
       vec<T, 1>>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> cv_src) const {
+    multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
     return sycl::detail::sub_group::load(src);
   }
 #endif // ___NVPTX___
 #else  // __SYCL_DEVICE_ONLY__
-  template <int N, typename T, access::address_space Space>
+  template <int N, typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> src) const {
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
   }
 #endif // __SYCL_DEVICE_ONLY__
 
-  template <int N, typename T, access::address_space Space>
+  template <int N, typename CVT, access::address_space Space,
+            typename T = std::remove_cv_t<CVT>>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value,
       vec<T, N>>
-  load(const multi_ptr<T, Space> src) const {
+  load(const multi_ptr<CVT, Space> cv_src) const {
+    multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
 #ifdef __SYCL_DEVICE_ONLY__
     vec<T, N> res;
     for (int i = 0; i < N; ++i) {
@@ -400,15 +418,13 @@ struct sub_group {
 #ifdef __NVPTX__
     dst[get_local_id()[0]] = x;
 #else  // __NVPTX__
-    auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
-        dst, __spv::StorageClass::Workgroup);
+    auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(dst);
     if (l) {
       store(l, x);
       return;
     }
 
-    auto g = __spirv_GenericCastToPtrExplicit_ToGlobal<T>(
-        dst, __spv::StorageClass::CrossWorkgroup);
+    auto g = __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(dst);
     if (g) {
       store(g, x);
       return;
