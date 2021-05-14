@@ -18,9 +18,9 @@
 
 #include <CL/sycl.hpp>
 
-#include <iostream>
-#include <cstddef>
 #include <array>
+#include <cstddef>
+#include <iostream>
 
 using namespace cl::sycl;
 

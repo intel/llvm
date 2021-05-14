@@ -308,8 +308,6 @@ bool device_impl::has(aspect Aspect) const {
     assert(return_size <= 16);
     std::byte uuid[16];
 
-    //pi_uint8_ptr uuid =
-    //    static_cast<pi_uint8_ptr>(malloc(return_size * sizeof(uint8_t)));
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(std::byte), uuid,
                nullptr) == PI_SUCCESS;
