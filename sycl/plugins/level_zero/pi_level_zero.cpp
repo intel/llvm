@@ -570,8 +570,9 @@ pi_result _pi_context::initialize() {
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
   //
-  // TODO: get rid of Devices[0] for the context with multiple root-devices
-  pi_device Device = hasSingleRootDevice() ? SingleRootDevice : Devices[0];
+  // TODO: get rid of using Devices[0] for the context with multiple
+  // root-devices. We should somehow make the data initialized on all devices.
+  pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
   ze_command_queue_desc_t ZeCommandQueueDesc = {};
   ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
   ZeCommandQueueDesc.index = 0;
@@ -2512,7 +2513,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   pi_result Result;
   if (DeviceIsIntegrated) {
     Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-  } else if (Context->hasSingleRootDevice()) {
+  } else if (Context->SingleRootDevice) {
     // If we have a single discrete device or all devices in the context are
     // sub-devices of the same device then we can allocate on device
     Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
@@ -2534,13 +2535,17 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
         (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
       // Initialize the buffer with user data
-      if (Context->hasSingleRootDevice() && !DeviceIsIntegrated) {
+      if (DeviceIsIntegrated) {
+        // Do a host to host copy
+        memcpy(Ptr, HostPtr, Size);
+      } else if (Context->SingleRootDevice) {
         // Initialize the buffer synchronously with immediate offload
         ZE_CALL(zeCommandListAppendMemoryCopy,
                 (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
                  nullptr));
       } else {
-        // Do a host to host copy
+        // Multiple root devices, do a host to host copy because we use a host
+        // allocation for this case.
         memcpy(Ptr, HostPtr, Size);
       }
     } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
@@ -2741,8 +2746,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   // own the image.
   // TODO: Implement explicit copying for acessing the image from other devices
   // in the context.
-  pi_device Device = Context->hasSingleRootDevice() ? Context->SingleRootDevice
-                                                    : Context->Devices[0];
+  pi_device Device = Context->SingleRootDevice ? Context->SingleRootDevice
+                                               : Context->Devices[0];
   ze_image_handle_t ZeHImage;
   ZE_CALL(zeImageCreate,
           (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));

@@ -255,7 +255,6 @@ struct _pi_context : _pi_object {
   // If context contains one device or sub-devices of the same device, we want
   // to save this device.
   pi_device SingleRootDevice = nullptr;
-  bool hasSingleRootDevice() { return SingleRootDevice != nullptr; }
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
