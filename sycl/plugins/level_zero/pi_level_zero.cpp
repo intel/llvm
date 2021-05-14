@@ -4207,6 +4207,17 @@ static pi_result cleanupAfterEvent(pi_event Event) {
 
     DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
         EventsToBeReleased);
+    {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(DepEvent->Queue->PiQueueMutex);
+      // Release the kernel associated with this event if there is one.
+      if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
+          DepEvent->CommandData) {
+        pi_cast<pi_kernel>(DepEvent->CommandData)->UsersCount--;
+        PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
+        DepEvent->CommandData = nullptr;
+      }
+    }
     PI_CALL(piEventRelease(DepEvent));
   }
 
