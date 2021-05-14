@@ -13295,7 +13295,7 @@ public:
   bool isSYCLEsimdPrivateGlobal(VarDecl *VDecl) {
     return getLangOpts().SYCLIsDevice && VDecl->hasAttr<SYCLSimdAttr>() &&
            VDecl->hasGlobalStorage() &&
-           (VDecl->getType().getAddressSpace() == LangAS::opencl_private);
+           (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
 };
 
