@@ -3097,9 +3097,8 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      unsigned WorkGroupSize = S.getLangOpts().OpenCL
-		               ? XDimVal.getZExtValue()
-			       : ZDimVal.getZExtValue();
+      unsigned WorkGroupSize = S.getLangOpts().OpenCL ? XDimVal.getZExtValue()
+                                                      : ZDimVal.getZExtValue();
 
       if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
@@ -3321,9 +3320,8 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
         if (ZDim.isInvalid())
           return;
 
-        unsigned WorkGroupSize = getLangOpts().OpenCL
-                                 ? XDimVal.getZExtValue()
-	                         : ZDimVal.getZExtValue();
+        unsigned WorkGroupSize = getLangOpts().OpenCL ? XDimVal.getZExtValue()
+                                                      : ZDimVal.getZExtValue();
 
         if (WorkGroupSize % ArgVal.getSExtValue() != 0) {
           Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
