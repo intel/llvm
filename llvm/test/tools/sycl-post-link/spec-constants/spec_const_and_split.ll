@@ -9,8 +9,10 @@
 ; RUN: sycl-post-link -split=kernel -spec-const=rt -S %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefixes CHECK-IR0,CHECK-IR
 ; RUN: FileCheck %s -input-file=%t.files_1.ll --check-prefixes CHECK-IR1,CHECK-IR
+; RUN: FileCheck %s -input-file=%t.files_2.ll --check-prefixes CHECK-IR2,CHECK-IR
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefixes CHECK-PROP0
 ; RUN: FileCheck %s -input-file=%t.files_1.prop --check-prefixes CHECK-PROP1
+; RUN: FileCheck %s -input-file=%t.files_2.prop --check-prefixes CHECK-PROP2
 
 @SCSymID = private unnamed_addr constant [10 x i8] c"SpecConst\00", align 1
 @SCSymID2 = private unnamed_addr constant [11 x i8] c"SpecConst2\00", align 1
@@ -33,12 +35,19 @@ define dso_local spir_kernel void @KERNEL_BBB() {
   ret void
 }
 
+define dso_local spir_kernel void @KERNEL_CCC() {
+; CHECK-IR2: define{{.*}}spir_kernel void @KERNEL_CCC
+  ret void
+}
+
 ; CHECK-IR0: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]]}
 ; CHECK-IR0: ![[#MD0:]] = !{!"SpecConst2", i32 0, i32 0, i32 1}
 ; CHECK-IR0: ![[#MD1:]] = !{!"SpecConst", i32 1, i32 0, i32 1}
 ;
 ; CHECK-IR1: !sycl.specialization-constants = !{![[#MD0:]]}
 ; CHECK-IR1: ![[#MD0:]] = !{!"SpecConst", i32 0, i32 0, i32 1}
+;
+; CHECK-IR2: !sycl.specialization-constants = !{}
 
 ; CHECK-PROP0: [SYCL/specialization constants]
 ; CHECK-PROP0: SpecConst=2|
@@ -47,3 +56,6 @@ define dso_local spir_kernel void @KERNEL_BBB() {
 ; CHECK-PROP1: [SYCL/specialization constants]
 ; CHECK-PROP1: SpecConst=2|
 ; CHECK-PROP1-NOT: SpecConst2
+;
+; CHECK-PROP2: [SYCL/specialization constants]
+; CHECK-PROP2-EMPTY:
