@@ -3094,12 +3094,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     // __attribute__((reqd_work_group_size)) attribute behaves the
     // OpenCL way in OpenCL mode (using the OpenCL semantics) and
     // the SYCL way in SYCL mode (using the SYCL semantics).
-    // If the declaration has a __attribute__((reqd_work_group_size))
-    // attribute, check to see if the first argument can be evenly divided
-    // by the [[intel::num_simd_work_items()]] attribute in OpenCL mode.
-    // If the declaration has a __attribute__((reqd_work_group_size))
-    // attribute, check to see if the last argument can be evenly divided
-    // by the [[intel::num_simd_work_items()]] attribute in SYCL mode.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
@@ -3306,12 +3300,6 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
     // __attribute__((reqd_work_group_size)) attribute behaves the
     // OpenCL way in OpenCL mode (using the OpenCL semantics) and
     // the SYCL way in SYCL mode (using the SYCL semantics).
-    // If the declaration has a __attribute__((reqd_work_group_size))
-    // attribute, check to see if the first argument can be evenly divided
-    // by the [[intel::num_simd_work_items()]] attribute in OpenCL mode.
-    // If the declaration has a __attribute__((reqd_work_group_size))
-    // attribute, check to see if the last argument can be evenly divided
-    // by the [[intel::num_simd_work_items()]] attribute in SYCL mode.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Expr *XDimExpr = DeclAttr->getXDim();
       Expr *YDimExpr = DeclAttr->getYDim();
