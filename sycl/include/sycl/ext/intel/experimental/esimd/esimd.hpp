@@ -10,10 +10,10 @@
 
 #pragma once
 
-#include <CL/sycl/INTEL/esimd/detail/esimd_intrin.hpp>
-#include <CL/sycl/INTEL/esimd/detail/esimd_memory_intrin.hpp>
-#include <CL/sycl/INTEL/esimd/detail/esimd_sycl_util.hpp>
-#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_memory_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_sycl_util.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

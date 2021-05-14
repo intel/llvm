@@ -11,9 +11,10 @@
 
 #pragma once
 
-#include <CL/sycl/INTEL/esimd/detail/esimd_host_util.hpp>
-#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
-#include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_host_util.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
+#include <sycl/ext/intel/experimental/esimd/esimd_enum.hpp>
+
 #include <cstdint>
 
 #define __SEIEED sycl::ext::intel::experimental::esimd::detail

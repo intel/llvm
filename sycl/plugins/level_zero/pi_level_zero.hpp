@@ -87,6 +87,9 @@ struct _pi_platform {
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
 
+  // Cache driver extensions
+  std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
+
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
   std::mutex PiDevicesCacheMutex;
@@ -181,8 +184,12 @@ struct _pi_device : _pi_object {
   int32_t ZeComputeQueueGroupIndex;
   int32_t ZeCopyQueueGroupIndex;
 
+  // Cache the properties of the compute/copy queue groups.
+  ze_command_queue_group_properties_t ZeComputeQueueGroupProperties = {};
+  ze_command_queue_group_properties_t ZeCopyQueueGroupProperties = {};
+
   // This returns "true" if a copy engine is available for use.
-  bool hasCopyEngine() { return (ZeCopyQueueGroupIndex >= 0); }
+  bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
 
   // Initialize the entire PI device.
   pi_result initialize();

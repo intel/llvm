@@ -11,6 +11,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
+
 #include <cstdint> // for uint* types
 
 __SYCL_INLINE_NAMESPACE(cl) {

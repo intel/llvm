@@ -597,6 +597,15 @@ class SingleDeviceFunctionTracker {
       return;
     }
 
+    // If this is a routine that is not defined and it does not have either
+    // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
+    // routines potentially reachable on device. This is to diagnose such
+    // cases later in finalizeSYCLDeviceAnalysis().
+    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
+        !CurrentDecl->hasAttr<SYCLDeviceAttr>())
+      Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
+                                                    CallStack.back());
+
     // We previously thought we could skip this function if we'd seen it before,
     // but if we haven't seen it before in this call graph, we can end up
     // missing a recursive call.  SO, we have to revisit call-graphs we've
@@ -2039,8 +2048,8 @@ public:
     auto AS = Quals.getAddressSpace();
     // Leave global_device and global_host address spaces as is to help FPGA
     // device in memory allocations
-    if (AS != LangAS::opencl_global_device && AS != LangAS::opencl_global_host)
-      Quals.setAddressSpace(LangAS::opencl_global);
+    if (AS != LangAS::sycl_global_device && AS != LangAS::sycl_global_host)
+      Quals.setAddressSpace(LangAS::sycl_global);
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
     QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
@@ -2116,7 +2125,7 @@ public:
 
     StringRef Name = "_arg__specialization_constants_buffer";
     addParam(Name, Context.getPointerType(Context.getAddrSpaceQualType(
-                       Context.CharTy, LangAS::opencl_global)));
+                       Context.CharTy, LangAS::sycl_global)));
   }
 
   void setBody(CompoundStmt *KB) { KernelDecl->setBody(KB); }
@@ -3885,22 +3894,29 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
 void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                        const FunctionDecl *Callee,
-                                       SourceLocation Loc) {
+                                       SourceLocation Loc,
+                                       DeviceDiagnosticReason Reason) {
   // Somehow an unspecialized template appears to be in callgraph or list of
   // device functions. We don't want to emit diagnostic here.
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
     return;
 
   Callee = Callee->getMostRecentDecl();
-  bool HasAttr =
-      Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>();
 
-  // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-  bool NotDefinedNoAttr = !Callee->isDefined() && !HasAttr;
+  // If the reason for the emission of this diagnostic is not SYCL-specific,
+  // and it is not known to be reachable from a routine on device, do not
+  // issue a diagnostic.
+  if ((Reason & DeviceDiagnosticReason::Sycl) == DeviceDiagnosticReason::None &&
+      !isFDReachableFromSyclDevice(Callee, Caller))
+    return;
 
-  if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
-    Diag(Loc, diag::err_sycl_restrict)
-        << Sema::KernelCallUndefinedFunction;
+  // If Callee has a SYCL attribute, no diagnostic needed.
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+    return;
+
+  // Diagnose if this is an undefined function and it is not a builtin.
+  if (!Callee->isDefined() && !Callee->getBuiltinID()) {
+    Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
     Diag(Caller->getLocation(), diag::note_called_by) << Caller;
   }
@@ -4655,8 +4671,8 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
 // function call parameters.
 static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
                                    const VarDecl *VD) {
-  assert(VD->isInAnonymousNamespace() &&
-         "Function assumes this is in an anonymous namespace");
+  if (!VD->isInAnonymousNamespace())
+    return "";
   std::string RelativeName = VD->getNameAsString();
   EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
   return RelativeName;
@@ -4673,30 +4689,28 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   unsigned ShimCounter = 0;
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
+    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+    OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
+    OS << "namespace sycl {\n";
+    OS << "namespace detail {\n";
+    OS << "template<>\n";
+    OS << "inline const char *get_spec_constant_symbolic_ID<";
+
     if (VD->isInAnonymousNamespace()) {
-      std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
-      OS << "namespace sycl {\n";
-      OS << "namespace detail {\n";
-      OS << "template<>\n";
-      OS << "inline const char *get_spec_constant_symbolic_ID<" << TopShim
-         << ">() {\n";
-      OS << "  return \"";
-      emitSpecIDName(OS, VD);
-      OS << "\";\n";
+      OS << TopShim;
     } else {
-      OS << "namespace sycl {\n";
-      OS << "namespace detail {\n";
-      OS << "template<>\n";
-      OS << "inline const char *get_spec_constant_symbolic_ID<::";
+      OS << "::";
       VD->printQualifiedName(OS, Policy);
-      OS << ">() {\n";
-      OS << "  return \"";
-      emitSpecIDName(OS, VD);
-      OS << "\";\n";
     }
+
+    OS << ">() {\n";
+    OS << "  return \"";
+    emitSpecIDName(OS, VD);
+    OS << "\";\n";
     OS << "}\n";
     OS << "} // namespace detail\n";
     OS << "} // namespace sycl\n";
+    OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   }
 
   OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
