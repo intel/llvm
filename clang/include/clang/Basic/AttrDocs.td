@@ -2503,6 +2503,11 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::num_simd_work_items(N)]] void operator()() const {}
   };
 
+If the ``reqd_work_group_size`` attribute is specified on a declaration along
+with ``num_simd_work_items``, the required work group size specified
+by ``num_simd_work_items`` attribute must evenly divide the index that
+increments fastest in the ``reqd_work_group_size`` attribute.
+
 The arguments to ``reqd_work_group_size`` are ordered based on which index
 increments the fastest. In OpenCL, the first argument is the index that
 increments the fastest, and in SYCL, the last argument is the index that
@@ -2514,11 +2519,6 @@ In SYCL, the attribute accepts either one, two, or three arguments; in each
 form, the last (or only) argument is the index that increments fastest.
 The number of arguments passed to the attribute must match the dimensionality
 of the kernel the attribute is applied to.
-
-If the ``reqd_work_group_size`` attribute is specified on a declaration along
-with ``num_simd_work_items``, the required work group size specified
-by ``num_simd_work_items`` attribute must evenly divide the index that
-increments fastest in the ``reqd_work_group_size`` attribute.
 
 .. code-block:: c++
 

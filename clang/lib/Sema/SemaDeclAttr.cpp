@@ -3086,14 +3086,10 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     ZDimExpr = ZDim.get();
 
-    // If the declaration has a [[intel::reqd_work_group_size()]]
-    // or [[cl::reqd_work_group_size()]] attribute, check to see
-    // if the last argument can be evenly divided by the
-    // [[intel::num_simd_work_items()]] attribute.
-    //
-    // __attribute__((reqd_work_group_size)) attribute behaves the
-    // OpenCL way in OpenCL mode (using the OpenCL semantics) and
-    // the SYCL way in SYCL mode (using the SYCL semantics).
+    // If the num_simd_work_items attribute is specified on a declaration it
+    // must evenly divide the index that increments fastest in the
+    // reqd_work_group_size attribute. In OpenCL, the first argument increments
+    // the fastest, and in SYCL, the last argument increments the fastest.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
@@ -3292,14 +3288,15 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       }
     }
 
-    // If the declaration has a [[intel::reqd_work_group_size()]]
-    // or [[cl::reqd_work_group_size()]] attribute, check to see
-    // if the last argument can be evenly divided by the
-    // [[intel::num_simd_work_items()]] attribute.
+    // If the reqd_work_group_size attribute is specified on a declaration
+    // along with num_simd_work_items, the required work group size specified
+    // by num_simd_work_items attribute must evenly divide the index that
+    // increments fastest in the reqd_work_group_size attribute.
     //
-    // __attribute__((reqd_work_group_size)) attribute behaves the
-    // OpenCL way in OpenCL mode (using the OpenCL semantics) and
-    // the SYCL way in SYCL mode (using the SYCL semantics).
+    // The arguments to reqd_work_group_size are ordered based on which index
+    // increments the fastest. In OpenCL, the first argument is the index that
+    // increments the fastest, and in SYCL, the last argument is the index that
+    // increments the fastest.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Expr *XDimExpr = DeclAttr->getXDim();
       Expr *YDimExpr = DeclAttr->getYDim();
