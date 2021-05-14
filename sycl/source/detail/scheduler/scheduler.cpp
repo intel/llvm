@@ -129,6 +129,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
           static_cast<ExecCGCommand *>(NewCmd.get())->releaseCG();
 
         NewEvent->setCommand(nullptr);
+        NewCmd.reset();
       }
     }
     NewCmd.release();
