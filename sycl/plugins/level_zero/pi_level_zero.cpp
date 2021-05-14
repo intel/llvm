@@ -570,9 +570,8 @@ pi_result _pi_context::initialize() {
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
   //
-  // In a special case with the context of subdevices of a same device we need
-  // to use a root device because memory is allocated on a root-device.
-  pi_device Device = isContextOfSubDevices() ? RootDevice : Devices[0];
+  // TODO: get rid of Devices[0] for the context with multiple root-devices
+  pi_device Device = hasSingleRootDevice() ? SingleRootDevice : Devices[0];
   ze_command_queue_desc_t ZeCommandQueueDesc = {};
   ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
   ZeCommandQueueDesc.index = 0;
@@ -2483,10 +2482,6 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
-  bool SingleDiscreteDevice = Context->Devices.size() == 1 &&
-                              !(Context->Devices[0]->ZeDeviceProperties.flags &
-                                ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
-
   if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
     // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
     // pinned host memory, see:
@@ -2517,15 +2512,11 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   pi_result Result;
   if (DeviceIsIntegrated) {
     Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-  } else if (SingleDiscreteDevice) {
-    // If we have a single discrete device we can allocate on device
-    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->Devices[0], nullptr,
-                                 Size, Alignment);
-  } else if (Context->isContextOfSubDevices()) {
-    // If all devices in the context are sub-devices of the same device we can
-    // allocate on root and use this mem handle an all sub-devices.
-    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->RootDevice, nullptr,
-                                 Size, Alignment);
+  } else if (Context->hasSingleRootDevice()) {
+    // If we have a single discrete device or all devices in the context are
+    // sub-devices of the same device then we can allocate on device
+    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                 nullptr, Size, Alignment);
   } else {
     // Context with several gpu cards. Temporarily use host allocation because
     // it is accessible by all devices. But it is not good in terms of
@@ -2543,7 +2534,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
         (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
       // Initialize the buffer with user data
-      if (SingleDiscreteDevice || Context->isContextOfSubDevices()) {
+      if (Context->hasSingleRootDevice() && !DeviceIsIntegrated) {
         // Initialize the buffer synchronously with immediate offload
         ZE_CALL(zeCommandListAppendMemoryCopy,
                 (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
@@ -2746,14 +2737,12 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZeImageDesc.arraylevels = pi_cast<uint32_t>(ImageDesc->image_array_size);
   ZeImageDesc.miplevels = ImageDesc->num_mip_levels;
 
-  // Have the "0" device in context to own the image. Currently images are not
-  // supported in contexts with multiple root-devices except the case when
-  // context consists of subdevices of a same device.
-  //
+  // Currently we have the "0" device in context with mutliple root devices to
+  // own the image.
   // TODO: Implement explicit copying for acessing the image from other devices
   // in the context.
-  pi_device Device = Context->isContextOfSubDevices() ? Context->RootDevice
-                                                      : Context->Devices[0];
+  pi_device Device = Context->hasSingleRootDevice() ? Context->SingleRootDevice
+                                                    : Context->Devices[0];
   ze_image_handle_t ZeHImage;
   ZE_CALL(zeImageCreate,
           (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));

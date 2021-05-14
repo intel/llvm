@@ -217,17 +217,19 @@ struct _pi_context : _pi_object {
     HostMemAllocContext = new USMAllocContext(
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
 
-    // If we have a single device/sub-device, construction is done.
-    if (NumDevices == 1)
+    if (NumDevices == 1) {
+      SingleRootDevice = Devices[0];
       return;
+    }
 
     // Check if we have context with subdevices of the same device (context may
     // include root device itself as well)
-    RootDevice = Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+    SingleRootDevice =
+        Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
     for (auto &Device : Devices) {
-      if ((!Device->RootDevice && Device != RootDevice) ||
-          (Device->RootDevice && Device->RootDevice != RootDevice)) {
-        RootDevice = nullptr;
+      if ((!Device->RootDevice && Device != SingleRootDevice) ||
+          (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
+        SingleRootDevice = nullptr;
         break;
       }
     }
@@ -250,10 +252,10 @@ struct _pi_context : _pi_object {
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;
 
-  // If devices in the context are sub-devices of the same device, we want to
-  // save a root-device.
-  pi_device RootDevice = nullptr;
-  bool isContextOfSubDevices() { return RootDevice != nullptr; }
+  // If context contains one device or sub-devices of the same device, we want
+  // to save this device.
+  pi_device SingleRootDevice = nullptr;
+  bool hasSingleRootDevice() { return SingleRootDevice != nullptr; }
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
