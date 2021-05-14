@@ -2564,14 +2564,14 @@ increments fastest in the ``reqd_work_group_size`` attribute.
     void operator()() const {}
   };
 
-  // Note, '4' is evenly divisible by '2'; in OpenCL, the first
+  // Note, '4' is evenly divisible by '2'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   [[intel::num_simd_work_items(2)]]
-  __attribute__((reqd_work_group_size(4, 2, 3))) void test();
+  __attribute__((reqd_work_group_size(3, 2, 4))) void test();
 
-  // Note, '8' is evenly divisible by '2'; in OpenCL, the first
+  // Note, '8' is evenly divisible by '2'; in OpenCL, the last
   // argument to the attribute is the one which increments fastest.
-  __attribute__((reqd_work_group_size(8, 2, 3)))
+  __attribute__((reqd_work_group_size(3, 2, 8)))
   [intel::num_simd_work_items(2)]] void test();
 
   }];
@@ -2748,14 +2748,14 @@ in the ``reqd_work_group_size`` attribute.
     void operator()() const {}
   };
 
-  // Note, '4' is evenly divisible by '2'; in OpenCL, the first
+  // Note, '4' is evenly divisible by '2'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   [[intel::num_simd_work_items(2)]]
-  __attribute__((reqd_work_group_size(4, 2, 3))) void test();
+  __attribute__((reqd_work_group_size(3, 2, 4))) void test();
  
-  // Note, '8' is evenly divisible by '2'; in OpenCL, the first
+  // Note, '8' is evenly divisible by '2'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
-  __attribute__((reqd_work_group_size(8, 2, 3)))
+  __attribute__((reqd_work_group_size(3, 2, 8)))
   [intel::num_simd_work_items(2)]] void test();
 
   }];

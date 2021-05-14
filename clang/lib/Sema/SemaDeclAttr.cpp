@@ -3088,18 +3088,18 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
     // If the declaration has a [[intel::num_simd_work_items()]] attribute,
     // check to see if the first argument of
-    // __attribute__((reqd_work_group_size)) attribute and last argument of
-    // [[cl::reqd_work_group_size()]] or [intel::reqd_work_group_size()]]
-    // attribute can be evenly divided by the [[intel::num_simd_work_items()]]
-    // attribute.
+    // __attribute__((reqd_work_group_size)) attribute on OpenCL mode and
+    // last argument of [[cl::reqd_work_group_size()]] or
+    // [intel::reqd_work_group_size()]] attribute or
+    // __attribute__((reqd_work_group_size)) attribute on SYCL mode can be
+    // evenly divided by the [[intel::num_simd_work_items()]] attribute.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      bool UsesOpenCLSemantics = AL.getSyntax() == AttributeCommonInfo::AS_GNU;
-
-      unsigned WorkGroupSize =
-          UsesOpenCLSemantics ? XDimVal.getZExtValue() : ZDimVal.getZExtValue();
+      unsigned WorkGroupSize = S.getLangOpts().OpenCL
+		               ? XDimVal.getZExtValue()
+			       : ZDimVal.getZExtValue();
 
       if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
@@ -3297,9 +3297,9 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
     // if the last argument can be evenly divided by the
     // [[intel::num_simd_work_items()]] attribute.
     // If the declaration has a __attribute__((reqd_work_group_size))
-    // attribute, check to see if the first argument can be evenly
-    // divided by the [[intel::num_simd_work_items()]] attribute. GNU
-    // spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantics.
+    // attribute, check to see if the first argument on OpenCL mode and
+    // last argument on SYCL mode can be evenly divided by the
+    // [[intel::num_simd_work_items()]] attribute.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Expr *XDimExpr = DeclAttr->getXDim();
       Expr *YDimExpr = DeclAttr->getYDim();
@@ -3314,20 +3314,18 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
 
         if (XDim.isInvalid())
           return;
-        XDimExpr = XDim.get();
 
         if (YDim.isInvalid())
           return;
-        YDimExpr = YDim.get();
 
         if (ZDim.isInvalid())
           return;
-        ZDimExpr = ZDim.get();
 
-        llvm::APSInt WorkGroupSize =
-            DeclAttr->usesOpenCLSemantics() ? XDimVal : ZDimVal;
+        unsigned WorkGroupSize = getLangOpts().OpenCL
+                                 ? XDimVal.getZExtValue()
+	                         : ZDimVal.getZExtValue();
 
-        if (WorkGroupSize % ArgVal != 0) {
+        if (WorkGroupSize % ArgVal.getSExtValue() != 0) {
           Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
               << CI << DeclAttr;
           Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);

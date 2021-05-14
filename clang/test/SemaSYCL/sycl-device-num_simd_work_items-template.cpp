@@ -96,7 +96,7 @@ int check() {
 
 // Tests for num_simd_work_items and reqd_work_group_size arguments check.
 template <int N>
-__attribute__((reqd_work_group_size(3, 6, 4))) void func6(); // expected-note{{conflicting attribute is here}}
+__attribute__((reqd_work_group_size(8, 6, 3))) void func6(); // expected-note{{conflicting attribute is here}}
 template <int N>
 [[intel::num_simd_work_items(N)]] void func6(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 

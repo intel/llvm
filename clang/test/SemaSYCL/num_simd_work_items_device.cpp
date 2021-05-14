@@ -142,10 +142,10 @@ struct TRIFuncObjBad8 {
 
 // If the declaration has a __attribute__((reqd_work_group_size()))
 // attribute, tests that check if the work group size attribute argument
-// (the first argument) can be evenly divided by the [[intel::num_simd_work_items()]]
-// attribute. GNU spelling of ReqdWorkGroupSizeAttr maps to the OpenCL semantics.
+// (the last argument) can be evenly divided by the [[intel::num_simd_work_items()]]
+// attribute.
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-__attribute__((reqd_work_group_size(3, 2, 4))) void func5(); // expected-note{{conflicting attribute is here}}
+__attribute__((reqd_work_group_size(4, 2, 5))) void func5(); // expected-note{{conflicting attribute is here}}
 
 // Tests for incorrect argument values for Intel FPGA num_simd_work_items and reqd_work_group_size function attributes
 struct TRIFuncObjBad9 {
@@ -210,12 +210,10 @@ struct TRIFuncObjBad18 {
 
 #endif // TRIGGER_ERROR
 // If the declaration has a [[intel::reqd_work_group_size()]]
-// or [[cl::reqd_work_group_size()]] attribute, check to see
+// or [[cl::reqd_work_group_size()]] or
+// __attribute__((reqd_work_group_size)) attribute, check to see
 // if the last argument can be evenly divided by the
 // [[intel::num_simd_work_items()]] attribute.
-// If the declaration has a __attribute__((reqd_work_group_size))
-// attribute, check to see if the first argument can be evenly
-// divided by the [[intel::num_simd_work_items()]] attribute.
 struct TRIFuncObjGood1 {
   [[intel::num_simd_work_items(4)]]
   [[intel::reqd_work_group_size(3, 64, 4)]] void
@@ -241,7 +239,7 @@ struct TRIFuncObjGood4 {
 };
 
 [[intel::num_simd_work_items(2)]]
-__attribute__((reqd_work_group_size(4,3,3))) void func6(); //OK
+__attribute__((reqd_work_group_size(3, 2, 6))) void func6(); //OK
 
 int main() {
   q.submit([&](handler &h) {
