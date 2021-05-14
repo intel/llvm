@@ -74,6 +74,9 @@ std::mutex ZeCall::GlobalLock;
 // Controls PI level tracing prints.
 static bool PrintPiTrace = false;
 
+// Controls support of the indirect access kernels and deferred memory release.
+static bool EnabledIndirectAccess = false;
+
 // Map Level Zero runtime error code to PI error code.
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
@@ -901,32 +904,34 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
     this->ZeOpenCommandListSize = 0;
   }
 
-  // We are going to submit kernels for execution. If indirect access flag is
-  // set for a kernel then we need to make a snapshot of existing memory
-  // allocations. We need to lock the mutex guarding the list of memory
-  // allocations in the platform to prevent creation of new memory alocations
-  // before we submit the kernel for execution.
-  // Note. Currently indirect access flag is set for all kernels to be
-  // conservative, that's why no need to check for a flag.
-  std::lock_guard<std::mutex> MemAllocsLock(Device->Platform->MemAllocsMutex);
-  for (auto &Kernel : Kernels) {
-    if (!Kernel->hasIndirectAccess())
-      continue;
-
-    for (auto &MemAlloc : Device->Platform->MemAllocs) {
-      Kernel->MemAllocs.push_back(&MemAlloc);
-      // Kernel is referencing this memory allocation from now.
-      MemAlloc.RefCount++;
-    }
-    Kernel->UsersCount++;
-  }
-  Kernels.clear();
-
   bool UseCopyEngine = getZeCommandListIsCopyList(ZeCommandList);
   if (UseCopyEngine)
     zePrint("Command list to be executed on copy engine\n");
   auto &ZeCommandQueue =
       (UseCopyEngine) ? ZeCopyCommandQueue : ZeComputeCommandQueue;
+
+  std::unique_lock<std::mutex> MemAllocsLock(Device->Platform->MemAllocsMutex, std::defer_lock);
+  if (EnabledIndirectAccess) {
+    // We are going to submit kernels for execution. If indirect access flag is
+    // set for a kernel then we need to make a snapshot of existing memory
+    // allocations. We need to lock the mutex guarding the list of memory
+    // allocations in the platform to prevent creation of new memory alocations
+    // before we submit the kernel for execution.
+    MemAllocsLock.lock();
+    for (auto &Kernel : Kernels) {
+      if (!Kernel->hasIndirectAccess())
+        continue;
+
+      for (auto &MemAlloc : Device->Platform->MemAllocs) {
+        Kernel->MemAllocs.push_back(&MemAlloc);
+        // Kernel is referencing this memory allocation from now.
+        MemAlloc.RefCount++;
+      }
+      Kernel->UsersCount++;
+    }
+    Kernels.clear();
+  }
+
   // Close the command list and have it ready for dispatch.
   ZE_CALL(zeCommandListClose, (ZeCommandList));
   // Offload command list to the GPU for asynchronous execution
@@ -1198,6 +1203,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
     ZeCallCount = new std::map<std::string, int>;
   }
+
+  EnabledIndirectAccess = std::getenv("SYCL_ENABLE_INDIRECT_ACCESS_SUPPORT") != nullptr;
 
   if (NumEntries == 0 && Platforms != nullptr) {
     return PI_INVALID_VALUE;
@@ -3572,7 +3579,8 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   // Update the refcount of the program and context to show it's used by this
   // kernel.
   PI_CALL(piProgramRetain(Program));
-  PI_CALL(piContextRetain(Program->Context));
+  if (EnabledIndirectAccess)
+    PI_CALL(piContextRetain(Program->Context));
 
   return PI_SUCCESS;
 }
@@ -3791,28 +3799,31 @@ pi_result piKernelRelease(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
-  // piKernelRelease is called by cleanupAfterEvent as soon as kernel execution
-  // has finished. This is the place where we need to release memory
-  // allocations. If kernel is not in use (not enqueued by some other thread)
-  // then release referenced memory allocations. As a result, memory can be
-  // deallocated and record can be rermoved from container in the platform.
-  // That's why we need to lock a mutex here.
-  pi_platform Plt = Kernel->Program->Context->Devices[0]->Platform;
-  std::lock_guard<std::mutex> Lock(Plt->MemAllocsMutex);
-  auto KernelProgram = Kernel->Program;
+  if (EnabledIndirectAccess) {
+    // piKernelRelease is called by cleanupAfterEvent as soon as kernel execution
+    // has finished. This is the place where we need to release memory
+    // allocations. If kernel is not in use (not enqueued by some other thread)
+    // then release referenced memory allocations. As a result, memory can be
+    // deallocated and record can be rermoved from container in the platform.
+    // That's why we need to lock a mutex here.
+    pi_platform Plt = Kernel->Program->Context->Devices[0]->Platform;
+    std::lock_guard<std::mutex> Lock(Plt->MemAllocsMutex);
 
-  if (Kernel->UsersCount == 0) {
-    // Kernel is not submitted for execution, release referenced memory
-    // allocations.
-    for (auto &MemAlloc : Kernel->MemAllocs) {
-      piextUSMFreeImpl(MemAlloc->Context, MemAlloc->Ptr);
+    if (--Kernel->UsersCount == 0) {
+      // Kernel is not submitted for execution, release referenced memory
+      // allocations.
+      for (auto &MemAlloc : Kernel->MemAllocs) {
+        piextUSMFreeImpl(MemAlloc->Context, MemAlloc->Ptr);
+      }
+      Kernel->MemAllocs.clear();
     }
-    Kernel->MemAllocs.clear();
   }
 
+  auto KernelProgram = Kernel->Program;
   if (--(Kernel->RefCount) == 0) {
     ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
-    PI_CALL(piContextRelease(KernelProgram->Context));
+    if (EnabledIndirectAccess)
+      PI_CALL(piContextRelease(KernelProgram->Context));
     delete Kernel;
   }
 
@@ -3954,7 +3965,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
-  Queue->Kernels.push_back(Kernel);
+  if (EnabledIndirectAccess)
+    Queue->Kernels.push_back(Kernel);
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -4164,7 +4176,6 @@ static pi_result cleanupAfterEvent(pi_event Event) {
     // Release the kernel associated with this event if there is one.
     if (Event->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
         Event->CommandData) {
-      pi_cast<pi_kernel>(Event->CommandData)->UsersCount--;
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
       Event->CommandData = nullptr;
     }
@@ -4207,13 +4218,12 @@ static pi_result cleanupAfterEvent(pi_event Event) {
 
     DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
         EventsToBeReleased);
-    {
+    if (EnabledIndirectAccess) {
       // Lock automatically releases when this goes out of scope.
       std::lock_guard<std::mutex> lock(DepEvent->Queue->PiQueueMutex);
       // Release the kernel associated with this event if there is one.
       if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
           DepEvent->CommandData) {
-        pi_cast<pi_kernel>(DepEvent->CommandData)->UsersCount--;
         PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
         DepEvent->CommandData = nullptr;
       }
@@ -5705,11 +5715,15 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                               pi_usm_mem_properties *Properties, size_t Size,
                               pi_uint32 Alignment) {
   pi_platform Plt = Device->Platform;
-  // Lock mutex which is guarding memory allocations container in the platform.
-  // We need to keep track of all created allocations because there could be
-  // kernels with indirect access which reference all existing memory
-  // allocations.
-  std::lock_guard<std::mutex> lock(Plt->MemAllocsMutex);
+  std::unique_lock<std::mutex> MemAllocsLock(Plt->MemAllocsMutex, std::defer_lock);
+  if (EnabledIndirectAccess) {
+    // Lock mutex which is guarding memory allocations container in the platform.
+    // We need to keep track of all created allocations because there could be
+    // kernels with indirect access which reference all existing memory
+    // allocations.
+    MemAllocsLock.lock();
+  }
+
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
@@ -5717,12 +5731,14 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
       ((Alignment & (Alignment - 1)) != 0)) {
     pi_result Res = USMDeviceAllocImpl(ResultPtr, Context, Device, Properties,
                                        Size, Alignment);
-    // Keep track of all memory allocations in the platform
-    Plt->MemAllocs.emplace_back(Context, *ResultPtr);
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    PI_CALL(piContextRetain(Context));
+    if (EnabledIndirectAccess) {
+      // Keep track of all memory allocations in the platform
+      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      // We are going to defer memory release if there are kernels with indirect
+      // access, that is why explicitly retain context to be sure that it is
+      // released after all memory allocations in this context are released.
+      PI_CALL(piContextRetain(Context));
+    }
     return Res;
   }
 
@@ -5732,12 +5748,14 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
       return PI_INVALID_VALUE;
 
     *ResultPtr = It->second.allocate(Size, Alignment);
-    // Keep track of all memory allocations in the platform
-    Plt->MemAllocs.emplace_back(Context, *ResultPtr);
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    PI_CALL(piContextRetain(Context));
+    if (EnabledIndirectAccess) {
+      // Keep track of all memory allocations in the platform
+      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      // We are going to defer memory release if there are kernels with indirect
+      // access, that is why explicitly retain context to be sure that it is
+      // released after all memory allocations in this context are released.
+      PI_CALL(piContextRetain(Context));
+    }
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
     return Ex.getError();
@@ -5753,11 +5771,15 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                               pi_usm_mem_properties *Properties, size_t Size,
                               pi_uint32 Alignment) {
   pi_platform Plt = Device->Platform;
-  // Lock mutex which is guarding memory allocations container in the platform.
-  // We need to keep track of all created allocations because there could be
-  // kernels with indirect access which reference all existing memory
-  // allocations.
-  std::lock_guard<std::mutex> lock(Plt->MemAllocsMutex);
+  std::unique_lock<std::mutex> MemAllocsLock(Plt->MemAllocsMutex, std::defer_lock);
+  if (EnabledIndirectAccess) {
+    // Lock mutex which is guarding memory allocations container in the platform.
+    // We need to keep track of all created allocations because there could be
+    // kernels with indirect access which reference all existing memory
+    // allocations.
+    MemAllocsLock.lock();
+  }
+
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
@@ -5765,12 +5787,14 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
       ((Alignment & (Alignment - 1)) != 0)) {
     pi_result Res = USMSharedAllocImpl(ResultPtr, Context, Device, Properties,
                                        Size, Alignment);
-    // Keep track of all memory allocations in the platform
-    Plt->MemAllocs.emplace_back(Context, *ResultPtr);
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    PI_CALL(piContextRetain(Context));
+    if (EnabledIndirectAccess) {
+      // Keep track of all memory allocations in the platform
+      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      // We are going to defer memory release if there are kernels with indirect
+      // access, that is why explicitly retain context to be sure that it is
+      // released after all memory allocations in this context are released.
+      PI_CALL(piContextRetain(Context));
+    }
     return Res;
   }
 
@@ -5780,12 +5804,14 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
       return PI_INVALID_VALUE;
 
     *ResultPtr = It->second.allocate(Size, Alignment);
-    // Keep track of all memory allocations in the platform
-    Plt->MemAllocs.emplace_back(Context, *ResultPtr);
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    PI_CALL(piContextRetain(Context));
+    if (EnabledIndirectAccess) {
+      // Keep track of all memory allocations in the platform
+      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      // We are going to defer memory release if there are kernels with indirect
+      // access, that is why explicitly retain context to be sure that it is
+      // released after all memory allocations in this context are released.
+      PI_CALL(piContextRetain(Context));
+    }
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
     return Ex.getError();
@@ -5800,11 +5826,15 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
                             pi_usm_mem_properties *Properties, size_t Size,
                             pi_uint32 Alignment) {
   pi_platform Plt = Context->Devices[0]->Platform;
-  // Lock mutex which is guarding memory allocations container in the platform.
-  // We need to keep track of all created allocations because there could be
-  // kernels with indirect access which reference all existing memory
-  // allocations.
-  std::lock_guard<std::mutex> lock(Plt->MemAllocsMutex);
+  std::unique_lock<std::mutex> MemAllocsLock(Plt->MemAllocsMutex, std::defer_lock);
+  if (EnabledIndirectAccess) {
+    // Lock mutex which is guarding memory allocations container in the platform.
+    // We need to keep track of all created allocations because there could be
+    // kernels with indirect access which reference all existing memory
+    // allocations.
+    MemAllocsLock.lock();
+  }
+
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
@@ -5812,12 +5842,14 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
       ((Alignment & (Alignment - 1)) != 0)) {
     pi_result Res =
         USMHostAllocImpl(ResultPtr, Context, Properties, Size, Alignment);
-    // Keep track of all memory allocations in the platform
-    Plt->MemAllocs.emplace_back(Context, *ResultPtr);
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    PI_CALL(piContextRetain(Context));
+    if (EnabledIndirectAccess) {
+      // Keep track of all memory allocations in the platform
+      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      // We are going to defer memory release if there are kernels with indirect
+      // access, that is why explicitly retain context to be sure that it is
+      // released after all memory allocations in this context are released.
+      PI_CALL(piContextRetain(Context));
+    }
     return Res;
   }
 
@@ -5826,12 +5858,14 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   // allocations.
   try {
     *ResultPtr = Context->HostMemAllocContext->allocate(Size, Alignment);
-    // Keep track of all memory allocations in the platform
-    Plt->MemAllocs.emplace_back(Context, *ResultPtr);
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    PI_CALL(piContextRetain(Context));
+    if (EnabledIndirectAccess) {
+      // Keep track of all memory allocations in the platform
+      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      // We are going to defer memory release if there are kernels with indirect
+      // access, that is why explicitly retain context to be sure that it is
+      // released after all memory allocations in this context are released.
+      PI_CALL(piContextRetain(Context));
+    }
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
     return Ex.getError();
@@ -5843,25 +5877,28 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
 }
 
 static pi_result piextUSMFreeImpl(pi_context Context, void *Ptr) {
-  pi_platform Plt = Context->Devices[0]->Platform;
-  auto MemAlloc =
-      std::find_if(std::begin(Plt->MemAllocs), std::end(Plt->MemAllocs),
-                   [&](MemAllocRecord &Rec) { return Rec.Ptr == Ptr; });
-  if (MemAlloc == std::end(Plt->MemAllocs)) {
-    die("All memory allocations must be tracked!");
-  }
-  if (--(MemAlloc->RefCount) != 0) {
-    // Memory can't be deallocated yet.
-    return PI_SUCCESS;
-  }
+  if (EnabledIndirectAccess) {
+    pi_platform Plt = Context->Devices[0]->Platform;
+    auto MemAlloc =
+        std::find_if(std::begin(Plt->MemAllocs), std::end(Plt->MemAllocs),
+                     [&](MemAllocRecord &Rec) { return Rec.Ptr == Ptr; });
+    if (MemAlloc == std::end(Plt->MemAllocs)) {
+      die("All memory allocations must be tracked!");
+    }
+    if (--(MemAlloc->RefCount) != 0) {
+      // Memory can't be deallocated yet.
+      return PI_SUCCESS;
+    }
 
-  // Reference count is zero, it is ok to free memory.
-  // We don't need to track this allocation anymore.
-  Plt->MemAllocs.erase(MemAlloc);
+    // Reference count is zero, it is ok to free memory.
+    // We don't need to track this allocation anymore.
+    Plt->MemAllocs.erase(MemAlloc);
+  }
 
   if (!UseUSMAllocator) {
     pi_result Res = USMFreeImpl(Context, Ptr);
-    PI_CALL(piContextRelease(Context));
+    if (EnabledIndirectAccess)
+      PI_CALL(piContextRelease(Context));
     return Res;
   }
 
@@ -5884,7 +5921,8 @@ static pi_result piextUSMFreeImpl(pi_context Context, void *Ptr) {
     } catch (...) {
       return PI_ERROR_UNKNOWN;
     }
-    PI_CALL(piContextRelease(Context));
+    if (EnabledIndirectAccess)
+      PI_CALL(piContextRelease(Context));
     return PI_SUCCESS;
   }
 
@@ -5909,7 +5947,8 @@ static pi_result piextUSMFreeImpl(pi_context Context, void *Ptr) {
             return Ex.getError();
           }
 
-          PI_CALL(piContextRelease(Context));
+          if (EnabledIndirectAccess)
+            PI_CALL(piContextRelease(Context));
           return PI_SUCCESS;
         };
 
@@ -5926,13 +5965,16 @@ static pi_result piextUSMFreeImpl(pi_context Context, void *Ptr) {
 
   pi_result Res = USMFreeImpl(Context, Ptr);
 
-  PI_CALL(piContextRelease(Context));
+  if (EnabledIndirectAccess)
+    PI_CALL(piContextRelease(Context));
   return Res;
 }
 
 pi_result piextUSMFree(pi_context Context, void *Ptr) {
   pi_platform Plt = Context->Devices[0]->Platform;
-  std::lock_guard<std::mutex> Lock(Plt->MemAllocsMutex);
+  std::unique_lock<std::mutex> MemAllocsLock(Plt->MemAllocsMutex, std::defer_lock);
+  if (EnabledIndirectAccess)
+    MemAllocsLock.lock();
   return piextUSMFreeImpl(Context, Ptr);
 }
 
