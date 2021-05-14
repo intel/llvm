@@ -208,7 +208,7 @@ public:
     auto &PropSet = PropSetMap[Category];
 
     for (const auto &Prop : Props)
-      PropSet.insert(std::make_pair(Prop.first, PropertyValue(Prop.second)));
+      PropSet.insert({Prop.first, PropertyValue(Prop.second)});
   }
 
   // Parses and creates a property set registry.

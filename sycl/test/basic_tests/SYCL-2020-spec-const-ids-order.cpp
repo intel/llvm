@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
-// RUN: sycl-post-link %t.bc -spec-const=default -S -o %t-split1.txt
+// RUN: sycl-post-link %t.bc -spec-const=default -o %t-split1.txt
+// RUN: llvm-dis %t-split1_0.bc
 // RUN: cat %t-split1_0.ll | FileCheck %s -check-prefixes=CHECK,CHECK-IR
 // RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-PROP
 // RUN: llvm-spirv -o %t-split1_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split1_0.bc
@@ -55,5 +56,3 @@ int main() {
 // CHECK-IR-SAME: i32 [[#ID+2]]
 // CHECK-NEXT: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL11SpecConst42EEE
 // CHECK-IR-SAME: i32 [[#ID+3]]
-
-
