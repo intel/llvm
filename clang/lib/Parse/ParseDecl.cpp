@@ -7335,6 +7335,7 @@ bool Parser::TryAltiVecVectorTokenOutOfLine() {
   case tok::kw_float:
   case tok::kw_double:
   case tok::kw_bool:
+  case tok::kw__Bool:
   case tok::kw___bool:
   case tok::kw___pixel:
     Tok.setKind(tok::kw___vector);
@@ -7344,7 +7345,8 @@ bool Parser::TryAltiVecVectorTokenOutOfLine() {
       Tok.setKind(tok::kw___vector);
       return true;
     }
-    if (Next.getIdentifierInfo() == Ident_bool) {
+    if (Next.getIdentifierInfo() == Ident_bool ||
+        Next.getIdentifierInfo() == Ident_Bool) {
       Tok.setKind(tok::kw___vector);
       return true;
     }
@@ -7369,6 +7371,7 @@ bool Parser::TryAltiVecTokenOutOfLine(DeclSpec &DS, SourceLocation Loc,
     case tok::kw_float:
     case tok::kw_double:
     case tok::kw_bool:
+    case tok::kw__Bool:
     case tok::kw___bool:
     case tok::kw___pixel:
       isInvalid = DS.SetTypeAltiVecVector(true, Loc, PrevSpec, DiagID, Policy);
@@ -7378,8 +7381,10 @@ bool Parser::TryAltiVecTokenOutOfLine(DeclSpec &DS, SourceLocation Loc,
         isInvalid = DS.SetTypeAltiVecVector(true, Loc, PrevSpec, DiagID,Policy);
         return true;
       }
-      if (Next.getIdentifierInfo() == Ident_bool) {
-        isInvalid = DS.SetTypeAltiVecVector(true, Loc, PrevSpec, DiagID,Policy);
+      if (Next.getIdentifierInfo() == Ident_bool ||
+          Next.getIdentifierInfo() == Ident_Bool) {
+        isInvalid =
+            DS.SetTypeAltiVecVector(true, Loc, PrevSpec, DiagID, Policy);
         return true;
       }
       break;
