@@ -19,6 +19,8 @@
 #include <CL/sycl.hpp>
 
 #include <iostream>
+#include <cstddef>
+#include <array>
 
 using namespace cl::sycl;
 
@@ -100,6 +102,20 @@ int main(int argc, char **argv) {
               std::cout << "Error: EU Count is incorrect!" << std::endl;
               std::cout << "Failed!" << std::endl;
               return 1;
+            }
+          }
+
+          if (SYCL_EXT_INTEL_DEVICE_INFO >= 2) {
+            if (dev.has(aspect::ext_intel_device_info_uuid)) {
+              auto uuid = dev.get_info<info::device::ext_intel_device_info_uuid>();
+
+              std::cout << "size = " << sizeof(uuid) << std::endl;
+
+              if (sizeof(uuid) != 16 * sizeof(std::byte)) {
+                std::cout << "Error: Incorrect size of UUID." << std::endl;
+                std::cout << "Failed!" << std::endl;
+                return 1;
+              }
             }
           } // SYCL_EXT_INTEL_DEVICE_INFO
         }

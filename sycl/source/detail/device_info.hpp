@@ -1085,7 +1085,7 @@ get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
 }
 
 template <>
-inline pi_uint8_ptr
+inline info::array_type
 get_device_info_host<info::device::ext_intel_device_info_uuid>() {
   throw runtime_error(
       "Obtaining the device uuid is not supported on HOST device",

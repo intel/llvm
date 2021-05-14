@@ -12,6 +12,9 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/id.hpp>
 
+#include <array>
+#include <cstddef>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -21,6 +24,8 @@ class platform;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
+
+using array_type = std::array<std::byte, 16>;
 
 // Information descriptors
 // A.1 Platform information descriptors
