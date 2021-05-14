@@ -4338,9 +4338,14 @@ pi_result piEventRelease(pi_event Event) {
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
       // Free the memory allocated in the piEnqueueMemBufferMap.
-      ZE_CALL(zeMemFree,
-              (Event->Queue->Context->ZeContext, Event->CommandData));
-      Event->CommandData = nullptr;
+      if (IndirectAccessSupportEnabled) {
+        // Use the version with reference counting
+        PI_CALL(piextUSMFree(Event->Queue->Context, Event->CommandData));
+      } else {
+        ZE_CALL(zeMemFree,
+                (Event->Queue->Context->ZeContext, Event->CommandData));
+        Event->CommandData = nullptr;
+      }
     }
     ZE_CALL(zeEventDestroy, (Event->ZeEvent));
 
@@ -4998,6 +5003,10 @@ pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
                               EventWaitList, Event);
 }
 
+static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
+                                  pi_usm_mem_properties *Properties,
+                                  size_t Size, pi_uint32 Alignment);
+
 pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
                                 pi_bool BlockingMap, pi_map_flags MapFlags,
                                 size_t Offset, size_t Size,
@@ -5095,11 +5104,16 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   if (Buffer->MapHostPtr) {
     *RetMap = Buffer->MapHostPtr + Offset;
   } else {
-    ze_host_mem_alloc_desc_t ZeDesc = {};
-    ZeDesc.flags = 0;
+    if (IndirectAccessSupportEnabled) {
+      // Use the version with reference counting
+      PI_CALL(piextUSMHostAlloc(RetMap, Queue->Context, nullptr, Size, 1));
+    } else {
+      ze_host_mem_alloc_desc_t ZeDesc = {};
+      ZeDesc.flags = 0;
 
-    ZE_CALL(zeMemAllocHost,
-            (Queue->Context->ZeContext, &ZeDesc, Size, 1, RetMap));
+      ZE_CALL(zeMemAllocHost,
+              (Queue->Context->ZeContext, &ZeDesc, Size, 1, RetMap));
+    }
   }
 
   const auto &WaitList = (*Event)->WaitList;
@@ -5792,6 +5806,7 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                                  std::forward_as_tuple(*ResultPtr),
                                  std::forward_as_tuple(Context));
     }
+
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
     return Ex.getError();
@@ -5866,10 +5881,10 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
                                             std::defer_lock);
   if (IndirectAccessSupportEnabled) {
-    // Lock mutex which is guarding memory allocations container in the
-    // platform. We need to keep track of all created allocations because there
-    // could be kernels with indirect access which reference all existing memory
-    // allocations.
+    // Lock the mutex which is guarding contexts container in the platform.
+    // This prevents new kernels from being submitted in any context while we
+    // are in the process of allocating a memory, this is needed to properly
+    // capture allocations by kernels with indirect access.
     ContextsLock.lock();
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
@@ -6282,16 +6297,18 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
   PI_ASSERT(ParamValue, PI_INVALID_VALUE);
 
-  if (IndirectAccessSupportEnabled && ParamName == PI_USM_INDIRECT_ACCESS &&
+  if (ParamName == PI_USM_INDIRECT_ACCESS &&
       *(static_cast<const pi_bool *>(ParamValue)) == PI_TRUE) {
-    // The whole point for users really was to not need to know anything
-    // about the types of allocations kernel uses. So in DPC++ we always
-    // just set all 3 modes for each kernel.
-    ze_kernel_indirect_access_flags_t IndirectFlags =
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
-    ZE_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
+    if (IndirectAccessSupportEnabled) {
+      // The whole point for users really was to not need to know anything
+      // about the types of allocations kernel uses. So in DPC++ we always
+      // just set all 3 modes for each kernel.
+      ze_kernel_indirect_access_flags_t IndirectFlags =
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
+      ZE_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
+    }
   } else {
     zePrint("piKernelSetExecInfo: unsupported ParamName\n");
     return PI_INVALID_VALUE;
