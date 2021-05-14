@@ -76,8 +76,7 @@ static bool PrintPiTrace = false;
 
 // Controls support of the indirect access kernels and deferred memory release.
 static const bool IndirectAccessSupportEnabled = [] {
-  return std::getenv("SYCL_PI_LEVEL_ZERO_ENABLE_INDIRECT_ACCESS_SUPPORT") !=
-         nullptr;
+  return true;
 }();
 
 // Map Level Zero runtime error code to PI error code.
