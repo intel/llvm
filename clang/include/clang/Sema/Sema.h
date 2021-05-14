@@ -1809,6 +1809,29 @@ public:
     LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/All)
   };
 
+private:
+  // A collection of a pair of undefined functions and their callers known
+  // to be reachable from a routine on the device (kernel or device function).
+  typedef std::pair<const FunctionDecl *, const FunctionDecl *> CallPair;
+  llvm::SmallVector<CallPair> UndefinedReachableFromSyclDevice;
+
+public:
+  // Helper routine to add a pair of Callee-Caller pair of FunctionDecl *
+  // to UndefinedReachableFromSyclDevice.
+  void addFDToReachableFromSyclDevice(const FunctionDecl *Callee,
+                                      const FunctionDecl *Caller) {
+    UndefinedReachableFromSyclDevice.push_back(std::make_pair(Callee, Caller));
+  }
+  // Helper routine to check if a pair of Callee-Caller FunctionDecl *
+  // is in UndefinedReachableFromSyclDevice.
+  bool isFDReachableFromSyclDevice(const FunctionDecl *Callee,
+                                   const FunctionDecl *Caller) {
+    return llvm::any_of(UndefinedReachableFromSyclDevice,
+                        [Callee, Caller](const CallPair &P) {
+                          return P.first == Callee && P.second == Caller;
+                        });
+  }
+
   /// A generic diagnostic builder for errors which may or may not be deferred.
   ///
   /// In CUDA, there exist constructs (e.g. variable-length arrays, try/catch)
@@ -13288,14 +13311,15 @@ public:
   /// properly declared for device compilation.
   void finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                    const FunctionDecl *Callee,
-                                   SourceLocation Loc);
+                                   SourceLocation Loc,
+                                   DeviceDiagnosticReason Reason);
 
   /// Tells whether given variable is a SYCL explicit SIMD extension's "private
   /// global" variable - global variable in the private address space.
   bool isSYCLEsimdPrivateGlobal(VarDecl *VDecl) {
     return getLangOpts().SYCLIsDevice && VDecl->hasAttr<SYCLSimdAttr>() &&
            VDecl->hasGlobalStorage() &&
-           (VDecl->getType().getAddressSpace() == LangAS::opencl_private);
+           (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
 };
 

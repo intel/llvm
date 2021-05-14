@@ -35,6 +35,11 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     1, // cuda_device
     4, // cuda_constant
     3, // cuda_shared
+    1, // sycl_global
+    1, // sycl_global_device
+    1, // sycl_global_host
+    3, // sycl_local
+    0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
     0  // ptr64
@@ -46,8 +51,8 @@ static const int NVPTXDWARFAddrSpaceMap[] = {
     -1, // Default, opencl_private or opencl_generic - not defined
     5,  // opencl_global
     -1,
-    8, // opencl_local or cuda_shared
-    4, // opencl_constant or cuda_constant
+    8,  // opencl_local or cuda_shared
+    4,  // opencl_constant or cuda_constant
 };
 
 class LLVM_LIBRARY_VISIBILITY NVPTXTargetInfo : public TargetInfo {

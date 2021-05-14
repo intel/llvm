@@ -61,6 +61,7 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                        std::unique_ptr<Command> InputCommand,
                                        const InputInfoList &InputFiles,
                                        const InputInfo &Output, const Tool *T,
+                                       StringRef Increment,
                                        StringRef Ext = "out") {
   // Construct llvm-foreach command.
   // The llvm-foreach command looks like this:
@@ -80,6 +81,9 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
       C.getArgs().MakeArgString("--out-file-list=" + OutputFileName));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString("--out-replace=" + OutputFileName));
+  if (!Increment.empty())
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-increment=" + Increment));
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));
@@ -345,7 +349,7 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, ForeachExt);
+                                this, "", ForeachExt);
   else
     C.addCommand(std::move(Cmd));
 }
@@ -498,7 +502,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, ForeachExt);
+                                this, ReportOptArg, ForeachExt);
   else
     C.addCommand(std::move(Cmd));
 }
@@ -537,7 +541,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this);
+                                this, "");
   else
     C.addCommand(std::move(Cmd));
 }
@@ -570,7 +574,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this);
+                                this, "");
   else
     C.addCommand(std::move(Cmd));
 }

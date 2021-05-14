@@ -278,6 +278,9 @@ static sycl::detail::SpinLock *PiPlatformsCacheMutex =
     new sycl::detail::SpinLock;
 static bool PiPlatformCachePopulated = false;
 
+// Keeps track if the global offset extension is found
+static bool PiDriverGlobalOffsetExtensionFound = false;
+
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
 
@@ -517,14 +520,14 @@ pi_result _pi_device::initialize() {
   if (numQueueGroups == 0) {
     return PI_ERROR_UNKNOWN;
   }
-  std::vector<ze_command_queue_group_properties_t> queueProperties(
+  std::vector<ze_command_queue_group_properties_t> QueueProperties(
       numQueueGroups);
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
-          (ZeDevice, &numQueueGroups, queueProperties.data()));
+          (ZeDevice, &numQueueGroups, QueueProperties.data()));
 
   int ComputeGroupIndex = -1;
   for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (queueProperties[i].flags &
+    if (QueueProperties[i].flags &
         ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
       ComputeGroupIndex = i;
       break;
@@ -534,16 +537,17 @@ pi_result _pi_device::initialize() {
   if (ComputeGroupIndex < 0) {
     return PI_ERROR_UNKNOWN;
   }
-  this->ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
   int CopyGroupIndex = -1;
   const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
   bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
   if (UseCopyEngine) {
     for (uint32_t i = 0; i < numQueueGroups; i++) {
-      if (((queueProperties[i].flags &
+      if (((QueueProperties[i].flags &
             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
-          (queueProperties[i].flags &
+          (QueueProperties[i].flags &
            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
         CopyGroupIndex = i;
         break;
@@ -555,7 +559,10 @@ pi_result _pi_device::initialize() {
     else
       zePrint("NOTE: blitter/copy engine is available\n");
   }
-  this->ZeCopyQueueGroupIndex = CopyGroupIndex;
+  ZeCopyQueueGroupIndex = CopyGroupIndex;
+  if (CopyGroupIndex >= 0) {
+    ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
+  }
 
   // Cache device properties
   ZeDeviceProperties = {};
@@ -600,6 +607,12 @@ pi_result _pi_context::finalize() {
     if (ZeCommandList)
       ZE_CALL(zeCommandListDestroy, (ZeCommandList));
   }
+
+  // Adjust the number of command lists created on this platform.
+  auto Platform = Devices[0]->Platform;
+  Platform->ZeGlobalCommandListCount -= ZeComputeCommandListCache.size();
+  Platform->ZeGlobalCommandListCount -= ZeCopyCommandListCache.size();
+
   return PI_SUCCESS;
 }
 
@@ -1124,6 +1137,26 @@ pi_result _pi_platform::initialize() {
   ZE_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
   ZeDriverApiVersion = std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
                        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+  // Cache driver extension properties
+  uint32_t Count = 0;
+  ZE_CALL(zeDriverGetExtensionProperties, (ZeDriver, &Count, nullptr));
+
+  std::vector<ze_driver_extension_properties_t> zeExtensions(Count);
+
+  ZE_CALL(zeDriverGetExtensionProperties,
+          (ZeDriver, &Count, zeExtensions.data()));
+
+  for (auto extension : zeExtensions) {
+    // Check if global offset extension is available
+    if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
+                strlen(ZE_GLOBAL_OFFSET_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_GLOBAL_OFFSET_EXP_VERSION_1_0) {
+        PiDriverGlobalOffsetExtensionFound = true;
+      }
+    }
+    zeDriverExtensionMap[extension.name] = extension.version;
+  }
 
   return PI_SUCCESS;
 }
@@ -3488,10 +3521,20 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_KERNEL_NAME;
   _pi_program::ModuleIterator ModIt(Program);
   while (!ModIt.Done()) {
-    ZeResult =
-        ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
-    if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
-      break;
+    // For a module with valid sycl kernel inside, zeKernelCreate API
+    // should return ZE_RESULT_SUCCESS if target kernel is found and
+    // ZE_RESULT_ERROR_INVALID_KERNEL_NAME otherwise. However, some module
+    // may not include any sycl kernel such as device library modules. For such
+    // modules, zeKernelCreate will return ZE_RESULT_ERROR_INVALID_ARGUMENT and
+    // we should skip them.
+    uint32_t KernelNum = 0;
+    ZE_CALL(zeModuleGetKernelNames, (*ModIt, &KernelNum, nullptr));
+    if (KernelNum != 0) {
+      ZeResult =
+          ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
+      if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
+        break;
+    }
     ModIt++;
   }
   if (ZeResult != ZE_RESULT_SUCCESS)
@@ -3748,11 +3791,14 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
 
   if (GlobalWorkOffset != NULL) {
-    for (pi_uint32 i = 0; i < WorkDim; i++) {
-      if (GlobalWorkOffset[i] != 0) {
-        return PI_INVALID_VALUE;
-      }
+    if (!PiDriverGlobalOffsetExtensionFound) {
+      zePrint("No global offset extension found on this driver\n");
+      return PI_INVALID_VALUE;
     }
+
+    ZE_CALL(zeKernelSetGlobalOffsetExp,
+            (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
+             GlobalWorkOffset[2]));
   }
 
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
@@ -4773,10 +4819,31 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
+
+  bool PreferCopyEngine = false;
+  size_t MaxPatternSize =
+      Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
+
   // Performance analysis on a simple SYCL data "fill" test shows copy engine
   // is faster than compute engine for such operations.
+  //
+  // Make sure that pattern size matches the capability of the copy queue.
+  //
+  if (Queue->Device->hasCopyEngine() &&
+      PatternSize <=
+          Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize) {
+    MaxPatternSize =
+        Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize;
+    PreferCopyEngine = true;
+  }
+  // Pattern size must fit the queue.
+  PI_ASSERT(PatternSize <= MaxPatternSize, PI_INVALID_VALUE);
+  // Pattern size must be a power of two.
+  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
+            PI_INVALID_VALUE);
+
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, true /* PreferCopyEngine */))
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4793,9 +4860,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     ZE_CALL(zeCommandListAppendWaitOnEvents,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
-  // Pattern size must be a power of two
-  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
-            PI_INVALID_VALUE);
 
   ZE_CALL(
       zeCommandListAppendMemoryFill,
