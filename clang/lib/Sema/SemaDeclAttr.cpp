@@ -3539,15 +3539,12 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
 
         if (XDim.isInvalid())
           return false;
-        XDimExpr = XDim.get();
 
         if (YDim.isInvalid())
           return false;
-        YDimExpr = YDim.get();
 
         if (ZDim.isInvalid())
           return false;
-        ZDimExpr = ZDim.get();
 
         if (XDimVal != 1 || YDimVal != 1 || ZDimVal != 1) {
           Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
