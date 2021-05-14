@@ -4671,8 +4671,8 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
 // function call parameters.
 static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
                                    const VarDecl *VD) {
-  assert(VD->isInAnonymousNamespace() &&
-         "Function assumes this is in an anonymous namespace");
+  if (!VD->isInAnonymousNamespace())
+    return "";
   std::string RelativeName = VD->getNameAsString();
   EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
   return RelativeName;
@@ -4689,30 +4689,28 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   unsigned ShimCounter = 0;
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
+    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+    OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
+    OS << "namespace sycl {\n";
+    OS << "namespace detail {\n";
+    OS << "template<>\n";
+    OS << "inline const char *get_spec_constant_symbolic_ID<";
+
     if (VD->isInAnonymousNamespace()) {
-      std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
-      OS << "namespace sycl {\n";
-      OS << "namespace detail {\n";
-      OS << "template<>\n";
-      OS << "inline const char *get_spec_constant_symbolic_ID<" << TopShim
-         << ">() {\n";
-      OS << "  return \"";
-      emitSpecIDName(OS, VD);
-      OS << "\";\n";
+      OS << TopShim;
     } else {
-      OS << "namespace sycl {\n";
-      OS << "namespace detail {\n";
-      OS << "template<>\n";
-      OS << "inline const char *get_spec_constant_symbolic_ID<::";
+      OS << "::";
       VD->printQualifiedName(OS, Policy);
-      OS << ">() {\n";
-      OS << "  return \"";
-      emitSpecIDName(OS, VD);
-      OS << "\";\n";
     }
+
+    OS << ">() {\n";
+    OS << "  return \"";
+    emitSpecIDName(OS, VD);
+    OS << "\";\n";
     OS << "}\n";
     OS << "} // namespace detail\n";
     OS << "} // namespace sycl\n";
+    OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   }
 
   OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
