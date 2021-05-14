@@ -922,10 +922,11 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
       if (!Kernel->hasIndirectAccess())
         continue;
 
-      for (auto &MemAlloc : Device->Platform->MemAllocs) {
-        Kernel->MemAllocs.push_back(&MemAlloc);
+      auto &MemAllocs = Device->Platform->MemAllocs;
+      for (auto It = MemAllocs.begin(); It != MemAllocs.end(); It++) {
+        Kernel->MemAllocs.push_back(It);
         // Kernel is referencing this memory allocation from now.
-        MemAlloc.RefCount++;
+        It->second.RefCount++;
       }
       Kernel->UsersCount++;
     }
@@ -3813,7 +3814,7 @@ pi_result piKernelRelease(pi_kernel Kernel) {
       // Kernel is not submitted for execution, release referenced memory
       // allocations.
       for (auto &MemAlloc : Kernel->MemAllocs) {
-        USMFreeHelper(MemAlloc->Context, MemAlloc->Ptr);
+        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first);
       }
       Kernel->MemAllocs.clear();
     }
@@ -5737,7 +5738,9 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                                        Size, Alignment);
     if (EnabledIndirectAccess) {
       // Keep track of all memory allocations in the platform
-      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      Plt->MemAllocs.emplace(std::piecewise_construct,
+                             std::forward_as_tuple(*ResultPtr),
+                             std::forward_as_tuple(Context));
     }
     return Res;
   }
@@ -5750,7 +5753,9 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
     *ResultPtr = It->second.allocate(Size, Alignment);
     if (EnabledIndirectAccess) {
       // Keep track of all memory allocations in the platform
-      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      Plt->MemAllocs.emplace(std::piecewise_construct,
+                             std::forward_as_tuple(*ResultPtr),
+                             std::forward_as_tuple(Context));
     }
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
@@ -5789,7 +5794,9 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                                        Size, Alignment);
     if (EnabledIndirectAccess) {
       // Keep track of all memory allocations in the platform
-      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      Plt->MemAllocs.emplace(std::piecewise_construct,
+                             std::forward_as_tuple(*ResultPtr),
+                             std::forward_as_tuple(Context));
     }
     return Res;
   }
@@ -5802,7 +5809,9 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
     *ResultPtr = It->second.allocate(Size, Alignment);
     if (EnabledIndirectAccess) {
       // Keep track of all memory allocations in the platform
-      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      Plt->MemAllocs.emplace(std::piecewise_construct,
+                             std::forward_as_tuple(*ResultPtr),
+                             std::forward_as_tuple(Context));
     }
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
@@ -5840,7 +5849,9 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
         USMHostAllocImpl(ResultPtr, Context, Properties, Size, Alignment);
     if (EnabledIndirectAccess) {
       // Keep track of all memory allocations in the platform
-      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      Plt->MemAllocs.emplace(std::piecewise_construct,
+                             std::forward_as_tuple(*ResultPtr),
+                             std::forward_as_tuple(Context));
     }
     return Res;
   }
@@ -5852,7 +5863,9 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
     *ResultPtr = Context->HostMemAllocContext->allocate(Size, Alignment);
     if (EnabledIndirectAccess) {
       // Keep track of all memory allocations in the platform
-      Plt->MemAllocs.emplace_back(Context, *ResultPtr);
+      Plt->MemAllocs.emplace(std::piecewise_construct,
+                             std::forward_as_tuple(*ResultPtr),
+                             std::forward_as_tuple(Context));
     }
   } catch (const UsmAllocationException &Ex) {
     *ResultPtr = nullptr;
@@ -5871,20 +5884,19 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
 static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
   if (EnabledIndirectAccess) {
     pi_platform Plt = Context->Devices[0]->Platform;
-    auto MemAlloc =
-        std::find_if(std::begin(Plt->MemAllocs), std::end(Plt->MemAllocs),
-                     [&](MemAllocRecord &Rec) { return Rec.Ptr == Ptr; });
-    if (MemAlloc == std::end(Plt->MemAllocs)) {
+
+    auto It = Plt->MemAllocs.find(Ptr);
+    if (It == std::end(Plt->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (--(MemAlloc->RefCount) != 0) {
+    if (--(It->second.RefCount) != 0) {
       // Memory can't be deallocated yet.
       return PI_SUCCESS;
     }
 
     // Reference count is zero, it is ok to free memory.
     // We don't need to track this allocation anymore.
-    Plt->MemAllocs.erase(MemAlloc);
+    Plt->MemAllocs.erase(It);
   }
 
   if (!UseUSMAllocator) {

@@ -63,11 +63,10 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
-// Record for a memory allocation. This structure is used to keep track of all
-// memory allocations.
+// Record for a memory allocation. This structure is used to keep information for each
+// memory allocation.
 struct MemAllocRecord : _pi_object {
-  MemAllocRecord(pi_context Context, void *Ptr) : Ptr(Ptr), Context(Context) {}
-  void *Ptr;
+  MemAllocRecord(pi_context Context) : Context(Context) {}
   pi_context Context;
 };
 
@@ -113,7 +112,7 @@ struct _pi_platform {
   // when kernel has finished execution.
   // TODO: this container can be moved to _pi_context when Level Zero will
   // support isolation of memory allocations in a context.
-  std::list<MemAllocRecord> MemAllocs;
+  std::map<void *, MemAllocRecord> MemAllocs;
   std::mutex MemAllocsMutex;
 };
 
@@ -871,7 +870,9 @@ struct _pi_kernel : _pi_object {
   // If kernel has indirect access we need to make a snapshot of all existing
   // memory allocations to defer deletion of these memory allocations to the
   // moment when kernel execution has finished.
-  std::list<MemAllocRecord *> MemAllocs;
+  // We store iterators to the map in the platform because iterator is not
+  // invalidated by insert/delete for std::map.
+  std::list<std::map<void *, MemAllocRecord>::iterator> MemAllocs;
 
   // Track the number of events associated with this kernel.
   // When this value is zero, it means that kernel is not submitted for an
