@@ -115,6 +115,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVImageMediaBlockBuiltin(&CI, OC);
     return;
   }
+  if (OC == OpGenericCastToPtrExplicit) {
+    visitCallGenericCastToPtrExplicitBuiltIn(&CI, OC);
+    return;
+  }
   if (isCvtOpCode(OC)) {
     visitCallSPIRVCvtBuiltin(&CI, OC, DemangledName);
     return;
@@ -537,6 +541,32 @@ void SPIRVToOCLBase::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
         }
 
         return OCLSPIRVBuiltinMap::rmap(OC) + FuncPostfix;
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
+                                                              Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *Call, std::vector<Value *> &Args) {
+        auto AddrSpace = static_cast<SPIRAddressSpace>(
+            CI->getType()->getPointerAddressSpace());
+        // The instruction has two arguments, whereas ocl built-in has only one
+        // argument.
+        Args.pop_back();
+        switch (AddrSpace) {
+        case SPIRAS_Global:
+          return std::string(kOCLBuiltinName::ToGlobal);
+        case SPIRAS_Local:
+          return std::string(kOCLBuiltinName::ToLocal);
+        case SPIRAS_Private:
+          return std::string(kOCLBuiltinName::ToPrivate);
+        default:
+          llvm_unreachable("Invalid address space");
+          return std::string();
+        }
       },
       &Attrs);
 }

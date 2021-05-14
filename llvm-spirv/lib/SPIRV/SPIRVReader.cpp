@@ -694,6 +694,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
     return true;
   if (OpCode == OpImageSampleExplicitLod || OpCode == OpSampledImage)
     return false;
+  if (OpCode == OpGenericCastToPtrExplicit)
+    return false;
   if (isEventOpCode(OpCode))
     return false;
   if (OCLSPIRVBuiltinMap::rfind(OpCode, nullptr)) {
@@ -2671,7 +2673,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
           BV, transOCLBuiltinFromInst(static_cast<SPIRVInstruction *>(BV), BB));
     } else if (isBinaryShiftLogicalBitwiseOpCode(OC) || isLogicalOpCode(OC)) {
       return mapValue(BV, transShiftLogicalBitwiseInst(BV, BB, F));
-    } else if (isCvtOpCode(OC)) {
+    } else if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       auto BI = static_cast<SPIRVInstruction *>(BV);
       Value *Inst = nullptr;
       if (BI->hasFPRoundingMode() || BI->isSaturatedConversion())
@@ -3010,9 +3012,7 @@ void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
           BT->getVectorComponentCount());
     else
       llvm_unreachable("invalid compare instruction");
-  } else if (OC == OpGenericCastToPtrExplicit)
-    Args.pop_back();
-  else if (OC == OpImageRead && Args.size() > 2) {
+  } else if (OC == OpImageRead && Args.size() > 2) {
     // Drop "Image operands" argument
     Args.erase(Args.begin() + 2);
   } else if (isSubgroupAvcINTELEvaluateOpcode(OC)) {
@@ -3322,8 +3322,6 @@ SPIRVToLLVM::SPIRVToLLVM(Module *LLVMModule, SPIRVModule *TheSPIRVModule)
 
 std::string SPIRVToLLVM::getOCLBuiltinName(SPIRVInstruction *BI) {
   auto OC = BI->getOpCode();
-  if (OC == OpGenericCastToPtrExplicit)
-    return getOCLGenericCastToPtrName(BI);
   if (OC == OpBuildNDRange) {
     auto NDRangeInst = static_cast<SPIRVBuildNDRange *>(BI);
     auto EleTy = ((NDRangeInst->getOperands())[0])->getType();
@@ -3430,6 +3428,23 @@ std::string getSPIRVFuncSuffix(SPIRVInstruction *BI) {
     Suffix += kSPIRVPostfix::Divider;
     Suffix += SPIRSPIRVFPRoundingModeMap::rmap(Kind);
   }
+  if (BI->getOpCode() == OpGenericCastToPtrExplicit) {
+    Suffix += kSPIRVPostfix::Divider;
+    auto GenericCastToPtrInst = BI->getType()->getPointerStorageClass();
+    switch (GenericCastToPtrInst) {
+    case StorageClassCrossWorkgroup:
+      Suffix += std::string(kSPIRVPostfix::ToGlobal);
+      break;
+    case StorageClassWorkgroup:
+      Suffix += std::string(kSPIRVPostfix::ToLocal);
+      break;
+    case StorageClassFunction:
+      Suffix += std::string(kSPIRVPostfix::ToPrivate);
+      break;
+    default:
+      llvm_unreachable("Invalid address space");
+    }
+  }
   return Suffix;
 }
 
@@ -3442,7 +3457,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
     AddRetTypePostfix = true;
 
   bool IsRetSigned = false;
-  if (isCvtOpCode(OC)) {
+  if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
     AddRetTypePostfix = true;
     if (OC == OpConvertUToF || OC == OpSatConvertUToS)
       IsRetSigned = true;
@@ -4418,22 +4433,6 @@ bool SPIRVToLLVM::transSourceExtension() {
   addNamedMetadataStringSet(Context, M, kSPIR2MD::OptFeatures,
                             OCLOptionalCoreFeatures);
   return true;
-}
-
-// Check Address Space of the Pointer Type
-std::string SPIRVToLLVM::getOCLGenericCastToPtrName(SPIRVInstruction *BI) {
-  auto GenericCastToPtrInst = BI->getType()->getPointerStorageClass();
-  switch (GenericCastToPtrInst) {
-  case StorageClassCrossWorkgroup:
-    return std::string(kOCLBuiltinName::ToGlobal);
-  case StorageClassWorkgroup:
-    return std::string(kOCLBuiltinName::ToLocal);
-  case StorageClassFunction:
-    return std::string(kOCLBuiltinName::ToPrivate);
-  default:
-    llvm_unreachable("Invalid address space");
-    return "";
-  }
 }
 
 llvm::GlobalValue::LinkageTypes

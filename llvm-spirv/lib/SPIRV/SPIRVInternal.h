@@ -363,6 +363,9 @@ const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
+const static char ToGlobal[] = "ToGlobal";
+const static char ToLocal[] = "ToLocal";
+const static char ToPrivate[] = "ToPrivate";
 const static char Sat[] = "sat";
 const static char Rtz[] = "rtz";
 const static char Rte[] = "rte";
