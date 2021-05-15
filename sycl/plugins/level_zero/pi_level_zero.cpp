@@ -576,13 +576,17 @@ pi_result _pi_context::initialize() {
   // Create the immediate command list to be used for initializations
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
+  //
+  // TODO: get rid of using Devices[0] for the context with multiple
+  // root-devices. We should somehow make the data initialized on all devices.
+  pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
   ze_command_queue_desc_t ZeCommandQueueDesc = {};
-  ZeCommandQueueDesc.ordinal = Devices[0]->ZeComputeQueueGroupIndex;
+  ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  ZE_CALL(zeCommandListCreateImmediate,
-          (ZeContext, Devices[0]->ZeDevice, &ZeCommandQueueDesc,
-           &ZeCommandListInit));
+  ZE_CALL(
+      zeCommandListCreateImmediate,
+      (ZeContext, Device->ZeDevice, &ZeCommandQueueDesc, &ZeCommandListInit));
   return PI_SUCCESS;
 }
 
@@ -1397,7 +1401,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
     // devices cache also keeps sub-devices.
-    if (D->IsSubDevice)
+    if (D->isSubDevice())
       continue;
 
     bool Matched = false;
@@ -1482,7 +1486,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
       // cache.
       for (uint32_t I = 0; I < SubDevicesCount; ++I) {
         std::unique_ptr<_pi_device> PiSubDevice(
-            new _pi_device(ZeSubdevices[I], this, true));
+            new _pi_device(ZeSubdevices[I], this, Device.get()));
         pi_result Result = PiSubDevice->initialize();
         if (Result != PI_SUCCESS) {
           delete[] ZeSubdevices;
@@ -1510,7 +1514,7 @@ pi_result piDeviceRetain(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   // The root-device ref-count remains unchanged (always 1).
-  if (Device->IsSubDevice) {
+  if (Device->isSubDevice()) {
     ++(Device->RefCount);
   }
   return PI_SUCCESS;
@@ -1524,7 +1528,7 @@ pi_result piDeviceRelease(pi_device Device) {
     die("piDeviceRelease: the device has been already released");
 
   // Root devices are destroyed during the piTearDown process.
-  if (Device->IsSubDevice) {
+  if (Device->isSubDevice()) {
     if (--(Device->RefCount) == 0) {
       delete Device;
     }
@@ -1742,7 +1746,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    if (Device->IsSubDevice) {
+    if (Device->isSubDevice()) {
       struct {
         pi_device_partition_property Arr[3];
       } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
@@ -2164,6 +2168,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   (void)Properties;
   (void)PFnNotify;
   (void)UserData;
+  PI_ASSERT(NumDevices, PI_INVALID_VALUE);
   PI_ASSERT(Devices, PI_INVALID_DEVICE);
   PI_ASSERT(RetContext, PI_INVALID_VALUE);
 
@@ -2541,10 +2546,21 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   pi_result Result;
   if (DeviceIsIntegrated) {
     Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+  } else if (Context->SingleRootDevice) {
+    // If we have a single discrete device or all devices in the context are
+    // sub-devices of the same device then we can allocate on device
+    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                 nullptr, Size, Alignment);
   } else {
-    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->Devices[0], nullptr,
-                                 Size, Alignment);
+    // Context with several gpu cards. Temporarily use host allocation because
+    // it is accessible by all devices. But it is not good in terms of
+    // performance.
+    // TODO: We need to either allow remote access to device memory using IPC,
+    // or do explicit memory transfers from one device to another using host
+    // resources as backing buffers to allow those transfers.
+    Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
   }
+
   if (Result != PI_SUCCESS)
     return Result;
 
@@ -2555,12 +2571,15 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
       if (DeviceIsIntegrated) {
         // Do a host to host copy
         memcpy(Ptr, HostPtr, Size);
-      } else {
-
+      } else if (Context->SingleRootDevice) {
         // Initialize the buffer synchronously with immediate offload
         ZE_CALL(zeCommandListAppendMemoryCopy,
                 (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
                  nullptr));
+      } else {
+        // Multiple root devices, do a host to host copy because we use a host
+        // allocation for this case.
+        memcpy(Ptr, HostPtr, Size);
       }
     } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
       // Nothing more to do.
@@ -2756,14 +2775,12 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZeImageDesc.arraylevels = pi_cast<uint32_t>(ImageDesc->image_array_size);
   ZeImageDesc.miplevels = ImageDesc->num_mip_levels;
 
-  // Have the "0" device in context to own the image. Rely on Level-Zero
-  // drivers to perform migration as necessary for sharing it across multiple
-  // devices in the context.
-  //
-  // TODO: figure out if we instead need explicit copying for acessing
-  // the image from other devices in the context.
-  //
-  pi_device Device = Context->Devices[0];
+  // Currently we have the "0" device in context with mutliple root devices to
+  // own the image.
+  // TODO: Implement explicit copying for acessing the image from other devices
+  // in the context.
+  pi_device Device = Context->SingleRootDevice ? Context->SingleRootDevice
+                                               : Context->Devices[0];
   ze_image_handle_t ZeHImage;
   ZE_CALL(zeImageCreate,
           (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));
@@ -2850,8 +2867,6 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
       *BinaryStatus = PI_INVALID_VALUE;
     return PI_INVALID_VALUE;
   }
-  if (DeviceList[0] != Context->Devices[0])
-    return PI_INVALID_DEVICE;
 
   size_t Length = Lengths[0];
   auto Binary = Binaries[0];
