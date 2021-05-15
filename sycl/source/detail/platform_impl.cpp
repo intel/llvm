@@ -298,6 +298,7 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
 // This function matches devices in the order of backend, device_type, and
 // device_num.
 static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
+                               RT::PiPlatform Platform,
                                std::shared_ptr<plugin> Plugin) {
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList)
@@ -307,7 +308,7 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same
   // backend
-  int DeviceNum = Plugin->getLastDeviceId();
+  int DeviceNum = Plugin->getStartingDeviceId(Platform);
 
   for (RT::PiDevice Device : PiDevices) {
     RT::PiDeviceType PiDevType;
@@ -344,7 +345,7 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
   // remember the last backend that has gone through this filter function
   // to assign a unique device id number across platforms that belong to
   // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
-  Plugin->setLastDeviceId(DeviceNum);
+  Plugin->setLastDeviceId(Platform, DeviceNum);
 }
 
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
@@ -404,7 +405,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
   // Filter out devices that are not compatible with SYCL_DEVICE_FILTER
-  filterDeviceFilter(PiDevices, MPlugin);
+  filterDeviceFilter(PiDevices, MPlatform, MPlugin);
 
   PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
   std::transform(
