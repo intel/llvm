@@ -1518,14 +1518,18 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
       llvm::DiagnosticLocation DL =
           SourceLocToDebugLoc(ORI.value().KernelArgLoc);
-      std::string KAN = ORI.value().KernelArgName;
+      StringRef NameInDesc = ORI.value().KernelArgDescName;
+      StringRef ArgType = ORI.value().KernelArgType;
+      StringRef ArgDesc = ORI.value().KernelArgDesc;
+      unsigned ArgSize = ORI.value().KernelArgSize;
+      StringRef ArgDecomposedField = ORI.value().KernelArgDecomposedField;
+
       llvm::OptimizationRemark Remark("sycl", "Region", DL,
                                       &Fn->getEntryBlock());
-      Remark << "Argument " << llvm::ore::NV("Argument", ORI.index())
-             << " for function kernel: "
-             << llvm::ore::NV(KAN.empty() ? "&" : "") << " " << Fn->getName()
-             << "." << llvm::ore::NV(KAN.empty() ? " " : KAN) << "("
-             << ORI.value().KernelArgType << ")";
+      Remark << "Arg " << llvm::ore::NV("Argument", ORI.index()) << ":"
+             << ArgDesc << NameInDesc << "  (" << ArgDecomposedField
+             << "Type:" << ArgType << ", "
+             << "Size: " << llvm::ore::NV("Argument", ArgSize) << ")";
       ORE.emit(Remark);
     }
   }
