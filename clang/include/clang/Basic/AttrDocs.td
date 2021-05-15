@@ -3155,6 +3155,16 @@ implicitly inherit this attribute.
   }];
 }
 
+def SYCLGlobalVarDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "SYCL Global Var";
+  let Content = [{
+This attribute can only be applied to global variables and indicates that the
+variable can be used in a SYCL kernel. Access to global variable is expected to
+be only from device-side.
+  }];
+}
+
 def RISCVInterruptDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "interrupt (RISCV)";

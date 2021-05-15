@@ -1201,7 +1201,7 @@ def SYCLGlobalVar : InheritableAttr {
   let Spellings = [GNU<"sycl_global_var">];
   let Subjects = SubjectList<[GlobalVar]>;
   let LangOpts = [SYCLIsDevice];
-  let Documentation = [Undocumented];
+  let Documentation = [SYCLGlobalVarDocs];
   let SimpleHandler = 1;
 }
 

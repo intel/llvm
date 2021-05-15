@@ -1145,7 +1145,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
-    Builder.defineMacro("__SYCL_GLOBAL_VAR__", "__attribute__((sycl_global_var))");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
     // Enable __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
