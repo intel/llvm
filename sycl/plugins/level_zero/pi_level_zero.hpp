@@ -28,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <level_zero/ze_api.h>
@@ -113,6 +114,8 @@ struct _pi_platform {
   // Keep track of all contexts in the platform. This is needed to manage
   // a lifetime of memory allocations in each context when there are kernels
   // with indirect access.
+  // TODO: should be deleted when memory isolation in the context is implemented
+  // in the driver.
   std::list<pi_context> Contexts;
   std::mutex ContextsMutex;
 };
@@ -318,7 +321,7 @@ struct _pi_context : _pi_object {
   // reference all existing memory allocations at the time when they are
   // submitted to the device. Referenced memory allocations can be released only
   // when kernel has finished execution.
-  std::map<void *, MemAllocRecord> MemAllocs;
+  std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
 private:
   // Following member variables are used to manage assignment of events
@@ -397,8 +400,13 @@ struct _pi_queue : _pi_object {
   ze_fence_handle_t ZeOpenCommandListFence = {nullptr};
   pi_uint32 ZeOpenCommandListSize = {0};
 
-  // Kernels in the open command list.
-  std::vector<pi_kernel> Kernels;
+  // Kernel is not necessarily submitted for execution during
+  // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
+  // list of kernels which is going to be submitted but have not been submitted
+  // yet. This is needed to capture memory allocations for each kernel with
+  // indirect access in the list at the moment when kernel is really submitted
+  // for execution.
+  std::vector<pi_kernel> KernelsToBeSubmitted;
 
   // Approximate number of commands that are allowed to be batched for
   // this queue.
@@ -863,6 +871,7 @@ struct _pi_kernel : _pi_object {
   _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
       : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, SubmissionsCount{0} {}
 
+  // Returns true if kernel has indirect access, false otherwise.
   bool hasIndirectAccess() {
     // Currently indirect access flag is set for all kernels and there is no API
     // to check if kernel actually indirectly access smth.
@@ -885,7 +894,21 @@ struct _pi_kernel : _pi_object {
   // execution (new allocations can be added) and we need to know which memory
   // allocations were retained by this kernel to release them (and don't touch
   // new allocations) at kernel completion.
-  std::list<std::map<void *, MemAllocRecord>::iterator> MemAllocs;
+  // Same kernel may be submitted several times and retained allocations may be
+  // different at each submission. That's why we have a set of memory
+  // allocations here and increase ref count only once even if kernel is
+  // submitted many times. We don't want to know how many times and which
+  // allocations were retained by each submission. We release all allocations
+  // in the set only when SubmissionsCount == 0.
+  struct Hash {
+    size_t operator()(
+        const std::unordered_map<void *, MemAllocRecord>::iterator &It) const {
+      return std::hash<void *>()(It->first);
+    }
+  };
+
+  std::unordered_set<std::unordered_map<void *, MemAllocRecord>::iterator, Hash>
+      MemAllocs;
 
   // Counter to track the number of submissions of the kernel.
   // When this value is zero, it means that kernel is not submitted for an
