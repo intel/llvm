@@ -268,16 +268,7 @@ void CodeGenModule::createCUDARuntime() {
 }
 
 void CodeGenModule::createSYCLRuntime() {
-  switch (getTriple().getArch()) {
-  case llvm::Triple::spir:
-  case llvm::Triple::spir64:
-  case llvm::Triple::nvptx:
-  case llvm::Triple::nvptx64:
-    SYCLRuntime.reset(new CGSYCLRuntime(*this));
-    break;
-  default:
-    llvm_unreachable("unsupported target for SYCL");
-  }
+  SYCLRuntime.reset(new CGSYCLRuntime(*this));
 }
 
 void CodeGenModule::addReplacement(StringRef Name, llvm::Constant *C) {
@@ -1547,16 +1538,20 @@ static void removeImageAccessQualifier(std::string& TyName) {
 static unsigned ArgInfoAddressSpace(LangAS AS) {
   switch (AS) {
   case LangAS::opencl_global:
+  case LangAS::sycl_global:
     return 1;
   case LangAS::opencl_constant:
     return 2;
   case LangAS::opencl_local:
+  case LangAS::sycl_local:
     return 3;
   case LangAS::opencl_generic:
     return 4; // Not in SPIR 2.0 specs.
   case LangAS::opencl_global_device:
+  case LangAS::sycl_global_device:
     return 5;
   case LangAS::opencl_global_host:
+  case LangAS::sycl_global_host:
     return 6;
   default:
     return 0; // Assume private.
@@ -4281,8 +4276,12 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
   if (LangOpts.SYCLIsDevice && D) {
     auto *Scope = D->getAttr<SYCLScopeAttr>();
     if (Scope && Scope->isWorkGroup())
-      return LangAS::opencl_local;
+      return LangAS::sycl_local;
   }
+
+  if (LangOpts.SYCLIsDevice &&
+      (!D || D->getType().getAddressSpace() == LangAS::Default))
+    return LangAS::sycl_global;
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
     if (D && D->hasAttr<CUDAConstantAttr>())
@@ -4305,10 +4304,12 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
   return getTargetCodeGenInfo().getGlobalVarAddressSpace(*this, D);
 }
 
-LangAS CodeGenModule::getStringLiteralAddressSpace() const {
+LangAS CodeGenModule::GetGlobalConstantAddressSpace() const {
   // OpenCL v1.2 s6.5.3: a string literal is in the constant address space.
   if (LangOpts.OpenCL)
     return LangAS::opencl_constant;
+  if (LangOpts.SYCLIsDevice)
+    return LangAS::sycl_global;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
   return LangAS::Default;
@@ -4327,13 +4328,12 @@ castStringLiteralToDefaultAddressSpace(CodeGenModule &CGM,
                                        llvm::GlobalVariable *GV) {
   llvm::Constant *Cast = GV;
   if (!CGM.getLangOpts().OpenCL) {
-    if (auto AS = CGM.getTarget().getConstantAddressSpace()) {
-      if (AS != LangAS::Default)
-        Cast = CGM.getTargetCodeGenInfo().performAddrSpaceCast(
-            CGM, GV, AS.getValue(), LangAS::Default,
-            GV->getValueType()->getPointerTo(
-                CGM.getContext().getTargetAddressSpace(LangAS::Default)));
-    }
+    auto AS = CGM.GetGlobalConstantAddressSpace();
+    if (AS != LangAS::Default)
+      Cast = CGM.getTargetCodeGenInfo().performAddrSpaceCast(
+          CGM, GV, AS, LangAS::Default,
+          GV->getValueType()->getPointerTo(
+              CGM.getContext().getTargetAddressSpace(LangAS::Default)));
   }
   return Cast;
 }
@@ -5577,7 +5577,7 @@ GenerateStringLiteral(llvm::Constant *C, llvm::GlobalValue::LinkageTypes LT,
                       CodeGenModule &CGM, StringRef GlobalName,
                       CharUnits Alignment) {
   unsigned AddrSpace = CGM.getContext().getTargetAddressSpace(
-      CGM.getStringLiteralAddressSpace());
+      CGM.GetGlobalConstantAddressSpace());
 
   llvm::Module &M = CGM.getModule();
   // Create a global variable for this string

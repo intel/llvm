@@ -10,8 +10,8 @@
 
 #pragma once
 
-#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

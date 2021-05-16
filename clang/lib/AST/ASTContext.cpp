@@ -936,6 +936,11 @@ static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
         7,  // cuda_device
         8,  // cuda_constant
         9,  // cuda_shared
+        1,  // sycl_global
+        5,  // sycl_global_device
+        6,  // sycl_global_host
+        3,  // sycl_local
+        0,  // sycl_private
         10, // ptr32_sptr
         11, // ptr32_uptr
         12  // ptr64

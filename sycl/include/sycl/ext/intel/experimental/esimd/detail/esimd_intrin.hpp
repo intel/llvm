@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
-#include <CL/sycl/INTEL/esimd/detail/esimd_util.hpp>
-#include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/esimd_util.hpp>
+#include <sycl/ext/intel/experimental/esimd/esimd_enum.hpp>
 
 #include <assert.h>
 #include <cstdint>
