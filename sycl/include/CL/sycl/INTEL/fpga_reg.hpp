@@ -18,9 +18,9 @@ namespace INTEL {
 // Returns a registered copy of the input
 // This function is intended for FPGA users to instruct the compiler to insert
 // at least one register stage between the input and the return value.
-template <typename _T>
-typename std::enable_if<std::is_trivially_copyable<_T>::value, _T>::type
-fpga_reg(_T t) {
+template <typename _T> _T fpga_reg(_T t) {
+  static_assert(std::is_trivially_copyable<_T>::value,
+                "Type is not trivially_copyable.");
 #if __has_builtin(__builtin_intel_fpga_reg)
   return __builtin_intel_fpga_reg(t);
 #else
@@ -31,4 +31,3 @@ fpga_reg(_T t) {
 } // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-
