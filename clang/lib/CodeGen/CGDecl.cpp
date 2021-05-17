@@ -258,10 +258,11 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   LangAS AS = GetGlobalVarAddressSpace(&D);
   unsigned TargetAS = getContext().getTargetAddressSpace(AS);
 
-  // OpenCL variables in local address space and CUDA shared
+  // OpenCL/SYCL variables in local address space and CUDA shared
   // variables cannot have an initializer.
   llvm::Constant *Init = nullptr;
   if (Ty.getAddressSpace() == LangAS::opencl_local ||
+      Ty.getAddressSpace() == LangAS::sycl_local ||
       D.hasAttr<CUDASharedAttr>() || D.hasAttr<LoaderUninitializedAttr>())
     Init = llvm::UndefValue::get(LTy);
   else
@@ -799,9 +800,10 @@ void CodeGenFunction::EmitScalarInit(const Expr *init, const ValueDecl *D,
 
   // If we're emitting a value with lifetime, we have to do the
   // initialization *before* we leave the cleanup scopes.
-  if (const ExprWithCleanups *EWC = dyn_cast<ExprWithCleanups>(init))
-    init = EWC->getSubExpr();
-  CodeGenFunction::RunCleanupsScope Scope(*this);
+  if (auto *EWC = dyn_cast<ExprWithCleanups>(init)) {
+    CodeGenFunction::RunCleanupsScope Scope(*this);
+    return EmitScalarInit(EWC->getSubExpr(), D, lvalue, capturedByInit);
+  }
 
   // We have to maintain the illusion that the variable is
   // zero-initialized.  If the variable might be accessed in its
@@ -1149,7 +1151,7 @@ Address CodeGenModule::createUnnamedGlobalFrom(const VarDecl &D,
     bool isConstant = true;
     llvm::GlobalVariable *InsertBefore = nullptr;
     unsigned AS =
-        getContext().getTargetAddressSpace(getStringLiteralAddressSpace());
+        getContext().getTargetAddressSpace(GetGlobalConstantAddressSpace());
     std::string Name;
     if (D.hasGlobalStorage())
       Name = getMangledName(&D).str() + ".const";

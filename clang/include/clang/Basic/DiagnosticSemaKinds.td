@@ -4068,6 +4068,8 @@ def note_protocol_decl_undefined : Note<
 def err_attribute_preferred_name_arg_invalid : Error<
   "argument %0 to 'preferred_name' attribute is not a typedef for "
   "a specialization of %1">;
+def err_attribute_builtin_alias : Error<
+  "%0 attribute can only be applied to a ARM or RISC-V builtin">;
 
 // called-once attribute diagnostics.
 def err_called_once_attribute_wrong_type : Error<
@@ -11328,7 +11330,7 @@ def warn_sycl_kernel_too_big_args : Warning<
   "size of kernel arguments (%0 bytes) may exceed the supported maximum "
   "of %1 bytes on some devices">, InGroup<SyclStrict>, ShowInSystemHeader;
 def err_sycl_virtual_types : Error<
-  "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
+  "no class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
 def err_sycl_non_trivially_copy_ctor_dtor_type
     : Error<"kernel parameter has non-trivially %select{copy "
@@ -11349,7 +11351,7 @@ def err_sycl_attribute_internal_function
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
 def err_sycl_compiletime_property_duplication : Error<
-  "Can't apply %0 property twice to the same accessor">;
+  "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
   "%0 must have exactly one template parameter">;
 def err_sycl_invalid_accessor_property_template_param : Error<
@@ -11363,10 +11365,10 @@ def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
   "%0 attribute must evenly divide the work-group size for the %1 attribute">;
 
 def warn_sycl_pass_by_value_deprecated 
-    : Warning<"Passing kernel functions by value is deprecated in SYCL 2020">,
+    : Warning<"passing kernel functions by value is deprecated in SYCL 2020">,
       InGroup<Sycl2020Compat>, ShowInSystemHeader;
 def warn_sycl_pass_by_reference_future 
-    : Warning<"Passing of kernel functions by reference is a SYCL 2020 extension">,
+    : Warning<"passing of kernel functions by reference is a SYCL 2020 extension">,
       InGroup<Sycl2017Compat>, ShowInSystemHeader;
 def warn_sycl_implicit_decl
     : Warning<"SYCL 1.2.1 specification requires an explicit forward "
