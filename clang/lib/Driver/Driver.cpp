@@ -4144,9 +4144,10 @@ class OffloadingActionBuilder final {
         }
       }
 
+      const toolchains::SYCLToolChain *SYCLTC =
+          static_cast<const toolchains::SYCLToolChain *>(TC);
       SmallVector<SmallString<128>, 4> LibLocCandidates;
-      LibLocCandidates.emplace_back(TC->getDriver().Dir + "/../lib");
-      LibLocCandidates.emplace_back(TC->getDriver().SysRoot + "/lib");
+      SYCLTC->SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
       SmallVector<DeviceLibOptInfo, 5> sycl_device_wrapper_libs = {
           {"libsycl-crt", "libc"},
