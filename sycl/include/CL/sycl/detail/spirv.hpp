@@ -19,6 +19,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+class sub_group;
 namespace ONEAPI {
 struct sub_group;
 } // namespace ONEAPI
@@ -32,6 +33,10 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
 };
 
 template <> struct group_scope<::cl::sycl::ONEAPI::sub_group> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
+};
+
+template <> struct group_scope<::cl::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
@@ -733,6 +738,10 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
+}
+
+template <typename Group> bool GroupNonUniformElect() {
+  return __spirv_GroupNonUniformElect(group_scope<Group>::value);
 }
 
 } // namespace spirv
