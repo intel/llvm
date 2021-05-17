@@ -913,6 +913,13 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
   auto &ZeCommandQueue =
       (UseCopyEngine) ? ZeCopyCommandQueue : ZeComputeCommandQueue;
 
+  // Scope of the lock must be till the end of the function, otherwise new mem
+  // allocs can be created between the moment when we made a snapshot and the
+  // moment when command list is closed and executed. But mutex is locked only
+  // if indirect access tracking enabled, because std::defer_lock is used.
+  // unique_lock destructor at the end of the function will unlock the mutex if
+  // it was locked (which happens only if IndirectAccessTrackingEnabled is
+  // true).
   std::unique_lock<std::mutex> ContextsLock(Device->Platform->ContextsMutex,
                                             std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
