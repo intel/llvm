@@ -151,8 +151,8 @@ public:
 
 struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
-             bool isSubDevice = false)
-      : ZeDevice{Device}, Platform{Plt}, IsSubDevice{isSubDevice},
+             pi_device ParentDevice = nullptr)
+      : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
@@ -188,10 +188,9 @@ struct _pi_device : _pi_object {
   // PI platform to which this device belongs.
   pi_platform Platform;
 
-  // Indicates if this is a root-device or a sub-device.
-  // Technically this information can be queried from a device handle, but it
-  // seems better to just keep it here.
-  bool IsSubDevice;
+  // Root-device of a sub-device, null if this is not a sub-device.
+  pi_device RootDevice;
+  bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
@@ -224,6 +223,23 @@ struct _pi_context : _pi_object {
     // we don't need a map with device as key.
     HostMemAllocContext = new USMAllocContext(
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
+
+    if (NumDevices == 1) {
+      SingleRootDevice = Devices[0];
+      return;
+    }
+
+    // Check if we have context with subdevices of the same device (context may
+    // include root device itself as well)
+    SingleRootDevice =
+        Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+    for (auto &Device : Devices) {
+      if ((!Device->RootDevice && Device != SingleRootDevice) ||
+          (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
+        SingleRootDevice = nullptr;
+        break;
+      }
+    }
   }
 
   // Initialize the PI context.
@@ -242,6 +258,10 @@ struct _pi_context : _pi_object {
 
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;
+
+  // If context contains one device or sub-devices of the same device, we want
+  // to save this device.
+  pi_device SingleRootDevice = nullptr;
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:

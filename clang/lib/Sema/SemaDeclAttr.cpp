@@ -40,6 +40,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Assumptions.h"
+#include "llvm/MC/MCSectionMachO.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -3124,17 +3125,25 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     ZDimExpr = ZDim.get();
 
+    // If the num_simd_work_items attribute is specified on a declaration it
+    // must evenly divide the index that increments fastest in the
+    // reqd_work_group_size attribute. In OpenCL, the first argument increments
+    // the fastest, and in SYCL, the last argument increments the fastest.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      if (XDimVal.getZExtValue() % NumSimdWorkItems != 0) {
+      unsigned WorkGroupSize = S.getLangOpts().OpenCL ? XDimVal.getZExtValue()
+                                                      : ZDimVal.getZExtValue();
+
+      if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
             << A << AL;
         S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
         return;
       }
     }
+
     if (const auto *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
       // Compare attribute arguments value and warn for a mismatch.
       if (ExistingAttr->getXDimVal(Ctx) != XDimVal ||
@@ -3318,17 +3327,38 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       }
     }
 
-    // If the declaration has an [[intel::reqd_work_group_size]] attribute,
-    // check to see if the first argument can be evenly divided by the
-    // num_simd_work_items attribute.
+    // If the reqd_work_group_size attribute is specified on a declaration
+    // along with num_simd_work_items, the required work group size specified
+    // by num_simd_work_items attribute must evenly divide the index that
+    // increments fastest in the reqd_work_group_size attribute.
+    //
+    // The arguments to reqd_work_group_size are ordered based on which index
+    // increments the fastest. In OpenCL, the first argument is the index that
+    // increments the fastest, and in SYCL, the last argument is the index that
+    // increments the fastest.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
+      Expr *XDimExpr = DeclAttr->getXDim();
+      Expr *YDimExpr = DeclAttr->getYDim();
+      Expr *ZDimExpr = DeclAttr->getZDim();
 
-      if (*XDimVal % ArgVal != 0) {
-        Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
-            << CI << DeclAttr;
-        Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
-        return;
+      if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+          !ZDimExpr->isValueDependent()) {
+        llvm::APSInt XDimVal, ZDimVal;
+        ExprResult XDim = VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
+        ExprResult ZDim = VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
+
+        if (XDim.isInvalid() || ZDim.isInvalid())
+          return;
+
+        unsigned WorkGroupSize = getLangOpts().OpenCL ? XDimVal.getZExtValue()
+                                                      : ZDimVal.getZExtValue();
+
+        if (WorkGroupSize % ArgVal.getSExtValue() != 0) {
+          Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+              << CI << DeclAttr;
+          Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+          return;
+        }
       }
     }
   }
@@ -3703,9 +3733,29 @@ SectionAttr *Sema::mergeSectionAttr(Decl *D, const AttributeCommonInfo &CI,
   return ::new (Context) SectionAttr(Context, CI, Name);
 }
 
+/// Used to implement to perform semantic checking on
+/// attribute((section("foo"))) specifiers.
+///
+/// In this case, "foo" is passed in to be checked.  If the section
+/// specifier is invalid, return an Error that indicates the problem.
+///
+/// This is a simple quality of implementation feature to catch errors
+/// and give good diagnostics in cases when the assembler or code generator
+/// would otherwise reject the section specifier.
+llvm::Error Sema::isValidSectionSpecifier(StringRef SecName) {
+  if (!Context.getTargetInfo().getTriple().isOSDarwin())
+    return llvm::Error::success();
+
+  // Let MCSectionMachO validate this.
+  StringRef Segment, Section;
+  unsigned TAA, StubSize;
+  bool HasTAA;
+  return llvm::MCSectionMachO::ParseSectionSpecifier(SecName, Segment, Section,
+                                                     TAA, HasTAA, StubSize);
+}
+
 bool Sema::checkSectionName(SourceLocation LiteralLoc, StringRef SecName) {
-  if (llvm::Error E =
-          Context.getTargetInfo().isValidSectionSpecifier(SecName)) {
+  if (llvm::Error E = isValidSectionSpecifier(SecName)) {
     Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
         << toString(std::move(E)) << 1 /*'section'*/;
     return false;
@@ -3724,13 +3774,6 @@ static void handleSectionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.checkSectionName(LiteralLoc, Str))
     return;
 
-  // If the target wants to validate the section specifier, make it happen.
-  if (llvm::Error E = S.Context.getTargetInfo().isValidSectionSpecifier(Str)) {
-    S.Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
-        << toString(std::move(E));
-    return;
-  }
-
   SectionAttr *NewAttr = S.mergeSectionAttr(D, AL, Str);
   if (NewAttr) {
     D->addAttr(NewAttr);
@@ -3746,8 +3789,7 @@ static void handleSectionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // `#pragma code_seg("segname")` uses checkSectionName() instead.
 static bool checkCodeSegName(Sema &S, SourceLocation LiteralLoc,
                              StringRef CodeSegName) {
-  if (llvm::Error E =
-          S.Context.getTargetInfo().isValidSectionSpecifier(CodeSegName)) {
+  if (llvm::Error E = S.isValidSectionSpecifier(CodeSegName)) {
     S.Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
         << toString(std::move(E)) << 0 /*'code-seg'*/;
     return false;
@@ -6536,6 +6578,7 @@ static bool ArmSveAliasValid(unsigned BuiltinID, StringRef AliasName) {
 #define GET_SVE_BUILTINS
 #define BUILTIN(name, types, attr) case SVE::BI##name:
 #include "clang/Basic/arm_sve_builtins.inc"
+#undef BUILTIN
     return true;
   }
 }
@@ -6560,6 +6603,44 @@ static void handleArmBuiltinAliasAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   D->addAttr(::new (S.Context) ArmBuiltinAliasAttr(S.Context, AL, Ident));
+}
+
+static bool RISCVAliasValid(unsigned BuiltinID, StringRef AliasName) {
+  switch (BuiltinID) {
+  default:
+    return false;
+#define BUILTIN(ID, TYPE, ATTRS) case RISCV::BI##ID:
+#include "clang/Basic/BuiltinsRISCV.def"
+#undef BUILTIN
+    return true;
+  }
+}
+
+static void handleBuiltinAliasAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
+        << AL << 1 << AANT_ArgumentIdentifier;
+    return;
+  }
+
+  IdentifierInfo *Ident = AL.getArgAsIdent(0)->Ident;
+  unsigned BuiltinID = Ident->getBuiltinID();
+  StringRef AliasName = cast<FunctionDecl>(D)->getIdentifier()->getName();
+
+  bool IsAArch64 = S.Context.getTargetInfo().getTriple().isAArch64();
+  bool IsARM = S.Context.getTargetInfo().getTriple().isARM();
+  bool IsRISCV = S.Context.getTargetInfo().getTriple().isRISCV();
+  if ((IsAArch64 && !ArmSveAliasValid(BuiltinID, AliasName)) ||
+      (IsARM && !ArmMveAliasValid(BuiltinID, AliasName) &&
+       !ArmCdeAliasValid(BuiltinID, AliasName)) ||
+      (IsRISCV && !RISCVAliasValid(BuiltinID, AliasName)) ||
+      (!IsAArch64 && !IsARM && !IsRISCV)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_builtin_alias) << AL;
+    return;
+  }
+
+  D->addAttr(::new (S.Context) BuiltinAliasAttr(S.Context, AL, Ident));
 }
 
 //===----------------------------------------------------------------------===//
@@ -9759,6 +9840,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 
   case ParsedAttr::AT_EnforceTCBLeaf:
     handleEnforceTCBAttr<EnforceTCBLeafAttr, EnforceTCBAttr>(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_BuiltinAlias:
+    handleBuiltinAliasAttr(S, D, AL);
     break;
   }
 }

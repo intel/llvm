@@ -2503,25 +2503,76 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::num_simd_work_items(N)]] void operator()() const {}
   };
 
-If the`` intel::reqd_work_group_size`` or ``cl::reqd_work_group_size``
-attribute is specified on a declaration along with a
-intel::num_simd_work_items attribute, the work group size attribute
-argument (the first argument) must be evenly divisible by the argument specified
-in the ``intel::num_simd_work_items`` attribute.
+If the ``reqd_work_group_size`` attribute is specified on a declaration along
+with ``num_simd_work_items``, the required work group size specified
+by ``num_simd_work_items`` attribute must evenly divide the index that
+increments fastest in the ``reqd_work_group_size`` attribute.
+
+The arguments to ``reqd_work_group_size`` are ordered based on which index
+increments the fastest. In OpenCL, the first argument is the index that
+increments the fastest, and in SYCL, the last argument is the index that
+increments the fastest.
+
+In OpenCL, all three arguments are required.
+
+In SYCL, the attribute accepts either one, two, or three arguments; in each
+form, the last (or only) argument is the index that increments fastest.
+The number of arguments passed to the attribute must match the dimensionality
+of the kernel the attribute is applied to.
 
 .. code-block:: c++
 
+  // Note, '64' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[intel::num_simd_work_items(8)]]
+    void operator()() const {}
+  };
+
+  // Note, '10' is evenly divisible by '5'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[cl::reqd_work_group_size(7, 5, 10)]]
+  [[intel::num_simd_work_items(5)]] void fun2() {}
+
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[intel::num_simd_work_items(4)]]
+  [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
+
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct func1 {
+    [[intel::num_simd_work_items(8)]]
+    [[cl::reqd_work_group_size(1, 1, 8)]]
+    void operator()() const {}
+  };
+
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct bar1 {
+    [[cl::reqd_work_group_size(7, 4, 8)]]
     [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
+
+  // Note, '4' is evenly divisible by '2'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[intel::num_simd_work_items(2)]]
+  __attribute__((reqd_work_group_size(3, 2, 4))) void test();
+
+  // Note, '8' is evenly divisible by '2'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  __attribute__((reqd_work_group_size(3, 2, 8)))
+  [intel::num_simd_work_items(2)]] void test();
 
   }];
 }
@@ -2639,6 +2690,77 @@ The GNU spelling is deprecated in SYCL mode.
   public:
     [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
   };
+
+The arguments to ``reqd_work_group_size`` are ordered based on which index
+increments the fastest. In OpenCL, the first argument is the index that
+increments the fastest, and in SYCL, the last argument is the index that
+increments the fastest.
+
+In OpenCL, all three arguments are required.
+
+In SYCL, the attribute accepts either one, two, or three arguments; in each
+form, the last (or only) argument is the index that increments fastest. The
+number of arguments passed to the attribute must match the dimensionality of
+the kernel the attribute is applied to.
+
+If the ``reqd_work_group_size attribute`` is specified on a declaration along
+with ``num_simd_work_items``, the required work group size specified by
+``num_simd_work_items`` must evenly divide the index that increments fastest
+in the ``reqd_work_group_size`` attribute.
+
+.. code-block:: c++
+
+  // Note, '64' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct func {
+    [[intel::num_simd_work_items(4)]]
+    [[intel::reqd_work_group_size(7, 4, 64)]]
+    void operator()() const {}
+  };
+
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct bar {
+    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[intel::num_simd_work_items(8)]]
+    void operator()() const {}
+  };
+
+  // Note, '10' is evenly divisible by '5'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[cl::reqd_work_group_size(7, 5, 10)]]
+  [[intel::num_simd_work_items(5)]] void fun2() {}
+
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[intel::num_simd_work_items(4)]]
+  [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
+
+  // Note, '8' is evenly divisible by '8'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct func1 {
+    [[intel::num_simd_work_items(8)]]
+    [[cl::reqd_work_group_size(1, 1, 8)]]
+    void operator()() const {}
+  };
+  
+  // Note, '8' is evenly divisible by '4'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  struct bar1 {
+    [[cl::reqd_work_group_size(7, 4, 8)]]
+    [[intel::num_simd_work_items(4)]]
+    void operator()() const {}
+  };
+
+  // Note, '4' is evenly divisible by '2'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  [[intel::num_simd_work_items(2)]]
+  __attribute__((reqd_work_group_size(3, 2, 4))) void test();
+ 
+  // Note, '8' is evenly divisible by '2'; in SYCL, the last
+  // argument to the attribute is the one which increments fastest.
+  __attribute__((reqd_work_group_size(3, 2, 8)))
+  [intel::num_simd_work_items(2)]] void test();
 
   }];
 }
@@ -4849,6 +4971,16 @@ system) and does not imply undefined behavior, making it more widely applicable.
   }];
 }
 
+def RestrictDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "malloc";
+  let Content = [{
+The ``malloc`` attribute indicates that the function acts like a system memory
+allocation function, returning a pointer to allocated storage disjoint from the
+storage for any other object accessible to the caller.
+  }];
+}
+
 def ReturnsNonNullDocs : Documentation {
   let Category = NullabilityDocs;
   let Content = [{
@@ -5823,6 +5955,26 @@ could have a different set of data members and thus have a different size. Using
 the ``abi_tag`` attribute, it is possible to have different mangled names for
 a global variable of the class type. Therefore, the old code could keep using
 the old mangled name and the new code will use the new mangled name with tags.
+  }];
+}
+
+def BuiltinAliasDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "clang::builtin_alias, clang_builtin_alias";
+  let Content = [{
+This attribute is used in the implementation of the C intrinsics.
+It allows the C intrinsic functions to be declared using the names defined
+in target builtins, and still be recognized as clang builtins equivalent to the
+underlying name. For example, ``riscv_vector.h`` declares the function ``vadd``
+with ``__attribute__((clang_builtin_alias(__builtin_rvv_vadd_vv_i8m1)))``.
+This ensures that both functions are recognized as that clang builtin,
+and in the latter case, the choice of which builtin to identify the
+function as can be deferred until after overload resolution.
+
+This attribute can only be used to set up the aliases for certain ARM/RISC-V
+C intrinsic functions; it is intended for use only inside ``arm_*.h`` and
+``riscv_*.h`` and is not a general mechanism for declaring arbitrary aliases
+for clang builtin functions.
   }];
 }
 
@@ -6820,6 +6972,10 @@ This attribute can only be used to set up the aliases for certain Arm
 intrinsic functions; it is intended for use only inside ``arm_*.h``
 and is not a general mechanism for declaring arbitrary aliases for
 clang builtin functions.
+
+In order to avoid duplicating the attribute definitions for similar
+purpose for other architecture, there is a general form for the
+attribute `clang_builtin_alias`.
   }];
 }
 

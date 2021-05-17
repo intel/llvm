@@ -388,11 +388,13 @@ public:
     LongDoubleWidth = 96;
     LongDoubleAlign = 32;
     SuitableAlign = 128;
-    resetDataLayout(Triple.isOSBinFormatMachO() ?
-                    "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
-                    "f80:32-n8:16:32-S128" :
-                    "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
-                    "f80:32-n8:16:32-S128");
+    resetDataLayout(
+        Triple.isOSBinFormatMachO()
+            ? "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
+              "f80:32-n8:16:32-S128"
+            : "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
+              "f80:32-n8:16:32-S128",
+        Triple.isOSBinFormatMachO() ? "_" : "");
     SizeType = UnsignedInt;
     PtrDiffType = SignedInt;
     IntPtrType = SignedInt;
@@ -496,7 +498,7 @@ public:
     SizeType = UnsignedLong;
     IntPtrType = SignedLong;
     resetDataLayout("e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-"
-                    "f80:128-n8:16:32-S128");
+                    "f80:128-n8:16:32-S128", "_");
     HasAlignMac68kSupport = true;
   }
 
@@ -524,7 +526,8 @@ public:
     resetDataLayout(IsWinCOFF ? "e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:"
                                 "64-i64:64-f80:32-n8:16:32-a:0:32-S32"
                               : "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:"
-                                "64-i64:64-f80:32-n8:16:32-a:0:32-S32");
+                                "64-i64:64-f80:32-n8:16:32-a:0:32-S32",
+                    IsWinCOFF ? "_" : "");
   }
 };
 
@@ -573,7 +576,8 @@ public:
     this->WCharType = TargetInfo::UnsignedShort;
     DoubleAlign = LongLongAlign = 64;
     resetDataLayout("e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:"
-                    "32-n8:16:32-a:0:32-S32");
+                    "32-n8:16:32-a:0:32-S32",
+                    "_");
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -868,7 +872,7 @@ public:
     if (T.isiOS())
       UseSignedCharForObjCBool = false;
     resetDataLayout("e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:"
-                    "16:32:64-S128");
+                    "16:32:64-S128", "_");
   }
 
   bool handleTargetFeatures(std::vector<std::string> &Features,

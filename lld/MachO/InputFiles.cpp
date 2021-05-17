@@ -467,14 +467,16 @@ static macho::Symbol *createDefined(const NList &sym, StringRef name,
       isPrivateExtern = true;
 
     return symtab->addDefined(name, isec->file, isec, value, size,
-                              sym.n_desc & N_WEAK_DEF, isPrivateExtern);
+                              sym.n_desc & N_WEAK_DEF, isPrivateExtern,
+                              sym.n_desc & N_ARM_THUMB_DEF);
   }
 
   assert(!isWeakDefCanBeHidden &&
          "weak_def_can_be_hidden on already-hidden symbol?");
   return make<Defined>(name, isec->file, isec, value, size,
                        sym.n_desc & N_WEAK_DEF,
-                       /*isExternal=*/false, /*isPrivateExtern=*/false);
+                       /*isExternal=*/false, /*isPrivateExtern=*/false,
+                       sym.n_desc & N_ARM_THUMB_DEF);
 }
 
 // Absolute symbols are defined symbols that do not have an associated
@@ -485,11 +487,13 @@ static macho::Symbol *createAbsolute(const NList &sym, InputFile *file,
   if (sym.n_type & (N_EXT | N_PEXT)) {
     assert((sym.n_type & N_EXT) && "invalid input");
     return symtab->addDefined(name, file, nullptr, sym.n_value, /*size=*/0,
-                              /*isWeakDef=*/false, sym.n_type & N_PEXT);
+                              /*isWeakDef=*/false, sym.n_type & N_PEXT,
+                              sym.n_desc & N_ARM_THUMB_DEF);
   }
   return make<Defined>(name, file, nullptr, sym.n_value, /*size=*/0,
                        /*isWeakDef=*/false,
-                       /*isExternal=*/false, /*isPrivateExtern=*/false);
+                       /*isExternal=*/false, /*isPrivateExtern=*/false,
+                       sym.n_desc & N_ARM_THUMB_DEF);
 }
 
 template <class NList>
@@ -949,17 +953,17 @@ void ArchiveFile::fetch(const object::Archive::Symbol &sym) {
                                      "for the member defining symbol " +
                                      toMachOString(sym)));
 
-  // `sym` is owned by a LazySym, which will be replace<>() by make<ObjFile>
+  // `sym` is owned by a LazySym, which will be replace<>()d by make<ObjFile>
   // and become invalid after that call. Copy it to the stack so we can refer
   // to it later.
-  const object::Archive::Symbol sym_copy = sym;
+  const object::Archive::Symbol symCopy = sym;
 
   if (Optional<InputFile *> file =
           loadArchiveMember(mb, modTime, getName(), /*objCOnly=*/false)) {
     inputFiles.insert(*file);
-    // ld64 doesn't demangle sym here even with -demangle. Match that, so
-    // intentionally no call to toMachOString() here.
-    printArchiveMemberLoad(sym_copy.getName(), *file);
+    // ld64 doesn't demangle sym here even with -demangle.
+    // Match that: intentionally don't call toMachOString().
+    printArchiveMemberLoad(symCopy.getName(), *file);
   }
 }
 
@@ -988,7 +992,8 @@ static macho::Symbol *createBitcodeSymbol(const lto::InputFile::Symbol &objSym,
   }
 
   return symtab->addDefined(name, &file, /*isec=*/nullptr, /*value=*/0,
-                            /*size=*/0, objSym.isWeak(), isPrivateExtern);
+                            /*size=*/0, objSym.isWeak(), isPrivateExtern,
+                            /*isThumb=*/false);
 }
 
 BitcodeFile::BitcodeFile(MemoryBufferRef mbref)
