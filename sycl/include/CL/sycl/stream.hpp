@@ -1118,3 +1118,4 @@ template <> struct hash<cl::sycl::stream> {
   }
 };
 } // namespace std
+

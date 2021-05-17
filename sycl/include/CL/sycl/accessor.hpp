@@ -203,6 +203,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
 namespace ext {
 namespace intel {
 namespace experimental {
