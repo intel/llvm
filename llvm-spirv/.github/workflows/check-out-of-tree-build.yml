@@ -14,8 +14,8 @@ on:
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
-      - '**/check-code-style.xml' # check-code-style workflow
-      - '**/check-in-tree-build.xml' # check-in-tree-build workflow
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-in-tree-build.yml' # check-in-tree-build workflow
   pull_request:
     branches:
       - master
@@ -23,8 +23,8 @@ on:
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
-      - '**/check-code-style.xml' # check-code-style workflow
-      - '**/check-in-tree-build.xml' # check-in-tree-build workflow
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-in-tree-build.yml' # check-in-tree-build workflow
   schedule:
     - cron: 0 0 * * *
 

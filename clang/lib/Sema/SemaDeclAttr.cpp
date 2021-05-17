@@ -3093,17 +3093,25 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     ZDimExpr = ZDim.get();
 
+    // If the num_simd_work_items attribute is specified on a declaration it
+    // must evenly divide the index that increments fastest in the
+    // reqd_work_group_size attribute. In OpenCL, the first argument increments
+    // the fastest, and in SYCL, the last argument increments the fastest.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      if (XDimVal.getZExtValue() % NumSimdWorkItems != 0) {
+      unsigned WorkGroupSize = S.getLangOpts().OpenCL ? XDimVal.getZExtValue()
+                                                      : ZDimVal.getZExtValue();
+
+      if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
             << A << AL;
         S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
         return;
       }
     }
+
     if (const auto *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
       // Compare attribute arguments value and warn for a mismatch.
       if (ExistingAttr->getXDimVal(Ctx) != XDimVal ||
@@ -3287,17 +3295,38 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       }
     }
 
-    // If the declaration has an [[intel::reqd_work_group_size]] attribute,
-    // check to see if the first argument can be evenly divided by the
-    // num_simd_work_items attribute.
+    // If the reqd_work_group_size attribute is specified on a declaration
+    // along with num_simd_work_items, the required work group size specified
+    // by num_simd_work_items attribute must evenly divide the index that
+    // increments fastest in the reqd_work_group_size attribute.
+    //
+    // The arguments to reqd_work_group_size are ordered based on which index
+    // increments the fastest. In OpenCL, the first argument is the index that
+    // increments the fastest, and in SYCL, the last argument is the index that
+    // increments the fastest.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
+      Expr *XDimExpr = DeclAttr->getXDim();
+      Expr *YDimExpr = DeclAttr->getYDim();
+      Expr *ZDimExpr = DeclAttr->getZDim();
 
-      if (*XDimVal % ArgVal != 0) {
-        Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
-            << CI << DeclAttr;
-        Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
-        return;
+      if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+          !ZDimExpr->isValueDependent()) {
+        llvm::APSInt XDimVal, ZDimVal;
+        ExprResult XDim = VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
+        ExprResult ZDim = VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
+
+        if (XDim.isInvalid() || ZDim.isInvalid())
+          return;
+
+        unsigned WorkGroupSize = getLangOpts().OpenCL ? XDimVal.getZExtValue()
+                                                      : ZDimVal.getZExtValue();
+
+        if (WorkGroupSize % ArgVal.getSExtValue() != 0) {
+          Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+              << CI << DeclAttr;
+          Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+          return;
+        }
       }
     }
   }

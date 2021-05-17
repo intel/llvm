@@ -597,6 +597,15 @@ class SingleDeviceFunctionTracker {
       return;
     }
 
+    // If this is a routine that is not defined and it does not have either
+    // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
+    // routines potentially reachable on device. This is to diagnose such
+    // cases later in finalizeSYCLDeviceAnalysis().
+    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
+        !CurrentDecl->hasAttr<SYCLDeviceAttr>())
+      Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
+                                                    CallStack.back());
+
     // We previously thought we could skip this function if we'd seen it before,
     // but if we haven't seen it before in this call graph, we can end up
     // missing a recursive call.  SO, we have to revisit call-graphs we've
@@ -1768,9 +1777,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
-        KernelDecl, FD->getName().data(), FieldTy.getAsString(),
-        FD->getLocation());
     addParam(newParamDesc, FieldTy);
   }
 
@@ -1781,8 +1787,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     StringRef Name = "_arg__base";
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
-    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
-        KernelDecl, "", FieldTy.getAsString(), BS.getBaseTypeLoc());
     addParam(newParamDesc, FieldTy);
   }
   // Add a parameter with specified name and type
@@ -2228,6 +2232,216 @@ public:
     return true;
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
+};
+
+enum class KernelArgDescription {
+  BaseClass,
+  DecomposedMember,
+  WrappedPointer,
+  WrappedArray,
+  Accessor,
+  AccessorBase,
+  Sampler,
+  Stream,
+  KernelHandler,
+  None
+};
+
+StringRef getKernelArgDesc(KernelArgDescription Desc) {
+  switch (Desc) {
+  case KernelArgDescription::BaseClass:
+    return "Compiler generated argument for base class,";
+  case KernelArgDescription::DecomposedMember:
+    return "Compiler generated argument for decomposed struct/class,";
+  case KernelArgDescription::WrappedPointer:
+    return "Compiler generated argument for nested pointer,";
+  case KernelArgDescription::WrappedArray:
+    return "Compiler generated argument for array,";
+  case KernelArgDescription::Accessor:
+    return "Compiler generated argument for accessor,";
+  case KernelArgDescription::AccessorBase:
+    return "Compiler generated argument for accessor base class,";
+  case KernelArgDescription::Sampler:
+    return "Compiler generated argument for sampler,";
+  case KernelArgDescription::Stream:
+    return "Compiler generated argument for stream,";
+  case KernelArgDescription::KernelHandler:
+    return "Compiler generated argument for SYCL2020 specialization constant";
+  case KernelArgDescription::None:
+    return "";
+  }
+  llvm_unreachable(
+      "switch should cover all possible values for KernelArgDescription");
+}
+
+class SyclOptReportCreator : public SyclKernelFieldHandler {
+  SyclKernelDeclCreator &DC;
+  SourceLocation KernelInvocationLoc;
+
+  void addParam(const FieldDecl *KernelArg, QualType KernelArgType,
+                KernelArgDescription KernelArgDesc) {
+    StringRef NameToEmitInDescription = KernelArg->getName();
+    const RecordDecl *KernelArgParent = KernelArg->getParent();
+    if (KernelArgParent &&
+        KernelArgDesc == KernelArgDescription::DecomposedMember) {
+      NameToEmitInDescription = KernelArgParent->getName();
+    }
+
+    bool isWrappedField =
+        KernelArgDesc == KernelArgDescription::WrappedPointer ||
+        KernelArgDesc == KernelArgDescription::WrappedArray;
+
+    unsigned KernelArgSize =
+        SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        DC.getKernelDecl(), NameToEmitInDescription,
+        isWrappedField ? "Compiler generated" : KernelArgType.getAsString(),
+        KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
+        (KernelArgDesc == KernelArgDescription::DecomposedMember)
+            ? ("Field:" + KernelArg->getName().str() + ", ")
+            : "");
+  }
+
+  void addParam(const FieldDecl *FD, QualType FieldTy) {
+    KernelArgDescription Desc = KernelArgDescription::None;
+    const RecordDecl *RD = FD->getParent();
+    if (RD && RD->hasAttr<SYCLRequiresDecompositionAttr>())
+      Desc = KernelArgDescription::DecomposedMember;
+
+    addParam(FD, FieldTy, Desc);
+  }
+
+  // Handles base classes.
+  void addParam(const CXXBaseSpecifier &, QualType KernelArgType,
+                KernelArgDescription KernelArgDesc) {
+    unsigned KernelArgSize =
+        SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        DC.getKernelDecl(), KernelArgType.getAsString(),
+        KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
+        getKernelArgDesc(KernelArgDesc), "");
+  }
+
+  // Handles specialization constants.
+  void addParam(QualType KernelArgType, KernelArgDescription KernelArgDesc) {
+    unsigned KernelArgSize =
+        SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+    SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+        DC.getKernelDecl(), "", KernelArgType.getAsString(),
+        KernelInvocationLoc, KernelArgSize, getKernelArgDesc(KernelArgDesc),
+        "");
+  }
+
+  // Handles SYCL special types (accessor, sampler and stream) and modified
+  // types (arrays and pointers)
+  bool handleSpecialType(const FieldDecl *FD, QualType FieldTy,
+                         KernelArgDescription Desc) {
+    for (const auto *Param : DC.getParamVarDeclsForCurrentField())
+      addParam(FD, Param->getType(), Desc);
+    return true;
+  }
+
+public:
+  static constexpr const bool VisitInsideSimpleContainers = false;
+  SyclOptReportCreator(Sema &S, SyclKernelDeclCreator &DC, SourceLocation Loc)
+      : SyclKernelFieldHandler(S), DC(DC), KernelInvocationLoc(Loc) {}
+
+  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+    return handleSpecialType(
+        FD, FieldTy, KernelArgDescription(KernelArgDescription::Accessor));
+  }
+
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                              QualType FieldTy) final {
+    for (const auto *Param : DC.getParamVarDeclsForCurrentField()) {
+      QualType KernelArgType = Param->getType();
+      unsigned KernelArgSize = SemaRef.getASTContext()
+                                   .getTypeSizeInChars(KernelArgType)
+                                   .getQuantity();
+      SemaRef.getDiagnostics().getSYCLOptReportHandler().AddKernelArgs(
+          DC.getKernelDecl(), FieldTy.getAsString(),
+          KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
+          getKernelArgDesc(
+              KernelArgDescription(KernelArgDescription::AccessorBase)),
+          "");
+    }
+    return true;
+  }
+
+  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
+    return handleSpecialType(
+        FD, FieldTy, KernelArgDescription(KernelArgDescription::Sampler));
+  }
+
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    KernelArgDescription Desc = KernelArgDescription::None;
+    ParmVarDecl *KernelParameter = DC.getParamVarDeclsForCurrentField()[0];
+    // Compiler generated openCL kernel argument for current pointer field
+    // is not a pointer. This means we are processing a nested pointer and
+    // the openCL kernel argument is of type __wrapper_class.
+    if (!KernelParameter->getType()->isPointerType())
+      Desc = KernelArgDescription::WrappedPointer;
+    return handleSpecialType(FD, FieldTy, Desc);
+  }
+
+  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy);
+    return true;
+  }
+
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    // Simple arrays are always wrapped.
+    handleSpecialType(FD, FieldTy,
+                      KernelArgDescription(KernelArgDescription::WrappedArray));
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addParam(FD, Ty);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    addParam(BS, Ty, KernelArgDescription(KernelArgDescription::BaseClass));
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
+
+  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy);
+    return true;
+  }
+
+  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
+    // For the current implementation of stream class, the Visitor 'handles'
+    // stream argument and then visits each accessor field in stream. Therefore
+    // handleSpecialType in this case only adds a single argument for stream.
+    // The arguments corresponding to accessors in stream are handled in
+    // handleSyclAccessorType. The opt-report therefore does not diffrentiate
+    // between the accessors in streams and accessors captured by SYCL kernel.
+    // Once stream API is modified to use __init(), the visitor will no longer
+    // visit the stream object and opt-report output for stream class will be
+    // similar to that of other special types.
+    return handleSpecialType(
+        FD, FieldTy, KernelArgDescription(KernelArgDescription::Stream));
+  }
+
+  void handleSyclKernelHandlerType() {
+    ASTContext &Context = SemaRef.getASTContext();
+    if (isDefaultSPIRArch(Context))
+      return;
+    addParam(DC.getParamVarDeclsForCurrentField()[0]->getType(),
+             KernelArgDescription(KernelArgDescription::KernelHandler));
+  }
+  using SyclKernelFieldHandler::handleSyclHalfType;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::handleSyclStreamType;
 };
 
 static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
@@ -3552,18 +3766,20 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       StableName, KernelCallerFunc);
 
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
+  SyclOptReportCreator opt_report(*this, kernel_decl, KernelObj->getLocation());
 
   KernelObjVisitor Visitor{*this};
   Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                           int_footer);
+                           int_footer, opt_report);
   Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                            int_footer);
+                            int_footer, opt_report);
 
   if (ParmVarDecl *KernelHandlerArg =
           getSyclKernelHandlerArg(KernelCallerFunc)) {
     kernel_decl.handleSyclKernelHandlerType();
     kernel_body.handleSyclKernelHandlerType(KernelHandlerArg);
     int_header.handleSyclKernelHandlerType(KernelHandlerArg->getType());
+    opt_report.handleSyclKernelHandlerType();
   }
 }
 
@@ -3885,22 +4101,29 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
 void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                        const FunctionDecl *Callee,
-                                       SourceLocation Loc) {
+                                       SourceLocation Loc,
+                                       DeviceDiagnosticReason Reason) {
   // Somehow an unspecialized template appears to be in callgraph or list of
   // device functions. We don't want to emit diagnostic here.
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
     return;
 
   Callee = Callee->getMostRecentDecl();
-  bool HasAttr =
-      Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>();
 
-  // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-  bool NotDefinedNoAttr = !Callee->isDefined() && !HasAttr;
+  // If the reason for the emission of this diagnostic is not SYCL-specific,
+  // and it is not known to be reachable from a routine on device, do not
+  // issue a diagnostic.
+  if ((Reason & DeviceDiagnosticReason::Sycl) == DeviceDiagnosticReason::None &&
+      !isFDReachableFromSyclDevice(Callee, Caller))
+    return;
 
-  if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
-    Diag(Loc, diag::err_sycl_restrict)
-        << Sema::KernelCallUndefinedFunction;
+  // If Callee has a SYCL attribute, no diagnostic needed.
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+    return;
+
+  // Diagnose if this is an undefined function and it is not a builtin.
+  if (!Callee->isDefined() && !Callee->getBuiltinID()) {
+    Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
     Diag(Caller->getLocation(), diag::note_called_by) << Caller;
   }
@@ -4655,8 +4878,8 @@ static void EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
 // function call parameters.
 static std::string EmitSpecIdShims(raw_ostream &OS, unsigned &ShimCounter,
                                    const VarDecl *VD) {
-  assert(VD->isInAnonymousNamespace() &&
-         "Function assumes this is in an anonymous namespace");
+  if (!VD->isInAnonymousNamespace())
+    return "";
   std::string RelativeName = VD->getNameAsString();
   EmitSpecIdShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
   return RelativeName;
@@ -4673,30 +4896,28 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   unsigned ShimCounter = 0;
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
+    std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+    OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
+    OS << "namespace sycl {\n";
+    OS << "namespace detail {\n";
+    OS << "template<>\n";
+    OS << "inline const char *get_spec_constant_symbolic_ID<";
+
     if (VD->isInAnonymousNamespace()) {
-      std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
-      OS << "namespace sycl {\n";
-      OS << "namespace detail {\n";
-      OS << "template<>\n";
-      OS << "inline const char *get_spec_constant_symbolic_ID<" << TopShim
-         << ">() {\n";
-      OS << "  return \"";
-      emitSpecIDName(OS, VD);
-      OS << "\";\n";
+      OS << TopShim;
     } else {
-      OS << "namespace sycl {\n";
-      OS << "namespace detail {\n";
-      OS << "template<>\n";
-      OS << "inline const char *get_spec_constant_symbolic_ID<::";
+      OS << "::";
       VD->printQualifiedName(OS, Policy);
-      OS << ">() {\n";
-      OS << "  return \"";
-      emitSpecIDName(OS, VD);
-      OS << "\";\n";
     }
+
+    OS << ">() {\n";
+    OS << "  return \"";
+    emitSpecIDName(OS, VD);
+    OS << "\";\n";
     OS << "}\n";
     OS << "} // namespace detail\n";
     OS << "} // namespace sycl\n";
+    OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   }
 
   OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";

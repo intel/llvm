@@ -24,7 +24,7 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  std::unique_ptr<Command> InputCommand,
                                  const InputInfoList &InputFiles,
                                  const InputInfo &Output, const Tool *T,
-                                 StringRef Ext);
+                                 StringRef Increment, StringRef Ext);
 
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
