@@ -35,9 +35,10 @@
   #define __builtin_expect(a, b) (a)
 #endif
 
-#define __SYCL_CONSTEXPR
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
   #define __SYCL_CONSTEXPR constexpr
+#else
+  #define __SYCL_CONSTEXPR
 #endif
 
 
@@ -46,77 +47,6 @@ namespace sycl {
 namespace detail {
 
 inline __SYCL_CONSTEXPR uint16_t float2Half(const float &Val) {
-  // First part of the calculations - get the Exponent and Fractional
-
-  // Get bool sign of Val and its absolute value for calculations
-  // This version does not support the sign of NaN and 0.0
-  // TODO: Make support for sign of 0.0 and NaN
-  /*bool BSign = Val < 0.0f;
-
-  float AbsVal = BSign ? -Val : Val;
-  int MeaninglessBits = 0;
-  int Exponent = 0;
-  // Fractional part
-  uint64_t FracVal = 0;
-
-  if (Val != 0) {
-    if (std::isinf(AbsVal)) {
-      Exponent = 0xff;
-    } else if (std::isnan(AbsVal)) {
-      Exponent = 0xff;
-      // Change the first bit to 1 for NaN check below
-      FracVal = 0x8000000000000000;
-    } else {
-      // The main idea is to bring float value first to integer
-      // Second bring it to range [0, 2^64-1] that suit to uint_64
-      // For that it needs to up the number to values >= 2^87
-      // Then downscale the number to the desirable range
-
-      // The number will be integer anyway if it >= 2^23
-      // If the num >= 2^87 then if we downscale it by 2^64 we get
-      // integer number
-      Exponent = 254;
-      while (AbsVal < 0x1p87f) {
-        // We upscale the value by 2^41 to finally get number < 2^128
-        AbsVal *= 0x1p41f;
-        Exponent -= 41;
-      }
-
-      // Downscale value to range [0, 2^64-1] by 2^-64
-      // The number is integer and it will be converted to uint_64t
-      // with all the bits of the fractional part
-      FracVal = (uint64_t)(AbsVal * 0x1p-64f);
-
-      // Next it needs to be count of bits that are not frac part
-      // It is needed for get the correct exponent from initial Val
-      bool Buf = 0;
-
-      // The meaningless bits are ended with the first 1
-      while (!Buf) {
-        Buf = (FracVal >> (63 - MeaninglessBits)) & 1;
-        MeaninglessBits++;
-      }
-      // Gets the correct exponent
-      Exponent -= (MeaninglessBits - 1);
-
-      // If the float value is denormalized, then exponent = 0
-      // And the first 8 bits are meaningless
-      if (Exponent <= 0) {
-        Exponent = 0;
-        MeaninglessBits = 8;
-      }
-    }
-  }
-  // Second part of the calculations - get the half value
-
-  // Extract the sign from the bool value
-  const uint16_t Sign = (0x0001 & BSign) << 15;
-  // Extract the fraction from the FracValue
-  const uint32_t Frac32 = (FracVal << (MeaninglessBits)) >> (64 - 23);
-  // Extract the exponent from the int exponent
-  const uint8_t Exp32 = Exponent;
-  const int16_t Exp32Diff = Exp32 - 127;*/
-
   const uint32_t Bits = sycl::bit_cast<uint32_t>(Val);
 
   // Extract the sign from the float value
@@ -164,7 +94,7 @@ inline __SYCL_CONSTEXPR uint16_t float2Half(const float &Val) {
 
 inline __SYCL_CONSTEXPR float half2Float(const uint16_t &Val) {
   // Extract the sign from the bits. It is 1 if the sign is negative
-  const uint32_t Sign = static_cast<uint32_t>(Val & 0x8000) >> 15;
+  const uint32_t Sign = static_cast<uint32_t>(Val & 0x8000) << 16;
   // Extract the exponent from the bits
   const uint8_t Exp16 = (Val & 0x7c00) >> 10;
   // Extract the fraction from the bits
@@ -200,50 +130,6 @@ inline __SYCL_CONSTEXPR float half2Float(const uint16_t &Val) {
   Bits |= Frac32;
   const float Result = sycl::bit_cast<float>(Bits);
   return Result;
-  /*if (__builtin_expect(Exp32 == 255, 0)){
-    if (Frac32 != 0)
-      return std::numeric_limits<float>::quiet_NaN();
-    else if (Sign == 0)
-      return std::numeric_limits<float>::infinity();
-    else if (Sign == 1)
-      return -1 * std::numeric_limits<float>::infinity();
-  }
-  if (__builtin_expect(Exp32 == 0 && Frac32 == 0, 0))
-    return 0.0f;
-
-  // Compose the final float value
-  float Result = 1.0f;
-  int ExpDiff = Exp32 - 127;
-  // The exponent is 2 ^ Expdiff
-  float Exponent = 1.0f;
-
-  // Mult is the value by which the Exponent 
-  // will be multiplied abs(Expdiff) times
-  float Mult = 2.0f;
-  if (ExpDiff < 0) {
-    ExpDiff *= -1;
-    Mult = 0.5f;
-  }
-  for (int i = 0; i < ExpDiff; i++) {
-    Exponent *= Mult;
-  }
-  // The Fractional part is multiplyed only by 
-  // negative degree of two
-  Mult = 0.5f;
-  float Fractional = 1.0f;
-
-  for (int i = 0; i < 23; i++) {
-    bool bit = (Frac32 >> (22 - i)) & 0x1;
-    if (bit == 1)
-      Fractional += Mult;
-    Mult /= 2.0f;
-  }
-
-  Result = Result * Exponent * Fractional;
-  if (Sign == 1)
-    Result *= -1;
-
-  return Result;*/
 }
 
 namespace host_half_impl {
@@ -565,23 +451,23 @@ template <> struct numeric_limits<cl::sycl::half> {
   static constexpr bool is_iec559 = true;
   static constexpr float_round_style round_style = round_to_nearest;
 
-  static __SYCL_CONSTEXPR  const cl::sycl::half(min)() noexcept {
+  static constexpr const cl::sycl::half(min)() noexcept {
     return 6.103515625e-05f; // half minimum value
   }
 
-  static __SYCL_CONSTEXPR  const cl::sycl::half(max)() noexcept {
+  static constexpr const cl::sycl::half(max)() noexcept {
     return 65504.0f; // half maximum value
   }
 
-  static __SYCL_CONSTEXPR  const cl::sycl::half lowest() noexcept {
+  static constexpr const cl::sycl::half lowest() noexcept {
     return -65504.0f; // -1*(half maximum value)
   }
 
-  static __SYCL_CONSTEXPR  const cl::sycl::half epsilon() noexcept {
+  static constexpr const cl::sycl::half epsilon() noexcept {
     return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_CONSTEXPR  const cl::sycl::half
+  static constexpr const cl::sycl::half
   round_error() noexcept {
     return 0.5f;
   }
@@ -595,16 +481,16 @@ template <> struct numeric_limits<cl::sycl::half> {
 #endif
   }
 
-  static __SYCL_CONSTEXPR  const cl::sycl::half quiet_NaN() noexcept {
+  static constexpr const cl::sycl::half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static __SYCL_CONSTEXPR  const cl::sycl::half
+  static constexpr const cl::sycl::half
   signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static __SYCL_CONSTEXPR  const cl::sycl::half denorm_min() noexcept {
+  static constexpr const cl::sycl::half denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
