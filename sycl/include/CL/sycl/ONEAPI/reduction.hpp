@@ -94,7 +94,7 @@ using IsReduOptForFastAtomicFetch =
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
     bool_constant<((is_sgeninteger<T>::value &&
-                    (sizeof(T) == 32 || sizeof(T) == 64)) ||
+                    (sizeof(T) == 4 || sizeof(T) == 8)) ||
                    is_sgenfloat<T>::value) &&
                   (IsReduPlus<T, BinaryOperation>::value ||
                    IsReduMinimum<T, BinaryOperation>::value ||

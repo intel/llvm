@@ -364,8 +364,13 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   // encoding.
   setOperationPromotedToType(ISD::CTTZ           , MVT::i8   , MVT::i32);
   setOperationPromotedToType(ISD::CTTZ_ZERO_UNDEF, MVT::i8   , MVT::i32);
-  if (!Subtarget.hasBMI()) {
-    setOperationAction(ISD::CTTZ           , MVT::i16  , Custom);
+
+  if (Subtarget.hasBMI()) {
+    // Promote the i16 zero undef variant and force it on up to i32 when tzcnt
+    // is enabled.
+    setOperationPromotedToType(ISD::CTTZ_ZERO_UNDEF, MVT::i16, MVT::i32);
+  } else {
+    setOperationAction(ISD::CTTZ, MVT::i16, Custom);
     setOperationAction(ISD::CTTZ           , MVT::i32  , Custom);
     setOperationAction(ISD::CTTZ_ZERO_UNDEF, MVT::i16  , Legal);
     setOperationAction(ISD::CTTZ_ZERO_UNDEF, MVT::i32  , Legal);
@@ -2484,7 +2489,7 @@ static bool hasStackGuardSlotTLS(const Triple &TargetTriple) {
 }
 
 static Constant* SegmentOffset(IRBuilder<> &IRB,
-                               unsigned Offset, unsigned AddressSpace) {
+                               int Offset, unsigned AddressSpace) {
   return ConstantExpr::getIntToPtr(
       ConstantInt::get(Type::getInt32Ty(IRB.getContext()), Offset),
       Type::getInt8PtrTy(IRB.getContext())->getPointerTo(AddressSpace));
@@ -2501,11 +2506,11 @@ Value *X86TargetLowering::getIRStackGuard(IRBuilder<> &IRB) const {
     } else {
       unsigned AddressSpace = getAddressSpace();
       // Specially, some users may customize the base reg and offset.
-      unsigned Offset = getTargetMachine().Options.StackProtectorGuardOffset;
+      int Offset = getTargetMachine().Options.StackProtectorGuardOffset;
       // If we don't set -stack-protector-guard-offset value:
       // %fs:0x28, unless we're using a Kernel code model, in which case
       // it's %gs:0x28.  gs:0x14 on i386.
-      if (Offset == (unsigned)-1)
+      if (Offset == INT_MAX)
         Offset = (Subtarget.is64Bit()) ? 0x28 : 0x14;
 
       const auto &GuardReg = getTargetMachine().Options.StackProtectorGuardReg;
@@ -2576,7 +2581,7 @@ Value *X86TargetLowering::getSafeStackPointerLocation(IRBuilder<> &IRB) const {
   if (Subtarget.isTargetAndroid()) {
     // %fs:0x48, unless we're using a Kernel code model, in which case it's %gs:
     // %gs:0x24 on i386
-    unsigned Offset = (Subtarget.is64Bit()) ? 0x48 : 0x24;
+    int Offset = (Subtarget.is64Bit()) ? 0x48 : 0x24;
     return SegmentOffset(IRB, Offset, getAddressSpace());
   }
 
@@ -21534,7 +21539,8 @@ X86TargetLowering::LowerFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const {
   if (!isScalarFPTypeInSSEReg(SrcVT))
     return SDValue();
 
-  unsigned SatWidth = Node->getConstantOperandVal(1);
+  EVT SatVT = cast<VTSDNode>(Node->getOperand(1))->getVT();
+  unsigned SatWidth = SatVT.getScalarSizeInBits();
   unsigned DstWidth = DstVT.getScalarSizeInBits();
   unsigned TmpWidth = TmpVT.getScalarSizeInBits();
   assert(SatWidth <= DstWidth && SatWidth <= TmpWidth &&
@@ -51922,9 +51928,10 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   return Res;
 }
 
-int X86TargetLowering::getScalingFactorCost(const DataLayout &DL,
-                                            const AddrMode &AM, Type *Ty,
-                                            unsigned AS) const {
+InstructionCost X86TargetLowering::getScalingFactorCost(const DataLayout &DL,
+                                                        const AddrMode &AM,
+                                                        Type *Ty,
+                                                        unsigned AS) const {
   // Scaling factors are not free at all.
   // An indexed folded instruction, i.e., inst (reg1, reg2, scale),
   // will take 2 allocations in the out of order engine instead of 1

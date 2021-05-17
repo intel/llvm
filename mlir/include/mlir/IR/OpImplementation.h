@@ -113,6 +113,13 @@ public:
   virtual void printAffineMapOfSSAIds(AffineMapAttr mapAttr,
                                       ValueRange operands) = 0;
 
+  /// Prints an affine expression of SSA ids with SSA id names used instead of
+  /// dims and symbols.
+  /// Operand values must come from single-result sources, and be valid
+  /// dimensions/symbol identifiers according to mlir::isValidDim/Symbol.
+  virtual void printAffineExprOfSSAIds(AffineExpr expr, ValueRange dimOperands,
+                                       ValueRange symOperands) = 0;
+
   /// Print an optional arrow followed by a type list.
   template <typename TypeRange>
   void printOptionalArrowTypeList(TypeRange &&types) {
@@ -680,6 +687,14 @@ public:
                          StringRef attrName, NamedAttrList &attrs,
                          Delimiter delimiter = Delimiter::Square) = 0;
 
+  /// Parses an affine expression where dims and symbols are SSA operands.
+  /// Operand values must come from single-result sources, and be valid
+  /// dimensions/symbol identifiers according to mlir::isValidDim/Symbol.
+  virtual ParseResult
+  parseAffineExprOfSSAIds(SmallVectorImpl<OperandType> &dimOperands,
+                          SmallVectorImpl<OperandType> &symbOperands,
+                          AffineExpr &expr) = 0;
+
   //===--------------------------------------------------------------------===//
   // Region Parsing
   //===--------------------------------------------------------------------===//
@@ -834,6 +849,22 @@ public:
   parseOptionalAssignmentList(SmallVectorImpl<OperandType> &lhs,
                               SmallVectorImpl<OperandType> &rhs) = 0;
 
+  /// Parse a list of assignments of the form
+  ///   (%x1 = %y1 : type1, %x2 = %y2 : type2, ...)
+  ParseResult parseAssignmentListWithTypes(SmallVectorImpl<OperandType> &lhs,
+                                           SmallVectorImpl<OperandType> &rhs,
+                                           SmallVectorImpl<Type> &types) {
+    OptionalParseResult result =
+        parseOptionalAssignmentListWithTypes(lhs, rhs, types);
+    if (!result.hasValue())
+      return emitError(getCurrentLocation(), "expected '('");
+    return result.getValue();
+  }
+
+  virtual OptionalParseResult
+  parseOptionalAssignmentListWithTypes(SmallVectorImpl<OperandType> &lhs,
+                                       SmallVectorImpl<OperandType> &rhs,
+                                       SmallVectorImpl<Type> &types) = 0;
   /// Parse a keyword followed by a type.
   ParseResult parseKeywordType(const char *keyword, Type &result) {
     return failure(parseKeyword(keyword) || parseType(result));

@@ -6,7 +6,7 @@
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -O0 -g
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <iostream>
 #include <string>
 
