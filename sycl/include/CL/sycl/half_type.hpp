@@ -36,16 +36,25 @@
 #endif
 
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
-#define __SYCL_CONSTEXPR constexpr
+#define __SYCL_CONSTEXPR_ON_HOST constexpr
 #else
+#define __SYCL_CONSTEXPR_ON_HOST
+#endif
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_CONSTEXPR constexpr
+#elif __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+#define __SYCL_CONSTEXPR constexpr
+#else 
 #define __SYCL_CONSTEXPR
 #endif
+
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-inline __SYCL_CONSTEXPR uint16_t float2Half(const float &Val) {
+inline __SYCL_CONSTEXPR_ON_HOST uint16_t float2Half(const float &Val) {
   const uint32_t Bits = sycl::bit_cast<uint32_t>(Val);
 
   // Extract the sign from the float value
@@ -91,7 +100,7 @@ inline __SYCL_CONSTEXPR uint16_t float2Half(const float &Val) {
   return Ret;
 }
 
-inline __SYCL_CONSTEXPR float half2Float(const uint16_t &Val) {
+inline __SYCL_CONSTEXPR_ON_HOST float half2Float(const uint16_t &Val) {
   // Extract the sign from the bits. It is 1 if the sign is negative
   const uint32_t Sign = static_cast<uint32_t>(Val & 0x8000) << 16;
   // Extract the exponent from the bits
@@ -201,49 +210,49 @@ public:
   constexpr half_new(const half_new &) = default;
   constexpr half_new(half_new &&) = default;
 
-  __SYCL_CONSTEXPR half_new(const float &rhs) : Buf(float2Half(rhs)) {}
+  __SYCL_CONSTEXPR_ON_HOST half_new(const float &rhs) : Buf(float2Half(rhs)) {}
 
   // Operator +=, -=, *=, /=
   constexpr half_new &operator=(const half_new &rhs) = default;
 
-  __SYCL_CONSTEXPR half_new &operator+=(const half_new &rhs) {
+  __SYCL_CONSTEXPR_ON_HOST half_new &operator+=(const half_new &rhs) {
     *this = operator float() + static_cast<float>(rhs);
     return *this;
   }
 
-  __SYCL_CONSTEXPR half_new &operator-=(const half_new &rhs) {
+  __SYCL_CONSTEXPR_ON_HOST half_new &operator-=(const half_new &rhs) {
     *this = operator float() - static_cast<float>(rhs);
     return *this;
   }
 
-  __SYCL_CONSTEXPR half_new &operator*=(const half_new &rhs) {
+  __SYCL_CONSTEXPR_ON_HOST half_new &operator*=(const half_new &rhs) {
     *this = operator float() * static_cast<float>(rhs);
     return *this;
   }
 
-  __SYCL_CONSTEXPR half_new &operator/=(const half_new &rhs) {
+  __SYCL_CONSTEXPR_ON_HOST half_new &operator/=(const half_new &rhs) {
     *this = operator float() / static_cast<float>(rhs);
     return *this;
   }
 
   // Operator ++, --
-  __SYCL_CONSTEXPR half_new &operator++() {
+  __SYCL_CONSTEXPR_ON_HOST half_new &operator++() {
     *this += 1;
     return *this;
   }
 
-  __SYCL_CONSTEXPR half_new operator++(int) {
+  __SYCL_CONSTEXPR_ON_HOST half_new operator++(int) {
     half_new ret(*this);
     operator++();
     return ret;
   }
 
-  __SYCL_CONSTEXPR half_new &operator--() {
+  __SYCL_CONSTEXPR_ON_HOST half_new &operator--() {
     *this -= 1;
     return *this;
   }
 
-  __SYCL_CONSTEXPR half_new operator--(int) {
+  __SYCL_CONSTEXPR_ON_HOST half_new operator--(int) {
     half_new ret(*this);
     operator--();
     return ret;
@@ -256,7 +265,7 @@ public:
   }
 
   // Operator float
-  __SYCL_CONSTEXPR operator float() const { return half2Float(Buf); }
+  __SYCL_CONSTEXPR_ON_HOST operator float() const { return half2Float(Buf); }
 
   template <typename Key> friend struct std::hash;
 
@@ -335,44 +344,44 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
   // Operator +=, -=, *=, /=
-  __SYCL_CONSTEXPR half &operator+=(const half &rhs) {
+  __SYCL_CONSTEXPR_ON_HOST half &operator+=(const half &rhs) {
     Data += rhs.Data;
     return *this;
   }
 
-  __SYCL_CONSTEXPR half &operator-=(const half &rhs) {
+  __SYCL_CONSTEXPR_ON_HOST half &operator-=(const half &rhs) {
     Data -= rhs.Data;
     return *this;
   }
 
-  __SYCL_CONSTEXPR half &operator*=(const half &rhs) {
+  __SYCL_CONSTEXPR_ON_HOST half &operator*=(const half &rhs) {
     Data *= rhs.Data;
     return *this;
   }
 
-  __SYCL_CONSTEXPR half &operator/=(const half &rhs) {
+  __SYCL_CONSTEXPR_ON_HOST half &operator/=(const half &rhs) {
     Data /= rhs.Data;
     return *this;
   }
 
   // Operator ++, --
-  __SYCL_CONSTEXPR half &operator++() {
+  __SYCL_CONSTEXPR_ON_HOST half &operator++() {
     *this += 1;
     return *this;
   }
 
-  __SYCL_CONSTEXPR half operator++(int) {
+  __SYCL_CONSTEXPR_ON_HOST half operator++(int) {
     half ret(*this);
     operator++();
     return ret;
   }
 
-  __SYCL_CONSTEXPR half &operator--() {
+  __SYCL_CONSTEXPR_ON_HOST half &operator--() {
     *this -= 1;
     return *this;
   }
 
-  __SYCL_CONSTEXPR half operator--(int) {
+  __SYCL_CONSTEXPR_ON_HOST half operator--(int) {
     half ret(*this);
     operator--();
     return ret;
@@ -386,7 +395,7 @@ public:
     return -r;
   }
   // Operator float
-  __SYCL_CONSTEXPR operator float() const { return static_cast<float>(Data); }
+  __SYCL_CONSTEXPR_ON_HOST operator float() const { return static_cast<float>(Data); }
 
   template <typename Key> friend struct std::hash;
 private:
@@ -450,23 +459,24 @@ template <> struct numeric_limits<cl::sycl::half> {
   static constexpr bool is_iec559 = true;
   static constexpr float_round_style round_style = round_to_nearest;
 
-  static constexpr const cl::sycl::half(min)() noexcept {
+  static __SYCL_CONSTEXPR const cl::sycl::half(min)() noexcept {
     return 6.103515625e-05f; // half minimum value
   }
 
-  static constexpr const cl::sycl::half(max)() noexcept {
+  static __SYCL_CONSTEXPR const cl::sycl::half(max)() noexcept {
     return 65504.0f; // half maximum value
   }
 
-  static constexpr const cl::sycl::half lowest() noexcept {
+  static __SYCL_CONSTEXPR const cl::sycl::half lowest() noexcept {
     return -65504.0f; // -1*(half maximum value)
   }
 
-  static constexpr const cl::sycl::half epsilon() noexcept {
+  static __SYCL_CONSTEXPR const cl::sycl::half epsilon() noexcept {
     return 9.765625e-04f; // half epsilon
   }
 
-  static constexpr const cl::sycl::half round_error() noexcept { return 0.5f; }
+  static __SYCL_CONSTEXPR const cl::sycl::half
+  round_error() noexcept { return 0.5f; }
 
   static constexpr const cl::sycl::half infinity() noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -477,15 +487,15 @@ template <> struct numeric_limits<cl::sycl::half> {
 #endif
   }
 
-  static constexpr const cl::sycl::half quiet_NaN() noexcept {
+  static __SYCL_CONSTEXPR const cl::sycl::half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static constexpr const cl::sycl::half signaling_NaN() noexcept {
+  static __SYCL_CONSTEXPR const cl::sycl::half signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static constexpr const cl::sycl::half denorm_min() noexcept {
+  static __SYCL_CONSTEXPR const cl::sycl::half denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
@@ -504,6 +514,7 @@ inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
   return I;
 }
 
-#undef __SYCL_CONSTEXPR_ON_DEVICE
 #undef __SYCL_CONSTEXPR
+#undef __SYCL_CONSTEXPR_ON_DEVICE
+#undef __SYCL_CONSTEXPR_ON_HOST
 #undef _CPP14_CONSTEXPR
