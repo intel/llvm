@@ -587,6 +587,9 @@ static string_vector saveDeviceImageProperty(
     // properties have been written.
     SmallVector<std::string, 4> MetadataNames;
     if (ImgPSInfo.EmitProgramMetadata) {
+      auto &ProgramMetadata =
+          PropSet[llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA];
+
       // Add reqd_work_group_size information to program metadata
       for (const Function &Func : ResultModules[I]->functions()) {
         std::vector<uint32_t> KernelReqdWorkGroupSize =
@@ -594,8 +597,7 @@ static string_vector saveDeviceImageProperty(
         if (KernelReqdWorkGroupSize.empty())
           continue;
         MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
-        PropSet[llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA].insert(
-            {MetadataNames[MetadataNames.size() - 1], KernelReqdWorkGroupSize});
+        ProgramMetadata.insert({MetadataNames.back(), KernelReqdWorkGroupSize});
       }
     }
 

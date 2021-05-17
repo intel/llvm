@@ -113,7 +113,7 @@ Error SimpleTable::updateCellValue(int Row, StringRef ColName,
                                    StringRef NewValue) {
   if (getNumColumns() == 0)
     return makeError("empty table");
-  if (Row > getNumRows())
+  if (Row > getNumRows() || Row < 0)
     return makeError("row index out of bounds");
   Rows[Row][getColumnId(ColName)] = NewValue.str();
   return Error::success();
