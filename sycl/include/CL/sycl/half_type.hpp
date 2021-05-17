@@ -308,7 +308,7 @@ using BIsRepresentationT = half;
 template <int NumElements> struct half_vec {
   alignas(detail::vector_alignment<StorageT, NumElements>::value)
       std::array<StorageT, NumElements> s;
-  };
+};
 
   using Vec2StorageT = half_vec<2>;
   using Vec3StorageT = half_vec<3>;
