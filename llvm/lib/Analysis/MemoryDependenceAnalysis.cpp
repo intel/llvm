@@ -515,7 +515,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
         // If we have a partial alias, then return this as a clobber for the
         // client to handle.
         if (R == AliasResult::PartialAlias && R.hasOffset()) {
-          ClobberOffset = R.getOffset();
+          ClobberOffsets[LI] = R.getOffset();
           return MemDepResult::getClobber(Inst);
         }
 
@@ -636,7 +636,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
 }
 
 MemDepResult MemoryDependenceResults::getDependency(Instruction *QueryInst) {
-  ClobberOffset = None;
+  ClobberOffsets.clear();
   Instruction *ScanPos = QueryInst;
 
   // Check for a cached result

@@ -1910,6 +1910,7 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
   bool SawReturned = false;
   bool SawSRet = false;
   bool SawSwiftSelf = false;
+  bool SawSwiftAsync = false;
   bool SawSwiftError = false;
 
   // Verify return value attributes.
@@ -1924,11 +1925,12 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
           !RetAttrs.hasAttribute(Attribute::Preallocated) &&
           !RetAttrs.hasAttribute(Attribute::ByRef) &&
           !RetAttrs.hasAttribute(Attribute::SwiftSelf) &&
+          !RetAttrs.hasAttribute(Attribute::SwiftAsync) &&
           !RetAttrs.hasAttribute(Attribute::SwiftError)),
          "Attributes 'byval', 'inalloca', 'preallocated', 'byref', "
          "'nest', 'sret', 'nocapture', 'nofree', "
-         "'returned', 'swiftself', and 'swifterror' do not apply to return "
-         "values!",
+         "'returned', 'swiftself', 'swiftasync', and 'swifterror'"
+         " do not apply to return values!",
          V);
   Assert((!RetAttrs.hasAttribute(Attribute::ReadOnly) &&
           !RetAttrs.hasAttribute(Attribute::WriteOnly) &&
@@ -1974,6 +1976,11 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     if (ArgAttrs.hasAttribute(Attribute::SwiftSelf)) {
       Assert(!SawSwiftSelf, "Cannot have multiple 'swiftself' parameters!", V);
       SawSwiftSelf = true;
+    }
+
+    if (ArgAttrs.hasAttribute(Attribute::SwiftAsync)) {
+      Assert(!SawSwiftAsync, "Cannot have multiple 'swiftasync' parameters!", V);
+      SawSwiftAsync = true;
     }
 
     if (ArgAttrs.hasAttribute(Attribute::SwiftError)) {
@@ -2779,6 +2786,8 @@ void Verifier::visitIndirectBrInst(IndirectBrInst &BI) {
 void Verifier::visitCallBrInst(CallBrInst &CBI) {
   Assert(CBI.isInlineAsm(), "Callbr is currently only used for asm-goto!",
          &CBI);
+  const InlineAsm *IA = cast<InlineAsm>(CBI.getCalledOperand());
+  Assert(!IA->canThrow(), "Unwinding from Callbr is not allowed");
   for (unsigned i = 0, e = CBI.getNumSuccessors(); i != e; ++i)
     Assert(CBI.getSuccessor(i)->getType()->isLabelTy(),
            "Callbr successors must all have pointer type!", &CBI);
@@ -3368,9 +3377,10 @@ static bool isTypeCongruent(Type *L, Type *R) {
 
 static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
   static const Attribute::AttrKind ABIAttrs[] = {
-      Attribute::StructRet,    Attribute::ByVal,     Attribute::InAlloca,
-      Attribute::InReg,        Attribute::SwiftSelf, Attribute::SwiftError,
-      Attribute::Preallocated, Attribute::ByRef,     Attribute::StackAlignment};
+      Attribute::StructRet,  Attribute::ByVal,      Attribute::InAlloca,
+      Attribute::InReg,      Attribute::SwiftSelf,  Attribute::SwiftAsync,
+      Attribute::SwiftError, Attribute::SwiftAsync, Attribute::Preallocated,
+      Attribute::ByRef};
   AttrBuilder Copy;
   for (auto AK : ABIAttrs) {
     if (Attrs.hasParamAttribute(I, AK))
@@ -3831,10 +3841,6 @@ void Verifier::visitAtomicCmpXchgInst(AtomicCmpXchgInst &CXI) {
          "cmpxchg instructions cannot be unordered.", &CXI);
   Assert(CXI.getFailureOrdering() != AtomicOrdering::Unordered,
          "cmpxchg instructions cannot be unordered.", &CXI);
-  Assert(!isStrongerThan(CXI.getFailureOrdering(), CXI.getSuccessOrdering()),
-         "cmpxchg instructions failure argument shall be no stronger than the "
-         "success argument",
-         &CXI);
   Assert(CXI.getFailureOrdering() != AtomicOrdering::Release &&
              CXI.getFailureOrdering() != AtomicOrdering::AcquireRelease,
          "cmpxchg failure ordering cannot include release semantics", &CXI);

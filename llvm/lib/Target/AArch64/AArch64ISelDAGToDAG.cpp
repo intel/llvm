@@ -335,6 +335,8 @@ private:
   bool SelectSVEArithImm(SDValue N, MVT VT, SDValue &Imm);
   bool SelectSVERegRegAddrMode(SDValue N, unsigned Scale, SDValue &Base,
                                SDValue &Offset);
+
+  bool SelectAllActivePredicate(SDValue N);
 };
 } // end anonymous namespace
 
@@ -3098,20 +3100,32 @@ bool AArch64DAGToDAGISel::SelectSVE8BitLslImm(SDValue N, SDValue &Base,
 
 bool AArch64DAGToDAGISel::SelectSVEAddSubImm(SDValue N, MVT VT, SDValue &Imm, SDValue &Shift) {
   if (auto CNode = dyn_cast<ConstantSDNode>(N)) {
-    const int64_t ImmVal = CNode->getZExtValue();
+    const int64_t ImmVal = CNode->getSExtValue();
     SDLoc DL(N);
 
     switch (VT.SimpleTy) {
     case MVT::i8:
+      // Can always select i8s, no shift, mask the immediate value to
+      // deal with sign-extended value from lowering.
+      Shift = CurDAG->getTargetConstant(0, DL, MVT::i32);
+      Imm = CurDAG->getTargetConstant(ImmVal & 0xFF, DL, MVT::i32);
+      return true;
+    case MVT::i16:
+      // i16 values get sign-extended to 32-bits during lowering.
       if ((ImmVal & 0xFF) == ImmVal) {
         Shift = CurDAG->getTargetConstant(0, DL, MVT::i32);
         Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
         return true;
+      } else if ((ImmVal & 0xFF) == 0) {
+        assert((ImmVal >= -32768) && (ImmVal <= 32512));
+        Shift = CurDAG->getTargetConstant(8, DL, MVT::i32);
+        Imm = CurDAG->getTargetConstant((ImmVal >> 8) & 0xFF, DL, MVT::i32);
+        return true;
       }
       break;
-    case MVT::i16:
     case MVT::i32:
     case MVT::i64:
+      // Range of immediate won't trigger signedness problems for 32/64b.
       if ((ImmVal & 0xFF) == ImmVal) {
         Shift = CurDAG->getTargetConstant(0, DL, MVT::i32);
         Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
@@ -3887,6 +3901,18 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       if (tryMULLV64LaneV128(IntNo, Node))
         return;
       break;
+    case Intrinsic::swift_async_context_addr: {
+      SDLoc DL(Node);
+      CurDAG->SelectNodeTo(Node, AArch64::SUBXri, MVT::i64,
+                           CurDAG->getCopyFromReg(CurDAG->getEntryNode(), DL,
+                                                  AArch64::FP, MVT::i64),
+                           CurDAG->getTargetConstant(8, DL, MVT::i32),
+                           CurDAG->getTargetConstant(0, DL, MVT::i32));
+      auto &MF = CurDAG->getMachineFunction();
+      MF.getFrameInfo().setFrameAddressIsTaken(true);
+      MF.getInfo<AArch64FunctionInfo>()->setHasSwiftAsyncContext(true);
+      return;
+    }
     }
     break;
   }
@@ -4982,4 +5008,11 @@ bool AArch64DAGToDAGISel::SelectSVERegRegAddrMode(SDValue N, unsigned Scale,
     }
 
   return false;
+}
+
+bool AArch64DAGToDAGISel::SelectAllActivePredicate(SDValue N) {
+  const AArch64TargetLowering *TLI =
+      static_cast<const AArch64TargetLowering *>(getTargetLowering());
+
+  return TLI->isAllActivePredicate(N);
 }

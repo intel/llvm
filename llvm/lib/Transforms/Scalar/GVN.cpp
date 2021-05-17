@@ -1002,11 +1002,10 @@ bool GVN::AnalyzeLoadAvailability(LoadInst *Load, MemDepResult DepInfo,
         Type *LoadType = Load->getType();
         int Offset = -1;
 
-        // If Memory Dependence Analysis reported clobber check, it was nested
-        // and can be extracted from the MD result
+        // If MD reported clobber, check it was nested.
         if (DepInfo.isClobber() &&
             canCoerceMustAliasedValueToLoad(DepLoad, LoadType, DL)) {
-          const auto ClobberOff = MD->getClobberOffset();
+          const auto ClobberOff = MD->getClobberOffset(DepLoad);
           // GVN has no deal with a negative offset.
           Offset = (ClobberOff == None || ClobberOff.getValue() < 0)
                        ? -1

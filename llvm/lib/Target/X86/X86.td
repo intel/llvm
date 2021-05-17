@@ -514,6 +514,10 @@ def FeatureFastVectorShiftMasks
         "fast-vector-shift-masks", "HasFastVectorShiftMasks", "true",
         "Prefer a left/right vector logical shift pair over a shift+and pair">;
 
+def FeatureFastMOVBE
+    : SubtargetFeature<"fast-movbe", "HasFastMOVBE", "true",
+    "Prefer a movbe over a single-use load + bswap / single-use bswap + store">;
+
 def FeatureUseGLMDivSqrtCosts
     : SubtargetFeature<"use-glm-div-sqrt-costs", "UseGLMDivSqrtCosts", "true",
         "Use Goldmont specific floating point div/sqrt costs">;
@@ -555,6 +559,7 @@ include "X86SchedBroadwell.td"
 include "X86ScheduleSLM.td"
 include "X86ScheduleZnver1.td"
 include "X86ScheduleZnver2.td"
+include "X86ScheduleZnver3.td"
 include "X86ScheduleBdVer2.td"
 include "X86ScheduleBtVer2.td"
 include "X86SchedSkylakeClient.td"
@@ -819,6 +824,7 @@ def ProcessorFeatures {
                                       FeatureSlowDivide64,
                                       FeatureSlowPMULLD,
                                       FeatureFast7ByteNOP,
+                                      FeatureFastMOVBE,
                                       FeaturePOPCNTFalseDeps,
                                       FeatureInsertVZEROUPPER];
   list<SubtargetFeature> SLMFeatures =
@@ -838,6 +844,7 @@ def ProcessorFeatures {
                                       FeatureSlowTwoMemOps,
                                       FeatureSlowLEA,
                                       FeatureSlowIncDec,
+                                      FeatureFastMOVBE,
                                       FeaturePOPCNTFalseDeps,
                                       FeatureInsertVZEROUPPER];
   list<SubtargetFeature> GLMFeatures =
@@ -850,6 +857,7 @@ def ProcessorFeatures {
                                       FeatureSlowTwoMemOps,
                                       FeatureSlowLEA,
                                       FeatureSlowIncDec,
+                                      FeatureFastMOVBE,
                                       FeatureInsertVZEROUPPER];
   list<SubtargetFeature> GLPFeatures =
     !listconcat(GLMFeatures, GLPAdditionalFeatures);
@@ -923,6 +931,7 @@ def ProcessorFeatures {
                                       FeatureSlowTwoMemOps,
                                       FeaturePreferMaskRegisters,
                                       FeatureHasFastGather,
+                                      FeatureFastMOVBE,
                                       FeatureSlowPMADDWD];
   // TODO Add AVX5124FMAPS/AVX5124VNNIW features
   list<SubtargetFeature> KNMFeatures =
@@ -982,6 +991,7 @@ def ProcessorFeatures {
                                          FeatureFast15ByteNOP,
                                          FeatureFastScalarShiftMasks,
                                          FeatureFastVectorShiftMasks,
+                                         FeatureFastMOVBE,
                                          FeatureSlowSHLD];
   list<SubtargetFeature> BtVer2Features =
     !listconcat(BtVer1Features, BtVer2AdditionalFeatures);
@@ -1016,7 +1026,9 @@ def ProcessorFeatures {
                                                      FeatureTBM,
                                                      FeatureFMA,
                                                      FeatureFastBEXTR];
-  list<SubtargetFeature> BdVer2Tuning = BdVer1Tuning;
+  list<SubtargetFeature> BdVer2AdditionalTuning = [FeatureFastMOVBE];
+  list<SubtargetFeature> BdVer2Tuning =
+    !listconcat(BdVer1Tuning, BdVer2AdditionalTuning);
   list<SubtargetFeature> BdVer2Features =
     !listconcat(BdVer1Features, BdVer2AdditionalFeatures);
 
@@ -1076,6 +1088,7 @@ def ProcessorFeatures {
                                      FeatureFast15ByteNOP,
                                      FeatureBranchFusion,
                                      FeatureFastScalarShiftMasks,
+                                     FeatureFastMOVBE,
                                      FeatureSlowSHLD,
                                      FeatureInsertVZEROUPPER];
   list<SubtargetFeature> ZN2AdditionalFeatures = [FeatureCLWB,
@@ -1382,7 +1395,7 @@ def : ProcModel<"znver1", Znver1Model, ProcessorFeatures.ZNFeatures,
                 ProcessorFeatures.ZNTuning>;
 def : ProcModel<"znver2", Znver2Model, ProcessorFeatures.ZN2Features,
                 ProcessorFeatures.ZN2Tuning>;
-def : ProcModel<"znver3", Znver2Model, ProcessorFeatures.ZN3Features,
+def : ProcModel<"znver3", Znver3Model, ProcessorFeatures.ZN3Features,
                 ProcessorFeatures.ZN3Tuning>;
 
 def : Proc<"geode",           [FeatureX87, FeatureCMPXCHG8B, Feature3DNowA],

@@ -6027,8 +6027,8 @@ def SDTARMVST2    : SDTypeProfile<1, 5, [SDTCisPtrTy<0>, SDTCisPtrTy<1>, SDTCisV
 def SDTARMVST4    : SDTypeProfile<1, 7, [SDTCisPtrTy<0>, SDTCisPtrTy<1>, SDTCisVT<2, i32>, SDTCisVec<3>,
                                          SDTCisSameAs<3, 4>, SDTCisSameAs<3, 5>,
                                          SDTCisSameAs<3, 6>, SDTCisVT<7, i32>]>;
-def MVEVST2UPD       : SDNode<"ARMISD::VST2_UPD", SDTARMVST2, [SDNPHasChain]>;
-def MVEVST4UPD       : SDNode<"ARMISD::VST4_UPD", SDTARMVST4, [SDNPHasChain]>;
+def MVEVST2UPD       : SDNode<"ARMISD::VST2_UPD", SDTARMVST2, [SDNPHasChain, SDNPMemOperand]>;
+def MVEVST4UPD       : SDNode<"ARMISD::VST4_UPD", SDTARMVST4, [SDNPHasChain, SDNPMemOperand]>;
 
 multiclass MVE_vst24_patterns<int lanesize, ValueType VT> {
   foreach stage = [0,1] in
@@ -6863,6 +6863,30 @@ class MVE_WLSTP<string asm, bits<2> size>
   let Inst{10-1} = label{10-1};
   let isBranch = 1;
   let isTerminator = 1;
+}
+
+def SDT_MVEMEMCPYLOOPNODE
+    : SDTypeProfile<0, 3, [SDTCisPtrTy<0>, SDTCisPtrTy<1>, SDTCisVT<2, i32>]>;
+def MVE_MEMCPYLOOPNODE : SDNode<"ARMISD::MEMCPYLOOP", SDT_MVEMEMCPYLOOPNODE,
+                                [SDNPHasChain, SDNPMayStore, SDNPMayLoad]>;
+
+let usesCustomInserter = 1, hasNoSchedulingInfo = 1 in {
+  def MVE_MEMCPYLOOPINST : PseudoInst<(outs),
+        (ins rGPR:$dst, rGPR:$src, rGPR:$sz),
+        NoItinerary,
+        [(MVE_MEMCPYLOOPNODE rGPR:$dst, rGPR:$src, rGPR:$sz)]>;
+}
+
+def SDT_MVEMEMSETLOOPNODE
+    : SDTypeProfile<0, 3, [SDTCisPtrTy<0>, SDTCisVT<1, v16i8>, SDTCisVT<2, i32>]>;
+def MVE_MEMSETLOOPNODE : SDNode<"ARMISD::MEMSETLOOP", SDT_MVEMEMSETLOOPNODE,
+                                [SDNPHasChain, SDNPMayStore, SDNPMayLoad]>;
+
+let usesCustomInserter = 1, hasNoSchedulingInfo = 1 in {
+  def MVE_MEMSETLOOPINST : PseudoInst<(outs),
+        (ins rGPR:$dst, MQPR:$src, rGPR:$sz),
+        NoItinerary,
+        [(MVE_MEMSETLOOPNODE rGPR:$dst, MQPR:$src, rGPR:$sz)]>;
 }
 
 def MVE_DLSTP_8  : MVE_DLSTP<"dlstp.8",  0b00>;

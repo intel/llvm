@@ -80,16 +80,17 @@ public:
 // The header of the Mach-O file, which must have a file offset of zero.
 class MachHeaderSection : public SyntheticSection {
 public:
-  void addLoadCommand(LoadCommand *);
+  MachHeaderSection();
   bool isHidden() const override { return true; }
+  uint64_t getSize() const override;
+  void writeTo(uint8_t *buf) const override;
+
+  void addLoadCommand(LoadCommand *);
 
 protected:
-  MachHeaderSection();
   std::vector<LoadCommand *> loadCommands;
   uint32_t sizeOfCmds = 0;
 };
-
-template <class LP> MachHeaderSection *makeMachHeaderSection();
 
 // A hidden section that exists solely for the purpose of creating the
 // __PAGEZERO segment, which is used to catch null pointer dereferences.
@@ -121,6 +122,10 @@ public:
   void writeTo(uint8_t *buf) const override;
 
   void addEntry(Symbol *sym);
+
+  uint64_t getVA(uint32_t gotIndex) const {
+    return addr + gotIndex * target->wordSize;
+  }
 
 private:
   llvm::SetVector<const Symbol *> entries;
@@ -284,11 +289,21 @@ public:
   StubsSection();
   uint64_t getSize() const override;
   bool isNeeded() const override { return !entries.empty(); }
+  void finalize() override;
   void writeTo(uint8_t *buf) const override;
   const llvm::SetVector<Symbol *> &getEntries() const { return entries; }
   // Returns whether the symbol was added. Note that every stubs entry will
   // have a corresponding entry in the LazyPointerSection.
   bool addEntry(Symbol *);
+  uint64_t getVA(uint32_t stubsIndex) const {
+    // MergedOutputSection::finalize() can seek the address of a
+    // stub before its address is assigned. Before __stubs is
+    // finalized, return a contrived out-of-range address.
+    return isFinal ? addr + stubsIndex * target->stubSize
+                   : TargetInfo::outOfRangeVA;
+  }
+
+  bool isFinal = false; // is address assigned?
 
 private:
   llvm::SetVector<Symbol *> entries;

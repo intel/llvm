@@ -519,6 +519,7 @@ def Vector_ExtractOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -763,6 +764,9 @@ def Vector_InsertOp :
       return dest().getType().cast<VectorType>();
     }
   }];
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Vector_InsertSlicesOp :
@@ -1380,18 +1384,6 @@ def Vector_TransferReadOp :
       "ValueRange":$indices, "AffineMap":$permutationMap, "Value":$padding,
       "ArrayAttr":$inBounds)>
   ];
-
-  let extraClassDeclaration = [{
-    /// Return a new `result` map with `0` inserted in the proper positions so 
-    /// that vector.transfer_read `result` produces a vector of same element 
-    /// type as `vt` and shape `targetShape.
-    /// Assume that `map` is a permutation map for a vector.transfer_read op, 
-    /// `vt` the vector type produced by the vector.transfer_read and 
-    /// `targetShape` is the desired `targetShape` for a broadcast version of 
-    /// `vt`.
-    static AffineMap insertBroadcasts(AffineMap map, VectorType vt,
-                                      ArrayRef<int64_t> targetShape);
-  }];
 
   let hasFolder = 1;
 }

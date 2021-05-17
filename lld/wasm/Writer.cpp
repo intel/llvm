@@ -77,6 +77,7 @@ private:
   void calculateCustomSections();
   void calculateTypes();
   void createOutputSegments();
+  OutputSegment *createOutputSegment(StringRef name);
   void combineOutputSegments();
   void layoutMemory();
   void createHeader();
@@ -269,7 +270,7 @@ void Writer::layoutMemory() {
     log(formatv("mem: {0,-15} offset={1,-8} size={2,-8} align={3}", seg->name,
                 memoryPtr, seg->size, seg->alignment));
 
-    if (!config->relocatable && seg->name == ".tdata") {
+    if (!config->relocatable && seg->isTLS()) {
       if (config->sharedMemory) {
         auto *tlsSize = cast<DefinedGlobal>(WasmSym::tlsSize);
         setGlobalPtr(tlsSize, seg->size);
@@ -460,9 +461,7 @@ void Writer::populateTargetFeatures() {
 
     // Find TLS data segments
     auto isTLS = [](InputSegment *segment) {
-      StringRef name = segment->getName();
-      return segment->live &&
-             (name.startswith(".tdata") || name.startswith(".tbss"));
+      return segment->live && segment->isTLS();
     };
     tlsUsed = tlsUsed ||
               std::any_of(file->segments.begin(), file->segments.end(), isTLS);
@@ -559,7 +558,7 @@ static bool shouldImport(Symbol *sym) {
   if (isa<DataSymbol>(sym))
     return false;
 
-  if (config->relocatable ||
+  if ((config->isPic || config->relocatable) ||
       config->unresolvedSymbols == UnresolvedPolicy::ImportFuncs)
     return true;
   if (config->allowUndefinedSymbols.count(sym->getName()) != 0)
@@ -630,6 +629,12 @@ void Writer::calculateExports() {
     } else if (auto *e = dyn_cast<DefinedEvent>(sym)) {
       export_ = {name, WASM_EXTERNAL_EVENT, e->getEventIndex()};
     } else if (auto *d = dyn_cast<DefinedData>(sym)) {
+      if (d->segment && d->segment->isTLS()) {
+        // We can't currenly export TLS data symbols.
+        if (sym->isExportedExplicit())
+          error("TLS symbols cannot yet be exported: `" + toString(*sym) + "`");
+        continue;
+      }
       out.globalSec->dataAddressGlobals.push_back(d);
       export_ = {name, WASM_EXTERNAL_GLOBAL, globalIndex++};
     } else {
@@ -811,12 +816,12 @@ void Writer::assignIndexes() {
   out.tableSec->assignIndexes();
 }
 
-static StringRef getOutputDataSegmentName(StringRef name) {
-  // We only support one thread-local segment, so we must merge the segments
-  // despite --no-merge-data-segments.
-  // We also need to merge .tbss into .tdata so they share the same offsets.
-  if (name.startswith(".tdata") || name.startswith(".tbss"))
+static StringRef getOutputDataSegmentName(const InputSegment &seg) {
+  // We always merge .tbss and .tdata into a single TLS segment so all TLS
+  // symbols are be relative to single __tls_base.
+  if (seg.isTLS())
     return ".tdata";
+  StringRef name = seg.getName();
   if (!config->mergeDataSegments)
     return name;
   if (name.startswith(".text."))
@@ -830,29 +835,39 @@ static StringRef getOutputDataSegmentName(StringRef name) {
   return name;
 }
 
+OutputSegment *Writer::createOutputSegment(StringRef name) {
+  LLVM_DEBUG(dbgs() << "new segment: " << name << "\n");
+  OutputSegment *s = make<OutputSegment>(name);
+  if (config->sharedMemory)
+    s->initFlags = WASM_DATA_SEGMENT_IS_PASSIVE;
+  // Exported memories are guaranteed to be zero-initialized, so no need
+  // to emit data segments for bss sections.
+  // TODO: consider initializing bss sections with memory.fill
+  // instructions when memory is imported and bulk-memory is available.
+  if (!config->importMemory && !config->relocatable && name.startswith(".bss"))
+    s->isBss = true;
+  segments.push_back(s);
+  return s;
+}
+
 void Writer::createOutputSegments() {
   for (ObjFile *file : symtab->objectFiles) {
     for (InputSegment *segment : file->segments) {
       if (!segment->live)
         continue;
-      StringRef name = getOutputDataSegmentName(segment->getName());
-      OutputSegment *&s = segmentMap[name];
-      if (s == nullptr) {
-        LLVM_DEBUG(dbgs() << "new segment: " << name << "\n");
-        s = make<OutputSegment>(name);
-        if (config->sharedMemory)
-          s->initFlags = WASM_DATA_SEGMENT_IS_PASSIVE;
-        // Exported memories are guaranteed to be zero-initialized, so no need
-        // to emit data segments for bss sections.
-        // TODO: consider initializing bss sections with memory.fill
-        // instructions when memory is imported and bulk-memory is available.
-        if (!config->importMemory && !config->relocatable &&
-            name.startswith(".bss"))
-          s->isBss = true;
-        segments.push_back(s);
+      StringRef name = getOutputDataSegmentName(*segment);
+      OutputSegment *s = nullptr;
+      // When running in relocatable mode we can't merge segments that are part
+      // of comdat groups since the ultimate linker needs to be able exclude or
+      // include them individually.
+      if (config->relocatable && !segment->getComdatName().empty()) {
+        s = createOutputSegment(name);
+      } else {
+        if (segmentMap.count(name) == 0)
+          segmentMap[name] = createOutputSegment(name);
+        s = segmentMap[name];
       }
       s->addInputSegment(segment);
-      LLVM_DEBUG(dbgs() << "added data: " << name << ": " << s->size << "\n");
     }
   }
 
@@ -872,6 +887,11 @@ void Writer::createOutputSegments() {
 
   for (size_t i = 0; i < segments.size(); ++i)
     segments[i]->index = i;
+
+  // Merge MergeInputSections into a single MergeSyntheticSection.
+  LLVM_DEBUG(dbgs() << "-- finalize input semgments\n");
+  for (OutputSegment *seg : segments)
+    seg->finalizeInputSegments();
 }
 
 void Writer::combineOutputSegments() {
@@ -888,10 +908,11 @@ void Writer::combineOutputSegments() {
   OutputSegment *combined = nullptr;
   std::vector<OutputSegment *> new_segments;
   for (OutputSegment *s : segments) {
-    if (s->name == ".tdata") {
+    if (s->isTLS()) {
       new_segments.push_back(s);
     } else {
       if (!combined) {
+        LLVM_DEBUG(dbgs() << "created combined output segment: .data\n");
         combined = make<OutputSegment>(".data");
         combined->startVA = s->startVA;
         if (config->sharedMemory)
@@ -908,6 +929,8 @@ void Writer::combineOutputSegments() {
         combined->addInputSegment(inSeg);
 #ifndef NDEBUG
         uint64_t newVA = inSeg->getVA();
+        LLVM_DEBUG(dbgs() << "added input segment. name=" << inSeg->getName()
+                          << " oldVA=" << oldVA << " newVA=" << newVA << "\n");
         assert(oldVA == newVA);
 #endif
       }
@@ -934,7 +957,7 @@ static void createFunction(DefinedFunction *func, StringRef bodyContent) {
 
 bool Writer::needsPassiveInitialization(const OutputSegment *segment) {
   return segment->initFlags & WASM_DATA_SEGMENT_IS_PASSIVE &&
-         segment->name != ".tdata" && !segment->isBss;
+         !segment->isTLS() && !segment->isBss;
 }
 
 bool Writer::hasPassiveInitializedSegments() {

@@ -1103,17 +1103,27 @@ static ValueLatticeElement getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
   if (matchICmpOperand(Offset, RHS, Val, SwappedPred))
     return getValueFromSimpleICmpCondition(SwappedPred, LHS, Offset);
 
-  // If (Val & Mask) == C then all the masked bits are known and we can compute
-  // a value range based on that.
   const APInt *Mask, *C;
-  if (EdgePred == ICmpInst::ICMP_EQ &&
-      match(LHS, m_And(m_Specific(Val), m_APInt(Mask))) &&
+  if (match(LHS, m_And(m_Specific(Val), m_APInt(Mask))) &&
       match(RHS, m_APInt(C))) {
-    KnownBits Known;
-    Known.Zero = ~*C & *Mask;
-    Known.One = *C & *Mask;
-    return ValueLatticeElement::getRange(
-        ConstantRange::fromKnownBits(Known, /*IsSigned*/ false));
+    // If (Val & Mask) == C then all the masked bits are known and we can
+    // compute a value range based on that.
+    if (EdgePred == ICmpInst::ICMP_EQ) {
+      KnownBits Known;
+      Known.Zero = ~*C & *Mask;
+      Known.One = *C & *Mask;
+      return ValueLatticeElement::getRange(
+          ConstantRange::fromKnownBits(Known, /*IsSigned*/ false));
+    }
+    // If (Val & Mask) != 0 then the value must be larger than the lowest set
+    // bit of Mask.
+    if (EdgePred == ICmpInst::ICMP_NE && !Mask->isNullValue() &&
+        C->isNullValue()) {
+      unsigned BitWidth = Ty->getIntegerBitWidth();
+      return ValueLatticeElement::getRange(ConstantRange::getNonEmpty(
+          APInt::getOneBitSet(BitWidth, Mask->countTrailingZeros()),
+          APInt::getNullValue(BitWidth)));
+    }
   }
 
   return ValueLatticeElement::getOverdefined();
@@ -1165,13 +1175,6 @@ getValueFromConditionImpl(Value *Val, Value *Cond, bool isTrueDest,
   else
     return ValueLatticeElement::getOverdefined();
 
-  // Prevent infinite recursion if Cond references itself as in this example:
-  //  Cond: "%tmp4 = and i1 %tmp4, undef"
-  //    BL: "%tmp4 = and i1 %tmp4, undef"
-  //    BR: "i1 undef"
-  if (L == Cond || R == Cond)
-    return ValueLatticeElement::getOverdefined();
-
   // if (L && R) -> intersect L and R
   // if (!(L || R)) -> intersect L and R
   // if (L || R) -> union L and R
@@ -1191,9 +1194,14 @@ getValueFromConditionImpl(Value *Val, Value *Cond, bool isTrueDest,
 static ValueLatticeElement
 getValueFromCondition(Value *Val, Value *Cond, bool isTrueDest,
                       SmallDenseMap<Value*, ValueLatticeElement> &Visited) {
-  auto I = Visited.find(Cond);
-  if (I != Visited.end())
-    return I->second;
+  // Insert an Overdefined placeholder into the set to prevent
+  // infinite recursion if there exists IRs that use not
+  // dominated by its def as in this example:
+  //   "%tmp3 = or i1 undef, %tmp4"
+  //   "%tmp4 = or i1 undef, %tmp3"
+  auto Iter = Visited.try_emplace(Cond, ValueLatticeElement::getOverdefined());
+  if (!Iter.second)
+    return Iter.first->getSecond();
 
   auto Result = getValueFromConditionImpl(Val, Cond, isTrueDest, Visited);
   Visited[Cond] = Result;

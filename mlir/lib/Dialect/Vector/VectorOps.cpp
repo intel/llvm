@@ -333,6 +333,28 @@ static void print(OpAsmPrinter &p, ReductionOp op) {
   p << " : " << op.vector().getType() << " into " << op.dest().getType();
 }
 
+Value mlir::vector::getVectorReductionOp(AtomicRMWKind op, OpBuilder &builder,
+                                         Location loc, Value vector) {
+  Type scalarType = vector.getType().cast<ShapedType>().getElementType();
+  switch (op) {
+  case AtomicRMWKind::addf:
+  case AtomicRMWKind::addi:
+    return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
+                                               builder.getStringAttr("add"),
+                                               vector, ValueRange{});
+  case AtomicRMWKind::mulf:
+  case AtomicRMWKind::muli:
+    return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
+                                               builder.getStringAttr("mul"),
+                                               vector, ValueRange{});
+  // TODO: Add remaining reduction operations.
+  default:
+    (void)emitOptionalError(loc, "Reduction operation type not supported");
+    break;
+  }
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 // ContractionOp
 //===----------------------------------------------------------------------===//
@@ -850,8 +872,6 @@ static ParseResult parseExtractOp(OpAsmParser &parser, OperationState &result) {
 
 static LogicalResult verify(vector::ExtractOp op) {
   auto positionAttr = op.position().getValue();
-  if (positionAttr.empty())
-    return op.emitOpError("expected non-empty position attribute");
   if (positionAttr.size() > static_cast<unsigned>(op.getVectorType().getRank()))
     return op.emitOpError(
         "expected position attribute of rank smaller than vector rank");
@@ -1129,6 +1149,8 @@ static Value foldExtractFromShapeCast(ExtractOp extractOp) {
 }
 
 OpFoldResult ExtractOp::fold(ArrayRef<Attribute>) {
+  if (position().empty())
+    return vector();
   if (succeeded(foldExtractOpFromExtractChain(*this)))
     return getResult();
   if (succeeded(foldExtractOpFromTranspose(*this)))
@@ -1140,6 +1162,33 @@ OpFoldResult ExtractOp::fold(ArrayRef<Attribute>) {
   if (auto val = foldExtractFromShapeCast(*this))
     return val;
   return OpFoldResult();
+}
+
+namespace {
+
+// If extractOp is only removing unit dimensions it can be transformed to a
+// shapecast.
+class ExtractToShapeCast final : public OpRewritePattern<ExtractOp> {
+public:
+  using OpRewritePattern<ExtractOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ExtractOp extractOp,
+                                PatternRewriter &rewriter) const override {
+    auto dstVecType = extractOp.getResult().getType().dyn_cast<VectorType>();
+    if (!dstVecType || extractOp.getVectorType().getNumElements() !=
+                           dstVecType.getNumElements())
+      return failure();
+    rewriter.replaceOpWithNewOp<ShapeCastOp>(extractOp, dstVecType,
+                                             extractOp.vector());
+    return success();
+  }
+};
+
+} // namespace
+
+void ExtractOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.add<ExtractToShapeCast>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1508,8 +1557,6 @@ void InsertOp::build(OpBuilder &builder, OperationState &result, Value source,
 
 static LogicalResult verify(InsertOp op) {
   auto positionAttr = op.position().getValue();
-  if (positionAttr.empty())
-    return op.emitOpError("expected non-empty position attribute");
   auto destVectorType = op.getDestVectorType();
   if (positionAttr.size() > static_cast<unsigned>(destVectorType.getRank()))
     return op.emitOpError(
@@ -1534,6 +1581,42 @@ static LogicalResult verify(InsertOp op) {
                 "dest vector dimension";
   }
   return success();
+}
+
+namespace {
+
+// If insertOp is only inserting unit dimensions it can be transformed to a
+// shapecast.
+class InsertToShapeCast final : public OpRewritePattern<InsertOp> {
+public:
+  using OpRewritePattern<InsertOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(InsertOp insertOp,
+                                PatternRewriter &rewriter) const override {
+    auto srcVecType = insertOp.getSourceType().dyn_cast<VectorType>();
+    if (!srcVecType || insertOp.getDestVectorType().getNumElements() !=
+                           srcVecType.getNumElements())
+      return failure();
+    rewriter.replaceOpWithNewOp<ShapeCastOp>(
+        insertOp, insertOp.getDestVectorType(), insertOp.source());
+    return success();
+  }
+};
+
+} // namespace
+
+void InsertOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                           MLIRContext *context) {
+  results.add<InsertToShapeCast>(context);
+}
+
+// Eliminates insert operations that produce values identical to their source
+// value. This happens when the source and destination vectors have identical
+// sizes.
+OpFoldResult vector::InsertOp::fold(ArrayRef<Attribute> operands) {
+  if (position().empty())
+    return source();
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -2199,29 +2282,6 @@ void ExtractStridedSliceOp::getCanonicalizationPatterns(
 // TransferReadOp
 //===----------------------------------------------------------------------===//
 
-AffineMap TransferReadOp::insertBroadcasts(AffineMap map, VectorType vt,
-                                           ArrayRef<int64_t> targetShape) {
-  unsigned targetRank = targetShape.size();
-  assert(vt.getShape().size() <= targetRank && "mismatching ranks");
-  if (vt.getShape().size() == targetRank)
-    return map;
-  MLIRContext *ctx = map.getContext();
-  SmallVector<AffineExpr> exprs;
-  exprs.reserve(targetRank);
-  for (unsigned idx = 0, vtidx = 0; idx < targetRank; ++idx) {
-    // If shapes match, just keep the existing indexing and advance ranks.
-    if (vtidx < vt.getShape().size() &&
-        vt.getShape()[vtidx] == targetShape[idx]) {
-      exprs.push_back(map.getResult(vtidx));
-      ++vtidx;
-      continue;
-    }
-    // Otherwise insert a broadcast.
-    exprs.push_back(getAffineConstantExpr(0, ctx));
-  }
-  return AffineMap::get(map.getNumDims(), /*numSymbols=*/0, exprs, ctx);
-}
-
 template <typename EmitFun>
 static LogicalResult verifyPermutationMap(AffineMap permutationMap,
                                           EmitFun emitOpError) {
@@ -2253,6 +2313,7 @@ static LogicalResult verifyPermutationMap(AffineMap permutationMap,
 
 static LogicalResult verifyTransferOp(Operation *op, ShapedType shapedType,
                                       VectorType vectorType,
+                                      VectorType maskType,
                                       AffineMap permutationMap,
                                       ArrayAttr inBounds) {
   if (op->hasAttr("masked")) {
@@ -2288,6 +2349,9 @@ static LogicalResult verifyTransferOp(Operation *op, ShapedType shapedType,
     if (permutationMap.getNumResults() != rankOffset)
       return op->emitOpError("requires a permutation_map with result dims of "
                              "the same rank as the vector type");
+
+    if (maskType)
+      return op->emitOpError("does not support masks with vector element type");
   } else {
     // Memref or tensor has scalar element type.
     unsigned resultVecSize =
@@ -2302,6 +2366,13 @@ static LogicalResult verifyTransferOp(Operation *op, ShapedType shapedType,
     if (permutationMap.getNumResults() != vectorType.getRank())
       return op->emitOpError("requires a permutation_map with result dims of "
                              "the same rank as the vector type");
+
+    VectorType expectedMaskType =
+        vector::detail::transferMaskType(vectorType, permutationMap);
+    if (maskType && expectedMaskType != maskType)
+      return op->emitOpError("expects mask type consistent with permutation "
+                             "map: ")
+             << maskType;
   }
 
   if (permutationMap.getNumSymbols() != 0)
@@ -2438,10 +2509,11 @@ static ParseResult parseTransferReadOp(OpAsmParser &parser,
   if (!vectorType)
     return parser.emitError(typesLoc, "requires vector type");
   auto permutationAttrName = TransferReadOp::getPermutationMapAttrName();
-  auto attr = result.attributes.get(permutationAttrName);
-  if (!attr) {
+  Attribute mapAttr = result.attributes.get(permutationAttrName);
+  if (!mapAttr) {
     auto permMap = getTransferMinorIdentityMap(shapedType, vectorType);
-    result.attributes.set(permutationAttrName, AffineMapAttr::get(permMap));
+    mapAttr = AffineMapAttr::get(permMap);
+    result.attributes.set(permutationAttrName, mapAttr);
   }
   if (parser.resolveOperand(sourceInfo, shapedType, result.operands) ||
       parser.resolveOperands(indexInfo, indexType, result.operands) ||
@@ -2449,7 +2521,13 @@ static ParseResult parseTransferReadOp(OpAsmParser &parser,
                             result.operands))
     return failure();
   if (hasMask.succeeded()) {
-    auto maskType = VectorType::get(vectorType.getShape(), builder.getI1Type());
+    if (shapedType.getElementType().dyn_cast<VectorType>())
+      return parser.emitError(
+          maskInfo.location, "does not support masks with vector element type");
+    auto map = mapAttr.dyn_cast<AffineMapAttr>().getValue();
+    // Instead of adding the mask type as an op type, compute it based on the
+    // vector type and the permutation map (to keep the type signature small).
+    auto maskType = mlir::vector::detail::transferMaskType(vectorType, map);
     if (parser.resolveOperand(maskInfo, maskType, result.operands))
       return failure();
   }
@@ -2464,6 +2542,7 @@ static LogicalResult verify(TransferReadOp op) {
   // Consistency of elemental types in source and vector.
   ShapedType shapedType = op.getShapedType();
   VectorType vectorType = op.getVectorType();
+  VectorType maskType = op.getMaskType();
   auto paddingType = op.padding().getType();
   auto permutationMap = op.permutation_map();
   auto sourceElementType = shapedType.getElementType();
@@ -2472,7 +2551,7 @@ static LogicalResult verify(TransferReadOp op) {
     return op.emitOpError("requires ") << shapedType.getRank() << " indices";
 
   if (failed(verifyTransferOp(op.getOperation(), shapedType, vectorType,
-                              permutationMap,
+                              maskType, permutationMap,
                               op.in_bounds() ? *op.in_bounds() : ArrayAttr())))
     return failure();
 
@@ -2715,6 +2794,9 @@ static ParseResult parseTransferWriteOp(OpAsmParser &parser,
       parser.resolveOperands(indexInfo, indexType, result.operands))
     return failure();
   if (hasMask.succeeded()) {
+    if (shapedType.getElementType().dyn_cast<VectorType>())
+      return parser.emitError(
+          maskInfo.location, "does not support masks with vector element type");
     auto maskType = VectorType::get(vectorType.getShape(), builder.getI1Type());
     if (parser.resolveOperand(maskInfo, maskType, result.operands))
       return failure();
@@ -2740,6 +2822,7 @@ static LogicalResult verify(TransferWriteOp op) {
   // Consistency of elemental types in shape and vector.
   ShapedType shapedType = op.getShapedType();
   VectorType vectorType = op.getVectorType();
+  VectorType maskType = op.getMaskType();
   auto permutationMap = op.permutation_map();
 
   if (llvm::size(op.indices()) != shapedType.getRank())
@@ -2751,7 +2834,7 @@ static LogicalResult verify(TransferWriteOp op) {
     return op.emitOpError("should not have broadcast dimensions");
 
   if (failed(verifyTransferOp(op.getOperation(), shapedType, vectorType,
-                              permutationMap,
+                              maskType, permutationMap,
                               op.in_bounds() ? *op.in_bounds() : ArrayAttr())))
     return failure();
 

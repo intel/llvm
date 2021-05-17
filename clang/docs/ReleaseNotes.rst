@@ -67,7 +67,8 @@ Non-comprehensive list of changes in this release
 New Compiler Flags
 ------------------
 
-- ...
+- ``-Wreserved-identifier`` emits warning when user code uses reserved
+  identifiers.
 
 Deprecated Compiler Flags
 -------------------------
@@ -238,6 +239,13 @@ clang-format
 
 - Option ``SpacesInAngles`` has been improved, it now accepts ``Leave`` value
   that allows to keep spaces where they are already present.
+
+- Option ``AllowShortIfStatementsOnASingleLine`` has been improved, it now
+  accepts ``AllIfsAndElse`` value that allows to put "else if" and "else" short
+  statements on a single line. (Fixes https://llvm.org/PR50019.)
+
+- ``git-clang-format`` no longer formats changes to symbolic links. (Fixes
+  https://llvm.org/PR46992.)
 
 libclang
 --------

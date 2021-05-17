@@ -380,6 +380,8 @@
 ; NEWPM-NEXT:   RequireAnalysisPass<{{.*}}> on [module]
 ; NEWPM-NEXT:     GlobalsAA analysis on [module]
 ; NEWPM-NEXT:       CallGraphAnalysis analysis on [module]
+; NEWPM-NEXT:   ModuleToFunctionPassAdaptor on [module]
+; NEWPM-NEXT:   InvalidateAnalysisPass<{{.*}}> on f
 ; NEWPM-NEXT:   RequireAnalysisPass<{{.*}}> on [module]
 ; NEWPM-NEXT:     ProfileSummaryAnalysis analysis on [module]
 ; NEWPM-NEXT:   ModuleToPostOrderCGSCCPassAdaptor on [module]
@@ -392,17 +394,14 @@
 ; NEWPM-NEXT:         InlinerPass on (f)
 ; NEWPM-NEXT:         InlinerPass on (f)
 ; NEWPM-NEXT:         PostOrderFunctionAttrsPass on (f)
+; NEWPM-NEXT:           AAManager analysis on f
 ; NEWPM-NEXT:         ArgumentPromotionPass on (f)
 ; NEWPM-NEXT:         OpenMPOptCGSCCPass on (f)
 ; NEWPM-NEXT:         CGSCCToFunctionPassAdaptor on (f)
 ; NEWPM-NEXT:           PassManager<{{.*}}> on f
-; NEWPM-NEXT:             PreservedCFGCheckerAnalysis analysis on f
 ; NEWPM-NEXT:             SROA on f
-; NEWPM-NEXT:               DominatorTreeAnalysis analysis on f
 ; NEWPM-NEXT:             EarlyCSEPass on f
 ; NEWPM-NEXT:               MemorySSAAnalysis analysis on f
-; NEWPM-NEXT:                 AAManager analysis on f
-; NEWPM-NEXT:                   BasicAA analysis on f
 ; NEWPM-NEXT:             SpeculativeExecutionPass on f
 ; NEWPM-NEXT:             JumpThreadingPass on f
 ; NEWPM-NEXT:               LazyValueAnalysis analysis on f
@@ -456,27 +455,19 @@
 ; NEWPM-NEXT: RequireAnalysisPass<{{.*}}> on [module]
 ; NEWPM-NEXT: ModuleToFunctionPassAdaptor on [module]
 ; NEWPM-NEXT:   PassManager<{{.*}}> on f
-; NEWPM-NEXT:     PreservedCFGCheckerAnalysis analysis on f
 ; NEWPM-NEXT:     Float2IntPass on f
-; NEWPM-NEXT:       DominatorTreeAnalysis analysis on f
 ; NEWPM-NEXT:     LowerConstantIntrinsicsPass on f
 ; NEWPM-NEXT:     FunctionToLoopPassAdaptor on f
 ; NEWPM-NEXT:       PassManager<{{.*}}> on f
 ; NEWPM-NEXT:         LoopSimplifyPass on f
-; NEWPM-NEXT:           LoopAnalysis analysis on f
 ; NEWPM-NEXT:         LCSSAPass on f
 ; NEWPM-NEXT:     LoopDistributePass on f
 ; NEWPM-NEXT:       ScalarEvolutionAnalysis analysis on f
-; NEWPM-NEXT:       AAManager analysis on f
-; NEWPM-NEXT:         BasicAA analysis on f
 ; NEWPM-NEXT:       InnerAnalysisManagerProxy<{{.*}}> analysis on f
 ; NEWPM-NEXT:     InjectTLIMappings on f
 ; NEWPM-NEXT:     LoopVectorizePass on f
 ; NEWPM-NEXT:       BlockFrequencyAnalysis analysis on f
 ; NEWPM-NEXT:         BranchProbabilityAnalysis analysis on f
-; NEWPM-NEXT:           PostDominatorTreeAnalysis analysis on f
-; NEWPM-NEXT:       DemandedBitsAnalysis analysis on f
-; NEWPM-NEXT:       MemorySSAAnalysis analysis on f
 ; NEWPM-NEXT:     LoopLoadEliminationPass on f
 ; NEWPM-NEXT:     InstCombinePass on f
 ; NEWPM-NEXT:     SimplifyCFGPass on f

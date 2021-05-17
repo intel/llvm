@@ -1182,7 +1182,7 @@ public:
 
   /// Set the LLVM function attributes (sext, zext, etc).
   void SetLLVMFunctionAttributes(GlobalDecl GD, const CGFunctionInfo &Info,
-                                 llvm::Function *F);
+                                 llvm::Function *F, bool IsThunk);
 
   /// Set the LLVM function attributes which only apply to a function
   /// definition.
@@ -1218,7 +1218,7 @@ public:
   void ConstructAttributeList(StringRef Name, const CGFunctionInfo &Info,
                               CGCalleeInfo CalleeInfo,
                               llvm::AttributeList &Attrs, unsigned &CallingConv,
-                              bool AttrOnCallSite);
+                              bool AttrOnCallSite, bool IsThunk);
 
   /// Adds attributes to F according to our CodeGenOptions and LangOptions, as
   /// though we had emitted it ourselves.  We remove any attributes on F that
@@ -1373,6 +1373,10 @@ public:
   /// Emit a code for requires directive.
   /// \param D Requires declaration
   void EmitOMPRequiresDecl(const OMPRequiresDecl *D);
+
+  /// Emit a code for the allocate directive.
+  /// \param D The allocate declaration
+  void EmitOMPAllocateDecl(const OMPAllocateDecl *D);
 
   /// Returns whether the given record has hidden LTO visibility and therefore
   /// may participate in (single-module) CFI and whole-program vtable

@@ -129,9 +129,6 @@ enum NodeType : unsigned {
   // Truncates a RVV integer vector by one power-of-two. Carries both an extra
   // mask and VL operand.
   TRUNCATE_VECTOR_VL,
-  // Unit-stride fault-only-first load
-  VLEFF,
-  VLEFF_MASK,
   // Matches the semantics of vslideup/vslidedown. The first operand is the
   // pass-thru operand, the second is the source vector, the third is the
   // XLenVT index (either constant or non-constant), the fourth is the mask
@@ -172,6 +169,8 @@ enum NodeType : unsigned {
   VECREDUCE_XOR_VL,
   VECREDUCE_FADD_VL,
   VECREDUCE_SEQ_FADD_VL,
+  VECREDUCE_FMIN_VL,
+  VECREDUCE_FMAX_VL,
 
   // Vector binary and unary ops with a mask as a third operand, and VL as a
   // fourth operand.
@@ -469,8 +468,8 @@ public:
                              MVT PartVT, EVT ValueVT,
                              Optional<CallingConv::ID> CC) const override;
 
-  static RISCVVLMUL getLMUL(MVT VT);
-  static unsigned getRegClassIDForLMUL(RISCVVLMUL LMul);
+  static RISCVII::VLMUL getLMUL(MVT VT);
+  static unsigned getRegClassIDForLMUL(RISCVII::VLMUL LMul);
   static unsigned getSubregIndexByMVT(MVT VT, unsigned Index);
   static unsigned getRegClassIDForVecVT(MVT VT);
   static std::pair<unsigned, unsigned>
@@ -509,6 +508,7 @@ private:
   SDValue lowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
   SDValue lowerSPLAT_VECTOR_PARTS(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVectorMaskSplat(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVectorMaskExt(SDValue Op, SelectionDAG &DAG,
                              int64_t ExtTrueVal) const;
   SDValue lowerVectorMaskTrunc(SDValue Op, SelectionDAG &DAG) const;
@@ -540,6 +540,7 @@ private:
                                             SelectionDAG &DAG) const;
   SDValue lowerToScalableOp(SDValue Op, SelectionDAG &DAG, unsigned NewOpc,
                             bool HasMask = true) const;
+  SDValue lowerVPOp(SDValue Op, SelectionDAG &DAG, unsigned RISCVISDOpc) const;
   SDValue lowerFixedLengthVectorExtendToRVV(SDValue Op, SelectionDAG &DAG,
                                             unsigned ExtendOpc) const;
   SDValue lowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;

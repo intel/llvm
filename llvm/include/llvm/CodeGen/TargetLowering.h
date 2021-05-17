@@ -284,17 +284,18 @@ public:
     bool IsPreallocated : 1;
     bool IsReturned : 1;
     bool IsSwiftSelf : 1;
+    bool IsSwiftAsync : 1;
     bool IsSwiftError : 1;
     bool IsCFGuardTarget : 1;
     MaybeAlign Alignment = None;
-    Type *ByValType = nullptr;
-    Type *PreallocatedType = nullptr;
+    // Type for byval, inalloca, or preallocated.
+    Type *IndirectType = nullptr;
 
     ArgListEntry()
         : IsSExt(false), IsZExt(false), IsInReg(false), IsSRet(false),
           IsNest(false), IsByVal(false), IsByRef(false), IsInAlloca(false),
           IsPreallocated(false), IsReturned(false), IsSwiftSelf(false),
-          IsSwiftError(false), IsCFGuardTarget(false) {}
+          IsSwiftAsync(false), IsSwiftError(false), IsCFGuardTarget(false) {}
 
     void setAttributes(const CallBase *Call, unsigned ArgIdx);
   };
@@ -4353,6 +4354,13 @@ public:
   /// \returns True, if the expansion was successful, false otherwise
   bool expandROT(SDNode *N, bool AllowVectorOps, SDValue &Result,
                  SelectionDAG &DAG) const;
+
+  /// Expand shift-by-parts.
+  /// \param N Node to expand
+  /// \param Lo lower-output-part after conversion
+  /// \param Hi upper-output-part after conversion
+  void expandShiftParts(SDNode *N, SDValue &Lo, SDValue &Hi,
+                        SelectionDAG &DAG) const;
 
   /// Expand float(f32) to SINT(i64) conversion
   /// \param N Node to expand

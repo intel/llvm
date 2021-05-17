@@ -113,6 +113,8 @@ protected:
   bool GFX10_3Insts;
   bool GFX7GFX8GFX9Insts;
   bool SGPRInitBug;
+  bool NegativeScratchOffsetBug;
+  bool NegativeUnalignedScratchOffsetBug;
   bool HasSMemRealTime;
   bool HasIntClamp;
   bool HasFmaMixInsts;
@@ -186,6 +188,7 @@ protected:
   bool HasVcmpxExecWARHazard;
   bool HasLdsBranchVmemWARHazard;
   bool HasNSAtoVMEMBug;
+  bool HasNSAClauseBug;
   bool HasOffset3fBug;
   bool HasFlatSegmentOffsetBug;
   bool HasImageStoreD16Bug;
@@ -890,6 +893,12 @@ public:
     return SGPRInitBug;
   }
 
+  bool hasNegativeScratchOffsetBug() const { return NegativeScratchOffsetBug; }
+
+  bool hasNegativeUnalignedScratchOffsetBug() const {
+    return NegativeUnalignedScratchOffsetBug;
+  }
+
   bool hasMFMAInlineLiteralBug() const {
     return HasMFMAInlineLiteralBug;
   }
@@ -943,6 +952,8 @@ public:
   bool hasNSAtoVMEMBug() const {
     return HasNSAtoVMEMBug;
   }
+
+  bool hasNSAClauseBug() const { return HasNSAClauseBug; }
 
   bool hasHardClauses() const { return getGeneration() >= GFX10; }
 

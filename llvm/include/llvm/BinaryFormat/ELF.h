@@ -281,6 +281,7 @@ enum {
   EM_STM8 = 186,          // STMicroeletronics STM8 8-bit microcontroller
   EM_TILE64 = 187,        // Tilera TILE64 multicore architecture family
   EM_TILEPRO = 188,       // Tilera TILEPro multicore architecture family
+  EM_MICROBLAZE = 189,    // Xilinx MicroBlaze 32-bit RISC soft processor core
   EM_CUDA = 190,          // NVIDIA CUDA architecture
   EM_TILEGX = 191,        // Tilera TILE-Gx multicore architecture family
   EM_CLOUDSHIELD = 192,   // CloudShield architecture family
@@ -733,6 +734,7 @@ enum : unsigned {
   EF_AMDGPU_MACH_AMDGCN_GFX1031       = 0x037,
   EF_AMDGPU_MACH_AMDGCN_GFX1032       = 0x038,
   EF_AMDGPU_MACH_AMDGCN_GFX1033       = 0x039,
+  EF_AMDGPU_MACH_AMDGCN_GFX1034       = 0x03e,
   EF_AMDGPU_MACH_AMDGCN_GFX602        = 0x03a,
   EF_AMDGPU_MACH_AMDGCN_GFX705        = 0x03b,
   EF_AMDGPU_MACH_AMDGCN_GFX805        = 0x03c,

@@ -28,6 +28,10 @@ struct LinalgElementwiseFusionOptions;
 struct LinalgFusionOptions;
 struct LinalgTilingOptions;
 
+/// Default function to control reshape folding. Skips folding unit dimension
+/// reshapes.
+bool skipUnitDimReshape(const OpResult &producer, const OpOperand &consumer);
+
 //===----------------------------------------------------------------------===//
 // Transformations exposed as function calls.
 //===----------------------------------------------------------------------===//
@@ -42,24 +46,27 @@ void populateConvVectorizationPatterns(
 /// parallel loops.
 void populateElementwiseToLinalgConversionPatterns(RewritePatternSet &patterns);
 
+using ControlElementwiseOpsFusionFn =
+    std::function<bool(const OpResult &producer, const OpOperand &consumer)>;
+
 /// Patterns to fold an expanding (collapsing) tensor_reshape operation with its
 /// producer (consumer) generic operation by expanding the dimensionality of the
 /// loop in the generic op.
 void populateFoldReshapeOpsByExpansionPatterns(
-    RewritePatternSet &patterns, bool allowFoldingUnitDimReshapes = false);
+    RewritePatternSet &patterns,
+    ControlElementwiseOpsFusionFn controlFoldingReshapes = skipUnitDimReshape);
 
 /// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
-/// producer (consumer) generic/indexed_generic operation by linearizing the
-/// indexing map used to access the source (target) of the reshape operation in
-/// the generic/indexed_generic operation.
+/// producer (consumer) generic operation by linearizing the indexing map used
+/// to access the source (target) of the reshape operation in the generic
+/// operation.
 void populateFoldReshapeOpsByLinearizationPatterns(RewritePatternSet &patterns);
 
 /// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
-/// producer (consumer) generic/indexed_generic operation by linearizing the
-/// indexing map used to access the source (target) of the reshape operation in
-/// the generic/indexed_generic operation. The patterns are applied only when
-/// the tensor reshape involved is collapsing (introducing) unit-extent
-/// dimensions.
+/// producer (consumer) generic operation by linearizing the indexing map used
+/// to access the source (target) of the reshape operation in the generic
+/// operation. The patterns are applied only when the tensor reshape involved is
+/// collapsing (introducing) unit-extent dimensions.
 void populateFoldUnitDimsReshapeOpsByLinearizationPatterns(
     RewritePatternSet &patterns);
 
@@ -71,17 +78,15 @@ void populateLinalgBufferizePatterns(BufferizeTypeConverter &converter,
 /// tensors.
 void populateFoldUnitExtentDimsPatterns(RewritePatternSet &patterns);
 
-using ControlElementwiseOpsFusionFn =
-    std::function<bool(const OpResult &producer, const OpOperand &consumer)>;
-
 /// Options that control fusion of elementwise operations.
 struct LinalgElementwiseFusionOptions {
-  /// Enable fusion of reshapes that are introducing unit-dimensions into the
-  /// shape with elementwise operations. By default this is disabled.
-  bool allowFoldingUnitDimReshapes = false;
+  /// Enable fusion of reshapes into the shape with elementwise operations. By
+  /// default it is disabled for unit dimensions reshape.
+  ControlElementwiseOpsFusionFn controlFoldingReshapesFn = skipUnitDimReshape;
 
-  LinalgElementwiseFusionOptions &setAllowFoldingUnitDimReshapes(bool val) {
-    allowFoldingUnitDimReshapes = val;
+  LinalgElementwiseFusionOptions &
+  setControlFoldingReshapes(ControlElementwiseOpsFusionFn fun) {
+    controlFoldingReshapesFn = std::move(fun);
     return *this;
   }
 
@@ -207,8 +212,8 @@ tileAndFuseLinalgOps(OpBuilder &builder, ArrayRef<LinalgOp> ops,
 /// `interchangeVector = [1,2,0]`. All values in `interchangeVector` must be
 /// integers, in the range 0..`op.rank` without duplications
 /// (i.e. `[1,1,2]` is an invalid permutation).
-void interchange(PatternRewriter &rewriter, LinalgOp op,
-                 ArrayRef<unsigned> interchangeVector);
+void interchangeGenericOp(PatternRewriter &rewriter, GenericOp genericOp,
+                          ArrayRef<unsigned> interchangeVector);
 
 /// Callback function type used to perform the allocation for the promoted
 /// `subView`. In `boundingSubViewsize` a best attempt is made to find the
@@ -337,28 +342,31 @@ Optional<LinalgOp> promoteSubViews(OpBuilder &b, LinalgOp op,
 LogicalResult vectorizeLinalgOp(OpBuilder &builder, Operation *op,
                                 SmallVectorImpl<Value> &newResults);
 
-/// Emits a loop nest of `LoopTy` with the proper body for `op`.
+/// Emits a loop nest of `LoopTy` with the proper body for `linalgOp`.
 template <typename LoopTy>
-Optional<LinalgLoops> linalgLowerOpToLoops(OpBuilder &builder, Operation *op);
+Optional<LinalgLoops> linalgLowerOpToLoops(PatternRewriter &rewriter,
+                                           LinalgOp linalgOp);
 
-/// Emits a loop nest of `scf.for` with the proper body for `op`.
-LogicalResult linalgOpToLoops(OpBuilder &builder, Operation *op);
+/// Emits a loop nest of `scf.for` with the proper body for `linalgOp`.
+LogicalResult linalgOpToLoops(PatternRewriter &rewriter, LinalgOp linalgOp);
 
-/// Emits a loop nest of `scf.parallel` with the proper body for `op`.
-LogicalResult linalgOpToParallelLoops(OpBuilder &builder, Operation *op);
+/// Emits a loop nest of `scf.parallel` with the proper body for `linalgOp`.
+LogicalResult linalgOpToParallelLoops(PatternRewriter &rewriter,
+                                      LinalgOp linalgOp);
 
-/// Emits a loop nest of `affine.for` with the proper body for `op`.
-LogicalResult linalgOpToAffineLoops(OpBuilder &builder, Operation *op);
+/// Emits a loop nest of `affine.for` with the proper body for `linalgOp`.
+LogicalResult linalgOpToAffineLoops(PatternRewriter &rewriter,
+                                    LinalgOp linalgOp);
 
 //===----------------------------------------------------------------------===//
 // Preconditions that ensure the corresponding transformation succeeds and can
 // be applied as a rewrite pattern.
 //===----------------------------------------------------------------------===//
-/// Emits a `generic` or `indexed_generic` operation with the `indexing_maps`
-/// and `iterator_types` permutated according to `permutation`.
+/// Emits a `generic` operation with the `indexing_maps` and `iterator_types`
+/// permutated according to `permutation`.
 LogicalResult
-interchangeGenericLinalgOpPrecondition(Operation *op,
-                                       ArrayRef<unsigned> interchangeVector);
+interchangeGenericOpPrecondition(GenericOp genericOp,
+                                 ArrayRef<unsigned> interchangeVector);
 
 /// Promote std.subviews feeding linalg operations.
 LogicalResult promoteSubviewsPrecondition(Operation *op,
@@ -621,18 +629,18 @@ struct LinalgTileAndFusePattern : public LinalgBaseTileAndFusePattern {
 };
 
 ///
-/// Linalg interchange patterns.
+/// Linalg generic interchage pattern.
 ///
 /// Apply the `interchange` transformation as a pattern.
 /// `filter` controls LinalgTransformMarker matching and update when specified.
 /// See `interchange` for more details.
-struct LinalgBaseInterchangePattern : public RewritePattern {
-  LinalgBaseInterchangePattern(
-      StringRef opName, MLIRContext *context,
-      ArrayRef<unsigned> interchangeVector,
+struct GenericOpInterchangePattern : public OpRewritePattern<GenericOp> {
+  using OpRewritePattern<GenericOp>::OpRewritePattern;
+  GenericOpInterchangePattern(
+      MLIRContext *context, ArrayRef<unsigned> interchangeVector,
       LinalgTransformationFilter filter = LinalgTransformationFilter(),
       PatternBenefit benefit = 1);
-  LogicalResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override;
 
 private:
@@ -640,16 +648,6 @@ private:
   LinalgTransformationFilter filter;
   /// The interchange vector to reorder the iterators and indexing_maps dims.
   SmallVector<unsigned, 8> interchangeVector;
-};
-
-template <typename OpTy>
-struct LinalgInterchangePattern : public LinalgBaseInterchangePattern {
-  LinalgInterchangePattern(
-      MLIRContext *context, ArrayRef<unsigned> interchangeVector,
-      LinalgTransformationFilter filter = LinalgTransformationFilter(),
-      PatternBenefit benefit = 1)
-      : LinalgBaseInterchangePattern(OpTy::getOperationName(), context,
-                                     interchangeVector, filter, benefit) {}
 };
 
 ///
@@ -1054,80 +1052,6 @@ LogicalResult applyStagedPatterns(
     Operation *op, ArrayRef<FrozenRewritePatternSet> stage1Patterns,
     const FrozenRewritePatternSet &stage2Patterns,
     function_ref<LogicalResult(Operation *)> stage3Lambda = nullptr);
-
-//===----------------------------------------------------------------------===//
-// Support for sparse tensor code generation.
-//
-// The sparse compiler part of MLIR lowers a tensor expression formulated as a
-// Linalg operation into a sequence of loops depending on what dimensions of the
-// tensors are marked dense or sparse. The generated code distinguishes between:
-// (1) for-loops that iterate over a single dense dimension,
-// (2) for-loops that iterate over a single sparse dimension,
-// (3) while-loops that co-iterate over several sparse dimensions.
-// The for-loops may be subsequently optimized for parallel or vector execution.
-//
-// For more details, the Dialect/Linalg/Transforms/Sparsification.cpp file.
-//===----------------------------------------------------------------------===//
-
-/// Defines a parallelization strategy. Any implicit loop in the Linalg
-/// operation that is marked "parallel" (thus not "reduction") is a candidate
-/// for parallelization. The loop is made parallel if (1) allowed by the
-/// strategy (e.g., AnyStorageOuterLoop considers either a dense or sparse
-/// outermost loop only), and (2) the generated code is an actual for-loop
-/// (and not a co-iterating while-loop).
-enum class SparseParallelizationStrategy {
-  kNone,
-  kDenseOuterLoop,
-  kAnyStorageOuterLoop,
-  kDenseAnyLoop,
-  kAnyStorageAnyLoop
-  // TODO: support reduction parallelization too?
-};
-
-/// Defines a vectorization strategy. Any implicit inner loop in the Linalg
-/// operation is a candidate (full SIMD for "parallel" loops and horizontal
-/// SIMD for "reduction" loops). A loop is actually vectorized if (1) allowed
-/// by the strategy, and (2) the emitted code is an actual for-loop (and not
-/// a co-iterating while-loop).
-enum class SparseVectorizationStrategy {
-  kNone,
-  kDenseInnerLoop,
-  kAnyStorageInnerLoop
-};
-
-/// Defines a type for "pointer" and "index" storage in the sparse storage
-/// scheme, with a choice between the native platform-dependent index width
-/// or any of 64-/32-/16-/8-bit integers. A narrow width obviously reduces
-/// the memory footprint of the sparse storage scheme, but the width should
-/// suffice to define the total required range (viz. the maximum number of
-/// stored entries per indirection level for the "pointers" and the maximum
-/// value of each tensor index over all dimensions for the "indices").
-enum class SparseIntType { kNative, kI64, kI32, kI16, kI8 };
-
-/// Sparsification options.
-struct SparsificationOptions {
-  SparsificationOptions(SparseParallelizationStrategy p,
-                        SparseVectorizationStrategy v, unsigned vl,
-                        SparseIntType pt, SparseIntType it, bool fo)
-      : parallelizationStrategy(p), vectorizationStrategy(v), vectorLength(vl),
-        ptrType(pt), indType(it), fastOutput(fo) {}
-  SparsificationOptions()
-      : SparsificationOptions(SparseParallelizationStrategy::kNone,
-                              SparseVectorizationStrategy::kNone, 1u,
-                              SparseIntType::kNative, SparseIntType::kNative,
-                              false) {}
-  SparseParallelizationStrategy parallelizationStrategy;
-  SparseVectorizationStrategy vectorizationStrategy;
-  unsigned vectorLength;
-  SparseIntType ptrType;
-  SparseIntType indType;
-  bool fastOutput; // experimental: fast output buffers
-};
-
-/// Sets up sparsification rewriting rules with the given options.
-void populateSparsificationPatterns(
-    RewritePatternSet &patterns,
-    const SparsificationOptions &options = SparsificationOptions());
 
 } // namespace linalg
 } // namespace mlir

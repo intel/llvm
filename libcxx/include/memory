@@ -651,12 +651,12 @@ template <class T, class Alloc>
   inline constexpr bool uses_allocator_v = uses_allocator<T, Alloc>::value;
 
 // Pointer safety
-enum class pointer_safety { relaxed, preferred, strict };
-void declare_reachable(void *p);
-template <class T> T *undeclare_reachable(T *p);
-void declare_no_pointers(char *p, size_t n);
-void undeclare_no_pointers(char *p, size_t n);
-pointer_safety get_pointer_safety() noexcept;
+enum class pointer_safety { relaxed, preferred, strict }; // since C++11
+void declare_reachable(void *p);                          // since C++11
+template <class T> T *undeclare_reachable(T *p);          // since C++11
+void declare_no_pointers(char *p, size_t n);              // since C++11
+void undeclare_no_pointers(char *p, size_t n);            // since C++11
+pointer_safety get_pointer_safety() noexcept;             // since C++11
 
 void* align(size_t alignment, size_t size, void*& ptr, size_t& space);
 
@@ -863,7 +863,7 @@ void __swap_allocator(_Alloc & __a1, _Alloc & __a2)
 #endif
 {
     _VSTD::__swap_allocator(__a1, __a2,
-      integral_constant<bool, _VSTD::allocator_traits<_Alloc>::propagate_on_container_swap::value>());
+      integral_constant<bool, allocator_traits<_Alloc>::propagate_on_container_swap::value>());
 }
 
 template <typename _Alloc, typename _Traits=allocator_traits<_Alloc> >
@@ -903,7 +903,7 @@ struct __is_allocator : false_type {};
 template<typename _Alloc>
 struct __is_allocator<_Alloc,
        typename __void_t<typename _Alloc::value_type>::type,
-       typename __void_t<decltype(_VSTD::declval<_Alloc&>().allocate(size_t(0)))>::type
+       typename __void_t<decltype(declval<_Alloc&>().allocate(size_t(0)))>::type
      >
    : true_type {};
 

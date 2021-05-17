@@ -111,8 +111,8 @@ static cl::opt<unsigned> PHICSENumPHISmallSize(
         "perform a (faster!) exhaustive search instead of set-driven one."));
 
 // Max recursion depth for collectBitParts used when detecting bswap and
-// bitreverse idioms
-static const unsigned BitPartRecursionMaxDepth = 64;
+// bitreverse idioms.
+static const unsigned BitPartRecursionMaxDepth = 48;
 
 //===----------------------------------------------------------------------===//
 //  Local constant propagation.
@@ -1423,7 +1423,7 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
 /// case this DebugLoc leaks into any adjacent instructions.
 static DebugLoc getDebugValueLoc(DbgVariableIntrinsic *DII, Instruction *Src) {
   // Original dbg.declare must have a location.
-  DebugLoc DeclareLoc = DII->getDebugLoc();
+  const DebugLoc &DeclareLoc = DII->getDebugLoc();
   MDNode *Scope = DeclareLoc.getScope();
   DILocation *InlinedAt = DeclareLoc.getInlinedAt();
   // Produce an unknown location with the correct scope / inlinedAt fields.
@@ -1672,7 +1672,7 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
                              int Offset) {
   auto DbgAddrs = FindDbgAddrUses(Address);
   for (DbgVariableIntrinsic *DII : DbgAddrs) {
-    DebugLoc Loc = DII->getDebugLoc();
+    const DebugLoc &Loc = DII->getDebugLoc();
     auto *DIVar = DII->getVariable();
     auto *DIExpr = DII->getExpression();
     assert(DIVar && "Missing variable");
@@ -1687,7 +1687,7 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
 
 static void replaceOneDbgValueForAlloca(DbgValueInst *DVI, Value *NewAddress,
                                         DIBuilder &Builder, int Offset) {
-  DebugLoc Loc = DVI->getDebugLoc();
+  const DebugLoc &Loc = DVI->getDebugLoc();
   auto *DIVar = DVI->getVariable();
   auto *DIExpr = DVI->getExpression();
   assert(DIVar && "Missing variable");
@@ -2940,6 +2940,10 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       if (BitShift.uge(BitWidth))
         return Result;
 
+      // For bswap-only, limit shift amounts to whole bytes, for an early exit.
+      if (!MatchBitReversals && (BitShift.getZExtValue() % 8) != 0)
+        return Result;
+
       const auto &Res =
           collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
       if (!Res)
@@ -3055,6 +3059,10 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       if (cast<IntrinsicInst>(I)->getIntrinsicID() == Intrinsic::fshr)
         ModAmt = BitWidth - ModAmt;
 
+      // For bswap-only, limit shift amounts to whole bytes, for an early exit.
+      if (!MatchBitReversals && (ModAmt % 8) != 0)
+        return Result;
+
       const auto &LHS =
           collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
       const auto &RHS =
@@ -3101,7 +3109,9 @@ static bool bitTransformIsCorrectForBitReverse(unsigned From, unsigned To,
 bool llvm::recognizeBSwapOrBitReverseIdiom(
     Instruction *I, bool MatchBSwaps, bool MatchBitReversals,
     SmallVectorImpl<Instruction *> &InsertedInsts) {
-  if (Operator::getOpcode(I) != Instruction::Or)
+  if (!match(I, m_Or(m_Value(), m_Value())) &&
+      !match(I, m_FShl(m_Value(), m_Value(), m_Value())) &&
+      !match(I, m_FShr(m_Value(), m_Value(), m_Value())))
     return false;
   if (!MatchBSwaps && !MatchBitReversals)
     return false;

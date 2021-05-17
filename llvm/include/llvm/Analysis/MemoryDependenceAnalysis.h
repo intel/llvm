@@ -363,7 +363,10 @@ private:
   PredIteratorCache PredCache;
 
   unsigned DefaultBlockScanLimit;
-  Optional<int32_t> ClobberOffset;
+
+  /// Offsets to dependant clobber loads.
+  using ClobberOffsetsMapType = DenseMap<LoadInst *, int32_t>;
+  ClobberOffsetsMapType ClobberOffsets;
 
 public:
   MemoryDependenceResults(AAResults &AA, AssumptionCache &AC,
@@ -469,7 +472,13 @@ public:
   /// Release memory in caches.
   void releaseMemory();
 
-  Optional<int32_t> getClobberOffset() const { return ClobberOffset; }
+  /// Return the clobber offset to dependent instruction.
+  Optional<int32_t> getClobberOffset(LoadInst *DepInst) const {
+    const auto Off = ClobberOffsets.find(DepInst);
+    if (Off != ClobberOffsets.end())
+      return Off->getSecond();
+    return None;
+  }
 
 private:
   MemDepResult getCallDependencyFrom(CallBase *Call, bool isReadOnlyCall,
