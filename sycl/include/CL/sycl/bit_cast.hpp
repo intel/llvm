@@ -19,7 +19,7 @@ namespace sycl {
 
 // forward decl
 namespace detail {
-inline void memcpy_bit_cast(void *Dst, const void *Src, std::size_t Size){
+inline void memcpy_bit_cast(void *Dst, const void *Src, std::size_t Size) {
   char *Destination = reinterpret_cast<char *>(Dst);
   const char *Source = reinterpret_cast<const char *>(Src);
   for (std::size_t I = 0; I < Size; ++I) {

@@ -28,19 +28,18 @@
 #endif
 
 #ifndef __has_builtin
-  #define __has_builtin(x) 0
+#define __has_builtin(x) 0
 #endif
 
 #if !__has_builtin(__builtin_expect)
-  #define __builtin_expect(a, b) (a)
+#define __builtin_expect(a, b) (a)
 #endif
 
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
-  #define __SYCL_CONSTEXPR constexpr
+#define __SYCL_CONSTEXPR constexpr
 #else
-  #define __SYCL_CONSTEXPR
+#define __SYCL_CONSTEXPR
 #endif
-
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -297,17 +296,17 @@ class half;
   using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
   using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
 #else
-  using StorageT = detail::host_half_impl::half_new;
-  // No need to extract underlying data type for built-in functions operating on
-  // host
-  using BIsRepresentationT = half;
+using StorageT = detail::host_half_impl::half_new;
+// No need to extract underlying data type for built-in functions operating on
+// host
+using BIsRepresentationT = half;
 
-  // On the host side we cannot use OpenCL cl_half# types as an underlying type
-  // for vec because they are actually defined as an integer type under the
-  // hood. As a result half values will be converted to the integer and passed
-  // as a kernel argument which is expected to be floating point number.
-  template <int NumElements> struct half_vec {
-    alignas(detail::vector_alignment<StorageT, NumElements>::value)
+// On the host side we cannot use OpenCL cl_half# types as an underlying type
+// for vec because they are actually defined as an integer type under the
+// hood. As a result half values will be converted to the integer and passed
+// as a kernel argument which is expected to be floating point number.
+template <int NumElements> struct half_vec {
+  alignas(detail::vector_alignment<StorageT, NumElements>::value)
       std::array<StorageT, NumElements> s;
   };
 
@@ -467,10 +466,7 @@ template <> struct numeric_limits<cl::sycl::half> {
     return 9.765625e-04f; // half epsilon
   }
 
-  static constexpr const cl::sycl::half
-  round_error() noexcept {
-    return 0.5f;
-  }
+  static constexpr const cl::sycl::half round_error() noexcept { return 0.5f; }
 
   static constexpr const cl::sycl::half infinity() noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -485,8 +481,7 @@ template <> struct numeric_limits<cl::sycl::half> {
     return __builtin_nanf("");
   }
 
-  static constexpr const cl::sycl::half
-  signaling_NaN() noexcept {
+  static constexpr const cl::sycl::half signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
