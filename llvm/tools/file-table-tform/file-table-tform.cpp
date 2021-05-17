@@ -247,10 +247,9 @@ struct TformCmd {
                   })
             .Case(OPT_REPLACE_CELL,
                   [&](TformCmd *Cmd) -> Error {
+                    // argument is <column name>,<row index>
                     assert(Args.size() == 2 && Cmd->Inputs.size() == 1);
                     const int Row = std::stoi(Args[1].str());
-                    if (Row > Table.getNumRows())
-                      return makeUserError("row index out of bounds");
                     Error Res =
                         Table.updateCellValue(Row, Args[0], Cmd->Inputs[0]);
                     return Res ? std::move(Res) : std::move(Error::success());
