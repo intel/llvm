@@ -175,6 +175,7 @@ public:
 
   const ToolChain &HostTC;
   const SYCLInstallationDetector SYCLInstallation;
+
 protected:
   Tool *buildBackendCompiler() const override;
   Tool *buildLinker() const override;
