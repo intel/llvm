@@ -135,6 +135,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVImageSampleExplicitLodBuiltIn(&CI, OC);
     return;
   }
+  if (OC == OpImageWrite) {
+    visitCallSPIRVImageWriteBuiltIn(&CI, OC);
+    return;
+  }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
@@ -693,6 +697,30 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
   };
 
   mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        llvm::Type *T = Args[2]->getType();
+        if (Args.size() > 4) {
+          ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
+          ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
+          // Drop "Image Operands" argument.
+          Args.erase(Args.begin() + 3, Args.begin() + 4);
+          // If the image operand is LOD and its value is zero, drop it too.
+          if (ImOp && LodVal && LodVal->isNullValue() &&
+              ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
+            Args.erase(Args.begin() + 3, Args.end());
+          else
+            std::swap(Args[2], Args[3]);
+        }
+        return std::string(kOCLBuiltinName::WriteImage) + getTypeSuffix(T);
+      },
+      &Attrs);
 }
 
 void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {

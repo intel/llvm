@@ -125,6 +125,9 @@ public:
   /// Transform __spirv_ImageSampleExplicitLod__{ReturnType} to read_imade
   void visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI, Op OC);
 
+  /// Transform __spirv_ImageWrite to write_image
+  void visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);

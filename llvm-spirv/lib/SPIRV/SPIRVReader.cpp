@@ -694,6 +694,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
     return true;
   if (OpCode == OpImageSampleExplicitLod || OpCode == OpSampledImage)
     return false;
+  if (OpCode == OpImageWrite)
+    return false;
   if (OpCode == OpGenericCastToPtrExplicit)
     return false;
   if (isEventOpCode(OpCode))
@@ -1272,46 +1274,6 @@ bool SPIRVToLLVM::postProcessOCLBuiltinWithArrayArguments(
       },
       nullptr, &Attrs);
   return true;
-}
-
-static char getTypeSuffix(Type *T) {
-  char Suffix;
-
-  Type *ST = T->getScalarType();
-  if (ST->isHalfTy())
-    Suffix = 'h';
-  else if (ST->isFloatTy())
-    Suffix = 'f';
-  else
-    Suffix = 'i';
-
-  return Suffix;
-}
-
-CallInst *
-SPIRVToLLVM::postProcessOCLWriteImage(SPIRVInstruction *BI, CallInst *CI,
-                                      const std::string &DemangledName) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        llvm::Type *T = Args[2]->getType();
-        if (Args.size() > 4) {
-          ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
-          ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
-          // Drop "Image Operands" argument.
-          Args.erase(Args.begin() + 3, Args.begin() + 4);
-          // If the image operand is LOD and its value is zero, drop it too.
-          if (ImOp && LodVal && LodVal->isNullValue() &&
-              ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
-            Args.erase(Args.begin() + 3, Args.end());
-          else
-            std::swap(Args[2], Args[3]);
-        }
-        return std::string(kOCLBuiltinName::WriteImage) + getTypeSuffix(T);
-      },
-      &Attrs);
 }
 
 CallInst *SPIRVToLLVM::postProcessOCLBuildNDRange(SPIRVInstruction *BI,
@@ -3074,9 +3036,6 @@ SPIRVToLLVM::transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
     return CastInst::Create(Instruction::Trunc, CI, transType(BI->getType()),
                             "cvt", BB);
   }
-  if (OC == OpImageWrite) {
-    return postProcessOCLWriteImage(BI, CI, DemangledName);
-  }
   if (OC == OpGenericPtrMemSemantics)
     return BinaryOperator::CreateShl(CI, getInt32(M, 8), "", BB);
   if (OC == OpImageQueryFormat)
@@ -3370,9 +3329,6 @@ std::string SPIRVToLLVM::getOCLBuiltinName(SPIRVInstruction *BI) {
   switch (OC) {
   case OpImageRead:
     T = BI->getType();
-    break;
-  case OpImageWrite:
-    T = BI->getOperands()[2]->getType();
     break;
   default:
     // do nothing
