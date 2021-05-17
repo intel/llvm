@@ -3624,6 +3624,7 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   // kernel.
   PI_CALL(piProgramRetain(Program));
   if (IndirectAccessTrackingEnabled)
+    // TODO: do piContextRetain without the guard
     PI_CALL(piContextRetain(Program->Context));
 
   return PI_SUCCESS;
@@ -4268,6 +4269,7 @@ static pi_result cleanupAfterEvent(pi_event Event) {
       // one. This is the earliest place we can do this and it can't be done
       // twice, so it is safe. Lock automatically releases when this goes out of
       // scope.
+      // TODO: this code needs to be moved out of the guard.
       std::lock_guard<std::mutex> lock(DepEvent->Queue->PiQueueMutex);
       if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
           DepEvent->CommandData) {
@@ -4350,14 +4352,15 @@ pi_result piEventRelease(pi_event Event) {
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
       // Free the memory allocated in the piEnqueueMemBufferMap.
+      // TODO: always use piextUSMFree
       if (IndirectAccessTrackingEnabled) {
         // Use the version with reference counting
         PI_CALL(piextUSMFree(Event->Queue->Context, Event->CommandData));
       } else {
         ZE_CALL(zeMemFree,
                 (Event->Queue->Context->ZeContext, Event->CommandData));
-        Event->CommandData = nullptr;
       }
+      Event->CommandData = nullptr;
     }
     ZE_CALL(zeEventDestroy, (Event->ZeEvent));
 
@@ -5116,6 +5119,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   if (Buffer->MapHostPtr) {
     *RetMap = Buffer->MapHostPtr + Offset;
   } else {
+    // TODO: always use piextUSMHostAlloc
     if (IndirectAccessTrackingEnabled) {
       // Use the version with reference counting
       PI_CALL(piextUSMHostAlloc(RetMap, Queue->Context, nullptr, Size, 1));
