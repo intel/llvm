@@ -39,13 +39,13 @@ int main() {
 ```
 
 In this use-case every work-item with even X dimension will trigger assertion
-failure. Assertion failure should be trigger a call to `std::abort()` at host as
+failure. Assertion failure should trigger a call to `std::abort()` at host as
 described in
 [extension](extensions/Assert/SYCL_INTEL_ASSERT.asciidoc).
 Even though multiple failures of the same or different assertions can happen in
 multiple workitems, implementation is required to deliver at least one
 assertion. The assertion failure message is printed to `stderr` by DPCPP
-Runtime.
+Runtime or underlying backend.
 
 When multiple kernels are enqueued and more than one fail at assertion, at least
 single assertion should be reported.
@@ -93,7 +93,7 @@ Implementation of this function is supplied by Native Device Compiler for
 safe approach or by DPCPP Compiler for fallback one.
 
 In order to distinguish which implementation to use, DPCPP Runtime checks for
-`cl_intel_devicelib_cassert` extension. If the extension isn't available, then
+`PI_INTEL_DEVICELIB_CASSERT` extension. If the extension isn't available, then
 fallback implementation is used.
 
 
@@ -101,7 +101,9 @@ fallback implementation is used.
 
 This is the preferred approach and implementations should use it when possible.
 It guarantees assertion failure notification delivery to the host regardless of
-kernel behavior which hit the assertion.
+kernel behavior which hit the assertion. If backend suports the safe approach,
+it must report this capability to DPCPP Runtime via the
+`PI_INTEL_DEVICELIB_CASSERT` extension query.
 
 The Native Device Compiler is responsible for providing implementation of
 `__devicelib_assert_fail` which completely hides details of communication
@@ -125,10 +127,10 @@ The following sequence of events describes how user code gets notified:
 
 ## Fallback approach
 
-If Device-side Runtime doesn't support `__devicelib_assert_fail` then a fallback
-approach comes in place. The approach doesn't require any support from
-Device-side Runtime and Native Device Compiler. Neither it does from Low-level
-Runtime.
+If Device-side Runtime doesn't support `__devicelib_assert_fail` (as reported
+via `PI_INTEL_DEVICELIB_CASSERT` extension query) then a fallback approach comes
+in place. The approach doesn't require any support from Device-side Runtime and
+Native Device Compiler. Neither it does from Low-level Runtime.
 
 Within this approach, a mutable program scope variable is introduced. This
 variable stores a flag which says if an assert failure was encountered. Fallback
@@ -147,10 +149,15 @@ The following sequence of events describes how user code gets notified:
    2. A host-task is enqueued to check value of assert failure flag.
    3. The host task calls abort whenever assert failure flag is set.
 
+DPCPP Runtime will automatically check if assertions are enabled in the kernel
+being run, and won't enqueue the auxiliary kernels if assertions are not
+enabled. So there is no host-side runtime overhead when assertion are not
+enabled.
+
 Illustrating this with an example, lets assume the user enqueues three kernels:
- - `Kernel #1`
- - `Kernel #2`
- - `Kernel #3`, which depends on `Kernel #1`
+ - `Kernel #1`, uses assert
+ - `Kernel #2`, uses assert
+ - `Kernel #3`, uses assert and depends on `Kernel #1`
 
 The resulting graph will look like this: ![graph](images/assert-fallback-graph.svg)
 
@@ -165,9 +172,15 @@ same binary image where fallback `__devicelib_assert_fail` resides.
 declaration:</a>
 
 ```c++
+namespace cl {
+namespace sycl {
+namespace detail {
 struct AssertHappened {
   int Flag = 0;
 };
+}
+}
+}
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern SYCL_GLOBAL_VAR AssertHappened AssertHappenedMem;
@@ -189,49 +202,29 @@ implementation of `__devicelib_assert_fail`.
 In DPCPP headers one can see if assert is enabled with status of `NDEBUG` macro
 with `#ifdef`'s. This allows to enqueue a copy kernel and host task. The copy
 kernel will copy `AssertHappenedMem` to host and host-task will check the `Flag`
-value and `abort()` as needed.
+value and `abort()` as needed. The kernel and host task are enqueued when
+`NDEBUG` macro isn't defined.
 
 When in DPCPP Runtime Library this knowledge is obtained from device binary
 image descriptor's property sets.
 
-Each device image is supplied with an array of property sets:
-```c++
-struct pi_device_binary_struct {
-  //...
-  // Array of property sets
-  pi_device_binary_property_set PropertySetsBegin;
-  pi_device_binary_property_set PropertySetsEnd;
-};
-```
-Each property set is represented by the following struct:
-```c++
-// Named array of properties.
-struct _pi_device_binary_property_set_struct {
-  char *Name;                                // the name
-  pi_device_binary_property PropertiesBegin; // array start
-  pi_device_binary_property PropertiesEnd;   // array end
-};
-```
-It contains name of property set and array of properties. Each property is
-represented by the following struct:
-```c++
-struct _pi_device_binary_property_struct {
-  char *Name;       // null-terminated property name
-  void *ValAddr;    // address of property value
-  uint32_t Type;    // _pi_property_type
-  uint64_t ValSize; // size of property value in bytes
-};
-```
+Each device image is supplied with an array of property sets. For description
+of property sets see `struct pi_device_binary_struct` in
+[`pi.h`](https://github.com/intel/llvm/blob/sycl/sycl/include/CL/sycl/detail/pi.h#L692)
 
 A distinct property set `SYCL/assert used` is added. In this set a property
-with the name of the kernel is added whenever the kernel uses assert. Use of
-assert is detected through call to `__devicelib_assert_fail` function after
-linking device binary image with wrapper device library (the `libsycl-crt`
-library).
+with the name of the kernel is added whenever the kernel uses assert. The use of
+assert is detected by a specific LLVM IR pass invoked by the `sycl-post-link`
+tool which runs on linked device code, i.e. after linking with the `libsycl-crt`
+library which defines the assert function. The pass builds complete call graph
+for a kernel, and sees if there's a call to `__devicelib_assert_fail` anywhere
+in the graph. If found, `sycl-post-link` adds the property for the kernel.
 
-The property set and the underlying properties are added by `sycl-post-link`
-tool with help of building callgraph for each and every kernel in device binary
-image.
+The same is done for all indirect callable functions (marked with specific
+attribute) found in the linked device code. Those are functions whose pointers
+can be taken and passed around in device code. If a callgraph for any such
+function has a call to `__devicelib_assert_fail`, then all kernels in the module
+are conservatively marked as using asserts.
 
 The added property is used for:
  - deciding if online-linking against fallback devicelib is required;
@@ -340,7 +333,7 @@ void workload() {
 ```
 
 These two files are compiled into a single binary application. There are four
-states of definedness of `NDEBUG` macro available:
+states of definition of `NDEBUG` macro available:
 
 | # | `impl.cpp` | `main.cpp` |
 | - | ---------- | ---------- |
@@ -349,12 +342,12 @@ states of definedness of `NDEBUG` macro available:
 | 3 | undefined  | defined    |
 | 4 | undefined  | undefined  |
 
-States of definedness of `NDEBUG` macro defines the set of assertions which can
+States of definition of `NDEBUG` macro defines the set of assertions which can
 fail.
 
 ### Raising assert failure flag and reading it on host
 
-Each and every translation unit provided by user should have declaration of
+All translation units provided by the user should have a declaration of the
 assert flag read function available:
 ```c++
 int __devicelib_assert_read(void);
