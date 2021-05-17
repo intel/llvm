@@ -884,6 +884,14 @@ struct _pi_kernel : _pi_object {
   // Keep the program of the kernel.
   pi_program Program;
 
+  // Hash function object for the unordered_set below.
+  struct Hash {
+    size_t operator()(
+        const std::unordered_map<void *, MemAllocRecord>::iterator &It) const {
+      return std::hash<void *>()(It->first);
+    }
+  };
+
   // If kernel has indirect access we need to make a snapshot of all existing
   // memory allocations to defer deletion of these memory allocations to the
   // moment when kernel execution has finished.
@@ -900,13 +908,6 @@ struct _pi_kernel : _pi_object {
   // submitted many times. We don't want to know how many times and which
   // allocations were retained by each submission. We release all allocations
   // in the set only when SubmissionsCount == 0.
-  struct Hash {
-    size_t operator()(
-        const std::unordered_map<void *, MemAllocRecord>::iterator &It) const {
-      return std::hash<void *>()(It->first);
-    }
-  };
-
   std::unordered_set<std::unordered_map<void *, MemAllocRecord>::iterator, Hash>
       MemAllocs;
 
