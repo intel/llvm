@@ -477,7 +477,7 @@ template <> struct numeric_limits<cl::sycl::half> {
   }
 
   static __SYCL_CONSTEXPR const cl::sycl::half round_error() noexcept {
-    return 0.5f; 
+    return 0.5f;
   }
 
   static constexpr const cl::sycl::half infinity() noexcept {
