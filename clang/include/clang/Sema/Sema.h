@@ -510,9 +510,6 @@ class Sema final {
   Sema(const Sema &) = delete;
   void operator=(const Sema &) = delete;
 
-  /// A key method to reduce duplicate debug info from Sema.
-  virtual void anchor();
-
   ///Source of additional semantic information.
   ExternalSemaSource *ExternalSource;
 
@@ -1684,6 +1681,13 @@ public:
   /// initialized but before it parses anything.
   void Initialize();
 
+  /// This virtual key function only exists to limit the emission of debug info
+  /// describing the Sema class. GCC and Clang only emit debug info for a class
+  /// with a vtable when the vtable is emitted. Sema is final and not
+  /// polymorphic, but the debug info size savings are so significant that it is
+  /// worth adding a vtable just to take advantage of this optimization.
+  virtual void anchor();
+
   const LangOptions &getLangOpts() const { return LangOpts; }
   OpenCLOptions &getOpenCLOptions() { return OpenCLFeatures; }
   FPOptions     &getCurFPFeatures() { return CurFPFeatures; }
@@ -1808,6 +1812,29 @@ public:
 
     LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/All)
   };
+
+private:
+  // A collection of a pair of undefined functions and their callers known
+  // to be reachable from a routine on the device (kernel or device function).
+  typedef std::pair<const FunctionDecl *, const FunctionDecl *> CallPair;
+  llvm::SmallVector<CallPair> UndefinedReachableFromSyclDevice;
+
+public:
+  // Helper routine to add a pair of Callee-Caller pair of FunctionDecl *
+  // to UndefinedReachableFromSyclDevice.
+  void addFDToReachableFromSyclDevice(const FunctionDecl *Callee,
+                                      const FunctionDecl *Caller) {
+    UndefinedReachableFromSyclDevice.push_back(std::make_pair(Callee, Caller));
+  }
+  // Helper routine to check if a pair of Callee-Caller FunctionDecl *
+  // is in UndefinedReachableFromSyclDevice.
+  bool isFDReachableFromSyclDevice(const FunctionDecl *Callee,
+                                   const FunctionDecl *Caller) {
+    return llvm::any_of(UndefinedReachableFromSyclDevice,
+                        [Callee, Caller](const CallPair &P) {
+                          return P.first == Callee && P.second == Caller;
+                        });
+  }
 
   /// A generic diagnostic builder for errors which may or may not be deferred.
   ///
@@ -4483,6 +4510,7 @@ public:
   bool checkStringLiteralArgumentAttr(const ParsedAttr &Attr, unsigned ArgNum,
                                       StringRef &Str,
                                       SourceLocation *ArgLocation = nullptr);
+  llvm::Error isValidSectionSpecifier(StringRef Str);
   bool checkSectionName(SourceLocation LiteralLoc, StringRef Str);
   bool checkTargetAttr(SourceLocation LiteralLoc, StringRef Str);
   bool checkMSInheritanceAttrOnDefinition(
@@ -13288,14 +13316,15 @@ public:
   /// properly declared for device compilation.
   void finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                    const FunctionDecl *Callee,
-                                   SourceLocation Loc);
+                                   SourceLocation Loc,
+                                   DeviceDiagnosticReason Reason);
 
   /// Tells whether given variable is a SYCL explicit SIMD extension's "private
   /// global" variable - global variable in the private address space.
   bool isSYCLEsimdPrivateGlobal(VarDecl *VDecl) {
     return getLangOpts().SYCLIsDevice && VDecl->hasAttr<SYCLSimdAttr>() &&
            VDecl->hasGlobalStorage() &&
-           (VDecl->getType().getAddressSpace() == LangAS::opencl_private);
+           (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
 };
 

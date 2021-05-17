@@ -6,6 +6,7 @@
 ;; clang++ -fsycl -fsycl-device-only load.cpp -o load.bc
 
 ; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
+; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
 
 ; ModuleID = 'store.bc'
 source_filename = "llvm-test-suite/SYCL/AtomicRef/store.cpp"

@@ -1370,8 +1370,8 @@ let Predicates = [HasSVE] in {
   defm INCP_ZP     : sve_int_count_v<0b10000, "incp">;
   defm DECP_ZP     : sve_int_count_v<0b10100, "decp">;
 
-  defm INDEX_RR : sve_int_index_rr<"index", index_vector, index_vector_oneuse>;
-  defm INDEX_IR : sve_int_index_ir<"index", index_vector, index_vector_oneuse>;
+  defm INDEX_RR : sve_int_index_rr<"index", index_vector, index_vector_oneuse, AArch64mul_p_oneuse>;
+  defm INDEX_IR : sve_int_index_ir<"index", index_vector, index_vector_oneuse, AArch64mul_p, AArch64mul_p_oneuse>;
   defm INDEX_RI : sve_int_index_ri<"index", index_vector, index_vector_oneuse>;
   defm INDEX_II : sve_int_index_ii<"index", index_vector, index_vector_oneuse>;
 
@@ -2532,11 +2532,11 @@ let Predicates = [HasSVE2] in {
   }
 
   // SVE2 predicated shifts
-  defm SQSHL_ZPmI  : sve_int_bin_pred_shift_imm_left< 0b0110, "sqshl",  "SQSHL_ZPZI">;
-  defm UQSHL_ZPmI  : sve_int_bin_pred_shift_imm_left< 0b0111, "uqshl",  "UQSHL_ZPZI">;
-  defm SRSHR_ZPmI  : sve_int_bin_pred_shift_imm_right<0b1100, "srshr",  "SRSHR_ZPZI",  int_aarch64_sve_srshr>;
-  defm URSHR_ZPmI  : sve_int_bin_pred_shift_imm_right<0b1101, "urshr",  "URSHR_ZPZI",  int_aarch64_sve_urshr>;
-  defm SQSHLU_ZPmI : sve_int_bin_pred_shift_imm_left< 0b1111, "sqshlu", "SQSHLU_ZPZI", int_aarch64_sve_sqshlu>;
+  defm SQSHL_ZPmI  : sve_int_bin_pred_shift_imm_left_dup<0b0110, "sqshl",  "SQSHL_ZPZI",  int_aarch64_sve_sqshl>;
+  defm UQSHL_ZPmI  : sve_int_bin_pred_shift_imm_left_dup<0b0111, "uqshl",  "UQSHL_ZPZI",  int_aarch64_sve_uqshl>;
+  defm SRSHR_ZPmI  : sve_int_bin_pred_shift_imm_right<   0b1100, "srshr",  "SRSHR_ZPZI",  int_aarch64_sve_srshr>;
+  defm URSHR_ZPmI  : sve_int_bin_pred_shift_imm_right<   0b1101, "urshr",  "URSHR_ZPZI",  int_aarch64_sve_urshr>;
+  defm SQSHLU_ZPmI : sve_int_bin_pred_shift_imm_left<    0b1111, "sqshlu", "SQSHLU_ZPZI", int_aarch64_sve_sqshlu>;
 
   // SVE2 integer add/subtract long
   defm SADDLB_ZZZ : sve2_wide_int_arith_long<0b00000, "saddlb", int_aarch64_sve_saddlb>;
