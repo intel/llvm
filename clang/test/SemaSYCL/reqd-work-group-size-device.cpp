@@ -34,7 +34,7 @@ queue q;
 [[intel::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
 [[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
 
-// The GNU and [[ci::reqd_work_group_size]] spellings are deprecated in SYCL
+// The GNU and [[cl::reqd_work_group_size]] spellings are deprecated in SYCL
 // mode, and still requires all three arguments.
 __attribute__((reqd_work_group_size(4, 4, 4))) void four_once_more(); // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
                                                                       // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
