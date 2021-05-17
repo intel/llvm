@@ -1047,14 +1047,13 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     auto Idx = Node->getConstantOperandVal(2);
     MVT SubVecVT = SubV.getSimpleValueType();
 
+    const RISCVTargetLowering &TLI = *Subtarget->getTargetLowering();
     MVT SubVecContainerVT = SubVecVT;
     // Establish the correct scalable-vector types for any fixed-length type.
     if (SubVecVT.isFixedLengthVector())
-      SubVecContainerVT = RISCVTargetLowering::getContainerForFixedLengthVector(
-          *CurDAG, SubVecVT, *Subtarget);
+      SubVecContainerVT = TLI.getContainerForFixedLengthVector(SubVecVT);
     if (VT.isFixedLengthVector())
-      VT = RISCVTargetLowering::getContainerForFixedLengthVector(*CurDAG, VT,
-                                                                 *Subtarget);
+      VT = TLI.getContainerForFixedLengthVector(VT);
 
     const auto *TRI = Subtarget->getRegisterInfo();
     unsigned SubRegIdx;
@@ -1101,14 +1100,13 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     MVT InVT = V.getSimpleValueType();
     SDLoc DL(V);
 
+    const RISCVTargetLowering &TLI = *Subtarget->getTargetLowering();
     MVT SubVecContainerVT = VT;
     // Establish the correct scalable-vector types for any fixed-length type.
     if (VT.isFixedLengthVector())
-      SubVecContainerVT = RISCVTargetLowering::getContainerForFixedLengthVector(
-          *CurDAG, VT, *Subtarget);
+      SubVecContainerVT = TLI.getContainerForFixedLengthVector(VT);
     if (InVT.isFixedLengthVector())
-      InVT = RISCVTargetLowering::getContainerForFixedLengthVector(
-          *CurDAG, InVT, *Subtarget);
+      InVT = TLI.getContainerForFixedLengthVector(InVT);
 
     const auto *TRI = Subtarget->getRegisterInfo();
     unsigned SubRegIdx;
@@ -1138,6 +1136,44 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
 
     SDValue Extract = CurDAG->getTargetExtractSubreg(SubRegIdx, DL, VT, V);
     ReplaceNode(Node, Extract.getNode());
+    return;
+  }
+  case RISCVISD::VMV_V_X_VL:
+  case RISCVISD::VFMV_V_F_VL: {
+    // Try to match splat of a scalar load to a strided load with stride of x0.
+    SDValue Src = Node->getOperand(0);
+    auto *Ld = dyn_cast<LoadSDNode>(Src);
+    if (!Ld)
+      break;
+    EVT MemVT = Ld->getMemoryVT();
+    // The memory VT should be the same size as the element type.
+    if (MemVT.getStoreSize() != VT.getVectorElementType().getStoreSize())
+      break;
+    if (!IsProfitableToFold(Src, Node, Node) ||
+        !IsLegalToFold(Src, Node, Node, TM.getOptLevel()))
+      break;
+
+    SDValue VL;
+    selectVLOp(Node->getOperand(1), VL);
+
+    unsigned ScalarSize = VT.getScalarSizeInBits();
+    SDValue SEW = CurDAG->getTargetConstant(ScalarSize, DL, XLenVT);
+
+    SDValue Operands[] = {Ld->getBasePtr(),
+                          CurDAG->getRegister(RISCV::X0, XLenVT), VL, SEW,
+                          Ld->getChain()};
+
+    RISCVVLMUL LMUL = RISCVTargetLowering::getLMUL(VT);
+    const RISCV::VLEPseudo *P = RISCV::getVLEPseudo(
+        /*IsMasked*/ false, /*IsStrided*/ true, /*FF*/ false, ScalarSize,
+        static_cast<unsigned>(LMUL));
+    MachineSDNode *Load =
+        CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
+
+    if (auto *MemOp = dyn_cast<MemSDNode>(Node))
+      CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
+
+    ReplaceNode(Node, Load);
     return;
   }
   }
@@ -1304,17 +1340,13 @@ bool RISCVDAGToDAGISel::MatchSLLIUW(SDNode *N) const {
   return (VC1 >> VC2) == UINT64_C(0xFFFFFFFF);
 }
 
-// X0 has special meaning for vsetvl/vsetvli.
-//  rd | rs1 |   AVL value | Effect on vl
-//--------------------------------------------------------------
-// !X0 |  X0 |       VLMAX | Set vl to VLMAX
-//  X0 |  X0 | Value in vl | Keep current vl, just change vtype.
+// Select VL as a 5 bit immediate or a value that will become a register. This
+// allows us to choose betwen VSETIVLI or VSETVLI later.
 bool RISCVDAGToDAGISel::selectVLOp(SDValue N, SDValue &VL) {
-  // If the VL value is a constant 0, manually select it to an ADDI with 0
-  // immediate to prevent the default selection path from matching it to X0.
   auto *C = dyn_cast<ConstantSDNode>(N);
-  if (C && C->isNullValue())
-    VL = SDValue(selectImm(CurDAG, SDLoc(N), 0, Subtarget->getXLenVT()), 0);
+  if (C && isUInt<5>(C->getZExtValue()))
+    VL = CurDAG->getTargetConstant(C->getZExtValue(), SDLoc(N),
+                                   N->getValueType(0));
   else
     VL = N;
 

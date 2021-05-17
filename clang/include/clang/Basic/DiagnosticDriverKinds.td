@@ -144,6 +144,8 @@ def warn_drv_mismatch_fpga_archive : Warning<
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
+def err_drv_amdgpu_ieee_without_no_honor_nans : Error<
+  "invalid argument '-mno-amdgpu-ieee' only allowed with relaxed NaN handling">;
 def err_drv_argument_not_allowed_with : Error<
   "invalid argument '%0' not allowed with '%1'">;
 def err_drv_invalid_version_number : Error<
