@@ -3157,7 +3157,6 @@ implicitly inherit this attribute.
 
 def SYCLGlobalVarDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "SYCL Global Var";
   let Content = [{
 This attribute can only be applied to a global variable and indicates that the
 variable can be used in a SYCL kernel. Access to the global variable is expected to
