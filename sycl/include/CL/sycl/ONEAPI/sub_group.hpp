@@ -104,6 +104,7 @@ struct sub_group {
   using range_type = range<1>;
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
+  static constexpr memory_scope fence_scope = memory_scope::sub_group;
 
   /* --- common interface members --- */
 
@@ -699,13 +700,40 @@ struct sub_group {
 #endif
   }
 
-protected:
-  template <int dimensions> friend class cl::sycl::nd_item;
-  friend sub_group this_sub_group();
-  sub_group() = default;
-};
+  linear_id_type get_group_linear_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return static_cast<linear_id_type>(get_group_range()[0]);
+#else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
 
-inline sub_group this_sub_group() {
+  linear_id_type get_local_linear_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return static_cast<linear_id_type>(get_local_range()[0]);
+#else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  bool leader() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    using namespace sycl::detail::spirv;
+    return GroupNonUniformElect<group_scope<sub_group>>();
+#else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+
+  protected:
+    template <int dimensions> friend class cl::sycl::nd_item;
+    friend sub_group this_sub_group();
+    sub_group() = default;
+  };
+
+  inline sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sub_group();
 #else
