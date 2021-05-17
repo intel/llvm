@@ -108,31 +108,38 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   {
     std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
-    // enqueueCommand() func below may throw an exception, so use unique_ptr
-    // here to avoid memory leak
-    std::unique_ptr<Command> NewCmd(
-        static_cast<Command *>(NewEvent->getCommand()));
+    Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
+
+    auto CleanUp = [&]() {
+      if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0) {
+        if (IsHostKernel)
+          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
+
+        NewEvent->setCommand(nullptr);
+        delete NewCmd;
+      }
+    };
 
     if (NewCmd) {
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd.get(), Res);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      try {
+        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+          throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      } catch (...) {
+        // enqueueCommand() func and if statement above may throw an exception,
+        // so destroy required resources to avoid memory leak
+        CleanUp();
+        std::rethrow_exception(std::current_exception());
+      }
 
       // If there are no memory dependencies decouple and free the command.
       // Though, dismiss ownership of native kernel command group as it's
       // resources may be in use by backend and synchronization point here is
       // at native kernel execution finish.
-      if (NewCmd.get()->MDeps.size() == 0 && NewCmd.get()->MUsers.size() == 0) {
-        if (IsHostKernel)
-          static_cast<ExecCGCommand *>(NewCmd.get())->releaseCG();
-
-        NewEvent->setCommand(nullptr);
-        NewCmd.reset();
-      }
+      CleanUp();
     }
-    NewCmd.release();
   }
 
   for (auto StreamImplPtr : Streams) {
