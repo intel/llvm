@@ -45,10 +45,9 @@
 #define __SYCL_CONSTEXPR constexpr
 #elif __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
 #define __SYCL_CONSTEXPR constexpr
-#else 
+#else
 #define __SYCL_CONSTEXPR
 #endif
-
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -395,7 +394,8 @@ public:
     return -r;
   }
   // Operator float
-  __SYCL_CONSTEXPR_ON_HOST operator float() const { return static_cast<float>(Data); }
+  __SYCL_CONSTEXPR_ON_HOST operator float() const {
+    return static_cast<float>(Data); }
 
   template <typename Key> friend struct std::hash;
 private:
@@ -475,8 +475,8 @@ template <> struct numeric_limits<cl::sycl::half> {
     return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_CONSTEXPR const cl::sycl::half
-  round_error() noexcept { return 0.5f; }
+  static __SYCL_CONSTEXPR const cl::sycl::half round_error() noexcept {
+    return 0.5f; }
 
   static constexpr const cl::sycl::half infinity() noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
