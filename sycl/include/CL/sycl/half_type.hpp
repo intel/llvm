@@ -395,7 +395,8 @@ public:
   }
   // Operator float
   __SYCL_CONSTEXPR_ON_HOST operator float() const {
-    return static_cast<float>(Data); }
+    return static_cast<float>(Data);
+  }
 
   template <typename Key> friend struct std::hash;
 private:
@@ -476,7 +477,8 @@ template <> struct numeric_limits<cl::sycl::half> {
   }
 
   static __SYCL_CONSTEXPR const cl::sycl::half round_error() noexcept {
-    return 0.5f; }
+    return 0.5f; 
+  }
 
   static constexpr const cl::sycl::half infinity() noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
