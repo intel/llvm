@@ -124,11 +124,13 @@ static std::map<std::string, int> *ZeCallCount = nullptr;
 
 // Trace an internal PI call; returns in case of an error.
 #define PI_CALL(Call)                                                          \
-  if (PrintPiTrace)                                                            \
-    fprintf(stderr, "PI ---> %s\n", #Call);                                    \
-  pi_result Result = (Call);                                                   \
-  if (Result != PI_SUCCESS)                                                    \
-    return Result;
+  {                                                                            \
+    if (PrintPiTrace)                                                          \
+      fprintf(stderr, "PI ---> %s\n", #Call);                                  \
+    pi_result Result = (Call);                                                 \
+    if (Result != PI_SUCCESS)                                                  \
+      return Result;                                                           \
+  }
 
 enum DebugLevel {
   ZE_DEBUG_NONE = 0x0,
@@ -275,6 +277,9 @@ static std::vector<pi_platform> *PiPlatformsCache =
 static sycl::detail::SpinLock *PiPlatformsCacheMutex =
     new sycl::detail::SpinLock;
 static bool PiPlatformCachePopulated = false;
+
+// Keeps track if the global offset extension is found
+static bool PiDriverGlobalOffsetExtensionFound = false;
 
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
@@ -515,14 +520,14 @@ pi_result _pi_device::initialize() {
   if (numQueueGroups == 0) {
     return PI_ERROR_UNKNOWN;
   }
-  std::vector<ze_command_queue_group_properties_t> queueProperties(
+  std::vector<ze_command_queue_group_properties_t> QueueProperties(
       numQueueGroups);
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
-          (ZeDevice, &numQueueGroups, queueProperties.data()));
+          (ZeDevice, &numQueueGroups, QueueProperties.data()));
 
   int ComputeGroupIndex = -1;
   for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (queueProperties[i].flags &
+    if (QueueProperties[i].flags &
         ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
       ComputeGroupIndex = i;
       break;
@@ -532,16 +537,17 @@ pi_result _pi_device::initialize() {
   if (ComputeGroupIndex < 0) {
     return PI_ERROR_UNKNOWN;
   }
-  this->ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
   int CopyGroupIndex = -1;
   const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
   bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
   if (UseCopyEngine) {
     for (uint32_t i = 0; i < numQueueGroups; i++) {
-      if (((queueProperties[i].flags &
+      if (((QueueProperties[i].flags &
             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
-          (queueProperties[i].flags &
+          (QueueProperties[i].flags &
            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
         CopyGroupIndex = i;
         break;
@@ -553,7 +559,10 @@ pi_result _pi_device::initialize() {
     else
       zePrint("NOTE: blitter/copy engine is available\n");
   }
-  this->ZeCopyQueueGroupIndex = CopyGroupIndex;
+  ZeCopyQueueGroupIndex = CopyGroupIndex;
+  if (CopyGroupIndex >= 0) {
+    ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
+  }
 
   // Cache device properties
   ZeDeviceProperties = {};
@@ -567,13 +576,17 @@ pi_result _pi_context::initialize() {
   // Create the immediate command list to be used for initializations
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
+  //
+  // TODO: get rid of using Devices[0] for the context with multiple
+  // root-devices. We should somehow make the data initialized on all devices.
+  pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
   ze_command_queue_desc_t ZeCommandQueueDesc = {};
-  ZeCommandQueueDesc.ordinal = Devices[0]->ZeComputeQueueGroupIndex;
+  ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  ZE_CALL(zeCommandListCreateImmediate,
-          (ZeContext, Devices[0]->ZeDevice, &ZeCommandQueueDesc,
-           &ZeCommandListInit));
+  ZE_CALL(
+      zeCommandListCreateImmediate,
+      (ZeContext, Device->ZeDevice, &ZeCommandQueueDesc, &ZeCommandListInit));
   return PI_SUCCESS;
 }
 
@@ -598,6 +611,12 @@ pi_result _pi_context::finalize() {
     if (ZeCommandList)
       ZE_CALL(zeCommandListDestroy, (ZeCommandList));
   }
+
+  // Adjust the number of command lists created on this platform.
+  auto Platform = Devices[0]->Platform;
+  Platform->ZeGlobalCommandListCount -= ZeComputeCommandListCache.size();
+  Platform->ZeGlobalCommandListCount -= ZeCopyCommandListCache.size();
+
   return PI_SUCCESS;
 }
 
@@ -1074,8 +1093,6 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
 
 static bool setEnvVar(const char *var, const char *value);
 
-static pi_result populateDeviceCacheIfNeeded(pi_platform Platform);
-
 // Forward declarations for mock implementations of Level Zero APIs that
 // do not yet work in the driver.
 // TODO: Remove these mock definitions when they work in the driver.
@@ -1124,6 +1141,26 @@ pi_result _pi_platform::initialize() {
   ZE_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
   ZeDriverApiVersion = std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
                        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+  // Cache driver extension properties
+  uint32_t Count = 0;
+  ZE_CALL(zeDriverGetExtensionProperties, (ZeDriver, &Count, nullptr));
+
+  std::vector<ze_driver_extension_properties_t> zeExtensions(Count);
+
+  ZE_CALL(zeDriverGetExtensionProperties,
+          (ZeDriver, &Count, zeExtensions.data()));
+
+  for (auto extension : zeExtensions) {
+    // Check if global offset extension is available
+    if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
+                strlen(ZE_GLOBAL_OFFSET_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_GLOBAL_OFFSET_EXP_VERSION_1_0) {
+        PiDriverGlobalOffsetExtensionFound = true;
+      }
+    }
+    zeDriverExtensionMap[extension.name] = extension.version;
+  }
 
   return PI_SUCCESS;
 }
@@ -1333,7 +1370,11 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 // Return NULL if no such PI device found.
 pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
-  std::lock_guard<std::mutex> Lock(this->PiDevicesCacheMutex);
+  pi_result Res = populateDeviceCacheIfNeeded();
+  if (Res != PI_SUCCESS) {
+    return nullptr;
+  }
+
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
                          [&](std::unique_ptr<_pi_device> &D) {
                            return D.get()->ZeDevice == ZeDevice;
@@ -1350,8 +1391,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
 
-  std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-  pi_result Res = populateDeviceCacheIfNeeded(Platform);
+  pi_result Res = Platform->populateDeviceCacheIfNeeded();
   if (Res != PI_SUCCESS) {
     return Res;
   }
@@ -1361,7 +1401,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
     // devices cache also keeps sub-devices.
-    if (D->IsSubDevice)
+    if (D->isSubDevice())
       continue;
 
     bool Matched = false;
@@ -1409,15 +1449,14 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   return PI_SUCCESS;
 }
 
-// Check the device cache and load it if necessary. The PiDevicesCacheMutex must
-// be locked before calling this function to prevent any synchronization issues.
-static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
+// Check the device cache and load it if necessary.
+pi_result _pi_platform::populateDeviceCacheIfNeeded() {
+  std::lock_guard<std::mutex> Lock(PiDevicesCacheMutex);
 
-  if (Platform->DeviceCachePopulated) {
+  if (DeviceCachePopulated) {
     return PI_SUCCESS;
   }
 
-  ze_driver_handle_t ZeDriver = Platform->ZeDriver;
   uint32_t ZeDeviceCount = 0;
   ZE_CALL(zeDeviceGet, (ZeDriver, &ZeDeviceCount, nullptr));
 
@@ -1426,21 +1465,48 @@ static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
     ZE_CALL(zeDeviceGet, (ZeDriver, &ZeDeviceCount, ZeDevices.data()));
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-      std::unique_ptr<_pi_device> Device(
-          new _pi_device(ZeDevices[I], Platform));
+      std::unique_ptr<_pi_device> Device(new _pi_device(ZeDevices[I], this));
       pi_result Result = Device->initialize();
       if (Result != PI_SUCCESS) {
         return Result;
       }
-      // save a copy in the cache for future uses.
-      Platform->PiDevicesCache.push_back(std::move(Device));
+
+      // Additionally we need to cache all sub-devices too, such that they
+      // are readily visible to the piextDeviceCreateWithNativeHandle.
+      //
+      pi_uint32 SubDevicesCount = 0;
+      ZE_CALL(zeDeviceGetSubDevices,
+              (Device->ZeDevice, &SubDevicesCount, nullptr));
+
+      auto ZeSubdevices = new ze_device_handle_t[SubDevicesCount];
+      ZE_CALL(zeDeviceGetSubDevices,
+              (Device->ZeDevice, &SubDevicesCount, ZeSubdevices));
+
+      // Wrap the Level Zero sub-devices into PI sub-devices, and add them to
+      // cache.
+      for (uint32_t I = 0; I < SubDevicesCount; ++I) {
+        std::unique_ptr<_pi_device> PiSubDevice(
+            new _pi_device(ZeSubdevices[I], this, Device.get()));
+        pi_result Result = PiSubDevice->initialize();
+        if (Result != PI_SUCCESS) {
+          delete[] ZeSubdevices;
+          return Result;
+        }
+        // save pointers to sub-devices for quick retrieval in the future.
+        Device->SubDevices.push_back(PiSubDevice.get());
+        PiDevicesCache.push_back(std::move(PiSubDevice));
+      }
+      delete[] ZeSubdevices;
+
+      // Save the root device in the cache for future uses.
+      PiDevicesCache.push_back(std::move(Device));
     }
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-  Platform->DeviceCachePopulated = true;
+  DeviceCachePopulated = true;
   return PI_SUCCESS;
 }
 
@@ -1448,7 +1514,7 @@ pi_result piDeviceRetain(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   // The root-device ref-count remains unchanged (always 1).
-  if (Device->IsSubDevice) {
+  if (Device->isSubDevice()) {
     ++(Device->RefCount);
   }
   return PI_SUCCESS;
@@ -1462,7 +1528,7 @@ pi_result piDeviceRelease(pi_device Device) {
     die("piDeviceRelease: the device has been already released");
 
   // Root devices are destroyed during the piTearDown process.
-  if (Device->IsSubDevice) {
+  if (Device->isSubDevice()) {
     if (--(Device->RefCount) == 0) {
       delete Device;
     }
@@ -1680,7 +1746,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    if (Device->IsSubDevice) {
+    if (Device->isSubDevice()) {
       struct {
         pi_device_partition_property Arr[3];
       } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
@@ -1986,66 +2052,30 @@ pi_result piDevicePartition(pi_device Device,
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  // Check if Device was already partitioned into the same or bigger size
-  // before. If so, we can return immediately without searching the global
-  // device cache. Note that L0 driver always returns the same handles in the
-  // same order for the given number of sub-devices.
-  if (OutDevices && NumDevices <= Device->SubDevices.size()) {
+  // Devices cache is normally created in piDevicesGet but still make
+  // sure that cache is populated.
+  //
+  pi_result Res = Device->Platform->populateDeviceCacheIfNeeded();
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
+  if (OutNumDevices) {
+    *OutNumDevices = Device->SubDevices.size();
+  }
+
+  if (OutDevices) {
+    // TODO: Consider support for partitioning to <= total sub-devices.
+    // Currently supported partitioning (by affinity domain/numa) would always
+    // partition to all sub-devices.
+    //
+    PI_ASSERT(NumDevices == Device->SubDevices.size(), PI_INVALID_VALUE);
+
     for (uint32_t I = 0; I < NumDevices; I++) {
       OutDevices[I] = Device->SubDevices[I];
       // reusing the same pi_device needs to increment the reference count
-      piDeviceRetain(OutDevices[I]);
+      PI_CALL(piDeviceRetain(OutDevices[I]));
     }
-    if (OutNumDevices)
-      *OutNumDevices = NumDevices;
-    return PI_SUCCESS;
-  }
-
-  // Get the number of subdevices available.
-  // TODO: maybe add interface to create the specified # of subdevices.
-  uint32_t Count = 0;
-  ZE_CALL(zeDeviceGetSubDevices, (Device->ZeDevice, &Count, nullptr));
-
-  if (OutNumDevices) {
-    *OutNumDevices = Count;
-  }
-
-  if (!OutDevices) {
-    // If we are not given the buffer, we are done.
-    return PI_SUCCESS;
-  }
-
-  try {
-    pi_platform Platform = Device->Platform;
-    auto ZeSubdevices = new ze_device_handle_t[Count];
-    ZE_CALL(zeDeviceGetSubDevices, (Device->ZeDevice, &Count, ZeSubdevices));
-
-    // Wrap the Level Zero sub-devices into PI sub-devices, and write them out.
-    for (uint32_t I = 0; I < Count; ++I) {
-      pi_device Dev = Platform->getDeviceFromNativeHandle(ZeSubdevices[I]);
-      if (Dev) {
-        OutDevices[I] = Dev;
-        // reusing the same pi_device needs to increment the reference count
-        piDeviceRetain(OutDevices[I]);
-      } else {
-        std::unique_ptr<_pi_device> PiSubDevice(
-            new _pi_device(ZeSubdevices[I], Platform));
-        pi_result Result = PiSubDevice->initialize();
-        if (Result != PI_SUCCESS) {
-          delete[] ZeSubdevices;
-          return Result;
-        }
-        OutDevices[I] = PiSubDevice.get();
-        // save pointers to sub-devices for quick retrieval in the future.
-        Device->SubDevices.push_back(PiSubDevice.get());
-        Platform->PiDevicesCache.push_back(std::move(PiSubDevice));
-      }
-    }
-    delete[] ZeSubdevices;
-  } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return PI_ERROR_UNKNOWN;
   }
   return PI_SUCCESS;
 }
@@ -2114,13 +2144,7 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
-  {
-    std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-    pi_result Res = populateDeviceCacheIfNeeded(Platform);
-    if (Res != PI_SUCCESS) {
-      return Res;
-    }
-  }
+
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
 
   // The SYCL spec requires that the set of devices must remain fixed for the
@@ -2144,6 +2168,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   (void)Properties;
   (void)PFnNotify;
   (void)UserData;
+  PI_ASSERT(NumDevices, PI_INVALID_VALUE);
   PI_ASSERT(Devices, PI_INVALID_DEVICE);
   PI_ASSERT(RetContext, PI_INVALID_VALUE);
 
@@ -2480,7 +2505,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     die("piMemBufferCreate: no mem properties goes to Level-Zero RT yet");
   }
 
-  void *Ptr;
+  void *Ptr = nullptr;
 
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
@@ -2521,10 +2546,21 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   pi_result Result;
   if (DeviceIsIntegrated) {
     Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+  } else if (Context->SingleRootDevice) {
+    // If we have a single discrete device or all devices in the context are
+    // sub-devices of the same device then we can allocate on device
+    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                 nullptr, Size, Alignment);
   } else {
-    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->Devices[0], nullptr,
-                                 Size, Alignment);
+    // Context with several gpu cards. Temporarily use host allocation because
+    // it is accessible by all devices. But it is not good in terms of
+    // performance.
+    // TODO: We need to either allow remote access to device memory using IPC,
+    // or do explicit memory transfers from one device to another using host
+    // resources as backing buffers to allow those transfers.
+    Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
   }
+
   if (Result != PI_SUCCESS)
     return Result;
 
@@ -2535,12 +2571,15 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
       if (DeviceIsIntegrated) {
         // Do a host to host copy
         memcpy(Ptr, HostPtr, Size);
-      } else {
-
+      } else if (Context->SingleRootDevice) {
         // Initialize the buffer synchronously with immediate offload
         ZE_CALL(zeCommandListAppendMemoryCopy,
                 (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
                  nullptr));
+      } else {
+        // Multiple root devices, do a host to host copy because we use a host
+        // allocation for this case.
+        memcpy(Ptr, HostPtr, Size);
       }
     } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
       // Nothing more to do.
@@ -2736,14 +2775,12 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZeImageDesc.arraylevels = pi_cast<uint32_t>(ImageDesc->image_array_size);
   ZeImageDesc.miplevels = ImageDesc->num_mip_levels;
 
-  // Have the "0" device in context to own the image. Rely on Level-Zero
-  // drivers to perform migration as necessary for sharing it across multiple
-  // devices in the context.
-  //
-  // TODO: figure out if we instead need explicit copying for acessing
-  // the image from other devices in the context.
-  //
-  pi_device Device = Context->Devices[0];
+  // Currently we have the "0" device in context with mutliple root devices to
+  // own the image.
+  // TODO: Implement explicit copying for acessing the image from other devices
+  // in the context.
+  pi_device Device = Context->SingleRootDevice ? Context->SingleRootDevice
+                                               : Context->Devices[0];
   ze_image_handle_t ZeHImage;
   ZE_CALL(zeImageCreate,
           (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));
@@ -2830,8 +2867,6 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
       *BinaryStatus = PI_INVALID_VALUE;
     return PI_INVALID_VALUE;
   }
-  if (DeviceList[0] != Context->Devices[0])
-    return PI_INVALID_DEVICE;
 
   size_t Length = Lengths[0];
   auto Binary = Binaries[0];
@@ -3501,10 +3536,20 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_KERNEL_NAME;
   _pi_program::ModuleIterator ModIt(Program);
   while (!ModIt.Done()) {
-    ZeResult =
-        ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
-    if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
-      break;
+    // For a module with valid sycl kernel inside, zeKernelCreate API
+    // should return ZE_RESULT_SUCCESS if target kernel is found and
+    // ZE_RESULT_ERROR_INVALID_KERNEL_NAME otherwise. However, some module
+    // may not include any sycl kernel such as device library modules. For such
+    // modules, zeKernelCreate will return ZE_RESULT_ERROR_INVALID_ARGUMENT and
+    // we should skip them.
+    uint32_t KernelNum = 0;
+    ZE_CALL(zeModuleGetKernelNames, (*ModIt, &KernelNum, nullptr));
+    if (KernelNum != 0) {
+      ZeResult =
+          ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
+      if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
+        break;
+    }
     ModIt++;
   }
   if (ZeResult != ZE_RESULT_SUCCESS)
@@ -3761,11 +3806,14 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
 
   if (GlobalWorkOffset != NULL) {
-    for (pi_uint32 i = 0; i < WorkDim; i++) {
-      if (GlobalWorkOffset[i] != 0) {
-        return PI_INVALID_VALUE;
-      }
+    if (!PiDriverGlobalOffsetExtensionFound) {
+      zePrint("No global offset extension found on this driver\n");
+      return PI_INVALID_VALUE;
     }
+
+    ZE_CALL(zeKernelSetGlobalOffsetExp,
+            (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
+             GlobalWorkOffset[2]));
   }
 
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
@@ -4786,10 +4834,31 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
+
+  bool PreferCopyEngine = false;
+  size_t MaxPatternSize =
+      Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
+
   // Performance analysis on a simple SYCL data "fill" test shows copy engine
   // is faster than compute engine for such operations.
+  //
+  // Make sure that pattern size matches the capability of the copy queue.
+  //
+  if (Queue->Device->hasCopyEngine() &&
+      PatternSize <=
+          Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize) {
+    MaxPatternSize =
+        Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize;
+    PreferCopyEngine = true;
+  }
+  // Pattern size must fit the queue.
+  PI_ASSERT(PatternSize <= MaxPatternSize, PI_INVALID_VALUE);
+  // Pattern size must be a power of two.
+  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
+            PI_INVALID_VALUE);
+
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, true /* PreferCopyEngine */))
+          Queue, &ZeCommandList, &ZeFence, PreferCopyEngine))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4806,9 +4875,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     ZE_CALL(zeCommandListAppendWaitOnEvents,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
-  // Pattern size must be a power of two
-  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
-            PI_INVALID_VALUE);
 
   ZE_CALL(
       zeCommandListAppendMemoryFill,

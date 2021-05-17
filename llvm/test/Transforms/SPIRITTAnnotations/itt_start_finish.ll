@@ -2,6 +2,7 @@
 ;; are being added by SPIRITTAnnotations pass
 
 ; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
+; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
 
 ; ModuleID = 'synthetic.bc'
 source_filename = "synthetic.cpp"

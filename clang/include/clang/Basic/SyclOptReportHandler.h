@@ -25,21 +25,31 @@ class FunctionDecl;
 class SyclOptReportHandler {
 private:
   struct OptReportInfo {
-    std::string KernelArgName;
+    std::string KernelArgDescName; // Kernel argument name itself, or the name
+                                   // of the parent class if the kernel argument
+                                   // is a decomposed member.
     std::string KernelArgType;
     SourceLocation KernelArgLoc;
+    unsigned KernelArgSize;
+    std::string KernelArgDesc;
+    std::string KernelArgDecomposedField;
 
-    OptReportInfo(std::string ArgName, std::string ArgType,
-                  SourceLocation ArgLoc)
-        : KernelArgName(std::move(ArgName)), KernelArgType(std::move(ArgType)),
-          KernelArgLoc(ArgLoc) {}
+    OptReportInfo(std::string ArgDescName, std::string ArgType,
+                  SourceLocation ArgLoc, unsigned ArgSize, std::string ArgDesc,
+                  std::string ArgDecomposedField)
+        : KernelArgDescName(std::move(ArgDescName)),
+          KernelArgType(std::move(ArgType)), KernelArgLoc(ArgLoc),
+          KernelArgSize(ArgSize), KernelArgDesc(std::move(ArgDesc)),
+          KernelArgDecomposedField(std::move(ArgDecomposedField)) {}
   };
   llvm::DenseMap<const FunctionDecl *, SmallVector<OptReportInfo>> Map;
 
 public:
-  void AddKernelArgs(const FunctionDecl *FD, std::string ArgName,
-                     std::string ArgType, SourceLocation ArgLoc) {
-    Map[FD].emplace_back(ArgName, ArgType, ArgLoc);
+  void AddKernelArgs(const FunctionDecl *FD, StringRef ArgDescName,
+                     StringRef ArgType, SourceLocation ArgLoc, unsigned ArgSize,
+                     StringRef ArgDesc, StringRef ArgDecomposedField) {
+    Map[FD].emplace_back(ArgDescName.data(), ArgType.data(), ArgLoc, ArgSize,
+                         ArgDesc.data(), ArgDecomposedField.data());
   }
   SmallVector<OptReportInfo> &GetInfo(const FunctionDecl *FD) {
     auto It = Map.find(FD);
