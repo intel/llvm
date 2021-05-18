@@ -2611,7 +2611,8 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
       case LangAS::opencl_generic:
         ASString = "CLgeneric";
         break;
-      //  <SYCL-addrspace> ::= "SY" [ "global" | "local" | "private" ]
+      //  <SYCL-addrspace> ::= "SY" [ "global" | "local" | "private" |
+      //                              "device" | "host" ]
       case LangAS::sycl_global:
         ASString = "SYglobal";
         break;
