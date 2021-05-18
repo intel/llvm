@@ -158,11 +158,11 @@ SYCL_EXTERNAL int LibDeviceFunc(int i) {
 
 // B.cpp
 class LibKernel;
-/* ... */ 
+/* ... */
 Q.submit([&](cl::sycl::handler &CGH) {
 CGH.parallel_for<LibKernel>(/* ... */ [=](sycl::item i) {
   out[i] = LibDeviceFunc(i);
-} /* ... */ 
+} /* ... */
 ```
 If user requested per-source device code split, then for this shared library
 `sycl-post-link` will create two device images and both of them will define
@@ -261,29 +261,26 @@ kernels defined by this program.
 
 #### DPC++ runtime plugin interface (PI) changes
 
-Before creating a program the function `piextDeviceSelectBinary` is used to
-choose the most appropriate device image. Device image may have SPIR-V or native
-binary code format.
-It is possible that not all backends have possibility to link programs made from
-device images of some format at runtime. So, in presence of dynamic linking the
-`piextDeviceSelectBinary` function should be extended, so it chooses the
-appropriate device image based on additional attributes of device images, such
-as:
-- List of imports (if present)
-- Device image format
-- Runtime linking support in corresponding backend
+During *device images collection* process RT considers modules as available for
+linking using information about ability of chosen device backend to compile
+and link programs created from particular device image format. The information
+about ability to compile and link particular format of device code is provided
+by PI plugin implementation for concrete backend. For this purpose
+`piDeviceGetInfo` API is used. For each device image format supported by DPC++
+RT PI device extension is defined. Each extension is a string that can be
+returned by `piDeviceGetInfo` call with query `PI_DEVICE_INFO_EXTENSIONS`.
+Mapping of extension strings and formats that can be linked:
+| Device image format | Extension string | Meaning |
+|---------------------|------------------|---------|
+| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 | "pi_ext_spirv64_linking" | Linking of SPIR-V 64-bit programs is supported|
+| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 | "pi_ext_spirv64_x86_64_linking" | Linking of 64-bit programs that were AOT compiled for CPU device is supported|
+| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN | "pi_ext_spirv64_gen_linking" | Linking of 64-bit programs that were AOT compiled for GPU device is supported|
+| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA | "pi_ext_spirv64_fpga_linking" | Linking of 64-bit programs that were AOT compiled for FPGA device is supported|
 
-Example: the backend doesn't have support of native binaries linking at
-run-time but linking of SPIR-V is supported, the AOT-compiled device image with
-required kernel have imports information attached which effectively means that
-this device image needs runtime linking, but since native binaries linking is
-not supported, the image with SPIR-V format will be chosen (or an error emitted
-if there is no other device images).
 To link several device images together `piProgramLink` API will be used.
 Depending on concrete plugin implementation and set of device image formats that
 can be linked at run-time, `piProgramLink` API may receive programs made from
-device images in different formats as inputs (including SPIR-V and native code)
-with a limitation that used images should have the same format.
+device images in different formats as inputs (including SPIR-V and native code).
 
 ##### Support of runtime linking in backends
 
@@ -291,13 +288,19 @@ with a limitation that used images should have the same format.
   format on OpenCL backend:
   - OpenCL plugin will use the existing OpenCL `clLinkProgram()` API to online
   link the SPIR-V modules together.
-  - The design requires a new Level Zero API to online link SPIR-V modules.
-- The initial implementation will support dynamic linking of device code in native code
-  format on the Level Zero backend:
-  - L0 plugin will use the existing Level Zero `zeModuleDynamicLink()` API to do
-  the linking.
+  - A new Level Zero API to online link programs on SPIR-V level is required for
+  better performance.
+  - While there is no Level Zero API to link programs on SPIR-V level, existing
+  `zeModuleDynamicLink()` can be used as fallback.
 
-In the future support may be extended to different formats.
+- In order to support dynamic linking of AOT compiled device code the
+  following should be implemented on backends site:
+  - AOT compilers must allow to compile SPIR-V modules with unresolved symbols
+  and produce device code in format that can be linked in run time and allows
+  to reduce JIT overhead
+  - OpenCL program binary type CL_PROGRAM_BINARY_TYPE_[COMPILED_OBJECT/LIBRARY]
+  should have native code format or any other format that can be emitted by AOT
+  compiler and allows to reduce JIT overhead
 
 #### Device images collection and linking
 
