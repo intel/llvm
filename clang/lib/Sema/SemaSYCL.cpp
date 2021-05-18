@@ -61,6 +61,9 @@ static constexpr llvm::StringLiteral InitESIMDMethodName = "__init_esimd";
 static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
     "__init_specialization_constants_buffer";
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
+static constexpr llvm::StringLiteral GlibcxxFailedAssertion =
+    "__failed_assertion";
+static constexpr llvm::StringLiteral GlibcxxConfigFile = "bits/c++config.h";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
 namespace {
@@ -318,6 +321,19 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
 // ESIMD extension.
 static bool isSYCLKernelBodyFunction(FunctionDecl *FD) {
   return FD->getOverloadedOperator() == OO_Call;
+}
+
+static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
+                                   const SourceManager &SrcMgr) {
+  if (!Callee)
+    return false;
+  if (Callee->getName() == GlibcxxFailedAssertion) {
+    if (Callee->getLocation().printToString(SrcMgr).rfind(
+            GlibcxxConfigFile.str()) != std::string::npos)
+      return true;
+  }
+
+  return false;
 }
 
 // Helper function to report conflicting function attributes.
@@ -4121,8 +4137,9 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
     return;
 
-  // Diagnose if this is an undefined function and it is not a builtin.
-  if (!Callee->isDefined() && !Callee->getBuiltinID()) {
+  // Diagnose if this is an undefined function and it is not a builtin. 
+  if (!Callee->isDefined() && !Callee->getBuiltinID() &&
+      !isSYCLUndefinedAllowed(Callee, getSourceManager())) {
     Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
     Diag(Caller->getLocation(), diag::note_called_by) << Caller;
