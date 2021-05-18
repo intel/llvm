@@ -21,7 +21,8 @@ namespace detail {
 // while the code requires C++17. This code is not supposed to be used by the
 // libsycl.so so it should not be a problem.
 #if __cplusplus > 201402L
-template <auto &S> struct specialization_id_name_generator {};
+// Definition is in spec_const_integration.hpp
+template <auto &S> struct specialization_id_name_generator;
 #endif
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -58,14 +59,8 @@ template <class Name> struct SpecConstantInfo {
 
 #if __cplusplus >= 201703L
 // Translates SYCL 2020 specialization constant type to its name.
-template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
-#ifdef SYCL_LANGUAGE_VERSION
-  return __builtin_unique_stable_name(
-      specialization_id_name_generator<SpecName>);
-#else
-  return "";
-#endif
-}
+// Definition is in spec_const_integration.hpp
+template <auto &SpecName> const char *get_spec_constant_symbolic_ID();
 #endif
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
