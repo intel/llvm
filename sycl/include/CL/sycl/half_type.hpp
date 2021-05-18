@@ -476,7 +476,8 @@ template <> struct numeric_limits<cl::sycl::half> {
     return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half round_error() noexcept {
+  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half
+  round_error() noexcept {
     return 0.5f;
   }
 
@@ -493,7 +494,8 @@ template <> struct numeric_limits<cl::sycl::half> {
     return __builtin_nanf("");
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half signaling_NaN() noexcept {
+  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half
+  signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
@@ -516,7 +518,7 @@ inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
   return I;
 }
 
-#undef __SYCL_CONSTEXPR
+#undef __SYCL_HALF_CTOR_CONSTEXPR
 #undef __SYCL_CONSTEXPR_ON_DEVICE
 #undef __SYCL_CONSTEXPR_ON_HOST
 #undef _CPP14_CONSTEXPR
