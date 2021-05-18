@@ -391,16 +391,16 @@ bool platform_impl::has(aspect Aspect) const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform_impl::getDefaultContext() {
-  const std::lock_guard<std::mutex> Guard(MContextMutex);
+  const std::lock_guard<std::mutex> Guard(MDefaultContextMutex);
 
-  if (!MDefaultContexts.empty())
-    return MDefaultContexts.back();
-  else {
-    auto Devices = get_devices();
-    MDefaultContexts.emplace_back(Devices);
+  if (!MDefaultContext)
+    return *MDefaultContext;
 
-    return MDefaultContexts.back();
-  }
+  // Lazily instantiate default context
+  auto Devices = get_devices();
+  MDefaultContext = std::make_shared<context>(Devices);
+
+  return *MDefaultContext;
 }
 
 } // namespace detail

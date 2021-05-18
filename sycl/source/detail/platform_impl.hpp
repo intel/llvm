@@ -190,8 +190,8 @@ private:
   std::shared_ptr<plugin> MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
-  std::vector<context> MDefaultContexts;
-  std::mutex MContextMutex;
+  std::shared_ptr<context> MDefaultContext;
+  std::mutex MDefaultContextMutex;
 };
 
 } // namespace detail

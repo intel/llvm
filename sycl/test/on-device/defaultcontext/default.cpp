@@ -23,8 +23,11 @@ int main() {
   auto d1 = q.get_device();
   auto d2 = q2.get_device();
 
+  auto c3 = d1.get_platform().get_default_context();
+
   assert(d1 == d2);
   assert(c1 == c2);
+  assert(c1 == c3);
 
   return 0;
 }
