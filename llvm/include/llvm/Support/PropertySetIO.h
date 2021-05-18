@@ -201,11 +201,21 @@ public:
       PropSet.insert(std::make_pair(Prop.first, PropertyValue(Prop.second)));
   }
 
+  template <typename T>
+  void add(StringRef Category, const MapVector<StringRef, T> &Props) {
+    assert(PropSetMap.find(Category) == PropSetMap.end() &&
+           "category already added");
+    auto &PropSet = PropSetMap[Category];
+
+    for (const auto &Prop : Props)
+      PropSet.insert({Prop.first, PropertyValue(Prop.second)});
+  }
+
   // Function to add a property to a given category (property set name).
   template <typename T>
   void add(StringRef Category, StringRef PropName, const T &PropVal) {
     auto &PropSet = PropSetMap[Category];
-    PropSet.insert(std::make_pair(PropName, PropertyValue(PropVal)));
+    PropSet.insert({PropName, PropertyValue(PropVal)});
   }
 
   // Parses and creates a property set registry.

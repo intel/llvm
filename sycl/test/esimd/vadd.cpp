@@ -6,7 +6,7 @@
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -O0 -g
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <iostream>
 #include <string>
 
@@ -80,7 +80,7 @@ int main(void) {
 
       cgh.parallel_for<class Test>(
           Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+            using namespace sycl::ext::intel::experimental::esimd;
             auto pA = accA.get_pointer().get();
             auto pB = accB.get_pointer().get();
             auto pC = accC.get_pointer().get();

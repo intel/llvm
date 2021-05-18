@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "llvm/ADT/MapVector.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 
@@ -46,7 +47,7 @@ struct SpecConstantDescriptor {
   unsigned Size;
 };
 using SpecIDMapTy =
-    std::map<llvm::StringRef, std::vector<SpecConstantDescriptor>>;
+    llvm::MapVector<llvm::StringRef, std::vector<SpecConstantDescriptor>>;
 
 class SpecConstantsPass : public llvm::PassInfoMixin<SpecConstantsPass> {
 public:
