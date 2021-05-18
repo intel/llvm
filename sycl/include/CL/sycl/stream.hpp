@@ -862,7 +862,7 @@ private:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-void __init(detail::GlobalBufPtrType GlobalBufPtr,
+  void __init(detail::GlobalBufPtrType GlobalBufPtr,
               range<detail::GlobalBufDim> GlobalBufAccRange,
               range<detail::GlobalBufDim> GlobalBufMemRange,
               id<detail::GlobalBufDim> GlobalBufId,
