@@ -488,8 +488,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
 
     // Set __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
     // both host and device compilations if -fintelfpga flag is present.
-    if (LangOpts.SYCLAllowFpgaFlag) {
-      Builder.defineMacro("__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__", "1");
+    if (LangOpts.AheadOfTimeFPGACompilation) {
+      Builder.defineMacro("__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__");
     }
   }
 

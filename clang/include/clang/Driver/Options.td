@@ -2481,7 +2481,7 @@ defm strict_vtable_pointers : BoolFOption<"strict-vtable-pointers",
 def fstrict_overflow : Flag<["-"], "fstrict-overflow">, Group<f_Group>;
 def fintelfpga : Flag<["-"], "fintelfpga">, Group<f_Group>,
   Flags<[CC1Option, CoreOption]>, HelpText<"Perform ahead of time compilation for FPGA">,
-  MarshallingInfoFlag<LangOpts<"SYCLAllowFpgaFlag">>;
+  MarshallingInfoFlag<LangOpts<"AheadOfTimeFPGACompilation">>;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
