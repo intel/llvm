@@ -4957,6 +4957,9 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
 
+  // TODO: Fill operations on copy engine fails to fill a buffer at expected
+  // offset. Perform fill operations on compute engine for now.
+  // PreferCopyEngine will be initialized with 'true' once issue is resolved.
   bool PreferCopyEngine = false;
   size_t MaxPatternSize =
       Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
@@ -4966,12 +4969,11 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   //
   // Make sure that pattern size matches the capability of the copy queue.
   //
-  if (Queue->Device->hasCopyEngine() &&
+  if (PreferCopyEngine && Queue->Device->hasCopyEngine() &&
       PatternSize <=
           Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize) {
     MaxPatternSize =
         Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize;
-    PreferCopyEngine = true;
   }
   // Pattern size must fit the queue.
   PI_ASSERT(PatternSize <= MaxPatternSize, PI_INVALID_VALUE);
