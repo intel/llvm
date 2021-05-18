@@ -4137,7 +4137,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
     return;
 
-  // Diagnose if this is an undefined function and it is not a builtin. 
+  // Diagnose if this is an undefined function and it is not a builtin.
   if (!Callee->isDefined() && !Callee->getBuiltinID() &&
       !isSYCLUndefinedAllowed(Callee, getSourceManager())) {
     Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
