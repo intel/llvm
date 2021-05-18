@@ -216,7 +216,7 @@
 // CHECK-HIP-DEV: #define __HIP__ 1
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
-// RUN:   -triple spir64-unknown-unknown -fintelfpga -o - \
+// RUN:   -triple spir64-unknown-unknown -fsycl-disable-range-rounding -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
@@ -230,7 +230,7 @@
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-host \
-// RUN: -triple x86_64-unknown-linux-gnu -fintelfpga -o - \
+// RUN: -triple x86_64-unknown-linux-gnu -fsycl-disable-range-rounding -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-host -o - \
