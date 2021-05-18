@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -Xclang -fsycl-id-queries-fit-in-int -fno-inline-functions -O0 -c -S -emit-llvm -o %t.ll %s
+// RUN: %clangxx -fsycl -Xclang -fsycl-id-queries-fit-in-int -disable-llvm-passes -O0 -c -S -emit-llvm -o %t.ll %s
 // RUN: FileCheck %s --input-file %t.ll
 
 #include <CL/sycl.hpp>
