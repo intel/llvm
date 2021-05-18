@@ -316,6 +316,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
+__SYCL2020_DEPRECATED("Thank you Mario! But our princess is in another castle!")
 reduce(Group g, T x, BinaryOperation binary_op) {
   return reduce_over_group(g, x, binary_op);
 }
@@ -325,6 +326,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
+__SYCL2020_DEPRECATED("Thank you Mario! But our princess is in another castle!")                    
 reduce(Group g, T x, BinaryOperation binary_op) {
   return reduce_over_group(g, x, binary_op);
 }
@@ -335,6 +337,7 @@ detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                      (!detail::is_arithmetic<T>::value ||
                       !detail::is_native_op<T, BinaryOperation>::value)),
                     T>
+__SYCL2020_DEPRECATED("Thank you Mario! But our princess is in another castle!")
 reduce(Group g, T x, BinaryOperation op) {
   return reduce_over_group(g, x, op);
 }
@@ -346,6 +349,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
+__SYCL2020_DEPRECATED("Thank you Mario! But our princess is in another castle!")
 reduce(Group g, V x, T init, BinaryOperation binary_op) {
   return reduce_over_group(g, x, init, binary_op);
 }
@@ -357,6 +361,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
+__SYCL2020_DEPRECATED("Thank you Mario! But our princess is in another castle!")
 reduce(Group g, V x, T init, BinaryOperation binary_op) {
   return reduce_over_group(g, x, init, binary_op);
 }
@@ -369,6 +374,7 @@ detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                       !detail::is_arithmetic<V>::value ||
                       !detail::is_native_op<T, BinaryOperation>::value)),
                     T>
+__SYCL2020_DEPRECATED("Thank you Mario! But our princess is in another castle!")
 reduce(Group g, V x, T init, BinaryOperation op) {
   return reduce_over_group(g, x, init, op);
 }
@@ -378,6 +384,7 @@ detail::enable_if_t<
     (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
     typename detail::remove_pointer<Ptr>::type>
+__SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use SYCL2020 joint_reduce instead.")
 reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
   return joint_reduce(g, first, last, binary_op);
 }
@@ -391,6 +398,7 @@ detail::enable_if_t<
                           BinaryOperation>::value &&
      detail::is_native_op<T, BinaryOperation>::value),
     T>
+__SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use SYCL2020 joint_reduce instead.")
 reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
   return joint_reduce(g, first, last, init, binary_op);
 }
