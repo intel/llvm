@@ -143,14 +143,6 @@ public:
     Opts["cl_khr_global_int32_extended_atomics"] = true;
     Opts["cl_khr_local_int32_base_atomics"] = true;
     Opts["cl_khr_local_int32_extended_atomics"] = true;
-    // PTX actually supports 64 bits operations even if the Nvidia OpenCL
-    // runtime does not report support for it.
-    // This is required for libclc to compile 64 bits atomic functions.
-    // FIXME: maybe we should have a way to control this ?
-    Opts["cl_khr_int64_base_atomics"] = true;
-    Opts["cl_khr_int64_extended_atomics"] = true;
-    Opts["cl_khr_fp16"] = true;
-    Opts["cl_khr_3d_image_writes"] = true;
   }
 
   /// \returns If a target requires an address within a target specific address
@@ -181,6 +173,18 @@ public:
     TargetInfo::adjust(Opts);
     // FIXME: Needed for compiling SYCL to PTX.
     TLSSupported = TLSSupported || Opts.SYCLIsDevice;
+
+    if (Opts.SYCLIsDevice) {
+      auto &OpenCLOpts = getSupportedOpenCLOpts();
+      // PTX actually supports 64 bits operations even if the Nvidia OpenCL
+      // runtime does not report support for it.
+      // This is required for libclc to compile 64 bits atomic functions.
+      // FIXME: maybe we should have a way to control this ?
+      OpenCLOpts["cl_khr_int64_base_atomics"] = true;
+      OpenCLOpts["cl_khr_int64_extended_atomics"] = true;
+      OpenCLOpts["cl_khr_fp16"] = true;
+      OpenCLOpts["cl_khr_3d_image_writes"] = true;
+    }
   }
 
   bool hasExtIntType() const override { return true; }
