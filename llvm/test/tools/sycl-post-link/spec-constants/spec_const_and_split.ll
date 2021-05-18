@@ -50,8 +50,8 @@ define dso_local spir_kernel void @KERNEL_CCC() {
 ; CHECK-IR2: !sycl.specialization-constants = !{}
 
 ; CHECK-PROP0: [SYCL/specialization constants]
-; CHECK-PROP0: SpecConst=2|
-; CHECK-PROP0: SpecConst2=2|
+; CHECK-PROP0-DAG: SpecConst=2|
+; CHECK-PROP0-DAG: SpecConst2=2|
 ;
 ; CHECK-PROP1: [SYCL/specialization constants]
 ; CHECK-PROP1: SpecConst=2|
