@@ -105,6 +105,12 @@ enum class GroupOperation : uint32_t {
   ExclusiveScan = 2
 };
 
+enum class MatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
+
+template <typename T, std::size_t R, std::size_t C, MatrixLayout U,
+          Scope::Flag S = Scope::Flag::Subgroup>
+struct __spirv_MatrixINTEL;
+
 } // namespace __spv
 
 #ifdef __SYCL_DEVICE_ONLY__
