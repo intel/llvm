@@ -14,6 +14,7 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/stream.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
