@@ -201,6 +201,16 @@ public:
       PropSet.insert(std::make_pair(Prop.first, PropertyValue(Prop.second)));
   }
 
+  template <typename T>
+  void add(StringRef Category, const MapVector<StringRef, T> &Props) {
+    assert(PropSetMap.find(Category) == PropSetMap.end() &&
+           "category already added");
+    auto &PropSet = PropSetMap[Category];
+
+    for (const auto &Prop : Props)
+      PropSet.insert({Prop.first, PropertyValue(Prop.second)});
+  }
+
   // Parses and creates a property set registry.
   static Expected<std::unique_ptr<PropertySetRegistry>>
   read(const MemoryBuffer *Buf);

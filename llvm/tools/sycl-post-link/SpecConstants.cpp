@@ -11,7 +11,6 @@
 #include "SpecConstants.h"
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/InstIterator.h"
