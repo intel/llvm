@@ -221,10 +221,10 @@ int main() {
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'sycl::stream'
+// SPIR-NEXT: String:          '__global char *'
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '3'
+// SPIR-NEXT: Argument:        '8'
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
@@ -237,15 +237,15 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '8'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          '__global int *'
+// SPIR-NEXT: String:          'struct sycl::range<1>'
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: Argument:        '1'
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
@@ -258,8 +258,8 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '9'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
@@ -279,12 +279,12 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '10'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          'struct sycl::id<1>'
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
 // SPIR-NEXT: Argument:        '1'
@@ -300,15 +300,15 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '11'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'struct sycl::id<1>'
+// SPIR-NEXT: String:          int
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: Argument:        '4'
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
