@@ -37,6 +37,7 @@ DPC++ extensions status:
 | [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
 | [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
 | [ITT annotations support](ITTAnnotations/ITTAnnotations.rst) | Supported | |
+| [Platform Context](PlatformContext/PlatformContext.adoc) | Proposal | |
 
 Legend:
 
