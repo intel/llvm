@@ -19,7 +19,6 @@
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-class sub_group;
 namespace ONEAPI {
 struct sub_group;
 } // namespace ONEAPI
@@ -33,10 +32,6 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
 };
 
 template <> struct group_scope<::cl::sycl::ONEAPI::sub_group> {
-  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
-};
-
-template <> struct group_scope<::cl::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 

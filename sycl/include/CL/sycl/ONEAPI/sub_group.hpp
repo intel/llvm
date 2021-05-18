@@ -720,12 +720,12 @@ struct sub_group {
 
   bool leader() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    using namespace sycl::detail::spirv;
-    return GroupNonUniformElect<group_scope<sub_group>>();
+    return detail::spirv::GroupNonUniformElect<sub_group>();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif
+  }
 
   protected:
     template <int dimensions> friend class cl::sycl::nd_item;
