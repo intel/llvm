@@ -4974,6 +4974,10 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
           Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize) {
     MaxPatternSize =
         Queue->Device->ZeCopyQueueGroupProperties.maxMemoryFillPatternSize;
+  } else {
+    // pattern size does not fit within capability of copy queue.
+    // Try compute queue instead.
+    PreferCopyEngine = false;
   }
   // Pattern size must fit the queue.
   PI_ASSERT(PatternSize <= MaxPatternSize, PI_INVALID_VALUE);
