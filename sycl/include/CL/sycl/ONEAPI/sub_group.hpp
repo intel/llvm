@@ -720,7 +720,9 @@ struct sub_group {
 
   bool leader() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return detail::spirv::GroupNonUniformElect<sub_group>();
+    // return detail::spirv::GroupNonUniformElect<sub_group>();
+    // CP - from JPennycook
+    return 0;
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
