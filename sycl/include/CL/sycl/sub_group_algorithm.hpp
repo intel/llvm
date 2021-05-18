@@ -13,16 +13,14 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/ONEAPI/atomic.hpp>
 #include <CL/sycl/ONEAPI/functional.hpp>
-#include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
+#include <CL/sycl/sub_group.hpp>
 #include <CL/sycl/nd_item.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-using ONEAPI::sub_group;
-
 namespace detail {
 // ---- get_local_linear_range
 template <typename Group> size_t get_local_linear_range(Group g);
@@ -133,10 +131,7 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 }
 } // namespace detail
 
-// TODO move the entire sub_group class implementation to this file once
-// breaking changes are allowed.
-
-// NEW SUBGROUP FILE
+// ---- reduce_over_group
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -266,6 +261,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation op) {
   return g.shuffle(op(init, result), 0);
 }
 
+// ---- joint_reduce
 template <typename Group, typename Ptr, class BinaryOperation>
 detail::enable_if_t<
     (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
