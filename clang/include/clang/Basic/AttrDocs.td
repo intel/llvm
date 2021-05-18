@@ -3158,10 +3158,10 @@ implicitly inherit this attribute.
 def SYCLGlobalVarDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-Normally a SYCL kernel cannot access a global variable, but there are cases
-where we might want a global to be allocated and accessed on a SYCL device. This
-attribute is only available to SYCL device compiler (that is, when
--fsycl-is-device), and only applies to global variables. It affects semantic
+Normally, a SYCL kernel cannot access a global variable, but there are cases
+where it is desirable to use a global variable allocated and accessed on a SYCL device. This
+attribute is only available to a SYCL device compiler (that is, when passing
+``-fsycl-is-device``) and only applies to global variables. It affects semantic
 checks to allow use of a marked global within a SYCL kernel.
 
 .. code-block:: c++
