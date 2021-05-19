@@ -22,6 +22,31 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
+    : D(D), InstallationCandidates() {
+  InstallationCandidates.emplace_back(D.Dir + "/..");
+}
+
+void SYCLInstallationDetector::getSYCLDeviceLibPath(
+    llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
+  for (const auto &IC : InstallationCandidates) {
+    llvm::SmallString<128> InstallLibPath(IC.str());
+    InstallLibPath.append("/lib");
+    DeviceLibPaths.emplace_back(InstallLibPath);
+  }
+
+  DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
+}
+
+void SYCLInstallationDetector::print(llvm::raw_ostream &OS) const {
+  if (!InstallationCandidates.size())
+    return;
+  OS << "SYCL Installation Candidates: \n";
+  for (const auto &IC : InstallationCandidates) {
+    OS << IC << "\n";
+  }
+}
+
 const char *SYCL::Linker::constructLLVMSpirvCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     StringRef OutputFilePrefix, bool ToBc, const char *InputFileName) const {
@@ -581,7 +606,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
-    : ToolChain(D, Triple, Args), HostTC(HostTC) {
+    : ToolChain(D, Triple, Args), HostTC(HostTC), SYCLInstallation(D) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
