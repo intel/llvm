@@ -1095,9 +1095,9 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 | 9 | 5841 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="9", width="100%"]
+[cols="10", width="100%"]
 |=====
-8+<|*OpArbitraryFloatCastFromIntINTEL* +
+9+<|*OpArbitraryFloatCastFromIntINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision integer of signedness `FromSign` is passed in as _A_.
 It is type casted into an arbitrary precision floating point number with the new specification (Eout, Mout) and sign `FromSign`. The result of the cast operation is returned as _Result_.
@@ -1117,12 +1117,12 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 8 | 5842 | <id> Result Type | Result <id> | A <id> | _Literal_ Mout | _Literal_ FromSign | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5842 | <id> Result Type | Result <id> | A <id> | _Literal_ Mout | _Literal_ FromSign | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="9", width="100%"]
+[cols="10", width="100%"]
 |=====
-8+<|*OpArbitraryFloatCastToIntINTEL* +
+9+<|*OpArbitraryFloatCastToIntINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 It is type casted into an arbitrary precision integer with width `W`, sign `ToSign` and returned as _Result_.
@@ -1142,7 +1142,7 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 8 | 5843 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ ToSign | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5843 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ ToSign | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
 === Validation Rules
