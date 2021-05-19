@@ -178,7 +178,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-    // Intel UUID extension.
+    // TODO: Check if device UUID extension is enabled in OpenCL.
+    // For details about Intel UUID extension, see sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
   case PI_DEVICE_INFO_UUID:
     return PI_INVALID_VALUE;
 

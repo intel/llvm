@@ -15,6 +15,9 @@
 
 #include <type_traits>
 
+#include <array>
+#include <cstddef>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <int Dimensions> class group;
@@ -51,6 +54,10 @@ __SYCL_INLINE_CONSTEXPR bool is_group_v =
     detail::is_group<T>::value || detail::is_sub_group<T>::value;
 
 namespace detail {
+// Type for Intel device UUID extension.
+// For details about this extension, see sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+using uuid_type = std::array<std::byte, 16>;
+
 template <typename T, typename R> struct copy_cv_qualifiers;
 
 template <typename T, typename R>

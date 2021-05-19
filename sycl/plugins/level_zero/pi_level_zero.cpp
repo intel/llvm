@@ -1657,6 +1657,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_VENDOR_ID:
     return ReturnValue(pi_uint32{Device->ZeDeviceProperties.vendorId});
   case PI_DEVICE_INFO_UUID:
+    // Intel extension for device UUID. This returns the UUID as
+    // std::array<std::byte, 16>. For details about this extension,
+    // see sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md.
     return ReturnValue(Device->ZeDeviceProperties.uuid.id);
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
