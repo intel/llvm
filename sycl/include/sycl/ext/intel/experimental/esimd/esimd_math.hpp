@@ -1224,7 +1224,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   template <typename T, int SZ>                                                \
   ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ> esimd_##name(simd<float, SZ> src0,    \
                                                       int flag = GENX_NOSAT) { \
-    simd<float, SZ> Result = __esimd_##name(src0.data());                      \
+    simd<float, SZ> Result = __esimd_##name<SZ>(src0.data());                  \
     if (flag != GENX_SAT)                                                      \
       return Result;                                                           \
     return esimd_sat<T>(Result);                                               \
