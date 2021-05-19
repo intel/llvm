@@ -428,5 +428,34 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #endif
 }
 
+// ---- shift_group_left
+template <typename Group, typename T>
+detail::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, T>
+shift_group_left(Group g, T x, uint32_t delta) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
+#else
+  (void)x;
+  (void)delta;
+  throw runtime_error("Sub-groups are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+// detail::enable_if_t<is_group_v<Group>, T>
+// ---- shift_group_right
+template <typename Group, typename T>
+detail::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, T>
+shift_group_right(Group g, T x, uint32_t delta) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
+#else
+  (void)x;
+  (void)delta;
+  throw runtime_error("Sub-groups are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
