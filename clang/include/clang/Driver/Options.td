@@ -5769,7 +5769,7 @@ def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
 def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
-  HelpText<"Disable parallel for range-rounding.">,
+  HelpText<"Disable parallel for range rounding.">,
   MarshallingInfoFlag<LangOpts<"SYCLDisableRangeRounding">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
