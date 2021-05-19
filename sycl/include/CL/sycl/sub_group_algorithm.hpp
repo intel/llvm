@@ -431,7 +431,7 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 // ---- shift_group_left
 template <typename Group, typename T>
 detail::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, T>
-shift_group_left(Group g, T x, uint32_t delta) {
+shift_group_left(Group g, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
 #else
@@ -442,16 +442,43 @@ shift_group_left(Group g, T x, uint32_t delta) {
 #endif
 }
 
-// detail::enable_if_t<is_group_v<Group>, T>
 // ---- shift_group_right
 template <typename Group, typename T>
 detail::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, T>
-shift_group_right(Group g, T x, uint32_t delta) {
+shift_group_right(Group g, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
 #else
   (void)x;
   (void)delta;
+  throw runtime_error("Sub-groups are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+// ---- permute_group_by_xor
+template <typename Group, typename T>
+detail::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, T>
+permute_group_by_xor(Group g, T x, typename Group::linear_id_type mask) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::spirv::SubgroupShuffleXor(x, mask);
+#else
+  (void)x;
+  (void)mask;
+  throw runtime_error("Sub-groups are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+// ---- select_from_group
+template <typename Group, typename T>
+detail::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, T>
+select_from_group(Group g, T x, typename Group::id_type local_id) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::spirv::SubgroupShuffle(x, local_id);
+#else
+  (void)x;
+  (void)local_id;
   throw runtime_error("Sub-groups are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
