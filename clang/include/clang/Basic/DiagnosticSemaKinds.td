@@ -11400,6 +11400,9 @@ def err_sycl_mismatch_group_size
 def note_sycl_kernel_declared_here : Note<"kernel declared here">;
 def err_sycl_expected_finalize_method : Error<
   "expected a 'finalize' method for the 'stream' class">;
+def ext_sycl_2020_attr_spelling : ExtWarn<
+  "use of attribute %0 is a SYCL 2020 extension">,
+  InGroup<Sycl2017Compat>;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<

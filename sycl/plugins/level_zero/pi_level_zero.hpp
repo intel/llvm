@@ -242,7 +242,7 @@ struct _pi_context : _pi_object {
     // Create USM allocator context for host. Device and Shared USM allocations
     // are device-specific. Host allocations are not device-dependent therefore
     // we don't need a map with device as key.
-    HostMemAllocContext = new USMAllocContext(
+    HostMemAllocContext = std::make_unique<USMAllocContext>(
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
 
     if (NumDevices == 1) {
@@ -334,7 +334,7 @@ struct _pi_context : _pi_object {
   std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
   // Store the host allocator context. It does not depend on any device.
-  USMAllocContext *HostMemAllocContext;
+  std::unique_ptr<USMAllocContext> HostMemAllocContext;
 
   // We need to store all memory allocations in the context because there could
   // be kernels with indirect access. Kernels with indirect access start to

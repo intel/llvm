@@ -36,14 +36,14 @@ struct Func {
 struct TRIFuncObjGood1 {
   [[intel::max_global_work_dim(0)]]
   [[intel::max_work_group_size(1, 1, 1)]]
-  [[cl::reqd_work_group_size(1, 1, 1)]] void
+  [[sycl::reqd_work_group_size(1, 1, 1)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
   [[intel::max_global_work_dim(3)]]
   [[intel::max_work_group_size(8, 1, 1)]]
-  [[cl::reqd_work_group_size(4, 1, 1)]] void
+  [[sycl::reqd_work_group_size(4, 1, 1)]] void
   operator()() const {}
 };
 
@@ -51,7 +51,7 @@ struct TRIFuncObjGood2 {
 struct TRIFuncObjBad {
   [[intel::max_global_work_dim(0)]]
   [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-  [[cl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[sycl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   void
   operator()() const {}
 };

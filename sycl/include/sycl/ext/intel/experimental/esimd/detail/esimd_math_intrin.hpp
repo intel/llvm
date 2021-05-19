@@ -1054,7 +1054,7 @@ __esimd_rndu(__SEIEED::vector_type_t<float, SZ> src0) {
 
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
-    if (src0.get(i) - floor(src0.get(i)) > 0.0f) {
+    if (src0[i] - floor(src0[i]) > 0.0f) {
       increment = 1;
     } else {
       increment = 0;
