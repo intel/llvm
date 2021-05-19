@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -255,6 +256,22 @@ getScope(ONEAPI::memory_scope Scope) {
   case ONEAPI::memory_scope::device:
     return __spv::Scope::Device;
   case ONEAPI::memory_scope::system:
+    return __spv::Scope::CrossDevice;
+  }
+}
+
+constexpr __spv::Scope::Flag
+getScope(memory_scope Scope) {
+  switch (Scope) {
+  case memory_scope::work_item:
+    return __spv::Scope::Invocation;
+  case memory_scope::sub_group:
+    return __spv::Scope::Subgroup;
+  case memory_scope::work_group:
+    return __spv::Scope::Workgroup;
+  case memory_scope::device:
+    return __spv::Scope::Device;
+  case memory_scope::system:
     return __spv::Scope::CrossDevice;
   }
 }
@@ -733,10 +750,6 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
-}
-
-template <typename Group> bool GroupNonUniformElect() {
-  return __spirv_GroupNonUniformElect(group_scope<Group>::value);
 }
 
 } // namespace spirv

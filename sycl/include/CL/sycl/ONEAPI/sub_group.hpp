@@ -20,6 +20,7 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
+#include <CL/sycl/enums.hpp>
 
 #include <type_traits>
 
@@ -104,7 +105,7 @@ struct sub_group {
   using range_type = range<1>;
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
-  static constexpr memory_scope fence_scope = memory_scope::sub_group;
+  static constexpr sycl::memory_scope fence_scope = sycl::memory_scope::sub_group;
 
   /* --- common interface members --- */
 
@@ -720,7 +721,7 @@ struct sub_group {
 
   bool leader() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return detail::spirv::GroupNonUniformElect<sub_group>();
+    return get_local_linear_id() == 0;
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);

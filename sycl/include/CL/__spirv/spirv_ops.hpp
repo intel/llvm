@@ -567,9 +567,6 @@ extern SYCL_EXTERNAL void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
-__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT bool
-    __spirv_GroupNonUniformElect(__spv::Scope::Flag) noexcept;
-
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
