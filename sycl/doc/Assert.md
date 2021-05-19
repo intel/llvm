@@ -200,13 +200,8 @@ performed only when assertion is enabled and Device-side Runtime doesn't provide
 implementation of `__devicelib_assert_fail`.
 
 In DPCPP headers one can see if assert is enabled with status of `NDEBUG` macro
-with `#ifdef`'s. This allows to enqueue a copy kernel and host task. The copy
-kernel will copy `AssertHappenedMem` to host and host-task will check the `Flag`
-value and `abort()` as needed. The kernel and host task are enqueued when
-`NDEBUG` macro isn't defined.
-
-When in DPCPP Runtime Library this knowledge is obtained from device binary
-image descriptor's property sets.
+with `#ifdef`'s. When in DPCPP Runtime Library this knowledge is obtained from
+device binary image descriptor's property sets.
 
 Each device image is supplied with an array of property sets. For description
 of property sets see `struct pi_device_binary_struct` in
@@ -347,6 +342,19 @@ fail.
 
 ### Raising assert failure flag and reading it on host
 
+In DPCPP headers one can see if assert is enabled with status of `NDEBUG` macro
+with `#ifdef`'s. Though, in order to support for multi translation unit use-case
+it's not allowed to rely on definition of `NDEBUG` macro.
+
+*Note: Multi translation unit use-case here is the one with `SYCL_EXTERNAL`
+function compiled with assertions enabled and used in a kernel  but the kernel
+is compiled with assertions disabled.*
+
+There're two commands used for reading assert failure flag: copy kernel and
+checker host task. The copy kernel will copy `AssertHappenedMem` to host and
+host-task will check the `Flag` value and `abort()` as needed. The kernel and
+host task are enqueued when `NDEBUG` macro isn't defined.
+
 All translation units provided by the user should have a declaration of the
 assert flag read function available:
 ```c++
@@ -363,16 +371,14 @@ which is enqueued as dependent on user's one. The flag state is checked later
 in host-task. This is achieved with approximately the following changes:
 
 ```c++
-#include <assert_happened.hpp> // contains extern decl of AssertHappenedMem
-
-#ifndef NDEBUG
 class AssertFlagCopier;
+#ifdef __SYCL_DEVICE_ONLY__
+int __devicelib_assert_read(void);
 #endif
 
 class queue {
   template <typename T> event submit(T CGF) {
     event Event = submit_impl(CGF);
-#ifndef NDEBUG
     std::string KernelName = /* get kernel name from calls to parallel_for, etc. */;
     // assert required
     if (!get_device()->assert_fail_supported() && isAssertUsed(KernelName)) {
@@ -389,7 +395,9 @@ class queue {
         auto Acc = Buffer->get_access<access::mode::write>(CGH);
 
         CGH.single_task<AssertFlagCopier>([=] {
-          Acc[0].Flag = atomic_load(&AssertHappenedMem.Flag);
+#ifdef __SYCL_DEVICE_ONLY__
+          Acc[0].Flag = __devicelib_assert_read();
+#endif
         });
       });
 
@@ -406,7 +414,6 @@ class queue {
         });
       });
     }
-#endif
     return Event;
   }
 };
