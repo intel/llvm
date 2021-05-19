@@ -15,11 +15,11 @@
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/device_event.hpp>
+#include <CL/sycl/enums.hpp>
 #include <CL/sycl/h_item.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/range.hpp>
-#include <CL/sycl/enums.hpp>
 #include <stdexcept>
 #include <type_traits>
 

@@ -14,8 +14,8 @@
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/id.hpp>
 #include <CL/sycl/enums.hpp>
+#include <CL/sycl/id.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -260,8 +260,7 @@ getScope(ONEAPI::memory_scope Scope) {
   }
 }
 
-constexpr __spv::Scope::Flag
-getScope(memory_scope Scope) {
+constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
   switch (Scope) {
   case memory_scope::work_item:
     return __spv::Scope::Invocation;

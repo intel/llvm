@@ -17,10 +17,10 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/enums.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
-#include <CL/sycl/enums.hpp>
 
 #include <type_traits>
 
@@ -105,7 +105,8 @@ struct sub_group {
   using range_type = range<1>;
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
-  static constexpr sycl::memory_scope fence_scope = sycl::memory_scope::sub_group;
+  static constexpr sycl::memory_scope fence_scope =
+      sycl::memory_scope::sub_group;
 
   /* --- common interface members --- */
 
@@ -728,13 +729,13 @@ struct sub_group {
 #endif
   }
 
-  protected:
-    template <int dimensions> friend class cl::sycl::nd_item;
-    friend sub_group this_sub_group();
-    sub_group() = default;
-  };
+protected:
+  template <int dimensions> friend class cl::sycl::nd_item;
+  friend sub_group this_sub_group();
+  sub_group() = default;
+};
 
-  inline sub_group this_sub_group() {
+inline sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sub_group();
 #else

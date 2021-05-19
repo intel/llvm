@@ -11,11 +11,11 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 enum class memory_scope : unsigned char {
-      work_item = 0,
-      sub_group = 1,
-      work_group = 2,
-      device = 3,
-      system = 4
+  work_item = 0,
+  sub_group = 1,
+  work_group = 2,
+  device = 3,
+  system = 4
 };
 
 #if __cplusplus >= 201703L
@@ -25,6 +25,5 @@ inline constexpr auto memory_scope_work_group = memory_scope::work_group;
 inline constexpr auto memory_scope_device = memory_scope::device;
 inline constexpr auto memory_scope_system = memory_scope::system;
 #endif
-}
-}
-
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
