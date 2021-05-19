@@ -4612,14 +4612,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Disable parallel for range-rounding for anything involving FPGA
     auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
-    bool hasFPGA = false;
+    bool HasFPGA = false;
     for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI)
       if (TI->second->getTriple().getSubArch() ==
           llvm::Triple::SPIRSubArch_fpga) {
-        hasFPGA = true;
+        HasFPGA = true;
         break;
       }
-    if (hasFPGA)
+    if (HasFPGA)
       CmdArgs.push_back("-fsycl-disable-range-rounding");
 
     // Enable generation of USM address spaces for FPGA.
