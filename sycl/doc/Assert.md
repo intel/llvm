@@ -363,17 +363,14 @@ which is enqueued as dependent on user's one. The flag state is checked later
 in host-task. This is achieved with approximately the following changes:
 
 ```c++
-#ifndef NDEBUG
 class AssertFlagCopier;
 #ifdef __SYCL_DEVICE_ONLY__
 int __devicelib_assert_read(void);
-#endif
 #endif
 
 class queue {
   template <typename T> event submit(T CGF) {
     event Event = submit_impl(CGF);
-#ifndef NDEBUG
     std::string KernelName = /* get kernel name from calls to parallel_for, etc. */;
     // assert required
     if (!get_device()->assert_fail_supported() && isAssertUsed(KernelName)) {
@@ -409,7 +406,6 @@ class queue {
         });
       });
     }
-#endif
     return Event;
   }
 };
