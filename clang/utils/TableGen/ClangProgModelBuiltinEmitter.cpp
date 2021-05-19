@@ -551,6 +551,11 @@ void BuiltinNameEmitter::EmitBuiltinTable() {
 
     for (const auto &Overload : SLM.second.Signatures) {
       StringRef ExtName = Overload.first->getValueAsDef("Extension")->getName();
+      unsigned int MinVersion =
+          Overload.first->getValueAsDef("MinVersion")->getValueAsInt("ID");
+      unsigned int MaxVersion =
+          Overload.first->getValueAsDef("MaxVersion")->getValueAsInt("ID");
+
       OS << "  { " << Overload.second << ", "
          << Overload.first->getValueAsListOfDefs("Signature").size() << ", "
          << (Overload.first->getValueAsBit("IsPure")) << ", "
@@ -558,11 +563,7 @@ void BuiltinNameEmitter::EmitBuiltinTable() {
          << (Overload.first->getValueAsBit("IsConv")) << ", "
          << (Overload.first->getValueAsBit("IsVariadic")) << ", "
          << FunctionExtensionIndex[ExtName] << ", "
-         << EncodeVersions(Overload.first->getValueAsDef("MinVersion")
-                               ->getValueAsInt("ID"),
-                           Overload.first->getValueAsDef("MaxVersion")
-                               ->getValueAsInt("ID"))
-         << " },\n";
+         << EncodeVersions(MinVersion, MaxVersion) << " },\n";
       Index++;
     }
   }
