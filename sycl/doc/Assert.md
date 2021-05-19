@@ -363,10 +363,11 @@ which is enqueued as dependent on user's one. The flag state is checked later
 in host-task. This is achieved with approximately the following changes:
 
 ```c++
-#include <assert_happened.hpp> // contains extern decl of AssertHappenedMem
-
 #ifndef NDEBUG
 class AssertFlagCopier;
+#ifdef __SYCL_DEVICE_ONLY__
+int __devicelib_assert_read(void);
+#endif
 #endif
 
 class queue {
@@ -389,7 +390,9 @@ class queue {
         auto Acc = Buffer->get_access<access::mode::write>(CGH);
 
         CGH.single_task<AssertFlagCopier>([=] {
-          Acc[0].Flag = atomic_load(&AssertHappenedMem.Flag);
+#ifdef __SYCL_DEVICE_ONLY__
+          Acc[0].Flag = __devicelib_assert_read();
+#endif
         });
       });
 
