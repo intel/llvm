@@ -3164,7 +3164,7 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
-  auto CheckAndConvertArg = [&](Expr *E, unsigned Idx) -> Expr * {
+  auto CheckAndConvertArg = [&](Expr *E) -> Expr * {
     // We can only check if the expression is not value dependent.
     if (!E->isValueDependent()) {
       llvm::APSInt ArgVal;
@@ -3186,9 +3186,9 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
 
   // Check all three argument values, and if any are bad, bail out. This will
   // convert the given expressions into constant expressions when possible.
-  XDim = CheckAndConvertArg(XDim, 0);
-  YDim = CheckAndConvertArg(YDim, 1);
-  ZDim = CheckAndConvertArg(ZDim, 2);
+  XDim = CheckAndConvertArg(XDim);
+  YDim = CheckAndConvertArg(YDim);
+  ZDim = CheckAndConvertArg(ZDim);
   if (!XDim || !YDim || !ZDim)
     return;
 
