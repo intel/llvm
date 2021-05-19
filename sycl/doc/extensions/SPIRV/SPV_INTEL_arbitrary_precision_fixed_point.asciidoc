@@ -182,7 +182,7 @@ The behavior of this function is undefined for input values < 0.
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the input.
 
@@ -207,7 +207,7 @@ An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed)
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the input.
 
@@ -233,7 +233,7 @@ The behavior of this function is undefined for input values < 0.
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the input.
 
@@ -258,7 +258,7 @@ An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed)
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the input type.
 
@@ -283,7 +283,7 @@ An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed)
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
@@ -309,7 +309,7 @@ _Result Type_ is an `OpTypeInt` of `2 * rW` and is the type of _Result_.
 The lower significant bits (`rW`) of the _Result_ are used to hold the cosine value, and the more significant bits (`rW`) are used to hold the sine value.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
@@ -334,7 +334,7 @@ An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed)
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
@@ -359,7 +359,7 @@ An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed)
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
@@ -386,7 +386,7 @@ _Result Type_ is an `OpTypeInt` of twice the width of `rW` and is the type of _R
 The lower significant bits (`rW`) of the _Result_ are used to hold the cosine value, and the more significant bits (`rW`) are used to hold the sine value.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
@@ -411,7 +411,7 @@ An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed)
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
@@ -436,7 +436,7 @@ An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed)
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
-A value of `1` indicates that the two types are signed.
+A non-zero value indicates that the two types are signed.
 
 _I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
