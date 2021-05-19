@@ -234,7 +234,7 @@ Two `OpTypeInts` representing two arbitrary precision floating point numbers (ih
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
 _M*_ contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
-Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
+Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt` used to represent corresponding arguments (_A_, _B_, _Result_)
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
 
