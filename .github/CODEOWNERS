@@ -86,6 +86,9 @@ llvm/**/sycl-post-link/ @mlychkov @AlexeySachkov @kbobrovs
 llvm/include/llvm/Support/PropertySetIO.h @mlychkov @AlexeySachkov @kbobrovs
 llvm/lib/Support/PropertySetIO.cpp @mlychkov @AlexeySachkov @kbobrovs
 llvm/unittests/Support/PropertySetIOTest.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/include/llvm/Support/SimpleTable.h @mlychkov @AlexeySachkov @kbobrovs
+llvm/lib/Support/SimpleTable.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/unittests/Support/SimpleTableTest.cpp @mlychkov @AlexeySachkov @kbobrovs
 llvm/lib/Support/Base64.cpp @mlychkov @AlexeySachkov @kbobrovs
 
 # Clang offload tools
