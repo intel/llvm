@@ -90,115 +90,80 @@ using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
 
 template <typename Group>
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
-all_of(Group, bool pred) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::GroupAll<Group>(pred);
-#else
-  (void)pred;
-  throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
-#endif
+__SYCL2020_DEPRECATED(
+    "ONEAPI::all_of is deprecated. Use SYCL2020 all_of_group instead.")
+    all_of(Group g, bool pred) {
+  return all_of_group(g, pred);
 }
 
 template <typename Group, typename T, class Predicate>
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
-all_of(Group g, T x, Predicate pred) {
-  return all_of(g, pred(x));
+__SYCL2020_DEPRECATED(
+    "ONEAPI::all_of is deprecated. Use SYCL2020 all_of_group instead.")
+    all_of(Group g, T x, Predicate pred) {
+  return all_of_group(g, pred(x));
 }
 
 template <typename Group, typename Ptr, class Predicate>
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_pointer<Ptr>::value),
                     bool>
-all_of(Group g, Ptr first, Ptr last, Predicate pred) {
-#ifdef __SYCL_DEVICE_ONLY__
-  bool partial = true;
-  sycl::detail::for_each(
-      g, first, last,
-      [&](const typename Ptr::element_type &x) { partial &= pred(x); });
-  return all_of(g, partial);
-#else
-  (void)g;
-  (void)first;
-  (void)last;
-  (void)pred;
-  throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
-#endif
+__SYCL2020_DEPRECATED(
+    "ONEAPI::all_of is deprecated. Use SYCL2020 joint_all_of instead.")
+    all_of(Group g, Ptr first, Ptr last, Predicate pred) {
+  return joint_all_of(g, first, last, pred);
 }
 
 template <typename Group>
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
-any_of(Group, bool pred) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::GroupAny<Group>(pred);
-#else
-  (void)pred;
-  throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
-#endif
+__SYCL2020_DEPRECATED(
+    "ONEAPI::any_of is deprecated. Use SYCL2020 anyof_group instead.")
+    any_of(Group g, bool pred) {
+  return any_of_group(g, pred);
 }
 
 template <typename Group, typename T, class Predicate>
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
-any_of(Group g, T x, Predicate pred) {
-  return any_of(g, pred(x));
+__SYCL2020_DEPRECATED(
+    "ONEAPI::any_of is deprecated. Use SYCL2020 anyof_group instead.")
+    any_of(Group g, T x, Predicate pred) {
+  return any_of_group(g, pred(x));
 }
 
 template <typename Group, typename Ptr, class Predicate>
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_pointer<Ptr>::value),
                     bool>
-any_of(Group g, Ptr first, Ptr last, Predicate pred) {
-#ifdef __SYCL_DEVICE_ONLY__
-  bool partial = false;
-  sycl::detail::for_each(
-      g, first, last,
-      [&](const typename Ptr::element_type &x) { partial |= pred(x); });
-  return any_of(g, partial);
-#else
-  (void)g;
-  (void)first;
-  (void)last;
-  (void)pred;
-  throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
-#endif
+__SYCL2020_DEPRECATED(
+    "ONEAPI::any_of is deprecated. Use SYCL2020 joint_anyof instead.")
+    any_of(Group g, Ptr first, Ptr last, Predicate pred) {
+  return joint_any_of(g, first, last, pred);
 }
 
 template <typename Group>
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
-none_of(Group, bool pred) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::GroupAll<Group>(!pred);
-#else
-  (void)pred;
-  throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
-#endif
+__SYCL2020_DEPRECATED(
+    "ONEAPI::none_of is deprecated. Use SYCL2020 noneof_group instead.")
+    none_of(Group g, bool pred) {
+  return none_of_group(g, pred);
 }
 
 template <typename Group, typename T, class Predicate>
 detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
-none_of(Group g, T x, Predicate pred) {
-  return none_of(g, pred(x));
+__SYCL2020_DEPRECATED(
+    "ONEAPI::none_of is deprecated. Use SYCL2020 noneof_group instead.")
+    none_of(Group g, T x, Predicate pred) {
+  return none_of_group(g, pred(x));
 }
 
 template <typename Group, typename Ptr, class Predicate>
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_pointer<Ptr>::value),
                     bool>
-none_of(Group g, Ptr first, Ptr last, Predicate pred) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return !any_of(g, first, last, pred);
-#else
-  (void)g;
-  (void)first;
-  (void)last;
-  (void)pred;
-  throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
-#endif
+__SYCL2020_DEPRECATED(
+    "ONEAPI::none_of is deprecated. Use SYCL2020 joint_noneof instead.")
+    none_of(Group g, Ptr first, Ptr last, Predicate pred) {
+  return joint_none_of(g, first, last, pred);
 }
 
 template <typename Group, typename T>

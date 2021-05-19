@@ -320,5 +320,122 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 #endif
 }
 
+// ---- any_of_group
+template <typename Group>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+any_of_group(Group, bool pred) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::spirv::GroupAny<Group>(pred);
+#else
+  (void)pred;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename T, class Predicate>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+any_of_group(Group g, T x, Predicate pred) {
+  return any_of_group(g, pred(x));
+}
+
+// ---- joint_any_of
+template <typename Group, typename Ptr, class Predicate>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_pointer<Ptr>::value),
+                    bool>
+joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
+#ifdef __SYCL_DEVICE_ONLY__
+  using T = typename detail::remove_pointer<Ptr>::type;
+  bool partial = false;
+  sycl::detail::for_each(g, first, last, [&](T &x) { partial |= pred(x); });
+  return any_of_group(g, partial);
+#else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+// ---- all_of_group
+template <typename Group>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+all_of_group(Group, bool pred) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::spirv::GroupAll<Group>(pred);
+#else
+  (void)pred;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename T, class Predicate>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+all_of_group(Group g, T x, Predicate pred) {
+  return all_of_group(g, pred(x));
+}
+
+// ---- joint_all_of
+template <typename Group, typename Ptr, class Predicate>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_pointer<Ptr>::value),
+                    bool>
+joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
+#ifdef __SYCL_DEVICE_ONLY__
+  using T = typename detail::remove_pointer<Ptr>::type;
+  bool partial = true;
+  sycl::detail::for_each(g, first, last, [&](T &x) { partial &= pred(x); });
+  return all_of_group(g, partial);
+#else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+// ---- none_of_group
+template <typename Group>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+none_of_group(Group, bool pred) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::spirv::GroupAll<Group>(!pred);
+#else
+  (void)pred;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename T, class Predicate>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+none_of_group(Group g, T x, Predicate pred) {
+  return none_of_group(g, pred(x));
+}
+
+// ---- joint_none_of
+template <typename Group, typename Ptr, class Predicate>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_pointer<Ptr>::value),
+                    bool>
+joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return !joint_any_of(g, first, last, pred);
+#else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
