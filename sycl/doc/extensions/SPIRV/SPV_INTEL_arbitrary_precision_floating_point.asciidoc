@@ -1147,7 +1147,8 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 === Validation Rules
 
-None.
+* `M*`` literal arguments can't contains values that exceed width of OpTypeInt of corresponding argument minus 1
+* `M*`` literal should contain value more than zero
 
 == Issues
 
