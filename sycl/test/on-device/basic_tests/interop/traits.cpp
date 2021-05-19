@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl -DUSE_OPENCL %s
 // RUN: %clangxx -fsycl -DUSE_L0 %s
+// RUN: %clangxx -fsycl -DUSE_CUDA %s
 
 #ifdef USE_OPENCL
 #include <CL/cl.h>
@@ -15,6 +16,12 @@ constexpr auto Backend = sycl::backend::opencl;
 #include <CL/sycl/backend/level_zero.hpp>
 
 constexpr auto Backend = sycl::backend::level_zero;
+#endif
+
+#ifdef USE_CUDA
+#include <CL/sycl/backend/cuda.hpp>
+
+constexpr auto Backend = sycl::backend::cuda;
 #endif
 
 #include <sycl/sycl.hpp>
