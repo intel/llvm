@@ -393,8 +393,16 @@ We then apply the following validation rules:
   `i`, validate that `G(i)` can never be true unless `G(c)` is also true.
 
 * For each instruction `idef` that defines an SSA _<id>_, search for all other
-  instructions `iuse` that use _<id>_.  Validate that each `G(iuse)` can never
-  be true unless `G(idef)` is also true.
+  instructions `i` that use _<id>_.  Compute `G(iuse)` as:
++
+--
+  - Let `G(iuse) = G(i)`.
+  - If instruction `i` is *OpPhiSpecConstantINTEL*, compute `G(iuse)`
+    separately for each _Parent i_ as `G(iuse) = G(i) && S` where `S` is the
+    specialization constant _Cond i_ associated with _Parent i_.
+--
++
+Validate that each `G(iuse)` can never be true unless `G(idef)` is also true.
 
 * For each block that is contained by the "then" range of
   *OpBranchSpecConstantINTEL* or *OpBranchSpecConstantWithElseINTEL*, verify
@@ -528,6 +536,8 @@ No block in the "then" range may have a parent that is outside of that range,
 except for the _True Label_ reference from this *OpBranchSpecConstantINTEL*
 instruction.
 
+This instruction must be the last instruction in a block.
+
 1+|Capability: +
 *SpecConditionalINTEL*
 | 5
@@ -559,6 +569,8 @@ except for the _True Label_ reference from this
 *OpBranchSpecConstantWithElseINTEL* instruction.  No block in the "else" range
 may have a parent that is outside of that range, except for the _False Label_
 reference from this *OpBranchSpecConstantWithElseINTEL* instruction.
+
+This instruction must be the last instruction in a block.
 
 1+|Capability: +
 *SpecConditionalINTEL*
