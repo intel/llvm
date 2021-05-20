@@ -3483,6 +3483,9 @@ public:
     /// Merge availability attributes for an implementation of
     /// a protocol requirement.
     AMK_ProtocolImplementation,
+    /// Merge availability attributes for an implementation of
+    /// an optional protocol requirement.
+    AMK_OptionalProtocolImplementation
   };
 
   /// Describes the kind of priority given to an availability attribute.
