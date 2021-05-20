@@ -470,7 +470,7 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
 
   SPIRVDBG(spvdbgs() << "[transType] " << *T << " -> ";)
   T->validate();
-  switch (T->getOpCode()) {
+  switch (static_cast<SPIRVWord>(T->getOpCode())) {
   case OpTypeVoid:
     return mapType(T, Type::getVoidTy(*Context));
   case OpTypeBool:
@@ -482,6 +482,8 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   case OpTypeArray:
     return mapType(T, ArrayType::get(transType(T->getArrayElementType()),
                                      T->getArrayLength()));
+  case internal::OpTypeTokenINTEL:
+    return mapType(T, Type::getTokenTy(*Context));
   case OpTypePointer:
     return mapType(
         T, PointerType::get(
