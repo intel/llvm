@@ -327,11 +327,13 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
                                    const SourceManager &SrcMgr) {
   if (!Callee)
     return false;
-  if (Callee->getName() == GlibcxxFailedAssertion) {
-    if (Callee->getLocation().printToString(SrcMgr).rfind(
-            GlibcxxConfigFile.str()) != std::string::npos)
-      return true;
-  }
+
+  const Type *Ty = nullptr;
+  if (Callee->getName() == GlibcxxFailedAssertion &&
+      (Callee->getNumParams() == 0) &&
+      (Ty = Callee->getReturnType().getTypePtr()) && (Ty->isVoidType()))
+    return SrcMgr.getFilename(SrcMgr.getSpellingLoc(Callee->getLocation()))
+               .rfind(GlibcxxConfigFile) != StringRef::npos;
 
   return false;
 }

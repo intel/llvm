@@ -1632,7 +1632,6 @@ extern SYCL_EXTERNAL double ldexp(double x, int exp);
 extern SYCL_EXTERNAL double hypot(double x, double y);
 }
 #ifdef __GLIBC__
-extern SYCL_EXTERNAL void __failed_assertion();
 extern "C" {
 extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
                                         unsigned int line, const char *func);
