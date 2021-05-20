@@ -79,6 +79,7 @@ xpti/ @tovinkere @andykaylor
 xptifw/ @tovinkere  @andykaylor
 
 # DPC++ tools
+llvm/**/append-file/ @mdtoguchi @AGindinson
 llvm/**/file-table-tform/ @mlychkov @AlexeySachkov @kbobrovs
 llvm/**/llvm-foreach/ @AlexeySachkov  @Fznamznon
 llvm/**/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
