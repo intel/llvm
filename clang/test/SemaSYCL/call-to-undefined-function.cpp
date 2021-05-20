@@ -1,4 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -fopenmp-simd -internal-isystem %S/Inputs -sycl-std=2020 -verify -fsyntax-only %s
+
+// This test checks whether we diagnose cases of unmarked, undefined
+// functions called on device from either kernels or sycl device functions.
 
 #include "sycl.hpp"
 

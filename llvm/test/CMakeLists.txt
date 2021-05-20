@@ -120,6 +120,7 @@ set(LLVM_TEST_DEPENDS
           llvm-symbolizer
           llvm-tblgen
           llvm-undname
+          llvm-windres
           llvm-xray
           not
           obj2yaml
