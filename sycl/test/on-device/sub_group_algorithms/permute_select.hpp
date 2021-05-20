@@ -1,5 +1,4 @@
-//==----- permute_select.hpp - SYCL sub_group permute and select test -----*-
-//C++ -*---==//
+//==----- permute_select.hpp -*- C++ -*------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,11 +24,9 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
     buffer<vec<T, N>> buf_xor(G);
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      auto acc_select =
-          buf_select.template get_access<access::mode::read_write>(cgh);
-      auto acc_xor = buf_xor.template get_access<access::mode::read_write>(cgh);
-      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-
+      accessor acc_select{buf_select, cgh, sycl::read_write};
+      accessor acc_xor{buf_xor, cgh, sycl::read_write};
+      accessor sgsizeacc{sgsizebuf, cgh, sycl::read_write};
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
         ONEAPI::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
@@ -46,10 +43,9 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
             SG, vwggid, sgid % SG.get_max_local_range()[0]);
       });
     });
-    auto acc_select =
-        buf_select.template get_access<access::mode::read_write>();
-    auto acc_xor = buf_xor.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc_select{buf_select,  sycl::read_write};
+    host_accessor acc_xor{buf_xor,  sycl::read_write};
+    host_accessor sgsizeacc{sgsizebuf,  sycl::read_write};
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
@@ -89,11 +85,9 @@ template <typename T> void check(queue &Queue, size_t G = 256, size_t L = 64) {
     buffer<T> buf_xor(G);
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      auto acc_select =
-          buf_select.template get_access<access::mode::read_write>(cgh);
-      auto acc_xor = buf_xor.template get_access<access::mode::read_write>(cgh);
-      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-
+      accessor acc_select{buf_select, cgh, sycl::read_write};
+      accessor acc_xor{buf_xor, cgh, sycl::read_write};
+      accessor sgsizeacc{sgsizebuf, cgh, sycl::read_write};
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
         ONEAPI::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
@@ -109,10 +103,10 @@ template <typename T> void check(queue &Queue, size_t G = 256, size_t L = 64) {
             permute_group_by_xor(SG, wggid, sgid % SG.get_max_local_range()[0]);
       });
     });
-    auto acc_select =
-        buf_select.template get_access<access::mode::read_write>();
-    auto acc_xor = buf_xor.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc_select{buf_select,  sycl::read_write};
+    host_accessor acc_xor{buf_xor,  sycl::read_write};
+    host_accessor sgsizeacc{sgsizebuf,  sycl::read_write};
+
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;

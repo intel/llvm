@@ -83,6 +83,7 @@ get_local_linear_id<ONEAPI::sub_group>(ONEAPI::sub_group g) {
 }
 
 // ---- identity
+
 template <typename T, class BinaryOperation> struct identity {};
 
 template <typename T, typename V> struct identity<T, ONEAPI::plus<V>> {
@@ -117,6 +118,7 @@ template <typename T, typename V> struct identity<T, ONEAPI::bit_xor<V>> {
 template <typename T, typename V> struct identity<T, ONEAPI::bit_and<V>> {
   static constexpr T value = ~static_cast<T>(0);
 };
+
 
 // ---- is_native_op
 template <typename T>
@@ -786,8 +788,8 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
       "Result type of binary_op must match scan accumulation type.");
   return joint_exclusive_scan(
       g, first, last, result,
-      sycl::detail::identity<typename OutPtr::element_type,
-                             BinaryOperation>::value,
+      sycl::detail::identity<typename OutPtr::element_type, BinaryOperation>::value,
+      //known_identity_v<BinaryOperation, typename OutPtr::element_type>,
       binary_op);
 }
 

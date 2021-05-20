@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// TODO: re-enable HOST execution line when this test is moved to llvm-test-suite
 // XUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -11,7 +12,6 @@
 #include <complex>
 #include <numeric>
 using namespace sycl;
-// using namespace sycl::ONEAPI;
 
 template <typename kernel_name, typename InputContainer,
           typename OutputContainer>
@@ -26,8 +26,8 @@ void test(queue q, InputContainer input, OutputContainer output) {
     buffer<OutputT> out_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto in = in_buf.template get_access<access::mode::read>(cgh);
-      auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
+      accessor in{in_buf, cgh, sycl::read_only};
+      accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name>(nd_range<2>(R, R), [=](nd_item<2> it) {
         group<2> g = it.get_group();
         int lid = it.get_local_linear_id();

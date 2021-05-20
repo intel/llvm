@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
+// TODO: re-enable HOST execution line when this test is moved to llvm-test-suite
 // XUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -13,14 +14,8 @@ using namespace sycl;
 
 template <class Predicate> class all_of_kernel;
 
-struct GeZero {
-  bool operator()(int i) const { return i >= 0; }
-};
 struct IsEven {
   bool operator()(int i) const { return (i % 2) == 0; }
-};
-struct LtZero {
-  bool operator()(int i) const { return i < 0; }
 };
 
 template <typename InputContainer, typename OutputContainer, class Predicate>
@@ -34,8 +29,8 @@ void test(queue q, InputContainer input, OutputContainer output,
     buffer<bool> out_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto in = in_buf.get_access<access::mode::read>(cgh);
-      auto out = out_buf.get_access<access::mode::discard_write>(cgh);
+      accessor in{in_buf, cgh, sycl::read_only};
+      accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
         int lid = it.get_local_id(0);
@@ -64,9 +59,7 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), false);
 
-  test(q, input, output, GeZero());
   test(q, input, output, IsEven());
-  test(q, input, output, LtZero());
 
   std::cout << "Test passed." << std::endl;
 }

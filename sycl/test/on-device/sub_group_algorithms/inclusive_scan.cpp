@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
+// TODO: re-enable HOST execution line when this test is moved to llvm-test-suite
 // XUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -21,7 +22,6 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-// using namespace sycl::ONEAPI;
 
 template <class SpecializationKernelName, int TestNumber>
 class inclusive_scan_kernel;
@@ -62,8 +62,8 @@ void test(queue q, InputContainer input, OutputContainer output,
     buffer<InputT> in_buf(input.data(), input.size());
     buffer<OutputT> out_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-      auto in = in_buf.template get_access<access::mode::read>(cgh);
-      auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
+      accessor in{in_buf, cgh, sycl::read_only};
+      accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name0>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
         int lid = it.get_local_id(0);
@@ -79,8 +79,8 @@ void test(queue q, InputContainer input, OutputContainer output,
     buffer<InputT> in_buf(input.data(), input.size());
     buffer<OutputT> out_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-      auto in = in_buf.template get_access<access::mode::read>(cgh);
-      auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
+      accessor in{in_buf, cgh, sycl::read_only};
+      accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name1>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
         int lid = it.get_local_id(0);
@@ -96,8 +96,8 @@ void test(queue q, InputContainer input, OutputContainer output,
     buffer<InputT> in_buf(input.data(), input.size());
     buffer<OutputT> out_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-      auto in = in_buf.template get_access<access::mode::read>(cgh);
-      auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
+      accessor in{in_buf, cgh, sycl::read_only};
+      accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name2>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
         joint_inclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
@@ -113,8 +113,8 @@ void test(queue q, InputContainer input, OutputContainer output,
     buffer<InputT> in_buf(input.data(), input.size());
     buffer<OutputT> out_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-      auto in = in_buf.template get_access<access::mode::read>(cgh);
-      auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
+      accessor in{in_buf, cgh, sycl::read_only};
+      accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name3>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
         joint_inclusive_scan(g, in.get_pointer(), in.get_pointer() + N,

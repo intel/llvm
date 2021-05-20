@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
+// TODO: re-enable HOST execution line when this test is moved to llvm-test-suite
 // XUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -36,8 +37,8 @@ void test(queue q, InputContainer input, OutputContainer output,
     buffer<OutputT> out_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto in = in_buf.template get_access<access::mode::read>(cgh);
-      auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
+      accessor in{in_buf, cgh, sycl::read_only};
+      accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
         int lid = it.get_local_id(0);
