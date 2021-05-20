@@ -115,7 +115,7 @@ void TargetLoweringBase::ArgListEntry::setAttributes(const CallBase *Call,
   IsNest = Attrs.hasParamAttribute(ArgIdx, Attribute::Nest);
   IsReturned = Attrs.hasParamAttribute(ArgIdx, Attribute::Returned);
   IsSwiftSelf = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftSelf);
-  IsSwiftAsync = Attrs.hasParamAttr(ArgIdx, Attribute::SwiftAsync);
+  IsSwiftAsync = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftAsync);
   IsSwiftError = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftError);
   Alignment = Attrs.getParamStackAlignment(ArgIdx);
 
@@ -5467,7 +5467,7 @@ TargetLowering::prepareUREMEqFold(EVT SETCCVT, SDValue REMNode,
 
   EVT VT = REMNode.getValueType();
   EVT SVT = VT.getScalarType();
-  EVT ShVT = getShiftAmountTy(VT, DAG.getDataLayout());
+  EVT ShVT = getShiftAmountTy(VT, DAG.getDataLayout(), !DCI.isBeforeLegalize());
   EVT ShSVT = ShVT.getScalarType();
 
   // If MUL is unavailable, we cannot proceed in any case.
@@ -5711,7 +5711,7 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
 
   EVT VT = REMNode.getValueType();
   EVT SVT = VT.getScalarType();
-  EVT ShVT = getShiftAmountTy(VT, DAG.getDataLayout());
+  EVT ShVT = getShiftAmountTy(VT, DAG.getDataLayout(), !DCI.isBeforeLegalize());
   EVT ShSVT = ShVT.getScalarType();
 
   // If we are after ops legalization, and MUL is unavailable, we can not

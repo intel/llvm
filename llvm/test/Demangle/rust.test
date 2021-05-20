@@ -33,6 +33,27 @@ CHECK: crate::{shim:reify#0}
 CHECK: crate::{Z:ident#10}
        _RNZC5crates8_5ident
 
+; Inherent impl
+
+CHECK: <_>
+       _RMC5cratep
+
+CHECK: <_>
+       _RMs_C5cratep
+
+; Trait impl
+
+CHECK: <_ as Clone>
+       _RXC5cratepC5Clone
+
+CHECK: <_ as Clone>
+       _RXs_C5cratepC5Clone
+
+; Trait definition
+
+CHECK: <_ as Ord>
+       _RYpC3Ord
+
 ; Generic type arguments
 
 CHECK: generic::<_>
@@ -113,6 +134,46 @@ CHECK: basic::<u64>
 
 CHECK: basic::<!>
        _RIC5basiczE
+
+; Named types. Test possible paths productions.
+
+CHECK: named::<name>
+       _RIC5namedC4nameE
+
+CHECK: named::<<_>>
+       _RIC5namedMC5cratepE
+
+CHECK: named::<<_ as Name>>
+       _RIC5namedXC5cratepC4NameE
+
+CHECK: named::<<_ as Name>>
+       _RIC5namedYpC4NameE
+
+CHECK: named::<name::Name>
+       _RIC5namedNvC4name4NameE
+
+CHECK: named::<Name<>>
+       _RIC5namedIC4NameEE
+
+; Types
+
+CHECK: types::<[u8; 0]>
+       _RIC5typesAhj0_E
+
+CHECK: types::<[_]>
+       _RIC5typesSpE
+
+CHECK: types::<()>
+       _RIC5typesTEE
+
+CHECK: types::<(_,)>
+       _RIC5typesTpEE
+
+CHECK: types::<(_, _)>
+       _RIC5typesTppEE
+
+CHECK: types::<(_, _, _)>
+       _RIC5typesTpppEE
 
 ; Integer constants. Test value demangling.
 

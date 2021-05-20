@@ -216,6 +216,11 @@ static void DefineExactWidthIntType(TargetInfo::IntType Ty,
   if (TypeWidth == 64)
     Ty = IsSigned ? TI.getInt64Type() : TI.getUInt64Type();
 
+  // Use the target specified int16 type when appropriate. Some MCU targets
+  // (such as AVR) have definition of [u]int16_t to [un]signed int.
+  if (TypeWidth == 16)
+    Ty = IsSigned ? TI.getInt16Type() : TI.getUInt16Type();
+
   const char *Prefix = IsSigned ? "__INT" : "__UINT";
 
   DefineType(Prefix + Twine(TypeWidth) + "_TYPE__", Ty, Builder);
@@ -479,9 +484,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017) {
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "201707");
-    } else if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020) {
+    } else if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
-    }
 
     if (LangOpts.SYCLValueFitInMaxInt)
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__", "1");

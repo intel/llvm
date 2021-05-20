@@ -219,16 +219,20 @@ void llvm::simplifyLoopAfterUnroll(Loop *L, bool SimplifyIVs, LoopInfo *LI,
   // At this point, the code is well formed.  Perform constprop, instsimplify,
   // and dce.
   const DataLayout &DL = L->getHeader()->getModule()->getDataLayout();
+  SmallVector<WeakTrackingVH, 16> DeadInsts;
   for (BasicBlock *BB : L->getBlocks()) {
     for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E;) {
       Instruction *Inst = &*I++;
-
       if (Value *V = SimplifyInstruction(Inst, {DL, nullptr, DT, AC}))
         if (LI->replacementPreservesLCSSAForm(Inst, V))
           Inst->replaceAllUsesWith(V);
       if (isInstructionTriviallyDead(Inst))
-        RecursivelyDeleteTriviallyDeadInstructions(Inst);
+        DeadInsts.emplace_back(Inst);
     }
+    // We can't do recursive deletion until we're done iterating, as we might
+    // have a phi which (potentially indirectly) uses instructions later in
+    // the block we're iterating through.
+    RecursivelyDeleteTriviallyDeadInstructions(DeadInsts);
   }
 }
 
@@ -566,7 +570,9 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   for (Loop *SubLoop : *L)
     LoopsToSimplify.insert(SubLoop);
 
-  if (Header->getParent()->isDebugInfoForProfiling())
+  // When a FSDiscriminator is enabled, we don't need to add the multiply
+  // factors to the discriminators.
+  if (Header->getParent()->isDebugInfoForProfiling() && !EnableFSDiscriminator)
     for (BasicBlock *BB : L->getBlocks())
       for (Instruction &I : *BB)
         if (!isa<DbgInfoIntrinsic>(&I))

@@ -1,4 +1,7 @@
 // RUN: %clang_tsan -O1 %s -o %t && %run %t 2>&1 | FileCheck %s
+// The test was reported to hang sometimes on Darwin:
+// https://lists.llvm.org/pipermail/llvm-commits/Week-of-Mon-20210517/917003.html
+// UNSUPPORTED: darwin
 
 #include "test.h"
 #include <signal.h>
