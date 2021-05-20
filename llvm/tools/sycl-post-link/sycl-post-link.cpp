@@ -254,6 +254,25 @@ static void collectFunctionCallGraphNodes(llvm::Function *Func,
   }
 }
 
+// This function returns the collection of functions that are not
+// called from any other function in the module. Example of such
+// an unreferenced function can be a SYCL_EXTERNAL function that
+// will be referenced later, e.g. during linking SPIRV modules.
+static std::vector<llvm::Function *> collectUnreferencedFuncs(Module &M) {
+  SetVector<const GlobalValue *> ReferencedFuncs;
+  for (auto &F : M.functions()) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      collectFunctionCallGraphNodes(&F, ReferencedFuncs);
+  }
+
+  std::vector<llvm::Function *> UnreferencedFuncs;
+  for (auto &F : M.functions()) {
+    if (!F.isDeclaration() && !ReferencedFuncs.count(&F))
+      UnreferencedFuncs.push_back(&F);
+  }
+  return UnreferencedFuncs;
+}
+
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
 // attributes. The decision is recorded in the output map parameter
@@ -264,32 +283,35 @@ static void collectKernelModuleMap(
     Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
     KernelMapEntryScope EntryScope) {
 
-  for (auto &F : M.functions()) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      switch (EntryScope) {
-      case Scope_PerKernel:
-        ResKernelModuleMap[F.getName()].push_back(&F);
-        break;
-      case Scope_PerModule: {
-        constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+  std::vector<llvm::Function *> Worklist;
+  Worklist = collectUnreferencedFuncs(M);
+  for (auto &F : M.functions())
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      Worklist.push_back(&F);
 
-        // TODO It may make sense to group all kernels w/o the attribute into
-        // a separate module rather than issuing an error. Should probably be
-        // controlled by an option.
-        if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
-          error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
-                "' attribute in kernel '" + F.getName() +
-                "', per-module split not possible");
-        Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
-        StringRef Val = Id.getValueAsString();
-        ResKernelModuleMap[Val].push_back(&F);
-        break;
-      }
-      case Scope_Global:
-        // the map key is not significant here
-        ResKernelModuleMap["<GLOBAL>"].push_back(&F);
-        break;
-      }
+  for (auto &F : Worklist) {
+    switch (EntryScope) {
+    case Scope_PerKernel:
+      ResKernelModuleMap[F->getName()].push_back(F);
+      break;
+    case Scope_PerModule: {
+      constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+
+      // TODO It may make sense to group all kernels w/o the attribute into
+      // a separate module rather than issuing an error. Should probably be
+      // controlled by an option.
+      if (!F->hasFnAttribute(ATTR_SYCL_MODULE_ID))
+        error("no '" + Twine(ATTR_SYCL_MODULE_ID) + "' attribute in kernel '" +
+              F->getName() + "', per-module split not possible");
+      Attribute Id = F->getFnAttribute(ATTR_SYCL_MODULE_ID);
+      StringRef Val = Id.getValueAsString();
+      ResKernelModuleMap[Val].push_back(F);
+      break;
+    }
+    case Scope_Global:
+      // the map key is not significant here
+      ResKernelModuleMap["<GLOBAL>"].push_back(F);
+      break;
     }
   }
 }
@@ -716,8 +738,7 @@ int main(int argc, char **argv) {
       "The utilities are:\n"
       "- SYCL and ESIMD kernels can be split into separate modules with\n"
       "  '-split-esimd' option. The option has no effect when there is only\n"
-      "  one type of kernels in the input module. Functions unreachable from\n"
-      "  any kernel are dropped from the resulting module(s).\n"
+      "  one type of kernels in the input module. \n"
       "- Module splitter to split a big input module into smaller ones.\n"
       "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"
