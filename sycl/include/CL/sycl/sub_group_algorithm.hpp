@@ -1,4 +1,4 @@
-//==----------- group_algorithm.hpp --- SYCL group algorithm
+//==----------- sub_group_algorithm.hpp --- SYCL group algorithm
 //---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,8 +16,8 @@
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
-#include <CL/sycl/sub_group.hpp>
 #include <CL/sycl/nd_item.hpp>
+#include <CL/sycl/sub_group.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

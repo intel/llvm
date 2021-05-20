@@ -727,13 +727,13 @@ struct sub_group {
 #endif
   }
 
-  protected:
-    template <int dimensions> friend class cl::sycl::nd_item;
-    friend sub_group this_sub_group();
-    sub_group() = default;
-  };
+protected:
+  template <int dimensions> friend class cl::sycl::nd_item;
+  friend sub_group this_sub_group();
+  sub_group() = default;
+};
 
-  inline sub_group this_sub_group() {
+inline sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sub_group();
 #else
