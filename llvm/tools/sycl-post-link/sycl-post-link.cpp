@@ -663,23 +663,27 @@ using ModulePair = std::pair<std::unique_ptr<Module>, std::unique_ptr<Module>>;
 // This function splits a module with a mix of SYCL and ESIMD kernels
 // into two separate modules.
 static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
-  // Collect information about the SYCL and ESIMD kernels in the module.
-  std::vector<Function *> SyclKernels;
-  std::vector<Function *> EsimdKernels;
-  for (auto &F : M->functions()) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      if (F.getMetadata("sycl_explicit_simd"))
-        EsimdKernels.push_back(&F);
-      else
-        SyclKernels.push_back(&F);
-    }
+  // Collect information about the SYCL and ESIMD code in the module.
+  std::vector<llvm::Function *> Worklist;
+  Worklist = collectUnreferencedFuncs(*M);
+  for (auto &F : M->functions())
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      Worklist.push_back(&F);
+
+  std::vector<Function *> SyclFunctions;
+  std::vector<Function *> EsimdFunctions;
+  for (auto &F : Worklist) {
+    if (F->getMetadata("sycl_explicit_simd"))
+      EsimdFunctions.push_back(F);
+    else
+      SyclFunctions.push_back(F);
   }
 
   // If only SYCL kernels or only ESIMD kernels, no splitting needed.
-  if (EsimdKernels.empty())
+  if (EsimdFunctions.empty())
     return std::make_pair(std::move(M), std::unique_ptr<Module>(nullptr));
 
-  if (SyclKernels.empty())
+  if (SyclFunctions.empty())
     return std::make_pair(std::unique_ptr<Module>(nullptr), std::move(M));
 
   // Key values in KernelModuleMap are not significant, but they define the
@@ -687,7 +691,7 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // caller of the splitSyclEsimd function expects a pair of 1-Sycl and 2-Esimd
   // modules, hence the strings names below.
   std::map<StringRef, std::vector<Function *>> KernelModuleMap(
-      {{"1-SYCL", SyclKernels}, {"2-ESIMD", EsimdKernels}});
+      {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
   std::vector<std::unique_ptr<Module>> ResultModules;
   splitModule(*M, KernelModuleMap, ResultModules);
   assert(ResultModules.size() == 2);
