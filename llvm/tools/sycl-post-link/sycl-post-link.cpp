@@ -231,6 +231,29 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
   return Scope_PerModule;
 }
 
+// Collect all the dependencies for the function.
+static void collectFunctionCallGraphNodes(llvm::Function *Func,
+                                          SetVector<const GlobalValue *> &GVs) {
+  if (!GVs.count(Func))
+    GVs.insert(Func);
+
+  std::vector<llvm::Function *> Workqueue;
+  Workqueue.push_back(Func);
+
+  while (!Workqueue.empty()) {
+    Function *F = &*Workqueue.back();
+    Workqueue.pop_back();
+    for (auto &I : instructions(F)) {
+      if (CallBase *CB = dyn_cast<CallBase>(&I))
+        if (Function *CF = CB->getCalledFunction())
+          if (!CF->isDeclaration() && !GVs.count(CF)) {
+            GVs.insert(CF);
+            Workqueue.push_back(CF);
+          }
+    }
+  }
+}
+
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
 // attributes. The decision is recorded in the output map parameter
@@ -303,25 +326,8 @@ splitModule(Module &M,
   for (auto &It : KernelModuleMap) {
     // For each group of kernels collect all dependencies.
     SetVector<const GlobalValue *> GVs;
-    std::vector<llvm::Function *> Workqueue;
-
-    for (auto &F : It.second) {
-      GVs.insert(F);
-      Workqueue.push_back(F);
-    }
-
-    while (!Workqueue.empty()) {
-      Function *F = &*Workqueue.back();
-      Workqueue.pop_back();
-      for (auto &I : instructions(F)) {
-        if (CallBase *CB = dyn_cast<CallBase>(&I))
-          if (Function *CF = CB->getCalledFunction())
-            if (!CF->isDeclaration() && !GVs.count(CF)) {
-              GVs.insert(CF);
-              Workqueue.push_back(CF);
-            }
-      }
-    }
+    for (auto &F : It.second)
+      collectFunctionCallGraphNodes(F, GVs);
 
     // It's not easy to trace global variable's uses inside needed functions
     // because global variable can be used inside a combination of operators, so
