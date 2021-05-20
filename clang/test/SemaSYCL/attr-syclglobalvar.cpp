@@ -13,7 +13,7 @@ namespace NS {
 struct S {
     __attribute__((sycl_global_var)) static int StaticMember;
 
-    // expected-warning@+1 {{attribute only applies to global variables}}
+    // expected-error@+1 {{attribute only applies to global variables}}
     __attribute__((sycl_global_var)) int InstanceMember;
 };
 int S::StaticMember = 0;
@@ -23,7 +23,7 @@ __attribute__((sycl_global_var)) S GlobalStruct;
 __attribute__((sycl_global_var)) static S StaticGlobal;
 
 static union {
-    // expected-warning@+1 {{attribute only applies to global variables}}
+    // expected-error@+1 {{attribute only applies to global variables}}
     __attribute__((sycl_global_var)) int AnonymousStaticUnionInstanceMember;
 };
 
@@ -32,11 +32,12 @@ __attribute__((sycl_global_var(42))) int GlobalWithAttributeArg;
 
 int GlobalNoAttribute;
 
-// expected-warning@+1 {{attribute only applies to global variables}}
+// expected-error@+1 {{attribute only applies to global variables}}
 __attribute__((sycl_global_var)) void F() {
+    // expected-error@+1 {{attribute only applies to global variables}}
     __attribute__((sycl_global_var)) static int StaticLocalVar;
 
-    // expected-warning@+1 {{attribute only applies to global variables}}
+    // expected-error@+1 {{attribute only applies to global variables}}
     __attribute__((sycl_global_var)) int Local;
 
     cl::sycl::kernel_single_task<class kernel_name>([=] () {

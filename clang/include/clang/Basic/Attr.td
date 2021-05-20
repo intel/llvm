@@ -1197,9 +1197,13 @@ def SYCLDevice : InheritableAttr {
   let Documentation = [SYCLDeviceDocs];
 }
 
+def SYCLGlobalVarSubject : SubsetSubject<Var, [{S->hasGlobalStorage() &&
+                                                !S->isLocalVarDecl()}],
+                                         "global variables">;
+
 def SYCLGlobalVar : InheritableAttr {
   let Spellings = [GNU<"sycl_global_var">];
-  let Subjects = SubjectList<[GlobalVar]>;
+  let Subjects = SubjectList<[SYCLGlobalVarSubject], ErrorDiag>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLGlobalVarDocs];
   let SimpleHandler = 1;
