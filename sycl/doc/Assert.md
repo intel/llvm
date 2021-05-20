@@ -353,7 +353,9 @@ is compiled with assertions disabled.*
 There're two commands used for reading assert failure flag: copy kernel and
 checker host task. The copy kernel will copy `AssertHappenedMem` to host and
 host-task will check the `Flag` value and `abort()` as needed. The kernel and
-host task are enqueued when `NDEBUG` macro isn't defined.
+host task are enqueued together with a kernel only when the corresponding device
+binary image for this kernel tells that it may use (maybe indirectly) the
+`assert` in its code.
 
 All translation units provided by the user should have a declaration of the
 assert flag read function available:
