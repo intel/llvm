@@ -4610,6 +4610,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString(Twine("-fsycl-unique-prefix=") + UniqueID));
 
+    // Disable parallel for range-rounding for anything involving FPGA
+    auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+    bool HasFPGA = false;
+    for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI)
+      if (TI->second->getTriple().getSubArch() ==
+          llvm::Triple::SPIRSubArch_fpga) {
+        HasFPGA = true;
+        break;
+      }
+    if (HasFPGA)
+      CmdArgs.push_back("-fsycl-disable-range-rounding");
+
     // Enable generation of USM address spaces for FPGA.
     // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
     if (getToolChain().getTriple().getSubArch() ==
