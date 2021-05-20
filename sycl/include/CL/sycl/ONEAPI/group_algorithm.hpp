@@ -215,7 +215,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
-__SYCL2020_DEPRECATED("Thank you Mario! But our princess is in another castle!")                    
+__SYCL2020_DEPRECATED("Thank you Mario! But our princess is in another castle!")
     reduce(Group g, T x, BinaryOperation binary_op) {
   return reduce_over_group(g, x, binary_op);
 }
