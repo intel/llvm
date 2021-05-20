@@ -3160,6 +3160,23 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.addIntelTripleArgAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr, ZDimExpr);
 }
 
+// The lambda returns a DupArgResult value; Same means the args have the same
+// value, Different means the args do not have the same value, and Unknown
+// means that the args cannot (yet) be compared.
+enum class DupArgResult { Unknown, Same, Different };
+static DupArgResult AreArgValuesIdentical(const Expr *LHS, const Expr *RHS) {
+  // If either operand is still value dependent, we can't test anything.
+  const auto *LHSCE = dyn_cast<ConstantExpr>(LHS);
+  const auto *RHSCE = dyn_cast<ConstantExpr>(RHS);
+  if (!LHSCE || !RHSCE)
+    return DupArgResult::Unknown;
+
+  // Otherwise, test that the values.
+  return LHSCE->getResultAsAPSInt() == RHSCE->getResultAsAPSInt()
+             ? DupArgResult::Same
+             : DupArgResult::Different;
+}
+
 void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
@@ -3195,29 +3212,12 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
   // If the attribute was already applied with different arguments, then
   // diagnose the second attribute as a duplicate and don't add it.
   if (const auto *Existing = D->getAttr<WorkGroupSizeHintAttr>()) {
-    // The lambda returns a DupArgRes value; Same means the args have the same
-    // value, Different means the args do not have the same value, and Unknown
-    // means that the args cannot (yet) be compared.
-    enum DupArgRes { Unknown, Same, Different };
-    auto AreArgValuesIdentical = [&](const Expr *LHS, const Expr *RHS) {
-      // If either operand is still value dependent, we can't test anything.
-      const auto *LHSCE = dyn_cast<ConstantExpr>(LHS);
-      const auto *RHSCE = dyn_cast<ConstantExpr>(RHS);
-      if (!LHSCE || !RHSCE)
-        return Unknown;
-
-      // Otherwise, test that the values.
-      return LHSCE->getResultAsAPSInt() == RHSCE->getResultAsAPSInt()
-                 ? Same
-                 : Different;
-    };
-
-    DupArgRes Results[] = {AreArgValuesIdentical(XDim, Existing->getXDim()),
-                           AreArgValuesIdentical(YDim, Existing->getYDim()),
-                           AreArgValuesIdentical(ZDim, Existing->getZDim())};
+    DupArgResult Results[] = {AreArgValuesIdentical(XDim, Existing->getXDim()),
+                              AreArgValuesIdentical(YDim, Existing->getYDim()),
+                              AreArgValuesIdentical(ZDim, Existing->getZDim())};
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
-    if (llvm::is_contained(Results, Different)) {
+    if (llvm::is_contained(Results, DupArgResult::Different)) {
       Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
       Diag(Existing->getLoc(), diag::note_previous_attribute);
       return;
@@ -3225,7 +3225,8 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
-    if (llvm::all_of(Results, [](DupArgRes V) { return V == Same; }))
+    if (llvm::all_of(Results,
+                     [](DupArgResult V) { return V == DupArgResult::Same; }))
       return;
   }
 
@@ -3237,31 +3238,14 @@ WorkGroupSizeHintAttr *
 Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
   // Check to see if there's a duplicate attribute already applied.
   if (const auto *DeclAttr = D->getAttr<WorkGroupSizeHintAttr>()) {
-    // The lambda returns a DupArgRes value; Same means the args have the same
-    // value, Different means the args do not have the same value, and Unknown
-    // means that the args cannot (yet) be compared.
-    enum DupArgRes { Unknown, Same, Different };
-    auto AreArgValuesIdentical = [&](const Expr *LHS, const Expr *RHS) {
-      // If either operand is still value dependent, we can't test anything.
-      const auto *LHSCE = dyn_cast<ConstantExpr>(LHS);
-      const auto *RHSCE = dyn_cast<ConstantExpr>(RHS);
-      if (!LHSCE || !RHSCE)
-        return Unknown;
-
-      // Otherwise, test that the values.
-      return LHSCE->getResultAsAPSInt() == RHSCE->getResultAsAPSInt()
-                 ? Same
-                 : Different;
-    };
-
-    DupArgRes Results[] = {
+    DupArgResult Results[] = {
         AreArgValuesIdentical(DeclAttr->getXDim(), A.getXDim()),
         AreArgValuesIdentical(DeclAttr->getYDim(), A.getYDim()),
         AreArgValuesIdentical(DeclAttr->getZDim(), A.getZDim())};
 
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
-    if (llvm::is_contained(Results, Different)) {
+    if (llvm::is_contained(Results, DupArgResult::Different)) {
       Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
       Diag(A.getLoc(), diag::note_previous_attribute);
       return nullptr;
@@ -3269,7 +3253,8 @@ Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
-    if (llvm::all_of(Results, [](DupArgRes V) { return V == Same; }))
+    if (llvm::all_of(Results,
+                     [](DupArgResult V) { return V == DupArgResult::Same; }))
       return nullptr;
   }
   return ::new (Context)
