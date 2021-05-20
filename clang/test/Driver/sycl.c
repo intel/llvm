@@ -111,8 +111,8 @@
 // ID_QUERIES: "-fsycl-id-queries-fit-in-int"
 // NO_ID_QUERIES: "-fno-sycl-id-queries-fit-in-int"
 
-// RUN: %clang -### -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
-// RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
-// RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
+// RUN: %clang -### -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
+// RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
+// RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 
-// DEFAULT: "-sycl-std=2020"
+// DEFAULT_STD: "-sycl-std=2020"
