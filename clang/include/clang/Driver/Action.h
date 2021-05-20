@@ -772,7 +772,14 @@ class FileTableTformJobAction : public JobAction {
 
 public:
   struct Tform {
-    enum Kind { EXTRACT, EXTRACT_DROP_TITLE, REPLACE, REPLACE_CELL, RENAME };
+    enum Kind {
+      EXTRACT,
+      EXTRACT_DROP_TITLE,
+      REPLACE,
+      REPLACE_CELL,
+      RENAME,
+      COPY_SINGLE_FILE
+    };
 
     Tform() = default;
     Tform(Kind K, std::initializer_list<StringRef> Args) : TheKind(K) {
@@ -803,19 +810,15 @@ public:
   void addRenameColumnTform(StringRef From, StringRef To);
 
   // Specifies that, instead of generating a new table, the transformation
-  // should copy the file in the only remaining row at <ColumnName> into the
+  // should copy the file at column <ColumnName> and row <Row> into the
   // output file.
-  void setCopySingleFileColumn(StringRef ColumnName);
+  void addCopySingleFileTform(StringRef ColumnName, int Row);
 
   static bool classof(const Action *A) {
     return A->getKind() == FileTableTformJobClass;
   }
 
   const ArrayRef<Tform> getTforms() const { return Tforms; }
-
-  const std::string getCopySingleFileColumnName() const {
-    return CopySingleFileColumnName;
-  }
 
 private:
   SmallVector<Tform, 2> Tforms; // transformation actions requested

@@ -8966,25 +8966,28 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {Arg});
       break;
     }
+    case FileTableTformJobAction::Tform::COPY_SINGLE_FILE: {
+      assert(Tf.TheArgs.size() == 2 && "column name and row id expected");
+      SmallString<128> Arg("-copy_single_file=");
+      Arg += Tf.TheArgs[0];
+      Arg += ",";
+      Arg += Tf.TheArgs[1];
+      addArgs(CmdArgs, TCArgs, {Arg});
+      break;
+    }
     }
   }
-  // 2) add copy_single_file option if requested
-  if (!TformJob.getCopySingleFileColumnName().empty()) {
-    SmallString<128> Arg("-copy_single_file=");
-    Arg += TformJob.getCopySingleFileColumnName();
-    addArgs(CmdArgs, TCArgs, {Arg});
-  }
 
-  // 3) add output option
+  // 2) add output option
   assert(Output.isFilename() && "table tform output must be a file");
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
-  // 4) add inputs
+  // 3) add inputs
   for (const auto &Input : Inputs) {
     assert(Input.isFilename() && "table tform input must be a file");
     addArgs(CmdArgs, TCArgs, {Input.getFilename()});
   }
-  // 5) finally construct and add a command to the compilation
+  // 4) finally construct and add a command to the compilation
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),

@@ -4462,7 +4462,7 @@ class OffloadingActionBuilder final {
           // creating a new table with a single entry.
           auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
               PostLinkAction, types::TY_LLVM_BC);
-          ExtractIRFilesAction->setCopySingleFileColumn(COL_CODE);
+          ExtractIRFilesAction->addCopySingleFileTform(COL_CODE, 0);
 
           Action *FinAction;
           if (isNVPTX) {
