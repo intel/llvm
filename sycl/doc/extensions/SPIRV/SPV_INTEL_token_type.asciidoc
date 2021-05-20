@@ -1,0 +1,147 @@
+SPV_INTEL_token_type
+====================
+
+Name Strings
+------------
+
+SPV_INTEL_token_type
+
+Contact
+-------
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+Contributors
+------------
+
+- Dmitry Sidorov, Intel
+
+Notice
+------
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+Status
+------
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2021-04-28
+| Revision           | A
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 7.
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension adds a type-declaration instruction *OpTypeTokenINTEL*, which is
+an analog of LLVM's type _token_. This type specifies IDs of entry points and
+exit points of certain IL constructs, for example it can be useful for exception
+handling representation in IL.
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
+
+----
+OpExtension "SPV_INTEL_token_type"
+----
+
+New Capabilities
+----------------
+This extension introduces a new capability:
+
+----
+TokenTypeINTEL
+----
+
+New Instructions
+----------------
+Instructions added under the *TokenTypeINTEL* capability:
+
+----
+TypeTokenINTEL
+----
+
+Token Number Assignments
+------------------------
+[width="45%",cols="30,15"]
+|===============================
+| TokenTypeINTEL   | 6112
+| OpTypeTokenINTEL | 6113
+|===============================
+
+Modifications to the SPIR-V Specification, Version 1.5
+------------------------------------------------------
+
+Capabilities
+~~~~~~~~~~~~
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Depends On
+| 6112 | *TokenTypeINTEL* +
+Allow to use _OpTypeTokenINTEL_ type declaration instruction |
+|====
+--
+
+Instructions
+~~~~~~~~~~~~
+
+In section 3.37.6 Type-Declaration Instructions, add a new instruction:
+
+[cols="3", width="100%"]
+|=====
+2+^|*OpTypeTokenINTEL* +
+Declare the token type.
+
+The token type is used when a value is associated with an instruction but all
+uses of the value must not attempt to introspect or obscure it. As such, it is
+not appropriate to have a _OpPhi_ or _OpSelect_ of _TypeTokenINTEL_.
+| Capability:
+*TokenTypeINTEL*
+
+| 2 | TBD | Result <id>
+|=====
+
+Issues
+------
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2021-04-28|Dmitry Sidorov|Initial revision
+|========================================
+
