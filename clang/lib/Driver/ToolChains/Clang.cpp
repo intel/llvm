@@ -1125,11 +1125,18 @@ static const char *RelocationModelName(llvm::Reloc::Model Model) {
 static void handleAMDGPUCodeObjectVersionOptions(const Driver &D,
                                                  const ArgList &Args,
                                                  ArgStringList &CmdArgs) {
-  unsigned CodeObjVer = getAMDGPUCodeObjectVersion(D, Args);
-  CmdArgs.insert(CmdArgs.begin() + 1,
-                 Args.MakeArgString(Twine("--amdhsa-code-object-version=") +
-                                    Twine(CodeObjVer)));
-  CmdArgs.insert(CmdArgs.begin() + 1, "-mllvm");
+  // If no version was requested by the user, use the default value from the
+  // back end. This is consistent with the value returned from
+  // getAMDGPUCodeObjectVersion. This lets clang emit IR for amdgpu without
+  // requiring the corresponding llvm to have the AMDGPU target enabled,
+  // provided the user (e.g. front end tests) can use the default.
+  if (haveAMDGPUCodeObjectVersionArgument(D, Args)) {
+    unsigned CodeObjVer = getAMDGPUCodeObjectVersion(D, Args);
+    CmdArgs.insert(CmdArgs.begin() + 1,
+                   Args.MakeArgString(Twine("--amdhsa-code-object-version=") +
+                                      Twine(CodeObjVer)));
+    CmdArgs.insert(CmdArgs.begin() + 1, "-mllvm");
+  }
 }
 
 void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
@@ -3164,7 +3171,7 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
     if (!EffectiveTriple.isX86())
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
-    unsigned Offset;
+    int Offset;
     if (Value.getAsInteger(10, Offset)) {
       D.Diag(diag::err_drv_invalid_value) << A->getOption().getName() << Value;
       return;
@@ -4577,6 +4584,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
 
+    if (Args.hasArg(options::OPT_fsycl_use_footer)) {
+      // Add the integration footer option to generated the footer.
+      StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
+      if (!Footer.empty()) {
+        SmallString<128> FooterOpt("-fsycl-int-footer=");
+        FooterOpt.append(Footer);
+        CmdArgs.push_back(Args.MakeArgString(FooterOpt));
+      }
+    }
+
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
   }
@@ -4602,6 +4619,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (!UniqueID.empty())
       CmdArgs.push_back(
           Args.MakeArgString(Twine("-fsycl-unique-prefix=") + UniqueID));
+
+    // Disable parallel for range-rounding for anything involving FPGA
+    auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+    bool HasFPGA = false;
+    for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI)
+      if (TI->second->getTriple().getSubArch() ==
+          llvm::Triple::SPIRSubArch_fpga) {
+        HasFPGA = true;
+        break;
+      }
+    if (HasFPGA)
+      CmdArgs.push_back("-fsycl-disable-range-rounding");
 
     // Enable generation of USM address spaces for FPGA.
     // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
@@ -8771,4 +8800,33 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       CmdArgs, Inputs));
+}
+
+void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
+                                const InputInfo &Output,
+                                const InputInfoList &Inputs,
+                                const llvm::opt::ArgList &TCArgs,
+                                const char *LinkingOutput) const {
+  ArgStringList CmdArgs;
+
+  // Input File
+  addArgs(CmdArgs, TCArgs, {Inputs[0].getFilename()});
+
+  // Integration Footer
+  StringRef Footer(
+      C.getDriver().getIntegrationFooter(Inputs[0].getBaseInput()));
+  if (!Footer.empty()) {
+    SmallString<128> AppendOpt("--append=");
+    AppendOpt.append(Footer);
+    addArgs(CmdArgs, TCArgs, {AppendOpt});
+  }
+
+  SmallString<128> OutputOpt("--output=");
+  OutputOpt.append(Output.getFilename());
+  addArgs(CmdArgs, TCArgs, {OutputOpt});
+
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, None));
 }

@@ -247,6 +247,20 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// Append Footer tool
+class LLVM_LIBRARY_VISIBILITY AppendFooter final : public Tool {
+public:
+  AppendFooter(const ToolChain &TC)
+      : Tool("Append Footer to source", "append-file", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 } // end namespace tools
 
 } // end namespace driver

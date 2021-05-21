@@ -214,7 +214,7 @@ void __SYCL_EXPORT addHostAccessorAndWait(Requirement *Req);
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::mode deduceAccessMode() {
   // property_list = {} is not properly detected by deduction guide,
-  // when parameter is passed without curly braces: access(buffer, noinit)
+  // when parameter is passed without curly braces: access(buffer, no_init)
   // thus simplest approach is to check 2 last arguments for being a tag
   if constexpr (std::is_same<MayBeTag1,
                              mode_tag_t<access::mode::read>>::value ||
