@@ -118,7 +118,7 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 
 // ---- reduce_over_group
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<Group> &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
@@ -140,7 +140,7 @@ reduce_over_group(Group, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<Group> &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
@@ -177,7 +177,7 @@ reduce_over_group(Group g, T x, BinaryOperation op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<Group> &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<V>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
@@ -200,7 +200,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<Group> &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<V>::value &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
@@ -228,13 +228,13 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(detail::is_sub_group<Group>::value &&
-                     std::is_trivially_copyable<T>::value &&
-                     std::is_trivially_copyable<V>::value &&
-                     (!detail::is_arithmetic<T>::value ||
-                      !detail::is_arithmetic<V>::value ||
-                      !detail::is_native_op<T, BinaryOperation>::value)),
-                    T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && // detail::is_sub_group<Group>::value &&
+     std::is_trivially_copyable<T>::value &&
+     std::is_trivially_copyable<V>::value &&
+     (!detail::is_arithmetic<T>::value || !detail::is_arithmetic<V>::value ||
+      !detail::is_native_op<T, BinaryOperation>::value)),
+    T>
 reduce_over_group(Group g, V x, T init, BinaryOperation op) {
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
@@ -249,7 +249,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation op) {
 // ---- joint_reduce
 template <typename Group, typename Ptr, class BinaryOperation>
 detail::enable_if_t<
-    (is_group_v<Group> && detail::is_pointer<Ptr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
     typename detail::remove_pointer<Ptr>::type>
 joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
@@ -276,7 +276,7 @@ joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
 
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
 detail::enable_if_t<
-    (is_group_v<Group> && detail::is_pointer<Ptr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value &&
      detail::is_arithmetic<T>::value &&
      detail::is_native_op<typename detail::remove_pointer<Ptr>::type,
@@ -307,7 +307,8 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 
 // ---- any_of_group
 template <typename Group>
-detail::enable_if_t<is_group_v<Group>, bool> any_of_group(Group, bool pred) {
+detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+any_of_group(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAny<Group>(pred);
 #else
@@ -325,7 +326,8 @@ detail::enable_if_t<is_group_v<Group>, bool> any_of_group(Group g, T x,
 
 // ---- joint_any_of
 template <typename Group, typename Ptr, class Predicate>
-detail::enable_if_t<(is_group_v<Group> && detail::is_pointer<Ptr>::value), bool>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
 joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   using T = typename detail::remove_pointer<Ptr>::type;
@@ -344,7 +346,8 @@ joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
 
 // ---- all_of_group
 template <typename Group>
-detail::enable_if_t<is_group_v<Group>, bool> all_of_group(Group, bool pred) {
+detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+all_of_group(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll<Group>(pred);
 #else
@@ -355,14 +358,15 @@ detail::enable_if_t<is_group_v<Group>, bool> all_of_group(Group, bool pred) {
 }
 
 template <typename Group, typename T, class Predicate>
-detail::enable_if_t<is_group_v<Group>, bool> all_of_group(Group g, T x,
-                                                          Predicate pred) {
+detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+all_of_group(Group g, T x, Predicate pred) {
   return all_of_group(g, pred(x));
 }
 
 // ---- joint_all_of
 template <typename Group, typename Ptr, class Predicate>
-detail::enable_if_t<(is_group_v<Group> && detail::is_pointer<Ptr>::value), bool>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
 joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   using T = typename detail::remove_pointer<Ptr>::type;
@@ -381,7 +385,8 @@ joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
 
 // ---- none_of_group
 template <typename Group>
-detail::enable_if_t<is_group_v<Group>, bool> none_of_group(Group, bool pred) {
+detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+none_of_group(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll<Group>(!pred);
 #else
@@ -392,14 +397,15 @@ detail::enable_if_t<is_group_v<Group>, bool> none_of_group(Group, bool pred) {
 }
 
 template <typename Group, typename T, class Predicate>
-detail::enable_if_t<is_group_v<Group>, bool> none_of_group(Group g, T x,
-                                                           Predicate pred) {
+detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+none_of_group(Group g, T x, Predicate pred) {
   return none_of_group(g, pred(x));
 }
 
 // ---- joint_none_of
 template <typename Group, typename Ptr, class Predicate>
-detail::enable_if_t<(is_group_v<Group> && detail::is_pointer<Ptr>::value), bool>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
 joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return !joint_any_of(g, first, last, pred);
