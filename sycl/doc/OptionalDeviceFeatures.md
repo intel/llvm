@@ -73,17 +73,32 @@ kernel uses an unsupported feature, the runtime must throw a synchronous
 
 This exception must be thrown in the following circumstances:
 
-* A device function in the kernel's static call tree uses a feature that the
-  device does not support.  However, this only applies to features that are
-  exposed via a C++ type or function.  Examples of this include `sycl::half` or
-  instantiating `sycl::atomic_ref` for a 64-bit type.  In cases where the
-  feature is more "notional", such as requiring a particular type of forward
-  progress guarantee, no exception is required.
+* For a kernel that is not decorated with `[[sycl::requires()]]`: the exception
+  must be thrown if a device function in the kernel's static call tree uses a
+  feature that the device does not support.  However, this only applies to
+  features that are exposed via a C++ type or function.  Examples of this
+  include `sycl::half` or instantiating `sycl::atomic_ref` for a 64-bit type.
+  If the kernel relies on optional features that are more "notional" such as
+  sub-group independent forward progress
+  (`info::device::sub_group_independent_forward_progress`), no exception is
+  required.
 
-* The kernel or a device function in the kernel's static call tree is decorated
-  with `[[sycl::requires()]]`, and the device does not have the required
-  aspects.  An exception must be thrown in this case even if the kernel does
-  not actually use a feature corresponding to the aspect.
+* For a kernel that is decorated with `[[sycl::requires()]]`: the exception
+  must be thrown if the device does not have the aspects listed in that
+  attribute.  Note that the exception must be thrown even if the kernel does
+  not actually use a feature corresponding to the aspect, and it must be
+  thrown even if the aspect does not correspond to any optional feature.
+
+* For a kernel that is decorated with `[[sycl::requires()]]`: the exception
+  must be thrown if a function in the kernel's static call tree uses a feature
+  that the device does not support even if the `[[sycl::requires()]]` attribute
+  is missing the corresponding aspect.  This case can only occur if the kernel
+  calls a `SYCL_EXTERNAL` function in another translation unit and the function
+  uses an optional feature that is not listed in the `[[sycl::requires()]]`
+  attribute attached to the `SYCL_EXTERNAL` function declaration.  (In any
+  other case, the front-end compiler would diagnose an error.)  Although the
+  SYCL 2020 spec says that such applications are non-conformant, it is easy for
+  DPC++ to throw an exception in such a case.
 
 * The kernel is decorated with the `[[sycl::reqd_work_group_size(W)]]` or
   `[[sycl::reqd_sub_group_size(S)]]` attribute, and the device does not support
@@ -330,13 +345,20 @@ decorations to the appropriate functions and to emit the specialization
 constants that these decorations reference.  This can be done with two passes
 over each kernel's static call tree.
 
-The first pass operates only on kernel functions that are not decorated with
-the `[[sycl::requires()]]` attribute.  When the kernel is decorated with this
-attribute, the attribute tells the full set of aspects that the kernel uses
-(and the front-end compiler has already validated this).  For kernels without
-the attribute, the pass propagates the required aspects from
-`[[sycl::requires()]]` attributes in a kernel's call tree up to the kernel
-function, forming a union of all required aspects for the kernel.
+The first pass operates on each kernel, iterating over all the functions in the
+kernel's static call tree to form the union of all aspects required by kernel.
+If the kernel is decorated with the `[[sycl::requires()]]`, those aspects are
+also added to the union.
+
+**NOTE**: This first pass traverses the static call tree even for kernels that
+are decorated with the `[[sycl::requires()]]` attribute.  Although the
+front-end compiler has already verified that the kernel doesn't require any
+aspects beyond those listed in the attribute, the front-end compiler was only
+able to verify this for the device functions that reside in the same
+translation unit as the kernel.  Therefore, we might still find more required
+aspects in the post-link tool because we have visibility to all device
+functions in the kernel's static call tree, even those that are defined in
+other translation units.
 
 Once we have the full set of aspects used by each kernel, we do the following
 for each kernel:
