@@ -1,5 +1,4 @@
-//==----------- sub_group_algorithm.hpp --- SYCL group algorithm
-//---------------------------==//
+//==----------- sub_group_algorithm.hpp ------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,6 +15,7 @@
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
+#include <CL/sycl/known_identity.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/sub_group.hpp>
 
@@ -81,44 +81,6 @@ inline ONEAPI::sub_group::linear_id_type
 get_local_linear_id<ONEAPI::sub_group>(ONEAPI::sub_group g) {
   return g.get_local_id()[0];
 }
-
-// ---- identity
-
-template <typename T, class BinaryOperation> struct identity {};
-
-template <typename T, typename V> struct identity<T, ONEAPI::plus<V>> {
-  static constexpr T value = 0;
-};
-
-template <typename T, typename V> struct identity<T, ONEAPI::minimum<V>> {
-  static constexpr T value = std::numeric_limits<T>::has_infinity
-                                 ? std::numeric_limits<T>::infinity()
-                                 : (std::numeric_limits<T>::max)();
-};
-
-template <typename T, typename V> struct identity<T, ONEAPI::maximum<V>> {
-  static constexpr T value =
-      std::numeric_limits<T>::has_infinity
-          ? static_cast<T>(-std::numeric_limits<T>::infinity())
-          : std::numeric_limits<T>::lowest();
-};
-
-template <typename T, typename V> struct identity<T, ONEAPI::multiplies<V>> {
-  static constexpr T value = static_cast<T>(1);
-};
-
-template <typename T, typename V> struct identity<T, ONEAPI::bit_or<V>> {
-  static constexpr T value = 0;
-};
-
-template <typename T, typename V> struct identity<T, ONEAPI::bit_xor<V>> {
-  static constexpr T value = 0;
-};
-
-template <typename T, typename V> struct identity<T, ONEAPI::bit_and<V>> {
-  static constexpr T value = ~static_cast<T>(0);
-};
-
 
 // ---- is_native_op
 template <typename T>
@@ -299,7 +261,7 @@ joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial = sycl::detail::identity<T, BinaryOperation>::value;
+  T partial = sycl::known_identity_v<BinaryOperation, T>;
   sycl::detail::for_each(g, first, last,
                          [&](const T &x) { partial = binary_op(partial, x); });
   return reduce_over_group(g, partial, binary_op);
@@ -329,7 +291,7 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(init, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial = sycl::detail::identity<T, BinaryOperation>::value;
+  T partial = sycl::known_identity_v<BinaryOperation, T>;
   sycl::detail::for_each(
       g, first, last, [&](const typename detail::remove_pointer<Ptr>::type &x) {
         partial = binary_op(partial, x);
@@ -788,8 +750,7 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
       "Result type of binary_op must match scan accumulation type.");
   return joint_exclusive_scan(
       g, first, last, result,
-      sycl::detail::identity<typename OutPtr::element_type, BinaryOperation>::value,
-      //known_identity_v<BinaryOperation, typename OutPtr::element_type>,
+      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>,
       binary_op);
 }
 
@@ -955,8 +916,7 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
       "Result type of binary_op must match scan accumulation type.");
   return joint_inclusive_scan(
       g, first, last, result, binary_op,
-      sycl::detail::identity<typename OutPtr::element_type,
-                             BinaryOperation>::value);
+      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>);
 }
 
 } // namespace sycl

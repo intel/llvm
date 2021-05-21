@@ -47,7 +47,8 @@ using half = detail::half_impl::half;
 template <typename ElementType, access::address_space Space> class multi_ptr;
 
 template <class T>
-__SYCL_INLINE_CONSTEXPR bool is_group_v = detail::is_group<T>::value;
+__SYCL_INLINE_CONSTEXPR bool is_group_v =
+    detail::is_group<T>::value || detail::is_sub_group<T>::value;
 
 namespace detail {
 template <typename T, typename R> struct copy_cv_qualifiers;
