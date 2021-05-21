@@ -229,8 +229,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 detail::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && // detail::is_sub_group<Group>::value &&
-     std::is_trivially_copyable<T>::value &&
+    (is_group_v<std::decay_t<Group>> && std::is_trivially_copyable<T>::value &&
      std::is_trivially_copyable<V>::value &&
      (!detail::is_arithmetic<T>::value || !detail::is_arithmetic<V>::value ||
       !detail::is_native_op<T, BinaryOperation>::value)),
@@ -477,7 +476,7 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
 
 // ---- group_broadcast
 template <typename Group, typename T>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      std::is_trivially_copyable<T>::value &&
                      !detail::is_vector_arithmetic<T>::value),
                     T>
@@ -493,7 +492,7 @@ group_broadcast(Group, T x, typename Group::id_type local_id) {
 }
 
 template <typename Group, typename T>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value),
                     T>
 group_broadcast(Group g, T x, typename Group::id_type local_id) {
@@ -513,7 +512,7 @@ group_broadcast(Group g, T x, typename Group::id_type local_id) {
 }
 
 template <typename Group, typename T>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      std::is_trivially_copyable<T>::value &&
                      !detail::is_vector_arithmetic<T>::value),
                     T>
@@ -532,7 +531,7 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 }
 
 template <typename Group, typename T>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value),
                     T>
 group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
@@ -552,7 +551,7 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 }
 
 template <typename Group, typename T>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      std::is_trivially_copyable<T>::value &&
                      !detail::is_vector_arithmetic<T>::value),
                     T>
@@ -568,7 +567,7 @@ group_broadcast(Group g, T x) {
 }
 
 template <typename Group, typename T>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value),
                     T>
 group_broadcast(Group g, T x) {
@@ -588,7 +587,7 @@ group_broadcast(Group g, T x) {
 
 // ---- exclusive_scan_over_group
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
@@ -609,7 +608,7 @@ exclusive_scan_over_group(Group, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
@@ -629,7 +628,7 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<V>::value &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
@@ -651,7 +650,7 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<V>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
@@ -685,8 +684,8 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 template <typename Group, typename InPtr, typename OutPtr, typename T,
           class BinaryOperation>
 detail::enable_if_t<
-    (detail::is_generic_group<Group>::value &&
-     detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
+     detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_arithmetic<T>::value &&
@@ -738,8 +737,8 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
 detail::enable_if_t<
-    (detail::is_generic_group<Group>::value &&
-     detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
+     detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
@@ -762,7 +761,7 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 
 // ---- inclusive_scan_over_group
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
@@ -782,7 +781,7 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
@@ -803,7 +802,7 @@ inclusive_scan_over_group(Group, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<V>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
@@ -828,7 +827,7 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<V>::value &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
@@ -852,8 +851,8 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation, typename T>
 detail::enable_if_t<
-    (detail::is_generic_group<Group>::value &&
-     detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
+     detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_arithmetic<T>::value &&
@@ -904,8 +903,8 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
 detail::enable_if_t<
-    (detail::is_generic_group<Group>::value &&
-     detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
+     detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
