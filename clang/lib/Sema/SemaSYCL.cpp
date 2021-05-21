@@ -63,7 +63,6 @@ static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
 static constexpr llvm::StringLiteral GlibcxxFailedAssertion =
     "__failed_assertion";
-static constexpr llvm::StringLiteral GlibcxxConfigFile = "bits/c++config.h";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
 namespace {
@@ -329,11 +328,15 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
     return false;
 
   const Type *Ty = nullptr;
+  // libstdc++-11 introduced undefined function "void __failed_assertion()"
+  // which may lead to SemaSYCL check failure. However, this undefined function
+  // is used to trigger some compilation error when check fails in compilation
+  // time and will be ignored when the check succeeds. We enable this function
+  // to support some important std functions in SYCL device.
   if (Callee->getName() == GlibcxxFailedAssertion &&
       (Callee->getNumParams() == 0) &&
       (Ty = Callee->getReturnType().getTypePtr()) && (Ty->isVoidType()))
-    return SrcMgr.getFilename(SrcMgr.getSpellingLoc(Callee->getLocation()))
-               .rfind(GlibcxxConfigFile) != StringRef::npos;
+    return SrcMgr.isInSystemHeader(Callee->getLocation());
 
   return false;
 }
