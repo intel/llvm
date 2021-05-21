@@ -8,5 +8,9 @@ if(SYCL_BUILD_PI_CUDA)
   add_subdirectory(cuda)
 endif()
 
+if(SYCL_BUILD_PI_ROCM)
+  add_subdirectory(rocm)
+endif()
+
 add_subdirectory(opencl)
 add_subdirectory(level_zero)

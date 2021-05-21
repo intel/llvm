@@ -1178,6 +1178,10 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     if (TI.getTriple().isNVPTX()) {
         Builder.defineMacro("__SYCL_NVPTX__", "1");
     }
+    
+    if (TI.getTriple().isAMDGCN()) {
+        Builder.defineMacro("__SYCL_AMDGCN__", "1");
+    }
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
