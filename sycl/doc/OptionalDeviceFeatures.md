@@ -49,9 +49,9 @@ kernel uses an optional feature.
 The only exception to this rule occurs when the application uses the C++
 attribute `[[sycl::requires()]]`.  When the application decorates a kernel or
 device function with this attribute, it is an assertion that the kernel or
-device function is allowed to use only those optional features which are listed by the attribute.
-Therefore, the front-end compiler must issue a diagnostic if the kernel or
-device function uses any other optional kernel features.
+device function is allowed to use only those optional features which are listed
+by the attribute.  Therefore, the front-end compiler must issue a diagnostic if
+the kernel or device function uses any other optional kernel features.
 
 Note that this behavior does not change when the compiler runs in AOT mode.
 Even if the user specifies a target device via "-fsycl-targets", that does not
@@ -66,10 +66,10 @@ are not being compiled for.
 ### Runtime exception if device doesn't support feature
 
 When the application submits a kernel to a device via one of the kernel
-invocation commands (e.g. `parallel_for()`), the runtime must check
-if the kernel uses optional features that are not supported on that device.
-If the kernel uses an unsupported feature, the runtime must throw
-a synchronous `errc::kernel_not_supported` exception.
+invocation commands (e.g. `parallel_for()`), the runtime must check if the
+kernel uses optional features that are not supported on that device.  If the
+kernel uses an unsupported feature, the runtime must throw a synchronous
+`errc::kernel_not_supported` exception.
 
 This exception must be thrown in the following circumstances:
 
