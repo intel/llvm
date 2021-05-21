@@ -55,6 +55,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "backend-compiler";
   case FileTableTformJobClass:
     return "file-table-tform";
+  case AppendFooterJobClass:
+    return "append-footer";
   case StaticLibJobClass:
     return "static-lib-linker";
   }
@@ -509,6 +511,11 @@ void FileTableTformJobAction::addRenameColumnTform(StringRef From,
                                                    StringRef To) {
   Tforms.emplace_back(Tform(Tform::RENAME, {From, To}));
 }
+
+void AppendFooterJobAction::anchor() {}
+
+AppendFooterJobAction::AppendFooterJobAction(Action *Input, types::ID Type)
+    : JobAction(AppendFooterJobClass, Input, Type) {}
 
 void StaticLibJobAction::anchor() {}
 
