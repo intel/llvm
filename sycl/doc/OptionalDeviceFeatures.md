@@ -22,9 +22,9 @@ attributes"][2] and [section 5.8.2 "Device function attributes"][3].
 
 There are several categories of requirements covered by this design:
 
-* The front-end compiler must issue a diagnostic in some cases when a kernel
-  uses an optional feature.  However, the front-end compiler must **not**
-  generate a diagnostic in other cases.
+* The front-end compiler must issue a diagnostic in some cases when a kernel or
+  device function uses an optional feature.  However, the front-end compiler
+  must **not** generate a diagnostic in other cases.
 
 * The runtime must raise an exception when a kernel using optional features
   is submitted to a device that does not support those features.  This
@@ -131,7 +131,7 @@ is an optional feature which is only supported on devices that have the
 describe the set of optional features that a kernel uses (with the exception
 of the required work-group or sub-group size).
 
-As will see later, it will be very helpful to decorate all APIs in DPC++
+As we will see later, it will be very helpful to decorate all APIs in DPC++
 headers that correspond to optional kernel features with the
 `[[sycl::requires()]]` attribute.  For example, the declaration of the
 `sycl::half` type would look like this:
@@ -248,40 +248,42 @@ AOT cases.
 
 ### JIT case
 
-The JIT case requires some change to the way kernels are bundled together into
-device images.  Currently, kernels are bundled together regardless of the
-features they use, and this can lead to JIT errors due to speculative
-compilation.  Consider a device image that contains two kernels: `K1` uses no
-optional features and `K2` uses an optional feature that corresponds to aspect
-`A`.  Now consider that the application submits kernel `K1` to a device that
-does not support aspect `A`.  Since the two kernels are bundled together into
-one device image, the runtime really compiles both kernels for the device.
-Currently, this will raise a JIT exception because the compilation of kernel
-`K2` will fail when compiled for a device that does not support aspect `A`.
+The JIT case requires some change to the way kernels and device functions are
+bundled together into device images.  Currently, kernels and device functions
+are bundled together regardless of the features they use, and this can lead to
+JIT errors due to speculative compilation.  Consider a device image that
+contains two kernels: `K1` uses no optional features and `K2` uses an optional
+feature that corresponds to aspect `A`.  Now consider that the application
+submits kernel `K1` to a device that does not support aspect `A`.  Since the
+two kernels are bundled together into one device image, the runtime really
+compiles both kernels for the device.  Currently, this will raise a JIT
+exception because the compilation of kernel `K2` will fail when compiled for a
+device that does not support aspect `A`.
 
-There are two ways to solve this problem.  One is to change the way kernels are
-bundled into device images such that we never bundled two kernels together
-unless they required exactly the same set of device aspects.  Doing this would
-avoid the error described above.  However, we have elected for a different
-solution.
+There are two ways to solve this problem.  One is to change the way kernels and
+device functions are bundled into device images such that we never bundled two
+kernels or device functions together unless they require exactly the same set
+of device aspects.  Doing this would avoid the error described above.  However,
+we have elected for a different solution.
 
-Instead, we will allow kernels to be bundled together as they currently are,
-but we will introduce extra decorations into the generated SPIR-V that allow
-the JIT compiler to discard kernels which require aspects that the device does
-not support.  Although this solution requires an extension to SPIR-V, we think
-it is the better direction because it is aligned with the [device-if][4]
-feature, which will also requires this same SPIR-V extension.
+Instead, we will allow kernels and device functions to be bundled together as
+they currently are, but we will introduce extra decorations into the generated
+SPIR-V that allow the JIT compiler to discard kernels and device functions
+which require aspects that the device does not support.  Although this solution
+requires an extension to SPIR-V, we think it is the better direction because it
+is aligned with the [device-if][4] feature, which will also requires this same
+SPIR-V extension.
 
 [4]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceIf/device_if.asciidoc>
 
 The idea is to emit a SPIR-V specialization constant for each aspect that is
-required by a kernel in the device image.  We then introduce a new SPIR-V
-"decoration" that tells the JIT compiler to discard a function if a
-specialization constant is `False`.  The DPC++ runtime will set the values of
+required by a kernel or device function in the device image.  We then introduce
+a new SPIR-V "decoration" that tells the JIT compiler to discard a function if
+a specialization constant is `False`.  The DPC++ runtime will set the values of
 the specialization constants according to the target device, thus the JIT
-compiler discards (and does not compile) any kernels that use features which
-are not supported on that device.  This avoids errors due to speculative
-compilation of kernels.
+compiler discards (and does not compile) any kernels or device functions that
+use features which are not supported on that device.  This avoids errors due to
+speculative compilation of kernels or device functions.
 
 #### Representation in SPIR-V
 
@@ -343,12 +345,19 @@ mechanism.
 The post-link tool must be modified to add the SPIR-V `ConditionalINTEL`
 decorations to the appropriate functions and to emit the specialization
 constants that these decorations reference.  This can be done with two passes
-over each kernel's static call tree.
+over the static call tree for each kernel and each exported device function.
 
-The first pass operates on each kernel, iterating over all the functions in the
-kernel's static call tree to form the union of all aspects required by kernel.
-If the kernel is decorated with the `[[sycl::requires()]]`, those aspects are
-also added to the union.
+**NOTE**: In this context, "exported device function" means a device function
+that is exported from a shared library as defined by [Device Code Dynamic
+Linking][6].
+
+[6]: <https://github.com/intel/llvm/pull/3210>
+
+The first pass operates on each kernel and each exported device function,
+iterating over all the functions in the static call tree of that kernel or
+exported device function to form the union of all aspects it requires.  If the
+kernel or exported device function is decorated with the
+`[[sycl::requires()]]`, those aspects are also added to the union.
 
 **NOTE**: This first pass traverses the static call tree even for kernels that
 are decorated with the `[[sycl::requires()]]` attribute.  Although the
@@ -360,43 +369,45 @@ aspects in the post-link tool because we have visibility to all device
 functions in the kernel's static call tree, even those that are defined in
 other translation units.
 
-Once we have the full set of aspects used by each kernel, we do the following
-for each kernel:
+Once we have the full set of aspects used by each kernel and exported device
+function, we do the following for each:
 
-* For each of the kernel's required aspects, emit an `OpSpecConstantTrue` op to
+* For each required aspects, emit an `OpSpecConstantTrue` instruction to
   represent this requirement.  We maintain a set of "required specialization
-  constants" for each kernel, which is used later.  Add this specialization
-  constant to that set.  In addition, add an "aspect" entry to the device
-  image's "SYCL/kernel reqs" property set, as described below.  (We could
-  instead emit `OpSpecConstantFalse`.  It doesn't matter because the runtime
-  will always provide a value for these specialization constants.)
+  constants" for each kernel or exported device function, which is used later.
+  Add this specialization constant to that set.  In addition, add an "aspect"
+  entry to the device image's "SYCL/requirements" property set, as described
+  below.  (We could instead emit `OpSpecConstantFalse`.  It doesn't matter
+  because the runtime will always provide a value for these specialization
+  constants.)
 
 * If the kernel function is decorated with the `[[reqd_work_group_size()]]`
   attribute, emit an `OpSpecConstantTrue` op to represent this requirement and
   add this also to the kernel's set of required specialization constants.  In
   addition, add a "reqd\_work\_group\_size" entry to the device image's
-  "SYCL/kernel reqs" property set.
+  "SYCL/requirements" property set.
 
 * If the kernel function is decorated with the `[[reqd_sub_group_size()]]`
   attribute, emit an `OpSpecConstantTrue` op to represent this requirement and
   add this also to the kernel's set of required specialization constants.  In
   addition, add a "reqd\_sub\_group\_size" entry to the device image's
-  "SYCL/kernel reqs" property set.
+  "SYCL/requirements" property set.
 
-* If the kernel's set of required specialization constants is not empty, emit a
-  series of `OpSpecConstantOp` ops with the `OpLogicalAnd` opcode to compute
-  the expression `S1 && S2 && ...`, where `S1`, `S2`, etc. are the
-  specialization constants in that set.  In addition, emit a
-  `ConditionalINTEL` decoration for the kernel's entry function which
-  references the `S1 && S2 && ...` specialization constant.
+* If the kernel or exported device function's set of required specialization
+  constants is not empty, emit a series of `OpSpecConstantOp` ops with the
+  `OpLogicalAnd` opcode to compute the expression `S1 && S2 && ...`, where
+  `S1`, `S2`, etc. are the specialization constants in that set.  In addition,
+  emit a `ConditionalINTEL` decoration for the function which references the
+  `S1 && S2 && ...` specialization constant.
 
-The second pass propagates each kernel's required specialization constants back
-down the static call tree.  This pass starts such that each kernel entry
-function has the set of required specialization constants as computed above.
-The set of required specialization constants for each remaining function `F` is
-computed as `P1 || P2 || ...`, where `P1`, `P2`, etc. are the parent functions
-of `F` in the static call tree.  (Obviously, a `Pn` term can be omitted if the
-parent function has no required specialization constants.)  Once we have this
+The second pass propagates each kernel or exported device function's required
+specialization constants back down the static call tree.  This pass starts by
+assigning each each kernel entry function and each exported device function the
+set of required specialization constants that were computed above.  The set of
+required specialization constants for each remaining function `F` is computed
+as `P1 || P2 || ...`, where `P1`, `P2`, etc. are the parent functions of `F` in
+the static call tree.  (Obviously, a `Pn` term can be omitted if the parent
+function has no required specialization constants.)  Once we have this
 information, we do the following for each function `F` that has a non-empty set
 of required specialization constants:
 
@@ -413,10 +424,11 @@ are emitted and reuse them when possible, rather than emitting duplicates.
 #### New device image property set
 
 A new device image property set is needed to inform the DPC++ runtime of the
-aspects that each kernel requires and the work-group or sub-group sizes it may
-require.  This property set is named "SYCL/kernel reqs".  The name of each
-property in the set is the name of a kernel in the device image.  The value
-of each property has the following form:
+aspects that each kernel or exported device function requires and the
+work-group or sub-group sizes that each kernel requires.  This property set is
+named "SYCL/requirements".  The name of each property in the set is the name of
+a kernel or the name of an exported device function in the device image.  The
+value of each property has the following form:
 
 ```
 [entry_count (uint32)]
@@ -456,9 +468,9 @@ Parameter   | Definition
 `spec_id`   | The SPIR-V `SpecId` decoration for the specialization constant that the post-link tool generated for this requirement.
 
 Note that the post-link tool will generate a series of `OpSpecConstantOp` ops
-when the kernel has multiple requirements.  However, each property list entry
-contains only the `SpecId` of the `OpSpecConstantTrue` op that is associated
-with a single requirement.
+when the kernel or exported device function has multiple requirements.
+However, each property list entry contains only the `SpecId` of the
+`OpSpecConstantTrue` op that is associated with a single requirement.
 
 #### Modifications to the DPC++ runtime
 
@@ -469,19 +481,26 @@ kernel's requirements, and it must raise an `errc::kernel_not_supported`
 exception if it does not.
 
 When a kernel is submitted to a device, the runtime finds the device image that
-contains the kernel and also finds the kernel's entry in the "SYCL/kernel reqs"
-property set.  This entry tells the set of requirements for the kernel.  If the
-target device does not support all of these requirements, then the runtime
-raises `errc::kernel_not_supported`.  This check can be done before the device
-image is JIT compiled, so the exception can be thrown synchronously.
+contains the kernel and also finds the kernel's entry in the
+"SYCL/requirements" property set.  This entry tells the set of requirements for
+the kernel.  If the target device does not support all of these requirements,
+then the runtime raises `errc::kernel_not_supported`.  This check can be done
+before the device image is JIT compiled, so the exception can be thrown
+synchronously.
 
-Assuming this check passes, the first attempt to submit a kernel from a device
-image will cause it to be JIT compiled.  The runtime must be modified to do the
-following:
+If the kernel imports device function symbols from a shared library as defined
+in [Device Code Dynamic Linking][6], the runtime first identifies all the
+device images that define these exported device functions.  Before attempting
+to link them together, the runtime finds the entries for the exported device
+functions in their "SYCL/requirements" property sets and checks that the device
+supports all these requirements.  If it does not, the runtime throws
+`errc::kernel_not_supported`.
 
-* Compute the union of all requirements from all kernels in the
-  "SYCL/kernel reqs" property set and their associated specialization
-  constants.
+Whenever the runtime submits a SPIR-V image to the backend for online
+compilation, it must do the following additional steps:
+
+* Compute the union of all requirements from all entries in the image's
+  "SYCL/requirements" property set.
 
 * Query the target device to see whether it supports each of these
   requirements, yielding either `True` or `False` for each one.
@@ -493,7 +512,7 @@ Note that the runtime's cache of compiled device images does not need any
 special modification because the cache already needs to know the values of all
 the specialization constants that were used to compile the device image.  We
 just need to make sure the cache is also aware of the specialization constants
-which correspond to the kernels' requirements.
+which correspond to the requirements from the "SYCL/requirements" property set.
 
 #### Modifications to the GEN compiler
 
@@ -507,18 +526,22 @@ functions.
 
 The AOT case uses exactly the same solution as the JIT case described above,
 but there is one extra steps.  For the AOT case, the post-link tool must set
-the values of the specialization constants that correspond to the kernel
-requirements, using the device named in the "-fsycl-targets" command line
-option.  After doing this, the post-link tool calls the AOT compiler to
-generate native code from SPIR-V as it normally does.  If more than one target
-device is specified, the post-link tool sets the specialization constants
-separately for each device before generating native code for that device.
+the values of the specialization constants that correspond to the requirements
+for the kernel or exported device function, using the device named in the
+"-fsycl-targets" command line option.  After doing this, the post-link tool
+calls the AOT compiler to generate native code from SPIR-V as it normally does.
+If more than one target device is specified, the post-link tool sets the
+specialization constants separately for each device before generating native
+code for that device.
 
-Note that the native device image may not contain all kernels if there are
-kernels that use optional features.  Nevertheless, the "SYCL/kernel reqs"
-property set still has entries for all kernel functions.  If the application
-attempts to invoke one of the discarded kernels on a device (which does not
-support the kernel's features), the runtime will see that the kernel is not
-supported by using information from the "SYCL/kernel reqs" property set, and
-the runtime will raise an exception.  Thus, the runtime will never attempt to
-invoke one of these discarded kernels.
+Note that the native device image may not contain all kernels or all exported
+device functions if they use optional features.  Nevertheless, the
+"SYCL/requirements" property set still has entries for all kernel functions and
+all exported device functions.  If the application attempts to invoke one of
+the discarded kernels on a device (which does not support the kernel's
+features), the runtime will see that the kernel is not supported by using
+information from the "SYCL/requirements" property set, and the runtime will
+raise an exception.  Thus, the runtime will never attempt to invoke one of
+these discarded kernels.  Likewise, if a kernel imports a discarded device
+function, the runtime will see that the device function is unsupported and
+will raise an exception before attempting to perform the dynamic link.
