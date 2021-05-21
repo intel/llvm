@@ -8,15 +8,11 @@
 
 #pragma once
 
+#include <CL/sycl/ONEAPI/atomic_enums.hpp>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-enum class memory_scope : unsigned char {
-  work_item = 0,
-  sub_group = 1,
-  work_group = 2,
-  device = 3,
-  system = 4
-};
+using ONEAPI::memory_scope;
 
 #if __cplusplus >= 201703L
 inline constexpr auto memory_scope_work_item = memory_scope::work_item;

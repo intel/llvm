@@ -14,7 +14,6 @@
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/enums.hpp>
 #include <CL/sycl/id.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -256,21 +255,6 @@ getScope(ONEAPI::memory_scope Scope) {
   case ONEAPI::memory_scope::device:
     return __spv::Scope::Device;
   case ONEAPI::memory_scope::system:
-    return __spv::Scope::CrossDevice;
-  }
-}
-
-constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
-  switch (Scope) {
-  case memory_scope::work_item:
-    return __spv::Scope::Invocation;
-  case memory_scope::sub_group:
-    return __spv::Scope::Subgroup;
-  case memory_scope::work_group:
-    return __spv::Scope::Workgroup;
-  case memory_scope::device:
-    return __spv::Scope::Device;
-  case memory_scope::system:
     return __spv::Scope::CrossDevice;
   }
 }

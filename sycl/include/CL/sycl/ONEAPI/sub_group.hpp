@@ -17,8 +17,8 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/enums.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
 
