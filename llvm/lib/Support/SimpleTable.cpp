@@ -109,7 +109,7 @@ Error SimpleTable::replaceColumn(StringRef Name, const SimpleTable &Src,
   return Error::success();
 }
 
-Error SimpleTable::updateCellValue(int Row, StringRef ColName,
+Error SimpleTable::updateCellValue(StringRef ColName, int Row,
                                    StringRef NewValue) {
   if (getNumColumns() == 0)
     return makeError("empty table");

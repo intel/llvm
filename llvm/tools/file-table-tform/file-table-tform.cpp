@@ -103,7 +103,7 @@ static cl::list<std::string> TformExtract{
 
 static cl::list<std::string> TformCopySingleFile{
     OPT_COPY_SINGLE_FILE, cl::ZeroOrMore,
-    cl::desc("copy the file in a cell as make it the output"),
+    cl::desc("copy the file in a cell and make it the output"),
     cl::value_desc("<column name or ordinal>,<row id ordinal>"),
     cl::cat(FileTableTformCat)};
 
@@ -269,7 +269,7 @@ struct TformCmd {
                     assert(Args.size() == 2 && Cmd->Inputs.size() == 1);
                     const int Row = std::stoi(Args[1].str());
                     Error Res =
-                        Table.updateCellValue(Row, Args[0], Cmd->Inputs[0]);
+                        Table.updateCellValue(Args[0], Row, Cmd->Inputs[0]);
                     return Res ? std::move(Res) : std::move(Error::success());
                   })
             .Case(OPT_RENAME,
@@ -374,10 +374,7 @@ int main(int argc, char **argv) {
       CHECK_AND_EXIT(
           makeUserError("copy_single_file must be the last transformation"));
     }
-    if (P.second->Kind != OPT_COPY_SINGLE_FILE) {
-      continue;
-    }
-    HasCopySingleFileTform = true;
+    HasCopySingleFileTform = P.second->Kind == OPT_COPY_SINGLE_FILE;
   }
 
   for (auto &P : Cmds) {

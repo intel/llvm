@@ -63,7 +63,7 @@ TEST(SimpleTable, Operations) {
     FAIL() << "SimpleTable::replaceColumn failed: " << Err << "\n";
 
   // -- Update cell
-  if (Error Err = Table->get()->updateCellValue(1, "Properties",
+  if (Error Err = Table->get()->updateCellValue("Properties", 1,
                                                 ReplaceSinglePropertyWith))
     FAIL() << "SimpleTable::updateCellValue failed: " << Err << "\n";
 

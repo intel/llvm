@@ -97,8 +97,8 @@ public:
   Error replaceColumn(StringRef Name, const SimpleTable &Src,
                       StringRef SrcName = "");
 
-  // Replaces the value in a cell at a given row and column with the new value.
-  Error updateCellValue(int Row, StringRef ColName, StringRef NewValue);
+  // Replaces the value in a cell at a given column and row with the new value.
+  Error updateCellValue(StringRef ColName, int Row, StringRef NewValue);
 
   // Renames a column.
   Error renameColumn(StringRef OldName, StringRef NewName);

@@ -4460,6 +4460,8 @@ class OffloadingActionBuilder final {
         if (isNVPTX || isAMDGCN) {
           // Make extraction copy the only remaining code file instead of
           // creating a new table with a single entry.
+          // TODO: Process all PTX code files in file table when code-splitting
+          //       is implemented to PTX target.
           auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
               PostLinkAction, types::TY_LLVM_BC);
           ExtractIRFilesAction->addCopySingleFileTform(COL_CODE, 0);
