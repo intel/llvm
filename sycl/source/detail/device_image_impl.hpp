@@ -256,7 +256,7 @@ private:
           // supposed to be called from c'tor.
           MSpecConstSymMap[std::string{SCName}].push_back(
               SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
-                             /*Size*/ It[2], BlobOffset, HasDefaultValues});
+                             /*Size*/ It[2], BlobOffset});
           BlobOffset += /*Size*/ It[2];
           It += NumElements;
         }
