@@ -145,13 +145,16 @@ In cases where the optional feature corresponds to use of a class (e.g.
 
 ```
 template</*...*/>
-class [[sycl::requires(has(aspect::fp64))]] atomic_ref {
+class [[sycl::requires(has(aspect::atomic64))]] atomic_ref {
   /* ... */
 };
 ```
 
-(We can use partial specialization tricks to decorate `atomic_ref` with the
-attribute only when the underlying type is 64-bits.)
+(In reality, we can use partial specialization tricks to decorate `atomic_ref`
+with the attribute only when the underlying type is 64-bits.  See ["Appendix:
+Adding an attribute to 8-byte `atomic_ref`"][4].)
+
+[4]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
 
 In cases where the optional feature corresponds to a function, we can decorate
 the function's declaration with the attribute like so (demonstrating a
@@ -271,10 +274,10 @@ they currently are, but we will introduce extra decorations into the generated
 SPIR-V that allow the JIT compiler to discard kernels and device functions
 which require aspects that the device does not support.  Although this solution
 requires an extension to SPIR-V, we think it is the better direction because it
-is aligned with the [device-if][4] feature, which will also requires this same
+is aligned with the [device-if][5] feature, which will also requires this same
 SPIR-V extension.
 
-[4]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceIf/device_if.asciidoc>
+[5]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceIf/device_if.asciidoc>
 
 The idea is to emit a SPIR-V specialization constant for each aspect that is
 required by a kernel or device function in the device image.  We then introduce
@@ -328,10 +331,10 @@ OpDecorate %16 ConditionalINTEL %13           ; Says to discard the function
 OpFunctionEnd
 ```
 
-See the extension specification of [SpecConditional][5] for a full
+See the extension specification of [SpecConditional][6] for a full
 description of this new SPIR-V decoration.
 
-[5]: <extensions/SPIRV/SPV_INTEL_spec_conditional.asciidoc>
+[6]: <extensions/SPIRV/SPV_INTEL_spec_conditional.asciidoc>
 
 #### Representation in LLVM IR
 
@@ -349,9 +352,9 @@ over the static call tree for each kernel and each exported device function.
 
 **NOTE**: In this context, "exported device function" means a device function
 that is exported from a shared library as defined by [Device Code Dynamic
-Linking][6].
+Linking][7].
 
-[6]: <https://github.com/intel/llvm/pull/3210>
+[7]: <https://github.com/intel/llvm/pull/3210>
 
 The first pass operates on each kernel and each exported device function,
 iterating over all the functions in the static call tree of that kernel or
@@ -489,7 +492,7 @@ before the device image is JIT compiled, so the exception can be thrown
 synchronously.
 
 If the kernel imports device function symbols from a shared library as defined
-in [Device Code Dynamic Linking][6], the runtime first identifies all the
+in [Device Code Dynamic Linking][7], the runtime first identifies all the
 device images that define these exported device functions.  Before attempting
 to link them together, the runtime finds the entries for the exported device
 functions in their "SYCL/requirements" property sets and checks that the device
@@ -545,3 +548,58 @@ raise an exception.  Thus, the runtime will never attempt to invoke one of
 these discarded kernels.  Likewise, if a kernel imports a discarded device
 function, the runtime will see that the device function is unsupported and
 will raise an exception before attempting to perform the dynamic link.
+
+
+## Appendix: Adding an attribute to 8-byte `atomic_ref`
+
+As described above under ["Changes to DPC++ headers"][8], we need to decorate the
+`atomic_ref` type with the `[[sycl::requires()]]` attribute only when it is
+specialized with an 8-byte type.  This can be accomplished with some template
+partial specialization tricks.  The following code snippet demonstrates (best
+read from bottom to top):
+
+[8]: <#changes-to-dpc-headers>
+
+```
+namespace sycl {
+namespace detail {
+
+template<typename T>
+class atomic_ref_impl_base {
+ public:
+  atomic_ref_impl_base(T x) : x(x) {}
+
+  // All the member functions for atomic_ref go here
+
+ private:
+  T x;
+};
+
+// Template class which can be specialized based on the size of the underlying
+// type.
+template<typename T, size_t S>
+class atomic_ref_impl : public atomic_ref_impl_base<T> {
+ public:
+  using atomic_ref_impl_base<T>::atomic_ref_impl_base;
+};
+
+// Explicit specialization for 8-byte types.  Only this specialization has the
+// attribute.
+template<typename T>
+class [[sycl::requires(has(aspect::atomic64))]] atomic_ref_impl<T, 8> :
+    public atomic_ref_impl_base<T> {
+ public:
+  using atomic_ref_impl_base<T>::atomic_ref_impl_base;
+};
+
+} // namespace detail
+
+// Publicly visible atomic_ref class.
+template<typename T>
+class atomic_ref : public detail::atomic_ref_impl<T, sizeof(T)> {
+ public:
+  atomic_ref(T x) : detail::atomic_ref_impl<T, sizeof(T)>(x) {}
+};
+
+} // namespace sycl
+```
