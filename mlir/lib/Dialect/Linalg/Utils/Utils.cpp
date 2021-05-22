@@ -12,13 +12,12 @@
 
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 
-#include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
@@ -31,8 +30,6 @@
 #define DEBUG_TYPE "linalg-utils"
 
 using namespace mlir;
-using namespace mlir::edsc;
-using namespace mlir::edsc::intrinsics;
 using namespace mlir::linalg;
 using namespace mlir::scf;
 
@@ -311,10 +308,11 @@ void GenerateLoopNest<TiledLoopOp>::doit(
 void updateBoundsForCyclicDistribution(OpBuilder &b, Location loc, Value procId,
                                        Value nprocs, Value &lb, Value &ub,
                                        Value &step) {
-  using edsc::op::operator+;
-  using edsc::op::operator*;
-  lb = lb + (procId * step);
-  step = nprocs * step;
+  AffineExpr d0, d1;
+  bindDims(b.getContext(), d0, d1);
+  AffineExpr s0 = getAffineSymbolExpr(0, b.getContext());
+  lb = makeComposedAffineApply(b, loc, d0 + d1 * s0, {lb, procId, step});
+  step = makeComposedAffineApply(b, loc, d0 * s0, {nprocs, step});
 }
 
 /// Generates a loop nest consisting of scf.parallel and scf.for, depending
@@ -413,11 +411,10 @@ static void generateParallelLoopNest(
   }
   case DistributionMethod::CyclicNumProcsGeNumIters: {
     // Check (for the processed loops) that the iteration is in-bounds.
-    using edsc::op::slt;
-    using edsc::op::operator&&;
-    Value cond = slt(lbs[0], ubs[0]);
+    ArithBuilder ab(b, loc);
+    Value cond = ab.slt(lbs[0], ubs[0]);
     for (unsigned i = 1; i < numProcessed; ++i)
-      cond = cond && slt(lbs[i], ubs[i]);
+      cond = ab._and(cond, ab.slt(lbs[i], ubs[i]));
     ivStorage.append(lbs.begin(), std::next(lbs.begin(), numProcessed));
     b.create<scf::IfOp>(loc, cond, [&](OpBuilder &b, Location loc) {
       generateParallelLoopNest(
@@ -470,8 +467,6 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
   SmallVector<DistributionMethod, 0> distributionMethod;
   if (distributionOptions) {
     auto &options = distributionOptions.getValue();
-    OpBuilder &b = edsc::ScopedContext::getBuilderRef();
-    Location loc = edsc::ScopedContext::getLocation();
     distributionMethod.assign(distributionOptions->distributionMethod.begin(),
                               distributionOptions->distributionMethod.end());
     SmallVector<Range, 2> parallelLoopRanges;
@@ -517,8 +512,6 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
                            [](Value v) { return !isZero(v); })) &&
          "expected as many ivs as non-zero sizes");
 
-  using namespace edsc::op;
-
   // Construct (potentially temporary) mins and maxes on which to apply maps
   // that define tile subshapes.
   SmallVector<Value, 8> lbs, subShapeSizes;
@@ -529,7 +522,8 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
                           : (Value)b.create<ConstantIndexOp>(loc, 0));
     // Before composing, we need to make range a closed interval.
     Value size = isTiled ? tileSizes[idx] : sizeBounds[idx];
-    subShapeSizes.push_back(size - b.create<ConstantIndexOp>(loc, 1));
+    AffineExpr d0 = getAffineDimExpr(0, b.getContext());
+    subShapeSizes.push_back(makeComposedAffineApply(b, loc, d0 - 1, size));
     LLVM_DEBUG(llvm::dbgs() << "lb: " << lbs.back() << "\n");
     LLVM_DEBUG(llvm::dbgs() << "size: " << subShapeSizes.back() << "\n");
   }
@@ -577,7 +571,8 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
       offsets.push_back(offset);
       auto closedIntSize = applyMapToValues(b, loc, m, subShapeSizes).front();
       // Resulting size needs to be made half open interval again.
-      auto size = closedIntSize + b.create<ConstantIndexOp>(loc, 1);
+      AffineExpr s0 = getAffineSymbolExpr(0, b.getContext());
+      Value size = makeComposedAffineApply(b, loc, s0 + 1, closedIntSize);
       LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: raw size: " << size << "\n");
 
       // The size of the subview / subtensor should be trimmed to avoid
