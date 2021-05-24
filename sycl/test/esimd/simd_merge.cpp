@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
 #include <utility>
 

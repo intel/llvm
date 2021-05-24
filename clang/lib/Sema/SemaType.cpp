@@ -1543,7 +1543,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
         !S.getLangOpts().SYCLIsDevice &&
         !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
-          << "__float128";
+        << "__float128";
     Result = Context.Float128Ty;
     break;
   case DeclSpec::TST_bool:
@@ -6400,6 +6400,7 @@ static bool BuildAddressSpaceIndex(Sema &S, LangAS &ASIdx,
     llvm::APSInt max(addrSpace.getBitWidth());
     max =
         Qualifiers::MaxAddressSpace - (unsigned)LangAS::FirstTargetAddressSpace;
+
     if (addrSpace > max) {
       S.Diag(AttrLoc, diag::err_attribute_address_space_too_high)
           << (unsigned)max.getZExtValue() << AddrSpace->getSourceRange();
@@ -6515,7 +6516,9 @@ static void HandleAddressSpaceTypeAttribute(QualType &Type,
       Attr.setInvalid();
   } else {
     // The keyword-based type attributes imply which address space to use.
-    ASIdx = Attr.asOpenCLLangAS();
+    ASIdx = S.getLangOpts().SYCLIsDevice ? Attr.asSYCLLangAS()
+                                         : Attr.asOpenCLLangAS();
+
     if (ASIdx == LangAS::Default)
       llvm_unreachable("Invalid address space");
 

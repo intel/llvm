@@ -9172,6 +9172,9 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
 
   if (M.getContext().getTargetInfo().allowAMDGPUUnsafeFPAtomics())
     F->addFnAttr("amdgpu-unsafe-fp-atomics", "true");
+
+  if (!getABIInfo().getCodeGenOpts().EmitIEEENaNCompliantInsts)
+    F->addFnAttr("amdgpu-ieee", "false");
 }
 
 unsigned AMDGPUTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
@@ -10081,8 +10084,6 @@ public:
         getABIInfo().getDataLayout().getAllocaAddrSpace());
   }
 
-  LangAS getGlobalVarAddressSpace(CodeGenModule &CGM,
-                                  const VarDecl *D) const override;
   bool shouldEmitStaticExternCAliases() const override;
 };
 
@@ -10107,30 +10108,6 @@ unsigned SPIRTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
 
 bool SPIRTargetCodeGenInfo::shouldEmitStaticExternCAliases() const {
   return false;
-}
-
-LangAS SPIRTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
-                                                       const VarDecl *D) const {
-  assert(!CGM.getLangOpts().OpenCL &&
-         !(CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) &&
-         "Address space agnostic languages only");
-  LangAS DefaultGlobalAS = getLangASFromTargetAS(
-      CGM.getContext().getTargetAddressSpace(LangAS::opencl_global));
-  if (!D)
-    return DefaultGlobalAS;
-
-  LangAS AddrSpace = D->getType().getAddressSpace();
-  assert(AddrSpace == LangAS::Default || isTargetAddressSpace(AddrSpace) ||
-         // allow applying clang AST address spaces in SYCL mode
-         CGM.getLangOpts().SYCLIsDevice);
-  if (AddrSpace != LangAS::Default)
-    return AddrSpace;
-
-  if (CGM.isTypeConstant(D->getType(), false)) {
-    if (auto ConstAS = CGM.getTarget().getConstantAddressSpace())
-      return ConstAS.getValue();
-  }
-  return DefaultGlobalAS;
 }
 
 static bool appendType(SmallStringEnc &Enc, QualType QType,

@@ -40,6 +40,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Assumptions.h"
+#include "llvm/MC/MCSectionMachO.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -324,6 +325,41 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
   if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAInitiationInterval &&
       A.getAttrName()->isStr("ii")) {
     DiagnoseDeprecatedAttribute(A, "intel", "initiation_interval");
+    return;
+  }
+
+  // Diagnose SYCL 2017 spellings in later SYCL modes.
+  if (LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
+    // All attributes in the cl vendor namespace are deprecated in favor of a
+    // name in the sycl namespace as of SYCL 2020.
+    if (A.hasScope() && A.getScopeName()->isStr("cl")) {
+      DiagnoseDeprecatedAttribute(A, "sycl", NewName);
+      return;
+    }
+
+    // All GNU-style spellings are deprecated in favor of a C++-style spelling.
+    if (A.getSyntax() == ParsedAttr::AS_GNU) {
+      // Note: we cannot suggest an automatic fix-it because GNU-style
+      // spellings can appear in locations that are not valid for a C++-style
+      // spelling, and the attribute could be part of an attribute list within
+      // a single __attribute__ specifier. Just tell the user it's deprecated
+      // manually.
+      //
+      // This currently assumes that the GNU-style spelling is the same as the
+      // SYCL 2020 spelling (sans the vendor namespace).
+      Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
+          << "'" + A.getNormalizedFullName() + "'";
+      Diag(A.getLoc(), diag::note_spelling_suggestion)
+          << "'[[sycl::" + A.getNormalizedFullName() + "]]'";
+      return;
+    }
+  }
+
+  // Diagnose SYCL 2020 spellings used in earlier SYCL modes as being an
+  // extension.
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && A.hasScope() &&
+      A.getScopeName()->isStr("sycl")) {
+    Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
     return;
   }
 
@@ -2999,18 +3035,21 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->isInvalidDecl())
     return;
 
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
+
   Expr *XDimExpr = AL.getArgAsExpr(0);
 
-  // If no attribute argument is specified, set to default value '1'
-  // for second and third attribute argument in ReqdWorkGroupSizeAttr
-  // for only with intel::reqd_work_group_size spelling.
+  // If no attribute argument is specified, set the second and third argument
+  // to the default value 1, but only if the sycl:: or intel::
+  // reqd_work_group_size spelling was used.
   auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL, SourceLocation loc) {
-    Expr *E = (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
-               AL.getAttributeSpellingListIndex() ==
-                   ReqdWorkGroupSizeAttr::CXX11_intel_reqd_work_group_size)
-                  ? IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                           S.Context.IntTy, AL.getLoc())
-                  : nullptr;
+    Expr *E =
+        (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
+         (AL.getScopeName()->isStr("sycl") ||
+          AL.getScopeName()->isStr("intel")))
+            ? IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                     S.Context.IntTy, AL.getLoc())
+            : nullptr;
     return E;
   };
 
@@ -3020,10 +3059,13 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   Expr *ZDimExpr = AL.isArgExpr(2) ? AL.getArgAsExpr(2)
                                    : SetDefaultValue(S, AL, AL.getLoc());
 
+  // __attribute__((reqd_work_group_size)), [[cl::reqd_work_group_size]], and
+  // [[intel::max_work_group_size]] all require exactly three arguments.
   if ((AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
        AL.getAttributeSpellingListIndex() ==
            ReqdWorkGroupSizeAttr::CXX11_cl_reqd_work_group_size) ||
-      (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)) {
+      AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize ||
+      AL.getSyntax() == ParsedAttr::AS_GNU) {
     if (!AL.checkExactlyNumArgs(S, 3))
       return;
   }
@@ -3049,11 +3091,18 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     ZDimExpr = ZDim.get();
 
+    // If the num_simd_work_items attribute is specified on a declaration it
+    // must evenly divide the index that increments fastest in the
+    // reqd_work_group_size attribute. In OpenCL, the first argument increments
+    // the fastest, and in SYCL, the last argument increments the fastest.
     if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      if (XDimVal.getZExtValue() % NumSimdWorkItems != 0) {
+      unsigned WorkGroupSize = S.getLangOpts().OpenCL ? XDimVal.getZExtValue()
+                                                      : ZDimVal.getZExtValue();
+
+      if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
             << A << AL;
         S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
@@ -3092,12 +3141,10 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 // Handles work_group_size_hint.
 static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
+
   uint32_t WGSize[3];
-
-  if (!AL.checkExactlyNumArgs(S, 3))
-    return;
-
-  for (unsigned i = 0; i < 3; ++i) {
+  for (unsigned i = 0; i < AL.getNumArgs(); ++i) {
     if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(i), WGSize[i], i,
                              /*StrictlyUnsigned=*/true))
       return;
@@ -3181,6 +3228,8 @@ Sema::MergeIntelReqdSubGroupSizeAttr(Decl *D,
 
 static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
                                         const ParsedAttr &AL) {
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
+
   Expr *E = AL.getArgAsExpr(0);
   S.AddIntelReqdSubGroupSize(D, AL, E);
 }
@@ -3257,17 +3306,38 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       }
     }
 
-    // If the declaration has an [[intel::reqd_work_group_size]] attribute,
-    // check to see if the first argument can be evenly divided by the
-    // num_simd_work_items attribute.
+    // If the reqd_work_group_size attribute is specified on a declaration
+    // along with num_simd_work_items, the required work group size specified
+    // by num_simd_work_items attribute must evenly divide the index that
+    // increments fastest in the reqd_work_group_size attribute.
+    //
+    // The arguments to reqd_work_group_size are ordered based on which index
+    // increments the fastest. In OpenCL, the first argument is the index that
+    // increments the fastest, and in SYCL, the last argument is the index that
+    // increments the fastest.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
+      Expr *XDimExpr = DeclAttr->getXDim();
+      Expr *YDimExpr = DeclAttr->getYDim();
+      Expr *ZDimExpr = DeclAttr->getZDim();
 
-      if (*XDimVal % ArgVal != 0) {
-        Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
-            << CI << DeclAttr;
-        Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
-        return;
+      if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+          !ZDimExpr->isValueDependent()) {
+        llvm::APSInt XDimVal, ZDimVal;
+        ExprResult XDim = VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
+        ExprResult ZDim = VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
+
+        if (XDim.isInvalid() || ZDim.isInvalid())
+          return;
+
+        unsigned WorkGroupSize = getLangOpts().OpenCL ? XDimVal.getZExtValue()
+                                                      : ZDimVal.getZExtValue();
+
+        if (WorkGroupSize % ArgVal.getSExtValue() != 0) {
+          Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+              << CI << DeclAttr;
+          Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+          return;
+        }
       }
     }
   }
@@ -3751,6 +3821,16 @@ static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // This attribute is deprecated without replacement in SYCL 2020 mode.
+  if (S.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017)
+    S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated) << AL;
+
+  // If the attribute is used with the [[sycl::vec_type_hint]] spelling in SYCL
+  // 2017 mode, we want to warn about using the newer name in the older
+  // standard as a compatibility extension.
+  if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && AL.hasScope())
+    S.Diag(AL.getLoc(), diag::ext_sycl_2020_attr_spelling) << AL;
+
   if (!AL.hasParsedType()) {
     S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
     return;
@@ -3797,9 +3877,29 @@ SectionAttr *Sema::mergeSectionAttr(Decl *D, const AttributeCommonInfo &CI,
   return ::new (Context) SectionAttr(Context, CI, Name);
 }
 
+/// Used to implement to perform semantic checking on
+/// attribute((section("foo"))) specifiers.
+///
+/// In this case, "foo" is passed in to be checked.  If the section
+/// specifier is invalid, return an Error that indicates the problem.
+///
+/// This is a simple quality of implementation feature to catch errors
+/// and give good diagnostics in cases when the assembler or code generator
+/// would otherwise reject the section specifier.
+llvm::Error Sema::isValidSectionSpecifier(StringRef SecName) {
+  if (!Context.getTargetInfo().getTriple().isOSDarwin())
+    return llvm::Error::success();
+
+  // Let MCSectionMachO validate this.
+  StringRef Segment, Section;
+  unsigned TAA, StubSize;
+  bool HasTAA;
+  return llvm::MCSectionMachO::ParseSectionSpecifier(SecName, Segment, Section,
+                                                     TAA, HasTAA, StubSize);
+}
+
 bool Sema::checkSectionName(SourceLocation LiteralLoc, StringRef SecName) {
-  if (llvm::Error E =
-          Context.getTargetInfo().isValidSectionSpecifier(SecName)) {
+  if (llvm::Error E = isValidSectionSpecifier(SecName)) {
     Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
         << toString(std::move(E)) << 1 /*'section'*/;
     return false;
@@ -3818,13 +3918,6 @@ static void handleSectionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.checkSectionName(LiteralLoc, Str))
     return;
 
-  // If the target wants to validate the section specifier, make it happen.
-  if (llvm::Error E = S.Context.getTargetInfo().isValidSectionSpecifier(Str)) {
-    S.Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
-        << toString(std::move(E));
-    return;
-  }
-
   SectionAttr *NewAttr = S.mergeSectionAttr(D, AL, Str);
   if (NewAttr) {
     D->addAttr(NewAttr);
@@ -3840,8 +3933,7 @@ static void handleSectionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // `#pragma code_seg("segname")` uses checkSectionName() instead.
 static bool checkCodeSegName(Sema &S, SourceLocation LiteralLoc,
                              StringRef CodeSegName) {
-  if (llvm::Error E =
-          S.Context.getTargetInfo().isValidSectionSpecifier(CodeSegName)) {
+  if (llvm::Error E = S.isValidSectionSpecifier(CodeSegName)) {
     S.Diag(LiteralLoc, diag::err_attribute_section_invalid_for_target)
         << toString(std::move(E)) << 0 /*'code-seg'*/;
     return false;
@@ -6630,6 +6722,7 @@ static bool ArmSveAliasValid(unsigned BuiltinID, StringRef AliasName) {
 #define GET_SVE_BUILTINS
 #define BUILTIN(name, types, attr) case SVE::BI##name:
 #include "clang/Basic/arm_sve_builtins.inc"
+#undef BUILTIN
     return true;
   }
 }
@@ -6654,6 +6747,44 @@ static void handleArmBuiltinAliasAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   D->addAttr(::new (S.Context) ArmBuiltinAliasAttr(S.Context, AL, Ident));
+}
+
+static bool RISCVAliasValid(unsigned BuiltinID, StringRef AliasName) {
+  switch (BuiltinID) {
+  default:
+    return false;
+#define BUILTIN(ID, TYPE, ATTRS) case RISCV::BI##ID:
+#include "clang/Basic/BuiltinsRISCV.def"
+#undef BUILTIN
+    return true;
+  }
+}
+
+static void handleBuiltinAliasAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
+        << AL << 1 << AANT_ArgumentIdentifier;
+    return;
+  }
+
+  IdentifierInfo *Ident = AL.getArgAsIdent(0)->Ident;
+  unsigned BuiltinID = Ident->getBuiltinID();
+  StringRef AliasName = cast<FunctionDecl>(D)->getIdentifier()->getName();
+
+  bool IsAArch64 = S.Context.getTargetInfo().getTriple().isAArch64();
+  bool IsARM = S.Context.getTargetInfo().getTriple().isARM();
+  bool IsRISCV = S.Context.getTargetInfo().getTriple().isRISCV();
+  if ((IsAArch64 && !ArmSveAliasValid(BuiltinID, AliasName)) ||
+      (IsARM && !ArmMveAliasValid(BuiltinID, AliasName) &&
+       !ArmCdeAliasValid(BuiltinID, AliasName)) ||
+      (IsRISCV && !RISCVAliasValid(BuiltinID, AliasName)) ||
+      (!IsAArch64 && !IsARM && !IsRISCV)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_builtin_alias) << AL;
+    return;
+  }
+
+  D->addAttr(::new (S.Context) BuiltinAliasAttr(S.Context, AL, Ident));
 }
 
 //===----------------------------------------------------------------------===//
@@ -9853,6 +9984,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 
   case ParsedAttr::AT_EnforceTCBLeaf:
     handleEnforceTCBAttr<EnforceTCBLeafAttr, EnforceTCBAttr>(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_BuiltinAlias:
+    handleBuiltinAliasAttr(S, D, AL);
     break;
   }
 }

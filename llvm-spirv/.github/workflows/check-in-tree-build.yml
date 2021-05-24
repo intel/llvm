@@ -14,8 +14,8 @@ on:
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
-      - '**/check-code-style.xml' # check-code-style workflow
-      - '**/check-out-of-tree-build.xml' # check-out-of-tree-build workflow
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
   pull_request:
     branches:
       - master
@@ -23,8 +23,8 @@ on:
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
-      - '**/check-code-style.xml' # check-code-style workflow
-      - '**/check-out-of-tree-build.xml' # check-out-of-tree-build workflow
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
   schedule:
     # Ideally, we might want to simplify our regular nightly build as we
     # probably don't need every configuration to be built every day: most of
