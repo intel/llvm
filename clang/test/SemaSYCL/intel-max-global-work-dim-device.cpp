@@ -44,6 +44,11 @@ struct Func {
 [[intel::max_global_work_dim(2)]] void baz();  // expected-note {{previous attribute is here}}
 [[intel::max_global_work_dim(1)]] void baz();  // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
 
+struct TRIFuncObj {
+  [[intel::max_global_work_dim(0)]] void operator()() const; // expected-note {{previous attribute is here}}
+};
+[[intel::max_global_work_dim(1)]] void TRIFuncObj::operator()() const {} // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
+
 // Checks correctness of mutual usage of different work_group_size attributes:
 // reqd_work_group_size, max_work_group_size, and max_global_work_dim.
 // In case the value of 'max_global_work_dim' attribute equals to 0 we shall
@@ -133,10 +138,43 @@ struct TRIFuncObjBad3 {
   operator()() const {}
 };
 
+struct TRIFuncObjBad4 {
+  [[intel::max_global_work_dim(0)]] void
+  operator()() const;
+};
+
+[[cl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+void TRIFuncObjBad4::operator()() const {}
+
+struct TRIFuncObjBad5 {
+  [[intel::max_global_work_dim(0)]] void
+  operator()() const;
+};
+
+[[intel::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+void TRIFuncObjBad5::operator()() const {}
+
+struct TRIFuncObjBad6 {
+  [[intel::max_global_work_dim(0)]] void
+  operator()() const;
+};
+
+[[intel::max_work_group_size(4, 4, 4)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+void TRIFuncObjBad6::operator()() const {}
+
+/*
+struct TRIFuncObjBad6 {
+  [[intel::max_work_group_size(4, 4, 4)]] void
+  operator()() const;
+};
+
+[[intel::max_global_work_dim(0)]]
+void TRIFuncObjBad6::operator()() const {}
+*/
 // Tests for incorrect argument values for Intel FPGA function attributes:
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
 
-struct TRIFuncObjBad4 {
+struct TRIFuncObjBad7 {
   // expected-error@+2{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   [[intel::reqd_work_group_size(-4, 1)]]
@@ -144,25 +182,25 @@ struct TRIFuncObjBad4 {
   operator()() const {}
 };
 
-struct TRIFuncObjBad5 {
+struct TRIFuncObjBad8 {
   [[intel::max_work_group_size(4, 4, 4.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
-struct TRIFuncObjBad6 {
+struct TRIFuncObjBad9 {
   [[cl::reqd_work_group_size(0, 4, 4)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
-struct TRIFuncObjBad7 {
+struct TRIFuncObjBad10 {
   [[intel::reqd_work_group_size(4)]]
   [[intel::max_global_work_dim(-2)]] // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
   void operator()() const {}
 };
 
-struct TRIFuncObjBad8 {
+struct TRIFuncObjBad11 {
   [[intel::max_work_group_size(4, 4, 4)]]
   [[intel::max_global_work_dim(4.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void operator()() const {}
@@ -390,7 +428,13 @@ int main() {
 
     h.single_task<class test_kernel22>(TRIFuncObjBad8());
 
-    h.single_task<class test_kernel23>(
+    h.single_task<class test_kernel23>(TRIFuncObjBad9());
+
+    h.single_task<class test_kernel24>(TRIFuncObjBad10());
+
+    h.single_task<class test_kernel25>(TRIFuncObjBad11());
+
+    h.single_task<class test_kernel26>(
         []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 #endif // TRIGGER_ERROR
   });
