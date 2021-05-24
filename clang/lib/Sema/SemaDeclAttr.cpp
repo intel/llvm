@@ -3160,9 +3160,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.addIntelTripleArgAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr, ZDimExpr);
 }
 
-// The lambda returns a DupArgResult value; Same means the args have the same
-// value, Different means the args do not have the same value, and Unknown
-// means that the args cannot (yet) be compared.
+// Returns a DupArgResult value; Same means the args have the same value,
+// Different means the args do not have the same value, and Unknown means that
+// the args cannot (yet) be compared.
 enum class DupArgResult { Unknown, Same, Different };
 static DupArgResult AreArgValuesIdentical(const Expr *LHS, const Expr *RHS) {
   // If either operand is still value dependent, we can't test anything.
