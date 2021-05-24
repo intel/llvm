@@ -571,9 +571,9 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
   }
 
   static const CostTblEntry AVX512DQCostTable[] = {
-    { ISD::MUL,  MVT::v2i64, 1 },
-    { ISD::MUL,  MVT::v4i64, 1 },
-    { ISD::MUL,  MVT::v8i64, 1 }
+    { ISD::MUL,  MVT::v2i64, 2 }, // pmullq
+    { ISD::MUL,  MVT::v4i64, 2 }, // pmullq
+    { ISD::MUL,  MVT::v8i64, 2 }  // pmullq
   };
 
   // Look for AVX512DQ lowering tricks for custom cases.
@@ -612,7 +612,7 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
     { ISD::MUL,     MVT::v16i32,     1 }, // pmulld (Skylake from agner.org)
     { ISD::MUL,     MVT::v8i32,      1 }, // pmulld (Skylake from agner.org)
     { ISD::MUL,     MVT::v4i32,      1 }, // pmulld (Skylake from agner.org)
-    { ISD::MUL,     MVT::v8i64,      8 }, // 3*pmuludq/3*shift/2*add
+    { ISD::MUL,     MVT::v8i64,      6 }, // 3*pmuludq/3*shift/2*add
 
     { ISD::FNEG,    MVT::v8f64,      1 }, // Skylake from http://www.agner.org/
     { ISD::FADD,    MVT::v8f64,      1 }, // Skylake from http://www.agner.org/
@@ -783,7 +783,7 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
 
     { ISD::MUL,  MVT::v16i16,     1 }, // pmullw
     { ISD::MUL,  MVT::v8i32,      2 }, // pmulld (Haswell from agner.org)
-    { ISD::MUL,  MVT::v4i64,      8 }, // 3*pmuludq/3*shift/2*add
+    { ISD::MUL,  MVT::v4i64,      6 }, // 3*pmuludq/3*shift/2*add
 
     { ISD::FNEG, MVT::v4f64,      1 }, // Haswell from http://www.agner.org/
     { ISD::FNEG, MVT::v8f32,      1 }, // Haswell from http://www.agner.org/
@@ -815,6 +815,8 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
     // Two ops + 1 extract + 1 insert = 4.
     { ISD::MUL,     MVT::v16i16,     4 },
     { ISD::MUL,     MVT::v8i32,      5 }, // BTVER2 from http://www.agner.org/
+    { ISD::MUL,     MVT::v4i64,     12 },
+
     { ISD::SUB,     MVT::v32i8,      4 },
     { ISD::ADD,     MVT::v32i8,      4 },
     { ISD::SUB,     MVT::v16i16,     4 },
@@ -823,13 +825,6 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
     { ISD::ADD,     MVT::v8i32,      4 },
     { ISD::SUB,     MVT::v4i64,      4 },
     { ISD::ADD,     MVT::v4i64,      4 },
-
-    // A v4i64 multiply is custom lowered as two split v2i64 vectors that then
-    // are lowered as a series of long multiplies(3), shifts(3) and adds(2)
-    // Because we believe v4i64 to be a legal type, we must also include the
-    // extract+insert in the cost table. Therefore, the cost here is 18
-    // instead of 8.
-    { ISD::MUL,     MVT::v4i64,     18 },
 
     { ISD::FNEG,    MVT::v4f64,      2 }, // BTVER2 from http://www.agner.org/
     { ISD::FNEG,    MVT::v8f32,      2 }, // BTVER2 from http://www.agner.org/
@@ -870,6 +865,8 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
     { ISD::FDIV,  MVT::v4f32, 14 }, // Nehalem from http://www.agner.org/
     { ISD::FDIV,  MVT::f64,   22 }, // Nehalem from http://www.agner.org/
     { ISD::FDIV,  MVT::v2f64, 22 }, // Nehalem from http://www.agner.org/
+
+    { ISD::MUL,   MVT::v2i64,  6 }  // 3*pmuludq/3*shift/2*add
   };
 
   if (ST->hasSSE42())
@@ -963,19 +960,33 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
 
     { ISD::FSUB, MVT::f32,    1 }, // Pentium III from http://www.agner.org/
     { ISD::FSUB, MVT::v4f32,  2 }, // Pentium III from http://www.agner.org/
-
-    { ISD::ADD, MVT::i8,      1 }, // Pentium III from http://www.agner.org/
-    { ISD::ADD, MVT::i16,     1 }, // Pentium III from http://www.agner.org/
-    { ISD::ADD, MVT::i32,     1 }, // Pentium III from http://www.agner.org/
-
-    { ISD::SUB, MVT::i8,      1 }, // Pentium III from http://www.agner.org/
-    { ISD::SUB, MVT::i16,     1 }, // Pentium III from http://www.agner.org/
-    { ISD::SUB, MVT::i32,     1 }, // Pentium III from http://www.agner.org/
   };
 
   if (ST->hasSSE1())
     if (const auto *Entry = CostTableLookup(SSE1CostTable, ISD, LT.second))
       return LT.first * Entry->Cost;
+
+  static const CostTblEntry X64CostTbl[] = { // 64-bit targets
+    { ISD::ADD,  MVT::i64,    1 }, // Core (Merom) from http://www.agner.org/
+    { ISD::SUB,  MVT::i64,    1 }, // Core (Merom) from http://www.agner.org/
+  };
+
+  if (ST->is64Bit())
+    if (const auto *Entry = CostTableLookup(X64CostTbl, ISD, LT.second))
+      return LT.first * Entry->Cost;
+
+  static const CostTblEntry X86CostTbl[] = { // 32 or 64-bit targets
+    { ISD::ADD,  MVT::i8,    1 }, // Pentium III from http://www.agner.org/
+    { ISD::ADD,  MVT::i16,   1 }, // Pentium III from http://www.agner.org/
+    { ISD::ADD,  MVT::i32,   1 }, // Pentium III from http://www.agner.org/
+
+    { ISD::SUB,  MVT::i8,    1 }, // Pentium III from http://www.agner.org/
+    { ISD::SUB,  MVT::i16,   1 }, // Pentium III from http://www.agner.org/
+    { ISD::SUB,  MVT::i32,   1 }, // Pentium III from http://www.agner.org/
+  };
+
+  if (const auto *Entry = CostTableLookup(X86CostTbl, ISD, LT.second))
+    return LT.first * Entry->Cost;
 
   // It is not a good idea to vectorize division. We have to scalarize it and
   // in the process we will often end up having to spilling regular
