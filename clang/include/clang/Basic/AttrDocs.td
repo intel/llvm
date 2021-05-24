@@ -2623,69 +2623,73 @@ generated code appropriately for the kernel to which attribute is applied.
 While semantic of this attribute is the same between OpenCL and SYCL,
 spelling is a bit different: 
 
-SYCL 1.2.1 describes ``[[cl::reqd_work_group_size(X, Y, Z)]]`` spelling: this
-attribute is legal on device functions and is propagated down to any caller of 
-those device functions, such that the kernel attributes are the sum of all 
-attributes of all device functions called in this kernel.
-See section 6.7 Attributes for more details.
+SYCL 2020 describes the ``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling
+in detail. This attribute indicates that the kernel must be launched with the
+specified work-group size. The order of the arguments matches the constructor
+of the group class. Each argument to the attribute must be an integral constant
+expression. The dimensionality of the attribute variant used must match the
+dimensionality of the work-group used to invoke the kernel. This spelling
+allows the Y and Z arguments to be optional. If not provided by the user, the
+value of Y and Z defaults to 1. See section 5.8.1 Kernel Attributes for more
+details.
 
 .. code-block:: c++
 
-  [[cl::reqd_work_group_size(4, 4, 4)]] void foo() {}
+  [[sycl::reqd_work_group_size(4, 4, 4)]] void foo() {}
 
   class Foo {
   public:
-    [[cl::reqd_work_group_size(2, 2, 2)]] void operator()() const {}
+    [[sycl::reqd_work_group_size(2)]] void operator()() const {} // optional arguments default to 1
   };
 
   template <int N, int N1, int N2>
   class Functor {
   public:
-    [[cl::reqd_work_group_size(N, N1, N2)]] void operator()() const {}
+    [[sycl::reqd_work_group_size(N, N1, N2)]] void operator()() const {}
   };
 
   template <int N, int N1, int N2>
-  [[cl::reqd_work_group_size(N, N1, N2)]] void func() {}
+  [[sycl::reqd_work_group_size(N, N1, N2)]] void func() {}
+
+The ``[[cl::reqd_work_group_size(X, Y, Z)]]`` and
+``__attribute__((reqd_work_group_size(X, Y, Z)))`` spellings are both
+deprecated in SYCL 2020.
 
 As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
-spelling is supported. This spelling allows the Y and Z arguments to be
-optional. If not provided by the user, the value of Y and Z defaults to 1.
-This simplifies usage of the attribute when a 1- or 2-dimensional ND-range
-is assumed.
+spelling is supported with the same semantics as the
+``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling.
 
-.. code-block:: c++
-
-  [[intel::reqd_work_group_size(5)]]
-  // identical to [[intel::reqd_work_group_size(5, 1, 1)]]
-  void quux() {}
-
-  [[intel::reqd_work_group_size(5, 5)]]
-  // identical to [[intel::reqd_work_group_size(5, 5, 1)]]
-  void qux() {}
-
-  [[intel::reqd_work_group_size(4, 4, 4)]] void foo() {}
-
-  class Foo {
-  public:
-    [[intel::reqd_work_group_size(2, 2, 2)]] void operator()() const {}
-  };
-
-  template <int X, int Y, int Z>
-  class Functor {
-  public:
-    [[intel::reqd_work_group_size(X, Y, Z)]] void operator()() const {}
-  };
-
-  template <int X, int Y, int Z>
-  [[intel::reqd_work_group_size(X, Y, Z)]] void func() {}
-
-In OpenCL C, this attribute is available in GNU spelling
+In OpenCL C, this attribute is available with the GNU spelling
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
 6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
 
 .. code-block:: c++
 
   __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
+
+  }];
+}
+
+def WorkGroupSizeHintAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Applies to a device function/lambda function. Hint to the compiler on the work-
+group size most likely to be used when launching the kernel at runtime. Each
+argument must be a nonzero integral constant expression whose value is
+unsigned. The number of dimensional values defined provide additional
+information to the compiler on the dimensionality most likely to be used when
+launching the kernel at runtime.
+
+The GNU spelling is deprecated in SYCL mode.
+
+.. code-block:: c++
+
+  [[sycl::work_group_size_hint(4, 4, 4)]] void foo() {}
+
+  class Foo {
+  public:
+    [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
+  };
 
 The arguments to ``reqd_work_group_size`` are ordered based on which index
 increments the fastest. In OpenCL, the first argument is the index that
@@ -4967,6 +4971,16 @@ system) and does not imply undefined behavior, making it more widely applicable.
   }];
 }
 
+def RestrictDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "malloc";
+  let Content = [{
+The ``malloc`` attribute indicates that the function acts like a system memory
+allocation function, returning a pointer to allocated storage disjoint from the
+storage for any other object accessible to the caller.
+  }];
+}
+
 def ReturnsNonNullDocs : Documentation {
   let Category = NullabilityDocs;
   let Content = [{
@@ -5941,6 +5955,26 @@ could have a different set of data members and thus have a different size. Using
 the ``abi_tag`` attribute, it is possible to have different mangled names for
 a global variable of the class type. Therefore, the old code could keep using
 the old mangled name and the new code will use the new mangled name with tags.
+  }];
+}
+
+def BuiltinAliasDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "clang::builtin_alias, clang_builtin_alias";
+  let Content = [{
+This attribute is used in the implementation of the C intrinsics.
+It allows the C intrinsic functions to be declared using the names defined
+in target builtins, and still be recognized as clang builtins equivalent to the
+underlying name. For example, ``riscv_vector.h`` declares the function ``vadd``
+with ``__attribute__((clang_builtin_alias(__builtin_rvv_vadd_vv_i8m1)))``.
+This ensures that both functions are recognized as that clang builtin,
+and in the latter case, the choice of which builtin to identify the
+function as can be deferred until after overload resolution.
+
+This attribute can only be used to set up the aliases for certain ARM/RISC-V
+C intrinsic functions; it is intended for use only inside ``arm_*.h`` and
+``riscv_*.h`` and is not a general mechanism for declaring arbitrary aliases
+for clang builtin functions.
   }];
 }
 
@@ -6938,6 +6972,10 @@ This attribute can only be used to set up the aliases for certain Arm
 intrinsic functions; it is intended for use only inside ``arm_*.h``
 and is not a general mechanism for declaring arbitrary aliases for
 clang builtin functions.
+
+In order to avoid duplicating the attribute definitions for similar
+purpose for other architecture, there is a general form for the
+attribute `clang_builtin_alias`.
   }];
 }
 

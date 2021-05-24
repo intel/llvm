@@ -10,6 +10,9 @@ def help : Flag<["-", "--"], "help">,
 def help_hidden : Flag<["--"], "help-hidden">,
     HelpText<"Display help for hidden options">,
     Group<grp_lld>;
+def error_limit_eq : Joined<["--"], "error-limit=">,
+    HelpText<"Maximum number of errors to print before exiting (default: 20)">,
+    Group<grp_lld>;
 def color_diagnostics: Flag<["--"], "color-diagnostics">,
     HelpText<"Alias for --color-diagnostics=always">,
     Group<grp_lld>;
@@ -367,10 +370,10 @@ def dylib_current_version : Separate<["-"], "dylib_current_version">,
 def grp_main : OptionGroup<"main">, HelpText<"MAIN EXECUTABLE">;
 
 def pie : Flag<["-"], "pie">,
-    HelpText<"Build a position independent executable (default for macOS 10.7 and later)">,
+    HelpText<"Build a position independent executable (default)">,
     Group<grp_main>;
 def no_pie : Flag<["-"], "no_pie">,
-    HelpText<"Do not build a position independent executable (default for macOS 10.6 and earlier)">,
+    HelpText<"Do not build a position independent executable">,
     Group<grp_main>;
 def pagezero_size : Separate<["-"], "pagezero_size">,
     MetaVarName<"<size>">,

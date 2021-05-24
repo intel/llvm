@@ -310,7 +310,7 @@ public:
   }
   value_type operator--(int) {
     value_type Ret(read());
-    operator++();
+    operator--();
     return Ret;
   }
 
