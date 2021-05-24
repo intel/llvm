@@ -56,14 +56,10 @@ static ITT_WRAPPER_ATTRIBUTES bool isITTEnabled() {
 //        for atomic_op_start/finish. Compiler calls user
 //        wrappers right now, and they may interfere with
 //        debugging user code in non-ITT mode.
-DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES
-void __itt_offload_wi_start_wrapper();
-DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES
-void __itt_offload_wi_finish_wrapper();
-DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES
-void __itt_offload_wg_barrier_wrapper();
-DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES
-void __itt_offload_wi_resume_wrapper();
+DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES void __itt_offload_wi_start_wrapper();
+DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES void __itt_offload_wi_finish_wrapper();
+DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES void __itt_offload_wg_barrier_wrapper();
+DEVICE_EXTERN_C ITT_WRAPPER_ATTRIBUTES void __itt_offload_wi_resume_wrapper();
 
 // Non-inlinable and non-optimizable APIs that are recognized
 // by profiling tools.
