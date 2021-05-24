@@ -1,4 +1,4 @@
-// RUN: %clang++ -fsycl -fsycl-host-compiler=g++ -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK -std=c++17" -o %t1.exe %s
+// RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK -std=c++17" -o %t1.exe %s
 // RUN: %RUN_ON_HOST %t1.exe
 // REQUIRES: system-linux
 //==------- fsycl-host-compiler.cpp - external host compiler test ----------==//

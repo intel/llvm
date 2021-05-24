@@ -48,17 +48,21 @@ public:
   /// of the command group requirements (e.g. it is an unregistered placeholder
   /// accessor), the exception `cl::sycl::invalid_object` is thrown
   /// asynchronously.
-  template <backend BackendName = backend::opencl, typename DataT, int Dims,
+  template <backend Backend = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh>
-  typename detail::enable_if_t<
-      Target == access::target::global_buffer ||
-          Target == access::target::constant_buffer,
-      typename interop<BackendName,
-                       accessor<DataT, Dims, Mode, Target, IsPlh>>::type>
+  backend_return_t<Backend, buffer<DataT, Dims>>
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
+    // TODO: the method is available when the target is target::device. Add it
+    // to the assert below when target::device enum is created.
+    static_assert(Target == access::target::global_buffer ||
+                      Target == access::target::constant_buffer,
+                  "The method is available only for target::device accessors");
 #ifndef __SYCL_DEVICE_ONLY__
+    if (Backend != get_backend())
+      throw invalid_object_error("Incorrect backend argument was passed",
+                                 PI_INVALID_MEM_OBJECT);
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
-    return getMemImpl<BackendName, DataT, Dims, Mode, Target, IsPlh>(
+    return getMemImpl<Backend, DataT, Dims>(
         detail::getSyclObjImpl(*AccBase).get());
 #else
     (void)Acc;
@@ -67,64 +71,71 @@ public:
 #endif
   }
 
-  template <backend BackendName = backend::opencl, typename DataT, int Dims,
-            access::mode Mode, access::target Target, access::placeholder IsPlh>
-  typename detail::enable_if_t<
-      !(Target == access::target::global_buffer ||
-        Target == access::target::constant_buffer),
-      typename interop<BackendName,
-                       accessor<DataT, Dims, Mode,
-                                access::target::global_buffer, IsPlh>>::type>
-  get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &) const {
-    throw invalid_object_error("Getting memory object out of accessor for "
-                               "specified target is not allowed",
-                               PI_INVALID_MEM_OBJECT);
-  }
-
-  /// Returns an underlying OpenCL queue for the SYCL queue used to submit the
-  /// command group, or the fallback queue if this command-group is re-trying
-  /// execution on an OpenCL queue. The OpenCL command queue returned is
+  /// Returns an underlying native backend object associated with teh queue
+  /// that the host task was submitted to. If the command group was submitted
+  /// with a secondary queue and the fall-back was triggered, the queue that
+  /// is associated with the interop_handle must be the fall-back queue.
+  /// The native backend object returned must be in a state where it is capable
+  /// of being used in a way appropriate for the associated SYCL backend. It is
   /// implementation-defined in cases where the SYCL queue maps to multiple
-  /// underlying OpenCL objects. It is responsibility of the SYCL runtime to
-  /// ensure the OpenCL queue returned is in a state that can be used to
-  /// dispatch work, and that other potential OpenCL command queues associated
+  /// underlying backend objects. It is responsibility of the SYCL runtime to
+  /// ensure the backend queue returned is in a state that can be used to
+  /// dispatch work, and that other potential backend command queues associated
   /// with the same SYCL command queue are not executing commands while the host
   /// task is executing.
-  template <backend BackendName = backend::opencl>
-  auto get_native_queue() const noexcept ->
-      typename interop<BackendName, queue>::type {
+  template <backend Backend = backend::opencl>
+  backend_return_t<Backend, queue> get_native_queue() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    return reinterpret_cast<typename interop<BackendName, queue>::type>(
-        getNativeQueue());
+    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // with the error code 'errc::backend_mismatch' when those new exceptions
+    // are ready to be used.
+    if (Backend != get_backend())
+      throw invalid_object_error("Incorrect backend argument was passed",
+                                 PI_INVALID_MEM_OBJECT);
+    return reinterpret_cast<backend_return_t<Backend, queue>>(getNativeQueue());
 #else
     // we believe this won't be ever called on device side
     return 0;
 #endif
   }
 
-  /// Returns an underlying OpenCL device associated with the SYCL queue used
-  /// to submit the command group, or the fallback queue if this command-group
-  /// is re-trying execution on an OpenCL queue.
-  template <backend BackendName = backend::opencl>
-  auto get_native_device() const noexcept ->
-      typename interop<BackendName, device>::type {
+  /// Returns the SYCL application interoperability native backend object
+  /// associated with the device associated with the SYCL queue that the host
+  /// task was submitted to. The native backend object returned must be in
+  /// a state where it is capable of being used in a way appropriate for
+  /// the associated SYCL backend.
+  template <backend Backend = backend::opencl>
+  backend_return_t<Backend, device> get_native_device() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    return reinterpret_cast<typename interop<BackendName, device>::type>(
-        getNativeDevice());
+    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // with the error code 'errc::backend_mismatch' when those new exceptions
+    // are ready to be used.
+    if (Backend != get_backend())
+      throw invalid_object_error("Incorrect backend argument was passed",
+                                 PI_INVALID_MEM_OBJECT);
+    // C-style cast required to allow various native types
+    return (backend_return_t<Backend, device>)getNativeDevice();
 #else
     // we believe this won't be ever called on device side
     return 0;
 #endif
   }
 
-  /// Returns an underlying OpenCL context associated with the SYCL queue used
-  /// to submit the command group, or the fallback queue if this command-group
-  /// is re-trying execution on an OpenCL queue.
-  template <backend BackendName = backend::opencl>
-  auto get_native_context() const noexcept ->
-      typename interop<BackendName, context>::type {
+  /// Returns the SYCL application interoperability native backend object
+  /// associated with the context associated with the SYCL queue that the host
+  /// task was submitted to. The native backend object returned must be in
+  /// a state where it is capable of being used in a way appropriate for
+  /// the associated SYCL backend.
+  template <backend Backend = backend::opencl>
+  backend_return_t<Backend, context> get_native_context() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    return reinterpret_cast<typename interop<BackendName, context>::type>(
+    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // with the error code 'errc::backend_mismatch' when those new exceptions
+    // are ready to be used.
+    if (Backend != get_backend())
+      throw invalid_object_error("Incorrect backend argument was passed",
+                                 PI_INVALID_MEM_OBJECT);
+    return reinterpret_cast<backend_return_t<Backend, context>>(
         getNativeContext());
 #else
     // we believe this won't be ever called on device side
@@ -144,11 +155,9 @@ private:
       : MQueue(Queue), MDevice(Device), MContext(Context),
         MMemObjs(std::move(MemObjs)) {}
 
-  template <backend BackendName, typename DataT, int Dims, access::mode Mode,
-            access::target Target, access::placeholder IsPlh>
-  auto getMemImpl(detail::Requirement *Req) const ->
-      typename interop<BackendName,
-                       accessor<DataT, Dims, Mode, Target, IsPlh>>::type {
+  template <backend Backend, typename DataT, int Dims>
+  backend_return_t<Backend, buffer<DataT, Dims>>
+  getMemImpl(detail::Requirement *Req) const {
     /*
       Do not update this cast: a C-style cast is required here.
 
@@ -167,9 +176,7 @@ private:
       https://en.cppreference.com/w/cpp/language/reinterpret_cast
       https://en.cppreference.com/w/cpp/language/explicit_cast
       */
-    return (typename interop<BackendName,
-                             accessor<DataT, Dims, Mode, Target, IsPlh>>::type)(
-        getNativeMem(Req));
+    return (backend_return_t<Backend, buffer<DataT, Dims>>)(getNativeMem(Req));
   }
 
   __SYCL_EXPORT pi_native_handle getNativeMem(detail::Requirement *Req) const;

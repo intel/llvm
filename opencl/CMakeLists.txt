@@ -16,7 +16,7 @@ set(OCL_LOADER_TAG 5f8249691ec8c25775789498951f8e9eb62c201d)
 
 # OpenCL Headers
 if(NOT OpenCL_HEADERS)
-  message(STATUS "Will fetch OpenCL headers from github.com")
+  message(STATUS "Will fetch OpenCL headers from ${OCL_HEADERS_REPO}")
 
   FetchContent_Declare(ocl-headers
     GIT_REPOSITORY    ${OCL_HEADERS_REPO}
@@ -49,7 +49,7 @@ set(OPENCL_ICD_LOADER_HEADERS_DIR
 set(BUILD_SHARED_LIBS ON)
 
 if(NOT OpenCL_LIBRARY_SRC)
-  message(STATUS "Will fetch OpenCL ICD Loader from github.com")
+  message(STATUS "Will fetch OpenCL ICD Loader from ${OCL_LOADER_REPO}")
 
   FetchContent_Declare(ocl-icd
     GIT_REPOSITORY    ${OCL_LOADER_REPO}
@@ -69,3 +69,4 @@ endif()
 FetchContent_MakeAvailable(ocl-icd)
 add_library(OpenCL-ICD ALIAS OpenCL)
 
+add_subdirectory(opencl-aot)

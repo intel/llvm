@@ -1,13 +1,13 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
-// Test that checks template parameter support for 'cl::reqd_work_group_size' attribute on sycl device.
+// Test that checks template parameter support for 'sycl::reqd_work_group_size' attribute on sycl device.
 
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 
 template <typename Ty, typename Ty1, typename Ty2>
 // expected-error@+1 3{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
-[[cl::reqd_work_group_size(Ty{}, Ty1{}, Ty2{})]] void func() {}
+[[sycl::reqd_work_group_size(Ty{}, Ty1{}, Ty2{})]] void func() {}
 
 struct S {};
 void var() {
@@ -20,17 +20,17 @@ void var() {
 int foo();
 // expected-error@+2 3{{expression is not an integral constant expression}}
 // expected-note@+1 3{{non-constexpr function 'foo' cannot be used in a constant expression}}
-[[cl::reqd_work_group_size(foo() + 12, foo() + 12, foo() + 12)]] void func1();
+[[sycl::reqd_work_group_size(foo() + 12, foo() + 12, foo() + 12)]] void func1();
 
 // Test that checks expression is a constant expression.
 constexpr int bar() { return 0; }
-[[cl::reqd_work_group_size(bar() + 12, bar() + 12, bar() + 12)]] void func2(); // OK
+[[sycl::reqd_work_group_size(bar() + 12, bar() + 12, bar() + 12)]] void func2(); // OK
 
 // Test that checks template parameter support on member function of class template.
 template <int SIZE, int SIZE1, int SIZE2>
 class KernelFunctor {
 public:
-  [[cl::reqd_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() {}
+  [[sycl::reqd_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() {}
 };
 
 int main() {
@@ -59,7 +59,7 @@ int main() {
 
 // Test that checks template parameter support on function.
 template <int N, int N1, int N2>
-[[cl::reqd_work_group_size(N, N1, N2)]] void func3() {}
+[[sycl::reqd_work_group_size(N, N1, N2)]] void func3() {}
 
 int check() {
   func3<8, 8, 8>();

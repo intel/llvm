@@ -36,13 +36,15 @@ third:
 
   auto e = q.submit([&](handler &cgh) {
     cgh.parallel_for<class Test>(Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-      using namespace sycl::INTEL::gpu;
+      using namespace sycl::ext::intel::experimental::esimd;
 
       int i = ndi.get_global_id(0);
-      simd<float, VL> va = block_load<float, VL>(A + i * VL);
-      simd<float, VL> vb = block_load<float, VL>(B + i * VL);
+      simd<float, VL> va;
+      va.copy_from(A + i * VL);
+      simd<float, VL> vb;
+      vb.copy_from(B + i * VL);
       simd<float, VL> vc = va + vb;
-      block_store<float, VL>(C + i * VL, vc);
+      vc.copy_to(C + i * VL);
     });
   });
 ```
@@ -50,7 +52,7 @@ third:
 In this example the lambda function passed to the `parallel_for` is marked with
 a special attribute - `SYCL_ESIMD_KERNEL`. This tells the compiler that this
 kernel is a ESIMD one and ESIMD APIs can be used inside it. Here the `simd`
-objects and `block_load`/`block_store` intrinsics are used which are avaiable
+objects and `copy_from`/`copy_to` intrinsics are used which are avaiable
 only in the ESIMD extension.
 Full runnable code sample can be found on the
 [github repo](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/ESIMD/vadd_usm.cpp).
