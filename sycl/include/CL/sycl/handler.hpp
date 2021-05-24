@@ -40,6 +40,19 @@
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
+#ifdef SYCL_LANGUAGE_VERSION
+#define SYCL_STD_VERSION SYCL_LANGUAGE_VERSION
+#else
+#define SYCL_STD_VERSION 201707
+#endif
+
+enum Sycl_std_versions {
+  version_older_2020,
+  version_2020
+};
+const Sycl_std_versions sycl_ver = 
+  SYCL_STD_VERSION < 202000 ? version_older_2020 : version_2020;
+
 template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
           cl::sycl::access::target AccessTarget,
           cl::sycl::access::placeholder IsPlaceholder>

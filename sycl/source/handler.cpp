@@ -202,17 +202,26 @@ event handler::finalize() {
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::NONE:
-    throw runtime_error("Command group submitted without a kernel or a "
+    if (sycl_ver == version_older_2020) 
+      throw runtime_error("Command group submitted without a kernel or a "
                         "explicit memory operation.",
                         PI_INVALID_OPERATION);
+    break;
   }
 
-  if (!CommandGroup)
-    throw sycl::runtime_error(
+  detail::EventImplPtr Event;
+
+  if (!CommandGroup) {
+    if (getType() != detail::CG::NONE)
+      throw sycl::runtime_error(
         "Internal Error. Command group cannot be constructed.",
         PI_INVALID_OPERATION);
-
-  detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
+    else
+      // if no runtime error was throws it is empty cg from sycl2020
+      Event = std::make_shared<cl::sycl::detail::event_impl>();
+  }
+  else
+    Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
