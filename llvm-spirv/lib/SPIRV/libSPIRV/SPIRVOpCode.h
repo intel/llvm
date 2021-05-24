@@ -58,11 +58,16 @@ template <> inline void SPIRVMap<Op, std::string>::init() {
 }
 SPIRV_DEF_NAMEMAP(Op, OpCodeNameMap)
 
+inline bool isFPAtomicOpCode(Op OpCode) {
+  return OpCode == OpAtomicFAddEXT || OpCode == OpAtomicFMinEXT ||
+         OpCode == OpAtomicFMaxEXT;
+}
 inline bool isAtomicOpCode(Op OpCode) {
   static_assert(OpAtomicLoad < OpAtomicXor, "");
   return ((unsigned)OpCode >= OpAtomicLoad &&
           (unsigned)OpCode <= OpAtomicXor) ||
-         OpCode == OpAtomicFlagTestAndSet || OpCode == OpAtomicFlagClear;
+         OpCode == OpAtomicFlagTestAndSet || OpCode == OpAtomicFlagClear ||
+         isFPAtomicOpCode(OpCode);
 }
 inline bool isBinaryOpCode(Op OpCode) {
   return ((unsigned)OpCode >= OpIAdd && (unsigned)OpCode <= OpFMod) ||
