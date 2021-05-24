@@ -2,6 +2,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: env SYCL_BE=PI_LEVEL_ZERO %GPU_RUN_PLACEHOLDER %t.out
 
+// Test fails on Level Zero on Linux
+// UNSUPPORTED: level_zero && linux
+
 // Test for Level Zero interop_task
 
 #include <CL/sycl.hpp>
