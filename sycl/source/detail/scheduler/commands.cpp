@@ -245,7 +245,7 @@ public:
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
       for (const DepDesc &Dep : Deps)
-        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, Lock);
+        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
     }
   }
 };

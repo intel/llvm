@@ -463,8 +463,7 @@ protected:
   /// class
   void acquireWriteLock(WriteLockT &Lock);
 
-  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
-                                         ReadLockT &GraphReadLock);
+  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
 
   /// Graph builder class.
   ///
@@ -737,7 +736,6 @@ protected:
     /// \param GraphReadLock read-lock which is already acquired for reading
     /// \return true if the command is successfully enqueued.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
-                               ReadLockT &GraphReadLock,
                                BlockingT Blocking = NON_BLOCKING);
   };
 

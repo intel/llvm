@@ -45,7 +45,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
     return;
 
   EnqueueResultT Res;
-  bool Enqueued = enqueueCommand(Cmd, Res, GraphReadLock, BLOCKING);
+  bool Enqueued = enqueueCommand(Cmd, Res, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
@@ -57,7 +57,6 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
 
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
                                                EnqueueResultT &EnqueueResult,
-                                               ReadLockT &GraphReadLock,
                                                BlockingT Blocking) {
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
@@ -71,8 +70,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   // Recursively enqueue all the dependencies first and
   // exit immediately if any of the commands cannot be enqueued.
   for (DepDesc &Dep : Cmd->MDeps) {
-    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, GraphReadLock,
-                        Blocking))
+    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking))
       return false;
   }
 
@@ -88,14 +86,25 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   // implemented.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, GraphReadLock, Blocking))
+      if (!enqueueCommand(DepCmd, EnqueueResult, Blocking))
         return false;
   }
 
   {
-    GraphReadLock.unlock();
+    // Only graph read lock is to be held here.
+    // Enqueue process of a command may last quite a time. Having graph locked
+    // can introduce some thread starving (i.e. when the other thread attempts
+    // to acquire write lock and add a command to graph).
+    // Releasing read lock without other safety measures isn't an option here as
+    // the other thread could go into graph cleanup process (due to some event
+    // complete) and remove some dependencies from dependencies of the user of
+    // this command. An example: command A depends on commands B and C. This
+    // wants to enqueue A. Hence, it needs to enqueue B and C. So this thread
+    // gets into dependency list and starts enqueueing B right away. The other
+    // thread waits on completion of C and starts cleanup process. This thread
+    // is still in the middle of enqueue of B. The other thread modifies
+    // dependency list of A by removing C out of it. Iterators become invalid.
     bool Result = Cmd->enqueue(EnqueueResult, Blocking);
-    GraphReadLock.lock();
 
     return Result;
   }
