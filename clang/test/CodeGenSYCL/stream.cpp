@@ -11,8 +11,8 @@
 // CHECK-SAME: %[[ID_TYPE]]* byval(%[[ID_TYPE]]) align 4 [[ACC_ID:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i32 [[ACC_INT:%[a-zA-Z0-9_]+]])
 
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::stream{{.*}} addrspace(4)* dereferenceable_or_null(16) %{{[0-9]+}}, i8 addrspace(1)* %5, %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) {{.*}}%{{.*}}
-// CHECK: call spir_func void @{{.*}}__finalizeEv{{.*}}(%{{.*}}cl::sycl::stream{{.*}}" addrspace(4)* dereferenceable_or_null(16) %{{[0-9]+}})
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::stream{{.*}} addrspace(4)* align 4 dereferenceable_or_null(16) %4, i8 addrspace(1)* %5, %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) {{.*}}%{{.*}}
+// CHECK: call spir_func void @{{.*}}__finalizeEv{{.*}}(%{{.*}}cl::sycl::stream{{.*}}" addrspace(4)* align 4 dereferenceable_or_null(16) %{{[0-9]+}})
 
 #include "Inputs/sycl.hpp"
 
