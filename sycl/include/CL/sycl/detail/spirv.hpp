@@ -48,7 +48,7 @@ template <typename T, typename Functor>
 void GenericCall(const Functor &ApplyToBytes) {
   if (sizeof(T) >= sizeof(ShuffleChunkT)) {
 #pragma unroll
-    for (size_t Offset = 0; Offset < sizeof(T);
+    for (size_t Offset = 0; Offset + sizeof(ShuffleChunkT) <= sizeof(T);
          Offset += sizeof(ShuffleChunkT)) {
       ApplyToBytes(Offset, sizeof(ShuffleChunkT));
     }
