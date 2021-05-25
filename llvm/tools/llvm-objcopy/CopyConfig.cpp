@@ -470,15 +470,23 @@ static void printHelp(const opt::OptTable &OptTable, raw_ostream &OS,
 // help flag is set then ParseObjcopyOptions will print the help messege and
 // exit.
 Expected<DriverConfig>
-parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
+parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
                     llvm::function_ref<Error(Error)> ErrorCallback) {
   DriverConfig DC;
   ObjcopyOptTable T;
+
+  const char *const *DashDash =
+      std::find_if(RawArgsArr.begin(), RawArgsArr.end(),
+                   [](StringRef Str) { return Str == "--"; });
+  ArrayRef<const char *> ArgsArr = makeArrayRef(RawArgsArr.begin(), DashDash);
+  if (DashDash != RawArgsArr.end())
+    DashDash = std::next(DashDash);
+
   unsigned MissingArgumentIndex, MissingArgumentCount;
   llvm::opt::InputArgList InputArgs =
       T.ParseArgs(ArgsArr, MissingArgumentIndex, MissingArgumentCount);
 
-  if (InputArgs.size() == 0) {
+  if (InputArgs.size() == 0 && DashDash == RawArgsArr.end()) {
     printHelp(T, errs(), ToolType::Objcopy);
     exit(1);
   }
@@ -502,6 +510,7 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
 
   for (auto Arg : InputArgs.filtered(OBJCOPY_INPUT))
     Positional.push_back(Arg->getValue());
+  std::copy(DashDash, RawArgsArr.end(), std::back_inserter(Positional));
 
   if (Positional.empty())
     return createStringError(errc::invalid_argument, "no input file specified");
@@ -700,8 +709,14 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
           "bad format for --add-section: missing file name");
     Config.AddSection.push_back(ArgValue);
   }
-  for (auto Arg : InputArgs.filtered(OBJCOPY_dump_section))
-    Config.DumpSection.push_back(Arg->getValue());
+  for (auto *Arg : InputArgs.filtered(OBJCOPY_dump_section)) {
+    StringRef Value(Arg->getValue());
+    if (Value.split('=').second.empty())
+      return createStringError(
+          errc::invalid_argument,
+          "bad format for --dump-section, expected section=file");
+    Config.DumpSection.push_back(Value);
+  }
   Config.StripAll = InputArgs.hasArg(OBJCOPY_strip_all);
   Config.StripAllGNU = InputArgs.hasArg(OBJCOPY_strip_all_gnu);
   Config.StripDebug = InputArgs.hasArg(OBJCOPY_strip_debug);

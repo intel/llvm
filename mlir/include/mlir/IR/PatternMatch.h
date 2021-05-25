@@ -12,6 +12,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/FunctionExtras.h"
+#include "llvm/Support/TypeName.h"
 
 namespace mlir {
 
@@ -132,6 +133,13 @@ public:
     return contextAndHasBoundedRecursion.getPointer();
   }
 
+  /// Return readable pattern name. Should only be used for debugging purposes.
+  /// Can be empty.
+  StringRef getDebugName() const { return debugName; }
+
+  /// Set readable pattern name. Should only be used for debugging purposes.
+  void setDebugName(StringRef name) { debugName = name; }
+
 protected:
   /// This class acts as a special tag that makes the desire to match "any"
   /// operation type explicit. This helps to avoid unnecessary usages of this
@@ -202,6 +210,9 @@ private:
   /// A list of the potential operations that may be generated when rewriting
   /// an op with this pattern.
   SmallVector<OperationName, 2> generatedOps;
+
+  /// Readable pattern name. Can be empty.
+  StringRef debugName;
 };
 
 //===----------------------------------------------------------------------===//
@@ -244,9 +255,42 @@ public:
     return failure();
   }
 
+  /// This method provides a convenient interface for creating and initializing
+  /// derived rewrite patterns of the given type `T`.
+  template <typename T, typename... Args>
+  static std::unique_ptr<T> create(Args &&... args) {
+    std::unique_ptr<T> pattern =
+        std::make_unique<T>(std::forward<Args>(args)...);
+    initializePattern<T>(*pattern);
+
+    // Set a default debug name if one wasn't provided.
+    if (pattern->getDebugName().empty())
+      pattern->setDebugName(llvm::getTypeName<T>());
+    return pattern;
+  }
+
 protected:
   /// Inherit the base constructors from `Pattern`.
   using Pattern::Pattern;
+
+private:
+  /// Trait to check if T provides a `getOperationName` method.
+  template <typename T, typename... Args>
+  using has_initialize = decltype(std::declval<T>().initialize());
+  template <typename T>
+  using detect_has_initialize = llvm::is_detected<has_initialize, T>;
+
+  /// Initialize the derived pattern by calling its `initialize` method.
+  template <typename T>
+  static std::enable_if_t<detect_has_initialize<T>::value>
+  initializePattern(T &pattern) {
+    pattern.initialize();
+  }
+  /// Empty derived pattern initializer for patterns that do not have an
+  /// initialize method.
+  template <typename T>
+  static std::enable_if_t<!detect_has_initialize<T>::value>
+  initializePattern(T &) {}
 
   /// An anchor for the virtual table.
   virtual void anchor();
@@ -959,7 +1003,9 @@ public:
     struct FnPattern final : public OpRewritePattern<OpType> {
       FnPattern(LogicalResult (*implFn)(OpType, PatternRewriter &rewriter),
                 MLIRContext *context)
-          : OpRewritePattern<OpType>(context), implFn(implFn) {}
+          : OpRewritePattern<OpType>(context), implFn(implFn) {
+        this->setDebugName(llvm::getTypeName<FnPattern>());
+      }
 
       LogicalResult matchAndRewrite(OpType op,
                                     PatternRewriter &rewriter) const override {
@@ -980,7 +1026,7 @@ private:
   std::enable_if_t<std::is_base_of<RewritePattern, T>::value>
   addImpl(Args &&... args) {
     nativePatterns.emplace_back(
-        std::make_unique<T>(std::forward<Args>(args)...));
+        RewritePattern::create<T>(std::forward<Args>(args)...));
   }
   template <typename T, typename... Args>
   std::enable_if_t<std::is_base_of<PDLPatternModule, T>::value>

@@ -4065,9 +4065,9 @@ void CGDebugInfo::EmitFuncDeclForCallSite(llvm::CallBase *CallOrInvoke,
   if (CalleeDecl->getBuiltinID() != 0 || CalleeDecl->hasAttr<NoDebugAttr>() ||
       getCallSiteRelatedAttrs() == llvm::DINode::FlagZero)
     return;
-  if (const auto *Id = CalleeDecl->getIdentifier())
-    if (Id->isReservedName())
-      return;
+  if (CalleeDecl->isReserved(CGM.getLangOpts()) !=
+      ReservedIdentifierStatus::NotReserved)
+    return;
 
   // If there is no DISubprogram attached to the function being called,
   // create the one describing the function in order to have complete
@@ -4310,7 +4310,9 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
   auto *Scope = cast<llvm::DIScope>(LexicalBlockStack.back());
   StringRef Name = VD->getName();
   if (!Name.empty()) {
-    if (VD->hasAttr<BlocksAttr>()) {
+    // __block vars are stored on the heap if they are captured by a block that
+    // can escape the local scope.
+    if (VD->isEscapingByref()) {
       // Here, we need an offset *into* the alloca.
       CharUnits offset = CharUnits::fromQuantity(32);
       Expr.push_back(llvm::dwarf::DW_OP_plus_uconst);

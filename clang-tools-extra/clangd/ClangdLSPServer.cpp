@@ -571,7 +571,6 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
       {"referencesProvider", true},
       {"astProvider", true}, // clangd extension
       {"typeHierarchyProvider", true},
-      {"clangdInlayHintsProvider", true},
       {"memoryUsageProvider", true}, // clangd extension
       {"compilationDatabase",        // clangd extension
        llvm::json::Object{{"automaticReload", true}}},
@@ -607,6 +606,9 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
 
   if (Opts.FoldingRanges)
     ServerCaps["foldingRangeProvider"] = true;
+
+  if (Opts.InlayHints)
+    ServerCaps["clangdInlayHintsProvider"] = true;
 
   std::vector<llvm::StringRef> Commands;
   for (llvm::StringRef Command : Handlers.CommandHandlers.keys())
@@ -1262,7 +1264,7 @@ void ClangdLSPServer::onChangeConfiguration(
 void ClangdLSPServer::onReference(const ReferenceParams &Params,
                                   Callback<std::vector<Location>> Reply) {
   Server->findReferences(
-      Params.textDocument.uri.file(), Params.position, Opts.CodeComplete.Limit,
+      Params.textDocument.uri.file(), Params.position, Opts.ReferencesLimit,
       [Reply = std::move(Reply),
        IncludeDecl(Params.context.includeDeclaration)](
           llvm::Expected<ReferencesResult> Refs) mutable {
@@ -1604,7 +1606,7 @@ void ClangdLSPServer::onBackgroundIndexProgress(
     if (Stats.Completed < Stats.Enqueued) {
       assert(Stats.Enqueued > Stats.LastIdle);
       WorkDoneProgressReport Report;
-      Report.percentage = 100.0 * (Stats.Completed - Stats.LastIdle) /
+      Report.percentage = 100 * (Stats.Completed - Stats.LastIdle) /
                           (Stats.Enqueued - Stats.LastIdle);
       Report.message =
           llvm::formatv("{0}/{1}", Stats.Completed - Stats.LastIdle,

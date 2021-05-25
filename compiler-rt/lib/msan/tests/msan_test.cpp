@@ -976,8 +976,8 @@ std::vector<int> GetAvailableIpSocketFamilies() {
   return result;
 }
 
-INSTANTIATE_TEST_CASE_P(IpTests, MemorySanitizerIpTest,
-                        ::testing::ValuesIn(GetAvailableIpSocketFamilies()));
+INSTANTIATE_TEST_SUITE_P(IpTests, MemorySanitizerIpTest,
+                         ::testing::ValuesIn(GetAvailableIpSocketFamilies()));
 
 TEST_P(MemorySanitizerIpTest, accept) {
   int listen_socket = CreateSocket(SOCK_STREAM);
@@ -4832,7 +4832,7 @@ TEST(MemorySanitizer, throw_catch) {
     // __gxx_personality_v0 is instrumented, libgcc_s is not; as a result,
     // __msan_param_tls is not updated and __gxx_personality_v0 can find
     // leftover poison from the previous call.
-    // A suppression in msan_blacklist.txt makes it work.
+    // A suppression in msan_ignorelist.txt makes it work.
     throw_stuff();
   } catch (const int &e) {
     // pass
