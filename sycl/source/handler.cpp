@@ -20,6 +20,8 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
+Sycl_std_versions sycl_ver;
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
