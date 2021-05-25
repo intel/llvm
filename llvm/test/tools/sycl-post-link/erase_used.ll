@@ -10,10 +10,12 @@ target triple = "spir64-unknown-unknown-sycldevice"
 ; CHECK-NOT: llvm.used
 @llvm.used = appending global [2 x i8*] [i8* bitcast (void ()* @foo to i8*), i8* bitcast (void ()* @bar to i8*)], section "llvm.metadata"
 
-define weak_odr spir_kernel void @foo() {
+define weak_odr spir_kernel void @foo() #0 {
   ret void
 }
 
-define weak_odr spir_kernel void @bar() {
+define weak_odr spir_kernel void @bar() #0 {
   ret void
 }
+
+attributes #0 = { "sycl-module-id"="a.cpp" }
