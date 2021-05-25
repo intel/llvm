@@ -2275,9 +2275,13 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef __SYCL_USE_EXT_VECTOR_TYPE__
 
 /// is_device_copyable is a user specializable class template to indicate
-/// that a type T is device copyable. If is_device_copyable is specialized such
-/// that is_device_copyable_v<T> == true on a T that does not satisfy all
-/// the requirements of a device copyable type, the results are unspecified.
+/// that a type T is device copyable, which means that SYCL implementation
+/// may copy objects of the type T between host and device or between two
+/// devices.
+/// Specializing is_device_copyable such a way that
+/// is_device_copyable_v<T> == true on a T that does not satisfy all
+/// the requirements of a device copyable type may result into undefined
+/// behavior.
 template <typename T, typename = void>
 struct is_device_copyable : std::false_type {};
 
@@ -2315,29 +2319,47 @@ struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
                             !is_device_copyable<T>::value>> : std::true_type {};
 
 #ifdef __SYCL_DEVICE_ONLY__
-template <typename T, unsigned NumToCheck> struct CheckDeviceCopyableHelper;
-
-template <typename T> struct CheckDeviceCopyableHelper<T, 0> {};
-
-template <typename T> struct CheckDeviceCopyableHelper<T, 1> {
-  using FieldT = decltype(__builtin_field_type(T, 0));
+// Checks that the fields of the type T with indices 0 to (NumFieldsToCheck - 1)
+// are device copyable.
+template <typename T, unsigned NumFieldsToCheck>
+struct CheckFieldsAreDeviceCopyable
+    : CheckFieldsAreDeviceCopyable<T, NumFieldsToCheck - 1> {
+  using FieldT = decltype(__builtin_field_type(T, NumFieldsToCheck - 1));
   static_assert(is_device_copyable<FieldT>::value ||
                     detail::IsDeprecatedDeviceCopyable<FieldT>::value,
-                "Not device copyable!");
+                "The specified type is not device copyable");
 };
 
-template <typename T, unsigned NumToCheck>
-struct CheckDeviceCopyableHelper
-    : CheckDeviceCopyableHelper<T, NumToCheck - 1> {
-  using FieldT = decltype(__builtin_field_type(T, NumToCheck - 1));
-  static_assert(is_device_copyable<FieldT>::value ||
-                    detail::IsDeprecatedDeviceCopyable<FieldT>::value,
-                "Not device copyable!");
+template <typename T> struct CheckFieldsAreDeviceCopyable<T, 0> {};
+
+// Checks that the base classes of the type T with indices 0 to
+// (NumFieldsToCheck - 1) are device copyable.
+template <typename T, unsigned NumBasesToCheck>
+struct CheckBasesAreDeviceCopyable
+    : CheckBasesAreDeviceCopyable<T, NumBasesToCheck - 1> {
+  using BaseT = decltype(__builtin_base_type(T, NumBasesToCheck - 1));
+  static_assert(is_device_copyable<BaseT>::value ||
+                    detail::IsDeprecatedDeviceCopyable<BaseT>::value,
+                "The specified type is not device copyable");
 };
 
+template <typename T> struct CheckBasesAreDeviceCopyable<T, 0> {};
+
+// All the captures of a lambda or functor of type FuncT passed to a kernel
+// must be is_device_copyable, which extends to bases and fields of FuncT.
+// Fields are captures of lambda/functors and bases are possible base classes
+// of functors also allowed by SYCL.
+// The SYCL-2020 implementation must check each of the fields & bases of the
+// type FuncT, only one level deep, to see if they are all device copyable
+// by using the result of is_device_copyable returned for them.
+// At this moment though the check also allowes using types for which
+// (is_trivially_copy_constructible && is_trivially_destructible) returns true
+// and (is_device_copyable) returns false. That is the deprecated behavior and
+// is currently/temporarily supported only to not break older SYCL programs.
 template <typename FuncT>
 struct CheckDeviceCopyable
-    : CheckDeviceCopyableHelper<FuncT, __builtin_num_fields(FuncT)> {};
+    : CheckFieldsAreDeviceCopyable<FuncT, __builtin_num_fields(FuncT)>,
+      CheckBasesAreDeviceCopyable<FuncT, __builtin_num_bases(FuncT)> {};
 #endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
