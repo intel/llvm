@@ -239,7 +239,8 @@ static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
                                      size_t &IndexShift, int Size,
                                      bool IsKernelCreatedFromSource,
                                      size_t GlobalSize,
-                                     vector_class<detail::ArgDesc> &Args) {
+                                     vector_class<detail::ArgDesc> &Args,
+                                     bool isESIMD) {
   using detail::kernel_param_kind_t;
   if (AccImpl->PerWI)
     AccImpl->resize(GlobalSize);
@@ -250,7 +251,7 @@ static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
   // TODO ESIMD currently does not suport offset, memory and access ranges -
   // accessor::init for ESIMD-mode accessor has a single field, translated
   // to a single kernel argument set above.
-  if (!AccImpl->MIsESIMDAcc && !IsKernelCreatedFromSource) {
+  if (!isESIMD && !IsKernelCreatedFromSource) {
     // Dimensionality of the buffer is 1 when dimensionality of the
     // accessor is 0.
     const size_t SizeAccField =
@@ -298,7 +299,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     detail::Requirement *GBufReq = GBufImpl.get();
     addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource,
-                             MNDRDesc.GlobalSize.size(), MArgs);
+                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
@@ -306,7 +307,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     detail::Requirement *GOffsetReq = GOfssetImpl.get();
     addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource,
-                             MNDRDesc.GlobalSize.size(), MArgs);
+                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
@@ -314,7 +315,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     detail::Requirement *GFlushReq = GFlushImpl.get();
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource,
-                             MNDRDesc.GlobalSize.size(), MArgs);
+                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
     ++IndexShift;
     MArgs.emplace_back(kernel_param_kind_t::kind_std_layout,
                        &S->FlushBufferSize, sizeof(S->FlushBufferSize),
@@ -332,7 +333,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
       addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
                                IsKernelCreatedFromSource,
-                               MNDRDesc.GlobalSize.size(), MArgs);
+                               MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
       break;
     }
     case access::target::local: {
