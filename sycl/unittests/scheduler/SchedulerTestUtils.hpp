@@ -123,10 +123,8 @@ public:
 
   static bool enqueueCommand(cl::sycl::detail::Command *Cmd,
                              cl::sycl::detail::EnqueueResultT &EnqueueResult,
-                             ReadLockT &GraphReadLock,
                              cl::sycl::detail::BlockingT Blocking) {
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, GraphReadLock,
-                                          Blocking);
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
   }
 
   cl::sycl::detail::AllocaCommandBase *
