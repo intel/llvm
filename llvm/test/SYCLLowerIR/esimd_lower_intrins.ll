@@ -308,18 +308,6 @@ define dso_local spir_func <16 x i32>  @FUNC_44() {
   ret <16 x i32>  %ret_val
 }
 
-; TODO LowerESIMD.cpp temporarily removes @llvm.assume, this test checks this.
-; Remove once @llvm.assume is allowed in the ESIMD BE.
-define dso_local spir_func void  @FUNC_45() {
-; CHECK-LABEL: FUNC_45
-  call void @llvm.assume(i1 1)
-; CHECK-NOT: @llvm.assume
-  ret void
-}
-; CHECK-LABEL: }
-
-declare void @llvm.assume(i1 noundef)
-
 define dso_local i32 @FUNC_46() {
 ; CHECK-LABEL: FUNC_46
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call i32 @llvm.genx.lane.id()
