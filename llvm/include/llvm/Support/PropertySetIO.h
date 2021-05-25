@@ -43,6 +43,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <type_traits>
 
 namespace llvm {
 namespace util {
@@ -191,18 +192,12 @@ public:
 
   // Function for bulk addition of an entire property set under given category
   // (property set name).
-  template <typename T>
-  void add(StringRef Category, const std::map<StringRef, T> &Props) {
-    assert(PropSetMap.find(Category) == PropSetMap.end() &&
-           "category already added");
-    auto &PropSet = PropSetMap[Category];
+  template <typename MapTy> void add(StringRef Category, const MapTy &Props) {
+    using KeyTy = typename MapTy::value_type::first_type;
+    static_assert(std::is_same<typename std::remove_const<KeyT>::type,
+                               llvm::StringRef>::value,
+                  "wrong key type");
 
-    for (const auto &Prop : Props)
-      PropSet.insert(std::make_pair(Prop.first, PropertyValue(Prop.second)));
-  }
-
-  template <typename T>
-  void add(StringRef Category, const MapVector<StringRef, T> &Props) {
     assert(PropSetMap.find(Category) == PropSetMap.end() &&
            "category already added");
     auto &PropSet = PropSetMap[Category];
