@@ -155,6 +155,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_NT>::enumeration(
   ECase(NT_FREEBSD_PROCSTAT_PSSTRINGS);
   ECase(NT_FREEBSD_PROCSTAT_AUXV);
   // AMD specific notes. (Code Object V2)
+  ECase(NT_AMD_HSA_CODE_OBJECT_VERSION);
+  ECase(NT_AMD_HSA_HSAIL);
+  ECase(NT_AMD_HSA_ISA_VERSION);
   ECase(NT_AMD_HSA_METADATA);
   ECase(NT_AMD_HSA_ISA_NAME);
   ECase(NT_AMD_PAL_METADATA);
@@ -311,6 +314,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_EM>::enumeration(
   ECase(EM_STM8);
   ECase(EM_TILE64);
   ECase(EM_TILEPRO);
+  ECase(EM_MICROBLAZE);
   ECase(EM_CUDA);
   ECase(EM_TILEGX);
   ECase(EM_CLOUDSHIELD);
@@ -548,6 +552,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1031, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1032, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1033, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1034, EF_AMDGPU_MACH);
     switch (Object->Header.ABIVersion) {
     default:
       // ELFOSABI_AMDGPU_PAL, ELFOSABI_AMDGPU_MESA3D support *_V3 flags.

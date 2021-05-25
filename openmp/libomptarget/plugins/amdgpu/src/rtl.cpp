@@ -72,19 +72,12 @@ hostrpc_assign_buffer(hsa_agent_t, hsa_queue_t *, uint32_t device_id) {
 
 int print_kernel_trace;
 
-// Size of the target call stack struture
-uint32_t TgtStackItemSize = 0;
-
 #undef check // Drop definition from internal.h
 #ifdef OMPTARGET_DEBUG
 #define check(msg, status)                                                     \
   if (status != ATMI_STATUS_SUCCESS) {                                         \
-    /* fprintf(stderr, "[%s:%d] %s failed.\n", __FILE__, __LINE__, #msg);*/    \
     DP(#msg " failed\n");                                                      \
-    /*assert(0);*/                                                             \
   } else {                                                                     \
-    /* fprintf(stderr, "[%s:%d] %s succeeded.\n", __FILE__, __LINE__, #msg);   \
-     */                                                                        \
     DP(#msg " succeeded\n");                                                   \
   }
 #else
@@ -124,7 +117,11 @@ public:
     if (kernarg_region) {
       auto r = hsa_amd_memory_pool_free(kernarg_region);
       assert(r == HSA_STATUS_SUCCESS);
-      ErrorCheck(Memory pool free, r);
+      if (r != HSA_STATUS_SUCCESS) {
+        printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+               "Memory pool free", get_error_string(r));
+        exit(1);
+      }
     }
   }
 
@@ -143,7 +140,12 @@ public:
           atl_gpu_kernarg_pools[0],
           kernarg_size_including_implicit() * MAX_NUM_KERNELS, 0,
           &kernarg_region);
-      ErrorCheck(Allocating memory for the executable-kernel, err);
+      if (err != HSA_STATUS_SUCCESS) {
+        printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+               "Allocating memory for the executable-kernel",
+               get_error_string(err));
+        exit(1);
+      }
       core::allow_access_to_all_gpu_agents(kernarg_region);
 
       for (int i = 0; i < MAX_NUM_KERNELS; i++) {
@@ -275,21 +277,18 @@ static void callbackQueue(hsa_status_t status, hsa_queue_t *source,
 }
 
 namespace core {
+namespace {
 void packet_store_release(uint32_t *packet, uint16_t header, uint16_t rest) {
   __atomic_store_n(packet, header | (rest << 16), __ATOMIC_RELEASE);
 }
 
-uint16_t create_header(hsa_packet_type_t type, int barrier,
-                       atmi_task_fence_scope_t acq_fence,
-                       atmi_task_fence_scope_t rel_fence) {
-  uint16_t header = type << HSA_PACKET_HEADER_TYPE;
-  header |= barrier << HSA_PACKET_HEADER_BARRIER;
-  header |= (hsa_fence_scope_t) static_cast<int>(
-      acq_fence << HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE);
-  header |= (hsa_fence_scope_t) static_cast<int>(
-      rel_fence << HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE);
+uint16_t create_header() {
+  uint16_t header = HSA_PACKET_TYPE_KERNEL_DISPATCH << HSA_PACKET_HEADER_TYPE;
+  header |= HSA_FENCE_SCOPE_SYSTEM << HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE;
+  header |= HSA_FENCE_SCOPE_SYSTEM << HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE;
   return header;
 }
+} // namespace
 } // namespace core
 
 /// Class containing all the device information
@@ -328,6 +327,8 @@ public:
 
   // Resource pools
   SignalPoolT FreeSignalPool;
+
+  std::vector<hsa_executable_t> HSAExecutables;
 
   struct atmiFreePtrDeletor {
     void operator()(void *p) {
@@ -479,7 +480,12 @@ public:
         hsa_status_t err;
         err = hsa_agent_get_info(HSAAgents[i], HSA_AGENT_INFO_QUEUE_MAX_SIZE,
                                  &queue_size);
-        ErrorCheck(Querying the agent maximum queue size, err);
+        if (err != HSA_STATUS_SUCCESS) {
+          printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+                 "Querying the agent maximum queue size",
+                 get_error_string(err));
+          exit(1);
+        }
         if (queue_size > core::Runtime::getInstance().getMaxQueueSize()) {
           queue_size = core::Runtime::getInstance().getMaxQueueSize();
         }
@@ -534,6 +540,18 @@ public:
     RequiresFlags = OMP_REQ_UNDEFINED;
   }
 
+  void DestroyHSAExecutables() {
+    hsa_status_t Err;
+    for (uint32_t I = 0; I < HSAExecutables.size(); I++) {
+      Err = hsa_executable_destroy(HSAExecutables[I]);
+      if (Err != HSA_STATUS_SUCCESS) {
+        printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+               "Destroying executable", get_error_string(Err));
+        return;
+      }
+    }
+  }
+
   ~RTLDeviceInfoTy() {
     DP("Finalizing the HSA-ATMI DeviceInfo.\n");
     // Run destructors on types that use HSA before
@@ -542,6 +560,8 @@ public:
     KernelArgPoolMap.clear();
     // Terminate hostrpc before finalizing ATMI
     hostrpc_terminate();
+
+    DestroyHSAExecutables();
     atmi_finalize();
   }
 };
@@ -967,15 +987,16 @@ atmi_status_t interop_get_symbol_info(char *base, size_t img_size,
 }
 
 template <typename C>
-atmi_status_t module_register_from_memory_to_place(void *module_bytes,
-                                                   size_t module_size,
-                                                   atmi_place_t place, C cb) {
+atmi_status_t module_register_from_memory_to_place(
+    void *module_bytes, size_t module_size, atmi_place_t place, C cb,
+    std::vector<hsa_executable_t> &HSAExecutables) {
   auto L = [](void *data, size_t size, void *cb_state) -> atmi_status_t {
     C *unwrapped = static_cast<C *>(cb_state);
     return (*unwrapped)(data, size);
   };
-  return atmi_module_register_from_memory_to_place(
-      module_bytes, module_size, place, L, static_cast<void *>(&cb));
+  return core::Runtime::RegisterModuleFromMemory(
+      module_bytes, module_size, place, L, static_cast<void *>(&cb),
+      HSAExecutables);
 }
 } // namespace
 
@@ -1176,9 +1197,8 @@ __tgt_target_table *__tgt_rtl_load_binary_locked(int32_t device_id,
 
     atmi_status_t err = module_register_from_memory_to_place(
         (void *)image->ImageStart, img_size, get_gpu_place(device_id),
-        [&](void *data, size_t size) {
-          return env.before_loading(data, size);
-        });
+        [&](void *data, size_t size) { return env.before_loading(data, size); },
+        DeviceInfo.HSAExecutables);
 
     check("Module registering", err);
     if (err != ATMI_STATUS_SUCCESS) {
@@ -1760,11 +1780,15 @@ int32_t __tgt_rtl_run_target_team_region_locked(
   KernelTy *KernelInfo = (KernelTy *)tgt_entry_ptr;
 
   std::string kernel_name = std::string(KernelInfo->Name);
+  if (KernelInfoTable[device_id].find(kernel_name) ==
+      KernelInfoTable[device_id].end()) {
+    DP("Kernel %s not found\n", kernel_name.c_str());
+    return OFFLOAD_FAIL;
+  }
+
   uint32_t sgpr_count, vgpr_count, sgpr_spill_count, vgpr_spill_count;
 
   {
-    assert(KernelInfoTable[device_id].find(kernel_name) !=
-           KernelInfoTable[device_id].end());
     auto it = KernelInfoTable[device_id][kernel_name];
     sgpr_count = it.sgpr_count;
     vgpr_count = it.vgpr_count;
@@ -1828,8 +1852,6 @@ int32_t __tgt_rtl_run_target_team_region_locked(
     packet->completion_signal = {0}; // may want a pool of signals
 
     {
-      assert(KernelInfoTable[device_id].find(kernel_name) !=
-             KernelInfoTable[device_id].end());
       auto it = KernelInfoTable[device_id][kernel_name];
       packet->kernel_object = it.kernel_object;
       packet->private_segment_size = it.private_segment_size;
@@ -1904,11 +1926,8 @@ int32_t __tgt_rtl_run_target_team_region_locked(
       hsa_signal_store_relaxed(packet->completion_signal, 1);
     }
 
-    core::packet_store_release(
-        reinterpret_cast<uint32_t *>(packet),
-        core::create_header(HSA_PACKET_TYPE_KERNEL_DISPATCH, 0,
-                            ATMI_FENCE_SCOPE_SYSTEM, ATMI_FENCE_SCOPE_SYSTEM),
-        packet->setup);
+    core::packet_store_release(reinterpret_cast<uint32_t *>(packet),
+                               core::create_header(), packet->setup);
 
     hsa_signal_store_relaxed(queue->doorbell_signal, packet_id);
 

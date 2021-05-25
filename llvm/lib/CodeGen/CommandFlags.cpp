@@ -97,6 +97,7 @@ CGOPT(bool, PseudoProbeForProfiling)
 CGOPT(bool, ValueTrackingVariableLocations)
 CGOPT(bool, ForceDwarfFrameSection)
 CGOPT(bool, XRayOmitFunctionIndex)
+CGOPT(bool, DebugStrictDwarf)
 
 codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
 #define CGBINDOPT(NAME)                                                        \
@@ -471,6 +472,10 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(false));
   CGBINDOPT(XRayOmitFunctionIndex);
 
+  static cl::opt<bool> DebugStrictDwarf(
+      "strict-dwarf", cl::desc("use strict dwarf"), cl::init(false));
+  CGBINDOPT(DebugStrictDwarf);
+
 #undef CGBINDOPT
 
   mc::RegisterMCTargetOptionsFlags();
@@ -503,6 +508,8 @@ codegen::getStackProtectorGuardMode(llvm::TargetOptions &Options) {
     return StackProtectorGuards::TLS;
   if (getStackProtectorGuard() == "global")
     return StackProtectorGuards::Global;
+  if (getStackProtectorGuard() == "sysreg")
+    return StackProtectorGuards::SysReg;
   if (getStackProtectorGuard() != "none") {
     ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr =
         MemoryBuffer::getFile(getStackProtectorGuard());
@@ -567,6 +574,7 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.ValueTrackingVariableLocations = getValueTrackingVariableLocations();
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
   Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
+  Options.DebugStrictDwarf = getDebugStrictDwarf();
 
   Options.MCOptions = mc::InitMCTargetOptionsFromFlags();
 

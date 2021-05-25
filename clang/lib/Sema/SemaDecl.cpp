@@ -1516,6 +1516,7 @@ void Sema::PushOnScopeChains(NamedDecl *D, Scope *S, bool AddToContext) {
   } else {
     IdResolver.AddDecl(D);
   }
+  warnOnReservedIdentifier(D);
 }
 
 bool Sema::isDeclInScope(NamedDecl *D, DeclContext *Ctx, Scope *S,
@@ -5608,6 +5609,18 @@ static bool RebuildDeclaratorInCurrentInstantiation(Sema &S, Declarator &D,
   return false;
 }
 
+void Sema::warnOnReservedIdentifier(const NamedDecl *D) {
+  // Avoid warning twice on the same identifier, and don't warn on redeclaration
+  // of system decl.
+  if (D->getPreviousDecl() || D->isImplicit())
+    return;
+  ReservedIdentifierStatus Status = D->isReserved(getLangOpts());
+  if (Status != ReservedIdentifierStatus::NotReserved &&
+      !Context.getSourceManager().isInSystemHeader(D->getLocation()))
+    Diag(D->getLocation(), diag::warn_reserved_extern_symbol)
+        << D << static_cast<int>(Status);
+}
+
 Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
   D.setFunctionDefinitionKind(FunctionDefinitionKind::Declaration);
   Decl *Dcl = HandleDeclarator(S, D, MultiTemplateParamsArg());
@@ -5615,9 +5628,6 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
       Dcl && Dcl->getDeclContext()->isFileContext())
     Dcl->setTopLevelDeclInObjCContainer();
-
-  if (getLangOpts().OpenCL)
-    setCurrentOpenCLExtensionForDecl(Dcl);
 
   return Dcl;
 }
@@ -8706,6 +8716,9 @@ static bool isOpenCLSizeDependentType(ASTContext &C, QualType Ty) {
 }
 
 static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
+  if (PT->isDependentType())
+    return InvalidKernelParam;
+
   if (PT->isPointerType() || PT->isReferenceType()) {
     QualType PointeeType = PT->getPointeeType();
     if (PointeeType.getAddressSpace() == LangAS::opencl_generic ||
@@ -8728,8 +8741,11 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
     // Moreover the types used in parameters of the kernel functions must be:
     // Standard layout types for pointer parameters. The same applies to
     // reference if an implementation supports them in kernel parameters.
-    if (S.getLangOpts().OpenCLCPlusPlus && !PointeeType->isAtomicType() &&
-        !PointeeType->isVoidType() && !PointeeType->isStandardLayoutType())
+    if (S.getLangOpts().OpenCLCPlusPlus &&
+        !S.getOpenCLOptions().isAvailableOption(
+            "__cl_clang_non_portable_kernel_param_types", S.getLangOpts()) &&
+        !PointeeType->isAtomicType() && !PointeeType->isVoidType() &&
+        !PointeeType->isStandardLayoutType())
       return InvalidKernelParam;
 
     return PtrKernelParam;
@@ -8769,8 +8785,10 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
   // Moreover the types used in parameters of the kernel functions must be:
   // Trivial and standard-layout types C++17 [basic.types] (plain old data
   // types) for parameters passed by value;
-  if (S.getLangOpts().OpenCLCPlusPlus && !PT->isOpenCLSpecificType() &&
-      !PT.isPODType(S.Context))
+  if (S.getLangOpts().OpenCLCPlusPlus &&
+      !S.getOpenCLOptions().isAvailableOption(
+          "__cl_clang_non_portable_kernel_param_types", S.getLangOpts()) &&
+      !PT->isOpenCLSpecificType() && !PT.isPODType(S.Context))
     return InvalidKernelParam;
 
   if (PT->isRecordType())
@@ -12677,9 +12695,21 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     if (!Var->isInvalidDecl() &&
         Var->getType().getAddressSpace() == LangAS::opencl_constant &&
         Var->getStorageClass() != SC_Extern && !Var->getInit()) {
-      Diag(Var->getLocation(), diag::err_opencl_constant_no_init);
-      Var->setInvalidDecl();
-      return;
+      bool HasConstExprDefaultConstructor = false;
+      if (CXXRecordDecl *RD = Var->getType()->getAsCXXRecordDecl()) {
+        for (auto *Ctor : RD->ctors()) {
+          if (Ctor->isConstexpr() && Ctor->getNumParams() == 0 &&
+              Ctor->getMethodQualifiers().getAddressSpace() ==
+                  LangAS::opencl_constant) {
+            HasConstExprDefaultConstructor = true;
+          }
+        }
+      }
+      if (!HasConstExprDefaultConstructor) {
+        Diag(Var->getLocation(), diag::err_opencl_constant_no_init);
+        Var->setInvalidDecl();
+        return;
+      }
     }
 
     if (!Var->isInvalidDecl() && RealDecl->hasAttr<LoaderUninitializedAttr>()) {
@@ -18522,7 +18552,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
         OMPDeclareTargetDeclAttr::getDeviceType(FD->getCanonicalDecl());
     // DevTy may be changed later by
     //  #pragma omp declare target to(*) device_type(*).
-    // Therefore DevTyhaving no value does not imply host. The emission status
+    // Therefore DevTy having no value does not imply host. The emission status
     // will be checked again at the end of compilation unit with Final = true.
     if (DevTy.hasValue())
       if (*DevTy == OMPDeclareTargetDeclAttr::DT_Host)

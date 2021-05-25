@@ -1,8 +1,10 @@
-add_subdirectory(Bindings)
 add_subdirectory(CAPI)
-add_subdirectory(EDSC)
 add_subdirectory(SDBM)
 add_subdirectory(lib)
+
+if(MLIR_BINDINGS_PYTHON_ENABLED)
+  add_subdirectory(python)
+endif()
 
 llvm_canonicalize_cmake_booleans(
   MLIR_BINDINGS_PYTHON_ENABLED
@@ -58,9 +60,10 @@ set(MLIR_TEST_DEPENDS
   mlir-capi-execution-engine-test
   mlir-capi-ir-test
   mlir-capi-pass-test
+  mlir-capi-sparse-tensor-test
   mlir-cpu-runner
-  mlir-edsc-builder-api-test
   mlir-linalg-ods-gen
+  mlir-linalg-ods-yaml-gen
   mlir-lsp-server
   mlir-opt
   mlir-reduce
@@ -111,6 +114,7 @@ endif()
 if(MLIR_BINDINGS_PYTHON_ENABLED)
   list(APPEND MLIR_TEST_DEPENDS
     MLIRBindingsPythonExtension
+    MLIRBindingsPythonSources
     MLIRBindingsPythonTestOps
     MLIRTransformsBindingsPythonExtension
     MLIRConversionsBindingsPythonExtension

@@ -536,7 +536,7 @@ void LinkingSection::writeBody() {
     for (const OutputSegment *s : dataSegments) {
       writeStr(sub.os, s->name, "segment name");
       writeUleb128(sub.os, s->alignment, "alignment");
-      writeUleb128(sub.os, 0, "flags");
+      writeUleb128(sub.os, s->linkingFlags, "flags");
     }
     sub.writeTo(os);
   }
@@ -569,7 +569,7 @@ void LinkingSection::writeBody() {
       continue;
     StringRef comdat = inputSegments[0]->getComdatName();
 #ifndef NDEBUG
-    for (const InputSegment *isec : inputSegments)
+    for (const InputChunk *isec : inputSegments)
       assert(isec->getComdatName() == comdat);
 #endif
     if (!comdat.empty())
