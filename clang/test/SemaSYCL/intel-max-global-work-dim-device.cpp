@@ -76,7 +76,7 @@ struct TRIFuncObjGood3 {
 };
 
 struct TRIFuncObjGood4 {
-  [[cl::reqd_work_group_size(1, 1, 1)]]
+  [[sycl::reqd_work_group_size(1, 1, 1)]]
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -94,7 +94,7 @@ struct TRIFuncObjGood6 {
 };
 
 struct TRIFuncObjGood7 {
-  [[cl::reqd_work_group_size(4, 1, 1)]]
+  [[sycl::reqd_work_group_size(4, 1, 1)]]
   [[intel::max_global_work_dim(3)]] void
   operator()() const {}
 };
@@ -104,6 +104,42 @@ struct TRIFuncObjGood8 {
   [[intel::max_global_work_dim(3)]] void
   operator()() const {}
 };
+
+// FIXME: We do have support yet for MergeExpr of
+// reqd_work_group_size and max_work_group_size
+// attribute, So the test compiles fine now without
+// any diagnostic
+struct TRIFuncObjGood9 {
+  [[intel::max_work_group_size(4, 4, 4)]] void
+  operator()() const;
+};
+
+[[intel::max_global_work_dim(0)]]
+void TRIFuncObjGood9::operator()() const {}
+
+// FIXME: We do have support yet for MergeExpr of
+// reqd_work_group_size and max_work_group_size
+// attribute, So the test compiles fine now without
+// any diagnostic
+struct TRIFuncObjGood10 {
+  [[intel::reqd_work_group_size(4, 4, 4)]] void
+  operator()() const;
+};
+
+[[intel::max_global_work_dim(0)]]
+void TRIFuncObjGood10::operator()() const {}
+
+// FIXME: We do have support yet for MergeExpr of
+// reqd_work_group_size and max_work_group_size
+// attribute, So the test compiles fine now without
+// any diagnostic
+struct TRIFuncObjGood11 {
+  [[sycl::reqd_work_group_size(4, 4, 4)]] void
+  operator()() const;
+};
+
+[[intel::max_global_work_dim(0)]]
+void TRIFuncObjGood11::operator()() const {}
 
 #ifdef TRIGGER_ERROR
 // Checks correctness of mutual usage of different work_group_size attributes:
@@ -127,7 +163,7 @@ struct TRIFuncObjBad1 {
 };
 
 struct TRIFuncObjBad2 {
-  [[cl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[sycl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -143,7 +179,7 @@ struct TRIFuncObjBad4 {
   operator()() const;
 };
 
-[[cl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+[[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
 void TRIFuncObjBad4::operator()() const {}
 
 struct TRIFuncObjBad5 {
@@ -162,15 +198,6 @@ struct TRIFuncObjBad6 {
 [[intel::max_work_group_size(4, 4, 4)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
 void TRIFuncObjBad6::operator()() const {}
 
-/*
-struct TRIFuncObjBad6 {
-  [[intel::max_work_group_size(4, 4, 4)]] void
-  operator()() const;
-};
-
-[[intel::max_global_work_dim(0)]]
-void TRIFuncObjBad6::operator()() const {}
-*/
 // Tests for incorrect argument values for Intel FPGA function attributes:
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
 
@@ -189,14 +216,14 @@ struct TRIFuncObjBad8 {
 };
 
 struct TRIFuncObjBad9 {
-  [[cl::reqd_work_group_size(0, 4, 4)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
+  [[sycl::reqd_work_group_size(0, 4, 4)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjBad10 {
   [[intel::reqd_work_group_size(4)]]
-  [[intel::max_global_work_dim(-2)]] // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::max_global_work_dim(-2)]] // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
   void operator()() const {}
 };
 
@@ -390,9 +417,60 @@ int main() {
     // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
 
+    h.single_task<class test_kernel11>(TRIFuncObjGood9());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel11
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 0
+    // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
+
+    h.single_task<class test_kernel12>(TRIFuncObjGood10());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel12
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 0
+    // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
+
+    h.single_task<class test_kernel13>(TRIFuncObjGood11());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel13
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 0
+    // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
+
     // Ignore duplicate attribute with same argument value.
-    h.single_task<class test_kernell1>(
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernell1 'void ()'
+    h.single_task<class test_kernell4>(
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernell4 'void ()'
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 3
@@ -403,38 +481,38 @@ int main() {
 #ifdef TRIGGER_ERROR
     [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
 
-    h.single_task<class test_kernel12>(
-        []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
+    h.single_task<class test_kernel15>(
+        []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 
-    h.single_task<class test_kernell3>(
+    h.single_task<class test_kernell6>(
         []() [[intel::max_global_work_dim(3),      // expected-note {{previous attribute is here}}
                intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different arguments}}
 
-    h.single_task<class test_kernel14>(TRIFuncObjBad());
+    h.single_task<class test_kernel17>(TRIFuncObjBad());
 
-    h.single_task<class test_kernel15>(TRIFuncObjBad1());
+    h.single_task<class test_kernel18>(TRIFuncObjBad1());
 
-    h.single_task<class test_kernel16>(TRIFuncObjBad2());
+    h.single_task<class test_kernel19>(TRIFuncObjBad2());
 
-    h.single_task<class test_kernel17>(TRIFuncObjBad3());
+    h.single_task<class test_kernel20>(TRIFuncObjBad3());
 
-    h.single_task<class test_kernel18>(TRIFuncObjBad4());
+    h.single_task<class test_kernel21>(TRIFuncObjBad4());
 
-    h.single_task<class test_kernel19>(TRIFuncObjBad5());
+    h.single_task<class test_kernel22>(TRIFuncObjBad5());
 
-    h.single_task<class test_kernel20>(TRIFuncObjBad6());
+    h.single_task<class test_kernel23>(TRIFuncObjBad6());
 
-    h.single_task<class test_kernel21>(TRIFuncObjBad7());
+    h.single_task<class test_kernel24>(TRIFuncObjBad7());
 
-    h.single_task<class test_kernel22>(TRIFuncObjBad8());
+    h.single_task<class test_kernel25>(TRIFuncObjBad8());
 
-    h.single_task<class test_kernel23>(TRIFuncObjBad9());
+    h.single_task<class test_kernel26>(TRIFuncObjBad9());
 
-    h.single_task<class test_kernel24>(TRIFuncObjBad10());
+    h.single_task<class test_kernel27>(TRIFuncObjBad10());
 
-    h.single_task<class test_kernel25>(TRIFuncObjBad11());
+    h.single_task<class test_kernel28>(TRIFuncObjBad11());
 
-    h.single_task<class test_kernel26>(
+    h.single_task<class test_kernel29>(
         []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 #endif // TRIGGER_ERROR
   });

@@ -2998,9 +2998,6 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   ASTContext &Ctx = S.getASTContext();
 
-  if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)
-    S.CheckDeprecatedSYCLAttributeSpelling(AL);
-
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (!((getExprValue(AL.getArgAsExpr(0), Ctx) <=
            getExprValue(A->getXDim(), Ctx)) &&
@@ -3110,16 +3107,24 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       }
     }
 
-    if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-      int64_t MaxGlobalWorkDim =
-          A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
+    // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
+    // ReqdWorkGroupSizeAttr, check to see if they hold equal values
+    // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
+    // equals to 0.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+	// If the value is dependent, we can not test anything.
+        if (!DeclExpr)
+	  return;
 
-      if (MaxGlobalWorkDim == 0 &&
-          (XDimVal.getZExtValue() != 1 || YDimVal.getZExtValue() != 1 ||
-           ZDimVal.getZExtValue() != 1)) {
-        S.Diag(AL.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-            << AL << A;
-        return;
+	// Test the attribute value.
+        if (DeclExpr->getResultAsAPSInt() == 0 &&
+            (XDimVal.getZExtValue() != 1 || YDimVal.getZExtValue() != 1 ||
+             ZDimVal.getZExtValue() != 1)) {
+          S.Diag(AL.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+                << AL << DeclAttr;
+          return;
+        }
       }
     }
 
@@ -3543,23 +3548,20 @@ static void handleSYCLIntelSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
 }
 
 // Handles max_global_work_dim.
-// Returns a ArgCheck value; EqualToOne means all argument values are one,
-// NotEqualToOne means all argument values are not one, and Unknown means that
-// the argument values are invalid.
+// Returns a ArgCheck value; EqualToOne means all argument values are
+// equal to one, NotEqualToOne means all argument values are not
+// equal to one, and Unknown means that the argument values are invalid.
 enum class ArgCheck { Unknown, EqualToOne, NotEqualToOne };
-static ArgCheck AreArgValuesToOne(const Expr *E, const Expr *E1,
-                                  const Expr *E2) {
+static ArgCheck AreArgValuesToOne(const Expr *E, const Expr *E1) {
   // If any of the expression is value dependent, test is invalid.
-  const auto *XDimExpr = dyn_cast<ConstantExpr>(E);
-  const auto *YDimExpr = dyn_cast<ConstantExpr>(E1);
-  const auto *ZDimExpr = dyn_cast<ConstantExpr>(E2);
-  if (!XDimExpr || !YDimExpr || !ZDimExpr)
+  const auto *MaxGExpr = dyn_cast<ConstantExpr>(E);
+  const auto *WorkGExpr = dyn_cast<ConstantExpr>(E1);
+  if (!MaxGExpr || !WorkGExpr)
     return ArgCheck::Unknown;
 
   // Check the argument values.
-  return (XDimExpr->getResultAsAPSInt() == 1 ||
-          YDimExpr->getResultAsAPSInt() == 1 ||
-          ZDimExpr->getResultAsAPSInt() == 1)
+  return (MaxGExpr->getResultAsAPSInt() == 0 &&
+	  WorkGExpr->getResultAsAPSInt() == 1)
              ? ArgCheck::EqualToOne
              : ArgCheck::NotEqualToOne;
 }
@@ -3577,18 +3579,13 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
       return;
     E = Res.get();
 
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return;
-    }
     // This attribute must be in the range [0, 3].
-    if (ArgVal > 3) {
+    if (ArgVal < 0 || ArgVal > 3) {
       Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
           << CI << 0 << 3 << E->getSourceRange();
       return;
     }
+
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
@@ -3604,42 +3601,45 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
         return;
       }
     }
+
     // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
     // ReqdWorkGroupSizeAttr, check to see if they hold equal values
     // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
     // equals to 0.
-    auto Check = [this, &CI](const auto *A) -> bool {
-      Expr *XDimExpr = A->getXDim();
-      Expr *YDimExpr = A->getYDim();
-      Expr *ZDimExpr = A->getZDim();
+    if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+      ArgCheck Results[] = {
+        AreArgValuesToOne(E, DeclAttr->getXDim()),
+        AreArgValuesToOne(E, DeclAttr->getYDim()),
+        AreArgValuesToOne(E, DeclAttr->getZDim())};
 
-      if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
-          !ZDimExpr->isValueDependent()) {
-        llvm::APSInt XDimVal, YDimVal, ZDimVal;
-        ExprResult XDim = VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
-        ExprResult YDim = VerifyIntegerConstantExpression(YDimExpr, &YDimVal);
-        ExprResult ZDim = VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
-
-        if (XDim.isInvalid() || YDim.isInvalid() || ZDim.isInvalid())
-          return false;
-
-        if (XDimVal != 1 || YDimVal != 1 || ZDimVal != 1) {
-          Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
-              << A << CI;
-          return false;
-        }
-      }
-      return true;
-    };
-
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      if (ArgVal == 0 && !Check(DeclAttr))
+      // Diagnose if any of the argument values of ReqdWorkGroupSizeAttr
+      // are not equal to one when value of SYCLIntelMaxGlobalWorkDimAttr
+      // equals to 0.
+      if (ArgVal == 0 &&
+	  llvm::any_of(Results,
+                     [](ArgCheck Ch) { return Ch == ArgCheck::NotEqualToOne; })) {
+        Diag(DeclAttr->getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << DeclAttr << CI;
         return;
+      }
     }
 
-    if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      if (ArgVal == 0 && !Check(DeclAttr))
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      ArgCheck Results[] = {
+        AreArgValuesToOne(E, DeclAttr->getXDim()),
+        AreArgValuesToOne(E, DeclAttr->getYDim()),
+        AreArgValuesToOne(E, DeclAttr->getZDim())};
+
+      // Diagnose if any of the argument values of SYCLIntelMaxWorkGroupSizeAttr
+      // are not equal to one when value of SYCLIntelMaxGlobalWorkDimAttr
+      // equals to 0.
+      if (ArgVal == 0 &&
+	  llvm::any_of(Results,
+                     [](ArgCheck Ch) { return Ch == ArgCheck::NotEqualToOne; })) {
+        Diag(DeclAttr->getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << DeclAttr << CI;
         return;
+      }
     }
   }
 
@@ -3668,49 +3668,37 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
   // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
   // equals to 0.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
-    ArgCheck Results[] = {AreArgValuesToOne(
-        DeclAttr->getXDim(), DeclAttr->getYDim(), DeclAttr->getZDim())};
+    ArgCheck Results[] = {
+        AreArgValuesToOne(DeclAttr->getXDim(), A.getValue()),
+        AreArgValuesToOne(DeclAttr->getYDim(), A.getValue()),
+        AreArgValuesToOne(DeclAttr->getZDim(), A.getValue())};
 
     // Diagnose if any of the argument values of ReqdWorkGroupSizeAttr
     // are not equal to one when value of SYCLIntelMaxGlobalWorkDimAttr
     // equals to 0.
-    if (MergeExpr->getResultAsAPSInt() == 0 &&
-        llvm::is_contained(Results, ArgCheck::NotEqualToOne)) {
+    if (llvm::any_of(Results,
+                     [](ArgCheck Ch) { return Ch == ArgCheck::NotEqualToOne; })) {
       Diag(DeclAttr->getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << DeclAttr << &A;
       return nullptr;
     }
-
-    // Do not diagnose if all argument values of ReqdWorkGroupSizeAttr
-    // are equal to one when value of SYCLIntelMaxGlobalWorkDimAttr
-    // equals to 0.
-    if (llvm::all_of(Results,
-                     [](ArgCheck Ch) { return Ch == ArgCheck::EqualToOne; }))
-      return nullptr;
   }
 
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
-    ArgCheck Results[] = {AreArgValuesToOne(
-        DeclAttr->getXDim(), DeclAttr->getYDim(), DeclAttr->getZDim())};
+    ArgCheck Results[] = {
+        AreArgValuesToOne(DeclAttr->getXDim(), A.getValue()),
+        AreArgValuesToOne(DeclAttr->getYDim(), A.getValue()),
+        AreArgValuesToOne(DeclAttr->getZDim(), A.getValue())};
 
     // Diagnose if any of the argument values of SYCLIntelMaxWorkGroupSizeAttr
     // are not equal to one when value of SYCLIntelMaxGlobalWorkDimAttr
     // equals to 0.
-    if (MergeExpr->getResultAsAPSInt() == 0 &&
-        llvm::is_contained(Results, ArgCheck::NotEqualToOne)) {
+    if (llvm::any_of(Results,
+                     [](ArgCheck Ch) { return Ch == ArgCheck::NotEqualToOne; })) {
       Diag(DeclAttr->getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << DeclAttr << &A;
       return nullptr;
     }
-
-    // Do not diagnose if all argument values of SYCLIntelMaxWorkGroupSizeAttr
-    // are equal to one when value of SYCLIntelMaxGlobalWorkDimAttr
-    // equals to 0.
-    if (llvm::all_of(Results,
-                     [](ArgCheck Ch) { return Ch == ArgCheck::EqualToOne; }))
-      return nullptr;
   }
 
   return ::new (Context)

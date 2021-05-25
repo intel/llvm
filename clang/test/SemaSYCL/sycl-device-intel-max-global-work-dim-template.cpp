@@ -34,7 +34,7 @@ constexpr int bar() { return 0; }
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
+  // expected-error@+1{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
   [[intel::max_global_work_dim(SIZE)]] void operator()() {}
 };
 
@@ -58,7 +58,7 @@ int main() {
 
 // Test that checks template parameter support on function.
 template <int N>
-// expected-error@+1{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
+// expected-error@+1{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 [[intel::max_global_work_dim(N)]] void func3() {}
 
 // Test that checks template instantiations for different argument values.
@@ -109,7 +109,7 @@ template <int N>
 [[intel::max_global_work_dim(0)]] void func11();
 
 template <int N>
-[[cl::reqd_work_group_size(N, N, N)]] void func12();
+[[sycl::reqd_work_group_size(N, N, N)]] void func12();
 template <int N>
 [[intel::max_global_work_dim(0)]] void func12();
 
