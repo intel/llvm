@@ -1,5 +1,5 @@
 // XFAIL: *
-// Failure is expected untill fixed in LLORG upstream.
+// Failure is expected until fixed in LLORG upstream.
 // TODO: remove XFAIL once the test starts to pass.
 
 // RUN: %clang_cc1                                 -verify=host                                                              -Rpass=openmp -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
