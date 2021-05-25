@@ -155,17 +155,17 @@ a.select<4, 2>(0) = b;  // selected elements of a are replaced
 
 
 Gen ISA provides powerful register region addressing modes to facilitate cross-lane
-SIMD vector operation. To exploit this feature Explicit SIMD provides ```replicate``` function
+SIMD vector operation. To exploit this feature Explicit SIMD provides ```replicate``` functions
 to allow programmer to implement any native Gen ISA region in the following forms:
 - ```replicate<REP>()```: replicate a simd vector object **REP** times and return a new simd
 vector of **REP** * Width, where Width specifies the original vector size.
-- ```replicate<REP, W>(uint16_t i)```: replicate **W** consecutive elements starting at the
+- ```replicate_w<REP, W>(uint16_t i)```: replicate **W** consecutive elements starting at the
 i-th element from the simd vector object **REP** times, and return a new simd vector of **REP** * **W** length.
-- ```replicate<REP, VS, W>(uint16_t i)```: replicate **REP** blocks of **W** consecutive
+- ```replicate_vs_w<REP, VS, W>(uint16_t i)```: replicate **REP** blocks of **W** consecutive
 elements starting at the i-th from the simd vector object with each block strided by **VS**
 elements, and return a new vector of **REP** * **W** length. Selected blocks of **W**
 elements will overlap if **VS** < **W**.
-- ```replicate<REP, VS, W, HS>(uint16_t i=0 )```: replicate **REP** blocks of **W** sequential
+- ```replicate_vs_w_hs<REP, VS, W, HS>(uint16_t i=0 )```: replicate **REP** blocks of **W** sequential
 elements with a stride of **HS** starting at the i-th element from the simd vector object with
 each block strided by **VS** elements, and return a new vector of **REP** * **W** length.
 Selected blocks of **W** elements will overlap if **VS** < **W**.

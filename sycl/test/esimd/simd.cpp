@@ -212,21 +212,21 @@ bool test_replicate() SYCL_ESIMD_FUNCTION {
 
 bool test_replicate1() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto v0_rep = v0.replicate<4, 2>(2);
+  auto v0_rep = v0.replicate_w<4, 2>(2);
 
   return v0[2] == v0_rep[2] && v0[3] == v0_rep[5];
 }
 
 bool test_replicate2() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto v0_rep = v0.replicate<2, 4, 2>(1);
+  auto v0_rep = v0.replicate_vs_w<2, 4, 2>(1);
 
   return v0_rep[0] == v0[1] && v0_rep[1] == v0[2] && v0_rep[2] == v0[5];
 }
 
 bool test_replicate3() SYCL_ESIMD_FUNCTION {
   simd<int, 8> v0(0, 1);
-  auto v0_rep = v0.replicate<2, 4, 2, 2>(1);
+  auto v0_rep = v0.replicate_vs_w_hs<2, 4, 2, 2>(1);
 
   return v0_rep[0] == v0[1] && v0_rep[1] == v0[3] && v0_rep[2] == v0[5];
 }
