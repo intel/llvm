@@ -507,14 +507,22 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
   }
 
   static const CostTblEntry AVX512BWShiftCostTable[] = {
+    { ISD::SHL,   MVT::v16i8,      4 }, // extend/vpsllvw/pack sequence.
+    { ISD::SRL,   MVT::v16i8,      4 }, // extend/vpsrlvw/pack sequence.
+    { ISD::SRA,   MVT::v16i8,      4 }, // extend/vpsravw/pack sequence.
+    { ISD::SHL,   MVT::v32i8,      4 }, // extend/vpsllvw/pack sequence.
+    { ISD::SRL,   MVT::v32i8,      4 }, // extend/vpsrlvw/pack sequence.
+    { ISD::SRA,   MVT::v32i8,      6 }, // extend/vpsravw/pack sequence.
+    { ISD::SHL,   MVT::v64i8,      6 }, // extend/vpsllvw/pack sequence.
+    { ISD::SRL,   MVT::v64i8,      7 }, // extend/vpsrlvw/pack sequence.
+    { ISD::SRA,   MVT::v64i8,     15 }, // extend/vpsravw/pack sequence.
+
     { ISD::SHL,   MVT::v8i16,      1 }, // vpsllvw
     { ISD::SRL,   MVT::v8i16,      1 }, // vpsrlvw
     { ISD::SRA,   MVT::v8i16,      1 }, // vpsravw
-
     { ISD::SHL,   MVT::v16i16,     1 }, // vpsllvw
     { ISD::SRL,   MVT::v16i16,     1 }, // vpsrlvw
     { ISD::SRA,   MVT::v16i16,     1 }, // vpsravw
-
     { ISD::SHL,   MVT::v32i16,     1 }, // vpsllvw
     { ISD::SRL,   MVT::v32i16,     1 }, // vpsrlvw
     { ISD::SRA,   MVT::v32i16,     1 }, // vpsravw
@@ -593,6 +601,9 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
       return LT.first * Entry->Cost;
 
   static const CostTblEntry AVX512CostTable[] = {
+    { ISD::SHL,     MVT::v4i32,      1 },
+    { ISD::SRL,     MVT::v4i32,      1 },
+    { ISD::SRA,     MVT::v4i32,      1 },
     { ISD::SHL,     MVT::v8i32,      1 },
     { ISD::SRL,     MVT::v8i32,      1 },
     { ISD::SRA,     MVT::v8i32,      1 },
@@ -600,6 +611,8 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
     { ISD::SRL,     MVT::v16i32,     1 },
     { ISD::SRA,     MVT::v16i32,     1 },
 
+    { ISD::SHL,     MVT::v2i64,      1 },
+    { ISD::SRL,     MVT::v2i64,      1 },
     { ISD::SHL,     MVT::v4i64,      1 },
     { ISD::SRL,     MVT::v4i64,      1 },
     { ISD::SHL,     MVT::v8i64,      1 },
@@ -630,16 +643,16 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
       return LT.first * Entry->Cost;
 
   static const CostTblEntry AVX2ShiftCostTable[] = {
-    // Shifts on v4i64/v8i32 on AVX2 is legal even though we declare to
+    // Shifts on vXi64/vXi32 on AVX2 is legal even though we declare to
     // customize them to detect the cases where shift amount is a scalar one.
-    { ISD::SHL,     MVT::v4i32,    1 },
-    { ISD::SRL,     MVT::v4i32,    1 },
-    { ISD::SRA,     MVT::v4i32,    1 },
+    { ISD::SHL,     MVT::v4i32,    2 }, // vpsllvd (Haswell from agner.org)
+    { ISD::SRL,     MVT::v4i32,    2 }, // vpsrlvd (Haswell from agner.org)
+    { ISD::SRA,     MVT::v4i32,    2 }, // vpsravd (Haswell from agner.org)
     { ISD::SHL,     MVT::v8i32,    2 }, // vpsllvd (Haswell from agner.org)
     { ISD::SRL,     MVT::v8i32,    2 }, // vpsrlvd (Haswell from agner.org)
     { ISD::SRA,     MVT::v8i32,    2 }, // vpsravd (Haswell from agner.org)
-    { ISD::SHL,     MVT::v2i64,    1 },
-    { ISD::SRL,     MVT::v2i64,    1 },
+    { ISD::SHL,     MVT::v2i64,    2 }, // vpsllvq (Haswell from agner.org)
+    { ISD::SRL,     MVT::v2i64,    2 }, // vpsrlvq (Haswell from agner.org)
     { ISD::SHL,     MVT::v4i64,    2 }, // vpsllvq (Haswell from agner.org)
     { ISD::SRL,     MVT::v4i64,    2 }, // vpsrlvq (Haswell from agner.org)
   };
@@ -656,8 +669,8 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
                                     TargetTransformInfo::OP_None);
   }
 
-  // Look for AVX2 lowering tricks.
-  if (ST->hasAVX2()) {
+  // Look for AVX2 lowering tricks (XOP is always better at 128-bit shifts).
+  if (ST->hasAVX2() && !(ST->hasXOP() && LT.second.is128BitVector())) {
     if (ISD == ISD::SHL && LT.second == MVT::v16i16 &&
         (Op2Info == TargetTransformInfo::OK_UniformConstantValue ||
          Op2Info == TargetTransformInfo::OK_NonUniformConstantValue))
@@ -755,20 +768,26 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
   }
 
   static const CostTblEntry AVX2CostTable[] = {
-    { ISD::SHL,  MVT::v32i8,     11 }, // vpblendvb sequence.
-    { ISD::SHL,  MVT::v64i8,     22 }, // 2*vpblendvb sequence.
-    { ISD::SHL,  MVT::v16i16,    10 }, // extend/vpsrlvd/pack sequence.
-    { ISD::SHL,  MVT::v32i16,    20 }, // 2*extend/vpsrlvd/pack sequence.
+    { ISD::SHL,  MVT::v16i8,      6 }, // vpblendvb sequence.
+    { ISD::SHL,  MVT::v32i8,      6 }, // vpblendvb sequence.
+    { ISD::SHL,  MVT::v64i8,     12 }, // 2*vpblendvb sequence.
+    { ISD::SHL,  MVT::v8i16,      5 }, // extend/vpsrlvd/pack sequence.
+    { ISD::SHL,  MVT::v16i16,     7 }, // extend/vpsrlvd/pack sequence.
+    { ISD::SHL,  MVT::v32i16,    14 }, // 2*extend/vpsrlvd/pack sequence.
 
-    { ISD::SRL,  MVT::v32i8,     11 }, // vpblendvb sequence.
-    { ISD::SRL,  MVT::v64i8,     22 }, // 2*vpblendvb sequence.
-    { ISD::SRL,  MVT::v16i16,    10 }, // extend/vpsrlvd/pack sequence.
-    { ISD::SRL,  MVT::v32i16,    20 }, // 2*extend/vpsrlvd/pack sequence.
+    { ISD::SRL,  MVT::v16i8,      6 }, // vpblendvb sequence.
+    { ISD::SRL,  MVT::v32i8,      6 }, // vpblendvb sequence.
+    { ISD::SRL,  MVT::v64i8,     12 }, // 2*vpblendvb sequence.
+    { ISD::SRL,  MVT::v8i16,      5 }, // extend/vpsrlvd/pack sequence.
+    { ISD::SRL,  MVT::v16i16,     7 }, // extend/vpsrlvd/pack sequence.
+    { ISD::SRL,  MVT::v32i16,    14 }, // 2*extend/vpsrlvd/pack sequence.
 
-    { ISD::SRA,  MVT::v32i8,     24 }, // vpblendvb sequence.
-    { ISD::SRA,  MVT::v64i8,     48 }, // 2*vpblendvb sequence.
-    { ISD::SRA,  MVT::v16i16,    10 }, // extend/vpsravd/pack sequence.
-    { ISD::SRA,  MVT::v32i16,    20 }, // 2*extend/vpsravd/pack sequence.
+    { ISD::SRA,  MVT::v16i8,     17 }, // vpblendvb sequence.
+    { ISD::SRA,  MVT::v32i8,     17 }, // vpblendvb sequence.
+    { ISD::SRA,  MVT::v64i8,     34 }, // 2*vpblendvb sequence.
+    { ISD::SRA,  MVT::v8i16,      5 }, // extend/vpsravd/pack sequence.
+    { ISD::SRA,  MVT::v16i16,     7 }, // extend/vpsravd/pack sequence.
+    { ISD::SRA,  MVT::v32i16,    14 }, // 2*extend/vpsravd/pack sequence.
     { ISD::SRA,  MVT::v2i64,      4 }, // srl/xor/sub sequence.
     { ISD::SRA,  MVT::v4i64,      4 }, // srl/xor/sub sequence.
 
@@ -1932,8 +1951,14 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::ZERO_EXTEND, MVT::v4i64, MVT::v4i32,   2 },
     { ISD::SIGN_EXTEND, MVT::v4i64, MVT::v4i32,   2 },
 
+    { ISD::ZERO_EXTEND, MVT::v2i16,  MVT::v2i8,   1 },
+    { ISD::SIGN_EXTEND, MVT::v2i16,  MVT::v2i8,   1 },
+    { ISD::ZERO_EXTEND, MVT::v2i32,  MVT::v2i8,   1 },
+    { ISD::SIGN_EXTEND, MVT::v2i32,  MVT::v2i8,   1 },
+    { ISD::ZERO_EXTEND, MVT::v2i64,  MVT::v2i8,   1 },
+    { ISD::SIGN_EXTEND, MVT::v2i64,  MVT::v2i8,   1 },
     { ISD::ZERO_EXTEND, MVT::v4i16,  MVT::v4i8,   1 },
-    { ISD::SIGN_EXTEND, MVT::v4i16,  MVT::v4i8,   2 },
+    { ISD::SIGN_EXTEND, MVT::v4i16,  MVT::v4i8,   1 },
     { ISD::ZERO_EXTEND, MVT::v4i32,  MVT::v4i8,   1 },
     { ISD::SIGN_EXTEND, MVT::v4i32,  MVT::v4i8,   1 },
     { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v8i8,   1 },
@@ -1944,12 +1969,18 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v16i8,  2 },
     { ISD::ZERO_EXTEND, MVT::v16i32, MVT::v16i8,  4 },
     { ISD::SIGN_EXTEND, MVT::v16i32, MVT::v16i8,  4 },
+    { ISD::ZERO_EXTEND, MVT::v2i32,  MVT::v2i16,  1 },
+    { ISD::SIGN_EXTEND, MVT::v2i32,  MVT::v2i16,  1 },
+    { ISD::ZERO_EXTEND, MVT::v2i64,  MVT::v2i16,  1 },
+    { ISD::SIGN_EXTEND, MVT::v2i64,  MVT::v2i16,  1 },
     { ISD::ZERO_EXTEND, MVT::v4i32,  MVT::v4i16,  1 },
     { ISD::SIGN_EXTEND, MVT::v4i32,  MVT::v4i16,  1 },
     { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i16,  2 },
     { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i16,  2 },
     { ISD::ZERO_EXTEND, MVT::v16i32, MVT::v16i16, 4 },
     { ISD::SIGN_EXTEND, MVT::v16i32, MVT::v16i16, 4 },
+    { ISD::ZERO_EXTEND, MVT::v2i64,  MVT::v2i32,  1 },
+    { ISD::SIGN_EXTEND, MVT::v2i64,  MVT::v2i32,  1 },
 
     // These truncates end up widening elements.
     { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i8,   1 }, // PMOVXZBQ
@@ -3449,8 +3480,7 @@ X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy, Align Alignment,
   auto *MaskTy =
       FixedVectorType::get(Type::getInt8Ty(SrcVTy->getContext()), NumElem);
   if ((IsLoad && !isLegalMaskedLoad(SrcVTy, Alignment)) ||
-      (IsStore && !isLegalMaskedStore(SrcVTy, Alignment)) ||
-      !isPowerOf2_32(NumElem)) {
+      (IsStore && !isLegalMaskedStore(SrcVTy, Alignment))) {
     // Scalarization
     APInt DemandedElts = APInt::getAllOnesValue(NumElem);
     InstructionCost MaskSplitCost =
@@ -3474,11 +3504,11 @@ X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy, Align Alignment,
   InstructionCost Cost = 0;
   if (VT.isSimple() && LT.second != VT.getSimpleVT() &&
       LT.second.getVectorNumElements() == NumElem)
-    // Promotion requires expand/truncate for data and a shuffle for mask.
+    // Promotion requires extend/truncate for data and a shuffle for mask.
     Cost += getShuffleCost(TTI::SK_PermuteTwoSrc, SrcVTy, None, 0, nullptr) +
             getShuffleCost(TTI::SK_PermuteTwoSrc, MaskTy, None, 0, nullptr);
 
-  else if (LT.second.getVectorNumElements() > NumElem) {
+  else if (LT.first * LT.second.getVectorNumElements() > NumElem) {
     auto *NewMaskTy = FixedVectorType::get(MaskTy->getElementType(),
                                            LT.second.getVectorNumElements());
     // Expanding requires fill mask with zeroes
