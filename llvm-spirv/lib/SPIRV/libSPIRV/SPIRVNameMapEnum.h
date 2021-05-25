@@ -171,6 +171,9 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
   add(internal::DecorationAliasScopeINTEL, "AliasScopeINTEL");
   add(internal::DecorationNoAliasINTEL, "NoAliasINTEL");
+  add(internal::DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
+  add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
+  add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
   add(DecorationMax, "Max");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
@@ -522,6 +525,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityMemoryAccessAliasingINTEL,
       "MemoryAccessAliasingINTEL");
+  add(internal::CapabilityFPGAInvocationPipeliningAttributesINTEL,
+      "FPGAInvocationPipeliningAttributesINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

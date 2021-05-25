@@ -745,6 +745,29 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
           new SPIRVDecorateFuseLoopsInFunctionINTEL(BF, Depth, Independent));
     }
   }
+  if (MDNode *InitiationInterval =
+          F->getMetadata(kSPIR2MD::InitiationInterval)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
+      if (size_t Cycles = getMDOperandAsInt(InitiationInterval, 0))
+        BF->addDecorate(new SPIRVDecorateInitiationIntervalINTEL(BF, Cycles));
+    }
+  }
+  if (MDNode *MaxConcurrency = F->getMetadata(kSPIR2MD::MaxConcurrency)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
+      size_t Invocations = getMDOperandAsInt(MaxConcurrency, 0);
+      BF->addDecorate(new SPIRVDecorateMaxConcurrencyINTEL(BF, Invocations));
+    }
+  }
+  if (MDNode *DisableLoopPipelining =
+          F->getMetadata(kSPIR2MD::DisableLoopPipelining)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
+      if (size_t Disable = getMDOperandAsInt(DisableLoopPipelining, 0))
+        BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, !Disable));
+    }
+  }
 }
 
 SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
