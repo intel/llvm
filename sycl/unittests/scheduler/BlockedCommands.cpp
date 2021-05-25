@@ -32,8 +32,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   Res.MResult = detail::EnqueueResultT::SyclEnqueueSuccess;
   MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
-  Enqueued =
-      MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
+  Enqueued = MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
       << "The command is expected to fail to enqueue.\n";
@@ -44,8 +43,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   Res = detail::EnqueueResultT{};
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   MockCmd.MRetVal = CL_SUCCESS;
-  Enqueued =
-      MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
+  Enqueued = MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_TRUE(Enqueued &&
               Res.MResult == detail::EnqueueResultT::SyclEnqueueSuccess)
       << "The command is expected to be successfully enqueued.\n";
@@ -91,8 +89,7 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
-  bool Enqueued =
-      MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
+  bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED.\n";
@@ -122,8 +119,7 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
-  bool Enqueued =
-      MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
+  bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED.\n";
@@ -176,8 +172,7 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
-  bool Enqueued =
-      MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
+  bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
   ASSERT_TRUE(Enqueued) << "The command should be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueSuccess, Res.MResult)
       << "Enqueue operation should return successfully.\n";
