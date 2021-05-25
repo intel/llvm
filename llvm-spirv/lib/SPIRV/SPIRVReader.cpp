@@ -1669,8 +1669,25 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     bool IsConst = BVar->isConstant();
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
     SPIRVStorageClassKind BS = BVar->getStorageClass();
-    Constant *Initializer = nullptr;
     SPIRVValue *Init = BVar->getInitializer();
+    if (BS == StorageClassFunction && !Init) {
+      assert(BB && "Invalid BB");
+      return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
+    }
+
+    SPIRAddressSpace AddrSpace;
+    bool IsVectorCompute =
+        BVar->hasDecorate(DecorationVectorComputeVariableINTEL);
+    Constant *Initializer = nullptr;
+    if (IsVectorCompute) {
+      AddrSpace = VectorComputeUtil::getVCGlobalVarAddressSpace(BS);
+      Initializer = UndefValue::get(Ty);
+    } else
+      AddrSpace = SPIRSPIRVAddrSpaceMap::rmap(BS);
+    auto LVar = new GlobalVariable(*M, Ty, IsConst, LinkageTy,
+                                   /*Initializer=*/nullptr, BV->getName(), 0,
+                                   GlobalVariable::NotThreadLocal, AddrSpace);
+    auto Res = mapValue(BV, LVar);
     if (Init)
       Initializer = dyn_cast<Constant>(transValue(Init, F, BB, false));
     else if (LinkageTy == GlobalValue::CommonLinkage)
@@ -1682,28 +1699,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
              (BS == SPIRVStorageClassKind::StorageClassCrossWorkgroup))
       Initializer = Constant::getNullValue(Ty);
 
-    if (BS == StorageClassFunction && !Init) {
-      assert(BB && "Invalid BB");
-      return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
-    }
-    SPIRAddressSpace AddrSpace;
-
-    bool IsVectorCompute =
-        BVar->hasDecorate(DecorationVectorComputeVariableINTEL);
-    if (IsVectorCompute) {
-      AddrSpace = VectorComputeUtil::getVCGlobalVarAddressSpace(BS);
-      if (!Initializer)
-        Initializer = UndefValue::get(Ty);
-    } else
-      AddrSpace = SPIRSPIRVAddrSpaceMap::rmap(BS);
-
-    auto LVar = new GlobalVariable(*M, Ty, IsConst, LinkageTy, Initializer,
-                                   BV->getName(), 0,
-                                   GlobalVariable::NotThreadLocal, AddrSpace);
     LVar->setUnnamedAddr((IsConst && Ty->isArrayTy() &&
                           Ty->getArrayElementType()->isIntegerTy(8))
                              ? GlobalValue::UnnamedAddr::Global
                              : GlobalValue::UnnamedAddr::None);
+    LVar->setInitializer(Initializer);
 
     if (IsVectorCompute) {
       LVar->addAttribute(kVCMetadata::VCGlobalVariable);
@@ -1717,7 +1717,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVBuiltinVariableKind BVKind;
     if (BVar->isBuiltin(&BVKind))
       BuiltinGVMap[LVar] = BVKind;
-    return mapValue(BV, LVar);
+    return Res;
   }
 
   case OpVariableLengthArrayINTEL: {
