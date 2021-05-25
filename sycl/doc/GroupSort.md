@@ -40,7 +40,7 @@ The following should be implemented:
 
 1. Sorter classes and their `operator()` including sorting algorithms.
 
-2. `joint_sort` and `sort_over_group` functions.
+2. `joint_sort` and `sort_over_group` functions for `sycl::ext::oneapi` namespace.
 
 3. Traits to distinguish interfaces with `Compare` and `Sorter` parameters.
 
@@ -48,7 +48,11 @@ The following should be implemented:
 
 5. The `radix_order` enum class.
 
-6. Backend support for sorting algorithms.
+6. `default_sorter` and `radix_sorter` for `sycl::ext::oneapi` namespace.
+
+7. Backend support for sorting algorithms.
+
+8. `SYCL_EXT_ONEAPI_GROUP_SORT` feature macro.
 
 Data types that should be supported by backends: arithmetic types (https://en.cppreference.com/w/c/language/arithmetic_types), `sycl::half`.
 
@@ -93,15 +97,26 @@ implementations from the fallback library will be called.
 Interface for the library and backends:
 
 ```cpp
-T __devicelib_default_sort(bool is_group_or_sub_group, T val, bool is_less_or_greater);
+// for default sorting algorithm
+void __devicelib_default_sort(bool is_group_or_sub_group, T* first, T* last,
+                              bool is_ascending_or_descending);
 
-void __devicelib_default_sort(bool is_group_or_sub_group, T* first, T* last, bool is_less_or_greater);
+// for key value sorting using the default algorithm
+void __devicelib_default_sort(bool is_group_or_sub_group, T* keys_first, T* keys_last,
+                              U* values_first, U* values_last, bool is_ascending_or_descending);
 
-T __devicelib_radix_sort(bool is_group_or_sub_group, T val, unsigned int first_bit, unsigned_int last_bit, bool is_less_or_greater);
-
-void __devicelib_radix_sort(bool is_group_or_sub_group, T* first, T* last, unsigned int first_bit, unsigned_int last_bit, bool is_less_or_greater);
+// for radix sorting
+void __devicelib_radix_sort(bool is_group_or_sub_group, int BitsPerPass,
+                            T* first, T* last, uint32_t radix_iter,
+                            bool is_ascending_or_descending);
 ```
 
 Notes:
-- `T` is an arithmetic type or `sycl::half` here.
-- `first_bit`, `last_bit` describe the range of bits that can be taken into account during radix sort.
+- `is_group_or_sub_group` equals `1` when `sycl::group` is passed, equals `0` when `sycl::sub_group` is passed.
+- `T`, `U` are arithmetic types or `sycl::half`.
+- `first`, `last` describe the range of actual data for sorting.
+- `is_ascending_or_descending` equals `1` when ascending sort is requested, equals `0` when descending sort is requested.
+- `keys_first`, `keys_last` describe the range of "keys" for key-value sorting. "Keys" are comparing and moving during the sorting.
+- `values_first`, `values_last` describe the range of "values" for key-value sorting. "Keys" are only moving corresponding the "keys" order during the sorting.
+- `BitsPerPass` describes how much bits of the value are taken into account
+- `radix_iter` describes the iteration for radix sorting.
