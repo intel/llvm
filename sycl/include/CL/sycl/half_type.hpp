@@ -35,19 +35,17 @@
 #define __builtin_expect(a, b) (a)
 #endif
 
-#if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
-#define __SYCL_CONSTEXPR_ON_HOST constexpr
+#ifdef __SYCL_DEVICE_ONLY__
+  #define __SYCL_CONSTEXPR_ON_HOST
 #else
-#define __SYCL_CONSTEXPR_ON_HOST
+  #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+    #define __SYCL_CONSTEXPR_ON_HOST constexpr
+  #else
+    #define __SYCL_CONSTEXPR_ON_HOST
+  #endif
 #endif
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_HALF_CTOR_CONSTEXPR constexpr
-#elif __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
-#define __SYCL_HALF_CTOR_CONSTEXPR constexpr
-#else
-#define __SYCL_HALF_CTOR_CONSTEXPR
-#endif
+#define __SYCL_HALF_CONSTEXPR __SYCL_CONSTEXPR_ON_DEVICE __SYCL_CONSTEXPR_ON_HOST
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -331,7 +329,7 @@ public:
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  __SYCL_HALF_CTOR_CONSTEXPR half(const float &rhs) : Data(rhs) {}
+  __SYCL_HALF_CONSTEXPR half(const float &rhs) : Data(rhs) {}
 
   constexpr half &operator=(const half &rhs) = default;
 
@@ -460,23 +458,23 @@ template <> struct numeric_limits<cl::sycl::half> {
   static constexpr bool is_iec559 = true;
   static constexpr float_round_style round_style = round_to_nearest;
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half(min)() noexcept {
+  static __SYCL_HALF_CONSTEXPR const cl::sycl::half(min)() noexcept {
     return 6.103515625e-05f; // half minimum value
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half(max)() noexcept {
+  static __SYCL_HALF_CONSTEXPR const cl::sycl::half(max)() noexcept {
     return 65504.0f; // half maximum value
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half lowest() noexcept {
+  static __SYCL_HALF_CONSTEXPR const cl::sycl::half lowest() noexcept {
     return -65504.0f; // -1*(half maximum value)
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half epsilon() noexcept {
+  static __SYCL_HALF_CONSTEXPR const cl::sycl::half epsilon() noexcept {
     return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half
+  static __SYCL_HALF_CONSTEXPR const cl::sycl::half
   round_error() noexcept {
     return 0.5f;
   }
@@ -490,16 +488,16 @@ template <> struct numeric_limits<cl::sycl::half> {
 #endif
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half quiet_NaN() noexcept {
+  static __SYCL_HALF_CONSTEXPR const cl::sycl::half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half
+  static __SYCL_HALF_CONSTEXPR const cl::sycl::half
   signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static __SYCL_HALF_CTOR_CONSTEXPR const cl::sycl::half denorm_min() noexcept {
+  static __SYCL_HALF_CONSTEXPR const cl::sycl::half denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
@@ -518,7 +516,7 @@ inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
   return I;
 }
 
-#undef __SYCL_HALF_CTOR_CONSTEXPR
+#undef __SYCL_HALF_CONSTEXPR
 #undef __SYCL_CONSTEXPR_ON_DEVICE
 #undef __SYCL_CONSTEXPR_ON_HOST
 #undef _CPP14_CONSTEXPR
