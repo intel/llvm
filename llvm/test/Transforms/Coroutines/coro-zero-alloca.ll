@@ -68,14 +68,13 @@ cleanup:                                          ; preds = %wakeup, %entry
 ; CHECK-NEXT:      %a4.reload.addr = getelementptr inbounds %foo.Frame, %foo.Frame* %FramePtr, i64 0, i32 3
 ; CHECK-NEXT:      %a0.reload.addr = bitcast %foo.Frame* %FramePtr to [0 x i8]*
 ; CHECK-NEXT:      %a4.cast = bitcast i16* %a4.reload.addr to i8*
-; CHECK-NEXT:      %a3.cast = bitcast %foo.Frame* %FramePtr to i8*
 ; CHECK-NEXT:      %a1.cast = bitcast i32* %a1.reload.addr to i8*
-; CHECK-NEXT:      call void @usePointer(i8* nonnull %a3.cast)
+; CHECK-NEXT:      call void @usePointer(i8* nonnull %vFrame)
 ; CHECK-NEXT:      call void @usePointer(i8* nonnull %a1.cast)
-; CHECK-NEXT:      call void @usePointer(i8* nonnull %a3.cast)
-; CHECK-NEXT:      call void @usePointer(i8* nonnull %a3.cast)
+; CHECK-NEXT:      call void @usePointer(i8* nonnull %vFrame)
+; CHECK-NEXT:      call void @usePointer(i8* nonnull %vFrame)
 ; CHECK-NEXT:      call void @usePointer(i8* nonnull %a4.cast)
 ; CHECK-NEXT:      call void @usePointer2([0 x i8]* nonnull %a0.reload.addr)
-; CHECK-NEXT:      call void @free(i8* %vFrame)
+; CHECK-NEXT:      call void @free(i8* nonnull %vFrame)
 ; CHECK-NEXT:      ret void
 ; CHECK-NEXT:    }

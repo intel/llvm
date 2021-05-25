@@ -27,7 +27,7 @@ void test(int val) {
 // NONATIVESUPPORT: %kh = alloca %"class.[[MANGLEDCLASS:[a-zA-Z0-9_]+]].cl::sycl::kernel_handler", align 1
 // NONATIVESUPPORT: %[[KH:[0-9]+]] = load i8 addrspace(1)*, i8 addrspace(1)** %_arg__specialization_constants_buffer.addr, align 8
 // NONATIVESUPPORT: %[[ADDRSPACECAST:[0-9]+]] = addrspacecast i8 addrspace(1)* %[[KH]] to i8*
-// NONATIVESUPPORT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler"* nonnull dereferenceable(1) %kh, i8* %[[ADDRSPACECAST]])
+// NONATIVESUPPORT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler"* nonnull align 1 dereferenceable(1) %kh, i8* %[[ADDRSPACECAST]])
 // NONATIVESUPPORT: void @"[[MANGLEDKERNELCALL:[a-zA-Z0-9_$]+]]"
 // NONATIVESUPPORT-SAME: byval(%"class.[[MANGLEDCLASS]].cl::sycl::kernel_handler")
 

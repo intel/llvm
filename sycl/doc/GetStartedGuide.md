@@ -667,8 +667,8 @@ which contains all the symbols required.
 
 * DPC++ specification:
 [https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-* SYCL\* 1.2.1 specification:
-[www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
+* SYCL\* 2020 specification:
+[https://www.khronos.org/registry/SYCL/](https://www.khronos.org/registry/SYCL/)
 * oneAPI Level Zero specification:
 [https://spec.oneapi.com/versions/latest/oneL0/index.html](https://spec.oneapi.com/versions/latest/oneL0/index.html)
 
