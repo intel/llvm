@@ -80,6 +80,7 @@ public:
     SYCLPostLinkJobClass,
     BackendCompileJobClass,
     FileTableTformJobClass,
+    AppendFooterJobClass,
     StaticLibJobClass,
 
     JobClassFirst = PreprocessJobClass,
@@ -805,6 +806,17 @@ public:
 
 private:
   SmallVector<Tform, 2> Tforms; // transformation actions requested
+};
+
+class AppendFooterJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  AppendFooterJobAction(Action *Input, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == AppendFooterJobClass;
+  }
 };
 
 class StaticLibJobAction : public JobAction {

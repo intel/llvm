@@ -10307,6 +10307,10 @@ public:
   template <typename AttrType>
   void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
                              Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
+  void AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *XDim, Expr *YDim, Expr *ZDim);
+  WorkGroupSizeHintAttr *
+  MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A);
   void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
                                 Expr *E);
   IntelReqdSubGroupSizeAttr *

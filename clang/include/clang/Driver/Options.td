@@ -2541,6 +2541,9 @@ def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=
   Flags<[CoreOption]>, HelpText<"When performing the host compilation with "
   "-fsycl-host-compiler specified, use the given options during that compile. "
   "Options are expected to be a quoted list of space separated options.">;
+def fsycl_use_footer : Flag<["-"], "fsycl-use-footer">, Flags<[CoreOption]>,
+  HelpText<"Enable usage of the integration footer during SYCL enabled "
+  "compilations.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
@@ -5768,6 +5771,9 @@ defm sycl_allow_func_ptr: BoolFOption<"sycl-allow-func-ptr",
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
+def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
+  HelpText<"Disable parallel for range rounding.">,
+  MarshallingInfoFlag<LangOpts<"SYCLDisableRangeRounding">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 
