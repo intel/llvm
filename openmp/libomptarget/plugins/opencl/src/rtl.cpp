@@ -94,11 +94,6 @@ std::map<uint64_t, std::vector<uint32_t>> DeviceArchMap {
       0x4C00, // RKL
       0x4600, // ADLS
     }
-  },
-  {
-    DeviceArch_XeHP, {
-      0x0200, // ATS
-    }
   }
 };
 #endif // !defined(_WIN32)
