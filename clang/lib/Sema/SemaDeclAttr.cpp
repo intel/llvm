@@ -5250,14 +5250,6 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   handleSimpleAttribute<SYCLDeviceAttr>(S, D, AL);
-  // constexpr variable may already get an implicit constant attr, which should
-  // be replaced by the explicit constant attr.
-  if (auto *A = D->getAttr<CUDAConstantAttr>()) {
-    if (!A->isImplicit())
-      return;
-    D->dropAttr<CUDAConstantAttr>();
-  }
-  D->addAttr(::new (S.Context) CUDAConstantAttr(S.Context, AL));
 }
 
 static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
@@ -5354,6 +5346,13 @@ static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (VD->hasLocalStorage()) {
     S.Diag(AL.getLoc(), diag::err_cuda_nonstatic_constdev);
     return;
+  }
+  // constexpr variable may already get an implicit constant attr, which should
+  // be replaced by the explicit constant attr.
+  if (auto *A = D->getAttr<CUDAConstantAttr>()) {
+    if (!A->isImplicit())
+      return;
+    D->dropAttr<CUDAConstantAttr>();
   }
   D->addAttr(::new (S.Context) CUDAConstantAttr(S.Context, AL));
 }
