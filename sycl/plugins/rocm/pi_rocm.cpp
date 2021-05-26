@@ -11,7 +11,7 @@
 ///
 /// \ingroup sycl_pi_rocm
 
-#include <CL/sycl/detail/rocm_definitions.hpp>
+#include <CL/sycl/detail/hip_definitions.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <pi_rocm.hpp>
@@ -43,8 +43,6 @@ pi_result map_error(hipError_t result) {
   switch (result) {
   case hipSuccess:
     return PI_SUCCESS;
-  //case HIP_ERROR_NOT_PERMITTED:
-  //  return PI_INVALID_OPERATION;
   case hipErrorInvalidContext:
     return PI_INVALID_CONTEXT;
   case hipErrorInvalidDevice:
@@ -246,36 +244,6 @@ int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
   return value;
 }
 /// \endcond
-
-// Determine local work sizes that result in uniform work groups.
-// The default threadsPerBlock only require handling the first work_dim
-// dimension.
-/*
-void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
-                        const size_t maxThreadsPerBlock[3], pi_kernel kernel) {
-  assert(threadsPerBlock != nullptr);
-  assert(global_work_size != nullptr);
-  assert(kernel != nullptr);
-  int recommendedBlockSize, minGrid;
-
-  PI_CHECK_ERROR(hipOccupancyMaxPotentialBlockSize(
-      &minGrid, &recommendedBlockSize, kernel->get(),
-      0, 0));
-
-  (void)minGrid; // Not used, avoid warnings
-
-  threadsPerBlock[0] =
-      std::min(static_cast<int>(maxThreadsPerBlock[0]),
-               std::min(static_cast<int>(global_work_size[0]),
-                        static_cast<int>(recommendedBlockSize)));
-
-  // Find a local work group size that is a divisor of the global
-  // work group size to produce uniform work groups.
-  while (0u != (global_work_size[0] % threadsPerBlock[0])) {
-    --threadsPerBlock[0];
-  }
-}
-*/
 
 void simpleGuessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
                         const size_t maxThreadsPerBlock[3], pi_kernel kernel) {
@@ -1509,22 +1477,9 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // system allocator
     pi_bitfield value = {};
     if (getAttribute(device, hipDeviceAttributePageableMemoryAccess)) {
-      // the device suppports coherently accessing pageable memory without
-      // calling hipMemHostRegister/rocmHostRegister on it
-      /*
-      if (getAttribute(device,
-                       HIP_DEVICE_ATTRIBUTE_HOST_NATIVE_ATOMIC_SUPPORTED)) {
-        // the link between the device and the host supports native atomic
-        // operations
-        value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
-                PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
-      } 
-      else */
-      {
         // the link between the device and the host does not support native
         // atomic operations
         value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
-      }
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
@@ -1970,13 +1925,7 @@ pi_result rocm_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// \param[out] nativeHandle Set to the native handle of the PI mem object.
 ///
 /// \return PI_SUCCESS
-/*
-pi_result rocm_piextMemGetNativeHandle(pi_mem mem,
-                                       pi_native_handle *nativeHandle) {
-  *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
-  return PI_SUCCESS;
-}
-*/
+
 
 /// Created a PI mem object from a HIP mem handle.
 /// TODO: Implement this.
@@ -2014,18 +1963,6 @@ pi_result rocm_piQueueCreate(pi_context context, pi_device device,
     ScopedContext active(context);
 
     hipStream_t hipStream;
-    
-    /*
-    unsigned int flags = 0;
-
-    if (properties == __SYCL_PI_HIP_USE_DEFAULT_STREAM) {
-      flags = hipStreamDefault;
-    } else if (properties == __SYCL_PI_HIP_SYNC_WITH_DEFAULT) {
-      flags = 0;
-    } else {
-      flags = hipStreamNonBlocking;
-    }
-    */
 
     err = PI_CHECK_ERROR(hipStreamCreate(&hipStream));
     if (err != PI_SUCCESS) {
@@ -2454,12 +2391,6 @@ pi_result rocm_piEnqueueKernelLaunch(
     }
   }
   
-  /*
-  if (maxWorkGroupSize <
-      size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
-    return PI_INVALID_WORK_GROUP_SIZE;
-  }
-  */
   int blocksPerGrid[3] = {1, 1, 1};
   
 
@@ -2504,13 +2435,6 @@ pi_result rocm_piEnqueueKernelLaunch(
           PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue));
       retImplEv->start();
     }
-    
-    /*
-    retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
-        hipFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
-        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2],
-        kernel->get_local_size(), hipStream, argIndices.data(), nullptr));
-    */
     
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
         hipFunc, blocksPerGrid[0], 1, 1,
@@ -2833,72 +2757,6 @@ pi_result rocm_piProgramGetInfo(pi_program program, pi_program_info param_name,
   }
   cl::sycl::detail::pi::die("Program info request not implemented");
   return {};
-}
-
-/// Creates a new PI program object that is the outcome of linking all input
-/// programs.
-/// \TODO Implement linker options, requires mapping of OpenCL to HIP
-///
-
-pi_result rocm_piProgramLink(pi_context context, pi_uint32 num_devices,
-                             const pi_device *device_list, const char *options,
-                             pi_uint32 num_input_programs,
-                             const pi_program *input_programs,
-                             void (*pfn_notify)(pi_program program,
-                                                void *user_data),
-                             void *user_data, pi_program *ret_program) {
-  /*
-  assert(ret_program != nullptr);
-  assert(num_devices == 1 || num_devices == 0);
-  assert(device_list != nullptr || num_devices == 0);
-  assert(pfn_notify == nullptr);
-  assert(user_data == nullptr);
-  pi_result retError = PI_SUCCESS;
-
-  try {
-    ScopedContext active(context);
-
-    HIPlinkState state;
-    std::unique_ptr<_pi_program> retProgram{new _pi_program{context}};
-
-    retError = PI_CHECK_ERROR(hipLinkCreate(0, nullptr, nullptr, &state));
-    try {
-      for (size_t i = 0; i < num_input_programs; ++i) {
-        pi_program program = input_programs[i];
-        retError = PI_CHECK_ERROR(hipLinkAddData(
-            state, HIP_JIT_INPUT_PTX, const_cast<char *>(program->binary_),
-            program->binarySizeInBytes_, nullptr, 0, nullptr, nullptr));
-      }
-      void *hipbin = nullptr;
-      size_t hipbinSize = 0;
-      retError = PI_CHECK_ERROR(hipLinkComplete(state, &hipbin, &hipbinSize));
-
-      retError =
-          retProgram->set_binary(static_cast<const char *>(hipbin), hipbinSize);
-
-      if (retError != PI_SUCCESS) {
-        return retError;
-      }
-
-      retError = retProgram->build_program(options);
-
-      if (retError != PI_SUCCESS) {
-        return retError;
-      }
-    } catch (...) {
-      // Upon error attempt cleanup
-      PI_CHECK_ERROR(hipLinkDestroy(state));
-      throw;
-    }
-
-    retError = PI_CHECK_ERROR(hipLinkDestroy(state));
-    *ret_program = retProgram.release();
-
-  } catch (pi_result err) {
-    retError = err;
-  }
-  */
-  return PI_SUCCESS;
 }
 
 /// Creates a new program that is the outcome of the compilation of the headers
@@ -3851,34 +3709,12 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
       result = PI_CHECK_ERROR(hipMemsetD32Async(dstDevice, value, N, stream));
       break;
     }
-    /*
+    
     default: {
-      // HIP has no memset functions that allow setting values more than 4
-      // bytes. PI API lets you pass an arbitrary "pattern" to the buffer
-      // fill, which can be more than 4 bytes. We must break up the pattern
-      // into 4 byte values, and set the buffer using multiple strided calls.
-      // This means that one hipMemsetD2D32Async call is made for every 4 bytes
-      // in the pattern.
-
-      auto number_of_steps = pattern_size / sizeof(uint32_t);
-
-      // we walk up the pattern in 4-byte steps, and call hipMemset for each
-      // 4-byte chunk of the pattern.
-      for (auto step = 0u; step < number_of_steps; ++step) {
-        // take 4 bytes of the pattern
-        auto value = *(static_cast<const uint32_t *>(pattern) + step);
-
-        // offset the pointer to the part of the buffer we want to write to
-        auto offset_ptr = dstDevice + (step * sizeof(uint32_t));
-
-        // set all of the pattern chunks
-        result = PI_CHECK_ERROR(
-            hipMemsetD2D32Async(offset_ptr, pattern_size, value, 1, N, stream));
-      }
-
+      resutl = PI_INVALID_VALUE;
       break;
     }
-    */
+    
     }
 
     if (event) {
@@ -4018,22 +3854,18 @@ pi_result rocm_piEnqueueMemImageRead(
     size_t bytesToCopy = elementByteSize * array.NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
-    /*
-    if (imgType == PI_MEM_TYPE_IMAGE1D) {
-      retErr = PI_CHECK_ERROR(
-          hipMemcpyAtoHAsync(ptr, array, byteOffsetX, bytesToCopy, hipStream));
-    } else */ {
-      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
-      size_t srcOffset[3] = {byteOffsetX, origin[1], origin[2]};
+     
+    size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+    size_t srcOffset[3] = {byteOffsetX, origin[1], origin[2]};
 
-      retErr = commonEnqueueMemImageNDCopy(
-          hipStream, imgType, adjustedRegion, &array, hipMemoryTypeArray,
-          srcOffset, ptr, hipMemoryTypeHost, nullptr);
+    retErr = commonEnqueueMemImageNDCopy(
+        hipStream, imgType, adjustedRegion, &array, hipMemoryTypeArray,
+        srcOffset, ptr, hipMemoryTypeHost, nullptr);
 
-      if (retErr != PI_SUCCESS) {
-        return retErr;
-      }
+    if (retErr != PI_SUCCESS) {
+      return retErr;
     }
+    
 
     if (event) {
       auto new_event =
@@ -4086,21 +3918,18 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     size_t bytesToCopy = elementByteSize * array.NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
-    /* if (imgType == PI_MEM_TYPE_IMAGE1D) {
-      retErr = PI_CHECK_ERROR(
-          hipMemcpyHtoAAsync(array, byteOffsetX, ptr, bytesToCopy, hipStream));
-    } else */ {
-      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
-      size_t dstOffset[3] = {byteOffsetX, origin[1], origin[2]};
+     
+    size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+    size_t dstOffset[3] = {byteOffsetX, origin[1], origin[2]};
 
-      retErr = commonEnqueueMemImageNDCopy(
-          hipStream, imgType, adjustedRegion, ptr, hipMemoryTypeHost, nullptr,
-          &array, hipMemoryTypeArray, dstOffset);
+    retErr = commonEnqueueMemImageNDCopy(
+        hipStream, imgType, adjustedRegion, ptr, hipMemoryTypeHost, nullptr,
+        &array, hipMemoryTypeArray, dstOffset);
 
-      if (retErr != PI_SUCCESS) {
-        return retErr;
-      }
+    if (retErr != PI_SUCCESS) {
+      return retErr;
     }
+    
 
     if (event) {
       auto new_event =
@@ -4160,24 +3989,19 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     size_t bytesToCopy = elementByteSize * srcArray.NumChannels * region[0];
 
     pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
-    /*
-    if (imgType == PI_MEM_TYPE_IMAGE1D) {
-      retErr = PI_CHECK_ERROR(hipMemcpyAtoA(dstArray, dstByteOffsetX, srcArray,
-                                           srcByteOffsetX, bytesToCopy));
-    } else 
-    */{
-      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
-      size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
-      size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
+    
+    size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+    size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
+    size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
 
-      retErr = commonEnqueueMemImageNDCopy(
-          hipStream, imgType, adjustedRegion, &srcArray, hipMemoryTypeArray,
-          srcOffset, &dstArray, hipMemoryTypeArray, dstOffset);
+    retErr = commonEnqueueMemImageNDCopy(
+        hipStream, imgType, adjustedRegion, &srcArray, hipMemoryTypeArray,
+        srcOffset, &dstArray, hipMemoryTypeArray, dstOffset);
 
-      if (retErr != PI_SUCCESS) {
-        return retErr;
-      }
+    if (retErr != PI_SUCCESS) {
+      return retErr;
     }
+    
 
     if (event) {
       auto new_event =

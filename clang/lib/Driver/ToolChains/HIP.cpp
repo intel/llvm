@@ -245,9 +245,6 @@ void HIPToolChain::addClangTargetOptions(
          "Only HIP offloading kinds are supported for GPUs.");
   
   StringRef GpuArch = getGPUArch(DriverArgs);
-  if(GpuArch.empty()) {
-    GpuArch = "gfx906";
-  }
 
   CC1Args.push_back("-fcuda-is-device");
 
@@ -463,7 +460,9 @@ HIPToolChain::getHIPDeviceLibs(const llvm::opt::ArgList &DriverArgs) const {
       return {};
     }
     StringRef GpuArch = getGPUArch(DriverArgs);
-    assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
+    if(GpuArch.empty()) {
+      GpuArch = "gfx906";
+    }
     (void)GpuArch;
     auto Kind = llvm::AMDGPU::parseArchAMDGCN(GpuArch);
     const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
