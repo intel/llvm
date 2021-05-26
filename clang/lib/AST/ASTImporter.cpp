@@ -3463,11 +3463,13 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   } else if (auto *Guide = dyn_cast<CXXDeductionGuideDecl>(D)) {
     ExplicitSpecifier ESpec =
         importExplicitSpecifier(Err, Guide->getExplicitSpecifier());
+    CXXConstructorDecl *Ctor =
+        importChecked(Err, Guide->getCorrespondingConstructor());
     if (Err)
       return std::move(Err);
     if (GetImportedOrCreateDecl<CXXDeductionGuideDecl>(
             ToFunction, D, Importer.getToContext(), DC, ToInnerLocStart, ESpec,
-            NameInfo, T, TInfo, ToEndLoc))
+            NameInfo, T, TInfo, ToEndLoc, Ctor))
       return ToFunction;
     cast<CXXDeductionGuideDecl>(ToFunction)
         ->setIsCopyDeductionCandidate(Guide->isCopyDeductionCandidate());
