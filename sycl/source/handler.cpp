@@ -20,8 +20,6 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-Sycl_std_versions sycl_ver;
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -204,10 +202,10 @@ event handler::finalize() {
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::NONE:
-    if (sycl_ver == version_older_2020) 
-      throw runtime_error("Command group submitted without a kernel or a "
-                        "explicit memory operation.",
-                        PI_INVALID_OPERATION);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+      std::cout << "The empty command group is supported by sycl2020"
+                << std::endl;
+    }
     break;
   }
 
@@ -219,7 +217,7 @@ event handler::finalize() {
         "Internal Error. Command group cannot be constructed.",
         PI_INVALID_OPERATION);
     else
-      // if no runtime error was throws it is empty cg from sycl2020
+      // empty cg is supported by sycl2020
       Event = std::make_shared<cl::sycl::detail::event_impl>();
   }
   else
