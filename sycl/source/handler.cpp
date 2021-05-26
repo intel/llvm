@@ -203,25 +203,23 @@ event handler::finalize() {
     break;
   case detail::CG::NONE:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      std::cout << "The empty command group is supported by sycl2020"
+      std::cout << "An empty command group is supported by SYCL 2020."
                 << std::endl;
     }
-    break;
+    detail::EventImplPtr Event = 
+        std::make_shared<cl::sycl::detail::event_impl>();
+    MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+    return MLastEvent;
   }
 
-  detail::EventImplPtr Event;
-
   if (!CommandGroup) {
-    if (getType() != detail::CG::NONE)
-      throw sycl::runtime_error(
-          "Internal Error. Command group cannot be constructed.",
-          PI_INVALID_OPERATION);
-    else
-      // empty cg is supported by sycl2020
-      Event = std::make_shared<cl::sycl::detail::event_impl>();
-  } else
-    Event = detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
-                                                   std::move(MQueue));
+    throw sycl::runtime_error(
+        "Internal Error. Command group cannot be constructed.",
+        PI_INVALID_OPERATION);
+  }
+
+  detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
+      std::move(CommandGroup), std::move(MQueue));
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
