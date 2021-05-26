@@ -4,9 +4,6 @@ The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
 and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Table of contents
-
-- [Getting Started with oneAPI DPC++](#getting-started-with-oneapi-dpc)
-  - [Table of contents](#table-of-contents)
   - [Prerequisites](#prerequisites)
     - [Create DPC++ workspace](#create-dpc-workspace)
   - [Build DPC++ toolchain](#build-dpc-toolchain)
@@ -172,7 +169,10 @@ ROCm 4.1.0 on the system, refer to
 
 Currently, the only combination tested is Ubuntu 18.04 with ROCm 4.1.0 using a Vega20 gfx906.
 
-[LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMD GPU compilation chain. The AMDGPU backend generates a standard ELF [ELF] relocatable code object that can be linked by lld to produce a standard ELF shared code object which can be loaded and executed on an AMDGPU target. So if you want to support AMD ROCm, you should also build the lld project.
+[LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMD GPU compilation chain. 
+The AMDGPU backend generates a standard ELF [ELF] relocatable code object that can be linked by lld to 
+produce a standard ELF shared code object which can be loaded and executed on an AMDGPU target. 
+So if you want to support AMD ROCm, you should also build the lld project.
 [LLD Build Guide](https://lld.llvm.org/)
 
 
@@ -701,9 +701,13 @@ which contains all the symbols required.
 
 ### ROCm back-end limitations
 
-* Backend is only supported on Linux
-* The only combination tested is Ubuntu 18.04 with ROCm 4.1 using a Vega20 gfx906
-* Judging from the current [test](https://github.com/zjin-lcf/oneAPI-DirectProgramming) results, there is still a lot of room for improvement in ROCm back-end support. The current problems include three aspects. The first one is at compile time: the `barrier` and `atomic` keywords are not supported. The second is at runtime: when calling `hipMemcpyDtoHAsync` ROCm API, the program will cause an exception if the input data size is too large. The third is calculation accuracy: the ROCm backend has obvious errors in the calculation results of some float type operators
+* For supported Operating Systems, please refer to the [Supported Operating Systems](https://github.com/RadeonOpenCompute/ROCm#supported-operating-systems)
+* The only combination tested is Ubuntu 18.04 with ROCm 4.1 using a Vega20 gfx906.
+* Judging from the current [test](https://github.com/zjin-lcf/oneAPI-DirectProgramming) results, 
+  there is still a lot of room for improvement in ROCm back-end support. The current problems include three aspects. 
+  The first one is at compile time: the `barrier` and `atomic` keywords are not supported. 
+  The second is at runtime: when calling `hipMemcpyDtoHAsync` ROCm API, the program will cause an exception if the input data size is too large. 
+  The third is calculation accuracy: the ROCm backend has obvious errors in the calculation results of some float type operators
 
 ## Find More
 
