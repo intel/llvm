@@ -51,7 +51,7 @@ int main(void) {
             simd<int, VL> inc(0, 1);
             int off = (int)(lin_id * VL);
             simd<int, VL> val = inc + off;
-            block_store<int, VL>(C + off, val);
+            val.copy_to(C + off);
           });
     });
     e.wait();

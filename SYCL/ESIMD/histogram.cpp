@@ -203,9 +203,10 @@ int main(int argc, char *argv[]) {
                     bins, offset, src, 1);
                 offset += 8 * sizeof(unsigned int);
 #else
-              auto vals = block_load<unsigned int, 8>(bins + i);
-              vals = vals + src;
-              block_store<unsigned int, 8>(bins + i, vals);
+                simd<unsigned int, 8> vals;
+                vals.copy_from(bins + i);
+                vals = vals + src;
+                vals.copy_to(bins + i);
 #endif
               }
             });

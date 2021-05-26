@@ -55,10 +55,12 @@ int main(void) {
             using namespace sycl::ext::intel::experimental::esimd;
 
             int i = ndi.get_global_id(0);
-            simd<float, VL> va = block_load<float, VL>(A + i * VL);
-            simd<float, VL> vb = block_load<float, VL>(B + i * VL);
+            simd<float, VL> va;
+            va.copy_from(A + i * VL);
+            simd<float, VL> vb;
+            vb.copy_from(B + i * VL);
             simd<float, VL> vc = va + vb;
-            block_store<float, VL>(C + i * VL, vc);
+            vc.copy_to(C + i * VL);
           });
     });
     e.wait();

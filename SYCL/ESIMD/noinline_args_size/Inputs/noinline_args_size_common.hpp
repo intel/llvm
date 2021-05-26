@@ -64,15 +64,21 @@ int main(void) {
             simd<a_data_t, SIZE> va(0);
             simd<b_data_t, SIZE> vb(0);
             for (int j = 0; j < ROWS; j++) {
-              va.select<VL, 1>(j * VL) = block_load<a_data_t, VL>(A + j * VL);
-              vb.select<VL, 1>(j * VL) = block_load<b_data_t, VL>(B + j * VL);
+              simd<a_data_t, VL> a_data;
+              a_data.copy_from(A + j * VL);
+              va.select<VL, 1>(j * VL) = a_data;
+              simd<b_data_t, VL> b_data;
+              b_data.copy_from(B + j * VL);
+              vb.select<VL, 1>(j * VL) = b_data;
             }
 
             auto vc = add<simd<a_data_t, SIZE>, simd<b_data_t, SIZE>,
                           simd<c_data_t, SIZE>>(va, vb);
 
-            for (int j = 0; j < ROWS; j++)
-              block_store<c_data_t, VL>(C + j * VL, vc.select<VL, 1>(j * VL));
+            for (int j = 0; j < ROWS; j++) {
+              simd<c_data_t, VL> vals = vc.select<VL, 1>(j * VL);
+              vals.copy_to(C + j * VL);
+            }
           });
     });
 

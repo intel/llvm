@@ -60,17 +60,17 @@ int main(void) {
             using namespace sycl::ext::intel::experimental::esimd;
 
             simd<DTYPE, SIZE> src0(0);
-            src0 = block_load<DTYPE, SIZE>(S0);
+            src0.copy_from(S0);
 
             simd<DTYPE, SIZE> src1(0);
-            src1 = block_load<DTYPE, SIZE>(S1);
+            src1.copy_from(S1);
 
             simd<DTYPE, SIZE> src2(0);
-            src2 = block_load<DTYPE, SIZE>(S2);
+            src2.copy_from(S2);
 
             auto res =
                 esimd_dp4a<DTYPE, DTYPE, DTYPE, DTYPE, SIZE>(src0, src1, src2);
-            block_store<DTYPE, SIZE>(RES, res);
+            res.copy_to(RES);
           });
     });
     e.wait();

@@ -171,8 +171,11 @@ ESIMD_INLINE void dgetrfnp_left_step(double *a, int64_t lda, int64_t *info) {
 
   // load P1
   for (j = 0, a1 = a + K * lda; j < N; j++, a1 += lda)
-    for (i = 0; i < M; i += 8)
-      V8(p1, j * M + i) = block_load<double, 8>(a1 + i);
+    for (i = 0; i < M; i += 8) {
+      simd<double, 8> data;
+      data.copy_from(a1 + i);
+      V8(p1, j * M + i) = data;
+    }
 
   if (K > 0) {
     // (trsm) solve F*X=U for X, X overwrites U
@@ -182,7 +185,9 @@ ESIMD_INLINE void dgetrfnp_left_step(double *a, int64_t lda, int64_t *info) {
       simd<double, 8> a0k, aik;
       for (k = 0; k < 8 && kk + k < K; k++) {
         V1(mask, k) = 0;
-        V8(a0k, 0) = block_load<double, 8>(a + kk + (kk + k) * lda);
+        simd<double, 8> data;
+        data.copy_from(a + kk + (kk + k) * lda);
+        V8(a0k, 0) = data;
         for (j = 0; j < N; j++) {
           auto aj = V(p1, M, j * M);
           auto aj0 = V8(aj, kk);
@@ -192,7 +197,9 @@ ESIMD_INLINE void dgetrfnp_left_step(double *a, int64_t lda, int64_t *info) {
       }
       for (k = 0; k < 8 && kk + k < K; k++) {
         for (i = kk + 8; i < M; i += 8) {
-          V8(aik, 0) = block_load<double, 8>(a + i + (kk + k) * lda);
+          simd<double, 8> data;
+          data.copy_from(a + i + (kk + k) * lda);
+          V8(aik, 0) = data;
           for (j = 0; j < N; j++) {
             auto aj = V(p1, M, j * M);
             auto aj0 = V8(aj, kk);
@@ -208,8 +215,10 @@ ESIMD_INLINE void dgetrfnp_left_step(double *a, int64_t lda, int64_t *info) {
 
   // store P1
   for (j = 0, a1 = a + K * lda; j < N; j++, a1 += lda)
-    for (i = 0; i < M; i += 8)
-      block_store<double, 8>(a1 + i, V8(p1, j * M + i));
+    for (i = 0; i < M; i += 8) {
+      simd<double, 8> vals = V8(p1, j * M + i);
+      vals.copy_to(a1 + i);
+    }
 }
 
 ESIMD_INLINE void dgetrfnp_esimd(int64_t m, int64_t n, double *a, int64_t lda,

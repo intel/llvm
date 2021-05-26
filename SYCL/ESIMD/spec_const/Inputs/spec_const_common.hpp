@@ -29,7 +29,8 @@ ESIMD_INLINE void do_store(AccessorTy acc, int i, spec_const_t val) {
   scalar_store(acc, i, val ? 1 : 0);
 #elif (STORE == 1)
   // block
-  block_store(acc, i, simd<spec_const_t, 2>{val});
+  simd<spec_const_t, 2> vals{val};
+  vals.copy_to(acc, i);
 #else
   static_assert(STORE == 2, "Unspecified store");
   // scalar

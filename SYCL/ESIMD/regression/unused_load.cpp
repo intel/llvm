@@ -11,7 +11,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // This test checks that ESIMD JIT compilation does not crash on unused
-// block_load invocation.
+// copy_from invocation.
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/esimd.hpp>
@@ -42,7 +42,8 @@ int main() {
       cgh.parallel_for<class Test>(
           range<1>(1), [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::experimental::esimd;
-            simd<Ty, VL> var = block_load<Ty, VL>(acc0, 0);
+            simd<Ty, VL> var;
+            var.copy_from(acc0, 0);
           });
     });
     q.wait();

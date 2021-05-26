@@ -57,7 +57,8 @@ int main(void) {
           GroupRange * TaskRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::experimental::esimd;
 
-            simd<TYPE, VL> va = block_load<TYPE, VL>(A + i * VL);
+            simd<TYPE, VL> va;
+            va.copy_from(A + i * VL);
             simd<int, OutputSize> vb;
 
             vb.select<1, 0>(0) = reduce<int>(va, std::plus<>());
@@ -65,7 +66,7 @@ int main(void) {
             vb.select<1, 0>(2) = hmax<int>(va);
             vb.select<1, 0>(3) = hmin<int>(va);
 
-            block_store<int, OutputSize>(B + i * VL, vb);
+            vb.copy_to(B + i * VL);
           });
     });
     e.wait();

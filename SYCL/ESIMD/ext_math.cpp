@@ -80,10 +80,11 @@ struct DeviceFunc {
 
   void operator()(id<1> I) const SYCL_ESIMD_KERNEL {
     unsigned int Offset = I * VL * sizeof(float);
-    simd<float, VL> Vx = block_load<float, VL>(In, Offset);
+    simd<float, VL> Vx;
+    Vx.copy_from(In, Offset);
     DeviceMathFunc<VL, Op> DevF{};
     Vx = DevF(Vx);
-    block_store(Out, Offset, Vx);
+    Vx.copy_to(Out, Offset);
   };
 };
 

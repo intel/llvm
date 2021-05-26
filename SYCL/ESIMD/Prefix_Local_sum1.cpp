@@ -70,15 +70,18 @@ void cmk_sum_tuple_count(unsigned int *buf, unsigned int h_pos) {
   simd<unsigned, 32 * TUPLE_SZ> S, T;
 #pragma unroll
   for (int i = 0; i < TUPLE_SZ; i++) {
-    S.select<32, 1>(i * 32) = block_load<unsigned, 32>(buf + offset + i * 32);
+    simd<unsigned, 32> data;
+    data.copy_from(buf + offset + i * 32);
+    S.select<32, 1>(i * 32) = data;
   }
 
 #pragma unroll
   for (int i = 1; i < PREFIX_ENTRIES / 32; i++) {
 #pragma unroll
     for (int j = 0; j < TUPLE_SZ; j++) {
-      T.select<32, 1>(j * 32) =
-          block_load<unsigned, 32>(buf + offset + i * 32 * TUPLE_SZ + j * 32);
+      simd<unsigned, 32> data;
+      data.copy_from(buf + offset + i * 32 * TUPLE_SZ + j * 32);
+      T.select<32, 1>(j * 32) = data;
     }
     S += T;
   }
@@ -109,7 +112,7 @@ void cmk_sum_tuple_count(unsigned int *buf, unsigned int h_pos) {
 // This is a ULT test variant of PrefixSum kernel with different implementation
 // to increase test coverage of different usage cases and help isolate bugs.
 // Difference from PrefixSum kernel:
-// - Use block_load<>() to read in data
+// - Use copy_from<>() to read in data
 // - Use scatter<>() to write output
 //************************************
 int main(int argc, char *argv[]) {

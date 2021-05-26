@@ -116,7 +116,9 @@ ESIMD_INLINE simd<T, N * N> read(T *buf, int MZ, int col, int row) {
   buf += row * MZ + col;
 #pragma unroll
   for (int i = 0; i < N; ++i) {
-    res.template select<N, 1>(i * N) = block_load<T, N>(buf);
+    simd<T, N> data;
+    data.copy_from(buf);
+    res.template select<N, 1>(i * N) = data;
     buf += MZ;
   }
   return res;
@@ -128,7 +130,8 @@ ESIMD_INLINE void write(T *buf, int MZ, int col, int row, simd<T, N * N> val) {
   buf += row * MZ + col;
 #pragma unroll
   for (int i = 0; i < N; ++i) {
-    block_store<T, N>(buf, val.template select<N, 1>(i * N));
+    simd<T, N> vals = val.template select<N, 1>(i * N);
+    vals.copy_to(buf);
     buf += MZ;
   }
 }

@@ -102,9 +102,10 @@ int main(void) {
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::experimental::esimd;
             unsigned int offset = i * VL * sizeof(float);
-            simd<float, VL> va = block_load<float, VL>(PA, offset);
+            simd<float, VL> va;
+            va.copy_from(PA, offset);
             simd<float, VL> vc = va + 1;
-            block_store(PA, offset, vc);
+            vc.copy_to(PA, offset);
           });
     });
     e.wait();

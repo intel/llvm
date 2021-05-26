@@ -48,9 +48,8 @@ void load_to_slm(uint grpSize, uint localId, uint slmOffset, char *addr,
     simd<uint, 32> row0; // 32 floats or 128 Bytes or 4 GRF-registers
     simd<uint, 32> row1;
     simd<uint, 64> rowTrans;
-    row0 = block_load<uint, 32>((const uint *)(addr + threadOffsetInMemory));
-    row1 =
-        block_load<uint, 32>((const uint *)(addr + threadOffsetInMemory + 128));
+    row0.copy_from((const uint *)(addr + threadOffsetInMemory));
+    row1.copy_from((const uint *)(addr + threadOffsetInMemory + 128));
 
     // Transpose
     rowTrans.select<8, 1>(0) = row0.select<8, 4>(0);
@@ -126,7 +125,7 @@ int main(void) {
 
             v_slmData = slm_load<uint, VL>(v_Off);
 
-            block_store<uint, VL>(B + globalID * VL, v_slmData);
+            v_slmData.copy_to(B + globalID * VL);
           });
     });
     e.wait();

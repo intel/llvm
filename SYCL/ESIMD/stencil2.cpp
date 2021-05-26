@@ -125,7 +125,9 @@ int main(int argc, char *argv[]) {
             unsigned off = (v_pos * HEIGHT) * DIM_SIZE + h_pos * WIDTH;
 #pragma unroll
             for (unsigned i = 0; i < 10; i++) {
-              in.row(i) = block_load<float, 32>(inputMatrix + off);
+              simd<float, 32> data;
+              data.copy_from(inputMatrix + off);
+              in.row(i) = data;
               off += DIM_SIZE;
             }
 
@@ -136,8 +138,9 @@ int main(int argc, char *argv[]) {
 
 #pragma unroll
             for (unsigned i = 0; i < HEIGHT; i++) {
-
-              in.row(10 + i) = block_load<float, 32>(inputMatrix + off);
+              simd<float, 32> data;
+              data.copy_from(inputMatrix + off);
+              in.row(10 + i) = data;
               off += DIM_SIZE;
 
               simd<float, WIDTH> sum =

@@ -143,7 +143,7 @@ template <int CASE_NUM> int test() {
             for (int j = 0; j < VL; j++)
               val.select<1, 1>(j) += o[j];
 
-            block_store<int, VL>(output, val);
+            val.copy_to(output);
           });
     });
     e.wait();

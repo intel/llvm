@@ -43,7 +43,8 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
   auto start_off = (linear_id * BLOCK_WIDTH * NUM_BLOCKS);
   for (int y = 0; y < NUM_BLOCKS; y++) {
     auto start_addr = ((unsigned int *)input_ptr) + start_off;
-    auto data = block_load<uint, 32>(start_addr);
+    simd<uint, 32> data;
+    data.copy_from(start_addr);
     auto in = data.format<uchar>();
 
 #pragma unroll

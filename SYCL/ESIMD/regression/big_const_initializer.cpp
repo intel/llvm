@@ -60,8 +60,7 @@ int main(int argc, char **argv) {
             sycl::ext::intel::experimental::esimd::simd<std::uint32_t, 16> key{
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
             foo(key);
-            sycl::ext::intel::experimental::esimd::block_store(
-                r_acc, id * SIMD_WIDTH * sizeof(std::uint32_t), key);
+            key.copy_to(r_acc, id * SIMD_WIDTH * sizeof(std::uint32_t));
           });
     });
   } catch (const sycl::exception &e) {
