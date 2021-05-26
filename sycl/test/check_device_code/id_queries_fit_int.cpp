@@ -49,7 +49,7 @@ int main() {
           int LocalIdConverted = TestNDItem.get_local_id();
           // CHECK: call void @llvm.assume(i1 {{.*}})
           int OffsetConferted = TestNDItem.get_offset();
-    });
+        });
   });
 
   return 0;
