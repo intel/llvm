@@ -179,14 +179,8 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
       DriverVersionKeyName, PlatformVersionKeyName, DeviceNameKeyName,
       PlatformNameKeyName};
 
-  const std::string &DeprecatedKeyNameDeviceName = DeviceNameKeyName;
-  const std::string &DeprecatedKeyNamePlatformName = PlatformNameKeyName;
-
   size_t KeyStart = 0, KeyEnd = 0, ValueStart = 0, ValueEnd = 0,
          DeviceDescIndex = 0;
-
-  bool IsDeprecatedKeyNameDeviceNameWasUsed = false;
-  bool IsDeprecatedKeyNamePlatformNameWasUsed = false;
 
   while ((KeyEnd = AllowListRaw.find(':', KeyStart)) != std::string::npos) {
     if ((ValueStart = AllowListRaw.find_first_not_of(":", KeyEnd)) ==
@@ -200,12 +194,6 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                   Key) == SupportedAllowListKeyNames.end()) {
       throw sycl::runtime_error("Unrecognized key in SYCL_DEVICE_ALLOWLIST",
                                 PI_INVALID_VALUE);
-    }
-    if (Key == DeprecatedKeyNameDeviceName) {
-      IsDeprecatedKeyNameDeviceNameWasUsed = true;
-    }
-    if (Key == DeprecatedKeyNamePlatformName) {
-      IsDeprecatedKeyNamePlatformNameWasUsed = true;
     }
 
     bool ShouldAllocateNewDeviceDescMap = false;
@@ -339,25 +327,6 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
       ++DeviceDescIndex;
       AllowListParsed.emplace_back();
     }
-  }
-
-  if (IsDeprecatedKeyNameDeviceNameWasUsed &&
-      IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cerr << "\nWARNING: DeviceName and PlatformName in "
-                 "SYCL_DEVICE_ALLOWLIST are deprecated. ";
-  } else if (IsDeprecatedKeyNameDeviceNameWasUsed) {
-    std::cerr
-        << "\nWARNING: DeviceName in SYCL_DEVICE_ALLOWLIST is deprecated. ";
-  } else if (IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cerr
-        << "\nWARNING: PlatformName in SYCL_DEVICE_ALLOWLIST is deprecated. ";
-  }
-  if (IsDeprecatedKeyNameDeviceNameWasUsed ||
-      IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cerr << "Please use BackendName, DeviceType and DeviceVendorId "
-                 "instead. For details, please refer to "
-                 "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                 "EnvironmentVariables.md\n\n";
   }
 
   return AllowListParsed;
