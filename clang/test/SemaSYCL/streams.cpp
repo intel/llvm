@@ -114,8 +114,9 @@ int main() {
 // element 1
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
 
-// HasArrayOfHasStreams struct
+// HasArrayOfHasStreams Array
 // CHECK: InitListExpr {{.*}} 'HasArrayOfHasStreams [2]'
+// // HasArrayOfHasStreams Struct
 // CHECK-NEXT: InitListExpr {{.*}} 'HasArrayOfHasStreams'
 // HasArrayOfHasStreams::i
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
@@ -142,6 +143,7 @@ int main() {
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
 // element 1
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void () noexcept'
+// HasArrayOfHasStreams Struct
 // CHECK-NEXT: InitListExpr {{.*}} 'HasArrayOfHasStreams'
 // HasArrayOfHasStreams::i
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
@@ -545,6 +547,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream [2]' lvalue
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
+
 // _in_lambda_mdarray
 // [0][0]
 // CHECK: CXXMemberCallExpr {{.*}} 'void'

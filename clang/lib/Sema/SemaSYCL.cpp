@@ -2372,15 +2372,6 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    // For the current implementation of stream class, the Visitor 'handles'
-    // stream argument and then visits each accessor field in stream. Therefore
-    // handleSpecialType in this case only adds a single argument for stream.
-    // The arguments corresponding to accessors in stream are handled in
-    // handleSyclAccessorType. The opt-report therefore does not diffrentiate
-    // between the accessors in streams and accessors captured by SYCL kernel.
-    // Once stream API is modified to use __init(), the visitor will no longer
-    // visit the stream object and opt-report output for stream class will be
-    // similar to that of other special types.
     return handleSpecialType(
         FD, FieldTy, KernelArgDescription(KernelArgDescription::Stream));
   }
