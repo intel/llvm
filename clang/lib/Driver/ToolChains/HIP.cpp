@@ -460,9 +460,7 @@ HIPToolChain::getHIPDeviceLibs(const llvm::opt::ArgList &DriverArgs) const {
       return {};
     }
     StringRef GpuArch = getGPUArch(DriverArgs);
-    if(GpuArch.empty()) {
-      GpuArch = "gfx906";
-    }
+    assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
     (void)GpuArch;
     auto Kind = llvm::AMDGPU::parseArchAMDGCN(GpuArch);
     const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
