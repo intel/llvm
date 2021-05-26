@@ -327,18 +327,15 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee)
     return false;
 
-  const Type *Ty = nullptr;
-  // libstdc++-11 introduced undefined function "void __failed_assertion()"
+  // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
-  // is used to trigger some compilation error when check fails in compilation
-  // time and will be ignored when the check succeeds. We enable this function
-  // to support some important std functions in SYCL device.
-  if (Callee->getName() == GlibcxxFailedAssertion &&
-      (Callee->getNumParams() == 0) &&
-      (Ty = Callee->getReturnType().getTypePtr()) && (Ty->isVoidType()))
-    return SrcMgr.isInSystemHeader(Callee->getLocation());
-
-  return false;
+  // is used to trigger some compilation error when the check fails at compile
+  // time and will be ignored when the check succeeds. We allow calls to this
+  // function to support some important std functions in SYCL device.
+  return (Callee->getName() == GlibcxxFailedAssertion) &&
+         (Callee->getNumParams() == 0) &&
+         Callee->getReturnType()->isVoidType() &&
+         SrcMgr.isInSystemHeader(Callee->getLocation());
 }
 
 // Helper function to report conflicting function attributes.
@@ -4143,6 +4140,8 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
     return;
 
   // Diagnose if this is an undefined function and it is not a builtin.
+  // Currently, there is an exception of "__failed_assertion" in libstdc++-11,
+  // this undefined function is used to trigger a compiling error.
   if (!Callee->isDefined() && !Callee->getBuiltinID() &&
       !isSYCLUndefinedAllowed(Callee, getSourceManager())) {
     Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
