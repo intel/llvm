@@ -1,10 +1,13 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: sycl-ls
 // RUN: env SYCL_DEVICE_FILTER=0 %t.out
 // RUN: env SYCL_DEVICE_FILTER=1 %t.out
 // RUN: env SYCL_DEVICE_FILTER=2 %t.out
 // RUN: env SYCL_DEVICE_FILTER=3 %t.out
 // RUN: env SYCL_DEVICE_FILTER=4 %t.out
+
+// The test is using all available BEs but CUDA machine in CI does not have
+// functional OpenCL RT
+// UNSUPPORTED: cuda
 
 #include <CL/sycl.hpp>
 #include <iostream>
