@@ -4663,7 +4663,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         if (AuxT.isWindowsMSVCEnvironment()) {
           CmdArgs.push_back("-D_MT");
           CmdArgs.push_back("-D_DLL");
-          CmdArgs.push_back("--dependent-lib=msvcrt");
         }
       }
     }
