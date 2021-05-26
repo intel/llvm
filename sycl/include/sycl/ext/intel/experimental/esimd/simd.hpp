@@ -371,8 +371,8 @@ public:
 
   /// \tparam Rep is number of times region has to be replicated.
   /// \tparam VS vertical stride of src region to replicate.
-  /// \tparam W is width of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
+  /// \tparam W width of src region to replicate.
+  /// \param Offset offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
   simd<Ty, Rep * W> replicate_vs_w(uint16_t Offset) {
