@@ -214,15 +214,14 @@ event handler::finalize() {
   if (!CommandGroup) {
     if (getType() != detail::CG::NONE)
       throw sycl::runtime_error(
-        "Internal Error. Command group cannot be constructed.",
-        PI_INVALID_OPERATION);
+          "Internal Error. Command group cannot be constructed.",
+          PI_INVALID_OPERATION);
     else
       // empty cg is supported by sycl2020
       Event = std::make_shared<cl::sycl::detail::event_impl>();
-  }
-  else
-    Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), std::move(MQueue));
+  } else
+    Event = detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                   std::move(MQueue));
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
