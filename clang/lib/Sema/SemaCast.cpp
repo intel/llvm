@@ -1179,6 +1179,13 @@ void CastOperation::CheckStaticCast() {
       return;
   }
 
+  if (DestType->getAs<MatrixType>() ||
+      SrcExpr.get()->getType()->getAs<MatrixType>()) {
+    if (Self.CheckMatrixCast(OpRange, DestType, SrcExpr.get()->getType(), Kind))
+      SrcExpr = ExprError();
+    return;
+  }
+
   // This test is outside everything else because it's the only case where
   // a non-lvalue-reference target type does not lead to decay.
   // C++ 5.2.9p4: Any expression can be explicitly converted to type "cv void".
@@ -2328,6 +2335,16 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
       return TC_Success;
     }
 
+    if (Self.LangOpts.OpenCL && !CStyle) {
+      if (DestType->isExtVectorType() || SrcType->isExtVectorType()) {
+        // FIXME: Allow for reinterpret cast between 3 and 4 element vectors
+        if (Self.areVectorTypesSameSize(SrcType, DestType)) {
+          Kind = CK_BitCast;
+          return TC_Success;
+        }
+      }
+    }
+
     // Otherwise, pick a reasonable diagnostic.
     if (!destIsVector)
       msg = diag::err_bad_cxx_cast_vector_to_scalar_different_size;
@@ -2646,6 +2663,13 @@ void CastOperation::CheckCXXCStyleCast(bool FunctionalStyle,
     SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
     if (SrcExpr.isInvalid())
       return;
+  }
+
+  if (DestType->getAs<MatrixType>() ||
+      SrcExpr.get()->getType()->getAs<MatrixType>()) {
+    if (Self.CheckMatrixCast(OpRange, DestType, SrcExpr.get()->getType(), Kind))
+      SrcExpr = ExprError();
+    return;
   }
 
   // AltiVec vector initialization with a single literal.

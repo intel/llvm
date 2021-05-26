@@ -748,15 +748,6 @@ Constant *llvm::ConstantFoldLoadFromConstPtr(Constant *C, Type *Ty,
 
 namespace {
 
-Constant *ConstantFoldLoadInst(const LoadInst *LI, const DataLayout &DL) {
-  if (LI->isVolatile()) return nullptr;
-
-  if (auto *C = dyn_cast<Constant>(LI->getOperand(0)))
-    return ConstantFoldLoadFromConstPtr(C, LI->getType(), DL);
-
-  return nullptr;
-}
-
 /// One of Op0/Op1 is a constant expression.
 /// Attempt to symbolically evaluate the result of a binary operator merging
 /// these together.  If target data info is available, it is provided as DL,
@@ -1206,21 +1197,17 @@ Constant *llvm::ConstantFoldInstruction(Instruction *I, const DataLayout &DL,
     return ConstantFoldCompareInstOperands(CI->getPredicate(), Ops[0], Ops[1],
                                            DL, TLI);
 
-  if (const auto *LI = dyn_cast<LoadInst>(I))
-    return ConstantFoldLoadInst(LI, DL);
-
-  if (auto *IVI = dyn_cast<InsertValueInst>(I)) {
-    return ConstantExpr::getInsertValue(
-                                cast<Constant>(IVI->getAggregateOperand()),
-                                cast<Constant>(IVI->getInsertedValueOperand()),
-                                IVI->getIndices());
+  if (const auto *LI = dyn_cast<LoadInst>(I)) {
+    if (LI->isVolatile())
+      return nullptr;
+    return ConstantFoldLoadFromConstPtr(Ops[0], LI->getType(), DL);
   }
 
-  if (auto *EVI = dyn_cast<ExtractValueInst>(I)) {
-    return ConstantExpr::getExtractValue(
-                                    cast<Constant>(EVI->getAggregateOperand()),
-                                    EVI->getIndices());
-  }
+  if (auto *IVI = dyn_cast<InsertValueInst>(I))
+    return ConstantExpr::getInsertValue(Ops[0], Ops[1], IVI->getIndices());
+
+  if (auto *EVI = dyn_cast<ExtractValueInst>(I))
+    return ConstantExpr::getExtractValue(Ops[0], EVI->getIndices());
 
   return ConstantFoldInstOperands(I, Ops, DL, TLI);
 }
@@ -1483,6 +1470,7 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::vector_reduce_umin:
   case Intrinsic::vector_reduce_umax:
   // Target intrinsics
+  case Intrinsic::amdgcn_perm:
   case Intrinsic::arm_mve_vctp8:
   case Intrinsic::arm_mve_vctp16:
   case Intrinsic::arm_mve_vctp32:
@@ -1715,19 +1703,33 @@ Constant *ConstantFoldBinaryFP(double (*NativeFP)(double, double), double V,
   return GetConstantFoldFPValue(V, Ty);
 }
 
-Constant *ConstantFoldVectorReduce(Intrinsic::ID IID, Constant *Op) {
+Constant *constantFoldVectorReduce(Intrinsic::ID IID, Constant *Op) {
   FixedVectorType *VT = dyn_cast<FixedVectorType>(Op->getType());
   if (!VT)
     return nullptr;
-  ConstantInt *CI = dyn_cast<ConstantInt>(Op->getAggregateElement(0U));
-  if (!CI)
-    return nullptr;
-  APInt Acc = CI->getValue();
 
-  for (unsigned I = 1; I < VT->getNumElements(); I++) {
-    if (!(CI = dyn_cast<ConstantInt>(Op->getAggregateElement(I))))
+  // This isn't strictly necessary, but handle the special/common case of zero:
+  // all integer reductions of a zero input produce zero.
+  if (isa<ConstantAggregateZero>(Op))
+    return ConstantInt::get(VT->getElementType(), 0);
+
+  // This is the same as the underlying binops - poison propagates.
+  if (isa<PoisonValue>(Op))
+    return PoisonValue::get(VT->getElementType());
+
+  // TODO: Handle undef.
+  if (!isa<ConstantVector>(Op) && !isa<ConstantDataVector>(Op))
+    return nullptr;
+
+  auto *EltC = dyn_cast<ConstantInt>(Op->getAggregateElement(0U));
+  if (!EltC)
+    return nullptr;
+
+  APInt Acc = EltC->getValue();
+  for (unsigned I = 1, E = VT->getNumElements(); I != E; I++) {
+    if (!(EltC = dyn_cast<ConstantInt>(Op->getAggregateElement(I))))
       return nullptr;
-    const APInt &X = CI->getValue();
+    const APInt &X = EltC->getValue();
     switch (IID) {
     case Intrinsic::vector_reduce_add:
       Acc = Acc + X;
@@ -1804,19 +1806,6 @@ double getValueAsDouble(ConstantFP *Op) {
   return APF.convertToDouble();
 }
 
-static bool isManifestConstant(const Constant *c) {
-  if (isa<ConstantData>(c)) {
-    return true;
-  } else if (isa<ConstantAggregate>(c) || isa<ConstantExpr>(c)) {
-    for (const Value *subc : c->operand_values()) {
-      if (!isManifestConstant(cast<Constant>(subc)))
-        return false;
-    }
-    return true;
-  }
-  return false;
-}
-
 static bool getConstIntOrUndef(Value *Op, const APInt *&C) {
   if (auto *CI = dyn_cast<ConstantInt>(Op)) {
     C = &CI->getValue();
@@ -1841,7 +1830,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     // We know we have a "Constant" argument. But we want to only
     // return true for manifest constants, not those that depend on
     // constants with unknowable values, e.g. GlobalValue or BlockAddress.
-    if (isManifestConstant(Operands[0]))
+    if (Operands[0]->isManifestConstant())
       return ConstantInt::getTrue(Ty->getContext());
     return nullptr;
   }
@@ -2254,20 +2243,20 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     }
   }
 
-  if (isa<ConstantAggregateZero>(Operands[0])) {
-    switch (IntrinsicID) {
-    default: break;
-    case Intrinsic::vector_reduce_add:
-    case Intrinsic::vector_reduce_mul:
-    case Intrinsic::vector_reduce_and:
-    case Intrinsic::vector_reduce_or:
-    case Intrinsic::vector_reduce_xor:
-    case Intrinsic::vector_reduce_smin:
-    case Intrinsic::vector_reduce_smax:
-    case Intrinsic::vector_reduce_umin:
-    case Intrinsic::vector_reduce_umax:
-      return ConstantInt::get(Ty, 0);
-    }
+  switch (IntrinsicID) {
+  default: break;
+  case Intrinsic::vector_reduce_add:
+  case Intrinsic::vector_reduce_mul:
+  case Intrinsic::vector_reduce_and:
+  case Intrinsic::vector_reduce_or:
+  case Intrinsic::vector_reduce_xor:
+  case Intrinsic::vector_reduce_smin:
+  case Intrinsic::vector_reduce_smax:
+  case Intrinsic::vector_reduce_umin:
+  case Intrinsic::vector_reduce_umax:
+    if (Constant *C = constantFoldVectorReduce(IntrinsicID, Operands[0]))
+      return C;
+    break;
   }
 
   // Support ConstantVector in case we have an Undef in the top.
@@ -2276,18 +2265,6 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     auto *Op = cast<Constant>(Operands[0]);
     switch (IntrinsicID) {
     default: break;
-    case Intrinsic::vector_reduce_add:
-    case Intrinsic::vector_reduce_mul:
-    case Intrinsic::vector_reduce_and:
-    case Intrinsic::vector_reduce_or:
-    case Intrinsic::vector_reduce_xor:
-    case Intrinsic::vector_reduce_smin:
-    case Intrinsic::vector_reduce_smax:
-    case Intrinsic::vector_reduce_umin:
-    case Intrinsic::vector_reduce_umax:
-      if (Constant *C = ConstantFoldVectorReduce(IntrinsicID, Op))
-        return C;
-      break;
     case Intrinsic::x86_sse_cvtss2si:
     case Intrinsic::x86_sse_cvtss2si64:
     case Intrinsic::x86_sse2_cvtsd2si:
@@ -2713,6 +2690,46 @@ static APFloat ConstantFoldAMDGCNCubeIntrinsic(Intrinsic::ID IntrinsicID,
   }
 }
 
+static Constant *ConstantFoldAMDGCNPermIntrinsic(ArrayRef<Constant *> Operands,
+                                                 Type *Ty) {
+  const APInt *C0, *C1, *C2;
+  if (!getConstIntOrUndef(Operands[0], C0) ||
+      !getConstIntOrUndef(Operands[1], C1) ||
+      !getConstIntOrUndef(Operands[2], C2))
+    return nullptr;
+
+  if (!C2)
+    return UndefValue::get(Ty);
+
+  APInt Val(32, 0);
+  unsigned NumUndefBytes = 0;
+  for (unsigned I = 0; I < 32; I += 8) {
+    unsigned Sel = C2->extractBitsAsZExtValue(8, I);
+    unsigned B = 0;
+
+    if (Sel >= 13)
+      B = 0xff;
+    else if (Sel == 12)
+      B = 0x00;
+    else {
+      const APInt *Src = ((Sel & 10) == 10 || (Sel & 12) == 4) ? C0 : C1;
+      if (!Src)
+        ++NumUndefBytes;
+      else if (Sel < 8)
+        B = Src->extractBitsAsZExtValue(8, (Sel & 3) * 8);
+      else
+        B = Src->extractBitsAsZExtValue(1, (Sel & 1) ? 31 : 15) * 0xff;
+    }
+
+    Val.insertBits(B, I, 8);
+  }
+
+  if (NumUndefBytes == 4)
+    return UndefValue::get(Ty);
+
+  return ConstantInt::get(Ty, Val);
+}
+
 static Constant *ConstantFoldScalarCall3(StringRef Name,
                                          Intrinsic::ID IntrinsicID,
                                          Type *Ty,
@@ -2827,6 +2844,9 @@ static Constant *ConstantFoldScalarCall3(StringRef Name,
       return ConstantInt::get(Ty, C0->shl(ShlAmt));
     return ConstantInt::get(Ty, C0->shl(ShlAmt) | C1->lshr(LshrAmt));
   }
+
+  if (IntrinsicID == Intrinsic::amdgcn_perm)
+    return ConstantFoldAMDGCNPermIntrinsic(Operands, Ty);
 
   return nullptr;
 }

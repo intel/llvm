@@ -1468,6 +1468,7 @@
 // XCORE:#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
 // XCORE:#define __LITTLE_ENDIAN__ 1
 // XCORE:#define __XS1B__ 1
+// XCORE:#define __xcore__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=wasm32-unknown-unknown \
 // RUN:   < /dev/null \
@@ -1941,7 +1942,7 @@
 // AVR:#define __GXX_ABI_VERSION 1002
 // AVR:#define __INT16_C_SUFFIX__
 // AVR:#define __INT16_MAX__ 32767
-// AVR:#define __INT16_TYPE__ short
+// AVR:#define __INT16_TYPE__ int
 // AVR:#define __INT32_C_SUFFIX__ L
 // AVR:#define __INT32_MAX__ 2147483647L
 // AVR:#define __INT32_TYPE__ long int
@@ -2016,7 +2017,7 @@
 // AVR:#define __SIZE_TYPE__ unsigned int
 // AVR:#define __STDC__ 1
 // AVR:#define __UINT16_MAX__ 65535U
-// AVR:#define __UINT16_TYPE__ unsigned short
+// AVR:#define __UINT16_TYPE__ unsigned int
 // AVR:#define __UINT32_C_SUFFIX__ UL
 // AVR:#define __UINT32_MAX__ 4294967295UL
 // AVR:#define __UINT32_TYPE__ long unsigned int

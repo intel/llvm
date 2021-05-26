@@ -79,8 +79,6 @@ public:
 
   static const StringSet<> BuiltInConstFunc;
   std::string getOCLBuiltinName(SPIRVInstruction *BI);
-  std::string getOCLConvertBuiltinName(SPIRVInstruction *BI);
-  std::string getOCLGenericCastToPtrName(SPIRVInstruction *BI);
 
   Type *transType(SPIRVType *BT, bool IsClassMember = false);
   std::string transTypeToOCLTypeName(SPIRVType *BT, bool IsSigned = true);
@@ -127,8 +125,6 @@ public:
                                     SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transOCLBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSPIRVBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
-  void transOCLVectorLoadStore(std::string &UnmangledName,
-                               std::vector<SPIRVWord> &BArgs);
 
   /// Post-process translated LLVM module for OpenCL.
   bool postProcessOCL();
@@ -146,14 +142,6 @@ public:
   /// first, then post-processed to have pointer arguments.
   bool postProcessOCLBuiltinWithArrayArguments(Function *F,
                                                StringRef DemangledName);
-
-  /// \brief Post-process OpImageWrite.
-  ///   return write_image(image, coord, color, image_operands, ...);
-  /// =>
-  ///   write_image(image, coord, ..., color)
-  /// \return transformed call instruction.
-  CallInst *postProcessOCLWriteImage(SPIRVInstruction *BI, CallInst *CI,
-                                     const std::string &DemangledName);
 
   /// \brief Post-process OpBuildNDRange.
   ///   OpBuildNDRange GlobalWorkSize, LocalWorkSize, GlobalWorkOffset

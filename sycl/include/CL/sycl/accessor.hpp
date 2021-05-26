@@ -838,7 +838,8 @@ protected:
   static access::mode getAdjustedMode(const PropertyListT &PropertyList) {
     access::mode AdjustedMode = AccessMode;
 
-    if (PropertyList.template has_property<property::noinit>()) {
+    if (PropertyList.template has_property<property::no_init>() ||
+        PropertyList.template has_property<property::noinit>()) {
       if (AdjustedMode == access::mode::write) {
         AdjustedMode = access::mode::discard_write;
       } else if (AdjustedMode == access::mode::read_write) {

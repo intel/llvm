@@ -638,7 +638,8 @@ def : DiagGroup<"sequence-point", [Unsequenced]>;
 // Preprocessor warnings.
 def AmbiguousMacro : DiagGroup<"ambiguous-macro">;
 def KeywordAsMacro : DiagGroup<"keyword-macro">;
-def ReservedIdAsMacro : DiagGroup<"reserved-id-macro">;
+def ReservedIdAsMacro : DiagGroup<"reserved-macro-identifier">;
+def ReservedIdAsMacroAlias : DiagGroup<"reserved-id-macro", [ReservedIdAsMacro]>;
 
 // Just silence warnings about -Wstrict-aliasing for now.
 def : DiagGroup<"strict-aliasing=0">;
@@ -802,6 +803,9 @@ def CharSubscript : DiagGroup<"char-subscripts">;
 def LargeByValueCopy : DiagGroup<"large-by-value-copy">;
 def DuplicateArgDecl : DiagGroup<"duplicate-method-arg">;
 def SignedEnumBitfield : DiagGroup<"signed-enum-bitfield">;
+
+def ReservedIdentifier : DiagGroup<"reserved-identifier",
+    [ReservedIdAsMacro]>;
 
 // Unreachable code warning groups.
 //
@@ -1293,3 +1297,5 @@ in addition with the pragmas or -fmax-tokens flag to get any warnings.
 def WebAssemblyExceptionSpec : DiagGroup<"wasm-exception-spec">;
 
 def RTTI : DiagGroup<"rtti">;
+
+def OpenCLCoreFeaturesDiagGroup : DiagGroup<"pedantic-core-features">;

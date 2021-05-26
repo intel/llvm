@@ -46,7 +46,7 @@ namespace llvm {
 class LoopVectorizeHints {
   enum HintKind {
     HK_WIDTH,
-    HK_UNROLL,
+    HK_INTERLEAVE,
     HK_FORCE,
     HK_ISVECTORIZED,
     HK_PREDICATE,
@@ -96,6 +96,20 @@ public:
     FK_Enabled = 1,    ///< Forcing enabled.
   };
 
+  enum ScalableForceKind {
+    /// Not selected.
+    SK_Unspecified = -1,
+    /// Disables vectorization with scalable vectors.
+    SK_FixedWidthOnly = 0,
+    /// Vectorize loops using scalable vectors or fixed-width vectors, but favor
+    /// scalable vectors when the cost-model is inconclusive. This is the
+    /// default when the scalable.enable hint is enabled through a pragma.
+    SK_PreferScalable = 1,
+    /// Vectorize loops using scalable vectors or fixed-width  vectors, but
+    /// favor fixed-width vectors when the cost is inconclusive.
+    SK_PreferFixedWidth = 2,
+  };
+
   LoopVectorizeHints(const Loop *L, bool InterleaveOnlyWhenForced,
                      OptimizationRemarkEmitter &ORE);
 
@@ -109,9 +123,18 @@ public:
   void emitRemarkWithHints() const;
 
   ElementCount getWidth() const {
-    return ElementCount::get(Width.Value, isScalable());
+    return ElementCount::get(Width.Value,
+                             isScalableVectorizationExplicitlyEnabled());
   }
-  unsigned getInterleave() const { return Interleave.Value; }
+  unsigned getInterleave() const {
+    if (Interleave.Value)
+      return Interleave.Value;
+    // If interleaving is not explicitly set, assume that if we do not want
+    // unrolling, we also don't want any interleaving.
+    if (llvm::hasUnrollTransformation(TheLoop) & TM_Disable)
+      return 1;
+    return 0;
+  }
   unsigned getIsVectorized() const { return IsVectorized.Value; }
   unsigned getPredicate() const { return Predicate.Value; }
   enum ForceKind getForce() const {
@@ -121,7 +144,16 @@ public:
     return (ForceKind)Force.Value;
   }
 
-  bool isScalable() const { return Scalable.Value; }
+  /// \return true if scalable vectorization has been explicitly enabled.
+  bool isScalableVectorizationExplicitlyEnabled() const {
+    return Scalable.Value == SK_PreferFixedWidth ||
+           Scalable.Value == SK_PreferScalable;
+  }
+
+  /// \return true if scalable vectorization has been explicitly disabled.
+  bool isScalableVectorizationDisabled() const {
+    return Scalable.Value == SK_FixedWidthOnly;
+  }
 
   /// If hints are provided that force vectorization, use the AlwaysPrint
   /// pass name to force the frontend to print the diagnostic.
@@ -291,7 +323,7 @@ public:
 
   /// Return true if the block BB needs to be predicated in order for the loop
   /// to be vectorized.
-  bool blockNeedsPredication(BasicBlock *BB);
+  bool blockNeedsPredication(BasicBlock *BB) const;
 
   /// Check if this pointer is consecutive when vectorizing. This happens
   /// when the last index of the GEP is the induction variable, or that the
@@ -303,7 +335,7 @@ public:
   /// -1 - Address is consecutive, and decreasing.
   /// NOTE: This method must only be used before modifying the original scalar
   /// loop. Do not use after invoking 'createVectorizedLoopSkeleton' (PR34965).
-  int isConsecutivePtr(Value *Ptr);
+  int isConsecutivePtr(Value *Ptr) const;
 
   /// Returns true if the value V is uniform within the loop.
   bool isUniform(Value *V);
@@ -342,7 +374,9 @@ public:
 
   /// Returns true if vector representation of the instruction \p I
   /// requires mask.
-  bool isMaskRequired(const Instruction *I) { return MaskedOp.contains(I); }
+  bool isMaskRequired(const Instruction *I) const {
+    return MaskedOp.contains(I);
+  }
 
   unsigned getNumStores() const { return LAI->getNumStores(); }
   unsigned getNumLoads() const { return LAI->getNumLoads(); }
@@ -421,7 +455,7 @@ private:
 
   /// If an access has a symbolic strides, this maps the pointer value to
   /// the stride symbol.
-  const ValueToValueMap *getSymbolicStrides() {
+  const ValueToValueMap *getSymbolicStrides() const {
     // FIXME: Currently, the set of symbolic strides is sometimes queried before
     // it's collected.  This happens from canVectorizeWithIfConvert, when the
     // pointer is checked to reference consecutive elements suitable for a

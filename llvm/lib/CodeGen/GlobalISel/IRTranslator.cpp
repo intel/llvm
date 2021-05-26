@@ -2412,8 +2412,6 @@ bool IRTranslator::translateInvoke(const User &U,
   const BasicBlock *EHPadBB = I.getSuccessor(1);
 
   const Function *Fn = I.getCalledFunction();
-  if (I.isInlineAsm())
-    return false;
 
   // FIXME: support invoking patchpoint and statepoint intrinsics.
   if (Fn && Fn->isIntrinsic())
@@ -2431,12 +2429,37 @@ bool IRTranslator::translateInvoke(const User &U,
   if (!isa<LandingPadInst>(EHPadBB->getFirstNonPHI()))
     return false;
 
+  bool LowerInlineAsm = false;
+  if (I.isInlineAsm()) {
+    const InlineAsm *IA = cast<InlineAsm>(I.getCalledOperand());
+    if (!IA->canThrow()) {
+      // Fast path without emitting EH_LABELs.
+
+      if (!translateInlineAsm(I, MIRBuilder))
+        return false;
+
+      MachineBasicBlock *InvokeMBB = &MIRBuilder.getMBB(),
+                        *ReturnMBB = &getMBB(*ReturnBB);
+
+      // Update successor info.
+      addSuccessorWithProb(InvokeMBB, ReturnMBB, BranchProbability::getOne());
+
+      MIRBuilder.buildBr(*ReturnMBB);
+      return true;
+    } else {
+      LowerInlineAsm = true;
+    }
+  }
+
   // Emit the actual call, bracketed by EH_LABELs so that the MF knows about
   // the region covered by the try.
   MCSymbol *BeginSymbol = Context.createTempSymbol();
   MIRBuilder.buildInstr(TargetOpcode::EH_LABEL).addSym(BeginSymbol);
 
-  if (!translateCallBase(I, MIRBuilder))
+  if (LowerInlineAsm) {
+    if (!translateInlineAsm(I, MIRBuilder))
+      return false;
+  } else if (!translateCallBase(I, MIRBuilder))
     return false;
 
   MCSymbol *EndSymbol = Context.createTempSymbol();
@@ -2842,13 +2865,6 @@ bool IRTranslator::valueIsSplit(const Value &V,
 
 bool IRTranslator::translate(const Instruction &Inst) {
   CurBuilder->setDebugLoc(Inst.getDebugLoc());
-  // We only emit constants into the entry block from here. To prevent jumpy
-  // debug behaviour set the line to 0.
-  if (const DebugLoc &DL = Inst.getDebugLoc())
-    EntryBuilder->setDebugLoc(DILocation::get(
-        Inst.getContext(), 0, 0, DL.getScope(), DL.getInlinedAt()));
-  else
-    EntryBuilder->setDebugLoc(DebugLoc());
 
   auto &TLI = *MF->getSubtarget().getTargetLowering();
   if (TLI.fallBackToDAGISel(Inst))
@@ -2865,6 +2881,13 @@ bool IRTranslator::translate(const Instruction &Inst) {
 }
 
 bool IRTranslator::translate(const Constant &C, Register Reg) {
+  // We only emit constants into the entry block from here. To prevent jumpy
+  // debug behaviour set the line to 0.
+  if (auto CurrInstDL = CurBuilder->getDL())
+    EntryBuilder->setDebugLoc(DILocation::get(C.getContext(), 0, 0,
+                                              CurrInstDL.getScope(),
+                                              CurrInstDL.getInlinedAt()));
+
   if (auto CI = dyn_cast<ConstantInt>(&C))
     EntryBuilder->buildConstant(Reg, *CI);
   else if (auto CF = dyn_cast<ConstantFP>(&C))
@@ -2876,14 +2899,15 @@ bool IRTranslator::translate(const Constant &C, Register Reg) {
   else if (auto GV = dyn_cast<GlobalValue>(&C))
     EntryBuilder->buildGlobalValue(Reg, GV);
   else if (auto CAZ = dyn_cast<ConstantAggregateZero>(&C)) {
-    if (!CAZ->getType()->isVectorTy())
+    if (!isa<FixedVectorType>(CAZ->getType()))
       return false;
     // Return the scalar if it is a <1 x Ty> vector.
-    if (CAZ->getNumElements() == 1)
+    unsigned NumElts = CAZ->getElementCount().getFixedValue();
+    if (NumElts == 1)
       return translateCopy(C, *CAZ->getElementValue(0u), *EntryBuilder.get());
     SmallVector<Register, 4> Ops;
-    for (unsigned i = 0; i < CAZ->getNumElements(); ++i) {
-      Constant &Elt = *CAZ->getElementValue(i);
+    for (unsigned I = 0; I < NumElts; ++I) {
+      Constant &Elt = *CAZ->getElementValue(I);
       Ops.push_back(getOrCreateVReg(Elt));
     }
     EntryBuilder->buildBuildVector(Reg, Ops);
@@ -2957,8 +2981,13 @@ void IRTranslator::finalizeBasicBlock() {
 
       emitBitTestCase(BTB, NextMBB, UnhandledProb, BTB.Reg, BTB.Cases[j], MBB);
 
-      // FIXME delete this block below?
       if (BTB.ContiguousRange && j + 2 == ej) {
+        // We need to record the replacement phi edge here that normally
+        // happens in emitBitTestCase before we delete the case, otherwise the
+        // phi edge will be lost.
+        addMachineCFGPred({BTB.Parent->getBasicBlock(),
+                           BTB.Cases[ej - 1].TargetBB->getBasicBlock()},
+                          MBB);
         // Since we're not going to use the final bit test, remove it.
         BTB.Cases.pop_back();
         break;

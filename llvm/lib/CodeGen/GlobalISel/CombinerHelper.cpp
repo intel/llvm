@@ -482,10 +482,13 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
     if (UseMI.getOpcode() == TargetOpcode::G_SEXT ||
         UseMI.getOpcode() == TargetOpcode::G_ZEXT ||
         (UseMI.getOpcode() == TargetOpcode::G_ANYEXT)) {
+      const auto &MMO = **MI.memoperands_begin();
+      // For atomics, only form anyextending loads.
+      if (MMO.isAtomic() && UseMI.getOpcode() != TargetOpcode::G_ANYEXT)
+        continue;
       // Check for legality.
       if (LI) {
         LegalityQuery::MemDesc MMDesc;
-        const auto &MMO = **MI.memoperands_begin();
         MMDesc.SizeInBits = MMO.getSizeInBits();
         MMDesc.AlignInBits = MMO.getAlign().value() * 8;
         MMDesc.Ordering = MMO.getOrdering();
@@ -1033,9 +1036,9 @@ void CombinerHelper::applyCombineDivRem(MachineInstr &MI,
   OtherMI->eraseFromParent();
 }
 
-bool CombinerHelper::matchOptBrCondByInvertingCond(MachineInstr &MI) {
-  if (MI.getOpcode() != TargetOpcode::G_BR)
-    return false;
+bool CombinerHelper::matchOptBrCondByInvertingCond(MachineInstr &MI,
+                                                   MachineInstr *&BrCond) {
+  assert(MI.getOpcode() == TargetOpcode::G_BR);
 
   // Try to match the following:
   // bb1:
@@ -1056,7 +1059,7 @@ bool CombinerHelper::matchOptBrCondByInvertingCond(MachineInstr &MI) {
     return false;
   assert(std::next(BrIt) == MBB->end() && "expected G_BR to be a terminator");
 
-  MachineInstr *BrCond = &*std::prev(BrIt);
+  BrCond = &*std::prev(BrIt);
   if (BrCond->getOpcode() != TargetOpcode::G_BRCOND)
     return false;
 
@@ -1067,11 +1070,9 @@ bool CombinerHelper::matchOptBrCondByInvertingCond(MachineInstr &MI) {
          MBB->isLayoutSuccessor(BrCondTarget);
 }
 
-void CombinerHelper::applyOptBrCondByInvertingCond(MachineInstr &MI) {
+void CombinerHelper::applyOptBrCondByInvertingCond(MachineInstr &MI,
+                                                   MachineInstr *&BrCond) {
   MachineBasicBlock *BrTarget = MI.getOperand(0).getMBB();
-  MachineBasicBlock::iterator BrIt(MI);
-  MachineInstr *BrCond = &*std::prev(BrIt);
-
   Builder.setInstrAndDebugLoc(*BrCond);
   LLT Ty = MRI.getType(BrCond->getOperand(0).getReg());
   // FIXME: Does int/fp matter for this? If so, we might need to restrict
@@ -3891,6 +3892,37 @@ void CombinerHelper::applyFunnelShiftToRotate(MachineInstr &MI) {
   MI.setDesc(Builder.getTII().get(IsFSHL ? TargetOpcode::G_ROTL
                                          : TargetOpcode::G_ROTR));
   MI.RemoveOperand(2);
+  Observer.changedInstr(MI);
+}
+
+// Fold (rot x, c) -> (rot x, c % BitSize)
+bool CombinerHelper::matchRotateOutOfRange(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_ROTL ||
+         MI.getOpcode() == TargetOpcode::G_ROTR);
+  unsigned Bitsize =
+      MRI.getType(MI.getOperand(0).getReg()).getScalarSizeInBits();
+  Register AmtReg = MI.getOperand(2).getReg();
+  bool OutOfRange = false;
+  auto MatchOutOfRange = [Bitsize, &OutOfRange](const Constant *C) {
+    if (auto *CI = dyn_cast<ConstantInt>(C))
+      OutOfRange |= CI->getValue().uge(Bitsize);
+    return true;
+  };
+  return matchUnaryPredicate(MRI, AmtReg, MatchOutOfRange) && OutOfRange;
+}
+
+void CombinerHelper::applyRotateOutOfRange(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_ROTL ||
+         MI.getOpcode() == TargetOpcode::G_ROTR);
+  unsigned Bitsize =
+      MRI.getType(MI.getOperand(0).getReg()).getScalarSizeInBits();
+  Builder.setInstrAndDebugLoc(MI);
+  Register Amt = MI.getOperand(2).getReg();
+  LLT AmtTy = MRI.getType(Amt);
+  auto Bits = Builder.buildConstant(AmtTy, Bitsize);
+  Amt = Builder.buildURem(AmtTy, MI.getOperand(2).getReg(), Bits).getReg(0);
+  Observer.changingInstr(MI);
+  MI.getOperand(2).setReg(Amt);
   Observer.changedInstr(MI);
 }
 

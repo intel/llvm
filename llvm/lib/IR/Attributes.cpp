@@ -384,6 +384,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "swifterror";
   if (hasAttribute(Attribute::SwiftSelf))
     return "swiftself";
+  if (hasAttribute(Attribute::SwiftAsync))
+    return "swiftasync";
   if (hasAttribute(Attribute::InaccessibleMemOnly))
     return "inaccessiblememonly";
   if (hasAttribute(Attribute::InaccessibleMemOrArgMemOnly))
@@ -1693,11 +1695,23 @@ unsigned AttributeList::getNumAttrSets() const {
 }
 
 void AttributeList::print(raw_ostream &O) const {
-  O << "PAL[\n";
+  O << "AttributeList[\n";
 
   for (unsigned i = index_begin(), e = index_end(); i != e; ++i) {
-    if (getAttributes(i).hasAttributes())
-      O << "  { " << i << " => " << getAsString(i) << " }\n";
+    if (!getAttributes(i).hasAttributes())
+      continue;
+    O << "  { ";
+    switch (i) {
+    case AttrIndex::ReturnIndex:
+      O << "return";
+      break;
+    case AttrIndex::FunctionIndex:
+      O << "function";
+      break;
+    default:
+      O << "arg(" << i - AttrIndex::FirstArgIndex << ")";
+    }
+    O << " => " << getAsString(i) << " }\n";
   }
 
   O << "]\n";

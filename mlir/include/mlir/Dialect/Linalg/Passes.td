@@ -22,6 +22,21 @@ def ConvertElementwiseToLinalg : FunctionPass<"convert-elementwise-to-linalg"> {
   let dependentDialects = ["linalg::LinalgDialect", "memref::MemRefDialect"];
 }
 
+def LinalgComprehensiveFuncBufferize :
+    FunctionPass<"linalg-comprehensive-func-bufferize"> {
+  let summary = "Bufferize (tensor into memref) the body of a FuncOp and try "
+    "to reuse the buffers for those arguments that "
+    "a) have been annotated 'inplaceable' and "
+    "b) whose buffer uses would be free of memory hazards";
+  let description = [{
+    This pass implements a cross-dialect bufferization approach and performs an
+    analysis to determine which op operands and results may be bufferized in the
+    same buffers. The analysis is performed on SSA use-def chains starting from
+    function operands that are annotated with the 'inplaceable' attribute
+  }];
+  let constructor = "mlir::createLinalgComprehensiveFuncBufferizePass()";
+}
+
 def LinalgFoldUnitExtentDims : FunctionPass<"linalg-fold-unit-extent-dims"> {
   let summary = "Remove unit-extent dimension in Linalg ops on tensors";
   let constructor = "mlir::createLinalgFoldUnitExtentDimsPass()";
@@ -58,6 +73,17 @@ def LinalgFoldReshapeOpsByLinearization :
   let dependentDialects = ["AffineDialect", "memref::MemRefDialect"];
 }
 
+def LinalgLowerTiledLoopsToSCF
+    : FunctionPass<"convert-linalg-tiled-loops-to-scf"> {
+  let summary = "Lower linalg tiled loops to SCF loops and parallel loops";
+  let constructor = "mlir::createConvertLinalgTiledLoopsToSCFPass()";
+  let dependentDialects = [
+    "linalg::LinalgDialect",
+    "scf::SCFDialect",
+    "AffineDialect"
+  ];
+}
+
 def LinalgLowerToAffineLoops : FunctionPass<"convert-linalg-to-affine-loops"> {
   let summary = "Lower the operations from the linalg dialect into affine "
                 "loops";
@@ -76,16 +102,6 @@ def LinalgLowerToLoops : FunctionPass<"convert-linalg-to-loops"> {
   ];
 }
 
-def LinalgBufferize : Pass<"linalg-bufferize", "FuncOp"> {
-  let summary = "Bufferize the linalg dialect";
-  let constructor = "mlir::createLinalgBufferizePass()";
-  let dependentDialects = [
-    "linalg::LinalgDialect",
-    "AffineDialect",
-    "memref::MemRefDialect"
-  ];
-}
-
 def LinalgLowerToParallelLoops
     : FunctionPass<"convert-linalg-to-parallel-loops"> {
   let summary = "Lower the operations from the linalg dialect into parallel "
@@ -96,6 +112,16 @@ def LinalgLowerToParallelLoops
     "linalg::LinalgDialect",
     "memref::MemRefDialect",
     "scf::SCFDialect"
+  ];
+}
+
+def LinalgBufferize : Pass<"linalg-bufferize", "FuncOp"> {
+  let summary = "Bufferize the linalg dialect";
+  let constructor = "mlir::createLinalgBufferizePass()";
+  let dependentDialects = [
+    "linalg::LinalgDialect",
+    "AffineDialect",
+    "memref::MemRefDialect"
   ];
 }
 
@@ -121,8 +147,7 @@ def LinalgTiling : FunctionPass<"linalg-tile"> {
     "scf::SCFDialect"
   ];
   let options = [
-    ListOption<"tileSizes", "linalg-tile-sizes", "int64_t",
-               "Test generation of dynamic promoted buffers",
+    ListOption<"tileSizes", "linalg-tile-sizes", "int64_t", "Tile sizes",
                "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">
   ];
 }
@@ -132,8 +157,23 @@ def LinalgTilingToParallelLoops
   let summary = "Tile operations in the linalg dialect to parallel loops";
   let constructor = "mlir::createLinalgTilingToParallelLoopsPass()";
   let options = [
-    ListOption<"tileSizes", "linalg-tile-sizes", "int64_t",
-               "Test generation of dynamic promoted buffers",
+    ListOption<"tileSizes", "linalg-tile-sizes", "int64_t", "Tile sizes",
+               "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">
+  ];
+  let dependentDialects = [
+    "AffineDialect",
+    "linalg::LinalgDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect"
+  ];
+}
+
+def LinalgTilingToTiledLoops
+    : FunctionPass<"linalg-tile-to-tiled-loop"> {
+  let summary = "Tile operations in the linalg dialect to linalg.tiled_loop";
+  let constructor = "mlir::createLinalgTilingToTiledLoopPass()";
+  let options = [
+    ListOption<"tileSizes", "linalg-tile-sizes", "int64_t", "Tile sizes",
                "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">
   ];
   let dependentDialects = [

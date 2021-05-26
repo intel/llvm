@@ -751,7 +751,7 @@ def canRunLibcxxTests():
         with tempfile.NamedTemporaryFile() as f:
             cmd = [configuration.compiler, "-xc++", "-stdlib=libc++", "-o", f.name, "-"]
             p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-            _, stderr = p.communicate("#include <algorithm>\nint main() {}")
+            _, stderr = p.communicate("#include <cassert>\nint main() {}")
             if not p.returncode:
                 return True, "Compiling with -stdlib=libc++ works"
             return False, "Compiling with -stdlib=libc++ fails with the error: %s" % stderr
@@ -858,6 +858,15 @@ def checkDebugServerSupport():
             if configuration.verbose:
                 print(skip_msg%"lldb-server");
 
+
+def checkForkVForkSupport():
+    from lldbsuite.test import lldbplatformutil
+
+    platform = lldbplatformutil.getPlatform()
+    if platform not in ["freebsd", "linux", "netbsd"]:
+        configuration.skip_categories.append("fork")
+
+
 def run_suite():
     # On MacOS X, check to make sure that domain for com.apple.DebugSymbols defaults
     # does not exist before proceeding to running the test suite.
@@ -954,6 +963,7 @@ def run_suite():
     checkDebugInfoSupport()
     checkDebugServerSupport()
     checkObjcSupport()
+    checkForkVForkSupport()
 
     print("Skipping the following test categories: {}".format(configuration.skip_categories))
 

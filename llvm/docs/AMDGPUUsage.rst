@@ -15,6 +15,7 @@ User Guide for AMDGPU Backend
    AMDGPU/AMDGPUAsmGFX904
    AMDGPU/AMDGPUAsmGFX906
    AMDGPU/AMDGPUAsmGFX908
+   AMDGPU/AMDGPUAsmGFX90a
    AMDGPU/AMDGPUAsmGFX10
    AMDGPU/AMDGPUAsmGFX1011
    AMDGPUModifierSyntax
@@ -340,7 +341,7 @@ Every processor supports every OS ABI (see :ref:`amdgpu-os`) with the following 
                                                     - xnack             flat          - *pal-amdhsa*  - Radeon Instinct MI60
                                                                         scratch       - *pal-amdpal*  - Radeon VII
                                                                                                       - Radeon Pro VII
-     ``gfx908``                  ``amdgcn``   dGPU  - sramecc                         - *rocm-amdhsa* - Radeon Instinct MI100 Accelerator
+     ``gfx908``                  ``amdgcn``   dGPU  - sramecc                         - *rocm-amdhsa* - AMD Instinct MI100 Accelerator
                                                     - xnack           - Absolute
                                                                         flat
                                                                         scratch
@@ -401,6 +402,12 @@ Every processor supports every OS ABI (see :ref:`amdgpu-os`) with the following 
                                                                                                         names.
 
      ``gfx1033``                 ``amdgcn``   APU   - cumode          - Absolute      - *pal-amdpal*  *TBA*
+                                                    - wavefrontsize64   flat
+                                                                        scratch                       .. TODO::
+
+                                                                                                        Add product
+                                                                                                        names.
+     ``gfx1034``                 ``amdgcn``   dGPU  - cumode          - Absolute      - *pal-amdpal*  *TBA*
                                                     - wavefrontsize64   flat
                                                                         scratch                       .. TODO::
 
@@ -1138,7 +1145,7 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX705``     0x03b      ``gfx705``
      ``EF_AMDGPU_MACH_AMDGCN_GFX805``     0x03c      ``gfx805``
      *reserved*                           0x03d      Reserved.
-     *reserved*                           0x03e      Reserved.
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1034``    0x03e      ``gfx1034``
      ``EF_AMDGPU_MACH_AMDGCN_GFX90A``     0x03f      ``gfx90a``
      *reserved*                           0x040      Reserved.
      *reserved*                           0x041      Reserved.
@@ -3649,14 +3656,22 @@ The fields used by CP for code objects before V3 also match those specified in
                                                      ``compute_pgm_rsrc2.user_sgpr.user_sgpr_count``.
                                                      Any requests beyond 16
                                                      will be ignored.
-     >448    1 bit   ENABLE_SGPR_PRIVATE_SEGMENT
-                     _BUFFER
+     >448    1 bit   ENABLE_SGPR_PRIVATE_SEGMENT     If the *Target Properties*
+                     _BUFFER                         column of
+                                                     :ref:`amdgpu-processor-table`
+                                                     specifies *Architected flat
+                                                     scratch* then not supported
+                                                     and must be 0,
      >449    1 bit   ENABLE_SGPR_DISPATCH_PTR
      >450    1 bit   ENABLE_SGPR_QUEUE_PTR
      >451    1 bit   ENABLE_SGPR_KERNARG_SEGMENT_PTR
      >452    1 bit   ENABLE_SGPR_DISPATCH_ID
-     >453    1 bit   ENABLE_SGPR_FLAT_SCRATCH_INIT
-
+     >453    1 bit   ENABLE_SGPR_FLAT_SCRATCH_INIT   If the *Target Properties*
+                                                     column of
+                                                     :ref:`amdgpu-processor-table`
+                                                     specifies *Architected flat
+                                                     scratch* then not supported
+                                                     and must be 0,
      >454    1 bit   ENABLE_SGPR_PRIVATE_SEGMENT
                      _SIZE
      457:455 3 bits                                  Reserved, must be 0.
@@ -3976,14 +3991,27 @@ The fields used by CP for code objects before V3 also match those specified in
      ======= ======= =============================== ===========================================================================
      Bits    Size    Field Name                      Description
      ======= ======= =============================== ===========================================================================
-     0       1 bit   ENABLE_PRIVATE_SEGMENT          Enable the setup of the
-                                                     private segment.
-
-                                                     In addition, enable the
-                                                     setup of the SGPR
-                                                     wavefront scratch offset
-                                                     system register (see
-                                                     :ref:`amdgpu-amdhsa-initial-kernel-execution-state`).
+     0       1 bit   ENABLE_PRIVATE_SEGMENT          * Enable the setup of the
+                                                       private segment.
+                                                     * If the *Target Properties*
+                                                       column of
+                                                       :ref:`amdgpu-processor-table`
+                                                       does not specify
+                                                       *Architected flat
+                                                       scratch* then enable the
+                                                       setup of the SGPR
+                                                       wavefront scratch offset
+                                                       system register (see
+                                                       :ref:`amdgpu-amdhsa-initial-kernel-execution-state`).
+                                                     * If the *Target Properties*
+                                                       column of
+                                                       :ref:`amdgpu-processor-table`
+                                                       specifies *Architected
+                                                       flat scratch* then enable
+                                                       the setup of the
+                                                       FLAT_SCRATCH register
+                                                       pair (see
+                                                       :ref:`amdgpu-amdhsa-initial-kernel-execution-state`).
 
                                                      Used by CP to set up
                                                      ``COMPUTE_PGM_RSRC2.SCRATCH_EN``.
@@ -4542,12 +4570,26 @@ There are different methods used for initializing flat scratch:
   segment address when using the Scratch Segment Buffer (see
   :ref:`amdgpu-amdhsa-kernel-prolog-private-segment-buffer`).
 
+* If the *Target Properties* column of :ref:`amdgpu-processor-table`
+  specifies *Architected flat scratch*:
+
+  If ENABLE_PRIVATE_SEGMENT is enabled in
+  :ref:`amdgpu-amdhsa-compute_pgm_rsrc2-gfx6-gfx10-table` then the FLAT_SCRATCH
+  register pair will be initialized to the 64-bit address of the base of scratch
+  backing memory being managed by SPI for the queue executing the kernel
+  dispatch plus the value of the wave's Scratch Wavefront Offset for use as the
+  flat scratch base in flat memory instructions.
+
 .. _amdgpu-amdhsa-kernel-prolog-private-segment-buffer:
 
 Private Segment Buffer
 ++++++++++++++++++++++
 
-Private Segment Buffer SGPR register is used to initialize 4 SGPRs
+If the *Target Properties* column of :ref:`amdgpu-processor-table` specifies
+*Architected flat scratch* then a Private Segment Buffer is not supported.
+Instead the flat SCRATCH instructions are used.
+
+Otherwise, Private Segment Buffer SGPR register is used to initialize 4 SGPRs
 that are used as a V# to access scratch. CP uses the value provided by the
 runtime. It is used, together with Scratch Wavefront Offset as an offset, to
 access the private memory space using a segment address. See
@@ -11362,6 +11404,8 @@ in this description.
                                         :doc:`gfx908<AMDGPU/AMDGPUAsmGFX908>`
 
                                         :doc:`gfx909<AMDGPU/AMDGPUAsmGFX900>`
+
+                                        :doc:`gfx90a<AMDGPU/AMDGPUAsmGFX90a>`
 
     :doc:`GFX10<AMDGPU/AMDGPUAsmGFX10>` :doc:`gfx1011<AMDGPU/AMDGPUAsmGFX1011>`
 

@@ -174,6 +174,8 @@ public:
   bool isGFX9Plus() const;
   bool isGFX10() const;
   bool isGFX10Plus() const;
+
+  bool hasArchitectedFlatScratch() const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -183,6 +185,7 @@ public:
 class AMDGPUSymbolizer : public MCSymbolizer {
 private:
   void *DisInfo;
+  std::vector<uint64_t> ReferencedAddresses;
 
 public:
   AMDGPUSymbolizer(MCContext &Ctx, std::unique_ptr<MCRelocationInfo> &&RelInfo,
@@ -197,6 +200,10 @@ public:
   void tryAddingPcLoadReferenceComment(raw_ostream &cStream,
                                        int64_t Value,
                                        uint64_t Address) override;
+
+  ArrayRef<uint64_t> getReferencedAddresses() const override {
+    return ReferencedAddresses;
+  }
 };
 
 } // end namespace llvm

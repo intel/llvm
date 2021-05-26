@@ -96,7 +96,7 @@ ParseResult Parser::parseToken(Token::Kind expectedToken,
 }
 
 /// Parse an optional integer value from the stream.
-OptionalParseResult Parser::parseOptionalInteger(uint64_t &result) {
+OptionalParseResult Parser::parseOptionalInteger(APInt &result) {
   Token curToken = getToken();
   if (curToken.isNot(Token::integer, Token::minus))
     return llvm::None;
@@ -106,10 +106,19 @@ OptionalParseResult Parser::parseOptionalInteger(uint64_t &result) {
   if (parseToken(Token::integer, "expected integer value"))
     return failure();
 
-  auto val = curTok.getUInt64IntegerValue();
-  if (!val)
+  StringRef spelling = curTok.getSpelling();
+  bool isHex = spelling.size() > 1 && spelling[1] == 'x';
+  if (spelling.getAsInteger(isHex ? 0 : 10, result))
     return emitError(curTok.getLoc(), "integer value too large");
-  result = negative ? -*val : *val;
+
+  // Make sure we have a zero at the top so we return the right signedness.
+  if (result.isNegative())
+    result = result.zext(result.getBitWidth() + 1);
+
+  // Process the negative sign if present.
+  if (negative)
+    result.negate();
+
   return success();
 }
 
@@ -1057,6 +1066,11 @@ public:
 
   llvm::SMLoc getNameLoc() const override { return nameLoc; }
 
+  /// Re-encode the given source location as an MLIR location and return it.
+  Location getEncodedSourceLoc(llvm::SMLoc loc) override {
+    return parser.getEncodedSourceLocation(loc);
+  }
+
   //===--------------------------------------------------------------------===//
   // Token Parsing
   //===--------------------------------------------------------------------===//
@@ -1217,7 +1231,7 @@ public:
   }
 
   /// Parse an optional integer value from the stream.
-  OptionalParseResult parseOptionalInteger(uint64_t &result) override {
+  OptionalParseResult parseOptionalInteger(APInt &result) override {
     return parser.parseOptionalInteger(result);
   }
 
@@ -1513,6 +1527,25 @@ public:
     return success();
   }
 
+  /// Parse an AffineExpr of SSA ids.
+  ParseResult
+  parseAffineExprOfSSAIds(SmallVectorImpl<OperandType> &dimOperands,
+                          SmallVectorImpl<OperandType> &symbOperands,
+                          AffineExpr &expr) override {
+    auto parseElement = [&](bool isSymbol) -> ParseResult {
+      OperandType operand;
+      if (parseOperand(operand))
+        return failure();
+      if (isSymbol)
+        symbOperands.push_back(operand);
+      else
+        dimOperands.push_back(operand);
+      return success();
+    };
+
+    return parser.parseAffineExprOfSSAIds(expr, parseElement);
+  }
+
   //===--------------------------------------------------------------------===//
   // Region Parsing
   //===--------------------------------------------------------------------===//
@@ -1689,6 +1722,29 @@ public:
         return failure();
       lhs.push_back(regionArg);
       rhs.push_back(operand);
+      return success();
+    };
+    return parser.parseCommaSeparatedListUntil(Token::r_paren, parseElt);
+  }
+
+  /// Parse a list of assignments of the form
+  ///   (%x1 = %y1 : type1, %x2 = %y2 : type2, ...).
+  OptionalParseResult
+  parseOptionalAssignmentListWithTypes(SmallVectorImpl<OperandType> &lhs,
+                                       SmallVectorImpl<OperandType> &rhs,
+                                       SmallVectorImpl<Type> &types) override {
+    if (failed(parseOptionalLParen()))
+      return llvm::None;
+
+    auto parseElt = [&]() -> ParseResult {
+      OperandType regionArg, operand;
+      Type type;
+      if (parseRegionArgument(regionArg) || parseEqual() ||
+          parseOperand(operand) || parseColon() || parseType(type))
+        return failure();
+      lhs.push_back(regionArg);
+      rhs.push_back(operand);
+      types.push_back(type);
       return success();
     };
     return parser.parseCommaSeparatedListUntil(Token::r_paren, parseElt);
