@@ -3711,7 +3711,7 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     }
     
     default: {
-      resutl = PI_INVALID_VALUE;
+      result = PI_INVALID_VALUE;
       break;
     }
     
@@ -4544,7 +4544,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramGetInfo, rocm_piProgramGetInfo)
   _PI_CL(piProgramCompile, rocm_piProgramCompile)
   _PI_CL(piProgramBuild, rocm_piProgramBuild)
-  _PI_CL(piProgramLink, rocm_piProgramLink)
   _PI_CL(piProgramGetBuildInfo, rocm_piProgramGetBuildInfo)
   _PI_CL(piProgramRetain, rocm_piProgramRetain)
   _PI_CL(piProgramRelease, rocm_piProgramRelease)

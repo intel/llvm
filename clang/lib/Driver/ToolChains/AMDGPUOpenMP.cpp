@@ -166,7 +166,7 @@ void AMDGCN::OpenMPLinker::ConstructJob(Compilation &C, const JobAction &JA,
   const toolchains::AMDGPUOpenMPToolChain &AMDGPUOpenMPTC =
       static_cast<const toolchains::AMDGPUOpenMPToolChain &>(TC);
 
-  std::string Args.getLastArgValue(options::OPT_march_EQ).str();
+  std::string GPUArch = Args.getLastArgValue(options::OPT_march_EQ).str();
   if (GPUArch.empty()) {
     if (!checkSystemForAMDGPU(Args, AMDGPUOpenMPTC, GPUArch))
       return;
