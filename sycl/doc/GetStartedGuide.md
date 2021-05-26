@@ -172,7 +172,7 @@ ROCm 4.1.0 on the system, refer to
 
 Currently, the only combination tested is Ubuntu 18.04 with ROCm 4.1.0 using a Vega20 gfx906.
 
-[LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMD GPU compilation chain. The AMDGPU backend generates a standard ELF [ELF] relocatable code object that can be linked by lld to produce a standard ELF shared code object which can be loaded and executed on an AMDGPU target. SO if you want to support AMD ROCm, you should also build the lld project.
+[LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMD GPU compilation chain. The AMDGPU backend generates a standard ELF [ELF] relocatable code object that can be linked by lld to produce a standard ELF shared code object which can be loaded and executed on an AMDGPU target. So if you want to support AMD ROCm, you should also build the lld project.
 [LLD Build Guide](https://lld.llvm.org/)
 
 
@@ -517,7 +517,7 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-When building for ROCm, please note that the option `mcpu` must be specified,use the ROCm target triple as follows, :
+When building for ROCm, please note that the option `mcpu` must be specified, use the ROCm target triple as follows:
 
 ```bash
 clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice \
@@ -554,7 +554,7 @@ execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system or SYCL host device.
 In this case, the behavior of the `default_selector` can be altered
 using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
-the usage of the CUDA backend (if available), `PI_ROCm` forces
+the usage of the CUDA backend (if available), `PI_ROCM` forces
 the usage of the ROCm backend (if available), `PI_OPENCL` will
 force the usage of the OpenCL backend.
 

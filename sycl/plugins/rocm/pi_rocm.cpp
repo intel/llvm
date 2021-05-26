@@ -27,7 +27,7 @@
 
 
 namespace {
-std::string getCudaVersionString() {
+std::string getHipVersionString() {
   int driver_version = 0;
   if (hipDriverGetVersion(&driver_version) != hipSuccess) {
     return "";
@@ -696,7 +696,7 @@ pi_result rocm_piPlatformGetInfo(pi_platform platform,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    "FULL PROFILE");
   case PI_PLATFORM_INFO_VERSION: {
-    auto version = getCudaVersionString();
+    auto version = getHipVersionString();
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    version.c_str());
   }
@@ -789,7 +789,7 @@ pi_result rocm_piDevicePartition(
     pi_device device,
     const cl_device_partition_property *properties, // TODO: untie from OpenCL
     pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
-  return {};
+  return PI_INVALID_OPERATION;
 }
 
 /// \return If available, the first binary that is PTX
@@ -968,7 +968,6 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, ifp);
   }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
-    // NVIDIA devices only support one sub-group size (the warp size)
     int warpSize = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
@@ -1151,7 +1150,6 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
   case PI_DEVICE_INFO_MAX_PARAMETER_SIZE: {
-    // https://docs.nvidia.com/rocm/rocm-c-programming-guide/#function-parameters
     // __global__ function parameters are passed to the device via constant
     // memory and are limited to 4 KB.
     return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -1169,24 +1167,20 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    mem_base_addr_align);
   }
   case PI_DEVICE_INFO_HALF_FP_CONFIG: {
-    // TODO: is this config consistent across all NVIDIA GPUs?
     return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
   }
   case PI_DEVICE_INFO_SINGLE_FP_CONFIG: {
-    // TODO: is this config consistent across all NVIDIA GPUs?
     auto config = PI_FP_DENORM | PI_FP_INF_NAN | PI_FP_ROUND_TO_NEAREST |
                   PI_FP_ROUND_TO_ZERO | PI_FP_ROUND_TO_INF | PI_FP_FMA |
                   PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     return getInfo(param_value_size, param_value, param_value_size_ret, config);
   }
   case PI_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-    // TODO: is this config consistent across all NVIDIA GPUs?
     auto config = PI_FP_DENORM | PI_FP_INF_NAN | PI_FP_ROUND_TO_NEAREST |
                   PI_FP_ROUND_TO_ZERO | PI_FP_ROUND_TO_INF | PI_FP_FMA;
     return getInfo(param_value_size, param_value, param_value_size_ret, config);
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
-    // TODO: is this config consistent across all NVIDIA GPUs?
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    CL_READ_WRITE_CACHE);
   }
@@ -1324,10 +1318,10 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_VENDOR: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "NVIDIA Corporation");
+                   "AMD Corporation");
   }
   case PI_DEVICE_INFO_DRIVER_VERSION: {
-    auto version = getCudaVersionString();
+    auto version = getHipVersionString();
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    version.c_str());
   }
@@ -2589,9 +2583,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
     }
 
     // HIP_RESOURCE_DESC is a union of different structs, shown here
-    // https://docs.nvidia.com/rocm/rocm-driver-api/group__HIP__TEXOBJECT.html
     // We need to fill it as described here to use it for a surface or texture
-    // https://docs.nvidia.com/rocm/rocm-driver-api/group__HIP__SURFOBJECT.html
     // HIP_RESOURCE_DESC::resType must be HIP_RESOURCE_TYPE_ARRAY and
     // HIP_RESOURCE_DESC::res::array::hArray must be set to a valid HIP array
     // handle.
@@ -4406,8 +4398,6 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
     case PI_MEM_ALLOC_TYPE: {
       unsigned int value;
       // do not throw if hipPointerGetAttribute returns hipErrorInvalidValue
-      // TODO hipPointerGetAttribute与CUDA传参不同
-      
       hipError_t ret = hipPointerGetAttributes(
           &hipPointerAttributeType, ptr);
       if (ret == hipErrorInvalidValue) {

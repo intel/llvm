@@ -46,7 +46,8 @@ def do_configure(args):
 
     if args.rocm:
         llvm_targets_to_build += ';AMDGPU'
-        # TODO 
+        # TODO libclc should be added once,
+        # TODO when we build DPC++ with both CUDA and ROCM support
         llvm_enable_projects += ';libclc'
         libclc_targets_to_build = 'amdgcn--;amdgcn--amdhsa'
         sycl_build_pi_rocm = 'ON'

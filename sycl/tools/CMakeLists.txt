@@ -26,8 +26,5 @@ target_link_libraries(get_device_count_by_type
 target_compile_definitions(get_device_count_by_type
   PRIVATE
     $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
-)
-target_compile_definitions(get_device_count_by_type
-  PRIVATE
     $<$<BOOL:${SYCL_BUILD_PI_ROCM}>:USE_PI_ROCM>
 )
