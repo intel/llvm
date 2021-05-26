@@ -147,26 +147,26 @@ void TRIFuncObjBad2::operator()() const {}
 
 struct TRIFuncObjBad3 {
   [[intel::max_global_work_dim(0)]]
-  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-  [[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+  [[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad4 {
-  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjBad5 {
-  [[sycl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{'reqd_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[sycl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjBad6 {
-  [[intel::reqd_work_group_size(4)]]   // expected-error{{'reqd_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[intel::reqd_work_group_size(4)]]   // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -176,7 +176,7 @@ struct TRIFuncObjBad7 {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+[[sycl::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
 void TRIFuncObjBad7::operator()() const {}
 
 struct TRIFuncObjBad8 {
@@ -184,7 +184,7 @@ struct TRIFuncObjBad8 {
   operator()() const;
 };
 
-[[intel::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+[[intel::reqd_work_group_size(4, 4, 4)]] // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
 void TRIFuncObjBad8::operator()() const {}
 
 struct TRIFuncObjBad9 {
@@ -192,14 +192,14 @@ struct TRIFuncObjBad9 {
   operator()() const;
 };
 
-[[intel::max_work_group_size(4, 4, 4)]] // expected-error{{'max_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+[[intel::max_work_group_size(4, 4, 4)]] // expected-error{{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
 void TRIFuncObjBad9::operator()() const {}
 
 // Tests for incorrect argument values for Intel FPGA function attributes:
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
 
 struct TRIFuncObjBad10 {
-  // expected-error@+2{{'reqd_work_group_size' X, Y and Z sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  // expected-error@+2{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   [[intel::reqd_work_group_size(-4, 1)]]
   [[intel::max_global_work_dim(0)]] void
@@ -486,27 +486,16 @@ int main() {
                intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different arguments}}
 
     h.single_task<class test_kernel17>(TRIFuncObjBad3());
-
     h.single_task<class test_kernel18>(TRIFuncObjBad4());
-
     h.single_task<class test_kernel19>(TRIFuncObjBad5());
-
     h.single_task<class test_kernel20>(TRIFuncObjBad6());
-
     h.single_task<class test_kernel21>(TRIFuncObjBad7());
-
     h.single_task<class test_kernel22>(TRIFuncObjBad8());
-
     h.single_task<class test_kernel23>(TRIFuncObjBad9());
-
     h.single_task<class test_kernel24>(TRIFuncObjBad10());
-
     h.single_task<class test_kernel25>(TRIFuncObjBad11());
-
     h.single_task<class test_kernel26>(TRIFuncObjBad12());
-
     h.single_task<class test_kernel27>(TRIFuncObjBad13());
-
     h.single_task<class test_kernel28>(TRIFuncObjBad14());
 
     h.single_task<class test_kernel29>(
