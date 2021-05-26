@@ -2616,47 +2616,134 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     Alignment = 1UL;
 
   pi_result Result;
-  if (DeviceIsIntegrated) {
-    Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-  } else if (Context->SingleRootDevice) {
-    // If we have a single discrete device or all devices in the context are
-    // sub-devices of the same device then we can allocate on device
-    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
-                                 nullptr, Size, Alignment);
-  } else {
-    // Context with several gpu cards. Temporarily use host allocation because
-    // it is accessible by all devices. But it is not good in terms of
-    // performance.
-    // TODO: We need to either allow remote access to device memory using IPC,
-    // or do explicit memory transfers from one device to another using host
-    // resources as backing buffers to allow those transfers.
-    Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-  }
 
-  if (Result != PI_SUCCESS)
-    return Result;
+  // Check if the import user ptr into USM feature is available
+  ze_driver_handle_t driverHandle = Context->Devices[0]->Platform->ZeDriver;
+  ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
+                                                void *, size_t);
 
-  if (HostPtr) {
-    if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
-        (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
-      // Initialize the buffer with user data
-      if (DeviceIsIntegrated) {
-        // Do a host to host copy
-        memcpy(Ptr, HostPtr, Size);
-      } else if (Context->SingleRootDevice) {
-        // Initialize the buffer synchronously with immediate offload
-        ZE_CALL(zeCommandListAppendMemoryCopy,
-                (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
-                 nullptr));
+  bool ImportPossible = zeDriverGetExtensionFunctionAddress(
+      driverHandle, "zexDriverImportExternalPointer",
+      reinterpret_cast<void **>(&zexDriverImportExternalPointer)) == 0;
+
+  bool AllowImport = std::getenv("SYCL_DISABLE_USM_IMPORT") == nullptr;
+  bool ForceImport = std::getenv("SYCL_ENABLE_USM_IMPORT") != nullptr;
+
+  std::cerr << "ImportPossible=" << ImportPossible << std::endl;
+  std::cerr << "AllowImport=" << AllowImport << std::endl;
+  std::cerr << "ForceImport=" << ForceImport << std::endl;
+
+  if (ForceImport || (ImportPossible && AllowImport)) {
+    std::cout << "Doing import\n";
+    if (HostPtr) {
+      if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
+          (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
+
+        // Promote the host ptr to USM host memory
+
+        ZE_CALL(zexDriverImportExternalPointer, (driverHandle, HostPtr, Size));
+
+        // For integrated devices and when we have multiple discrete devices we
+        // just use the host ptr promoted to host USM memory.
+        // For the case of a single discrete devices we allocate on device.
+        if (!DeviceIsIntegrated && Context->SingleRootDevice) {
+          Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                       nullptr, Size, Alignment);
+          if (Result != PI_SUCCESS)
+            return Result;
+          // Initialize the buffer synchronously with immediate offload
+          ZE_CALL(zeCommandListAppendMemoryCopy,
+                  (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
+                   nullptr));
+        }
+      } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
+        if (DeviceIsIntegrated) {
+          Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+        } else if (Context->SingleRootDevice) {
+          // If we have a single discrete device or all devices in the context
+          // are sub-devices of the same device then we can allocate on device
+          Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                       nullptr, Size, Alignment);
+        } else {
+          // Context with several gpu cards. Temporarily use host allocation
+          // because it is accessible by all devices. But it is not good in
+          // terms of performance.
+          // TODO: We need to either allow remote access to device memory using
+          // IPC, or do explicit memory transfers from one device to another
+          // using host resources as backing buffers to allow those transfers.
+          Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+        }
+
+        if (Result != PI_SUCCESS)
+          return Result;
       } else {
-        // Multiple root devices, do a host to host copy because we use a host
-        // allocation for this case.
-        memcpy(Ptr, HostPtr, Size);
+        die("piMemBufferCreate: not implemented");
       }
-    } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
-      // Nothing more to do.
     } else {
-      die("piMemBufferCreate: not implemented");
+      if (DeviceIsIntegrated) {
+        Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+      } else if (Context->SingleRootDevice) {
+        // If we have a single discrete device or all devices in the context are
+        // sub-devices of the same device then we can allocate on device
+        Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                     nullptr, Size, Alignment);
+      } else {
+        // Context with several gpu cards. Temporarily use host allocation
+        // because it is accessible by all devices. But it is not good in terms
+        // of performance.
+        // TODO: We need to either allow remote access to device memory using
+        // IPC, or do explicit memory transfers from one device to another using
+        // host resources as backing buffers to allow those transfers.
+        Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+      }
+
+      if (Result != PI_SUCCESS)
+        return Result;
+    }
+  } else {
+    std::cout << "NOT doing import\n";
+    if (DeviceIsIntegrated) {
+      Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+    } else if (Context->SingleRootDevice) {
+      // If we have a single discrete device or all devices in the context are
+      // sub-devices of the same device then we can allocate on device
+      Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                   nullptr, Size, Alignment);
+    } else {
+      // Context with several gpu cards. Temporarily use host allocation because
+      // it is accessible by all devices. But it is not good in terms of
+      // performance.
+      // TODO: We need to either allow remote access to device memory using IPC,
+      // or do explicit memory transfers from one device to another using host
+      // resources as backing buffers to allow those transfers.
+      Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+    }
+
+    if (Result != PI_SUCCESS)
+      return Result;
+
+    if (HostPtr) {
+      if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
+          (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
+        // Initialize the buffer with user data
+        if (DeviceIsIntegrated) {
+          // Do a host to host copy
+          memcpy(Ptr, HostPtr, Size);
+        } else if (Context->SingleRootDevice) {
+          // Initialize the buffer synchronously with immediate offload
+          ZE_CALL(zeCommandListAppendMemoryCopy,
+                  (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
+                   nullptr));
+        } else {
+          // Multiple root devices, do a host to host copy because we use a host
+          // allocation for this case.
+          memcpy(Ptr, HostPtr, Size);
+        }
+      } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
+        // Nothing more to do.
+      } else {
+        die("piMemBufferCreate: not implemented");
+      }
     }
   }
 
