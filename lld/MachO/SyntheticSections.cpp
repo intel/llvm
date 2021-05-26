@@ -64,6 +64,7 @@ MachHeaderSection::MachHeaderSection()
   // Setting the index to 1 to pretend that this section is the text
   // section.
   index = 1;
+  isec->isFinal = true;
 }
 
 void MachHeaderSection::addLoadCommand(LoadCommand *lc) {
@@ -71,22 +72,8 @@ void MachHeaderSection::addLoadCommand(LoadCommand *lc) {
   sizeOfCmds += lc->getSize();
 }
 
-// This serves to hide (type-erase) the template parameter from
-// MachHeaderSection.
-template <class LP> class MachHeaderSectionImpl : public MachHeaderSection {
-public:
-  MachHeaderSectionImpl() = default;
-  uint64_t getSize() const override;
-  void writeTo(uint8_t *buf) const override;
-};
-
-template <class LP> MachHeaderSection *macho::makeMachHeaderSection() {
-  return make<MachHeaderSectionImpl<LP>>();
-}
-
-template <class LP> uint64_t MachHeaderSectionImpl<LP>::getSize() const {
-  uint64_t size =
-      sizeof(typename LP::mach_header) + sizeOfCmds + config->headerPad;
+uint64_t MachHeaderSection::getSize() const {
+  uint64_t size = target->headerSize + sizeOfCmds + config->headerPad;
   // If we are emitting an encryptable binary, our load commands must have a
   // separate (non-encrypted) page to themselves.
   if (config->emitEncryptionInfo)
@@ -106,10 +93,9 @@ static uint32_t cpuSubtype() {
   return subtype;
 }
 
-template <class LP>
-void MachHeaderSectionImpl<LP>::writeTo(uint8_t *buf) const {
-  auto *hdr = reinterpret_cast<typename LP::mach_header *>(buf);
-  hdr->magic = LP::magic;
+void MachHeaderSection::writeTo(uint8_t *buf) const {
+  auto *hdr = reinterpret_cast<mach_header *>(buf);
+  hdr->magic = target->magic;
   hdr->cputype = target->cpuType;
   hdr->cpusubtype = cpuSubtype();
   hdr->filetype = config->outputType;
@@ -144,7 +130,7 @@ void MachHeaderSectionImpl<LP>::writeTo(uint8_t *buf) const {
     }
   }
 
-  uint8_t *p = reinterpret_cast<uint8_t *>(hdr + 1);
+  uint8_t *p = reinterpret_cast<uint8_t *>(hdr) + target->headerSize;
   for (const LoadCommand *lc : loadCommands) {
     lc->writeTo(p);
     p += lc->getSize();
@@ -440,6 +426,8 @@ void StubsSection::writeTo(uint8_t *buf) const {
   }
 }
 
+void StubsSection::finalize() { isFinal = true; }
+
 bool StubsSection::addEntry(Symbol *sym) {
   bool inserted = entries.insert(sym);
   if (inserted)
@@ -484,7 +472,7 @@ void StubHelperSection::setup() {
       make<Defined>("__dyld_private", nullptr, in.imageLoaderCache, 0, 0,
                     /*isWeakDef=*/false,
                     /*isExternal=*/false, /*isPrivateExtern=*/false,
-                    /*isThumb=*/false);
+                    /*isThumb=*/false, /*isReferencedDynamically=*/false);
 }
 
 ImageLoaderCacheSection::ImageLoaderCacheSection() {
@@ -578,38 +566,11 @@ uint32_t LazyBindingSection::encode(const DylibSymbol &sym) {
 ExportSection::ExportSection()
     : LinkEditSection(segment_names::linkEdit, section_names::export_) {}
 
-static void validateExportSymbol(const Defined *defined) {
-  StringRef symbolName = defined->getName();
-  if (defined->privateExtern && config->exportedSymbols.match(symbolName))
-    error("cannot export hidden symbol " + symbolName + "\n>>> defined in " +
-          toString(defined->getFile()));
-}
-
-static bool shouldExportSymbol(const Defined *defined) {
-  if (defined->privateExtern) {
-    assert(defined->isExternal() && "invalid input file");
-    return false;
-  }
-  // TODO: Is this a performance bottleneck? If a build has mostly
-  // global symbols in the input but uses -exported_symbols to filter
-  // out most of them, then it would be better to set the value of
-  // privateExtern at parse time instead of calling
-  // exportedSymbols.match() more than once.
-  //
-  // Measurements show that symbol ordering (which again looks up
-  // every symbol in a hashmap) is the biggest bottleneck when linking
-  // chromium_framework, so this will likely be worth optimizing.
-  return config->exportedSymbols.empty()
-             ? !config->unexportedSymbols.match(defined->getName())
-             : config->exportedSymbols.match(defined->getName());
-}
-
 void ExportSection::finalizeContents() {
   trieBuilder.setImageBase(in.header->addr);
   for (const Symbol *sym : symtab->getSymbols()) {
     if (const auto *defined = dyn_cast<Defined>(sym)) {
-      validateExportSymbol(defined);
-      if (!shouldExportSymbol(defined))
+      if (defined->privateExtern)
         continue;
       trieBuilder.addSymbol(*defined);
       hasWeakSymbol = hasWeakSymbol || sym->isWeakDef();
@@ -792,7 +753,10 @@ void SymtabSection::finalizeContents() {
       if (!defined->includeInSymtab)
         continue;
       assert(defined->isExternal());
-      addSymbol(externalSymbols, defined);
+      if (defined->privateExtern)
+        addSymbol(localSymbols, defined);
+      else
+        addSymbol(externalSymbols, defined);
     } else if (auto *dysym = dyn_cast<DylibSymbol>(sym)) {
       if (dysym->isReferenced())
         addSymbol(undefinedSymbols, sym);
@@ -844,7 +808,7 @@ template <class LP> void SymtabSectionImpl<LP>::writeTo(uint8_t *buf) const {
     // TODO populate n_desc with more flags
     if (auto *defined = dyn_cast<Defined>(entry.sym)) {
       uint8_t scope = 0;
-      if (!shouldExportSymbol(defined)) {
+      if (defined->privateExtern) {
         // Private external -- dylib scoped symbol.
         // Promote to non-external at link time.
         scope = N_PEXT;
@@ -868,6 +832,8 @@ template <class LP> void SymtabSectionImpl<LP>::writeTo(uint8_t *buf) const {
       }
       nList->n_desc |= defined->thumb ? N_ARM_THUMB_DEF : 0;
       nList->n_desc |= defined->isExternalWeakDef() ? N_WEAK_DEF : 0;
+      nList->n_desc |=
+          defined->referencedDynamically ? REFERENCED_DYNAMICALLY : 0;
     } else if (auto *dysym = dyn_cast<DylibSymbol>(entry.sym)) {
       uint16_t n_desc = nList->n_desc;
       int16_t ordinal = ordinalForDylibSymbol(*dysym);
@@ -1103,9 +1069,9 @@ void BitcodeBundleSection::writeTo(uint8_t *buf) const {
 
 void macho::createSyntheticSymbols() {
   auto addHeaderSymbol = [](const char *name) {
-    symtab->addSynthetic(name, in.header->isec, 0,
-                         /*privateExtern=*/true,
-                         /*includeInSymtab=*/false);
+    symtab->addSynthetic(name, in.header->isec, /*value=*/0,
+                         /*privateExtern=*/true, /*includeInSymtab=*/false,
+                         /*referencedDynamically=*/false);
   };
 
   switch (config->outputType) {
@@ -1116,17 +1082,16 @@ void macho::createSyntheticSymbols() {
     //  __TEXT, __text)
     // Otherwise, it's an absolute symbol.
     if (config->isPic)
-      symtab->addSynthetic("__mh_execute_header", in.header->isec, 0,
-                           /*privateExtern=*/false,
-                           /*includeInSymtab=*/true);
+      symtab->addSynthetic("__mh_execute_header", in.header->isec, /*value=*/0,
+                           /*privateExtern=*/false, /*includeInSymtab=*/true,
+                           /*referencedDynamically=*/true);
     else
-      symtab->addSynthetic("__mh_execute_header",
-                           /*isec*/ nullptr, 0,
-                           /*privateExtern=*/false,
-                           /*includeInSymtab=*/true);
+      symtab->addSynthetic("__mh_execute_header", /*isec=*/nullptr, /*value=*/0,
+                           /*privateExtern=*/false, /*includeInSymtab=*/true,
+                           /*referencedDynamically=*/true);
     break;
 
-    // The following symbols are  N_SECT symbols, even though the header is not
+    // The following symbols are N_SECT symbols, even though the header is not
     // part of any section and that they are private to the bundle/dylib/object
     // they are part of.
   case MH_BUNDLE:
@@ -1154,7 +1119,5 @@ void macho::createSyntheticSymbols() {
   addHeaderSymbol("___dso_handle");
 }
 
-template MachHeaderSection *macho::makeMachHeaderSection<LP64>();
-template MachHeaderSection *macho::makeMachHeaderSection<ILP32>();
 template SymtabSection *macho::makeSymtabSection<LP64>(StringTableSection &);
 template SymtabSection *macho::makeSymtabSection<ILP32>(StringTableSection &);

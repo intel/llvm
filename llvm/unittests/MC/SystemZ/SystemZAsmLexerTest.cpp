@@ -112,9 +112,9 @@ protected:
     SrcMgr.AddNewSourceBuffer(std::move(Buffer), SMLoc());
     EXPECT_EQ(Buffer, nullptr);
 
-    Ctx.reset(
-        new MCContext(MUPMAI.get(), MRI.get(), &MOFI, &SrcMgr, &MCOptions));
-    MOFI.InitMCObjectFileInfo(Triple, false, *Ctx, false);
+    Ctx.reset(new MCContext(Triple, MUPMAI.get(), MRI.get(), &MOFI, STI.get(),
+                            &SrcMgr, &MCOptions));
+    MOFI.initMCObjectFileInfo(*Ctx, /*PIC=*/false, /*LargeCodeModel=*/false);
 
     Str.reset(TheTarget->createNullStreamer(*Ctx));
 
@@ -684,5 +684,52 @@ TEST_F(SystemZAsmLexerTest, CheckRejectDotAsCurrentPC) {
   bool ParsePrimaryExpr = Parser->parseExpression(Expr);
   EXPECT_EQ(ParsePrimaryExpr, true);
   EXPECT_EQ(Parser->hasPendingError(), true);
+}
+
+TEST_F(SystemZAsmLexerTest, CheckRejectStarAsCurrentPC) {
+  StringRef AsmStr = "*-4";
+
+  // Setup.
+  setupCallToAsmParser(AsmStr);
+
+  // Lex initially to get the string.
+  Parser->getLexer().Lex();
+
+  const MCExpr *Expr;
+  bool ParsePrimaryExpr = Parser->parseExpression(Expr);
+  EXPECT_EQ(ParsePrimaryExpr, true);
+  EXPECT_EQ(Parser->hasPendingError(), true);
+}
+
+TEST_F(SystemZAsmLexerTest, CheckRejectCharLiterals) {
+  StringRef AsmStr = "abc 'd'";
+
+  // Setup.
+  setupCallToAsmParser(AsmStr);
+  Parser->getLexer().setLexHLASMStrings(true);
+
+  // Lex initially to get the string.
+  Parser->getLexer().Lex();
+
+  SmallVector<AsmToken::TokenKind> ExpectedTokens(
+      {AsmToken::Identifier, AsmToken::Error, AsmToken::Error,
+       AsmToken::EndOfStatement, AsmToken::Eof});
+  lexAndCheckTokens(AsmStr, ExpectedTokens);
+}
+
+TEST_F(SystemZAsmLexerTest, CheckRejectStringLiterals) {
+  StringRef AsmStr = "abc \"ef\"";
+
+  // Setup.
+  setupCallToAsmParser(AsmStr);
+  Parser->getLexer().setLexHLASMStrings(true);
+
+  // Lex initially to get the string.
+  Parser->getLexer().Lex();
+
+  SmallVector<AsmToken::TokenKind> ExpectedTokens(
+      {AsmToken::Identifier, AsmToken::Error, AsmToken::Identifier,
+       AsmToken::Error, AsmToken::EndOfStatement, AsmToken::Eof});
+  lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 } // end anonymous namespace

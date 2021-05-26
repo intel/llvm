@@ -3622,16 +3622,8 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      for (unsigned I = 0; I < ToolChains.size(); ++I) {
-        Action *&A = OpenMPDeviceActions[I];
-        // AMDGPU does not support linking of object files, so we skip
-        // assemble and backend actions to produce LLVM IR.
-        if (ToolChains[I]->getTriple().isAMDGCN() &&
-            (CurPhase == phases::Assemble || CurPhase == phases::Backend))
-          continue;
-
+      for (Action *&A : OpenMPDeviceActions)
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A);
-      }
 
       return ABRT_Success;
     }
@@ -4957,6 +4949,7 @@ public:
       return;
 
     // Let builders add host linking actions.
+    Action* HA = nullptr;
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
       if (!SB->isValid())
         continue;
@@ -5186,7 +5179,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
           llvm::sys::path::stem(SrcFileName).str() + "-header", "h");
       StringRef TmpFileHeader =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
-      addIntegrationFiles(TmpFileHeader, SrcFileName);
+      std::string TmpFileNameFooter = C.getDriver().GetTemporaryPath(
+          llvm::sys::path::stem(SrcFileName).str() + "-footer", "h");
+      StringRef TmpFileFooter =
+          C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
+      addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
     }
   }
 
@@ -5559,6 +5556,18 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<CompileJobAction>(Input, types::TY_ModuleFile);
     if (Args.hasArg(options::OPT_verify_pch))
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
+    if (Args.hasArg(options::OPT_fsycl) &&
+        Args.hasArg(options::OPT_fsycl_use_footer) &&
+        TargetDeviceOffloadKind == Action::OFK_None) {
+      // Performing a host compilation with -fsycl.  Append the integrated
+      // footer to the preprocessed source file.  We then add another
+      // preprocessed step so the new file is considered a full compilation.
+      auto *AppendFooter =
+          C.MakeAction<AppendFooterJobAction>(Input, types::TY_CXX);
+      auto *Preprocess =
+          C.MakeAction<PreprocessJobAction>(AppendFooter, Input->getType());
+      return C.MakeAction<CompileJobAction>(Preprocess, types::TY_LLVM_BC);
+    }
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
@@ -6182,7 +6191,6 @@ InputInfo Driver::BuildJobsForActionNoCache(
     }
     return InputInfo(A, &Input, /* _BaseInput = */ "");
   }
-
   if (const BindArchAction *BAA = dyn_cast<BindArchAction>(A)) {
     const ToolChain *TC;
     StringRef ArchName = BAA->getArchName();
@@ -6214,6 +6222,25 @@ InputInfo Driver::BuildJobsForActionNoCache(
 
   if (!T)
     return InputInfo();
+
+  if (BuildingForOffloadDevice &&
+      A->getOffloadingDeviceKind() == Action::OFK_OpenMP) {
+    if (TC->getTriple().isAMDGCN()) {
+      // AMDGCN treats backend and assemble actions as no-op because
+      // linker does not support object files.
+      if (const BackendJobAction *BA = dyn_cast<BackendJobAction>(A)) {
+        return BuildJobsForAction(C, *BA->input_begin(), TC, BoundArch,
+                                  AtTopLevel, MultipleArchs, LinkingOutput,
+                                  CachedResults, TargetDeviceOffloadKind);
+      }
+
+      if (const AssembleJobAction *AA = dyn_cast<AssembleJobAction>(A)) {
+        return BuildJobsForAction(C, *AA->input_begin(), TC, BoundArch,
+                                  AtTopLevel, MultipleArchs, LinkingOutput,
+                                  CachedResults, TargetDeviceOffloadKind);
+      }
+    }
+  }
 
   // If we've collapsed action list that contained OffloadAction we
   // need to build jobs for host/device-side inputs it may have held.

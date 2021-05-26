@@ -387,6 +387,7 @@ public:
   /// \param CLI      A descriptor of the canonical loop to workshare.
   /// \param AllocaIP An insertion point for Alloca instructions usable in the
   ///                 preheader of the loop.
+  /// \param SchedType Type of scheduling to be passed to the init function.
   /// \param NeedsBarrier Indicates whether a barrier must be insterted after
   ///                     the loop.
   /// \param Chunk    The size of loop chunk considered as a unit when
@@ -396,6 +397,7 @@ public:
   InsertPointTy createDynamicWorkshareLoop(const LocationDescription &Loc,
                                            CanonicalLoopInfo *CLI,
                                            InsertPointTy AllocaIP,
+                                           omp::OMPScheduleType SchedType,
                                            bool NeedsBarrier,
                                            Value *Chunk = nullptr);
 
@@ -622,6 +624,15 @@ public:
   /// <mangled_name_for_global_var> + ".cache." for cache for threadprivate
   /// variables.
   StringMap<AssertingVH<Constant>, BumpPtrAllocator> InternalVars;
+
+  /// Create the global variable holding the offload mappings information.
+  GlobalVariable *createOffloadMaptypes(SmallVectorImpl<uint64_t> &Mappings,
+                                        std::string VarName);
+
+  /// Create the global variable holding the offload names information.
+  GlobalVariable *
+  createOffloadMapnames(SmallVectorImpl<llvm::Constant *> &Names,
+                        std::string VarName);
 
 public:
   /// Generator for __kmpc_copyprivate
