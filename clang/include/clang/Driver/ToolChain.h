@@ -149,6 +149,7 @@ private:
   mutable std::unique_ptr<Tool> SPIRCheck;
   mutable std::unique_ptr<Tool> SYCLPostLink;
   mutable std::unique_ptr<Tool> BackendCompiler;
+  mutable std::unique_ptr<Tool> AppendFooter;
   mutable std::unique_ptr<Tool> FileTableTform;
 
   Tool *getClang() const;
@@ -165,6 +166,7 @@ private:
   Tool *getSPIRCheck() const;
   Tool *getSYCLPostLink() const;
   Tool *getBackendCompiler() const;
+  Tool *getAppendFooter() const;
   Tool *getTableTform() const;
 
   mutable std::unique_ptr<SanitizerArgs> SanitizerArguments;

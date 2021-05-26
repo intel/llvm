@@ -519,6 +519,7 @@ def Vector_ExtractOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -763,6 +764,9 @@ def Vector_InsertOp :
       return dest().getType().cast<VectorType>();
     }
   }];
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Vector_InsertSlicesOp :
@@ -1241,11 +1245,17 @@ def Vector_TransferReadOp :
     `padding`. Elements whose corresponding mask element is `0` are masked out.
 
     An optional boolean array attribute is provided to specify which dimensions
-    of the transfer are guaranteed to be within bounds. The absence of this
-    `in_bounds` attribute signifies that any dimension of the transfer may be
-    out-of-bounds. A `vector.transfer_read` can be lowered to a simple load if
-    all dimensions are specified to be within bounds and no `mask` was
-    specified.
+    of the transfer are guaranteed to be within bounds. The length of the array
+    must equal the rank of the vector type. Broadcast dimensions must always be
+    in-bounds. The absence of this optional `in_bounds` attribute signifies that
+    any dimension of the transfer (except for broadcasts) may be out-of-bounds.
+    A `vector.transfer_read` can be lowered to a simple load if all dimensions
+    are specified to be within bounds and no `mask` was specified.
+
+    Note that `in_bounds` is specified for result dimensions and not input
+    dimensions. The starting point of the transfer, i.e.,
+    `%A[%expr1, %expr2, %expr3, %expr4]` in the example below, is expected to
+    be in-bounds and as indices are increasing, accesses may run out-of-bounds.
 
     This operation is called 'read' by opposition to 'load' because the
     super-vector granularity is generally not representable with a single
@@ -1381,18 +1391,6 @@ def Vector_TransferReadOp :
       "ArrayAttr":$inBounds)>
   ];
 
-  let extraClassDeclaration = [{
-    /// Return a new `result` map with `0` inserted in the proper positions so 
-    /// that vector.transfer_read `result` produces a vector of same element 
-    /// type as `vt` and shape `targetShape.
-    /// Assume that `map` is a permutation map for a vector.transfer_read op, 
-    /// `vt` the vector type produced by the vector.transfer_read and 
-    /// `targetShape` is the desired `targetShape` for a broadcast version of 
-    /// `vt`.
-    static AffineMap insertBroadcasts(AffineMap map, VectorType vt,
-                                      ArrayRef<int64_t> targetShape);
-  }];
-
   let hasFolder = 1;
 }
 
@@ -1431,7 +1429,8 @@ def Vector_TransferWriteOp :
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
     slice to match the vector shape. The permutation map may be implicit and
     omitted from parsing and printing if it is the canonical minor identity map
-    (i.e. if it does not permute or broadcast any dimension).
+    (i.e. if it does not permute any dimension). In contrast to `transfer_read`,
+    write ops cannot have broadcast dimensions.
 
     The size of the slice is specified by the size of the vector.
 
@@ -1445,6 +1444,19 @@ def Vector_TransferWriteOp :
     out-of-bounds. A `vector.transfer_write` can be lowered to a simple store
     if all dimensions are specified to be within bounds and no `mask` was
     specified.
+
+    An optional boolean array attribute is provided to specify which dimensions
+    of the transfer are guaranteed to be within bounds. The length of the array
+    must equal the rank of the vector type. The absence of this optional
+    `in_bounds` attribute signifies that any dimension of the transfer
+    may be out-of-bounds. A `vector.transfer_write` can be lowered to a simple
+    store if all dimensions are specified to be within bounds and no `mask` was
+    specified.
+
+    Note that `in_bounds` is specified for result dimensions and not input
+    dimensions. The starting point of the transfer, i.e.,
+    `%A[%expr1, %expr2, %expr3, %expr4]` in the example below, is expected to
+    be in-bounds and as indices are increasing, accesses may run out-of-bounds.
 
     This operation is called 'write' by opposition to 'store' because the
     super-vector granularity is generally not representable with a single

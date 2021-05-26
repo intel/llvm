@@ -113,8 +113,8 @@ public:
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
                                  PI_INVALID_MEM_OBJECT);
-    return reinterpret_cast<backend_return_t<Backend, device>>(
-        getNativeDevice());
+    // C-style cast required to allow various native types
+    return (backend_return_t<Backend, device>)getNativeDevice();
 #else
     // we believe this won't be ever called on device side
     return 0;

@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
     error(EC, "error opening the file '" + OutputFileList + "'");
 
   std::string ResOutArg;
+  std::string IncOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
   std::string ResFileList = "";
   for (size_t j = 0; j != FileLists[0].size(); ++j) {
@@ -213,10 +214,10 @@ int main(int argc, char **argv) {
 
     if (!OutIncrement.empty()) {
       // Name the file by adding the current file list index to the name.
-      ResOutArg = InputCommandArgs[OutIncrementArg.ArgNum];
+      IncOutArg = InputCommandArgs[OutIncrementArg.ArgNum];
       if (j > 0)
-        ResOutArg += ("_" + Twine(j)).str();
-      Args[OutIncrementArg.ArgNum] = ResOutArg;
+        IncOutArg += ("_" + Twine(j)).str();
+      Args[OutIncrementArg.ArgNum] = IncOutArg;
     }
 
     std::string ErrMsg;

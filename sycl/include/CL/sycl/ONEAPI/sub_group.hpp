@@ -18,6 +18,7 @@
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
 
@@ -104,6 +105,8 @@ struct sub_group {
   using range_type = range<1>;
   using linear_id_type = uint32_t;
   static constexpr int dimensions = 1;
+  static constexpr sycl::memory_scope fence_scope =
+      sycl::memory_scope::sub_group;
 
   /* --- common interface members --- */
 
@@ -694,6 +697,33 @@ struct sub_group {
     (void)x;
     (void)op;
     (void)init;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  linear_id_type get_group_linear_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return static_cast<linear_id_type>(get_group_range()[0]);
+#else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  linear_id_type get_local_linear_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return static_cast<linear_id_type>(get_local_range()[0]);
+#else
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  bool leader() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return get_local_linear_id() == 0;
+#else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif

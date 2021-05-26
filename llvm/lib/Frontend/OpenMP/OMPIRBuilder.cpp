@@ -1384,7 +1384,8 @@ getKmpcForDynamicNextForType(Type *Ty, Module &M, OpenMPIRBuilder &OMPBuilder) {
 
 OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createDynamicWorkshareLoop(
     const LocationDescription &Loc, CanonicalLoopInfo *CLI,
-    InsertPointTy AllocaIP, bool NeedsBarrier, Value *Chunk) {
+    InsertPointTy AllocaIP, OMPScheduleType SchedType, bool NeedsBarrier,
+    Value *Chunk) {
   // Set up the source location value for OpenMP runtime.
   Builder.SetCurrentDebugLocation(Loc.DL);
 
@@ -1431,7 +1432,7 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createDynamicWorkshareLoop(
   Value *ThreadNum = getOrCreateThreadID(SrcLoc);
 
   OMPScheduleType DynamicSchedType =
-      OMPScheduleType::DynamicChunked | OMPScheduleType::ModifierNonmonotonic;
+      SchedType | OMPScheduleType::ModifierNonmonotonic;
   Constant *SchedulingType =
       ConstantInt::get(I32Type, static_cast<int>(DynamicSchedType));
 
@@ -2227,6 +2228,33 @@ Value *OpenMPIRBuilder::getOMPCriticalRegionLock(StringRef CriticalName) {
   std::string Prefix = Twine("gomp_critical_user_", CriticalName).str();
   std::string Name = getNameWithSeparators({Prefix, "var"}, ".", ".");
   return getOrCreateOMPInternalVariable(KmpCriticalNameTy, Name);
+}
+
+GlobalVariable *
+OpenMPIRBuilder::createOffloadMaptypes(SmallVectorImpl<uint64_t> &Mappings,
+                                       std::string VarName) {
+  llvm::Constant *MaptypesArrayInit =
+      llvm::ConstantDataArray::get(M.getContext(), Mappings);
+  auto *MaptypesArrayGlobal = new llvm::GlobalVariable(
+      M, MaptypesArrayInit->getType(),
+      /*isConstant=*/true, llvm::GlobalValue::PrivateLinkage, MaptypesArrayInit,
+      VarName);
+  MaptypesArrayGlobal->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+  return MaptypesArrayGlobal;
+}
+
+GlobalVariable *
+OpenMPIRBuilder::createOffloadMapnames(SmallVectorImpl<llvm::Constant *> &Names,
+                                       std::string VarName) {
+  llvm::Constant *MapNamesArrayInit = llvm::ConstantArray::get(
+      llvm::ArrayType::get(
+          llvm::Type::getInt8Ty(M.getContext())->getPointerTo(), Names.size()),
+      Names);
+  auto *MapNamesArrayGlobal = new llvm::GlobalVariable(
+      M, MapNamesArrayInit->getType(),
+      /*isConstant=*/true, llvm::GlobalValue::PrivateLinkage, MapNamesArrayInit,
+      VarName);
+  return MapNamesArrayGlobal;
 }
 
 // Create all simple and struct types exposed by the runtime and remember
