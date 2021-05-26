@@ -3633,7 +3633,7 @@ static void handleSYCLIntelSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
 // Returns a OneArgResult value; EqualToOne means all argument values are
 // equal to one, NotEqualToOne means all argument values are not
 // equal to one, and Unknown means that the argument values are invalid.
-enum class OneArgResult { Unknown, EqualToOne, NotEqualToOne};
+enum class OneArgResult { Unknown, EqualToOne, NotEqualToOne };
 static OneArgResult AreAllArgsOne(const Expr *Args[], size_t Count) {
 
   for (size_t Idx = 0; Idx < Count; ++Idx) {
@@ -3656,7 +3656,7 @@ static bool checkWorkGroupSizeAttrExpr(Sema &S, Decl *D,
     const Expr *Args[3] = {A->getXDim(), A->getYDim(), A->getZDim()};
     if (OneArgResult::NotEqualToOne == AreAllArgsOne(Args, 3)) {
       S.Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
-            << A << AL;
+          << A << AL;
       return true;
     }
   }
@@ -3704,7 +3704,8 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
     // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
     // equals to 0.
     if (ArgVal == 0) {
-      if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(*this, D, CI))
+      if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(*this, D,
+                                                                    CI))
         return;
       if (checkWorkGroupSizeAttrExpr<ReqdWorkGroupSizeAttr>(*this, D, CI))
         return;
