@@ -206,7 +206,7 @@ event handler::finalize() {
       std::cout << "An empty command group is supported by SYCL 2020."
                 << std::endl;
     }
-    detail::EventImplPtr Event = 
+    detail::EventImplPtr Event =
         std::make_shared<cl::sycl::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;
