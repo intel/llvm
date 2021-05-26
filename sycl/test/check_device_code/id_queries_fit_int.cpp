@@ -43,5 +43,3 @@ SYCL_EXTERNAL void testNDItem(nd_item<1> TestNDItem) {
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int OffsetConferted = TestNDItem.get_offset();
 }
-
-int main() { return 0; }
