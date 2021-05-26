@@ -405,24 +405,22 @@ static Address createReferenceTemporary(CodeGenFunction &CGF,
         (Ty->isArrayType() || Ty->isRecordType()) &&
         CGF.CGM.isTypeConstant(Ty, true))
       if (auto Init = ConstantEmitter(CGF).tryEmitAbstract(Inner, Ty)) {
-        if (auto AddrSpace = CGF.getTarget().getConstantAddressSpace()) {
-          auto AS = AddrSpace.getValue();
-          auto *GV = new llvm::GlobalVariable(
-              CGF.CGM.getModule(), Init->getType(), /*isConstant=*/true,
-              llvm::GlobalValue::PrivateLinkage, Init, ".ref.tmp", nullptr,
-              llvm::GlobalValue::NotThreadLocal,
-              CGF.getContext().getTargetAddressSpace(AS));
-          CharUnits alignment = CGF.getContext().getTypeAlignInChars(Ty);
-          GV->setAlignment(alignment.getAsAlign());
-          llvm::Constant *C = GV;
-          if (AS != LangAS::Default)
-            C = TCG.performAddrSpaceCast(
-                CGF.CGM, GV, AS, LangAS::Default,
-                GV->getValueType()->getPointerTo(
-                    CGF.getContext().getTargetAddressSpace(LangAS::Default)));
-          // FIXME: Should we put the new global into a COMDAT?
-          return Address(C, alignment);
-        }
+        auto AS = CGF.CGM.GetGlobalConstantAddressSpace();
+        auto *GV = new llvm::GlobalVariable(
+            CGF.CGM.getModule(), Init->getType(), /*isConstant=*/true,
+            llvm::GlobalValue::PrivateLinkage, Init, ".ref.tmp", nullptr,
+            llvm::GlobalValue::NotThreadLocal,
+            CGF.getContext().getTargetAddressSpace(AS));
+        CharUnits alignment = CGF.getContext().getTypeAlignInChars(Ty);
+        GV->setAlignment(alignment.getAsAlign());
+        llvm::Constant *C = GV;
+        if (AS != LangAS::Default)
+          C = TCG.performAddrSpaceCast(
+              CGF.CGM, GV, AS, LangAS::Default,
+              GV->getValueType()->getPointerTo(
+                  CGF.getContext().getTargetAddressSpace(LangAS::Default)));
+        // FIXME: Should we put the new global into a COMDAT?
+        return Address(C, alignment);
       }
     return CGF.CreateMemTemp(Ty, "ref.tmp", Alloca);
   }
@@ -2835,8 +2833,21 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
     return LV;
   }
 
-  if (const auto *FD = dyn_cast<FunctionDecl>(ND))
-    return EmitFunctionDeclLValue(*this, E, FD);
+  if (const auto *FD = dyn_cast<FunctionDecl>(ND)) {
+    LValue LV = EmitFunctionDeclLValue(*this, E, FD);
+
+    // Emit debuginfo for the function declaration if the target wants to.
+    if (getContext().getTargetInfo().allowDebugInfoForExternalRef()) {
+      if (CGDebugInfo *DI = CGM.getModuleDebugInfo()) {
+        auto *Fn =
+            cast<llvm::Function>(LV.getPointer(*this)->stripPointerCasts());
+        if (!Fn->getSubprogram())
+          DI->EmitFunctionDecl(FD, FD->getLocation(), T, Fn);
+      }
+    }
+
+    return LV;
+  }
 
   // FIXME: While we're emitting a binding from an enclosing scope, all other
   // DeclRefExprs we see should be implicitly treated as if they also refer to
@@ -3385,7 +3396,7 @@ void CodeGenFunction::EmitCfiCheckFail() {
       llvm::FunctionType::get(VoidTy, {VoidPtrTy, VoidPtrTy}, false),
       llvm::GlobalValue::WeakODRLinkage, "__cfi_check_fail", &CGM.getModule());
 
-  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, F);
+  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, F, /*IsThunk=*/false);
   CGM.SetLLVMFunctionAttributesForDefinition(nullptr, F);
   F->setVisibility(llvm::GlobalValue::HiddenVisibility);
 
@@ -3867,7 +3878,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, E->getType(),
                                  !getLangOpts().isSignedOverflowDefined(),
                                  SignedIndices, E->getExprLoc(), &ptrType,
-                                 E->getBase(), "ptridx", PtrDecl);
+                                 E->getBase(), "arrayidx", PtrDecl);
   }
 
   LValue LV = MakeAddrLValue(Addr, E->getType(), EltBaseInfo, EltTBAAInfo);
@@ -4202,8 +4213,10 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
 /// Given that we are currently emitting a lambda, emit an l-value for
 /// one of its members.
 LValue CodeGenFunction::EmitLValueForLambdaField(const FieldDecl *Field) {
-  assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent()->isLambda());
-  assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent() == Field->getParent());
+  if (CurCodeDecl) {
+    assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent()->isLambda());
+    assert(cast<CXXMethodDecl>(CurCodeDecl)->getParent() == Field->getParent());
+  }
   QualType LambdaTagType =
     getContext().getTagDeclType(Field->getParent());
   LValue LambdaLV = MakeNaturalAlignAddrLValue(CXXABIThisValue, LambdaTagType);

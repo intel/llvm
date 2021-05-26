@@ -109,17 +109,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
     Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
-    if (NewCmd) {
-      // TODO: Check if lazy mode.
-      EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
-      // If there are no memory dependencies decouple and free the command.
-      // Though, dismiss ownership of native kernel command group as it's
-      // resources may be in use by backend and synchronization point here is
-      // at native kernel execution finish.
+    auto CleanUp = [&]() {
       if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0) {
         if (IsHostKernel)
           static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
@@ -127,6 +118,27 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
         NewEvent->setCommand(nullptr);
         delete NewCmd;
       }
+    };
+
+    if (NewCmd) {
+      // TODO: Check if lazy mode.
+      EnqueueResultT Res;
+      try {
+        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+          throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      } catch (...) {
+        // enqueueCommand() func and if statement above may throw an exception,
+        // so destroy required resources to avoid memory leak
+        CleanUp();
+        std::rethrow_exception(std::current_exception());
+      }
+
+      // If there are no memory dependencies decouple and free the command.
+      // Though, dismiss ownership of native kernel command group as it's
+      // resources may be in use by backend and synchronization point here is
+      // at native kernel execution finish.
+      CleanUp();
     }
   }
 

@@ -125,6 +125,11 @@ LLVMToSPIRVBase::LLVMToSPIRVBase(SPIRVModule *SMod)
   DbgTran = std::make_unique<LLVMToSPIRVDbgTran>(nullptr, SMod, this);
 }
 
+LLVMToSPIRVBase::~LLVMToSPIRVBase() {
+  for (auto *I : UnboundInst)
+    I->deleteValue();
+}
+
 bool LLVMToSPIRVBase::runLLVMToSPIRV(Module &Mod) {
   M = &Mod;
   CG = std::make_unique<CallGraph>(Mod);
@@ -851,6 +856,7 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
              dbgs() << "Instruction: " << *Inst << '\n';)
     auto BI = transValue(Inst, nullptr, false);
     Inst->dropAllReferences();
+    UnboundInst.push_back(Inst);
     return BI;
   }
 
@@ -1326,6 +1332,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
         Ty = static_cast<PointerType *>(Init->getType());
       }
       Inst->dropAllReferences();
+      UnboundInst.push_back(Inst);
       BVarInit = transValue(Init, nullptr);
     } else if (ST && isa<UndefValue>(Init)) {
       // Undef initializer for LLVM structure be can translated to
@@ -3353,7 +3360,6 @@ bool LLVMToSPIRVBase::translate() {
     return false;
 
   BM->resolveUnknownStructFields();
-  BM->createForwardPointers();
   DbgTran->transDebugMetadata();
   return true;
 }
@@ -3385,8 +3391,15 @@ SPIRVValue *LLVMToSPIRVBase::transBuiltinToConstant(StringRef DemangledName,
                                         transValue(getArguments(CI), nullptr));
   }
   Value *V = CI->getArgOperand(1);
-  Type *Ty = V->getType();
-  assert(Ty == CI->getType() && "Type mismatch!");
+  Type *Ty = CI->getType();
+  assert(((Ty == V->getType()) ||
+          // If bool is stored into memory, then clang will emit it as i8,
+          // however for other usages of bool (like return type of a function),
+          // it is emitted as i1.
+          // Therefore, situation when we encounter
+          // i1 _Z20__spirv_SpecConstant(i32, i8) is valid
+          (Ty->isIntegerTy(1) && V->getType()->isIntegerTy(8))) &&
+         "Type mismatch!");
   uint64_t Val = 0;
   if (Ty->isIntegerTy())
     Val = cast<ConstantInt>(V)->getZExtValue();

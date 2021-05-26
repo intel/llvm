@@ -41,12 +41,15 @@ public:
       : BaseT(TM, F.getParent()->getDataLayout()), ST(TM->getSubtargetImpl(F)),
         TLI(ST->getTargetLowering()) {}
 
-  int getIntImmCost(const APInt &Imm, Type *Ty, TTI::TargetCostKind CostKind);
-  int getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm,
-                        Type *Ty, TTI::TargetCostKind CostKind,
-                        Instruction *Inst = nullptr);
-  int getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                          Type *Ty, TTI::TargetCostKind CostKind);
+  InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
+                                TTI::TargetCostKind CostKind);
+  InstructionCost getIntImmCostInst(unsigned Opcode, unsigned Idx,
+                                    const APInt &Imm, Type *Ty,
+                                    TTI::TargetCostKind CostKind,
+                                    Instruction *Inst = nullptr);
+  InstructionCost getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                      const APInt &Imm, Type *Ty,
+                                      TTI::TargetCostKind CostKind);
 
   TargetTransformInfo::PopcntSupportKind getPopcntSupport(unsigned TyWidth);
 
@@ -127,6 +130,14 @@ public:
   }
   bool isLegalMaskedScatter(Type *DataType, Align Alignment) {
     return isLegalMaskedGatherScatter(DataType, Alignment);
+  }
+
+  /// \returns How the target needs this vector-predicated operation to be
+  /// transformed.
+  TargetTransformInfo::VPLegalization
+  getVPLegalizationStrategy(const VPIntrinsic &PI) const {
+    using VPLegalization = TargetTransformInfo::VPLegalization;
+    return VPLegalization(VPLegalization::Legal, VPLegalization::Legal);
   }
 };
 

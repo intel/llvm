@@ -128,7 +128,7 @@ public:
   ParseResult parseToken(Token::Kind expectedToken, const Twine &message);
 
   /// Parse an optional integer value from the stream.
-  OptionalParseResult parseOptionalInteger(uint64_t &result);
+  OptionalParseResult parseOptionalInteger(APInt &result);
 
   /// Parse a floating point value from an integer literal token.
   ParseResult parseFloatFromIntegerLiteral(Optional<APFloat> &result,
@@ -267,6 +267,11 @@ public:
   parseAffineMapOfSSAIds(AffineMap &map,
                          function_ref<ParseResult(bool)> parseElement,
                          OpAsmParser::Delimiter delimiter);
+
+  /// Parse an AffineExpr where dim and symbol identifiers are SSA ids.
+  ParseResult
+  parseAffineExprOfSSAIds(AffineExpr &expr,
+                          function_ref<ParseResult(bool)> parseElement);
 
 protected:
   /// The Parser is subclassed and reinstantiated.  Do not add additional

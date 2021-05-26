@@ -67,7 +67,12 @@ Non-comprehensive list of changes in this release
 New Compiler Flags
 ------------------
 
-- ...
+- ``-Wreserved-identifier`` emits warning when user code uses reserved
+  identifiers.
+
+- ``-fstack-usage`` generates an extra .su file per input source file. The .su
+  file contains frame size information for each function defined in the source
+  file.
 
 Deprecated Compiler Flags
 -------------------------
@@ -235,6 +240,16 @@ clang-format
 - Checks for newlines in option ``EmptyLineBeforeAccessModifier`` are now based
   on the formatted new lines and not on the new lines in the file. (Fixes
   https://llvm.org/PR41870.)
+
+- Option ``SpacesInAngles`` has been improved, it now accepts ``Leave`` value
+  that allows to keep spaces where they are already present.
+
+- Option ``AllowShortIfStatementsOnASingleLine`` has been improved, it now
+  accepts ``AllIfsAndElse`` value that allows to put "else if" and "else" short
+  statements on a single line. (Fixes https://llvm.org/PR50019.)
+
+- ``git-clang-format`` no longer formats changes to symbolic links. (Fixes
+  https://llvm.org/PR46992.)
 
 libclang
 --------

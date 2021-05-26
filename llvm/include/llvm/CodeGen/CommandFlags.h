@@ -107,7 +107,7 @@ bool getXCOFFTracebackTable();
 std::string getBBSections();
 
 std::string getStackProtectorGuard();
-unsigned getStackProtectorGuardOffset();
+int getStackProtectorGuardOffset();
 std::string getStackProtectorGuardReg();
 
 unsigned getTLSSize();
@@ -139,6 +139,8 @@ bool getValueTrackingVariableLocations();
 bool getForceDwarfFrameSection();
 
 bool getXRayOmitFunctionIndex();
+
+bool getDebugStrictDwarf();
 
 /// Create this object with static storage to register codegen-related command
 /// line options.

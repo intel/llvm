@@ -631,7 +631,7 @@ struct WorkDoneProgressReport {
   ///
   /// The value should be steadily rising. Clients are free to ignore values
   /// that are not following this rule.
-  llvm::Optional<double> percentage;
+  llvm::Optional<unsigned> percentage;
 };
 llvm::json::Value toJSON(const WorkDoneProgressReport &);
 //
@@ -1725,7 +1725,8 @@ struct ASTParams {
 
   /// The position of the node to be dumped.
   /// The highest-level node that entirely contains the range will be returned.
-  Range range;
+  /// If no range is given, the root translation unit node will be returned.
+  llvm::Optional<Range> range;
 };
 bool fromJSON(const llvm::json::Value &, ASTParams &, llvm::json::Path);
 

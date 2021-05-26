@@ -2,6 +2,12 @@
 
 cmake_minimum_required(VERSION 3.14)
 
+# CMP0116: Ninja generators transform `DEPFILE`s from `add_custom_command()`
+# New in CMake 3.20. https://cmake.org/cmake/help/latest/policy/CMP0116.html
+if(POLICY CMP0116)
+  cmake_policy(SET CMP0116 OLD)
+endif()
+
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 if(NOT DEFINED LLVM_VERSION_MAJOR)
@@ -68,9 +74,17 @@ set(LLVM_ENABLE_PROJECTS "" CACHE STRING
 if( LLVM_ENABLE_PROJECTS STREQUAL "all" )
   set( LLVM_ENABLE_PROJECTS ${LLVM_ALL_PROJECTS})
 endif()
-if ("flang" IN_LIST LLVM_ENABLE_PROJECTS AND NOT "mlir" IN_LIST LLVM_ENABLE_PROJECTS)
-  message(STATUS "Enabling MLIR as a dependency to flang")
-  list(APPEND LLVM_ENABLE_PROJECTS "mlir")
+
+if ("flang" IN_LIST LLVM_ENABLE_PROJECTS)
+  if (NOT "mlir" IN_LIST LLVM_ENABLE_PROJECTS)
+    message(STATUS "Enabling MLIR as a dependency to flang")
+    list(APPEND LLVM_ENABLE_PROJECTS "mlir")
+  endif()
+
+  option(FLANG_BUILD_NEW_DRIVER "Build the flang compiler driver" ON)
+  if (FLANG_BUILD_NEW_DRIVER AND NOT "clang" IN_LIST LLVM_ENABLE_PROJECTS)
+    message(FATAL_ERROR "Clang is not enabled, but it's required by the new Flang driver")
+  endif()
 endif()
 
 # LLVM_ENABLE_PROJECTS_USED is `ON` if the user has ever used the

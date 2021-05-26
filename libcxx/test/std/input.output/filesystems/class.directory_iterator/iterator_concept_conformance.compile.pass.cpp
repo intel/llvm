@@ -16,9 +16,18 @@
 
 #include <iterator>
 
-static_assert(std::indirectly_readable<fs::directory_iterator>);
-static_assert(!std::indirectly_writable<fs::directory_iterator, fs::directory_iterator::value_type>);
+using value_type = fs::directory_entry;
 
-static_assert(std::indirectly_readable<fs::recursive_directory_iterator>);
-static_assert(
-    !std::indirectly_writable<fs::recursive_directory_iterator, fs::recursive_directory_iterator::value_type>);
+static_assert(std::input_iterator<fs::directory_iterator>);
+static_assert(!std::forward_iterator<fs::directory_iterator>);
+static_assert(!std::indirectly_writable<fs::directory_iterator, value_type>);
+static_assert(!std::incrementable<fs::directory_iterator>);
+static_assert(std::sentinel_for<fs::directory_iterator, fs::directory_iterator>);
+static_assert(!std::sized_sentinel_for<fs::directory_iterator, fs::directory_iterator>);
+
+static_assert(std::input_iterator<fs::recursive_directory_iterator>);
+static_assert(!std::forward_iterator<fs::recursive_directory_iterator>);
+static_assert(!std::indirectly_writable<fs::recursive_directory_iterator, value_type>);
+static_assert(!std::incrementable<fs::recursive_directory_iterator>);
+static_assert(std::sentinel_for<fs::recursive_directory_iterator, fs::recursive_directory_iterator>);
+static_assert(!std::sized_sentinel_for<fs::recursive_directory_iterator, fs::recursive_directory_iterator>);

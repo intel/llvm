@@ -1361,7 +1361,7 @@ TypeSP DWARFASTParserClang::ParsePointerToMemberType(
       dwarf->ResolveTypeUID(attrs.containing_type.Reference(), true);
 
   CompilerType pointee_clang_type = pointee_type->GetForwardCompilerType();
-  CompilerType class_clang_type = class_type->GetLayoutCompilerType();
+  CompilerType class_clang_type = class_type->GetForwardCompilerType();
 
   CompilerType clang_type = TypeSystemClang::CreateMemberPointerType(
       class_clang_type, pointee_clang_type);
@@ -2671,7 +2671,7 @@ void DWARFASTParserClang::ParseSingleMember(
           last_field_info.bit_offset = field_bit_offset;
 
           if (llvm::Optional<uint64_t> clang_type_size =
-                  member_clang_type.GetByteSize(nullptr)) {
+                  member_type->GetByteSize(nullptr)) {
             last_field_info.bit_size = *clang_type_size * character_width;
           }
 

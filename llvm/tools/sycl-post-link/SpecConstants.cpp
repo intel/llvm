@@ -11,7 +11,6 @@
 #include "SpecConstants.h"
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/InstIterator.h"
@@ -320,10 +319,52 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   std::string FunctionName = mangleFuncItanium(BaseFunctionName, FT);
   Module *M = InsertBefore->getFunction()->getParent();
+
+  if (RetTy->isIntegerTy(1)) {
+    assert(ArgTys.size() == 2 && "Expected a scalar spec constant");
+    // There is a problem with bool data type: depending on how it is used in
+    // source code, clang can emit it as either i1 or i8. It might lead to a
+    // situation where we need to emit call to
+    // i1 __spirv_SpecConstantia(i32, i8) function for bool spec constant and
+    // call to i8 __spirv_SpecConstantia(i32, i8) for char spec constants.
+    // Those two calls are only differ by return type and generating them both
+    // will result in something like:
+    // call i8 bitcast (i1 (i32, i8)* @_Z20__spirv_SpecConstantia to i8 (i32,
+    // i8)*)(i32 47, i8 20) and it will confuse the SPIR-V translator.
+    //
+    // In order to avoid that, we detect all situations when we need to emit
+    // i1 __spirv_SpecConstantia(i32, i8) and instead emit a call to
+    // i8 __spirv_SpecConstantia(i32, i8) followed by a trunc instruction to
+    // make types consistent with the rest of LLVM IR.
+    if (ArgTys[1]->isIntegerTy(8)) {
+      LLVMContext &Ctx = RetTy->getContext();
+      auto *NewRetTy = Type::getInt8Ty(Ctx);
+      auto *NewFT = FunctionType::get(NewRetTy, ArgTys, false /*isVarArg*/);
+      auto NewFC = M->getOrInsertFunction(FunctionName, NewFT);
+
+      auto *Call =
+          CallInst::Create(NewFT, NewFC.getCallee(), Args, "", InsertBefore);
+      return CastInst::CreateTruncOrBitCast(Call, RetTy, "tobool",
+                                            InsertBefore);
+    }
+  }
+
+  // There is one more example where call bitcast construct might appear: it
+  // would be user-defined data types, which are named differently, but their
+  // content is the same:
+  // %struct.A = { float, i32, i8, [3 x i8] }
+  // %struct.B = { float, i32, i8. [3 x i8] }
+  // If we have spec constants using both those types, we will end up with
+  // something like:
+  // %struct.A (float, i32, i8, [3 x i8])* bitcast (%struct.B (float, i32, i8,
+  // [3 x i8])* @_Z29__spirv_SpecConstantCompositefiaAa to %struct.A (float,
+  // i32, i8, [3 x i8])*) Such call of bitcast doesn't seem to confuse the
+  // translator, but still doesn't look clean in LLVM IR.
+  // FIXME: is it possible to avoid call bitcast construct for composite
+  // types? Is it necessary?
+
   FunctionCallee FC = M->getOrInsertFunction(FunctionName, FT);
-  assert(FC.getCallee() && "SPIRV intrinsic creation failed");
-  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
-  return Call;
+  return CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
 }
 
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
@@ -478,10 +519,14 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       DelInsts.push_back(CI);
       Type *SCTy = CI->getType();
       unsigned NameArgNo = 0;
-      if (IsComposite) { // structs are returned via sret arguments.
-        NameArgNo = 1;
-        auto *PtrTy = cast<PointerType>(CI->getArgOperand(0)->getType());
-        SCTy = PtrTy->getElementType();
+      Function *Callee = CI->getCalledFunction();
+      assert(Callee && "Failed to get spec constant call");
+      bool HasSretParameter = Callee->hasStructRetAttr();
+      // Structs are returned via 'sret' arguments if they are larger than 64b
+      if (HasSretParameter) {
+        // Get structure type stored in an argument annotated with 'sret'
+        // parameter attribute and skip it.
+        SCTy = Callee->getParamStructRetType(NameArgNo++);
       }
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
       Value *Replacement = nullptr;
@@ -544,7 +589,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // A pointer to a single RT-buffer with all the values of
           // specialization constants is passed as a 3rd argument of intrinsic.
           Value *RTBuffer =
-              IsComposite ? CI->getArgOperand(3) : CI->getArgOperand(2);
+              HasSretParameter ? CI->getArgOperand(3) : CI->getArgOperand(2);
 
           // Add the string literal to a "spec const string literal ID" ->
           // "offset" map, uniquing the integer offsets if this is new
@@ -592,8 +637,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
       }
 
-      if (IsComposite) {
-        // __sycl_getCompositeSpecConstant returns through argument, so, the
+      if (HasSretParameter) {
+        // If __sycl_getCompositeSpecConstant returns through argument, then the
         // only thing we need to do here is to store into a memory pointed
         // by that argument
         new StoreInst(Replacement, CI->getArgOperand(0), CI);

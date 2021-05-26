@@ -77,6 +77,7 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
           shouldEmitLifetimeMarkers(CGM.getCodeGenOpts(), CGM.getLangOpts())) {
   if (!suppressNewContext)
     CGM.getCXXABI().getMangleContext().startNewFunction();
+  EHStack.setCGF(this);
 
   SetFastMathFlags(CurFPFeatures);
   SetFPModel();
@@ -622,9 +623,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const WorkGroupSizeHintAttr *A = FD->getAttr<WorkGroupSizeHintAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
+        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getXDimVal())),
+        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
+        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getZDimVal()))};
     Fn->setMetadata("work_group_size_hint", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
@@ -1366,9 +1367,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
 void CodeGenFunction::EmitFunctionBody(const Stmt *Body) {
   incrementProfileCounter(Body);
-  if (CPlusPlusWithProgress())
-    FnIsMustProgress = true;
-
   if (const CompoundStmt *S = dyn_cast<CompoundStmt>(Body))
     EmitCompoundStmtWithoutScope(*S);
   else
@@ -1376,7 +1374,7 @@ void CodeGenFunction::EmitFunctionBody(const Stmt *Body) {
 
   // This is checked after emitting the function body so we know if there
   // are any permitted infinite loops.
-  if (FnIsMustProgress)
+  if (checkIfFunctionMustProgress())
     CurFn->addFnAttr(llvm::Attribute::MustProgress);
 }
 
@@ -1518,14 +1516,18 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     for (auto ORI : llvm::enumerate(OptReportHandler.GetInfo(FD))) {
       llvm::DiagnosticLocation DL =
           SourceLocToDebugLoc(ORI.value().KernelArgLoc);
-      std::string KAN = ORI.value().KernelArgName;
+      StringRef NameInDesc = ORI.value().KernelArgDescName;
+      StringRef ArgType = ORI.value().KernelArgType;
+      StringRef ArgDesc = ORI.value().KernelArgDesc;
+      unsigned ArgSize = ORI.value().KernelArgSize;
+      StringRef ArgDecomposedField = ORI.value().KernelArgDecomposedField;
+
       llvm::OptimizationRemark Remark("sycl", "Region", DL,
                                       &Fn->getEntryBlock());
-      Remark << "Argument " << llvm::ore::NV("Argument", ORI.index())
-             << " for function kernel: "
-             << llvm::ore::NV(KAN.empty() ? "&" : "") << " " << Fn->getName()
-             << "." << llvm::ore::NV(KAN.empty() ? " " : KAN) << "("
-             << ORI.value().KernelArgType << ")";
+      Remark << "Arg " << llvm::ore::NV("Argument", ORI.index()) << ":"
+             << ArgDesc << NameInDesc << "  (" << ArgDecomposedField
+             << "Type:" << ArgType << ", "
+             << "Size: " << llvm::ore::NV("Argument", ArgSize) << ")";
       ORE.emit(Remark);
     }
   }

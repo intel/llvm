@@ -90,3 +90,17 @@
 #define __SYCL_FALLTHROUGH
 #endif
 #endif // __SYCL_FALLTHROUGH
+
+// define __SYCL_WARNING convenience macro to report compiler warnings
+#if defined(__GNUC__)
+#define __SYCL_GCC_PRAGMA(x) _Pragma(#x)
+#define __SYCL_WARNING(msg) __SYCL_GCC_PRAGMA(GCC warning msg)
+#elif defined(_MSC_VER) && !defined(__clang__)
+#define __SYCL_QUOTE1(x) #x
+#define __SYCL_QUOTE(x) __SYCL_QUOTE1(x)
+#define __SYCL_SRC_LOC __FILE__ ":" __SYCL_QUOTE(__LINE__)
+#define __SYCL_WARNING(msg) __pragma(message(__SYCL_SRC_LOC " warning: " msg))
+#else // clang et. al.
+// clang emits "warning:" in the message pragma output
+#define __SYCL_WARNING(msg) __pragma(message(msg))
+#endif // __GNUC__

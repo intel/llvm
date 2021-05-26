@@ -30,8 +30,8 @@ using namespace llvm;
 //
 //===----------------------------------------------------------------------===//
 
-int SystemZTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
-                                  TTI::TargetCostKind CostKind) {
+InstructionCost SystemZTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
+                                              TTI::TargetCostKind CostKind) {
   assert(Ty->isIntegerTy());
 
   unsigned BitSize = Ty->getPrimitiveSizeInBits();
@@ -63,10 +63,10 @@ int SystemZTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
   return 4 * TTI::TCC_Basic;
 }
 
-int SystemZTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
-                                      const APInt &Imm, Type *Ty,
-                                      TTI::TargetCostKind CostKind,
-                                      Instruction *Inst) {
+InstructionCost SystemZTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
+                                                  const APInt &Imm, Type *Ty,
+                                                  TTI::TargetCostKind CostKind,
+                                                  Instruction *Inst) {
   assert(Ty->isIntegerTy());
 
   unsigned BitSize = Ty->getPrimitiveSizeInBits();
@@ -183,9 +183,10 @@ int SystemZTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
   return SystemZTTIImpl::getIntImmCost(Imm, Ty, CostKind);
 }
 
-int SystemZTTIImpl::getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
-                                        const APInt &Imm, Type *Ty,
-                                        TTI::TargetCostKind CostKind) {
+InstructionCost
+SystemZTTIImpl::getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                    const APInt &Imm, Type *Ty,
+                                    TTI::TargetCostKind CostKind) {
   assert(Ty->isIntegerTy());
 
   unsigned BitSize = Ty->getPrimitiveSizeInBits();
@@ -540,7 +541,7 @@ InstructionCost SystemZTTIImpl::getArithmeticInstrCost(
     // There is no native support for FRem.
     if (Opcode == Instruction::FRem) {
       SmallVector<Type *> Tys(Args.size(), Ty);
-      unsigned Cost =
+      InstructionCost Cost =
           (VF * LIBCALL_COST) + getScalarizationOverhead(VTy, Args, Tys);
       // FIXME: VF 2 for float is currently just as expensive as for VF 4.
       if (VF == 2 && ScalarBits == 32)
@@ -558,6 +559,7 @@ InstructionCost SystemZTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
                                                VectorType *Tp,
                                                ArrayRef<int> Mask, int Index,
                                                VectorType *SubTp) {
+  Kind = improveShuffleKindFromMask(Kind, Mask);
   if (ST->hasVector()) {
     unsigned NumVectors = getNumVectorRegs(Tp);
 
@@ -1143,9 +1145,6 @@ InstructionCost SystemZTTIImpl::getInterleavedMemoryOpCost(
   assert(isa<VectorType>(VecTy) &&
          "Expect a vector type for interleaved memory op");
 
-  // Return the ceiling of dividing A by B.
-  auto ceil = [](unsigned A, unsigned B) { return (A + B - 1) / B; };
-
   unsigned NumElts = cast<FixedVectorType>(VecTy)->getNumElements();
   assert(Factor > 1 && NumElts % Factor == 0 && "Invalid interleave factor");
   unsigned VF = NumElts / Factor;
@@ -1172,7 +1171,7 @@ InstructionCost SystemZTTIImpl::getInterleavedMemoryOpCost(
       // requires one operation, except that vperm can handle two input
       // registers first time for each dst vector.
       unsigned NumSrcVecs = ValueVecs[Index].count();
-      unsigned NumDstVecs = ceil(VF * getScalarSizeInBits(VecTy), 128U);
+      unsigned NumDstVecs = divideCeil(VF * getScalarSizeInBits(VecTy), 128U);
       assert (NumSrcVecs >= NumDstVecs && "Expected at least as many sources");
       NumPermutes += std::max(1U, NumSrcVecs - NumDstVecs);
     }

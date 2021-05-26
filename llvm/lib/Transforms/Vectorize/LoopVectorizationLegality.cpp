@@ -48,6 +48,23 @@ static cl::opt<unsigned> PragmaVectorizeSCEVCheckThreshold(
     cl::desc("The maximum number of SCEV checks allowed with a "
              "vectorize(enable) pragma"));
 
+// FIXME: When scalable vectorization is stable enough, change the default
+// to SK_PreferFixedWidth.
+static cl::opt<LoopVectorizeHints::ScalableForceKind> ScalableVectorization(
+    "scalable-vectorization", cl::init(LoopVectorizeHints::SK_FixedWidthOnly),
+    cl::Hidden,
+    cl::desc("Control whether the compiler can use scalable vectors to "
+             "vectorize a loop"),
+    cl::values(
+        clEnumValN(LoopVectorizeHints::SK_FixedWidthOnly, "off",
+                   "Scalable vectorization is disabled."),
+        clEnumValN(LoopVectorizeHints::SK_PreferFixedWidth, "on",
+                   "Scalable vectorization is available, but favor fixed-width "
+                   "vectorization when the cost is inconclusive."),
+        clEnumValN(LoopVectorizeHints::SK_PreferScalable, "preferred",
+                   "Scalable vectorization is available and favored when the "
+                   "cost is inconclusive.")));
+
 /// Maximum vectorization interleave count.
 static const unsigned MaxInterleaveFactor = 16;
 
@@ -57,7 +74,7 @@ bool LoopVectorizeHints::Hint::validate(unsigned Val) {
   switch (Kind) {
   case HK_WIDTH:
     return isPowerOf2_32(Val) && Val <= VectorizerParams::MaxVectorWidth;
-  case HK_UNROLL:
+  case HK_INTERLEAVE:
     return isPowerOf2_32(Val) && Val <= MaxInterleaveFactor;
   case HK_FORCE:
     return (Val <= 1);
@@ -73,12 +90,12 @@ LoopVectorizeHints::LoopVectorizeHints(const Loop *L,
                                        bool InterleaveOnlyWhenForced,
                                        OptimizationRemarkEmitter &ORE)
     : Width("vectorize.width", VectorizerParams::VectorizationFactor, HK_WIDTH),
-      Interleave("interleave.count", InterleaveOnlyWhenForced, HK_UNROLL),
+      Interleave("interleave.count", InterleaveOnlyWhenForced, HK_INTERLEAVE),
       Force("vectorize.enable", FK_Undefined, HK_FORCE),
       IsVectorized("isvectorized", 0, HK_ISVECTORIZED),
       Predicate("vectorize.predicate.enable", FK_Undefined, HK_PREDICATE),
-      Scalable("vectorize.scalable.enable", false, HK_SCALABLE), TheLoop(L),
-      ORE(ORE) {
+      Scalable("vectorize.scalable.enable", SK_Unspecified, HK_SCALABLE),
+      TheLoop(L), ORE(ORE) {
   // Populate values with existing loop metadata.
   getHintsFromMetadata();
 
@@ -86,13 +103,23 @@ LoopVectorizeHints::LoopVectorizeHints(const Loop *L,
   if (VectorizerParams::isInterleaveForced())
     Interleave.Value = VectorizerParams::VectorizationInterleave;
 
+  if ((LoopVectorizeHints::ScalableForceKind)Scalable.Value == SK_Unspecified)
+    // If the width is set, but the metadata says nothing about the scalable
+    // property, then assume it concerns only a fixed-width UserVF.
+    // If width is not set, the flag takes precedence.
+    Scalable.Value = Width.Value ? SK_FixedWidthOnly : ScalableVectorization;
+  else if (ScalableVectorization == SK_FixedWidthOnly)
+    // If the flag is set to disable any use of scalable vectors, override the
+    // loop hint.
+    Scalable.Value = SK_FixedWidthOnly;
+
   if (IsVectorized.Value != 1)
     // If the vectorization width and interleaving count are both 1 then
     // consider the loop to have been already vectorized because there's
     // nothing more that we can do.
     IsVectorized.Value =
-        getWidth() == ElementCount::getFixed(1) && Interleave.Value == 1;
-  LLVM_DEBUG(if (InterleaveOnlyWhenForced && Interleave.Value == 1) dbgs()
+        getWidth() == ElementCount::getFixed(1) && getInterleave() == 1;
+  LLVM_DEBUG(if (InterleaveOnlyWhenForced && getInterleave() == 1) dbgs()
              << "LV: Interleaving disabled by the pass manager\n");
 }
 
@@ -165,8 +192,8 @@ void LoopVectorizeHints::emitRemarkWithHints() const {
         R << " (Force=" << NV("Force", true);
         if (Width.Value != 0)
           R << ", Vector Width=" << NV("VectorWidth", getWidth());
-        if (Interleave.Value != 0)
-          R << ", Interleave Count=" << NV("InterleaveCount", Interleave.Value);
+        if (getInterleave() != 0)
+          R << ", Interleave Count=" << NV("InterleaveCount", getInterleave());
         R << ")";
       }
       return R;
@@ -376,7 +403,7 @@ static bool hasOutsideLoopUser(const Loop *TheLoop, Instruction *Inst,
   return false;
 }
 
-int LoopVectorizationLegality::isConsecutivePtr(Value *Ptr) {
+int LoopVectorizationLegality::isConsecutivePtr(Value *Ptr) const {
   const ValueToValueMap &Strides =
       getSymbolicStrides() ? *getSymbolicStrides() : ValueToValueMap();
 
@@ -879,7 +906,7 @@ bool LoopVectorizationLegality::isFirstOrderRecurrence(const PHINode *Phi) {
   return FirstOrderRecurrences.count(Phi);
 }
 
-bool LoopVectorizationLegality::blockNeedsPredication(BasicBlock *BB) {
+bool LoopVectorizationLegality::blockNeedsPredication(BasicBlock *BB) const {
   return LoopAccessInfo::blockNeedsPredication(BB, TheLoop, DT);
 }
 

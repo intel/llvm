@@ -195,30 +195,36 @@ struct SimplifyAllocConst : public OpRewritePattern<AllocLikeOp> {
   }
 };
 
-/// Fold alloc operations with no uses. Alloc has side effects on the heap,
-/// but can still be deleted if it has zero uses.
-struct SimplifyDeadAlloc : public OpRewritePattern<AllocOp> {
-  using OpRewritePattern<AllocOp>::OpRewritePattern;
+/// Fold alloc operations with no users or only store and dealloc uses.
+template <typename T>
+struct SimplifyDeadAlloc : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AllocOp alloc,
+  LogicalResult matchAndRewrite(T alloc,
                                 PatternRewriter &rewriter) const override {
-    if (alloc.use_empty()) {
-      rewriter.eraseOp(alloc);
-      return success();
-    }
-    return failure();
+    if (llvm::any_of(alloc->getUsers(), [](Operation *op) {
+          return !isa<StoreOp, DeallocOp>(op);
+        }))
+      return failure();
+
+    for (Operation *user : llvm::make_early_inc_range(alloc->getUsers()))
+      rewriter.eraseOp(user);
+
+    rewriter.eraseOp(alloc);
+    return success();
   }
 };
 } // end anonymous namespace.
 
 void AllocOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                           MLIRContext *context) {
-  results.add<SimplifyAllocConst<AllocOp>, SimplifyDeadAlloc>(context);
+  results.add<SimplifyAllocConst<AllocOp>, SimplifyDeadAlloc<AllocOp>>(context);
 }
 
 void AllocaOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                            MLIRContext *context) {
-  results.add<SimplifyAllocConst<AllocaOp>>(context);
+  results.add<SimplifyAllocConst<AllocaOp>, SimplifyDeadAlloc<AllocaOp>>(
+      context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -468,8 +474,6 @@ OpFoldResult CastOp::fold(ArrayRef<Attribute> operands) {
 // CloneOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(CloneOp op) { return success(); }
-
 void CloneOp::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
@@ -537,41 +541,6 @@ OpFoldResult CloneOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // DeallocOp
 //===----------------------------------------------------------------------===//
-namespace {
-/// Fold Dealloc operations that are deallocating an AllocOp that is only used
-/// by other Dealloc operations.
-struct SimplifyDeadDealloc : public OpRewritePattern<DeallocOp> {
-  using OpRewritePattern<DeallocOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(DeallocOp dealloc,
-                                PatternRewriter &rewriter) const override {
-    // Check that the memref operand's defining operation is an AllocOp.
-    Value memref = dealloc.memref();
-    if (!isa_and_nonnull<AllocOp>(memref.getDefiningOp()))
-      return failure();
-
-    // Check that all of the uses of the AllocOp are other DeallocOps.
-    for (auto *user : memref.getUsers())
-      if (!isa<DeallocOp>(user))
-        return failure();
-
-    // Erase the dealloc operation.
-    rewriter.eraseOp(dealloc);
-    return success();
-  }
-};
-} // end anonymous namespace.
-
-static LogicalResult verify(DeallocOp op) {
-  if (!op.memref().getType().isa<MemRefType>())
-    return op.emitOpError("operand must be a memref");
-  return success();
-}
-
-void DeallocOp::getCanonicalizationPatterns(RewritePatternSet &results,
-                                            MLIRContext *context) {
-  results.add<SimplifyDeadDealloc>(context);
-}
 
 LogicalResult DeallocOp::fold(ArrayRef<Attribute> cstOperands,
                               SmallVectorImpl<OpFoldResult> &results) {
@@ -765,8 +734,8 @@ static Value getResultDimFromShapeInterface(OpBuilder &builder, OpResult result,
   // check if the op implements the first interface method or the second, and
   // get the value to use appropriately.
   SmallVector<Value> reifiedResultShapes;
-  if (succeeded(
-          shapedTypeOp.reifyReturnTypeShapes(builder, reifiedResultShapes))) {
+  if (succeeded(shapedTypeOp.reifyReturnTypeShapes(
+          builder, result.getOwner()->getOperands(), reifiedResultShapes))) {
     if (reifiedResultShapes.size() <= resultNumber)
       return nullptr;
     Value resultShape = reifiedResultShapes[resultNumber];
@@ -973,10 +942,6 @@ LogicalResult DmaStartOp::verify() {
       !llvm::all_of(getTagIndices().getTypes(),
                     [](Type t) { return t.isIndex(); }))
     return emitOpError("expected tag indices to be of index type");
-
-  // DMAs from different memory spaces supported.
-  if (getSrcMemorySpace() == getDstMemorySpace())
-    return emitOpError("DMA should be between different memory spaces");
 
   // Optional stride-related operands must be either both present or both
   // absent.
@@ -1882,6 +1847,26 @@ SmallVector<Range, 8> mlir::getOrCreateRanges(OffsetSizeAndStrideOpInterface op,
   return res;
 }
 
+/// Infer the canonical type of the result of a subview operation. Returns a
+/// type with rank `resultRank` that is either the rank of the rank-reduced
+/// type, or the non-rank-reduced type.
+static MemRefType
+getCanonicalSubViewResultType(unsigned resultRank, MemRefType sourceType,
+                              ArrayRef<OpFoldResult> mixedOffsets,
+                              ArrayRef<OpFoldResult> mixedSizes,
+                              ArrayRef<OpFoldResult> mixedStrides) {
+  auto resultType =
+      SubViewOp::inferRankReducedResultType(
+          resultRank, sourceType, mixedOffsets, mixedSizes, mixedStrides)
+          .cast<MemRefType>();
+  if (resultType.getRank() != resultRank) {
+    resultType = SubViewOp::inferResultType(sourceType, mixedOffsets,
+                                            mixedSizes, mixedStrides)
+                     .cast<MemRefType>();
+  }
+  return resultType;
+}
+
 namespace {
 /// Pattern to rewrite a subview op with MemRefCast arguments.
 /// This essentially pushes memref.cast past its consuming subview when
@@ -1921,7 +1906,7 @@ public:
     /// Deduce the resultType of the SubViewOp using `inferSubViewResultType` on
     /// the cast source operand type and the SubViewOp static information. This
     /// is the resulting type if the MemRefCastOp were folded.
-    auto resultType = SubViewOp::inferRankReducedResultType(
+    auto resultType = getCanonicalSubViewResultType(
         subViewOp.getType().getRank(),
         castOp.source().getType().cast<MemRefType>(),
         subViewOp.getMixedOffsets(), subViewOp.getMixedSizes(),
@@ -1937,6 +1922,17 @@ public:
 };
 } // namespace
 
+/// Return the canonical type of the result of a subview.
+struct SubViewReturnTypeCanonicalizer {
+  MemRefType operator()(SubViewOp op, ArrayRef<OpFoldResult> mixedOffsets,
+                        ArrayRef<OpFoldResult> mixedSizes,
+                        ArrayRef<OpFoldResult> mixedStrides) {
+    return getCanonicalSubViewResultType(op.getType().getRank(),
+                                         op.getSourceType(), mixedOffsets,
+                                         mixedSizes, mixedStrides);
+  }
+};
+
 /// A canonicalizer wrapper to replace SubViewOps.
 struct SubViewCanonicalizer {
   void operator()(PatternRewriter &rewriter, SubViewOp op, SubViewOp newOp) {
@@ -1946,9 +1942,10 @@ struct SubViewCanonicalizer {
 
 void SubViewOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
-  results.add<OpWithOffsetSizesAndStridesConstantArgumentFolder<
-                  SubViewOp, SubViewCanonicalizer>,
-              SubViewOpMemRefCastFolder>(context);
+  results
+      .add<OpWithOffsetSizesAndStridesConstantArgumentFolder<
+               SubViewOp, SubViewReturnTypeCanonicalizer, SubViewCanonicalizer>,
+           SubViewOpMemRefCastFolder>(context);
 }
 
 OpFoldResult SubViewOp::fold(ArrayRef<Attribute> operands) {

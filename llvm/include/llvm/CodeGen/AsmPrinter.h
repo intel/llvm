@@ -157,6 +157,13 @@ public:
           TimerGroupDescription(TimerGroupDescription) {}
   };
 
+  // Flags representing which CFI section is required for a function/module.
+  enum class CFISection : unsigned {
+    None = 0, ///< Do not emit either .eh_frame or .debug_frame
+    EH = 1,   ///< Emit .eh_frame
+    Debug = 2 ///< Emit .debug_frame
+  };
+
 private:
   MCSymbol *CurrentFnEnd = nullptr;
 
@@ -174,6 +181,9 @@ private:
 
   /// Emit comments in assembly output if this is true.
   bool VerboseAsm;
+
+  /// Output stream for the stack usage file (i.e., .su file).
+  std::unique_ptr<raw_fd_ostream> StackUsageStream;
 
   static char ID;
 
@@ -199,8 +209,8 @@ private:
   /// context.
   PseudoProbeHandler *PP = nullptr;
 
-  /// If the current module uses dwarf CFI annotations strictly for debugging.
-  bool isCFIMoveForDebugging = false;
+  /// CFISection type the module needs i.e. either .eh_frame or .debug_frame.
+  CFISection ModuleCFISection = CFISection::None;
 
 protected:
   explicit AsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer);
@@ -351,20 +361,30 @@ public:
 
   void emitStackSizeSection(const MachineFunction &MF);
 
+  void emitStackUsage(const MachineFunction &MF);
+
   void emitBBAddrMapSection(const MachineFunction &MF);
 
   void emitPseudoProbe(const MachineInstr &MI);
 
   void emitRemarksSection(remarks::RemarkStreamer &RS);
 
-  enum CFIMoveType { CFI_M_None, CFI_M_EH, CFI_M_Debug };
-  CFIMoveType needsCFIMoves() const;
+  /// Get the CFISection type for a function.
+  CFISection getFunctionCFISectionType(const Function &F) const;
 
-  /// Returns false if needsCFIMoves() == CFI_M_EH for any function
-  /// in the module.
-  bool needsOnlyDebugCFIMoves() const { return isCFIMoveForDebugging; }
+  /// Get the CFISection type for a function.
+  CFISection getFunctionCFISectionType(const MachineFunction &MF) const;
+
+  /// Get the CFISection type for the module.
+  CFISection getModuleCFISectionType() const { return ModuleCFISection; }
 
   bool needsSEHMoves();
+
+  /// Since emitting CFI unwind information is entangled with supporting the
+  /// exceptions, this returns true for platforms which use CFI unwind
+  /// information for debugging purpose when
+  /// `MCAsmInfo::ExceptionsType == ExceptionHandling::None`.
+  bool needsCFIForDebug() const;
 
   /// Print to the current output stream assembly representations of the
   /// constants in the constant pool MCP. This is used to print out constants

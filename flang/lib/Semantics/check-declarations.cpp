@@ -490,6 +490,14 @@ void CheckHelper::CheckObjectEntity(
             "non-POINTER dummy argument of pure subroutine must have INTENT() or VALUE attribute"_err_en_US);
       }
     }
+  } else if (symbol.attrs().test(Attr::INTENT_IN) ||
+      symbol.attrs().test(Attr::INTENT_OUT) ||
+      symbol.attrs().test(Attr::INTENT_INOUT)) {
+    messages_.Say("INTENT attributes may apply only to a dummy "
+                  "argument"_err_en_US); // C843
+  } else if (IsOptional(symbol)) {
+    messages_.Say("OPTIONAL attribute may apply only to a dummy "
+                  "argument"_err_en_US); // C849
   }
   if (IsStaticallyInitialized(symbol, true /* ignore DATA inits */)) { // C808
     CheckPointerInitialization(symbol);
@@ -530,13 +538,10 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
       !scopeIsUninstantiatedPDT_) {
     if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
       if (object->init()) { // C764, C765; C808
-        if (auto dyType{evaluate::DynamicType::From(symbol)}) {
-          if (auto designator{evaluate::TypedWrapper<evaluate::Designator>(
-                  *dyType, evaluate::DataRef{symbol})}) {
-            auto restorer{messages_.SetLocation(symbol.name())};
-            context_.set_location(symbol.name());
-            CheckInitialTarget(foldingContext_, *designator, *object->init());
-          }
+        if (auto designator{evaluate::AsGenericExpr(symbol)}) {
+          auto restorer{messages_.SetLocation(symbol.name())};
+          context_.set_location(symbol.name());
+          CheckInitialTarget(foldingContext_, *designator, *object->init());
         }
       }
     } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
@@ -618,8 +623,9 @@ void CheckHelper::CheckArraySpec(
   } else if (isAssumedRank) { // C837
     msg = "Assumed-rank array '%s' must be a dummy argument"_err_en_US;
   } else if (isImplied) {
-    if (!IsNamedConstant(symbol)) { // C836
-      msg = "Implied-shape array '%s' must be a named constant"_err_en_US;
+    if (!IsNamedConstant(symbol)) { // C835, C836
+      msg = "Implied-shape array '%s' must be a named constant or a "
+            "dummy argument"_err_en_US;
     }
   } else if (IsNamedConstant(symbol)) {
     if (!isExplicit && !isImplied) {
@@ -664,6 +670,14 @@ void CheckHelper::CheckProcEntity(
       // function SIN as an actual argument.
       messages_.Say("A dummy procedure may not be ELEMENTAL"_err_en_US);
     }
+  } else if (symbol.attrs().test(Attr::INTENT_IN) ||
+      symbol.attrs().test(Attr::INTENT_OUT) ||
+      symbol.attrs().test(Attr::INTENT_INOUT)) {
+    messages_.Say("INTENT attributes may apply only to a dummy "
+                  "argument"_err_en_US); // C843
+  } else if (IsOptional(symbol)) {
+    messages_.Say("OPTIONAL attribute may apply only to a dummy "
+                  "argument"_err_en_US); // C849
   } else if (symbol.owner().IsDerivedType()) {
     if (!symbol.attrs().test(Attr::POINTER)) { // C756
       const auto &name{symbol.name()};

@@ -163,8 +163,8 @@ public:
 
   /// If a brcond's true block is not the fallthrough, make it so by inverting
   /// the condition and swapping operands.
-  bool matchOptBrCondByInvertingCond(MachineInstr &MI);
-  void applyOptBrCondByInvertingCond(MachineInstr &MI);
+  bool matchOptBrCondByInvertingCond(MachineInstr &MI, MachineInstr *&BrCond);
+  void applyOptBrCondByInvertingCond(MachineInstr &MI, MachineInstr *&BrCond);
 
   /// If \p MI is G_CONCAT_VECTORS, try to combine it.
   /// Returns true if MI changed.
@@ -510,6 +510,8 @@ public:
                     std::function<void(MachineIRBuilder &)> &MatchInfo);
   bool matchFunnelShiftToRotate(MachineInstr &MI);
   void applyFunnelShiftToRotate(MachineInstr &MI);
+  bool matchRotateOutOfRange(MachineInstr &MI);
+  void applyRotateOutOfRange(MachineInstr &MI);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

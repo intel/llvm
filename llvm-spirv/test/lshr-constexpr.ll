@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %from-spirv.bc
-; RUN: llvm-dis %from-spirv.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv --to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; TODO: spirv-val command is not presented here because it fails with error:
