@@ -2622,19 +2622,20 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
                                                 void *, size_t);
 
-  bool ImportPossible = zeDriverGetExtensionFunctionAddress(
-      driverHandle, "zexDriverImportExternalPointer",
-      reinterpret_cast<void **>(&zexDriverImportExternalPointer)) == 0;
+  bool ImportPossible =
+      zeDriverGetExtensionFunctionAddress(
+          driverHandle, "zexDriverImportExternalPointer",
+          reinterpret_cast<void **>(&zexDriverImportExternalPointer)) == 0;
 
   bool AllowImport = std::getenv("SYCL_DISABLE_USM_IMPORT") == nullptr;
   bool ForceImport = std::getenv("SYCL_ENABLE_USM_IMPORT") != nullptr;
 
-  std::cerr << "ImportPossible=" << ImportPossible << std::endl;
-  std::cerr << "AllowImport=" << AllowImport << std::endl;
-  std::cerr << "ForceImport=" << ForceImport << std::endl;
+  // std::cerr << "ImportPossible=" << ImportPossible << std::endl;
+  // std::cerr << "AllowImport=" << AllowImport << std::endl;
+  // std::cerr << "ForceImport=" << ForceImport << std::endl;
 
   if (ForceImport || (ImportPossible && AllowImport)) {
-    std::cout << "Doing import\n";
+    // std::cout << "Doing import\n";
     if (HostPtr) {
       if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
           (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
@@ -2701,7 +2702,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
         return Result;
     }
   } else {
-    std::cout << "NOT doing import\n";
+    // std::cout << "NOT doing import\n";
     if (DeviceIsIntegrated) {
       Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
     } else if (Context->SingleRootDevice) {
