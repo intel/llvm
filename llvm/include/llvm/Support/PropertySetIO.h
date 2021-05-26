@@ -194,7 +194,7 @@ public:
   // (property set name).
   template <typename MapTy> void add(StringRef Category, const MapTy &Props) {
     using KeyTy = typename MapTy::value_type::first_type;
-    static_assert(std::is_same<typename std::remove_const<KeyT>::type,
+    static_assert(std::is_same<typename std::remove_const<KeyTy>::type,
                                llvm::StringRef>::value,
                   "wrong key type");
 
