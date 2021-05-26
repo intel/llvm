@@ -35,17 +35,20 @@
 #define __builtin_expect(a, b) (a)
 #endif
 
-#ifdef __SYCL_DEVICE_ONLY__
-  #define __SYCL_CONSTEXPR_ON_HOST
+#if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+#define __SYCL_CONSTEXPR_HALF constexpr
 #else
-  #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
-    #define __SYCL_CONSTEXPR_ON_HOST constexpr
-  #else
-    #define __SYCL_CONSTEXPR_ON_HOST
-  #endif
+#define __SYCL_CONSTEXPR_HALF 
 #endif
 
-#define __SYCL_HALF_CONSTEXPR __SYCL_CONSTEXPR_ON_DEVICE __SYCL_CONSTEXPR_ON_HOST
+#define __SYCL_DEVICE_OR_BITCAST_CONSTEXPR
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_HALF_CTOR_CONSTEXPR constexpr
+#elif __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+#define __SYCL_HALF_CTOR_CONSTEXPR constexpr
+#else
+#define __SYCL_HALF_CTOR_CONSTEXPR
+#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
