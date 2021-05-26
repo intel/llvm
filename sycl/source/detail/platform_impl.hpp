@@ -14,6 +14,8 @@
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
 
+#include <map>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -187,6 +189,14 @@ private:
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
 };
+
+using DeviceDescT = std::map<std::string, std::string>;
+using AllowListParsedT = std::vector<DeviceDescT>;
+
+AllowListParsedT parseAllowList(const std::string &AllowListRaw);
+
+bool DeviceIsAllowed(const DeviceDescT &DeviceDesc,
+                     const AllowListParsedT &AllowListParsed);
 
 } // namespace detail
 } // namespace sycl
