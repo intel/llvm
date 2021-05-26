@@ -1,9 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
-// RUN: sycl-post-link %t.bc -spec-const=default -o %t-split1.txt
-// RUN: llvm-dis %t-split1_0.bc
+// RUN: sycl-post-link %t.bc -spec-const=default -S -o %t-split1.txt
 // RUN: cat %t-split1_0.ll | FileCheck %s -check-prefixes=CHECK,CHECK-IR
 // RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-PROP
-// RUN: llvm-spirv -o %t-split1_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split1_0.bc
 //
 //==----------- SYCL-2020-spec-const-ids-order.cpp -------------------------==//
 //
