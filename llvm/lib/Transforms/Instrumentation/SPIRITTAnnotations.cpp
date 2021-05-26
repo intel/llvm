@@ -257,8 +257,8 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
       if (InsertPt->isDebugOrPseudoInst())
         InsertPt = InsertPt->getNextNonDebugInstruction();
       assert(InsertPt && "Function does not have any real instructions.");
-      insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START,
-                                      InsertPt, InsertPt->getDebugLoc());
+      insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START, InsertPt,
+                                      InsertPt->getDebugLoc());
       IRModified = true;
     }
 
@@ -266,8 +266,8 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
       // Insert Finish instruction before return instruction
       if (IsSPIRKernel)
         if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
-          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_FINISH,
-                                          RI, RI->getDebugLoc());
+          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_FINISH, RI,
+                                          RI->getDebugLoc());
           IRModified = true;
         }
       for (Instruction &I : BB) {
@@ -292,19 +292,16 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
                         })) {
           Instruction *InstAfterBarrier = CI->getNextNode();
           const DebugLoc &DL = CI->getDebugLoc();
-          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WG_BARRIER,
-                                          CI, DL);
+          insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WG_BARRIER, CI, DL);
           insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_RESUME,
                                           InstAfterBarrier, DL);
           IRModified = true;
         } else if (CalleeName.startswith(SPIRV_ATOMIC_INST)) {
           Instruction *InstAfterAtomic = CI->getNextNode();
-          IRModified |=
-              insertAtomicInstrumentationCall(M, ITT_ANNOTATION_ATOMIC_START,
-                                              CI, CI, CalleeName);
-          IRModified |=
-              insertAtomicInstrumentationCall(M, ITT_ANNOTATION_ATOMIC_FINISH,
-                                              CI, InstAfterAtomic, CalleeName);
+          IRModified |= insertAtomicInstrumentationCall(
+              M, ITT_ANNOTATION_ATOMIC_START, CI, CI, CalleeName);
+          IRModified |= insertAtomicInstrumentationCall(
+              M, ITT_ANNOTATION_ATOMIC_FINISH, CI, InstAfterAtomic, CalleeName);
         }
       }
     }
