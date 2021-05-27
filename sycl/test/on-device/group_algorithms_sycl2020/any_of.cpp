@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
-// TODO: re-enable HOST execution line when this test is moved to llvm-test-suite
-// XUN: %HOST_RUN_PLACEHOLDER %t.out
+// TODO: re-enable HOST execution line when this test is moved to
+// llvm-test-suite XUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -12,7 +12,7 @@
 #include <numeric>
 using namespace sycl;
 
-template <class Predicate> class none_of_kernel;
+template <class Predicate> class any_of_kernel;
 
 struct GeZero {
   bool operator()(int i) const { return i >= 0; }
@@ -27,12 +27,14 @@ struct LtZero {
 template <typename InputContainer, typename OutputContainer, class Predicate>
 void test(queue q, InputContainer input, OutputContainer output,
           Predicate pred) {
-  typedef class none_of_kernel<Predicate> kernel_name;
+  typedef typename InputContainer::value_type InputT;
+  typedef typename OutputContainer::value_type OutputT;
+  typedef class any_of_kernel<Predicate> kernel_name;
   size_t N = input.size();
   size_t G = 64;
   {
-    buffer<int> in_buf(input.data(), input.size());
-    buffer<bool> out_buf(output.data(), output.size());
+    buffer<InputT> in_buf(input.data(), input.size());
+    buffer<OutputT> out_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
       accessor in{in_buf, cgh, sycl::read_only};
@@ -40,13 +42,13 @@ void test(queue q, InputContainer input, OutputContainer output,
       cgh.parallel_for<kernel_name>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
         int lid = it.get_local_id(0);
-        out[0] = none_of_group(g, pred(in[lid]));
-        out[1] = none_of_group(g, in[lid], pred);
-        out[2] = joint_none_of(g, in.get_pointer(), in.get_pointer() + N, pred);
+        out[0] = any_of_group(g, pred(in[lid]));
+        out[1] = any_of_group(g, in[lid], pred);
+        out[2] = joint_any_of(g, in.get_pointer(), in.get_pointer() + N, pred);
       });
     });
   }
-  bool expected = std::none_of(input.begin(), input.end(), pred);
+  bool expected = std::any_of(input.begin(), input.end(), pred);
   assert(output[0] == expected);
   assert(output[1] == expected);
   assert(output[2] == expected);

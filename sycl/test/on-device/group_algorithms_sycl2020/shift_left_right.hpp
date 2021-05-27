@@ -1,4 +1,4 @@
-//==----- permute_select.hpp -*- C++ -*------------------------------------===//
+//==------- shift_left_right.hpp -*- C++ -*---------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,17 +16,19 @@ using namespace cl::sycl;
 // half typename in integration header
 struct wa_half;
 
+// ---- check
 template <typename T, int N>
 void check(queue &Queue, size_t G = 256, size_t L = 64) {
   try {
     nd_range<1> NdRange(G, L);
-    buffer<vec<T, N>> buf_select(G);
-    buffer<vec<T, N>> buf_xor(G);
+    buffer<vec<T, N>> buf_right(G);
+    buffer<vec<T, N>> buf_left(G);
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      accessor acc_select{buf_select, cgh, sycl::read_write};
-      accessor acc_xor{buf_xor, cgh, sycl::read_write};
+      accessor acc_right{buf_right, cgh, sycl::read_write};
+      accessor acc_left{buf_left, cgh, sycl::read_write};
       accessor sgsizeacc{sgsizebuf, cgh, sycl::read_write};
+
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
         ONEAPI::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
@@ -35,17 +37,15 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
         if (wggid == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
 
-        /*GID of middle element in every subgroup*/
-        acc_select[NdItem.get_global_id()] =
-            select_from_group(SG, vwggid, SG.get_max_local_range()[0] / 2);
-        /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
-        acc_xor[NdItem.get_global_id()] = permute_group_by_xor(
-            SG, vwggid, sgid % SG.get_max_local_range()[0]);
+        /* Save GID-SGID */
+        acc_right[NdItem.get_global_id()] = shift_group_right(SG, vwggid, sgid);
+        /* Save GID+SGID */
+        acc_left[NdItem.get_global_id()] = shift_group_left(SG, vwggid, sgid);
       });
     });
-    host_accessor acc_select{buf_select,  sycl::read_write};
-    host_accessor acc_xor{buf_xor,  sycl::read_write};
-    host_accessor sgsizeacc{sgsizebuf,  sycl::read_write};
+    host_accessor acc_right{buf_right, sycl::read_write};
+    host_accessor acc_left{buf_left, sycl::read_write};
+    host_accessor sgsizeacc{sgsizebuf, sycl::read_write};
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
@@ -62,14 +62,18 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
         SGLid = 0;
         SGBeginGid = j;
       }
-      /*GID of middle element in every subgroup*/
-      exit_if_not_equal_vec<T, N>(
-          acc_select[j], vec<T, N>(j / L * L + SGid * sg_size + sg_size / 2),
-          "select_from_group");
-      /* Value GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
-      exit_if_not_equal_vec(acc_xor[j],
-                            vec<T, N>(SGBeginGid + (SGLid ^ (SGid % sg_size))),
-                            "permute_group_by_xor");
+
+      /* Value GID+SGID for all element except last SGID in SG*/
+      if (j % L % sg_size + SGid < sg_size && j % L + SGid < L) {
+        exit_if_not_equal_vec(acc_left[j], vec<T, N>(j + SGid % sg_size),
+                              "shift_group_left");
+      }
+      /* Value GID-SGID for all element except first SGID in SG*/
+      if (j % L % sg_size >= SGid) {
+        exit_if_not_equal_vec(acc_right[j], vec<T, N>(j - SGid % sg_size),
+                              "shift_group_right");
+      }
+
       SGLid++;
     }
   } catch (exception e) {
@@ -81,12 +85,12 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
 template <typename T> void check(queue &Queue, size_t G = 256, size_t L = 64) {
   try {
     nd_range<1> NdRange(G, L);
-    buffer<T> buf_select(G);
-    buffer<T> buf_xor(G);
+    buffer<T> buf_right(G);
+    buffer<T> buf_left(G);
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      accessor acc_select{buf_select, cgh, sycl::read_write};
-      accessor acc_xor{buf_xor, cgh, sycl::read_write};
+      accessor acc_right{buf_right, cgh, sycl::read_write};
+      accessor acc_left{buf_left, cgh, sycl::read_write};
       accessor sgsizeacc{sgsizebuf, cgh, sycl::read_write};
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
         ONEAPI::sub_group SG = NdItem.get_sub_group();
@@ -95,18 +99,15 @@ template <typename T> void check(queue &Queue, size_t G = 256, size_t L = 64) {
         if (wggid == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
 
-        /*GID of middle element in every subgroup*/
-        acc_select[NdItem.get_global_id()] =
-            select_from_group(SG, wggid, SG.get_max_local_range()[0] / 2);
-        /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
-        acc_xor[NdItem.get_global_id()] =
-            permute_group_by_xor(SG, wggid, sgid % SG.get_max_local_range()[0]);
+        /* Save GID-SGID */
+        acc_right[NdItem.get_global_id()] = shift_group_right(SG, wggid, sgid);
+        /* Save GID+SGID */
+        acc_left[NdItem.get_global_id()] = shift_group_left(SG, wggid, sgid);
       });
     });
-    host_accessor acc_select{buf_select,  sycl::read_write};
-    host_accessor acc_xor{buf_xor,  sycl::read_write};
-    host_accessor sgsizeacc{sgsizebuf,  sycl::read_write};
-
+    host_accessor acc_right{buf_right, sycl::read_write};
+    host_accessor acc_left{buf_left, sycl::read_write};
+    host_accessor sgsizeacc{sgsizebuf, sycl::read_write};
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
@@ -124,14 +125,15 @@ template <typename T> void check(queue &Queue, size_t G = 256, size_t L = 64) {
         SGBeginGid = j;
       }
 
-      /*GID of middle element in every subgroup*/
-      exit_if_not_equal<T>(acc_select[j],
-                           j / L * L + SGid * sg_size + sg_size / 2,
-                           "select_from_group");
+      /* Value GID+SGID for all element except last SGID in SG*/
+      if (j % L % sg_size + SGid < sg_size && j % L + SGid < L) {
+        exit_if_not_equal<T>(acc_left[j], j + SGid, "shift_group_left");
+      }
+      /* Value GID-SGID for all element except first SGID in SG*/
+      if (j % L % sg_size >= SGid) {
+        exit_if_not_equal<T>(acc_right[j], j - SGid, "shift_group_right");
+      }
 
-      /* Value GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
-      exit_if_not_equal<T>(acc_xor[j], SGBeginGid + (SGLid ^ (SGid % sg_size)),
-                           "permute_group_by_xor");
       SGLid++;
     }
   } catch (exception e) {

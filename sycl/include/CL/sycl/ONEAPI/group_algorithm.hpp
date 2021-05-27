@@ -144,8 +144,15 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                     T>
 __SYCL2020_DEPRECATED(
     "ONEAPI::broadcast is deprecated. Use group_broadcast instead.")
-    broadcast(Group g, T x, typename Group::id_type local_id) {
-  return group_broadcast(g, x, local_id);
+    broadcast(Group, T x, typename Group::id_type local_id) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
+#else
+  (void)x;
+  (void)local_id;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
 }
 
 template <typename Group, typename T>
@@ -155,7 +162,19 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 __SYCL2020_DEPRECATED(
     "ONEAPI::broadcast is deprecated. Use group_broadcast instead.")
     broadcast(Group g, T x, typename Group::id_type local_id) {
-  return group_broadcast(g, x, local_id);
+#ifdef __SYCL_DEVICE_ONLY__
+  T result;
+  for (int s = 0; s < x.get_size(); ++s) {
+    result[s] = broadcast(g, x[s], local_id);
+  }
+  return result;
+#else
+  (void)g;
+  (void)x;
+  (void)local_id;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
 }
 
 template <typename Group, typename T>
@@ -166,7 +185,17 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 __SYCL2020_DEPRECATED(
     "ONEAPI::broadcast is deprecated. Use group_broadcast instead.")
     broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
-  return group_broadcast(g, x, linear_local_id);
+#ifdef __SYCL_DEVICE_ONLY__
+  return broadcast(
+      g, x,
+      sycl::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
+#else
+  (void)g;
+  (void)x;
+  (void)linear_local_id;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
 }
 
 template <typename Group, typename T>
@@ -176,7 +205,19 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 __SYCL2020_DEPRECATED(
     "ONEAPI::broadcast is deprecated. Use group_broadcast instead.")
     broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
-  return group_broadcast(g, x, linear_local_id);
+#ifdef __SYCL_DEVICE_ONLY__
+  T result;
+  for (int s = 0; s < x.get_size(); ++s) {
+    result[s] = broadcast(g, x[s], linear_local_id);
+  }
+  return result;
+#else
+  (void)g;
+  (void)x;
+  (void)linear_local_id;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
 }
 
 template <typename Group, typename T>
@@ -187,7 +228,14 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 __SYCL2020_DEPRECATED(
     "ONEAPI::broadcast is deprecated. Use group_broadcast instead.")
     broadcast(Group g, T x) {
-  return group_broadcast(g, x);
+#ifdef __SYCL_DEVICE_ONLY__
+  return broadcast(g, x, 0);
+#else
+  (void)g;
+  (void)x;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
 }
 
 template <typename Group, typename T>
@@ -197,7 +245,18 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 __SYCL2020_DEPRECATED(
     "ONEAPI::broadcast is deprecated. Use group_broadcast instead.")
     broadcast(Group g, T x) {
-  return group_broadcast(g, x);
+#ifdef __SYCL_DEVICE_ONLY__
+  T result;
+  for (int s = 0; s < x.get_size(); ++s) {
+    result[s] = broadcast(g, x[s]);
+  }
+  return result;
+#else
+  (void)g;
+  (void)x;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
 }
 
 template <typename Group, typename T, class BinaryOperation>
@@ -228,7 +287,14 @@ detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                     T>
 __SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
     reduce(Group g, T x, BinaryOperation op) {
-  return reduce_over_group(g, x, op);
+  T result = x;
+  for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
+    T tmp = g.shuffle_xor(result, id<1>(mask));
+    if ((g.get_local_id()[0] ^ mask) < g.get_local_range()[0]) {
+      result = op(result, tmp);
+    }
+  }
+  return g.shuffle(result, 0);
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
@@ -265,7 +331,14 @@ detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                     T>
 __SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
     reduce(Group g, V x, T init, BinaryOperation op) {
-  return reduce_over_group(g, x, init, op);
+  T result = x;
+  for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
+    T tmp = g.shuffle_xor(result, id<1>(mask));
+    if ((g.get_local_id()[0] ^ mask) < g.get_local_range()[0]) {
+      result = op(result, tmp);
+    }
+  }
+  return g.shuffle(op(init, result), 0);
 }
 
 template <typename Group, typename Ptr, class BinaryOperation>
