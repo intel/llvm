@@ -178,15 +178,7 @@ public:
                                                                  Offset);
   }
 
-  // TODO
-  // @rolandschulz
-  // {quote}
-  // - There is no point in having this non-const overload.
-  // - Actually why does this overload not return simd_view.
-  //   This would allow you to use the subscript operator to write to an
-  //   element.
-  // {/quote}
-  /// Read single element, return value only (not reference).
+  /// Read a single element
   Ty operator[](int i) const { return data()[i]; }
 
   // TODO ESIMD_EXPERIMENTAL
