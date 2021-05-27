@@ -888,11 +888,8 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 
   MC.mangleTypeName(KernelNameType, Out);
 
-  // TODO: ERICH: insert this in correctly.
-  return {std::string(Out.str()), ""};
-          //PredefinedExpr::ComputeName(S.getASTContext(),
-           //                           PredefinedExpr::UniqueStableNameType,
-            //                          KernelNameType)};
+  return {std::string(Out.str()), SYCLUniqueStableNameExpr::ComputeName(
+                                      S.getASTContext(), KernelNameType)};
 }
 
 static bool isDefaultSPIRArch(ASTContext &Context) {
@@ -3272,10 +3269,8 @@ public:
     // Get specialization constant ID type, which is the second template
     // argument.
     QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
-    // TODO: ERICH: Update with actual implementation.
-    const std::string SpecConstName = "";/*PredefinedExpr::ComputeName(
-        SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
-        SpecConstIDTy);*/
+    const std::string SpecConstName = SYCLUniqueStableNameExpr::ComputeName(
+        SemaRef.getASTContext(), SpecConstIDTy);
     Header.addSpecConstant(SpecConstName, SpecConstIDTy);
     return true;
   }
