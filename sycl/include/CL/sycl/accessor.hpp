@@ -1160,7 +1160,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1422,7 +1422,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    checkDeviceAccessorBufferSize(BufferRef.get_count());
+    checkDeviceAccessorBufferSize(BufferRef.size());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
