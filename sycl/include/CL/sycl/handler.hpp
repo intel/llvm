@@ -825,9 +825,8 @@ private:
 
       range<Dims> AdjustedRange = NumWorkItems;
       AdjustedRange.set_range_dim0(NewValX);
-#ifdef __SYCL_DEVICE_ONLY__
       kernel_parallel_for_wrapper<NameWT, TransformedArgType>(Wrapper);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
       detail::checkValueRange<Dims>(AdjustedRange);
       MNDRDesc.set(std::move(AdjustedRange));
       StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
@@ -839,10 +838,9 @@ private:
        // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&       \
        // SYCL_LANGUAGE_VERSION >= 202001
     {
-#ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
       kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
       detail::checkValueRange<Dims>(NumWorkItems);
       MNDRDesc.set(std::move(NumWorkItems));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -871,79 +869,94 @@ private:
     MKernelName = getKernelName();
   }
 
-#ifdef __SYCL_DEVICE_ONLY__
-
+#ifdef SYCL_LANGUAGE_VERSION
+#define __SYCL_KERNEL_ATTR__ __attribute__((sycl_kernel))
+#else
+#define __SYCL_KERNEL_ATTR__
+#endif
   // NOTE: the name of this function - "kernel_single_task" - is used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_single_task(KernelType KernelFunc) {
 #else
   kernel_single_task(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
+#endif
   }
 
   // NOTE: the name of this function - "kernel_single_task" - is used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_single_task(KernelType KernelFunc, kernel_handler KH) {
 #else
   kernel_single_task(const KernelType &KernelFunc, kernel_handler KH) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
+#endif
   }
 
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for(KernelType KernelFunc) {
 #else
   kernel_parallel_for(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#endif
   }
 
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for(KernelType KernelFunc, kernel_handler KH) {
 #else
   kernel_parallel_for(const KernelType &KernelFunc, kernel_handler KH) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+#endif
   }
 
   // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
   // used by the Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_work_group(KernelType KernelFunc) {
 #else
   kernel_parallel_for_work_group(const KernelType &KernelFunc) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#endif
   }
 
   // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
   // used by the Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_work_group(KernelType KernelFunc, kernel_handler KH) {
 #else
   kernel_parallel_for_work_group(const KernelType &KernelFunc,
                                  kernel_handler KH) {
 #endif
+#ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+#endif
   }
 
   // Wrappers for kernel_*** functions above with and without support of
@@ -955,82 +968,56 @@ private:
   // Wrappers for kernel_single_task(...)
 
   template <typename KernelName, typename KernelType>
-  std::enable_if_t<
-      detail::isKernelLambdaCallableWithKernelHandler<KernelType>(), void>
+  void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_single_task_wrapper(KernelType KernelFunc) {
 #else
   kernel_single_task_wrapper(const KernelType &KernelFunc) {
 #endif
-    kernel_handler KH;
-    kernel_single_task<KernelName>(KernelFunc, KH);
-  }
-
-  template <typename KernelName, typename KernelType>
-  std::enable_if_t<
-      !detail::isKernelLambdaCallableWithKernelHandler<KernelType>(), void>
-#ifdef __SYCL_NONCONST_FUNCTOR__
-  kernel_single_task_wrapper(KernelType KernelFunc) {
-#else
-  kernel_single_task_wrapper(const KernelType &KernelFunc) {
-#endif
-    kernel_single_task<KernelName>(KernelFunc);
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType>()) {
+      kernel_handler KH;
+      kernel_single_task<KernelName>(KernelFunc, KH);
+    } else {
+      kernel_single_task<KernelName>(KernelFunc);
+    }
   }
 
   // Wrappers for kernel_parallel_for(...)
 
   template <typename KernelName, typename ElementType, typename KernelType>
-  std::enable_if_t<detail::isKernelLambdaCallableWithKernelHandler<
-                       KernelType, ElementType>(),
-                   void>
+  void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_wrapper(KernelType KernelFunc) {
 #else
   kernel_parallel_for_wrapper(const KernelType &KernelFunc) {
 #endif
-    kernel_handler KH;
-    kernel_parallel_for<KernelName, ElementType>(KernelFunc, KH);
-  }
-
-  template <typename KernelName, typename ElementType, typename KernelType>
-  std::enable_if_t<!detail::isKernelLambdaCallableWithKernelHandler<
-                       KernelType, ElementType>(),
-                   void>
-#ifdef __SYCL_NONCONST_FUNCTOR__
-  kernel_parallel_for_wrapper(KernelType KernelFunc) {
-#else
-  kernel_parallel_for_wrapper(const KernelType &KernelFunc) {
-#endif
-    kernel_parallel_for<KernelName, ElementType>(KernelFunc);
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType, ElementType>()) {
+      kernel_handler KH;
+      kernel_parallel_for<KernelName, ElementType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for<KernelName, ElementType>(KernelFunc);
+    }
   }
 
   // Wrappers for kernel_parallel_for_work_group(...)
 
   template <typename KernelName, typename ElementType, typename KernelType>
-  std::enable_if_t<detail::isKernelLambdaCallableWithKernelHandler<
-                       KernelType, ElementType>(),
-                   void>
+  void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_work_group_wrapper(KernelType KernelFunc) {
 #else
   kernel_parallel_for_work_group_wrapper(const KernelType &KernelFunc) {
 #endif
-    kernel_handler KH;
-    kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc, KH);
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType, ElementType>()) {
+      kernel_handler KH;
+      kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc, KH);
+    } else {
+      kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
+    }
   }
-
-  template <typename KernelName, typename ElementType, typename KernelType>
-  std::enable_if_t<!detail::isKernelLambdaCallableWithKernelHandler<
-                       KernelType, ElementType>(),
-                   void>
-#ifdef __SYCL_NONCONST_FUNCTOR__
-  kernel_parallel_for_work_group_wrapper(KernelType KernelFunc) {
-#else
-  kernel_parallel_for_work_group_wrapper(const KernelType &KernelFunc) {
-#endif
-    kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
-  }
-#endif
 
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
@@ -1175,9 +1162,8 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task_wrapper<NameT>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
     MNDRDesc.set(range<1>{1});
@@ -1287,11 +1273,10 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkItems;
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1320,10 +1305,9 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)ExecutionRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1553,10 +1537,9 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1586,11 +1569,10 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkGroups;
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
@@ -1681,10 +1663,9 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     kernel_single_task<NameT>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
@@ -1722,11 +1703,10 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkItems;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1757,12 +1737,11 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkItems;
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1794,11 +1773,10 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NDRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1834,11 +1812,10 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
@@ -1872,12 +1849,11 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-#ifdef __SYCL_DEVICE_ONLY__
     (void)Kernel;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#else
+#ifndef __SYCL_DEVICE_ONLY__
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
@@ -2288,32 +2264,25 @@ private:
 
   friend class ::MockHandler;
 
-  template <
-      typename TransformedArgType, int Dims, typename KernelType,
-      typename std::enable_if_t<detail::isKernelLambdaCallableWithKernelHandler<
-          KernelType, TransformedArgType>()> * = nullptr>
+  template <typename TransformedArgType, int Dims, typename KernelType>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
                                    range<Dims> NumWorkItems) {
-    return [=](TransformedArgType Arg, kernel_handler KH) {
-      if (Arg[0] >= NumWorkItems[0])
-        return;
-      Arg.set_allowed_range(NumWorkItems);
-      KernelFunc(Arg, KH);
-    };
-  }
-
-  template <typename TransformedArgType, int Dims, typename KernelType,
-            typename std::enable_if_t<
-                !detail::isKernelLambdaCallableWithKernelHandler<
-                    KernelType, TransformedArgType>()> * = nullptr>
-  auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> NumWorkItems) {
-    return [=](TransformedArgType Arg) {
-      if (Arg[0] >= NumWorkItems[0])
-        return;
-      Arg.set_allowed_range(NumWorkItems);
-      KernelFunc(Arg);
-    };
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType, TransformedArgType>()) {
+      return [=](TransformedArgType Arg, kernel_handler KH) {
+        if (Arg[0] >= NumWorkItems[0])
+          return;
+        Arg.set_allowed_range(NumWorkItems);
+        KernelFunc(Arg, KH);
+      };
+    } else {
+      return [=](TransformedArgType Arg) {
+        if (Arg[0] >= NumWorkItems[0])
+          return;
+        Arg.set_allowed_range(NumWorkItems);
+        KernelFunc(Arg);
+      };
+    }
   }
 };
 } // namespace sycl
