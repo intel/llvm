@@ -16,9 +16,7 @@
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
-#include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Matchers.h"
@@ -33,8 +31,6 @@
 #define DEBUG_TYPE "linalg-transforms"
 
 using namespace mlir;
-using namespace mlir::edsc;
-using namespace mlir::edsc::intrinsics;
 using namespace mlir::linalg;
 
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE << "]: ")
@@ -393,30 +389,26 @@ LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
   return success();
 }
 
-/// Linalg base interchange pattern.
-mlir::linalg::LinalgBaseInterchangePattern::LinalgBaseInterchangePattern(
-    StringRef opName, MLIRContext *context,
-    ArrayRef<unsigned> interchangeVector, LinalgTransformationFilter filter,
-    PatternBenefit benefit)
-    : RewritePattern(opName, benefit, context, {}), filter(filter),
+/// Linalg generic interchange pattern.
+mlir::linalg::GenericOpInterchangePattern::GenericOpInterchangePattern(
+    MLIRContext *context, ArrayRef<unsigned> interchangeVector,
+    LinalgTransformationFilter filter, PatternBenefit benefit)
+    : OpRewritePattern(context, benefit), filter(filter),
       interchangeVector(interchangeVector.begin(), interchangeVector.end()) {}
 
-LogicalResult mlir::linalg::LinalgBaseInterchangePattern::matchAndRewrite(
-    Operation *op, PatternRewriter &rewriter) const {
-  LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
-  if (!linalgOp)
+LogicalResult mlir::linalg::GenericOpInterchangePattern::matchAndRewrite(
+    GenericOp genericOp, PatternRewriter &rewriter) const {
+  if (failed(filter.checkAndNotify(rewriter, genericOp)))
     return failure();
-  if (failed(filter.checkAndNotify(rewriter, linalgOp)))
-    return failure();
-  if (failed(interchangeGenericLinalgOpPrecondition(op, interchangeVector)))
+  if (failed(interchangeGenericOpPrecondition(genericOp, interchangeVector)))
     return failure();
 
   // TODO: figure out how this interplays with named ops. In particular this
   // should break the named op property.
-  rewriter.updateRootInPlace(op, [&]() {
-    interchange(rewriter, linalgOp, interchangeVector);
+  rewriter.updateRootInPlace(genericOp, [&]() {
+    interchangeGenericOp(rewriter, genericOp, interchangeVector);
     // New filter if specified.
-    filter.replaceLinalgTransformationFilter(rewriter, op);
+    filter.replaceLinalgTransformationFilter(rewriter, genericOp);
   });
   return success();
 }

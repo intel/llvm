@@ -11,7 +11,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_LIBXML2
   LLD_DEFAULT_LD_LLD_IS_MINGW
-  HAVE_LIBXAR
+  LLVM_HAVE_LIBXAR
   )
 
 configure_lit_site_cfg(
@@ -32,8 +32,8 @@ if (NOT LLD_BUILT_STANDALONE)
   list(APPEND LLD_TEST_DEPS
     FileCheck count dsymutil llc llvm-ar llvm-as llvm-bcanalyzer llvm-config
     llvm-cvtres llvm-dis llvm-dwarfdump llvm-lib llvm-lipo llvm-mc llvm-nm
-    llvm-objcopy llvm-objdump llvm-pdbutil llvm-readelf llvm-readobj llvm-strip
-    llvm-symbolizer not obj2yaml opt split-file yaml2obj
+    llvm-objcopy llvm-objdump llvm-otool llvm-pdbutil llvm-readelf llvm-readobj
+    llvm-strip llvm-symbolizer not obj2yaml opt split-file yaml2obj
     )
 endif()
 

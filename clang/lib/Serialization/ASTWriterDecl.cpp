@@ -672,6 +672,7 @@ static void addExplicitSpecifier(ExplicitSpecifier ES,
 
 void ASTDeclWriter::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
   addExplicitSpecifier(D->getExplicitSpecifier(), Record);
+  Record.AddDeclRef(D->Ctor);
   VisitFunctionDecl(D);
   Record.push_back(D->isCopyDeductionCandidate());
   Code = serialization::DECL_CXX_DEDUCTION_GUIDE;
@@ -1389,7 +1390,7 @@ void ASTDeclWriter::VisitCXXMethodDecl(CXXMethodDecl *D) {
 }
 
 void ASTDeclWriter::VisitCXXConstructorDecl(CXXConstructorDecl *D) {
-  Record.push_back(D->getTraillingAllocKind());
+  Record.push_back(D->getTrailingAllocKind());
   addExplicitSpecifier(D->getExplicitSpecifier(), Record);
   if (auto Inherited = D->getInheritedConstructor()) {
     Record.AddDeclRef(Inherited.getShadowDecl());

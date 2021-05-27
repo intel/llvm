@@ -1340,8 +1340,6 @@ private:
              !isa<SCEVCouldNotCompute>(MaxNotTaken);
     }
 
-    bool hasOperand(const SCEV *S) const;
-
     /// Test whether this ExitLimit contains all information.
     bool hasFullInfo() const {
       return !isa<SCEVCouldNotCompute>(ExactNotTaken);
@@ -1461,9 +1459,6 @@ private:
     /// Return true if any backedge taken count expressions refer to the given
     /// subexpression.
     bool hasOperand(const SCEV *S, ScalarEvolution *SE) const;
-
-    /// Invalidate this result and free associated memory.
-    void clear();
   };
 
   /// Cache the backedge-taken count of the loops for this function as they

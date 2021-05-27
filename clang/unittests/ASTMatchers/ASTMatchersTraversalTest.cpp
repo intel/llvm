@@ -11,6 +11,7 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/Tooling.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/Host.h"
 #include "gtest/gtest.h"
@@ -375,15 +376,104 @@ TEST(HasType, MatchesTypedefNameDecl) {
                       typedefNameDecl(hasType(asString("foo")), hasName("bar"))));
 }
 
-TEST(HasTypeLoc, MatchesDeclaratorDecls) {
+TEST(HasTypeLoc, MatchesBlockDecl) {
+  EXPECT_TRUE(matchesConditionally(
+      "auto x = ^int (int a, int b) { return a + b; };",
+      blockDecl(hasTypeLoc(loc(asString("int (int, int)")))), true,
+      {"-fblocks"}));
+}
+
+TEST(HasTypeLoc, MatchesCXXBaseSpecifierAndCtorInitializer) {
+  llvm::StringRef code = R"cpp(
+  class Foo {};
+  class Bar : public Foo {
+    Bar() : Foo() {}
+  };
+  )cpp";
+
+  EXPECT_TRUE(matches(
+      code, cxxRecordDecl(hasAnyBase(hasTypeLoc(loc(asString("class Foo")))))));
+  EXPECT_TRUE(matches(
+      code, cxxCtorInitializer(hasTypeLoc(loc(asString("class Foo"))))));
+}
+
+TEST(HasTypeLoc, MatchesCXXFunctionalCastExpr) {
+  EXPECT_TRUE(matches("auto x = int(3);",
+                      cxxFunctionalCastExpr(hasTypeLoc(loc(asString("int"))))));
+}
+
+TEST(HasTypeLoc, MatchesCXXNewExpr) {
+  EXPECT_TRUE(matches("auto* x = new int(3);",
+                      cxxNewExpr(hasTypeLoc(loc(asString("int"))))));
+  EXPECT_TRUE(matches("class Foo{}; auto* x = new Foo();",
+                      cxxNewExpr(hasTypeLoc(loc(asString("class Foo"))))));
+}
+
+TEST(HasTypeLoc, MatchesCXXTemporaryObjectExpr) {
+  EXPECT_TRUE(
+      matches("struct Foo { Foo(int, int); }; auto x = Foo(1, 2);",
+              cxxTemporaryObjectExpr(hasTypeLoc(loc(asString("struct Foo"))))));
+}
+
+TEST(HasTypeLoc, MatchesCXXUnresolvedConstructExpr) {
+  EXPECT_TRUE(
+      matches("template <typename T> T make() { return T(); }",
+              cxxUnresolvedConstructExpr(hasTypeLoc(loc(asString("T"))))));
+}
+
+TEST(HasTypeLoc, MatchesClassTemplateSpecializationDecl) {
+  EXPECT_TRUE(matches(
+      "template <typename T> class Foo; template <> class Foo<int> {};",
+      classTemplateSpecializationDecl(hasTypeLoc(loc(asString("Foo<int>"))))));
+}
+
+TEST(HasTypeLoc, MatchesCompoundLiteralExpr) {
+  EXPECT_TRUE(
+      matches("int* x = (int [2]) { 0, 1 };",
+              compoundLiteralExpr(hasTypeLoc(loc(asString("int [2]"))))));
+}
+
+TEST(HasTypeLoc, MatchesDeclaratorDecl) {
   EXPECT_TRUE(matches("int x;",
                       varDecl(hasName("x"), hasTypeLoc(loc(asString("int"))))));
+  EXPECT_TRUE(matches("int x(3);",
+                      varDecl(hasName("x"), hasTypeLoc(loc(asString("int"))))));
+  EXPECT_TRUE(
+      matches("struct Foo { Foo(int, int); }; Foo x(1, 2);",
+              varDecl(hasName("x"), hasTypeLoc(loc(asString("struct Foo"))))));
 
   // Make sure we don't crash on implicit constructors.
   EXPECT_TRUE(notMatches("class X {}; X x;",
                          declaratorDecl(hasTypeLoc(loc(asString("int"))))));
 }
 
+TEST(HasTypeLoc, MatchesExplicitCastExpr) {
+  EXPECT_TRUE(matches("auto x = (int) 3;",
+                      explicitCastExpr(hasTypeLoc(loc(asString("int"))))));
+  EXPECT_TRUE(matches("auto x = static_cast<int>(3);",
+                      explicitCastExpr(hasTypeLoc(loc(asString("int"))))));
+}
+
+TEST(HasTypeLoc, MatchesObjCPropertyDecl) {
+  EXPECT_TRUE(matchesObjC(R"objc(
+      @interface Foo
+      @property int enabled;
+      @end
+    )objc",
+                          objcPropertyDecl(hasTypeLoc(loc(asString("int"))))));
+}
+
+TEST(HasTypeLoc, MatchesTemplateArgumentLoc) {
+  EXPECT_TRUE(matches("template <typename T> class Foo {}; Foo<int> x;",
+                      templateArgumentLoc(hasTypeLoc(loc(asString("int"))))));
+}
+
+TEST(HasTypeLoc, MatchesTypedefNameDecl) {
+  EXPECT_TRUE(matches("typedef int X;",
+                      typedefNameDecl(hasTypeLoc(loc(asString("int"))))));
+  EXPECT_TRUE(matches("using X = int;",
+                      typedefNameDecl(hasTypeLoc(loc(asString("int"))))));
+}
 
 TEST(Callee, MatchesDeclarations) {
   StatementMatcher CallMethodX = callExpr(callee(cxxMethodDecl(hasName("x"))));
@@ -5432,6 +5522,83 @@ TEST(StatementMatcher, ForFunction) {
                  has(integerLiteral()))));
   EXPECT_TRUE(matches(CppString2, returnStmt(forFunction(hasName("F2")))));
   EXPECT_TRUE(notMatches(CppString2, returnStmt(forFunction(hasName("F")))));
+}
+
+TEST(StatementMatcher, ForCallable) {
+  // These tests are copied over from the forFunction() test above.
+  StringRef CppString1 = "struct PosVec {"
+                         "  PosVec& operator=(const PosVec&) {"
+                         "    auto x = [] { return 1; };"
+                         "    return *this;"
+                         "  }"
+                         "};";
+  StringRef CppString2 = "void F() {"
+                         "  struct S {"
+                         "    void F2() {"
+                         "       return;"
+                         "    }"
+                         "  };"
+                         "}";
+
+  EXPECT_TRUE(
+    matches(
+      CppString1,
+      returnStmt(forCallable(functionDecl(hasName("operator="))),
+                 has(unaryOperator(hasOperatorName("*"))))));
+  EXPECT_TRUE(
+    notMatches(
+      CppString1,
+      returnStmt(forCallable(functionDecl(hasName("operator="))),
+                 has(integerLiteral()))));
+  EXPECT_TRUE(
+    matches(
+      CppString1,
+      returnStmt(forCallable(functionDecl(hasName("operator()"))),
+                 has(integerLiteral()))));
+  EXPECT_TRUE(matches(CppString2,
+                      returnStmt(forCallable(functionDecl(hasName("F2"))))));
+  EXPECT_TRUE(notMatches(CppString2,
+                         returnStmt(forCallable(functionDecl(hasName("F"))))));
+
+  // These tests are specific to forCallable().
+  StringRef ObjCString1 = "@interface I"
+                          "-(void) foo;"
+                          "@end"
+                          "@implementation I"
+                          "-(void) foo {"
+                          "  void (^block)() = ^{ 0x2b | ~0x2b; };"
+                          "}"
+                          "@end";
+
+  EXPECT_TRUE(
+    matchesObjC(
+      ObjCString1,
+      binaryOperator(forCallable(blockDecl()))));
+
+  EXPECT_TRUE(
+    notMatchesObjC(
+      ObjCString1,
+      binaryOperator(forCallable(objcMethodDecl()))));
+
+  StringRef ObjCString2 = "@interface I"
+                          "-(void) foo;"
+                          "@end"
+                          "@implementation I"
+                          "-(void) foo {"
+                          "  0x2b | ~0x2b;"
+                          "  void (^block)() = ^{};"
+                          "}"
+                          "@end";
+
+  EXPECT_TRUE(
+    matchesObjC(
+      ObjCString2,
+      binaryOperator(forCallable(objcMethodDecl()))));
+
+  EXPECT_TRUE(
+    notMatchesObjC(
+      ObjCString2,
+      binaryOperator(forCallable(blockDecl()))));
 }
 
 TEST(Matcher, ForEachOverriden) {

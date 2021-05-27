@@ -14,6 +14,7 @@
 #ifndef MLIR_DIALECT_STANDARDOPS_IR_OPS_H
 #define MLIR_DIALECT_STANDARDOPS_IR_OPS_H
 
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -124,6 +125,20 @@ bool applyCmpPredicate(CmpFPredicate predicate, const APFloat &lhs,
 /// Ignore integer bitwitdh and type mismatch that come from the fact there is
 /// no IndexAttr and that IndexType have no bitwidth.
 bool isEqualConstantIntOrValue(OpFoldResult ofr1, OpFoldResult ofr2);
+
+/// Returns the identity value attribute associated with an AtomicRMWKind op.
+Attribute getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
+                               OpBuilder &builder, Location loc);
+
+/// Returns the identity value associated with an AtomicRMWKind op.
+Value getIdentityValue(AtomicRMWKind op, Type resultType, OpBuilder &builder,
+                       Location loc);
+
+/// Returns the value obtained by applying the reduction operation kind
+/// associated with a binary AtomicRMWKind op to `lhs` and `rhs`.
+Value getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
+                     Value lhs, Value rhs);
+
 } // end namespace mlir
 
 #endif // MLIR_DIALECT_IR_STANDARDOPS_IR_OPS_H

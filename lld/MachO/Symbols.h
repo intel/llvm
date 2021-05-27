@@ -72,6 +72,16 @@ public:
   // Whether this symbol is in the StubsSection.
   bool isInStubs() const { return stubsIndex != UINT32_MAX; }
 
+  uint64_t getStubVA() const;
+  uint64_t getGotVA() const;
+  uint64_t getTlvVA() const;
+  uint64_t resolveBranchVA() const {
+    assert(isa<Defined>(this) || isa<DylibSymbol>(this));
+    return isInStubs() ? getStubVA() : getVA();
+  }
+  uint64_t resolveGotVA() const { return isInGot() ? getGotVA() : getVA(); }
+  uint64_t resolveTlvVA() const { return isInGot() ? getTlvVA() : getVA(); }
+
   // The index of this symbol in the GOT or the TLVPointer section, depending
   // on whether it is a thread-local. A given symbol cannot be referenced by
   // both these sections at once.
@@ -102,11 +112,15 @@ class Defined : public Symbol {
 public:
   Defined(StringRefZ name, InputFile *file, InputSection *isec, uint64_t value,
           uint64_t size, bool isWeakDef, bool isExternal, bool isPrivateExtern,
-          bool isThumb)
+          bool isThumb, bool isReferencedDynamically)
       : Symbol(DefinedKind, name, file), isec(isec), value(value), size(size),
         overridesWeakDef(false), privateExtern(isPrivateExtern),
-        includeInSymtab(true), thumb(isThumb), weakDef(isWeakDef),
-        external(isExternal) {}
+        includeInSymtab(true), thumb(isThumb),
+        referencedDynamically(isReferencedDynamically), weakDef(isWeakDef),
+        external(isExternal) {
+    if (isec)
+      isec->numRefs++;
+  }
 
   bool isWeakDef() const override { return weakDef; }
   bool isExternalWeakDef() const {
@@ -138,6 +152,11 @@ public:
   bool includeInSymtab : 1;
   // Only relevant when compiling for Thumb-supporting arm32 archs.
   bool thumb : 1;
+  // Symbols marked referencedDynamically won't be removed from the output's
+  // symbol table by tools like strip. In theory, this could be set on arbitrary
+  // symbols in input object files. In practice, it's used solely for the
+  // synthetic __mh_execute_header symbol.
+  bool referencedDynamically : 1;
 
 private:
   const bool weakDef : 1;
@@ -204,6 +223,7 @@ public:
       : Symbol(DylibKind, name, file), refState(refState), weakDef(isWeakDef),
         tlv(isTlv) {}
 
+  uint64_t getVA() const override;
   bool isWeakDef() const override { return weakDef; }
   bool isWeakRef() const override { return refState == RefState::Weak; }
   bool isReferenced() const { return refState != RefState::Unreferenced; }

@@ -72,19 +72,11 @@ hostrpc_assign_buffer(hsa_agent_t, hsa_queue_t *, uint32_t device_id) {
 
 int print_kernel_trace;
 
-// Size of the target call stack struture
-uint32_t TgtStackItemSize = 0;
-
-#undef check // Drop definition from internal.h
 #ifdef OMPTARGET_DEBUG
 #define check(msg, status)                                                     \
   if (status != ATMI_STATUS_SUCCESS) {                                         \
-    /* fprintf(stderr, "[%s:%d] %s failed.\n", __FILE__, __LINE__, #msg);*/    \
     DP(#msg " failed\n");                                                      \
-    /*assert(0);*/                                                             \
   } else {                                                                     \
-    /* fprintf(stderr, "[%s:%d] %s succeeded.\n", __FILE__, __LINE__, #msg);   \
-     */                                                                        \
     DP(#msg " succeeded\n");                                                   \
   }
 #else
@@ -123,8 +115,9 @@ public:
   ~KernelArgPool() {
     if (kernarg_region) {
       auto r = hsa_amd_memory_pool_free(kernarg_region);
-      assert(r == HSA_STATUS_SUCCESS);
-      ErrorCheck(Memory pool free, r);
+      if (r != HSA_STATUS_SUCCESS) {
+        DP("hsa_amd_memory_pool_free failed: %s\n", get_error_string(r));
+      }
     }
   }
 
@@ -138,17 +131,33 @@ public:
 
     // atmi uses one pool per kernel for all gpus, with a fixed upper size
     // preserving that exact scheme here, including the queue<int>
-    {
-      hsa_status_t err = hsa_amd_memory_pool_allocate(
-          atl_gpu_kernarg_pools[0],
-          kernarg_size_including_implicit() * MAX_NUM_KERNELS, 0,
-          &kernarg_region);
-      ErrorCheck(Allocating memory for the executable-kernel, err);
-      core::allow_access_to_all_gpu_agents(kernarg_region);
 
-      for (int i = 0; i < MAX_NUM_KERNELS; i++) {
-        free_kernarg_segments.push(i);
+    hsa_status_t err = hsa_amd_memory_pool_allocate(
+        atl_gpu_kernarg_pools[0],
+        kernarg_size_including_implicit() * MAX_NUM_KERNELS, 0,
+        &kernarg_region);
+
+    if (err != HSA_STATUS_SUCCESS) {
+      DP("hsa_amd_memory_pool_allocate failed: %s\n", get_error_string(err));
+      kernarg_region = nullptr; // paranoid
+      return;
+    }
+
+    err = core::allow_access_to_all_gpu_agents(kernarg_region);
+    if (err != HSA_STATUS_SUCCESS) {
+      DP("hsa allow_access_to_all_gpu_agents failed: %s\n",
+         get_error_string(err));
+      auto r = hsa_amd_memory_pool_free(kernarg_region);
+      if (r != HSA_STATUS_SUCCESS) {
+        // if free failed, can't do anything more to resolve it
+        DP("hsa memory poll free failed: %s\n", get_error_string(err));
       }
+      kernarg_region = nullptr;
+      return;
+    }
+
+    for (int i = 0; i < MAX_NUM_KERNELS; i++) {
+      free_kernarg_segments.push(i);
     }
   }
 
@@ -275,21 +284,18 @@ static void callbackQueue(hsa_status_t status, hsa_queue_t *source,
 }
 
 namespace core {
+namespace {
 void packet_store_release(uint32_t *packet, uint16_t header, uint16_t rest) {
   __atomic_store_n(packet, header | (rest << 16), __ATOMIC_RELEASE);
 }
 
-uint16_t create_header(hsa_packet_type_t type, int barrier,
-                       atmi_task_fence_scope_t acq_fence,
-                       atmi_task_fence_scope_t rel_fence) {
-  uint16_t header = type << HSA_PACKET_HEADER_TYPE;
-  header |= barrier << HSA_PACKET_HEADER_BARRIER;
-  header |= (hsa_fence_scope_t) static_cast<int>(
-      acq_fence << HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE);
-  header |= (hsa_fence_scope_t) static_cast<int>(
-      rel_fence << HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE);
+uint16_t create_header() {
+  uint16_t header = HSA_PACKET_TYPE_KERNEL_DISPATCH << HSA_PACKET_HEADER_TYPE;
+  header |= HSA_FENCE_SCOPE_SYSTEM << HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE;
+  header |= HSA_FENCE_SCOPE_SYSTEM << HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE;
   return header;
 }
+} // namespace
 } // namespace core
 
 /// Class containing all the device information
@@ -328,6 +334,8 @@ public:
 
   // Resource pools
   SignalPoolT FreeSignalPool;
+
+  std::vector<hsa_executable_t> HSAExecutables;
 
   struct atmiFreePtrDeletor {
     void operator()(void *p) {
@@ -474,12 +482,18 @@ public:
     deviceStateStore.resize(NumberOfDevices);
 
     for (int i = 0; i < NumberOfDevices; i++) {
+      HSAQueues[i] = nullptr;
+    }
+
+    for (int i = 0; i < NumberOfDevices; i++) {
       uint32_t queue_size = 0;
       {
-        hsa_status_t err;
-        err = hsa_agent_get_info(HSAAgents[i], HSA_AGENT_INFO_QUEUE_MAX_SIZE,
-                                 &queue_size);
-        ErrorCheck(Querying the agent maximum queue size, err);
+        hsa_status_t err = hsa_agent_get_info(
+            HSAAgents[i], HSA_AGENT_INFO_QUEUE_MAX_SIZE, &queue_size);
+        if (err != HSA_STATUS_SUCCESS) {
+          DP("HSA query QUEUE_MAX_SIZE failed for agent %d\n", i);
+          return;
+        }
         if (queue_size > core::Runtime::getInstance().getMaxQueueSize()) {
           queue_size = core::Runtime::getInstance().getMaxQueueSize();
         }
@@ -489,7 +503,7 @@ public:
           HSAAgents[i], queue_size, HSA_QUEUE_TYPE_MULTI, callbackQueue, NULL,
           UINT32_MAX, UINT32_MAX, &HSAQueues[i]);
       if (rc != HSA_STATUS_SUCCESS) {
-        DP("Failed to create HSA queues\n");
+        DP("Failed to create HSA queue %d\n", i);
         return;
       }
 
@@ -542,6 +556,15 @@ public:
     KernelArgPoolMap.clear();
     // Terminate hostrpc before finalizing ATMI
     hostrpc_terminate();
+
+    for (uint32_t I = 0; I < HSAExecutables.size(); I++) {
+      hsa_status_t Err = hsa_executable_destroy(HSAExecutables[I]);
+      if (Err != HSA_STATUS_SUCCESS) {
+        DP("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+           "Destroying executable", get_error_string(Err));
+      }
+    }
+
     atmi_finalize();
   }
 };
@@ -813,7 +836,7 @@ int32_t __tgt_rtl_init_device(int device_id) {
      RTLDeviceInfoTy::Default_WG_Size);
   if (DeviceInfo.NumThreads[device_id] >
       DeviceInfo.ThreadsPerGroup[device_id]) {
-    DeviceInfo.NumTeams[device_id] = DeviceInfo.ThreadsPerGroup[device_id];
+    DeviceInfo.NumThreads[device_id] = DeviceInfo.ThreadsPerGroup[device_id];
     DP("Default number of threads exceeds device limit, capping at %d\n",
        DeviceInfo.ThreadsPerGroup[device_id]);
   }
@@ -967,15 +990,16 @@ atmi_status_t interop_get_symbol_info(char *base, size_t img_size,
 }
 
 template <typename C>
-atmi_status_t module_register_from_memory_to_place(void *module_bytes,
-                                                   size_t module_size,
-                                                   atmi_place_t place, C cb) {
+atmi_status_t module_register_from_memory_to_place(
+    void *module_bytes, size_t module_size, atmi_place_t place, C cb,
+    std::vector<hsa_executable_t> &HSAExecutables) {
   auto L = [](void *data, size_t size, void *cb_state) -> atmi_status_t {
     C *unwrapped = static_cast<C *>(cb_state);
     return (*unwrapped)(data, size);
   };
-  return atmi_module_register_from_memory_to_place(
-      module_bytes, module_size, place, L, static_cast<void *>(&cb));
+  return core::Runtime::RegisterModuleFromMemory(
+      module_bytes, module_size, place, L, static_cast<void *>(&cb),
+      HSAExecutables);
 }
 } // namespace
 
@@ -989,9 +1013,8 @@ static uint64_t get_device_State_bytes(char *ImageStart, size_t img_size) {
 
     if (rc == 0) {
       if (size_si.size != sizeof(uint64_t)) {
-        fprintf(stderr,
-                "Found device_State_size variable with wrong size, aborting\n");
-        exit(1);
+        DP("Found device_State_size variable with wrong size\n");
+        return 0;
       }
 
       // Read number of bytes directly from the elf
@@ -1176,9 +1199,8 @@ __tgt_target_table *__tgt_rtl_load_binary_locked(int32_t device_id,
 
     atmi_status_t err = module_register_from_memory_to_place(
         (void *)image->ImageStart, img_size, get_gpu_place(device_id),
-        [&](void *data, size_t size) {
-          return env.before_loading(data, size);
-        });
+        [&](void *data, size_t size) { return env.before_loading(data, size); },
+        DeviceInfo.HSAExecutables);
 
     check("Module registering", err);
     if (err != ATMI_STATUS_SUCCESS) {
@@ -1760,12 +1782,18 @@ int32_t __tgt_rtl_run_target_team_region_locked(
   KernelTy *KernelInfo = (KernelTy *)tgt_entry_ptr;
 
   std::string kernel_name = std::string(KernelInfo->Name);
+  if (KernelInfoTable[device_id].find(kernel_name) ==
+      KernelInfoTable[device_id].end()) {
+    DP("Kernel %s not found\n", kernel_name.c_str());
+    return OFFLOAD_FAIL;
+  }
+
+  uint32_t group_segment_size;
   uint32_t sgpr_count, vgpr_count, sgpr_spill_count, vgpr_spill_count;
 
   {
-    assert(KernelInfoTable[device_id].find(kernel_name) !=
-           KernelInfoTable[device_id].end());
     auto it = KernelInfoTable[device_id][kernel_name];
+    group_segment_size = it.group_segment_size;
     sgpr_count = it.sgpr_count;
     vgpr_count = it.vgpr_count;
     sgpr_spill_count = it.sgpr_spill_count;
@@ -1793,17 +1821,20 @@ int32_t __tgt_rtl_run_target_team_region_locked(
     bool traceToStdout = print_kernel_trace & (RTL_TO_STDOUT | RTL_TIMING);
     fprintf(traceToStdout ? stdout : stderr,
             "DEVID:%2d SGN:%1d ConstWGSize:%-4d args:%2d teamsXthrds:(%4dX%4d) "
-            "reqd:(%4dX%4d) sgpr_count:%u vgpr_count:%u sgpr_spill_count:%u "
-            "vgpr_spill_count:%u tripcount:%lu n:%s\n",
+            "reqd:(%4dX%4d) lds_usage:%uB sgpr_count:%u vgpr_count:%u "
+            "sgpr_spill_count:%u vgpr_spill_count:%u tripcount:%lu n:%s\n",
             device_id, KernelInfo->ExecutionMode, KernelInfo->ConstWGSize,
             arg_num, num_groups, threadsPerGroup, num_teams, thread_limit,
-            sgpr_count, vgpr_count, sgpr_spill_count, vgpr_spill_count,
-            loop_tripcount, KernelInfo->Name);
+            group_segment_size, sgpr_count, vgpr_count, sgpr_spill_count,
+            vgpr_spill_count, loop_tripcount, KernelInfo->Name);
   }
 
   // Run on the device.
   {
     hsa_queue_t *queue = DeviceInfo.HSAQueues[device_id];
+    if (!queue) {
+      return OFFLOAD_FAIL;
+    }
     uint64_t packet_id = acquire_available_packet_id(queue);
 
     const uint32_t mask = queue->size - 1; // size is a power of 2
@@ -1828,8 +1859,6 @@ int32_t __tgt_rtl_run_target_team_region_locked(
     packet->completion_signal = {0}; // may want a pool of signals
 
     {
-      assert(KernelInfoTable[device_id].find(kernel_name) !=
-             KernelInfoTable[device_id].end());
       auto it = KernelInfoTable[device_id][kernel_name];
       packet->kernel_object = it.kernel_object;
       packet->private_segment_size = it.private_segment_size;
@@ -1845,8 +1874,8 @@ int32_t __tgt_rtl_run_target_team_region_locked(
       }
     }
     if (!ArgPool) {
-      fprintf(stderr, "Warning: No ArgPool for %s on device %d\n",
-              KernelInfo->Name, device_id);
+      DP("Warning: No ArgPool for %s on device %d\n", KernelInfo->Name,
+         device_id);
     }
     {
       void *kernarg = nullptr;
@@ -1855,8 +1884,8 @@ int32_t __tgt_rtl_run_target_team_region_locked(
         kernarg = ArgPool->allocate(arg_num);
       }
       if (!kernarg) {
-        printf("Allocate kernarg failed\n");
-        exit(1);
+        DP("Allocate kernarg failed\n");
+        return OFFLOAD_FAIL;
       }
 
       // Copy explicit arguments
@@ -1897,18 +1926,15 @@ int32_t __tgt_rtl_run_target_team_region_locked(
     {
       hsa_signal_t s = DeviceInfo.FreeSignalPool.pop();
       if (s.handle == 0) {
-        printf("Failed to get signal instance\n");
-        exit(1);
+        DP("Failed to get signal instance\n");
+        return OFFLOAD_FAIL;
       }
       packet->completion_signal = s;
       hsa_signal_store_relaxed(packet->completion_signal, 1);
     }
 
-    core::packet_store_release(
-        reinterpret_cast<uint32_t *>(packet),
-        core::create_header(HSA_PACKET_TYPE_KERNEL_DISPATCH, 0,
-                            ATMI_FENCE_SCOPE_SYSTEM, ATMI_FENCE_SCOPE_SYSTEM),
-        packet->setup);
+    core::packet_store_release(reinterpret_cast<uint32_t *>(packet),
+                               core::create_header(), packet->setup);
 
     hsa_signal_store_relaxed(queue->doorbell_signal, packet_id);
 

@@ -39,6 +39,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Discriminator.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/Threading.h"
@@ -164,6 +165,13 @@ static cl::opt<GlobalISelAbortMode> EnableGlobalISelAbort(
         clEnumValN(GlobalISelAbortMode::Enable, "1", "Enable the abort"),
         clEnumValN(GlobalISelAbortMode::DisableWithDiag, "2",
                    "Disable the abort but emit a diagnostic on failure")));
+
+// An option that disables inserting FS-AFDO discriminators before emit.
+// This is mainly for debugging and tuning purpose.
+static cl::opt<bool>
+    FSNoFinalDiscrim("fs-no-final-discrim", cl::init(false), cl::Hidden,
+                     cl::desc("Do not insert FS-AFDO discriminators before "
+                              "emit."));
 
 // Temporary option to allow experimenting with MachineScheduler as a post-RA
 // scheduler. Targets can "properly" enable this with
@@ -333,6 +341,8 @@ struct InsertedPass {
 } // end anonymous namespace
 
 namespace llvm {
+
+extern cl::opt<bool> EnableFSDiscriminator;
 
 class PassConfigImpl {
 public:
@@ -864,6 +874,11 @@ void TargetPassConfig::addIRPasses() {
   if (getOptLevel() != CodeGenOpt::None && !DisablePartialLibcallInlining)
     addPass(createPartiallyInlineLibCallsPass());
 
+  // Expand vector predication intrinsics into standard IR instructions.
+  // This pass has to run before ScalarizeMaskedMemIntrin and ExpandReduction
+  // passes since it emits those kinds of intrinsics.
+  addPass(createExpandVectorPredicationPass());
+
   // Add scalarization of target's unsupported masked memory intrinsics pass.
   // the unsupported intrinsic will be replaced with a chain of basic blocks,
   // that stores/loads element one-by-one if the appropriate mask bit is set.
@@ -1162,6 +1177,10 @@ void TargetPassConfig::addMachinePasses() {
   addPass(&XRayInstrumentationID);
   addPass(&PatchableFunctionID);
 
+  if (EnableFSDiscriminator && !FSNoFinalDiscrim)
+    addPass(createMIRAddFSDiscriminatorsPass(PASS_LAST_DIS_BIT_BEG,
+                                             PASS_LAST_DIS_BIT_END));
+
   addPreEmitPass();
 
   if (TM->Options.EnableIPRA)
@@ -1316,6 +1335,10 @@ bool TargetPassConfig::addRegAssignAndRewriteFast() {
     report_fatal_error("Must use fast (default) register allocator for unoptimized regalloc.");
 
   addPass(createRegAllocPass(false));
+
+  // Allow targets to change the register assignments after
+  // fast register allocation.
+  addPostFastRegAllocRewrite();
   return true;
 }
 

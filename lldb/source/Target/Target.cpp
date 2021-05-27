@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/Target.h"
-#include "Plugins/ExpressionParser/Clang/ClangModulesDeclVendor.h"
 #include "lldb/Breakpoint/BreakpointIDList.h"
 #include "lldb/Breakpoint/BreakpointPrecondition.h"
 #include "lldb/Breakpoint/BreakpointResolver.h"
@@ -371,9 +370,14 @@ BreakpointSP Target::CreateBreakpoint(const FileSpecList *containingModules,
   if (move_to_nearest_code == eLazyBoolCalculate)
     move_to_nearest_code = GetMoveToNearestCode() ? eLazyBoolYes : eLazyBoolNo;
 
+  SourceLocationSpec location_spec(remapped_file, line_no, column,
+                                   check_inlines,
+                                   !static_cast<bool>(move_to_nearest_code));
+  if (!location_spec)
+    return nullptr;
+
   BreakpointResolverSP resolver_sp(new BreakpointResolverFileLine(
-      nullptr, remapped_file, line_no, column, offset, check_inlines,
-      skip_prologue, !static_cast<bool>(move_to_nearest_code)));
+      nullptr, offset, skip_prologue, location_spec));
   return CreateBreakpoint(filter_sp, resolver_sp, internal, hardware, true);
 }
 
@@ -1753,19 +1757,30 @@ size_t Target::ReadMemory(const Address &addr, void *dst, size_t dst_len,
   if (!resolved_addr.IsValid())
     resolved_addr = addr;
 
-  bool is_readonly = false;
+  // If we read from the file cache but can't get as many bytes as requested,
+  // we keep the result around in this buffer, in case this result is the
+  // best we can do.
+  std::unique_ptr<uint8_t[]> file_cache_read_buffer;
+  size_t file_cache_bytes_read = 0;
+
   // Read from file cache if read-only section.
   if (!force_live_memory && resolved_addr.IsSectionOffset()) {
     SectionSP section_sp(resolved_addr.GetSection());
     if (section_sp) {
       auto permissions = Flags(section_sp->GetPermissions());
-      is_readonly = !permissions.Test(ePermissionsWritable) &&
-                    permissions.Test(ePermissionsReadable);
-    }
-    if (is_readonly) {
-      bytes_read = ReadMemoryFromFileCache(resolved_addr, dst, dst_len, error);
-      if (bytes_read > 0)
-        return bytes_read;
+      bool is_readonly = !permissions.Test(ePermissionsWritable) &&
+                         permissions.Test(ePermissionsReadable);
+      if (is_readonly) {
+        file_cache_bytes_read =
+            ReadMemoryFromFileCache(resolved_addr, dst, dst_len, error);
+        if (file_cache_bytes_read == dst_len)
+          return file_cache_bytes_read;
+        else if (file_cache_bytes_read > 0) {
+          file_cache_read_buffer =
+              std::make_unique<uint8_t[]>(file_cache_bytes_read);
+          std::memcpy(file_cache_read_buffer.get(), dst, file_cache_bytes_read);
+        }
+      }
     }
   }
 
@@ -1804,7 +1819,14 @@ size_t Target::ReadMemory(const Address &addr, void *dst, size_t dst_len,
     }
   }
 
-  if (!is_readonly && resolved_addr.IsSectionOffset()) {
+  if (file_cache_read_buffer && file_cache_bytes_read > 0) {
+    // Reading from the process failed. If we've previously succeeded in reading
+    // something from the file cache, then copy that over and return that.
+    std::memcpy(dst, file_cache_read_buffer.get(), file_cache_bytes_read);
+    return file_cache_bytes_read;
+  }
+
+  if (!file_cache_read_buffer && resolved_addr.IsSectionOffset()) {
     // If we didn't already try and read from the object file cache, then try
     // it after failing to read from the process.
     return ReadMemoryFromFileCache(resolved_addr, dst, dst_len, error);
@@ -2521,23 +2543,6 @@ SourceManager &Target::GetSourceManager() {
   if (!m_source_manager_up)
     m_source_manager_up = std::make_unique<SourceManager>(shared_from_this());
   return *m_source_manager_up;
-}
-
-ClangModulesDeclVendor *Target::GetClangModulesDeclVendor() {
-  static std::mutex s_clang_modules_decl_vendor_mutex; // If this is contended
-                                                       // we can make it
-                                                       // per-target
-
-  {
-    std::lock_guard<std::mutex> guard(s_clang_modules_decl_vendor_mutex);
-
-    if (!m_clang_modules_decl_vendor_up) {
-      m_clang_modules_decl_vendor_up.reset(
-          ClangModulesDeclVendor::Create(*this));
-    }
-  }
-
-  return m_clang_modules_decl_vendor_up.get();
 }
 
 Target::StopHookSP Target::CreateStopHook(StopHook::StopHookKind kind) {
