@@ -287,6 +287,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
+  case aspect::ext_oneapi_native_assert:
+    rerutn isAssertFailSupported();
 
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
@@ -302,7 +304,13 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
 }
 
 bool device_impl::isAssertFailSupported() const {
-  return false;
+  plugin &Plugin = getPlugin();
+
+  // assume CUDA supports native asserts by default
+  if (Plugin.getBackend() == backend::cuda)
+    return true;
+
+  return has_extension("cl_intel_devicelib_cassert");
 }
 
 } // namespace detail

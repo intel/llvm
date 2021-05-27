@@ -102,14 +102,17 @@ event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
 
 event queue::submit_impl(function_class<void(handler &)> CGH,
                          std::string &KernelName,
+                         bool &IsKernel,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, KernelName, impl, CodeLoc);
+  return impl->submit(CGH, KernelName, IsKernel, impl, CodeLoc);
 }
 
 event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
                          std::string &KernelName,
+                         bool &IsKernel,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, KernelName, impl, SecondQueue.impl, CodeLoc);
+  return impl->submit(CGH, KernelName, IsKernel, impl, SecondQueue.impl,
+                      CodeLoc);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
@@ -155,8 +158,9 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
-bool queue::kernelUsesAssert(const std::string &KernelName) const {
-  return impl->kernelUsesAssert(KernelName);
+bool queue::kernelUsesAssert(event &Event,
+                             const std::string &KernelName) const {
+  return impl->kernelUsesAssert(Event, KernelName);
 }
 
 } // namespace sycl

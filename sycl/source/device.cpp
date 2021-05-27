@@ -162,9 +162,5 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
-bool device::is_assert_fail_supported() const {
-  return impl->isAssertFailSupported();
-}
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

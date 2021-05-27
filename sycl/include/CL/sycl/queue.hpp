@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/assert_happened.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device.hpp>
@@ -21,22 +22,6 @@
 #include <CL/sycl/stl.hpp>
 
 #include <utility>
-
-struct AssertHappened {
-  int Flag = 0;
-};
-
-#if 0
-#ifndef __SYCL_GLOBAL_VAR__
-#define __SYCL_GLOBAL_VAR__
-#endif
-
-extern "C" __SYCL_GLOBAL_VAR__ const AssertHappened AssertHappenedMem;
-#endif
-
-#ifdef __SYCL_DEVICE_ONLY__
-SYCL_EXTERNAL __attribute__((weak)) extern "C" int __devicelib_assert_read();
-#endif
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
 // Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
@@ -233,12 +218,21 @@ public:
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
 private:
-#ifndef NDEBUG
-  event submitAssertCapture(event &Event, queue *SecondaryQueue, const detail::code_location &CodeLoc) {
+  /**
+   * Submit copy task for assert failure flag and host-task to check the flag
+   * \param Event kernel's event to depend on i.e. the event represents the
+   *              kernel to check for assertion failure
+   * \param SecondaryQueue secondary queue for submit process, null if not used
+   * \returns host tasks event
+   */
+  event submitAssertCapture(event &Event, queue *SecondaryQueue,
+                            const detail::code_location &CodeLoc) {
     _CODELOCARG(&CodeLoc);
 
-    AssertHappened *AH = new AssertHappened;
-    buffer<AssertHappened, 1> *Buffer = new buffer<AssertHappened, 1>{AH, range<1>{1}};
+    using AHBufT = buffer<AssertHappened, 1>;
+
+    detail::AssertHappened *AH = new detail::AssertHappened;
+    AHBufT *Buffer = new AHBufT{AH, range<1>{1}};
 
     event CopierEv, CheckerEv;
     auto CopierCGF = [&](handler &CGH) {
@@ -250,6 +244,8 @@ private:
       CGH.single_task<AssertFlagCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
         Acc[0].Flag = __devicelib_assert_read(); //AssertHappenedMem.Flag;
+#else
+        (void)Acc;
 #endif // __SYCL_DEVICE_ONLY__
       });
     };
@@ -277,9 +273,10 @@ private:
 
     return CheckerEv;
   }
-#endif
 
-  bool kernelUsesAssert(const std::string &KernelName) const;
+  // Check if kernel with the name provided in KernelName and which is being
+  // enqueued and can be waited on by Event uses assert
+  bool kernelUsesAssert(event &Event, const std::string &KernelName) const;
 
 public:
   /// Submits a command group function object to the queue, in order to be
@@ -292,22 +289,18 @@ public:
     _CODELOCARG(&CodeLoc);
 
     event Event;
-#ifndef NDEBUG
     std::string KernelName;
-    Event = submit_impl(CGF, KernelName, CodeLoc);
-#else
-    Event = submit_impl(CGF, CodeLoc);
-#endif
+    bool IsKernel = false;
+    Event = submit_impl(CGF, KernelName, IsKernel, CodeLoc);
 
-#ifndef NDEBUG
     // assert required
-    if (!get_device().is_assert_fail_supported() && kernelUsesAssert(KernelName)) {
+    if (IsKernel && !get_device().is_assert_fail_supported() &&
+        kernelUsesAssert(KernelName)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
       submitAssertCapture(Event, /* SecondaryQueue = */ nullptr, CodeLoc);
     }
-#endif // NDEBUG
 
     return Event;
   }
@@ -328,23 +321,18 @@ public:
     _CODELOCARG(&CodeLoc);
 
     event Event;
-
-#ifndef NDEBUG
     std::string KernelName;
-    Event = submit_impl(CGF, KernelName, SecondaryQueue, CodeLoc);
-#else
-    Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
-#endif
+    bool IsKernel = false;
+    Event = submit_impl(CGF, KernelName, IsKernel, SecondaryQueue, CodeLoc);
 
-#ifndef NDEBUG
     // assert required
-    if (!get_device().is_assert_fail_supported() && kernelUsesAssert(KernelName)) {
+    if (IsKernel && !get_device().is_assert_fail_supported() &&
+        kernelUsesAssert(KernelName)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
       submitAssertCapture(Event, &SecondaryQueue, CodeLoc);
     }
-#endif // NDEBUG
 
     return Event;
   }
@@ -860,9 +848,11 @@ private:
 
   event submit_impl(function_class<void(handler &)> CGH,
                     std::string &KernelName,
+                    bool &IsKernel,
                     const detail::code_location &CodeLoc);
   event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
                     std::string &KernelName,
+                    bool &IsKernel,
                     const detail::code_location &CodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that

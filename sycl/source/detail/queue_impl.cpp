@@ -287,8 +287,18 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
-bool queue_impl::kernelUsesAssert(const std::string &KernelName) const {
-  // TODO check device binary image descriptor for if kernel uses assert
+bool queue_impl::kernelUsesAssert(event &Event,
+                                  const std::string &KernelName) const {
+  Scheduler &Sched = Scheduler::getInstance();
+  std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
+
+  EventImplPtr &EventPtr = detail::getSyclObjImpl(Event);
+
+  Command *Cmd = EventPtr->getCommand();
+
+  // TODO get device binary image out of command in the way its performed in
+  // ExecCGCommand::enqueueImp @ CGTYPE::KERNEL
+
   return true;
 }
 
