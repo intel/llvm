@@ -98,21 +98,21 @@ Interface for the library and backends:
 
 ```cpp
 // for default sorting algorithm
-void __devicelib_default_sort(bool is_group_or_sub_group, T* first, T* last,
-                              bool is_ascending_or_descending);
+void __devicelib_default_work_group_sort(T* first, T* last,
+                                         bool is_ascending_or_descending);
+
+void __devicelib_default_sub_group_sort(T* first, T* last,
+                                        bool is_ascending_or_descending);
 
 // for key value sorting using the default algorithm
-void __devicelib_default_sort(bool is_group_or_sub_group, T* keys_first, T* keys_last,
-                              U* values_first, U* values_last, bool is_ascending_or_descending);
+void __devicelib_default_work_group_sort(T* keys_first, T* keys_last,
+                                         U* values_first, U* values_last, bool is_ascending_or_descending);
+void __devicelib_default_sub_group_sort(T* keys_first, T* keys_last,
+                                        U* values_first, U* values_last, bool is_ascending_or_descending);
 
-// for radix sorting
-void __devicelib_radix_sort(bool is_group_or_sub_group, int BitsPerPass,
-                            T* first, T* last, uint32_t radix_iter,
-                            bool is_ascending_or_descending);
 ```
 
 Notes:
-- `is_group_or_sub_group` equals `1` when `sycl::group` is passed, equals `0` when `sycl::sub_group` is passed.
 - `T`, `U` are arithmetic types or `sycl::half`.
 - `first`, `last` describe the range of actual data for sorting.
 - `is_ascending_or_descending` equals `1` when ascending sort is requested, equals `0` when descending sort is requested.
