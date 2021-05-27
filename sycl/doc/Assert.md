@@ -38,17 +38,17 @@ int main() {
 }
 ```
 
-In this use-case every work-item with even X dimension will trigger assertion
-failure. Assertion failure should trigger a call to `std::abort()` at host as
-described in
+In this use-case every work-item with even index along 0 dimension will trigger
+assertion failure. Assertion failure should trigger a call to `std::abort()` at
+host as described in
 [extension](extensions/Assert/SYCL_INTEL_ASSERT.asciidoc).
 Even though multiple failures of the same or different assertions can happen in
-multiple workitems, implementation is required to deliver at least one
+multiple work-items, implementation is required to deliver at least one
 assertion. The assertion failure message is printed to `stderr` by DPCPP
 Runtime or underlying backend.
 
 When multiple kernels are enqueued and more than one fail at assertion, at least
-single assertion should be reported.
+one assertion should be reported.
 
 
 ## User requirements
