@@ -12,6 +12,8 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 
+#include <limits>
+
 #define SIMDCF_ELEMENT_SKIP(i)
 
 __SYCL_INLINE_NAMESPACE(cl) {
