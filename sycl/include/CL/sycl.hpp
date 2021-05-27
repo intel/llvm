@@ -29,6 +29,7 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/feature_test.hpp>
 #include <CL/sycl/group.hpp>
+#include <CL/sycl/group_algorithm.hpp>
 #include <CL/sycl/group_local_memory.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
@@ -53,7 +54,6 @@
 #include <CL/sycl/specialization_id.hpp>
 #include <CL/sycl/stream.hpp>
 #include <CL/sycl/sub_group.hpp>
-#include <CL/sycl/group_algorithm.hpp>
 #include <CL/sycl/types.hpp>
 #include <CL/sycl/usm.hpp>
 #include <CL/sycl/version.hpp>

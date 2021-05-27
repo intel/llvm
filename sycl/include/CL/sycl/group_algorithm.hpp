@@ -451,9 +451,7 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
 // ---- group_broadcast
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     // std::is_trivially_copyable<T>::value &&
                      detail::is_scalar_arithmetic<T>::value),
-                    //! detail::is_vector_arithmetic<T>::value),
                     T>
 group_broadcast(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -466,31 +464,9 @@ group_broadcast(Group, T x, typename Group::id_type local_id) {
 #endif
 }
 
-// template <typename Group, typename T>
-// detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-//                      detail::is_vector_arithmetic<T>::value),
-//                     T>
-// group_broadcast(Group g, T x, typename Group::id_type local_id) {
-// #ifdef __SYCL_DEVICE_ONLY__
-//   T result;
-//   for (int s = 0; s < x.get_size(); ++s) {
-//     result[s] = group_broadcast(g, x[s], local_id);
-//   }
-//   return result;
-// #else
-//   (void)g;
-//   (void)x;
-//   (void)local_id;
-//   throw runtime_error("Group algorithms are not supported on host device.",
-//                       PI_INVALID_DEVICE);
-// #endif
-// }
-
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value),
-                    // std::is_trivially_copyable<T>::value &&
-                    // !detail::is_vector_arithmetic<T>::value),
                     T>
 group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -506,31 +482,9 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 #endif
 }
 
-// template <typename Group, typename T>
-// detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-//                      detail::is_vector_arithmetic<T>::value),
-//                     T>
-// group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id)
-// { #ifdef __SYCL_DEVICE_ONLY__
-//   T result;
-//   for (int s = 0; s < x.get_size(); ++s) {
-//     result[s] = group_broadcast(g, x[s], linear_local_id);
-//   }
-//   return result;
-// #else
-//   (void)g;
-//   (void)x;
-//   (void)linear_local_id;
-//   throw runtime_error("Group algorithms are not supported on host device.",
-//                       PI_INVALID_DEVICE);
-// #endif
-// }
-
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value),
-                    // std::is_trivially_copyable<T>::value &&
-                    // !detail::is_vector_arithmetic<T>::value),
                     T>
 group_broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -542,25 +496,6 @@ group_broadcast(Group g, T x) {
                       PI_INVALID_DEVICE);
 #endif
 }
-
-// template <typename Group, typename T>
-// detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-//                      detail::is_vector_arithmetic<T>::value),
-//                     T>
-// group_broadcast(Group g, T x) {
-// #ifdef __SYCL_DEVICE_ONLY__
-//   T result;
-//   for (int s = 0; s < x.get_size(); ++s) {
-//     result[s] = group_broadcast(g, x[s]);
-//   }
-//   return result;
-// #else
-//   (void)g;
-//   (void)x;
-//   throw runtime_error("Group algorithms are not supported on host device.",
-//                       PI_INVALID_DEVICE);
-// #endif
-// }
 
 // ---- exclusive_scan_over_group
 template <typename Group, typename T, class BinaryOperation>
