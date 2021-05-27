@@ -42,6 +42,9 @@ namespace sycl {
 class context;
 namespace detail {
 
+static constexpr auto inline ITTProfileEnvVarName = "INTEL_LIBITTNOTIFY64";
+static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
+
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class program_impl;
