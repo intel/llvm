@@ -1,6 +1,7 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -isystem %S %s
 
-#include "Inputs/sycl.hpp"
+#include <Inputs-isystem/attr-syclglobalvar.hpp>
+#include "../Inputs/sycl.hpp"
 
 __attribute__((sycl_global_var)) int GlobalWithAttribute;
 
@@ -41,14 +42,14 @@ __attribute__((sycl_global_var)) void F() {
     __attribute__((sycl_global_var)) int Local;
 
     cl::sycl::kernel_single_task<class kernel_name>([=] () {
-        (void)GlobalWithAttribute;
-        (void)ExternGlobalWithAttribute;
-        (void)NS::NSGlobalWithAttribute;
-        (void)S::StaticMember;
-        (void)GlobalStruct.InstanceMember;
+        (void)GlobalWithAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+        (void)ExternGlobalWithAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+        (void)NS::NSGlobalWithAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+        (void)S::StaticMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+        (void)GlobalStruct.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
         (void)StaticGlobal.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
         (void)StaticLocalVar; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
         (void)AnonymousStaticUnionInstanceMember; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
-        (void)GlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@Inputs/sycl.hpp:* {{called by}}
+        (void)GlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@../Inputs/sycl.hpp:* {{called by}}
     });
 }
