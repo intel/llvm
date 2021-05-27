@@ -23,36 +23,14 @@ class ModuleNotFoundError(Exception):
 
 class FullDeps:
   def __init__(self):
-    self.modules = dict()
-    self.translation_units = str()
-    
-def getModulePathArgs(modules, full_deps):
-  cmd = []
-  for md in modules:
-    m = full_deps.modules[md['module-name'] + '-' + md['context-hash']]
-    cmd += [u'-fmodule-map-file=' + m['clang-modulemap-file']]
-    cmd += [u'-fmodule-file=' + md['module-name'] + '-' + md['context-hash'] + '.pcm']
-  return cmd
+    self.modules = {}
+    self.translation_units = []
 
-def getCommandLineForModule(module_name, full_deps):
+def findModule(module_name, full_deps):
   for m in full_deps.modules.values():
     if m['name'] == module_name:
-      module = m
-      break
-  else:
-    raise ModuleNotFoundError(module_name)
-
-  cmd = m['command-line']
-  cmd += getModulePathArgs(m['clang-module-deps'], full_deps)
-  cmd += [u'-o', m['name'] + '-' + m['context-hash'] + '.pcm']
-  cmd += [m['clang-modulemap-file']]
-  
-  return cmd
-  
-def getCommandLineForTU(tu, full_deps):
-  cmd = tu['command-line']
-  cmd += getModulePathArgs(tu['clang-module-deps'], full_deps)
-  return cmd
+      return m
+  raise ModuleNotFoundError(module_name)
 
 def parseFullDeps(json):
   ret = FullDeps()
@@ -74,16 +52,16 @@ def main():
   action.add_argument("--tu-index", help="The index of the translation unit to get arguments for",
                       type=int)
   args = parser.parse_args()
-  
+
   full_deps = parseFullDeps(json.load(open(args.full_deps_file, 'r')))
-  
+
   try:
     cmd = []
 
     if args.module_name:
-      cmd = getCommandLineForModule(args.module_name, full_deps)
+      cmd = findModule(args.module_name, full_deps)['command-line']
     elif args.tu_index != None:
-      cmd = getCommandLineForTU(full_deps.translation_units[args.tu_index], full_deps)
+      cmd = full_deps.translation_units[args.tu_index]['command-line']
 
     print(" ".join(map(quote, cmd)))
   except:

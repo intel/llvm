@@ -762,8 +762,10 @@ public:
       ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
                                     OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
                                     "=" + InputFile));
+      ObjcopyArgs.push_back(SS.save(Twine("--set-section-flags=") +
+                                    OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
+                                    "=readonly,exclude"));
     }
-
     // Add a section with symbol names that are defined in target objects to the
     // output fat object.
     Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
@@ -781,11 +783,7 @@ public:
                                     SYMBOLS_SECTION_NAME + "=" +
                                     *SymbolsFileOrErr));
     }
-
-    for (unsigned I = 0; I < NumberOfInputs; ++I)
-      ObjcopyArgs.push_back(SS.save(Twine("--set-section-flags=") +
-                                    OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
-                                    "=readonly,exclude"));
+    ObjcopyArgs.push_back("--");
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
     ObjcopyArgs.push_back(OutputFileNames.front());
 

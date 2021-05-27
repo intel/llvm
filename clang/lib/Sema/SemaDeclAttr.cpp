@@ -2396,6 +2396,7 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(
 
   case AMK_Override:
   case AMK_ProtocolImplementation:
+  case AMK_OptionalProtocolImplementation:
     OverrideOrImpl = true;
     break;
   }
@@ -2464,6 +2465,14 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(
                  diag::warn_mismatched_availability_override_unavail)
               << AvailabilityAttr::getPrettyPlatformName(Platform->getName())
               << (AMK == AMK_Override);
+          } else if (Which != 1 && AMK == AMK_OptionalProtocolImplementation) {
+            // Allow different 'introduced' / 'obsoleted' availability versions
+            // on a method that implements an optional protocol requirement. It
+            // makes less sense to allow this for 'deprecated' as the user can't
+            // see if the method is 'deprecated' as 'respondsToSelector' will
+            // still return true when the method is deprecated.
+            ++i;
+            continue;
           } else {
             Diag(OldAA->getLocation(),
                  diag::warn_mismatched_availability_override)
@@ -3003,19 +3012,6 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // they hold equal values (1, 1, 1).
 static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   bool Result = true;
-  auto checkZeroDim = [&S, &AL](auto &A, size_t X, size_t Y, size_t Z,
-                                bool ReverseAttrs = false) -> bool {
-    if (X != 1 || Y != 1 || Z != 1) {
-      auto Diag =
-          S.Diag(AL.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one);
-      if (ReverseAttrs)
-        Diag << AL << A;
-      else
-        Diag << A << AL;
-      return false;
-    }
-    return true;
-  };
 
   // Returns the unsigned constant integer value represented by
   // given expression.
@@ -3024,30 +3020,6 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   };
 
   ASTContext &Ctx = S.getASTContext();
-
-  if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-    ArrayRef<const Expr *> Dims;
-    Attr *B = nullptr;
-    if (const auto *B = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
-      Dims = B->dimensions();
-    else if (const auto *B = D->getAttr<ReqdWorkGroupSizeAttr>())
-      Dims = B->dimensions();
-    if (B) {
-      Result &=
-          checkZeroDim(B, getExprValue(Dims[0], Ctx),
-                       getExprValue(Dims[1], Ctx), getExprValue(Dims[2], Ctx));
-    }
-    return Result;
-  }
-
-  if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if ((A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue()) == 0) {
-      Result &= checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), Ctx),
-                             getExprValue(AL.getArgAsExpr(1), Ctx),
-                             getExprValue(AL.getArgAsExpr(2), Ctx),
-                             /*ReverseAttrs=*/true);
-    }
-  }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (!((getExprValue(AL.getArgAsExpr(0), Ctx) <=
@@ -3155,6 +3127,27 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
             << A << AL;
         S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
         return;
+      }
+    }
+
+    // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
+    // ReqdWorkGroupSizeAttr, check to see if they hold equal values
+    // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
+    // equals to 0.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        // If the value is dependent, we can not test anything.
+        if (!DeclExpr)
+          return;
+
+        // Test the attribute value.
+        if (DeclExpr->getResultAsAPSInt() == 0 &&
+            (XDimVal.getZExtValue() != 1 || YDimVal.getZExtValue() != 1 ||
+             ZDimVal.getZExtValue() != 1)) {
+          S.Diag(AL.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+              << AL << DeclAttr;
+          return;
+        }
       }
     }
 
@@ -3662,23 +3655,130 @@ static void handleSYCLIntelSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
 }
 
 // Handles max_global_work_dim.
-static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D, const ParsedAttr &A) {
-  if (D->isInvalidDecl())
-    return;
+// Returns a OneArgResult value; EqualToOne means all argument values are
+// equal to one, NotEqualToOne means at least one argument value is not
+// equal to one, and Unknown means that at least one of the argument values
+// could not be determined.
+enum class OneArgResult { Unknown, EqualToOne, NotEqualToOne };
+static OneArgResult AreAllArgsOne(const Expr *Args[], size_t Count) {
 
-  Expr *E = A.getArgAsExpr(0);
+  for (size_t Idx = 0; Idx < Count; ++Idx) {
+    const auto *CE = dyn_cast<ConstantExpr>(Args[Idx]);
+    if (!CE)
+      return OneArgResult::Unknown;
+    if (CE->getResultAsAPSInt() != 1)
+      return OneArgResult::NotEqualToOne;
+  }
+  return OneArgResult::EqualToOne;
+}
 
-  if (!checkWorkGroupSizeValues(S, D, A)) {
-    D->setInvalidDecl();
-    return;
+// If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
+// ReqdWorkGroupSizeAttr, check to see if they hold equal values
+// (1, 1, 1). Returns true if diagnosed.
+template <typename AttrTy>
+static bool checkWorkGroupSizeAttrExpr(Sema &S, Decl *D,
+                                       const AttributeCommonInfo &AL) {
+  if (const auto *A = D->getAttr<AttrTy>()) {
+    const Expr *Args[3] = {A->getXDim(), A->getYDim(), A->getZDim()};
+    if (OneArgResult::NotEqualToOne == AreAllArgsOne(Args, 3)) {
+      S.Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+          << A << AL;
+      return true;
+    }
+  }
+  return false;
+}
+
+void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
+                                            const AttributeCommonInfo &CI,
+                                            Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    // This attribute must be in the range [0, 3].
+    if (ArgVal < 0 || ArgVal > 3) {
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
+          << CI << 0 << 3 << E->getSourceRange();
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+
+    // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
+    // ReqdWorkGroupSizeAttr, check to see if they hold equal values
+    // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
+    // equals to 0.
+    if (ArgVal == 0) {
+      if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(*this, D,
+                                                                    CI) ||
+          checkWorkGroupSizeAttrExpr<ReqdWorkGroupSizeAttr>(*this, D, CI))
+        return;
+    }
   }
 
-  if (D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
-    S.Diag(A.getLoc(), diag::warn_duplicate_attribute) << A;
+  D->addAttr(::new (Context) SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
+}
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
+    Decl *D, const SYCLIntelMaxGlobalWorkDimAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
 
-  S.addIntelSingleArgAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, A, E);
+  // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
+  // ReqdWorkGroupSizeAttr, check to see if they hold equal values
+  // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
+  // equals to 0.
+  const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+  if (MergeExpr->getResultAsAPSInt() == 0) {
+    if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(*this, D,
+                                                                  A) ||
+        checkWorkGroupSizeAttrExpr<ReqdWorkGroupSizeAttr>(*this, D, A))
+      return nullptr;
+  }
+
+  return ::new (Context)
+      SYCLIntelMaxGlobalWorkDimAttr(Context, A, A.getValue());
+}
+
+static void handleSYCLIntelMaxGlobalWorkDimAttr(Sema &S, Decl *D,
+                                                const ParsedAttr &AL) {
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
+
+  Expr *E = AL.getArgAsExpr(0);
+  S.AddSYCLIntelMaxGlobalWorkDimAttr(D, AL, E);
 }
 
 // Handles [[intel::loop_fuse]] and [[intel::loop_fuse_independent]].
@@ -5347,6 +5447,13 @@ static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (VD->hasLocalStorage()) {
     S.Diag(AL.getLoc(), diag::err_cuda_nonstatic_constdev);
     return;
+  }
+  // constexpr variable may already get an implicit constant attr, which should
+  // be replaced by the explicit constant attr.
+  if (auto *A = D->getAttr<CUDAConstantAttr>()) {
+    if (!A->isImplicit())
+      return;
+    D->dropAttr<CUDAConstantAttr>();
   }
   D->addAttr(::new (S.Context) CUDAConstantAttr(S.Context, AL));
 }
@@ -9546,7 +9653,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleSYCLIntelSchedulerTargetFmaxMhzAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
-    handleMaxGlobalWorkDimAttr(S, D, AL);
+    handleSYCLIntelMaxGlobalWorkDimAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     handleSYCLIntelNoGlobalWorkOffsetAttr(S, D, AL);
