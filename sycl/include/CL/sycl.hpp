@@ -53,7 +53,7 @@
 #include <CL/sycl/specialization_id.hpp>
 #include <CL/sycl/stream.hpp>
 #include <CL/sycl/sub_group.hpp>
-#include <CL/sycl/sub_group_algorithm.hpp>
+#include <CL/sycl/group_algorithm.hpp>
 #include <CL/sycl/types.hpp>
 #include <CL/sycl/usm.hpp>
 #include <CL/sycl/version.hpp>
