@@ -188,56 +188,26 @@ VPBlockBase *VPBlockBase::getEnclosingBlockWithPredecessors() {
   return Parent->getEnclosingBlockWithPredecessors();
 }
 
-static VPValue *getSingleOperandOrNull(VPUser &U) {
-  if (U.getNumOperands() == 1)
-    return U.getOperand(0);
-
-  return nullptr;
-}
-
-static const VPValue *getSingleOperandOrNull(const VPUser &U) {
-  if (U.getNumOperands() == 1)
-    return U.getOperand(0);
-
-  return nullptr;
-}
-
-static void resetSingleOpUser(VPUser &U, VPValue *NewVal) {
-  assert(U.getNumOperands() <= 1 && "Didn't expect more than one operand!");
-  if (!NewVal) {
-    if (U.getNumOperands() == 1)
-      U.removeLastOperand();
-    return;
-  }
-
-  if (U.getNumOperands() == 1)
-    U.setOperand(0, NewVal);
-  else
-    U.addOperand(NewVal);
-}
-
 VPValue *VPBlockBase::getCondBit() {
-  return getSingleOperandOrNull(CondBitUser);
+  return CondBitUser.getSingleOperandOrNull();
 }
 
 const VPValue *VPBlockBase::getCondBit() const {
-  return getSingleOperandOrNull(CondBitUser);
+  return CondBitUser.getSingleOperandOrNull();
 }
 
-void VPBlockBase::setCondBit(VPValue *CV) {
-  resetSingleOpUser(CondBitUser, CV);
-}
+void VPBlockBase::setCondBit(VPValue *CV) { CondBitUser.resetSingleOpUser(CV); }
 
 VPValue *VPBlockBase::getPredicate() {
-  return getSingleOperandOrNull(PredicateUser);
+  return PredicateUser.getSingleOperandOrNull();
 }
 
 const VPValue *VPBlockBase::getPredicate() const {
-  return getSingleOperandOrNull(PredicateUser);
+  return PredicateUser.getSingleOperandOrNull();
 }
 
 void VPBlockBase::setPredicate(VPValue *CV) {
-  resetSingleOpUser(PredicateUser, CV);
+  PredicateUser.resetSingleOpUser(CV);
 }
 
 void VPBlockBase::deleteCFG(VPBlockBase *Entry) {
@@ -249,10 +219,7 @@ void VPBlockBase::deleteCFG(VPBlockBase *Entry) {
 
 VPBasicBlock::iterator VPBasicBlock::getFirstNonPhi() {
   iterator It = begin();
-  while (It != end() && (isa<VPWidenPHIRecipe>(&*It) ||
-                         isa<VPWidenIntOrFpInductionRecipe>(&*It) ||
-                         isa<VPPredInstPHIRecipe>(&*It) ||
-                         isa<VPWidenCanonicalIVRecipe>(&*It)))
+  while (It != end() && It->isPhi())
     It++;
   return It;
 }
@@ -403,6 +370,32 @@ void VPBasicBlock::dropAllReferences(VPValue *NewValue) {
   }
 }
 
+VPBasicBlock *VPBasicBlock::splitAt(iterator SplitAt) {
+  assert((SplitAt == end() || SplitAt->getParent() == this) &&
+         "can only split at a position in the same block");
+
+  SmallVector<VPBlockBase *, 2> Succs(getSuccessors().begin(),
+                                      getSuccessors().end());
+  // First, disconnect the current block from its successors.
+  for (VPBlockBase *Succ : Succs)
+    VPBlockUtils::disconnectBlocks(this, Succ);
+
+  // Create new empty block after the block to split.
+  auto *SplitBlock = new VPBasicBlock(getName() + ".split");
+  VPBlockUtils::insertBlockAfter(SplitBlock, this);
+
+  // Add successors for block to split to new block.
+  for (VPBlockBase *Succ : Succs)
+    VPBlockUtils::connectBlocks(SplitBlock, Succ);
+
+  // Finally, move the recipes starting at SplitAt to new block.
+  for (VPRecipeBase &ToMove :
+       make_early_inc_range(make_range(SplitAt, this->end())))
+    ToMove.moveBefore(*SplitBlock, SplitBlock->end());
+
+  return SplitBlock;
+}
+
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void VPBasicBlock::print(raw_ostream &O, const Twine &Indent,
                          VPSlotTracker &SlotTracker) const {
@@ -510,10 +503,75 @@ void VPRegionBlock::print(raw_ostream &O, const Twine &Indent,
 }
 #endif
 
+bool VPRecipeBase::mayWriteToMemory() const {
+  switch (getVPDefID()) {
+  case VPWidenMemoryInstructionSC: {
+    return cast<VPWidenMemoryInstructionRecipe>(this)->isStore();
+  }
+  case VPReplicateSC:
+  case VPWidenCallSC:
+    return cast<Instruction>(getVPValue()->getUnderlyingValue())
+        ->mayWriteToMemory();
+  case VPBranchOnMaskSC:
+    return false;
+  case VPWidenIntOrFpInductionSC:
+  case VPWidenCanonicalIVSC:
+  case VPWidenPHISC:
+  case VPBlendSC:
+  case VPWidenSC:
+  case VPWidenGEPSC:
+  case VPReductionSC:
+  case VPWidenSelectSC: {
+    const Instruction *I =
+        dyn_cast_or_null<Instruction>(getVPValue()->getUnderlyingValue());
+    (void)I;
+    assert((!I || !I->mayWriteToMemory()) &&
+           "underlying instruction may write to memory");
+    return false;
+  }
+  default:
+    return true;
+  }
+}
+
+bool VPRecipeBase::mayReadFromMemory() const {
+  switch (getVPDefID()) {
+  case VPWidenMemoryInstructionSC: {
+    return !cast<VPWidenMemoryInstructionRecipe>(this)->isStore();
+  }
+  case VPReplicateSC:
+  case VPWidenCallSC:
+    return cast<Instruction>(getVPValue()->getUnderlyingValue())
+        ->mayReadFromMemory();
+  case VPBranchOnMaskSC:
+    return false;
+  case VPWidenIntOrFpInductionSC:
+  case VPWidenCanonicalIVSC:
+  case VPWidenPHISC:
+  case VPBlendSC:
+  case VPWidenSC:
+  case VPWidenGEPSC:
+  case VPReductionSC:
+  case VPWidenSelectSC: {
+    const Instruction *I =
+        dyn_cast_or_null<Instruction>(getVPValue()->getUnderlyingValue());
+    (void)I;
+    assert((!I || !I->mayReadFromMemory()) &&
+           "underlying instruction may read from memory");
+    return false;
+  }
+  default:
+    return true;
+  }
+}
+
 bool VPRecipeBase::mayHaveSideEffects() const {
   switch (getVPDefID()) {
   case VPBranchOnMaskSC:
     return false;
+  case VPWidenIntOrFpInductionSC:
+  case VPWidenCanonicalIVSC:
+  case VPWidenPHISC:
   case VPBlendSC:
   case VPWidenSC:
   case VPWidenGEPSC:

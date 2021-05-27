@@ -4111,8 +4111,13 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
       // Lock automatically releases when this goes out of scope.
       std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
 
-      if (auto Res = Event->Queue->executeOpenCommandList())
-        return Res;
+      // Only do the execute of the open command list if the event that
+      // is being queried and event that is to be signalled by something
+      // currently in that open command list.
+      if (Event->Queue->ZeOpenCommandList == Event->ZeCommandList) {
+        if (auto Res = Event->Queue->executeOpenCommandList())
+          return Res;
+      }
     }
 
     ze_result_t ZeResult;

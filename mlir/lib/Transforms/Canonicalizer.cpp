@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
@@ -32,7 +31,10 @@ struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
     return success();
   }
   void runOnOperation() override {
-    (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(), patterns);
+    GreedyRewriteConfig config;
+    config.useTopDownTraversal = topDownProcessingEnabled;
+    (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(), patterns,
+                                       config);
   }
 
   FrozenRewritePatternSet patterns;

@@ -36,6 +36,22 @@ def LinalgContractionOpInterface : OpInterface<"ContractionOpInterface"> {
   let verify = [{ return detail::verifyContractionInterface($_op); }];
   let methods = [
     InterfaceMethod<
+    /*desc=*/"Returns the left-hand side operand.",
+    /*retTy=*/"Value",
+    /*methodName=*/"lhs",
+    /*args=*/(ins),
+    /*methodBody=*/[{
+      return $_op.getOperation()->getOperand(0);
+    }]>,
+    InterfaceMethod<
+    /*desc=*/"Returns the right-hand side operand.",
+    /*retTy=*/"Value",
+    /*methodName=*/"rhs",
+    /*args=*/(ins),
+    /*methodBody=*/[{
+      return $_op.getOperation()->getOperand(1);
+    }]>,
+    InterfaceMethod<
     /*desc=*/[{
       Returns whether the given op has indexing maps that correspond to a
       row-major matmul operation.
@@ -1002,19 +1018,6 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return whether the op has sparse tensor semantics.
-      }],
-      /*retTy=*/"bool",
-      /*methodName=*/"hasSparseSemantics",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return $_op->getAttr(getSparseAttrName()).
-          template dyn_cast_or_null<ArrayAttr>() != nullptr;
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
         Return the name registered for this op when lowering to an external
         library call.
       }],
@@ -1230,7 +1233,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         Returns a null function if this named op does not define a region
         builder.
       }],
-      /*retTy=*/"std::function<void(Block &, ValueRange)>",
+      /*retTy=*/"std::function<void(ImplicitLocOpBuilder &, Block &, ValueRange)>",
       /*methodName=*/"getRegionBuilder",
       (ins),
       [{ return ConcreteOp::getRegionBuilder(); }]

@@ -1500,6 +1500,12 @@ Instruction *InstCombinerImpl::foldICmpWithDominatingICmp(ICmpInst &Cmp) {
     if (Cmp.isEquality() || (IsSignBit && hasBranchUse(Cmp)))
       return nullptr;
 
+    // Avoid an infinite loop with min/max canonicalization.
+    // TODO: This will be unnecessary if we canonicalize to min/max intrinsics.
+    if (Cmp.hasOneUse() &&
+        match(Cmp.user_back(), m_MaxOrMin(m_Value(), m_Value())))
+      return nullptr;
+
     if (const APInt *EqC = Intersection.getSingleElement())
       return new ICmpInst(ICmpInst::ICMP_EQ, X, Builder.getInt(*EqC));
     if (const APInt *NeC = Difference.getSingleElement())
@@ -2273,6 +2279,16 @@ Instruction *InstCombinerImpl::foldICmpShrConstant(ICmpInst &Cmp,
   //  (X & 4) >> 1 == 2  --> (X & 4) == 4.
   if (Shr->isExact())
     return new ICmpInst(Pred, X, ConstantInt::get(ShrTy, C << ShAmtVal));
+
+  if (C.isNullValue()) {
+    // == 0 is u< 1.
+    if (Pred == CmpInst::ICMP_EQ)
+      return new ICmpInst(CmpInst::ICMP_ULT, X,
+                          ConstantInt::get(ShrTy, (C + 1).shl(ShAmtVal)));
+    else
+      return new ICmpInst(CmpInst::ICMP_UGT, X,
+                          ConstantInt::get(ShrTy, (C + 1).shl(ShAmtVal) - 1));
+  }
 
   if (Shr->hasOneUse()) {
     // Canonicalize the shift into an 'and':

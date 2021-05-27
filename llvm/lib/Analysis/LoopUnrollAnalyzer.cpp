@@ -35,6 +35,11 @@ bool UnrolledInstAnalyzer::simplifyInstWithSCEV(Instruction *I) {
     return true;
   }
 
+  // If we have a loop invariant computation, we only need to compute it once.
+  // Given that, all but the first occurance are free.
+  if (!IterationNumber->isZero() && SE.isLoopInvariant(S, L))
+    return true;
+
   auto *AR = dyn_cast<SCEVAddRecExpr>(S);
   if (!AR || AR->getLoop() != L)
     return false;
@@ -212,4 +217,8 @@ bool UnrolledInstAnalyzer::visitPHINode(PHINode &PN) {
 
   // The loop induction PHI nodes are definitionally free.
   return PN.getParent() == L->getHeader();
+}
+
+bool UnrolledInstAnalyzer::visitInstruction(Instruction &I) {
+  return simplifyInstWithSCEV(&I);
 }

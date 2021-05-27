@@ -45,6 +45,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Path.h"
 
+#include <atomic>
 #include <functional>
 #include <tuple>
 #include <type_traits>
