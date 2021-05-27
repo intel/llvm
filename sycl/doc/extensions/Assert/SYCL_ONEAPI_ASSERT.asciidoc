@@ -117,6 +117,22 @@ extension’s APIs the implementation supports.
 |1     |Initial extension version. Base features are supported.
 |===
 
+== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ext_oneapi_native_assert
+}
+}
+----
+
+If device has the `ext_oneapi_native_assert` aspect, then its Device-Side
+Runtime is capable of native support of `assert`. That is, safe implementation
+is used. If device doesn't have the aspect, then fallback implementation is
+used.
+
 == Version
 
 Built On: {docdate} +
