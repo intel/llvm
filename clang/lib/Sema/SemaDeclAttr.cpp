@@ -328,6 +328,14 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
+  // Diagnose the [[intel::named_sub_group_size]] attribute spelling
+  // in earlier SYCL mode (SYCL 2017) as being an ignored attribute.
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 &&
+      A.getKind() == ParsedAttr::AT_IntelNamedSubGroupSize) {
+    Diag(A.getLoc(), diag::warn_attribute_ignored) << A;
+    return;
+  }
+
   // Diagnose SYCL 2017 spellings in later SYCL modes.
   if (LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
     // All attributes in the cl vendor namespace are deprecated in favor of a
@@ -3361,6 +3369,8 @@ Sema::MergeIntelNamedSubGroupSizeAttr(Decl *D,
 
 static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
                                          const ParsedAttr &AL) {
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
+
   StringRef SizeStr;
   SourceLocation Loc;
   if (AL.isArgIdent(0)) {

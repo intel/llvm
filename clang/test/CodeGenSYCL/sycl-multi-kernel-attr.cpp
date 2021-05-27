@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - -sycl-std=2017 -DSYCL2017 %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - -sycl-std=2020 -DSYCL2020 %s
 
 #include "sycl.hpp"
 
@@ -24,6 +25,8 @@ public:
 template <int N, int N1, int N2>
 [[intel::reqd_work_group_size(N, N1, N2)]] void func() {}
 
+[[intel::reqd_work_group_size(10, 10, 10)]] void func1() {}
+
 int main() {
   q.submit([&](handler &h) {
     Functor foo;
@@ -32,12 +35,26 @@ int main() {
     Functor1 foo1;
     h.single_task<class kernel_name2>(foo1);
 
+    // Test clss template argument.
     Functor2<2, 2, 2> foo2;
     h.single_task<class kernel_name3>(foo2);
 
+#if defined(SYCL2017)
+    // Test template argument with propagated function attribute.
     h.single_task<class kernel_name4>([]() {
       func<8, 4, 4>();
     });
+
+    // Test attribute is propagated.
+    h.single_task<class kernel_name5>(
+        []() { func1(); });
+#endif // SYCL 2017
+
+#if defined(SYCL2020)
+    // Test attribute is not propagated.
+    h.single_task<class kernel_name6>(
+        []() { func1(); });
+#endif // SYCL 2020
   });
   return 0;
 }
@@ -46,9 +63,13 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1:[0-9]+]] !intel_reqd_sub_group_size ![[SGSIZE1:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE10:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name6"() #0 {{.*}} ![[NUM0:[0-9]+]]
 // CHECK: ![[WGSIZE]] = !{i32 16, i32 16, i32 32}
 // CHECK: ![[SGSIZE]] = !{i32 4}
 // CHECK: ![[WGSIZE1]] = !{i32 32, i32 32, i32 64}
 // CHECK: ![[SGSIZE1]] = !{i32 2}
 // CHECK: ![[WGSIZE2]] = !{i32 2, i32 2, i32 2}
 // CHECK: ![[WGSIZE3]] = !{i32 4, i32 4, i32 8}
+// CHECK: ![[WGSIZE10]] = !{i32 10, i32 10, i32 10}
+// CHECK: ![[NUM0]] = !{}

@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -ast-dump | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 -DSYCL2017 %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -triple spir64 -DSYCL2020 %s
 
 #include "sycl.hpp"
 
@@ -134,18 +136,22 @@ struct TRIFuncObjBad8 {
 [[intel::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}}
 [[intel::num_simd_work_items(2)]] void func2(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
+#if defined(SYCL2020)
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 [[cl::reqd_work_group_size(4, 2, 3)]] void func3(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 
 [[cl::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 [[intel::num_simd_work_items(2)]] void func4(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+#endif // SYCL2020
 
 // If the declaration has a __attribute__((reqd_work_group_size()))
 // attribute, tests that check if the work group size attribute argument
 // (the last argument) can be evenly divided by the [[intel::num_simd_work_items()]]
 // attribute.
+#if defined(SYCL2020)
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 __attribute__((reqd_work_group_size(4, 2, 5))) void func5(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'reqd_work_group_size' is deprecated}} expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
+#endif // SYCL2020
 
 // Tests for incorrect argument values for Intel FPGA num_simd_work_items and reqd_work_group_size function attributes
 struct TRIFuncObjBad9 {
@@ -238,9 +244,11 @@ struct TRIFuncObjGood4 {
   operator()() const {}
 };
 
+#if defined(SYCL2020)
 [[intel::num_simd_work_items(2)]]
 __attribute__((reqd_work_group_size(3, 2, 6))) void func6(); // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
                                                                 expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
+#endif // SYCL2020
 
 int main() {
   q.submit([&](handler &h) {
@@ -261,6 +269,16 @@ int main() {
     h.single_task<class test_kernel2>(
         []() [[intelfpga::num_simd_work_items(8)]]{});
 
+#if defined(SYCL2020)
+    // Test attribute is not propagated.
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
+    // CHECK-NOT:   SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    h.single_task<class test_kernel3>(
+        []() { func_do_not_ignore(); });
+#endif // SYCL2020
+
+#if defined(SYCL2017)
+    // Test attribute is propagated.
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
@@ -336,6 +354,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+#endif // SYCL2017
 
 #ifdef TRIGGER_ERROR
     [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
