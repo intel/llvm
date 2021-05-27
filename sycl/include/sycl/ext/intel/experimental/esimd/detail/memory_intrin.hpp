@@ -1,4 +1,4 @@
-//==------------ esimd_memory_intrin.hpp - DPC++ Explicit SIMD API ---------==//
+//==------------ memory_intrin.hpp - DPC++ Explicit SIMD API ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,9 +13,9 @@
 
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/types.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_util.hpp>
-#include <sycl/ext/intel/experimental/esimd/esimd_enum.hpp>
+#include <sycl/ext/intel/experimental/esimd/common.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
 
 #include <cstdint>
 

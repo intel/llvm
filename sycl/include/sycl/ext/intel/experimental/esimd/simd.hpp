@@ -1,4 +1,4 @@
-//==------------ - esimd.hpp - DPC++ Explicit SIMD API   -------------------==//
+//==------------ - simd.hpp - DPC++ Explicit SIMD API   --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +10,10 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_memory_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_sycl_util.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -1,4 +1,4 @@
-//==-------------- esimd_types.hpp - DPC++ Explicit SIMD API ---------------==//
+//==-------------- types.hpp - DPC++ Explicit SIMD API ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,8 +13,8 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
 #include <CL/sycl/half_type.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_region.hpp>
-#include <sycl/ext/intel/experimental/esimd/esimd_enum.hpp>
+#include <sycl/ext/intel/experimental/esimd/common.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/region.hpp>
 
 #include <cstdint>
 
