@@ -60,7 +60,7 @@ template <class Name> struct SpecConstantInfo {
 // Translates SYCL 2020 specialization constant type to its name.
 template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
 #ifdef SYCL_LANGUAGE_VERSION
-  return __builtin_unique_stable_name(
+  return __builtin_sycl_unique_stable_name(
       specialization_id_name_generator<SpecName>);
 #else
   return "";
@@ -104,7 +104,7 @@ using make_index_sequence =
 
 template <typename T> struct KernelInfoImpl {
 private:
-  static constexpr auto n = __builtin_unique_stable_name(T);
+  static constexpr auto n = __builtin_sycl_unique_stable_name(T);
   template <unsigned long long... I>
   static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
     return {};
