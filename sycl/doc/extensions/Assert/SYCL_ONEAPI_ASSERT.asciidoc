@@ -21,9 +21,10 @@
 :cpp: C++
 
 == Notice
+
 IMPORTANT: This specification is a draft.
 
-Copyright (c) 2021-2021 Intel Corporation. All rights reserved.
+Copyright (c) 2021 Intel Corporation. All rights reserved.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
@@ -49,6 +50,7 @@ subject to change they are not intended to be used by shipping software
 products.
 
 == Introduction
+
 This extension adds the ability for device code to call the C++ `assert()`
 macro. The behavior of `assert()` in device code is similar to its behavior in
 host code. If the asserted condition is false, a message is printed to `stderr`
@@ -114,6 +116,22 @@ extension’s APIs the implementation supports.
 |Value |Description
 |1     |Initial extension version. Base features are supported.
 |===
+
+== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ext_oneapi_native_assert
+}
+}
+----
+
+If device has the `ext_oneapi_native_assert` aspect, then its Device-Side
+Runtime is capable of native support of `assert`. That is, safe implementation
+is used. If device doesn't have the aspect, then fallback implementation is
+used.
 
 == Version
 
