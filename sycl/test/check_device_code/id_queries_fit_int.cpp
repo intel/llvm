@@ -5,7 +5,7 @@
 
 using namespace sycl;
 
-// CHECK: define {{.*}}dso_local spir_func void @{{.*}}testItem{{.*}}(%"class.{{.*}}item"*{{.*}}%TestItem)
+// CHECK: define {{.*}}dso_local spir_func void @{{.*}}testItem{{.*}}(%"class.{{.*}}item"*{{.*}}%{{.*}})
 SYCL_EXTERNAL void testItem(item<1> TestItem) {
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int Id = TestItem.get_id(0);
@@ -15,7 +15,7 @@ SYCL_EXTERNAL void testItem(item<1> TestItem) {
   int LinearId = TestItem.get_linear_id();
 }
 
-// CHECK: define {{.*}}dso_local spir_func void @{{.*}}testNDItem{{.*}}(%"class.{{.*}}nd_item"*{{.*}}%TestNDItem)
+// CHECK: define {{.*}}dso_local spir_func void @{{.*}}testNDItem{{.*}}(%"class.{{.*}}nd_item"*{{.*}}%{{.*}})
 SYCL_EXTERNAL void testNDItem(nd_item<1> TestNDItem) {
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int GlobalId = TestNDItem.get_global_id(0);
