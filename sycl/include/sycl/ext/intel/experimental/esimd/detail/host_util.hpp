@@ -33,6 +33,7 @@ namespace esimd {
 namespace emu {
 namespace detail {
 
+using half = sycl::detail::half_impl::half;
 constexpr int sat_is_on = 1;
 
 static long long abs(long long a) {
