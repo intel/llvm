@@ -114,7 +114,7 @@ void AMDGCN::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
   std::string OffloadKind = "hip";
   // bundle ID equals 'hip' is always right.
   if (getAMDGPUCodeObjectVersion(C.getDriver(), Args) >= 4)
-    //OffloadKind = OffloadKind + "v4";
+    // OffloadKind = OffloadKind + "v4";
     OffloadKind = OffloadKind;
   for (const auto &II : Inputs) {
     const auto* A = II.getAction();
@@ -227,7 +227,8 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 }
 
 HIPToolChain::HIPToolChain(const Driver &D, const llvm::Triple &Triple,
-                             const ToolChain &HostTC, const ArgList &Args, const Action::OffloadKind OK)
+                           const ToolChain &HostTC, const ArgList &Args,
+                           const Action::OffloadKind OK)
     : ROCMToolChain(D, Triple, Args), HostTC(HostTC), OK(OK) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
@@ -241,9 +242,9 @@ void HIPToolChain::addClangTargetOptions(
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
   assert((DeviceOffloadingKind == Action::OFK_HIP ||
-          DeviceOffloadingKind == Action::OFK_SYCL) && 
+          DeviceOffloadingKind == Action::OFK_SYCL) &&
          "Only HIP offloading kinds are supported for GPUs.");
-  
+
   StringRef GpuArch = getGPUArch(DriverArgs);
 
   CC1Args.push_back("-fcuda-is-device");
@@ -279,14 +280,17 @@ void HIPToolChain::addClangTargetOptions(
                                                   CC1Args);
   }
 
-   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,
+  auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,
                                       options::OPT_fsycl_device_only);
   if (DeviceOffloadingKind == Action::OFK_SYCL && !NoLibSpirv) {
     std::string LibSpirvFile;
 
     if (DriverArgs.hasArg(clang::driver::options::OPT_fsycl_libspirv_path_EQ)) {
       auto ProvidedPath =
-        DriverArgs.getLastArgValue(clang::driver::options::OPT_fsycl_libspirv_path_EQ).str();
+          DriverArgs
+              .getLastArgValue(
+                  clang::driver::options::OPT_fsycl_libspirv_path_EQ)
+              .str();
       if (llvm::sys::fs::exists(ProvidedPath))
         LibSpirvFile = ProvidedPath;
     } else {

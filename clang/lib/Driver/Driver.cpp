@@ -668,7 +668,7 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   if (T.isNVPTX())
     return true;
 
-  // AMDGCN is valid for SYCL 
+  // AMDGCN is valid for SYCL
   if (T.isAMDGCN())
     return true;
 
@@ -3839,14 +3839,15 @@ class OffloadingActionBuilder final {
     Action *finalizeAMDGCNDependences(Action *Input, const llvm::Triple &TT) {
       auto *BA = C.getDriver().ConstructPhaseAction(
           C, Args, phases::Backend, Input, AssociatedOffloadKind);
-      
-      auto *AA = C.getDriver().ConstructPhaseAction(
-          C, Args, phases::Assemble, BA, AssociatedOffloadKind);
-          
+
+      auto *AA = C.getDriver().ConstructPhaseAction(C, Args, phases::Assemble,
+                                                    BA, AssociatedOffloadKind);
+
       ActionList AL = {AA};
       Action *action = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
       ActionList HIPActions = {action};
-      Action *HIPFatBinary = C.MakeAction<LinkJobAction>(HIPActions, types::TY_HIP_FATBIN);
+      Action *HIPFatBinary =
+          C.MakeAction<LinkJobAction>(HIPActions, types::TY_HIP_FATBIN);
       return HIPFatBinary;
     }
 
@@ -4385,7 +4386,7 @@ class OffloadingActionBuilder final {
           Action *FinAction =
               finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
           WrapperInputs.push_back(FinAction);
-        } else if(isAMDGCN) {
+        } else if (isAMDGCN) {
           Action *FinAction =
               finalizeAMDGCNDependences(PostLinkAction, (*TC)->getTriple());
           WrapperInputs.push_back(FinAction);
@@ -7221,7 +7222,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
         break;
       case Action::OFK_HIP:
         TC = std::make_unique<toolchains::HIPToolChain>(
-          *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+            *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_OpenMP:
         // omp + nvptx
@@ -7242,7 +7243,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
             break;
           case llvm::Triple::amdgcn:
             TC = std::make_unique<toolchains::HIPToolChain>(
-              *this, Target, HostTC, Args, TargetDeviceOffloadKind);
+                *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
           break;

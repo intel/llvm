@@ -55,11 +55,12 @@ class LLVM_LIBRARY_VISIBILITY SYCLLinker : public Linker {
 public:
   SYCLLinker(const ToolChain &TC) : Linker(TC) {}
 
-  Tool* GetSYCLToolChainLinker() const {
+  Tool *GetSYCLToolChainLinker() const {
     if (!SYCLToolChainLinker)
       SYCLToolChainLinker.reset(new SYCL::Linker(getToolChain()));
     return SYCLToolChainLinker.get();
   }
+
 private:
   mutable std::unique_ptr<Tool> SYCLToolChainLinker;
 };
@@ -72,7 +73,8 @@ namespace toolchains {
 class LLVM_LIBRARY_VISIBILITY HIPToolChain final : public ROCMToolChain {
 public:
   HIPToolChain(const Driver &D, const llvm::Triple &Triple,
-                const ToolChain &HostTC, const llvm::opt::ArgList &Args, const Action::OffloadKind OK);
+               const ToolChain &HostTC, const llvm::opt::ArgList &Args,
+               const Action::OffloadKind OK);
 
   const llvm::Triple *getAuxTriple() const override {
     return &HostTC.getTriple();
@@ -115,7 +117,6 @@ protected:
 
 private:
   const Action::OffloadKind OK;
-
 };
 
 } // end namespace toolchains

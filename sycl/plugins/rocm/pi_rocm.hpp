@@ -23,26 +23,26 @@
 #include <atomic>
 #include <cassert>
 #include <cstring>
+#include <functional>
 #include <hip/hip_runtime.h>
 #include <limits>
+#include <mutex>
 #include <numeric>
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include <functional>
-#include <mutex>
 
-typedef  void* hipDevPtr;
+typedef void *hipDevPtr;
 
 extern "C" {
 
 /// \cond INGORE_BLOCK_IN_DOXYGEN
-pi_result rocm_piContextRetain(pi_context );
-pi_result rocm_piContextRelease(pi_context );
-pi_result rocm_piDeviceRelease(pi_device );
-pi_result rocm_piDeviceRetain(pi_device );
-pi_result rocm_piProgramRetain(pi_program );
-pi_result rocm_piProgramRelease(pi_program );
+pi_result rocm_piContextRetain(pi_context);
+pi_result rocm_piContextRelease(pi_context);
+pi_result rocm_piDeviceRelease(pi_device);
+pi_result rocm_piDeviceRetain(pi_device);
+pi_result rocm_piProgramRetain(pi_program);
+pi_result rocm_piProgramRelease(pi_program);
 pi_result rocm_piQueueRelease(pi_queue);
 pi_result rocm_piQueueRetain(pi_queue);
 pi_result rocm_piMemRetain(pi_mem);
@@ -310,7 +310,6 @@ struct _pi_mem {
     }
   };
 
-
   /// Constructs the PI allocation for an Image object
   _pi_mem(pi_context ctxt, hipArray array, hipSurfaceObject_t surf,
           pi_mem_type image_type, void *host_ptr)
@@ -320,7 +319,6 @@ struct _pi_mem {
     mem_.surface_mem_.surfObj_ = surf;
     rocm_piContextRetain(context_);
   }
- 
 
   ~_pi_mem() {
     if (mem_type_ == mem_type::buffer) {
@@ -514,7 +512,7 @@ struct _pi_program {
 
   pi_result set_binary(const char *binary, size_t binarySizeInBytes);
 
-  pi_result build_program(const char* build_options);
+  pi_result build_program(const char *build_options);
 
   pi_context get_context() const { return context_; };
 
@@ -623,8 +621,8 @@ struct _pi_kernel {
     }
   } args_;
 
-  _pi_kernel(hipFunction_t func, hipFunction_t funcWithOffsetParam, const char *name,
-             pi_program program, pi_context ctxt)
+  _pi_kernel(hipFunction_t func, hipFunction_t funcWithOffsetParam,
+             const char *name, pi_program program, pi_context ctxt)
       : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
         name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
     rocm_piProgramRetain(program_);
@@ -635,8 +633,7 @@ struct _pi_kernel {
              pi_context ctxt)
       : _pi_kernel{func, nullptr, name, program, ctxt} {}
 
-  ~_pi_kernel()
-  {
+  ~_pi_kernel() {
     rocm_piProgramRelease(program_);
     rocm_piContextRelease(context_);
   }

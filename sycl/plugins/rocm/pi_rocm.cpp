@@ -11,8 +11,8 @@
 ///
 /// \ingroup sycl_pi_rocm
 
-#include <CL/sycl/detail/hip_definitions.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/hip_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <pi_rocm.hpp>
 
@@ -23,8 +23,6 @@
 #include <memory>
 #include <mutex>
 #include <regex>
-
-
 
 namespace {
 std::string getHipVersionString() {
@@ -245,22 +243,23 @@ int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
 }
 /// \endcond
 
-void simpleGuessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
-                        const size_t maxThreadsPerBlock[3], pi_kernel kernel) {
+void simpleGuessLocalWorkSize(int *threadsPerBlock,
+                              const size_t *global_work_size,
+                              const size_t maxThreadsPerBlock[3],
+                              pi_kernel kernel) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
-  //int recommendedBlockSize, minGrid;
+  // int recommendedBlockSize, minGrid;
 
-  //PI_CHECK_ERROR(hipOccupancyMaxPotentialBlockSize(
+  // PI_CHECK_ERROR(hipOccupancyMaxPotentialBlockSize(
   //    &minGrid, &recommendedBlockSize, kernel->get(),
   //    0, 0));
 
   //(void)minGrid; // Not used, avoid warnings
 
-  threadsPerBlock[0] =
-      std::min(static_cast<int>(maxThreadsPerBlock[0]),
-               static_cast<int>(global_work_size[0]));
+  threadsPerBlock[0] = std::min(static_cast<int>(maxThreadsPerBlock[0]),
+                                static_cast<int>(global_work_size[0]));
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
@@ -339,7 +338,6 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
     rocm_piQueueRetain(queue_);
   }
   rocm_piContextRetain(context_);
-  
 }
 
 _pi_event::~_pi_event() {
@@ -371,8 +369,7 @@ pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
 
-  PI_CHECK_ERROR(
-      hipEventElapsedTime(&miliSeconds,evStart_, evEnd_));
+  PI_CHECK_ERROR(hipEventElapsedTime(&miliSeconds, evStart_, evEnd_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
 
@@ -380,7 +377,8 @@ pi_uint64 _pi_event::get_start_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
 
-  PI_CHECK_ERROR(hipEventElapsedTime(&miliSeconds, context_->evBase_, evStart_));
+  PI_CHECK_ERROR(
+      hipEventElapsedTime(&miliSeconds, context_->evBase_, evStart_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
 
@@ -475,7 +473,7 @@ pi_result _pi_program::set_binary(const char *source, size_t length) {
 pi_result _pi_program::build_program(const char *build_options) {
 
   this->buildOptions_ = build_options;
-  
+
   constexpr const unsigned int numberOfOptions = 4u;
 
   hipJitOption options[numberOfOptions];
@@ -496,14 +494,13 @@ pi_result _pi_program::build_program(const char *build_options) {
 
   auto result = PI_CHECK_ERROR(
       hipModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
-                         numberOfOptions, options, optionVals));
-
+                          numberOfOptions, options, optionVals));
 
   const auto success = (result == PI_SUCCESS);
-  
+
   buildStatus_ =
       success ? PI_PROGRAM_BUILD_STATUS_SUCCESS : PI_PROGRAM_BUILD_STATUS_ERROR;
-  
+
   // If no exception, result is correct
   return success ? PI_SUCCESS : PI_BUILD_PROGRAM_FAILURE;
 }
@@ -852,8 +849,8 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int compute_units = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&compute_units,
-                             hipDeviceAttributeMultiprocessorCount,
-                             device->get()) == hipSuccess);
+                              hipDeviceAttributeMultiprocessorCount,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(compute_units >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint32(compute_units));
@@ -868,17 +865,17 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int max_x = 0, max_y = 0, max_z = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxBlockDimX,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(max_x >= 0);
 
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxBlockDimY,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(max_y >= 0);
 
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxBlockDimZ,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(max_z >= 0);
 
     return_sizes[0] = size_t(max_x);
@@ -891,8 +888,8 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int max_work_group_size = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_work_group_size,
-                             hipDeviceAttributeMaxThreadsPerBlock,
-                             device->get()) == hipSuccess);
+                              hipDeviceAttributeMaxThreadsPerBlock,
+                              device->get()) == hipSuccess);
 
     cl::sycl::detail::pi::assertion(max_work_group_size >= 0);
 
@@ -946,12 +943,12 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int max_threads = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_threads,
-                             hipDeviceAttributeMaxThreadsPerBlock,
-                             device->get()) == hipSuccess);
+                              hipDeviceAttributeMaxThreadsPerBlock,
+                              device->get()) == hipSuccess);
     int warpSize = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
     int maxWarps = (max_threads + warpSize - 1) / warpSize;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    static_cast<uint32_t>(maxWarps));
@@ -961,9 +958,8 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // TODO: Revisit for previous generation GPUs
     int major = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&major,
-                             hipDeviceAttributeComputeCapabilityMajor,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&major, hipDeviceAttributeComputeCapabilityMajor,
+                              device->get()) == hipSuccess);
     bool ifp = (major >= 7);
     return getInfo(param_value_size, param_value, param_value_size_ret, ifp);
   }
@@ -971,7 +967,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int warpSize = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
     size_t sizes[1] = {static_cast<size_t>(warpSize)};
     return getInfoArray<size_t>(1, param_value_size, param_value,
                                 param_value_size_ret, sizes);
@@ -980,7 +976,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int clock_freq = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&clock_freq, hipDeviceAttributeClockRate,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(clock_freq >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint32(clock_freq) / 1000u);
@@ -1024,40 +1020,36 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // but some searching found as of SM 2.x 128 are supported.
     return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
-  
+
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int tex_height = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_height,
-                             hipDeviceAttributeMaxTexture2DHeight,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture2DHeight,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(tex_height >= 0);
     int surf_height = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_height,
-                             hipDeviceAttributeMaxTexture2DHeight,
-                             device->get()) == hipSuccess);
+                              hipDeviceAttributeMaxTexture2DHeight,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(surf_height >= 0);
 
     int min = std::min(tex_height, surf_height);
 
     return getInfo(param_value_size, param_value, param_value_size_ret, min);
-    
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_width,
-                             hipDeviceAttributeMaxTexture2DWidth,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture2DWidth,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_width,
-                             hipDeviceAttributeMaxTexture2DWidth,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture2DWidth,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
@@ -1068,15 +1060,14 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // Take the smaller of maximum surface and maximum texture height.
     int tex_height = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_height,
-                             hipDeviceAttributeMaxTexture3DHeight,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture3DHeight,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(tex_height >= 0);
     int surf_height = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_height,
-                             hipDeviceAttributeMaxTexture3DHeight,
-                             device->get()) == hipSuccess);
+                              hipDeviceAttributeMaxTexture3DHeight,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(surf_height >= 0);
 
     int min = std::min(tex_height, surf_height);
@@ -1087,15 +1078,13 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_width,
-                             hipDeviceAttributeMaxTexture3DWidth,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture3DWidth,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_width,
-                             hipDeviceAttributeMaxTexture3DWidth,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture3DWidth,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
@@ -1106,15 +1095,13 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // Take the smaller of maximum surface and maximum texture depth.
     int tex_depth = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_depth,
-                             hipDeviceAttributeMaxTexture3DDepth,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&tex_depth, hipDeviceAttributeMaxTexture3DDepth,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(tex_depth >= 0);
     int surf_depth = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_depth,
-                             hipDeviceAttributeMaxTexture3DDepth,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&surf_depth, hipDeviceAttributeMaxTexture3DDepth,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(surf_depth >= 0);
 
     int min = std::min(tex_depth, surf_depth);
@@ -1125,15 +1112,13 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_width,
-                             hipDeviceAttributeMaxTexture1DWidth,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture1DWidth,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_width,
-                             hipDeviceAttributeMaxTexture1DWidth,
-                             device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture1DWidth,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
@@ -1159,8 +1144,8 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int mem_base_addr_align = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&mem_base_addr_align,
-                             hipDeviceAttributeTextureAlignment,
-                             device->get()) == hipSuccess);
+                              hipDeviceAttributeTextureAlignment,
+                              device->get()) == hipSuccess);
     // Multiply by 8 as clGetDeviceInfo returns this value in bits
     mem_base_addr_align *= 8;
     return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -1193,7 +1178,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int cache_size = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&cache_size, hipDeviceAttributeL2CacheSize,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(cache_size >= 0);
     // The L2 cache is global to the GPU.
     return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -1211,8 +1196,8 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int constant_memory = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&constant_memory,
-                             hipDeviceAttributeTotalConstantMemory,
-                             device->get()) == hipSuccess);
+                              hipDeviceAttributeTotalConstantMemory,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(constant_memory >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -1235,8 +1220,8 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int local_mem_size = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&local_mem_size,
-                             hipDeviceAttributeMaxSharedMemoryPerBlock,
-                             device->get()) == hipSuccess);
+                              hipDeviceAttributeMaxSharedMemoryPerBlock,
+                              device->get()) == hipSuccess);
     cl::sycl::detail::pi::assertion(local_mem_size >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(local_mem_size));
@@ -1245,7 +1230,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int ecc_enabled = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&ecc_enabled, hipDeviceAttributeEccEnabled,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
 
     cl::sycl::detail::pi::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
     auto result = static_cast<bool>(ecc_enabled);
@@ -1255,7 +1240,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int is_integrated = 0;
     cl::sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&is_integrated, hipDeviceAttributeIntegrated,
-                             device->get()) == hipSuccess);
+                              device->get()) == hipSuccess);
 
     cl::sycl::detail::pi::assertion((is_integrated == 0) |
                                     (is_integrated == 1));
@@ -1379,20 +1364,19 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // query if/how the device can access page-locked host memory, possibly
     // through PCIe, using the same pointer as the host
     pi_bitfield value = {};
-    //if (getAttribute(device, HIP_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING)) {
-      // the device shares a unified address space with the host
-      if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >=
-          6) {
-        // compute capability 6.x introduces operations that are atomic with
-        // respect to other CPUs and GPUs in the system
-        value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
-                PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
-      } else {
-        // on GPU architectures with compute capability lower than 6.x, atomic
-        // operations from the GPU to CPU memory will not be atomic with respect
-        // to CPU initiated atomic operations
-        value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
-      }
+    // if (getAttribute(device, HIP_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING)) {
+    // the device shares a unified address space with the host
+    if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
+      // compute capability 6.x introduces operations that are atomic with
+      // respect to other CPUs and GPUs in the system
+      value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS | PI_USM_CONCURRENT_ACCESS |
+              PI_USM_CONCURRENT_ATOMIC_ACCESS;
+    } else {
+      // on GPU architectures with compute capability lower than 6.x, atomic
+      // operations from the GPU to CPU memory will not be atomic with respect
+      // to CPU initiated atomic operations
+      value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
+    }
     //}
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
@@ -1422,8 +1406,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
       // the device can coherently access managed memory concurrently with the
       // CPU
       value |= PI_USM_CONCURRENT_ACCESS;
-      if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >=
-          6) {
+      if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
         // compute capability 6.x introduces operations that are atomic with
         // respect to other CPUs and GPUs in the system
         value |= PI_USM_CONCURRENT_ATOMIC_ACCESS;
@@ -1451,8 +1434,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
       // CPU
       value |= PI_USM_CONCURRENT_ACCESS;
     }
-    if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >=
-        6) {
+    if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
       // compute capability 6.x introduces operations that are atomic with
       // respect to other CPUs and GPUs in the system
       if (value & PI_USM_ACCESS)
@@ -1471,9 +1453,9 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // system allocator
     pi_bitfield value = {};
     if (getAttribute(device, hipDeviceAttributePageableMemoryAccess)) {
-        // the link between the device and the host does not support native
-        // atomic operations
-        value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
+      // the link between the device and the host does not support native
+      // atomic operations
+      value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
@@ -1605,7 +1587,8 @@ pi_result rocm_piContextCreate(const pi_context_properties *properties,
     }
 
     // Use default stream to record base event counter
-    PI_CHECK_ERROR(hipEventCreateWithFlags(&piContextPtr->evBase_, hipEventDefault));
+    PI_CHECK_ERROR(
+        hipEventCreateWithFlags(&piContextPtr->evBase_, hipEventDefault));
     PI_CHECK_ERROR(hipEventRecord(piContextPtr->evBase_, 0));
 
     // For non-primary scoped contexts keep the last active on top of the stack
@@ -1637,8 +1620,7 @@ pi_result rocm_piContextRelease(pi_context ctxt) {
   std::unique_ptr<_pi_context> context{ctxt};
 
   PI_CHECK_ERROR(hipEventDestroy(context->evBase_));
-  
-  
+
   if (!ctxt->is_primary()) {
     hipCtx_t hipCtxt = ctxt->get();
     hipCtx_t current = nullptr;
@@ -1647,7 +1629,7 @@ pi_result rocm_piContextRelease(pi_context ctxt) {
       PI_CHECK_ERROR(hipCtxPushCurrent(hipCtxt));
     }
     //  hipErrorNotSupported this API
-    //PI_CHECK_ERROR(hipCtxSynchronize());
+    // PI_CHECK_ERROR(hipCtxSynchronize());
     PI_CHECK_ERROR(hipCtxGetCurrent(&current));
     if (hipCtxt == current) {
       PI_CHECK_ERROR(hipCtxPopCurrent(&current));
@@ -1660,7 +1642,7 @@ pi_result rocm_piContextRelease(pi_context ctxt) {
     PI_CHECK_ERROR(hipCtxPopCurrent(&current));
     return PI_CHECK_ERROR(hipDevicePrimaryCtxRelease(hipDev));
   }
-  
+
   hipCtx_t hipCtxt = ctxt->get();
   return PI_CHECK_ERROR(hipCtxDestroy(hipCtxt));
 }
@@ -1809,16 +1791,14 @@ pi_result rocm_piMemRelease(pi_mem memObj) {
         ret = PI_CHECK_ERROR(
             hipFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
       };
-    } 
-    
-    else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
-      ret = PI_CHECK_ERROR(
-          hipDestroySurfaceObject(uniqueMemObj->mem_.surface_mem_.get_surface()));
-      auto array = uniqueMemObj->mem_.surface_mem_.get_array();
-      ret = PI_CHECK_ERROR(
-          hipFreeArray(&array));
     }
-    
+
+    else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
+      ret = PI_CHECK_ERROR(hipDestroySurfaceObject(
+          uniqueMemObj->mem_.surface_mem_.get_surface()));
+      auto array = uniqueMemObj->mem_.surface_mem_.get_array();
+      ret = PI_CHECK_ERROR(hipFreeArray(&array));
+    }
 
   } catch (pi_result err) {
     ret = err;
@@ -1877,7 +1857,7 @@ pi_result rocm_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   assert(parent_buffer->mem_.buffer_mem_.ptr_ !=
          _pi_mem::mem_::buffer_mem_::native_type{0});
   _pi_mem::mem_::buffer_mem_::native_type ptr =
-      (uint8_t*)(parent_buffer->mem_.buffer_mem_.ptr_ )+ bufferRegion.origin;
+      (uint8_t *)(parent_buffer->mem_.buffer_mem_.ptr_) + bufferRegion.origin;
 
   void *hostPtr = nullptr;
   if (parent_buffer->mem_.buffer_mem_.hostPtr_) {
@@ -1919,7 +1899,6 @@ pi_result rocm_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// \param[out] nativeHandle Set to the native handle of the PI mem object.
 ///
 /// \return PI_SUCCESS
-
 
 /// Created a PI mem object from a HIP mem handle.
 /// TODO: Implement this.
@@ -2091,7 +2070,7 @@ pi_result rocm_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
                                        pi_bool blocking_write, size_t offset,
-                                       size_t size,  void *ptr,
+                                       size_t size, void *ptr,
                                        pi_uint32 num_events_in_wait_list,
                                        const pi_event *event_wait_list,
                                        pi_event *event) {
@@ -2115,8 +2094,8 @@ pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
       retImplEv->start();
     }
 
-    retErr =
-        PI_CHECK_ERROR(hipMemcpyHtoDAsync((uint8_t*)devPtr + offset, ptr, size, hipStream));
+    retErr = PI_CHECK_ERROR(
+        hipMemcpyHtoDAsync((uint8_t *)devPtr + offset, ptr, size, hipStream));
 
     if (event) {
       retErr = retImplEv->record();
@@ -2161,8 +2140,8 @@ pi_result rocm_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
       retImplEv->start();
     }
 
-    retErr =
-        PI_CHECK_ERROR(hipMemcpyDtoHAsync(ptr, (uint8_t*)devPtr + offset, size, hipStream));
+    retErr = PI_CHECK_ERROR(
+        hipMemcpyDtoHAsync(ptr, (uint8_t *)devPtr + offset, size, hipStream));
 
     if (event) {
       retErr = retImplEv->record();
@@ -2283,7 +2262,7 @@ pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
   pi_result retErr = PI_SUCCESS;
   try {
     pi_mem arg_mem = *arg_value;
-    
+
     if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
       auto array = arg_mem->mem_.surface_mem_.get_array();
       if (array.Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
@@ -2296,9 +2275,9 @@ pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
       }
       hipSurfaceObject_t hipSurf = arg_mem->mem_.surface_mem_.get_surface();
       kernel->set_kernel_arg(arg_index, sizeof(hipSurf), (void *)&hipSurf);
-    } else 
-    
-   {
+    } else
+
+    {
       hipDevPtr hipPtr = arg_mem->mem_.buffer_mem_.get();
       kernel->set_kernel_arg(arg_index, sizeof(hipDevPtr), (void *)&hipPtr);
     }
@@ -2380,20 +2359,18 @@ pi_result rocm_piEnqueueKernelLaunch(
           return err;
       }
     } else {
-       simpleGuessLocalWorkSize(threadsPerBlock, global_work_size, maxThreadsPerBlock,
-                         kernel);
+      simpleGuessLocalWorkSize(threadsPerBlock, global_work_size,
+                               maxThreadsPerBlock, kernel);
     }
   }
-  
+
   int blocksPerGrid[3] = {1, 1, 1};
-  
 
   for (size_t i = 0; i < work_dim; i++) {
     blocksPerGrid[i] =
         static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
         threadsPerBlock[i];
   }
-  
 
   pi_result retError = PI_SUCCESS;
   std::unique_ptr<_pi_event> retImplEv{nullptr};
@@ -2429,12 +2406,11 @@ pi_result rocm_piEnqueueKernelLaunch(
           PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue));
       retImplEv->start();
     }
-    
+
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
-        hipFunc, blocksPerGrid[0], 1, 1,
-        threadsPerBlock[0], 1, 1,
+        hipFunc, blocksPerGrid[0], 1, 1, threadsPerBlock[0], 1, 1,
         kernel->get_local_size(), hipStream, argIndices.data(), nullptr));
-      
+
     kernel->clear_local_size();
     if (event) {
       retError = retImplEv->record();
@@ -2461,12 +2437,11 @@ pi_result rocm_piEnqueueNativeKernel(
 
 /// \TODO Not implemented
 
-
 pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
                                 const pi_image_format *image_format,
                                 const pi_image_desc *image_desc, void *host_ptr,
                                 pi_mem *ret_mem) {
-  
+
   // Need input memory object
   assert(ret_mem != nullptr);
   const bool performInitialCopy = (flags & PI_MEM_FLAGS_HOST_PTR_COPY) ||
@@ -2596,8 +2571,8 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
     hipSurfaceObject_t surface;
     retErr = PI_CHECK_ERROR(hipCreateSurfaceObject(&surface, &image_res_desc));
 
-    auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{context, *image_array, surface, image_desc->image_type, host_ptr});
-
+    auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
+        context, *image_array, surface, image_desc->image_type, host_ptr});
 
     if (piMemObj == nullptr) {
       return PI_OUT_OF_HOST_MEMORY;
@@ -2613,7 +2588,6 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
   }
   return retErr;
 }
-
 
 /// \TODO Not implemented
 pi_result rocm_piMemImageGetInfo(pi_mem image, pi_image_info param_name,
@@ -2922,8 +2896,8 @@ pi_result rocm_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int max_threads = 0;
       cl::sycl::detail::pi::assertion(
           hipFuncGetAttribute(&max_threads,
-                             HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             kernel->get()) == hipSuccess);
+                              HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                              kernel->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      size_t(max_threads));
     }
@@ -2943,7 +2917,7 @@ pi_result rocm_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int bytes = 0;
       cl::sycl::detail::pi::assertion(
           hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                             kernel->get()) == hipSuccess);
+                              kernel->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
@@ -2952,7 +2926,7 @@ pi_result rocm_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int warpSize = 0;
       cl::sycl::detail::pi::assertion(
           hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                               device->get()) == hipSuccess);
+                                device->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      static_cast<size_t>(warpSize));
     }
@@ -2961,7 +2935,7 @@ pi_result rocm_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int bytes = 0;
       cl::sycl::detail::pi::assertion(
           hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                             kernel->get()) == hipSuccess);
+                              kernel->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
@@ -2984,7 +2958,7 @@ pi_result rocm_piKernelGetSubGroupInfo(
       int warpSize = 0;
       cl::sycl::detail::pi::assertion(
           hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                               device->get()) == hipSuccess);
+                                device->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      static_cast<uint32_t>(warpSize));
     }
@@ -2993,8 +2967,8 @@ pi_result rocm_piKernelGetSubGroupInfo(
       int max_threads = 0;
       cl::sycl::detail::pi::assertion(
           hipFuncGetAttribute(&max_threads,
-                             HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             kernel->get()) == hipSuccess);
+                              HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                              kernel->get()) == hipSuccess);
       int warpSize = 0;
       rocm_piKernelGetSubGroupInfo(kernel, device, PI_KERNEL_MAX_SUB_GROUP_SIZE,
                                    0, nullptr, sizeof(uint32_t), &warpSize,
@@ -3396,7 +3370,7 @@ static pi_result commonEnqueueMemBufferCopyRect(
     size_t src_row_pitch, size_t src_slice_pitch, void *dst_ptr,
     const hipMemoryType dst_type, pi_buff_rect_offset dst_offset,
     size_t dst_row_pitch, size_t dst_slice_pitch) {
-  
+
   assert(region != nullptr);
   assert(src_offset != nullptr);
   assert(dst_offset != nullptr);
@@ -3429,19 +3403,18 @@ static pi_result commonEnqueueMemBufferCopyRect(
   params.srcHeight = src_slice_pitch / src_row_pitch;
 
   params.dstMemoryType = dst_type;
-  params.dstDevice = dst_type == hipMemoryTypeDevice
-                         ? *static_cast<hipDevPtr *>(dst_ptr)
-                         : 0;
+  params.dstDevice =
+      dst_type == hipMemoryTypeDevice ? *static_cast<hipDevPtr *>(dst_ptr) : 0;
   params.dstHost = dst_type == hipMemoryTypeHost ? dst_ptr : nullptr;
   params.dstXInBytes = dst_offset->x_bytes;
   params.dstY = dst_offset->y_scalar;
   params.dstZ = dst_offset->z_scalar;
   params.dstPitch = dst_row_pitch;
   params.dstHeight = dst_slice_pitch / dst_row_pitch;
-  
+
   return PI_CHECK_ERROR(hipDrvMemcpy3DAsync(&params, hip_stream));
-  
- return PI_SUCCESS;
+
+  return PI_SUCCESS;
 }
 
 pi_result rocm_piEnqueueMemBufferReadRect(
@@ -3575,8 +3548,8 @@ pi_result rocm_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     }
 
     auto stream = command_queue->get();
-    auto src = (uint8_t*)(src_buffer->mem_.buffer_mem_.get()) + src_offset;
-    auto dst = (uint8_t*)(dst_buffer->mem_.buffer_mem_.get()) + dst_offset;
+    auto src = (uint8_t *)(src_buffer->mem_.buffer_mem_.get()) + src_offset;
+    auto dst = (uint8_t *)(dst_buffer->mem_.buffer_mem_.get()) + dst_offset;
 
     result = PI_CHECK_ERROR(hipMemcpyDtoDAsync(dst, src, size, stream));
 
@@ -3680,7 +3653,7 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
       result = retImplEv->start();
     }
 
-    auto dstDevice = (uint8_t*)(buffer->mem_.buffer_mem_.get()) + offset;
+    auto dstDevice = (uint8_t *)(buffer->mem_.buffer_mem_.get()) + offset;
     auto stream = command_queue->get();
     auto N = size / pattern_size;
 
@@ -3701,12 +3674,11 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
       result = PI_CHECK_ERROR(hipMemsetD32Async(dstDevice, value, N, stream));
       break;
     }
-    
+
     default: {
       result = PI_INVALID_VALUE;
       break;
     }
-    
     }
 
     if (event) {
@@ -3721,7 +3693,6 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     return PI_ERROR_UNKNOWN;
   }
 }
-
 
 static size_t imageElementByteSize(enum hipArray_Format array_format) {
   switch (array_format) {
@@ -3743,19 +3714,16 @@ static size_t imageElementByteSize(enum hipArray_Format array_format) {
   return 0;
 }
 
-
 /// General ND memory copy operation for images (where N > 1).
 /// This function requires the corresponding HIP context to be at the top of
 /// the context stack
 /// If the source and/or destination is an array, src_ptr and/or dst_ptr
 /// must be a pointer to a hipArray
 
-
 static pi_result commonEnqueueMemImageNDCopy(
     hipStream_t hip_stream, pi_mem_type img_type, const size_t *region,
-    const void *src_ptr, const hipMemoryType src_type,
-    const size_t *src_offset, void *dst_ptr, const hipMemoryType dst_type,
-    const size_t *dst_offset) {
+    const void *src_ptr, const hipMemoryType src_type, const size_t *src_offset,
+    void *dst_ptr, const hipMemoryType dst_type, const size_t *dst_offset) {
   assert(region != nullptr);
 
   assert(src_type == hipMemoryTypeArray || src_type == hipMemoryTypeHost);
@@ -3766,7 +3734,8 @@ static pi_result commonEnqueueMemImageNDCopy(
     memset(&cpyDesc, 0, sizeof(cpyDesc));
     cpyDesc.srcMemoryType = src_type;
     if (src_type == hipMemoryTypeArray) {
-      cpyDesc.srcArray = const_cast<hipArray*>(static_cast<const hipArray*>(src_ptr));
+      cpyDesc.srcArray =
+          const_cast<hipArray *>(static_cast<const hipArray *>(src_ptr));
       cpyDesc.srcXInBytes = src_offset[0];
       cpyDesc.srcY = src_offset[1];
     } else {
@@ -3774,7 +3743,8 @@ static pi_result commonEnqueueMemImageNDCopy(
     }
     cpyDesc.dstMemoryType = dst_type;
     if (dst_type == hipMemoryTypeArray) {
-      cpyDesc.dstArray = const_cast<hipArray*>(static_cast<const hipArray*>(dst_ptr));
+      cpyDesc.dstArray =
+          const_cast<hipArray *>(static_cast<const hipArray *>(dst_ptr));
       cpyDesc.dstXInBytes = dst_offset[0];
       cpyDesc.dstY = dst_offset[1];
     } else {
@@ -3784,14 +3754,15 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.Height = region[1];
     return PI_CHECK_ERROR(hipMemcpyParam2DAsync(&cpyDesc, hip_stream));
   }
-  
+
   if (img_type == PI_MEM_TYPE_IMAGE3D) {
-    
+
     HIP_MEMCPY3D cpyDesc;
     memset(&cpyDesc, 0, sizeof(cpyDesc));
     cpyDesc.srcMemoryType = src_type;
     if (src_type == hipMemoryTypeArray) {
-      cpyDesc.srcArray = const_cast<hipArray*>(static_cast<const hipArray*>(src_ptr));
+      cpyDesc.srcArray =
+          const_cast<hipArray *>(static_cast<const hipArray *>(src_ptr));
       cpyDesc.srcXInBytes = src_offset[0];
       cpyDesc.srcY = src_offset[1];
       cpyDesc.srcZ = src_offset[2];
@@ -3811,9 +3782,9 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.Height = region[1];
     cpyDesc.Depth = region[2];
     return PI_CHECK_ERROR(hipDrvMemcpy3DAsync(&cpyDesc, hip_stream));
-   return PI_ERROR_UNKNOWN;
+    return PI_ERROR_UNKNOWN;
   }
-  
+
   return PI_INVALID_VALUE;
 }
 
@@ -3822,7 +3793,7 @@ pi_result rocm_piEnqueueMemImageRead(
     const size_t *origin, const size_t *region, size_t row_pitch,
     size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  
+
   assert(command_queue != nullptr);
   assert(image != nullptr);
   assert(image->mem_type_ == _pi_mem::mem_type::surface);
@@ -3846,18 +3817,17 @@ pi_result rocm_piEnqueueMemImageRead(
     size_t bytesToCopy = elementByteSize * array.NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
-     
+
     size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
     size_t srcOffset[3] = {byteOffsetX, origin[1], origin[2]};
 
-    retErr = commonEnqueueMemImageNDCopy(
-        hipStream, imgType, adjustedRegion, &array, hipMemoryTypeArray,
-        srcOffset, ptr, hipMemoryTypeHost, nullptr);
+    retErr = commonEnqueueMemImageNDCopy(hipStream, imgType, adjustedRegion,
+                                         &array, hipMemoryTypeArray, srcOffset,
+                                         ptr, hipMemoryTypeHost, nullptr);
 
     if (retErr != PI_SUCCESS) {
       return retErr;
     }
-    
 
     if (event) {
       auto new_event =
@@ -3875,7 +3845,7 @@ pi_result rocm_piEnqueueMemImageRead(
     return PI_ERROR_UNKNOWN;
   }
   return PI_SUCCESS;
- return retErr;
+  return retErr;
 }
 
 pi_result
@@ -3885,8 +3855,7 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                             size_t input_slice_pitch, const void *ptr,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  
-  
+
   assert(command_queue != nullptr);
   assert(image != nullptr);
   assert(image->mem_type_ == _pi_mem::mem_type::surface);
@@ -3910,18 +3879,17 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     size_t bytesToCopy = elementByteSize * array.NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
-     
+
     size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
     size_t dstOffset[3] = {byteOffsetX, origin[1], origin[2]};
 
-    retErr = commonEnqueueMemImageNDCopy(
-        hipStream, imgType, adjustedRegion, ptr, hipMemoryTypeHost, nullptr,
-        &array, hipMemoryTypeArray, dstOffset);
+    retErr = commonEnqueueMemImageNDCopy(hipStream, imgType, adjustedRegion,
+                                         ptr, hipMemoryTypeHost, nullptr,
+                                         &array, hipMemoryTypeArray, dstOffset);
 
     if (retErr != PI_SUCCESS) {
       return retErr;
     }
-    
 
     if (event) {
       auto new_event =
@@ -3936,8 +3904,8 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
   }
 
   return PI_SUCCESS;
-  
- return retErr;
+
+  return retErr;
 }
 
 pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
@@ -3947,8 +3915,7 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                                      pi_uint32 num_events_in_wait_list,
                                      const pi_event *event_wait_list,
                                      pi_event *event) {
-  
-  
+
   assert(src_image->mem_type_ == _pi_mem::mem_type::surface);
   assert(dst_image->mem_type_ == _pi_mem::mem_type::surface);
   assert(src_image->mem_.surface_mem_.get_image_type() ==
@@ -3973,7 +3940,6 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
 
     int elementByteSize = imageElementByteSize(srcArray.Format);
 
-
     size_t dstByteOffsetX =
         dst_origin[0] * elementByteSize * srcArray.NumChannels;
     size_t srcByteOffsetX =
@@ -3981,7 +3947,7 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     size_t bytesToCopy = elementByteSize * srcArray.NumChannels * region[0];
 
     pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
-    
+
     size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
     size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
     size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
@@ -3993,7 +3959,6 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     if (retErr != PI_SUCCESS) {
       return retErr;
     }
-    
 
     if (event) {
       auto new_event =
@@ -4006,9 +3971,9 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-  
+
   return PI_SUCCESS;
- return retErr;
+  return retErr;
 }
 
 /// \TODO Not implemented in HIP, requires untie from OpenCL
@@ -4198,8 +4163,8 @@ pi_result rocm_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
-    result = PI_CHECK_ERROR(hipMallocManaged((hipDevPtr *)result_ptr, size,
-                                              hipMemAttachGlobal));
+    result = PI_CHECK_ERROR(
+        hipMallocManaged((hipDevPtr *)result_ptr, size, hipMemAttachGlobal));
   } catch (pi_result error) {
     result = error;
   }
@@ -4213,15 +4178,15 @@ pi_result rocm_piextUSMSharedAlloc(void **result_ptr, pi_context context,
 /// USM: Frees the given USM pointer associated with the context.
 ///
 pi_result rocm_piextUSMFree(pi_context context, void *ptr) {
-  
+
   assert(context != nullptr);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
     unsigned int type;
     hipPointerAttribute_t hipPointerAttributeType;
-    result = PI_CHECK_ERROR(hipPointerGetAttributes(
-           &hipPointerAttributeType, (hipDevPtr)ptr));
+    result = PI_CHECK_ERROR(
+        hipPointerGetAttributes(&hipPointerAttributeType, (hipDevPtr)ptr));
     type = hipPointerAttributeType.memoryType;
     assert(type == hipMemoryTypeDevice or type == hipMemoryTypeHost);
     if (type == hipMemoryTypeDevice) {
@@ -4241,7 +4206,7 @@ pi_result rocm_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                      pi_uint32 num_events_in_waitlist,
                                      const pi_event *events_waitlist,
                                      pi_event *event) {
-                            
+
   assert(queue != nullptr);
   assert(ptr != nullptr);
   hipStream_t hipStream = queue->get();
@@ -4266,7 +4231,7 @@ pi_result rocm_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
   } catch (pi_result err) {
     result = err;
   }
-  
+
   return result;
 }
 
@@ -4276,7 +4241,7 @@ pi_result rocm_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
                                      pi_uint32 num_events_in_waitlist,
                                      const pi_event *events_waitlist,
                                      pi_event *event) {
-  
+
   assert(queue != nullptr);
   assert(dst_ptr != nullptr);
   assert(src_ptr != nullptr);
@@ -4293,8 +4258,8 @@ pi_result rocm_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
           _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
       event_ptr->start();
     }
-    result = PI_CHECK_ERROR(hipMemcpyAsync(
-        dst_ptr, src_ptr, size, hipMemcpyDefault, hipStream));
+    result = PI_CHECK_ERROR(
+        hipMemcpyAsync(dst_ptr, src_ptr, size, hipMemcpyDefault, hipStream));
     if (event) {
       result = event_ptr->record();
     }
@@ -4307,7 +4272,7 @@ pi_result rocm_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   } catch (pi_result err) {
     result = err;
   }
-  
+
   return result;
 }
 
@@ -4317,7 +4282,7 @@ pi_result rocm_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        pi_uint32 num_events_in_waitlist,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
-  
+
   assert(queue != nullptr);
   assert(ptr != nullptr);
   hipStream_t hipStream = queue->get();
@@ -4338,8 +4303,7 @@ pi_result rocm_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(hipMemPrefetchAsync(
-        ptr, size, queue->get_context()->get_device()->get(),
-        hipStream));
+        ptr, size, queue->get_context()->get_device()->get(), hipStream));
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();
@@ -4347,7 +4311,7 @@ pi_result rocm_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   } catch (pi_result err) {
     result = err;
   }
-  
+
   return result;
 }
 
@@ -4355,14 +4319,14 @@ pi_result rocm_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 pi_result rocm_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                         size_t length, pi_mem_advice advice,
                                         pi_event *event) {
-                                       
+
   assert(queue != nullptr);
   assert(ptr != nullptr);
   // TODO implement a mapping to hipMemAdvise once the expected behaviour
   // of piextUSMEnqueueMemAdvise is detailed in the USM extension
   return rocm_piEnqueueEventsWait(queue, 0, nullptr, event);
 
- return PI_SUCCESS;
+  return PI_SUCCESS;
 }
 
 /// API to query information about USM allocated pointers
@@ -4386,7 +4350,7 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
-  
+
   assert(context != nullptr);
   assert(ptr != nullptr);
   pi_result result = PI_SUCCESS;
@@ -4398,8 +4362,7 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
     case PI_MEM_ALLOC_TYPE: {
       unsigned int value;
       // do not throw if hipPointerGetAttribute returns hipErrorInvalidValue
-      hipError_t ret = hipPointerGetAttributes(
-          &hipPointerAttributeType, ptr);
+      hipError_t ret = hipPointerGetAttributes(&hipPointerAttributeType, ptr);
       if (ret == hipErrorInvalidValue) {
         // pointer not known to the HIP subsystem
         return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -4412,8 +4375,8 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
         return getInfo(param_value_size, param_value, param_value_size_ret,
                        PI_MEM_TYPE_SHARED);
       }
-      result = PI_CHECK_ERROR(hipPointerGetAttributes(
-        &hipPointerAttributeType, ptr));
+      result = PI_CHECK_ERROR(
+          hipPointerGetAttributes(&hipPointerAttributeType, ptr));
       value = hipPointerAttributeType.memoryType;
       assert(value == hipMemoryTypeDevice or value == hipMemoryTypeHost);
       if (value == hipMemoryTypeDevice) {
@@ -4437,24 +4400,25 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
     case PI_MEM_ALLOC_SIZE: {
       return PI_INVALID_VALUE;
     }
-    
+
     case PI_MEM_ALLOC_DEVICE: {
       unsigned int value;
-      result = PI_CHECK_ERROR(hipPointerGetAttributes(
-          &hipPointerAttributeType, ptr));
-      auto devicePointer = static_cast<int*>(hipPointerAttributeType.devicePointer);
+      result = PI_CHECK_ERROR(
+          hipPointerGetAttributes(&hipPointerAttributeType, ptr));
+      auto devicePointer =
+          static_cast<int *>(hipPointerAttributeType.devicePointer);
       value = *devicePointer;
       pi_platform platform;
       result = rocm_piPlatformsGet(0, &platform, nullptr);
       pi_device device = platform->devices_[value].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
-    } 
-  } 
+    }
+    }
   } catch (pi_result error) {
     result = error;
   }
-  
+
   return result;
 }
 
