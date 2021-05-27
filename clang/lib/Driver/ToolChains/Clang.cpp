@@ -4232,6 +4232,17 @@ static bool ContainsWrapperAction(const Action *A) {
   return false;
 }
 
+/// Check whether the given input tree contains any append footer actions
+static bool ContainsAppendFooterAction(const Action *A) {
+  if (isa<AppendFooterJobAction>(A))
+    return true;
+  for (const auto &AI : A->inputs())
+    if (ContainsAppendFooterAction(AI))
+      return true;
+
+  return false;
+}
+
 // Put together an external compiler compilation call which is used instead
 // of the clang invocation for the host compile of an offload compilation.
 // Enabling command line:  clang++ -fsycl -fsycl-host-compiler=<HostExe>
@@ -4669,8 +4680,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (!IsSYCLOffloadDevice) {
       // Add the -include option to add the integration header
       StringRef Header = D.getIntegrationHeader(Input.getBaseInput());
+      // Do not add the integration header if we are compiling after the
+      // integration footer has been applied.  Check for the append job
+      // action to determine this.
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
-          !Header.empty()) {
+          !Header.empty() && !ContainsAppendFooterAction(&JA)) {
         CmdArgs.push_back("-include");
         CmdArgs.push_back(Args.MakeArgString(Header));
         // When creating dependency information, filter out the generated

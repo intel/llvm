@@ -1,4 +1,4 @@
-﻿//==-------------- esimd_math.hpp - DPC++ Explicit SIMD API   ------------==//
+﻿//==-------------- math.hpp - DPC++ Explicit SIMD API   --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,11 +10,11 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_math_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_util.hpp>
-#include <sycl/ext/intel/experimental/esimd/esimd.hpp>
-#include <sycl/ext/intel/experimental/esimd/esimd_enum.hpp>
+#include <sycl/ext/intel/experimental/esimd/common.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
+#include <sycl/ext/intel/experimental/esimd/simd.hpp>
 
 #include <cstdint>
 

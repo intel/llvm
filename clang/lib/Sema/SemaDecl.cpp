@@ -2645,6 +2645,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelFPGAInitiationIntervalAttr(D, *A);
   else if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(Attr))
     NewAttr = S.MergeWorkGroupSizeHintAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 

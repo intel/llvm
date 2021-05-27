@@ -3,6 +3,7 @@
 // RUN: env SYCL_DEVICE_FILTER=opencl:gpu %t.out
 //
 // REQUIRES: gpu
+// UNSUPPORTED: cuda
 
 //==--------- intel-ext-device.cpp - SYCL device test ------------==//
 //
