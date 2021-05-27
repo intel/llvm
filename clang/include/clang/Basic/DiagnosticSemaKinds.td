@@ -11360,7 +11360,7 @@ def err_conflicting_sycl_function_attributes : Error<
 def err_sycl_function_attribute_mismatch : Error<
   "SYCL kernel without %0 attribute can't call a function with this attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<
-  "%0 X-, Y- and Z- sizes must be 1 when %1 attribute is used with value 0">;
+  "all %0 attribute arguments must be '1' when the %1 attribute argument is '0'">;
 def err_sycl_attribute_internal_function
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
