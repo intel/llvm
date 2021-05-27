@@ -179,6 +179,7 @@ endif()
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
   DEPENDS ${SYCL_RT_LIBS}
+          append-file
           clang
           clang-offload-wrapper
           clang-offload-bundler
@@ -226,6 +227,7 @@ endif()
 # Package deploy support
 # Listed here are component names contributing the package
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
+     append-file
      clang
      clang-offload-wrapper
      clang-offload-bundler

@@ -656,6 +656,12 @@ public:
     if (!llvmResultType)
       return failure();
 
+    // Extract entire vector. Should be handled by folder, but just to be safe.
+    if (positionArrayAttr.empty()) {
+      rewriter.replaceOp(extractOp, adaptor.vector());
+      return success();
+    }
+
     // One-shot extraction of vector from array (only requires extractvalue).
     if (resultType.isa<VectorType>()) {
       Value extracted = rewriter.create<LLVM::ExtractValueOp>(
@@ -761,6 +767,13 @@ public:
     // Bail if result type cannot be lowered.
     if (!llvmResultType)
       return failure();
+
+    // Overwrite entire vector with value. Should be handled by folder, but
+    // just to be safe.
+    if (positionArrayAttr.empty()) {
+      rewriter.replaceOp(insertOp, adaptor.source());
+      return success();
+    }
 
     // One-shot insertion of a vector into an array (only requires insertvalue).
     if (sourceType.isa<VectorType>()) {
@@ -922,8 +935,9 @@ public:
 class VectorInsertStridedSliceOpSameRankRewritePattern
     : public OpRewritePattern<InsertStridedSliceOp> {
 public:
-  VectorInsertStridedSliceOpSameRankRewritePattern(MLIRContext *ctx)
-      : OpRewritePattern<InsertStridedSliceOp>(ctx) {
+  using OpRewritePattern<InsertStridedSliceOp>::OpRewritePattern;
+
+  void initialize() {
     // This pattern creates recursive InsertStridedSliceOp, but the recursion is
     // bounded as the rank is strictly decreasing.
     setHasBoundedRewriteRecursion();
@@ -1317,8 +1331,9 @@ private:
 class VectorExtractStridedSliceOpConversion
     : public OpRewritePattern<ExtractStridedSliceOp> {
 public:
-  VectorExtractStridedSliceOpConversion(MLIRContext *ctx)
-      : OpRewritePattern<ExtractStridedSliceOp>(ctx) {
+  using OpRewritePattern<ExtractStridedSliceOp>::OpRewritePattern;
+
+  void initialize() {
     // This pattern creates recursive ExtractStridedSliceOp, but the recursion
     // is bounded as the rank is strictly decreasing.
     setHasBoundedRewriteRecursion();

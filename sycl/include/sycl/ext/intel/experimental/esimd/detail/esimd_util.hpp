@@ -13,6 +13,8 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
 
+#include <type_traits>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
@@ -75,120 +77,35 @@ static ESIMD_INLINE constexpr bool isPowerOf2(unsigned int n,
 }
 
 /// type traits
-template <typename T> struct is_esimd_vector {
-  static const bool value = false;
-};
-template <typename T, int N> struct is_esimd_vector<simd<T, N>> {
-  static const bool value = true;
-};
-template <typename T, int N> struct is_esimd_vector<vector_type<T, N>> {
-  static const bool value = true;
-};
+template <typename T> struct is_esimd_vector : public std::false_type {};
+
+template <typename T, int N>
+struct is_esimd_vector<simd<T, N>> : public std::true_type {};
 
 template <typename T>
-struct is_esimd_scalar
-    : std::integral_constant<bool, cl::sycl::detail::is_arithmetic<T>::value> {
-};
+using is_esimd_scalar =
+    typename std::bool_constant<cl::sycl::detail::is_arithmetic<T>::value>;
+
+template <typename T, int N>
+using is_hw_int_type =
+    typename std::bool_constant<std::is_integral_v<T> && (sizeof(T) == N)>;
+
+template <typename T> using is_qword_type = is_hw_int_type<T, 8>;
+template <typename T> using is_dword_type = is_hw_int_type<T, 4>;
+template <typename T> using is_word_type = is_hw_int_type<T, 2>;
+template <typename T> using is_byte_type = is_hw_int_type<T, 1>;
+
+template <typename T, int N>
+using is_hw_fp_type = typename std::bool_constant<std::is_floating_point_v<T> &&
+                                                  (sizeof(T) == N)>;
+
+template <typename T> using is_fp_type = is_hw_fp_type<T, 4>;
+template <typename T> using is_df_type = is_hw_fp_type<T, 8>;
 
 template <typename T>
-struct is_dword_type
-    : std::integral_constant<
-          bool,
-          std::is_same<int, typename sycl::detail::remove_const_t<T>>::value ||
-              std::is_same<unsigned int,
-                           typename sycl::detail::remove_const_t<T>>::value> {};
-
-template <typename T, int N> struct is_dword_type<vector_type<T, N>> {
-  static const bool value = is_dword_type<T>::value;
-};
-
-template <typename T, int N> struct is_dword_type<simd<T, N>> {
-  static const bool value = is_dword_type<T>::value;
-};
-
-template <typename T>
-struct is_word_type
-    : std::integral_constant<
-          bool,
-          std::is_same<short,
-                       typename sycl::detail::remove_const_t<T>>::value ||
-              std::is_same<unsigned short,
-                           typename sycl::detail::remove_const_t<T>>::value> {};
-
-template <typename T, int N> struct is_word_type<vector_type<T, N>> {
-  static const bool value = is_word_type<T>::value;
-};
-
-template <typename T, int N> struct is_word_type<simd<T, N>> {
-  static const bool value = is_word_type<T>::value;
-};
-
-template <typename T>
-struct is_byte_type
-    : std::integral_constant<
-          bool,
-          std::is_same<char, typename sycl::detail::remove_const_t<T>>::value ||
-              std::is_same<unsigned char,
-                           typename sycl::detail::remove_const_t<T>>::value> {};
-
-template <typename T, int N> struct is_byte_type<vector_type<T, N>> {
-  static const bool value = is_byte_type<T>::value;
-};
-
-template <typename T, int N> struct is_byte_type<simd<T, N>> {
-  static const bool value = is_byte_type<T>::value;
-};
-
-template <typename T>
-struct is_fp_type
-    : std::integral_constant<
-          bool, std::is_same<float,
-                             typename sycl::detail::remove_const_t<T>>::value> {
-};
-
-template <typename T>
-struct is_df_type
-    : std::integral_constant<
-          bool, std::is_same<double,
-                             typename sycl::detail::remove_const_t<T>>::value> {
-};
-
-template <typename T>
-struct is_fp_or_dword_type
-    : std::integral_constant<
-          bool,
-          std::is_same<float,
-                       typename sycl::detail::remove_const_t<T>>::value ||
-              std::is_same<int,
-                           typename sycl::detail::remove_const_t<T>>::value ||
-              std::is_same<unsigned int,
-                           typename sycl::detail::remove_const_t<T>>::value> {};
-
-template <typename T>
-struct is_qword_type
-    : std::integral_constant<
-          bool,
-          std::is_same<long long,
-                       typename sycl::detail::remove_const_t<T>>::value ||
-              std::is_same<unsigned long long,
-                           typename sycl::detail::remove_const_t<T>>::value> {};
-
-template <typename T, int N> struct is_qword_type<vector_type<T, N>> {
-  static const bool value = is_qword_type<T>::value;
-};
-
-template <typename T, int N> struct is_qword_type<simd<T, N>> {
-  static const bool value = is_qword_type<T>::value;
-};
-
-// Extends to ESIMD vector types.
-template <typename T, int N> struct is_fp_or_dword_type<vector_type<T, N>> {
-  static const bool value = is_fp_or_dword_type<T>::value;
-};
-
-template <typename T, int N> struct is_fp_or_dword_type<simd<T, N>> {
-  static const bool value = is_fp_or_dword_type<T>::value;
-};
+using is_fp_or_dword_type =
+    typename std::bool_constant<is_fp_type<T>::value ||
+                                is_dword_type<T>::value>;
 
 /// Convert types into vector types
 template <typename T> struct simd_type { using type = simd<T, 1>; };

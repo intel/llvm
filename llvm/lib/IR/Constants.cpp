@@ -425,12 +425,14 @@ Constant *Constant::getAggregateElement(unsigned Elt) const {
   if (const auto *CC = dyn_cast<ConstantAggregate>(this))
     return Elt < CC->getNumOperands() ? CC->getOperand(Elt) : nullptr;
 
+  if (const auto *CAZ = dyn_cast<ConstantAggregateZero>(this))
+    return Elt < CAZ->getElementCount().getKnownMinValue()
+               ? CAZ->getElementValue(Elt)
+               : nullptr;
+
   // FIXME: getNumElements() will fail for non-fixed vector types.
   if (isa<ScalableVectorType>(getType()))
     return nullptr;
-
-  if (const auto *CAZ = dyn_cast<ConstantAggregateZero>(this))
-    return Elt < CAZ->getNumElements() ? CAZ->getElementValue(Elt) : nullptr;
 
   if (const auto *PV = dyn_cast<PoisonValue>(this))
     return Elt < PV->getNumElements() ? PV->getElementValue(Elt) : nullptr;
@@ -821,6 +823,18 @@ Constant *Constant::mergeUndefsWith(Constant *C, Constant *Other) {
   return C;
 }
 
+bool Constant::isManifestConstant() const {
+  if (isa<ConstantData>(this))
+    return true;
+  if (isa<ConstantAggregate>(this) || isa<ConstantExpr>(this)) {
+    for (const Value *Op : operand_values())
+      if (!cast<Constant>(Op)->isManifestConstant())
+        return false;
+    return true;
+  }
+  return false;
+}
+
 //===----------------------------------------------------------------------===//
 //                                ConstantInt
 //===----------------------------------------------------------------------===//
@@ -1088,13 +1102,13 @@ Constant *ConstantAggregateZero::getElementValue(unsigned Idx) const {
   return getStructElement(Idx);
 }
 
-unsigned ConstantAggregateZero::getNumElements() const {
+ElementCount ConstantAggregateZero::getElementCount() const {
   Type *Ty = getType();
   if (auto *AT = dyn_cast<ArrayType>(Ty))
-    return AT->getNumElements();
+    return ElementCount::getFixed(AT->getNumElements());
   if (auto *VT = dyn_cast<VectorType>(Ty))
-    return cast<FixedVectorType>(VT)->getNumElements();
-  return Ty->getStructNumElements();
+    return VT->getElementCount();
+  return ElementCount::getFixed(Ty->getStructNumElements());
 }
 
 //===----------------------------------------------------------------------===//

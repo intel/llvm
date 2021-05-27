@@ -450,6 +450,11 @@ public:
     if (!TargetTriple.isArch64Bit())
       return false;
 
+    // TODO: Triggers issues on aarch64 on darwin, so temporarily disable it
+    // there.
+    if (TargetTriple.getArch() == Triple::aarch64 && TargetTriple.isOSDarwin())
+      return false;
+
     return true;
   }
 
@@ -1154,9 +1159,6 @@ public:
     unsigned VecTySize = thisT()->getDataLayout().getTypeStoreSize(VecTy);
     unsigned VecTyLTSize = VecTyLT.getStoreSize();
 
-    // Return the ceiling of dividing A by B.
-    auto ceil = [](unsigned A, unsigned B) { return (A + B - 1) / B; };
-
     // Scale the cost of the memory operation by the fraction of legalized
     // instructions that will actually be used. We shouldn't account for the
     // cost of dead instructions since they will be removed.
@@ -1174,11 +1176,11 @@ public:
     if (Opcode == Instruction::Load && VecTySize > VecTyLTSize) {
       // The number of loads of a legal type it will take to represent a load
       // of the unlegalized vector type.
-      unsigned NumLegalInsts = ceil(VecTySize, VecTyLTSize);
+      unsigned NumLegalInsts = divideCeil(VecTySize, VecTyLTSize);
 
       // The number of elements of the unlegalized type that correspond to a
       // single legal instruction.
-      unsigned NumEltsPerLegalInst = ceil(NumElts, NumLegalInsts);
+      unsigned NumEltsPerLegalInst = divideCeil(NumElts, NumLegalInsts);
 
       // Determine which legal instructions will be used.
       BitVector UsedInsts(NumLegalInsts, false);

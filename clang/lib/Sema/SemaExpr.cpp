@@ -864,6 +864,19 @@ ExprResult Sema::DefaultArgumentPromotion(Expr *E) {
       E = ImpCastExprToType(E, Context.DoubleTy, CK_FloatingCast).get();
     }
   }
+  if (BTy &&
+      getLangOpts().getExtendIntArgs() ==
+          LangOptions::ExtendArgsKind::ExtendTo64 &&
+      Context.getTargetInfo().supportsExtendIntArgs() && Ty->isIntegerType() &&
+      Context.getTypeSizeInChars(BTy) <
+          Context.getTypeSizeInChars(Context.LongLongTy)) {
+    E = (Ty->isUnsignedIntegerType())
+            ? ImpCastExprToType(E, Context.UnsignedLongLongTy, CK_IntegralCast)
+                  .get()
+            : ImpCastExprToType(E, Context.LongLongTy, CK_IntegralCast).get();
+    assert(8 == Context.getTypeSizeInChars(Context.LongLongTy).getQuantity() &&
+           "Unexpected typesize for LongLongTy");
+  }
 
   // C++ performs lvalue-to-rvalue conversion as a default argument
   // promotion, even on class types, but note:
@@ -6600,9 +6613,6 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
                                       FD, /*Complain=*/true, Fn->getBeginLoc()))
       return ExprError();
 
-    if (getLangOpts().OpenCL && checkOpenCLDisabledDecl(*FD, *Fn))
-      return ExprError();
-
     checkDirectCallValidity(*this, Fn, FD, ArgExprs);
   }
 
@@ -7456,6 +7466,25 @@ bool Sema::areMatrixTypesOfTheSameDimension(QualType srcTy, QualType destTy) {
          matSrcType->getNumColumns() == matDestType->getNumColumns();
 }
 
+bool Sema::areVectorTypesSameSize(QualType SrcTy, QualType DestTy) {
+  assert(DestTy->isVectorType() || SrcTy->isVectorType());
+
+  uint64_t SrcLen, DestLen;
+  QualType SrcEltTy, DestEltTy;
+  if (!breakDownVectorType(SrcTy, SrcLen, SrcEltTy))
+    return false;
+  if (!breakDownVectorType(DestTy, DestLen, DestEltTy))
+    return false;
+
+  // ASTContext::getTypeSize will return the size rounded up to a
+  // power of 2, so instead of using that, we need to use the raw
+  // element size multiplied by the element count.
+  uint64_t SrcEltSize = Context.getTypeSize(SrcEltTy);
+  uint64_t DestEltSize = Context.getTypeSize(DestEltTy);
+
+  return (SrcLen * SrcEltSize == DestLen * DestEltSize);
+}
+
 /// Are the two types lax-compatible vector types?  That is, given
 /// that one of them is a vector, do they have equal storage sizes,
 /// where the storage size is the number of elements times the element
@@ -7474,18 +7503,7 @@ bool Sema::areLaxCompatibleVectorTypes(QualType srcTy, QualType destTy) {
   if (srcTy->isScalarType() && destTy->isExtVectorType()) return false;
   if (destTy->isScalarType() && srcTy->isExtVectorType()) return false;
 
-  uint64_t srcLen, destLen;
-  QualType srcEltTy, destEltTy;
-  if (!breakDownVectorType(srcTy, srcLen, srcEltTy)) return false;
-  if (!breakDownVectorType(destTy, destLen, destEltTy)) return false;
-
-  // ASTContext::getTypeSize will return the size rounded up to a
-  // power of 2, so instead of using that, we need to use the raw
-  // element size multiplied by the element count.
-  uint64_t srcEltSize = Context.getTypeSize(srcEltTy);
-  uint64_t destEltSize = Context.getTypeSize(destEltTy);
-
-  return (srcLen * srcEltSize == destLen * destEltSize);
+  return areVectorTypesSameSize(srcTy, destTy);
 }
 
 /// Is this a legal conversion between two types, one of which is
@@ -17240,10 +17258,7 @@ MarkVarDeclODRUsed(VarDecl *Var, SourceLocation Loc, Sema &SemaRef,
     CaptureType, DeclRefType,
     FunctionScopeIndexToStopAt);
 
-  // Diagnose ODR-use of host global variables in device functions. Reference
-  // of device global variables in host functions is allowed through shadow
-  // variables therefore it is not diagnosed.
-  if (SemaRef.LangOpts.CUDA && SemaRef.LangOpts.CUDAIsDevice) {
+  if (SemaRef.LangOpts.CUDA && Var && Var->hasGlobalStorage()) {
     auto *FD = dyn_cast_or_null<FunctionDecl>(SemaRef.CurContext);
     auto Target = SemaRef.IdentifyCUDATarget(FD);
     auto IsEmittedOnDeviceSide = [](VarDecl *Var) {
@@ -17259,9 +17274,26 @@ MarkVarDeclODRUsed(VarDecl *Var, SourceLocation Loc, Sema &SemaRef,
       }
       return false;
     };
-    if (Var && Var->hasGlobalStorage() && !IsEmittedOnDeviceSide(Var)) {
-      SemaRef.targetDiag(Loc, diag::err_ref_bad_target)
-          << /*host*/ 2 << /*variable*/ 1 << Var << Target;
+    if (!IsEmittedOnDeviceSide(Var)) {
+      // Diagnose ODR-use of host global variables in device functions.
+      // Reference of device global variables in host functions is allowed
+      // through shadow variables therefore it is not diagnosed.
+      if (SemaRef.LangOpts.CUDAIsDevice)
+        SemaRef.targetDiag(Loc, diag::err_ref_bad_target)
+            << /*host*/ 2 << /*variable*/ 1 << Var << Target;
+    } else if ((Target == Sema::CFT_Host || Target == Sema::CFT_HostDevice) &&
+               !Var->hasExternalStorage()) {
+      // Record a CUDA/HIP device side variable if it is ODR-used
+      // by host code. This is done conservatively, when the variable is
+      // referenced in any of the following contexts:
+      //   - a non-function context
+      //   - a host function
+      //   - a host device function
+      // This makes the ODR-use of the device side variable by host code to
+      // be visible in the device compilation for the compiler to be able to
+      // emit template variables instantiated by host code only and to
+      // externalize the static device side variable ODR-used by host code.
+      SemaRef.getASTContext().CUDADeviceVarODRUsedByHost.insert(Var);
     }
   }
 
@@ -18426,24 +18458,6 @@ static void DoMarkVarDeclReferenced(Sema &SemaRef, SourceLocation Loc,
 
   if (Var->isInvalidDecl())
     return;
-
-  // Record a CUDA/HIP static device/constant variable if it is referenced
-  // by host code. This is done conservatively, when the variable is referenced
-  // in any of the following contexts:
-  //   - a non-function context
-  //   - a host function
-  //   - a host device function
-  // This also requires the reference of the static device/constant variable by
-  // host code to be visible in the device compilation for the compiler to be
-  // able to externalize the static device/constant variable.
-  if (SemaRef.getASTContext().mayExternalizeStaticVar(Var)) {
-    auto *CurContext = SemaRef.CurContext;
-    if (!CurContext || !isa<FunctionDecl>(CurContext) ||
-        cast<FunctionDecl>(CurContext)->hasAttr<CUDAHostAttr>() ||
-        (!cast<FunctionDecl>(CurContext)->hasAttr<CUDADeviceAttr>() &&
-         !cast<FunctionDecl>(CurContext)->hasAttr<CUDAGlobalAttr>()))
-      SemaRef.getASTContext().CUDAStaticDeviceVarReferencedByHost.insert(Var);
-  }
 
   auto *MSI = Var->getMemberSpecializationInfo();
   TemplateSpecializationKind TSK = MSI ? MSI->getTemplateSpecializationKind()

@@ -121,5 +121,5 @@ INSTANTIATE_TEST_CASE_P(
                           PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE,
                           PI_SAMPLER_ADDRESSING_MODE_NONE,
                           PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT,
-                          PI_SAMPLER_ADDRESSING_MODE_REPEAT)), );
+                          PI_SAMPLER_ADDRESSING_MODE_REPEAT)));
 } // namespace
