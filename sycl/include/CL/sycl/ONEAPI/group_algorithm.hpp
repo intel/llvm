@@ -16,8 +16,8 @@
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
-#include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/group_algorithm.hpp>
+#include <CL/sycl/nd_item.hpp>
 
 #ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -264,7 +264,8 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_scalar_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
-__SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
+__SYCL2020_DEPRECATED(
+    "ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
     reduce(Group g, T x, BinaryOperation binary_op) {
   return reduce_over_group(g, x, binary_op);
 }
@@ -274,7 +275,8 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
-__SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
+__SYCL2020_DEPRECATED(
+    "ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
     reduce(Group g, T x, BinaryOperation binary_op) {
   return reduce_over_group(g, x, binary_op);
 }
@@ -285,7 +287,8 @@ detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                      (!detail::is_arithmetic<T>::value ||
                       !detail::is_native_op<T, BinaryOperation>::value)),
                     T>
-__SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
+__SYCL2020_DEPRECATED(
+    "ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
     reduce(Group g, T x, BinaryOperation op) {
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
@@ -304,7 +307,8 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
-__SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
+__SYCL2020_DEPRECATED(
+    "ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
     reduce(Group g, V x, T init, BinaryOperation binary_op) {
   return reduce_over_group(g, x, init, binary_op);
 }
@@ -316,7 +320,8 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_native_op<V, BinaryOperation>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
-__SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
+__SYCL2020_DEPRECATED(
+    "ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
     reduce(Group g, V x, T init, BinaryOperation binary_op) {
   return reduce_over_group(g, x, init, binary_op);
 }
@@ -329,7 +334,8 @@ detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                       !detail::is_arithmetic<V>::value ||
                       !detail::is_native_op<T, BinaryOperation>::value)),
                     T>
-__SYCL2020_DEPRECATED("ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
+__SYCL2020_DEPRECATED(
+    "ONEAPI::reduce is deprecated. Use reduce_over_group instead.")
     reduce(Group g, V x, T init, BinaryOperation op) {
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
