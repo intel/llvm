@@ -242,10 +242,14 @@ static void collectKernelModuleMap(
     Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
     KernelMapEntryScope EntryScope) {
 
+  // Process module entry points: kernels and SYCL_EXTERNAL functions.
+  // Only they have sycl-module-id attribute, so any other unrefenced
+  // functions are dropped.
   for (auto &F : M.functions()) {
-    // Process module entry points: kernels and SYCL_EXTERNAL functions.
-    // Only they have sycl-module-id attribute, so any other unrefenced
-    // functions are dropped.
+    if (!F.isDeclaration() && F.getCallingConv() != CallingConv::SPIR_KERNEL &&
+        F.getCallingConv() != CallingConv::SPIR_FUNC) {
+      error("Unsupported calling convention in function " + F.getName());
+    }
     if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID)) {
       switch (EntryScope) {
       case Scope_PerKernel:
@@ -637,13 +641,17 @@ using ModulePair = std::pair<std::unique_ptr<Module>, std::unique_ptr<Module>>;
 // This function splits a module with a mix of SYCL and ESIMD kernels
 // into two separate modules.
 static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
-  // Collect information about the SYCL and ESIMD kernels in the module.
   std::vector<Function *> SyclFunctions;
   std::vector<Function *> EsimdFunctions;
+  // Collect information about the SYCL and ESIMD functions in the module.
+  // Process module entry points: kernels and SYCL_EXTERNAL functions.
+  // Only they have sycl-module-id attribute, so any other unrefenced
+  // functions are dropped.
   for (auto &F : M->functions()) {
-    // Process module entry points: kernels and SYCL_EXTERNAL functions.
-    // Only they have sycl-module-id attribute, so any other unrefenced
-    // functions are dropped.
+    if (!F.isDeclaration() && F.getCallingConv() != CallingConv::SPIR_KERNEL &&
+        F.getCallingConv() != CallingConv::SPIR_FUNC) {
+      error("Unsupported calling convention in function " + F.getName());
+    }
     if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID)) {
       if (F.getMetadata("sycl_explicit_simd"))
         EsimdFunctions.push_back(&F);
