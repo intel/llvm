@@ -271,6 +271,8 @@ static void collectKernelModuleMap(
       // TODO It may make sense to group all kernels w/o the attribute into
       // a separate module rather than issuing an error. Should probably be
       // controlled by an option.
+      // Functions with spir_func calling convention are allowed to not have
+      // a sycl-module-id attribute.
       error("no '" + Twine(ATTR_SYCL_MODULE_ID) + "' attribute in kernel '" +
             F.getName() + "', per-module split not possible");
     }
