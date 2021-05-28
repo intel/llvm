@@ -414,7 +414,11 @@ static Value *EmitISOVolatileLoad(CodeGenFunction &CGF, const CallExpr *E) {
   CharUnits LoadSize = CGF.getContext().getTypeSizeInChars(ElTy);
   llvm::Type *ITy =
       llvm::IntegerType::get(CGF.getLLVMContext(), LoadSize.getQuantity() * 8);
-  Ptr = CGF.Builder.CreateBitCast(Ptr, ITy->getPointerTo());
+  unsigned PtrAS = static_cast<unsigned>(LangAS::Default);
+  if (Ptr && Ptr->getType() && Ptr->getType()->isPointerTy()) {
+    PtrAS = Ptr->getType()->getPointerAddressSpace();
+  }
+  Ptr = CGF.Builder.CreateBitCast(Ptr, ITy->getPointerTo(PtrAS));
   llvm::LoadInst *Load = CGF.Builder.CreateAlignedLoad(ITy, Ptr, LoadSize);
   Load->setVolatile(true);
   return Load;

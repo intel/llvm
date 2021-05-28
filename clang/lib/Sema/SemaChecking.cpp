@@ -406,6 +406,15 @@ static bool SemaBuiltinCallWithStaticChain(Sema &S, CallExpr *BuiltinCall) {
   return false;
 }
 
+static bool SemaTSBuiltinAllowedForSYCL(unsigned BuiltinID) {
+  if (BuiltinID == X86::BI_ReadWriteBarrier)
+    return true;
+  if (BuiltinID == X86::BI_InterlockedExchange64)
+    return true;
+
+  return false;
+}
+
 namespace {
 
 class EstimateSizeFormatHandler
@@ -2021,7 +2030,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
         return ExprError();
 
       // Detect when host builtins are used in device code only
-      if (getLangOpts().SYCLIsDevice)
+      if (getLangOpts().SYCLIsDevice && !SemaTSBuiltinAllowedForSYCL(BuiltinID))
         SYCLDiagIfDeviceCode(TheCall->getBeginLoc(),
                              diag::err_builtin_target_unsupported);
     } else {
