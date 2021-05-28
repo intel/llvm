@@ -61,7 +61,7 @@ static constexpr llvm::StringLiteral InitESIMDMethodName = "__init_esimd";
 static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
     "__init_specialization_constants_buffer";
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
-static constexpr llvm::StringLiteral GlibcxxFailedAssertion =
+static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
@@ -332,8 +332,8 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   // is used to trigger some compilation error when the check fails at compile
   // time and will be ignored when the check succeeds. We allow calls to this
   // function to support some important std functions in SYCL device.
-  return (Callee->getName() == GlibcxxFailedAssertion) &&
-         (Callee->getNumParams() == 0) &&
+  return (Callee->getName() == LibstdcxxFailedAssertion) &&
+         Callee->getNumParams() == 0 &&
          Callee->getReturnType()->isVoidType() &&
          SrcMgr.isInSystemHeader(Callee->getLocation());
 }
