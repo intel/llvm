@@ -333,8 +333,7 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   // time and will be ignored when the check succeeds. We allow calls to this
   // function to support some important std functions in SYCL device.
   return (Callee->getName() == LibstdcxxFailedAssertion) &&
-         Callee->getNumParams() == 0 &&
-         Callee->getReturnType()->isVoidType() &&
+         Callee->getNumParams() == 0 && Callee->getReturnType()->isVoidType() &&
          SrcMgr.isInSystemHeader(Callee->getLocation());
 }
 
