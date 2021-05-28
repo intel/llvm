@@ -432,7 +432,11 @@ static Value *EmitISOVolatileStore(CodeGenFunction &CGF, const CallExpr *E) {
   CharUnits StoreSize = CGF.getContext().getTypeSizeInChars(ElTy);
   llvm::Type *ITy =
       llvm::IntegerType::get(CGF.getLLVMContext(), StoreSize.getQuantity() * 8);
-  Ptr = CGF.Builder.CreateBitCast(Ptr, ITy->getPointerTo());
+  unsigned PtrAS = static_cast<unsigned>(LangAS::Default);
+  if (Ptr && Ptr->getType() && Ptr->getType()->isPointerTy()) {
+    PtrAS = Ptr->getType()->getPointerAddressSpace();
+  }
+  Ptr = CGF.Builder.CreateBitCast(Ptr, ITy->getPointerTo(PtrAS));
   llvm::StoreInst *Store =
       CGF.Builder.CreateAlignedStore(Value, Ptr, StoreSize);
   Store->setVolatile(true);
