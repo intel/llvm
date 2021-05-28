@@ -12,6 +12,8 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 
+#include <limits>
+
 #define SIMDCF_ELEMENT_SKIP(i)
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -33,6 +35,7 @@ namespace esimd {
 namespace emu {
 namespace detail {
 
+using half = sycl::detail::half_impl::half;
 constexpr int sat_is_on = 1;
 
 static long long abs(long long a) {
