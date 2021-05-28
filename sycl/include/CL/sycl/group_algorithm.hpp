@@ -385,7 +385,7 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 
 // ---- shift_group_left
 template <typename Group, typename T>
-detail::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
                      detail::is_arithmetic<T>::value),
                     T>
 shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
@@ -401,7 +401,7 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 
 // ---- shift_group_right
 template <typename Group, typename T>
-detail::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
                      detail::is_arithmetic<T>::value),
                     T>
 shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
@@ -417,7 +417,7 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 
 // ---- permute_group_by_xor
 template <typename Group, typename T>
-detail::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
                      detail::is_arithmetic<T>::value),
                     T>
 permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
@@ -433,7 +433,7 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 
 // ---- select_from_group
 template <typename Group, typename T>
-detail::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
                      detail::is_arithmetic<T>::value),
                     T>
 select_from_group(Group, T x, typename Group::id_type local_id) {
