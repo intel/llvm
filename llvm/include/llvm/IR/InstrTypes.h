@@ -1555,6 +1555,13 @@ public:
     setAttributes(PAL);
   }
 
+  /// Removes the attributes from the given argument
+  void removeParamAttrs(unsigned ArgNo, const AttrBuilder &Attrs) {
+    AttributeList PAL = getAttributes();
+    PAL = PAL.removeParamAttributes(getContext(), ArgNo, Attrs);
+    setAttributes(PAL);
+  }
+
   /// Removes noundef and other attributes that imply undefined behavior if a
   /// `undef` or `poison` value is passed from the given argument.
   void removeParamUndefImplyingAttrs(unsigned ArgNo) {
@@ -1708,23 +1715,8 @@ public:
            dataOperandHasImpliedAttr(OpNo + 1, Attribute::ReadNone);
   }
 
-  LLVM_ATTRIBUTE_DEPRECATED(unsigned getRetAlignment() const,
-                            "Use getRetAlign() instead") {
-    if (const auto MA = Attrs.getRetAlignment())
-      return MA->value();
-    return 0;
-  }
-
   /// Extract the alignment of the return value.
   MaybeAlign getRetAlign() const { return Attrs.getRetAlignment(); }
-
-  /// Extract the alignment for a call or parameter (0=unknown).
-  LLVM_ATTRIBUTE_DEPRECATED(unsigned getParamAlignment(unsigned ArgNo) const,
-                            "Use getParamAlign() instead") {
-    if (const auto MA = Attrs.getParamAlignment(ArgNo))
-      return MA->value();
-    return 0;
-  }
 
   /// Extract the alignment for a call or parameter (0=unknown).
   MaybeAlign getParamAlign(unsigned ArgNo) const {
@@ -1737,14 +1729,17 @@ public:
 
   /// Extract the byval type for a call or parameter.
   Type *getParamByValType(unsigned ArgNo) const {
-    Type *Ty = Attrs.getParamByValType(ArgNo);
-    return Ty ? Ty : getArgOperand(ArgNo)->getType()->getPointerElementType();
+    return Attrs.getParamByValType(ArgNo);
+  }
+
+  /// Extract the inalloca type for a call or parameter.
+  Type *getParamInAllocaType(unsigned ArgNo) const {
+    return Attrs.getParamInAllocaType(ArgNo);
   }
 
   /// Extract the preallocated type for a call or parameter.
   Type *getParamPreallocatedType(unsigned ArgNo) const {
-    Type *Ty = Attrs.getParamPreallocatedType(ArgNo);
-    return Ty ? Ty : getArgOperand(ArgNo)->getType()->getPointerElementType();
+    return Attrs.getParamPreallocatedType(ArgNo);
   }
 
   /// Extract the number of dereferenceable bytes for a call or

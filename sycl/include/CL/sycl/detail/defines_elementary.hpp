@@ -40,11 +40,7 @@
 
 #ifndef __SYCL_DEPRECATED
 #ifndef SYCL_DISABLE_DEPRECATION_WARNINGS
-#ifdef _WIN32
-#define __SYCL_DEPRECATED(message) __declspec(deprecated(message))
-#else
-#define __SYCL_DEPRECATED(message) __attribute__((deprecated(message)))
-#endif
+#define __SYCL_DEPRECATED(message) [[deprecated(message)]]
 #else // SYCL_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_DEPRECATED(message)
 #endif // SYCL_DISABLE_DEPRECATION_WARNINGS

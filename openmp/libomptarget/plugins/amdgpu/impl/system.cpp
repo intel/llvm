@@ -20,12 +20,19 @@
 
 #include "msgpack.h"
 
-#define msgpackErrorCheck(msg, status)                                         \
-  if (status != 0) {                                                           \
-    printf("[%s:%d] %s failed\n", __FILE__, __LINE__, #msg);                   \
-    return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;                               \
-  } else {                                                                     \
-  }
+namespace hsa {
+// Wrap HSA iterate API in a shim that allows passing general callables
+template <typename C>
+hsa_status_t executable_iterate_symbols(hsa_executable_t executable, C cb) {
+  auto L = [](hsa_executable_t executable, hsa_executable_symbol_t symbol,
+              void *data) -> hsa_status_t {
+    C *unwrapped = static_cast<C *>(data);
+    return (*unwrapped)(executable, symbol);
+  };
+  return hsa_executable_iterate_symbols(executable, L,
+                                        static_cast<void *>(&cb));
+}
+} // namespace hsa
 
 typedef unsigned char *address;
 /*
@@ -137,32 +144,20 @@ static const std::map<std::string, KernelArgMD::ValueKind> ArgValueKind = {
 atmi_machine_t g_atmi_machine;
 ATLMachine g_atl_machine;
 
-hsa_region_t atl_gpu_kernarg_region;
 std::vector<hsa_amd_memory_pool_t> atl_gpu_kernarg_pools;
-hsa_region_t atl_cpu_kernarg_region;
 
-static std::vector<hsa_executable_t> g_executables;
-
-std::map<std::string, std::string> KernelNameMap;
 std::vector<std::map<std::string, atl_kernel_info_t>> KernelInfoTable;
 std::vector<std::map<std::string, atl_symbol_info_t>> SymbolInfoTable;
 
 bool g_atmi_initialized = false;
 bool g_atmi_hostcall_required = false;
 
-struct timespec context_init_time;
-int context_init_time_init = 0;
-
 /*
    atlc is all internal global values.
    The structure atl_context_t is defined in atl_internal.h
    Most references will use the global structure prefix atlc.
-   However the pointer value atlc_p-> is equivalent to atlc.
-
 */
-
 atl_context_t atlc = {.struct_initialized = false};
-atl_context_t *atlc_p = NULL;
 
 namespace core {
 /* Machine Info */
@@ -172,28 +167,26 @@ atmi_machine_t *Runtime::GetMachineInfo() {
   return &g_atmi_machine;
 }
 
-void atl_set_atmi_initialized() {
+static void atl_set_atmi_initialized() {
   // FIXME: thread safe? locks?
   g_atmi_initialized = true;
 }
 
-void atl_reset_atmi_initialized() {
+static void atl_reset_atmi_initialized() {
   // FIXME: thread safe? locks?
   g_atmi_initialized = false;
 }
 
 bool atl_is_atmi_initialized() { return g_atmi_initialized; }
 
-void allow_access_to_all_gpu_agents(void *ptr) {
-  hsa_status_t err;
+hsa_status_t allow_access_to_all_gpu_agents(void *ptr) {
   std::vector<ATLGPUProcessor> &gpu_procs =
       g_atl_machine.processors<ATLGPUProcessor>();
   std::vector<hsa_agent_t> agents;
   for (uint32_t i = 0; i < gpu_procs.size(); i++) {
     agents.push_back(gpu_procs[i].agent());
   }
-  err = hsa_amd_agents_allow_access(agents.size(), &agents[0], NULL, ptr);
-  ErrorCheck(Allow agents ptr access, err);
+  return hsa_amd_agents_allow_access(agents.size(), &agents[0], NULL, ptr);
 }
 
 atmi_status_t Runtime::Initialize() {
@@ -202,7 +195,12 @@ atmi_status_t Runtime::Initialize() {
     return ATMI_STATUS_SUCCESS;
 
   if (devtype == ATMI_DEVTYPE_ALL || devtype & ATMI_DEVTYPE_GPU) {
-    ATMIErrorCheck(GPU context init, atl_init_gpu_context());
+    atmi_status_t rc = atl_init_gpu_context();
+    if (rc != ATMI_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__, "GPU context init",
+             get_atmi_error_string(atl_init_gpu_context()));
+      return rc;
+    }
   }
 
   atl_set_atmi_initialized();
@@ -210,13 +208,7 @@ atmi_status_t Runtime::Initialize() {
 }
 
 atmi_status_t Runtime::Finalize() {
-  hsa_status_t err;
-
-  for (uint32_t i = 0; i < g_executables.size(); i++) {
-    err = hsa_executable_destroy(g_executables[i]);
-    ErrorCheck(Destroying executable, err);
-  }
-
+  atmi_status_t rc = ATMI_STATUS_SUCCESS;
   for (uint32_t i = 0; i < SymbolInfoTable.size(); i++) {
     SymbolInfoTable[i].clear();
   }
@@ -227,14 +219,17 @@ atmi_status_t Runtime::Finalize() {
   KernelInfoTable.clear();
 
   atl_reset_atmi_initialized();
-  err = hsa_shut_down();
-  ErrorCheck(Shutting down HSA, err);
+  hsa_status_t err = hsa_shut_down();
+  if (err != HSA_STATUS_SUCCESS) {
+    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__, "Shutting down HSA",
+           get_error_string(err));
+    rc = ATMI_STATUS_ERROR;
+  }
 
-  return ATMI_STATUS_SUCCESS;
+  return rc;
 }
 
-void atmi_init_context_structs() {
-  atlc_p = &atlc;
+static void atmi_init_context_structs() {
   atlc.struct_initialized = true; /* This only gets called one time */
   atlc.g_hsa_initialized = false;
   atlc.g_gpu_initialized = false;
@@ -252,12 +247,20 @@ static hsa_status_t get_memory_pool_info(hsa_amd_memory_pool_t memory_pool,
   err = hsa_amd_memory_pool_get_info(
       memory_pool, HSA_AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALLOWED,
       &alloc_allowed);
-  ErrorCheck(Alloc allowed in memory pool check, err);
+  if (err != HSA_STATUS_SUCCESS) {
+    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+           "Alloc allowed in memory pool check", get_error_string(err));
+    return err;
+  }
   if (alloc_allowed) {
     uint32_t global_flag = 0;
     err = hsa_amd_memory_pool_get_info(
         memory_pool, HSA_AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS, &global_flag);
-    ErrorCheck(Get memory pool info, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Get memory pool info", get_error_string(err));
+      return err;
+    }
     if (HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_FINE_GRAINED & global_flag) {
       ATLMemory new_mem(memory_pool, *proc, ATMI_MEMTYPE_FINE_GRAINED);
       proc->addMemory(new_mem);
@@ -278,28 +281,42 @@ static hsa_status_t get_agent_info(hsa_agent_t agent, void *data) {
   hsa_status_t err = HSA_STATUS_SUCCESS;
   hsa_device_type_t device_type;
   err = hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
-  ErrorCheck(Get device type info, err);
+  if (err != HSA_STATUS_SUCCESS) {
+    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+           "Get device type info", get_error_string(err));
+    return err;
+  }
   switch (device_type) {
   case HSA_DEVICE_TYPE_CPU: {
-    ;
     ATLCPUProcessor new_proc(agent);
     err = hsa_amd_agent_iterate_memory_pools(agent, get_memory_pool_info,
                                              &new_proc);
-    ErrorCheck(Iterate all memory pools, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Iterate all memory pools", get_error_string(err));
+      return err;
+    }
     g_atl_machine.addProcessor(new_proc);
   } break;
   case HSA_DEVICE_TYPE_GPU: {
-    ;
     hsa_profile_t profile;
     err = hsa_agent_get_info(agent, HSA_AGENT_INFO_PROFILE, &profile);
-    ErrorCheck(Query the agent profile, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Query the agent profile", get_error_string(err));
+      return err;
+    }
     atmi_devtype_t gpu_type;
     gpu_type =
         (profile == HSA_PROFILE_FULL) ? ATMI_DEVTYPE_iGPU : ATMI_DEVTYPE_dGPU;
     ATLGPUProcessor new_proc(agent, gpu_type);
     err = hsa_amd_agent_iterate_memory_pools(agent, get_memory_pool_info,
                                              &new_proc);
-    ErrorCheck(Iterate all memory pools, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Iterate all memory pools", get_error_string(err));
+      return err;
+    }
     g_atl_machine.addProcessor(new_proc);
   } break;
   case HSA_DEVICE_TYPE_DSP: {
@@ -353,9 +370,11 @@ static hsa_status_t init_compute_and_memory() {
   if (err == HSA_STATUS_INFO_BREAK) {
     err = HSA_STATUS_SUCCESS;
   }
-  ErrorCheck(Getting a gpu agent, err);
-  if (err != HSA_STATUS_SUCCESS)
+  if (err != HSA_STATUS_SUCCESS) {
+    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__, "Getting a gpu agent",
+           get_error_string(err));
     return err;
+  }
 
   /* Init all devices or individual device types? */
   std::vector<ATLCPUProcessor> &cpu_procs =
@@ -480,6 +499,7 @@ static hsa_status_t init_compute_and_memory() {
     proc_index++;
   }
   proc_index = 0;
+  hsa_region_t atl_cpu_kernarg_region;
   atl_cpu_kernarg_region.handle = (uint64_t)-1;
   if (cpu_procs.size() > 0) {
     err = hsa_agent_iterate_regions(
@@ -489,8 +509,14 @@ static hsa_status_t init_compute_and_memory() {
     }
     err = (atl_cpu_kernarg_region.handle == (uint64_t)-1) ? HSA_STATUS_ERROR
                                                           : HSA_STATUS_SUCCESS;
-    ErrorCheck(Finding a CPU kernarg memory region handle, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Finding a CPU kernarg memory region handle",
+             get_error_string(err));
+      return err;
+    }
   }
+  hsa_region_t atl_gpu_kernarg_region;
   /* Find a memory region that supports kernel arguments.  */
   atl_gpu_kernarg_region.handle = (uint64_t)-1;
   if (gpu_procs.size() > 0) {
@@ -498,7 +524,11 @@ static hsa_status_t init_compute_and_memory() {
                               &atl_gpu_kernarg_region);
     err = (atl_gpu_kernarg_region.handle == (uint64_t)-1) ? HSA_STATUS_ERROR
                                                           : HSA_STATUS_SUCCESS;
-    ErrorCheck(Finding a kernarg memory region, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Finding a kernarg memory region", get_error_string(err));
+      return err;
+    }
   }
   if (num_procs > 0)
     return HSA_STATUS_SUCCESS;
@@ -510,14 +540,22 @@ hsa_status_t init_hsa() {
   if (atlc.g_hsa_initialized == false) {
     DEBUG_PRINT("Initializing HSA...");
     hsa_status_t err = hsa_init();
-    ErrorCheck(Initializing the hsa runtime, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Initializing the hsa runtime", get_error_string(err));
+      return err;
+    }
     if (err != HSA_STATUS_SUCCESS)
       return err;
 
     err = init_compute_and_memory();
     if (err != HSA_STATUS_SUCCESS)
       return err;
-    ErrorCheck(After initializing compute and memory, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "After initializing compute and memory", get_error_string(err));
+      return err;
+    }
 
     int gpu_count = g_atl_machine.processorCount<ATLGPUProcessor>();
     KernelInfoTable.resize(gpu_count);
@@ -596,20 +634,19 @@ atmi_status_t atl_init_gpu_context() {
   if (err != HSA_STATUS_SUCCESS)
     return ATMI_STATUS_ERROR;
 
-  if (context_init_time_init == 0) {
-    clock_gettime(CLOCK_MONOTONIC_RAW, &context_init_time);
-    context_init_time_init = 1;
+  err = hsa_amd_register_system_event_handler(callbackEvent, NULL);
+  if (err != HSA_STATUS_SUCCESS) {
+    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+           "Registering the system for memory faults", get_error_string(err));
+    return ATMI_STATUS_ERROR;
   }
 
-  err = hsa_amd_register_system_event_handler(callbackEvent, NULL);
-    ErrorCheck(Registering the system for memory faults, err);
-
-    init_tasks();
-    atlc.g_gpu_initialized = true;
-    return ATMI_STATUS_SUCCESS;
+  init_tasks();
+  atlc.g_gpu_initialized = true;
+  return ATMI_STATUS_SUCCESS;
 }
 
-bool isImplicit(KernelArgMD::ValueKind value_kind) {
+static bool isImplicit(KernelArgMD::ValueKind value_kind) {
   switch (value_kind) {
   case KernelArgMD::ValueKind::HiddenGlobalOffsetX:
   case KernelArgMD::ValueKind::HiddenGlobalOffsetY:
@@ -817,7 +854,11 @@ static hsa_status_t get_code_object_custom_metadata(void *binary,
   msgpack_errors =
       map_lookup_array({metadata.first, metadata.second}, "amdhsa.kernels",
                        &kernel_array, &kernelsSize);
-  msgpackErrorCheck(kernels lookup in program metadata, msgpack_errors);
+  if (msgpack_errors != 0) {
+    printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+           "kernels lookup in program metadata");
+    return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+  }
 
   for (size_t i = 0; i < kernelsSize; i++) {
     assert(msgpack_errors == 0);
@@ -826,48 +867,77 @@ static hsa_status_t get_code_object_custom_metadata(void *binary,
 
     msgpack::byte_range element;
     msgpack_errors += array_lookup_element(kernel_array, i, &element);
-    msgpackErrorCheck(element lookup in kernel metadata, msgpack_errors);
+    if (msgpack_errors != 0) {
+      printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+             "element lookup in kernel metadata");
+      return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+    }
 
     msgpack_errors += map_lookup_string(element, ".name", &kernelName);
     msgpack_errors += map_lookup_string(element, ".symbol", &symbolName);
-    msgpackErrorCheck(strings lookup in kernel metadata, msgpack_errors);
+    if (msgpack_errors != 0) {
+      printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+             "strings lookup in kernel metadata");
+      return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+    }
+
+    // Make sure that kernelName + ".kd" == symbolName
+    if ((kernelName + ".kd") != symbolName) {
+      printf("[%s:%d] Kernel name mismatching symbol: %s != %s + .kd\n",
+             __FILE__, __LINE__, symbolName.c_str(), kernelName.c_str());
+      return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+    }
 
     atl_kernel_info_t info = {0, 0, 0, 0, 0, 0, 0, 0, 0, {}, {}, {}};
 
     uint64_t sgpr_count, vgpr_count, sgpr_spill_count, vgpr_spill_count;
     msgpack_errors += map_lookup_uint64_t(element, ".sgpr_count", &sgpr_count);
-    msgpackErrorCheck(sgpr count metadata lookup in kernel metadata,
-                      msgpack_errors);
+    if (msgpack_errors != 0) {
+      printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+             "sgpr count metadata lookup in kernel metadata");
+      return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+    }
+
     info.sgpr_count = sgpr_count;
 
     msgpack_errors += map_lookup_uint64_t(element, ".vgpr_count", &vgpr_count);
-    msgpackErrorCheck(vgpr count metadata lookup in kernel metadata,
-                      msgpack_errors);
+    if (msgpack_errors != 0) {
+      printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+             "vgpr count metadata lookup in kernel metadata");
+      return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+    }
+
     info.vgpr_count = vgpr_count;
 
     msgpack_errors +=
         map_lookup_uint64_t(element, ".sgpr_spill_count", &sgpr_spill_count);
-    msgpackErrorCheck(sgpr spill count metadata lookup in kernel metadata,
-                      msgpack_errors);
+    if (msgpack_errors != 0) {
+      printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+             "sgpr spill count metadata lookup in kernel metadata");
+      return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+    }
+
     info.sgpr_spill_count = sgpr_spill_count;
 
     msgpack_errors +=
         map_lookup_uint64_t(element, ".vgpr_spill_count", &vgpr_spill_count);
-    msgpackErrorCheck(vgpr spill count metadata lookup in kernel metadata,
-                      msgpack_errors);
+    if (msgpack_errors != 0) {
+      printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+             "vgpr spill count metadata lookup in kernel metadata");
+      return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+    }
+
     info.vgpr_spill_count = vgpr_spill_count;
 
     size_t kernel_explicit_args_size = 0;
     uint64_t kernel_segment_size;
     msgpack_errors += map_lookup_uint64_t(element, ".kernarg_segment_size",
                                           &kernel_segment_size);
-    msgpackErrorCheck(kernarg segment size metadata lookup in kernel metadata,
-                      msgpack_errors);
-
-    // create a map from symbol to name
-    DEBUG_PRINT("Kernel symbol %s; Name: %s; Size: %lu\n", symbolName.c_str(),
-                kernelName.c_str(), kernel_segment_size);
-    KernelNameMap[symbolName] = kernelName;
+    if (msgpack_errors != 0) {
+      printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+             "kernarg segment size metadata lookup in kernel metadata");
+      return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+    }
 
     bool hasHiddenArgs = false;
     if (kernel_segment_size > 0) {
@@ -877,8 +947,11 @@ static hsa_status_t get_code_object_custom_metadata(void *binary,
       msgpack::byte_range args_array;
       msgpack_errors +=
           map_lookup_array(element, ".args", &args_array, &argsSize);
-      msgpackErrorCheck(kernel args metadata lookup in kernel metadata,
-                        msgpack_errors);
+      if (msgpack_errors != 0) {
+        printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+               "kernel args metadata lookup in kernel metadata");
+        return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+      }
 
       info.num_args = argsSize;
 
@@ -887,13 +960,18 @@ static hsa_status_t get_code_object_custom_metadata(void *binary,
 
         msgpack::byte_range args_element;
         msgpack_errors += array_lookup_element(args_array, i, &args_element);
-        msgpackErrorCheck(iterate args map in kernel args metadata,
-                          msgpack_errors);
+        if (msgpack_errors != 0) {
+          printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+                 "iterate args map in kernel args metadata");
+          return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+        }
 
         msgpack_errors += populate_kernelArgMD(args_element, &lcArg);
-        msgpackErrorCheck(iterate args map in kernel args metadata,
-                          msgpack_errors);
-
+        if (msgpack_errors != 0) {
+          printf("[%s:%d] %s failed\n", __FILE__, __LINE__,
+                 "iterate args map in kernel args metadata");
+          return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
+        }
         // populate info with sizes and offsets
         info.arg_sizes.push_back(lcArg.size_);
         // v3 has offset field and not align field
@@ -932,42 +1010,46 @@ static hsa_status_t get_code_object_custom_metadata(void *binary,
   return HSA_STATUS_SUCCESS;
 }
 
-static hsa_status_t populate_InfoTables(hsa_executable_t executable,
-                                        hsa_executable_symbol_t symbol,
-                                        void *data) {
-  int gpu = *static_cast<int *>(data);
+static hsa_status_t populate_InfoTables(hsa_executable_symbol_t symbol,
+                                        int gpu) {
   hsa_symbol_kind_t type;
 
   uint32_t name_length;
   hsa_status_t err;
   err = hsa_executable_symbol_get_info(symbol, HSA_EXECUTABLE_SYMBOL_INFO_TYPE,
                                        &type);
-  ErrorCheck(Symbol info extraction, err);
+  if (err != HSA_STATUS_SUCCESS) {
+    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+           "Symbol info extraction", get_error_string(err));
+    return err;
+  }
   DEBUG_PRINT("Exec Symbol type: %d\n", type);
   if (type == HSA_SYMBOL_KIND_KERNEL) {
     err = hsa_executable_symbol_get_info(
         symbol, HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, &name_length);
-    ErrorCheck(Symbol info extraction, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Symbol info extraction", get_error_string(err));
+      return err;
+    }
     char *name = reinterpret_cast<char *>(malloc(name_length + 1));
     err = hsa_executable_symbol_get_info(symbol,
                                          HSA_EXECUTABLE_SYMBOL_INFO_NAME, name);
-    ErrorCheck(Symbol info extraction, err);
-    name[name_length] = 0;
-
-    if (KernelNameMap.find(std::string(name)) == KernelNameMap.end()) {
-      // did not find kernel name in the kernel map; this can happen only
-      // if the ROCr API for getting symbol info (name) is different from
-      // the comgr method of getting symbol info
-      ErrorCheck(Invalid kernel name, HSA_STATUS_ERROR_INVALID_CODE_OBJECT);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Symbol info extraction", get_error_string(err));
+      return err;
     }
+    // remove the suffix .kd from symbol name.
+    name[name_length - 3] = 0;
+
     atl_kernel_info_t info;
-    std::string kernelName = KernelNameMap[std::string(name)];
+    std::string kernelName(name);
     // by now, the kernel info table should already have an entry
     // because the non-ROCr custom code object parsing is called before
     // iterating over the code object symbols using ROCr
     if (KernelInfoTable[gpu].find(kernelName) == KernelInfoTable[gpu].end()) {
-      ErrorCheck(Finding the entry kernel info table,
-                 HSA_STATUS_ERROR_INVALID_CODE_OBJECT);
+      return HSA_STATUS_ERROR;
     }
     // found, so assign and update
     info = KernelInfoTable[gpu][kernelName];
@@ -976,15 +1058,30 @@ static hsa_status_t populate_InfoTables(hsa_executable_t executable,
     err = hsa_executable_symbol_get_info(
         symbol, HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT,
         &(info.kernel_object));
-    ErrorCheck(Extracting the symbol from the executable, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Extracting the symbol from the executable",
+             get_error_string(err));
+      return err;
+    }
     err = hsa_executable_symbol_get_info(
         symbol, HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE,
         &(info.group_segment_size));
-    ErrorCheck(Extracting the group segment size from the executable, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Extracting the group segment size from the executable",
+             get_error_string(err));
+      return err;
+    }
     err = hsa_executable_symbol_get_info(
         symbol, HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE,
         &(info.private_segment_size));
-    ErrorCheck(Extracting the private segment from the executable, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Extracting the private segment from the executable",
+             get_error_string(err));
+      return err;
+    }
 
     DEBUG_PRINT(
         "Kernel %s --> %lx symbol %u group segsize %u pvt segsize %u bytes "
@@ -998,28 +1095,47 @@ static hsa_status_t populate_InfoTables(hsa_executable_t executable,
   } else if (type == HSA_SYMBOL_KIND_VARIABLE) {
     err = hsa_executable_symbol_get_info(
         symbol, HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, &name_length);
-    ErrorCheck(Symbol info extraction, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Symbol info extraction", get_error_string(err));
+      return err;
+    }
     char *name = reinterpret_cast<char *>(malloc(name_length + 1));
     err = hsa_executable_symbol_get_info(symbol,
                                          HSA_EXECUTABLE_SYMBOL_INFO_NAME, name);
-    ErrorCheck(Symbol info extraction, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Symbol info extraction", get_error_string(err));
+      return err;
+    }
     name[name_length] = 0;
 
     atl_symbol_info_t info;
 
     err = hsa_executable_symbol_get_info(
         symbol, HSA_EXECUTABLE_SYMBOL_INFO_VARIABLE_ADDRESS, &(info.addr));
-    ErrorCheck(Symbol info address extraction, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Symbol info address extraction", get_error_string(err));
+      return err;
+    }
 
     err = hsa_executable_symbol_get_info(
         symbol, HSA_EXECUTABLE_SYMBOL_INFO_VARIABLE_SIZE, &(info.size));
-    ErrorCheck(Symbol info size extraction, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Symbol info size extraction", get_error_string(err));
+      return err;
+    }
 
     atmi_mem_place_t place = ATMI_MEM_PLACE(ATMI_DEVTYPE_GPU, gpu, 0);
     DEBUG_PRINT("Symbol %s = %p (%u bytes)\n", name, (void *)info.addr,
                 info.size);
-    register_allocation(reinterpret_cast<void *>(info.addr), (size_t)info.size,
-                        place);
+    err = register_allocation(reinterpret_cast<void *>(info.addr),
+                              (size_t)info.size, place);
+    if (err != HSA_STATUS_SUCCESS) {
+      return err;
+    }
     SymbolInfoTable[gpu][std::string(name)] = info;
     if (strcmp(name, "needs_hostcall_buffer") == 0)
       g_atmi_hostcall_required = true;
@@ -1034,7 +1150,7 @@ atmi_status_t Runtime::RegisterModuleFromMemory(
     void *module_bytes, size_t module_size, atmi_place_t place,
     atmi_status_t (*on_deserialized_data)(void *data, size_t size,
                                           void *cb_state),
-    void *cb_state) {
+    void *cb_state, std::vector<hsa_executable_t> &HSAExecutables) {
   hsa_status_t err;
   int gpu = place.device_id;
   assert(gpu >= 0);
@@ -1046,14 +1162,22 @@ atmi_status_t Runtime::RegisterModuleFromMemory(
   hsa_profile_t agent_profile;
 
   err = hsa_agent_get_info(agent, HSA_AGENT_INFO_PROFILE, &agent_profile);
-  ErrorCheck(Query the agent profile, err);
+  if (err != HSA_STATUS_SUCCESS) {
+    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+           "Query the agent profile", get_error_string(err));
+    return ATMI_STATUS_ERROR;
+  }
   // FIXME: Assume that every profile is FULL until we understand how to build
   // GCN with base profile
   agent_profile = HSA_PROFILE_FULL;
   /* Create the empty executable.  */
   err = hsa_executable_create(agent_profile, HSA_EXECUTABLE_STATE_UNFROZEN, "",
                               &executable);
-  ErrorCheck(Create the executable, err);
+  if (err != HSA_STATUS_SUCCESS) {
+    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+           "Create the executable", get_error_string(err));
+    return ATMI_STATUS_ERROR;
+  }
 
   bool module_load_success = false;
   do // Existing control flow used continue, preserve that for this patch
@@ -1063,13 +1187,22 @@ atmi_status_t Runtime::RegisterModuleFromMemory(
       // code object metadata parsing to collect such metadata info
 
       err = get_code_object_custom_metadata(module_bytes, module_size, gpu);
-      ErrorCheckAndContinue(Getting custom code object metadata, err);
+      if (err != HSA_STATUS_SUCCESS) {
+        DEBUG_PRINT("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+                    "Getting custom code object metadata",
+                    get_error_string(err));
+        continue;
+      }
 
       // Deserialize code object.
       hsa_code_object_t code_object = {0};
       err = hsa_code_object_deserialize(module_bytes, module_size, NULL,
                                         &code_object);
-      ErrorCheckAndContinue(Code Object Deserialization, err);
+      if (err != HSA_STATUS_SUCCESS) {
+        DEBUG_PRINT("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+                    "Code Object Deserialization", get_error_string(err));
+        continue;
+      }
       assert(0 != code_object.handle);
 
       // Mutating the device image here avoids another allocation & memcpy
@@ -1077,12 +1210,21 @@ atmi_status_t Runtime::RegisterModuleFromMemory(
           reinterpret_cast<void *>(code_object.handle);
       atmi_status_t atmi_err =
           on_deserialized_data(code_object_alloc_data, module_size, cb_state);
-      ATMIErrorCheck(Error in deserialized_data callback, atmi_err);
+      if (atmi_err != ATMI_STATUS_SUCCESS) {
+        printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+               "Error in deserialized_data callback",
+               get_atmi_error_string(atmi_err));
+        return atmi_err;
+      }
 
       /* Load the code object.  */
       err =
           hsa_executable_load_code_object(executable, agent, code_object, NULL);
-      ErrorCheckAndContinue(Loading the code object, err);
+      if (err != HSA_STATUS_SUCCESS) {
+        DEBUG_PRINT("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+                    "Loading the code object", get_error_string(err));
+        continue;
+      }
 
       // cannot iterate over symbols until executable is frozen
     }
@@ -1092,14 +1234,26 @@ atmi_status_t Runtime::RegisterModuleFromMemory(
   if (module_load_success) {
     /* Freeze the executable; it can now be queried for symbols.  */
     err = hsa_executable_freeze(executable, "");
-    ErrorCheck(Freeze the executable, err);
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Freeze the executable", get_error_string(err));
+      return ATMI_STATUS_ERROR;
+    }
 
-    err = hsa_executable_iterate_symbols(executable, populate_InfoTables,
-                                         static_cast<void *>(&gpu));
-    ErrorCheck(Iterating over symbols for execuatable, err);
+    err = hsa::executable_iterate_symbols(
+        executable,
+        [&](hsa_executable_t, hsa_executable_symbol_t symbol) -> hsa_status_t {
+          return populate_InfoTables(symbol, gpu);
+        });
+
+    if (err != HSA_STATUS_SUCCESS) {
+      printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
+             "Iterating over symbols for execuatable", get_error_string(err));
+      return ATMI_STATUS_ERROR;
+    }
 
     // save the executable and destroy during finalize
-    g_executables.push_back(executable);
+    HSAExecutables.push_back(executable);
     return ATMI_STATUS_SUCCESS;
   } else {
     return ATMI_STATUS_ERROR;

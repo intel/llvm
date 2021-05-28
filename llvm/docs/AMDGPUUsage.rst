@@ -15,6 +15,7 @@ User Guide for AMDGPU Backend
    AMDGPU/AMDGPUAsmGFX904
    AMDGPU/AMDGPUAsmGFX906
    AMDGPU/AMDGPUAsmGFX908
+   AMDGPU/AMDGPUAsmGFX90a
    AMDGPU/AMDGPUAsmGFX10
    AMDGPU/AMDGPUAsmGFX1011
    AMDGPUModifierSyntax
@@ -317,7 +318,7 @@ Every processor supports every OS ABI (see :ref:`amdgpu-os`) with the following 
                                                                                                         Add product
                                                                                                         names.
 
-     **GCN GFX9 (Vega)** [AMD-GCN-GFX9]_
+     **GCN GFX9 (Vega)** [AMD-GCN-GFX9]_ [AMD-GCN-GFX908-CDNA1]_
      -----------------------------------------------------------------------------------------------------------------------
      ``gfx900``                  ``amdgcn``   dGPU  - xnack           - Absolute      - *rocm-amdhsa* - Radeon Vega
                                                                         flat          - *pal-amdhsa*    Frontier Edition
@@ -340,7 +341,7 @@ Every processor supports every OS ABI (see :ref:`amdgpu-os`) with the following 
                                                     - xnack             flat          - *pal-amdhsa*  - Radeon Instinct MI60
                                                                         scratch       - *pal-amdpal*  - Radeon VII
                                                                                                       - Radeon Pro VII
-     ``gfx908``                  ``amdgcn``   dGPU  - sramecc                         - *rocm-amdhsa* - Radeon Instinct MI100 Accelerator
+     ``gfx908``                  ``amdgcn``   dGPU  - sramecc                         - *rocm-amdhsa* - AMD Instinct MI100 Accelerator
                                                     - xnack           - Absolute
                                                                         flat
                                                                         scratch
@@ -401,6 +402,12 @@ Every processor supports every OS ABI (see :ref:`amdgpu-os`) with the following 
                                                                                                         names.
 
      ``gfx1033``                 ``amdgcn``   APU   - cumode          - Absolute      - *pal-amdpal*  *TBA*
+                                                    - wavefrontsize64   flat
+                                                                        scratch                       .. TODO::
+
+                                                                                                        Add product
+                                                                                                        names.
+     ``gfx1034``                 ``amdgcn``   dGPU  - cumode          - Absolute      - *pal-amdpal*  *TBA*
                                                     - wavefrontsize64   flat
                                                                         scratch                       .. TODO::
 
@@ -1138,7 +1145,7 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX705``     0x03b      ``gfx705``
      ``EF_AMDGPU_MACH_AMDGCN_GFX805``     0x03c      ``gfx805``
      *reserved*                           0x03d      Reserved.
-     *reserved*                           0x03e      Reserved.
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1034``    0x03e      ``gfx1034``
      ``EF_AMDGPU_MACH_AMDGCN_GFX90A``     0x03f      ``gfx90a``
      *reserved*                           0x040      Reserved.
      *reserved*                           0x041      Reserved.
@@ -1272,7 +1279,7 @@ are deprecated and should not be used.
   Specifies the code object version number. The description field has the
   following layout:
 
-  .. code::
+  .. code:: c
 
     struct amdgpu_hsa_note_code_object_version_s {
       uint32_t major_version;
@@ -1285,7 +1292,7 @@ are deprecated and should not be used.
   Specifies the HSAIL properties used by the HSAIL Finalizer. The description
   field has the following layout:
 
-  .. code::
+  .. code:: c
 
     struct amdgpu_hsa_note_hsail_s {
       uint32_t hsail_major_version;
@@ -1298,7 +1305,7 @@ are deprecated and should not be used.
 ``NT_AMD_HSA_ISA_VERSION``
   Specifies the target ISA version. The description field has the following layout:
 
-  .. code::
+  .. code:: c
 
     struct amdgpu_hsa_note_isa_s {
       uint16_t vendor_name_size;
@@ -3649,14 +3656,22 @@ The fields used by CP for code objects before V3 also match those specified in
                                                      ``compute_pgm_rsrc2.user_sgpr.user_sgpr_count``.
                                                      Any requests beyond 16
                                                      will be ignored.
-     >448    1 bit   ENABLE_SGPR_PRIVATE_SEGMENT
-                     _BUFFER
+     >448    1 bit   ENABLE_SGPR_PRIVATE_SEGMENT     If the *Target Properties*
+                     _BUFFER                         column of
+                                                     :ref:`amdgpu-processor-table`
+                                                     specifies *Architected flat
+                                                     scratch* then not supported
+                                                     and must be 0,
      >449    1 bit   ENABLE_SGPR_DISPATCH_PTR
      >450    1 bit   ENABLE_SGPR_QUEUE_PTR
      >451    1 bit   ENABLE_SGPR_KERNARG_SEGMENT_PTR
      >452    1 bit   ENABLE_SGPR_DISPATCH_ID
-     >453    1 bit   ENABLE_SGPR_FLAT_SCRATCH_INIT
-
+     >453    1 bit   ENABLE_SGPR_FLAT_SCRATCH_INIT   If the *Target Properties*
+                                                     column of
+                                                     :ref:`amdgpu-processor-table`
+                                                     specifies *Architected flat
+                                                     scratch* then not supported
+                                                     and must be 0,
      >454    1 bit   ENABLE_SGPR_PRIVATE_SEGMENT
                      _SIZE
      457:455 3 bits                                  Reserved, must be 0.
@@ -3976,14 +3991,27 @@ The fields used by CP for code objects before V3 also match those specified in
      ======= ======= =============================== ===========================================================================
      Bits    Size    Field Name                      Description
      ======= ======= =============================== ===========================================================================
-     0       1 bit   ENABLE_PRIVATE_SEGMENT          Enable the setup of the
-                                                     private segment.
-
-                                                     In addition, enable the
-                                                     setup of the SGPR
-                                                     wavefront scratch offset
-                                                     system register (see
-                                                     :ref:`amdgpu-amdhsa-initial-kernel-execution-state`).
+     0       1 bit   ENABLE_PRIVATE_SEGMENT          * Enable the setup of the
+                                                       private segment.
+                                                     * If the *Target Properties*
+                                                       column of
+                                                       :ref:`amdgpu-processor-table`
+                                                       does not specify
+                                                       *Architected flat
+                                                       scratch* then enable the
+                                                       setup of the SGPR
+                                                       wavefront scratch offset
+                                                       system register (see
+                                                       :ref:`amdgpu-amdhsa-initial-kernel-execution-state`).
+                                                     * If the *Target Properties*
+                                                       column of
+                                                       :ref:`amdgpu-processor-table`
+                                                       specifies *Architected
+                                                       flat scratch* then enable
+                                                       the setup of the
+                                                       FLAT_SCRATCH register
+                                                       pair (see
+                                                       :ref:`amdgpu-amdhsa-initial-kernel-execution-state`).
 
                                                      Used by CP to set up
                                                      ``COMPUTE_PGM_RSRC2.SCRATCH_EN``.
@@ -4542,12 +4570,26 @@ There are different methods used for initializing flat scratch:
   segment address when using the Scratch Segment Buffer (see
   :ref:`amdgpu-amdhsa-kernel-prolog-private-segment-buffer`).
 
+* If the *Target Properties* column of :ref:`amdgpu-processor-table`
+  specifies *Architected flat scratch*:
+
+  If ENABLE_PRIVATE_SEGMENT is enabled in
+  :ref:`amdgpu-amdhsa-compute_pgm_rsrc2-gfx6-gfx10-table` then the FLAT_SCRATCH
+  register pair will be initialized to the 64-bit address of the base of scratch
+  backing memory being managed by SPI for the queue executing the kernel
+  dispatch plus the value of the wave's Scratch Wavefront Offset for use as the
+  flat scratch base in flat memory instructions.
+
 .. _amdgpu-amdhsa-kernel-prolog-private-segment-buffer:
 
 Private Segment Buffer
 ++++++++++++++++++++++
 
-Private Segment Buffer SGPR register is used to initialize 4 SGPRs
+If the *Target Properties* column of :ref:`amdgpu-processor-table` specifies
+*Architected flat scratch* then a Private Segment Buffer is not supported.
+Instead the flat SCRATCH instructions are used.
+
+Otherwise, Private Segment Buffer SGPR register is used to initialize 4 SGPRs
 that are used as a V# to access scratch. CP uses the value provided by the
 runtime. It is used, together with Scratch Wavefront Offset as an offset, to
 access the private memory space using a segment address. See
@@ -11363,6 +11405,8 @@ in this description.
 
                                         :doc:`gfx909<AMDGPU/AMDGPUAsmGFX900>`
 
+                                        :doc:`gfx90a<AMDGPU/AMDGPUAsmGFX90a>`
+
     :doc:`GFX10<AMDGPU/AMDGPUAsmGFX10>` :doc:`gfx1011<AMDGPU/AMDGPUAsmGFX1011>`
 
                                         :doc:`gfx1012<AMDGPU/AMDGPUAsmGFX1011>`
@@ -11371,7 +11415,7 @@ in this description.
 For more information about instructions, their semantics and supported
 combinations of operands, refer to one of instruction set architecture manuals
 [AMD-GCN-GFX6]_, [AMD-GCN-GFX7]_, [AMD-GCN-GFX8]_, [AMD-GCN-GFX9]_,
-[AMD-GCN-GFX10-RDNA1]_ and [AMD-GCN-GFX10-RDNA2]_.
+[AMD-GCN-GFX908-CDNA1]_, [AMD-GCN-GFX10-RDNA1]_ and [AMD-GCN-GFX10-RDNA2]_.
 
 Operands
 ~~~~~~~~
@@ -12113,9 +12157,10 @@ Additional Documentation
 .. [AMD-GCN-GFX6] `AMD Southern Islands Series ISA <http://developer.amd.com/wordpress/media/2012/12/AMD_Southern_Islands_Instruction_Set_Architecture.pdf>`__
 .. [AMD-GCN-GFX7] `AMD Sea Islands Series ISA <http://developer.amd.com/wordpress/media/2013/07/AMD_Sea_Islands_Instruction_Set_Architecture.pdf>`_
 .. [AMD-GCN-GFX8] `AMD GCN3 Instruction Set Architecture <http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2013/12/AMD_GCN3_Instruction_Set_Architecture_rev1.1.pdf>`__
-.. [AMD-GCN-GFX9] `AMD "Vega" Instruction Set Architecture <http://developer.amd.com/wordpress/media/2013/12/Vega_Shader_ISA_28July2017.pdf>`__
-.. [AMD-GCN-GFX10-RDNA1] `AMD "RDNA 1.0" Instruction Set Architecture <https://gpuopen.com/wp-content/uploads/2019/08/RDNA_Shader_ISA_5August2019.pdf>`__
-.. [AMD-GCN-GFX10-RDNA2] `AMD "RDNA 2" Instruction Set Architecture <https://developer.amd.com/wp-content/resources/RDNA2_Shader_ISA_November2020.pdf>`__
+.. [AMD-GCN-GFX9] `AMD Vega Instruction Set Architecture <http://developer.amd.com/wordpress/media/2013/12/Vega_Shader_ISA_28July2017.pdf>`__
+.. [AMD-GCN-GFX908-CDNA1] `AMD Instinct MI100 Instruction Set Architecture <https://developer.amd.com/wp-content/resources/CDNA1_Shader_ISA_14December2020.pdf>`__
+.. [AMD-GCN-GFX10-RDNA1] `AMD RDNA 1.0 Instruction Set Architecture <https://gpuopen.com/wp-content/uploads/2019/08/RDNA_Shader_ISA_5August2019.pdf>`__
+.. [AMD-GCN-GFX10-RDNA2] `AMD RDNA 2 Instruction Set Architecture <https://developer.amd.com/wp-content/resources/RDNA2_Shader_ISA_November2020.pdf>`__
 .. [AMD-RADEON-HD-2000-3000] `AMD R6xx shader ISA <http://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf>`__
 .. [AMD-RADEON-HD-4000] `AMD R7xx shader ISA <http://developer.amd.com/wordpress/media/2012/10/R700-Family_Instruction_Set_Architecture.pdf>`__
 .. [AMD-RADEON-HD-5000] `AMD Evergreen shader ISA <http://developer.amd.com/wordpress/media/2012/10/AMD_Evergreen-Family_Instruction_Set_Architecture.pdf>`__

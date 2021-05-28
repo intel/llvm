@@ -95,7 +95,7 @@ else:
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 backend=lit_config.params.get('SYCL_PLUGIN', "opencl")
 lit_config.note("Backend: {}".format(backend))
-config.substitutions.append( ('%sycl_be', { 'opencl': 'PI_OPENCL',  'cuda': 'PI_CUDA', 'level_zero': 'PI_LEVEL_ZERO'}[backend]) )
+config.substitutions.append( ('%sycl_be', backend) )
 config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SYCL_PLUGIN} ".format(SYCL_PLUGIN=backend)) )
 config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
 

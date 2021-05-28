@@ -486,9 +486,19 @@ void LLVMOrcJITTargetMachineBuilderSetTargetTriple(
   unwrap(JTMB)->getTargetTriple() = Triple(TargetTriple);
 }
 
-void LLVMOrcJITTargetMachineBuilderDisposeTargetTriple(
-    LLVMOrcJITTargetMachineBuilderRef JTMB, char *TargetTriple) {
-  free(TargetTriple);
+LLVMErrorRef LLVMOrcObjectLayerAddObjectFile(LLVMOrcObjectLayerRef ObjLayer,
+                                             LLVMOrcJITDylibRef JD,
+                                             LLVMMemoryBufferRef ObjBuffer) {
+  return wrap(unwrap(ObjLayer)->add(
+      *unwrap(JD), std::unique_ptr<MemoryBuffer>(unwrap(ObjBuffer))));
+}
+
+LLVMErrorRef LLVMOrcLLJITAddObjectFileWithRT(LLVMOrcObjectLayerRef ObjLayer,
+                                             LLVMOrcResourceTrackerRef RT,
+                                             LLVMMemoryBufferRef ObjBuffer) {
+  return wrap(
+      unwrap(ObjLayer)->add(ResourceTrackerSP(unwrap(RT)),
+                            std::unique_ptr<MemoryBuffer>(unwrap(ObjBuffer))));
 }
 
 void LLVMOrcObjectLayerEmit(LLVMOrcObjectLayerRef ObjLayer,

@@ -449,7 +449,7 @@ bool TargetTransformInfo::isTypeLegal(Type *Ty) const {
   return TTIImpl->isTypeLegal(Ty);
 }
 
-unsigned TargetTransformInfo::getRegUsageForType(Type *Ty) const {
+InstructionCost TargetTransformInfo::getRegUsageForType(Type *Ty) const {
   return TTIImpl->getRegUsageForType(Ty);
 }
 
@@ -917,7 +917,7 @@ InstructionCost TargetTransformInfo::getExtendedAddReductionCost(
                                               CostKind);
 }
 
-unsigned
+InstructionCost
 TargetTransformInfo::getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const {
   return TTIImpl->getCostOfKeepingLiveOverCall(Tys);
 }
@@ -1024,6 +1024,11 @@ bool TargetTransformInfo::preferInLoopReduction(unsigned Opcode, Type *Ty,
 bool TargetTransformInfo::preferPredicatedReductionSelect(
     unsigned Opcode, Type *Ty, ReductionFlags Flags) const {
   return TTIImpl->preferPredicatedReductionSelect(Opcode, Ty, Flags);
+}
+
+TargetTransformInfo::VPLegalization
+TargetTransformInfo::getVPLegalizationStrategy(const VPIntrinsic &VPI) const {
+  return TTIImpl->getVPLegalizationStrategy(VPI);
 }
 
 bool TargetTransformInfo::shouldExpandReduction(const IntrinsicInst *II) const {

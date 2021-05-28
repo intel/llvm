@@ -553,6 +553,11 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                                         F->arg_begin()->getType());
       return true;
     }
+    if (Name.startswith("aarch64.neon.rbit")) {
+      NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::bitreverse,
+                                        F->arg_begin()->getType());
+      return true;
+    }
     if (Name.startswith("arm.neon.vclz")) {
       Type* args[2] = {
         F->arg_begin()->getType(),
@@ -3884,7 +3889,12 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
   }
 
   case Intrinsic::invariant_start:
-  case Intrinsic::invariant_end:
+  case Intrinsic::invariant_end: {
+    SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
+                                 CI->arg_operands().end());
+    NewCall = Builder.CreateCall(NewFn, Args);
+    break;
+  }
   case Intrinsic::masked_load:
   case Intrinsic::masked_store:
   case Intrinsic::masked_gather:
@@ -3892,6 +3902,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
     SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
                                  CI->arg_operands().end());
     NewCall = Builder.CreateCall(NewFn, Args);
+    NewCall->copyMetadata(*CI);
     break;
   }
 
@@ -4365,6 +4376,12 @@ void llvm::UpgradeFunctionAttributes(Function &F) {
     Attribute NewAttr = Attribute::getWithByValType(F.getContext(), ByValTy);
     F.addParamAttr(0, NewAttr);
   }
+
+  // Remove all incompatibile attributes from function.
+  F.removeAttributes(AttributeList::ReturnIndex,
+                     AttributeFuncs::typeIncompatible(F.getReturnType()));
+  for (auto &Arg : F.args())
+    Arg.removeAttrs(AttributeFuncs::typeIncompatible(Arg.getType()));
 }
 
 static bool isOldLoopArgument(Metadata *MD) {

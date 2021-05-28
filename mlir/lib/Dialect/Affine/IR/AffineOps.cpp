@@ -698,12 +698,19 @@ void mlir::fullyComposeAffineMapAndOperands(AffineMap *map,
 
 AffineApplyOp mlir::makeComposedAffineApply(OpBuilder &b, Location loc,
                                             AffineMap map,
-                                            ArrayRef<Value> operands) {
+                                            ValueRange operands) {
   AffineMap normalizedMap = map;
   SmallVector<Value, 8> normalizedOperands(operands.begin(), operands.end());
   composeAffineMapAndOperands(&normalizedMap, &normalizedOperands);
   assert(normalizedMap);
   return b.create<AffineApplyOp>(loc, normalizedMap, normalizedOperands);
+}
+
+AffineApplyOp mlir::makeComposedAffineApply(OpBuilder &b, Location loc,
+                                            AffineExpr e, ValueRange values) {
+  return makeComposedAffineApply(
+      b, loc, AffineMap::inferFromExprList(ArrayRef<AffineExpr>{e}).front(),
+      values);
 }
 
 // A symbol may appear as a dim in affine.apply operations. This function
@@ -853,15 +860,18 @@ struct SimplifyAffineOp : public OpRewritePattern<AffineOpTy> {
 
   LogicalResult matchAndRewrite(AffineOpTy affineOp,
                                 PatternRewriter &rewriter) const override {
-    static_assert(llvm::is_one_of<AffineOpTy, AffineLoadOp, AffinePrefetchOp,
-                                  AffineStoreOp, AffineApplyOp, AffineMinOp,
-                                  AffineMaxOp>::value,
-                  "affine load/store/apply/prefetch/min/max op expected");
+    static_assert(
+        llvm::is_one_of<AffineOpTy, AffineLoadOp, AffinePrefetchOp,
+                        AffineStoreOp, AffineApplyOp, AffineMinOp, AffineMaxOp,
+                        AffineVectorStoreOp, AffineVectorLoadOp>::value,
+        "affine load/store/vectorstore/vectorload/apply/prefetch/min/max op "
+        "expected");
     auto map = affineOp.getAffineMap();
     AffineMap oldMap = map;
     auto oldOperands = affineOp.getMapOperands();
     SmallVector<Value, 8> resultOperands(oldOperands);
     composeAffineMapAndOperands(&map, &resultOperands);
+    canonicalizeMapAndOperands(&map, &resultOperands);
     if (map == oldMap && std::equal(oldOperands.begin(), oldOperands.end(),
                                     resultOperands.begin()))
       return failure();
@@ -894,6 +904,22 @@ void SimplifyAffineOp<AffineStoreOp>::replaceAffineOp(
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<AffineStoreOp>(
       store, store.getValueToStore(), store.getMemRef(), map, mapOperands);
+}
+template <>
+void SimplifyAffineOp<AffineVectorLoadOp>::replaceAffineOp(
+    PatternRewriter &rewriter, AffineVectorLoadOp vectorload, AffineMap map,
+    ArrayRef<Value> mapOperands) const {
+  rewriter.replaceOpWithNewOp<AffineVectorLoadOp>(
+      vectorload, vectorload.getVectorType(), vectorload.getMemRef(), map,
+      mapOperands);
+}
+template <>
+void SimplifyAffineOp<AffineVectorStoreOp>::replaceAffineOp(
+    PatternRewriter &rewriter, AffineVectorStoreOp vectorstore, AffineMap map,
+    ArrayRef<Value> mapOperands) const {
+  rewriter.replaceOpWithNewOp<AffineVectorStoreOp>(
+      vectorstore, vectorstore.getValueToStore(), vectorstore.getMemRef(), map,
+      mapOperands);
 }
 
 // Generic version for ops that don't have extra operands.
@@ -1059,10 +1085,6 @@ LogicalResult AffineDmaStartOp::verify() {
   if (!getOperand(getTagMemRefOperandIndex()).getType().isa<MemRefType>())
     return emitOpError("expected DMA tag to be of memref type");
 
-  // DMAs from different memory spaces supported.
-  if (getSrcMemorySpace() == getDstMemorySpace()) {
-    return emitOpError("DMA should be between different memory spaces");
-  }
   unsigned numInputsAllMaps = getSrcMap().getNumInputs() +
                               getDstMap().getNumInputs() +
                               getTagMap().getNumInputs();
@@ -3267,6 +3289,11 @@ void AffineVectorLoadOp::build(OpBuilder &builder, OperationState &result,
   build(builder, result, resultType, memref, map, indices);
 }
 
+void AffineVectorLoadOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                     MLIRContext *context) {
+  results.add<SimplifyAffineOp<AffineVectorLoadOp>>(context);
+}
+
 static ParseResult parseAffineVectorLoadOp(OpAsmParser &parser,
                                            OperationState &result) {
   auto &builder = parser.getBuilder();
@@ -3352,6 +3379,10 @@ void AffineVectorStoreOp::build(OpBuilder &builder, OperationState &result,
   auto map =
       rank ? builder.getMultiDimIdentityMap(rank) : builder.getEmptyAffineMap();
   build(builder, result, valueToStore, memref, map, indices);
+}
+void AffineVectorStoreOp::getCanonicalizationPatterns(
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<SimplifyAffineOp<AffineVectorStoreOp>>(context);
 }
 
 static ParseResult parseAffineVectorStoreOp(OpAsmParser &parser,

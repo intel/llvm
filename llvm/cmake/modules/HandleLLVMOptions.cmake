@@ -411,10 +411,8 @@ if(MSVC)
 elseif(MINGW) # FIXME: Also cygwin?
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,16777216")
 
-  # Pass -mbig-obj to mingw gas on Win64. COFF has a 2**16 section limit, and
-  # on Win64, every COMDAT function creates at least 3 sections: .text, .pdata,
-  # and .xdata.
-  if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+  # Pass -mbig-obj to mingw gas to avoid COFF 2**16 section limit.
+  if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     append("-Wa,-mbig-obj" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif()
 endif()
@@ -759,6 +757,9 @@ if (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
 
   # Enable -Wstring-conversion to catch misuse of string literals.
   add_flag_if_supported("-Wstring-conversion" STRING_CONVERSION_FLAG)
+
+  # Prevent bugs that can happen with llvm's brace style.
+  add_flag_if_supported("-Wmisleading-indentation" MISLEADING_INDENTATION_FLAG)
 endif (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
 
 if (LLVM_COMPILER_IS_GCC_COMPATIBLE AND NOT LLVM_ENABLE_WARNINGS)
