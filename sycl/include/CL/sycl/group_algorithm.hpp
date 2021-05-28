@@ -210,7 +210,6 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 #endif
 }
 
-
 // ---- joint_reduce
 template <typename Group, typename Ptr, class BinaryOperation>
 detail::enable_if_t<
