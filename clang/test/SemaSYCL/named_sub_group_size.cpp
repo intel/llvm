@@ -1,12 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -sycl-std=2017 -DSYCL2017 -verify %s
-
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=primary -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -ast-dump -verify=expected,integer -DSYCL2020 %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -ast-dump -verify=expected,primary -DSYCL2020 %s
 
 // Validate the semantic analysis checks for the named_sub_group_size attribute.
-// The attribute can be only be applied to non-sycl-kernel/
-// non-sycl-device functions if they match the kernel they are being called
-// from.
 
 #include "Inputs/sycl.hpp"
 
@@ -49,7 +45,7 @@ void calls_kernel_2() {
   sycl::kernel_single_task<class Kernel3>(F1);
 }
 
-// Test ttribute does not get  propgated to the kernel.
+// Test ttribute does not get propgated to the kernel.
 [[intel::named_sub_group_size(primary)]] void AttrFunc() {} // #AttrFunc
 
 void calls_kernel_3() {
