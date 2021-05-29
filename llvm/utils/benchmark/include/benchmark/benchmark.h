@@ -954,7 +954,7 @@ class FunctionBenchmark : public Benchmark {
 
   virtual void Run(State &st) override;
 
- private:
+private:
   Function *func_;
 };
 
@@ -1402,7 +1402,7 @@ public:
   virtual bool ReportContext(const Context &context) override;
   virtual void ReportRuns(const std::vector<Run> &reports) override;
 
- protected:
+protected:
   virtual void PrintRunData(const Run& report);
   virtual void PrintHeader(const Run& report);
 
@@ -1419,7 +1419,7 @@ class JSONReporter : public BenchmarkReporter {
   virtual void ReportRuns(const std::vector<Run> &reports) override;
   virtual void Finalize() override;
 
- private:
+private:
   void PrintRunData(const Run &report);
 
   bool first_report_;
@@ -1431,7 +1431,7 @@ class CSVReporter : public BenchmarkReporter {
   virtual bool ReportContext(const Context &context) override;
   virtual void ReportRuns(const std::vector<Run> &reports) override;
 
- private:
+private:
   void PrintRunData(const Run& report);
 
   bool printed_header_;
