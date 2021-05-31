@@ -38,7 +38,7 @@
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
 #define __SYCL_CONSTEXPR_HALF constexpr
 #else
-#define __SYCL_CONSTEXPR_HALF 
+#define __SYCL_CONSTEXPR_HALF
 #endif
 
 #define __SYCL_DEVICE_OR_BITCAST_CONSTEXPR
@@ -461,19 +461,23 @@ template <> struct numeric_limits<cl::sycl::half> {
   static constexpr bool is_iec559 = true;
   static constexpr float_round_style round_style = round_to_nearest;
 
-  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half(min)() noexcept {
+  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const
+  cl::sycl::half(min)() noexcept {
     return 6.103515625e-05f; // half minimum value
   }
 
-  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half(max)() noexcept {
+  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const
+  cl::sycl::half(max)() noexcept {
     return 65504.0f; // half maximum value
   }
 
-  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half lowest() noexcept {
+  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half
+  lowest() noexcept {
     return -65504.0f; // -1*(half maximum value)
   }
 
-  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half epsilon() noexcept {
+  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half
+  epsilon() noexcept {
     return 9.765625e-04f; // half epsilon
   }
 
@@ -491,7 +495,8 @@ template <> struct numeric_limits<cl::sycl::half> {
 #endif
   }
 
-  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half quiet_NaN() noexcept {
+  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half
+  quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
@@ -500,7 +505,8 @@ template <> struct numeric_limits<cl::sycl::half> {
     return __builtin_nansf("");
   }
 
-  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half denorm_min() noexcept {
+  static __SYCL_DEVICE_OR_BITCAST_CONSTEXPR const cl::sycl::half
+  denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
