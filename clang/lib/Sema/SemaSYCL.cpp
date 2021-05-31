@@ -4897,6 +4897,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
+    OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
     OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
     OS << "namespace sycl {\n";
     OS << "namespace detail {\n";
