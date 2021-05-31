@@ -288,7 +288,7 @@ bool device_impl::has(aspect Aspect) const {
     // currently not supported
     return false;
   case aspect::ext_oneapi_native_assert:
-    rerutn isAssertFailSupported();
+    return isAssertFailSupported();
 
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
@@ -304,7 +304,7 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
 }
 
 bool device_impl::isAssertFailSupported() const {
-  plugin &Plugin = getPlugin();
+  const plugin &Plugin = getPlugin();
 
   // assume CUDA supports native asserts by default
   if (Plugin.getBackend() == backend::cuda)

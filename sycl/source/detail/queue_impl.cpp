@@ -290,16 +290,7 @@ pi_native_handle queue_impl::getNative() const {
 bool queue_impl::kernelUsesAssert(event &Event,
                                   const std::string &KernelName) const {
   Scheduler &Sched = Scheduler::getInstance();
-  std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
-
-  EventImplPtr &EventPtr = detail::getSyclObjImpl(Event);
-
-  Command *Cmd = EventPtr->getCommand();
-
-  // TODO get device binary image out of command in the way its performed in
-  // ExecCGCommand::enqueueImp @ CGTYPE::KERNEL
-
-  return true;
+  return Sched.kernelUsesAssert(Event, KernelName);
 }
 
 } // namespace detail

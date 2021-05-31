@@ -229,7 +229,7 @@ private:
                             const detail::code_location &CodeLoc) {
     _CODELOCARG(&CodeLoc);
 
-    using AHBufT = buffer<AssertHappened, 1>;
+    using AHBufT = buffer<detail::AssertHappened, 1>;
 
     detail::AssertHappened *AH = new detail::AssertHappened;
     AHBufT *Buffer = new AHBufT{AH, range<1>{1}};
@@ -289,18 +289,23 @@ public:
     _CODELOCARG(&CodeLoc);
 
     event Event;
+
+#ifndef SYCL_DISABLE_FALLBACK_ASSERT
     std::string KernelName;
     bool IsKernel = false;
     Event = submit_impl(CGF, KernelName, IsKernel, CodeLoc);
 
     // assert required
     if (IsKernel && !get_device().is_assert_fail_supported() &&
-        kernelUsesAssert(KernelName)) {
+        kernelUsesAssert(Event, KernelName)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
       submitAssertCapture(Event, /* SecondaryQueue = */ nullptr, CodeLoc);
     }
+#else
+    Event = submit_impl(CGF, CodeLoc);
+#endif
 
     return Event;
   }
@@ -321,18 +326,23 @@ public:
     _CODELOCARG(&CodeLoc);
 
     event Event;
+
+#ifndef SYCL_DISABLE_FALLBACK_ASSERT
     std::string KernelName;
     bool IsKernel = false;
     Event = submit_impl(CGF, KernelName, IsKernel, SecondaryQueue, CodeLoc);
 
     // assert required
     if (IsKernel && !get_device().is_assert_fail_supported() &&
-        kernelUsesAssert(KernelName)) {
+        kernelUsesAssert(Event, KernelName)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
       submitAssertCapture(Event, &SecondaryQueue, CodeLoc);
     }
+#else
+    Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+#endif
 
     return Event;
   }

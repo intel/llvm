@@ -446,6 +446,8 @@ public:
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
+  bool kernelUsesAssert(event &Event, const std::string &KernelName) const;
+
   Scheduler();
   ~Scheduler();
 
@@ -726,7 +728,7 @@ protected:
   GraphBuilder MGraphBuilder;
   // TODO: after switching to C++17, change std::shared_timed_mutex to
   // std::shared_mutex
-  std::shared_timed_mutex MGraphLock;
+  mutable std::shared_timed_mutex MGraphLock;
 
   QueueImplPtr DefaultHostQueue;
 

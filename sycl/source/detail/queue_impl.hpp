@@ -186,7 +186,7 @@ public:
 
   event submit(const function_class<void(handler &)> &CGF,
                std::string &KernelName,
-               bool &IsKernel
+               bool &IsKernel,
                const shared_ptr_class<queue_impl> &Self,
                const shared_ptr_class<queue_impl> &SecondQueue,
                const detail::code_location &Loc) {

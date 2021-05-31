@@ -362,6 +362,32 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
   return Req->MSYCLMemObj->MRecord.get();
 }
 
+bool
+Scheduler::kernelUsesAssert(event &Event, const std::string &KernelName) const {
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+
+  EventImplPtr EventPtr = detail::getSyclObjImpl(Event);
+
+  Command *_Cmd = static_cast<Command *>(EventPtr->getCommand());
+
+  assert((_Cmd->getType() == Command::RUN_CG) &&
+         "Only RUN_CG command can use asserts");
+
+  ExecCGCommand *Cmd = static_cast<ExecCGCommand *>(_Cmd);
+  CG &_CG = Cmd->getCG();
+
+  assert((_CG.getType() == CG::CGTYPE::KERNEL) &&
+         "Only kernel can use asserts");
+
+  CGExecKernel &CmdGroup = static_cast<CGExecKernel &>(_CG);
+  (void)CmdGroup;
+
+  // TODO get device binary image out of command in the way its performed in
+  // ExecCGCommand::enqueueImp @ CGTYPE::KERNEL
+
+  return false;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
