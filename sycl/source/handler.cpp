@@ -203,8 +203,7 @@ event handler::finalize() {
     break;
   case detail::CG::NONE:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      std::cout << "An empty command group is supported by SYCL 2020."
-                << std::endl;
+      std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
     detail::EventImplPtr Event =
         std::make_shared<cl::sycl::detail::event_impl>();
