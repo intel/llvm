@@ -174,7 +174,7 @@ public:
                const detail::code_location &Loc) {
     try {
       bool Dummy;
-      return submit_impl(CGF, /*KernelName =*/ nullptr, Dummy, Self, Loc);
+      return submit_impl(CGF, Dummy, Self, Loc);
     } catch (...) {
       {
         std::lock_guard<mutex_class> Lock(MMutex);
@@ -185,19 +185,18 @@ public:
   }
 
   event submit(const function_class<void(handler &)> &CGF,
-               std::string &KernelName,
                bool &IsKernel,
                const shared_ptr_class<queue_impl> &Self,
                const shared_ptr_class<queue_impl> &SecondQueue,
                const detail::code_location &Loc) {
     try {
-      return submit_impl(CGF, &KernelName, IsKernel, Self, Loc);
+      return submit_impl(CGF, IsKernel, Self, Loc);
     } catch (...) {
       {
         std::lock_guard<mutex_class> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return SecondQueue->submit(CGF, KernelName, IsKernel, SecondQueue, Loc);
+      return SecondQueue->submit(CGF, IsKernel, SecondQueue, Loc);
     }
   }
 
@@ -212,15 +211,14 @@ public:
                const shared_ptr_class<queue_impl> &Self,
                const detail::code_location &Loc) {
     bool Dummy;
-    return submit_impl(CGF, /*KernelName =*/ nullptr, Dummy, Self, Loc);
+    return submit_impl(CGF, Dummy, Self, Loc);
   }
 
   event submit(const function_class<void(handler &)> &CGF,
-               std::string &KernelName,
                bool &IsKernel,
                const shared_ptr_class<queue_impl> &Self,
                const detail::code_location &Loc) {
-    return submit_impl(CGF, &KernelName, IsKernel, Self, Loc);
+    return submit_impl(CGF, IsKernel, Self, Loc);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -404,13 +402,12 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
-  bool kernelUsesAssert(event &Event, const std::string &KernelName) const;
+  bool kernelUsesAssert(event &Event) const;
 
 private:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
-  /// \param[out] KernelName the name of kernel being submit
   /// \param[out] IsKernel set to true if kernel was submit
   /// \param Self is a pointer to this queue.
   /// \param Loc is the code location of the submit call (default argument)
@@ -419,7 +416,6 @@ private:
   /// KernelName is null if the caller doesn't want the kernel name. The object
   /// is modified if and only if there was a kernel submit.
   event submit_impl(const function_class<void(handler &)> &CGF,
-                    std::string *KernelName,
                     bool &IsKernel,
                     const shared_ptr_class<queue_impl> &Self,
                     const detail::code_location &Loc) {
@@ -428,9 +424,6 @@ private:
     CGF(Handler);
 
     IsKernel = Handler.getType() == CG::KERNEL;
-    if (KernelName && IsKernel) {
-      *KernelName = Handler.MKernelName;
-    }
 
     event Event = Handler.finalize();
     addEvent(Event);

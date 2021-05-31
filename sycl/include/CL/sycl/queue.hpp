@@ -276,7 +276,7 @@ private:
 
   // Check if kernel with the name provided in KernelName and which is being
   // enqueued and can be waited on by Event uses assert
-  bool kernelUsesAssert(event &Event, const std::string &KernelName) const;
+  bool kernelUsesAssert(event &Event) const;
 
 public:
   /// Submits a command group function object to the queue, in order to be
@@ -291,13 +291,12 @@ public:
     event Event;
 
 #ifndef SYCL_DISABLE_FALLBACK_ASSERT
-    std::string KernelName;
     bool IsKernel = false;
-    Event = submit_impl(CGF, KernelName, IsKernel, CodeLoc);
+    Event = submit_impl(CGF, IsKernel, CodeLoc);
 
     // assert required
     if (IsKernel && !get_device().is_assert_fail_supported() &&
-        kernelUsesAssert(Event, KernelName)) {
+        kernelUsesAssert(Event)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
@@ -328,13 +327,12 @@ public:
     event Event;
 
 #ifndef SYCL_DISABLE_FALLBACK_ASSERT
-    std::string KernelName;
     bool IsKernel = false;
-    Event = submit_impl(CGF, KernelName, IsKernel, SecondaryQueue, CodeLoc);
+    Event = submit_impl(CGF, IsKernel, SecondaryQueue, CodeLoc);
 
     // assert required
     if (IsKernel && !get_device().is_assert_fail_supported() &&
-        kernelUsesAssert(Event, KernelName)) {
+        kernelUsesAssert(Event)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
       // by program manager class
@@ -857,13 +855,9 @@ private:
                     const detail::code_location &CodeLoc);
 
   event submit_impl(function_class<void(handler &)> CGH,
-                    std::string &KernelName,
-                    bool &IsKernel,
-                    const detail::code_location &CodeLoc);
+                    bool &IsKernel, const detail::code_location &CodeLoc);
   event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
-                    std::string &KernelName,
-                    bool &IsKernel,
-                    const detail::code_location &CodeLoc);
+                    bool &IsKernel, const detail::code_location &CodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.

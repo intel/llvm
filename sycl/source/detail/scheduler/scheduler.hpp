@@ -446,8 +446,6 @@ public:
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
-  bool kernelUsesAssert(event &Event, const std::string &KernelName) const;
-
   Scheduler();
   ~Scheduler();
 
@@ -734,6 +732,7 @@ protected:
 
   friend class Command;
   friend class DispatchHostTask;
+  friend class queue_impl;
 
   /// Stream buffers structure.
   ///

@@ -330,6 +330,9 @@ public:
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
+  const PropertyRange &getAssertUsed() const {
+    return AssertUsed;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -341,6 +344,7 @@ protected:
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
+  DeviceBinaryImage::PropertyRange AssertUsed;
 };
 
 /// Tries to determine the device binary image foramat. Returns

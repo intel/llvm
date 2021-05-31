@@ -287,10 +287,37 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
-bool queue_impl::kernelUsesAssert(event &Event,
-                                  const std::string &KernelName) const {
+bool queue_impl::kernelUsesAssert(event &Event) const {
   Scheduler &Sched = Scheduler::getInstance();
-  return Sched.kernelUsesAssert(Event, KernelName);
+  std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
+
+  EventImplPtr EventPtr = detail::getSyclObjImpl(Event);
+
+  Command *_Cmd = static_cast<Command *>(EventPtr->getCommand());
+
+  assert((_Cmd->getType() == Command::RUN_CG) &&
+         "Only RUN_CG command can use asserts");
+
+  ExecCGCommand *Cmd = static_cast<ExecCGCommand *>(_Cmd);
+  CG &_CG = Cmd->getCG();
+
+  assert((_CG.getType() == CG::CGTYPE::KERNEL) &&
+         "Only kernel can use asserts");
+
+  CGExecKernel &CmdGroup = static_cast<CGExecKernel &>(_CG);
+
+  RTDeviceBinaryImage &BinImg = ProgramManager::getInstance().getDeviceImage(
+      CmdGroup.MOSModuleHandle, CmdGroup.MKernelName, get_context(),
+      get_device());
+
+  const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
+      Img->getAssertUsed();
+  if (AssertUsedRange.isAvailable())
+    for (const auto &Prop : AssertUsedRange)
+      if (Prop->Name == CmdGroup.MKernelName)
+        return true;
+
+  return false;
 }
 
 } // namespace detail
