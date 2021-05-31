@@ -106,9 +106,6 @@ typedef struct atl_symbol_info_s {
   uint32_t size;
 } atl_symbol_info_t;
 
-extern std::vector<std::map<std::string, atl_kernel_info_t>> KernelInfoTable;
-extern std::vector<std::map<std::string, atl_symbol_info_t>> SymbolInfoTable;
-
 // ---------------------- Kernel End -------------
 
 namespace core {
@@ -187,7 +184,7 @@ private:
 extern std::vector<hsa_amd_memory_pool_t> atl_gpu_kernarg_pools;
 
 namespace core {
-atmi_status_t atl_init_gpu_context();
+hsa_status_t atl_init_gpu_context();
 
 hsa_status_t init_hsa();
 hsa_status_t finalize_hsa();
@@ -212,7 +209,7 @@ template <typename T> inline T *alignUp(T *value, size_t alignment) {
 }
 
 hsa_status_t register_allocation(void *addr, size_t size,
-                                 atmi_mem_place_t place);
+                                 atmi_devtype_t DeviceType);
 
 extern bool atl_is_atmi_initialized();
 
@@ -222,6 +219,6 @@ hsa_status_t allow_access_to_all_gpu_agents(void *ptr);
 } // namespace core
 
 const char *get_error_string(hsa_status_t err);
-const char *get_atmi_error_string(atmi_status_t err);
+const char *get_atmi_error_string(hsa_status_t err);
 
 #endif // SRC_RUNTIME_INCLUDE_INTERNAL_H_
