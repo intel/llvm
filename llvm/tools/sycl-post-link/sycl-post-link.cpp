@@ -562,8 +562,6 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // Register required analysis
     MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
     RunSpecConst.addPass(SCP);
-    // This pass deletes unreachable globals.
-    RunSpecConst.addPass(GlobalDCEPass());
 
     for (auto &MPtr : ResultModules) {
       // perform the spec constant intrinsics transformation on each resulting
