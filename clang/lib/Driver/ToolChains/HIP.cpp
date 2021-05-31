@@ -112,10 +112,8 @@ void AMDGCN::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
   // for backward compatibility. For code object version 4 and greater, the
   // offload kind in bundle ID is 'hipv4'.
   std::string OffloadKind = "hip";
-  // bundle ID equals 'hip' is always right.
-  if (getAMDGPUCodeObjectVersion(C.getDriver(), Args) >= 4)
-    // OffloadKind = OffloadKind + "v4";
-    OffloadKind = OffloadKind;
+  if (haveAMDGPUCodeObjectVersionArgument(C.getDriver(), Args) && getAMDGPUCodeObjectVersion(C.getDriver(), Args) >= 4)
+    OffloadKind = OffloadKind + "v4";
   for (const auto &II : Inputs) {
     const auto* A = II.getAction();
     BundlerTargetArg = BundlerTargetArg + "," + OffloadKind +
@@ -243,7 +241,7 @@ void HIPToolChain::addClangTargetOptions(
 
   assert((DeviceOffloadingKind == Action::OFK_HIP ||
           DeviceOffloadingKind == Action::OFK_SYCL) &&
-         "Only HIP offloading kinds are supported for GPUs.");
+         "Only HIP and SYCL offloading kinds are supported for GPUs.");
 
   StringRef GpuArch = getGPUArch(DriverArgs);
 

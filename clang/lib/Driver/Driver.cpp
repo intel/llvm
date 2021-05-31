@@ -3844,8 +3844,8 @@ class OffloadingActionBuilder final {
                                                     BA, AssociatedOffloadKind);
 
       ActionList AL = {AA};
-      Action *action = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
-      ActionList HIPActions = {action};
+      Action *LinkAction = C.MakeAction<LinkJobAction>(AL, types::TY_Image);
+      ActionList HIPActions = {LinkAction};
       Action *HIPFatBinary =
           C.MakeAction<LinkJobAction>(HIPActions, types::TY_HIP_FATBIN);
       return HIPFatBinary;
