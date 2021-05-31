@@ -17,6 +17,7 @@
 #include <CL/sycl/device_event.hpp>
 #include <CL/sycl/h_item.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/range.hpp>
 #include <stdexcept>
@@ -430,6 +431,9 @@ template <int Dims> group<Dims> this_group() {
   return detail::store_group<Dims>(nullptr);
 #endif
 }
+
+template <typename Group>
+void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -1910,6 +1910,7 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
   bool SawReturned = false;
   bool SawSRet = false;
   bool SawSwiftSelf = false;
+  bool SawSwiftAsync = false;
   bool SawSwiftError = false;
 
   // Verify return value attributes.
@@ -1924,11 +1925,12 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
           !RetAttrs.hasAttribute(Attribute::Preallocated) &&
           !RetAttrs.hasAttribute(Attribute::ByRef) &&
           !RetAttrs.hasAttribute(Attribute::SwiftSelf) &&
+          !RetAttrs.hasAttribute(Attribute::SwiftAsync) &&
           !RetAttrs.hasAttribute(Attribute::SwiftError)),
          "Attributes 'byval', 'inalloca', 'preallocated', 'byref', "
          "'nest', 'sret', 'nocapture', 'nofree', "
-         "'returned', 'swiftself', and 'swifterror' do not apply to return "
-         "values!",
+         "'returned', 'swiftself', 'swiftasync', and 'swifterror'"
+         " do not apply to return values!",
          V);
   Assert((!RetAttrs.hasAttribute(Attribute::ReadOnly) &&
           !RetAttrs.hasAttribute(Attribute::WriteOnly) &&
@@ -1974,6 +1976,11 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     if (ArgAttrs.hasAttribute(Attribute::SwiftSelf)) {
       Assert(!SawSwiftSelf, "Cannot have multiple 'swiftself' parameters!", V);
       SawSwiftSelf = true;
+    }
+
+    if (ArgAttrs.hasAttribute(Attribute::SwiftAsync)) {
+      Assert(!SawSwiftAsync, "Cannot have multiple 'swiftasync' parameters!", V);
+      SawSwiftAsync = true;
     }
 
     if (ArgAttrs.hasAttribute(Attribute::SwiftError)) {
@@ -2779,6 +2786,8 @@ void Verifier::visitIndirectBrInst(IndirectBrInst &BI) {
 void Verifier::visitCallBrInst(CallBrInst &CBI) {
   Assert(CBI.isInlineAsm(), "Callbr is currently only used for asm-goto!",
          &CBI);
+  const InlineAsm *IA = cast<InlineAsm>(CBI.getCalledOperand());
+  Assert(!IA->canThrow(), "Unwinding from Callbr is not allowed");
   for (unsigned i = 0, e = CBI.getNumSuccessors(); i != e; ++i)
     Assert(CBI.getSuccessor(i)->getType()->isLabelTy(),
            "Callbr successors must all have pointer type!", &CBI);
@@ -3368,9 +3377,10 @@ static bool isTypeCongruent(Type *L, Type *R) {
 
 static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
   static const Attribute::AttrKind ABIAttrs[] = {
-      Attribute::StructRet,    Attribute::ByVal,     Attribute::InAlloca,
-      Attribute::InReg,        Attribute::SwiftSelf, Attribute::SwiftError,
-      Attribute::Preallocated, Attribute::ByRef,     Attribute::StackAlignment};
+      Attribute::StructRet,  Attribute::ByVal,          Attribute::InAlloca,
+      Attribute::InReg,      Attribute::StackAlignment, Attribute::SwiftSelf,
+      Attribute::SwiftAsync, Attribute::SwiftError,     Attribute::Preallocated,
+      Attribute::ByRef};
   AttrBuilder Copy;
   for (auto AK : ABIAttrs) {
     if (Attrs.hasParamAttribute(I, AK))
@@ -3743,8 +3753,8 @@ void Verifier::visitLoadInst(LoadInst &LI) {
 void Verifier::visitStoreInst(StoreInst &SI) {
   PointerType *PTy = dyn_cast<PointerType>(SI.getOperand(1)->getType());
   Assert(PTy, "Store operand must be a pointer.", &SI);
-  Type *ElTy = PTy->getElementType();
-  Assert(ElTy == SI.getOperand(0)->getType(),
+  Type *ElTy = SI.getOperand(0)->getType();
+  Assert(PTy->isOpaqueOrPointeeTypeMatches(ElTy),
          "Stored value type does not match pointer operand type!", &SI, ElTy);
   Assert(SI.getAlignment() <= Value::MaximumAlignment,
          "huge alignment values are unsupported", &SI);
@@ -3801,11 +3811,6 @@ void Verifier::verifySwiftErrorValue(const Value *SwiftErrorVal) {
 
 void Verifier::visitAllocaInst(AllocaInst &AI) {
   SmallPtrSet<Type*, 4> Visited;
-  PointerType *PTy = AI.getType();
-  // TODO: Relax this restriction?
-  Assert(PTy->getAddressSpace() == DL.getAllocaAddrSpace(),
-         "Allocation instruction pointer not in the stack address space!",
-         &AI);
   Assert(AI.getAllocatedType()->isSized(&Visited),
          "Cannot allocate unsized type", &AI);
   Assert(AI.getArraySize()->getType()->isIntegerTy(),
@@ -3821,47 +3826,18 @@ void Verifier::visitAllocaInst(AllocaInst &AI) {
 }
 
 void Verifier::visitAtomicCmpXchgInst(AtomicCmpXchgInst &CXI) {
-
-  // FIXME: more conditions???
-  Assert(CXI.getSuccessOrdering() != AtomicOrdering::NotAtomic,
-         "cmpxchg instructions must be atomic.", &CXI);
-  Assert(CXI.getFailureOrdering() != AtomicOrdering::NotAtomic,
-         "cmpxchg instructions must be atomic.", &CXI);
-  Assert(CXI.getSuccessOrdering() != AtomicOrdering::Unordered,
-         "cmpxchg instructions cannot be unordered.", &CXI);
-  Assert(CXI.getFailureOrdering() != AtomicOrdering::Unordered,
-         "cmpxchg instructions cannot be unordered.", &CXI);
-  Assert(!isStrongerThan(CXI.getFailureOrdering(), CXI.getSuccessOrdering()),
-         "cmpxchg instructions failure argument shall be no stronger than the "
-         "success argument",
-         &CXI);
-  Assert(CXI.getFailureOrdering() != AtomicOrdering::Release &&
-             CXI.getFailureOrdering() != AtomicOrdering::AcquireRelease,
-         "cmpxchg failure ordering cannot include release semantics", &CXI);
-
-  PointerType *PTy = dyn_cast<PointerType>(CXI.getOperand(0)->getType());
-  Assert(PTy, "First cmpxchg operand must be a pointer.", &CXI);
-  Type *ElTy = PTy->getElementType();
+  Type *ElTy = CXI.getOperand(1)->getType();
   Assert(ElTy->isIntOrPtrTy(),
          "cmpxchg operand must have integer or pointer type", ElTy, &CXI);
   checkAtomicMemAccessSize(ElTy, &CXI);
-  Assert(ElTy == CXI.getOperand(1)->getType(),
-         "Expected value type does not match pointer operand type!", &CXI,
-         ElTy);
-  Assert(ElTy == CXI.getOperand(2)->getType(),
-         "Stored value type does not match pointer operand type!", &CXI, ElTy);
   visitInstruction(CXI);
 }
 
 void Verifier::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
-  Assert(RMWI.getOrdering() != AtomicOrdering::NotAtomic,
-         "atomicrmw instructions must be atomic.", &RMWI);
   Assert(RMWI.getOrdering() != AtomicOrdering::Unordered,
          "atomicrmw instructions cannot be unordered.", &RMWI);
   auto Op = RMWI.getOperation();
-  PointerType *PTy = dyn_cast<PointerType>(RMWI.getOperand(0)->getType());
-  Assert(PTy, "First atomicrmw operand must be a pointer.", &RMWI);
-  Type *ElTy = PTy->getElementType();
+  Type *ElTy = RMWI.getOperand(1)->getType();
   if (Op == AtomicRMWInst::Xchg) {
     Assert(ElTy->isIntegerTy() || ElTy->isFloatingPointTy(), "atomicrmw " +
            AtomicRMWInst::getOperationName(Op) +
@@ -3879,9 +3855,6 @@ void Verifier::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
            &RMWI, ElTy);
   }
   checkAtomicMemAccessSize(ElTy, &RMWI);
-  Assert(ElTy == RMWI.getOperand(1)->getType(),
-         "Argument value type does not match pointer operand type!", &RMWI,
-         ElTy);
   Assert(AtomicRMWInst::FIRST_BINOP <= Op && Op <= AtomicRMWInst::LAST_BINOP,
          "Invalid binary operation!", &RMWI);
   visitInstruction(RMWI);
@@ -4472,6 +4445,10 @@ void Verifier::visitInstruction(Instruction &I) {
       Assert(
           !F->isIntrinsic() || isa<CallInst>(I) ||
               F->getIntrinsicID() == Intrinsic::donothing ||
+              F->getIntrinsicID() == Intrinsic::seh_try_begin ||
+              F->getIntrinsicID() == Intrinsic::seh_try_end ||
+              F->getIntrinsicID() == Intrinsic::seh_scope_begin ||
+              F->getIntrinsicID() == Intrinsic::seh_scope_end ||
               F->getIntrinsicID() == Intrinsic::coro_resume ||
               F->getIntrinsicID() == Intrinsic::coro_destroy ||
               F->getIntrinsicID() == Intrinsic::experimental_patchpoint_void ||

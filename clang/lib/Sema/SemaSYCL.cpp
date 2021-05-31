@@ -4476,7 +4476,7 @@ public:
   }
 
   void VisitTemplateArgument(const TemplateArgument &TA) {
-    TA.print(Policy, OS);
+    TA.print(Policy, OS, false /* IncludeType */);
   }
 
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
@@ -4495,7 +4495,7 @@ public:
                                         /*WithGlobalNsPrefix*/ true);
       OS << ">(" << Val << ")";
     } else {
-      TA.print(Policy, OS);
+      TA.print(Policy, OS, false /* IncludeType */);
     }
   }
 

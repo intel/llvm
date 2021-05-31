@@ -203,7 +203,7 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
 //===----------------------------------------------------------------------===//
 
 def MemRef_BufferCastOp : MemRef_Op<"buffer_cast",
-    [SameOperandsAndResultShape, SameOperandsAndResultElementType,
+    [SameOperandsAndResultShape, SameOperandsAndResultElementType, NoSideEffect,
      TypesMatchWith<"type of 'tensor' is the tensor equivalent of 'memref'",
                     "memref", "tensor",
                     "getTensorTypeFromMemRefType($_self)">]> {
@@ -218,6 +218,10 @@ def MemRef_BufferCastOp : MemRef_Op<"buffer_cast",
 
     Note, that mutating the result of the buffer cast operation leads to
     undefined behavior.
+
+    This operation is a specialized variant of the built-in
+    unrealized_conversion_cast and is intended for use in the context of
+    gradual bufferization.
   }];
 
   let arguments = (ins AnyTensor:$tensor);
@@ -238,7 +242,8 @@ def MemRef_BufferCastOp : MemRef_Op<"buffer_cast",
 def MemRef_CastOp : MemRef_Op<"cast", [
       NoSideEffect, SameOperandsAndResultShape,
       DeclareOpInterfaceMethods<CastOpInterface>,
-      ViewLikeOpInterface
+      ViewLikeOpInterface,
+      MemRefsNormalizable
     ]> {
   let summary = "memref cast operation";
   let description = [{
@@ -342,8 +347,8 @@ def CloneOp : MemRef_Op<"clone", [
     undefined behavior.
   }];
 
-  let arguments = (ins Arg<AnyMemRef, "", []>:$input);
-  let results = (outs Arg<AnyMemRef, "", []>:$output);
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", []>:$input);
+  let results = (outs Arg<AnyRankedOrUnrankedMemRef, "", []>:$output);
 
   let extraClassDeclaration = [{
     Value getSource() { return input();}
@@ -353,6 +358,7 @@ def CloneOp : MemRef_Op<"clone", [
   let assemblyFormat = "$input attr-dict `:` type($input) `to` type($output)";
 
   let hasFolder = 1;
+  let verifier = ?;
   let hasCanonicalizer = 1;
 }
 
@@ -376,9 +382,10 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
     ```
   }];
 
-  let arguments = (ins Arg<AnyMemRef, "", [MemFree]>:$memref);
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", [MemFree]>:$memref);
 
   let hasFolder = 1;
+  let verifier = ?;
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 }
 
@@ -386,7 +393,7 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
 // DimOp
 //===----------------------------------------------------------------------===//
 
-def DimOp : MemRef_Op<"dim", [NoSideEffect]> {
+def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
   let summary = "dimension index operation";
   let description = [{
     The `dim` operation takes a memref and a dimension operand of type `index`.

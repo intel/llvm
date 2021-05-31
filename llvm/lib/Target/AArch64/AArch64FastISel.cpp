@@ -2899,6 +2899,7 @@ bool AArch64FastISel::fastLowerArguments() {
         Arg.hasAttribute(Attribute::InReg) ||
         Arg.hasAttribute(Attribute::StructRet) ||
         Arg.hasAttribute(Attribute::SwiftSelf) ||
+        Arg.hasAttribute(Attribute::SwiftAsync) ||
         Arg.hasAttribute(Attribute::SwiftError) ||
         Arg.hasAttribute(Attribute::Nest))
       return false;
@@ -3157,7 +3158,7 @@ bool AArch64FastISel::fastLowerCall(CallLoweringInfo &CLI) {
 
   for (auto Flag : CLI.OutFlags)
     if (Flag.isInReg() || Flag.isSRet() || Flag.isNest() || Flag.isByVal() ||
-        Flag.isSwiftSelf() || Flag.isSwiftError())
+        Flag.isSwiftSelf() || Flag.isSwiftAsync() || Flag.isSwiftError())
       return false;
 
   // Set up the argument vectors.
@@ -5094,11 +5095,7 @@ bool AArch64FastISel::fastSelectInstruction(const Instruction *I) {
   return selectOperator(I, I->getOpcode());
 }
 
-namespace llvm {
-
 FastISel *AArch64::createFastISel(FunctionLoweringInfo &FuncInfo,
                                         const TargetLibraryInfo *LibInfo) {
   return new AArch64FastISel(FuncInfo, LibInfo);
 }
-
-} // end namespace llvm

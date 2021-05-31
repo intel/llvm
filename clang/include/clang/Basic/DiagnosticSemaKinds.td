@@ -118,7 +118,8 @@ def warn_float_underflow : Warning<
   "magnitude of floating-point constant too small for type %0; minimum is %1">,
   InGroup<LiteralRange>;
 def warn_double_const_requires_fp64 : Warning<
-  "double precision constant requires cl_khr_fp64, casting to single precision">;
+  "double precision constant requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0, "
+  "casting to single precision">;
 def err_half_const_requires_fp16 : Error<
   "half precision constant requires cl_khr_fp16">;
 
@@ -411,6 +412,15 @@ def warn_unused_private_field: Warning<"private field %0 is not used">,
 def warn_unused_lambda_capture: Warning<"lambda capture %0 is not "
   "%select{used|required to be captured for this use}1">,
   InGroup<UnusedLambdaCapture>, DefaultIgnore;
+
+def warn_reserved_extern_symbol: Warning<
+  "identifier %0 is reserved because %select{"
+  "<ERROR>|" // ReservedIdentifierStatus::NotReserved
+  "it starts with '_' at global scope|"
+  "it starts with '__'|"
+  "it starts with '_' followed by a capital letter|"
+  "it contains '__'}1">,
+  InGroup<ReservedIdentifier>, DefaultIgnore;
 
 def warn_parameter_size: Warning<
   "%0 is a large (%1 bytes) pass-by-value argument; "
@@ -3181,6 +3191,8 @@ def warn_objc_redundant_literal_use : Warning<
 def err_attr_tlsmodel_arg : Error<"tls_model must be \"global-dynamic\", "
   "\"local-dynamic\", \"initial-exec\" or \"local-exec\"">;
 
+def err_aix_attr_unsupported_tls_model : Error<"TLS model '%0' is not yet supported on AIX">;
+
 def err_tls_var_aligned_over_maximum : Error<
   "alignment (%0) of thread-local variable %1 is greater than the maximum supported "
   "alignment (%2) for a thread-local variable on this target">;
@@ -3665,13 +3677,13 @@ def warn_fun_requires_lock_precise :
 def note_found_mutex_near_match : Note<"found near match '%0'">;
 
 // Verbose thread safety warnings
-def warn_thread_safety_verbose : Warning<"Thread safety verbose warning.">,
+def warn_thread_safety_verbose : Warning<"thread safety verbose warning">,
   InGroup<ThreadSafetyVerbose>, DefaultIgnore;
-def note_thread_warning_in_fun : Note<"Thread warning in function %0">;
-def note_guarded_by_declared_here : Note<"Guarded_by declared here.">;
+def note_thread_warning_in_fun : Note<"thread warning in function %0">;
+def note_guarded_by_declared_here : Note<"guarded_by declared here">;
 
 // Dummy warning that will trigger "beta" warnings from the analysis if enabled.
-def warn_thread_safety_beta : Warning<"Thread safety beta warning.">,
+def warn_thread_safety_beta : Warning<"thread safety beta warning">,
   InGroup<ThreadSafetyBeta>, DefaultIgnore;
 
 // Consumed warnings
@@ -4403,8 +4415,6 @@ def warn_diagnose_if_succeeded : Warning<"%0">, InGroup<UserDefinedWarnings>,
     ShowInSystemHeader;
 def note_ovl_candidate_disabled_by_function_cond_attr : Note<
     "candidate disabled: %0">;
-def note_ovl_candidate_disabled_by_extension : Note<
-    "candidate unavailable as it requires OpenCL extension '%0' to be enabled">;
 def err_addrof_function_disabled_by_enable_if_attr : Error<
     "cannot take address of function %0 because it has one or more "
     "non-tautological enable_if conditions">;
@@ -8640,6 +8650,7 @@ let CategoryName = "Inline Assembly Issue" in {
     "asm constraint has an unexpected number of alternatives: %0 vs %1">;
   def err_asm_incomplete_type : Error<"asm operand has incomplete type %0">;
   def err_asm_unknown_register_name : Error<"unknown register name '%0' in asm">;
+  def err_asm_unwind_and_goto : Error<"unwind clobber can't be used with asm goto">;
   def err_asm_invalid_global_var_reg : Error<"register '%0' unsuitable for "
     "global register variables on this target">;
   def err_asm_register_size_mismatch : Error<"size of register '%0' does not "
@@ -10058,6 +10069,11 @@ def err_opencl_variadic_function : Error<
   "invalid prototype, variadic arguments are not allowed in OpenCL">;
 def err_opencl_requires_extension : Error<
   "use of %select{type|declaration}0 %1 requires %2 support">;
+def ext_opencl_double_without_pragma : Extension<
+  "Clang permits use of type 'double' regardless pragma if 'cl_khr_fp64' is"
+  " supported">;
+def err_opencl_double_requires_extension :  Error<
+    "use of type 'double' requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0 support">;
 def warn_opencl_generic_address_space_arg : Warning<
   "passing non-generic address space pointer to %0"
   " may cause dynamic conversion affecting performance">,
@@ -10268,8 +10284,6 @@ def warn_omp_alignment_not_power_of_two : Warning<
   InGroup<OpenMPClauses>;
 def err_omp_invalid_target_decl : Error<
   "%0 used in declare target directive is not a variable or a function name">;
-def err_omp_declare_target_multiple : Error<
-  "%0 appears multiple times in clauses on the same declare target directive">;
 def err_omp_declare_target_to_and_link : Error<
   "%0 must not appear in both clauses 'to' and 'link'">;
 def warn_omp_not_in_target_context : Warning<
@@ -11346,7 +11360,7 @@ def err_conflicting_sycl_function_attributes : Error<
 def err_sycl_function_attribute_mismatch : Error<
   "SYCL kernel without %0 attribute can't call a function with this attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<
-  "%0 X-, Y- and Z- sizes must be 1 when %1 attribute is used with value 0">;
+  "all %0 attribute arguments must be '1' when the %1 attribute argument is '0'">;
 def err_sycl_attribute_internal_function
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
@@ -11420,4 +11434,6 @@ def warn_tcb_enforcement_violation : Warning<
 // RISC-V builtin required extension warning
 def err_riscv_builtin_requires_extension : Error<
   "builtin requires '%0' extension support to be enabled">;
+def err_riscv_builtin_invalid_lmul : Error<
+  "LMUL argument must be in the range [0,3] or [5,7]">;
 } // end of sema component.

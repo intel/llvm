@@ -1798,6 +1798,7 @@ public:
 class LabelStmt : public ValueStmt {
   LabelDecl *TheDecl;
   Stmt *SubStmt;
+  bool SideEntry = false;
 
 public:
   /// Build a label statement.
@@ -1833,6 +1834,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == LabelStmtClass;
   }
+  bool isSideEntry() const { return SideEntry; }
+  void setSideEntry(bool SE) { SideEntry = SE; }
 };
 
 /// Represents an attribute applied to a statement.
@@ -2080,6 +2083,7 @@ public:
   /// If this is an 'if constexpr', determine which substatement will be taken.
   /// Otherwise, or if the condition is value-dependent, returns None.
   Optional<const Stmt*> getNondiscardedCase(const ASTContext &Ctx) const;
+  Optional<Stmt *> getNondiscardedCase(const ASTContext &Ctx);
 
   bool isObjCAvailabilityCheck() const;
 

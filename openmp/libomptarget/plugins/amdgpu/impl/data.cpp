@@ -20,19 +20,8 @@ using core::TaskImpl;
 extern ATLMachine g_atl_machine;
 
 namespace core {
-void allow_access_to_all_gpu_agents(void *ptr);
 
-const char *getPlaceStr(atmi_devtype_t type) {
-  switch (type) {
-  case ATMI_DEVTYPE_CPU:
-    return "CPU";
-  case ATMI_DEVTYPE_GPU:
-    return "GPU";
-  default:
-    return NULL;
-  }
-}
-
+namespace {
 ATLProcessor &get_processor_by_mem_place(atmi_mem_place_t place) {
   int dev_id = place.dev_id;
   switch (place.dev_type) {
@@ -47,38 +36,35 @@ hsa_amd_memory_pool_t get_memory_pool_by_mem_place(atmi_mem_place_t place) {
   ATLProcessor &proc = get_processor_by_mem_place(place);
   return get_memory_pool(proc, place.mem_id);
 }
+} // namespace
 
-void register_allocation(void *ptr, size_t size, atmi_mem_place_t place) {
+hsa_status_t register_allocation(void *ptr, size_t size,
+                                 atmi_mem_place_t place) {
   if (place.dev_type == ATMI_DEVTYPE_CPU)
-    allow_access_to_all_gpu_agents(ptr);
+    return allow_access_to_all_gpu_agents(ptr);
+  else
+    return HSA_STATUS_SUCCESS;
 }
 
 atmi_status_t Runtime::Malloc(void **ptr, size_t size, atmi_mem_place_t place) {
-  atmi_status_t ret = ATMI_STATUS_SUCCESS;
   hsa_amd_memory_pool_t pool = get_memory_pool_by_mem_place(place);
   hsa_status_t err = hsa_amd_memory_pool_allocate(pool, size, 0, ptr);
-  ErrorCheck(atmi_malloc, err);
   DEBUG_PRINT("Malloced [%s %d] %p\n",
               place.dev_type == ATMI_DEVTYPE_CPU ? "CPU" : "GPU", place.dev_id,
               *ptr);
-  if (err != HSA_STATUS_SUCCESS)
-    ret = ATMI_STATUS_ERROR;
 
-  register_allocation(*ptr, size, place);
+  if (err == HSA_STATUS_SUCCESS) {
+    err = register_allocation(*ptr, size, place);
+  }
 
-  return ret;
+  return (err == HSA_STATUS_SUCCESS) ? ATMI_STATUS_SUCCESS : ATMI_STATUS_ERROR;
 }
 
 atmi_status_t Runtime::Memfree(void *ptr) {
-  atmi_status_t ret = ATMI_STATUS_SUCCESS;
-  hsa_status_t err;
-  err = hsa_amd_memory_pool_free(ptr);
-  ErrorCheck(atmi_free, err);
+  hsa_status_t err = hsa_amd_memory_pool_free(ptr);
   DEBUG_PRINT("Freed %p\n", ptr);
 
-  if (err != HSA_STATUS_SUCCESS)
-    ret = ATMI_STATUS_ERROR;
-  return ret;
+  return (err == HSA_STATUS_SUCCESS) ? ATMI_STATUS_SUCCESS : ATMI_STATUS_ERROR;
 }
 
 } // namespace core
