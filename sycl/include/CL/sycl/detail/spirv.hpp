@@ -735,10 +735,6 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   return Result;
 }
 
-template <typename Group> bool GroupNonUniformElect() {
-  return __spirv_GroupNonUniformElect(group_scope<Group>::value);
-}
-
 } // namespace spirv
 } // namespace detail
 } // namespace sycl
