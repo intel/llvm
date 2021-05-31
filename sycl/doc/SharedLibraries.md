@@ -3,6 +3,8 @@
 This document describes purpose and design of dynamic linking of device code
 feature.
 
+**NOTE**: This is not a final version. The document is still in progress.
+
 ## Background
 Sometimes users want to link device code dynamically at run time. One possible
 use case for such linkage - providing device functions via shared libraries.
