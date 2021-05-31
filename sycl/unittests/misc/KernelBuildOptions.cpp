@@ -42,7 +42,7 @@ static pi_result redefinedProgramCreate(pi_context, const void *, size_t,
 }
 
 static pi_result redefinedProgramBuild(
-    pi_program prog, pi_uint32, const pi_device *, const char * options,
+    pi_program prog, pi_uint32, const pi_device *, const char *options,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
   if (options)
     BuildOpts = options;
@@ -55,7 +55,7 @@ static pi_result redefinedProgramBuild(
 }
 
 static pi_result redefinedProgramCompile(pi_program, pi_uint32,
-                                         const pi_device *, const char * options,
+                                         const pi_device *, const char *options,
                                          pi_uint32, const pi_program *,
                                          const char **,
                                          void (*)(pi_program, void *), void *) {
@@ -67,7 +67,7 @@ static pi_result redefinedProgramCompile(pi_program, pi_uint32,
 }
 
 static pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
-                                      const char * options, pi_uint32,
+                                      const char *options, pi_uint32,
                                       const pi_program *,
                                       void (*)(pi_program, void *), void *,
                                       pi_program *) {
@@ -168,9 +168,9 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
   Mock.redefine<PiApiKind::piclProgramCreateWithSource>(
-        redefinedProgramCreateWithSource);
+      redefinedProgramCreateWithSource);
   Mock.redefine<PiApiKind::piProgramCreateWithBinary>(
-        redefinedProgramCreateWithBinary);
+      redefinedProgramCreateWithBinary);
   Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
   Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
   Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
@@ -243,7 +243,6 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
   // TODO: uncomment when image options are passed to BE
   // EXPECT_EQ(BuildOpts, "-link-img -vc-codegen");
-
 }
 
 TEST(KernelBuildOptions, Program) {
@@ -270,8 +269,7 @@ TEST(KernelBuildOptions, Program) {
   sycl::program Prg2(Ctx);
 
   Prg1.build_with_source("");
-  EXPECT_TRUE(BuildOpts.size()==0) << "Expect empty build options";
+  EXPECT_TRUE(BuildOpts.size() == 0) << "Expect empty build options";
   Prg2.build_with_source("", "-api-opts");
   EXPECT_EQ(BuildOpts, "-api-opts");
-
 }

@@ -51,12 +51,13 @@ public:
 
 private:
   void updateNativeType() {
-    if ( MType == PI_PROPERTY_TYPE_UINT32 ) {
-      MNative = NativeType{const_cast<char *>(MName.c_str()),
-                           nullptr, MType, *((uint32_t*)MData.data())};
+    if (MType == PI_PROPERTY_TYPE_UINT32) {
+      MNative = NativeType{const_cast<char *>(MName.c_str()), nullptr, MType,
+                           *((uint32_t *)MData.data())};
     } else {
-      MNative = NativeType{const_cast<char *>(MName.c_str()),
-                           const_cast<char *>(MData.data()), MType, MData.size()};
+      MNative =
+          NativeType{const_cast<char *>(MName.c_str()),
+                     const_cast<char *>(MData.data()), MType, MData.size()};
     }
   }
   std::string MName;
@@ -374,7 +375,7 @@ void addSpecConstants(PiArray<PiProperty> SpecConstants,
 /// Utility function to add ESIMD kernel flag to property set.
 void addESIMDFlag(PiPropertySet &Props) {
   std::vector<char> ValData(sizeof(uint32_t));
-  ValData[0]= 1;
+  ValData[0] = 1;
   PiProperty Prop{"isEsimdImage", ValData, PI_PROPERTY_TYPE_UINT32};
 
   PiArray<PiProperty> Value{std::move(Prop)};
