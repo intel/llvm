@@ -62,10 +62,18 @@ and `+__LINE__+`, and the value of the standard variable `+__func__+`. If the
 failing assert comes from an `nd_range` `parallel_for` it will also include the
 global ID and the local ID of the failing work item.
 
-It is unspecified whether a failing `assert()` returns to its caller before the
-kernel terminates. If a failing call returns, the device code may need to
-continue execution without deadlocking for the assertion message to be printed
-or for `std::abort()` to be called.
+Some devices implement `assert()` natively while others use a fallback
+implementation, and the two implementations provide different guarantees. The
+native implementation is most similar to the way `assert()` works on the host. If
+an assertion fails in the native implementation, the assertion message is
+immediately printed to stderr and the program terminates by calling
+`std::abort()`. If an assertion fails with the fallback implementation, the
+failing assert() returns back to its caller and the device code must continue
+executing (without deadlocking) until the kernel completes. The implementation
+prints the assertion message to stderr and terminates with `std::abort()` only
+after the kernel completes execution. An application can determine which of the
+two mechanisms a device uses by testing the device aspect
+`aspect::ext_oneapi_native_assert`.
 
 The `assert()` macro is defined in system include headers, not in SYCL headers.
 On most of systems it is `<cassert>` and/or `<assert.h>` header files.
