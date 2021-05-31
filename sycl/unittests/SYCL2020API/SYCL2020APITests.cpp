@@ -205,7 +205,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 sycl::unittest::PiImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray ImgArray{Img};
 
-TEST(DefaultValues, DISABLED_DefaultValuesAreSet) {
+TEST(SpecConstants, DISABLED_DefaultValuesAreSet) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -238,7 +238,7 @@ TEST(DefaultValues, DISABLED_DefaultValuesAreSet) {
   EXPECT_EQ(SpecConstVal1, 8);
 }
 
-TEST(DefaultValues, DISABLED_DefaultValuesAreOverriden) {
+TEST(SpecConstants, DISABLED_DefaultValuesAreOverriden) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -270,4 +270,44 @@ TEST(DefaultValues, DISABLED_DefaultValuesAreOverriden) {
 
   EXPECT_EQ(SpecConstVal0, 80);
   EXPECT_EQ(SpecConstVal1, 8);
+}
+
+TEST(KernelBundle, GetKernelBundleFromKernel) {
+  sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cerr << "Test is not supported on host, skipping\n";
+    return; // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+
+  sycl::queue Queue{Dev};
+
+  const sycl::context Ctx = Queue.get_context();
+
+  sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+
+  sycl::kernel Kernel =
+      KernelBundle.get_kernel(sycl::get_kernel_id<TestKernel>());
+
+  sycl::kernel_bundle<sycl::bundle_state::executable> RetKernelBundle =
+      Kernel.get_kernel_bundle();
+
+  EXPECT_EQ(KernelBundle, RetKernelBundle);
+
+  //KernelBundle.set_specialization_constant<SpecConst1>(80);
+  //auto ExecBundle = sycl::build(KernelBundle);
+  //if (0)
+    //Queue.submit([&](sycl::handler &CGH) {
+      //CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
+    //});
 }
