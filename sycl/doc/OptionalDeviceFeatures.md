@@ -487,7 +487,7 @@ aspects that each kernel or exported device function requires and the
 work-group or sub-group sizes that each kernel requires.  This property set is
 named "SYCL/requirements".  The name of each property in the set is the name of
 a kernel or the name of an exported device function in the device image.  The
-value of each property has the following form:
+value of each property is a `BYTE_ARRAY` that has the following form:
 
 ```
 [entry_count (uint32)]
