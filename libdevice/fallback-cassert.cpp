@@ -21,8 +21,8 @@ struct AssertHappened {
 namespace cl {
 namespace sycl {
 namespace detail {
-extern __SYCL_GLOBAL_VAR__ const
-    AssertHappened AssertHappenedMem; // declaration
+extern __SYCL_GLOBAL_VAR__ const AssertHappened
+    AssertHappenedMem; // declaration
 } // namespace detail
 } // namespace sycl
 } // namespace cl
