@@ -9,6 +9,9 @@
 #pragma once
 
 #include <CL/sycl/detail/type_traits.hpp>
+#include <functional>
+#include <limits>
+#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
