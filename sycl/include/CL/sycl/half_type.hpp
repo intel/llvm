@@ -450,28 +450,23 @@ template <> struct numeric_limits<cl::sycl::half> {
   static constexpr bool is_iec559 = true;
   static constexpr float_round_style round_style = round_to_nearest;
 
-  static ____SYCL_CONSTEXPR_HALF const
-  cl::sycl::half(min)() noexcept {
+  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half(min)() noexcept {
     return 6.103515625e-05f; // half minimum value
   }
 
-  static ____SYCL_CONSTEXPR_HALF const
-  cl::sycl::half(max)() noexcept {
+  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half(max)() noexcept {
     return 65504.0f; // half maximum value
   }
 
-  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half
-  lowest() noexcept {
+  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half lowest() noexcept {
     return -65504.0f; // -1*(half maximum value)
   }
 
-  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half
-  epsilon() noexcept {
+  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half epsilon() noexcept {
     return 9.765625e-04f; // half epsilon
   }
 
-  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half
-  round_error() noexcept {
+  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half round_error() noexcept {
     return 0.5f;
   }
 
@@ -484,18 +479,15 @@ template <> struct numeric_limits<cl::sycl::half> {
 #endif
   }
 
-  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half
-  quiet_NaN() noexcept {
+  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half
-  signaling_NaN() noexcept {
+  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half
-  denorm_min() noexcept {
+  static ____SYCL_CONSTEXPR_HALF const cl::sycl::half denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
