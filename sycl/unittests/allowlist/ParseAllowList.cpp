@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/platform_impl.hpp>
+#include <detail/allowlist.hpp>
 
 #include <gtest/gtest.h>
 
