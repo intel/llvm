@@ -240,10 +240,9 @@ private:
 
       auto Acc = Buffer->get_access<access::mode::write>(CGH);
 
-      fprintf(stderr, "About to enqueue copier\n");
       CGH.single_task<AssertFlagCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
-        Acc[0].Flag = __devicelib_assert_read(); //AssertHappenedMem.Flag;
+        Acc[0].Flag = __devicelib_assert_read();
 #else
         (void)Acc;
 #endif // __SYCL_DEVICE_ONLY__
@@ -252,11 +251,9 @@ private:
     auto CheckerCGF = [&CopierEv, AH, Buffer](handler &CGH) {
       CGH.depends_on(CopierEv);
 
-      fprintf(stderr, "About to enqueue checker\n");
       CGH.codeplay_host_task([=] {
-        fprintf(stderr, "Checker running!\n");
         if (AH->Flag)
-          abort();
+          abort(); // no need to release memory as it's abort anyway
 
         delete Buffer;
         delete AH;
@@ -854,8 +851,19 @@ private:
   event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
 
-  event submit_impl(function_class<void(handler &)> CGH,
-                    bool &IsKernel, const detail::code_location &CodeLoc);
+  /// A template-free version of submit.
+  /// \param CGH command group function/handler
+  /// \param[out] IsKernel set by callee to \c true if CGH represents a kernel
+  ///                      submit
+  /// \param CodeLoc code location
+  event submit_impl(function_class<void(handler &)> CGH, bool &IsKernel,
+                    const detail::code_location &CodeLoc);
+  /// A template-free version of submit.
+  /// \param CGH command group function/handler
+  /// \param secondQueue fallback queue
+  /// \param[out] IsKernel set by callee to \c true if CGH represents a kernel
+  ///                      submit
+  /// \param CodeLoc code location
   event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
                     bool &IsKernel, const detail::code_location &CodeLoc);
 

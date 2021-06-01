@@ -330,9 +330,7 @@ public:
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
-  const PropertyRange &getAssertUsed() const {
-    return AssertUsed;
-  }
+  const PropertyRange &getAssertUsed() const { return AssertUsed; }
   virtual ~DeviceBinaryImage() {}
 
 protected:

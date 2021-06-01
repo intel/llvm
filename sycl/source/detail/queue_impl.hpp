@@ -168,24 +168,7 @@ public:
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit(const function_class<void(handler &)> &CGF,
-               const shared_ptr_class<queue_impl> &Self,
-               const shared_ptr_class<queue_impl> &SecondQueue,
-               const detail::code_location &Loc) {
-    try {
-      bool Dummy;
-      return submit_impl(CGF, Dummy, Self, Loc);
-    } catch (...) {
-      {
-        std::lock_guard<mutex_class> Lock(MMutex);
-        MExceptions.PushBack(std::current_exception());
-      }
-      return SecondQueue->submit(CGF, SecondQueue, Loc);
-    }
-  }
-
-  event submit(const function_class<void(handler &)> &CGF,
-               bool &IsKernel,
+  event submit(const function_class<void(handler &)> &CGF, bool *IsKernel,
                const shared_ptr_class<queue_impl> &Self,
                const shared_ptr_class<queue_impl> &SecondQueue,
                const detail::code_location &Loc) {
@@ -207,15 +190,7 @@ public:
   /// \param Self is a shared_ptr to this queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
-  event submit(const function_class<void(handler &)> &CGF,
-               const shared_ptr_class<queue_impl> &Self,
-               const detail::code_location &Loc) {
-    bool Dummy;
-    return submit_impl(CGF, Dummy, Self, Loc);
-  }
-
-  event submit(const function_class<void(handler &)> &CGF,
-               bool &IsKernel,
+  event submit(const function_class<void(handler &)> &CGF, bool *IsKernel,
                const shared_ptr_class<queue_impl> &Self,
                const detail::code_location &Loc) {
     return submit_impl(CGF, IsKernel, Self, Loc);
@@ -415,15 +390,15 @@ private:
   ///
   /// KernelName is null if the caller doesn't want the kernel name. The object
   /// is modified if and only if there was a kernel submit.
-  event submit_impl(const function_class<void(handler &)> &CGF,
-                    bool &IsKernel,
+  event submit_impl(const function_class<void(handler &)> &CGF, bool *IsKernel,
                     const shared_ptr_class<queue_impl> &Self,
                     const detail::code_location &Loc) {
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
-    IsKernel = Handler.getType() == CG::KERNEL;
+    if (IsKernel)
+      *IsKernel = Handler.getType() == CG::KERNEL;
 
     event Event = Handler.finalize();
     addEvent(Event);

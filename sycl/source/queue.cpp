@@ -92,23 +92,23 @@ event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice) {
 
 event queue::submit_impl(function_class<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, CodeLoc);
+  return impl->submit(CGH, /* IsKernel */ nullptr, impl, CodeLoc);
 }
 
 event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
+  return impl->submit(CGH, /* IsKernel */ nullptr, impl, SecondQueue.impl,
+                      CodeLoc);
 }
 
-event queue::submit_impl(function_class<void(handler &)> CGH,
-                         bool &IsKernel, const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, IsKernel, impl, CodeLoc);
+event queue::submit_impl(function_class<void(handler &)> CGH, bool &IsKernel,
+                         const detail::code_location &CodeLoc) {
+  return impl->submit(CGH, &IsKernel, impl, CodeLoc);
 }
 
 event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
                          bool &IsKernel, const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, IsKernel, impl, SecondQueue.impl,
-                      CodeLoc);
+  return impl->submit(CGH, &IsKernel, impl, SecondQueue.impl, CodeLoc);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {

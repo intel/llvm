@@ -11,26 +11,33 @@
 #ifdef __SPIR__
 
 struct AssertHappened {
-  int Flag = 1;
+  int Flag = 0;
 };
 
 #ifndef __SYCL_GLOBAL_VAR__
-#define __SYCL_GLOBAL_VAR__
+#define __SYCL_GLOBAL_VAR__ /*__attribute__((sycl_global_var))*/
 #endif
 
-namespace cl { namespace sycl { namespace detail {
-extern __SYCL_GLOBAL_VAR__ const AssertHappened AssertHappenedMem; // declaration
-}}}
+namespace cl {
+namespace sycl {
+namespace detail {
+extern __SYCL_GLOBAL_VAR__ const
+    AssertHappened AssertHappenedMem; // declaration
+} // namespace detail
+} // namespace sycl
+} // namespace cl
 
-namespace cl { namespace sycl { namespace detail {
+namespace cl {
+namespace sycl {
+namespace detail {
 __SYCL_GLOBAL_VAR__ const AssertHappened AssertHappenedMem; // definition
-}}}
+} // namespace detail
+} // namespace sycl
+} // namespace cl
 
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
     "Assertion `%s` failed.\n";
-
-static const __attribute__((opencl_constant)) char flag_output_fmt[] = "Flag = %d\n";
 
 DEVICE_EXTERN_C int __devicelib_assert_read(void) {
   volatile int *Ptr = (int *)(&cl::sycl::detail::AssertHappenedMem.Flag);
@@ -51,10 +58,8 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                      // (func) ? func : "<unknown function>",
                      func, gid0, gid1, gid2, lid0, lid1, lid2, expr);
 
-  //cl::sycl::detail::AssertHappenedMem.Flag = 1;
-  volatile int *Ptr = (int *)(&cl::sycl::detail::AssertHappenedMem.Flag);
-
-  __spirv_ocl_printf(flag_output_fmt, *Ptr);
+  // FIXME uncomment the following line after clang changes
+  // cl::sycl::detail::AssertHappenedMem.Flag = 1;
 
   // FIXME: call SPIR-V unreachable instead
   // volatile int *die = (int *)0x0;
