@@ -303,11 +303,4 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
       Kernel.get_kernel_bundle();
 
   EXPECT_EQ(KernelBundle, RetKernelBundle);
-
-  //KernelBundle.set_specialization_constant<SpecConst1>(80);
-  //auto ExecBundle = sycl::build(KernelBundle);
-  //if (0)
-    //Queue.submit([&](sycl::handler &CGH) {
-      //CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
-    //});
 }
