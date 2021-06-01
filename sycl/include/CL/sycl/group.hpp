@@ -435,5 +435,15 @@ template <int Dims> group<Dims> this_group() {
 template <typename Group>
 void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
 
+template <> void group_barrier<group>(group, memory_scope FenceScope) {
+  uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
+  __spirv_ControlBarrier(__spv::Scope::Workgroup,
+                         detail::spirv::getScope(FenceScope),
+                         __spv::MemorySemanticsMask::AcquireRelease |
+                             __spv::MemorySemanticsMask::SubgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
