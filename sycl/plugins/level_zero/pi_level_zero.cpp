@@ -940,9 +940,8 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
 
       auto &Contexts = Device->Platform->Contexts;
       for (auto &Ctx : Contexts) {
-        for (auto It = Ctx->MemAllocs.begin(); It != Ctx->MemAllocs.end();
-             It++) {
-          const auto &Pair = Kernel->MemAllocs.insert(It);
+        for (auto &Elem : Ctx->MemAllocs) {
+          const auto &Pair = Kernel->MemAllocs.insert(&Elem);
           // Kernel is referencing this memory allocation from now.
           // If this memory allocation was already captured for this kernel, it
           // means that kernel is submitted several times. Increase reference
@@ -950,7 +949,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
           // SubmissionsCount turns to 0. We don't want to know how many times
           // allocation was retained by each submission.
           if (Pair.second)
-            It->second.RefCount++;
+            Elem.second.RefCount++;
         }
       }
       Kernel->SubmissionsCount++;
