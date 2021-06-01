@@ -2640,9 +2640,23 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   // std::cerr << "AllowImport=" << AllowImport << std::endl;
   // std::cerr << "ForceImport=" << ForceImport << std::endl;
 
+  // Check if a host ptr is supplied and it could be imported into USM
+  bool ImportableMemory = false;
+  if (HostPtr != nullptr && (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
+    // Query memory type of the host pointer
+    ze_device_handle_t ZeDeviceHandle;
+    ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+    ZE_CALL(zeMemGetAllocProperties,
+            (Context->ZeContext, HostPtr, &ZeMemoryAllocationProperties,
+             &ZeDeviceHandle));
+
+    // If not shared of any type, we can import the ptr
+    ImportableMemory =
+        (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN);
+  }
+
   bool HostPtrImported = false;
-  if ((ForceImport || (ImportPossible && AllowImport)) && HostPtr &&
-      (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
+  if (ForceImport || (ImportPossible && ImportableMemory && AllowImport)) {
     // std::cout << "Doing import\n";
 
     // Promote the host ptr to USM host memory
