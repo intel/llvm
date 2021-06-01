@@ -1,7 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -DSYCL_USE_NATIVE_FP_ATOMICS \
-// RUN:  -fsycl-device-only -S %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
-// RUN: | FileCheck %s --check-prefix=CHECK-LLVM-EMU
+// RUN: | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -USYCL_USE_NATIVE_FP_ATOMICS \
+// RUN:  -fsycl-device-only -S %s -o - | FileCheck %s --check-prefix=CHECK-LLVM-EMU
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
