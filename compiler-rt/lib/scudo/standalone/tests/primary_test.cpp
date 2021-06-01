@@ -14,6 +14,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <stdlib.h>
 #include <thread>
 #include <vector>
 
@@ -31,7 +32,12 @@ struct TestConfig1 {
 };
 
 struct TestConfig2 {
+#if defined(__mips__)
+  // Unable to allocate greater size on QEMU-user.
+  static const scudo::uptr PrimaryRegionSizeLog = 23U;
+#else
   static const scudo::uptr PrimaryRegionSizeLog = 24U;
+#endif
   static const scudo::s32 PrimaryMinReleaseToOsIntervalMs = INT32_MIN;
   static const scudo::s32 PrimaryMaxReleaseToOsIntervalMs = INT32_MAX;
   static const bool MaySupportMemoryTagging = false;
@@ -40,7 +46,12 @@ struct TestConfig2 {
 };
 
 struct TestConfig3 {
+#if defined(__mips__)
+  // Unable to allocate greater size on QEMU-user.
+  static const scudo::uptr PrimaryRegionSizeLog = 23U;
+#else
   static const scudo::uptr PrimaryRegionSizeLog = 24U;
+#endif
   static const scudo::s32 PrimaryMinReleaseToOsIntervalMs = INT32_MIN;
   static const scudo::s32 PrimaryMaxReleaseToOsIntervalMs = INT32_MAX;
   static const bool MaySupportMemoryTagging = true;
@@ -63,6 +74,14 @@ struct SizeClassAllocator<TestConfig1, SizeClassMapT>
 template <typename BaseConfig, typename SizeClassMapT>
 struct TestAllocator : public SizeClassAllocator<BaseConfig, SizeClassMapT> {
   ~TestAllocator() { this->unmapTestOnly(); }
+
+  void *operator new(size_t size) {
+    void *p = nullptr;
+    EXPECT_EQ(0, posix_memalign(&p, alignof(TestAllocator), size));
+    return p;
+  }
+
+  void operator delete(void *ptr) { free(ptr); }
 };
 
 template <class BaseConfig> struct ScudoPrimaryTest : public Test {};

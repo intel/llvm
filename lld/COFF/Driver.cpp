@@ -408,6 +408,10 @@ void LinkerDriver::parseDirectives(InputFile *file) {
     case OPT_section:
       parseSection(arg->getValue());
       break;
+    case OPT_stack:
+      parseNumbers(arg->getValue(), &config->stackReserve,
+                   &config->stackCommit);
+      break;
     case OPT_subsystem: {
       bool gotVersion = false;
       parseSubsystem(arg->getValue(), &config->subsystem,
@@ -1205,12 +1209,18 @@ void LinkerDriver::maybeExportMinGWSymbols(const opt::InputArgList &args) {
     if (!exporter.shouldExport(def))
       return;
 
+    if (!def->isGCRoot) {
+      def->isGCRoot = true;
+      config->gcroot.push_back(def);
+    }
+
     Export e;
     e.name = def->getName();
     e.sym = def;
     if (Chunk *c = def->getChunk())
       if (!(c->getOutputCharacteristics() & IMAGE_SCN_MEM_EXECUTE))
         e.data = true;
+    s->isUsedInRegularObj = true;
     config->exports.push_back(e);
   });
 }
@@ -2108,6 +2118,13 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
+  config->hadExplicitExports = !config->exports.empty();
+  if (config->mingw) {
+    // In MinGW, all symbols are automatically exported if no symbols
+    // are chosen to be exported.
+    maybeExportMinGWSymbols(args);
+  }
+
   // Do LTO by compiling bitcode input files to a set of native COFF files then
   // link those files (unless -thinlto-index-only was given, in which case we
   // resolve symbols and write indices, but don't generate native code or link).
@@ -2132,12 +2149,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
-  config->hadExplicitExports = !config->exports.empty();
   if (config->mingw) {
-    // In MinGW, all symbols are automatically exported if no symbols
-    // are chosen to be exported.
-    maybeExportMinGWSymbols(args);
-
     // Make sure the crtend.o object is the last object file. This object
     // file can contain terminating section chunks that need to be placed
     // last. GNU ld processes files and static libraries explicitly in the
@@ -2217,8 +2229,25 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     config->printSymbolOrder = arg->getValue();
 
   // Identify unreferenced COMDAT sections.
-  if (config->doGC)
+  if (config->doGC) {
+    if (config->mingw) {
+      // markLive doesn't traverse .eh_frame, but the personality function is
+      // only reached that way. The proper solution would be to parse and
+      // traverse the .eh_frame section, like the ELF linker does.
+      // For now, just manually try to retain the known possible personality
+      // functions. This doesn't bring in more object files, but only marks
+      // functions that already have been included to be retained.
+      for (const char *n : {"__gxx_personality_v0", "__gcc_personality_v0"}) {
+        Defined *d = dyn_cast_or_null<Defined>(symtab->findUnderscore(n));
+        if (d && !d->isGCRoot) {
+          d->isGCRoot = true;
+          config->gcroot.push_back(d);
+        }
+      }
+    }
+
     markLive(symtab->getChunks());
+  }
 
   // Needs to happen after the last call to addFile().
   convertResources();

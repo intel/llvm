@@ -87,6 +87,47 @@ def BSETINVMask : ImmLeaf<XLenVT, [{
   return !isInt<12>(Imm) && isPowerOf2_32(Imm);
 }], BSETINVXForm>;
 
+// Check if (or r, i) can be optimized to (BSETI (BSETI r, i0), i1),
+// in which i = (1 << i0) | (1 << i1).
+def BSETINVTwoBitsMask : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  // The immediate should not be a simm12.
+  if (isInt<12>(N->getSExtValue()))
+    return false;
+  // The immediate must have exactly two bits set.
+  return countPopulation(N->getZExtValue()) == 2;
+}]>;
+
+def BSETINVTwoBitsMaskLow : SDNodeXForm<imm, [{
+  uint64_t I = N->getZExtValue();
+  return CurDAG->getTargetConstant(countTrailingZeros(I), SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
+def BSETINVTwoBitsMaskHigh : SDNodeXForm<imm, [{
+  uint64_t I = N->getZExtValue();
+  return CurDAG->getTargetConstant(63 - countLeadingZeros(I), SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
+// Check if (or r, imm) can be optimized to (BSETI (ORI r, i0), i1),
+// in which imm = i0 | (1 << i1).
+def BSETINVORIMask : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  // The immediate should not be a simm12.
+  if (isInt<12>(N->getSExtValue()))
+    return false;
+  // There should be only one set bit from bit 11 to the top.
+  return isPowerOf2_64(N->getZExtValue() & ~0x7ff);
+}]>;
+
+def BSETINVORIMaskLow : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() & 0x7ff,
+                                   SDLoc(N), N->getValueType(0));
+}]>;
+
 //===----------------------------------------------------------------------===//
 // Instruction class templates
 //===----------------------------------------------------------------------===//
@@ -125,42 +166,49 @@ class RVBShfl_ri<bits<7> imm11_5, bits<3> funct3, RISCVOpcode opcode,
                     "$rd, $rs1, $shamt">;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class RVBTernaryR<bits<2> funct2, bits<3> funct3_b, RISCVOpcode opcode,
+class RVBTernaryR<bits<2> funct2, bits<3> funct3, RISCVOpcode opcode,
                   string opcodestr, string argstr>
-    : RVInstR4<funct2, opcode, (outs GPR:$rd),
-               (ins GPR:$rs1, GPR:$rs2, GPR:$rs3), opcodestr, argstr> {
-  let Inst{14-12} = funct3_b;
-}
+    : RVInstR4<funct2, funct3, opcode, (outs GPR:$rd),
+               (ins GPR:$rs1, GPR:$rs2, GPR:$rs3), opcodestr, argstr>;
 
 // Currently used by FSRI only
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class RVBTernaryImm6<bits<3> funct3_b, RISCVOpcode opcode,
+class RVBTernaryImm6<bits<3> funct3, RISCVOpcode opcode,
                      string opcodestr, string argstr>
-    : RVInstR4<0b10, opcode, (outs GPR:$rd),
-               (ins GPR:$rs1, GPR:$rs3, uimmlog2xlen:$shamt),
-               opcodestr, argstr> {
+    : RVInst<(outs GPR:$rd), (ins GPR:$rs1, GPR:$rs3, uimmlog2xlen:$shamt),
+             opcodestr, argstr, [], InstFormatR4> {
+  bits<5> rs3;
   bits<6> shamt;
+  bits<5> rs1;
+  bits<5> rd;
 
-  // NOTE: the first argument of RVInstR4 is hardcoded to 0b10 like the other
-  // funnel shift instructions. The second bit of the argument though is
-  // overwritten by the shamt as the encoding of this particular instruction
-  // requires. This is to obtain op(26) = 1 as required by funnel shift
-  // instructions without the need of a confusing argument in the definition
-  // of the instruction.
+  let Inst{31-27} = rs3;
+  let Inst{26} = 1;
   let Inst{25-20} = shamt;
-  let Inst{14-12} = funct3_b;
+  let Inst{19-15} = rs1;
+  let Inst{14-12} = funct3;
+  let Inst{11-7} = rd;
+  let Opcode = opcode.Value;
 }
 
 // Currently used by FSRIW only
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class RVBTernaryImm5<bits<2> funct2, bits<3> funct3_b, RISCVOpcode opcode,
+class RVBTernaryImm5<bits<2> funct2, bits<3> funct3, RISCVOpcode opcode,
                      string opcodestr, string argstr>
-    : RVInstR4<funct2, opcode, (outs GPR:$rd),
-               (ins GPR:$rs1, GPR:$rs3, uimm5:$shamt), opcodestr, argstr> {
+    : RVInst<(outs GPR:$rd), (ins GPR:$rs1, GPR:$rs3, uimm5:$shamt),
+             opcodestr, argstr, [], InstFormatR4> {
+  bits<5> rs3;
   bits<5> shamt;
+  bits<5> rs1;
+  bits<5> rd;
 
+  let Inst{31-27} = rs3;
+  let Inst{26-25} = funct2;
   let Inst{24-20} = shamt;
-  let Inst{14-12} = funct3_b;
+  let Inst{19-15} = rs1;
+  let Inst{14-12} = funct3;
+  let Inst{11-7} = rd;
+  let Opcode = opcode.Value;
 }
 
 //===----------------------------------------------------------------------===//
@@ -716,6 +764,19 @@ def : Pat<(xor GPR:$rs1, BSETINVMask:$mask),
 
 def : Pat<(and (srl GPR:$rs1, uimmlog2xlen:$shamt), (XLenVT 1)),
           (BEXTI GPR:$rs1, uimmlog2xlen:$shamt)>;
+
+def : Pat<(or GPR:$r, BSETINVTwoBitsMask:$i),
+          (BSETI (BSETI GPR:$r, (BSETINVTwoBitsMaskLow BSETINVTwoBitsMask:$i)),
+                 (BSETINVTwoBitsMaskHigh BSETINVTwoBitsMask:$i))>;
+def : Pat<(xor GPR:$r, BSETINVTwoBitsMask:$i),
+          (BINVI (BINVI GPR:$r, (BSETINVTwoBitsMaskLow BSETINVTwoBitsMask:$i)),
+                 (BSETINVTwoBitsMaskHigh BSETINVTwoBitsMask:$i))>;
+def : Pat<(or GPR:$r, BSETINVORIMask:$i),
+          (BSETI (ORI GPR:$r, (BSETINVORIMaskLow BSETINVORIMask:$i)),
+                 (BSETINVTwoBitsMaskHigh BSETINVORIMask:$i))>;
+def : Pat<(xor GPR:$r, BSETINVORIMask:$i),
+          (BINVI (XORI GPR:$r, (BSETINVORIMaskLow BSETINVORIMask:$i)),
+                 (BSETINVTwoBitsMaskHigh BSETINVORIMask:$i))>;
 }
 
 // There's no encoding for roli in the the 'B' extension as it can be

@@ -875,14 +875,15 @@ int main(int argc, char **argv) {
   if (!MAI)
     return error("no asm info for target " + TripleName, Context);
 
-  MCObjectFileInfo MOFI;
-  MCContext MC(MAI.get(), MRI.get(), &MOFI);
-  MOFI.InitMCObjectFileInfo(*ErrOrTriple, /*PIC*/ false, MC);
-
   std::unique_ptr<MCSubtargetInfo> MSTI(
       TheTarget->createMCSubtargetInfo(TripleName, "", ""));
   if (!MSTI)
     return error("no subtarget info for target " + TripleName, Context);
+
+  MCContext MC(*ErrOrTriple, MAI.get(), MRI.get(), MSTI.get());
+  std::unique_ptr<MCObjectFileInfo> MOFI(
+      TheTarget->createMCObjectFileInfo(MC, /*PIC=*/false));
+  MC.setObjectFileInfo(MOFI.get());
 
   MCTargetOptions Options;
   auto MAB = TheTarget->createMCAsmBackend(*MSTI, *MRI, Options);

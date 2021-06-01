@@ -43,7 +43,3 @@ install(TARGETS pi_cuda
   LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_cuda
   RUNTIME DESTINATION "bin" COMPONENT pi_cuda
 )
-
-# `sycl/source/CMakeLists.txt` adapted when SYCL_BUILD_PI_CUDA is defined:
-# target_link_libraries(sycl PUBLIC pi_cuda)
-# target_compile_definitions(sycl PUBLIC USE_PI_CUDA)
