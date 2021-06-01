@@ -29,7 +29,7 @@ methods.
 Disables warnings coming from usage of SYCL 1.2.1 APIs, that are deprecated in
 SYCL 2020.
 
-### `SYCL_DISABLE_DEPRECATION_WARNINGS
+### `SYCL_DISABLE_DEPRECATION_WARNINGS`
 
 Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1 deprecations.
 
