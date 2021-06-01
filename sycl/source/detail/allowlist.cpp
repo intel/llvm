@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/config.hpp>
 #include <detail/allowlist.hpp>
+#include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/platform_info.hpp>
 
@@ -25,7 +25,7 @@ constexpr char PlatformVersionKeyName[] = "PlatformVersion";
 constexpr char DeviceNameKeyName[] = "DeviceName";
 constexpr char PlatformNameKeyName[] = "PlatformName";
 
-constexpr std::array<const char*, 7> SupportedAllowListKeyNames{
+constexpr std::array<const char *, 7> SupportedAllowListKeyNames{
     BackendNameKeyName,   DeviceTypeKeyName,      DeviceVendorIdKeyName,
     DriverVersionKeyName, PlatformVersionKeyName, DeviceNameKeyName,
     PlatformNameKeyName};
@@ -268,7 +268,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
 }
 
 void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
-                           RT::PiPlatform PiPlatform, const plugin &Plugin) {
+                    RT::PiPlatform PiPlatform, const plugin &Plugin) {
   AllowListParsedT AllowListParsed =
       parseAllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());
   if (AllowListParsed.empty())
