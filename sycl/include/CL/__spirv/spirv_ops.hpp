@@ -606,5 +606,5 @@ __spirv_MemoryBarrier(__spv::Scope Memory, uint32_t Semantics) noexcept;
 __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT void
 __spirv_GroupWaitEvents(__spv::Scope Execution, uint32_t NumEvents,
                         __ocl_event_t *WaitEvents) noexcept;
-                        
+
 #endif // !__SYCL_DEVICE_ONLY__
