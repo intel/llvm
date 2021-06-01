@@ -35,7 +35,10 @@ Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1 
 
 ### `SYCL_DISABLE_FALLBACK_ASSERT`
 
-Forces fallback assert feature implementation disable
+Forces fallback assert feature implementation disable i.e. the *copier kernel*
+and *checker host-task* are not enqueued. Also, DPCPP RT won't perform check if
+user's kernel uses `__devicelib_assert_fail`. Refer to [the document](Assert.md)
+for function behind *copier kernel* and *checker host-task*.
 
 ### Version macros
 
