@@ -291,6 +291,10 @@ bool queue_impl::kernelUsesAssert(event &Event) const {
   Scheduler &Sched = Scheduler::getInstance();
   std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
 
+  // FIXME remove unwanted lines after sycl-post-link tool changes
+#ifndef __SYCL_POST_LINK_TOOL_ADDS_ASSERT_USED_PROPERTY_SET
+  return true;
+#else
   EventImplPtr EventPtr = detail::getSyclObjImpl(Event);
 
   Command *_Cmd = static_cast<Command *>(EventPtr->getCommand());
@@ -311,13 +315,14 @@ bool queue_impl::kernelUsesAssert(event &Event) const {
       get_device());
 
   const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
-      Img->getAssertUsed();
+      BinImg.getAssertUsed();
   if (AssertUsedRange.isAvailable())
     for (const auto &Prop : AssertUsedRange)
       if (Prop->Name == CmdGroup.MKernelName)
         return true;
 
   return false;
+#endif
 }
 
 } // namespace detail
