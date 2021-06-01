@@ -261,7 +261,7 @@ public:
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
-  size_t size() const { return Range.size(); }
+  size_t size() const noexcept { return Range.size(); }
 
   size_t get_size() const { return size() * sizeof(T); }
 
