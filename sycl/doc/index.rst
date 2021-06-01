@@ -32,3 +32,5 @@ Developing oneAPI DPC++ Compiler
    KernelProgramCache
    GlobalObjectsInRuntime
    LinkedAllocations
+   Assert
+

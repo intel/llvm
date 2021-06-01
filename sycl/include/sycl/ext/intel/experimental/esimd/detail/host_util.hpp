@@ -1,4 +1,4 @@
-//==-------------------------- esimd_host_util.hpp -------------------------==//
+//==-------------------------- host_util.hpp -------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,6 +11,8 @@
 #pragma once
 
 #ifndef __SYCL_DEVICE_ONLY__
+
+#include <limits>
 
 #define SIMDCF_ELEMENT_SKIP(i)
 
@@ -33,6 +35,7 @@ namespace esimd {
 namespace emu {
 namespace detail {
 
+using half = sycl::detail::half_impl::half;
 constexpr int sat_is_on = 1;
 
 static long long abs(long long a) {

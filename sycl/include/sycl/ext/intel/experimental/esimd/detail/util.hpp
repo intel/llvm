@@ -1,4 +1,4 @@
-//==----------------- esimd_util.hpp - DPC++ Explicit SIMD API  ------------==//
+//==----------------- util.hpp - DPC++ Explicit SIMD API  ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,7 @@
 #pragma once
 
 #include <CL/sycl/detail/type_traits.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/esimd_types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
 #include <type_traits>
 
