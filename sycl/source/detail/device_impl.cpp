@@ -310,9 +310,11 @@ bool device_impl::isAssertFailSupported() const {
 
   const plugin &Plugin = getPlugin();
 
-  // assume CUDA supports native asserts by default
+  // Return false for CUDA even though, it has native support for assert.
+  // Change to return true when devicelib issue is fixed.
+  // See https://github.com/intel/llvm/issues/3385
   if (Plugin.getBackend() == backend::cuda)
-    return true;
+    return false;
 
   return has_extension("cl_intel_devicelib_cassert");
 }
