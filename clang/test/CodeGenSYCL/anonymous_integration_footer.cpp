@@ -14,12 +14,13 @@ using namespace cl;
 // variable.
 struct S1 {
   static constexpr sycl::specialization_id a{1};
-  // CHECK: __SYCL_INLINE_NAMESPACE(cl) {
+  // CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+  // CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
   // CHECK-NEXT: namespace sycl {
   // CHECK-NEXT: namespace detail {
   // CHECK-NEXT: template<>
   // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::S1::a>() {
-  // CHECK-NEXT: return "";
+  // CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<S1::a>);
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace detail
   // CHECK-NEXT: } // namespace sycl
@@ -31,7 +32,7 @@ constexpr sycl::specialization_id b{2};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::b>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<b>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -42,7 +43,7 @@ inline constexpr sycl::specialization_id c{3};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::c>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<c>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -53,7 +54,7 @@ static constexpr sycl::specialization_id d{4};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::d>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<d>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -62,23 +63,23 @@ static constexpr sycl::specialization_id d{4};
 namespace {
 struct S2 {
   static constexpr sycl::specialization_id a{18};
-  // CHECK-NEXT: namespace {
-  // CHECK-NEXT: namespace __sycl_detail {
-  // CHECK-NEXT: static constexpr decltype(S2::a) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
-  // CHECK-NEXT: return S2::a;
-  // CHECK-NEXT: }
-  // CHECK-NEXT: } // namespace __sycl_detail
-  // CHECK-NEXT: } // namespace
-  // CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
-  // CHECK-NEXT: namespace sycl {
-  // CHECK-NEXT: namespace detail {
-  // CHECK-NEXT: template<>
-  // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return "";
-  // CHECK-NEXT: }
-  // CHECK-NEXT: } // namespace detail
-  // CHECK-NEXT: } // namespace sycl
-  // CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
+// CHECK-NEXT: namespace {
+// CHECK-NEXT: namespace __sycl_detail {
+// CHECK-NEXT: static constexpr decltype(S2::a) &__spec_id_shim_[[SHIM_ID:[0-9]+]]() {
+// CHECK-NEXT: return S2::a;
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace __sycl_detail
+// CHECK-NEXT: } // namespace
+// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: template<>
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<S2::a>);
+// CHECK-NEXT: }
+// CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // namespace sycl
+// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 };
 } // namespace
 
@@ -92,7 +93,7 @@ template class S3<1>;
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::S3<1>::a>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<S3<1>::a>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -103,7 +104,7 @@ template class S3<2>;
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::S3<2>::a>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<S3<2>::a>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -116,7 +117,7 @@ constexpr sycl::specialization_id same_name{5};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::inner::same_name>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<inner::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -128,7 +129,7 @@ constexpr sycl::specialization_id same_name{6};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::same_name>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -147,7 +148,7 @@ constexpr sycl::specialization_id same_name{7};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -168,7 +169,7 @@ constexpr sycl::specialization_id same_name{8};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<inner::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -192,7 +193,7 @@ constexpr sycl::specialization_id same_name{9};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::inner::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<inner::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -207,7 +208,7 @@ constexpr sycl::specialization_id same_name{10};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::same_name>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<outer::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -228,7 +229,7 @@ constexpr sycl::specialization_id same_name{11};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<outer::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -250,7 +251,7 @@ constexpr sycl::specialization_id same_name{12};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<outer::inner::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -288,7 +289,7 @@ constexpr sycl::specialization_id same_name{13};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::__sycl_detail::__spec_id_shim_[[SHIM_ID_2]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<outer::inner::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -313,7 +314,7 @@ constexpr sycl::specialization_id same_name{14};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<outer::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -343,7 +344,7 @@ constexpr sycl::specialization_id same_name{15};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID2]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<outer::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -373,7 +374,7 @@ constexpr sycl::specialization_id same_name{16};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::__sycl_detail::__spec_id_shim_[[SHIM_ID2]]()>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<outer::inner::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl
@@ -391,7 +392,7 @@ constexpr sycl::specialization_id same_name{17};
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID<::outer::inner::same_name>() {
-// CHECK-NEXT: return "";
+// CHECK-NEXT: return __builtin_unique_stable_name(specialization_id_name_generator<outer::inner::same_name>);
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
 // CHECK-NEXT: } // namespace sycl

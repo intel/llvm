@@ -4621,7 +4621,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
 
-    if (Args.hasArg(options::OPT_fsycl_use_footer)) {
+    if (!Args.hasArg(options::OPT_fno_sycl_use_footer)) {
       // Add the integration footer option to generated the footer.
       StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
       if (!Footer.empty()) {

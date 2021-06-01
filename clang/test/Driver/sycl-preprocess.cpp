@@ -6,7 +6,7 @@
 // RUN: %clang_cl -fsycl -P -Fi%t_output.ii %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix PREPROC_ONLY %s
 // PREPROC_ONLY: clang{{.*}} "-fsycl-is-device"{{.*}} "-E"{{.*}} "-o" "[[DEVICE_OUT:.+\.ii]]"
-// PREPROC_ONLY: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]"{{.*}} "-fsyntax-only"
+// PREPROC_ONLY: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\.h]]"{{.*}} "-fsyntax-only"
 // PREPROC_ONLY: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-o" "[[HOST_OUT:.+\.ii]]"
 // PREPROC_ONLY: clang-offload-bundler{{.*}} "-type=ii"{{.*}} "-outputs={{.+_output.ii}}" "-inputs=[[DEVICE_OUT]],[[HOST_OUT]]"
 

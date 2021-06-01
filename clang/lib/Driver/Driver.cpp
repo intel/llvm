@@ -5584,7 +5584,7 @@ Action *Driver::ConstructPhaseAction(
     if (Args.hasArg(options::OPT_verify_pch))
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
     if (Args.hasArg(options::OPT_fsycl) &&
-        Args.hasArg(options::OPT_fsycl_use_footer) &&
+        !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
         TargetDeviceOffloadKind == Action::OFK_None) {
       // Performing a host compilation with -fsycl.  Append the integrated
       // footer to the preprocessed source file.  We then add another

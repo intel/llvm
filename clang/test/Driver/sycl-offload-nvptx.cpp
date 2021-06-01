@@ -13,7 +13,7 @@
 // CHK-ACTIONS: clang-offload-wrapper"{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=nvptx64" "-kind=sycl"{{.*}}
 
 /// Check phases w/out specifying a compute capability.
-// RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl -fsycl-use-footer \
+// RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-nvcl-sycldevice %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 // CHK-PHASES-NO-CC: 0: input, "{{.*}}", c++, (host-sycl)
@@ -35,7 +35,7 @@
 // CHK-PHASES-NO-CC: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (nvptx64-nvidia-nvcl-sycldevice:sm_50)" {15}, image
 
 /// Check phases specifying a compute capability.
-// RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl -fsycl-use-footer \
+// RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-nvcl-sycldevice \
 // RUN: -Xsycl-target-backend "--cuda-gpu-arch=sm_35" %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES %s

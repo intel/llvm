@@ -4752,6 +4752,10 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
 }
 
 void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
+  PrintingPolicy Policy{S.getLangOpts()};
+  Policy.adjustForCPlusPlusFwdDecl();
+  Policy.SuppressTypedefs = true;
+  Policy.SuppressUnwrittenScope = true;
   // FIXME: Figure out the spec-constant unique name here.
   // Note that this changes based on the linkage of the variable.
   // We typically want to use the __builtin_unique_stable_name for the variable
@@ -4762,7 +4766,7 @@ void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
   // ahead of it, so that we make sure it is unique across translation units.
   // This name should come from the yet implemented__builtin_unique_stable_name
   // feature that accepts variables and gives the mangling for that.
-  O << "";
+  VD->printQualifiedName(O, Policy);
 }
 
 template <typename BeforeFn, typename AfterFn>
@@ -4891,13 +4895,14 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
+  OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
+
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
   unsigned ShimCounter = 0;
   for (const VarDecl *VD : SpecConstants) {
     VD = VD->getCanonicalDecl();
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, VD);
-    OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
     OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
     OS << "namespace sycl {\n";
     OS << "namespace detail {\n";
@@ -4912,9 +4917,10 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
 
     OS << ">() {\n";
-    OS << "  return \"";
+    OS << "  return "
+          "__builtin_unique_stable_name(specialization_id_name_generator<";
     emitSpecIDName(OS, VD);
-    OS << "\";\n";
+    OS << ">);\n";
     OS << "}\n";
     OS << "} // namespace detail\n";
     OS << "} // namespace sycl\n";
