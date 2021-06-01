@@ -33,6 +33,10 @@ SYCL 2020.
 
 Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1 deprecations.
 
+### `SYCL_DISABLE_FALLBACK_ASSERT`
+
+Forces fallback assert feature implementation disable
+
 ### Version macros
 
 - `__LIBSYCL_MAJOR_VERSION` is set to SYCL runtime library major version.
