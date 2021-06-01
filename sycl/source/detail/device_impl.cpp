@@ -304,6 +304,10 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
 }
 
 bool device_impl::isAssertFailSupported() const {
+  // assert is sort of natively supported by host
+  if (MIsHostDevice)
+    return true;
+
   const plugin &Plugin = getPlugin();
 
   // assume CUDA supports native asserts by default
