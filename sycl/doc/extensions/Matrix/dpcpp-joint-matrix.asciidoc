@@ -1,6 +1,7 @@
 # Matrix Programming Extension for DPC++: SYCL_EXT_ONEAPI_MATRIX
 :source-highlighter: coderay
 :coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
 
 // This section needs to be after the document title.
 :doctype: book
@@ -31,7 +32,7 @@ SYCL specification refer to that revision.
 
 
 **_NOTE:_** _This document describes the current design and API for the matrix
-extension to DPC++. This is an initial experimental version to try out functionality
+extension to {dpcpp}. This is an initial experimental version to try out functionality
 and performance. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX). We are going to work with the community on incrementally improving
 the API to bring them closer to standard C++ (aligned with the `std::mdspan` and `std::mdarray` proposals) and SYCL in the next several months._
 
@@ -54,15 +55,17 @@ value to determine which of the extension's APIs the implementation supports.
 |1     |Initial extension implementation on AMX.  Base features are supported.
 |======================
 
-### New `matrix` class
-We introduce a new class called `matrix`. The user needs to specify the type of the elements, sizes, and the memory layout.
+## New `matrix` class
+We introduce a new class called `matrix`. The user needs to specify the type of the elements, sizes, and the memory layout.`matrix` is distributed among an execution unit. In practice this can be one work-item, the work-items in a sub-group, or the work-items in a work-group.
+
 	
 The same class `matrix` should handle both cases where sizes are constant (GPU case) and when sizes are variables (CPU case). Note that a AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
 	
 Layout is necessary on the type to be able to calculate the physical offset if the user needs to access a single entry for some purpose. Besides row major and column major layout, `matrix_layout` is flexible enough to introduce customed layouts such as symmetric or tiled layouts. AMX hardware requires A and B to be in VNNI or 32 bits packed layout. If users did not specify these layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A and/or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
 	
 ```c++
-template <typename T, size_t Rows=std::dynamic_extent, size_t Cols=std::dynamic_extent, matrix_layout l = row_major>
+namespace sycl::ext::intel::experimental::matrix {
+template <typename T, size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent, matrix_layout l = row_major>
 struct matrix;
 enum class matrix_layout {
   row_major,
@@ -70,30 +73,9 @@ enum class matrix_layout {
   packed_a,
   packed_b
 };
-```
-### Matrix Operations
-We define three new functions needed to perform the main and common operations on matrices. This set of functions can be easily extended if the tensor hardware implements new features.
-The base pointer determines the starting address of the matrix to be loaded/stored.
-`layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`). 
-
-```c++
-void matrix_load(matrix<>A, T *base, unsigned stride, matrix_layout l = row_major);  
-```
-This function loads data from memory to the 2d tiles of AMX that is a 2d storage.
-```c++
-void matrix_store(matrix<>A, T *base, unsigned stride, matrix_layout l = row_major); 
-```
-This function stores the data from the 2d tiles back to memory.
-```c++
-matrix<> matrix_mad(matrix<>A, matrix<>B, matrix<>C);
+}
 ```
 
-The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
-
-## Integration with DPC++
-When using the matrix interface in a DPC++ kernel, additional semantics have to be added to define the memory scope of the matrix object and the execution scope of its operations. In the context of DPC++, `matrix` is distributed among an execution unit. In practice this can be one work-item, the work-items in a sub-group, or the work-items in a work-group.
-
-Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a non-diverged control flow. The `Group` template argument can be a work-group or a sub-group. These functions will be called once by all the work items in a group.
 
 ### Memory Scope
 For the memory scope, we have two solutions. The long term solution is to use the proposed https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc[`group_local_memory` extension] to allocate the matrix in local memory associated with a SYCL group as shown in the example below.
@@ -101,27 +83,67 @@ For the memory scope, we have two solutions. The long term solution is to use th
 ```c++
 multi_ptr<matrix<T>, address_space::local_space> tA_ptr = group_local_memory<matrix<sub_group, int8_t, tM, tN>>(sg);
 ```
-However, sub-group local memory is not yet well defined in DPC++. Moreover, the representation of this notion in LLVM IR and SPIR-V is not yet clear. Hence, for this proposal, we will proceed with adding the memory scope as an additional constructor argument as follows:
+However, sub-group local memory is not yet well defined in {dpcpp}. Moreover, the representation of this notion in LLVM IR and SPIR-V is not yet clear. Hence, for this proposal, we use `joint_matrix` instead of `matrix` to emphasis that the matrix is shared among a group of work items and is not private to each work item. Moreover, the memory scope is added as an additional constructor argument. This results into the following description:
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+template <typename Group, typename T, size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent, matrix_layout l = row_major>
+struct joint_matrix {
+    joint_matrix(Group g) {}
+};
+}
+```
+When the group is a `sycl::sub_group`, a matrix is declared as follows:
 
 ```c++
 joint_matrix<sub_group, int8_t, tM, tN> tA(sg); 
 ```
-### Execution Scope
-To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The DPC++ syntax is the following: 
+
+
+## Matrix Operations and their Execution Scope
+We define three new functions needed to perform the main and common operations on matrices namely, load, store, and the actual multiply and add operation. This set of functions can be easily extended if the tensor hardware implements new features.
+
+The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`). 
+
+Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a non-diverged control flow. The `Group` template argument can be a work-group or a sub-group. These functions will be called once by all the work items in a group.
+
+To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
 
 ```c++
-void joint_matrix_load(Group g, matrix<>A, T *base, unsigned stride, matrix_layout l = row_major);  
+namespace sycl::ext::intel::experimental::matrix {
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          access::address_space Space>
+  void joint_matrix_load(Group sg, joint_matrix<Group, T, NumRows, NumCols> &res,
+		    multi_ptr<T, Space> src, size_t stride, matrix_layout l = row_major);
+}
 ```
+This function loads data from memory to the 2d tiles of AMX that is a 2d storage.
+
 ```c++
-void joint_matrix_store(Group g, matrix<>A, T *base, unsigned stride, matrix_layout l = row_major); 
+namespace sycl::ext::intel::experimental::matrix {
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          access::address_space Space>
+  void joint_matrix_store(Group sg, matrix<Group, T, NumRows, NumCols> &res,
+		     multi_ptr<T, Space> src, size_t stride, matrix_layout l = row_major);
+}
 ```
+This function stores the data from the 2d tiles back to memory.
+
 ```c++
-matrix<> joint_matrix_mad(Group g, matrix<>A, matrix<>B, matrix<>C);
+namespace sycl::ext::intel::experimental::matrix {
+ template <typename Group, typename T1, typename T2, std::size_t M,
+          std::size_t K, std::size_t N>
+  joint_matrix<Group, T2, M, N> joint_matrix_mad(Group sg, joint_matrix<Group, T1, M, K> A,
+               joint_matrix<Group, T1, K, N> B, joint_matrix<Group, T2, M, N> C);
+}
 ```
+The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
+
+
 
 ## Example using int8_t type
 ```c++
-using namespace cl::sycl::ext::intel::matrix;
+using namespace sycl::ext::intel::experimental::matrix;
 
 queue q;
 range<2> G = {M, N};
@@ -207,7 +229,7 @@ The VNNI blocking factor is 2 in the case of 16bits, 4 in the case of 8 bits ele
 ## Open Questions
 - Besides row, col major and packed (VNNI) layout, what are the additional layouts that should absolutely be added?
 - Are there alternative names for the `packed_a` and `packed_b` layouts that would be clearer to distinguish between the VNNI Layout in matrix A and VNNI layout in matrix B of a matrix multiply and add operation on AMX?
-- Ronan Keyrell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
+- Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
 
 ## TODO List
 - Handle sub group sizes that are bigger than one.
