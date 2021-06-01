@@ -167,8 +167,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
-        first, last, size() * sizeof(T),
-        detail::getNextPowerOfTwo(sizeof(T)), propList,
+        first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
