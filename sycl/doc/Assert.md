@@ -172,18 +172,12 @@ same binary image where fallback `__devicelib_assert_fail` resides.
 declaration:</a>
 
 ```c++
-namespace cl {
-namespace sycl {
-namespace detail {
-struct AssertHappened {
+struct __SYCL_AssertHappened {
   int Flag = 0;
 };
-}
-}
-}
 
 #ifdef __SYCL_DEVICE_ONLY__
-extern SYCL_GLOBAL_VAR AssertHappened AssertHappenedMem;
+extern SYCL_GLOBAL_VAR __SYCL_AssertHappened __SYCL_AssertHappenedMem;
 #endif
 ```
 
