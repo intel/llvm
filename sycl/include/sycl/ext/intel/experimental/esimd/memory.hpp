@@ -522,12 +522,6 @@ ESIMD_NODEBUG ESIMD_INLINE
   return __esimd_flat_atomic0<Op, T, n, L1H, L3H>(vAddr.data(), pred.data());
 }
 
-namespace detail {
-static inline constexpr atomic_op convert(EsimdAtomicOpType Op) {
-  return static_cast<atomic_op>(static_cast<int>(Op));
-}
-} // namespace detail
-
 /// Flat-address atomic, one source operand, add/sub/min/max etc.
 /// \ingroup sycl_esimd
 template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
