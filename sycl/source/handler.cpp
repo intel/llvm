@@ -188,6 +188,12 @@ event handler::finalize() {
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCodeLoc));
     break;
+  case detail::CG::ADVISE_USM:
+    CommandGroup.reset(new detail::CGAdviseUSM(
+        MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
   case detail::CG::CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
@@ -498,6 +504,27 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
   MCGType = detail::CG::PREFETCH_USM;
+}
+
+void handler::mem_advise(const void *Ptr, size_t Count, pi_mem_advice Advice) {
+  throwIfActionIsCreated();
+  MDstPtr = const_cast<void *>(Ptr);
+  MLength = Count;
+  MCGType = detail::CG::ADVISE_USM;
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  detail::ExtendedMemberT EMember = {
+      detail::ExtendedMembersType::HANDLER_MEM_ADVICE,
+      std::make_shared<pi_mem_advice>(Advice)};
+
+  ExtendedMembersVec->push_back(EMember);
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

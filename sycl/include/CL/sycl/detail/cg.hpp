@@ -93,6 +93,7 @@ namespace detail {
 // Used to represent a type of an extended member
 enum class ExtendedMembersType : unsigned int {
   HANDLER_KERNEL_BUNDLE = 0,
+  HANDLER_MEM_ADVICE,
 };
 
 // Holds a pointer to an object of an arbitrary type and an ID value which
@@ -164,6 +165,7 @@ public:
     PREFETCH_USM = 12,
     CODEPLAY_INTEROP_TASK = 13,
     CODEPLAY_HOST_TASK = 14,
+    ADVISE_USM = 15,
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -412,6 +414,37 @@ public:
         MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
+};
+
+/// "Advise USM" command group class.
+class CGAdviseUSM : public CG {
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGAdviseUSM(void *DstPtr, size_t Length,
+              vector_class<vector_class<char>> ArgsStorage,
+              vector_class<detail::AccessorImplPtr> AccStorage,
+              vector_class<shared_ptr_class<const void>> SharedPtrStorage,
+              vector_class<Requirement *> Requirements,
+              vector_class<detail::EventImplPtr> Events,
+              detail::code_location loc = {})
+      : CG(ADVISE_USM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MDst(DstPtr), MLength(Length) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+
+  pi_mem_advice getAdvice() {
+    auto ExtendedMembers = getExtendedMembers();
+    if (!ExtendedMembers)
+      return PI_MEM_ADVISE_UNKNOWN;
+    for (const ExtendedMemberT &EM : *ExtendedMembers)
+      if ((ExtendedMembersType::HANDLER_MEM_ADVICE == EM.MType) && EM.MData)
+        return *std::static_pointer_cast<pi_mem_advice>(EM.MData);
+    return PI_MEM_ADVISE_UNKNOWN;
+  }
 };
 
 class CGInteropTask : public CG {
