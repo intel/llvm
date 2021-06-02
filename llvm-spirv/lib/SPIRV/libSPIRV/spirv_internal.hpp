@@ -46,6 +46,7 @@ enum InternalOp {
 };
 
 enum InternalDecoration {
+  IDecMathOpDSPModeINTEL = 5909,
   IDecAliasScopeINTEL = 5914,
   IDecNoAliasINTEL = 5915,
   IDecInitiationIntervalINTEL = 5917,
@@ -56,6 +57,7 @@ enum InternalDecoration {
 
 enum InternalCapability {
   ICapOptimizationHintsINTEL = 5629,
+  ICapFPGADSPControlINTEL = 5908,
   ICapMemoryAccessAliasingINTEL = 5910,
   ICapFPGAInvocationPipeliningAttributesINTEL = 5916,
   ICapFastCompositeINTEL = 6093,
@@ -103,6 +105,8 @@ constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);
 constexpr Capability CapabilityOptNoneINTEL =
     static_cast<Capability>(ICapOptNoneINTEL);
+constexpr Capability CapabilityFPGADSPControlINTEL =
+    static_cast<Capability>(ICapFPGADSPControlINTEL);
 constexpr Capability CapabilityMemoryAccessAliasingINTEL =
     static_cast<Capability>(ICapMemoryAccessAliasingINTEL);
 constexpr Capability CapabilityFPGAInvocationPipeliningAttributesINTEL =
@@ -112,6 +116,9 @@ constexpr Capability CapabilityTokenTypeINTEL =
 
 constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
     static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
+
+constexpr Decoration DecorationMathOpDSPModeINTEL =
+    static_cast<Decoration>(IDecMathOpDSPModeINTEL);
 
 constexpr MemoryAccessMask MemoryAccessAliasScopeINTELMask =
     static_cast<MemoryAccessMask>(IMemAccessAliasScopeINTELMask);
