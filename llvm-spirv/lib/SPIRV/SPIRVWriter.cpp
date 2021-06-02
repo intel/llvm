@@ -1784,6 +1784,20 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     return mapValue(V, transCallInst(CI, BB));
   }
 
+  // Currently, we only support 'fence syncscope("singlethread") seq_cst' and
+  // map it to 'OpMemoryBarrier Invocation SequentiallyConsistent'.
+  if (FenceInst *FI = dyn_cast<FenceInst>(V)) {
+    if (FI->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent &&
+        FI->getSyncScopeID() == llvm::SyncScope::SingleThread) {
+      return mapValue(
+          V,
+          BM->addMemoryBarrierInst(
+              transValue(getUInt32(M, spv::ScopeInvocation), BB),
+              transValue(
+                  getUInt32(M, MemorySemanticsSequentiallyConsistentMask), BB),
+              BB));
+    }
+  }
   if (Instruction *Inst = dyn_cast<Instruction>(V)) {
     BM->SPIRVCK(false, InvalidInstruction, toString(Inst));
   }

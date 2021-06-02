@@ -364,8 +364,8 @@ public:
   virtual SPIRVInstruction *addLifetimeInst(Op OC, SPIRVValue *Object,
                                             SPIRVWord Size,
                                             SPIRVBasicBlock *BB) = 0;
-  virtual SPIRVInstruction *addMemoryBarrierInst(Scope ScopeKind,
-                                                 SPIRVWord MemFlag,
+  virtual SPIRVInstruction *addMemoryBarrierInst(SPIRVValue *ScopeKindV,
+                                                 SPIRVValue *MemFlagV,
                                                  SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addPhiInst(SPIRVType *, std::vector<SPIRVValue *>,
                                        SPIRVBasicBlock *) = 0;

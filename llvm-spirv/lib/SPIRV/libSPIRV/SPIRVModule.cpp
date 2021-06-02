@@ -360,7 +360,8 @@ public:
                                          SPIRVType *Ty) override;
   SPIRVInstruction *addLifetimeInst(Op OC, SPIRVValue *Object, SPIRVWord Size,
                                     SPIRVBasicBlock *BB) override;
-  SPIRVInstruction *addMemoryBarrierInst(Scope ScopeKind, SPIRVWord MemFlag,
+  SPIRVInstruction *addMemoryBarrierInst(SPIRVValue *ScopeKindV,
+                                         SPIRVValue *MemFlagV,
                                          SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addUnreachableInst(SPIRVBasicBlock *) override;
   SPIRVInstruction *addReturnInst(SPIRVBasicBlock *) override;
@@ -1415,13 +1416,13 @@ SPIRVInstruction *SPIRVModuleImpl::addLifetimeInst(Op OC, SPIRVValue *Object,
     return BB->addInstruction(new SPIRVLifetimeStop(Object->getId(), Size, BB));
 }
 
-SPIRVInstruction *SPIRVModuleImpl::addMemoryBarrierInst(Scope ScopeKind,
-                                                        SPIRVWord MemFlag,
+SPIRVInstruction *SPIRVModuleImpl::addMemoryBarrierInst(SPIRVValue *ScopeKindV,
+                                                        SPIRVValue *MemFlagV,
                                                         SPIRVBasicBlock *BB) {
   return addInstruction(SPIRVInstTemplateBase::create(
                             OpMemoryBarrier, nullptr, SPIRVID_INVALID,
-                            getVec(static_cast<SPIRVWord>(ScopeKind), MemFlag),
-                            BB, this),
+                            getVec(ScopeKindV->getId(), MemFlagV->getId()), BB,
+                            this),
                         BB);
 }
 
