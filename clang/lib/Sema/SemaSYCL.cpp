@@ -4685,21 +4685,6 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   return emit(Out);
 }
 
-void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
-  // FIXME: Figure out the spec-constant unique name here.
-  // Note that this changes based on the linkage of the variable.
-  // We typically want to use the __builtin_sycl_unique_stable_name for the
-  // variable (or the newer-equivilent for values, see the JIRA), but we also
-  // have to figure out if this has internal or external linkage.  In
-  // external-case this should be the same as the the unique-name.  However,
-  // this isn't the case with local-linkage, where we want to put the
-  // driver-provided random-value ahead of it, so that we make sure it is unique
-  // across translation units. This name should come from the yet
-  // implemented __builtin_sycl_unique_stable_name feature that accepts
-  // variables and gives the mangling for that.
-  O << "";
-}
-
 template <typename BeforeFn, typename AfterFn>
 static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
                           const DeclContext *DC) {
@@ -4847,7 +4832,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     OS << ">() {\n";
     OS << "  return \"";
-    emitSpecIDName(OS, VD);
+    OS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
     OS << "\";\n";
     OS << "}\n";
     OS << "} // namespace detail\n";

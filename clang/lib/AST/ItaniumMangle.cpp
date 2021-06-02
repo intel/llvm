@@ -5051,6 +5051,18 @@ recurse:
     Out << "E";
     break;
   }
+  case Expr::SYCLUniqueStableIdExprClass: {
+    const auto *USID = cast<SYCLUniqueStableIdExpr>(E);
+    NotPrimaryExpr();
+
+    Out << "u31__builtin_sycl_unique_stable_id";
+    mangleExpression(USID->getExpr());
+
+    // TODO: ERICH: Validate this, we need to know whether this gets demangled
+    // right.
+    Out << "E";
+    break;
+  }
   }
 
   if (AsTemplateArg && !IsPrimaryExpr)

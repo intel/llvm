@@ -1023,6 +1023,10 @@ void TextNodeDumper::VisitSYCLUniqueStableNameExpr(
   dumpType(Node->getTypeSourceInfo()->getType());
 }
 
+void TextNodeDumper::VisitSYCLUniqueStableIdExpr(
+    const SYCLUniqueStableIdExpr *Node) {
+}
+
 void TextNodeDumper::VisitPredefinedExpr(const PredefinedExpr *Node) {
   OS << " " << PredefinedExpr::getIdentKindName(Node->getIdentKind());
 }

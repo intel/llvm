@@ -774,14 +774,20 @@ static void instantiateDependentSYCLKernelAttr(
   S.AddSYCLKernelLambda(cast<FunctionDecl>(New));
 
   // Evaluate whether this would change any of the already evaluated
-  // __builtin_sycl_unique_stable_name values.
+  // __builtin_sycl_unique_stable_name/id values.
   for (auto &Itr : S.Context.SYCLUniqueStableNameEvaluatedValues) {
-    const std::string &CurName = Itr.first->ComputeName(S.Context);
+    const auto *NameExpr = dyn_cast<SYCLUniqueStableNameExpr>(Itr.first);
+    const auto *IdExpr = dyn_cast<SYCLUniqueStableIdExpr>(Itr.first);
+
+    const std::string &CurName = NameExpr ? NameExpr->ComputeName(S.Context)
+                                          : IdExpr->ComputeName(S.Context);
     if (Itr.second != CurName) {
       S.Diag(New->getLocation(),
-             diag::err_kernel_invalidates_sycl_unique_stable_name);
-      S.Diag(Itr.first->getLocation(),
-             diag::note_sycl_unique_stable_name_evaluated_here);
+             diag::err_kernel_invalidates_sycl_unique_stable_name)
+          << (IdExpr != nullptr);
+      S.Diag(Itr.first->getExprLoc(),
+             diag::note_sycl_unique_stable_name_evaluated_here)
+          << (IdExpr != nullptr);
       // Update this so future diagnostics work correctly.
       Itr.second = CurName;
     }

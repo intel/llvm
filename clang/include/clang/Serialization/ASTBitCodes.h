@@ -1968,6 +1968,8 @@ enum StmtCode {
 
   // SYCLUniqueStableNameExpr
   EXPR_SYCL_UNIQUE_STABLE_NAME,
+  // SYCLUniqueStableIdExpr
+  EXPR_SYCL_UNIQUE_STABLE_ID,
 };
 
 /// The kinds of designators that can occur in a

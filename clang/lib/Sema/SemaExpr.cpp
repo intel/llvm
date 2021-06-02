@@ -3571,6 +3571,34 @@ ExprResult Sema::ActOnSYCLUniqueStableNameExpr(SourceLocation OpLoc,
   return BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
 }
 
+ExprResult Sema::BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                             SourceLocation LParen,
+                                             SourceLocation RParen, Expr *E) {
+  if (!E->isInstantiationDependent()) {
+    auto *DRE = dyn_cast<DeclRefExpr>(E);
+
+    if (!DRE || !DRE->getDecl() || !isa<VarDecl>(DRE->getDecl())) {
+      Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
+      return ExprError();
+    }
+
+    auto *Var = cast<VarDecl>(DRE->getDecl());
+
+    if (!Var->hasGlobalStorage()) {
+      Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
+      return ExprError();
+    }
+  }
+
+  return SYCLUniqueStableIdExpr::Create(Context, OpLoc, LParen, RParen, E);
+}
+
+ExprResult Sema::ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                             SourceLocation LParen,
+                                             SourceLocation RParen, Expr *E) {
+  return BuildSYCLUniqueStableIdExpr(OpLoc, LParen, RParen, E);
+}
+
 ExprResult Sema::ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind) {
   PredefinedExpr::IdentKind IK;
 
