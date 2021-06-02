@@ -1,5 +1,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -std=c++17 -verify %s
 
+// Tests the __builtin_num_fields, __builtin_num_bases, __builtin_field_type,
+// and __builtin_base_type intrinsics used by SYCL. These are used to implement
+// the is_device_copyable trait in the SYCL runtime library.
+
 template<class T, T v>
 struct integral_constant {
     static constexpr T value = v;
@@ -20,7 +24,7 @@ struct is_same<T, T> : true_type {};
 
 struct A { int i; };
 struct B { float f; int i; A a; };
-struct C { struct { int a, b; }; };
+struct C { struct { int a; float b; }; };
 struct D { union { int a; float f; }; };
 union E { int i; float f; double d; };
 template <typename Ty> struct F { Ty a; int b; }; // expected-error {{field has incomplete type 'S'}}
@@ -87,7 +91,7 @@ void odd() {
   // declared within it.
   static_assert(__builtin_num_fields(decltype(__builtin_field_type(C, 0))) == 2, "expected two fields");
   static_assert(is_same<decltype(__builtin_field_type(decltype(__builtin_field_type(C, 0)), 0)), int>::value, "expected an int");
-  static_assert(is_same<decltype(__builtin_field_type(decltype(__builtin_field_type(C, 0)), 1)), int>::value, "expected an int");
+  static_assert(is_same<decltype(__builtin_field_type(decltype(__builtin_field_type(C, 0)), 1)), float>::value, "expected an float");
 
   // struct L has four fields despite containing an anonymous bit-field which
   // is only sort of a field. All four fields are of type int despite some of
@@ -99,7 +103,7 @@ void odd() {
   static_assert(is_same<decltype(__builtin_field_type(L, 3)), int>::value, "expected an int");
 
   // Virtual bases are still bases.
-  static_assert(__builtin_num_bases(M) == 1, "expected no bases");
+  static_assert(__builtin_num_bases(M) == 1, "expected one base");
   static_assert(is_same<decltype(__builtin_base_type(M, 0)), A>::value, "expected an A");
 }
 
@@ -145,9 +149,13 @@ void instantiate() {
 
 template <typename Func>
 void invoker(Func F) {
-  static_assert(__builtin_num_fields(Func) == 2, "expected one field");
+  static_assert(__builtin_num_fields(Func) == 2, "expected two fields");
   static_assert(is_same<decltype(__builtin_field_type(Func, 0)), int>::value, "expected an int");
   static_assert(is_same<decltype(__builtin_field_type(Func, 1)), double>::value, "expected a double");
+
+  // Ensure that the generic lambda is instantiated twice, with different
+  // parameter types. This is important for the call to invoker() below which
+  // uses a constexpr if that checks the parameter types of the lambda.
   F(1.0);
   F(2);
 }

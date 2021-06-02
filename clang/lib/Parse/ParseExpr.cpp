@@ -1704,11 +1704,11 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
 
   case tok::kw___builtin_num_fields:
   case tok::kw___builtin_num_bases:
-    Res = ParseSYCLBuiltinNum(SavedKind == tok::kw___builtin_num_fields);
+    Res = ParseSYCLBuiltinNum();
     break;
   case tok::kw___builtin_field_type:
   case tok::kw___builtin_base_type:
-    Res = ParseSYCLBuiltinType(SavedKind == tok::kw___builtin_field_type);
+    Res = ParseSYCLBuiltinType();
     break;
 
   case tok::kw___array_rank:
@@ -1835,9 +1835,10 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
 
 /// __builtin_num_fields '(' type-id ')' or
 /// __builtin_num_bases '(' type-id ')'
-ExprResult Parser::ParseSYCLBuiltinNum(bool IsNumFields) {
-  assert((IsNumFields && Tok.is(tok::kw___builtin_num_fields)) ||
-         (!IsNumFields && Tok.is(tok::kw___builtin_num_bases)));
+ExprResult Parser::ParseSYCLBuiltinNum() {
+  assert(
+      Tok.isOneOf(tok::kw___builtin_num_fields, tok::kw___builtin_num_bases));
+  bool IsNumFields = Tok.is(tok::kw___builtin_num_fields);
   ConsumeToken(); // Eat the __builtin_num_* token
 
   BalancedDelimiterTracker T(*this, tok::l_paren);
@@ -1859,9 +1860,10 @@ ExprResult Parser::ParseSYCLBuiltinNum(bool IsNumFields) {
 
 /// __builtin_field_type '(' type-id ',' integer-constant ')' or
 /// __builtin_base_type '(' type-id ',' integer-constant ')'
-ExprResult Parser::ParseSYCLBuiltinType(bool IsFieldType) {
-  assert((IsFieldType && Tok.is(tok::kw___builtin_field_type)) ||
-         (!IsFieldType && Tok.is(tok::kw___builtin_base_type)));
+ExprResult Parser::ParseSYCLBuiltinType() {
+  assert(
+      Tok.isOneOf(tok::kw___builtin_field_type, tok::kw___builtin_base_type));
+  bool IsFieldType = Tok.is(tok::kw___builtin_field_type);
   ConsumeToken(); // Eat the __builtin_*_type token
 
   BalancedDelimiterTracker T(*this, tok::l_paren);

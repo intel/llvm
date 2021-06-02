@@ -3461,8 +3461,10 @@ private:
   ExprResult ParseExpressionTrait();
 
   /// SYCL Type Traits
-  ExprResult ParseSYCLBuiltinNum(bool IsNumFields);
-  ExprResult ParseSYCLBuiltinType(bool IsFieldType);
+  // __builtin_num_fields, __builtin_num_bases
+  ExprResult ParseSYCLBuiltinNum();
+  // __builtin_field_type, __builtin_base_type
+  ExprResult ParseSYCLBuiltinType();
 
   //===--------------------------------------------------------------------===//
   // Preprocessor code-completion pass-through
