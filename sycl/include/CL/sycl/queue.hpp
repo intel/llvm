@@ -62,7 +62,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-/*template <typename T>*/ class AssertFlagCopier {};
+class AssertFlagCopier;
 
 // Forward declaration
 class context;

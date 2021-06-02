@@ -726,7 +726,7 @@ protected:
   GraphBuilder MGraphBuilder;
   // TODO: after switching to C++17, change std::shared_timed_mutex to
   // std::shared_mutex
-  mutable std::shared_timed_mutex MGraphLock;
+  std::shared_timed_mutex MGraphLock;
 
   QueueImplPtr DefaultHostQueue;
 
