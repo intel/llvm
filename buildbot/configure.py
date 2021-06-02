@@ -30,6 +30,7 @@ def do_configure(args):
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
+    llvm_enable_lld = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
 
@@ -56,6 +57,9 @@ def do_configure(args):
     if args.shared_libs:
         llvm_build_shared_libs = 'ON'
 
+    if args.use_lld:
+      llvm_enable_lld = 'ON'
+
     install_dir = os.path.join(abs_obj_dir, "install")
 
     cmake_cmd = [
@@ -81,7 +85,8 @@ def do_configure(args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
-        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing)
+        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
+        "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld)
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -151,6 +156,7 @@ def main():
     parser.add_argument("--use-libcxx", action="store_true", help="build sycl runtime with libcxx")
     parser.add_argument("--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path")
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
+    parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
     args = parser.parse_args()
 
     print("args:{}".format(args))
