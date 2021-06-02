@@ -251,9 +251,9 @@ CodeGenTarget::CodeGenTarget(RecordKeeper &records)
   : Records(records), CGH(records) {
   std::vector<Record*> Targets = Records.getAllDerivedDefinitions("Target");
   if (Targets.size() == 0)
-    PrintFatalError("ERROR: No 'Target' subclasses defined!");
+    PrintFatalError("No 'Target' subclasses defined!");
   if (Targets.size() != 1)
-    PrintFatalError("ERROR: Multiple subclasses of Target defined!");
+    PrintFatalError("Multiple subclasses of Target defined!");
   TargetRec = Targets[0];
 }
 
@@ -656,6 +656,7 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R,
   isWillReturn = false;
   isCold = false;
   isNoDuplicate = false;
+  isNoMerge = false;
   isConvergent = false;
   isSpeculatable = false;
   hasSideEffects = false;
@@ -845,6 +846,8 @@ void CodeGenIntrinsic::setProperty(Record *R) {
     canThrow = true;
   else if (R->getName() == "IntrNoDuplicate")
     isNoDuplicate = true;
+  else if (R->getName() == "IntrNoMerge")
+    isNoMerge = true;
   else if (R->getName() == "IntrConvergent")
     isConvergent = true;
   else if (R->getName() == "IntrNoReturn")

@@ -39,8 +39,6 @@ else()
     set(OPENMP_TEST_C_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang.exe)
     set(OPENMP_TEST_CXX_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++.exe)
   endif()
-
-  list(APPEND LIBOMPTARGET_LLVM_INCLUDE_DIRS ${LLVM_MAIN_INCLUDE_DIR} ${LLVM_BINARY_DIR}/include)
 endif()
 
 # Check and set up common compiler flags.
@@ -63,24 +61,11 @@ if (APPLE OR WIN32 OR NOT OPENMP_HAVE_STD_CPP14_FLAG)
   set(ENABLE_LIBOMPTARGET OFF)
 endif()
 
-# Attempt to locate LLVM source, required by libomptarget
-if (NOT LIBOMPTARGET_LLVM_INCLUDE_DIRS)
-  if (LLVM_MAIN_INCLUDE_DIR)
-    list(APPEND LIBOMPTARGET_LLVM_INCLUDE_DIRS ${LLVM_MAIN_INCLUDE_DIR})
-  elseif (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../llvm/include)
-    list(APPEND LIBOMPTARGET_LLVM_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../llvm/include)
-  endif()
-endif()
-
-if (NOT LIBOMPTARGET_LLVM_INCLUDE_DIRS)
-  message(STATUS "Missing definition for LIBOMPTARGET_LLVM_INCLUDE_DIRS, disabling libomptarget")
-  set(ENABLE_LIBOMPTARGET OFF)
-endif()
-
 option(OPENMP_ENABLE_LIBOMPTARGET "Enable building libomptarget for offloading."
        ${ENABLE_LIBOMPTARGET})
 option(OPENMP_ENABLE_LIBOMPTARGET_PROFILING "Enable time profiling for libomptarget."
        ${ENABLE_LIBOMPTARGET})
+option(OPENMP_ENABLE_LIBOMP_PROFILING "Enable time profiling for libomp." OFF)
 
 # Build host runtime library, after LIBOMPTARGET variables are set since they are needed
 # to enable time profiling support in the OpenMP runtime.

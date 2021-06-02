@@ -181,11 +181,12 @@ typedef basic_fstream<wchar_t> wfstream;
 
 #include <__config>
 #include <__availability>
-#include <ostream>
-#include <istream>
+#include <__debug>
 #include <__locale>
 #include <cstdio>
 #include <cstdlib>
+#include <istream>
+#include <ostream>
 
 #if !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 #   include <filesystem>
@@ -198,6 +199,9 @@ typedef basic_fstream<wchar_t> wfstream;
 _LIBCPP_PUSH_MACROS
 #include <__undef_macros>
 
+#if defined(_LIBCPP_MSVCRT) || defined(_NEWLIB_VERSION)
+#  define _LIBCPP_HAS_NO_OFF_T_FUNCTIONS
+#endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -244,7 +248,7 @@ public:
       return open(__p.c_str(), __mode);
     }
 #endif
-    inline _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_INLINE_VISIBILITY
     basic_filebuf* __open(int __fd, ios_base::openmode __mode);
 #endif
     basic_filebuf* close();
@@ -390,7 +394,7 @@ basic_filebuf<_CharT, _Traits>::operator=(basic_filebuf&& __rhs)
     return *this;
 }
 
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
 
 template <class _CharT, class _Traits>
 basic_filebuf<_CharT, _Traits>::~basic_filebuf()
@@ -398,14 +402,14 @@ basic_filebuf<_CharT, _Traits>::~basic_filebuf()
 #ifndef _LIBCPP_NO_EXCEPTIONS
     try
     {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         close();
 #ifndef _LIBCPP_NO_EXCEPTIONS
     }
     catch (...)
     {
     }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     if (__owns_eb_)
         delete [] __extbuf_;
     if (__owns_ib_)
@@ -574,7 +578,7 @@ basic_filebuf<_CharT, _Traits>::open(const char* __s, ios_base::openmode __mode)
 }
 
 template <class _CharT, class _Traits>
-inline _LIBCPP_INLINE_VISIBILITY
+inline
 basic_filebuf<_CharT, _Traits>*
 basic_filebuf<_CharT, _Traits>::__open(int __fd, ios_base::openmode __mode) {
   basic_filebuf<_CharT, _Traits>* __rt = nullptr;
@@ -1257,7 +1261,7 @@ basic_ifstream<_CharT, _Traits>::operator=(basic_ifstream&& __rhs)
     return *this;
 }
 
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
 
 template <class _CharT, class _Traits>
 inline
@@ -1326,6 +1330,7 @@ basic_ifstream<_CharT, _Traits>::open(const string& __s, ios_base::openmode __mo
 }
 
 template <class _CharT, class _Traits>
+inline
 void basic_ifstream<_CharT, _Traits>::__open(int __fd,
                                              ios_base::openmode __mode) {
   if (__sb_.__open(__fd, __mode | ios_base::in))
@@ -1470,7 +1475,7 @@ basic_ofstream<_CharT, _Traits>::operator=(basic_ofstream&& __rhs)
     return *this;
 }
 
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
 
 template <class _CharT, class _Traits>
 inline
@@ -1539,6 +1544,7 @@ basic_ofstream<_CharT, _Traits>::open(const string& __s, ios_base::openmode __mo
 }
 
 template <class _CharT, class _Traits>
+inline
 void basic_ofstream<_CharT, _Traits>::__open(int __fd,
                                              ios_base::openmode __mode) {
   if (__sb_.__open(__fd, __mode | ios_base::out))
@@ -1683,7 +1689,7 @@ basic_fstream<_CharT, _Traits>::operator=(basic_fstream&& __rhs)
     return *this;
 }
 
-#endif  // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_CXX03_LANG
 
 template <class _CharT, class _Traits>
 inline
@@ -1771,4 +1777,4 @@ _LIBCPP_END_NAMESPACE_STD
 
 _LIBCPP_POP_MACROS
 
-#endif  // _LIBCPP_FSTREAM
+#endif // _LIBCPP_FSTREAM

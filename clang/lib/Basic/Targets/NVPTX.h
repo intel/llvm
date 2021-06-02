@@ -35,6 +35,11 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     1, // cuda_device
     4, // cuda_constant
     3, // cuda_shared
+    1, // sycl_global
+    1, // sycl_global_device
+    1, // sycl_global_host
+    3, // sycl_local
+    0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
     0  // ptr64
@@ -46,8 +51,8 @@ static const int NVPTXDWARFAddrSpaceMap[] = {
     -1, // Default, opencl_private or opencl_generic - not defined
     5,  // opencl_global
     -1,
-    8, // opencl_local or cuda_shared
-    4, // opencl_constant or cuda_constant
+    8,  // opencl_local or cuda_shared
+    4,  // opencl_constant or cuda_constant
 };
 
 class LLVM_LIBRARY_VISIBILITY NVPTXTargetInfo : public TargetInfo {
@@ -130,8 +135,11 @@ public:
     Opts["cl_clang_storage_class_specifiers"] = true;
     Opts["__cl_clang_function_pointers"] = true;
     Opts["__cl_clang_variadic_functions"] = true;
+    Opts["__cl_clang_non_portable_kernel_param_types"] = true;
+    Opts["__cl_clang_bitfields"] = true;
 
     Opts["cl_khr_fp64"] = true;
+    Opts["__opencl_c_fp64"] = true;
     Opts["cl_khr_byte_addressable_store"] = true;
     Opts["cl_khr_global_int32_base_atomics"] = true;
     Opts["cl_khr_global_int32_extended_atomics"] = true;
@@ -169,6 +177,12 @@ public:
     if (HostTarget)
       return HostTarget->checkCallingConvention(CC);
     return CCCR_Warning;
+  }
+
+  void adjust(LangOptions &Opts) override {
+    TargetInfo::adjust(Opts);
+    // FIXME: Needed for compiling SYCL to PTX.
+    TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }
 
   bool hasExtIntType() const override { return true; }

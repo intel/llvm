@@ -31,7 +31,6 @@ set(LIBS
   ${test_libs}
   MLIRAnalysis
   MLIRDialect
-  MLIREDSC
   MLIRIR
   MLIRLoopAnalysis
   MLIROptLib
@@ -45,9 +44,8 @@ set(LIBS
 
 add_llvm_tool(mlir-reduce
   OptReductionPass.cpp
-  Passes/OpReducer.cpp
   ReductionNode.cpp
-  ReductionTreeUtils.cpp
+  ReductionTreePass.cpp
   mlir-reduce.cpp
 
   ADDITIONAL_HEADER_DIRS

@@ -14,6 +14,8 @@
 #include "CodeGenFunction.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/Basic/SourceLocation.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/IR/Instructions.h"
 #include <assert.h>
 
@@ -63,6 +65,14 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
   // Populate "sycl_explicit_simd" attribute if any.
   if (FD.hasAttr<SYCLSimdAttr>())
     F.setMetadata("sycl_explicit_simd", llvm::MDNode::get(F.getContext(), {}));
+
+  // Set the function attribute expected by the vector backend compiler.
+  if (const auto *A = FD.getAttr<SYCLIntelESimdVectorizeAttr>())
+    if (const auto *DeclExpr = cast<ConstantExpr>(A->getValue())) {
+      SmallString<2> Str;
+      DeclExpr->getResultAsAPSInt().toString(Str);
+      F.addFnAttr("CMGenxSIMT", Str);
+    }
 
   SYCLScopeAttr *Scope = FD.getAttr<SYCLScopeAttr>();
   if (!Scope)

@@ -197,11 +197,7 @@ class RegisterCommandsTestCase(TestBase):
     # lldb/test/Shell/Register/x86*-fp-read.test.
     @skipUnlessDarwin
     def fp_special_purpose_register_read(self):
-        exe = self.getBuildArtifact("a.out")
-
-        # Create a target by the debugger.
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         # Launch the process and stop.
         self.expect("run", PROCESS_STOPPED, substrs=['stopped'])
@@ -222,7 +218,7 @@ class RegisterCommandsTestCase(TestBase):
         self.assertTrue(matched, STOPPED_DUE_TO_SIGNAL)
 
         process = target.GetProcess()
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
+        self.assertEqual(process.GetState(), lldb.eStateStopped,
                         PROCESS_STOPPED)
 
         thread = process.GetThreadAtIndex(0)
@@ -278,11 +274,7 @@ class RegisterCommandsTestCase(TestBase):
                 1 << fstat_top_pointer_initial)
 
     def fp_register_write(self):
-        exe = self.getBuildArtifact("a.out")
-
-        # Create a target by the debugger.
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         # Launch the process, stop at the entry point.
         error = lldb.SBError()
@@ -297,8 +289,8 @@ class RegisterCommandsTestCase(TestBase):
                 error)
         self.assertSuccess(error, "Launch succeeds")
 
-        self.assertTrue(
-            process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
 
         thread = process.GetThreadAtIndex(0)

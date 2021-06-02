@@ -45,6 +45,8 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
     if (!Feature.startswith("+ptx"))
       continue;
     PTXVersion = llvm::StringSwitch<unsigned>(Feature)
+                     .Case("+ptx72", 72)
+                     .Case("+ptx71", 71)
                      .Case("+ptx70", 70)
                      .Case("+ptx65", 65)
                      .Case("+ptx64", 64)
@@ -60,8 +62,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
                      .Default(32);
   }
 
-  // FIXME: Needed for compiling SYCL to PTX.
-  TLSSupported = Triple.getEnvironment() == llvm::Triple::SYCLDevice;
+  TLSSupported = false;
   VLASupported = false;
   AddrSpaceMap = &NVPTXAddrSpaceMap;
   GridValues = llvm::omp::NVPTXGpuGridValues;
@@ -203,6 +204,7 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::GFX906:
       case CudaArch::GFX908:
       case CudaArch::GFX909:
+      case CudaArch::GFX90a:
       case CudaArch::GFX90c:
       case CudaArch::GFX1010:
       case CudaArch::GFX1011:
@@ -211,6 +213,7 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::GFX1031:
       case CudaArch::GFX1032:
       case CudaArch::GFX1033:
+      case CudaArch::GFX1034:
       case CudaArch::LAST:
         break;
       case CudaArch::UNUSED:
@@ -249,6 +252,8 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
         return "750";
       case CudaArch::SM_80:
         return "800";
+      case CudaArch::SM_86:
+        return "860";
       }
       llvm_unreachable("unhandled CudaArch");
     }();

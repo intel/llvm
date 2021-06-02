@@ -77,7 +77,7 @@ public:
   /// supported LLVM IR type.  In particular, if more than one value is
   /// returned, create an LLVM IR structure type with elements that correspond
   /// to each of the MLIR types converted with `convertType`.
-  Type packFunctionResults(ArrayRef<Type> types);
+  Type packFunctionResults(TypeRange types);
 
   /// Convert a type in the context of the default or bare pointer calling
   /// convention. Calling convention sensitive types, such as MemRefType and
@@ -116,8 +116,10 @@ public:
                                    OpBuilder &builder);
 
   /// Converts the function type to a C-compatible format, in particular using
-  /// pointers to memref descriptors for arguments.
-  Type convertFunctionTypeCWrapper(FunctionType type);
+  /// pointers to memref descriptors for arguments. Also converts the return
+  /// type to a pointer argument if it is a struct. Returns true if this
+  /// was the case.
+  std::pair<Type, bool> convertFunctionTypeCWrapper(FunctionType type);
 
   /// Returns the data layout to use during and after conversion.
   const llvm::DataLayout &getDataLayout() { return options.dataLayout; }
@@ -127,7 +129,7 @@ public:
   Type getIndexType();
 
   /// Gets the bitwidth of the index type when converted to LLVM.
-  unsigned getIndexTypeBitwidth() { return options.indexBitwidth; }
+  unsigned getIndexTypeBitwidth() { return options.getIndexBitwidth(); }
 
   /// Gets the pointer bitwidth.
   unsigned getPointerBitwidth(unsigned addressSpace = 0);
@@ -604,6 +606,59 @@ private:
   using ConvertToLLVMPattern::matchAndRewrite;
 };
 
+/// Lowering for AllocOp and AllocaOp.
+struct AllocLikeOpLLVMLowering : public ConvertToLLVMPattern {
+  using ConvertToLLVMPattern::createIndexConstant;
+  using ConvertToLLVMPattern::getIndexType;
+  using ConvertToLLVMPattern::getVoidPtrType;
+
+  explicit AllocLikeOpLLVMLowering(StringRef opName,
+                                   LLVMTypeConverter &converter)
+      : ConvertToLLVMPattern(opName, &converter.getContext(), converter) {}
+
+protected:
+  // Returns 'input' aligned up to 'alignment'. Computes
+  // bumped = input + alignement - 1
+  // aligned = bumped - bumped % alignment
+  static Value createAligned(ConversionPatternRewriter &rewriter, Location loc,
+                             Value input, Value alignment);
+
+  /// Allocates the underlying buffer. Returns the allocated pointer and the
+  /// aligned pointer.
+  virtual std::tuple<Value, Value>
+  allocateBuffer(ConversionPatternRewriter &rewriter, Location loc,
+                 Value sizeBytes, Operation *op) const = 0;
+
+private:
+  static MemRefType getMemRefResultType(Operation *op) {
+    return op->getResult(0).getType().cast<MemRefType>();
+  }
+
+  LogicalResult match(Operation *op) const override {
+    MemRefType memRefType = getMemRefResultType(op);
+    return success(isConvertibleAndHasIdentityMaps(memRefType));
+  }
+
+  // An `alloc` is converted into a definition of a memref descriptor value and
+  // a call to `malloc` to allocate the underlying data buffer.  The memref
+  // descriptor is of the LLVM structure type where:
+  //   1. the first element is a pointer to the allocated (typed) data buffer,
+  //   2. the second element is a pointer to the (typed) payload, aligned to the
+  //      specified alignment,
+  //   3. the remaining elements serve to store all the sizes and strides of the
+  //      memref using LLVM-converted `index` type.
+  //
+  // Alignment is performed by allocating `alignment` more bytes than
+  // requested and shifting the aligned pointer relative to the allocated
+  // memory. Note: `alignment - <minimum malloc alignment>` would actually be
+  // sufficient. If alignment is unspecified, the two pointers are equal.
+
+  // An `alloca` is converted into a definition of a memref descriptor value and
+  // an llvm.alloca to allocate the underlying data buffer.
+  void rewrite(Operation *op, ArrayRef<Value> operands,
+               ConversionPatternRewriter &rewriter) const override;
+};
+
 namespace LLVM {
 namespace detail {
 /// Replaces the given operation "op" with a new operation of type "targetOp"
@@ -656,9 +711,6 @@ public:
     static_assert(
         std::is_base_of<OpTrait::OneResult<SourceOp>, SourceOp>::value,
         "expected single result op");
-    static_assert(std::is_base_of<OpTrait::SameOperandsAndResultType<SourceOp>,
-                                  SourceOp>::value,
-                  "expected same operands and result type");
     return LLVM::detail::vectorOneToOneRewrite(
         op, TargetOp::getOperationName(), operands, *this->getTypeConverter(),
         rewriter);

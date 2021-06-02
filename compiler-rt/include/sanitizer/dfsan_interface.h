@@ -22,6 +22,7 @@ extern "C" {
 #endif
 
 typedef uint16_t dfsan_label;
+typedef uint32_t dfsan_origin;
 
 /// Stores information associated with a specific label identifier.  A label
 /// may be a base label created using dfsan_create_label, with associated
@@ -62,6 +63,12 @@ void dfsan_add_label(dfsan_label label, void *addr, size_t size);
 /// The truncation/extension operations will preserve the label of the original
 /// value.
 dfsan_label dfsan_get_label(long data);
+
+/// Retrieves the immediate origin associated with the given data. The returned
+/// origin may point to another origin.
+///
+/// The type of 'data' is arbitrary.
+dfsan_origin dfsan_get_origin(long data);
 
 /// Retrieves the label associated with the data at the given address.
 dfsan_label dfsan_read_label(const void *addr, size_t size);
@@ -110,6 +117,52 @@ void dfsan_weak_hook_memcmp(void *caller_pc, const void *s1, const void *s2,
 void dfsan_weak_hook_strncmp(void *caller_pc, const char *s1, const char *s2,
                              size_t n, dfsan_label s1_label,
                              dfsan_label s2_label, dfsan_label n_label);
+
+/// Prints the origin trace of the label at the address addr to stderr. It also
+/// prints description at the beginning of the trace. If origin tracking is not
+/// on, or the address is not labeled, it prints nothing.
+void dfsan_print_origin_trace(const void *addr, const char *description);
+
+/// Prints the origin trace of the label at the address \p addr to a
+/// pre-allocated output buffer. If origin tracking is not on, or the address is
+/// not labeled, it prints nothing.
+///
+/// Typical usage:
+/// \code
+///   char kDescription[] = "...";
+///   char buf[1024];
+///   dfsan_sprint_origin_trace(&tainted_var, kDescription, buf, sizeof(buf));
+/// \endcode
+///
+/// Typical usage that handles truncation:
+/// \code
+///   char buf[1024];
+///   int len = dfsan_sprint_origin_trace(&var, nullptr, buf, sizeof(buf));
+///
+///   if (len < sizeof(buf)) {
+///     ProcessOriginTrace(tmpbuf);
+///   else {
+///     char *tmpbuf = new char[len + 1];
+///     dfsan_sprint_origin_trace(&var, nullptr, tmpbuf, len + 1);
+///     ProcessOriginTrace(tmpbuf);
+///     delete[] tmpbuf;
+///   }
+/// \endcode
+///
+/// \param addr The tainted memory address whose origin we are printing.
+/// \param description A description printed at the beginning of the trace.
+/// \param [out] out_buf The output buffer to write the results to.
+/// \param out_buf_size The size of \p out_buf.
+///
+/// \returns The number of symbols that should have been written to \p out_buf
+/// (not including trailing null byte '\0'). Thus, the string is truncated iff
+/// return value is not less than \p out_buf_size.
+size_t dfsan_sprint_origin_trace(const void *addr, const char *description,
+                                 char *out_buf, size_t out_buf_size);
+
+/// Retrieves the very first origin associated with the data at the given
+/// address.
+dfsan_origin dfsan_get_init_origin(const void *addr);
 #ifdef __cplusplus
 }  // extern "C"
 

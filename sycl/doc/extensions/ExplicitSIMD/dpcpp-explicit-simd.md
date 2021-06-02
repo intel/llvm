@@ -34,6 +34,8 @@ Explicit SIMD APIs can be used only in code to be executed on Intel Gen
 architecture devices and the host device for now. Attempt to run such code on
 other devices will result in error. 
 
+All the ESIMD APIs are defined in the `sycl::ext::intel::experimental::esimd` namespace.
+
 Kernels and `SYCL_EXTERNAL` functions using ESP must be explicitly marked with
 the `[[intel::sycl_explicit_simd]]` attribute. Subgroup size query within such
 functions will always return `1`.
@@ -56,9 +58,10 @@ private:
 
 *Lambda kernel and function*
 ```cpp
+using namespace sycl::ext::intel::experimental::esimd;
 SYCL_EXTERNAL
-void sycl_device_f(sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X) [[intel::sycl_explicit_simd]] {
-  sycl::intel::gpu::flat_block_write(*ptr.get(), X);
+void sycl_device_f(sycl::global_ptr<int> ptr, simd<float, 8> X) [[intel::sycl_explicit_simd]] {
+  flat_block_write(*ptr.get(), X);
 }
 ...
   Q.submit([&](sycl::handler &Cgh) {
@@ -66,7 +69,7 @@ void sycl_device_f(sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X
     auto Acc2 = Buf2.get_access<sycl::access::mode::read_write>(Cgh);
 
     Cgh.single_task<class KernelID>([=] () [[intel::sycl_explicit_simd]] {
-      sycl::intel::gpu::simd<float, 8> Val = sycl::intel::gpu::flat_block_read(Acc1.get_pointer());
+      simd<float, 8> Val = flat_block_read(Acc1.get_pointer());
       sycl_device_f(Acc2, Val);
     });
   });
@@ -74,18 +77,21 @@ void sycl_device_f(sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X
 ```
 
 ## Implementation restrictions
+
 Current ESP implementation does not support using certain standard SYCL features
 inside explicit SIMD kernels and functions. Most of them will be eventually
 dropped. What's not supported today:
-- Mixing `[[intel::sycl_explicit_simd]]` kernels with SYCL kernels in a single source
+- Explicit SIMD kernels can co-exist with regular SYCL kernels in the same
+  translation unit and in the same program. However, interoperability between
+  them is not yet supported, e.g. currently it's not allowed to invoke an ESIMD
+  kernel from a regular SYCL kernel and vice-versa.
 - Local accessors. Local memory is allocated and accessed via explicit
 device-side API
 - 2D and 3D accessors
 - Constant accessors
 - `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
-done via explicit APIs; e.g. `sycl::intel::gpu::block_store(acc, offset)`
+done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store(acc, offset)`
 - Few others (to be documented)
-
 
 ## Core Explicit SIMD programming APIs
 
@@ -95,7 +101,7 @@ efficient mapping to SIMD vector operations on Intel GPU architectures.
 
 ### SIMD vector class
 
-The `sycl::intel::gpu::simd` class is a vector templated on some element type.
+The `simd` class is a vector templated on some element type.
 The element type must be vectorizable type. The set of vectorizable types is the
 set of fundamental SYCL arithmetic types (C++ arithmetic types or `half` type)
 excluding `bool`. The length of the vector is the second template parameter.
@@ -103,15 +109,15 @@ excluding `bool`. The length of the vector is the second template parameter.
 ESIMD compiler back-end does the best it can to map each `simd` class object to a consecutive block
 of registers in the general register file (GRF).
 
-Every specialization of ```sycl::intel::gpu::simd``` shall be a complete type. The term
+Every specialization of `simd` class shall be a complete type. The term
 simd type refers to all supported specialization of the simd class template.
 To access the i-th individual data element in a simd vector, Explicit SIMD supports the
 standard subscript operator ```[]```, which returns by value.
 
 For simd type object, Explicit SIMD supports the following simd vector operations:
 - Unary operators: ++ (*pre-/post-increment*), -- (*pre-/post-decrement*)
-- Binary operators: +, -, *, /, &, |, ^
-- Compound assignments: +=, -=, *=, /=, &=, |=, ^=
+- Binary operators: +, -, *, /, &, |, ^, <<, >>
+- Compound assignments: +=, -=, *=, /=, &=, |=, ^=, <<=, >>=
 - Compare operators: >, >=, <, <=, ==, !=
 
 These are all element-wise operations, which apply a specified operation to the
@@ -212,7 +218,7 @@ To model predicated move, Explicit SIMD provides the following merge functions:
 ```
 ### `simd_view` class
 
-The ```sycl::intel::gpu::simd_view``` represents a "window" into existing simd object,
+The `simd_view` represents a "window" into existing simd object,
 through which a part of the original object can be read or modified. This is a
 syntactic convenience feature to reduce verbosity when accessing sub-regions of
 simd objects. **RegionTy** describes the window shape and can be 1D or 2D,
@@ -228,8 +234,8 @@ different shapes and dimensions as illustrated below (`auto` resolves to a
 <img src="images/simd_view.svg" title="1D select example" width="800" height="300"/>
 </p>
 
-```sycl::intel::gpu::simd_view``` class supports all the element-wise operations and
-other utility functions defined for ```sycl::intel::gpu::simd``` class. It also
+`simd_view` class supports all the element-wise operations and
+other utility functions defined for `simd` class. It also
 provides region accessors and more generic operations tailored for 2D regions,
 such as row/column operators and 2D select/replicate/format/merge operations.
 
@@ -476,12 +482,12 @@ int main(void) {
   auto e = q.submit([&](handler &cgh) {
     cgh.parallel_for<class Test>(
       Range, [=](nd_item<1> i) [[intel::sycl_explicit_simd]] {
-
+      using namespace sycl::ext::intel::experimental::esimd;
       auto offset = i.get_global_id(0) * VL;
-      sycl::intel::gpu<float, VL> va = sycl::intel::gpu::flat_block_load<float, VL>(A + offset);
-      sycl::intel::gpu<float, VL> vb = sycl::intel::gpu::flat_block_load<float, VL>(B + offset);
-      sycl::intel::gpu<float, VL> vc = va + vb;
-      sycl::intel::gpu::flat_block_store<float, VL>(C + offset, vc);
+      simd<float, VL> va = flat_block_load<float, VL>(A + offset);
+      simd<float, VL> vb = flat_block_load<float, VL>(B + offset);
+      simd<float, VL> vc = va + vb;
+      flat_block_store<float, VL>(C + offset, vc);
     });
   });
   e.wait();
@@ -498,11 +504,10 @@ int main(void) {
 
 - Design interoperability with SPMD context - e.g. invocation of ESIMD functions
   from a standard SYCL code
-- Generate sycl::intel::gpu API documentation from sources
+- Generate `sycl::ext::intel::experimental::esimd` API documentation from sources
 - Section covering 2D use cases
-- A bridge from `std::simd` to `sycl::intel::gpu::simd`
+- A bridge from `std::simd` to `sycl::ext::intel::experimental::esimd::simd`
 - Describe `simd_view` class restrictions
-- Support intermixing SYCL and ESIMD kernels in the same source.
 - Support OpenCL and L0 interop for ESIMD kernels
 - Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-explicit-simd option
 - Add example showing the mapping between an ND-range and the number of

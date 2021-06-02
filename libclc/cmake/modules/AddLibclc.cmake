@@ -91,7 +91,7 @@ macro(add_libclc_builtin_set arch_suffix)
     COMMAND prepare_builtins -o
     "${builtins_obj_path}"
     "$<TARGET_PROPERTY:opt.${obj_suffix},TARGET_FILE>"
-    DEPENDS ${builtins_opt_path}
+    DEPENDS "opt.${obj_suffix}"
             prepare_builtins )
   add_custom_target( "prepare-${obj_suffix}" ALL
     DEPENDS "${builtins_obj_path}" )
@@ -179,58 +179,3 @@ function(libclc_configure_lib_source OUT_LIST)
   set( ${OUT_LIST} ${rel_files} PARENT_SCOPE )
 
 endfunction(libclc_configure_lib_source OUT_LIST)
-
-# add_libclc_sycl_binding(arch_suffix
-#   TRIPLE string
-#     Triple used to compile
-#   FILES string ...
-#     List of file that should be built for this library
-#   COMPILE_OPT
-#     Compilation options
-#   )
-#
-# Build the sycl binding file for SYCLDEVICE.
-# The path to the generated object file are appended in OUT_LIST.
-#
-# The mangling for sycl device is not yet fully
-# compatible with standard mangling.
-# For various reason, we need a mangling specific
-# for the Default address space (mapping to generic in SYCL).
-# The Default address space is not accessible in CL mode,
-# so we build this file in sycl mode for mangling purposes.
-#
-# FIXME: all the files should be compiled with the sycldevice triple
-#        but this is not possible at the moment as this will trigger
-#        the SYCL mode which we don't want.
-#
-function(add_libclc_sycl_binding OUT_LIST)
-  cmake_parse_arguments(ARG
-    ""
-    "TRIPLE"
-    "FILES;COMPILE_OPT"
-    ${ARGN})
-
-	foreach( file ${ARG_FILES} )
-    file( TO_CMAKE_PATH ${LIBCLC_ROOT_DIR}/${file} SYCLDEVICE_BINDING )
-    if( EXISTS ${SYCLDEVICE_BINDING} )
-      set( SYCLDEVICE_BINDING_OUT ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}/sycldevice-binding.bc )
-      string( REGEX REPLACE "SHELL:" "" SYLCDEVICE_OPT ${ARG_COMPILE_OPT} )
-      add_custom_command( OUTPUT ${SYCLDEVICE_BINDING_OUT}
-                         COMMAND ${CMAKE_COMMAND} -E make_directory
-                         ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}
-                         COMMAND ${LLVM_CLANG}
-                         -fsycl-targets=${ARG_TRIPLE}-sycldevice
-                         -fsycl
-                         -fsycl-device-only
-                         -Dcl_khr_fp64
-                         -I${LIBCLC_ROOT_DIR}/generic/include
-                         ${SYCLDEVICE_OPT}
-                         ${SYCLDEVICE_BINDING}
-                         -o ${SYCLDEVICE_BINDING_OUT}
-                     MAIN_DEPENDENCY ${SYCLDEVICE_BINDING}
-                     DEPENDS ${SYCLDEVICE_BINDING} ${LLVM_CLANG}
-                     VERBATIM )
-      set( ${OUT_LIST} "${${OUT_LIST}};${SYCLDEVICE_BINDING_OUT}" PARENT_SCOPE )
-    endif()
-  endforeach()
-endfunction(add_libclc_sycl_binding OUT_LIST)

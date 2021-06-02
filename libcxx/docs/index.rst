@@ -43,6 +43,8 @@ Getting Started with libc++
    Cxx1zStatus
    Cxx2aStatus
    Cxx2bStatus
+   RangesStatus
+   FormatStatus
 
 
 .. toctree::
@@ -173,6 +175,7 @@ Design Documents
    DesignDocs/FeatureTestMacros
    DesignDocs/ExtendedCXX03Support
    DesignDocs/UniquePtrTrivialAbi
+   DesignDocs/NoexceptPolicy
 
 * `<atomic> design <http://libcxx.llvm.org/atomic_design.html>`_
 * `<type_traits> design <http://libcxx.llvm.org/type_traits_design.html>`_
@@ -219,4 +222,4 @@ Quick Links
 * `LLVM Bugzilla <https://bugs.llvm.org/>`_
 * `libcxx-commits Mailing List`_
 * `libcxx-dev Mailing List`_
-* `Browse libc++ Sources <https://github.com/llvm/llvm-project/tree/master/libcxx/>`_
+* `Browse libc++ Sources <https://github.com/llvm/llvm-project/tree/main/libcxx/>`_

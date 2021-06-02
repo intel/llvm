@@ -239,6 +239,7 @@ inline void SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>::init() {
   add(Attribute::StructRet, FunctionParameterAttributeSret);
   add(Attribute::NoAlias, FunctionParameterAttributeNoAlias);
   add(Attribute::NoCapture, FunctionParameterAttributeNoCapture);
+  add(Attribute::ReadOnly, FunctionParameterAttributeNoWrite);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>
     SPIRSPIRVFuncParamAttrMap;
@@ -250,6 +251,7 @@ SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>::init() {
   add(Attribute::ReadOnly, FunctionControlConstMask);
   add(Attribute::AlwaysInline, FunctionControlInlineMask);
   add(Attribute::NoInline, FunctionControlDontInlineMask);
+  add(Attribute::OptimizeNone, internal::FunctionControlOptNoneINTELMask);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>
     SPIRSPIRVFuncCtlMaskMap;
@@ -361,6 +363,9 @@ const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
+const static char ToGlobal[] = "ToGlobal";
+const static char ToLocal[] = "ToLocal";
+const static char ToPrivate[] = "ToPrivate";
 const static char Sat[] = "sat";
 const static char Rtz[] = "rtz";
 const static char Rte[] = "rte";
@@ -941,7 +946,19 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
 /// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
 /// manner
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
-                                           ArrayRef<Type *> ArgTys);
+                                           ArrayRef<Type *> ArgTys,
+                                           Type *RetTy = nullptr);
+
+/// Mangle a function in SPIR-V friendly IR manner
+/// \param UniqName full unmangled name of the SPIR-V built-in function that
+/// contains possible postfixes that depend not on opcode but on decorations or
+/// return type, for example __spirv_UConvert_Rint_sat.
+/// \param OC opcode of corresponding built-in instruction. Used to gather info
+/// for unsigned/constant arguments.
+/// \param Types of arguments of SPIR-V built-in function
+/// \return IA64 mangled name.
+std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
+                                           spv::Op OC, ArrayRef<Type *> ArgTys);
 
 /// Remove cast from a value.
 Value *removeCast(Value *V);
@@ -968,6 +985,10 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
 
 // Check if the module contains llvm.loop.* metadata
 bool hasLoopMetadata(const Module *M);
+
+// Check if CI is a call to instruction from OpenCL Extended Instruction Set.
+// If so, return it's extended opcode in ExtOp.
+bool isSPIRVOCLExtInst(const CallInst *CI, OCLExtOpKind *ExtOp);
 
 // check LLVM Intrinsics type(s) for validity
 bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM);

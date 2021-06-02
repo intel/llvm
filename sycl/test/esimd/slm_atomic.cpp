@@ -1,12 +1,12 @@
-// RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
+using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 void kernel0() __attribute__((sycl_device)) {

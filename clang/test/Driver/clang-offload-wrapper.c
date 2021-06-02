@@ -128,6 +128,7 @@
 // CHECK-IR: [[DUMMY:@.+]] = hidden constant [0 x [[ENTTY]]] zeroinitializer, section "omp_offloading_entries"
 
 // CHECK-IR: [[OMP_BIN:@.+]] = internal unnamed_addr constant [[OMP_BINTY:\[[0-9]+ x i8\]]] c"Content of device file3{{.+}}"
+// CHECK-IR: [[OMP_INFO:@.+]] = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint ([{{[0-9]+}} x i8]* [[OMP_BIN]] to i64), i64 24], section ".tgtimg", align 16
 
 // CHECK-IR: [[OMP_IMAGES:@.+]] = internal unnamed_addr constant [1 x [[IMAGETY]]] [{{.+}} { i8* getelementptr inbounds ([[OMP_BINTY]], [[OMP_BINTY]]* [[OMP_BIN]], i64 0, i64 0), i8* getelementptr inbounds ([[OMP_BINTY]], [[OMP_BINTY]]* [[OMP_BIN]], i64 1, i64 0), [[ENTTY]]* [[ENTBEGIN]], [[ENTTY]]* [[ENTEND]] }]
 
@@ -137,11 +138,13 @@
 // CHECK-IR: [[SYCL_COMPILE_OPTS0:@.+]] = internal unnamed_addr constant [3 x i8] c"-g\00"
 // CHECK-IR: [[SYCL_LINK_OPTS0:@.+]] = internal unnamed_addr constant [21 x i8] c"-cl-denorms-are-zero\00"
 // CHECK-IR: [[SYCL_BIN0:@.+]] = internal unnamed_addr constant [[SYCL_BIN0TY:\[[0-9]+ x i8\]]] c"Content of device file1{{.+}}"
+// CHECK-IR: [[SYCL_INFO:@.+]] = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint ([{{[0-9]+}} x i8]* [[SYCL_BIN0]] to i64), i64 24], section ".tgtimg", align 16
 
 // CHECK-IR: [[SYCL_TGT1:@.+]] = internal unnamed_addr constant [4 x i8] c"tg2\00"
 // CHECK-IR: [[SYCL_COMPILE_OPTS1:@.+]] = internal unnamed_addr constant [1 x i8] zeroinitializer
 // CHECK-IR: [[SYCL_LINK_OPTS1:@.+]] = internal unnamed_addr constant [1 x i8] zeroinitializer
 // CHECK-IR: [[SYCL_BIN1:@.+]] = internal unnamed_addr constant [[SYCL_BIN1TY:\[[0-9]+ x i8\]]] c"Content of device file2{{.+}}"
+// CHECK-IR: [[SYCL_INFO1:@.+]] = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint ([{{[0-9]+}} x i8]* [[SYCL_BIN1]] to i64), i64 24], section ".tgtimg", align 16
 
 // CHECK-IR: [[SYCL_IMAGES:@.+]] = internal unnamed_addr constant [2 x [[SYCL_IMAGETY]]] [{{.*}} { i16 2, i8 4, i8 2, i8* getelementptr inbounds ([4 x i8], [4 x i8]* [[SYCL_TGT0]], i64 0, i64 0), i8* getelementptr inbounds ([3 x i8], [3 x i8]* [[SYCL_COMPILE_OPTS0]], i64 0, i64 0), i8* getelementptr inbounds ([21 x i8], [21 x i8]* [[SYCL_LINK_OPTS0]], i64 0, i64 0), i8* null, i8* null, i8* getelementptr inbounds ([[SYCL_BIN0TY]], [[SYCL_BIN0TY]]* [[SYCL_BIN0]], i64 0, i64 0), i8* getelementptr inbounds ([[SYCL_BIN0TY]], [[SYCL_BIN0TY]]* [[SYCL_BIN0]], i64 1, i64 0), [[ENTTY]]* null, [[ENTTY]]* null, [[PROPSETTY]]* null, [[PROPSETTY]]* null }, [[SYCL_IMAGETY]] { i16 2, i8 4, i8 1, i8* getelementptr inbounds ([4 x i8], [4 x i8]* [[SYCL_TGT1]], i64 0, i64 0), i8* getelementptr inbounds ([1 x i8], [1 x i8]* [[SYCL_COMPILE_OPTS1]], i64 0, i64 0), i8* getelementptr inbounds ([1 x i8], [1 x i8]* [[SYCL_LINK_OPTS1]], i64 0, i64 0), i8* null, i8* null, i8* getelementptr inbounds ([[SYCL_BIN1TY]], [[SYCL_BIN1TY]]* [[SYCL_BIN1]], i64 0, i64 0), i8* getelementptr inbounds ([[SYCL_BIN1TY]], [[SYCL_BIN1TY]]* [[SYCL_BIN1]], i64 1, i64 0), [[ENTTY]]* null, [[ENTTY]]* null, [[PROPSETTY]]* null, [[PROPSETTY]]* null }]
 

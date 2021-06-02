@@ -80,6 +80,7 @@ public:
     SYCLPostLinkJobClass,
     BackendCompileJobClass,
     FileTableTformJobClass,
+    AppendFooterJobClass,
     StaticLibJobClass,
 
     JobClassFirst = PreprocessJobClass,
@@ -222,13 +223,17 @@ public:
 
 class InputAction : public Action {
   const llvm::opt::Arg &Input;
-
+  std::string Id;
   virtual void anchor();
 
 public:
-  InputAction(const llvm::opt::Arg &Input, types::ID Type);
+  InputAction(const llvm::opt::Arg &Input, types::ID Type,
+              StringRef Id = StringRef());
 
   const llvm::opt::Arg &getInputArg() const { return Input; }
+
+  void setId(StringRef _Id) { Id = _Id.str(); }
+  StringRef getId() const { return Id; }
 
   static bool classof(const Action *A) {
     return A->getKind() == InputClass;
@@ -801,6 +806,17 @@ public:
 
 private:
   SmallVector<Tform, 2> Tforms; // transformation actions requested
+};
+
+class AppendFooterJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  AppendFooterJobAction(Action *Input, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == AppendFooterJobClass;
+  }
 };
 
 class StaticLibJobAction : public JobAction {

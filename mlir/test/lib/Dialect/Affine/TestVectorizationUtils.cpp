@@ -32,8 +32,6 @@
 
 using namespace mlir;
 
-using llvm::SetVector;
-
 static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
 
 static llvm::cl::list<int> clTestVectorShapeRatio(
@@ -231,7 +229,7 @@ void VectorizerTestPass::testVecAffineLoopNest() {
   strategy.loopToVectorDim[outermostLoop] = 0;
   std::vector<SmallVector<AffineForOp, 2>> loopsToVectorize;
   loopsToVectorize.push_back({outermostLoop});
-  vectorizeAffineLoopNest(loopsToVectorize, strategy);
+  (void)vectorizeAffineLoopNest(loopsToVectorize, strategy);
 }
 
 void VectorizerTestPass::runOnFunction() {

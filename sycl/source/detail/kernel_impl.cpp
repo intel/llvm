@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
 
@@ -46,6 +47,19 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         PI_INVALID_CONTEXT);
+}
+
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+                         DeviceImageImplPtr DeviceImageImpl,
+                         KernelBundleImplPtr KernelBundleImpl)
+    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
+      MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
+      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+
+  // kernel_impl shared ownership of kernel handle
+  if (!is_host()) {
+    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+  }
 }
 
 kernel_impl::kernel_impl(ContextImplPtr Context,

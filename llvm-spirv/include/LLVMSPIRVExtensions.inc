@@ -3,8 +3,10 @@
 #endif
 
 EXT(SPV_EXT_shader_atomic_float_add)
+EXT(SPV_EXT_shader_atomic_float_min_max)
 EXT(SPV_KHR_no_integer_wrap_decoration)
 EXT(SPV_KHR_float_controls)
+EXT(SPV_KHR_linkonce_odr)
 EXT(SPV_INTEL_subgroups)
 EXT(SPV_INTEL_media_block_io)
 EXT(SPV_INTEL_device_side_avc_motion_estimation)
@@ -32,3 +34,5 @@ EXT(SPV_INTEL_fp_fast_math_mode)
 EXT(SPV_INTEL_fpga_cluster_attributes)
 EXT(SPV_INTEL_loop_fuse)
 EXT(SPV_INTEL_long_constant_composite)
+EXT(SPV_INTEL_optnone)
+EXT(SPV_INTEL_memory_access_aliasing)

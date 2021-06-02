@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
+
 #include "CL/sycl/detail/pi.h"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
@@ -44,6 +46,13 @@ static pi_result redefinedProgramCreateWithSource(pi_context context,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedProgramCreateWithBinary(
+    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
+    const size_t *lengths, const unsigned char **binaries,
+    pi_int32 *binary_status, pi_program *ret_program) {
+  return PI_SUCCESS;
+}
+
 static pi_result
 redefinedProgramBuild(pi_program program, pi_uint32 num_devices,
                       const pi_device *device_list, const char *options,
@@ -67,6 +76,37 @@ redefinedProgramLink(pi_context context, pi_uint32 num_devices,
                      const pi_program *input_programs,
                      void (*pfn_notify)(pi_program program, void *user_data),
                      void *user_data, pi_program *ret_program) {
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramGetInfo(pi_program program,
+                                         pi_program_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret) {
+  if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
+    auto value = reinterpret_cast<unsigned int *>(param_value);
+    *value = 1;
+  }
+
+  if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
+    auto value = reinterpret_cast<size_t *>(param_value);
+    value[0] = 1;
+  }
+
+  if (param_name == PI_PROGRAM_INFO_BINARIES) {
+    auto value = reinterpret_cast<unsigned char *>(param_value);
+    value[0] = 1;
+  }
+
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramRetain(pi_program program) {
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramRelease(pi_program program) {
   return PI_SUCCESS;
 }
 
@@ -117,10 +157,17 @@ protected:
 
     Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
         redefinedProgramCreateWithSource);
+    Mock->redefine<detail::PiApiKind::piProgramCreateWithBinary>(
+        redefinedProgramCreateWithBinary);
     Mock->redefine<detail::PiApiKind::piProgramCompile>(
         redefinedProgramCompile);
     Mock->redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
     Mock->redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+    Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
+        redefinedProgramGetInfo);
+    Mock->redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
+    Mock->redefine<detail::PiApiKind::piProgramRelease>(
+        redefinedProgramRelease);
     Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
     Mock->redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
     Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
@@ -201,36 +248,51 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeCompileAndLinkWithOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
 }
 
-// Check that probrams built without options are cached.
+// Check that programs built without options are cached.
 TEST_F(KernelAndProgramCacheTest, ProgramBuildPositive) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
 
   context Ctx{Plt};
-  program Prg{Ctx};
+  program Prg1{Ctx};
+  program Prg2{Ctx};
 
-  Prg.build_with_kernel_type<TestKernel>();
+  Prg1.build_with_kernel_type<TestKernel>();
+  Prg2.build_with_kernel_type<TestKernel>();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for programs";
 }
 
-// Check that probrams built with options are not cached.
-TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeBuildOpts) {
+// Check that programs built with options are cached.
+TEST_F(KernelAndProgramCacheTest, ProgramBuildPositiveBuildOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
 
   context Ctx{Plt};
-  program Prg{Ctx};
+  program Prg1{Ctx};
+  program Prg2{Ctx};
+  program Prg3{Ctx};
+  program Prg4{Ctx};
+  program Prg5{Ctx};
 
-  Prg.build_with_kernel_type<TestKernel>("-g");
+  /* Build 5 instances of the same program. It is expected that there will be 3
+   * instances of the program in the cache because Build of Prg1 is equal to
+   * build of Prg5 and build of Prg2 is equal to build of Prg3.
+   * */
+  Prg1.build_with_kernel_type<TestKernel>("-a");
+  Prg2.build_with_kernel_type<TestKernel>("-b");
+  Prg3.build_with_kernel_type<TestKernel>("-b");
+  Prg4.build_with_kernel_type<TestKernel>();
+  Prg5.build_with_kernel_type<TestKernel2>("-a");
+
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for programs";
+  EXPECT_EQ(Cache.size(), 3) << "Expect non-empty cache for programs";
 }
 
 // Check that programs built with compile options are not cached.
@@ -287,8 +349,8 @@ TEST_F(KernelAndProgramCacheTest, KernelPositive) {
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
 }
 
-// Check that kernels built with options are not cached.
-TEST_F(KernelAndProgramCacheTest, KernelNegativeBuildOpts) {
+// Check that kernels built with options are cached.
+TEST_F(KernelAndProgramCacheTest, KernelPositiveBuildOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
@@ -301,10 +363,11 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeBuildOpts) {
   program Prg{Ctx};
 
   Prg.build_with_kernel_type<TestKernel>("-g");
+
   kernel Ker = Prg.get_kernel<TestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
+  EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
 }
 
 // Check that kernels built with compile options are not cached.

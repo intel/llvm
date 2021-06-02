@@ -26,6 +26,14 @@
 #include "llvm/ADT/SmallVector.h"
 using namespace clang;
 
+template <typename AttrT> static bool hasExplicitAttr(const VarDecl *D) {
+  if (!D)
+    return false;
+  if (auto *A = D->getAttr<AttrT>())
+    return !A->isImplicit();
+  return false;
+}
+
 void Sema::PushForceCUDAHostDevice() {
   assert(getLangOpts().CUDA && "Should only be called during CUDA compilation");
   ForceCUDAHostDeviceDepth++;
@@ -131,6 +139,35 @@ Sema::CUDAFunctionTarget Sema::IdentifyCUDATarget(const FunctionDecl *D,
   }
 
   return CFT_Host;
+}
+
+/// IdentifyTarget - Determine the CUDA compilation target for this variable.
+Sema::CUDAVariableTarget Sema::IdentifyCUDATarget(const VarDecl *Var) {
+  if (Var->hasAttr<HIPManagedAttr>())
+    return CVT_Unified;
+  if (Var->isConstexpr() && !hasExplicitAttr<CUDAConstantAttr>(Var))
+    return CVT_Both;
+  if (Var->hasAttr<CUDADeviceAttr>() || Var->hasAttr<CUDAConstantAttr>() ||
+      Var->hasAttr<CUDASharedAttr>() ||
+      Var->getType()->isCUDADeviceBuiltinSurfaceType() ||
+      Var->getType()->isCUDADeviceBuiltinTextureType())
+    return CVT_Device;
+  // Function-scope static variable without explicit device or constant
+  // attribute are emitted
+  //  - on both sides in host device functions
+  //  - on device side in device or global functions
+  if (auto *FD = dyn_cast<FunctionDecl>(Var->getDeclContext())) {
+    switch (IdentifyCUDATarget(FD)) {
+    case CFT_HostDevice:
+      return CVT_Both;
+    case CFT_Device:
+    case CFT_Global:
+      return CVT_Device;
+    default:
+      return CVT_Host;
+    }
+  }
+  return CVT_Host;
 }
 
 // * CUDA Call preference table
@@ -530,9 +567,12 @@ void Sema::checkAllowedCUDAInitializer(VarDecl *VD) {
     if (!AllowedInit &&
         (VD->hasAttr<CUDADeviceAttr>() || VD->hasAttr<CUDAConstantAttr>())) {
       auto *Init = VD->getInit();
+      // isConstantInitializer cannot be called with dependent value, therefore
+      // we skip checking dependent value here. This is OK since
+      // checkAllowedCUDAInitializer is called again when the template is
+      // instantiated.
       AllowedInit =
-          ((VD->getType()->isDependentType() || Init->isValueDependent()) &&
-           VD->isConstexpr()) ||
+          VD->getType()->isDependentType() || Init->isValueDependent() ||
           Init->isConstantInitializer(Context,
                                       VD->getType()->isReferenceType());
     }
@@ -634,7 +674,8 @@ void Sema::maybeAddCUDAHostDeviceAttrs(FunctionDecl *NewD,
 
 void Sema::MaybeAddCUDAConstantAttr(VarDecl *VD) {
   if (getLangOpts().CUDAIsDevice && VD->isConstexpr() &&
-      (VD->isFileVarDecl() || VD->isStaticDataMember())) {
+      (VD->isFileVarDecl() || VD->isStaticDataMember()) &&
+      !VD->hasAttr<CUDAConstantAttr>()) {
     VD->addAttr(CUDAConstantAttr::CreateImplicit(getASTContext()));
   }
 }
@@ -666,7 +707,8 @@ Sema::SemaDiagnosticBuilder Sema::CUDADiagIfDeviceCode(SourceLocation Loc,
     }
   }();
   return SemaDiagnosticBuilder(DiagKind, Loc, DiagID,
-                               dyn_cast<FunctionDecl>(CurContext), *this);
+                               dyn_cast<FunctionDecl>(CurContext), *this,
+                               DeviceDiagnosticReason::CudaDevice);
 }
 
 Sema::SemaDiagnosticBuilder Sema::CUDADiagIfHostCode(SourceLocation Loc,
@@ -695,7 +737,8 @@ Sema::SemaDiagnosticBuilder Sema::CUDADiagIfHostCode(SourceLocation Loc,
     }
   }();
   return SemaDiagnosticBuilder(DiagKind, Loc, DiagID,
-                               dyn_cast<FunctionDecl>(CurContext), *this);
+                               dyn_cast<FunctionDecl>(CurContext), *this,
+                               DeviceDiagnosticReason::CudaHost);
 }
 
 bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
@@ -743,12 +786,14 @@ bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
   if (!LocsWithCUDACallDiags.insert({Caller, Loc}).second)
     return true;
 
-  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_ref_bad_target, Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_ref_bad_target, Caller, *this,
+                        DeviceDiagnosticReason::CudaAll)
       << IdentifyCUDATarget(Callee) << /*function*/ 0 << Callee
       << IdentifyCUDATarget(Caller);
   if (!Callee->getBuiltinID())
     SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
-                          diag::note_previous_decl, Caller, *this)
+                          diag::note_previous_decl, Caller, *this,
+                          DeviceDiagnosticReason::CudaAll)
         << Callee;
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
          DiagKind != SemaDiagnosticBuilder::K_ImmediateWithCallStack;
@@ -791,11 +836,13 @@ void Sema::CUDACheckLambdaCapture(CXXMethodDecl *Callee,
   auto DiagKind = SemaDiagnosticBuilder::K_Deferred;
   if (Capture.isVariableCapture()) {
     SemaDiagnosticBuilder(DiagKind, Capture.getLocation(),
-                          diag::err_capture_bad_target, Callee, *this)
+                          diag::err_capture_bad_target, Callee, *this,
+                          DeviceDiagnosticReason::CudaAll)
         << Capture.getVariable();
   } else if (Capture.isThisCapture()) {
     SemaDiagnosticBuilder(DiagKind, Capture.getLocation(),
-                          diag::err_capture_bad_target_this_ptr, Callee, *this);
+                          diag::err_capture_bad_target_this_ptr, Callee, *this,
+                          DeviceDiagnosticReason::CudaAll);
   }
   return;
 }

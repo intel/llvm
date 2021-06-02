@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify -fsyntax-only %s
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify -fsyntax-only %s
+// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only %s
 
 #include "sycl.hpp"
 
@@ -71,7 +71,7 @@ int main() {
   __float128 CapturedToDevice = 1;
   host_ok();
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:212 {{called by 'kernel_single_task<variables, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<variables, (lambda}}
     h.single_task<class variables>([=]() {
       // expected-error@+1 {{'__float128' is not supported on this target}}
       decltype(CapturedToDevice) D;
@@ -88,7 +88,7 @@ int main() {
   });
 
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:212 4{{called by 'kernel_single_task<functions, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall 4{{called by 'kernel_single_task<functions, (lambda}}
     h.single_task<class functions>([=]() {
       // expected-note@+1 2{{called by 'operator()'}}
       usage();
@@ -104,7 +104,7 @@ int main() {
   });
 
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:212 {{called by 'kernel_single_task<ok, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<ok, (lambda}}
     h.single_task<class ok>([=]() {
       // expected-note@+1 3{{used here}}
       Z<__float128> S;

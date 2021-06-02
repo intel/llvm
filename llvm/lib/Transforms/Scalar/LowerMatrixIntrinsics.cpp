@@ -50,11 +50,6 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "lower-matrix-intrinsics"
 
-static cl::opt<bool> EnableShapePropagation(
-    "matrix-propagate-shape", cl::init(true), cl::Hidden,
-    cl::desc("Enable/disable shape propagation from matrix intrinsics to other "
-             "instructions."));
-
 static cl::opt<bool>
     FuseMatrix("fuse-matrix", cl::init(true), cl::Hidden,
                cl::desc("Enable/disable fusing matrix instructions."));
@@ -413,7 +408,9 @@ public:
   /// \p VT * N.
   unsigned getNumOps(Type *ST, unsigned N) {
     return std::ceil((ST->getPrimitiveSizeInBits() * N).getFixedSize() /
-                     double(TTI.getRegisterBitWidth(true)));
+                     double(TTI.getRegisterBitWidth(
+                                   TargetTransformInfo::RGK_FixedWidthVector)
+                                .getFixedSize()));
   }
 
   /// Return the set of vectors that a matrix value is lowered to.
@@ -658,33 +655,36 @@ public:
   }
 
   bool Visit() {
-    if (EnableShapePropagation) {
-      SmallVector<Instruction *, 32> WorkList;
+    SmallVector<Instruction *, 32> WorkList;
 
-      // Initially only the shape of matrix intrinsics is known.
-      // Initialize the work list with ops carrying shape information.
-      for (BasicBlock &BB : Func)
-        for (Instruction &Inst : BB) {
-          IntrinsicInst *II = dyn_cast<IntrinsicInst>(&Inst);
-          if (!II)
-            continue;
+    // Initially only the shape of matrix intrinsics is known.
+    // Initialize the work list with ops carrying shape information.
+    for (BasicBlock &BB : Func)
+      for (Instruction &Inst : BB) {
+        IntrinsicInst *II = dyn_cast<IntrinsicInst>(&Inst);
+        if (!II)
+          continue;
 
-          switch (II->getIntrinsicID()) {
-          case Intrinsic::matrix_multiply:
-          case Intrinsic::matrix_transpose:
-          case Intrinsic::matrix_column_major_load:
-          case Intrinsic::matrix_column_major_store:
-            WorkList.push_back(&Inst);
-            break;
-          default:
-            break;
-          }
+        switch (II->getIntrinsicID()) {
+        case Intrinsic::matrix_multiply:
+        case Intrinsic::matrix_transpose:
+        case Intrinsic::matrix_column_major_load:
+        case Intrinsic::matrix_column_major_store:
+          WorkList.push_back(&Inst);
+          break;
+        default:
+          break;
         }
-      // Propagate shapes until nothing changes any longer.
-      while (!WorkList.empty()) {
-        WorkList = propagateShapeForward(WorkList);
-        WorkList = propagateShapeBackward(WorkList);
       }
+
+    // Avoid unnecessary work if there are no matrix intrinsics in the function.
+    if (WorkList.empty())
+      return false;
+
+    // Propagate shapes until nothing changes any longer.
+    while (!WorkList.empty()) {
+      WorkList = propagateShapeForward(WorkList);
+      WorkList = propagateShapeBackward(WorkList);
     }
 
     bool Changed = false;
@@ -736,8 +736,13 @@ public:
       RemarkGen.emitRemarks();
     }
 
-    for (Instruction *Inst : reverse(ToRemove))
+    // Delete the instructions backwards, as it has a reduced likelihood of
+    // having to update as many def-use and use-def chains.
+    for (auto *Inst : reverse(ToRemove)) {
+      if (!Inst->use_empty())
+        Inst->replaceAllUsesWith(UndefValue::get(Inst->getType()));
       Inst->eraseFromParent();
+    }
 
     return Changed;
   }
@@ -797,15 +802,16 @@ public:
   /// vectors.
   MatrixTy loadMatrix(Type *Ty, Value *Ptr, MaybeAlign MAlign, Value *Stride,
                       bool IsVolatile, ShapeInfo Shape, IRBuilder<> &Builder) {
-    auto VType = cast<VectorType>(Ty);
-    Value *EltPtr = createElementPtr(Ptr, VType->getElementType(), Builder);
+    auto *VType = cast<VectorType>(Ty);
+    Type *EltTy = VType->getElementType();
+    Type *VecTy = FixedVectorType::get(EltTy, Shape.getStride());
+    Value *EltPtr = createElementPtr(Ptr, EltTy, Builder);
     MatrixTy Result;
     for (unsigned I = 0, E = Shape.getNumVectors(); I < E; ++I) {
       Value *GEP = computeVectorAddr(EltPtr, Builder.getInt64(I), Stride,
-                                     Shape.getStride(), VType->getElementType(),
-                                     Builder);
+                                     Shape.getStride(), EltTy, Builder);
       Value *Vector = Builder.CreateAlignedLoad(
-          GEP, getAlignForIndex(I, Stride, VType->getElementType(), MAlign),
+          VecTy, GEP, getAlignForIndex(I, Stride, EltTy, MAlign),
           IsVolatile, "col.load");
 
       Result.addVector(Vector);
@@ -987,7 +993,7 @@ public:
   }
 
   /// Cache \p Matrix as result of \p Inst and update the uses of \p Inst. For
-  /// users with shape information, there's nothing to do: the will use the
+  /// users with shape information, there's nothing to do: they will use the
   /// cached value when they are lowered. For other users, \p Matrix is
   /// flattened and the uses are updated to use it. Also marks \p Inst for
   /// deletion.
@@ -997,8 +1003,7 @@ public:
 
     ToRemove.push_back(Inst);
     Value *Flattened = nullptr;
-    for (auto I = Inst->use_begin(), E = Inst->use_end(); I != E;) {
-      Use &U = *I++;
+    for (Use &U : llvm::make_early_inc_range(Inst->uses())) {
       if (ShapeMap.find(U.getUser()) == ShapeMap.end()) {
         if (!Flattened)
           Flattened = Matrix.embedInVector(Builder);
@@ -1009,11 +1014,18 @@ public:
 
   /// Compute \p Result += \p A * \p B for input matrices with left-associating
   /// addition.
+  ///
+  /// We can fold a transpose into the operand that is used to extract scalars.
+  /// This is the first operands with row-major and the second with
+  /// column-major.  If \p IsScalarMatrixTransposed we assume the appropriate
+  /// operand is transposed.
   void emitMatrixMultiply(MatrixTy &Result, const MatrixTy &A,
                           const MatrixTy &B, bool AllowContraction,
-                          IRBuilder<> &Builder, bool isTiled) {
+                          IRBuilder<> &Builder, bool IsTiled,
+                          bool IsScalarMatrixTransposed) {
     const unsigned VF = std::max<unsigned>(
-        TTI.getRegisterBitWidth(true) /
+        TTI.getRegisterBitWidth(TargetTransformInfo::RGK_FixedWidthVector)
+                .getFixedSize() /
             Result.getElementType()->getPrimitiveSizeInBits().getFixedSize(),
         1U);
     unsigned R = Result.getNumRows();
@@ -1039,11 +1051,13 @@ public:
           while (I + BlockSize > R)
             BlockSize /= 2;
 
-          Value *Sum = isTiled ? Result.extractVector(I, J, BlockSize, Builder)
+          Value *Sum = IsTiled ? Result.extractVector(I, J, BlockSize, Builder)
                                : nullptr;
           for (unsigned K = 0; K < M; ++K) {
             Value *L = A.extractVector(I, K, BlockSize, Builder);
-            Value *RH = Builder.CreateExtractElement(B.getColumn(J), K);
+            Value *RH = Builder.CreateExtractElement(
+                B.getColumn(IsScalarMatrixTransposed ? K : J),
+                IsScalarMatrixTransposed ? J : K);
             Value *Splat = Builder.CreateVectorSplat(BlockSize, RH, "splat");
             Sum = createMulAdd(isSumZero && K == 0 ? nullptr : Sum, L, Splat,
                                Result.getElementType()->isFloatingPointTy(),
@@ -1068,7 +1082,9 @@ public:
           Value *Sum = nullptr;
           for (unsigned K = 0; K < M; ++K) {
             Value *R = B.extractVector(K, J, BlockSize, Builder);
-            Value *LH = Builder.CreateExtractElement(A.getVector(I), K);
+            Value *LH = Builder.CreateExtractElement(
+                A.getVector(IsScalarMatrixTransposed ? K : I),
+                IsScalarMatrixTransposed ? I : K);
             Value *Splat = Builder.CreateVectorSplat(BlockSize, LH, "splat");
             Sum = createMulAdd(isSumZero && K == 0 ? nullptr : Sum, Splat, R,
                                IsFP, Builder, AllowContraction, NumComputeOps);
@@ -1089,10 +1105,8 @@ public:
     MemoryLocation StoreLoc = MemoryLocation::get(Store);
     MemoryLocation LoadLoc = MemoryLocation::get(Load);
 
-    AliasResult LdAliased = AA->alias(LoadLoc, StoreLoc);
-
     // If we can statically determine noalias we're good.
-    if (!LdAliased)
+    if (AA->isNoAlias(LoadLoc, StoreLoc))
       return Load->getPointerOperand();
 
     // Create code to check if the memory locations of the Load and Store
@@ -1179,10 +1193,11 @@ public:
     const unsigned M = LShape.NumColumns;
     auto *EltType = cast<VectorType>(MatMul->getType())->getElementType();
 
-    const unsigned VF =
-        std::max<unsigned>(TTI.getRegisterBitWidth(true) /
-                               EltType->getPrimitiveSizeInBits().getFixedSize(),
-                           1U);
+    const unsigned VF = std::max<unsigned>(
+        TTI.getRegisterBitWidth(TargetTransformInfo::RGK_FixedWidthVector)
+                .getFixedSize() /
+            EltType->getPrimitiveSizeInBits().getFixedSize(),
+        1U);
 
     // Cost model for tiling
     //
@@ -1247,7 +1262,7 @@ public:
                             {TileSize, TileSize}, EltType, Builder);
     MatrixTy B = loadMatrix(RPtr, {}, false, RShape, TI.CurrentK, TI.CurrentCol,
                             {TileSize, TileSize}, EltType, Builder);
-    emitMatrixMultiply(TileResult, A, B, AllowContract, Builder, true);
+    emitMatrixMultiply(TileResult, A, B, AllowContract, Builder, true, false);
     // Store result after the inner loop is done.
     Builder.SetInsertPoint(TI.RowLoopLatch->getTerminator());
     storeMatrix(TileResult, Store->getPointerOperand(), Store->getAlign(),
@@ -1309,7 +1324,7 @@ public:
                 loadMatrix(BPtr, LoadOp1->getAlign(), LoadOp1->isVolatile(),
                            RShape, Builder.getInt64(K), Builder.getInt64(J),
                            {TileM, TileC}, EltType, Builder);
-            emitMatrixMultiply(Res, A, B, AllowContract, Builder, true);
+            emitMatrixMultiply(Res, A, B, AllowContract, Builder, true, false);
           }
           storeMatrix(Res, CPtr, Store->getAlign(), Store->isVolatile(), {R, M},
                       Builder.getInt64(I), Builder.getInt64(J), EltType,
@@ -1334,21 +1349,71 @@ public:
 
   /// Try to lower matrix multiply chains by fusing operations.
   ///
-  /// Currently we only lower {ld, ld} -> matmul -> st chains.
-  //
-  /// No need to return a MatrixTy object for the result of the operation, since
-  /// the single store user will be lowered as part of this. Instructions that
-  /// are completely eliminated by fusion are added to \p FusedInsts.
+  /// Call finalizeLowering on lowered instructions.  Instructions that are
+  /// completely eliminated by fusion are added to \p FusedInsts.
   void LowerMatrixMultiplyFused(CallInst *MatMul,
                                 SmallPtrSetImpl<Instruction *> &FusedInsts) {
-    if (!FuseMatrix || !MatMul->hasOneUse() ||
-        MatrixLayout != MatrixLayoutTy::ColumnMajor || !DT)
+    if (!FuseMatrix || !DT)
       return;
 
     assert(AA && LI && "Analyses should be available");
 
-    auto *LoadOp0 = dyn_cast<LoadInst>(MatMul->getOperand(0));
-    auto *LoadOp1 = dyn_cast<LoadInst>(MatMul->getOperand(1));
+    Value *A = MatMul->getArgOperand(0);
+    Value *B = MatMul->getArgOperand(1);
+
+    // We can fold the transpose into the operand that is used to fetch scalars.
+    Value *T;
+    if (MatrixLayout == MatrixLayoutTy::ColumnMajor
+            ? match(B, m_Intrinsic<Intrinsic::matrix_transpose>(m_Value(T)))
+            : match(A, m_Intrinsic<Intrinsic::matrix_transpose>(m_Value(T)))) {
+      IRBuilder<> Builder(MatMul);
+      auto *EltType = cast<VectorType>(MatMul->getType())->getElementType();
+      ShapeInfo LShape(MatMul->getArgOperand(2), MatMul->getArgOperand(3));
+      ShapeInfo RShape(MatMul->getArgOperand(3), MatMul->getArgOperand(4));
+      const unsigned R = LShape.NumRows;
+      const unsigned M = LShape.NumColumns;
+      const unsigned C = RShape.NumColumns;
+
+      MatrixTy MA;
+      MatrixTy MB;
+
+      Value *Transpose;
+      if (MatrixLayout == MatrixLayoutTy::ColumnMajor) {
+        MA = getMatrix(A, ShapeInfo(R, M), Builder);
+        MB = getMatrix(T, ShapeInfo(C, M), Builder);
+        Transpose = B;
+      } else {
+        MA = getMatrix(T, ShapeInfo(R, M), Builder);
+        MB = getMatrix(B, ShapeInfo(C, M), Builder);
+        Transpose = A;
+      }
+
+      // Initialize the output
+      MatrixTy Result(R, C, EltType);
+
+      bool AllowContract =
+          AllowContractEnabled ||
+          (isa<FPMathOperator>(MatMul) && MatMul->hasAllowContract());
+      emitMatrixMultiply(Result, MA, MB, AllowContract, Builder, false, true);
+
+      FusedInsts.insert(MatMul);
+      FusedInsts.insert(cast<Instruction>(Transpose));
+      if (Transpose->hasOneUse())
+        ToRemove.push_back(cast<Instruction>(Transpose));
+      finalizeLowering(MatMul, Result, Builder);
+      // TODO: add a fake entry for the folded instruction so that this is
+      // included in the expression in the remark.
+      Inst2ColumnMatrix[Transpose] = MatrixTy(M, C, EltType);
+      return;
+    }
+
+    if (!MatMul->hasOneUse() || MatrixLayout != MatrixLayoutTy::ColumnMajor)
+      return;
+
+    // Lower {ld, ld} -> matmul -> st chains.  No need to call finalizeLowering
+    // since the single store user will be lowered as part of this.
+    auto *LoadOp0 = dyn_cast<LoadInst>(A);
+    auto *LoadOp1 = dyn_cast<LoadInst>(B);
     auto *Store = dyn_cast<StoreInst>(*MatMul->user_begin());
     if (LoadOp0 && LoadOp1 && Store) {
       // The store address must dominate the MatMul instruction, otherwise
@@ -1386,7 +1451,7 @@ public:
 
     bool AllowContract = AllowContractEnabled || (isa<FPMathOperator>(MatMul) &&
                                                   MatMul->hasAllowContract());
-    emitMatrixMultiply(Result, Lhs, Rhs, AllowContract, Builder, false);
+    emitMatrixMultiply(Result, Lhs, Rhs, AllowContract, Builder, false, false);
     finalizeLowering(MatMul, Result, Builder);
   }
 

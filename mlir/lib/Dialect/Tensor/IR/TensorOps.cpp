@@ -73,6 +73,20 @@ bool mlir::tensor::canFoldIntoConsumerOp(CastOp castOp) {
   return true;
 }
 
+/// Performs folding of any operand of `op` if it comes from a tensor::CastOp
+/// that can be folded.
+LogicalResult mlir::tensor::foldTensorCast(Operation *op) {
+  bool folded = false;
+  for (OpOperand &operand : op->getOpOperands()) {
+    auto castOp = operand.get().getDefiningOp<tensor::CastOp>();
+    if (castOp && tensor::canFoldIntoConsumerOp(castOp)) {
+      operand.set(castOp.getOperand());
+      folded = true;
+    }
+  }
+  return success(folded);
+}
+
 bool CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   if (inputs.size() != 1 || outputs.size() != 1)
     return false;
@@ -163,9 +177,9 @@ struct ChainedTensorCast : public OpRewritePattern<CastOp> {
 
 } // namespace
 
-void CastOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+void CastOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                          MLIRContext *context) {
-  results.insert<ChainedTensorCast>(context);
+  results.add<ChainedTensorCast>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -224,6 +238,12 @@ void FromElementsOp::build(OpBuilder &builder, OperationState &result,
   build(builder, result, elements.front().getType(), elements);
 }
 
+OpFoldResult FromElementsOp::fold(ArrayRef<Attribute> operands) {
+  if (!llvm::is_contained(operands, nullptr))
+    return DenseElementsAttr::get(getType(), operands);
+  return {};
+}
+
 namespace {
 
 // Canonicalizes the pattern of the form
@@ -248,6 +268,11 @@ struct ExtractElementFromTensorFromElements
     APInt index;
     if (!matchPattern(*extract.indices().begin(), m_ConstantInt(&index)))
       return failure();
+    // Prevent out of bounds accesses. This can happen in invalid code that will
+    // never execute.
+    if (tensorFromElements->getNumOperands() <= index.getZExtValue() ||
+        index.getSExtValue() < 0)
+      return failure();
     rewriter.replaceOp(extract,
                        tensorFromElements.getOperand(index.getZExtValue()));
     return success();
@@ -256,9 +281,9 @@ struct ExtractElementFromTensorFromElements
 
 } // namespace
 
-void FromElementsOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<ExtractElementFromTensorFromElements>(context);
+void FromElementsOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                 MLIRContext *context) {
+  results.add<ExtractElementFromTensorFromElements>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -416,11 +441,52 @@ struct ExtractFromTensorCast : public OpRewritePattern<tensor::ExtractOp> {
 
 } // namespace
 
-void GenerateOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+void GenerateOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
   // TODO: Move extract patterns to tensor::ExtractOp.
-  results.insert<ExtractFromTensorGenerate, ExtractFromTensorCast,
-                 StaticTensorGenerate>(context);
+  results.add<ExtractFromTensorGenerate, ExtractFromTensorCast,
+              StaticTensorGenerate>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// ReshapeOp
+//===----------------------------------------------------------------------===//
+
+static int64_t GetNumElements(ShapedType type) {
+  int64_t numElements = 1;
+  for (auto dim : type.getShape())
+    numElements *= dim;
+  return numElements;
+}
+
+static LogicalResult verify(ReshapeOp op) {
+  TensorType operandType = op.source().getType().cast<TensorType>();
+  TensorType resultType = op.result().getType().cast<TensorType>();
+
+  if (operandType.getElementType() != resultType.getElementType())
+    return op.emitOpError("element types of source and destination tensor "
+                          "types should be the same");
+
+  int64_t shapeSize =
+      op.shape().getType().cast<RankedTensorType>().getDimSize(0);
+  auto resultRankedType = resultType.dyn_cast<RankedTensorType>();
+  auto operandRankedType = operandType.dyn_cast<RankedTensorType>();
+
+  if (resultRankedType) {
+    if (operandRankedType && resultRankedType.hasStaticShape() &&
+        operandRankedType.hasStaticShape()) {
+      if (GetNumElements(operandRankedType) != GetNumElements(resultRankedType))
+        return op.emitOpError("source and destination tensor should have the "
+                              "same number of elements");
+    }
+    if (shapeSize == TensorType::kDynamicSize)
+      return op.emitOpError("cannot use shape operand with dynamic length to "
+                            "reshape to statically-ranked tensor type");
+    if (shapeSize != resultRankedType.getRank())
+      return op.emitOpError(
+          "length of shape operand differs from the result's tensor rank");
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

@@ -40,6 +40,7 @@ public:
   /// in accordance with the requirements described in 4.3.1.
   ///
   /// \param DeviceId is OpenCL device represented with cl_device_id
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   explicit device(cl_device_id DeviceId);
 
   /// Constructs a SYCL device instance using the device selected
@@ -64,6 +65,7 @@ public:
   ///
   /// \return a valid cl_device_id instance in accordance with the requirements
   /// described in 4.3.1.
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   cl_device_id get() const;
 
   /// Check if device is a host device
@@ -171,6 +173,11 @@ public:
   /// of the device type specified
   static vector_class<device>
   get_devices(info::device_type deviceType = info::device_type::all);
+
+  /// Returns the backend associated with this device.
+  ///
+  /// \return the backend associated with this device.
+  backend get_backend() const noexcept;
 
   /// Gets the native handle of the SYCL device.
   ///

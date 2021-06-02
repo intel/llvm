@@ -25,12 +25,7 @@ class LaunchWithShellExpandTestCase(TestBase):
     @expectedFailureNetBSD
     def test(self):
         self.build()
-        exe = self.getBuildArtifact("a.out")
-
-        self.runCmd("target create %s" % exe)
-
-        # Create the target
-        target = self.dbg.CreateTarget(exe)
+        target = self.createTestTarget()
 
         # Create any breakpoints we need
         breakpoint = target.BreakpointCreateBySourceRegex(
@@ -56,8 +51,8 @@ class LaunchWithShellExpandTestCase(TestBase):
 
         stop_reason = thread.GetStopReason()
 
-        self.assertTrue(
-            stop_reason == lldb.eStopReasonBreakpoint,
+        self.assertEqual(
+            stop_reason, lldb.eStopReasonBreakpoint,
             "Thread in process stopped in 'main' should have a stop reason of eStopReasonBreakpoint")
 
         self.expect_var_path("argv[1]", summary='"file1.txt"')
@@ -87,8 +82,8 @@ class LaunchWithShellExpandTestCase(TestBase):
 
         stop_reason = thread.GetStopReason()
 
-        self.assertTrue(
-            stop_reason == lldb.eStopReasonBreakpoint,
+        self.assertEqual(
+            stop_reason, lldb.eStopReasonBreakpoint,
             "Thread in process stopped in 'main' should have a stop reason of eStopReasonBreakpoint")
 
         self.expect("frame variable argv[1]", substrs=['foo bar'])
@@ -110,8 +105,8 @@ class LaunchWithShellExpandTestCase(TestBase):
 
         stop_reason = thread.GetStopReason()
 
-        self.assertTrue(
-            stop_reason == lldb.eStopReasonBreakpoint,
+        self.assertEqual(
+            stop_reason, lldb.eStopReasonBreakpoint,
             "Thread in process stopped in 'main' should have a stop reason of eStopReasonBreakpoint")
 
         self.expect("frame variable argv[1]", substrs=['foo bar'])

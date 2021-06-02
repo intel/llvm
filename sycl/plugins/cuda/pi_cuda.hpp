@@ -64,7 +64,8 @@ struct _pi_platform {
 /// and implements the reference counting semantics since
 /// CUDA objects are not refcounted.
 ///
-class _pi_device {
+struct _pi_device {
+private:
   using native_type = CUdevice;
 
   native_type cuDevice_;
@@ -239,7 +240,7 @@ struct _pi_mem {
 
       void *get_map_ptr() const noexcept { return mapPtr_; }
 
-      size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
+      size_t get_map_offset(void *) const noexcept { return mapOffset_; }
 
       /// Returns a pointer to data visible on the host that contains
       /// the data on the device associated with this allocation.
@@ -259,7 +260,7 @@ struct _pi_mem {
       }
 
       /// Detach the allocation from the host memory.
-      void unmap(void *ptr) noexcept {
+      void unmap(void *) noexcept {
         assert(mapPtr_ != nullptr);
 
         if (mapPtr_ != hostPtr_) {
@@ -312,6 +313,9 @@ struct _pi_mem {
   _pi_mem(pi_context ctxt, CUarray array, CUsurfObject surf,
           pi_mem_type image_type, void *host_ptr)
       : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
+    // Ignore unused parameter
+    (void)host_ptr;
+
     mem_.surface_mem_.array_ = array;
     mem_.surface_mem_.surfObj_ = surf;
     mem_.surface_mem_.imageType_ = image_type;
@@ -388,7 +392,7 @@ typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
                            void *userData);
 /// PI Event mapping to CUevent
 ///
-class _pi_event {
+struct _pi_event {
 public:
   using native_type = CUevent;
 
@@ -410,7 +414,7 @@ public:
 
   bool is_started() const noexcept { return isStarted_; }
 
-  bool is_completed() const noexcept { return isCompleted_; };
+  bool is_completed() const noexcept;
 
   pi_int32 get_execution_status() const noexcept {
 
@@ -462,8 +466,9 @@ private:
 
   std::atomic_uint32_t refCount_; // Event reference count.
 
-  bool isCompleted_; // Signifies whether the operations have completed
-                     //
+  bool hasBeenWaitedOn_; // Signifies whether the event has been waited
+                         // on through a call to wait(), which implies
+                         // that it has completed.
 
   bool isRecorded_; // Signifies wether a native CUDA event has been recorded
                     // yet.

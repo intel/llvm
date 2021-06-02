@@ -246,3 +246,21 @@ func @fn(%arg: !shape.value_shape) -> !shape.shape {
 
 // expected-error@+1 {{@fn not found}}
 module attributes {shape.lib = @fn} { }
+
+// -----
+
+func @fn(%arg: !shape.shape) -> !shape.witness {
+  // expected-error@+1 {{required at least 2 input shapes}}
+  %0 = shape.cstr_broadcastable %arg : !shape.shape
+  return %0 : !shape.witness
+}
+
+// -----
+
+// Test that type inference flags the wrong return type.
+
+func @const_shape() {
+  // expected-error@+1 {{'tensor<3xindex>' are incompatible with return type(s) of operation 'tensor<2xindex>'}}
+  %0 = shape.const_shape [4, 5, 6] : tensor<2xindex>
+  return
+}

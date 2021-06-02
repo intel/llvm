@@ -10,9 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_stacktrace.h"
+
+#include <string.h>
+
+#include <algorithm>
+#include <string>
+
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_internal_defs.h"
+
+using testing::ContainsRegex;
+using testing::MatchesRegex;
 
 namespace __sanitizer {
 
@@ -32,6 +43,17 @@ class FastUnwindTest : public ::testing::Test {
   uhwptr fake_top;
   uhwptr fake_bottom;
   BufferedStackTrace trace;
+
+#if defined(__riscv)
+  const uptr kFpOffset = 4;
+  const uptr kBpOffset = 2;
+#else
+  const uptr kFpOffset = 2;
+  const uptr kBpOffset = 0;
+#endif
+
+ private:
+  CommonFlags tmp_flags_;
 };
 
 static uptr PC(uptr idx) {
@@ -49,23 +71,28 @@ void FastUnwindTest::SetUp() {
   // Fill an array of pointers with fake fp+retaddr pairs.  Frame pointers have
   // even indices.
   for (uptr i = 0; i + 1 < fake_stack_size; i += 2) {
-    fake_stack[i] = (uptr)&fake_stack[i+2];  // fp
+    fake_stack[i] = (uptr)&fake_stack[i + kFpOffset];  // fp
     fake_stack[i+1] = PC(i + 1); // retaddr
   }
   // Mark the last fp point back up to terminate the stack trace.
   fake_stack[RoundDownTo(fake_stack_size - 1, 2)] = (uhwptr)&fake_stack[0];
 
   // Top is two slots past the end because UnwindFast subtracts two.
-  fake_top = (uhwptr)&fake_stack[fake_stack_size + 2];
+  fake_top = (uhwptr)&fake_stack[fake_stack_size + kFpOffset];
   // Bottom is one slot before the start because UnwindFast uses >.
   fake_bottom = (uhwptr)mapping;
-  fake_bp = (uptr)&fake_stack[0];
+  fake_bp = (uptr)&fake_stack[kBpOffset];
   start_pc = PC(0);
+
+  tmp_flags_.CopyFrom(*common_flags());
 }
 
 void FastUnwindTest::TearDown() {
   size_t ps = GetPageSize();
   UnmapOrDie(mapping, 2 * ps);
+
+  // Restore default flags.
+  OverrideCommonFlags(tmp_flags_);
 }
 
 #if SANITIZER_CAN_FAST_UNWIND
@@ -120,7 +147,7 @@ TEST_F(FastUnwindTest, OneFrameStackTrace) {
   trace.Unwind(start_pc, fake_bp, nullptr, true, 1);
   EXPECT_EQ(1U, trace.size);
   EXPECT_EQ(start_pc, trace.trace[0]);
-  EXPECT_EQ((uhwptr)&fake_stack[0], trace.top_frame_bp);
+  EXPECT_EQ((uhwptr)&fake_stack[kBpOffset], trace.top_frame_bp);
 }
 
 TEST_F(FastUnwindTest, ZeroFramesStackTrace) {
@@ -152,6 +179,83 @@ TEST_F(FastUnwindTest, SKIP_ON_SPARC(CloseToZeroFrame)) {
   }
 }
 
+using StackPrintTest = FastUnwindTest;
+
+TEST_F(StackPrintTest, SKIP_ON_SPARC(ContainsFullTrace)) {
+  // Override stack trace format to make testing code independent of default
+  // flag values.
+  CommonFlags flags;
+  flags.CopyFrom(*common_flags());
+  flags.stack_trace_format = "#%n %p";
+  OverrideCommonFlags(flags);
+
+  UnwindFast();
+
+  char buf[3000];
+  trace.PrintTo(buf, sizeof(buf));
+  EXPECT_THAT(std::string(buf),
+              MatchesRegex("(#[0-9]+ 0x[0-9a-f]+\n){" +
+                           std::to_string(trace.size) + "}\n"));
+}
+
+TEST_F(StackPrintTest, SKIP_ON_SPARC(TruncatesContents)) {
+  UnwindFast();
+
+  char buf[3000];
+  uptr actual_len = trace.PrintTo(buf, sizeof(buf));
+  ASSERT_LT(actual_len, sizeof(buf));
+
+  char tinybuf[10];
+  trace.PrintTo(tinybuf, sizeof(tinybuf));
+
+  // This the the truncation case.
+  ASSERT_GT(actual_len, sizeof(tinybuf));
+
+  // The truncated contents should be a prefix of the full contents.
+  size_t lastpos = sizeof(tinybuf) - 1;
+  EXPECT_EQ(strncmp(buf, tinybuf, lastpos), 0);
+  EXPECT_EQ(tinybuf[lastpos], '\0');
+
+  // Full bufffer has more contents...
+  EXPECT_NE(buf[lastpos], '\0');
+}
+
+TEST_F(StackPrintTest, SKIP_ON_SPARC(WorksWithEmptyStack)) {
+  char buf[3000];
+  trace.PrintTo(buf, sizeof(buf));
+  EXPECT_NE(strstr(buf, "<empty stack>"), nullptr);
+}
+
+TEST_F(StackPrintTest, SKIP_ON_SPARC(ReturnsCorrectLength)) {
+  UnwindFast();
+
+  char buf[3000];
+  uptr len = trace.PrintTo(buf, sizeof(buf));
+  size_t actual_len = strlen(buf);
+  ASSERT_LT(len, sizeof(buf));
+  EXPECT_EQ(len, actual_len);
+
+  char tinybuf[5];
+  len = trace.PrintTo(tinybuf, sizeof(tinybuf));
+  size_t truncated_len = strlen(tinybuf);
+  ASSERT_GE(len, sizeof(tinybuf));
+  EXPECT_EQ(len, actual_len);
+  EXPECT_EQ(truncated_len, sizeof(tinybuf) - 1);
+}
+
+TEST_F(StackPrintTest, SKIP_ON_SPARC(AcceptsZeroSize)) {
+  UnwindFast();
+  char buf[1];
+  EXPECT_GT(trace.PrintTo(buf, 0), 0u);
+}
+
+using StackPrintDeathTest = StackPrintTest;
+
+TEST_F(StackPrintDeathTest, SKIP_ON_SPARC(RequiresNonNullBuffer)) {
+  UnwindFast();
+  EXPECT_DEATH(trace.PrintTo(NULL, 100), "");
+}
+
 #endif // SANITIZER_CAN_FAST_UNWIND
 
 TEST(SlowUnwindTest, ShortStackTrace) {
@@ -165,6 +269,13 @@ TEST(SlowUnwindTest, ShortStackTrace) {
   EXPECT_EQ(1U, stack.size);
   EXPECT_EQ(pc, stack.trace[0]);
   EXPECT_EQ(bp, stack.top_frame_bp);
+}
+
+// Dummy implementation. This should never be called, but is required to link
+// non-optimized builds of this test.
+void BufferedStackTrace::UnwindImpl(uptr pc, uptr bp, void *context,
+                                    bool request_fast, u32 max_depth) {
+  UNIMPLEMENTED();
 }
 
 }  // namespace __sanitizer

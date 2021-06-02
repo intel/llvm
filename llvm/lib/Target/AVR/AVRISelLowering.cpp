@@ -521,7 +521,7 @@ SDValue AVRTargetLowering::getAVRCmp(SDValue LHS, SDValue RHS,
 
   SDValue Cmp;
 
-  if (LHS.getSimpleValueType() == MVT::i16 && dyn_cast<ConstantSDNode>(RHS)) {
+  if (LHS.getSimpleValueType() == MVT::i16 && isa<ConstantSDNode>(RHS)) {
     // Generate a CPI/CPC pair if RHS is a 16-bit constant.
     SDValue LHSlo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, LHS,
                                 DAG.getIntPtrConstant(0, DL));
@@ -1938,7 +1938,6 @@ AVRTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
       if (VT == MVT::i8)
         return std::make_pair(0U, &AVR::GPR8RegClass);
 
-      assert(VT == MVT::i16 && "inline asm constraint too large");
       return std::make_pair(0U, &AVR::DREGSRegClass);
     case 't': // Temporary register: r0.
       return std::make_pair(unsigned(AVR::R0), &AVR::GPR8RegClass);

@@ -56,6 +56,7 @@ public:
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  std::mutex &getHandlerExtendedMembersMutex();
 
 private:
   friend void shutdown();
@@ -76,6 +77,8 @@ private:
   std::unique_ptr<std::mutex> MFilterMutex;
   std::unique_ptr<std::vector<plugin>> MPlugins;
   std::unique_ptr<device_filter_list> MDeviceFilterList;
+  // The mutex for synchronizing accesses to handlers extended members
+  std::unique_ptr<std::mutex> MHandlerExtendedMembersMutex;
 };
 } // namespace detail
 } // namespace sycl

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -triple spir64 -disable-llvm-passes %s -emit-llvm -o -  | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-host -triple spir64 -disable-llvm-passes %s -emit-llvm -o -  | FileCheck %s
 // Test that the kernel implementation routine marked with 'sycl_kernel'
 // has the attribute 'sycl_kernel' in the generated LLVM IR and that the
 // function object passed to the sycl kernel is marked 'alwaysinline'

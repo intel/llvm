@@ -119,6 +119,17 @@ mlirContextGetNumLoadedDialects(MlirContext context);
 MLIR_CAPI_EXPORTED MlirDialect mlirContextGetOrLoadDialect(MlirContext context,
                                                            MlirStringRef name);
 
+/// Set threading mode (must be set to false to print-ir-after-all).
+MLIR_CAPI_EXPORTED void mlirContextEnableMultithreading(MlirContext context,
+                                                        bool enable);
+
+/// Returns whether the given fully-qualified operation (i.e.
+/// 'dialect.operation') is registered with the context. This will return true
+/// if the dialect is loaded and the operation is registered within the
+/// dialect.
+MLIR_CAPI_EXPORTED bool mlirContextIsRegisteredOperation(MlirContext context,
+                                                         MlirStringRef name);
+
 //===----------------------------------------------------------------------===//
 // Dialect API.
 //===----------------------------------------------------------------------===//
@@ -197,6 +208,10 @@ MLIR_CAPI_EXPORTED void mlirModuleDestroy(MlirModule module);
 
 /// Views the module as a generic operation.
 MLIR_CAPI_EXPORTED MlirOperation mlirModuleGetOperation(MlirModule module);
+
+/// Views the generic operation as a module.
+/// The returned module is null when the input operation was not a ModuleOp.
+MLIR_CAPI_EXPORTED MlirModule mlirModuleFromOperation(MlirOperation op);
 
 //===----------------------------------------------------------------------===//
 // Operation state.
@@ -311,6 +326,10 @@ mlirOpPrintingFlagsUseLocalScope(MlirOpPrintingFlags flags);
 ///   - Result type inference is enabled and cannot be performed.
 MLIR_CAPI_EXPORTED MlirOperation mlirOperationCreate(MlirOperationState *state);
 
+/// Creates a deep copy of an operation. The operation is not inserted and
+/// ownership is transferred to the caller.
+MLIR_CAPI_EXPORTED MlirOperation mlirOperationClone(MlirOperation op);
+
 /// Takes an operation owned by the caller and destroys it.
 MLIR_CAPI_EXPORTED void mlirOperationDestroy(MlirOperation op);
 
@@ -321,6 +340,9 @@ static inline bool mlirOperationIsNull(MlirOperation op) { return !op.ptr; }
 /// not perform deep comparison.
 MLIR_CAPI_EXPORTED bool mlirOperationEqual(MlirOperation op,
                                            MlirOperation other);
+
+/// Gets the context this operation is associated with
+MLIR_CAPI_EXPORTED MlirContext mlirOperationGetContext(MlirOperation op);
 
 /// Gets the name of the operation as an identifier.
 MLIR_CAPI_EXPORTED MlirIdentifier mlirOperationGetName(MlirOperation op);
@@ -351,6 +373,10 @@ MLIR_CAPI_EXPORTED intptr_t mlirOperationGetNumOperands(MlirOperation op);
 /// Returns `pos`-th operand of the operation.
 MLIR_CAPI_EXPORTED MlirValue mlirOperationGetOperand(MlirOperation op,
                                                      intptr_t pos);
+
+/// Sets the `pos`-th operand of the operation.
+MLIR_CAPI_EXPORTED void mlirOperationSetOperand(MlirOperation op, intptr_t pos,
+                                                MlirValue newValue);
 
 /// Returns the number of results of the operation.
 MLIR_CAPI_EXPORTED intptr_t mlirOperationGetNumResults(MlirOperation op);
@@ -467,6 +493,9 @@ static inline bool mlirBlockIsNull(MlirBlock block) { return !block.ptr; }
 /// perform deep comparison.
 MLIR_CAPI_EXPORTED bool mlirBlockEqual(MlirBlock block, MlirBlock other);
 
+/// Returns the closest surrounding operation that contains this block.
+MLIR_CAPI_EXPORTED MlirOperation mlirBlockGetParentOperation(MlirBlock);
+
 /// Returns the block immediately following the given block in its parent
 /// region.
 MLIR_CAPI_EXPORTED MlirBlock mlirBlockGetNextInRegion(MlirBlock block);
@@ -504,6 +533,11 @@ mlirBlockInsertOwnedOperationBefore(MlirBlock block, MlirOperation reference,
 
 /// Returns the number of arguments of the block.
 MLIR_CAPI_EXPORTED intptr_t mlirBlockGetNumArguments(MlirBlock block);
+
+/// Appends an argument of the specified type to the block. Returns the newly
+/// added argument.
+MLIR_CAPI_EXPORTED MlirValue mlirBlockAddArgument(MlirBlock block,
+                                                  MlirType type);
 
 /// Returns `pos`-th argument of the block.
 MLIR_CAPI_EXPORTED MlirValue mlirBlockGetArgument(MlirBlock block,
@@ -629,6 +663,9 @@ MLIR_CAPI_EXPORTED MlirNamedAttribute mlirNamedAttributeGet(MlirIdentifier name,
 /// Gets an identifier with the given string value.
 MLIR_CAPI_EXPORTED MlirIdentifier mlirIdentifierGet(MlirContext context,
                                                     MlirStringRef str);
+
+/// Returns the context associated with this identifier
+MLIR_CAPI_EXPORTED MlirContext mlirIdentifierGetContext(MlirIdentifier);
 
 /// Checks whether two identifiers are the same.
 MLIR_CAPI_EXPORTED bool mlirIdentifierEqual(MlirIdentifier ident,

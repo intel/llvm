@@ -9,9 +9,11 @@ endforeach()
 
 include(AddSYCLUnitTest)
 
+add_subdirectory(get_native_interop)
 add_subdirectory(misc)
 add_subdirectory(pi)
 add_subdirectory(kernel-and-program)
 add_subdirectory(queue)
 add_subdirectory(scheduler)
+add_subdirectory(spec_constants)
 add_subdirectory(thread_safety)

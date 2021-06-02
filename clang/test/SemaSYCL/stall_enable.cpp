@@ -1,12 +1,12 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -internal-isystem %S/Inputs -fsycl-is-device -Wno-sycl-2017-compat -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -ast-dump -Wno-sycl-2017-compat %s | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -internal-isystem %S/Inputs -fsycl-is-device -Wno-sycl-2017-compat -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -ast-dump -Wno-sycl-2017-compat %s | FileCheck %s
 
 #include "sycl.hpp"
 
 using namespace cl::sycl;
 queue q;
 
-[[intel::use_stall_enable_clusters]] void test() {} //expected-warning{{'use_stall_enable_clusters' attribute ignored}}
+[[intel::use_stall_enable_clusters]] void test() {} // expected-warning{{'use_stall_enable_clusters' attribute allowed only on a function directly called from a SYCL kernel}}
 
 #ifdef TRIGGER_ERROR
 [[intel::use_stall_enable_clusters(1)]] void bar1() {} // expected-error{{'use_stall_enable_clusters' attribute takes no arguments}}

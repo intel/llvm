@@ -155,32 +155,35 @@ void ClangUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
     m_needs_object_ptr = true;
   } else if (clang::CXXMethodDecl *method_decl =
           TypeSystemClang::DeclContextGetAsCXXMethodDecl(decl_context)) {
-    if (m_allow_cxx && method_decl->isInstance()) {
-      if (m_enforce_valid_object) {
-        lldb::VariableListSP variable_list_sp(
-            function_block->GetBlockVariableList(true));
+    if (m_allow_cxx) {
+      if (method_decl->isInstance()) {
+        if (m_enforce_valid_object) {
+          lldb::VariableListSP variable_list_sp(
+              function_block->GetBlockVariableList(true));
 
-        const char *thisErrorString = "Stopped in a C++ method, but 'this' "
-                                      "isn't available; pretending we are in a "
-                                      "generic context";
+          const char *thisErrorString =
+              "Stopped in a C++ method, but 'this' "
+              "isn't available; pretending we are in a "
+              "generic context";
 
-        if (!variable_list_sp) {
-          err.SetErrorString(thisErrorString);
-          return;
+          if (!variable_list_sp) {
+            err.SetErrorString(thisErrorString);
+            return;
+          }
+
+          lldb::VariableSP this_var_sp(
+              variable_list_sp->FindVariable(ConstString("this")));
+
+          if (!this_var_sp || !this_var_sp->IsInScope(frame) ||
+              !this_var_sp->LocationIsValidForFrame(frame)) {
+            err.SetErrorString(thisErrorString);
+            return;
+          }
         }
-
-        lldb::VariableSP this_var_sp(
-            variable_list_sp->FindVariable(ConstString("this")));
-
-        if (!this_var_sp || !this_var_sp->IsInScope(frame) ||
-            !this_var_sp->LocationIsValidForFrame(frame)) {
-          err.SetErrorString(thisErrorString);
-          return;
-        }
+        m_needs_object_ptr = true;
       }
-
       m_in_cplusplus_method = true;
-      m_needs_object_ptr = true;
+      m_in_static_method = !method_decl->isInstance();
     }
   } else if (clang::ObjCMethodDecl *method_decl =
                  TypeSystemClang::DeclContextGetAsObjCMethodDecl(
@@ -349,16 +352,17 @@ bool ClangUserExpression::SetupPersistentState(DiagnosticManager &diagnostic_man
 
 static void SetupDeclVendor(ExecutionContext &exe_ctx, Target *target,
                             DiagnosticManager &diagnostic_manager) {
-  ClangModulesDeclVendor *decl_vendor = target->GetClangModulesDeclVendor();
-  if (!decl_vendor)
-    return;
-
   if (!target->GetEnableAutoImportClangModules())
     return;
 
   auto *persistent_state = llvm::cast<ClangPersistentVariables>(
       target->GetPersistentExpressionStateForLanguage(lldb::eLanguageTypeC));
   if (!persistent_state)
+    return;
+
+  std::shared_ptr<ClangModulesDeclVendor> decl_vendor =
+      persistent_state->GetClangModulesDeclVendor();
+  if (!decl_vendor)
     return;
 
   StackFrame *frame = exe_ctx.GetFramePtr();
@@ -401,9 +405,11 @@ ClangExpressionSourceCode::WrapKind ClangUserExpression::GetWrapKind() const {
   assert(m_options.GetExecutionPolicy() != eExecutionPolicyTopLevel &&
          "Top level expressions aren't wrapped.");
   using Kind = ClangExpressionSourceCode::WrapKind;
-  if (m_in_cplusplus_method)
+  if (m_in_cplusplus_method) {
+    if (m_in_static_method)
+      return Kind::CppStaticMemberFunction;
     return Kind::CppMemberFunction;
-  else if (m_in_objectivec_method) {
+  } else if (m_in_objectivec_method) {
     if (m_in_static_method)
       return Kind::ObjCStaticMethod;
     return Kind::ObjCInstanceMethod;

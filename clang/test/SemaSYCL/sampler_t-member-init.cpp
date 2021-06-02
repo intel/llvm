@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -ast-dump 2>&1 | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl-is-device -ast-dump 2>&1 | FileCheck %s
 
 const __ocl_sampler_t Global = 0;
 

@@ -422,6 +422,7 @@ enum FPOperationMode {
 enum LinkageType {
     LinkageTypeExport = 0,
     LinkageTypeImport = 1,
+    LinkageTypeLinkOnceODR = 2,
     LinkageTypeMax = 0x7fffffff,
 };
 
@@ -1022,6 +1023,9 @@ enum Capability {
     CapabilityFunctionPointersINTEL = 5603,
     CapabilityIndirectReferencesINTEL = 5604,
     CapabilityAsmINTEL = 5606,
+    CapabilityAtomicFloat32MinMaxEXT = 5612,
+    CapabilityAtomicFloat64MinMaxEXT = 5613,
+    CapabilityAtomicFloat16MinMaxEXT = 5616,
     CapabilityVectorComputeINTEL = 5617,
     CapabilityVectorAnyINTEL = 5619,
     CapabilitySubgroupAvcMotionEstimationINTEL = 5696,
@@ -1540,6 +1544,8 @@ enum Op {
     OpAsmTargetINTEL = 5609,
     OpAsmINTEL = 5610,
     OpAsmCallINTEL = 5611,
+    OpAtomicFMinEXT = 5614,
+    OpAtomicFMaxEXT = 5615,
     OpDecorateString = 5632,
     OpDecorateStringGOOGLE = 5632,
     OpMemberDecorateString = 5633,
@@ -2177,6 +2183,8 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpAsmTargetINTEL: *hasResult = true; *hasResultType = true; break;
     case OpAsmINTEL: *hasResult = true; *hasResultType = true; break;
     case OpAsmCallINTEL: *hasResult = true; *hasResultType = true; break;
+    case OpAtomicFMinEXT: *hasResult = true; *hasResultType = true; break;
+    case OpAtomicFMaxEXT: *hasResult = true; *hasResultType = true; break;
     case OpDecorateString: *hasResult = false; *hasResultType = false; break;
     case OpMemberDecorateString: *hasResult = false; *hasResultType = false; break;
     case OpVmeImageINTEL: *hasResult = true; *hasResultType = true; break;

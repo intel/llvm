@@ -25,7 +25,7 @@ struct string {
   ~string() {}
   int i = 0;
 };
-string get_string() {
+string __attribute__((noinline)) get_string() {
   string unused;
   string output = 3;
   stop(); // DexLabel('string-nrvo')
@@ -37,7 +37,7 @@ struct string2 {
   string2(string2 &&other) { i = other.i; }
   int i;
 };
-string2 get_string2() {
+string2 __attribute__((noinline)) get_string2() {
   string2 output;
   output.i = 5;
   some_function(output.i);
@@ -51,6 +51,6 @@ int main() {
   get_string2();
 }
 
-// DexExpectWatchValue('output.i', 3, on_line='string-nrvo')
-// DexExpectWatchValue('output.i', 5, on_line='string2-nrvo')
+// DexExpectWatchValue('output.i', 3, on_line=ref('string-nrvo'))
+// DexExpectWatchValue('output.i', 5, on_line=ref('string2-nrvo'))
 

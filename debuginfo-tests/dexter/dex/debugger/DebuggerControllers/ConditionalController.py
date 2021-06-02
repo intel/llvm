@@ -18,16 +18,36 @@ from dex.debugger.DebuggerBase import DebuggerBase
 from dex.utils.Exceptions import DebuggerException
 
 
-class ConditionalBpRange:
-    """Represents a conditional range of breakpoints within a source file descending from
-    one line to another."""
+class BreakpointRange:
+    """A range of breakpoints and a set of conditions.
 
-    def __init__(self, expression: str, path: str, range_from: int, range_to: int, values: list):
+    The leading breakpoint (on line `range_from`) is always active.
+
+    When the leading breakpoint is hit the trailing range should be activated
+    when `expression` evaluates to any value in `values`. If there are no
+    conditions (`expression` is None) then the trailing breakpoint range should
+    always be activated upon hitting the leading breakpoint.
+
+    Args:
+       expression: None for no conditions, or a str expression to compare
+       against `values`.
+
+       hit_count: None for no limit, or int to set the number of times the
+                  leading breakpoint is triggered before it is removed.
+    """
+
+    def __init__(self, expression: str, path: str, range_from: int, range_to: int,
+                 values: list, hit_count: int):
         self.expression = expression
         self.path = path
         self.range_from = range_from
         self.range_to = range_to
         self.conditional_values = values
+        self.max_hit_count = hit_count
+        self.current_hit_count = 0
+
+    def has_conditions(self):
+        return self.expression != None
 
     def get_conditional_expression_list(self):
         conditional_list = []
@@ -37,54 +57,60 @@ class ConditionalBpRange:
             conditional_list.append(conditional_expression)
         return conditional_list
 
+    def add_hit(self):
+        self.current_hit_count += 1
+
+    def should_be_removed(self):
+        if self.max_hit_count == None:
+            return False
+        return self.current_hit_count >= self.max_hit_count
+
 
 class ConditionalController(DebuggerControllerBase):
     def __init__(self, context, step_collection):
       self.context = context
       self.step_collection = step_collection
-      self._conditional_bps = None
+      self._bp_ranges = None
+      self._build_bp_ranges()
       self._watches = set()
       self._step_index = 0
-      self._build_conditional_bps()
-      self._path_and_line_to_conditional_bp = defaultdict(list)
       self._pause_between_steps = context.options.pause_between_steps
       self._max_steps = context.options.max_steps
+      # Map {id: BreakpointRange}
+      self._leading_bp_handles = {}
 
-    def _build_conditional_bps(self):
+    def _build_bp_ranges(self):
         commands = self.step_collection.commands
-        self._conditional_bps = []
+        self._bp_ranges = []
         try:
             limit_commands = commands['DexLimitSteps']
             for lc in limit_commands:
-                conditional_bp = ConditionalBpRange(
+                bpr = BreakpointRange(
                   lc.expression,
                   lc.path,
                   lc.from_line,
                   lc.to_line,
-                  lc.values)
-                self._conditional_bps.append(conditional_bp)
+                  lc.values,
+                  lc.hit_count)
+                self._bp_ranges.append(bpr)
         except KeyError:
             raise DebuggerException('Missing DexLimitSteps commands, cannot conditionally step.')
 
-    def _set_conditional_bps(self):
-        # When we break in the debugger we need a quick and easy way to look up
-        # which conditional bp we've breaked on.
-        for cbp in self._conditional_bps:
-            conditional_bp_list = self._path_and_line_to_conditional_bp[(cbp.path, cbp.range_from)]
-            conditional_bp_list.append(cbp)
-
-        # Set break points only on the first line of any conditional range, we'll set
-        # more break points for a range when the condition is satisfied.
-        for cbp in self._conditional_bps:
-            for cond_expr in cbp.get_conditional_expression_list():
-                self.debugger.add_conditional_breakpoint(cbp.path, cbp.range_from, cond_expr)
-
-    def _conditional_met(self, cbp):
-        for cond_expr in cbp.get_conditional_expression_list():
-            valueIR = self.debugger.evaluate_expression(cond_expr)
-            if valueIR.type_name == 'bool' and valueIR.value == 'true':
-                return True
-        return False
+    def _set_leading_bps(self):
+        # Set a leading breakpoint for each BreakpointRange, building a
+        # map of {leading bp id: BreakpointRange}.
+        for bpr in self._bp_ranges:
+            if bpr.has_conditions():
+                # Add a conditional breakpoint for each condition.
+                for cond_expr in bpr.get_conditional_expression_list():
+                    id = self.debugger.add_conditional_breakpoint(bpr.path,
+                                                                  bpr.range_from,
+                                                                  cond_expr)
+                    self._leading_bp_handles[id] = bpr
+            else:
+                # Add an unconditional breakpoint.
+                id = self.debugger.add_breakpoint(bpr.path, bpr.range_from)
+                self._leading_bp_handles[id] = bpr
 
     def _run_debugger_custom(self):
         # TODO: Add conditional and unconditional breakpoint support to dbgeng.
@@ -92,13 +118,13 @@ class ConditionalController(DebuggerControllerBase):
             raise DebuggerException('DexLimitSteps commands are not supported by dbgeng')
 
         self.step_collection.clear_steps()
-        self._set_conditional_bps()
+        self._set_leading_bps()
 
         for command_obj in chain.from_iterable(self.step_collection.commands.values()):
             self._watches.update(command_obj.get_watches())
 
         self.debugger.launch()
-        time.sleep(self._pause_between_steps) 
+        time.sleep(self._pause_between_steps)
         while not self.debugger.is_finished:
             while self.debugger.is_running:
                 pass
@@ -109,19 +135,30 @@ class ConditionalController(DebuggerControllerBase):
                 update_step_watches(step_info, self._watches, self.step_collection.commands)
                 self.step_collection.new_step(self.context, step_info)
 
-                loc = step_info.current_location
-                conditional_bp_key = (loc.path, loc.lineno)
-                if conditional_bp_key in self._path_and_line_to_conditional_bp:
+            bp_to_delete = []
+            for bp_id in self.debugger.get_triggered_breakpoint_ids():
+                try:
+                    # See if this is one of our leading breakpoints.
+                    bpr = self._leading_bp_handles[bp_id]
+                except KeyError:
+                    # This is a trailing bp. Mark it for removal.
+                    bp_to_delete.append(bp_id)
+                    continue
 
-                    conditional_bps = self._path_and_line_to_conditional_bp[conditional_bp_key]
-                    for cbp in conditional_bps:
-                        if self._conditional_met(cbp):
-                            # Unconditional range should ignore first line as that's the
-                            # conditional bp we just hit and should be inclusive of final line
-                            for line in range(cbp.range_from + 1, cbp.range_to + 1):
-                                self.debugger.add_conditional_breakpoint(cbp.path, line, condition='')
+                bpr.add_hit()
+                if bpr.should_be_removed():
+                    bp_to_delete.append(bp_id)
+                    del self._leading_bp_handles[bp_id]
+                # Add a range of trailing breakpoints covering the lines
+                # requested in the DexLimitSteps command. Ignore first line as
+                # that's covered by the leading bp we just hit and include the
+                # final line.
+                for line in range(bpr.range_from + 1, bpr.range_to + 1):
+                    self.debugger.add_breakpoint(bpr.path, line)
 
-            # Clear any uncondtional break points at this loc.
-            self.debugger.delete_conditional_breakpoint(file_=loc.path, line=loc.lineno, condition='')
+            # Remove any trailing or expired leading breakpoints we just hit.
+            for bp_id in bp_to_delete:
+                self.debugger.delete_breakpoint(bp_id)
+
             self.debugger.go()
             time.sleep(self._pause_between_steps)

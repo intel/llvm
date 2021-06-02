@@ -43,6 +43,8 @@
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVEntry.h"
 
+#include "llvm/IR/Metadata.h"
+
 #include <iostream>
 #include <set>
 #include <string>
@@ -248,7 +250,6 @@ public:
   virtual SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *) = 0;
   virtual SPIRVTypeBufferSurfaceINTEL *
   addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) = 0;
-  virtual void createForwardPointers() = 0;
 
   // Constants creation functions
   virtual SPIRVValue *
@@ -452,6 +453,12 @@ public:
                                                SPIRVValue *Value,
                                                SPIRVValue *ExpectedValue,
                                                SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVEntry *getOrAddAliasDomainDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 
@@ -486,6 +493,10 @@ public:
     return TranslationOpts.getFPContractMode();
   }
 
+  bool isUnknownIntrinsicAllowed(llvm::IntrinsicInst *II) const noexcept {
+    return TranslationOpts.isUnknownIntrinsicAllowed(II);
+  }
+
   bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
     return TranslationOpts.isSPIRVAllowUnknownIntrinsicsEnabled();
   }
@@ -504,10 +515,9 @@ public:
       return SPIRVEIS_Debug;
     case DebugInfoEIS::OpenCL_DebugInfo_100:
       return SPIRVEIS_OpenCL_DebugInfo_100;
-    default:
-      assert(false && "Unexpected debug info EIS!");
-      return SPIRVEIS_Debug;
     }
+    assert(false && "Unexpected debug info EIS!");
+    return SPIRVEIS_Debug;
   }
 
   BIsRepresentation getDesiredBIsRepresentation() const {

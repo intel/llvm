@@ -887,9 +887,10 @@ void JSONNodeDumper::VisitTemplateTemplateParmDecl(
 
   if (D->hasDefaultArgument())
     JOS.attributeObject("defaultArg", [=] {
+      const auto *InheritedFrom = D->getDefaultArgStorage().getInheritedFrom();
       Visit(D->getDefaultArgument().getArgument(),
-            D->getDefaultArgStorage().getInheritedFrom()->getSourceRange(),
-            D->getDefaultArgStorage().getInheritedFrom(),
+            InheritedFrom ? InheritedFrom->getSourceRange() : SourceLocation{},
+            InheritedFrom,
             D->defaultArgumentWasInherited() ? "inherited from" : "previous");
     });
 }
@@ -1450,6 +1451,7 @@ void JSONNodeDumper::VisitCaseStmt(const CaseStmt *CS) {
 void JSONNodeDumper::VisitLabelStmt(const LabelStmt *LS) {
   JOS.attribute("name", LS->getName());
   JOS.attribute("declId", createPointerRepresentation(LS->getDecl()));
+  attributeOnlyIfTrue("sideEntry", LS->isSideEntry());
 }
 void JSONNodeDumper::VisitGotoStmt(const GotoStmt *GS) {
   JOS.attribute("targetLabelDeclId",

@@ -1,4 +1,4 @@
-//RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
+//RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // accessor/sampler as SYCL kernel parameter inside union.
@@ -12,7 +12,7 @@ union union_with_sampler {
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void a_kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

@@ -11,7 +11,6 @@ git:
 
 branches:
   only:
-    - master
     - /llvm_release_\d+$/
 # From https://docs.travis-ci.com/user/customizing-the-build/#safelisting-or-blocklisting-branches
 # "Note that safelisting also prevents tagged commits from being built.
@@ -43,7 +42,7 @@ compiler:
 env:
   global:
     - MAKEFLAGS="-j2"
-    - LLVM_VERSION=12
+    - LLVM_VERSION=13
   matrix:
     - BUILD_TYPE=Release BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
     - BUILD_TYPE=Debug   BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
@@ -58,11 +57,11 @@ matrix:
   include:
     - os: osx
       env: BUILD_TYPE=Release BUILD_EXTERNAL=0 MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
-      osx_image: xcode12
+      osx_image: xcode13
 
     - os: osx
       env: BUILD_TYPE=Debug BUILD_EXTERNAL=0 MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
-      osx_image: xcode12
+      osx_image: xcode13
 
     - compiler: clang
       env: BUILD_TYPE=Release BUILD_EXTERNAL=1 SHARED_LIBS=OFF  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"

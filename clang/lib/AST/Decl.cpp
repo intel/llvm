@@ -41,8 +41,8 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Linkage.h"
 #include "clang/Basic/Module.h"
+#include "clang/Basic/NoSanitizeList.h"
 #include "clang/Basic/PartialDiagnostic.h"
-#include "clang/Basic/SanitizerBlacklist.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -1078,6 +1078,29 @@ bool NamedDecl::isLinkageValid() const {
   return L == getCachedLinkage();
 }
 
+ReservedIdentifierStatus
+NamedDecl::isReserved(const LangOptions &LangOpts) const {
+  const IdentifierInfo *II = getIdentifier();
+  if (!II)
+    if (const auto *FD = dyn_cast<FunctionDecl>(this))
+      II = FD->getLiteralIdentifier();
+
+  if (!II)
+    return ReservedIdentifierStatus::NotReserved;
+
+  ReservedIdentifierStatus Status = II->isReserved(LangOpts);
+  if (Status == ReservedIdentifierStatus::StartsWithUnderscoreAtGlobalScope) {
+    // Check if we're at TU level or not.
+    if (isa<ParmVarDecl>(this) || isTemplateParameter())
+      return ReservedIdentifierStatus::NotReserved;
+    const DeclContext *DC = getDeclContext()->getRedeclContext();
+    if (!DC->isTranslationUnit())
+      return ReservedIdentifierStatus::NotReserved;
+  }
+
+  return Status;
+}
+
 ObjCStringFormatFamily NamedDecl::getObjCFStringFormattingFamily() const {
   StringRef name = getName();
   if (name.empty()) return SFF_None;
@@ -1487,10 +1510,13 @@ LinkageInfo LinkageComputer::getLVForDecl(const NamedDecl *D,
 }
 
 LinkageInfo LinkageComputer::getDeclLinkageAndVisibility(const NamedDecl *D) {
-  return getLVForDecl(D,
-                      LVComputationKind(usesTypeVisibility(D)
-                                            ? NamedDecl::VisibilityForType
-                                            : NamedDecl::VisibilityForValue));
+  NamedDecl::ExplicitVisibilityKind EK = usesTypeVisibility(D)
+                                             ? NamedDecl::VisibilityForType
+                                             : NamedDecl::VisibilityForValue;
+  LVComputationKind CK(EK);
+  return getLVForDecl(D, D->getASTContext().getLangOpts().IgnoreXCOFFVisibility
+                             ? CK.forLinkageOnly()
+                             : CK);
 }
 
 Module *Decl::getOwningModuleForLinkage(bool IgnoreLinkage) const {
@@ -1611,8 +1637,7 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
 
     // Suppress inline namespace if it doesn't make the result ambiguous.
     if (P.SuppressInlineNamespace && Ctx->isInlineNamespace() && NameInScope &&
-        Ctx->lookup(NameInScope).size() ==
-            Ctx->getParent()->lookup(NameInScope).size())
+        cast<NamespaceDecl>(Ctx)->isRedundantInlineQualifierFor(NameInScope))
       continue;
 
     // Skip non-named contexts such as linkage specifications and ExportDecls.
@@ -3267,6 +3292,8 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
 
   if (const auto *ABAA = getAttr<ArmBuiltinAliasAttr>()) {
     BuiltinID = ABAA->getBuiltinName()->getBuiltinID();
+  } else if (const auto *BAA = getAttr<BuiltinAliasAttr>()) {
+    BuiltinID = BAA->getBuiltinName()->getBuiltinID();
   } else if (const auto *A = getAttr<BuiltinAttr>()) {
     BuiltinID = A->getID();
   }
@@ -3277,7 +3304,7 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
   // If the function is marked "overloadable", it has a different mangled name
   // and is not the C library function.
   if (!ConsiderWrapperFunctions && hasAttr<OverloadableAttr>() &&
-      !hasAttr<ArmBuiltinAliasAttr>())
+      (!hasAttr<ArmBuiltinAliasAttr>() && !hasAttr<BuiltinAliasAttr>()))
     return 0;
 
   ASTContext &Context = getASTContext();
@@ -4598,7 +4625,7 @@ bool RecordDecl::mayInsertExtraPadding(bool EmitRemark) const {
       (SanitizerKind::Address | SanitizerKind::KernelAddress);
   if (!EnabledAsanMask || !Context.getLangOpts().SanitizeAddressFieldPadding)
     return false;
-  const auto &Blacklist = Context.getSanitizerBlacklist();
+  const auto &NoSanitizeList = Context.getNoSanitizeList();
   const auto *CXXRD = dyn_cast<CXXRecordDecl>(this);
   // We may be able to relax some of these requirements.
   int ReasonToReject = -1;
@@ -4614,12 +4641,11 @@ bool RecordDecl::mayInsertExtraPadding(bool EmitRemark) const {
     ReasonToReject = 4;  // has trivial destructor.
   else if (CXXRD->isStandardLayout())
     ReasonToReject = 5;  // is standard layout.
-  else if (Blacklist.isBlacklistedLocation(EnabledAsanMask, getLocation(),
+  else if (NoSanitizeList.containsLocation(EnabledAsanMask, getLocation(),
                                            "field-padding"))
     ReasonToReject = 6;  // is in an excluded file.
-  else if (Blacklist.isBlacklistedType(EnabledAsanMask,
-                                       getQualifiedNameAsString(),
-                                       "field-padding"))
+  else if (NoSanitizeList.containsType(
+               EnabledAsanMask, getQualifiedNameAsString(), "field-padding"))
     ReasonToReject = 7;  // The type is excluded.
 
   if (EmitRemark) {

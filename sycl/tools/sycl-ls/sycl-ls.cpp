@@ -111,7 +111,9 @@ int main(int argc, char **argv) {
     std::cout << "Platforms: " << Platforms.size() << std::endl;
 
   uint32_t PlatformNum = 0;
+
   for (const auto &Platform : Platforms) {
+    uint32_t DeviceNum = 0;
     ++PlatformNum;
     if (verbose) {
       auto PlatformVersion = Platform.get_info<info::platform::version>();
@@ -125,11 +127,14 @@ int main(int argc, char **argv) {
     const auto &Devices = Platform.get_devices();
     if (verbose)
       std::cout << "    Devices  : " << Devices.size() << std::endl;
-    uint32_t DeviceNum = 0;
     for (const auto &Device : Devices) {
-      ++DeviceNum;
       if (verbose)
         std::cout << "        Device [#" << DeviceNum << "]:" << std::endl;
+      else {
+        backend Backend = Platform.get_backend();
+        std::cout << "[" << Backend << ":" << DeviceNum << "] ";
+      }
+      ++DeviceNum;
       printDeviceInfo(Device, verbose ? "        " : "");
     }
   }

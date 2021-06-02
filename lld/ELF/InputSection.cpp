@@ -839,7 +839,7 @@ uint64_t InputSectionBase::getRelocTargetVA(const InputFile *file, RelType type,
   case R_TLSGD_GOT:
     return in.got->getGlobalDynOffset(sym) + a;
   case R_TLSGD_GOTPLT:
-    return in.got->getVA() + in.got->getGlobalDynOffset(sym) + a - in.gotPlt->getVA();
+    return in.got->getGlobalDynAddr(sym) + a - in.gotPlt->getVA();
   case R_TLSGD_PC:
     return in.got->getGlobalDynAddr(sym) + a - p;
   case R_TLSLD_GOTPLT:
@@ -901,7 +901,10 @@ void InputSection::relocateNonAlloc(uint8_t *buf, ArrayRef<RelTy> rels) {
       continue;
     }
 
-    if (expr != R_ABS && expr != R_DTPREL && expr != R_RISCV_ADD) {
+    // R_ABS/R_DTPREL and some other relocations can be used from non-SHF_ALLOC
+    // sections.
+    if (expr != R_ABS && expr != R_DTPREL && expr != R_GOTPLTREL &&
+        expr != R_RISCV_ADD) {
       std::string msg = getLocation<ELFT>(offset) +
                         ": has non-ABS relocation " + toString(type) +
                         " against symbol '" + toString(sym) + "'";
@@ -1323,6 +1326,11 @@ template <class ELFT> void EhInputSection::split() {
 
 template <class ELFT, class RelTy>
 void EhInputSection::split(ArrayRef<RelTy> rels) {
+  // getReloc expects the relocations to be sorted by r_offset. See the comment
+  // in scanRelocs.
+  SmallVector<RelTy, 0> storage;
+  rels = sortRels(rels, storage);
+
   unsigned relI = 0;
   for (size_t off = 0, end = data().size(); off != end;) {
     size_t size = readEhRecordSize(this, off);
@@ -1426,8 +1434,7 @@ SectionPiece *MergeInputSection::getSectionPiece(uint64_t offset) {
 uint64_t MergeInputSection::getParentOffset(uint64_t offset) const {
   // If Offset is not at beginning of a section piece, it is not in the map.
   // In that case we need to search from the original section piece vector.
-  const SectionPiece &piece =
-      *(const_cast<MergeInputSection *>(this)->getSectionPiece (offset));
+  const SectionPiece &piece = *getSectionPiece(offset);
   uint64_t addend = offset - piece.inputOff;
   return piece.outputOff + addend;
 }

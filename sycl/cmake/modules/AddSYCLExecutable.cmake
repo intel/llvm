@@ -27,7 +27,7 @@ macro(add_sycl_executable ARG_TARGET_NAME)
     endif()
   endif()
 
-  add_custom_target(${ARG_TARGET_NAME}_exec ALL
+  add_custom_target(${ARG_TARGET_NAME}_exec
     COMMAND ${DEVICE_COMPILER_EXECUTABLE} -fsycl ${ARG_SOURCES}
       -o ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET_NAME}
       ${LINKED_LIBS} ${ARG_OPTIONS} ${_SYCL_EXTRA_FLAGS}

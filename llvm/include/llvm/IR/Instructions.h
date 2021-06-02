@@ -590,6 +590,18 @@ public:
   /// Transparently provide more efficient getOperand methods.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
 
+  static bool isValidSuccessOrdering(AtomicOrdering Ordering) {
+    return Ordering != AtomicOrdering::NotAtomic &&
+           Ordering != AtomicOrdering::Unordered;
+  }
+
+  static bool isValidFailureOrdering(AtomicOrdering Ordering) {
+    return Ordering != AtomicOrdering::NotAtomic &&
+           Ordering != AtomicOrdering::Unordered &&
+           Ordering != AtomicOrdering::AcquireRelease &&
+           Ordering != AtomicOrdering::Release;
+  }
+
   /// Returns the success ordering constraint of this cmpxchg instruction.
   AtomicOrdering getSuccessOrdering() const {
     return getSubclassData<SuccessOrderingField>();
@@ -597,8 +609,8 @@ public:
 
   /// Sets the success ordering constraint of this cmpxchg instruction.
   void setSuccessOrdering(AtomicOrdering Ordering) {
-    assert(Ordering != AtomicOrdering::NotAtomic &&
-           "CmpXchg instructions can only be atomic.");
+    assert(isValidSuccessOrdering(Ordering) &&
+           "invalid CmpXchg success ordering");
     setSubclassData<SuccessOrderingField>(Ordering);
   }
 
@@ -609,8 +621,8 @@ public:
 
   /// Sets the failure ordering constraint of this cmpxchg instruction.
   void setFailureOrdering(AtomicOrdering Ordering) {
-    assert(Ordering != AtomicOrdering::NotAtomic &&
-           "CmpXchg instructions can only be atomic.");
+    assert(isValidFailureOrdering(Ordering) &&
+           "invalid CmpXchg failure ordering");
     setSubclassData<FailureOrderingField>(Ordering);
   }
 
@@ -933,13 +945,13 @@ public:
                                    const Twine &NameStr = "",
                                    Instruction *InsertBefore = nullptr) {
     unsigned Values = 1 + unsigned(IdxList.size());
-    if (!PointeeType)
+    if (!PointeeType) {
       PointeeType =
           cast<PointerType>(Ptr->getType()->getScalarType())->getElementType();
-    else
-      assert(
-          PointeeType ==
-          cast<PointerType>(Ptr->getType()->getScalarType())->getElementType());
+    } else {
+      assert(cast<PointerType>(Ptr->getType()->getScalarType())
+                 ->isOpaqueOrPointeeTypeMatches(PointeeType));
+    }
     return new (Values) GetElementPtrInst(PointeeType, Ptr, IdxList, Values,
                                           NameStr, InsertBefore);
   }
@@ -949,13 +961,13 @@ public:
                                    const Twine &NameStr,
                                    BasicBlock *InsertAtEnd) {
     unsigned Values = 1 + unsigned(IdxList.size());
-    if (!PointeeType)
+    if (!PointeeType) {
       PointeeType =
           cast<PointerType>(Ptr->getType()->getScalarType())->getElementType();
-    else
-      assert(
-          PointeeType ==
-          cast<PointerType>(Ptr->getType()->getScalarType())->getElementType());
+    } else {
+      assert(cast<PointerType>(Ptr->getType()->getScalarType())
+                 ->isOpaqueOrPointeeTypeMatches(PointeeType));
+    }
     return new (Values) GetElementPtrInst(PointeeType, Ptr, IdxList, Values,
                                           NameStr, InsertAtEnd);
   }
@@ -1122,7 +1134,9 @@ public:
   /// must be at least as wide as the IntPtr type for the address space of
   /// the base GEP pointer.
   bool accumulateConstantOffset(const DataLayout &DL, APInt &Offset) const;
-
+  bool collectOffset(const DataLayout &DL, unsigned BitWidth,
+                     SmallDenseMap<Value *, APInt, 8> &VariableOffsets,
+                     APInt &ConstantOffset) const;
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
     return (I->getOpcode() == Instruction::GetElementPtr);
@@ -1584,16 +1598,6 @@ public:
   /// in \p Bundles.
   static CallInst *Create(CallInst *CI, ArrayRef<OperandBundleDef> Bundles,
                           Instruction *InsertPt = nullptr);
-
-  /// Create a clone of \p CI with a different set of operand bundles and
-  /// insert it before \p InsertPt.
-  ///
-  /// The returned call instruction is identical \p CI in every way except that
-  /// the operand bundle for the new instruction is set to the operand bundle
-  /// in \p Bundle.
-  static CallInst *CreateWithReplacedBundle(CallInst *CI,
-                                            OperandBundleDef Bundle,
-                                            Instruction *InsertPt = nullptr);
 
   /// Generate the IR for a call to malloc:
   /// 1. Compute the malloc call's argument as the specified type's size,
@@ -2591,6 +2595,7 @@ class PHINode : public Instruction {
                    Instruction *InsertBefore = nullptr)
     : Instruction(Ty, Instruction::PHI, nullptr, 0, InsertBefore),
       ReservedSpace(NumReservedValues) {
+    assert(!Ty->isTokenTy() && "PHI nodes cannot have token type!");
     setName(NameStr);
     allocHungoffUses(ReservedSpace);
   }
@@ -2599,6 +2604,7 @@ class PHINode : public Instruction {
           BasicBlock *InsertAtEnd)
     : Instruction(Ty, Instruction::PHI, nullptr, 0, InsertAtEnd),
       ReservedSpace(NumReservedValues) {
+    assert(!Ty->isTokenTy() && "PHI nodes cannot have token type!");
     setName(NameStr);
     allocHungoffUses(ReservedSpace);
   }
@@ -3823,16 +3829,6 @@ public:
   /// bundles in \p Bundles.
   static InvokeInst *Create(InvokeInst *II, ArrayRef<OperandBundleDef> Bundles,
                             Instruction *InsertPt = nullptr);
-
-  /// Create a clone of \p II with a different set of operand bundles and
-  /// insert it before \p InsertPt.
-  ///
-  /// The returned invoke instruction is identical to \p II in every way except
-  /// that the operand bundle for the new instruction is set to the operand
-  /// bundle in \p Bundle.
-  static InvokeInst *CreateWithReplacedBundle(InvokeInst *II,
-                                              OperandBundleDef Bundles,
-                                              Instruction *InsertPt = nullptr);
 
   // get*Dest - Return the destination basic blocks...
   BasicBlock *getNormalDest() const {
@@ -5296,6 +5292,15 @@ inline unsigned getLoadStoreAddressSpace(Value *I) {
   if (auto *LI = dyn_cast<LoadInst>(I))
     return LI->getPointerAddressSpace();
   return cast<StoreInst>(I)->getPointerAddressSpace();
+}
+
+/// A helper function that returns the type of a load or store instruction.
+inline Type *getLoadStoreType(Value *I) {
+  assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
+         "Expected Load or Store instruction");
+  if (auto *LI = dyn_cast<LoadInst>(I))
+    return LI->getType();
+  return cast<StoreInst>(I)->getValueOperand()->getType();
 }
 
 //===----------------------------------------------------------------------===//

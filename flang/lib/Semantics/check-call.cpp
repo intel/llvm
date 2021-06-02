@@ -272,6 +272,8 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
           : nullptr};
   int actualRank{evaluate::GetRank(actualType.shape())};
   bool actualIsPointer{evaluate::IsObjectPointer(actual, context)};
+  bool dummyIsAssumedRank{dummy.type.attrs().test(
+      characteristics::TypeAndShape::Attr::AssumedRank)};
   if (dummy.type.attrs().test(
           characteristics::TypeAndShape::Attr::AssumedShape)) {
     // 15.5.2.4(16)
@@ -295,7 +297,8 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
     if (!IsArrayElement(actual) &&
         !(actualType.type().category() == TypeCategory::Character &&
             actualType.type().kind() == 1) &&
-        !(dummy.type.type().IsAssumedType() && dummyIsAssumedSize)) {
+        !(dummy.type.type().IsAssumedType() && dummyIsAssumedSize) &&
+        !dummyIsAssumedRank) {
       messages.Say(
           "Whole scalar actual argument may not be associated with a %s array"_err_en_US,
           dummyName);
@@ -355,8 +358,6 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
   bool dummyIsContiguous{
       dummy.attrs.test(characteristics::DummyDataObject::Attr::Contiguous)};
   bool actualIsContiguous{IsSimplyContiguous(actual, context)};
-  bool dummyIsAssumedRank{dummy.type.attrs().test(
-      characteristics::TypeAndShape::Attr::AssumedRank)};
   bool dummyIsAssumedShape{dummy.type.attrs().test(
       characteristics::TypeAndShape::Attr::AssumedShape)};
   if ((actualIsAsynchronous || actualIsVolatile) &&
@@ -577,27 +578,27 @@ static void CheckProcedureArg(evaluate::ActualArgument &arg,
               "Actual argument associated with procedure %s is not a procedure"_err_en_US,
               dummyName);
         }
-      } else if (!(dummyIsPointer && IsNullPointer(*expr))) {
+      } else if (IsNullPointer(*expr)) {
+        if (!dummyIsPointer) {
+          messages.Say(
+              "Actual argument associated with procedure %s is a null pointer"_err_en_US,
+              dummyName);
+        }
+      } else {
         messages.Say(
-            "Actual argument associated with procedure %s is not a procedure"_err_en_US,
+            "Actual argument associated with procedure %s is typeless"_err_en_US,
             dummyName);
       }
     }
-    if (interface.HasExplicitInterface()) {
-      if (dummyIsPointer) {
+    if (interface.HasExplicitInterface() && dummyIsPointer &&
+        proc.intent != common::Intent::In) {
+      const Symbol *last{GetLastSymbol(*expr)};
+      if (!(last && IsProcedurePointer(*last))) {
         // 15.5.2.9(5) -- dummy procedure POINTER
         // Interface compatibility has already been checked above by comparison.
-        if (proc.intent != common::Intent::In && !IsVariable(*expr)) {
-          messages.Say(
-              "Actual argument associated with procedure pointer %s must be a POINTER unless INTENT(IN)"_err_en_US,
-              dummyName);
-        }
-      } else { // 15.5.2.9(4) -- dummy procedure is not POINTER
-        if (!argProcDesignator) {
-          messages.Say(
-              "Actual argument associated with non-POINTER procedure %s must be a procedure (and not a procedure pointer)"_err_en_US,
-              dummyName);
-        }
+        messages.Say(
+            "Actual argument associated with procedure pointer %s must be a POINTER unless INTENT(IN)"_err_en_US,
+            dummyName);
       }
     }
   } else {

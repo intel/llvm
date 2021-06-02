@@ -6,10 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
@@ -29,13 +31,17 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 
 device::device() : impl(detail::device_impl::getHostDeviceImpl()) {}
 
-device::device(cl_device_id deviceId)
-    : impl(std::make_shared<detail::device_impl>(
-          detail::pi::cast<pi_native_handle>(deviceId),
-          RT::getPlugin<backend::opencl>())) {
+device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
-  clRetainDevice(deviceId);
+  detail::RT::PiDevice Device;
+  auto Plugin = detail::RT::getPlugin<backend::opencl>();
+  Plugin.call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
+      detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
+  auto Platform =
+      detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
+  impl = Platform->getOrMakeDeviceImpl(Device, Platform);
+  clRetainDevice(DeviceId);
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -44,9 +50,21 @@ device::device(const device_selector &deviceSelector) {
 
 vector_class<device> device::get_devices(info::device_type deviceType) {
   vector_class<device> devices;
-  // Host device availability should not depend on the forced type
-  const bool includeHost =
-      detail::match_types(deviceType, info::device_type::host);
+  detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+  // Host device availability should depend on the forced type
+  bool includeHost = false;
+  // If SYCL_DEVICE_FILTER is set, we don't automatically include it.
+  // We will check if host devices are specified in the filter below.
+  if (FilterList) {
+    if (deviceType != info::device_type::host &&
+        deviceType != info::device_type::all)
+      includeHost = false;
+    else
+      includeHost = FilterList->containsHost();
+  } else {
+    includeHost = detail::match_types(deviceType, info::device_type::host);
+  }
   info::device_type forced_type = detail::get_forced_type();
   // Exclude devices which do not match requested device type
   if (detail::match_types(deviceType, forced_type)) {
@@ -56,10 +74,13 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
       // backend.
       backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
       if (ForcedBackend)
-        if (!plt.is_host() &&
-            (detail::getSyclObjImpl(plt)->getPlugin().getBackend() !=
-             *ForcedBackend))
+        if (!plt.is_host() && plt.get_backend() != *ForcedBackend)
           continue;
+      // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
+      // with the filter specification.
+      if (FilterList && !FilterList->backendCompatible(plt.get_backend()))
+        continue;
+
       if (includeHost && plt.is_host()) {
         vector_class<device> host_device(
             plt.get_devices(info::device_type::host));
@@ -73,7 +94,6 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
       }
     }
   }
-
   return devices;
 }
 
@@ -135,6 +155,8 @@ device::get_info() const {
 #include <CL/sycl/info/device_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+backend device::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
 

@@ -8,6 +8,7 @@
 
 #if !defined(__Fuchsia__)
 
+#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -264,7 +265,8 @@ static int doProfileMerging(FILE *ProfileFile, int *MergeDone) {
 
   // Truncate the file in case merging of value profile did not happend to
   // prevent from leaving garbage data at the end of the profile file.
-  COMPILER_RT_FTRUNCATE(ProfileFile, __llvm_profile_get_size_for_buffer());
+  (void)COMPILER_RT_FTRUNCATE(ProfileFile,
+                              __llvm_profile_get_size_for_buffer());
 
   (void)munmap(ProfileBuffer, ProfileFileSize);
   *MergeDone = 1;
@@ -636,34 +638,38 @@ static void initializeProfileForContinuousMode(void) {
     }
   }
 
-  int Fileno = fileno(File);
+  /* mmap() the profile counters so long as there is at least one counter.
+   * If there aren't any counters, mmap() would fail with EINVAL. */
+  if (CountersSize > 0) {
+    int Fileno = fileno(File);
 
-  /* Determine how much padding is needed before/after the counters and after
-   * the names. */
-  uint64_t PaddingBytesBeforeCounters, PaddingBytesAfterCounters,
-      PaddingBytesAfterNames;
-  __llvm_profile_get_padding_sizes_for_counters(
-      DataSize, CountersSize, NamesSize, &PaddingBytesBeforeCounters,
-      &PaddingBytesAfterCounters, &PaddingBytesAfterNames);
+    /* Determine how much padding is needed before/after the counters and after
+     * the names. */
+    uint64_t PaddingBytesBeforeCounters, PaddingBytesAfterCounters,
+        PaddingBytesAfterNames;
+    __llvm_profile_get_padding_sizes_for_counters(
+        DataSize, CountersSize, NamesSize, &PaddingBytesBeforeCounters,
+        &PaddingBytesAfterCounters, &PaddingBytesAfterNames);
 
-  uint64_t PageAlignedCountersLength =
-      (CountersSize * sizeof(uint64_t)) + PaddingBytesAfterCounters;
-  uint64_t FileOffsetToCounters =
-      CurrentFileOffset + sizeof(__llvm_profile_header) +
-      (DataSize * sizeof(__llvm_profile_data)) + PaddingBytesBeforeCounters;
+    uint64_t PageAlignedCountersLength =
+        (CountersSize * sizeof(uint64_t)) + PaddingBytesAfterCounters;
+    uint64_t FileOffsetToCounters =
+        CurrentFileOffset + sizeof(__llvm_profile_header) +
+        (DataSize * sizeof(__llvm_profile_data)) + PaddingBytesBeforeCounters;
 
-  uint64_t *CounterMmap = (uint64_t *)mmap(
-      (void *)CountersBegin, PageAlignedCountersLength, PROT_READ | PROT_WRITE,
-      MAP_FIXED | MAP_SHARED, Fileno, FileOffsetToCounters);
-  if (CounterMmap != CountersBegin) {
-    PROF_ERR(
-        "Continuous counter sync mode is enabled, but mmap() failed (%s).\n"
-        "  - CountersBegin: %p\n"
-        "  - PageAlignedCountersLength: %" PRIu64 "\n"
-        "  - Fileno: %d\n"
-        "  - FileOffsetToCounters: %" PRIu64 "\n",
-        strerror(errno), CountersBegin, PageAlignedCountersLength, Fileno,
-        FileOffsetToCounters);
+    uint64_t *CounterMmap = (uint64_t *)mmap(
+        (void *)CountersBegin, PageAlignedCountersLength, PROT_READ | PROT_WRITE,
+        MAP_FIXED | MAP_SHARED, Fileno, FileOffsetToCounters);
+    if (CounterMmap != CountersBegin) {
+      PROF_ERR(
+          "Continuous counter sync mode is enabled, but mmap() failed (%s).\n"
+          "  - CountersBegin: %p\n"
+          "  - PageAlignedCountersLength: %" PRIu64 "\n"
+          "  - Fileno: %d\n"
+          "  - FileOffsetToCounters: %" PRIu64 "\n",
+          strerror(errno), CountersBegin, PageAlignedCountersLength, Fileno,
+          FileOffsetToCounters);
+    }
   }
 
   if (ProfileRequiresUnlock)
@@ -699,6 +705,13 @@ static unsigned getMergePoolSize(const char *FilenamePat, int *I) {
   return 0;
 }
 
+/* Assert that Idx does index past a string null terminator. Return the
+ * result of the check. */
+static int checkBounds(int Idx, int Strlen) {
+  assert(Idx <= Strlen && "Indexing past string null terminator");
+  return Idx <= Strlen;
+}
+
 /* Parses the pattern string \p FilenamePat and stores the result to
  * lprofcurFilename structure. */
 static int parseFilenamePattern(const char *FilenamePat,
@@ -707,6 +720,7 @@ static int parseFilenamePattern(const char *FilenamePat,
   char *PidChars = &lprofCurFilename.PidChars[0];
   char *Hostname = &lprofCurFilename.Hostname[0];
   int MergingEnabled = 0;
+  int FilenamePatLen = strlen(FilenamePat);
 
   /* Clean up cached prefix and filename.  */
   if (lprofCurFilename.ProfilePathPrefix)
@@ -725,9 +739,12 @@ static int parseFilenamePattern(const char *FilenamePat,
     lprofCurFilename.OwnsFilenamePat = 1;
   }
   /* Check the filename for "%p", which indicates a pid-substitution. */
-  for (I = 0; FilenamePat[I]; ++I)
+  for (I = 0; checkBounds(I, FilenamePatLen) && FilenamePat[I]; ++I) {
     if (FilenamePat[I] == '%') {
-      if (FilenamePat[++I] == 'p') {
+      ++I; /* Advance to the next character. */
+      if (!checkBounds(I, FilenamePatLen))
+        break;
+      if (FilenamePat[I] == 'p') {
         if (!NumPids++) {
           if (snprintf(PidChars, MAX_PID_SIZE, "%ld", (long)getpid()) <= 0) {
             PROF_WARN("Unable to get pid for filename pattern %s. Using the "
@@ -761,7 +778,6 @@ static int parseFilenamePattern(const char *FilenamePat,
 
         __llvm_profile_set_page_size(getpagesize());
         __llvm_profile_enable_continuous_mode();
-        I++; /* advance to 'c' */
       } else {
         unsigned MergePoolSize = getMergePoolSize(FilenamePat, &I);
         if (!MergePoolSize)
@@ -775,6 +791,7 @@ static int parseFilenamePattern(const char *FilenamePat,
         lprofCurFilename.MergePoolSize = MergePoolSize;
       }
     }
+  }
 
   lprofCurFilename.NumPids = NumPids;
   lprofCurFilename.NumHosts = NumHosts;

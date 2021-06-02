@@ -10,6 +10,8 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/ExecutionEngine/JITLink/EHFrameSupport.h"
+#include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
+#include "llvm/Support/MemoryBuffer.h"
 
 #include <vector>
 
@@ -18,6 +20,101 @@
 using namespace llvm;
 using namespace llvm::jitlink;
 using namespace llvm::orc;
+
+namespace {
+
+class LinkGraphMaterializationUnit : public MaterializationUnit {
+private:
+  struct LinkGraphInterface {
+    SymbolFlagsMap SymbolFlags;
+    SymbolStringPtr InitSymbol;
+  };
+
+public:
+  static std::unique_ptr<LinkGraphMaterializationUnit>
+  Create(ObjectLinkingLayer &ObjLinkingLayer, std::unique_ptr<LinkGraph> G) {
+    auto LGI = scanLinkGraph(ObjLinkingLayer.getExecutionSession(), *G);
+    return std::unique_ptr<LinkGraphMaterializationUnit>(
+        new LinkGraphMaterializationUnit(ObjLinkingLayer, std::move(G),
+                                         std::move(LGI)));
+  }
+
+  StringRef getName() const override { return G->getName(); }
+  void materialize(std::unique_ptr<MaterializationResponsibility> MR) override {
+    ObjLinkingLayer.emit(std::move(MR), std::move(G));
+  }
+
+private:
+  static LinkGraphInterface scanLinkGraph(ExecutionSession &ES, LinkGraph &G) {
+
+    LinkGraphInterface LGI;
+
+    for (auto *Sym : G.defined_symbols()) {
+      // Skip local symbols.
+      if (Sym->getScope() == Scope::Local)
+        continue;
+      assert(Sym->hasName() && "Anonymous non-local symbol?");
+
+      JITSymbolFlags Flags;
+      if (Sym->getScope() == Scope::Default)
+        Flags |= JITSymbolFlags::Exported;
+
+      if (Sym->isCallable())
+        Flags |= JITSymbolFlags::Callable;
+
+      LGI.SymbolFlags[ES.intern(Sym->getName())] = Flags;
+    }
+
+    if (G.getTargetTriple().isOSBinFormatMachO())
+      if (hasMachOInitSection(G))
+        LGI.InitSymbol = makeInitSymbol(ES, G);
+
+    return LGI;
+  }
+
+  static bool hasMachOInitSection(LinkGraph &G) {
+    for (auto &Sec : G.sections())
+      if (Sec.getName() == "__DATA,__obj_selrefs" ||
+          Sec.getName() == "__DATA,__objc_classlist" ||
+          Sec.getName() == "__TEXT,__swift5_protos" ||
+          Sec.getName() == "__TEXT,__swift5_proto" ||
+          Sec.getName() == "__DATA,__mod_init_func")
+        return true;
+    return false;
+  }
+
+  static SymbolStringPtr makeInitSymbol(ExecutionSession &ES, LinkGraph &G) {
+    std::string InitSymString;
+    raw_string_ostream(InitSymString)
+        << "$." << G.getName() << ".__inits" << Counter++;
+    return ES.intern(InitSymString);
+  }
+
+  LinkGraphMaterializationUnit(ObjectLinkingLayer &ObjLinkingLayer,
+                               std::unique_ptr<LinkGraph> G,
+                               LinkGraphInterface LGI)
+      : MaterializationUnit(std::move(LGI.SymbolFlags),
+                            std::move(LGI.InitSymbol)),
+        ObjLinkingLayer(ObjLinkingLayer), G(std::move(G)) {}
+
+  void discard(const JITDylib &JD, const SymbolStringPtr &Name) override {
+    for (auto *Sym : G->defined_symbols())
+      if (Sym->getName() == *Name) {
+        assert(Sym->getLinkage() == Linkage::Weak &&
+               "Discarding non-weak definition");
+        G->makeExternal(*Sym);
+        break;
+      }
+  }
+
+  ObjectLinkingLayer &ObjLinkingLayer;
+  std::unique_ptr<LinkGraph> G;
+  static std::atomic<uint64_t> Counter;
+};
+
+std::atomic<uint64_t> LinkGraphMaterializationUnit::Counter{0};
+
+} // end anonymous namespace
 
 namespace llvm {
 namespace orc {
@@ -39,6 +136,13 @@ public:
   }
 
   JITLinkMemoryManager &getMemoryManager() override { return Layer.MemMgr; }
+
+  void notifyMaterializing(LinkGraph &G) {
+    for (auto &P : Layer.Plugins)
+      P->notifyMaterializing(*MR, G, *this,
+                             ObjBuffer ? ObjBuffer->getMemBufferRef()
+                             : MemoryBufferRef());
+  }
 
   void notifyFailed(Error Err) override {
     for (auto &P : Layer.Plugins)
@@ -211,14 +315,14 @@ public:
     return [this](LinkGraph &G) { return markResponsibilitySymbolsLive(G); };
   }
 
-  Error modifyPassConfig(const Triple &TT, PassConfiguration &Config) override {
+  Error modifyPassConfig(LinkGraph &LG, PassConfiguration &Config) override {
     // Add passes to mark duplicate defs as should-discard, and to walk the
     // link graph to build the symbol dependence graph.
     Config.PrePrunePasses.push_back([this](LinkGraph &G) {
       return claimOrExternalizeWeakAndCommonSymbols(G);
     });
 
-    Layer.modifyPassConfig(*MR, TT, Config);
+    Layer.modifyPassConfig(*MR, LG, Config);
 
     Config.PostPrunePasses.push_back(
         [this](LinkGraph &G) { return computeNamedSymbolDependencies(G); });
@@ -459,15 +563,19 @@ private:
 
 ObjectLinkingLayer::Plugin::~Plugin() {}
 
+char ObjectLinkingLayer::ID;
+
+using BaseT = RTTIExtends<ObjectLinkingLayer, ObjectLayer>;
+
 ObjectLinkingLayer::ObjectLinkingLayer(ExecutionSession &ES,
                                        JITLinkMemoryManager &MemMgr)
-    : ObjectLayer(ES), MemMgr(MemMgr) {
+    : BaseT(ES), MemMgr(MemMgr) {
   ES.registerResourceManager(*this);
 }
 
 ObjectLinkingLayer::ObjectLinkingLayer(
     ExecutionSession &ES, std::unique_ptr<JITLinkMemoryManager> MemMgr)
-    : ObjectLayer(ES), MemMgr(*MemMgr), MemMgrOwnership(std::move(MemMgr)) {
+    : BaseT(ES), MemMgr(*MemMgr), MemMgrOwnership(std::move(MemMgr)) {
   ES.registerResourceManager(*this);
 }
 
@@ -476,29 +584,41 @@ ObjectLinkingLayer::~ObjectLinkingLayer() {
   getExecutionSession().deregisterResourceManager(*this);
 }
 
+Error ObjectLinkingLayer::add(ResourceTrackerSP RT,
+                              std::unique_ptr<LinkGraph> G) {
+  auto &JD = RT->getJITDylib();
+  return JD.define(LinkGraphMaterializationUnit::Create(*this, std::move(G)),
+                   std::move(RT));
+}
+
 void ObjectLinkingLayer::emit(std::unique_ptr<MaterializationResponsibility> R,
                               std::unique_ptr<MemoryBuffer> O) {
   assert(O && "Object must not be null");
-  auto ObjBuffer = O->getMemBufferRef();
+  MemoryBufferRef ObjBuffer = O->getMemBufferRef();
+
   auto Ctx = std::make_unique<ObjectLinkingLayerJITLinkContext>(
       *this, std::move(R), std::move(O));
-  if (auto G = createLinkGraphFromObject(std::move(ObjBuffer)))
+  if (auto G = createLinkGraphFromObject(ObjBuffer)) {
+    Ctx->notifyMaterializing(**G);
     link(std::move(*G), std::move(Ctx));
-  else
+  } else {
     Ctx->notifyFailed(G.takeError());
+  }
 }
 
 void ObjectLinkingLayer::emit(std::unique_ptr<MaterializationResponsibility> R,
                               std::unique_ptr<LinkGraph> G) {
-  link(std::move(G), std::make_unique<ObjectLinkingLayerJITLinkContext>(
-                         *this, std::move(R), nullptr));
+  auto Ctx = std::make_unique<ObjectLinkingLayerJITLinkContext>(
+      *this, std::move(R), nullptr);
+  Ctx->notifyMaterializing(*G);
+  link(std::move(G), std::move(Ctx));
 }
 
 void ObjectLinkingLayer::modifyPassConfig(MaterializationResponsibility &MR,
-                                          const Triple &TT,
+                                          LinkGraph &G,
                                           PassConfiguration &PassConfig) {
   for (auto &P : Plugins)
-    P->modifyPassConfig(MR, TT, PassConfig);
+    P->modifyPassConfig(MR, G, PassConfig);
 }
 
 void ObjectLinkingLayer::notifyLoaded(MaterializationResponsibility &MR) {
@@ -567,11 +687,11 @@ EHFrameRegistrationPlugin::EHFrameRegistrationPlugin(
     : ES(ES), Registrar(std::move(Registrar)) {}
 
 void EHFrameRegistrationPlugin::modifyPassConfig(
-    MaterializationResponsibility &MR, const Triple &TT,
+    MaterializationResponsibility &MR, LinkGraph &G,
     PassConfiguration &PassConfig) {
 
   PassConfig.PostFixupPasses.push_back(createEHFrameRecorderPass(
-      TT, [this, &MR](JITTargetAddress Addr, size_t Size) {
+      G.getTargetTriple(), [this, &MR](JITTargetAddress Addr, size_t Size) {
         if (Addr) {
           std::lock_guard<std::mutex> Lock(EHFramePluginMutex);
           assert(!InProcessLinks.count(&MR) &&
@@ -638,13 +758,23 @@ Error EHFrameRegistrationPlugin::notifyRemovingResources(ResourceKey K) {
 void EHFrameRegistrationPlugin::notifyTransferringResources(
     ResourceKey DstKey, ResourceKey SrcKey) {
   auto SI = EHFrameRanges.find(SrcKey);
-  if (SI != EHFrameRanges.end()) {
+  if (SI == EHFrameRanges.end())
+    return;
+
+  auto DI = EHFrameRanges.find(DstKey);
+  if (DI != EHFrameRanges.end()) {
     auto &SrcRanges = SI->second;
-    auto &DstRanges = EHFrameRanges[DstKey];
+    auto &DstRanges = DI->second;
     DstRanges.reserve(DstRanges.size() + SrcRanges.size());
     for (auto &SrcRange : SrcRanges)
       DstRanges.push_back(std::move(SrcRange));
     EHFrameRanges.erase(SI);
+  } else {
+    // We need to move SrcKey's ranges over without invalidating the SI
+    // iterator.
+    auto Tmp = std::move(SI->second);
+    EHFrameRanges.erase(SI);
+    EHFrameRanges[DstKey] = std::move(Tmp);
   }
 }
 

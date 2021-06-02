@@ -42,45 +42,83 @@ template <typename... Ts> class KernelNameGroup;
 template <typename SpecializationKernelName, typename T, int Dim,
           class BinaryOperation>
 void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
-  buffer<T, 1> ReduBuf(1);
-
   static_assert(has_known_identity<BinaryOperation, T>::value);
   queue Q;
+  buffer<T, 1> ReduBuf(1);
+  T* ReduUSMPtr = malloc_host<T>(1, Q);
+
   Q.submit([&](handler &CGH) {
     // Reduction needs a global_buffer accessor as a parameter.
     // This accessor is not really used in this test.
+    accessor<T, Dim, access::mode::read_write, access::target::global_buffer>
+        ReduRWAcc(ReduBuf, CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
-        ReduAcc(ReduBuf, CGH);
-    auto Redu = ONEAPI::reduction(ReduAcc, BOp);
-    assert(toBool(Redu.getIdentity() == Identity) &&
+        ReduDWAcc(ReduBuf, CGH);
+    auto ReduRW = ONEAPI::reduction(ReduRWAcc, BOp);
+    auto ReduDW = ONEAPI::reduction(ReduDWAcc, BOp);
+    auto ReduRWUSM = ONEAPI::reduction(ReduUSMPtr, BOp);
+    auto ReduRW2020 = sycl::reduction(ReduBuf, CGH, BOp);
+    auto ReduRWUSM2020 = sycl::reduction(ReduUSMPtr, BOp);
+
+    assert(toBool(ReduRW.getIdentity() == Identity) &&
+           toBool(ReduDW.getIdentity() == Identity) &&
+           toBool(ReduRWUSM.getIdentity() == Identity) &&
+           toBool(ReduRW2020.getIdentity() == Identity) &&
+           toBool(ReduRWUSM2020.getIdentity() == Identity) &&
            toBool(known_identity<BinaryOperation, T>::value == Identity) &&
            "Failed getIdentity() check().");
-    test_reducer(Redu, A, B);
-    test_reducer(Redu, Identity, BOp, A, B);
+    test_reducer(ReduRW, A, B);
+    test_reducer(ReduDW, A, B);
+    test_reducer(ReduRWUSM, A, B);
+    test_reducer(ReduRW2020, A, B);
+    test_reducer(ReduRWUSM2020, A, B);
+
+    test_reducer(ReduRW, Identity, BOp, A, B);
+    test_reducer(ReduDW, Identity, BOp, A, B);
+    test_reducer(ReduRWUSM, Identity, BOp, A, B);
+    test_reducer(ReduRW2020, Identity, BOp, A, B);
+    test_reducer(ReduRWUSM2020, Identity, BOp, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
     CGH.single_task<SpecializationKernelName>([=]() {});
   });
+  free(ReduUSMPtr, Q);
 }
 
 template <typename SpecializationKernelName, typename T, int Dim,
           class BinaryOperation>
 void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
-  buffer<T, 1> ReduBuf(1);
   queue Q;
+  buffer<T, 1> ReduBuf(1);
+  T* ReduUSMPtr = malloc_host<T>(1, Q);
   Q.submit([&](handler &CGH) {
     // Reduction needs a global_buffer accessor as a parameter.
     // This accessor is not really used in this test.
+    accessor<T, Dim, access::mode::read_write, access::target::global_buffer>
+        ReduRWAcc(ReduBuf, CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
-        ReduAcc(ReduBuf, CGH);
-    auto Redu = ONEAPI::reduction(ReduAcc, Identity, BOp);
-    bool IsCorrectVal = toBool(Redu.getIdentity() == Identity);
-    assert(IsCorrectVal && "Failed getIdentity() check().");
-    test_reducer(Redu, Identity, BOp, A, B);
+        ReduDWAcc(ReduBuf, CGH);
+    auto ReduRW = ONEAPI::reduction(ReduRWAcc, Identity, BOp);
+    auto ReduDW = ONEAPI::reduction(ReduDWAcc, Identity, BOp);
+    auto ReduRWUSM = ONEAPI::reduction(ReduUSMPtr, Identity, BOp);
+    auto ReduRW2020 = sycl::reduction(ReduBuf, CGH, Identity, BOp);
+    auto ReduRWUSM2020 = sycl::reduction(ReduUSMPtr, Identity, BOp);
+    assert(toBool(ReduRW.getIdentity() == Identity) &&
+           toBool(ReduDW.getIdentity() == Identity) &&
+           toBool(ReduRWUSM.getIdentity() == Identity) &&
+           toBool(ReduRW2020.getIdentity() == Identity) &&
+           toBool(ReduRWUSM2020.getIdentity() == Identity) &&
+           "Failed getIdentity() check().");
+    test_reducer(ReduRW, Identity, BOp, A, B);
+    test_reducer(ReduDW, Identity, BOp, A, B);
+    test_reducer(ReduRWUSM, Identity, BOp, A, B);
+    test_reducer(ReduRW2020, Identity, BOp, A, B);
+    test_reducer(ReduRWUSM2020, Identity, BOp, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
     CGH.single_task<SpecializationKernelName>([=]() {});
   });
+  free(ReduUSMPtr, Q);
 }
 
 template <typename SpecializationKernelName, typename T, class BinaryOperation>

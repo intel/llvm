@@ -45,31 +45,32 @@
 
 /// test behaviors of fat static lib from source
 // RUN: touch %t_lib.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-device-lib=all -fsycl %t_lib.a -ccc-print-phases -### %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl-use-footer -fno-sycl-device-lib=all -fsycl %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC
 // STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
 // STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
 // STATIC_LIB_SRC: 3: input, "[[INPUTC]]", c++, (device-sycl)
 // STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// STATIC_LIB_SRC: 5: compiler, {4}, sycl-header, (device-sycl)
+// STATIC_LIB_SRC: 5: compiler, {4}, ir, (device-sycl)
 // STATIC_LIB_SRC: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, c++-cpp-output
-// STATIC_LIB_SRC: 7: compiler, {6}, ir, (host-sycl)
-// STATIC_LIB_SRC: 8: backend, {7}, assembler, (host-sycl)
-// STATIC_LIB_SRC: 9: assembler, {8}, object, (host-sycl)
-// STATIC_LIB_SRC: 10: linker, {0, 9}, image, (host-sycl)
-// STATIC_LIB_SRC: 11: compiler, {4}, ir, (device-sycl)
-// STATIC_LIB_SRC: 12: linker, {0, 9}, image, (host-sycl)
-// STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
-// STATIC_LIB_SRC: 14: input, "[[INPUTA]]", archive
-// STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, archive
-// STATIC_LIB_SRC: 16: linker, {11, 13, 15}, ir, (device-sycl)
-// STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
-// STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
-// STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
-// STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {21}, image
+// STATIC_LIB_SRC: 7: append-footer, {6}, c++, (host-sycl)
+// STATIC_LIB_SRC: 8: preprocessor, {7}, c++-cpp-output, (host-sycl)
+// STATIC_LIB_SRC: 9: compiler, {8}, ir, (host-sycl)
+// STATIC_LIB_SRC: 10: backend, {9}, assembler, (host-sycl)
+// STATIC_LIB_SRC: 11: assembler, {10}, object, (host-sycl)
+// STATIC_LIB_SRC: 12: linker, {0, 11}, image, (host-sycl)
+// STATIC_LIB_SRC: 13: linker, {0, 11}, image, (host-sycl)
+// STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
+// STATIC_LIB_SRC: 15: input, "[[INPUTA]]", archive
+// STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive
+// STATIC_LIB_SRC: 17: linker, {5, 14, 16}, ir, (device-sycl)
+// STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 21: file-table-tform, {18, 20}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
+// STATIC_LIB_SRC: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {12}, "device-sycl (spir64-unknown-unknown-sycldevice)" {22}, image
 
 /// ###########################################################################
 

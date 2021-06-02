@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 
@@ -48,7 +49,7 @@ Value Aliases::find(Value v) {
     // the aliasing further.
     if (isa<RegionBranchOpInterface>(defOp))
       return v;
-    if (isa<TensorToMemrefOp>(defOp))
+    if (isa<memref::BufferCastOp>(defOp))
       return v;
 
     if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(defOp)) {
@@ -161,6 +162,8 @@ LinalgDependenceGraph::getDependencesInto(
 }
 
 void LinalgDependenceGraph::addDependencesBetween(LinalgOp src, LinalgOp dst) {
+  LLVM_DEBUG(dbgs() << "addDependencesBetween " << *src.getOperation()
+                    << " and " << *dst.getOperation() << "\n");
   if (src.hasTensorSemantics() && dst.hasTensorSemantics()) {
     for (OpOperand &dstOpOperand : dst.getInputOpOperands()) {
       // Check if the operand is defined by the src.
@@ -168,6 +171,18 @@ void LinalgDependenceGraph::addDependencesBetween(LinalgOp src, LinalgOp dst) {
       if (definingOp && definingOp == src)
         addDependenceElem(DependenceType::RAW, dstOpOperand.get(),
                           &dstOpOperand);
+    }
+    for (OpOperand &dstOpOperand : dst.getOutputOpOperands()) {
+      // Check if the operand is defined by the src.
+      auto definingOp = dstOpOperand.get().getDefiningOp<LinalgOp>();
+      if (definingOp && definingOp == src) {
+        if (dst.isInitTensor(&dstOpOperand)) {
+          addDependenceElem(DependenceType::RAW, dstOpOperand.get(),
+                            &dstOpOperand);
+        }
+        addDependenceElem(DependenceType::WAW, dstOpOperand.get(),
+                          &dstOpOperand);
+      }
     }
     return;
   }
@@ -321,3 +336,21 @@ LinalgDependenceGraph::getDependentOperations(
   dependentOperations.append(t.begin(), t.end());
   return dependentOperations;
 }
+
+void LinalgDependenceGraph::print(raw_ostream &os) const {
+  for (auto dt : {
+           LinalgDependenceGraph::DependenceType::RAW,
+           LinalgDependenceGraph::DependenceType::WAW,
+       }) {
+    const auto &fromGraph = dependencesFromGraphs[dt];
+    for (const auto &it : fromGraph) {
+      os << "[LinalgDependenceGraph] DT " << dt << " from: " << *it.first
+         << ":\n";
+      for (const auto &dep : it.second) {
+        os << "\tDT " << dt << " " << *dep.getDependentOp() << ":\n";
+      }
+    }
+  }
+}
+
+void LinalgDependenceGraph::dump() const { print(llvm::errs()); }

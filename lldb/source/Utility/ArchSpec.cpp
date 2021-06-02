@@ -291,8 +291,8 @@ static const ArchDefinitionEntry g_macho_arch_entries[] = {
     {ArchSpec::eCore_arm_armv7m,      llvm::MachO::CPU_TYPE_ARM,        llvm::MachO::CPU_SUBTYPE_ARM_V7M,       UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_arm_armv7em,     llvm::MachO::CPU_TYPE_ARM,        llvm::MachO::CPU_SUBTYPE_ARM_V7EM,      UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_arm_arm64e,      llvm::MachO::CPU_TYPE_ARM64,      llvm::MachO::CPU_SUBTYPE_ARM64E,        UINT32_MAX, SUBTYPE_MASK},
-    {ArchSpec::eCore_arm_arm64,       llvm::MachO::CPU_TYPE_ARM64,      llvm::MachO::CPU_SUBTYPE_ARM64_V8,      UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_arm_arm64,       llvm::MachO::CPU_TYPE_ARM64,      llvm::MachO::CPU_SUBTYPE_ARM64_ALL,     UINT32_MAX, SUBTYPE_MASK},
+    {ArchSpec::eCore_arm_arm64,       llvm::MachO::CPU_TYPE_ARM64,      llvm::MachO::CPU_SUBTYPE_ARM64_V8,      UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_arm_arm64,       llvm::MachO::CPU_TYPE_ARM64,      13,                                     UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_arm_arm64_32,    llvm::MachO::CPU_TYPE_ARM64_32,   0,                                      UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_arm_arm64_32,    llvm::MachO::CPU_TYPE_ARM64_32,   1,                                      UINT32_MAX, SUBTYPE_MASK},
@@ -1118,18 +1118,6 @@ static bool cores_match(const ArchSpec::Core core1, const ArchSpec::Core core2,
       return true;
     break;
 
-  case ArchSpec::eCore_arm_armv6m:
-    if (!enforce_exact_match) {
-      if (core2 == ArchSpec::eCore_arm_generic)
-        return true;
-      try_inverse = false;
-      if (core2 == ArchSpec::eCore_arm_armv7)
-        return true;
-      if (core2 == ArchSpec::eCore_arm_armv6m)
-        return true;
-    }
-    break;
-
   case ArchSpec::kCore_hexagon_any:
     if ((core2 >= ArchSpec::kCore_hexagon_first &&
          core2 <= ArchSpec::kCore_hexagon_last) ||
@@ -1138,8 +1126,9 @@ static bool cores_match(const ArchSpec::Core core1, const ArchSpec::Core core2,
     break;
 
   // v. https://en.wikipedia.org/wiki/ARM_Cortex-M#Silicon_customization
-  // Cortex-M0 - ARMv6-M - armv6m Cortex-M3 - ARMv7-M - armv7m Cortex-M4 -
-  // ARMv7E-M - armv7em
+  // Cortex-M0 - ARMv6-M - armv6m 
+  // Cortex-M3 - ARMv7-M - armv7m 
+  // Cortex-M4 - ARMv7E-M - armv7em
   case ArchSpec::eCore_arm_armv7em:
     if (!enforce_exact_match) {
       if (core2 == ArchSpec::eCore_arm_generic)
@@ -1155,8 +1144,9 @@ static bool cores_match(const ArchSpec::Core core1, const ArchSpec::Core core2,
     break;
 
   // v. https://en.wikipedia.org/wiki/ARM_Cortex-M#Silicon_customization
-  // Cortex-M0 - ARMv6-M - armv6m Cortex-M3 - ARMv7-M - armv7m Cortex-M4 -
-  // ARMv7E-M - armv7em
+  // Cortex-M0 - ARMv6-M - armv6m 
+  // Cortex-M3 - ARMv7-M - armv7m 
+  // Cortex-M4 - ARMv7E-M - armv7em
   case ArchSpec::eCore_arm_armv7m:
     if (!enforce_exact_match) {
       if (core2 == ArchSpec::eCore_arm_generic)
@@ -1168,6 +1158,24 @@ static bool cores_match(const ArchSpec::Core core1, const ArchSpec::Core core2,
       if (core2 == ArchSpec::eCore_arm_armv7em)
         return true;
       try_inverse = true;
+    }
+    break;
+
+  // v. https://en.wikipedia.org/wiki/ARM_Cortex-M#Silicon_customization
+  // Cortex-M0 - ARMv6-M - armv6m 
+  // Cortex-M3 - ARMv7-M - armv7m 
+  // Cortex-M4 - ARMv7E-M - armv7em
+  case ArchSpec::eCore_arm_armv6m:
+    if (!enforce_exact_match) {
+      if (core2 == ArchSpec::eCore_arm_generic)
+        return true;
+      if (core2 == ArchSpec::eCore_arm_armv7em)
+        return true;
+      if (core2 == ArchSpec::eCore_arm_armv7)
+        return true;
+      if (core2 == ArchSpec::eCore_arm_armv6m)
+        return true;
+      try_inverse = false;
     }
     break;
 

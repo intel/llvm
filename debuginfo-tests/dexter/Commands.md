@@ -177,8 +177,8 @@ Expect the source line this is found on will never be stepped on to.
 
 ----
 ## DexLimitSteps
-    DexLimitSteps(expr, *values [, **from_line=1],[,**to_line=Max]
-                  [,**on_line])
+    DexLimitSteps([expr, *values][, **from_line=1][,**to_line=Max]
+                  [,**on_line][,**hit_count])
 
     Args:
         expr (str): variable or value to compare.
@@ -191,29 +191,42 @@ Expect the source line this is found on will never be stepped on to.
         to_line (int): Define the end of the limited step range.
         on_line (int): Define a range with length 1 starting and ending on the
                        same line.
+        hit_count (int): If provided, limit the number of times the command
+                         triggers.
 
 ### Description
-Define a limited stepping range that is predicated on a condition. When
-'(expr) == (values[n])', set a range of temporary, unconditional break points within
-the test file defined by the range from_line and to_line or on_line.
+Define a limited stepping range that may be predicated on a condition. When the
+leading line is stepped on and any condition '(expr) == (values[n])' is true or
+there are no conditions, set a range of temporary breakpoints within the test
+file defined by the range 'from_line' and 'to_line' or 'on_line'. This only
+happens 'hit_count' number of times if the argument is provided.
 
 The condition is only evaluated on the line 'from_line' or 'on_line'. If the
-condition is not true at the start of the range, the whole range is ignored.
+condition is not true at the start of the range, or that line is never stepped
+onto, the whole range is ignored.
 
 DexLimitSteps commands are useful for reducing the amount of steps gathered in
 large test cases that would normally take much longer to complete.
 
 ----
 ## DexLabel
-    DexLabel(name)
+    DexLabel(name [, **on_line])
 
     Args:
         name (str): A unique name for this line.
 
+    Keyword args:
+        on_line (int): Specify a line number to label.
+
 ### Description
-Name the line this command is found on. Line names can be referenced by other
-commands expecting line number arguments.
-For example, `DexExpectWatchValues(..., on_line='my_line_name')`.
+Name the line this command is found on or 'on_line' if it is provided. Line
+names can be converted to line numbers with the `ref(str)` function. For
+example, `DexExpectWatchValues(..., on_line=ref('my_line_name'))`. Use
+arithmetic operators to get offsets from labels:
+
+    DexExpectWatchValues(..., on_line=ref('my_line_name') + 3)
+    DexExpectWatchValues(..., on_line=ref('my_line_name') - 5)
+
 
 ### Heuristic
 This command does not contribute to the heuristic score.

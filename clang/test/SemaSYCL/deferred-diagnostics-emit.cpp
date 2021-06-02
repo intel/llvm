@@ -1,7 +1,7 @@
-// RUN: %clang_cc1  -fsycl -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -fsycl-is-device \
+// RUN: %clang_cc1  -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -fsycl-is-device \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu \
 // RUN:  -verify -fsyntax-only  %s
-// RUN: %clang_cc1  -fsycl -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -fsycl-is-device \
+// RUN: %clang_cc1  -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -fsycl-is-device \
 // RUN:  -aux-triple x86_64-pc-windows-msvc   \
 // RUN:  -verify -fsyntax-only  %s
 //
@@ -64,7 +64,7 @@ template <typename T>
 void setup_sycl_operation(const T VA[]) {
 
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:212 {{called by 'kernel_single_task<AName, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<AName, (lambda}}
     h.single_task<class AName>([]() {
       // ======= Zero Length Arrays Not Allowed in Kernel ==========
       // expected-error@+1 {{zero-length arrays are not permitted in C++}}
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 
   // --- direct lambda testing ---
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@Inputs/sycl.hpp:212 2 {{called by 'kernel_single_task<AName, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall 2 {{called by 'kernel_single_task<AName, (lambda}}
     h.single_task<class AName>([]() {
       // expected-error@+1 {{zero-length arrays are not permitted in C++}}
       int BadArray[0];

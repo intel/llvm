@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 // Test that checkes template parameter support for 'reqd_sub_group_size' attribute on sycl device.
 
@@ -64,18 +64,20 @@ template <int N>
 [[intel::reqd_sub_group_size(4)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int N>
-[[intel::reqd_sub_group_size(N)]] void func4() {} // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different parameters}}
+[[intel::reqd_sub_group_size(N)]] void func4() {} // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
 
 int check() {
   // no error expected
   func3<12>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
-
   func4<6>(); //expected-note {{in instantiation of function template specialization 'func4<6>' requested here}}
-
   return 0;
 }
+
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::reqd_sub_group_size(8)]]
+[[intel::reqd_sub_group_size(8)]] void func5() {}
 
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
 // CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 0 N
@@ -84,3 +86,9 @@ int check() {
 // CHECK: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
+
+// CHECK: FunctionDecl {{.*}} {{.*}} func5 'void ()'
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 8
+// CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}

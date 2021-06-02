@@ -10,12 +10,12 @@
 // UNSUPPORTED: libcpp-has-no-filesystem-library
 
 // Filesystem is supported on Apple platforms starting with macosx10.15.
-// UNSUPPORTED: with_system_cxx_lib=macosx10.14
-// UNSUPPORTED: with_system_cxx_lib=macosx10.13
-// UNSUPPORTED: with_system_cxx_lib=macosx10.12
-// UNSUPPORTED: with_system_cxx_lib=macosx10.11
-// UNSUPPORTED: with_system_cxx_lib=macosx10.10
-// UNSUPPORTED: with_system_cxx_lib=macosx10.9
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.14
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.13
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.12
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.11
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.10
+// UNSUPPORTED: use_system_cxx_lib && x86_64-apple-macosx10.9
 
 // <fstream>
 
@@ -44,7 +44,7 @@ int main(int, char**) {
     fs >> x;
     assert(x == 3.25);
   }
-  std::remove(p.c_str());
+  std::remove(p.string().c_str());
   {
     std::wfstream fs(p, std::ios_base::in | std::ios_base::out |
                             std::ios_base::trunc);
@@ -54,7 +54,7 @@ int main(int, char**) {
     fs >> x;
     assert(x == 3.25);
   }
-  std::remove(p.c_str());
+  std::remove(p.string().c_str());
 
   return 0;
 }

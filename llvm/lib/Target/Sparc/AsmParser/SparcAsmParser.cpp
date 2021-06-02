@@ -1034,6 +1034,9 @@ SparcAsmParser::parseSparcAsmOperand(std::unique_ptr<SparcOperand> &Op,
       case Sparc::TBR:
         Op = SparcOperand::CreateToken("%tbr", S);
         break;
+      case Sparc::PC:
+        Op = SparcOperand::CreateToken("%pc", S);
+        break;
       case Sparc::ICC:
         if (name == "xcc")
           Op = SparcOperand::CreateToken("%xcc", S);
@@ -1054,18 +1057,12 @@ SparcAsmParser::parseSparcAsmOperand(std::unique_ptr<SparcOperand> &Op,
   case AsmToken::Integer:
   case AsmToken::LParen:
   case AsmToken::Dot:
-    if (!getParser().parseExpression(EVal, E))
-      Op = SparcOperand::CreateImm(EVal, S, E);
-    break;
+  case AsmToken::Identifier:
+    if (getParser().parseExpression(EVal, E))
+      break;
 
-  case AsmToken::Identifier: {
-    StringRef Identifier;
-    if (!getParser().parseIdentifier(Identifier)) {
-      E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-      MCSymbol *Sym = getContext().getOrCreateSymbol(Identifier);
-
-      const MCExpr *Res = MCSymbolRefExpr::create(Sym, MCSymbolRefExpr::VK_None,
-                                                  getContext());
+    int64_t Res;
+    if (!EVal->evaluateAsAbsolute(Res)) {
       SparcMCExpr::VariantKind Kind = SparcMCExpr::VK_Sparc_13;
 
       if (getContext().getObjectFileInfo()->isPositionIndependent()) {
@@ -1074,13 +1071,10 @@ SparcAsmParser::parseSparcAsmOperand(std::unique_ptr<SparcOperand> &Op,
         else
           Kind = SparcMCExpr::VK_Sparc_GOT13;
       }
-
-      Res = SparcMCExpr::create(Kind, Res, getContext());
-
-      Op = SparcOperand::CreateImm(Res, S, E);
+      EVal = SparcMCExpr::create(Kind, EVal, getContext());
     }
+    Op = SparcOperand::CreateImm(EVal, S, E);
     break;
-  }
   }
   return (Op) ? MatchOperand_Success : MatchOperand_ParseFail;
 }
@@ -1347,6 +1341,11 @@ bool SparcAsmParser::matchRegisterName(const AsmToken &Tok, unsigned &RegNo,
     }
     if (name.equals("wstate")) {
       RegNo = Sparc::WSTATE;
+      RegKind = SparcOperand::rk_Special;
+      return true;
+    }
+    if (name.equals("pc")) {
+      RegNo = Sparc::PC;
       RegKind = SparcOperand::rk_Special;
       return true;
     }

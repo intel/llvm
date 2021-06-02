@@ -35,6 +35,7 @@
 namespace llvm {
 namespace jitlink {
 
+class LinkGraph;
 class Symbol;
 class Section;
 
@@ -122,14 +123,25 @@ public:
   void setAddress(JITTargetAddress Address) { this->Address = Address; }
 
   /// Returns true if this is a defined addressable, in which case you
-  /// can downcast this to a .
+  /// can downcast this to a Block.
   bool isDefined() const { return static_cast<bool>(IsDefined); }
   bool isAbsolute() const { return static_cast<bool>(IsAbsolute); }
 
 private:
+  void setAbsolute(bool IsAbsolute) {
+    assert(!IsDefined && "Cannot change the Absolute flag on a defined block");
+    this->IsAbsolute = IsAbsolute;
+  }
+
   JITTargetAddress Address = 0;
   uint64_t IsDefined : 1;
   uint64_t IsAbsolute : 1;
+
+protected:
+  // bitfields for Block, allocated here to improve packing.
+  uint64_t ContentMutable : 1;
+  uint64_t P2Align : 5;
+  uint64_t AlignmentOffset : 56;
 };
 
 using SectionOrdinal = unsigned;
@@ -148,12 +160,15 @@ private:
            "Alignment offset cannot exceed alignment");
     assert(AlignmentOffset <= MaxAlignmentOffset &&
            "Alignment offset exceeds maximum");
+    ContentMutable = false;
     P2Align = Alignment ? countTrailingZeros(Alignment) : 0;
     this->AlignmentOffset = AlignmentOffset;
   }
 
   /// Create a defined addressable for the given content.
-  Block(Section &Parent, StringRef Content, JITTargetAddress Address,
+  /// The Content is assumed to be non-writable, and will be copied when
+  /// mutations are required.
+  Block(Section &Parent, ArrayRef<char> Content, JITTargetAddress Address,
         uint64_t Alignment, uint64_t AlignmentOffset)
       : Addressable(Address, true), Parent(Parent), Data(Content.data()),
         Size(Content.size()) {
@@ -162,6 +177,26 @@ private:
            "Alignment offset cannot exceed alignment");
     assert(AlignmentOffset <= MaxAlignmentOffset &&
            "Alignment offset exceeds maximum");
+    ContentMutable = false;
+    P2Align = Alignment ? countTrailingZeros(Alignment) : 0;
+    this->AlignmentOffset = AlignmentOffset;
+  }
+
+  /// Create a defined addressable for the given content.
+  /// The content is assumed to be writable, and the caller is responsible
+  /// for ensuring that it lives for the duration of the Block's lifetime.
+  /// The standard way to achieve this is to allocate it on the Graph's
+  /// allocator.
+  Block(Section &Parent, MutableArrayRef<char> Content,
+        JITTargetAddress Address, uint64_t Alignment, uint64_t AlignmentOffset)
+      : Addressable(Address, true), Parent(Parent), Data(Content.data()),
+        Size(Content.size()) {
+    assert(isPowerOf2_64(Alignment) && "Alignment must be power of 2");
+    assert(AlignmentOffset < Alignment &&
+           "Alignment offset cannot exceed alignment");
+    assert(AlignmentOffset <= MaxAlignmentOffset &&
+           "Alignment offset exceeds maximum");
+    ContentMutable = true;
     P2Align = Alignment ? countTrailingZeros(Alignment) : 0;
     this->AlignmentOffset = AlignmentOffset;
   }
@@ -189,18 +224,54 @@ public:
   size_t getSize() const { return Size; }
 
   /// Get the content for this block. Block must not be a zero-fill block.
-  StringRef getContent() const {
+  ArrayRef<char> getContent() const {
     assert(Data && "Section does not contain content");
-    return StringRef(Data, Size);
+    return ArrayRef<char>(Data, Size);
   }
 
   /// Set the content for this block.
   /// Caller is responsible for ensuring the underlying bytes are not
   /// deallocated while pointed to by this block.
-  void setContent(StringRef Content) {
+  void setContent(ArrayRef<char> Content) {
     Data = Content.data();
     Size = Content.size();
+    ContentMutable = false;
   }
+
+  /// Get mutable content for this block.
+  ///
+  /// If this Block's content is not already mutable this will trigger a copy
+  /// of the existing immutable content to a new, mutable buffer allocated using
+  /// LinkGraph::allocateContent.
+  MutableArrayRef<char> getMutableContent(LinkGraph &G);
+
+  /// Get mutable content for this block.
+  ///
+  /// This block's content must already be mutable. It is a programmatic error
+  /// to call this on a block with immutable content -- consider using
+  /// getMutableContent instead.
+  MutableArrayRef<char> getAlreadyMutableContent() {
+    assert(ContentMutable && "Content is not mutable");
+    return MutableArrayRef<char>(const_cast<char *>(Data), Size);
+  }
+
+  /// Set mutable content for this block.
+  ///
+  /// The caller is responsible for ensuring that the memory pointed to by
+  /// MutableContent is not deallocated while pointed to by this block.
+  void setMutableContent(MutableArrayRef<char> MutableContent) {
+    Data = MutableContent.data();
+    Size = MutableContent.size();
+    ContentMutable = true;
+  }
+
+  /// Returns true if this block's content is mutable.
+  ///
+  /// This is primarily useful for asserting that a block is already in a
+  /// mutable state prior to modifying the content. E.g. when applying
+  /// fixups we expect the block to already be mutable as it should have been
+  /// copied to working memory.
+  bool isContentMutable() const { return ContentMutable; }
 
   /// Get the alignment for this content.
   uint64_t getAlignment() const { return 1ull << P2Align; }
@@ -251,11 +322,15 @@ public:
   /// Returns an iterator to the new next element.
   edge_iterator removeEdge(edge_iterator I) { return Edges.erase(I); }
 
-private:
-  static constexpr uint64_t MaxAlignmentOffset = (1ULL << 57) - 1;
+  /// Returns the address of the fixup for the given edge, which is equal to
+  /// this block's address plus the edge's offset.
+  JITTargetAddress getFixupAddress(const Edge &E) const {
+    return getAddress() + E.getOffset();
+  }
 
-  uint64_t P2Align : 5;
-  uint64_t AlignmentOffset : 57;
+private:
+  static constexpr uint64_t MaxAlignmentOffset = (1ULL << 56) - 1;
+
   Section &Parent;
   const char *Data = nullptr;
   size_t Size = 0;
@@ -276,7 +351,11 @@ const char *getLinkageName(Linkage L);
 ///   Default -- Visible in the public interface of the linkage unit.
 ///   Hidden -- Visible within the linkage unit, but not exported from it.
 ///   Local -- Visible only within the LinkGraph.
-enum class Scope : uint8_t { Default, Hidden, Local };
+enum class Scope : uint8_t {
+  Default,
+  Hidden,
+  Local
+};
 
 /// For debugging output.
 const char *getScopeName(Scope S);
@@ -431,7 +510,7 @@ public:
   /// Returns true if the underlying addressable is an absolute symbol.
   bool isAbsolute() const {
     assert(Base && "Attempt to access null symbol");
-    return !Base->isDefined() && Base->isAbsolute();
+    return Base->isAbsolute();
   }
 
   /// Return the addressable that this symbol points to.
@@ -469,14 +548,24 @@ public:
   /// Returns the size of this symbol.
   JITTargetAddress getSize() const { return Size; }
 
+  /// Set the size of this symbol.
+  void setSize(JITTargetAddress Size) {
+    assert(Base && "Cannot set size for null Symbol");
+    assert((Size == 0 || Base->isDefined()) &&
+           "Non-zero size can only be set for defined symbols");
+    assert((Offset + Size <= static_cast<const Block &>(*Base).getSize()) &&
+           "Symbol size cannot extend past the end of its containing block");
+    this->Size = Size;
+  }
+
   /// Returns true if this symbol is backed by a zero-fill block.
   /// This method may only be called on defined symbols.
   bool isSymbolZeroFill() const { return getBlock().isZeroFill(); }
 
   /// Returns the content in the underlying block covered by this symbol.
   /// This method may only be called on defined non-zero-fill symbols.
-  StringRef getSymbolContent() const {
-    return getBlock().getContent().substr(Offset, Size);
+  ArrayRef<char> getSymbolContent() const {
+    return getBlock().getContent().slice(Offset, Size);
   }
 
   /// Get the linkage for this Symbol.
@@ -503,13 +592,20 @@ public:
 
 private:
   void makeExternal(Addressable &A) {
-    assert(!A.isDefined() && "Attempting to make external with defined block");
+    assert(!A.isDefined() && !A.isAbsolute() &&
+           "Attempting to make external with defined or absolute block");
     Base = &A;
     Offset = 0;
-    setLinkage(Linkage::Strong);
     setScope(Scope::Default);
     IsLive = 0;
-    // note: Size and IsCallable fields left unchanged.
+    // note: Size, Linkage and IsCallable fields left unchanged.
+  }
+
+  void makeAbsolute(Addressable &A) {
+    assert(!A.isDefined() && A.isAbsolute() &&
+           "Attempting to make absolute with defined or external block");
+    Base = &A;
+    Offset = 0;
   }
 
   void setBlock(Block &B) { Base = &B; }
@@ -558,11 +654,22 @@ public:
 
   ~Section();
 
+  // Sections are not movable or copyable.
+  Section(const Section &) = delete;
+  Section &operator=(const Section &) = delete;
+  Section(Section &&) = delete;
+  Section &operator=(Section &&) = delete;
+
   /// Returns the name of this section.
   StringRef getName() const { return Name; }
 
   /// Returns the protection flags for this section.
   sys::Memory::ProtectionFlags getProtectionFlags() const { return Prot; }
+
+  /// Set the protection flags for this section.
+  void setProtectionFlags(sys::Memory::ProtectionFlags Prot) {
+    this->Prot = Prot;
+  }
 
   /// Returns the ordinal for this section.
   SectionOrdinal getOrdinal() const { return SecOrdinal; }
@@ -642,7 +749,7 @@ public:
     assert((First || !Last) && "Last can not be null if start is non-null");
     return Last;
   }
-  bool isEmpty() const {
+  bool empty() const {
     assert((First || !Last) && "Last can not be null if start is non-null");
     return !First;
   }
@@ -786,14 +893,17 @@ public:
                                  Section::const_block_iterator, const Block *,
                                  getSectionConstBlocks>;
 
+  using GetEdgeKindNameFunction = const char *(*)(Edge::Kind);
+
   LinkGraph(std::string Name, const Triple &TT, unsigned PointerSize,
-            support::endianness Endianness)
+            support::endianness Endianness,
+            GetEdgeKindNameFunction GetEdgeKindName)
       : Name(std::move(Name)), TT(TT), PointerSize(PointerSize),
-        Endianness(Endianness) {}
+        Endianness(Endianness), GetEdgeKindName(std::move(GetEdgeKindName)) {}
 
   /// Returns the name of this graph (usually the name of the original
   /// underlying MemoryBuffer).
-  const std::string &getName() { return Name; }
+  const std::string &getName() const { return Name; }
 
   /// Returns the target triple for this Graph.
   const Triple &getTargetTriple() const { return TT; }
@@ -804,13 +914,15 @@ public:
   /// Returns the endianness of content in this graph.
   support::endianness getEndianness() const { return Endianness; }
 
+  const char *getEdgeKindName(Edge::Kind K) const { return GetEdgeKindName(K); }
+
   /// Allocate a copy of the given string using the LinkGraph's allocator.
   /// This can be useful when renaming symbols or adding new content to the
   /// graph.
-  StringRef allocateString(StringRef Source) {
+  MutableArrayRef<char> allocateContent(ArrayRef<char> Source) {
     auto *AllocatedBuffer = Allocator.Allocate<char>(Source.size());
     llvm::copy(Source, AllocatedBuffer);
-    return StringRef(AllocatedBuffer, Source.size());
+    return MutableArrayRef<char>(AllocatedBuffer, Source.size());
   }
 
   /// Allocate a copy of the given string using the LinkGraph's allocator.
@@ -818,28 +930,42 @@ public:
   /// graph.
   ///
   /// Note: This Twine-based overload requires an extra string copy and an
-  /// extra heap allocation for large strings. The StringRef overload should
-  /// be preferred where possible.
-  StringRef allocateString(Twine Source) {
+  /// extra heap allocation for large strings. The ArrayRef<char> overload
+  /// should be preferred where possible.
+  MutableArrayRef<char> allocateString(Twine Source) {
     SmallString<256> TmpBuffer;
     auto SourceStr = Source.toStringRef(TmpBuffer);
     auto *AllocatedBuffer = Allocator.Allocate<char>(SourceStr.size());
     llvm::copy(SourceStr, AllocatedBuffer);
-    return StringRef(AllocatedBuffer, SourceStr.size());
+    return MutableArrayRef<char>(AllocatedBuffer, SourceStr.size());
   }
 
   /// Create a section with the given name, protection flags, and alignment.
   Section &createSection(StringRef Name, sys::Memory::ProtectionFlags Prot) {
+    assert(llvm::find_if(Sections,
+                         [&](std::unique_ptr<Section> &Sec) {
+                           return Sec->getName() == Name;
+                         }) == Sections.end() &&
+           "Duplicate section name");
     std::unique_ptr<Section> Sec(new Section(Name, Prot, Sections.size()));
     Sections.push_back(std::move(Sec));
     return *Sections.back();
   }
 
   /// Create a content block.
-  Block &createContentBlock(Section &Parent, StringRef Content,
+  Block &createContentBlock(Section &Parent, ArrayRef<char> Content,
                             uint64_t Address, uint64_t Alignment,
                             uint64_t AlignmentOffset) {
     return createBlock(Parent, Content, Address, Alignment, AlignmentOffset);
+  }
+
+  /// Create a content block with initially mutable data.
+  Block &createMutableContentBlock(Section &Parent,
+                                   MutableArrayRef<char> MutableContent,
+                                   uint64_t Address, uint64_t Alignment,
+                                   uint64_t AlignmentOffset) {
+    return createBlock(Parent, MutableContent, Address, Alignment,
+                       AlignmentOffset);
   }
 
   /// Create a zero-fill block.
@@ -886,6 +1012,11 @@ public:
   /// an error will be emitted. Externals with weak linkage are permitted to
   /// be undefined, in which case they are assigned a value of 0.
   Symbol &addExternalSymbol(StringRef Name, uint64_t Size, Linkage L) {
+    assert(llvm::count_if(ExternalSymbols,
+                          [&](const Symbol *Sym) {
+                            return Sym->getName() == Name;
+                          }) == 0 &&
+           "Duplicate external symbol");
     auto &Sym =
         Symbol::constructExternal(Allocator.Allocate<Symbol>(),
                                   createAddressable(0, false), Name, Size, L);
@@ -896,6 +1027,11 @@ public:
   /// Add an absolute symbol.
   Symbol &addAbsoluteSymbol(StringRef Name, JITTargetAddress Address,
                             uint64_t Size, Linkage L, Scope S, bool IsLive) {
+    assert(llvm::count_if(AbsoluteSymbols,
+                          [&](const Symbol *Sym) {
+                            return Sym->getName() == Name;
+                          }) == 0 &&
+           "Duplicate absolute symbol");
     auto &Sym = Symbol::constructAbsolute(Allocator.Allocate<Symbol>(),
                                           createAddressable(Address), Name,
                                           Size, L, S, IsLive);
@@ -907,6 +1043,11 @@ public:
   Symbol &addCommonSymbol(StringRef Name, Scope S, Section &Section,
                           JITTargetAddress Address, uint64_t Size,
                           uint64_t Alignment, bool IsLive) {
+    assert(llvm::count_if(defined_symbols(),
+                          [&](const Symbol *Sym) {
+                            return Sym->getName() == Name;
+                          }) == 0 &&
+           "Duplicate defined symbol");
     auto &Sym = Symbol::constructCommon(
         Allocator.Allocate<Symbol>(),
         createBlock(Section, Size, Address, Alignment, 0), Name, Size, S,
@@ -929,6 +1070,11 @@ public:
   Symbol &addDefinedSymbol(Block &Content, JITTargetAddress Offset,
                            StringRef Name, JITTargetAddress Size, Linkage L,
                            Scope S, bool IsCallable, bool IsLive) {
+    assert(llvm::count_if(defined_symbols(),
+                          [&](const Symbol *Sym) {
+                            return Sym->getName() == Name;
+                          }) == 0 &&
+           "Duplicate defined symbol");
     auto &Sym =
         Symbol::constructNamedDef(Allocator.Allocate<Symbol>(), Content, Offset,
                                   Name, Size, L, S, IsLive, IsCallable);
@@ -979,19 +1125,95 @@ public:
         const_defined_symbol_iterator(Sections.end(), Sections.end()));
   }
 
-  /// Turn a defined symbol into an external one.
+  /// Make the given symbol external (must not already be external).
+  ///
+  /// Symbol size, linkage and callability will be left unchanged. Symbol scope
+  /// will be set to Default, and offset will be reset to 0.
   void makeExternal(Symbol &Sym) {
-    if (Sym.getAddressable().isAbsolute()) {
+    assert(!Sym.isExternal() && "Symbol is already external");
+    if (Sym.isAbsolute()) {
       assert(AbsoluteSymbols.count(&Sym) &&
              "Sym is not in the absolute symbols set");
+      assert(Sym.getOffset() == 0 && "Absolute not at offset 0");
       AbsoluteSymbols.erase(&Sym);
+      Sym.getAddressable().setAbsolute(false);
     } else {
       assert(Sym.isDefined() && "Sym is not a defined symbol");
       Section &Sec = Sym.getBlock().getSection();
       Sec.removeSymbol(Sym);
+      Sym.makeExternal(createAddressable(0, false));
     }
-    Sym.makeExternal(createAddressable(0, false));
     ExternalSymbols.insert(&Sym);
+  }
+
+  /// Make the given symbol an absolute with the given address (must not already
+  /// be absolute).
+  ///
+  /// Symbol size, linkage, scope, and callability, and liveness will be left
+  /// unchanged. Symbol offset will be reset to 0.
+  void makeAbsolute(Symbol &Sym, JITTargetAddress Address) {
+    assert(!Sym.isAbsolute() && "Symbol is already absolute");
+    if (Sym.isExternal()) {
+      assert(ExternalSymbols.count(&Sym) &&
+             "Sym is not in the absolute symbols set");
+      assert(Sym.getOffset() == 0 && "External is not at offset 0");
+      ExternalSymbols.erase(&Sym);
+      Sym.getAddressable().setAbsolute(true);
+    } else {
+      assert(Sym.isDefined() && "Sym is not a defined symbol");
+      Section &Sec = Sym.getBlock().getSection();
+      Sec.removeSymbol(Sym);
+      Sym.makeAbsolute(createAddressable(Address));
+    }
+    AbsoluteSymbols.insert(&Sym);
+  }
+
+  /// Turn an absolute or external symbol into a defined one by attaching it to
+  /// a block. Symbol must not already be defined.
+  void makeDefined(Symbol &Sym, Block &Content, JITTargetAddress Offset,
+                   JITTargetAddress Size, Linkage L, Scope S, bool IsLive) {
+    assert(!Sym.isDefined() && "Sym is already a defined symbol");
+    if (Sym.isAbsolute()) {
+      assert(AbsoluteSymbols.count(&Sym) &&
+             "Symbol is not in the absolutes set");
+      AbsoluteSymbols.erase(&Sym);
+    } else {
+      assert(ExternalSymbols.count(&Sym) &&
+             "Symbol is not in the externals set");
+      ExternalSymbols.erase(&Sym);
+    }
+    Addressable &OldBase = *Sym.Base;
+    Sym.setBlock(Content);
+    Sym.setOffset(Offset);
+    Sym.setSize(Size);
+    Sym.setLinkage(L);
+    Sym.setScope(S);
+    Sym.setLive(IsLive);
+    Content.getSection().addSymbol(Sym);
+    destroyAddressable(OldBase);
+  }
+
+  /// Transfer a defined symbol from one block to another.
+  ///
+  /// The symbol's offset within DestBlock is set to NewOffset.
+  ///
+  /// If ExplicitNewSize is given as None then the size of the symbol will be
+  /// checked and auto-truncated to at most the size of the remainder (from the
+  /// given offset) of the size of the new block.
+  ///
+  /// All other symbol attributes are unchanged.
+  void transferDefinedSymbol(Symbol &Sym, Block &DestBlock,
+                             JITTargetAddress NewOffset,
+                             Optional<JITTargetAddress> ExplicitNewSize) {
+    Sym.setBlock(DestBlock);
+    Sym.setOffset(NewOffset);
+    if (ExplicitNewSize)
+      Sym.setSize(*ExplicitNewSize);
+    else {
+      JITTargetAddress RemainingBlockSize = DestBlock.getSize() - NewOffset;
+      if (Sym.getSize() > RemainingBlockSize)
+        Sym.setSize(RemainingBlockSize);
+    }
   }
 
   /// Removes an external symbol. Also removes the underlying Addressable.
@@ -1001,6 +1223,10 @@ public:
     assert(ExternalSymbols.count(&Sym) && "Symbol is not in the externals set");
     ExternalSymbols.erase(&Sym);
     Addressable &Base = *Sym.Base;
+    assert(llvm::find_if(ExternalSymbols,
+                         [&](Symbol *AS) { return AS->Base == &Base; }) ==
+               ExternalSymbols.end() &&
+           "Base addressable still in use");
     destroySymbol(Sym);
     destroyAddressable(Base);
   }
@@ -1013,6 +1239,10 @@ public:
            "Symbol is not in the absolute symbols set");
     AbsoluteSymbols.erase(&Sym);
     Addressable &Base = *Sym.Base;
+    assert(llvm::find_if(ExternalSymbols,
+                         [&](Symbol *AS) { return AS->Base == &Base; }) ==
+               ExternalSymbols.end() &&
+           "Base addressable still in use");
     destroySymbol(Sym);
     destroyAddressable(Base);
   }
@@ -1036,13 +1266,7 @@ public:
   }
 
   /// Dump the graph.
-  ///
-  /// If supplied, the EdgeKindToName function will be used to name edge
-  /// kinds in the debug output. Otherwise raw edge kind numbers will be
-  /// displayed.
-  void dump(raw_ostream &OS,
-            std::function<StringRef(Edge::Kind)> EdegKindToName =
-                std::function<StringRef(Edge::Kind)>());
+  void dump(raw_ostream &OS);
 
 private:
   // Put the BumpPtrAllocator first so that we don't free any of the underlying
@@ -1053,10 +1277,17 @@ private:
   Triple TT;
   unsigned PointerSize;
   support::endianness Endianness;
+  GetEdgeKindNameFunction GetEdgeKindName = nullptr;
   SectionList Sections;
   ExternalSymbolSet ExternalSymbols;
   ExternalSymbolSet AbsoluteSymbols;
 };
+
+inline MutableArrayRef<char> Block::getMutableContent(LinkGraph &G) {
+  if (!ContentMutable)
+    setMutableContent(G.allocateContent({Data, Size}));
+  return MutableArrayRef<char>(const_cast<char *>(Data), Size);
+}
 
 /// Enables easy lookup of blocks by addresses.
 class BlockAddressMap {
@@ -1252,8 +1483,8 @@ struct PassConfiguration {
   /// Post-fixup passes.
   ///
   /// These passes are called on the graph after block contents has been copied
-  /// to working memory, and fixups applied. Graph nodes have been updated to
-  /// their final target vmaddrs.
+  /// to working memory, and fixups applied. Blocks have been updated to point
+  /// to their fixed up content.
   ///
   /// Notable use cases: Testing and validation.
   LinkGraphPassList PostFixupPasses;
@@ -1358,7 +1589,7 @@ public:
 
   /// Called by JITLink to modify the pass pipeline prior to linking.
   /// The default version performs no modification.
-  virtual Error modifyPassConfig(const Triple &TT, PassConfiguration &Config);
+  virtual Error modifyPassConfig(LinkGraph &G, PassConfiguration &Config);
 
 private:
   const JITLinkDylib *JD = nullptr;
@@ -1367,6 +1598,10 @@ private:
 /// Marks all symbols in a graph live. This can be used as a default,
 /// conservative mark-live implementation.
 Error markAllSymbolsLive(LinkGraph &G);
+
+/// Create an out of range error for the given edge in the given block.
+Error makeTargetOutOfRangeError(const LinkGraph &G, const Block &B,
+                                const Edge &E);
 
 /// Create a LinkGraph from the given object buffer.
 ///

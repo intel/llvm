@@ -94,16 +94,16 @@ struct bit_equal<T, typename detail::enable_if_t<std::is_integral<T>::value>> {
 
 template <> struct bit_equal<float> {
   bool operator()(const float &lhs, const float &rhs) {
-    auto LhsInt = detail::bit_cast<uint32_t>(lhs);
-    auto RhsInt = detail::bit_cast<uint32_t>(rhs);
+    auto LhsInt = sycl::bit_cast<uint32_t>(lhs);
+    auto RhsInt = sycl::bit_cast<uint32_t>(rhs);
     return LhsInt == RhsInt;
   }
 };
 
 template <> struct bit_equal<double> {
   bool operator()(const double &lhs, const double &rhs) {
-    auto LhsInt = detail::bit_cast<uint64_t>(lhs);
-    auto RhsInt = detail::bit_cast<uint64_t>(rhs);
+    auto LhsInt = sycl::bit_cast<uint64_t>(lhs);
+    auto RhsInt = sycl::bit_cast<uint64_t>(rhs);
     return LhsInt == RhsInt;
   }
 };
@@ -413,7 +413,6 @@ private:
 };
 
 // Partial specialization for floating-point types
-// TODO: Leverage floating-point SPIR-V atomics instead of emulation
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
 class atomic_ref_impl<
@@ -486,22 +485,34 @@ public:
 
   T fetch_min(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
+// TODO: Remove the "native atomics" macro check once implemented for all
+// backends
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+    return detail::spirv::AtomicMin(ptr, scope, order, operand);
+#else
     auto load_order = detail::getLoadOrder(order);
     T old = load(load_order, scope);
     while (operand < old &&
            !compare_exchange_weak(old, operand, order, scope)) {
     }
     return old;
+#endif
   }
 
   T fetch_max(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
+// TODO: Remove the "native atomics" macro check once implemented for all
+// backends
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+    return detail::spirv::AtomicMax(ptr, scope, order, operand);
+#else
     auto load_order = detail::getLoadOrder(order);
     T old = load(load_order, scope);
     while (operand > old &&
            !compare_exchange_weak(old, operand, order, scope)) {
     }
     return old;
+#endif
   }
 
 private:

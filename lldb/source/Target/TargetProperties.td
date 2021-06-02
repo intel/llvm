@@ -172,6 +172,9 @@ let Definition = "target" in {
   def AutoInstallMainExecutable: Property<"auto-install-main-executable", "Boolean">,
     DefaultTrue,
     Desc<"Always install the main executable when connected to a remote platform.">;
+  def DebugUtilityExpression: Property<"debug-utility-expression", "Boolean">,
+    DefaultFalse,
+    Desc<"Enable debugging of LLDB-internal utility expressions.">;
 }
 
 let Definition = "process_experimental" in {
@@ -203,6 +206,10 @@ let Definition = "process" in {
     Global,
     DefaultFalse,
     Desc<"If true, stop when a shared library is loaded or unloaded.">;
+  def DisableLangRuntimeUnwindPlans: Property<"disable-language-runtime-unwindplans", "Boolean">,
+    Global,
+    DefaultFalse,
+    Desc<"If true, LanguageRuntime plugins' UnwindPlans will not be used when backtracing.">;
   def DetachKeepsStopped: Property<"detach-keeps-stopped", "Boolean">,
     Global,
     DefaultFalse,
@@ -226,6 +233,9 @@ let Definition = "process" in {
   def SteppingRunsAllThreads: Property<"run-all-threads", "Boolean">,
     DefaultFalse,
     Desc<"If true, stepping operations will run all threads.  This is equivalent to setting the run-mode option to 'all-threads'.">;
+  def VirtualAddressableBits: Property<"virtual-addressable-bits", "UInt64">,
+    DefaultUnsignedValue<0>,
+    Desc<"The number of bits used for addressing. If the value is 39, then bits 0..38 are used for addressing. The default value of 0 means unspecified.">;
 }
 
 let Definition = "platform" in {

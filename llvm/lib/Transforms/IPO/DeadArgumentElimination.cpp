@@ -328,6 +328,7 @@ bool DeadArgumentEliminationPass::RemoveDeadArgumentsFromCallers(Function &Fn) {
         Changed = true;
       }
       UnusedArgs.push_back(Arg.getArgNo());
+      Fn.removeParamUndefImplyingAttrs(Arg.getArgNo());
     }
   }
 
@@ -345,6 +346,8 @@ bool DeadArgumentEliminationPass::RemoveDeadArgumentsFromCallers(Function &Fn) {
 
       Value *Arg = CB->getArgOperand(ArgNo);
       CB->setArgOperand(ArgNo, UndefValue::get(Arg->getType()));
+      CB->removeParamUndefImplyingAttrs(ArgNo);
+
       ++NumArgumentsReplacedWithUndef;
       Changed = true;
     }
@@ -570,11 +573,13 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
 
   // We can't modify arguments if the function is not local
   // but we can do so for SPIR kernel function in SYCL environment.
-  bool FuncIsSpirKernel =
+  // DAE is not currently supported for ESIMD kernels.
+  bool FuncIsSpirNonEsimdKernel =
       CheckSpirKernels &&
       StringRef(F.getParent()->getTargetTriple()).contains("sycldevice") &&
-      F.getCallingConv() == CallingConv::SPIR_KERNEL;
-  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirKernel;
+      F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+      !F.getMetadata("sycl_explicit_simd");
+  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirNonEsimdKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     MarkLive(F);
     return;

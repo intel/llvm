@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.3)
 
-set (BASE_LLVM_VERSION 12.0.0)
+set (BASE_LLVM_VERSION 13.0.0)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
 option(LLVM_SPIRV_INCLUDE_TESTS
@@ -20,6 +20,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       ${LLVM_SPIRV_VERSION}
     LANGUAGES
       CXX
+      C
   )
 
   set(CMAKE_CXX_STANDARD 14)
@@ -47,11 +48,13 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
     ${LLVM_CMAKE_DIR}
   )
   include(AddLLVM)
+  include(HandleLLVMOptions)
 
   message(STATUS "Found LLVM: ${LLVM_VERSION}")
 
+  option(CCACHE_ALLOWED "allow use of ccache" TRUE)
   find_program(CCACHE_EXE_FOUND ccache)
-  if(CCACHE_EXE_FOUND)
+  if(CCACHE_EXE_FOUND AND CCACHE_ALLOWED)
     message(STATUS "Found ccache: ${CCACHE_EXE_FOUND}")
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)

@@ -150,7 +150,7 @@ class CompilerInstance : public ModuleLoader {
   bool HaveFullGlobalModuleIndex = false;
 
   /// One or more modules failed to build.
-  bool ModuleBuildFailed = false;
+  bool DisableGeneratingGlobalModuleIndex = false;
 
   /// The stream for verbose output if owned, otherwise nullptr.
   std::unique_ptr<raw_ostream> OwnedVerboseOutputStream;
@@ -381,6 +381,9 @@ public:
 
   /// Replace the current AuxTarget.
   void setAuxTarget(TargetInfo *Value);
+
+  // Create Target and AuxTarget based on current options
+  bool createTarget();
 
   /// }
   /// @name Virtual File System

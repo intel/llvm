@@ -1988,12 +1988,11 @@ PathDiagnosticBuilder::generate(const PathDiagnosticConsumer *PDC) const {
 
   const SourceManager &SM = getSourceManager();
   const AnalyzerOptions &Opts = getAnalyzerOptions();
-  StringRef ErrorTag = ErrorNode->getLocation().getTag()->getTagDescription();
 
   // See whether we need to silence the checker/package.
   // FIXME: This will not work if the report was emitted with an incorrect tag.
   for (const std::string &CheckerOrPackage : Opts.SilencedCheckersAndPackages) {
-    if (ErrorTag.startswith(CheckerOrPackage))
+    if (R->getBugType().getCheckerName().startswith(CheckerOrPackage))
       return nullptr;
   }
 
@@ -2738,8 +2737,8 @@ static void CompactMacroExpandedPieces(PathPieces &path,
 }
 
 /// Generate notes from all visitors.
-/// Notes associated with {@code ErrorNode} are generated using
-/// {@code getEndPath}, and the rest are generated with {@code VisitNode}.
+/// Notes associated with @c ErrorNode are generated using
+/// @c getEndPath, and the rest are generated with @c VisitNode.
 static std::unique_ptr<VisitorsDiagnosticsTy>
 generateVisitorsDiagnostics(PathSensitiveBugReport *R,
                             const ExplodedNode *ErrorNode,
@@ -2749,7 +2748,7 @@ generateVisitorsDiagnostics(PathSensitiveBugReport *R,
   PathSensitiveBugReport::VisitorList visitors;
 
   // Run visitors on all nodes starting from the node *before* the last one.
-  // The last node is reserved for notes generated with {@code getEndPath}.
+  // The last node is reserved for notes generated with @c getEndPath.
   const ExplodedNode *NextNode = ErrorNode->getFirstPred();
   while (NextNode) {
 

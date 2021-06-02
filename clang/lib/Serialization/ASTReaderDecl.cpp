@@ -1748,6 +1748,7 @@ void ASTDeclReader::ReadCXXDefinitionData(
     Lambda.NumExplicitCaptures = Record.readInt();
     Lambda.HasKnownInternalLinkage = Record.readInt();
     Lambda.ManglingNumber = Record.readInt();
+    D->setDeviceLambdaManglingNumber(Record.readInt());
     Lambda.ContextDecl = readDeclID();
     Lambda.Captures = (Capture *)Reader.getContext().Allocate(
         sizeof(Capture) * Lambda.NumCaptures);
@@ -1953,6 +1954,7 @@ ASTDeclReader::VisitCXXRecordDeclImpl(CXXRecordDecl *D) {
 
 void ASTDeclReader::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
   D->setExplicitSpecifier(Record.readExplicitSpec());
+  D->Ctor = readDeclAs<CXXConstructorDecl>();
   VisitFunctionDecl(D);
   D->setIsCopyDeductionCandidate(Record.readInt());
 }

@@ -127,12 +127,6 @@ struct VFInfo {
   std::string ScalarName; /// Scalar Function Name.
   std::string VectorName; /// Vector Function Name associated to this VFInfo.
   VFISAKind ISA;          /// Instruction Set Architecture.
-
-  // Comparison operator.
-  bool operator==(const VFInfo &Other) const {
-    return std::tie(Shape, ScalarName, VectorName, ISA) ==
-           std::tie(Shape, Other.ScalarName, Other.VectorName, Other.ISA);
-  }
 };
 
 namespace VFABI {
@@ -186,12 +180,13 @@ Optional<VFInfo> tryDemangleForVFABI(StringRef MangledName, const Module &M);
 /// <isa> = "_LLVM_"
 /// <mask> = "N". Note: TLI does not support masked interfaces.
 /// <vlen> = Number of concurrent lanes, stored in the `VectorizationFactor`
-///          field of the `VecDesc` struct.
+///          field of the `VecDesc` struct. If the number of lanes is scalable
+///          then 'x' is printed instead.
 /// <vparams> = "v", as many as are the numArgs.
 /// <scalarname> = the name of the scalar function.
 /// <vectorname> = the name of the vector function.
 std::string mangleTLIVectorName(StringRef VectorName, StringRef ScalarName,
-                                unsigned numArgs, unsigned VF);
+                                unsigned numArgs, ElementCount VF);
 
 /// Retrieve the `VFParamKind` from a string token.
 VFParamKind getVFParamKindFromString(const StringRef Token);
@@ -601,10 +596,6 @@ public:
 
   bool isReverse() const { return Reverse; }
   uint32_t getFactor() const { return Factor; }
-  LLVM_ATTRIBUTE_DEPRECATED(uint32_t getAlignment() const,
-                            "Use getAlign instead.") {
-    return Alignment.value();
-  }
   Align getAlign() const { return Alignment; }
   uint32_t getNumMembers() const { return Members.size(); }
 

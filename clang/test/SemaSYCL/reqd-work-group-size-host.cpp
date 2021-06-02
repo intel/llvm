@@ -1,9 +1,8 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
-// expected-no-diagnostics
+// RUN: %clang_cc1 -fsycl-is-host -fsyntax-only -verify %s
 
 class Functor {
 public:
-  [[cl::reqd_work_group_size(4, 1, 1)]] void operator()() {}
+  [[sycl::reqd_work_group_size(4, 1, 1)]] void operator()() {}
 };
 
 template <typename name, typename Func>
@@ -16,4 +15,10 @@ void bar() {
   kernel<class kernel_name>(f);
 }
 
-[[cl::reqd_work_group_size(4, 1, 1)]] void f4() {}
+[[sycl::reqd_work_group_size(4, 1, 1)]] void f4() {}
+
+[[cl::reqd_work_group_size(4, 1, 1)]] void f5() {} // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
+                                                   // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+
+__attribute__((reqd_work_group_size(4, 1, 1))) void f6() {} // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
+                                                            // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}

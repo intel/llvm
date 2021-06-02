@@ -16,7 +16,7 @@ this is a great place to start.
 ## Operation Pass
 
 In MLIR, the main unit of abstraction and transformation is an
-[operation](LangRef.md#operations). As such, the pass manager is designed to
+[operation](LangRef.md/#operations). As such, the pass manager is designed to
 work on instances of operations at different levels of nesting. The structure of
 the [pass manager](#pass-manager), and the concept of nesting, is detailed
 further below. All passes in MLIR derive from `OperationPass` and adhere to the
@@ -98,8 +98,8 @@ is added to. This means that passes of this type may operate on several
 different operation types. Passes of this type are generally written generically
 using operation [interfaces](Interfaces.md) and [traits](Traits.md). Examples of
 this type of pass are
-[Common Sub-Expression Elimination](Passes.md#-cse-eliminate-common-sub-expressions)
-and [Inlining](Passes.md#-inline-inline-function-calls).
+[Common Sub-Expression Elimination](Passes.md/#-cse-eliminate-common-sub-expressions)
+and [Inlining](Passes.md/#-inline-inline-function-calls).
 
 To create an operation pass, a derived class must adhere to the following:
 
@@ -140,13 +140,15 @@ such example is when using [`PDL`-based](Dialects/PDLOps.md)
 runtime. In these situations, a pass may override the following hook to
 initialize this heavy state:
 
-*   `void initialize(MLIRContext *context)`
+*   `LogicalResult initialize(MLIRContext *context)`
 
 This hook is executed once per run of a full pass pipeline, meaning that it does
 not have access to the state available during a `runOnOperation` call. More
 concretely, all necessary accesses to an `MLIRContext` should be driven via the
 provided `context` parameter, and methods that utilize "per-run" state such as
 `getContext`/`getOperation`/`getAnalysis`/etc. must not be used.
+In case of an error during initialization, the pass is expected to emit an error
+diagnostic and return a `failure()` which will abort the pass pipeline execution.
 
 ## Analysis Management
 
@@ -157,7 +159,10 @@ not passes but free-standing classes that are computed lazily on-demand and
 cached to avoid unnecessary recomputation. An analysis in MLIR must adhere to
 the following:
 
-*   Provide a valid constructor taking an `Operation*`.
+*   Provide a valid constructor taking either an `Operation*` or `Operation*`
+    and `AnalysisManager &`.
+    *   The provided `AnalysisManager &` should be used to query any necessary
+        analysis dependencies.
 *   Must not modify the given operation.
 
 An analysis may provide additional hooks to control various behavior:
@@ -167,7 +172,9 @@ An analysis may provide additional hooks to control various behavior:
 Given a preserved analysis set, the analysis returns true if it should truly be
 invalidated. This allows for more fine-tuned invalidation in cases where an
 analysis wasn't explicitly marked preserved, but may be preserved (or
-invalidated) based upon other properties such as analyses sets.
+invalidated) based upon other properties such as analyses sets. If the analysis
+uses any other analysis as a dependency, it must also check if the dependency
+was invalidated.
 
 ### Querying Analyses
 
@@ -196,6 +203,20 @@ Using the example passes defined above, let's see some examples:
 struct MyOperationAnalysis {
   // Compute this analysis with the provided operation.
   MyOperationAnalysis(Operation *op);
+};
+
+struct MyOperationAnalysisWithDependency {
+  MyOperationAnalysisWithDependency(Operation *op, AnalysisManager &am) {
+    // Request other analysis as dependency
+    MyOperationAnalysis &otherAnalysis = am.getAnalysis<MyOperationAnalysis>();
+    ...
+  }
+
+  bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa) {
+    // Check if analysis or its dependency were invalidated
+    return !pa.isPreserved<MyOperationAnalysisWithDependency>() ||
+           !pa.isPreserved<MyOperationAnalysis>();
+  }
 };
 
 void MyOperationPass::runOnOperation() {
@@ -277,7 +298,7 @@ operation of a specific type. This operation type must adhere to the following
 requirement:
 
 *   Must be registered and marked
-    [`IsolatedFromAbove`](Traits.md#isolatedfromabove).
+    [`IsolatedFromAbove`](Traits.md/#isolatedfromabove).
 
     *   Passes are expected to not modify operations at or above the current
         operation being processed. If the operation is not isolated, it may
@@ -293,7 +314,7 @@ another existing `OpPassManager` via the `nest<>` method. This method takes the
 operation type that the nested pass manager will operate on. At the top-level, a
 `PassManager` acts as an `OpPassManager`. Nesting in this sense, corresponds to
 the [structural](Tutorials/UnderstandingTheIRStructure.md) nesting within
-[Regions](LangRef.md#regions) of the IR.
+[Regions](LangRef.md/#regions) of the IR.
 
 For example, the following `.mlir`:
 
@@ -372,7 +393,7 @@ program has been run through the passes. This provides several benefits:
 In some situations it may be useful to run a pass pipeline within another pass,
 to allow configuring or filtering based on some invariants of the current
 operation being operated on. For example, the
-[Inliner Pass](Passes.md#-inline-inline-function-calls) may want to run
+[Inliner Pass](Passes.md/#-inline-inline-function-calls) may want to run
 intraprocedural simplification passes while it is inlining to produce a better
 cost model, and provide more optimal inlining. To enable this, passes may run an
 arbitrary `OpPassManager` on the current operation being operated on or any
@@ -897,6 +918,10 @@ the PassManager that observe various events:
         executed, `runAfterPass` will *not* be.
 *   `runBeforeAnalysis`
     *   This callback is run just before an analysis is computed.
+    *   If the analysis requested another analysis as a dependency, the
+        `runBeforeAnalysis`/`runAfterAnalysis` pair for the dependency can be
+        called from inside of the current `runBeforeAnalysis`/`runAfterAnalysis`
+        pair.
 *   `runAfterAnalysis`
     *   This callback is run right after an analysis is computed.
 
@@ -950,7 +975,7 @@ of passes and computation of analyses. This provides a quick glimpse into what
 passes are taking the most time to execute, as well as how much of an effect a
 pass has on the total execution time of the pipeline. Users can enable this
 instrumentation directly on the PassManager via `enableTiming`. This
-instrumentation is also made available in mlir-opt via the `-pass-timing` flag.
+instrumentation is also made available in mlir-opt via the `-mlir-timing` flag.
 The PassTiming instrumentation provides several different display modes for the
 timing results, each of which is described below:
 
@@ -960,10 +985,10 @@ In this mode, the results are displayed in a list sorted by total time with each
 pass/analysis instance aggregated into one unique result. This view is useful
 for getting an overview of what analyses/passes are taking the most time in a
 pipeline. This display mode is available in mlir-opt via
-`-pass-timing-display=list`.
+`-mlir-timing-display=list`.
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -pass-timing -pass-timing-display=list
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing -mlir-timing-display=list
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -979,7 +1004,7 @@ $ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse,canonicaliz
    0.0084 (100.0%)  Total
 ```
 
-##### Pipeline Display Mode
+##### Tree Display Mode
 
 In this mode, the results are displayed in a nested pipeline view that mirrors
 the internal pass pipeline that is being executed in the pass manager. This view
@@ -988,7 +1013,7 @@ the most time, and can also be used to identify when analyses are being
 invalidated and recomputed. This is the default display mode.
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -pass-timing
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1019,7 +1044,7 @@ perceived time, or clock time, whereas the `User Time` will display the total
 cpu time.
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -pass-timing
+$ mlir-opt foo.mlir -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1101,6 +1126,21 @@ func @simple_constant() -> (i32, i32) {
 }
 ```
 
+*   `print-ir-after-failure`
+    *   Only print IR after a pass failure.
+    *   This option should *not* be used with the other `print-ir-after` flags
+        above.
+
+```shell
+$ mlir-opt foo.mlir -pass-pipeline='func(cse,bad-pass)' -print-ir-failure
+
+*** IR Dump After BadPass Failed ***
+func @simple_constant() -> (i32, i32) {
+  %c1_i32 = constant 1 : i32
+  return %c1_i32, %c1_i32 : i32, i32
+}
+```
+
 *   `print-ir-module-scope`
     *   Always print the top-level module operation, regardless of pass type or
         operation nesting level.
@@ -1135,7 +1175,7 @@ func @simple_constant() -> (i32, i32) {
 ## Crash and Failure Reproduction
 
 The [pass manager](#pass-manager) in MLIR contains a builtin mechanism to
-generate reproducibles in the even of a crash, or a
+generate reproducibles in the event of a crash, or a
 [pass failure](#pass-failure). This functionality can be enabled via
 `PassManager::enableCrashReproducerGeneration` or via the command line flag
 `pass-pipeline-crash-reproducer`. In either case, an argument is provided that
@@ -1173,12 +1213,14 @@ useful for situations where the crash is known to be within a specific pass, or
 when the original input relies on components (like dialects or passes) that may
 not always be available.
 
+Note: Local reproducer generation requires that multi-threading is
+disabled(`-mlir-disable-threading`)
+
 For example, if the failure in the previous example came from `canonicalize`,
 the following reproducer will be generated:
 
 ```mlir
-// configuration: -pass-pipeline='func(canonicalize)'
-// note: verifyPasses=false
+// configuration: -pass-pipeline='func(canonicalize)' -verify-each -mlir-disable-threading
 
 module {
   func @foo() {

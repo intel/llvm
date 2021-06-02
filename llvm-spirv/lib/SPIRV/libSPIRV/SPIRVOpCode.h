@@ -115,6 +115,10 @@ inline bool isCvtFromUnsignedOpCode(Op OpCode) {
          OpCode == OpSatConvertUToS;
 }
 
+inline bool isSatCvtOpCode(Op OpCode) {
+  return OpCode == OpSatConvertUToS || OpCode == OpSatConvertSToU;
+}
+
 inline bool isOpaqueGenericTypeOpCode(Op OpCode) {
   return ((unsigned)OpCode >= OpTypeEvent && (unsigned)OpCode <= OpTypeQueue) ||
          OpCode == OpTypeSampler;
@@ -228,6 +232,10 @@ inline bool isModuleScopeAllowedOpCode(Op OpCode) {
 inline bool isIntelSubgroupOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return OpSubgroupShuffleINTEL <= OC && OC <= OpSubgroupImageBlockWriteINTEL;
+}
+
+inline bool isEventOpCode(Op OpCode) {
+  return OpRetainEvent <= OpCode && OpCode <= OpCaptureEventProfilingInfo;
 }
 
 } // namespace SPIRV

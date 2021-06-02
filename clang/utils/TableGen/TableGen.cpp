@@ -84,6 +84,9 @@ enum ActionType {
   GenArmCdeBuiltinSema,
   GenArmCdeBuiltinCG,
   GenArmCdeBuiltinAliases,
+  GenRISCVVectorHeader,
+  GenRISCVVectorBuiltins,
+  GenRISCVVectorBuiltinCG,
   GenAttrDocs,
   GenDiagDocs,
   GenOptDocs,
@@ -231,6 +234,12 @@ cl::opt<ActionType> Action(
                    "Generate ARM CDE builtin code-generator for clang"),
         clEnumValN(GenArmCdeBuiltinAliases, "gen-arm-cde-builtin-aliases",
                    "Generate list of valid ARM CDE builtin aliases for clang"),
+        clEnumValN(GenRISCVVectorHeader, "gen-riscv-vector-header",
+                   "Generate riscv_vector.h for clang"),
+        clEnumValN(GenRISCVVectorBuiltins, "gen-riscv-vector-builtins",
+                   "Generate riscv_vector_builtins.inc for clang"),
+        clEnumValN(GenRISCVVectorBuiltinCG, "gen-riscv-vector-builtin-codegen",
+                   "Generate riscv_vector_builtin_cg.inc for clang"),
         clEnumValN(GenAttrDocs, "gen-attr-docs",
                    "Generate attribute documentation"),
         clEnumValN(GenDiagDocs, "gen-diag-docs",
@@ -433,6 +442,15 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenArmCdeBuiltinAliases:
     EmitCdeBuiltinAliases(Records, OS);
+    break;
+  case GenRISCVVectorHeader:
+    EmitRVVHeader(Records, OS);
+    break;
+  case GenRISCVVectorBuiltins:
+    EmitRVVBuiltins(Records, OS);
+    break;
+  case GenRISCVVectorBuiltinCG:
+    EmitRVVBuiltinCG(Records, OS);
     break;
   case GenAttrDocs:
     EmitClangAttrDocs(Records, OS);

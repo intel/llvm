@@ -83,13 +83,6 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
     std::cout << "Not run due to host-only environment\n";
     return;
   }
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() ==
-      backend::level_zero) {
-    std::cout << "Removal of redundant dependencies in in-order queues is "
-                 "disabled for Level Zero until it is supported by the plugin"
-              << std::endl;
-    return;
-  }
 
   unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);

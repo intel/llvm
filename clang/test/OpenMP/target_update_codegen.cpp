@@ -170,7 +170,8 @@ void foo(int arg) {
 // CK1-DAG: [[BPADDR]] = load [1 x i8*]*, [1 x i8*]** [[FPBPADDR:%[^,]+]], align
 // CK1-DAG: [[PADDR]] = load [1 x i8*]*, [1 x i8*]** [[FPPADDR:%[^,]+]], align
 // CK1-DAG: [[SZADDR]] = load [1 x i64]*, [1 x i64]** [[FPSZADDR:%[^,]+]], align
-// CK1-DAG: call void (i8*, ...) %{{.+}}(i8* %{{[^,]+}}, [1 x i8*]** [[FPBPADDR]], [1 x i8*]** [[FPPADDR]], [1 x i64]** [[FPSZADDR]])
+// CK1-DAG: [[FN:%.+]] = bitcast void (i8*, ...)* {{%.*}} to void (i8*,
+// CK1-DAG: call void [[FN]](i8* %{{[^,]+}}, [1 x i8*]** [[FPBPADDR]], [1 x i8*]** [[FPPADDR]], [1 x i64]** [[FPSZADDR]])
 // CK1:     ret i32 0
 // CK1:     }
 #endif
@@ -1113,7 +1114,7 @@ void array_shaping(float *f, int sa) {
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
 #ifdef CK19
 
-// PRESENT=0x1000 | TO=0x1 = 0x1021
+// PRESENT=0x1000 | TO=0x1 = 0x1001
 // CK19: [[MTYPE00:@.+]] = {{.+}}constant [1 x i64] [i64 [[#0x1001]]]
 
 // PRESENT=0x1000 | FROM=0x2 = 0x1002

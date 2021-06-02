@@ -577,19 +577,22 @@ StmtResult Parser::ParseMicrosoftAsmStatement(SourceLocation AsmLoc) {
       TheTarget->createMCAsmInfo(*MRI, TT, MCOptions));
   // Get the instruction descriptor.
   std::unique_ptr<llvm::MCInstrInfo> MII(TheTarget->createMCInstrInfo());
-  std::unique_ptr<llvm::MCObjectFileInfo> MOFI(new llvm::MCObjectFileInfo());
   std::unique_ptr<llvm::MCSubtargetInfo> STI(
       TheTarget->createMCSubtargetInfo(TT, TO.CPU, FeaturesStr));
   // Target MCTargetDesc may not be linked in clang-based tools.
-  if (!MAI || !MII || !MOFI || !STI) {
+
+  if (!MAI || !MII || !STI) {
     Diag(AsmLoc, diag::err_msasm_unable_to_create_target)
         << "target MC unavailable";
     return EmptyStmt();
   }
 
   llvm::SourceMgr TempSrcMgr;
-  llvm::MCContext Ctx(MAI.get(), MRI.get(), MOFI.get(), &TempSrcMgr);
-  MOFI->InitMCObjectFileInfo(TheTriple, /*PIC*/ false, Ctx);
+  llvm::MCContext Ctx(TheTriple, MAI.get(), MRI.get(), STI.get(), &TempSrcMgr);
+  std::unique_ptr<llvm::MCObjectFileInfo> MOFI(
+      TheTarget->createMCObjectFileInfo(Ctx, /*PIC=*/false));
+  Ctx.setObjectFileInfo(MOFI.get());
+
   std::unique_ptr<llvm::MemoryBuffer> Buffer =
       llvm::MemoryBuffer::getMemBuffer(AsmString, "<MS inline asm>");
 

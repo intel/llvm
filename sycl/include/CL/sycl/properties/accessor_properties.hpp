@@ -17,19 +17,28 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace property {
 
-class noinit : public detail::DataLessProperty<detail::NoInit> {};
+class no_init : public detail::DataLessProperty<detail::NoInit> {};
+
+class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
+    : public detail::DataLessProperty<detail::NoInit> {};
 
 } // namespace property
 
 #if __cplusplus > 201402L
 
-inline constexpr property::noinit noinit;
+__SYCL_INLINE_CONSTEXPR property::no_init no_init;
+
+__SYCL2020_DEPRECATED("spelling is now: no_init")
+__SYCL_INLINE_CONSTEXPR property::noinit noinit;
 
 #else
 
 namespace {
 
-constexpr const auto &noinit =
+constexpr const auto &no_init =
+    sycl::detail::InlineVariableHelper<property::no_init>::value;
+
+constexpr const auto &noinit __SYCL2020_DEPRECATED("spelling is now: no_init") =
     sycl::detail::InlineVariableHelper<property::noinit>::value;
 }
 
@@ -52,7 +61,7 @@ struct buffer_location {
 } // namespace property
 #if __cplusplus > 201402L
 template <int A>
-inline constexpr property::buffer_location::instance<A> buffer_location;
+inline constexpr property::buffer_location::instance<A> buffer_location{};
 #endif
 } // namespace INTEL
 namespace ONEAPI {

@@ -10,12 +10,12 @@
 #
 ##===----------------------------------------------------------------------===##
 
-# By default we will not build NVPTX deviceRTL on a non-CUDA
+# By default we will not build NVPTX deviceRTL on a CUDA free system
 set(LIBOMPTARGET_BUILD_NVPTX_BCLIB FALSE CACHE BOOL
-  "Whether build NVPTX deviceRTL on non-CUDA system.")
+  "Whether build NVPTX deviceRTL on CUDA free system.")
 
 if (NOT (LIBOMPTARGET_DEP_CUDA_FOUND OR LIBOMPTARGET_BUILD_NVPTX_BCLIB))
-  libomptarget_say("Not building NVPTX deviceRTL by default on non-CUDA system.")
+  libomptarget_say("Not building NVPTX deviceRTL by default on CUDA free system.")
   return()
 endif()
 
@@ -30,7 +30,17 @@ set(LIBOMPTARGET_NVPTX_BC_LINKER "" CACHE STRING
 
 if (NOT LIBOMPTARGET_NVPTX_CUDA_COMPILER STREQUAL "")
   set(cuda_compiler ${LIBOMPTARGET_NVPTX_CUDA_COMPILER})
+elseif (LLVM_TOOL_CLANG_BUILD AND NOT CMAKE_CROSSCOMPILING)
+  # Compile the deviceRTL with the clang that is built in the project.
+  set(cuda_compiler "$<TARGET_FILE:clang>")
 elseif(${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
+  # Compile the device runtime with the compiler that OpenMP is built with.
+  # This is the case with LLVM_ENABLE_RUNTIMES=openmp.
+  # FIXME: This is unreliable; the compiler can be on older version of clang
+  # that does not support compiling CUDA, or only an older version of it. The
+  # risk is especially high on sytems where clang is the default compiler
+  # (MacOS, BSDs). LLVM_ENABLE_RUNTIMES=openmp should itself set
+  # LIBOMPTARGET_NVPTX_CUDA_COMPILER instead.
   set(cuda_compiler ${CMAKE_C_COMPILER})
 else()
   libomptarget_say("Not building NVPTX deviceRTL: clang not found")
@@ -44,7 +54,12 @@ set(llvm_link "${compiler_dir}/llvm-link")
 if (NOT LIBOMPTARGET_NVPTX_BC_LINKER STREQUAL "")
   set(bc_linker ${LIBOMPTARGET_NVPTX_BC_LINKER})
 elseif (EXISTS ${llvm_link})
+  # Try to use the linker consistent with the CUDA compiler unless explicitly
+  # set to a different linker.
   set(bc_linker ${llvm_link})
+elseif (NOT OPENMP_STANDALONE_BUILD AND NOT CMAKE_CROSSCOMPILING)
+  # Use the linker also built in the same project.
+  set(bc_linker "$<TARGET_FILE:llvm-link>")
 else()
   libomptarget_say("Not building NVPTX deviceRTL: llvm-link not found")
   return()
@@ -73,16 +88,22 @@ set(devicertl_common_directory
 set(devicertl_nvptx_directory
   ${devicertl_base_directory}/nvptx)
 
-if (DEFINED LIBOMPTARGET_DEP_CUDA_ARCH)
-  set(default_capabilities ${LIBOMPTARGET_DEP_CUDA_ARCH})
-else()
-  set(default_capabilities 35 37 50 52 53 60 61 62 70 72 75 80)
-endif()
+set(all_capabilities 35 37 50 52 53 60 61 62 70 72 75 80)
 
-set(LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES ${default_capabilities} CACHE STRING
+set(LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES ${all_capabilities} CACHE STRING
   "List of CUDA Compute Capabilities to be used to compile the NVPTX device RTL.")
+string(TOLOWER ${LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES} LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES)
 
-set(nvptx_sm_list ${LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES})
+if (LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES STREQUAL "all")
+  set(nvptx_sm_list ${all_capabilities})
+elseif(LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES STREQUAL "auto")
+  if (NOT LIBOMPTARGET_DEP_CUDA_FOUND)
+    libomptarget_error_say("[NVPTX] Cannot auto detect compute capability as CUDA not found.")
+  endif()
+  set(nvptx_sm_list ${LIBOMPTARGET_DEP_CUDA_ARCH})
+else()
+  string(REPLACE "," ";" nvptx_sm_list "${LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES}")
+endif()
 
 # If user set LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES to empty, we disable the
 # build.
@@ -93,8 +114,8 @@ endif()
 
 # Check all SM values
 foreach(sm ${nvptx_sm_list})
-  if (NOT ${sm} IN_LIST default_capabilities)
-    message(FATAL_ERROR "LIBOMPTARGET-NVPTX: compute capability ${sm} is not supported. Supported values: ${default_capabilities}")
+  if (NOT ${sm} IN_LIST all_capabilities)
+    libomptarget_warning_say("[NVPTX] Compute capability ${sm} is not supported. Make sure clang can work with it.")
   endif()
 endforeach()
 
@@ -107,7 +128,11 @@ endif()
 set(LIBOMPTARGET_NVPTX_DEBUG FALSE CACHE BOOL
   "Activate NVPTX device RTL debug messages.")
 
-libomptarget_say("Building CUDA LLVM bitcode offloading device RTL.")
+if ("${cuda_compiler}" STREQUAL "$<TARGET_FILE:clang>")
+  libomptarget_say("Building CUDA LLVM bitcode offloading device RTL using in-tree clang.")
+else ()
+  libomptarget_say("Building CUDA LLVM bitcode offloading device RTL using ${cuda_compiler}")
+endif ()
 
 set(cuda_src_files
   ${devicertl_common_directory}/src/cancel.cu
@@ -122,18 +147,21 @@ set(cuda_src_files
   ${devicertl_common_directory}/src/support.cu
   ${devicertl_common_directory}/src/sync.cu
   ${devicertl_common_directory}/src/task.cu
+  ${devicertl_common_directory}/src/shuffle.cpp
   src/target_impl.cu
 )
 
 # Set flags for LLVM Bitcode compilation.
-set(bc_flags -S -x c++
-              -target nvptx64
-              -Xclang -emit-llvm-bc
-              -Xclang -aux-triple -Xclang ${aux_triple}
-              -fopenmp -fopenmp-cuda-mode -Xclang -fopenmp-is-device
-              -D__CUDACC__
-              -I${devicertl_base_directory}
-              -I${devicertl_nvptx_directory}/src)
+set(bc_flags -S -x c++ -O1 -std=c++14
+             -target nvptx64
+             -Xclang -emit-llvm-bc
+             -Xclang -aux-triple -Xclang ${aux_triple}
+             -fopenmp -fopenmp-cuda-mode -Xclang -fopenmp-is-device
+             -Xclang -target-feature -Xclang +ptx61
+             -D__CUDACC__
+             -I${devicertl_base_directory}
+             -I${devicertl_common_directory}/include
+             -I${devicertl_nvptx_directory}/src)
 
 if(${LIBOMPTARGET_NVPTX_DEBUG})
   list(APPEND bc_flags -DOMPTARGET_NVPTX_DEBUG=-1)
@@ -144,73 +172,69 @@ endif()
 # Create target to build all Bitcode libraries.
 add_custom_target(omptarget-nvptx-bc)
 
-# This map is from clang/lib/Driver/ToolChains/Cuda.cpp.
-# The last element is the default case.
-set(cuda_version_list 110 102 101 100 92 91 90 80)
-set(ptx_feature_list 70 65 64 63 61 61 60 42)
-# The following two lines of ugly code is not needed when the minimal CMake
-# version requirement is 3.17+.
-list(LENGTH cuda_version_list num_version_supported)
-math(EXPR loop_range "${num_version_supported} - 1")
-
-# Generate a Bitcode library for all the compute capabilities the user
-# requested and all PTX version we know for now.
+# Generate a Bitcode library for all the compute capabilities the user requested
 foreach(sm ${nvptx_sm_list})
-  set(sm_flags -Xclang -target-cpu -Xclang sm_${sm} "-D__CUDA_ARCH__=${sm}0")
+  set(cuda_flags -Xclang -target-cpu -Xclang sm_${sm} "-D__CUDA_ARCH__=${sm}0")
+  set(bc_files "")
+  foreach(src ${cuda_src_files})
+    get_filename_component(infile ${src} ABSOLUTE)
+    get_filename_component(outfile ${src} NAME)
+    set(outfile "${outfile}-sm_${sm}.bc")
 
-  # Uncomment the following code and remove those ugly part if the feature
-  # is available.
-  # foreach(cuda_version ptx_num IN ZIP_LISTS cuda_version_list ptx_feature_list)
-  foreach(itr RANGE ${loop_range})
-    list(GET cuda_version_list ${itr} cuda_version)
-    list(GET ptx_feature_list ${itr} ptx_num)
-    set(cuda_flags ${sm_flags})
-    list(APPEND cuda_flags -Xclang -target-feature -Xclang +ptx${ptx_num})
-    list(APPEND cuda_flags "-DCUDA_VERSION=${cuda_version}00")
-
-    set(bc_files "")
-    foreach(src ${cuda_src_files})
-      get_filename_component(infile ${src} ABSOLUTE)
-      get_filename_component(outfile ${src} NAME)
-      set(outfile "${outfile}-cuda_${cuda_version}-sm_${sm}.bc")
-
-      add_custom_command(OUTPUT ${outfile}
-        COMMAND ${cuda_compiler} ${bc_flags}
-          ${cuda_flags} ${MAX_SM_DEFINITION} ${infile} -o ${outfile}
-        DEPENDS ${infile}
-        IMPLICIT_DEPENDS CXX ${infile}
-        COMMENT "Building LLVM bitcode ${outfile}"
-        VERBATIM
-      )
-      set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${outfile})
-
-      list(APPEND bc_files ${outfile})
-    endforeach()
-
-    set(bclib_name "libomptarget-nvptx-cuda_${cuda_version}-sm_${sm}.bc")
-
-    # Link to a bitcode library.
-    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
-        COMMAND ${bc_linker}
-          -o ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} ${bc_files}
-        DEPENDS ${bc_files}
-        COMMENT "Linking LLVM bitcode ${bclib_name}"
+    add_custom_command(OUTPUT ${outfile}
+      COMMAND ${cuda_compiler} ${bc_flags}
+        ${cuda_flags} ${MAX_SM_DEFINITION} ${infile} -o ${outfile}
+      DEPENDS ${infile}
+      IMPLICIT_DEPENDS CXX ${infile}
+      COMMENT "Building LLVM bitcode ${outfile}"
+      VERBATIM
     )
-    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${bclib_name})
+    if("${cuda_compiler}" STREQUAL "$<TARGET_FILE:clang>")
+      # Add a file-level dependency to ensure that clang is up-to-date.
+      # By default, add_custom_command only builds clang if the
+      # executable is missing.
+      add_custom_command(OUTPUT ${outfile}
+        DEPENDS clang
+        APPEND
+      )
+    endif()
+    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${outfile})
 
-    set(bclib_target_name "omptarget-nvptx-cuda_${cuda_version}-sm_${sm}-bc")
-
-    add_custom_target(${bclib_target_name} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name})
-    add_dependencies(omptarget-nvptx-bc ${bclib_target_name})
-
-    # Copy library to destination.
-    add_custom_command(TARGET ${bclib_target_name} POST_BUILD
-                      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
-                      ${LIBOMPTARGET_LIBRARY_DIR})
-
-    # Install bitcode library under the lib destination folder.
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} DESTINATION "${OPENMP_INSTALL_LIBDIR}")
+    list(APPEND bc_files ${outfile})
   endforeach()
+
+  set(bclib_name "libomptarget-nvptx-sm_${sm}.bc")
+
+  # Link to a bitcode library.
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+      COMMAND ${bc_linker}
+        -o ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} ${bc_files}
+      DEPENDS ${bc_files}
+      COMMENT "Linking LLVM bitcode ${bclib_name}"
+  )
+  if("${bc_linker}" STREQUAL "$<TARGET_FILE:llvm-link>")
+    # Add a file-level dependency to ensure that llvm-link is up-to-date.
+    # By default, add_custom_command only builds llvm-link if the
+    # executable is missing.
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+      DEPENDS llvm-link
+      APPEND
+    )
+  endif()
+  set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${bclib_name})
+
+  set(bclib_target_name "omptarget-nvptx-sm_${sm}-bc")
+
+  add_custom_target(${bclib_target_name} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name})
+  add_dependencies(omptarget-nvptx-bc ${bclib_target_name})
+
+  # Copy library to destination.
+  add_custom_command(TARGET ${bclib_target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+                    ${LIBOMPTARGET_LIBRARY_DIR})
+
+  # Install bitcode library under the lib destination folder.
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} DESTINATION "${OPENMP_INSTALL_LIBDIR}")
 endforeach()
 
 # Test will be enabled if the building machine supports CUDA

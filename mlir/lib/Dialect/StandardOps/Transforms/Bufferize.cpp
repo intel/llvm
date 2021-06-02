@@ -12,6 +12,7 @@
 
 #include "mlir/Transforms/Bufferize.h"
 #include "PassDetail.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
@@ -21,21 +22,34 @@
 using namespace mlir;
 
 namespace {
-class BufferizeDimOp : public OpConversionPattern<DimOp> {
+class BufferizeDimOp : public OpConversionPattern<memref::DimOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(DimOp op, ArrayRef<Value> operands,
+  matchAndRewrite(memref::DimOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    DimOp::Adaptor adaptor(operands);
-    rewriter.replaceOpWithNewOp<DimOp>(op, adaptor.memrefOrTensor(),
-                                       adaptor.index());
+    memref::DimOp::Adaptor adaptor(operands);
+    rewriter.replaceOpWithNewOp<memref::DimOp>(op, adaptor.memrefOrTensor(),
+                                               adaptor.index());
     return success();
   }
 };
-} // namespace
 
-namespace {
+class BufferizeIndexCastOp : public OpConversionPattern<IndexCastOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(IndexCastOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    IndexCastOp::Adaptor adaptor(operands);
+    auto tensorType = op.getType().cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<IndexCastOp>(
+        op, adaptor.in(),
+        MemRefType::get(tensorType.getShape(), tensorType.getElementType()));
+    return success();
+  }
+};
+
 class BufferizeSelectOp : public OpConversionPattern<SelectOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -53,10 +67,10 @@ public:
 };
 } // namespace
 
-void mlir::populateStdBufferizePatterns(MLIRContext *context,
-                                        BufferizeTypeConverter &typeConverter,
-                                        OwningRewritePatternList &patterns) {
-  patterns.insert<BufferizeDimOp, BufferizeSelectOp>(typeConverter, context);
+void mlir::populateStdBufferizePatterns(BufferizeTypeConverter &typeConverter,
+                                        RewritePatternSet &patterns) {
+  patterns.add<BufferizeDimOp, BufferizeSelectOp, BufferizeIndexCastOp>(
+      typeConverter, patterns.getContext());
 }
 
 namespace {
@@ -64,22 +78,24 @@ struct StdBufferizePass : public StdBufferizeBase<StdBufferizePass> {
   void runOnFunction() override {
     auto *context = &getContext();
     BufferizeTypeConverter typeConverter;
-    OwningRewritePatternList patterns;
+    RewritePatternSet patterns(context);
     ConversionTarget target(*context);
 
-    target.addLegalDialect<StandardOpsDialect>();
-    target.addLegalDialect<scf::SCFDialect>();
+    target.addLegalDialect<scf::SCFDialect, StandardOpsDialect,
+                           memref::MemRefDialect>();
 
-    populateStdBufferizePatterns(context, typeConverter, patterns);
+    populateStdBufferizePatterns(typeConverter, patterns);
     // We only bufferize the case of tensor selected type and scalar condition,
     // as that boils down to a select over memref descriptors (don't need to
     // touch the data).
+    target.addDynamicallyLegalOp<IndexCastOp>(
+        [&](IndexCastOp op) { return typeConverter.isLegal(op.getType()); });
     target.addDynamicallyLegalOp<SelectOp>([&](SelectOp op) {
       return typeConverter.isLegal(op.getType()) ||
              !op.condition().getType().isa<IntegerType>();
     });
-    target.addDynamicallyLegalOp<DimOp>(
-        [&](DimOp op) { return typeConverter.isLegal(op); });
+    target.addDynamicallyLegalOp<memref::DimOp>(
+        [&](memref::DimOp op) { return typeConverter.isLegal(op); });
     if (failed(
             applyPartialConversion(getFunction(), target, std::move(patterns))))
       signalPassFailure();

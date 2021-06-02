@@ -16,6 +16,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
@@ -80,6 +82,20 @@ public:
 
   /// Deallocates the memory referenced by \p Ptr.
   static void alignedFree(void *Ptr);
+
+  /// Make directory recursively and returns zero code on success
+  static int makeDir(const char *Dir);
+
+  /// Checks if specified path is present
+  static inline bool isPathPresent(const std::string &Path) {
+#ifdef __SYCL_RT_OS_WINDOWS
+    struct _stat Stat;
+    return !_stat(Path.c_str(), &Stat);
+#else
+    struct stat Stat;
+    return !stat(Path.c_str(), &Stat);
+#endif
+  }
 };
 
 } // namespace detail

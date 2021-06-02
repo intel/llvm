@@ -8,10 +8,12 @@
 
 #include "OutputSections.h"
 #include "InputChunks.h"
+#include "InputElement.h"
 #include "InputFiles.h"
 #include "OutputSegment.h"
 #include "WriterUtils.h"
 #include "lld/Common/ErrorHandler.h"
+#include "lld/Common/Memory.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/Parallel.h"
@@ -88,7 +90,7 @@ void CodeSection::finalizeContents() {
 
   for (InputFunction *func : functions) {
     func->outputSec = this;
-    func->outputOffset = bodySize;
+    func->outSecOff = bodySize;
     func->calculateSize();
     // All functions should have a non-empty body at this point
     assert(func->getSize());
@@ -142,8 +144,8 @@ void DataSection::finalizeContents() {
       });
 #endif
 
-  assert((!config->isPic || activeCount <= 1) &&
-         "Currenly only a single data segment is supported in PIC mode");
+  assert((config->sharedMemory || !config->isPic || activeCount <= 1) &&
+         "output segments should have been combined by now");
 
   writeUleb128(os, segmentCount, "data segment count");
   os.flush();
@@ -162,9 +164,7 @@ void DataSection::finalizeContents() {
         initExpr.Opcode = WASM_OPCODE_GLOBAL_GET;
         initExpr.Value.Global = WasmSym::memoryBase->getGlobalIndex();
       } else {
-        // FIXME(wvo): I64?
-        initExpr.Opcode = WASM_OPCODE_I32_CONST;
-        initExpr.Value.Int32 = segment->startVA;
+        initExpr = intConst(segment->startVA, config->is64.getValueOr(false));
       }
       writeInitExpr(os, initExpr);
     }
@@ -176,10 +176,10 @@ void DataSection::finalizeContents() {
     log("Data segment: size=" + Twine(segment->size) + ", startVA=" +
         Twine::utohexstr(segment->startVA) + ", name=" + segment->name);
 
-    for (InputSegment *inputSeg : segment->inputSegments) {
+    for (InputChunk *inputSeg : segment->inputSegments) {
       inputSeg->outputSec = this;
-      inputSeg->outputOffset = segment->sectionOffset + segment->header.size() +
-                               inputSeg->outputSegmentOffset;
+      inputSeg->outSecOff = segment->sectionOffset + segment->header.size() +
+                            inputSeg->outputSegmentOffset;
     }
   }
 
@@ -232,16 +232,46 @@ bool DataSection::isNeeded() const {
   return false;
 }
 
+// Lots of duplication here with OutputSegment::finalizeInputSegments
+void CustomSection::finalizeInputSections() {
+  SyntheticMergedChunk *mergedSection = nullptr;
+  std::vector<InputChunk *> newSections;
+
+  for (InputChunk *s : inputSections) {
+    s->outputSec = this;
+    MergeInputChunk *ms = dyn_cast<MergeInputChunk>(s);
+    if (!ms) {
+      newSections.push_back(s);
+      continue;
+    }
+
+    if (!mergedSection) {
+      mergedSection =
+          make<SyntheticMergedChunk>(name, 0, WASM_SEG_FLAG_STRINGS);
+      newSections.push_back(mergedSection);
+      mergedSection->outputSec = this;
+    }
+    mergedSection->addMergeChunk(ms);
+  }
+
+  if (!mergedSection)
+    return;
+
+  mergedSection->finalizeContents();
+  inputSections = newSections;
+}
+
 void CustomSection::finalizeContents() {
+  finalizeInputSections();
+
   raw_string_ostream os(nameData);
   encodeULEB128(name.size(), os);
   os << name;
   os.flush();
 
-  for (InputSection *section : inputSections) {
+  for (InputChunk *section : inputSections) {
     assert(!section->discarded);
-    section->outputSec = this;
-    section->outputOffset = payloadSize;
+    section->outSecOff = payloadSize;
     payloadSize += section->getSize();
   }
 
@@ -262,19 +292,19 @@ void CustomSection::writeTo(uint8_t *buf) {
   buf += nameData.size();
 
   // Write custom sections payload
-  for (const InputSection *section : inputSections)
+  for (const InputChunk *section : inputSections)
     section->writeTo(buf);
 }
 
 uint32_t CustomSection::getNumRelocations() const {
   uint32_t count = 0;
-  for (const InputSection *inputSect : inputSections)
+  for (const InputChunk *inputSect : inputSections)
     count += inputSect->getNumRelocations();
   return count;
 }
 
 void CustomSection::writeRelocations(raw_ostream &os) const {
-  for (const InputSection *s : inputSections)
+  for (const InputChunk *s : inputSections)
     s->writeRelocations(os);
 }
 

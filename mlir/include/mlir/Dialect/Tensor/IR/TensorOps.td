@@ -91,7 +91,7 @@ def Tensor_ExtractOp : Tensor_Op<"extract",
   let assemblyFormat = "$tensor `[` $indices `]` attr-dict `:` type($tensor)";
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$tensor, CArg<"ValueRange", "{}">:$indices), [{
+    OpBuilder<(ins "Value":$tensor, CArg<"ValueRange", "{}">:$indices), [{
       auto resType = tensor.getType().cast<ShapedType>().getElementType();
       build($_builder, $_state, resType, tensor, indices);
     }]>];
@@ -131,12 +131,13 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Type":$elementType, "ValueRange":$elements)>,
+    OpBuilder<(ins "Type":$elementType, "ValueRange":$elements)>,
     // Special case builder for when `elements` has size >=1.
-    OpBuilderDAG<(ins "ValueRange":$elements)>
+    OpBuilder<(ins "ValueRange":$elements)>
   ];
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -175,11 +176,72 @@ def Tensor_GenerateOp : Tensor_Op<"generate",
 
   let builders = [
     // Build op and populate its body per callback function.
-    OpBuilderDAG<(ins "Type":$resultTy, "ValueRange":$dynamicExtents,
+    OpBuilder<(ins "Type":$resultTy, "ValueRange":$dynamicExtents,
       "function_ref<void(OpBuilder &, Location, ValueRange)>")>,
   ];
 
   let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// ReshapeOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_ReshapeOp: Tensor_Op<"reshape", [NoSideEffect]>  {
+  let summary = "tensor reshape operation";
+  let description = [{
+    The `reshape` operation converts a tensor from one type to an equivalent
+    type with a provided shape. The source and destination types are compatible
+    if both have the same element type, same number of elements. The following
+    combinations are possible:
+
+    a. Source type is ranked or unranked. Shape argument has static size.
+    Result type is ranked.
+
+    ```mlir
+    // Reshape statically-shaped tensor.
+    %dst = tensor.reshape %src(%shape)
+             : (tensor<4x1xf32>, tensor<1xi32>) -> tensor<4xf32>
+    %dst0 = tensor.reshape %src(%shape0)
+             : (tensor<4x1xf32>, tensor<2xi32>) -> tensor<2x2xf32>
+    // Flatten unranked tensor.
+    %dst = tensor.reshape %src(%shape)
+             : (tensor<*xf32>, tensor<1xi32>) -> tensor<?xf32>
+    ```
+
+    b. Source type is ranked or unranked. Shape argument has dynamic size.
+    Result type is unranked.
+
+    ```mlir
+    // Reshape dynamically-shaped 1D tensor.
+    %dst = tensor.reshape %src(%shape)
+             : (tensor<?xf32>, tensor<?xi32>) -> tensor<*xf32>
+    // Reshape unranked tensor.
+    %dst = tensor.reshape %src(%shape)
+             : (tensor<*xf32>, tensor<?xi32>) -> tensor<*xf32>
+    ```
+  }];
+
+  let arguments = (ins
+    AnyTensor:$source,
+    TensorRankOf<[AnySignlessInteger, Index], [1]>:$shape
+  );
+  let results = (outs AnyTensor:$result);
+
+  let builders = [OpBuilder<
+     (ins "TensorType":$resultType, "Value":$operand, "Value":$shape), [{
+       $_state.addOperands(operand);
+       $_state.addOperands(shape);
+       $_state.addTypes(resultType);
+     }]>];
+
+  let extraClassDeclaration = [{
+    TensorType getResultType() { return getResult().getType().cast<TensorType>(); }
+  }];
+
+  let assemblyFormat = [{
+    $source `(` $shape `)` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -200,7 +262,7 @@ def Tensor_YieldOp : Tensor_Op<"yield",
   let assemblyFormat = "$value attr-dict `:` type($value)";
   // Dummy builder to appease code in templated ensureTerminator that
   // GenerateOp's auto-generated parser calls.
-  let builders = [OpBuilderDAG<(ins), [{ /* nothing to do */ }]>];
+  let builders = [OpBuilder<(ins), [{ /* nothing to do */ }]>];
   let verifier = ?;
 }
 

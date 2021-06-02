@@ -848,8 +848,7 @@ protected:
         size_t matches = 0;
         bool use_var_name = false;
         if (m_option_variable.use_regex) {
-          RegularExpression regex(
-              llvm::StringRef::withNullAsEmpty(arg.c_str()));
+          RegularExpression regex(arg.ref());
           if (!regex.IsValid()) {
             result.GetErrorStream().Printf(
                 "error: invalid regular expression: '%s'\n", arg.c_str());
@@ -4602,7 +4601,7 @@ Python Based Stop Hooks:
   
   When the stop hook is added, the class is initialized by calling:
   
-    def __init__(self, target, extra_args, dict):
+    def __init__(self, target, extra_args, internal_dict):
     
     target: The target that the stop hook is being added to.
     extra_args: An SBStructuredData Dictionary filled with the -key -value 

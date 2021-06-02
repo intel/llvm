@@ -206,20 +206,81 @@ template <typename Type>
 struct get_kernel_name_t<auto_name, Type> {
   using name = Type;
 };
+
+template <int dimensions = 1>
+class group {
+public:
+  group() = default; // fake constructor
+};
+
+class kernel_handler {
+  void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
+};
+
+// Used when parallel_for range is rounded-up.
+template <typename Type> class __pf_kernel_wrapper;
+
+template <typename Type> struct get_kernel_wrapper_name_t {
+  using name =
+      __pf_kernel_wrapper<typename get_kernel_name_t<auto_name, Type>::name>;
+};
+
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
+  kernelFunc(); // #KernelSingleTaskKernelFuncCall
+}
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
+  kernelFunc(kh);
+}
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_parallel_for(const KernelType &kernelFunc) {
   kernelFunc();
 }
+template <typename KernelName, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_parallel_for_work_group(const KernelType &KernelFunc, kernel_handler kh) {
+  KernelFunc(group<1>(), kh);
+}
+
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType>
   void single_task(const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_single_task<NameT>(kernelFunc);
+    kernel_single_task<NameT>(kernelFunc); // #KernelSingleTask
 #else
     kernelFunc();
+#endif
+  }
+  template <typename KernelName = auto_name, typename KernelType>
+  void single_task(const KernelType &kernelFunc, kernel_handler kh) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task<NameT>(kernelFunc, kh);
+#else
+    kernelFunc(kh);
+#endif
+  }
+  template <typename KernelName = auto_name, typename KernelType>
+  void parallel_for(const KernelType &kernelObj) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+    using NameWT = typename get_kernel_wrapper_name_t<NameT>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for<NameT>(kernelObj);
+#else
+    kernelObj();
+#endif
+  }
+  template <typename KernelName = auto_name, typename KernelType>
+  void parallel_for_work_group(const KernelType &kernelFunc, kernel_handler kh) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT>(kernelFunc, kh);
+#else
+    group<1> G;
+    kernelFunc(G, kh);
 #endif
   }
 };

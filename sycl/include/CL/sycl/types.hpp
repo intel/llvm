@@ -2036,21 +2036,21 @@ __SYCL_RELLOGOP(||)
   using __##type##16_vec_t =                                                   \
       cl::sycl::type __attribute__((ext_vector_type(16)));
 
-__SYCL_DECLARE_TYPE_VIA_CL_T(char);
-__SYCL_DECLARE_TYPE_T(schar);
-__SYCL_DECLARE_TYPE_VIA_CL_T(uchar);
-__SYCL_DECLARE_TYPE_VIA_CL_T(short);
-__SYCL_DECLARE_TYPE_VIA_CL_T(ushort);
-__SYCL_DECLARE_TYPE_VIA_CL_T(int);
-__SYCL_DECLARE_TYPE_VIA_CL_T(uint);
-__SYCL_DECLARE_TYPE_VIA_CL_T(long);
-__SYCL_DECLARE_TYPE_VIA_CL_T(ulong);
-__SYCL_DECLARE_TYPE_T(longlong);
-__SYCL_DECLARE_TYPE_T(ulonglong);
+__SYCL_DECLARE_TYPE_VIA_CL_T(char)
+__SYCL_DECLARE_TYPE_T(schar)
+__SYCL_DECLARE_TYPE_VIA_CL_T(uchar)
+__SYCL_DECLARE_TYPE_VIA_CL_T(short)
+__SYCL_DECLARE_TYPE_VIA_CL_T(ushort)
+__SYCL_DECLARE_TYPE_VIA_CL_T(int)
+__SYCL_DECLARE_TYPE_VIA_CL_T(uint)
+__SYCL_DECLARE_TYPE_VIA_CL_T(long)
+__SYCL_DECLARE_TYPE_VIA_CL_T(ulong)
+__SYCL_DECLARE_TYPE_T(longlong)
+__SYCL_DECLARE_TYPE_T(ulonglong)
 // Note: halfs are not declared here, because they have different representation
 // between host and device, see separate handling below
-__SYCL_DECLARE_TYPE_VIA_CL_T(float);
-__SYCL_DECLARE_TYPE_VIA_CL_T(double);
+__SYCL_DECLARE_TYPE_VIA_CL_T(float)
+__SYCL_DECLARE_TYPE_VIA_CL_T(double)
 
 #define __SYCL_GET_CL_TYPE(target, num) __##target##num##_vec_t
 #define __SYCL_GET_SCALAR_CL_TYPE(target) target

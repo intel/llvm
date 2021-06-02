@@ -1,7 +1,5 @@
 # LLVM/SPIR-V Bi-Directional Translator
 
-[![Build Status](https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator.svg?branch=master)](https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator)
-
 [![Out-of-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/Out-of-tree%20build%20&%20tests/badge.svg?branch=master&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions?query=workflow%3A%22Out-of-tree+build+%26+tests%22+event%3Aschedule)
 [![In-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/In-tree%20build%20&%20tests/badge.svg?branch=master&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions?query=workflow%3A%22In-tree+build+%26+tests%22+event%3Aschedule)
 
@@ -31,7 +29,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-12-dev llvm-12-tools clang-12 libclang-12-dev
+sudo apt-get install llvm-13-dev llvm-13-tools clang-13 libclang-13-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -107,7 +105,7 @@ make test
 ```
 This requires that the `-DLLVM_SPIRV_INCLUDE_TESTS=ON` argument is
 passed to CMake during the build step. Additionally,
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-12/build/utils/lit/lit.py"` is
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-13/build/utils/lit/lit.py"` is
 needed when building with a pre-installed version of LLVM.
 
 The translator test suite can be disabled by passing

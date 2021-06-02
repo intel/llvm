@@ -38,11 +38,15 @@ class Tosa_QuantizedType<string n, list<int> params, bit signed>
 // Used to express accumulator results or compare results.
 //===----------------------------------------------------------------------===//
 
+def Tosa_Int8 : I<8>;
+def Tosa_Int16 : I<16>;
 def Tosa_Int32 : I<32>;
 def Tosa_Int48 : I<48>;
 def Tosa_Int64 : I<64>;
 
-def Tosa_SignedInt : AnyTypeOf<[Tosa_Int32,
+def Tosa_SignedInt : AnyTypeOf<[Tosa_Int8,
+                                Tosa_Int16,
+                                Tosa_Int32,
                                 Tosa_Int48,
                                 Tosa_Int64]>;
 
@@ -62,14 +66,12 @@ def Tosa_Int32Or64 : AnyTypeOf<[Tosa_Int32,
 //===----------------------------------------------------------------------===//
 // Name    Symmetry   Grouping                Sign
 //===----------------------------------------------------------------------===//
-// aint8 : asymmetric per tensor,             signed
 // uint8 : asymmetric per tensor ,            unsigned
 // int4  : symmetric  per channel,            signed
 // int8  : symmetric  per tensor/per channel, signed
 // int16 : symmetric  per tensor,             signed
 //===----------------------------------------------------------------------===//
-def Tosa_QuantizedInt	: AnyTypeOf<[Tosa_QuantizedType<"aint8", [8], 1>,
-                                     Tosa_QuantizedType<"uint8", [8], 0>,
+def Tosa_QuantizedInt	: AnyTypeOf<[ Tosa_QuantizedType<"uint8", [8], 0>,
                                      Tosa_QuantizedType<"int4", [4, 0], 1>,
                                      Tosa_QuantizedType<"int8", [8, 0], 1>,
                                      Tosa_QuantizedType<"int16", [16, 0], 1>]>;
@@ -92,9 +94,13 @@ def Tosa_AnyNumber : AnyTypeOf<[Tosa_Int, Tosa_QuantizedInt, Tosa_Float],
 // Tensor types
 //===----------------------------------------------------------------------===//
 
+def Tosa_Int32Tensor : TensorOf<[Tosa_Int32]>;
 def Tosa_Int32Or64Tensor : TensorOf<[Tosa_Int32Or64]>;
 
+// Either ranked or unranked tensor of TOSA supported element types. 
 def Tosa_Tensor : TensorOf<[Tosa_AnyNumber]>;
+// Must be ranked but no further constraints
+def Tosa_RankedTensor : RankedTensorOf<[Tosa_AnyNumber]>;
 
 // Any tensor element type allowed in Tosa ops.
 def Tosa_ElementType : Type<Or<[Tosa_Int.predicate, Tosa_QuantizedInt.predicate,
@@ -110,18 +116,32 @@ class Tosa_TensorOfOrNone<list<Type> allowedTypes, string description = ""> :
 // Must be listed rank.
 def Tosa_Tensor1D : 1DTensorOf<[Tosa_AnyNumber]>;
 def Tosa_Tensor2D : 2DTensorOf<[Tosa_AnyNumber]>;
+def Tosa_Tensor3D : 3DTensorOf<[Tosa_AnyNumber]>;
 def Tosa_Tensor4D : 4DTensorOf<[Tosa_AnyNumber]>;
 def Tosa_Tensor5D : TensorRankOf<[Tosa_AnyNumber], [5]>;
-def Tosa_Tensor6D : TensorRankOf<[Tosa_AnyNumber], [6]>;
 
 // Ranked tensors up to given rank.
-def Tosa_Tensor1Dto2D : TensorRankOf<[Tosa_AnyNumber], [1,2]>;
 def Tosa_Tensor1Dto4D : TensorRankOf<[Tosa_AnyNumber], [1,2,3,4]>;
-def Tosa_Tensor1Dto5D : TensorRankOf<[Tosa_AnyNumber], [1,2,3,4,5]>;
 def Tosa_Tensor1Dto6D : TensorRankOf<[Tosa_AnyNumber], [1,2,3,4,5,6]>;
 
 def Tosa_TensorUpto4D : TensorRankOf<[Tosa_AnyNumber], [0,1,2,3,4]>;
-def Tosa_TensorUpto6D : TensorRankOf<[Tosa_AnyNumber], [0,1,2,3,4,5,6]>;
+
+def Tosa_Int32TensorUpto4D : TensorRankOf<[Tosa_Int32], [0,1,2,3,4]>;
+
+//===----------------------------------------------------------------------===//
+// Generic scalar, vector, or tensor of a particular type.
+//===----------------------------------------------------------------------===//
+
+class Tosa_TypeLike<list<Type> types, string description = ""> : TypeConstraint<Or<[
+     AnyTypeOf<types>.predicate,
+     VectorOf<types>.predicate,
+     TensorOf<types>.predicate]>,
+     "signless-integer-32-like">;
+
+def Tosa_Int8Like : Tosa_TypeLike<[Tosa_Int8], "signless-integer-8-bit-like">;
+def Tosa_Int16Like : Tosa_TypeLike<[Tosa_Int16], "signless-integer-16-bit-like">;
+def Tosa_Int32Like : Tosa_TypeLike<[Tosa_Int32], "signless-integer-32-bit-like">;
+def Tosa_Int64Like : Tosa_TypeLike<[Tosa_Int64], "signless-integer-64-bit-like">;
 
 //===----------------------------------------------------------------------===//
 // Attribute predicates and classes.
@@ -129,6 +149,12 @@ def Tosa_TensorUpto6D : TensorRankOf<[Tosa_AnyNumber], [0,1,2,3,4,5,6]>;
 class ArrayMaxCt<int n> : AttrConstraint<
     CPred<"$_self.cast<::mlir::ArrayAttr>().size() <= " # n>,
     "with at least " # n # " elements">;
+
+def Tosa_Fp32ArrayAttr2 : Confined<F32ArrayAttr, [ArrayCount<2>]>;
+def Tosa_Fp32ArrayAttr3 : Confined<F32ArrayAttr, [ArrayCount<3>]>;
+def Tosa_Fp32ArrayAttr4 : Confined<F32ArrayAttr, [ArrayCount<4>]>;
+def Tosa_Fp32ArrayAttr5 : Confined<F32ArrayAttr, [ArrayCount<5>]>;
+def Tosa_Fp32ArrayAttr6 : Confined<F32ArrayAttr, [ArrayCount<6>]>;
 
 def Tosa_IntArrayAttr2 : Confined<I64ArrayAttr, [ArrayCount<2>]>;
 def Tosa_IntArrayAttr3 : Confined<I64ArrayAttr, [ArrayCount<3>]>;

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -std=c++11 -fsyntax-only -fsycl -fsycl-is-device -verify %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -DHOST -fsyntax-only -verify %s
+// RUN: %clang_cc1 -std=c++11 -fsyntax-only -fsycl-is-device -verify %s
+// RUN: %clang_cc1 -fsycl-is-host -DHOST -fsyntax-only -verify %s
 
 // Only function templates
 [[clang::sycl_kernel]] int gv2 = 0; // expected-warning {{'sycl_kernel' attribute only applies to function templates}}
@@ -50,13 +50,13 @@ template <typename T, typename A, int I>
 // No diagnostics
 template <typename Func>
 void __attribute__((sycl_kernel))
-KernelImpl4(Func f, int i, double d) {
+KernelImpl4(const Func &f, int i, double d) {
   f(i, d);
 }
 
 template <typename Name, typename Func>
 void __attribute__((sycl_kernel))
-Kernel(Func f) {
+Kernel(const Func &f) {
   KernelImpl4(f, 1, 2.0);
 }
 

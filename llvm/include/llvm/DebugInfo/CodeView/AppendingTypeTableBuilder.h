@@ -17,7 +17,6 @@
 #include "llvm/DebugInfo/CodeView/TypeIndex.h"
 #include "llvm/Support/Allocator.h"
 #include <cstdint>
-#include <memory>
 
 namespace llvm {
 namespace codeview {
@@ -65,4 +64,4 @@ public:
 } // end namespace codeview
 } // end namespace llvm
 
-#endif // LLVM_DEBUGINFO_CODEVIEW_TYPETABLEBUILDER_H
+#endif // LLVM_DEBUGINFO_CODEVIEW_APPENDINGTYPETABLEBUILDER_H

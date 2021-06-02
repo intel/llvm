@@ -341,7 +341,7 @@ currently only be specified as the last successor in the successor list.
 Traits are operation properties that affect syntax or semantics. MLIR C++ models
 various traits in the `mlir::OpTrait` namespace.
 
-Both operation traits, [interfaces](Interfaces.md#utilizing-the-ods-framework),
+Both operation traits, [interfaces](Interfaces.md/#utilizing-the-ods-framework),
 and constraints involving multiple operands/attributes/results are provided as
 the second template parameter to the `Op` class. They should be deriving from
 the `OpTrait` class. See [Constraints](#constraints) for more information.
@@ -451,7 +451,7 @@ def MyOp : Op<"my_op", []> {
   let arguments = (ins F32Attr:$attr);
 
   let builders = [
-    OpBuilderDAG<(ins "float":$val)>
+    OpBuilder<(ins "float":$val)>
   ];
 }
 ```
@@ -489,7 +489,7 @@ def MyOp : Op<"my_op", []> {
   let arguments = (ins F32Attr:$attr);
 
   let builders = [
-    OpBuilderDAG<(ins "float":$val), [{
+    OpBuilder<(ins "float":$val), [{
       $_state.addAttribute("attr", $_builder.getF32FloatAttr(val));
     }]>
   ];
@@ -511,7 +511,7 @@ def MyOp : Op<"my_op", []> {
   let arguments = (ins F32Attr:$attr);
 
   let builders = [
-    OpBuilderDAG<(ins CArg<"float", "0.5f">:$val), [{
+    OpBuilder<(ins CArg<"float", "0.5f">:$val), [{
       $_state.addAttribute("attr", $_builder.getF32FloatAttr(val));
     }]>
   ];
@@ -605,13 +605,22 @@ The available directives are as follows:
 *   `functional-type` ( inputs , results )
 
     -   Formats the `inputs` and `results` arguments as a
-        [function type](LangRef.md#function-type).
+        [function type](Dialects/Builtin.md/#functiontype).
     -   The constraints on `inputs` and `results` are the same as the `input` of
         the `type` directive.
 
 *   `operands`
 
     -   Represents all of the operands of an operation.
+
+*   `ref` ( input )
+
+    -   Represents a reference to the a variable or directive, that must have
+        already been resolved, that may be used as a parameter to a `custom`
+        directive.
+    -   Used to pass previously parsed entities to custom directives.
+    -   The input may be any directive or variable, aside from `functional-type`
+        and `custom`.
 
 *   `regions`
 
@@ -630,14 +639,6 @@ The available directives are as follows:
     -   Represents the type of the given input.
     -   `input` must be either an operand or result [variable](#variables), the
         `operands` directive, or the `results` directive.
-
-*   `type_ref` ( input )
-
-    -   Represents a reference to the type of the given input that must have
-        already been resolved.
-    -   `input` must be either an operand or result [variable](#variables), the
-        `operands` directive, or the `results` directive.
-    -   Used to pass previously parsed types to custom directives.
 
 #### Literals
 
@@ -716,6 +717,10 @@ declarative parameter to `parse` method argument is detailed below:
     -   Single: `OpAsmParser::OperandType &`
     -   Optional: `Optional<OpAsmParser::OperandType> &`
     -   Variadic: `SmallVectorImpl<OpAsmParser::OperandType> &`
+*   Ref Directives
+    -   A reference directive is passed to the parser using the same mapping as
+        the input operand. For example, a single region would be passed as a
+        `Region &`.
 *   Region Variables
     -   Single: `Region &`
     -   Variadic: `SmallVectorImpl<std::unique_ptr<Region>> &`
@@ -726,10 +731,6 @@ declarative parameter to `parse` method argument is detailed below:
     -   Single: `Type &`
     -   Optional: `Type &`
     -   Variadic: `SmallVectorImpl<Type> &`
-*   TypeRef Directives
-    -   Single: `Type`
-    -   Optional: `Type`
-    -   Variadic: `const SmallVectorImpl<Type> &`
 *   `attr-dict` Directive: `NamedAttrList &`
 
 When a variable is optional, the value should only be specified if the variable
@@ -748,6 +749,10 @@ declarative parameter to `print` method argument is detailed below:
     -   Single: `Value`
     -   Optional: `Value`
     -   Variadic: `OperandRange`
+*   Ref Directives
+    -   A reference directive is passed to the printer using the same mapping as
+        the input operand. For example, a single region would be passed as a
+        `Region &`.
 *   Region Variables
     -   Single: `Region &`
     -   Variadic: `MutableArrayRef<Region>`
@@ -755,10 +760,6 @@ declarative parameter to `print` method argument is detailed below:
     -   Single: `Block *`
     -   Variadic: `SuccessorRange`
 *   Type Directives
-    -   Single: `Type`
-    -   Optional: `Type`
-    -   Variadic: `TypeRange`
-*   TypeRef Directives
     -   Single: `Type`
     -   Optional: `Type`
     -   Variadic: `TypeRange`
@@ -771,8 +772,13 @@ When a variable is optional, the provided value may be null.
 In certain situations operations may have "optional" information, e.g.
 attributes or an empty set of variadic operands. In these situations a section
 of the assembly format can be marked as `optional` based on the presence of this
-information. An optional group is defined by wrapping a set of elements within
-`()` followed by a `?` and has the following requirements:
+information. An optional group is defined as follows:
+
+```
+optional-group: `(` elements `)` (`:` `(` else-elements `)`)? `?`
+```
+
+The `elements` of an optional group have the following requirements:
 
 *   The first element of the group must either be a attribute, literal, operand,
     or region.
@@ -808,7 +814,7 @@ def ReturnOp : ... {
 
 ##### Unit Attributes
 
-In MLIR, the [`unit` Attribute](LangRef.md#unit-attribute) is special in that it
+In MLIR, the [`unit` Attribute](Dialects/Builtin.md/#unitattr) is special in that it
 only has one possible value, i.e. it derives meaning from its existence. When a
 unit attribute is used to anchor an optional group and is not the first element
 of the group, the presence of the unit attribute can be directly correlated with
@@ -834,6 +840,32 @@ foo.op is_read_only
 
 // When the unit attribute is not present:
 foo.op
+```
+
+##### Optional "else" Group
+
+Optional groups also have support for an "else" group of elements. These are
+elements that are parsed/printed if the `anchor` element of the optional group
+is *not* present. Unlike the main element group, the "else" group has no
+restriction on the first element and none of the elements may act as the
+`anchor` for the optional. An example is shown below:
+
+```tablegen
+def FooOp : ... {
+  let arguments = (ins UnitAttr:$foo);
+
+  let assemblyFormat = "attr-dict (`foo_is_present` $foo^):(`foo_is_absent`)?";
+}
+```
+
+would be formatted as such:
+
+```mlir
+// When the `foo` attribute is present:
+foo.op foo_is_present
+
+// When the `foo` attribute is not present:
+foo.op foo_is_absent
 ```
 
 #### Requirements
@@ -886,6 +918,13 @@ supported traits are: `AllTypesMatch`, `TypesMatchWith`, `SameTypeOperands`, and
 This boolean field indicate whether canonicalization patterns have been defined
 for this operation. If it is `1`, then `::getCanonicalizationPatterns()` should
 be defined.
+
+### `hasCanonicalizeMethod`
+
+When this boolean field is set to `true`, it indicates that the op implements a
+`canonicalize` method for simple "matchAndRewrite" style canonicalization
+patterns.  If `hasCanonicalizer` is 0, then an implementation of
+`::getCanonicalizationPatterns()` is implemented to call this function.
 
 ### `hasFolder`
 
@@ -1399,15 +1438,16 @@ def IntegerType : Test_Type<"TestInteger"> {
 
   // The parser is defined here also.
   let parser = [{
-    if (parser.parseLess())
+    if ($_parser.parseLess())
       return Type();
     int width;
     if ($_parser.parseInteger(width))
       return Type();
     if ($_parser.parseGreater())
       return Type();
-    return get(ctxt, width);
+    return get($_ctxt, width);
   }];
+}
 ```
 
 ### Type name
@@ -1439,8 +1479,9 @@ need allocation in the storage constructor, there are two options:
 ### TypeParameter tablegen class
 
 This is used to further specify attributes about each of the types parameters.
-It includes documentation (`summary` and `syntax`), the C++ type to use, and a
-custom allocator to use in the storage constructor method.
+It includes documentation (`summary` and `syntax`), the C++ type to use, a
+custom allocator to use in the storage constructor method, and a custom
+comparator to decide if two instances of the parameter type are equal.
 
 ```tablegen
 // DO NOT DO THIS!
@@ -1469,6 +1510,11 @@ The `allocator` code block has the following substitutions:
 
 -   `$_allocator` is the TypeStorageAllocator in which to allocate objects.
 -   `$_dst` is the variable in which to place the allocated data.
+
+The `comparator` code block has the following substitutions:
+
+-   `$_lhs` is an instance of the parameter type.
+-   `$_rhs` is an instance of the parameter type.
 
 MLIR includes several specialized classes for common situations:
 
@@ -1523,11 +1569,10 @@ responsible for parsing/printing the types in `Dialect::printType` and
 -   If the `genAccessors` field is 1 (the default) accessor methods will be
     generated on the Type class (e.g. `int getWidth() const` in the example
     above).
--   If the `genVerifyInvariantsDecl` field is set, a declaration for a method
-    `static LogicalResult verifyConstructionInvariants(Location, parameters...)`
-    is added to the class as well as a `getChecked(Location, parameters...)`
-    method which gets the result of `verifyConstructionInvariants` before
-    calling `get`.
+-   If the `genVerifyDecl` field is set, a declaration for a method `static
+    LogicalResult verify(emitErrorFn, parameters...)` is added to the class as
+    well as a `getChecked(emitErrorFn, parameters...)` method which checks the
+    result of `verify` before calling `get`.
 -   The `storageClass` field can be used to set the name of the storage class.
 -   The `storageNamespace` field is used to set the namespace where the storage
     class should sit. Defaults to "detail".
@@ -1553,9 +1598,9 @@ The following builders are generated:
 // given set of parameters.
 static MyType get(MLIRContext *context, int intParam);
 
-// If `genVerifyInvariantsDecl` is set to 1, the following method is also
-// generated.
-static MyType getChecked(Location loc, int intParam);
+// If `genVerifyDecl` is set to 1, the following method is also generated.
+static MyType getChecked(function_ref<InFlightDiagnostic()> emitError,
+                         MLIRContext *context, int intParam);
 ```
 
 If these autogenerated methods are not desired, such as when they conflict with
@@ -1708,7 +1753,7 @@ very helpful way to understand and debug issues. To build `mlir-tblgen`, run
 `cmake --build . --target mlir-tblgen` in your build directory and find the
 `mlir-tblgen` binary in the `bin/` subdirectory. All the supported generators
 can be found via `mlir-tblgen --help`. For example, `--gen-op-decls` and
-`--gen-op-defs` as explained in [Generated C++ code](#generated-c++-code).
+`--gen-op-defs` as explained in [Generated C++ code](#generated-c-code).
 
 To see the generated code, invoke `mlir-tblgen` with a specific generator by
 providing include paths via `-I`. For example,
@@ -1764,7 +1809,7 @@ requirements that were desirable:
         will consider it.
 *   MLIR allows both defined and undefined ops.
     *   Defined ops should have fixed semantics and could have a corresponding
-        reference implementation defined using, for example, EDSC.
+        reference implementation defined.
     *   Dialects are under full control of the dialect owner and normally live
         with the framework of the dialect.
 *   The op's traits (e.g., commutative) are modelled along with the op in the
@@ -1796,9 +1841,9 @@ requirements that were desirable:
 [TableGen]: https://llvm.org/docs/TableGen/index.html
 [TableGenProgRef]: https://llvm.org/docs/TableGen/ProgRef.html
 [TableGenBackend]: https://llvm.org/docs/TableGen/BackEnds.html#introduction
-[OpBase]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/OpBase.td
-[OpDefinitionsGen]: https://github.com/llvm/llvm-project/blob/master/mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp
-[EnumsGen]: https://github.com/llvm/llvm-project/blob/master/mlir/tools/mlir-tblgen/EnumsGen.cpp
-[StringAttr]: LangRef.md#string-attribute
-[IntegerAttr]: LangRef.md#integer-attribute
-[AttrClasses]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/Attributes.h
+[OpBase]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/IR/OpBase.td
+[OpDefinitionsGen]: https://github.com/llvm/llvm-project/blob/main/mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp
+[EnumsGen]: https://github.com/llvm/llvm-project/blob/main/mlir/tools/mlir-tblgen/EnumsGen.cpp
+[StringAttr]: Dialects/Builtin.md/#stringattr
+[IntegerAttr]: Dialects/Builtin.md/#integertype
+[AttrClasses]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/IR/Attributes.h

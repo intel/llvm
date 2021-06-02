@@ -71,7 +71,7 @@ static void replaceWithConstant(Constant *Value,
 // See if any operand of the call instruction references the coroutine frame.
 static bool operandReferences(CallInst *CI, AllocaInst *Frame, AAResults &AA) {
   for (Value *Op : CI->operand_values())
-    if (AA.alias(Op, Frame) != NoAlias)
+    if (!AA.isNoAlias(Op, Frame))
       return true;
   return false;
 }
@@ -79,11 +79,16 @@ static bool operandReferences(CallInst *CI, AllocaInst *Frame, AAResults &AA) {
 // Look for any tail calls referencing the coroutine frame and remove tail
 // attribute from them, since now coroutine frame resides on the stack and tail
 // call implies that the function does not references anything on the stack.
+// However if it's a musttail call, we cannot remove the tailcall attribute.
+// It's safe to keep it there as the musttail call is for symmetric transfer,
+// and by that point the frame should have been destroyed and hence not
+// interfering with operands.
 static void removeTailCallAttribute(AllocaInst *Frame, AAResults &AA) {
   Function &F = *Frame->getFunction();
   for (Instruction &I : instructions(F))
     if (auto *Call = dyn_cast<CallInst>(&I))
-      if (Call->isTailCall() && operandReferences(Call, Frame, AA))
+      if (Call->isTailCall() && operandReferences(Call, Frame, AA) &&
+          !Call->isMustTailCall())
         Call->setTailCall(false);
 }
 
@@ -227,17 +232,22 @@ bool Lowerer::shouldElide(Function *F, DominatorTree &DT) const {
   // Filter out the coro.destroy that lie along exceptional paths.
   SmallPtrSet<CoroBeginInst *, 8> ReferencedCoroBegins;
   for (auto &It : DestroyAddr) {
+    // If there is any coro.destroy dominates all of the terminators for the
+    // coro.begin, we could know the corresponding coro.begin wouldn't escape.
     for (Instruction *DA : It.second) {
-      for (BasicBlock *TI : Terminators) {
-        if (DT.dominates(DA, TI->getTerminator())) {
-          ReferencedCoroBegins.insert(It.first);
-          break;
-        }
+      if (llvm::all_of(Terminators, [&](auto *TI) {
+            return DT.dominates(DA, TI->getTerminator());
+          })) {
+        ReferencedCoroBegins.insert(It.first);
+        break;
       }
     }
 
     // Whether there is any paths from coro.begin to Terminators which not pass
     // through any of the coro.destroys.
+    //
+    // hasEscapePath is relatively slow, so we avoid to run it as much as
+    // possible.
     if (!ReferencedCoroBegins.count(It.first) &&
         !hasEscapePath(It.first, Terminators))
       ReferencedCoroBegins.insert(It.first);
@@ -246,20 +256,7 @@ bool Lowerer::shouldElide(Function *F, DominatorTree &DT) const {
   // If size of the set is the same as total number of coro.begin, that means we
   // found a coro.free or coro.destroy referencing each coro.begin, so we can
   // perform heap elision.
-  if (ReferencedCoroBegins.size() != CoroBegins.size())
-    return false;
-
-  // If any call in the function is a musttail call, it usually won't work
-  // because we cannot drop the tailcall attribute, and a tail call will reuse
-  // the entire stack where we are going to put the new frame. In theory a more
-  // precise analysis can be done to check whether the new frame aliases with
-  // the call, however it's challenging to do so before the elision actually
-  // happened.
-  for (BasicBlock &BB : *F)
-    if (BB.getTerminatingMustTailCall())
-      return false;
-
-  return true;
+  return ReferencedCoroBegins.size() == CoroBegins.size();
 }
 
 void Lowerer::collectPostSplitCoroIds(Function *F) {

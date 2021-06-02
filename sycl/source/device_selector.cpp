@@ -137,13 +137,18 @@ int default_selector::operator()(const device &dev) const {
   if (isDeviceOfPreferredSyclBe(dev))
     Score = 50;
 
-  // override always wins
-  // filter device gets a high point.
-  if (isForcedDevice(dev))
-    Score += 1000;
+  // If SYCL_DEVICE_FILTER is set, filter device gets a high point.
+  // All unmatched devices should never be selected.
+  detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+  if (FilterList) {
+    if (isForcedDevice(dev))
+      Score = 1000;
+    else
+      return REJECT_DEVICE_SCORE;
+  }
 
-  else if (dev.get_info<info::device::device_type>() ==
-           detail::get_forced_type())
+  if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
     Score += 1000;
 
   if (dev.is_gpu())
