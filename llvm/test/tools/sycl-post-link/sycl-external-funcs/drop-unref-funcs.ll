@@ -18,3 +18,4 @@ define dso_local spir_func void @unreferencedFunc() {
 attributes #0 = { "sycl-module-id"="a.cpp" }
 
 ; CHECK: define dso_local spir_func void @externalDeviceFunc()
+; CHECK-NOT: define dso_local spir_func void @unreferencedFunc()
