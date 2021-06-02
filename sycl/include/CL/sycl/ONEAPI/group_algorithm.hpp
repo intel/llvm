@@ -127,7 +127,7 @@ detail::enable_if_t<detail::is_generic_group<Group>::value, bool> none_of(
 
 template <typename Group, typename Ptr, class Predicate>
 __SYCL2020_DEPRECATED(
-    "ONEAPI::none_of is deprecated. Use none_of_group instead.")
+    "ONEAPI::none_of is deprecated. Use joint_none_of instead.")
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      detail::is_pointer<Ptr>::value),
                     bool> none_of(Group g, Ptr first, Ptr last,
