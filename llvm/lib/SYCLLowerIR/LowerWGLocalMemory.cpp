@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -68,6 +69,7 @@ static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   Value *ArgAlign = CI->getArgOperand(1);
   uint64_t Alignment = cast<llvm::ConstantInt>(ArgAlign)->getZExtValue();
 
+  // Make new global variable storage for local memory.
   IRBuilder<> Builder(CI);
   Type *LocalMemArrayTy = ArrayType::get(Builder.getInt8Ty(), Size);
   unsigned LocalAS =
@@ -84,6 +86,59 @@ static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
                          LocalAS                           // AddressSpace
       );
   LocalMemArrayGV->setAlignment(Align(Alignment));
+
+  // Add debug info for a new global variable using data from debug info for
+  // __sycl_allocateLocalMemory call instruction if available.
+  if (CI->getDebugLoc()) {
+    DILocation *GroupLocMemInlineLoc = CI->getDebugLoc().getInlinedAt();
+    llvm::DILocalScope *DScope = GroupLocMemInlineLoc->getScope();
+    DISubprogram *DSubProg = DScope->getSubprogram();
+
+    llvm::DIBuilder DBuilder(M);
+    DebugInfoFinder DIF;
+    DIF.processSubprogram(DSubProg);
+
+    // Debug info for uint8_t should be in the scope of code block containing
+    // __sycl_allocateLocalMemory call, because result of this call is assigned
+    // to a variable of type `uint8_t *`.
+    auto It = llvm::find_if(
+        DIF.types(), [&](DIType *T) { return T->getName().equals("uint8_t"); });
+    assert((It != DIF.types().end()) &&
+           "debug info for uint8_t type not found");
+    llvm::SmallVector<llvm::Metadata *, 1> Subscripts;
+    auto *ElementsCountNode = llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::getSigned(Builder.getInt64Ty(), Size));
+    Subscripts.push_back(DBuilder.getOrCreateSubrange(
+        ElementsCountNode /*count*/, nullptr /*lowerBound*/,
+        nullptr /*upperBound*/, nullptr /*stride*/));
+    llvm::DINodeArray SubscriptArray = DBuilder.getOrCreateArray(Subscripts);
+    llvm::DIType *LocalMemArrayDITy =
+        DBuilder.createArrayType(Size * 8, Alignment * 8, *It, SubscriptArray);
+
+    auto *LocalMemGVE = DBuilder.createGlobalVariableExpression(
+        DScope,                             // Context
+        LocalMemArrayGV->getName(),         // Name
+        StringRef(),                        // LinkageName
+        DScope->getFile(),                  // File
+        GroupLocMemInlineLoc->getLine(),    // LineNo
+        LocalMemArrayDITy,                  // Type
+        LocalMemArrayGV->hasLocalLinkage(), // IsLocalToUnit
+        true,                               // IsDefined
+        nullptr,                            // Expr
+        nullptr,                            // Decl
+        nullptr,                            // TemplateParams
+        Alignment * 8                       // AlignInBits
+    );
+
+    // Update Compile Unit globals list with a new debug info node
+    DICompileUnit *DCU = DSubProg->getUnit();
+    DIGlobalVariableExpressionArray CurrGVEs = DCU->getGlobalVariables();
+    SmallVector<Metadata *, 64> NewGVEs(CurrGVEs.begin(), CurrGVEs.end());
+    NewGVEs.push_back(LocalMemGVE);
+    DCU->replaceGlobalVariables(MDTuple::get(M.getContext(), NewGVEs));
+
+    LocalMemArrayGV->addDebugInfo(LocalMemGVE);
+  }
 
   Value *GVPtr =
       Builder.CreatePointerCast(LocalMemArrayGV, Builder.getInt8PtrTy(LocalAS));
