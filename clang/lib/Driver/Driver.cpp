@@ -4949,7 +4949,6 @@ public:
       return;
 
     // Let builders add host linking actions.
-    Action* HA = nullptr;
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
       if (!SB->isValid())
         continue;
