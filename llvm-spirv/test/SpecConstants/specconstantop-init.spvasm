@@ -9,6 +9,8 @@
 ; operations are supported.  Also verify that edge cases such as division
 ; by zero are handled gracefully.
 
+; CHECK: @var_snegate = addrspace(1) global i32 -53
+; CHECK: @var_not = addrspace(1) global i32 -54
 ; CHECK: @var_iadd = addrspace(1) global i32 49
 ; CHECK: @var_isub = addrspace(1) global i32 57
 ; CHECK: @var_imul = addrspace(1) global i32 -212
@@ -28,6 +30,7 @@
 ; CHECK: @var_bitand = addrspace(1) global i32 52
 ; CHECK: @var_logor = addrspace(1) global i1 true
 ; CHECK: @var_logand = addrspace(1) global i1 false
+; CHECK: @var_lognot = addrspace(1) global i1 false
 
                OpCapability Addresses
                OpCapability Linkage
@@ -35,6 +38,8 @@
                OpMemoryModel Physical32 OpenCL
                OpEntryPoint Kernel %15 "foo"
                OpName %entry "entry"
+               OpDecorate %var_snegate LinkageAttributes "var_snegate" Export
+               OpDecorate %var_not LinkageAttributes "var_not" Export
                OpDecorate %var_iadd LinkageAttributes "var_iadd" Export
                OpDecorate %var_isub LinkageAttributes "var_isub" Export
                OpDecorate %var_imul LinkageAttributes "var_imul" Export
@@ -53,6 +58,7 @@
                OpDecorate %var_bitand LinkageAttributes "var_bitand" Export
                OpDecorate %var_logor LinkageAttributes "var_logor" Export
                OpDecorate %var_logand LinkageAttributes "var_logand" Export
+               OpDecorate %var_lognot LinkageAttributes "var_lognot" Export
        %bool = OpTypeBool
        %true = OpConstantTrue %bool
       %false = OpConstantFalse %bool
@@ -61,6 +67,8 @@
      %uint_4 = OpConstant %uint 4
     %uint_53 = OpConstant %uint 53
   %uint_min4 = OpConstant %uint 0xfffffffc
+    %snegate = OpSpecConstantOp %uint SNegate %uint_53
+        %not = OpSpecConstantOp %uint Not %uint_53
        %iadd = OpSpecConstantOp %uint IAdd %uint_53 %uint_min4
        %isub = OpSpecConstantOp %uint ISub %uint_53 %uint_min4
        %imul = OpSpecConstantOp %uint IMul %uint_53 %uint_min4
@@ -79,11 +87,14 @@
      %bitand = OpSpecConstantOp %uint BitwiseAnd %uint_53 %uint_min4
       %logor = OpSpecConstantOp %bool LogicalOr %true %false
      %logand = OpSpecConstantOp %bool LogicalAnd %true %false
+     %lognot = OpSpecConstantOp %bool LogicalNot %true
   %_ptr_uint = OpTypePointer CrossWorkgroup %uint
   %_ptr_bool = OpTypePointer CrossWorkgroup %bool
        %void = OpTypeVoid
          %14 = OpTypeFunction %void
 
+%var_snegate = OpVariable %_ptr_uint CrossWorkgroup %snegate
+    %var_not = OpVariable %_ptr_uint CrossWorkgroup %not
    %var_iadd = OpVariable %_ptr_uint CrossWorkgroup %iadd
    %var_isub = OpVariable %_ptr_uint CrossWorkgroup %isub
    %var_imul = OpVariable %_ptr_uint CrossWorkgroup %imul
@@ -102,6 +113,7 @@
  %var_bitand = OpVariable %_ptr_uint CrossWorkgroup %bitand
   %var_logor = OpVariable %_ptr_bool CrossWorkgroup %logor
  %var_logand = OpVariable %_ptr_bool CrossWorkgroup %logand
+ %var_lognot = OpVariable %_ptr_bool CrossWorkgroup %lognot
 
          %15 = OpFunction %void Pure %14
       %entry = OpLabel

@@ -2444,10 +2444,16 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   case OpSNegate: {
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    auto Neg = BinaryOperator::CreateNeg(transValue(BC->getOperand(0), F, BB),
-                                         BV->getName(), BB);
-    applyNoIntegerWrapDecorations(BV, Neg);
+    auto Neg =
+        Builder.CreateNeg(transValue(BC->getOperand(0), F, BB), BV->getName());
+    if (auto *NegInst = dyn_cast<Instruction>(Neg)) {
+      applyNoIntegerWrapDecorations(BV, NegInst);
+    }
     return mapValue(BV, Neg);
   }
 
@@ -2500,10 +2506,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpNot:
   case OpLogicalNot: {
+    IRBuilder<> Builder(*Context);
+    if (BB) {
+      Builder.SetInsertPoint(BB);
+    }
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
-    return mapValue(
-        BV, BinaryOperator::CreateNot(transValue(BC->getOperand(0), F, BB),
-                                      BV->getName(), BB));
+    return mapValue(BV, Builder.CreateNot(transValue(BC->getOperand(0), F, BB),
+                                          BV->getName()));
   }
 
   case OpAll:
