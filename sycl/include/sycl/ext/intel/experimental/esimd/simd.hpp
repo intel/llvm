@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <sycl/ext/intel/experimental/esimd/simd_view.hpp>
+
 #include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>

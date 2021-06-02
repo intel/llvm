@@ -33,4 +33,5 @@ Developing oneAPI DPC++ Compiler
    GlobalObjectsInRuntime
    LinkedAllocations
    Assert
+   SharedLibraries
 
