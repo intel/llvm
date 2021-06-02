@@ -1034,23 +1034,6 @@ class KernelObjVisitor {
     VisitRecordFields(Owner, Handlers...);
   }
 
-  // FIXME: Can this be refactored/handled some other way?
-  template <typename ParentTy, typename... HandlerTys>
-  void visitStreamRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
-                         CXXRecordDecl *Wrapper, QualType RecordTy,
-                         HandlerTys &... Handlers) {
-    (void)std::initializer_list<int>{
-        (Handlers.enterStream(Owner, Parent, RecordTy), 0)...};
-    for (const auto &Field : Wrapper->fields()) {
-      QualType FieldTy = Field->getType();
-      // Required to initialize accessors inside streams.
-      if (Util::isSyclAccessorType(FieldTy))
-        KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
-    }
-    (void)std::initializer_list<int>{
-        (Handlers.leaveStream(Owner, Parent, RecordTy), 0)...};
-  }
-
   template <typename... HandlerTys>
   void visitArrayElementImpl(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
                              QualType ElementTy, uint64_t Index,
@@ -1125,12 +1108,9 @@ class KernelObjVisitor {
       KF_FOR_EACH(handleSyclHalfType, Field, FieldTy);
     else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
-    else if (Util::isSyclStreamType(FieldTy)) {
-      CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
-      // Handle accessors in stream class.
+    else if (Util::isSyclStreamType(FieldTy))
       KF_FOR_EACH(handleSyclStreamType, Field, FieldTy);
-      visitStreamRecord(Owner, Field, RD, FieldTy, Handlers...);
-    } else if (FieldTy->isStructureOrClassType()) {
+    else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
         CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
         visitRecord(Owner, Field, RD, FieldTy, Handlers...);
@@ -1242,12 +1222,6 @@ public:
     return true;
   }
   virtual bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType) {
-    return true;
-  }
-  virtual bool enterStream(const CXXRecordDecl *, FieldDecl *, QualType) {
-    return true;
-  }
-  virtual bool leaveStream(const CXXRecordDecl *, FieldDecl *, QualType) {
     return true;
   }
   virtual bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
@@ -1697,18 +1671,6 @@ public:
     return true;
   }
 
-  // Stream is always decomposed (and whether it gets decomposed is handled in
-  // handleSyclStreamType), but we need a CollectionStack entry to capture the
-  // accessors that get handled.
-  bool enterStream(const CXXRecordDecl *, FieldDecl *, QualType) final {
-    CollectionStack.push_back(false);
-    return true;
-  }
-  bool leaveStream(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
-    CollectionStack.pop_back();
-    return true;
-  }
-
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
     CollectionStack.push_back(false);
     return true;
@@ -1956,14 +1918,6 @@ public:
     SemaRef.addSyclDeviceDecl(KernelDecl);
   }
 
-  bool enterStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    return enterStruct(RD, FD, Ty);
-  }
-
-  bool leaveStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    return leaveStruct(RD, FD, Ty);
-  }
-
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
     ++StructDepth;
     return true;
@@ -2099,8 +2053,7 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
-    return true;
+    return handleSpecialType(FD, FieldTy);
   }
 
   bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
@@ -2419,15 +2372,6 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    // For the current implementation of stream class, the Visitor 'handles'
-    // stream argument and then visits each accessor field in stream. Therefore
-    // handleSpecialType in this case only adds a single argument for stream.
-    // The arguments corresponding to accessors in stream are handled in
-    // handleSyclAccessorType. The opt-report therefore does not diffrentiate
-    // between the accessors in streams and accessors captured by SYCL kernel.
-    // Once stream API is modified to use __init(), the visitor will no longer
-    // visit the stream object and opt-report output for stream class will be
-    // similar to that of other special types.
     return handleSpecialType(
         FD, FieldTy, KernelArgDescription(KernelArgDescription::Stream));
   }
@@ -2805,6 +2749,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
+    CXXMethodDecl *FinalizeMethod =
+        getMethodByName(RecordDecl, FinalizeMethodName);
+    // A finalize-method is expected for stream class.
+    if (!FinalizeMethod && Util::isSyclStreamType(Ty))
+      SemaRef.Diag(FD->getLocation(), diag::err_sycl_expected_finalize_method);
+    else
+      createSpecialMethodCall(RecordDecl, FinalizeMethodName, FinalizeStmts);
 
     removeFieldMemberExpr(FD, Ty);
 
@@ -2898,9 +2849,7 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType Ty) final {
-    // Streams just get copied as a new init.
-    addSimpleFieldInit(FD, Ty);
-    return true;
+    return handleSpecialType(FD, Ty);
   }
 
   bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -2975,31 +2924,6 @@ public:
     // argument of type char*.
     if (!isDefaultSPIRArch(SemaRef.Context))
       handleSpecialType(KernelHandlerArg->getType());
-  }
-
-  bool enterStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    ++StructDepth;
-    // Add a dummy init expression to catch the accessor initializers.
-    const auto *StreamDecl = Ty->getAsCXXRecordDecl();
-    CollectionInitExprs.push_back(createInitListExpr(StreamDecl));
-
-    addFieldMemberExpr(FD, Ty);
-    return true;
-  }
-
-  bool leaveStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    --StructDepth;
-    // Stream requires that its 'init' calls happen after its accessors init
-    // calls, so add them here instead.
-    const auto *StreamDecl = Ty->getAsCXXRecordDecl();
-
-    createSpecialMethodCall(StreamDecl, getInitMethodName(), BodyStmts);
-    createSpecialMethodCall(StreamDecl, FinalizeMethodName, FinalizeStmts);
-
-    removeFieldMemberExpr(FD, Ty);
-
-    CollectionInitExprs.pop_back();
-    return true;
   }
 
   bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
@@ -3315,7 +3239,7 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     return true;
   }
 
@@ -3345,18 +3269,6 @@ public:
     // kernel object (i.e. it is not captured)
     addParam(Context.getPointerType(Context.CharTy),
              SYCLIntegrationHeader::kind_specialization_constants_buffer, 0);
-  }
-
-  bool enterStream(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    ++StructDepth;
-    CurOffset += offsetOf(FD, Ty);
-    return true;
-  }
-
-  bool leaveStream(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    --StructDepth;
-    CurOffset -= offsetOf(FD, Ty);
-    return true;
   }
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
@@ -4160,6 +4072,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(accessor);
     CASE(std_layout);
     CASE(sampler);
+    CASE(stream);
     CASE(specialization_constants_buffer);
     CASE(pointer);
   }
