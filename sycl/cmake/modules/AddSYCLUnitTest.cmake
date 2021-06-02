@@ -66,6 +66,7 @@ macro(add_sycl_unittest_with_device test_dirname link_variant)
     -DGTEST_LANG_CXX11=1
     -DGTEST_HAS_TR1_TUPLE=0
     -D__SYCL_BUILD_SYCL_DLL
+    -DSYCL_DISABLE_FALLBACK_ASSERT
     -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
     -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock/include
     -I${LLVM_BINARY_DIR}/include

@@ -218,6 +218,7 @@ public:
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
 private:
+#ifndef SYCL_DISABLE_FALLBACK_ASSERT
   /**
    * Submit copy task for assert failure flag and host-task to check the flag
    * \param Event kernel's event to depend on i.e. the event represents the
@@ -270,6 +271,7 @@ private:
 
     return CheckerEv;
   }
+#endif
 
   // Check if kernel with the name provided in KernelName and which is being
   // enqueued and can be waited on by Event uses assert
