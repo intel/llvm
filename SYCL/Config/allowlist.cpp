@@ -93,10 +93,22 @@ int main() {
     try {
       sycl::platform::get_platforms();
     } catch (sycl::runtime_error &E) {
-      const std::string ExpectedMsg("Unrecognized key in device allowlist");
+      // Workaround to make CI pass.
+      // TODO: after the submission of PR intel/llvm:3826, create PR to
+      // intel/llvm-test-suite with removal of 1st parameter of the vector,
+      // and transformation of std::vector<std::string> to std::string
+      const std::vector<std::string> ExpectedMsgs{
+          "Unrecognized key in device allowlist",
+          "Unrecognized key in SYCL_DEVICE_ALLOWLIST"};
       const std::string GotMessage(E.what());
-      const bool CorrectMeg = GotMessage.find(ExpectedMsg) != std::string::npos;
-      return CorrectMeg ? 0 : 1;
+      bool CorrectMsg = false;
+      for (const auto &ExpectedMsg : ExpectedMsgs) {
+        if (GotMessage.find(ExpectedMsg) != std::string::npos) {
+          CorrectMsg = true;
+          break;
+        }
+      }
+      return CorrectMsg ? 0 : 1;
     }
   }
 

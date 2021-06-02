@@ -682,12 +682,20 @@ int main() {
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
-          const std::string expectedMsg(
-              "Malformed syntax in SYCL_DEVICE_ALLOWLIST");
+          // Workaround to make CI pass.
+          // TODO: after the submission of PR intel/llvm:3826, create PR to
+          // intel/llvm-test-suite with removal of 1st parameter of the vector,
+          // and transformation of std::vector<std::string> to std::string
+          const std::vector<std::string> expectedMsgs{
+              "Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+              "Key DeviceName of SYCL_DEVICE_ALLOWLIST should have value which "
+              "starts with {{"};
           const std::string gotMessage(E.what());
-          if (gotMessage.find(expectedMsg) != std::string::npos) {
-            passed = true;
-          } else {
+          for (const auto &expectedMsg : expectedMsgs) {
+            if (gotMessage.find(expectedMsg) != std::string::npos) {
+              passed = true;
+              break;
+            }
             passed = false;
           }
         }
@@ -733,12 +741,20 @@ int main() {
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
-          const std::string expectedMsg(
-              "Malformed syntax in SYCL_DEVICE_ALLOWLIST");
+          // Workaround to make CI pass.
+          // TODO: after the submission of PR intel/llvm:3826, create PR to
+          // intel/llvm-test-suite with removal of 1st parameter of the vector,
+          // and transformation of std::vector<std::string> to std::string
+          const std::vector<std::string> expectedMsgs{
+              "Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+              "Key PlatformName of SYCL_DEVICE_ALLOWLIST should have value "
+              "which starts with {{"};
           const std::string gotMessage(E.what());
-          if (gotMessage.find(expectedMsg) != std::string::npos) {
-            passed = true;
-          } else {
+          for (const auto &expectedMsg : expectedMsgs) {
+            if (gotMessage.find(expectedMsg) != std::string::npos) {
+              passed = true;
+              break;
+            }
             passed = false;
           }
         }
@@ -790,12 +806,20 @@ int main() {
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
-          const std::string expectedMsg(
-              "Malformed syntax in SYCL_DEVICE_ALLOWLIST");
+          // Workaround to make CI pass.
+          // TODO: after the submission of PR intel/llvm:3826, create PR to
+          // intel/llvm-test-suite with removal of 1st parameter of the vector,
+          // and transformation of std::vector<std::string> to std::string
+          const std::vector<std::string> expectedMsgs{
+              "Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+              "Key DriverVersion of SYCL_DEVICE_ALLOWLIST should have value "
+              "which starts with {{"};
           const std::string gotMessage(E.what());
-          if (gotMessage.find(expectedMsg) != std::string::npos) {
-            passed = true;
-          } else {
+          for (const auto &expectedMsg : expectedMsgs) {
+            if (gotMessage.find(expectedMsg) != std::string::npos) {
+              passed = true;
+              break;
+            }
             passed = false;
           }
         }
@@ -843,12 +867,20 @@ int main() {
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
-          const std::string expectedMsg(
-              "Malformed syntax in SYCL_DEVICE_ALLOWLIST");
+          // Workaround to make CI pass.
+          // TODO: after the submission of PR intel/llvm:3826, create PR to
+          // intel/llvm-test-suite with removal of 1st parameter of the vector,
+          // and transformation of std::vector<std::string> to std::string
+          const std::vector<std::string> expectedMsgs{
+              "Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+              "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value "
+              "which starts with {{"};
           const std::string gotMessage(E.what());
-          if (gotMessage.find(expectedMsg) != std::string::npos) {
-            passed = true;
-          } else {
+          for (const auto &expectedMsg : expectedMsgs) {
+            if (gotMessage.find(expectedMsg) != std::string::npos) {
+              passed = true;
+              break;
+            }
             passed = false;
           }
         }
