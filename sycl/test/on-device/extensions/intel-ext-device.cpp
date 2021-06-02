@@ -18,8 +18,6 @@
 
 #include <CL/sycl.hpp>
 
-#include <array>
-#include <cstddef>
 #include <iostream>
 
 using namespace cl::sycl;
