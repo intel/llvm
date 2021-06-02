@@ -48,8 +48,16 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                      // (func) ? func : "<unknown function>",
                      func, gid0, gid1, gid2, lid0, lid1, lid2, expr);
 
-  // FIXME uncomment the following line after clang changes
-  // __SYCL_AssertHappenedMem.Flag = 1;
+  // FIXME uncomment the following lines after clang changes
+  //{
+  //  int Expected = 0;
+  //  int Desired = 1;
+  //  __spirv_AtomicCompareExchange(
+  //      &__SYCL_AssertHappenedMem.Flag, /*__spv::Scope::Device*/ 1,
+  //      /*__spv::MemorySemanticsMask::SequentiallyConsistent*/ 0x10,
+  //      /*__spv::MemorySemanticsMask::SequentiallyConsistent*/ 0x10,
+  //      Desired, Expected);
+  //}
 
   // FIXME: call SPIR-V unreachable instead
   // volatile int *die = (int *)0x0;
