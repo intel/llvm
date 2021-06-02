@@ -169,6 +169,7 @@ struct ImagePropSaveInfo {
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
   bool IsEsimdKernel;
+  bool IsAssertEnabled;
 };
 
 static void error(const Twine &Msg) {
@@ -269,6 +270,28 @@ static void collectKernelModuleMap(
       }
     }
   }
+}
+
+// Collect all the dependencies for the function.
+static bool collectFunctionCallGraphNodes(llvm::Function *Func) {
+  std::vector<llvm::Function *> Workqueue;
+  Workqueue.push_back(Func);
+
+  while (!Workqueue.empty()) {
+    Function *F = &*Workqueue.back(); // To remove &*
+    Workqueue.pop_back();
+    for (auto &I : instructions(F)) {
+      if (CallBase *CB = dyn_cast<CallBase>(&I))
+        if (Function *CF = CB->getCalledFunction())
+          if (!CF->isDeclaration()) {
+            if (CF->getName().startswith("__devicelib_assert_fail")) {
+              return true;
+            }
+            Workqueue.push_back(CF);
+          }
+    }
+  }
+  return false;
 }
 
 // Input parameter KernelModuleMap is a map containing groups of kernels with
@@ -463,6 +486,20 @@ static string_vector saveDeviceImageProperty(
           {"isEsimdImage", true});
     }
 
+    if (ImgPSInfo.IsAssertEnabled) {
+      Module *M = ResultModules[I].get();
+      std::vector<Function *> SyclKernels;
+      for (auto &F : M->functions()) {
+        if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+          if (collectFunctionCallGraphNodes(&F)) {
+            SyclKernels.push_back(&F);
+            PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+                {F.getName(), true});
+          }
+        }
+      }
+    }
+
     std::error_code EC;
     std::string SCFile =
         makeResultFileName(".prop", I, ImgPSInfo.IsEsimdKernel ? "esimd_" : "");
@@ -609,7 +646,8 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   {
     ImagePropSaveInfo ImgPSInfo = {
         true,          DoSpecConst,         SetSpecConstAtRT,
-        SpecConstsMet, EmitKernelParamInfo, IsEsimd};
+        SpecConstsMet, EmitKernelParamInfo, IsEsimd,
+        true};
     string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));

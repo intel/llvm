@@ -189,6 +189,7 @@ public:
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
+  static constexpr char SYCL_ASSERT_USED[] = "SYCL/assert used";
 
   // Function for bulk addition of an entire property set under given category
   // (property set name).
