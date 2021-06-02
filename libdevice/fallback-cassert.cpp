@@ -15,12 +15,14 @@ struct AssertHappened {
 };
 
 #ifndef __SYCL_GLOBAL_VAR__
+// FIXME uncomment after CFE changes
 #define __SYCL_GLOBAL_VAR__ /*__attribute__((sycl_global_var))*/
 #endif
 
 namespace cl {
 namespace sycl {
 namespace detail {
+// FIXME remove const after CFE changes
 extern __SYCL_GLOBAL_VAR__ const AssertHappened
     AssertHappenedMem; // declaration
 } // namespace detail
