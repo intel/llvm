@@ -19,30 +19,18 @@ struct AssertHappened {
 #define __SYCL_GLOBAL_VAR__ /*__attribute__((sycl_global_var))*/
 #endif
 
-namespace cl {
-namespace sycl {
-namespace detail {
 // FIXME remove const after CFE changes
 extern __SYCL_GLOBAL_VAR__ const AssertHappened
-    AssertHappenedMem; // declaration
-} // namespace detail
-} // namespace sycl
-} // namespace cl
+    __SYCL_AssertHappenedMem; // declaration
 
-namespace cl {
-namespace sycl {
-namespace detail {
 __SYCL_GLOBAL_VAR__ const AssertHappened AssertHappenedMem; // definition
-} // namespace detail
-} // namespace sycl
-} // namespace cl
 
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
     "Assertion `%s` failed.\n";
 
 DEVICE_EXTERN_C int __devicelib_assert_read(void) {
-  volatile int *Ptr = (int *)(&cl::sycl::detail::AssertHappenedMem.Flag);
+  volatile int *Ptr = (int *)(&__SYCL_AssertHappenedMem.Flag);
   return *Ptr;
 }
 
@@ -61,7 +49,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                      func, gid0, gid1, gid2, lid0, lid1, lid2, expr);
 
   // FIXME uncomment the following line after clang changes
-  // cl::sycl::detail::AssertHappenedMem.Flag = 1;
+  // __SYCL_AssertHappenedMem.Flag = 1;
 
   // FIXME: call SPIR-V unreachable instead
   // volatile int *die = (int *)0x0;
