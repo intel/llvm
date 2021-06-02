@@ -17861,9 +17861,8 @@ RValue CodeGenFunction::EmitIntelFPGARegBuiltin(const CallExpr *E,
   if (ArgType->isRecordType()) {
     Address DstAddr = ReturnValue.getValue();
     EmitAnyExprToMem(PtrArg, DstAddr, ArgType.getQualifiers(), true);
-    Address A = EmitIntelFPGAFieldAnnotations(E->getExprLoc(),
-                                              DstAddr,
-                                              AnnotStr);
+    Address A =
+        EmitIntelFPGAFieldAnnotations(E->getExprLoc(), DstAddr, AnnotStr);
     return RValue::getAggregate(A);
   }
 
