@@ -21,7 +21,7 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 
 A new device descriptor will be added which will provide the device Universal Unique ID (UUID).
 
-This new device descriptor is currently only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior would be to expose the UUIDs of all supported GPU devices which enables detection of total number of unique devices.
+This new device descriptor is currently only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior would be to expose the UUIDs of all supported devices which enables detection of total number of unique devices.
 
 
 ## Version ##

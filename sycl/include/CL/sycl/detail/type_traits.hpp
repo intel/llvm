@@ -57,7 +57,9 @@ namespace detail {
 // Type for Intel device UUID extension.
 // For details about this extension, see
 // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+#if __cplusplus >= 201703L
 using uuid_type = std::array<std::byte, 16>;
+#endif
 
 template <typename T, typename R> struct copy_cv_qualifiers;
 
