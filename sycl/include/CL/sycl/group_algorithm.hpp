@@ -11,10 +11,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-  template <typename... Args>
-  auto reduce_over_group(Args&&... args) 
-      -> decltype(ONEAPI::reduce(std::forward<Args>(args)...)) {
-    return ONEAPI::reduce(std::forward<Args>(args)...);
-  }
+template <typename... Args>
+auto reduce_over_group(Args &&... args)
+    -> decltype(ONEAPI::reduce(std::forward<Args>(args)...)) {
+  return ONEAPI::reduce(std::forward<Args>(args)...);
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
