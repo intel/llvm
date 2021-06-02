@@ -31,6 +31,18 @@
 ; CHECK: @var_logor = addrspace(1) global i1 true
 ; CHECK: @var_logand = addrspace(1) global i1 false
 ; CHECK: @var_lognot = addrspace(1) global i1 false
+; CHECK: @var_logeq = addrspace(1) global i1 false
+; CHECK: @var_logne = addrspace(1) global i1 true
+; CHECK: @var_icmpeq = addrspace(1) global i1 false
+; CHECK: @var_icmpne = addrspace(1) global i1 true
+; CHECK: @var_icmpult = addrspace(1) global i1 true
+; CHECK: @var_icmpslt = addrspace(1) global i1 false
+; CHECK: @var_icmpugt = addrspace(1) global i1 false
+; CHECK: @var_icmpsgt = addrspace(1) global i1 true
+; CHECK: @var_icmpule = addrspace(1) global i1 true
+; CHECK: @var_icmpsle = addrspace(1) global i1 false
+; CHECK: @var_icmpuge = addrspace(1) global i1 false
+; CHECK: @var_icmpsge = addrspace(1) global i1 true
 
                OpCapability Addresses
                OpCapability Linkage
@@ -59,6 +71,18 @@
                OpDecorate %var_logor LinkageAttributes "var_logor" Export
                OpDecorate %var_logand LinkageAttributes "var_logand" Export
                OpDecorate %var_lognot LinkageAttributes "var_lognot" Export
+               OpDecorate %var_logeq LinkageAttributes "var_logeq" Export
+               OpDecorate %var_logne LinkageAttributes "var_logne" Export
+               OpDecorate %var_icmpeq LinkageAttributes "var_icmpeq" Export
+               OpDecorate %var_icmpne LinkageAttributes "var_icmpne" Export
+               OpDecorate %var_icmpult LinkageAttributes "var_icmpult" Export
+               OpDecorate %var_icmpslt LinkageAttributes "var_icmpslt" Export
+               OpDecorate %var_icmpugt LinkageAttributes "var_icmpugt" Export
+               OpDecorate %var_icmpsgt LinkageAttributes "var_icmpsgt" Export
+               OpDecorate %var_icmpule LinkageAttributes "var_icmpule" Export
+               OpDecorate %var_icmpsle LinkageAttributes "var_icmpsle" Export
+               OpDecorate %var_icmpuge LinkageAttributes "var_icmpuge" Export
+               OpDecorate %var_icmpsge LinkageAttributes "var_icmpsge" Export
        %bool = OpTypeBool
        %true = OpConstantTrue %bool
       %false = OpConstantFalse %bool
@@ -88,6 +112,18 @@
       %logor = OpSpecConstantOp %bool LogicalOr %true %false
      %logand = OpSpecConstantOp %bool LogicalAnd %true %false
      %lognot = OpSpecConstantOp %bool LogicalNot %true
+      %logeq = OpSpecConstantOp %bool LogicalEqual %true %false
+      %logne = OpSpecConstantOp %bool LogicalNotEqual %true %false
+     %icmpeq = OpSpecConstantOp %bool IEqual %uint_53 %uint_min4
+     %icmpne = OpSpecConstantOp %bool INotEqual %uint_53 %uint_min4
+    %icmpult = OpSpecConstantOp %bool ULessThan %uint_53 %uint_min4
+    %icmpslt = OpSpecConstantOp %bool SLessThan %uint_53 %uint_min4
+    %icmpugt = OpSpecConstantOp %bool UGreaterThan %uint_53 %uint_min4
+    %icmpsgt = OpSpecConstantOp %bool SGreaterThan %uint_53 %uint_min4
+    %icmpule = OpSpecConstantOp %bool ULessThanEqual %uint_53 %uint_min4
+    %icmpsle = OpSpecConstantOp %bool SLessThanEqual %uint_53 %uint_min4
+    %icmpuge = OpSpecConstantOp %bool UGreaterThanEqual %uint_53 %uint_min4
+    %icmpsge = OpSpecConstantOp %bool SGreaterThanEqual %uint_53 %uint_min4
   %_ptr_uint = OpTypePointer CrossWorkgroup %uint
   %_ptr_bool = OpTypePointer CrossWorkgroup %bool
        %void = OpTypeVoid
@@ -114,6 +150,18 @@
   %var_logor = OpVariable %_ptr_bool CrossWorkgroup %logor
  %var_logand = OpVariable %_ptr_bool CrossWorkgroup %logand
  %var_lognot = OpVariable %_ptr_bool CrossWorkgroup %lognot
+  %var_logeq = OpVariable %_ptr_bool CrossWorkgroup %logeq
+  %var_logne = OpVariable %_ptr_bool CrossWorkgroup %logne
+ %var_icmpeq = OpVariable %_ptr_bool CrossWorkgroup %icmpeq
+ %var_icmpne = OpVariable %_ptr_bool CrossWorkgroup %icmpne
+%var_icmpult = OpVariable %_ptr_bool CrossWorkgroup %icmpult
+%var_icmpslt = OpVariable %_ptr_bool CrossWorkgroup %icmpslt
+%var_icmpugt = OpVariable %_ptr_bool CrossWorkgroup %icmpugt
+%var_icmpsgt = OpVariable %_ptr_bool CrossWorkgroup %icmpsgt
+%var_icmpule = OpVariable %_ptr_bool CrossWorkgroup %icmpule
+%var_icmpsle = OpVariable %_ptr_bool CrossWorkgroup %icmpsle
+%var_icmpuge = OpVariable %_ptr_bool CrossWorkgroup %icmpuge
+%var_icmpsge = OpVariable %_ptr_bool CrossWorkgroup %icmpsge
 
          %15 = OpFunction %void Pure %14
       %entry = OpLabel

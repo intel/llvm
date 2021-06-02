@@ -1185,24 +1185,27 @@ Value *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
   return NewOp;
 }
 
-Instruction *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB,
-                                       Function *F) {
+Value *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F) {
   SPIRVCompare *BC = static_cast<SPIRVCompare *>(BV);
-  assert(BB && "Invalid BB");
   SPIRVType *BT = BC->getOperand(0)->getType();
-  Instruction *Inst = nullptr;
+  Value *Inst = nullptr;
   auto OP = BC->getOpCode();
   if (isLogicalOpCode(OP))
     OP = IntBoolOpMap::rmap(OP);
+
+  Value *Op0 = transValue(BC->getOperand(0), F, BB);
+  Value *Op1 = transValue(BC->getOperand(1), F, BB);
+
+  IRBuilder<> Builder(*Context);
+  if (BB) {
+    Builder.SetInsertPoint(BB);
+  }
+
   if (BT->isTypeVectorOrScalarInt() || BT->isTypeVectorOrScalarBool() ||
       BT->isTypePointer())
-    Inst = new ICmpInst(*BB, CmpMap::rmap(OP),
-                        transValue(BC->getOperand(0), F, BB),
-                        transValue(BC->getOperand(1), F, BB));
+    Inst = Builder.CreateICmp(CmpMap::rmap(OP), Op0, Op1);
   else if (BT->isTypeVectorOrScalarFloat())
-    Inst = new FCmpInst(*BB, CmpMap::rmap(OP),
-                        transValue(BC->getOperand(0), F, BB),
-                        transValue(BC->getOperand(1), F, BB));
+    Inst = Builder.CreateFCmp(CmpMap::rmap(OP), Op0, Op1);
   assert(Inst && "not implemented");
   return Inst;
 }
