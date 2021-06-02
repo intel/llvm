@@ -51,14 +51,14 @@ struct FuncObj6 {
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     // Test attribute directly applies on kernel functor.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1 
+    // CHECK:       FunctionDecl {{.*}}test_kernel1
     // CHECK:       SYCLSimdAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel1>(
         FuncObj());
     // Test attribute directly applies on kernel lambda.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
+    // CHECK:       FunctionDecl {{.*}}test_kernel2
     // CHECK:       SYCLSimdAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLSimdAttr {{.*}}
@@ -66,31 +66,31 @@ int main() {
         []() [[intel::sycl_explicit_simd]]{});
 
     // Test attribute is not propagated from function.
-    // CHECK-LABEL:    FunctionDecl {{.*}}test_kernel3
-    // CHECK:          SYCLSimdAttr {{.*}} Implicit
-    // CHECK-NEXT:     SYCLKernelAttr {{.*}} Implicit
-    // CHECK-NEXT:     SYCLSimdAttr {{.*}}
-    // CHECK-NOT:      SYCLSimdAttr {{.*}}
+    // CHECK:      FunctionDecl {{.*}}test_kernel3
+    // CHECK:      SYCLSimdAttr {{.*}} Implicit
+    // CHECK-NEXT: SYCLKernelAttr {{.*}} Implicit
+    // CHECK-NEXT: SYCLSimdAttr {{.*}}
+    // CHECK-NOT:  SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel3>(
         []() [[intel::sycl_explicit_simd]] { func(); });
 
     // Test attribute is not propagated from function.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4 'void ()'
-    // CHECK-NOT:   SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+    // CHECK:      FunctionDecl {{.*}}test_kernel4
+    // CHECK-NOT:  SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
     h.single_task<class test_kernel4>(
         []() { func1(); });
 
     // Test attribute directly applies on kernel functor.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5 'void ()'
-    // CHECK:       SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:      FunctionDecl {{.*}}test_kernel5
+    // CHECK:      SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+    // CHECK-NEXT: ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT: value: Int 1
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
     h.single_task<class test_kernel5>(
         FuncObj1());
 
     // Test attribute directly applies on kernel lambda.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kerne6 'void ()'
+    // CHECK:       FunctionDecl {{.*}}test_kerne6
     // CHECK:       SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
@@ -99,7 +99,7 @@ int main() {
         []() [[intel::no_global_work_offset]]{});
 
     // Test attribute directly applies on kernel functor.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel7 'void ()
+    // CHECK:       FunctionDecl {{.*}}test_kernel7
     // CHECK:       SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 10
@@ -108,7 +108,7 @@ int main() {
         FuncObj2());
 
     // Test attribute directly applies on kernel lambda.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel8 'void ()'
+    // CHECK:       FunctionDecl {{.*}}test_kernel8
     // CHECK:       SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 20
@@ -117,13 +117,13 @@ int main() {
         []() [[intel::scheduler_target_fmax_mhz(20)]]{});
 
     // Test attribute is not propagated from function.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel9 'void ()'
-    // CHECK-NOT:   SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
+    // CHECK:      FunctionDecl {{.*}}test_kernel9
+    // CHECK-NOT:  SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
     h.single_task<class test_kernel9>(
         []() { func2(); });
 
     // Test attribute directly applies on kernel functor.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel10 'void ()'
+    // CHECK:       FunctionDecl {{.*}}test_kernel10
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
@@ -138,13 +138,13 @@ int main() {
         FuncObj3());
 
     // Test attribute is not propagated from function.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel11 'void ()'
-    // CHECK-NOT:   SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK:     FunctionDecl {{.*}}test_kernel11
+    // CHECK-NOT: SYCLIntelMaxWorkGroupSizeAttr {{.*}}
     h.single_task<class test_kernel11>(
         []() { func3(); });
 
     // Test attribute directly applies on kernel lambda.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel12 'void ()'
+    // CHECK:       FunctionDecl {{.*}}test_kernel12
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
@@ -159,7 +159,7 @@ int main() {
         []() [[intel::max_work_group_size(8, 8, 8)]]{});
 
     // Test attribute directly applies on kernel functor.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel13 'void ()'
+    // CHECK:       FunctionDecl {{.*}}test_kernel13
     // CHECK:       ReqdWorkGroupSizeAttr{{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 2
@@ -174,13 +174,13 @@ int main() {
         FuncObj4());
 
     // Test attribute is not propagated from function.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel14 'void ()'
-    // CHECK-NOT:   ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK:      FunctionDecl {{.*}}test_kernel14
+    // CHECK-NOT:  ReqdWorkGroupSizeAttr {{.*}}
     h.single_task<class test_kernel14>(
         []() { func4(); });
 
     // Test attribute directly applies on kernel lambda.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel15 'void ()'
+    // CHECK:       FunctionDecl {{.*}}test_kernel15
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
@@ -195,7 +195,7 @@ int main() {
         []() [[intel::reqd_work_group_size(8, 8, 8)]]{});
 
     // Test attribute directly applies on kernel functor.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel16 'void ()
+    // CHECK:       FunctionDecl {{.*}}test_kernel16
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr  {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 8
@@ -204,7 +204,7 @@ int main() {
         FuncObj5());
 
     // Test attribute directly applies on kernel lambda.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel17 'void ()'
+    // CHECK:       FunctionDecl {{.*}}test_kernel17
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 20
@@ -213,26 +213,26 @@ int main() {
         []() [[intel::num_simd_work_items(20)]]{});
 
     // Test attribute is not propagated from function.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel18 'void ()'
-    // CHECK-NOT:   SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK:     FunctionDecl {{.*}}test_kernel18
+    // CHECK-NOT: SYCLIntelNumSimdWorkItemsAttr {{.*}}
     h.single_task<class test_kernel18>(
         []() { func5(); });
 
     // Test attribute directly applies on kernel functor.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel19 'void ()
-    // CHECK:       SYCLIntelKernelArgsRestrictAttr {{.*}}
+    // CHECK: FunctionDecl {{.*}}test_kernel19
+    // CHECK: SYCLIntelKernelArgsRestrictAttr {{.*}}
     h.single_task<class test_kernel19>(
         FuncObj6());
 
     // Test attribute directly applies on kernel lambda.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel20 'void ()'
-    // CHECK:       SYCLIntelKernelArgsRestrictAttr {{.*}}
+    // CHECK: FunctionDecl {{.*}}test_kernel20
+    // CHECK: SYCLIntelKernelArgsRestrictAttr {{.*}}
     h.single_task<class test_kernel20>(
         []() [[intel::kernel_args_restrict]]{});
 
     // Test attribute is not propagated from functiom.
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel21 'void ()'
-    // CHECK-NOT:   SYCLIntelKernelArgsRestrictAttr {{.*}}
+    // CHECK:     FunctionDecl {{.*}}test_kernel21
+    // CHECK-NOT: SYCLIntelKernelArgsRestrictAttr {{.*}}
     h.single_task<class test_kernel21>(
         []() { func6(); });
 

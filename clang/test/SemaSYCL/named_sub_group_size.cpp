@@ -7,8 +7,8 @@
 
 // The kernel has an attribute.
 void calls_kernel_1() {
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ14calls_kernel_1vE7Kernel1
-  // CHECK      : IntelNamedSubGroupSizeAttr {{.*}} Automatic
+  // CHECK: FunctionDecl {{.*}}Kernel1
+  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
   sycl::kernel_single_task<class Kernel1>([]() [[intel::named_sub_group_size(automatic)]] {
   });
 }
@@ -26,13 +26,13 @@ struct Functor1 {
 // Test attributes get propgated to the kernel.
 void calls_kernel_2() {
   Functor F;
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ14calls_kernel_2vE7Kernel2
-  // CHECK      : IntelNamedSubGroupSizeAttr {{.*}} Automatic
+  // CHECK: FunctionDecl {{.*}}Kernel2
+  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
   sycl::kernel_single_task<class Kernel2>(F);
 
   Functor1 F1;
-  // CHECK-LABEL: FunctionDecl {{.*}}_ZTSZ14calls_kernel_2vE7Kernel3 'void ()'
-  // CHECK      : IntelNamedSubGroupSizeAttr {{.*}} Primary
+  // CHECK: FunctionDecl {{.*}}Kernel3
+  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Primary
   sycl::kernel_single_task<class Kernel3>(F1);
 }
 
@@ -40,8 +40,8 @@ void calls_kernel_2() {
 [[intel::named_sub_group_size(primary)]] void AttrFunc() {} // #AttrFunc
 
 void calls_kernel_3() {
-  // CHECK-LABEL: FunctionDecl {{.*}}_ZTSZ14calls_kernel_3vE7Kernel4 'void ()'
-  // CHECK-NOT  : IntelNamedSubGroupSizeAttr {{.*}}
+  // CHECK:     FunctionDecl {{.*}}Kernel4
+  // CHECK-NOT: IntelNamedSubGroupSizeAttr {{.*}}
   sycl::kernel_single_task<class Kernel4>([]() { // #Kernel4
     // primary-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // primary-note@#Kernel4{{kernel declared here}}
@@ -51,8 +51,8 @@ void calls_kernel_3() {
 
 // The kernel has an attribute.
 void calls_kernel_4() {
-  // CHECK-LABEL: FunctionDecl {{.*}}_ZTSZ14calls_kernel_4vE7Kernel5 'void ()'
-  // CHECK      : IntelNamedSubGroupSizeAttr {{.*}} Automatic
+  // CHECK: FunctionDecl {{.*}}Kernel5
+  // CHECK: IntelNamedSubGroupSizeAttr {{.*}} Automatic
   sycl::kernel_single_task<class Kernel5>([]() [[intel::named_sub_group_size(automatic)]] { // #Kernel5
     // expected-error@#AttrFunc{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // expected-note@#Kernel5{{conflicting attribute is here}}
