@@ -14,13 +14,13 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/device_event.hpp>
 #include <CL/sycl/h_item.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/range.hpp>
-#include <CL/sycl/detail/spirv.hpp>
 #include <stdexcept>
 #include <type_traits>
 
@@ -51,7 +51,8 @@ static inline void workGroupBarrier(memory_scope FenceScope) {
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #else
-  throw sycl::runtime_error("Barriers are not supported on host device", PI_INVALID_DEVICE);
+  throw sycl::runtime_error("Barriers are not supported on host device",
+                            PI_INVALID_DEVICE);
 #endif
 }
 
@@ -450,13 +451,16 @@ template <int Dims> group<Dims> this_group() {
 template <typename Group>
 void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
 
-template <> inline void group_barrier<group<1>>(group<1>, memory_scope FenceScope) {
+template <>
+inline void group_barrier<group<1>>(group<1>, memory_scope FenceScope) {
   detail::workGroupBarrier(FenceScope);
 }
-template <> inline void group_barrier<group<2>>(group<2>, memory_scope FenceScope) {
+template <>
+inline void group_barrier<group<2>>(group<2>, memory_scope FenceScope) {
   detail::workGroupBarrier(FenceScope);
 }
-template <> inline void group_barrier<group<3>>(group<3>, memory_scope FenceScope) {
+template <>
+inline void group_barrier<group<3>>(group<3>, memory_scope FenceScope) {
   detail::workGroupBarrier(FenceScope);
 }
 
