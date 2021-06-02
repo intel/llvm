@@ -65,9 +65,14 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
   size_t KeyStart = 0, KeyEnd = 0, ValueStart = 0, ValueEnd = 0,
          DeviceDescIndex = 0;
 
-  while ((KeyEnd = AllowListRaw.find(':', KeyStart)) != std::string::npos) {
-    if ((ValueStart = AllowListRaw.find_first_not_of(":", KeyEnd)) ==
-        std::string::npos)
+  const char DelimeterBtwKeyAndValue = ':';
+  const char DelimeterBtwItemsInDeviceDesc = ',';
+  const char DelimeterBtwDeviceDescs = '|';
+
+  while ((KeyEnd = AllowListRaw.find(DelimeterBtwKeyAndValue, KeyStart)) !=
+         std::string::npos) {
+    if ((ValueStart = AllowListRaw.find_first_not_of(
+             DelimeterBtwKeyAndValue, KeyEnd)) == std::string::npos)
       break;
     const std::string &Key = AllowListRaw.substr(KeyStart, KeyEnd - KeyStart);
 
@@ -75,118 +80,76 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
     if (std::find(SupportedAllowListKeyNames.begin(),
                   SupportedAllowListKeyNames.end(),
                   Key) == SupportedAllowListKeyNames.end()) {
-      throw sycl::runtime_error("Unrecognized key in SYCL_DEVICE_ALLOWLIST",
-                                PI_INVALID_VALUE);
+      throw sycl::runtime_error(
+          "Unrecognized key in SYCL_DEVICE_ALLOWLIST. For details, please "
+          "refer to "
+          "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+          "EnvironmentVariables.md",
+          PI_INVALID_VALUE);
     }
 
     bool ShouldAllocateNewDeviceDescMap = false;
 
-    ValueEnd = AllowListRaw.find(',', ValueStart);
-    if (ValueEnd == std::string::npos) {
-      ValueEnd = AllowListRaw.length();
-    }
-    for (const auto &SupportedKeyName : SupportedAllowListKeyNames) {
-      // check if it is the last Key:Value pair in the device description, and
-      // correct end position of that value
-      if (size_t ValueEndCand = AllowListRaw.find(
-              "|" + std::string(SupportedKeyName), ValueStart);
-          (ValueEndCand != std::string::npos) && (ValueEndCand < ValueEnd)) {
-        ValueEnd = ValueEndCand;
-        ShouldAllocateNewDeviceDescMap = true;
-      }
-    }
+    std::string Value;
 
     auto &DeviceDescMap = AllowListParsed[DeviceDescIndex];
 
     // check if Key is not already defined in DeviceDescMap, e.g., caused by the
     // following invalid syntax: Key1:Value1,Key2:Value2,Key1:Value3
     if (DeviceDescMap.find(Key) == DeviceDescMap.end()) {
-      // check that regex values have double curly braces at the beginning and
-      // at the end
-      size_t CurlyBracesStartSize = 0, CurlyBracesEndSize = 0;
-      if (std::find(SupportedKeyNamesRequireRegexValue.begin(),
-                    SupportedKeyNamesRequireRegexValue.end(),
-                    Key) != SupportedKeyNamesRequireRegexValue.end()) {
-        const std::string &ValueRaw =
-            AllowListRaw.substr(ValueStart, ValueEnd - ValueStart);
-        std::string Prefix("{{");
-        // can be changed to string_view::starts_with after switching DPC++ RT
-        // to C++20
-        if (Prefix != ValueRaw.substr(0, Prefix.length())) {
-          throw sycl::runtime_error("Key " + Key +
-                                        " of SYCL_DEVICE_ALLOWLIST should have "
-                                        "value which starts with {{",
-                                    PI_INVALID_VALUE);
-        }
-        std::string Postfix("}}");
-        // can be changed to string_view::ends_with after switching DPC++ RT to
-        // C++20
-        if (Postfix != ValueRaw.substr(ValueRaw.length() - Postfix.length(),
-                                       ValueRaw.length())) {
-          throw sycl::runtime_error("Key " + Key +
-                                        " of SYCL_DEVICE_ALLOWLIST should have "
-                                        "value which ends with }}",
-                                    PI_INVALID_VALUE);
-        }
-        CurlyBracesStartSize = Prefix.length();
-        CurlyBracesEndSize = Postfix.length();
-      }
-      // if value has curly braces {{ and }} at the beginning and at the end,
-      // CurlyBracesStartSize and CurlyBracesEndSize != 0, so we move boundaries
-      // to remove these braces
-      const std::string &Value =
-          AllowListRaw.substr(ValueStart + CurlyBracesStartSize,
-                              (ValueEnd - CurlyBracesEndSize) -
-                                  (ValueStart + CurlyBracesStartSize));
-      // check that values of keys, which should have some fixed format, are
-      // valid. E.g., for BackendName key, the allowed values are only ones
-      // described in SyclBeMap
+      // calculate and validate value which has fixed format
       if (std::find(SupportedKeyNamesHaveFixedValue.begin(),
                     SupportedKeyNamesHaveFixedValue.end(),
                     Key) != SupportedKeyNamesHaveFixedValue.end()) {
-        if (Key == BackendNameKeyName) {
-          bool ValueForBackendNameIsValid = false;
-          for (const auto &SyclBe : SyclBeMap) {
-            if (Value == SyclBe.first) {
-              ValueForBackendNameIsValid = true;
-              break;
-            }
-          }
-          if (!ValueForBackendNameIsValid) {
-            throw sycl::runtime_error(
-                "Value " + Value + " for key " + Key +
-                    " is not valid in "
-                    "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
-                    "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                    "EnvironmentVariables.md",
-                PI_INVALID_VALUE);
-          }
+        ValueEnd = AllowListRaw.find(DelimeterBtwItemsInDeviceDesc, ValueStart);
+        // check if it is the last Key:Value pair in the device description, and
+        // correct end position of that value
+        if (size_t ValueEndCand =
+                AllowListRaw.find(DelimeterBtwDeviceDescs, ValueStart);
+            (ValueEndCand != std::string::npos) && (ValueEndCand < ValueEnd)) {
+          ValueEnd = ValueEndCand;
+          ShouldAllocateNewDeviceDescMap = true;
         }
-        if (Key == DeviceTypeKeyName) {
-          bool ValueForDeviceTypeIsValid = false;
-          for (const auto &SyclDeviceType : SyclDeviceTypeMap) {
-            if (Value == SyclDeviceType.first) {
-              ValueForDeviceTypeIsValid = true;
-              break;
-            }
+        if (ValueEnd == std::string::npos)
+          ValueEnd = AllowListRaw.length();
+
+        Value = AllowListRaw.substr(ValueStart, ValueEnd - ValueStart);
+
+        // post-processing checks for some values
+
+        auto ValidateEnumValues = [&](std::string CheckingKeyName,
+                                      auto SourceOfSupportedValues) {
+          if (Key == CheckingKeyName) {
+            bool ValueIsValid = false;
+            for (const auto &Item : SourceOfSupportedValues)
+              if (Value == Item.first) {
+                ValueIsValid = true;
+                break;
+              }
+            if (!ValueIsValid)
+              throw sycl::runtime_error(
+                  "Value " + Value + " for key " + Key +
+                      " is not valid in "
+                      "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
+                      "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                      "EnvironmentVariables.md",
+                  PI_INVALID_VALUE);
           }
-          if (!ValueForDeviceTypeIsValid) {
-            throw sycl::runtime_error(
-                "Value " + Value + " for key " + Key +
-                    " is not valid in "
-                    "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
-                    "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                    "EnvironmentVariables.md",
-                PI_INVALID_VALUE);
-          }
-        }
+        };
+
+        // check that values of keys, which should have some fixed format, are
+        // valid. E.g., for BackendName key, the allowed values are only ones
+        // described in SyclBeMap
+        ValidateEnumValues(BackendNameKeyName, SyclBeMap);
+        ValidateEnumValues(DeviceTypeKeyName, SyclDeviceTypeMap);
+
         if (Key == DeviceVendorIdKeyName) {
           // DeviceVendorId should have hex format
           if (!std::regex_match(Value, std::regex("0[xX][0-9a-fA-F]+"))) {
             throw sycl::runtime_error(
                 "Value " + Value + " for key " + Key +
                     " is not valid in "
-                    "SYCL_DEVICE_ALLOWLIST. It should have hex format. For "
+                    "SYCL_DEVICE_ALLOWLIST. It should have the hex format. For "
                     "details, please refer to "
                     "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
                     "EnvironmentVariables.md",
@@ -194,15 +157,72 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
           }
         }
       }
+      // calculate and validate value which has regex format
+      else if (std::find(SupportedKeyNamesRequireRegexValue.begin(),
+                         SupportedKeyNamesRequireRegexValue.end(),
+                         Key) != SupportedKeyNamesRequireRegexValue.end()) {
+        const std::string Prefix("{{");
+        // TODO: can be changed to string_view::starts_with after switching
+        // DPC++ RT to C++20
+        if (Prefix != AllowListRaw.substr(ValueStart, Prefix.length())) {
+          throw sycl::runtime_error("Key " + Key +
+                                        " of SYCL_DEVICE_ALLOWLIST should have "
+                                        "value which starts with " +
+                                        Prefix,
+                                    PI_INVALID_VALUE);
+        }
+        // cut off prefix from the value
+        ValueStart += Prefix.length();
+
+        ValueEnd = ValueStart;
+        const std::string Postfix("}}");
+        for (; ValueEnd < AllowListRaw.length() - Postfix.length() + 1;
+             ++ValueEnd) {
+          if (Postfix == AllowListRaw.substr(ValueEnd, Postfix.length()))
+            break;
+          // if it is the last iteration and next 2 symbols are not a postfix,
+          // throw exception
+          if (ValueEnd == AllowListRaw.length() - Postfix.length())
+            throw sycl::runtime_error(
+                "Key " + Key +
+                    " of SYCL_DEVICE_ALLOWLIST should have "
+                    "value which ends with " +
+                    Postfix,
+                PI_INVALID_VALUE);
+        }
+        size_t NextExpectedDelimeterPos = ValueEnd + Postfix.length();
+        // if it is not the end of the string, check that symbol next to a
+        // postfix is a delimeter (, or ;)
+        if ((AllowListRaw.length() != NextExpectedDelimeterPos) &&
+            (AllowListRaw[NextExpectedDelimeterPos] !=
+             DelimeterBtwItemsInDeviceDesc) &&
+            (AllowListRaw[NextExpectedDelimeterPos] != DelimeterBtwDeviceDescs))
+          throw sycl::runtime_error(
+              "Unexpected symbol on position " +
+                  std::to_string(NextExpectedDelimeterPos) + ": " +
+                  AllowListRaw[NextExpectedDelimeterPos] +
+                  ". Should be either " + DelimeterBtwItemsInDeviceDesc +
+                  " or " + DelimeterBtwDeviceDescs,
+              PI_INVALID_VALUE);
+
+        if (AllowListRaw[NextExpectedDelimeterPos] == DelimeterBtwDeviceDescs)
+          ShouldAllocateNewDeviceDescMap = true;
+
+        Value = AllowListRaw.substr(ValueStart, ValueEnd - ValueStart);
+
+        ValueEnd += Postfix.length();
+      } else
+        assert(false &&
+               "Key should be either in SupportedKeyNamesHaveFixedValue "
+               "or SupportedKeyNamesRequireRegexValue");
 
       // add key and value to the map
       DeviceDescMap.emplace(Key, Value);
-    } else {
+    } else
       throw sycl::runtime_error("Re-definition of key " + Key +
                                     " is not allowed in "
                                     "SYCL_DEVICE_ALLOWLIST",
                                 PI_INVALID_VALUE);
-    }
 
     KeyStart = ValueEnd;
     if (KeyStart != std::string::npos)
@@ -281,6 +301,7 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
   for (const auto &SyclBe : SyclBeMap) {
     if (SyclBe.second == Backend) {
       DeviceDesc.emplace(BackendNameKeyName, SyclBe.first);
+      break;
     }
   }
   // get PlatformVersion value and put it to DeviceDesc
@@ -297,7 +318,6 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
 
   int InsertIDx = 0;
   for (RT::PiDevice Device : PiDevices) {
-    bool IsInserted = false;
     // get DeviceType value and put it to DeviceDesc
     RT::PiDeviceType PiDevType;
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
@@ -307,10 +327,7 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     for (const auto &SyclDeviceType : SyclDeviceTypeMap) {
       if (SyclDeviceType.second == DeviceType) {
         const auto &DeviceTypeValue = SyclDeviceType.first;
-        std::tie(std::ignore, IsInserted) =
-            DeviceDesc.emplace(DeviceTypeKeyName, DeviceTypeValue);
-        if (!IsInserted)
-          DeviceDesc.at(DeviceTypeKeyName) = DeviceTypeValue;
+        DeviceDesc[DeviceTypeKeyName] = DeviceTypeValue;
         break;
       }
     }
@@ -321,25 +338,16 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     std::stringstream DeviceVendorIdHexStringStream;
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
-    std::tie(std::ignore, IsInserted) = DeviceDesc.emplace(
-        DeviceVendorIdKeyName, DeviceVendorIdHexStringStream.str());
-    if (!IsInserted)
-      DeviceDesc.at(DeviceVendorIdKeyName) = DeviceVendorIdValue;
+    DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
     const auto &DriverVersionValue = sycl::detail::get_device_info<
         std::string, info::device::driver_version>::get(Device, Plugin);
-    std::tie(std::ignore, IsInserted) =
-        DeviceDesc.emplace(DriverVersionKeyName, DriverVersionValue);
-    if (!IsInserted)
-      DeviceDesc.at(DriverVersionKeyName) = DriverVersionValue;
+    DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
     const auto &DeviceNameValue =
         sycl::detail::get_device_info<std::string, info::device::name>::get(
             Device, Plugin);
-    std::tie(std::ignore, IsInserted) =
-        DeviceDesc.emplace(DeviceNameKeyName, DeviceNameValue);
-    if (!IsInserted)
-      DeviceDesc.at(DeviceNameKeyName) = DeviceNameValue;
+    DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc
     if (deviceIsAllowed(DeviceDesc, AllowListParsed)) {
