@@ -20,6 +20,7 @@
 #include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/range.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 #include <stdexcept>
 #include <type_traits>
 
@@ -38,6 +39,20 @@ static inline void workGroupBarrier() {
   __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
                          flags);
 #endif // __SYCL_DEVICE_ONLY__
+}
+
+static inline void workGroupBarrier(memory_scope FenceScope) {
+  (void)FenceScope;
+#ifdef __SYCL_DEVICE_ONLY__
+  __spirv_ControlBarrier(__spv::Scope::Workgroup,
+                         sycl::detail::spirv::getScope(FenceScope),
+                         __spv::MemorySemanticsMask::AcquireRelease |
+                             __spv::MemorySemanticsMask::SubgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+#else
+  throw sycl::runtime_error("Barriers are not supported on host device", PI_INVALID_DEVICE);
+#endif
 }
 
 } // namespace detail
@@ -435,14 +450,14 @@ template <int Dims> group<Dims> this_group() {
 template <typename Group>
 void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
 
-template <> void group_barrier<group>(group, memory_scope FenceScope) {
-  uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
-  __spirv_ControlBarrier(__spv::Scope::Workgroup,
-                         detail::spirv::getScope(FenceScope),
-                         __spv::MemorySemanticsMask::AcquireRelease |
-                             __spv::MemorySemanticsMask::SubgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+template <> inline void group_barrier<group<1>>(group<1>, memory_scope FenceScope) {
+  detail::workGroupBarrier(FenceScope);
+}
+template <> inline void group_barrier<group<2>>(group<2>, memory_scope FenceScope) {
+  detail::workGroupBarrier(FenceScope);
+}
+template <> inline void group_barrier<group<3>>(group<3>, memory_scope FenceScope) {
+  detail::workGroupBarrier(FenceScope);
 }
 
 } // namespace sycl
