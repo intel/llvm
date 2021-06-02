@@ -1,3 +1,5 @@
+// RUN: %clang_cc1 %s -fsyntax-only -internal-isystem %S/Inputs -fsycl-is-device -Wno-sycl-2017-compat -sycl-std=2017  -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -ast-dump -Wno-sycl-2017-compat -sycl-std=2017 %s | FileCheck %s
 // RUN: %clang_cc1 %s -fsyntax-only -internal-isystem %S/Inputs -fsycl-is-device -sycl-std=2020  -DTRIGGER_ERROR -verify
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -ast-dump -sycl-std=2020 %s | FileCheck %s
 

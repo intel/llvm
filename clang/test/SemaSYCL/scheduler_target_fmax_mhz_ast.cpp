@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -ast-dump -DSYCL2017 %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -ast-dump -DSYCL2020 %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -ast-dump %s | FileCheck %s
 
 // Tests for AST of Intel FPGA scheduler_target_fmax_mhz function attribute.
 #include "sycl.hpp"
@@ -62,23 +61,12 @@ public:
 
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
-#if defined(SYCL2020)
-    // Test attribute is not propagated.
-    // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_1
-    // CHECK-NOT:   SYCLIntelSchedulerTargetFmaxMhzAttr
-    KernelFunctor f1;
-    h.single_task<class kernel_name_1>(f1);
-#endif // SYCL2020
-
-#if defined(SYCL2017)
     // Test attribute is propagated.
     // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_1
     // CHECK: SYCLIntelSchedulerTargetFmaxMhzAttr
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
-#endif // SYCL2017
 
-    // Test class template argument.
     // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_2
     // CHECK: SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
     // CHECK-NEXT: ConstantExpr{{.*}}'int'
@@ -97,8 +85,6 @@ int main() {
     h.single_task<class kernel_name_3>(
         []() [[intel::scheduler_target_fmax_mhz(4)]]{});
 
-#if defined(SYCL2017)
-    // Test function template argument.
     // CHECK-LABEL:  FunctionDecl {{.*}}kernel_name_4
     // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
     // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
@@ -108,7 +94,6 @@ int main() {
     // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 75
     h.single_task<class kernel_name_4>(
         []() { func3<75>(); });
-#endif // SYCL2017
 
     // Ignore duplicate attribute.
     h.single_task<class kernel_name_5>(

@@ -1,8 +1,5 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 -DCHECKDIAG -verify
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -triple spir64 -DCHECKDIAG -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2017 -triple spir64 -DSYCL2017 %s
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -sycl-std=2020 -triple spir64 -DSYCL2020 %s
-
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -sycl-std=2017 -Wno-sycl-2017-compat -triple spir64 -DCHECKDIAG -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -sycl-std=2017 -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
 
 [[intel::kernel_args_restrict]] void func_do_not_ignore() {}
 
@@ -29,19 +26,8 @@ int main() {
   kernel<class test_kernel2>(
       []() [[intel::kernel_args_restrict]] {});
 
-#if defined(SYCL2017)
-  // Test attribute is propagated.
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelKernelArgsRestrictAttr
   kernel<class test_kernel3>(
       []() { func_do_not_ignore(); });
-#endif // SYCL2017
-
-#if defined(SYCL2020)
-  // Test attribute is not propagated.
-  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
-  // CHECK-NOT:   SYCLIntelKernelArgsRestrictAttr
-  kernel<class test_kernel4>(
-      []() { func_do_not_ignore(); });
-#endif // SYCL2020
 }
