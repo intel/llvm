@@ -25,7 +25,8 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
 
-// CHECK-DEFAULT: llvm-spirv{{.*}}"-spirv-ext=-all,+SPV_EXT_shader_atomic_float_add
+// CHECK-DEFAULT: llvm-spirv{{.*}}"-spirv-ext=-all
+// CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-DEFAULT-SAME:,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io
@@ -46,7 +47,8 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_long_constant_composite
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes"
-// CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all,+SPV_EXT_shader_atomic_float_add
+// CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
+// CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-FPGA-HW-SAME:,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io
