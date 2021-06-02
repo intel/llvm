@@ -14,12 +14,15 @@ cl_intel_devicelib_cassert
                                 __generic const char *func,
                                 size_t gid0, size_t gid1, size_t gid2,
                                 size_t lid0, size_t lid1, size_t lid2);
+
 Semantic:
 the function is called when an assertion expression `expr` is false,
 and it indicates that a program does not execute as expected.
 The function should print a message containing the information
 provided in the arguments. In addition to that, the function is free
 to terminate the current kernel invocation.
+
+Fallback implementation of the function raises a flag to be read later by `__devicelib_assert_read`.
 
 Arguments:
 
@@ -32,6 +35,13 @@ Arguments:
 Example of a message:
 .. code:
    foo.cpp:42: void foo(int): global id: [0,0,0], local id: [0,0,0] Assertion `buf[wiID] == 0 && "Invalid value"` failed.
+
+.. code:
+   int __devicelib_assert_read();
+
+Semantic:
+the function is called to read assert failure flag raised by `__devicelib_assert_fail`.
+The function is only used in fallback implementation.
 
 See also: assert_extension_.
 .. _assert_extension: ../Assert/SYCL_ONEAPI_ASSERT.asciidoc)
