@@ -3370,9 +3370,8 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
     S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
   }
 
-  // If the [[intel::named_sub_group_size]] attribute spelling is used
-  // in earlier SYCL mode (SYCL 2017), we want to diagnose it as being
-  // an ignored attribute.
+  // If the [[intel::named_sub_group_size]] attribute spelling is used in
+  // SYCL 2017 mode, we want to diagnose it as being an ignored attribute.
   if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2017) {
     S.Diag(AL.getLoc(), diag::warn_attribute_ignored) << AL;
     return;
