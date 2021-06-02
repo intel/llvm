@@ -56,10 +56,16 @@ std::vector<std::string> ModuleDeps::getCanonicalCommandLine(
     std::function<StringRef(ModuleID)> LookupPCMPath,
     std::function<const ModuleDeps &(ModuleID)> LookupModuleDeps) const {
   CompilerInvocation CI(Invocation);
+  FrontendOptions &FrontendOpts = CI.getFrontendOpts();
+
+  InputKind ModuleMapInputKind(FrontendOpts.DashX.getLanguage(),
+                               InputKind::Format::ModuleMap);
+  FrontendOpts.Inputs.emplace_back(ClangModuleMapFile, ModuleMapInputKind);
+  FrontendOpts.OutputFile = std::string(LookupPCMPath(ID));
 
   dependencies::detail::collectPCMAndModuleMapPaths(
       ClangModuleDeps, LookupPCMPath, LookupModuleDeps,
-      CI.getFrontendOpts().ModuleFiles, CI.getFrontendOpts().ModuleMapFiles);
+      FrontendOpts.ModuleFiles, FrontendOpts.ModuleMapFiles);
 
   return serializeCompilerInvocation(CI);
 }

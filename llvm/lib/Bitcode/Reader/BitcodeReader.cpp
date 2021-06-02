@@ -4168,7 +4168,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       if (!Ty) {
         std::tie(FullTy, Ty) =
             getPointerElementTypes(FullBaseTy->getScalarType());
-      } else if (Ty != getPointerElementFlatType(FullBaseTy->getScalarType()))
+      } else if (!cast<PointerType>(FullBaseTy->getScalarType())
+                      ->isOpaqueOrPointeeTypeMatches(Ty))
         return error(
             "Explicit gep type does not match pointee type of pointer operand");
 
@@ -5142,6 +5143,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
               ? AtomicCmpXchgInst::getStrongestFailureOrdering(SuccessOrdering)
               : getDecodedOrdering(Record[OpNum + 3]);
 
+      if (FailureOrdering == AtomicOrdering::NotAtomic ||
+          FailureOrdering == AtomicOrdering::Unordered)
+        return error("Invalid record");
+
       const Align Alignment(
           TheModule->getDataLayout().getTypeStoreSize(Cmp->getType()));
 
@@ -5191,9 +5196,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
 
       const AtomicOrdering SuccessOrdering =
           getDecodedOrdering(Record[OpNum + 1]);
-      if (SuccessOrdering == AtomicOrdering::NotAtomic ||
-          SuccessOrdering == AtomicOrdering::Unordered)
-        return error("Invalid record");
+      if (!AtomicCmpXchgInst::isValidSuccessOrdering(SuccessOrdering))
+        return error("Invalid cmpxchg success ordering");
 
       const SyncScope::ID SSID = getDecodedSyncScopeID(Record[OpNum + 2]);
 
@@ -5202,6 +5206,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
 
       const AtomicOrdering FailureOrdering =
           getDecodedOrdering(Record[OpNum + 3]);
+      if (!AtomicCmpXchgInst::isValidFailureOrdering(FailureOrdering))
+        return error("Invalid cmpxchg failure ordering");
 
       const bool IsWeak = Record[OpNum + 4];
 
@@ -5230,15 +5236,18 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       unsigned OpNum = 0;
 
       Value *Ptr = nullptr;
-      if (getValueTypePair(Record, OpNum, NextValueNo, Ptr, &FullTy))
+      if (getValueTypePair(Record, OpNum, NextValueNo, Ptr))
         return error("Invalid record");
 
       if (!isa<PointerType>(Ptr->getType()))
         return error("Invalid record");
 
       Value *Val = nullptr;
-      if (popValue(Record, OpNum, NextValueNo,
-                   getPointerElementFlatType(FullTy), Val))
+      if (popValue(Record, OpNum, NextValueNo, nullptr, Val))
+        return error("Invalid record");
+
+      if (!cast<PointerType>(Ptr->getType())
+               ->isOpaqueOrPointeeTypeMatches(Val->getType()))
         return error("Invalid record");
 
       if (!(NumRecords == (OpNum + 4) || NumRecords == (OpNum + 5)))
@@ -5271,7 +5280,6 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
             Align(TheModule->getDataLayout().getTypeStoreSize(Val->getType()));
 
       I = new AtomicRMWInst(Operation, Ptr, Val, *Alignment, Ordering, SSID);
-      FullTy = getPointerElementFlatType(FullTy);
       cast<AtomicRMWInst>(I)->setVolatile(IsVol);
 
       InstructionList.push_back(I);
@@ -5626,10 +5634,15 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
       }
     }
 
-    // Remove align from return attribute on CallInst.
-    if (auto *CI = dyn_cast<CallInst>(&I)) {
-      if (CI->getFunctionType()->getReturnType()->isVoidTy())
-        CI->removeAttribute(0, Attribute::Alignment);
+    // Remove incompatible attributes on function calls.
+    if (auto *CI = dyn_cast<CallBase>(&I)) {
+      CI->removeAttributes(AttributeList::ReturnIndex,
+                           AttributeFuncs::typeIncompatible(
+                               CI->getFunctionType()->getReturnType()));
+
+      for (unsigned ArgNo = 0; ArgNo < CI->arg_size(); ++ArgNo)
+        CI->removeParamAttrs(ArgNo, AttributeFuncs::typeIncompatible(
+                                        CI->getArgOperand(ArgNo)->getType()));
     }
   }
 

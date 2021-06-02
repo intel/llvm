@@ -2000,7 +2000,7 @@ public:
   private:
     /// Function or variable declarations to be checked for whether the deferred
     /// diagnostics should be emitted.
-    SmallVector<Decl *, 4> DeclsToCheckForDeferredDiags;
+    llvm::SmallSetVector<Decl *, 4> DeclsToCheckForDeferredDiags;
 
   public:
   // Emit all deferred diagnostics.
@@ -2095,6 +2095,10 @@ public:
 
   /// Retrieve the current captured region, if any.
   sema::CapturedRegionScopeInfo *getCurCapturedRegion();
+
+  /// Retrieve the current function, if any, that should be analyzed for
+  /// potential availability violations.
+  sema::FunctionScopeInfo *getCurFunctionAvailabilityContext();
 
   /// WeakTopLevelDeclDecls - access to \#pragma weak-generated Decls
   SmallVectorImpl<Decl *> &WeakTopLevelDecls() { return WeakTopLevelDecl; }
@@ -3483,6 +3487,9 @@ public:
     /// Merge availability attributes for an implementation of
     /// a protocol requirement.
     AMK_ProtocolImplementation,
+    /// Merge availability attributes for an implementation of
+    /// an optional protocol requirement.
+    AMK_OptionalProtocolImplementation
   };
 
   /// Describes the kind of priority given to an availability attribute.
@@ -10309,8 +10316,6 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  template <typename AttrType>
   void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
                              Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
   void AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -10366,7 +10371,11 @@ public:
 
   SYCLIntelFPGAMaxConcurrencyAttr *MergeSYCLIntelFPGAMaxConcurrencyAttr(
       Decl *D, const SYCLIntelFPGAMaxConcurrencyAttr &A);
-
+  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  SYCLIntelMaxGlobalWorkDimAttr *
+  MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
+                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -12392,6 +12401,15 @@ public:
                                         bool IgnoreImplicitHDAttr = false);
   CUDAFunctionTarget IdentifyCUDATarget(const ParsedAttributesView &Attrs);
 
+  enum CUDAVariableTarget {
+    CVT_Device,  /// Emitted on device side with a shadow variable on host side
+    CVT_Host,    /// Emitted on host side only
+    CVT_Both,    /// Emitted on both sides with different addresses
+    CVT_Unified, /// Emitted as a unified address, e.g. managed variables
+  };
+  /// Determines whether the given variable is emitted on host or device side.
+  CUDAVariableTarget IdentifyCUDATarget(const VarDecl *D);
+
   /// Gets the CUDA target for the current context.
   CUDAFunctionTarget CurrentCUDATarget() {
     return IdentifyCUDATarget(dyn_cast<FunctionDecl>(CurContext));
@@ -13312,37 +13330,6 @@ public:
            (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
 };
-
-template <typename AttrType>
-void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E) {
-  assert(E && "Attribute must have an argument.");
-
-  if (!E->isInstantiationDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult ICE = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (ICE.isInvalid())
-      return;
-    E = ICE.get();
-    int32_t ArgInt = ArgVal.getSExtValue();
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-      if (ArgInt < 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI << /*non-negative*/ 1;
-        return;
-      }
-    }
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-      if (ArgInt > 3) {
-        Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-            << CI << 0 << 3 << E->getSourceRange();
-        return;
-      }
-    }
-  }
-
-  D->addAttr(::new (Context) AttrType(Context, CI, E));
-}
 
 inline Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
                                       Expr *E) {
