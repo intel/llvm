@@ -11355,6 +11355,9 @@ def err_sycl_type_trait_requires_record_type : Error<
   "or lambda type">;
 def err_sycl_builtin_type_trait_index_out_of_range : Error<
   "index %0 is greater than the number of %select{fields|bases}2 in type %1">;
+def err_sycl_type_trait_requires_nonnegative_index : Error<
+  "'%select{__builtin_field_type|__builtin_base_type}0' requires a "
+  "non-negative index">;
 def err_sycl_builtin_type_trait_evaluated : Error<
   "'%select{__builtin_field_type|__builtin_base_type}0' cannot be used in an "
   "evaluated context">;

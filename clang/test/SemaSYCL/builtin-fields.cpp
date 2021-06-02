@@ -133,6 +133,13 @@ void templates4() {
   static_assert(is_same<decltype(__builtin_base_type(N<Ty>, 2)), Ty>::value, "expected a Ty");
 }
 
+template <typename Ty, int N>
+void templates5() {
+  (void)sizeof(__builtin_field_type(Ty, N)); // expected-error {{'__builtin_field_type' requires a non-negative index}}
+  (void)sizeof(__builtin_base_type(Ty, N));  // expected-error {{'__builtin_base_type' requires a non-negative index}}
+  // expected-note@#neg-instantiation {{in instantiation of function template specialization}}
+}
+
 void instantiate() {
   templates1<int>();
   templates1<struct S>(); // expected-note {{in instantiation of function template specialization 'templates1<S>' requested here}} \
@@ -235,4 +242,9 @@ void errors() {
   sizeof(__builtin_field_type(A, 1)); // expected-error {{index 1 is greater than the number of fields in type 'A'}}
   sizeof(__builtin_field_type(I, 0)); // expected-error {{index 0 is greater than the number of fields in type 'I'}}
   sizeof(__builtin_base_type(A, 0)); // expected-error {{index 0 is greater than the number of bases in type 'A'}}
+
+  // Test that we reject negative index values, even in templates.
+  sizeof(__builtin_field_type(A, -1)); // expected-error {{'__builtin_field_type' requires a non-negative index}}
+  sizeof(__builtin_base_type(A, -1)); // expected-error {{'__builtin_base_type' requires a non-negative index}}
+  templates5<A, -1>(); // #neg-instantiation
 }

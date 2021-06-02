@@ -229,6 +229,13 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
         assert(RD && "Record type but no record decl?");
         int64_t Index = IdxVal->getExtValue();
 
+        if (Index < 0) {
+          Diag(Idx->getExprLoc(),
+               diag::err_sycl_type_trait_requires_nonnegative_index)
+              << /*fields*/ 0;
+          return ExprError();
+        }
+
         // Ensure that the index is within range.
         int64_t NumFields = std::distance(RD->field_begin(), RD->field_end());
         if (Index >= NumFields) {
@@ -324,6 +331,13 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
         CXXRecordDecl *RD = SourceTy->getAsCXXRecordDecl();
         assert(RD && "Record type but no record decl?");
         int64_t Index = IdxVal->getExtValue();
+
+        if (Index < 0) {
+          Diag(Idx->getExprLoc(),
+               diag::err_sycl_type_trait_requires_nonnegative_index)
+              << /*bases*/ 1;
+          return ExprError();
+        }
 
         // Ensure that the index is within range.
         if (Index >= RD->getNumBases()) {
