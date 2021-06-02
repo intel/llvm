@@ -211,11 +211,10 @@ event handler::finalize() {
     return MLastEvent;
   }
 
-  if (!CommandGroup) {
+  if (!CommandGroup)
     throw sycl::runtime_error(
         "Internal Error. Command group cannot be constructed.",
         PI_INVALID_OPERATION);
-  }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
