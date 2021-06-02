@@ -5,28 +5,103 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o - | FileCheck %s
 
-; Verify that an OpVariable initializer containing an OpSpecConstantOp is supported.
+; Verify that OpVariable initializers containing various OpSpecConstantOp
+; operations are supported.  Also verify that edge cases such as division
+; by zero are handled gracefully.
 
-; CHECK: @var = addrspace(2) constant i32 8, align 4
+; CHECK: @var_iadd = addrspace(1) global i32 49
+; CHECK: @var_isub = addrspace(1) global i32 57
+; CHECK: @var_imul = addrspace(1) global i32 -212
+; CHECK: @var_udiv = addrspace(1) global i32 81037118
+; CHECK: @var_udiv0 = addrspace(1) global i32 poison
+; CHECK: @var_sdiv = addrspace(1) global i32 -13
+; CHECK: @var_sdiv0 = addrspace(1) global i32 poison
+; CHECK: @var_umod = addrspace(1) global i32 1
+; CHECK: @var_srem = addrspace(1) global i32 1
+; TODO: smod
+; CHECK: @var_srl = addrspace(1) global i32 268435455
+; CHECK: @var_sra = addrspace(1) global i32 -1
+; CHECK: @var_sll = addrspace(1) global i32 848
+; CHECK: @var_sll_big = addrspace(1) global i32 poison
+; CHECK: @var_bitor = addrspace(1) global i32 -3
+; CHECK: @var_bitxor = addrspace(1) global i32 -55
+; CHECK: @var_bitand = addrspace(1) global i32 52
+; CHECK: @var_logor = addrspace(1) global i1 true
+; CHECK: @var_logand = addrspace(1) global i1 false
 
                OpCapability Addresses
                OpCapability Linkage
                OpCapability Kernel
                OpMemoryModel Physical32 OpenCL
                OpEntryPoint Kernel %15 "foo"
-               OpName %var "var"
                OpName %entry "entry"
-               OpDecorate %var Constant
-               OpDecorate %var LinkageAttributes "var" Export
-               OpDecorate %var Alignment 4
+               OpDecorate %var_iadd LinkageAttributes "var_iadd" Export
+               OpDecorate %var_isub LinkageAttributes "var_isub" Export
+               OpDecorate %var_imul LinkageAttributes "var_imul" Export
+               OpDecorate %var_udiv LinkageAttributes "var_udiv" Export
+               OpDecorate %var_udiv0 LinkageAttributes "var_udiv0" Export
+               OpDecorate %var_sdiv LinkageAttributes "var_sdiv" Export
+               OpDecorate %var_sdiv0 LinkageAttributes "var_sdiv0" Export
+               OpDecorate %var_umod LinkageAttributes "var_umod" Export
+               OpDecorate %var_srem LinkageAttributes "var_srem" Export
+               OpDecorate %var_srl LinkageAttributes "var_srl" Export
+               OpDecorate %var_sra LinkageAttributes "var_sra" Export
+               OpDecorate %var_sll LinkageAttributes "var_sll" Export
+               OpDecorate %var_sll_big LinkageAttributes "var_sll_big" Export
+               OpDecorate %var_bitor LinkageAttributes "var_bitor" Export
+               OpDecorate %var_bitxor LinkageAttributes "var_bitxor" Export
+               OpDecorate %var_bitand LinkageAttributes "var_bitand" Export
+               OpDecorate %var_logor LinkageAttributes "var_logor" Export
+               OpDecorate %var_logand LinkageAttributes "var_logand" Export
+       %bool = OpTypeBool
+       %true = OpConstantTrue %bool
+      %false = OpConstantFalse %bool
        %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
      %uint_4 = OpConstant %uint 4
-     %uint_8 = OpSpecConstantOp %uint IAdd %uint_4 %uint_4
-  %_ptr_uint = OpTypePointer UniformConstant %uint
+    %uint_53 = OpConstant %uint 53
+  %uint_min4 = OpConstant %uint 0xfffffffc
+       %iadd = OpSpecConstantOp %uint IAdd %uint_53 %uint_min4
+       %isub = OpSpecConstantOp %uint ISub %uint_53 %uint_min4
+       %imul = OpSpecConstantOp %uint IMul %uint_53 %uint_min4
+       %udiv = OpSpecConstantOp %uint UDiv %uint_min4 %uint_53
+      %udiv0 = OpSpecConstantOp %uint UDiv %uint_min4 %uint_0
+       %sdiv = OpSpecConstantOp %uint SDiv %uint_53 %uint_min4
+      %sdiv0 = OpSpecConstantOp %uint SDiv %uint_53 %uint_0
+       %umod = OpSpecConstantOp %uint UMod %uint_53 %uint_4
+       %srem = OpSpecConstantOp %uint SRem %uint_53 %uint_min4
+        %srl = OpSpecConstantOp %uint ShiftRightLogical %uint_min4 %uint_4
+        %sra = OpSpecConstantOp %uint ShiftRightArithmetic %uint_min4 %uint_4
+        %sll = OpSpecConstantOp %uint ShiftLeftLogical %uint_53 %uint_4
+    %sll_big = OpSpecConstantOp %uint ShiftLeftLogical %uint_4 %uint_53
+      %bitor = OpSpecConstantOp %uint BitwiseOr %uint_53 %uint_min4
+     %bitxor = OpSpecConstantOp %uint BitwiseXor %uint_53 %uint_min4
+     %bitand = OpSpecConstantOp %uint BitwiseAnd %uint_53 %uint_min4
+      %logor = OpSpecConstantOp %bool LogicalOr %true %false
+     %logand = OpSpecConstantOp %bool LogicalAnd %true %false
+  %_ptr_uint = OpTypePointer CrossWorkgroup %uint
+  %_ptr_bool = OpTypePointer CrossWorkgroup %bool
        %void = OpTypeVoid
          %14 = OpTypeFunction %void
 
-        %var = OpVariable %_ptr_uint UniformConstant %uint_8
+   %var_iadd = OpVariable %_ptr_uint CrossWorkgroup %iadd
+   %var_isub = OpVariable %_ptr_uint CrossWorkgroup %isub
+   %var_imul = OpVariable %_ptr_uint CrossWorkgroup %imul
+   %var_udiv = OpVariable %_ptr_uint CrossWorkgroup %udiv
+  %var_udiv0 = OpVariable %_ptr_uint CrossWorkgroup %udiv0
+   %var_sdiv = OpVariable %_ptr_uint CrossWorkgroup %sdiv
+  %var_sdiv0 = OpVariable %_ptr_uint CrossWorkgroup %sdiv0
+   %var_umod = OpVariable %_ptr_uint CrossWorkgroup %umod
+   %var_srem = OpVariable %_ptr_uint CrossWorkgroup %srem
+    %var_srl = OpVariable %_ptr_uint CrossWorkgroup %srl
+    %var_sra = OpVariable %_ptr_uint CrossWorkgroup %sra
+    %var_sll = OpVariable %_ptr_uint CrossWorkgroup %sll
+%var_sll_big = OpVariable %_ptr_uint CrossWorkgroup %sll_big
+  %var_bitor = OpVariable %_ptr_uint CrossWorkgroup %bitor
+ %var_bitxor = OpVariable %_ptr_uint CrossWorkgroup %bitxor
+ %var_bitand = OpVariable %_ptr_uint CrossWorkgroup %bitand
+  %var_logor = OpVariable %_ptr_bool CrossWorkgroup %logor
+ %var_logand = OpVariable %_ptr_bool CrossWorkgroup %logand
 
          %15 = OpFunction %void Pure %14
       %entry = OpLabel
