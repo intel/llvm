@@ -1169,20 +1169,20 @@ Value *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
     OP = IntBoolOpMap::rmap(OP);
   BO = static_cast<Instruction::BinaryOps>(OpCodeMap::rmap(OP));
 
-  auto *Op0Constant = dyn_cast<Constant>(transValue(BBN->getOperand(0), F, BB));
-  auto *Op1Constant = dyn_cast<Constant>(transValue(BBN->getOperand(1), F, BB));
-  if (Op0Constant && Op1Constant) {
-    // If both operands are constant, create a constant expression.
-    // This can be used for initializers.
-    return ConstantExpr::get(BO, Op0Constant, Op1Constant);
+  Value *Op0 = transValue(BBN->getOperand(0), F, BB);
+  Value *Op1 = transValue(BBN->getOperand(1), F, BB);
+
+  IRBuilder<> Builder(*Context);
+  if (BB) {
+    Builder.SetInsertPoint(BB);
   }
-  assert(BB && "Invalid BB");
-  auto *Inst = BinaryOperator::Create(BO, transValue(BBN->getOperand(0), F, BB),
-                                      transValue(BBN->getOperand(1), F, BB),
-                                      BV->getName(), BB);
-  applyNoIntegerWrapDecorations(BV, Inst);
-  applyFPFastMathModeDecorations(BV, Inst);
-  return Inst;
+
+  Value *NewOp = Builder.CreateBinOp(BO, Op0, Op1, BV->getName());
+  if (auto *Inst = dyn_cast<Instruction>(NewOp)) {
+    applyNoIntegerWrapDecorations(BV, Inst);
+    applyFPFastMathModeDecorations(BV, Inst);
+  }
+  return NewOp;
 }
 
 Instruction *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB,
