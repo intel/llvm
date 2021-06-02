@@ -801,7 +801,10 @@ public:
   operator typename detail::enable_if_t<N == 1, DataT>() const {
     return m_Data;
   }
+
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return NumElements; }
+  static constexpr size_t size() noexcept { return NumElements; }
   static constexpr size_t get_size() { return sizeof(m_Data); }
 
   template <typename convertT,
@@ -1394,7 +1397,9 @@ class SwizzleOp {
       SwizzleOp<const VecT, GetOp<DataT>, GetOp<DataT>, GetOp, Indices...>;
 
 public:
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return getNumElements(); }
+  size_t size() const noexcept { return getNumElements(); }
   template <int Num = getNumElements()> size_t get_size() const {
     return sizeof(DataT) * (Num == 3 ? 4 : Num);
   }

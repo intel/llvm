@@ -473,8 +473,8 @@ public:
 
   // Only scalar (i.e. 0-dim and 1-dim with 1 element) reductions supported now.
   // TODO: suport (Dims > 1) accessors/reductions.
-  // TODO: support true 1-Dimensional accessors/reductions (get_count() > 1).
-  // (get_count() == 1) is checked in the constructor of reduction_impl.
+  // TODO: support true 1-Dimensional accessors/reductions (size() > 1).
+  // (size() == 1) is checked in the constructor of reduction_impl.
   static_assert(Dims <= 1,
                 "Multi-dimensional reductions are not supported yet.");
 
@@ -502,7 +502,7 @@ public:
       : MRWAcc(std::make_shared<rw_accessor_type>(Buffer)),
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
-    if (Buffer.get_count() != 1)
+    if (Buffer.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -514,7 +514,7 @@ public:
   reduction_impl(rw_accessor_type &Acc)
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -526,7 +526,7 @@ public:
   reduction_impl(dw_accessor_type &Acc)
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -543,7 +543,7 @@ public:
       : MRWAcc(std::make_shared<rw_accessor_type>(Buffer)),
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
-    if (Buffer.get_count() != 1)
+    if (Buffer.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
@@ -567,7 +567,7 @@ public:
   reduction_impl(rw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
@@ -591,7 +591,7 @@ public:
   reduction_impl(dw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
@@ -618,7 +618,7 @@ public:
       : MRWAcc(std::make_shared<rw_accessor_type>(Buffer)), MIdentity(Identity),
         MBinaryOp(BOp), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
-    if (Buffer.get_count() != 1)
+    if (Buffer.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -630,7 +630,7 @@ public:
   reduction_impl(rw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(false) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }
@@ -642,7 +642,7 @@ public:
   reduction_impl(dw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(true) {
-    if (Acc.get_count() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error("Reduction variable must be a scalar.",
                                 PI_INVALID_VALUE);
   }

@@ -90,7 +90,12 @@ public:
   const plugin &getPlugin() const;
 
   __SYCL_DLL_LOCAL size_t getSize() const override { return MSizeInBytes; }
+   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   __SYCL_DLL_LOCAL size_t get_count() const {
+    size_t AllocatorValueSize = MAllocator->getValueSize();
+    return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
+  }
+  __SYCL_DLL_LOCAL size_t size() const noexcept {
     size_t AllocatorValueSize = MAllocator->getValueSize();
     return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
@@ -110,12 +115,12 @@ public:
   }
 
   __SYCL_DLL_LOCAL void *allocateHostMem() override {
-    return MAllocator->allocate(get_count());
+    return MAllocator->allocate(size());
   }
 
   __SYCL_DLL_LOCAL void releaseHostMem(void *Ptr) override {
     if (Ptr)
-      MAllocator->deallocate(Ptr, get_count());
+      MAllocator->deallocate(Ptr, size());
   }
 
   void releaseMem(ContextImplPtr Context, void *MemAllocation) override;
