@@ -2459,8 +2459,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     //   result = needs_fixing ? r + b : c
     IRBuilder<> Builder(BB);
     SPIRVFMod *FMod = static_cast<SPIRVFMod *>(BV);
-    auto Dividend = transValue(FMod->getDividend(), F, BB);
-    auto Divisor = transValue(FMod->getDivisor(), F, BB);
+    auto Dividend = transValue(FMod->getOperand(0), F, BB);
+    auto Divisor = transValue(FMod->getOperand(1), F, BB);
     auto FRem = Builder.CreateFRem(Dividend, Divisor, "frem.res");
     auto CopySign = Builder.CreateBinaryIntrinsic(
         llvm::Intrinsic::copysign, FRem, Divisor, nullptr, "copysign.res");
@@ -2477,8 +2477,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     //   result = needs_fixing ? r + b : r
     IRBuilder<> Builder(BB);
     SPIRVSMod *SMod = static_cast<SPIRVSMod *>(BV);
-    auto Dividend = transValue(SMod->getDividend(), F, BB);
-    auto Divisor = transValue(SMod->getDivisor(), F, BB);
+    auto Dividend = transValue(SMod->getOperand(0), F, BB);
+    auto Divisor = transValue(SMod->getOperand(1), F, BB);
     auto SRem = Builder.CreateSRem(Dividend, Divisor, "srem.res");
     auto Xor = Builder.CreateXor(Dividend, Divisor, "xor.res");
     auto Zero = ConstantInt::getNullValue(Dividend->getType());
