@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "wrapper.h"
 #include "atomic.hpp"
+#include "wrapper.h"
 
 #ifdef __SPIR__
 
@@ -22,10 +22,12 @@ struct AssertHappened {
 
 // FIXME remove const after CFE changes
 // declaration
-extern __SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened  __SYCL_AssertHappenedMem;
+extern __SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened
+    __SYCL_AssertHappenedMem;
 
 // definition
-__SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened __SYCL_AssertHappenedMem;
+__SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened
+    __SYCL_AssertHappenedMem;
 
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "

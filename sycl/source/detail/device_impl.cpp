@@ -322,7 +322,6 @@ bool device_impl::isAssertFailSupported() const {
 
   assert(ExtNameSize && "Size can't be zero");
 
-  //std::vector<char> ExtName{ExtNameSize + 1}
   std::unique_ptr<char[]> ExtName{new char[ExtNameSize + 1]};
   ExtName[ExtNameSize] = '\0';
   Plugin.call<PiApiKind::piextGetExtensionName>(PI_INTEL_DEVICELIB_CASSERT,

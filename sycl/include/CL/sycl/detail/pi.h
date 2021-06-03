@@ -1645,7 +1645,6 @@ __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
 /// \param PluginParameter placeholder for future use, currenly not used.
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 
-
 /// API to get extension name for those extension whose name varies with backend
 /// \param ExtNumber number of extension \sa pi_extension_number
 /// \param Size[out] length of returned extension name
@@ -1656,8 +1655,8 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 ///
 /// Either of Size or Value isn't set if it's nil.
 /// Value returned in Size can't be zero.
-__SYCL_EXPORT pi_result piextGetExtensionName(
-    pi_extension_number ExtNumber, size_t *Size, char *Value);
+__SYCL_EXPORT pi_result piextGetExtensionName(pi_extension_number ExtNumber,
+                                              size_t *Size, char *Value);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

@@ -1211,16 +1211,16 @@ pi_result piextGetExtensionName(pi_extension_number ExtNumber, size_t *Size,
   pi_result Result = PI_SUCCESS;
   // TODO switch to map/unordered_map when have enough number of extensions
   switch (ExtNumber) {
-    case PI_INTEL_DEVICELIB_CASSERT: {
-      static const std::string Name = "cl_intel_devicelib_cassert";
-      if (Size)
-        *Size = Name.length();
-      if (Value)
-        std::memcpy(Value, Name.data(), Name.length());
-      break;
-    }
-    default:
-      Result = PI_INVALID_VALUE;
+  case PI_INTEL_DEVICELIB_CASSERT: {
+    static const std::string Name = "cl_intel_devicelib_cassert";
+    if (Size)
+      *Size = Name.length();
+    if (Value)
+      std::memcpy(Value, Name.data(), Name.length());
+    break;
+  }
+  default:
+    Result = PI_INVALID_VALUE;
   }
 
   return Result;

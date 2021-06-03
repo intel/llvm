@@ -53,15 +53,16 @@ struct MemorySemanticsMask {
 };
 } // namespace __spv
 
-extern DEVICE_EXTERNAL int __spirv_AtomicCompareExchange(
-    int __SYCL_GLOBAL__ *Ptr, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag SMO,
-    __spv::MemorySemanticsMask::Flag FMO, int E, int D);
+extern DEVICE_EXTERNAL int
+    __spirv_AtomicCompareExchange(int __SYCL_GLOBAL__ *, __spv::Scope::Flag,
+                                  __spv::MemorySemanticsMask::Flag,
+                                  __spv::MemorySemanticsMask::Flag,
+                                  int, int);
 
 inline void CAS(__SYCL_GLOBAL__ int *Ptr, int Expected, int Desired) {
   __spirv_AtomicCompareExchange(
       Ptr, __spv::Scope::Device,
       __spv::MemorySemanticsMask::SequentiallyConsistent,
-      __spv::MemorySemanticsMask::SequentiallyConsistent,
-      Desired, Expected);
+      __spv::MemorySemanticsMask::SequentiallyConsistent, Desired, Expected);
 }
 
