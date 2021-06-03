@@ -95,9 +95,8 @@ TEST(
   }
 }
 
-TEST(
-    ParseAllowListTests,
-    CheckUnsupportedKeyNameIsHandledInTwoDeviceDescsBothContainingRegexValue) {
+TEST(ParseAllowListTests,
+     CheckUnsupportedKeyNameIsHandledInTwoDeviceDescsBothContainingRegexValue) {
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "DriverVersion:{{value1}}|SomeUnsupportedKey:{{value2}}");
