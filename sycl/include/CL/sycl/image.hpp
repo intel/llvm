@@ -266,7 +266,7 @@ public:
 
   // Returns the total number of elements in the image
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return impl->get_count(); }
+  size_t get_count() const { return size(); }
   size_t size() const noexcept { return impl->get_count(); }
 
   // Returns the allocator provided to the image

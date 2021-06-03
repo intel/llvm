@@ -576,7 +576,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return get_range<Dimensions>().size(); }
+  size_t get_count() const { return size(); }
   size_t size() const noexcept { return get_range<Dimensions>().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
@@ -597,7 +597,7 @@ public:
 
 #else
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return MImageCount; };
+  size_t get_count() const { return size(); };
   size_t size() const noexcept { return MImageCount; };
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
@@ -751,9 +751,7 @@ public:
 #else
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const {
-    return MBaseAcc.MImageCount / MBaseAcc.getAccessRange()[Dimensions];
-  }
+  size_t get_count() const { return size(); }
   size_t size() const noexcept {
     return MBaseAcc.MImageCount / MBaseAcc.getAccessRange()[Dimensions];
   }
@@ -1515,7 +1513,7 @@ public:
   size_t get_size() const { return getAccessRange().size() * sizeof(DataT); }
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return getAccessRange().size(); }
+  size_t get_count() const { return size(); }
   size_t size() const noexcept { return getAccessRange().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
@@ -1912,7 +1910,7 @@ public:
   size_t get_size() const { return getSize().size() * sizeof(DataT); }
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return getSize().size(); }
+  size_t get_count() const { return size(); }
   size_t size() const noexcept { return getSize().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
