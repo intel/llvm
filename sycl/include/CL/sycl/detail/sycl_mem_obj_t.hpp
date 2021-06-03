@@ -90,7 +90,7 @@ public:
   const plugin &getPlugin() const;
 
   __SYCL_DLL_LOCAL size_t getSize() const override { return MSizeInBytes; }
-   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   __SYCL_DLL_LOCAL size_t get_count() const { return size(); }
   __SYCL_DLL_LOCAL size_t size() const noexcept {
     size_t AllocatorValueSize = MAllocator->getValueSize();
