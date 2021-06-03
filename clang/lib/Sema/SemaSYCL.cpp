@@ -905,10 +905,8 @@ constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
 
   MC.mangleTypeName(KernelNameType, Out);
 
-  return {std::string(Out.str()),
-          PredefinedExpr::ComputeName(S.getASTContext(),
-                                      PredefinedExpr::UniqueStableNameType,
-                                      KernelNameType)};
+  return {std::string(Out.str()), SYCLUniqueStableNameExpr::ComputeName(
+                                      S.getASTContext(), KernelNameType)};
 }
 
 static bool isDefaultSPIRArch(ASTContext &Context) {
@@ -3212,9 +3210,8 @@ public:
     // Get specialization constant ID type, which is the second template
     // argument.
     QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
-    const std::string SpecConstName = PredefinedExpr::ComputeName(
-        SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
-        SpecConstIDTy);
+    const std::string SpecConstName = SYCLUniqueStableNameExpr::ComputeName(
+        SemaRef.getASTContext(), SpecConstIDTy);
     Header.addSpecConstant(SpecConstName, SpecConstIDTy);
     return true;
   }
@@ -3519,6 +3516,10 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
+  // FIXME: In place until the library works around its 'host' invocation
+  // issues.
+  if (!LangOpts.SYCLIsDevice)
+    return;
   const CXXRecordDecl *KernelObj = getKernelObjectType(KernelFunc);
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
@@ -4687,14 +4688,15 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
 void SYCLIntegrationFooter::emitSpecIDName(raw_ostream &O, const VarDecl *VD) {
   // FIXME: Figure out the spec-constant unique name here.
   // Note that this changes based on the linkage of the variable.
-  // We typically want to use the __builtin_unique_stable_name for the variable
-  // (or the newer-equivilent for values, see the JIRA), but we also have to
-  // figure out if this has internal or external linkage.  In external-case this
-  // should be the same as the the unique-name.  However, this isn't the case
-  // with local-linkage, where we want to put the driver-provided random-value
-  // ahead of it, so that we make sure it is unique across translation units.
-  // This name should come from the yet implemented__builtin_unique_stable_name
-  // feature that accepts variables and gives the mangling for that.
+  // We typically want to use the __builtin_sycl_unique_stable_name for the
+  // variable (or the newer-equivilent for values, see the JIRA), but we also
+  // have to figure out if this has internal or external linkage.  In
+  // external-case this should be the same as the the unique-name.  However,
+  // this isn't the case with local-linkage, where we want to put the
+  // driver-provided random-value ahead of it, so that we make sure it is unique
+  // across translation units. This name should come from the yet
+  // implemented __builtin_sycl_unique_stable_name feature that accepts
+  // variables and gives the mangling for that.
   O << "";
 }
 
@@ -5005,4 +5007,36 @@ bool Util::matchQualifiedTypeName(QualType Ty,
     return false; // only classes/structs supported
   const auto *Ctx = cast<DeclContext>(RecTy);
   return Util::matchContext(Ctx, Scopes);
+}
+
+// The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
+// the first parameter to a sycl_kernel labeled function template. In SYCL1.2.1,
+// this was passed by value, and in SYCL2020, it is passed by reference.
+static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
+  assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
+  QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
+
+  // SYCL 2020 kernels are passed by reference.
+  if (KernelParamTy->isReferenceType())
+    return KernelParamTy->getPointeeType();
+
+  // SYCL 1.2.1
+  return KernelParamTy;
+}
+
+void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
+  auto MangleCallback = [](ASTContext &Ctx,
+                           const NamedDecl *ND) -> llvm::Optional<unsigned> {
+    if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
+      Ctx.AddSYCLKernelNamingDecl(RD);
+    // We always want to go into the lambda mangling (skipping the unnamed
+    // struct version), so make sure we return a value here.
+    return 1;
+  };
+
+  QualType Ty = GetSYCLKernelObjectType(FD);
+  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
+      Context, Context.getDiagnostics(), MangleCallback)};
+  llvm::raw_null_ostream Out;
+  Ctx->mangleTypeName(Ty, Out);
 }
