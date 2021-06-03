@@ -94,6 +94,7 @@ class SPIRVAsmTargetINTEL;
 class SPIRVAsmINTEL;
 class SPIRVAsmCallINTEL;
 class SPIRVTypeBufferSurfaceINTEL;
+class SPIRVTypeTokenINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -250,6 +251,7 @@ public:
   virtual SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *) = 0;
   virtual SPIRVTypeBufferSurfaceINTEL *
   addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) = 0;
+  virtual SPIRVTypeTokenINTEL *addTokenTypeINTEL() = 0;
 
   // Constants creation functions
   virtual SPIRVValue *
