@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>

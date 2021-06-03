@@ -76,7 +76,7 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
-  test<class KernelNamePlusV>(q, input, output, plus<>(), 0, GeZero());
+  test<class KernelNamePlusV>(q, input, output, sycl::plus<>(), 0, GeZero());
   test<class KernelNameMinimumV>(q, input, output, minimum<>(),
                                  std::numeric_limits<int>::max(), IsEven());
 
