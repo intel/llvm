@@ -385,8 +385,10 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
 static std::vector<uint32_t>
 getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   auto ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
-  if (!ReqdWorkGroupSizeMD || ReqdWorkGroupSizeMD->getNumOperands() != 3)
+  if (!ReqdWorkGroupSizeMD)
     return {};
+  // TODO: Remove 3-operand assumption when it is relaxed.
+  assert(ReqdWorkGroupSizeMD->getNumOperands() == 3);
   uint32_t X = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(0))
                    ->getZExtValue();
   uint32_t Y = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(1))
