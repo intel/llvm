@@ -130,7 +130,7 @@ public:
 
   template <typename EltTy>
   __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
-  auto format() & {
+  auto format() {
     return bit_cast_view<EltTy>();
   }
 
@@ -146,7 +146,7 @@ public:
 
   template <typename EltTy, int Height, int Width>
   __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
-  auto format() & {
+  auto format() {
     return bit_cast_view<EltTy, Height, Width>();
   }
 
