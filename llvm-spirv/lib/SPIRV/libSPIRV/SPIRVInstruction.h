@@ -2179,16 +2179,14 @@ public:
   const static Op OC = OpVectorShuffle;
   const static SPIRVWord FixedWordCount = 5;
   // Complete constructor
-  SPIRVVectorShuffle(SPIRVId TheId, SPIRVType *TheType, SPIRVValue *TheVector1,
-                     SPIRVValue *TheVector2,
+  SPIRVVectorShuffle(SPIRVId TheId, SPIRVType *TheType, SPIRVId TheVector1,
+                     SPIRVId TheVector2,
                      const std::vector<SPIRVWord> &TheComponents,
-                     SPIRVBasicBlock *TheBB)
+                     SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
       : SPIRVInstruction(TheComponents.size() + FixedWordCount, OC, TheType,
-                         TheId, TheBB),
-        Vector1(TheVector1->getId()), Vector2(TheVector2->getId()),
-        Components(TheComponents) {
+                         TheId, TheBB, TheM),
+        Vector1(TheVector1), Vector2(TheVector2), Components(TheComponents) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVVectorShuffle()
