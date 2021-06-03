@@ -3969,10 +3969,10 @@ bool SPIRVToLLVM::transMetadata() {
     transVectorComputeMetadata(BF);
     transFPGAFunctionMetadata(BF, F);
 
-    if (BF->hasDecorate(DecorationCallableFunctionINTEL))
+    if (BF->hasDecorate(internal::DecorationCallableFunctionINTEL))
       F->addFnAttr(kVCMetadata::VCCallable);
     if (isKernel(BF) &&
-        BF->getExecutionMode(ExecutionModeFastCompositeKernelINTEL))
+        BF->getExecutionMode(internal::ExecutionModeFastCompositeKernelINTEL))
       F->addFnAttr(kVCMetadata::VCFCEntry);
 
     if (F->getCallingConv() != CallingConv::SPIR_KERNEL)

@@ -166,7 +166,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationFunctionFloatingPointModeINTEL,
       "FunctionFloatingPointModeINTEL");
   add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
-  add(DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
+  add(internal::DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
   add(DecorationStallEnableINTEL, "StallEnableINTEL");
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
   add(internal::DecorationAliasScopeINTEL, "AliasScopeINTEL");
@@ -521,7 +521,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityLoopFuseINTEL, "LoopFuseINTEL");
   add(CapabilityMax, "Max");
   add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
-  add(CapabilityFastCompositeINTEL, "FastCompositeINTEL");
+  add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityMemoryAccessAliasingINTEL,
       "MemoryAccessAliasingINTEL");

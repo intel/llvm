@@ -50,13 +50,15 @@ enum InternalDecoration {
   IDecNoAliasINTEL = 5915,
   IDecInitiationIntervalINTEL = 5917,
   IDecMaxConcurrencyINTEL = 5918,
-  IDecPipelineEnableINTEL = 5919
+  IDecPipelineEnableINTEL = 5919,
+  IDecCallableFunctionINTEL = 6087
 };
 
 enum InternalCapability {
   ICapOptimizationHintsINTEL = 5629,
   ICapMemoryAccessAliasingINTEL = 5910,
   ICapFPGAInvocationPipeliningAttributesINTEL = 5916,
+  ICapFastCompositeINTEL = 6093,
   ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112
 };
@@ -67,6 +69,8 @@ enum InternalMemoryAccessMask {
   IMemAccessAliasScopeINTELMask = 0x10000,
   IMemAccessNoAliasINTELMask = 0x20000
 };
+
+enum InternalExecutionMode { IExecModeFastCompositeKernelINTEL = 6088 };
 
 constexpr LinkageType LinkageTypeInternal =
     static_cast<LinkageType>(ILTInternal);
@@ -90,9 +94,13 @@ constexpr Decoration DecorationMaxConcurrencyINTEL =
     static_cast<Decoration>(IDecMaxConcurrencyINTEL);
 constexpr Decoration DecorationPipelineEnableINTEL =
     static_cast<Decoration>(IDecPipelineEnableINTEL);
+constexpr Decoration DecorationCallableFunctionINTEL =
+    static_cast<Decoration>(IDecCallableFunctionINTEL);
 
 constexpr Capability CapabilityOptimizationHintsINTEL =
     static_cast<Capability>(ICapOptimizationHintsINTEL);
+constexpr Capability CapabilityFastCompositeINTEL =
+    static_cast<Capability>(ICapFastCompositeINTEL);
 constexpr Capability CapabilityOptNoneINTEL =
     static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityMemoryAccessAliasingINTEL =
@@ -109,6 +117,9 @@ constexpr MemoryAccessMask MemoryAccessAliasScopeINTELMask =
     static_cast<MemoryAccessMask>(IMemAccessAliasScopeINTELMask);
 constexpr MemoryAccessMask MemoryAccessNoAliasINTELMask =
     static_cast<MemoryAccessMask>(IMemAccessNoAliasINTELMask);
+
+constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
+    static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
 
 } // namespace internal
 } // namespace spv
