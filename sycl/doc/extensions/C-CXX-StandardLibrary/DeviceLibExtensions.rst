@@ -23,6 +23,7 @@ provided in the arguments. In addition to that, the function is free
 to terminate the current kernel invocation.
 
 Fallback implementation of the function raises a flag to be read later by `__devicelib_assert_read`.
+The flag remains raised until the program finishes.
 
 Arguments:
 
@@ -40,8 +41,11 @@ Example of a message:
    int __devicelib_assert_read();
 
 Semantic:
-the function is called to read assert failure flag raised by `__devicelib_assert_fail`.
+the function is called to read assert failure flag raised by
+`__devicelib_assert_fail`.
 The function is only used in fallback implementation.
+Invoking `__devicelib_assert_fail` after a kernel doesn't imply the kernel has
+assertion failed.
 
 See also: assert_extension_.
 .. _assert_extension: ../Assert/SYCL_ONEAPI_ASSERT.asciidoc)
