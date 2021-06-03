@@ -31,7 +31,12 @@ If there are multiple GPUs in a system then they will be seen as multiple differ
 On Linux these would be multiple SYCL root-devices of the same SYCL platform (representing Level-Zero driver).
 On Windows these would appear as root-devices of multiple different SYCL platforms (Level-Zero drivers).
 
-`CreateMultipleRootDevices=N NEOReadDebugKeys=1` evironment variables can be used to emulate multiple GPU cards.
+`CreateMultipleRootDevices=N NEOReadDebugKeys=1` evironment variables can be used to emulate multiple GPU cards, e.g.
+```
+$ CreateMultipleRootDevices=2 NEOReadDebugKeys=1 SYCL_DEVICE_FILTER=level_zero sycl-ls
+[level_zero:0] GPU : Intel(R) Level-Zero 1.1 [1.1.19792]
+[level_zero:1] GPU : Intel(R) Level-Zero 1.1 [1.1.19792]
+```
 	
 ### 1.2 Sub-devices
 	
@@ -103,18 +108,63 @@ Some typical scenarios are the following (from most performant to least performa
 A. Context with a single sub-device in it and the queue is attached to that sub-device (tile)
 - The execution/visibility is limited to the single sub-device only
 - Expected to offer the best performance per tile
-		
+- Example:
+``` C++	
+try {
+  vector<device> SubDevices = ...;
+  for (auto &D : SubDevices) {
+    // Each queue is in its own context, no data sharing across them.
+    auto Q = queue(D);
+    Q.submit([&](handler& cgh) {...});
+  }
+}
+```
+
 B. Context with multiple sub-devices of the same root-device (multi-tile)
 - Queues are to be attached to the sub-devices effectively implementing "explicit scaling"
 - The root-device should not be passed to such context for better performance
+- Example:
+``` C++	
+try {
+  vector<device> SubDevices = ...;
+  auto C = context(SubDevices);
+  for (auto &D : SubDevices) {
+    // All queues share the same context, data can be shared across queues.
+    auto Q = queue(C, D);
+    Q.submit([&](handler& cgh) {...});
+  }
+}
+```
 	
 C. Context with a single root-device in it and the queue is attached to that root-device
 - The work will be automatically distributed across all sub-devices/tiles via "implicit scaling" by the driver
 - The most simple way to enable multi-tile HW but doesn't offer possibility to target specific tiles
+- Example:
+``` C++	
+try {
+  // The queue is attached to the root-device, driver distributes to sub-devices, if any.
+  auto D = device(gpu_selector{});
+  auto Q = queue(D);
+  Q.submit([&](handler& cgh) {...});
+}
+```
 		
 D. Contexts with multiple root-devices (multi-card)
 - The most unrestrictive context with queues attached to different root-devices
 - Offers most sharing possibilities at the cost of slow access through host memory or explicit copies needed
+- Example:
+``` C++	
+try {
+  auto P = platform(gpu_selector{});
+  auto RootDevices = P.get_devices();
+  auto C = context(RootDevices);
+  for (auto &D : RootDevices) {
+    // Context has multiple root-devices, data can be shared across multi-card (requires explict copying)
+    auto Q = queue(C, D);
+    Q.submit([&](handler& cgh) {...});
+  }
+}
+```
 
 Depending on the chosen programming model (A,B,C,D) and algorithm used make sure to do proper memory allocation/synchronization.
 				
