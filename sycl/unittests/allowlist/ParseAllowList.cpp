@@ -61,7 +61,7 @@ TEST(ParseAllowListTests, CheckUnsupportedKeyNameIsHandledInSingleDeviceDesc) {
 
 TEST(
     ParseAllowListTests,
-    CheckUnsupportedKeyNameIsHandledInTwoDeviceDescWithFirstContainingRegexValue) {
+    CheckUnsupportedKeyNameIsHandledInTwoDeviceDescsFirstContainingRegexValue) {
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "DriverVersion:{{value}}|SomeUnsupportedKey:gpu");
@@ -79,7 +79,7 @@ TEST(
 
 TEST(
     ParseAllowListTests,
-    CheckUnsupportedKeyNameIsHandledInTwoDeviceDescWithFirstContainingFixedValue) {
+    CheckUnsupportedKeyNameIsHandledInTwoDeviceDescsFirstContainingFixedValue) {
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "BackendName:level_zero|SomeUnsupportedKey:gpu");
@@ -97,7 +97,7 @@ TEST(
 
 TEST(
     ParseAllowListTests,
-    CheckUnsupportedKeyNameIsHandledInTwoDeviceDescWithFirstAndSecondContainingRegexValue) {
+    CheckUnsupportedKeyNameIsHandledInTwoDeviceDescsBothContainingRegexValue) {
   try {
     sycl::detail::AllowListParsedT ActualValue = sycl::detail::parseAllowList(
         "DriverVersion:{{value1}}|SomeUnsupportedKey:{{value2}}");
