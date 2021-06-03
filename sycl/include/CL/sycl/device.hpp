@@ -195,10 +195,6 @@ public:
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
 
-  bool is_assert_fail_supported() const {
-    return has(aspect::ext_oneapi_native_assert);
-  }
-
 private:
   shared_ptr_class<detail::device_impl> impl;
   device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
