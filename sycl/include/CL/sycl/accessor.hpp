@@ -734,7 +734,7 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return get_range<Dimensions>().size(); }
+  size_t get_count() const { return size(); }
   size_t size() const noexcept { return get_range<Dimensions>().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
