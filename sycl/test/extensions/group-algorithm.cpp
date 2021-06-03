@@ -58,7 +58,7 @@ void test(queue q, InputContainer input, OutputContainer output,
             out[3] = exclusive_scan(g, in[lid], binary_op);
             out[4] = broadcast(g, in[lid]);
             out[5] = any_of(g, in.get_pointer(), in.get_pointer() + N, pred);
-            out[6] = all_of(g, pred(in[lid]));
+            out[6] = all_of_group(g, pred(in[lid]));
             if (leader(g)) {
               out[7]++;
             }
@@ -76,13 +76,13 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
-  test<class KernelNamePlusV>(q, input, output, sycl::plus<>(), 0, GeZero());
-  test<class KernelNameMinimumV>(q, input, output, minimum<>(),
+  test<class KernelNamePlusV>(q, input, output, ONEAPI::plus<>(), 0, GeZero());
+  test<class KernelNameMinimumV>(q, input, output, ONEAPI::minimum<>(),
                                  std::numeric_limits<int>::max(), IsEven());
 
 #ifdef SPIRV_1_3
   test<class KernelName_WonwuUVPUPOTKRKIBtT>(q, input, output,
-                                             multiplies<int>(), 1, LtZero());
+                                             ONEAPI::multiplies<int>(), 1, LtZero());
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;

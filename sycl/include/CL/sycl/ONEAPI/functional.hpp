@@ -11,9 +11,6 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
-template <typename T = void> using plus = std::plus<T>;
-
 namespace ONEAPI {
 
 template <typename T = void> struct minimum {
