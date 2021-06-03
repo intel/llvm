@@ -19,13 +19,7 @@ namespace sycl {
 
 // forward decl
 namespace detail {
-inline void memcpy_bit_cast(void *Dst, const void *Src, std::size_t Size) {
-  char *Destination = reinterpret_cast<char *>(Dst);
-  const char *Source = reinterpret_cast<const char *>(Src);
-  for (std::size_t I = 0; I < Size; ++I) {
-    Destination[I] = Source[I];
-  }
-}
+inline void memcpy(void *Dst, const void *Src, std::size_t Size);
 }
 
 // sycl::bit_cast ( no longer sycl::detail::bit_cast )
@@ -51,7 +45,7 @@ constexpr
   static_assert(std::is_trivially_default_constructible<To>::value,
                 "To must be trivially default constructible");
   To to;
-  sycl::detail::memcpy_bit_cast(&to, &from, sizeof(To));
+  sycl::detail::memcpy(&to, &from, sizeof(To));
   return to;
 #endif // __has_builtin(__builtin_bit_cast)
 

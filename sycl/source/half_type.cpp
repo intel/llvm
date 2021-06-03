@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/half_type.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 // This is included to enable __builtin_expect()
 #include <detail/platform_util.hpp>
 
