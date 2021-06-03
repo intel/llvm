@@ -31,7 +31,7 @@ If there are multiple GPUs in a system then they will be seen as multiple differ
 On Linux these would be multiple SYCL root-devices of the same SYCL platform (representing Level-Zero driver).
 On Windows these would appear as root-devices of multiple different SYCL platforms (Level-Zero drivers).
 
-`CreateMultipleRootDevices=N` evironment variable can be used to emulate multiple GPU cards.
+`CreateMultipleRootDevices=N NEOReadDebugKeys=1` evironment variables can be used to emulate multiple GPU cards.
 	
 ### 1.2 Sub-devices
 	
@@ -52,7 +52,7 @@ To control what sub-devices are exposed by Level-Zero UMD one can use ZE_AFFINIT
 NOTE: The `partition_by_affinity_domain` is the only partitioning supported for Intel GPU.
 Similar `next_partitionable` and `numa` are the only partitioning properties supported (both doing the same thing).
 
-`CreateMultipleSubDevices=N` environment variable can be used to emulate multiple tiles of a GPU.
+`CreateMultipleSubDevices=N NEOReadDebugKeys=1` environment variables can be used to emulate multiple tiles of a GPU.
 
 ## 2 Context	
 	
