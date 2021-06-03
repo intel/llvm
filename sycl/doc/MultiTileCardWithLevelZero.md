@@ -105,7 +105,7 @@ The current mapping is following:
 SYCL queue is always attached to a single device in a possibly multi-device context.
 Some typical scenarios are the following (from most performant to least performant):
 
-A. Context with a single sub-device in it and the queue is attached to that sub-device (tile)
+**A.** Context with a single sub-device in it and the queue is attached to that sub-device (tile)
 - The execution/visibility is limited to the single sub-device only
 - Expected to offer the best performance per tile
 - Example:
@@ -120,7 +120,7 @@ try {
 }
 ```
 
-B. Context with multiple sub-devices of the same root-device (multi-tile)
+**B.** Context with multiple sub-devices of the same root-device (multi-tile)
 - Queues are to be attached to the sub-devices effectively implementing "explicit scaling"
 - The root-device should not be passed to such context for better performance
 - Example:
@@ -136,7 +136,7 @@ try {
 }
 ```
 	
-C. Context with a single root-device in it and the queue is attached to that root-device
+**C.** Context with a single root-device in it and the queue is attached to that root-device
 - The work will be automatically distributed across all sub-devices/tiles via "implicit scaling" by the driver
 - The most simple way to enable multi-tile HW but doesn't offer possibility to target specific tiles
 - Example:
@@ -149,7 +149,7 @@ try {
 }
 ```
 		
-D. Contexts with multiple root-devices (multi-card)
+**D.** Contexts with multiple root-devices (multi-card)
 - The most unrestrictive context with queues attached to different root-devices
 - Offers most sharing possibilities at the cost of slow access through host memory or explicit copies needed
 - Example:
