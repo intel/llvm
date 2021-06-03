@@ -294,7 +294,7 @@ public:
     Event = submit_impl(CGF, IsKernel, CodeLoc);
 
     // assert required
-    if (IsKernel && !get_device().is_assert_fail_supported() &&
+    if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
         kernelUsesAssert(Event)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
@@ -330,7 +330,7 @@ public:
     Event = submit_impl(CGF, IsKernel, SecondaryQueue, CodeLoc);
 
     // assert required
-    if (IsKernel && !get_device().is_assert_fail_supported() &&
+    if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
         kernelUsesAssert(Event)) {
       // __devicelib_assert_fail isn't supported by Device-side Runtime
       // Linking against fallback impl of __devicelib_assert_fail is performed
