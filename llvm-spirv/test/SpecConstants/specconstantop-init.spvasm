@@ -9,6 +9,8 @@
 ; operations are supported.  Also verify that edge cases such as division
 ; by zero are handled gracefully.
 
+; CHECK: @var_sconvert = addrspace(1) global i8 53
+; CHECK: @var_uconvert = addrspace(1) global i8 53
 ; CHECK: @var_snegate = addrspace(1) global i32 -53
 ; CHECK: @var_not = addrspace(1) global i32 -54
 ; CHECK: @var_iadd = addrspace(1) global i32 49
@@ -43,13 +45,17 @@
 ; CHECK: @var_icmpsle = addrspace(1) global i1 false
 ; CHECK: @var_icmpuge = addrspace(1) global i1 false
 ; CHECK: @var_icmpsge = addrspace(1) global i1 true
+; CHECK: @var_bitcast = addrspace(1) global i32 1065353216
 
                OpCapability Addresses
                OpCapability Linkage
                OpCapability Kernel
+               OpCapability Int8
                OpMemoryModel Physical32 OpenCL
                OpEntryPoint Kernel %15 "foo"
                OpName %entry "entry"
+               OpDecorate %var_sconvert LinkageAttributes "var_sconvert" Export
+               OpDecorate %var_uconvert LinkageAttributes "var_uconvert" Export
                OpDecorate %var_snegate LinkageAttributes "var_snegate" Export
                OpDecorate %var_not LinkageAttributes "var_not" Export
                OpDecorate %var_iadd LinkageAttributes "var_iadd" Export
@@ -83,14 +89,20 @@
                OpDecorate %var_icmpsle LinkageAttributes "var_icmpsle" Export
                OpDecorate %var_icmpuge LinkageAttributes "var_icmpuge" Export
                OpDecorate %var_icmpsge LinkageAttributes "var_icmpsge" Export
+               OpDecorate %var_bitcast LinkageAttributes "var_bitcast" Export
        %bool = OpTypeBool
        %true = OpConstantTrue %bool
       %false = OpConstantFalse %bool
+      %uchar = OpTypeInt 8 0
        %uint = OpTypeInt 32 0
+      %float = OpTypeFloat 32
      %uint_0 = OpConstant %uint 0
      %uint_4 = OpConstant %uint 4
     %uint_53 = OpConstant %uint 53
   %uint_min4 = OpConstant %uint 0xfffffffc
+    %float_1 = OpConstant %float 1.0
+   %sconvert = OpSpecConstantOp %uchar SConvert %uint_53
+   %uconvert = OpSpecConstantOp %uchar UConvert %uint_53
     %snegate = OpSpecConstantOp %uint SNegate %uint_53
         %not = OpSpecConstantOp %uint Not %uint_53
        %iadd = OpSpecConstantOp %uint IAdd %uint_53 %uint_min4
@@ -124,11 +136,15 @@
     %icmpsle = OpSpecConstantOp %bool SLessThanEqual %uint_53 %uint_min4
     %icmpuge = OpSpecConstantOp %bool UGreaterThanEqual %uint_53 %uint_min4
     %icmpsge = OpSpecConstantOp %bool SGreaterThanEqual %uint_53 %uint_min4
+    %bitcast = OpSpecConstantOp %uint Bitcast %float_1
+ %_ptr_uchar = OpTypePointer CrossWorkgroup %uchar
   %_ptr_uint = OpTypePointer CrossWorkgroup %uint
   %_ptr_bool = OpTypePointer CrossWorkgroup %bool
        %void = OpTypeVoid
          %14 = OpTypeFunction %void
 
+%var_sconvert = OpVariable %_ptr_uchar CrossWorkgroup %sconvert
+%var_uconvert = OpVariable %_ptr_uchar CrossWorkgroup %uconvert
 %var_snegate = OpVariable %_ptr_uint CrossWorkgroup %snegate
     %var_not = OpVariable %_ptr_uint CrossWorkgroup %not
    %var_iadd = OpVariable %_ptr_uint CrossWorkgroup %iadd
@@ -162,6 +178,7 @@
 %var_icmpsle = OpVariable %_ptr_bool CrossWorkgroup %icmpsle
 %var_icmpuge = OpVariable %_ptr_bool CrossWorkgroup %icmpuge
 %var_icmpsge = OpVariable %_ptr_bool CrossWorkgroup %icmpsge
+%var_bitcast = OpVariable %_ptr_uint CrossWorkgroup %bitcast
 
          %15 = OpFunction %void Pure %14
       %entry = OpLabel
