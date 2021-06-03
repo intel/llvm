@@ -48,12 +48,6 @@ typedef struct atmi_implicit_args_s {
 extern "C" {
 #endif
 
-#define check(msg, status)                                                     \
-  if (status != HSA_STATUS_SUCCESS) {                                          \
-    printf("%s failed.\n", #msg);                                              \
-    exit(1);                                                                   \
-  }
-
 #ifdef DEBUG
 #define DEBUG_PRINT(fmt, ...)                                                  \
   if (core::Runtime::getInstance().getDebugMode()) {                           \
@@ -79,7 +73,6 @@ typedef struct atl_context_s {
   bool g_tasks_initialized;
 } atl_context_t;
 extern atl_context_t atlc;
-extern atl_context_t *atlc_p;
 
 #ifdef __cplusplus
 }
@@ -113,12 +106,7 @@ typedef struct atl_symbol_info_s {
   uint32_t size;
 } atl_symbol_info_t;
 
-extern std::vector<std::map<std::string, atl_kernel_info_t>> KernelInfoTable;
-extern std::vector<std::map<std::string, atl_symbol_info_t>> SymbolInfoTable;
-
 // ---------------------- Kernel End -------------
-
-extern struct timespec context_init_time;
 
 namespace core {
 class TaskgroupImpl;
@@ -196,7 +184,7 @@ private:
 extern std::vector<hsa_amd_memory_pool_t> atl_gpu_kernarg_pools;
 
 namespace core {
-atmi_status_t atl_init_gpu_context();
+hsa_status_t atl_init_gpu_context();
 
 hsa_status_t init_hsa();
 hsa_status_t finalize_hsa();
@@ -220,51 +208,17 @@ template <typename T> inline T *alignUp(T *value, size_t alignment) {
       alignDown((intptr_t)(value + alignment - 1), alignment));
 }
 
-extern void register_allocation(void *addr, size_t size,
-                                atmi_mem_place_t place);
-extern hsa_amd_memory_pool_t
-get_memory_pool_by_mem_place(atmi_mem_place_t place);
+hsa_status_t register_allocation(void *addr, size_t size,
+                                 atmi_devtype_t DeviceType);
+
 extern bool atl_is_atmi_initialized();
 
 bool handle_group_signal(hsa_signal_value_t value, void *arg);
 
-void packet_store_release(uint32_t *packet, uint16_t header, uint16_t rest);
-uint16_t
-create_header(hsa_packet_type_t type, int barrier,
-              atmi_task_fence_scope_t acq_fence = ATMI_FENCE_SCOPE_SYSTEM,
-              atmi_task_fence_scope_t rel_fence = ATMI_FENCE_SCOPE_SYSTEM);
-
-void allow_access_to_all_gpu_agents(void *ptr);
+hsa_status_t allow_access_to_all_gpu_agents(void *ptr);
 } // namespace core
 
 const char *get_error_string(hsa_status_t err);
-const char *get_atmi_error_string(atmi_status_t err);
-
-#define ATMIErrorCheck(msg, status)                                            \
-  if (status != ATMI_STATUS_SUCCESS) {                                         \
-    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__, #msg,                \
-           get_atmi_error_string(status));                                     \
-    exit(1);                                                                   \
-  } else {                                                                     \
-    /*  printf("%s succeeded.\n", #msg);*/                                     \
-  }
-
-#define ErrorCheck(msg, status)                                                \
-  if (status != HSA_STATUS_SUCCESS) {                                          \
-    printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__, #msg,                \
-           get_error_string(status));                                          \
-    exit(1);                                                                   \
-  } else {                                                                     \
-    /*  printf("%s succeeded.\n", #msg);*/                                     \
-  }
-
-#define ErrorCheckAndContinue(msg, status)                                     \
-  if (status != HSA_STATUS_SUCCESS) {                                          \
-    DEBUG_PRINT("[%s:%d] %s failed: %s\n", __FILE__, __LINE__, #msg,           \
-                get_error_string(status));                                     \
-    continue;                                                                  \
-  } else {                                                                     \
-    /*  printf("%s succeeded.\n", #msg);*/                                     \
-  }
+const char *get_atmi_error_string(hsa_status_t err);
 
 #endif // SRC_RUNTIME_INCLUDE_INTERNAL_H_

@@ -26,6 +26,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/LazyCallGraph.h"
@@ -37,6 +38,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -647,32 +649,34 @@ void CoroCloner::replaceSwiftErrorOps() {
 }
 
 void CoroCloner::salvageDebugInfo() {
-  SmallVector<DbgDeclareInst *, 8> Worklist;
+  SmallVector<DbgVariableIntrinsic *, 8> Worklist;
   SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
   for (auto &BB : *NewF)
     for (auto &I : BB)
-      if (auto *DDI = dyn_cast<DbgDeclareInst>(&I))
-        Worklist.push_back(DDI);
-  for (DbgDeclareInst *DDI : Worklist)
-    coro::salvageDebugInfo(DbgPtrAllocaCache, DDI, Shape.ReuseFrameSlot);
+      if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
+        Worklist.push_back(DVI);
+  for (DbgVariableIntrinsic *DVI : Worklist)
+    coro::salvageDebugInfo(DbgPtrAllocaCache, DVI, Shape.ReuseFrameSlot);
 
   // Remove all salvaged dbg.declare intrinsics that became
   // either unreachable or stale due to the CoroSplit transformation.
+  DominatorTree DomTree(*NewF);
   auto IsUnreachableBlock = [&](BasicBlock *BB) {
-    return BB->hasNPredecessors(0) && BB != &NewF->getEntryBlock();
+    return !isPotentiallyReachable(&NewF->getEntryBlock(), BB, nullptr,
+                                   &DomTree);
   };
-  for (DbgDeclareInst *DDI : Worklist) {
-    if (IsUnreachableBlock(DDI->getParent()))
-      DDI->eraseFromParent();
-    else if (dyn_cast_or_null<AllocaInst>(DDI->getAddress())) {
+  for (DbgVariableIntrinsic *DVI : Worklist) {
+    if (IsUnreachableBlock(DVI->getParent()))
+      DVI->eraseFromParent();
+    else if (dyn_cast_or_null<AllocaInst>(DVI->getVariableLocationOp(0))) {
       // Count all non-debuginfo uses in reachable blocks.
       unsigned Uses = 0;
-      for (auto *User : DDI->getAddress()->users())
+      for (auto *User : DVI->getVariableLocationOp(0)->users())
         if (auto *I = dyn_cast<Instruction>(User))
           if (!isa<AllocaInst>(I) && !IsUnreachableBlock(I->getParent()))
             ++Uses;
       if (!Uses)
-        DDI->eraseFromParent();
+        DVI->eraseFromParent();
     }
   }
 }

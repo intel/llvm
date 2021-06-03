@@ -73,12 +73,6 @@ namespace llvm {
     None    // Do not use Basic Block Sections.
   };
 
-  enum class StackProtectorGuards {
-    None,
-    TLS,
-    Global
-  };
-
   enum class EABI {
     Unknown,
     Default, // Default means not specified
@@ -100,10 +94,6 @@ namespace llvm {
   /// o if the feature is useful (or not) on a particular platform, regardless
   ///   of the debugger, that's a target decision.
   /// It's not impossible to see both factors in some specific case.
-  ///
-  /// The "tuning" should be used to set defaults for individual feature flags
-  /// in DwarfDebug; if a given feature has a more specific command-line option,
-  /// that option should take precedence over the tuning.
   enum class DebuggerKind {
     Default, ///< No specific tuning requested.
     GDB,     ///< Tune debug info for gdb.
@@ -141,6 +131,7 @@ namespace llvm {
           SupportsDebugEntryValues(false), EnableDebugEntryValues(false),
           PseudoProbeForProfiling(false), ValueTrackingVariableLocations(false),
           ForceDwarfFrameSection(false), XRayOmitFunctionIndex(false),
+          DebugStrictDwarf(false),
           FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
 
     /// DisableFramePointerElim - This returns true if frame pointer elimination
@@ -331,15 +322,14 @@ namespace llvm {
     /// Emit XRay Function Index section
     unsigned XRayOmitFunctionIndex : 1;
 
-    /// Stack protector guard offset to use.
-    unsigned StackProtectorGuardOffset = -1U;
+    /// When set to true, don't use DWARF extensions in later DWARF versions.
+    /// By default, it is set to false.
+    unsigned DebugStrictDwarf : 1;
 
-    /// Stack protector guard mode to use, e.g. tls, global.
-    StackProtectorGuards StackProtectorGuard =
-                                         StackProtectorGuards::None;
-
-    /// Stack protector guard reg to use, e.g. usually fs or gs in X86.
-    std::string StackProtectorGuardReg = "None";
+    /// Name of the stack usage file (i.e., .su file) if user passes
+    /// -fstack-usage. If empty, it can be implied that -fstack-usage is not
+    /// passed on the command line.
+    std::string StackUsageOutput;
 
     /// FloatABIType - This setting is set by -float-abi=xxx option is specfied
     /// on the command line. This setting may either be Default, Soft, or Hard.

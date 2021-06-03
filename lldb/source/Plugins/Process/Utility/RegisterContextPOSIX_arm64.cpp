@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cerrno>
+#include <cstdint>
 #include <cstring>
-#include <errno.h>
-#include <stdint.h>
 
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -41,6 +41,10 @@ bool RegisterContextPOSIX_arm64::IsFPR(unsigned reg) {
 
 bool RegisterContextPOSIX_arm64::IsSVE(unsigned reg) const {
   return m_register_info_up->IsSVEReg(reg);
+}
+
+bool RegisterContextPOSIX_arm64::IsPAuth(unsigned reg) const {
+  return m_register_info_up->IsPAuthReg(reg);
 }
 
 RegisterContextPOSIX_arm64::RegisterContextPOSIX_arm64(

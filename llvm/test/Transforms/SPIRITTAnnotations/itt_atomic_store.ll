@@ -6,6 +6,7 @@
 ;; clang++ -fsycl -fsycl-device-only load.cpp -o load.bc
 
 ; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
+; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
 
 ; ModuleID = 'store.bc'
 source_filename = "llvm-test-suite/SYCL/AtomicRef/store.cpp"
@@ -42,9 +43,11 @@ if.end.i:                                         ; preds = %entry
   %7 = load i64, i64 addrspace(4)* %6, align 8
   %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_1, i64 %7
   %conv.i.i = trunc i64 %4 to i32
-; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]], i32 1, i32 0
+; CHECK: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast i32 addrspace(1)* %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]] to i8 addrspace(4)*
+; CHECK-NEXT: call void @__itt_offload_atomic_op_start(i8 addrspace(4)* [[ARG_ASCAST]], i32 1, i32 0
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_1]],{{.*}}, i32 896
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 1, i32 0
+; CHECK-NEXT: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast i32 addrspace(1)* %[[ATOMIC_ARG_1]] to i8 addrspace(4)*
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i8 addrspace(4)* [[ARG_ASCAST]], i32 1, i32 0
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(i32 addrspace(1)* %add.ptr.i, i32 1, i32 896, i32 %conv.i.i) #2
   tail call spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %add.ptr.i)
   br label %_ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit
@@ -58,9 +61,11 @@ _ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIi
 define weak_odr dso_local spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %ptr) {
 entry:
 ; CHECK-LABEL: spir_func void @__synthetic_spir_fun_call(i32 addrspace(1)* %{{.*}}) {
-; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_S:[0-9a-zA-Z._]+]], i32 1, i32 0)
+; CHECK: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast i32 addrspace(1)* %[[ATOMIC_ARG_S:[0-9a-zA-Z._]+]] to i8 addrspace(4)*
+; CHECK-NEXT: call void @__itt_offload_atomic_op_start(i8 addrspace(4)* [[ARG_ASCAST]], i32 1, i32 0)
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_S]],{{.*}}, i32 896
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_S]], i32 1, i32 0)
+; CHECK-NEXT: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast i32 addrspace(1)* %[[ATOMIC_ARG_S]] to i8 addrspace(4)*
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i8 addrspace(4)* [[ARG_ASCAST]], i32 1, i32 0)
   %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32, !noalias !15
   %1 = extractelement <3 x i64> %0, i64 0
   %conv = trunc i64 %1 to i32
@@ -85,9 +90,11 @@ entry:
   %3 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32, !noalias !15
   %4 = extractelement <3 x i64> %3, i64 0
   %conv.i = trunc i64 %4 to i32
-; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]], i32 1, i32 0)
+; CHECK: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast i32 addrspace(1)* %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]] to i8 addrspace(4)*
+; CHECK-NEXT: call void @__itt_offload_atomic_op_start(i8 addrspace(4)* [[ARG_ASCAST]], i32 1, i32 0)
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_2]],{{.*}}, i32 896
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_2]], i32 1, i32 0)
+; CHECK-NEXT: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast i32 addrspace(1)* %[[ATOMIC_ARG_2]] to i8 addrspace(4)*
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i8 addrspace(4)* [[ARG_ASCAST]], i32 1, i32 0)
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(i32 addrspace(1)* %add.ptr.i, i32 1, i32 896, i32 %conv.i) #2
 ; CHECK: call void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
@@ -95,8 +102,8 @@ entry:
 }
 
 ; CHECK: declare void @__itt_offload_wi_start_wrapper()
-; CHECK: declare void @__itt_offload_atomic_op_start(i32 addrspace(1)*, i32, i32)
-; CHECK: declare void @__itt_offload_atomic_op_finish(i32 addrspace(1)*, i32, i32)
+; CHECK: declare void @__itt_offload_atomic_op_start(i8 addrspace(4)*, i32, i32)
+; CHECK: declare void @__itt_offload_atomic_op_finish(i8 addrspace(4)*, i32, i32)
 ; CHECK: declare void @__itt_offload_wi_finish_wrapper()
 
 attributes #0 = { convergent norecurse "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="llvm-test-suite/SYCL/AtomicRef/store.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }

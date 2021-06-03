@@ -46,6 +46,9 @@ static mc::RegisterMCTargetOptionsFlags MOF;
 static cl::opt<std::string>
 InputFilename(cl::Positional, cl::desc("<input file>"), cl::init("-"));
 
+static cl::list<std::string>
+    DisassemblerOptions("M", cl::desc("Disassembler options"));
+
 static cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"),
                                            cl::value_desc("filename"),
                                            cl::init("-"));
@@ -379,11 +382,26 @@ int main(int argc, char **argv) {
   }
   MAI->setPreserveAsmComments(PreserveComments);
 
+  // Package up features to be passed to target/subtarget
+  std::string FeaturesStr;
+  if (MAttrs.size()) {
+    SubtargetFeatures Features;
+    for (unsigned i = 0; i != MAttrs.size(); ++i)
+      Features.AddFeature(MAttrs[i]);
+    FeaturesStr = Features.getString();
+  }
+
+  std::unique_ptr<MCSubtargetInfo> STI(
+      TheTarget->createMCSubtargetInfo(TripleName, MCPU, FeaturesStr));
+  assert(STI && "Unable to create subtarget info!");
+
   // FIXME: This is not pretty. MCContext has a ptr to MCObjectFileInfo and
   // MCObjectFileInfo needs a MCContext reference in order to initialize itself.
-  MCObjectFileInfo MOFI;
-  MCContext Ctx(MAI.get(), MRI.get(), &MOFI, &SrcMgr, &MCOptions);
-  MOFI.InitMCObjectFileInfo(TheTriple, PIC, Ctx, LargeCodeModel);
+  MCContext Ctx(TheTriple, MAI.get(), MRI.get(), STI.get(), &SrcMgr,
+                &MCOptions);
+  std::unique_ptr<MCObjectFileInfo> MOFI(
+      TheTarget->createMCObjectFileInfo(Ctx, PIC, LargeCodeModel));
+  Ctx.setObjectFileInfo(MOFI.get());
 
   if (SaveTempLabels)
     Ctx.setAllowTemporaryLabels(false);
@@ -443,15 +461,6 @@ int main(int argc, char **argv) {
   if (GenDwarfForAssembly)
     Ctx.setGenDwarfRootFile(InputFilename, Buffer->getBuffer());
 
-  // Package up features to be passed to target/subtarget
-  std::string FeaturesStr;
-  if (MAttrs.size()) {
-    SubtargetFeatures Features;
-    for (unsigned i = 0; i != MAttrs.size(); ++i)
-      Features.AddFeature(MAttrs[i]);
-    FeaturesStr = Features.getString();
-  }
-
   sys::fs::OpenFlags Flags = (FileType == OFT_AssemblyFile)
                                  ? sys::fs::OF_TextWithCRLF
                                  : sys::fs::OF_None;
@@ -477,10 +486,6 @@ int main(int argc, char **argv) {
   std::unique_ptr<MCInstrInfo> MCII(TheTarget->createMCInstrInfo());
   assert(MCII && "Unable to create instruction info!");
 
-  std::unique_ptr<MCSubtargetInfo> STI(
-      TheTarget->createMCSubtargetInfo(TripleName, MCPU, FeaturesStr));
-  assert(STI && "Unable to create subtarget info!");
-
   MCInstPrinter *IP = nullptr;
   if (FileType == OFT_AssemblyFile) {
     IP = TheTarget->createMCInstPrinter(Triple(TripleName), OutputAsmVariant,
@@ -493,6 +498,12 @@ int main(int argc, char **argv) {
           << OutputAsmVariant << ".\n";
       return 1;
     }
+
+    for (StringRef Opt : DisassemblerOptions)
+      if (!IP->applyTargetSpecificCLOption(Opt)) {
+        WithColor::error() << "invalid disassembler option '" << Opt << "'\n";
+        return 1;
+      }
 
     // Set the display preference for hex vs. decimal immediates.
     IP->setPrintImmHex(PrintImmHex);

@@ -36,11 +36,11 @@
 #include <thread>
 #include <utility>
 
+#include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <fcntl.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 // Includes for pipe()
 #if defined(_WIN32)
@@ -751,11 +751,11 @@ EXAMPLES:
   arguments passed to the debugged executable, arguments starting with a - must
   be passed after --.
 
-    lldb --arch x86_64 /path/to/program program argument -- --arch arvm7
+    lldb --arch x86_64 /path/to/program program argument -- --arch armv7
 
   For convenience, passing the executable after -- is also supported.
 
-    lldb --arch x86_64 -- /path/to/program program argument --arch arvm7
+    lldb --arch x86_64 -- /path/to/program program argument --arch armv7
 
   Passing one of the attach options causes lldb to immediately attach to the
   given process.

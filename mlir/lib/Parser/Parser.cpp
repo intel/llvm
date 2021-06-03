@@ -96,7 +96,7 @@ ParseResult Parser::parseToken(Token::Kind expectedToken,
 }
 
 /// Parse an optional integer value from the stream.
-OptionalParseResult Parser::parseOptionalInteger(uint64_t &result) {
+OptionalParseResult Parser::parseOptionalInteger(APInt &result) {
   Token curToken = getToken();
   if (curToken.isNot(Token::integer, Token::minus))
     return llvm::None;
@@ -106,10 +106,19 @@ OptionalParseResult Parser::parseOptionalInteger(uint64_t &result) {
   if (parseToken(Token::integer, "expected integer value"))
     return failure();
 
-  auto val = curTok.getUInt64IntegerValue();
-  if (!val)
+  StringRef spelling = curTok.getSpelling();
+  bool isHex = spelling.size() > 1 && spelling[1] == 'x';
+  if (spelling.getAsInteger(isHex ? 0 : 10, result))
     return emitError(curTok.getLoc(), "integer value too large");
-  result = negative ? -*val : *val;
+
+  // Make sure we have a zero at the top so we return the right signedness.
+  if (result.isNegative())
+    result = result.zext(result.getBitWidth() + 1);
+
+  // Process the negative sign if present.
+  if (negative)
+    result.negate();
+
   return success();
 }
 
@@ -240,11 +249,17 @@ public:
   Operation *parseGenericOperation(Block *insertBlock,
                                    Block::iterator insertPt);
 
-  /// Parse an optional trailing location for the given operation.
+  /// This type is used to keep track of things that are either an Operation or
+  /// a BlockArgument.  We cannot use Value for this, because not all Operations
+  /// have results.
+  using OpOrArgument = llvm::PointerUnion<Operation *, BlockArgument>;
+
+  /// Parse an optional trailing location and add it to the specifier Operation
+  /// or `OperandType` if present.
   ///
   ///   trailing-location ::= (`loc` (`(` location `)` | attribute-alias))?
   ///
-  ParseResult parseTrailingOperationLocation(Operation *op);
+  ParseResult parseTrailingLocationSpecifier(OpOrArgument opOrArgument);
 
   /// This is the structure of a result specifier in the assembly syntax,
   /// including the name, number of results, and location.
@@ -376,7 +391,8 @@ private:
 
   /// A set of operations whose locations reference aliases that have yet to
   /// be resolved.
-  SmallVector<std::pair<Operation *, Token>, 8> opsWithDeferredLocs;
+  SmallVector<std::pair<OpOrArgument, Token>, 8>
+      opsAndArgumentsWithDeferredLocs;
 
   /// The builder used when creating parsed operation instances.
   OpBuilder opBuilder;
@@ -424,7 +440,7 @@ ParseResult OperationParser::finalize() {
 
   // Resolve the locations of any deferred operations.
   auto &attributeAliases = state.symbols.attributeAliasDefinitions;
-  for (std::pair<Operation *, Token> &it : opsWithDeferredLocs) {
+  for (std::pair<OpOrArgument, Token> &it : opsAndArgumentsWithDeferredLocs) {
     llvm::SMLoc tokLoc = it.second.getLoc();
     StringRef identifier = it.second.getSpelling().drop_front();
     Attribute attr = attributeAliases.lookup(identifier);
@@ -435,7 +451,11 @@ ParseResult OperationParser::finalize() {
     if (!locAttr)
       return emitError(tokLoc)
              << "expected location, but found '" << attr << "'";
-    it.first->setLoc(locAttr);
+    auto opOrArgument = it.first;
+    if (auto *op = opOrArgument.dyn_cast<Operation *>())
+      op->setLoc(locAttr);
+    else
+      opOrArgument.get<BlockArgument>().setLoc(locAttr);
   }
 
   // Pop the top level name scope.
@@ -954,7 +974,7 @@ Operation *OperationParser::parseGenericOperation() {
 
   // Create the operation and try to parse a location for it.
   Operation *op = opBuilder.createOperation(result);
-  if (parseTrailingOperationLocation(op))
+  if (parseTrailingLocationSpecifier(op))
     return nullptr;
   return op;
 }
@@ -1056,6 +1076,11 @@ public:
   }
 
   llvm::SMLoc getNameLoc() const override { return nameLoc; }
+
+  /// Re-encode the given source location as an MLIR location and return it.
+  Location getEncodedSourceLoc(llvm::SMLoc loc) override {
+    return parser.getEncodedSourceLocation(loc);
+  }
 
   //===--------------------------------------------------------------------===//
   // Token Parsing
@@ -1217,7 +1242,7 @@ public:
   }
 
   /// Parse an optional integer value from the stream.
-  OptionalParseResult parseOptionalInteger(uint64_t &result) override {
+  OptionalParseResult parseOptionalInteger(APInt &result) override {
     return parser.parseOptionalInteger(result);
   }
 
@@ -1342,6 +1367,22 @@ public:
     result = getBuilder().getStringAttr(atToken.getSymbolReference());
     attrs.push_back(getBuilder().getNamedAttr(attrName, result));
     parser.consumeToken();
+    return success();
+  }
+
+  /// Parse a loc(...) specifier if present, filling in result if so.
+  ParseResult
+  parseOptionalLocationSpecifier(Optional<Location> &result) override {
+    // If there is a 'loc' we parse a trailing location.
+    if (!parser.consumeIf(Token::kw_loc))
+      return success();
+    LocationAttr directLoc;
+    if (parser.parseToken(Token::l_paren, "expected '(' in location") ||
+        parser.parseLocationInstance(directLoc) ||
+        parser.parseToken(Token::r_paren, "expected ')' in location"))
+      return failure();
+
+    result = directLoc;
     return success();
   }
 
@@ -1511,6 +1552,25 @@ public:
     operands.assign(dimOperands.begin(), dimOperands.end());
     operands.append(symOperands.begin(), symOperands.end());
     return success();
+  }
+
+  /// Parse an AffineExpr of SSA ids.
+  ParseResult
+  parseAffineExprOfSSAIds(SmallVectorImpl<OperandType> &dimOperands,
+                          SmallVectorImpl<OperandType> &symbOperands,
+                          AffineExpr &expr) override {
+    auto parseElement = [&](bool isSymbol) -> ParseResult {
+      OperandType operand;
+      if (parseOperand(operand))
+        return failure();
+      if (isSymbol)
+        symbOperands.push_back(operand);
+      else
+        dimOperands.push_back(operand);
+      return success();
+    };
+
+    return parser.parseAffineExprOfSSAIds(expr, parseElement);
   }
 
   //===--------------------------------------------------------------------===//
@@ -1694,6 +1754,29 @@ public:
     return parser.parseCommaSeparatedListUntil(Token::r_paren, parseElt);
   }
 
+  /// Parse a list of assignments of the form
+  ///   (%x1 = %y1 : type1, %x2 = %y2 : type2, ...).
+  OptionalParseResult
+  parseOptionalAssignmentListWithTypes(SmallVectorImpl<OperandType> &lhs,
+                                       SmallVectorImpl<OperandType> &rhs,
+                                       SmallVectorImpl<Type> &types) override {
+    if (failed(parseOptionalLParen()))
+      return llvm::None;
+
+    auto parseElt = [&]() -> ParseResult {
+      OperandType regionArg, operand;
+      Type type;
+      if (parseRegionArgument(regionArg) || parseEqual() ||
+          parseOperand(operand) || parseColon() || parseType(type))
+        return failure();
+      lhs.push_back(regionArg);
+      rhs.push_back(operand);
+      types.push_back(type);
+      return success();
+    };
+    return parser.parseCommaSeparatedListUntil(Token::r_paren, parseElt);
+  }
+
 private:
   /// The source location of the operation name.
   SMLoc nameLoc;
@@ -1747,7 +1830,7 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
   // This is the actual hook for the custom op parsing, usually implemented by
   // the op itself (`Op::parse()`). We retrieve it either from the
   // AbstractOperation or from the Dialect.
-  std::function<ParseResult(OpAsmParser &, OperationState &)> parseAssemblyFn;
+  function_ref<ParseResult(OpAsmParser &, OperationState &)> parseAssemblyFn;
   bool isIsolatedFromAbove = false;
 
   if (opDefinition) {
@@ -1790,12 +1873,13 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
 
   // Otherwise, create the operation and try to parse a location for it.
   Operation *op = opBuilder.createOperation(opState);
-  if (parseTrailingOperationLocation(op))
+  if (parseTrailingLocationSpecifier(op))
     return nullptr;
   return op;
 }
 
-ParseResult OperationParser::parseTrailingOperationLocation(Operation *op) {
+ParseResult
+OperationParser::parseTrailingLocationSpecifier(OpOrArgument opOrArgument) {
   // If there is a 'loc' we parse a trailing location.
   if (!consumeIf(Token::kw_loc))
     return success();
@@ -1823,7 +1907,7 @@ ParseResult OperationParser::parseTrailingOperationLocation(Operation *op) {
                << "expected location, but found '" << attr << "'";
     } else {
       // Otherwise, remember this operation and resolve its location later.
-      opsWithDeferredLocs.emplace_back(op, tok);
+      opsAndArgumentsWithDeferredLocs.emplace_back(opOrArgument, tok);
     }
 
     // Otherwise, we parse the location directly.
@@ -1834,8 +1918,12 @@ ParseResult OperationParser::parseTrailingOperationLocation(Operation *op) {
   if (parseToken(Token::r_paren, "expected ')' in location"))
     return failure();
 
-  if (directLoc)
-    op->setLoc(directLoc);
+  if (directLoc) {
+    if (auto *op = opOrArgument.dyn_cast<Operation *>())
+      op->setLoc(directLoc);
+    else
+      opOrArgument.get<BlockArgument>().setLoc(directLoc);
+  }
   return success();
 }
 
@@ -1886,7 +1974,8 @@ ParseResult OperationParser::parseRegion(
                    .attachNote(getEncodedSourceLocation(*defLoc))
                << "previously referenced here";
       }
-      BlockArgument arg = block->addArgument(placeholderArgPair.second);
+      auto loc = getEncodedSourceLocation(placeholderArgPair.first.loc);
+      BlockArgument arg = block->addArgument(placeholderArgPair.second, loc);
 
       // Add a definition of this arg to the assembly state if provided.
       if (state.asmState)
@@ -2066,8 +2155,14 @@ ParseResult OperationParser::parseOptionalBlockArgList(Block *owner) {
             if (arg.getType() != type)
               return emitError("argument and block argument type mismatch");
           } else {
-            arg = owner->addArgument(type);
+            auto loc = getEncodedSourceLocation(useInfo.loc);
+            arg = owner->addArgument(type, loc);
           }
+
+          // If the argument has an explicit loc(...) specifier, parse and apply
+          // it.
+          if (parseTrailingLocationSpecifier(arg))
+            return failure();
 
           // Mark this block argument definition in the parser state if it was
           // provided.

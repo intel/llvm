@@ -1,101 +1,524 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device \
 // RUN: -Wno-sycl-2017-compat -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
-// RUN: FileCheck -check-prefix=CHECK --input-file %t-host.yaml %s
+// RUN: FileCheck -check-prefix=SPIR --input-file %t-host.yaml %s
+
+// RUN: %clang_cc1 -triple nvptx64-unknown-unknown -fsycl-is-device \
+// RUN: -Wno-sycl-2017-compat -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
+// RUN: FileCheck -check-prefix=NVPTX --input-file %t-host.yaml %s
 // The test generates remarks about the kernel argument, their location and type
 // in the resulting yaml file.
 
 #include "Inputs/sycl.hpp"
 
-class second_base {
+sycl::handler H;
+
+class DecomposedBase {
 public:
-  int *e;
+  float DecompVar;
+  int *DecompPtr;
+  sycl::accessor<char, 1, sycl::access::mode::read> decompAcc;
+  sycl::stream DecompStream{0, 0, H};
 };
 
-class InnerFieldBase {
+struct NotDecomposedBase {
 public:
-  int d;
-};
-class InnerField : public InnerFieldBase {
-  int c;
+  int B;
 };
 
-struct base {
-public:
-  int b;
-  InnerField obj;
-};
-
-//CHECK: --- !Passed
-//CHECK: Pass:{{.*}}sycl
-//CHECK: Name:{{.*}}Region
-//CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-//CHECK: Line: 85, Column: 18 }
-//CHECK: Function: _ZTS7derived
-//CHECK: Args:
-//CHECK-NEXT: String:   'Argument '
-//CHECK-NEXT: Argument: '0'
-//CHECK-NEXT: String:   ' for function kernel: '
-//CHECK-NEXT: String:   '&'
-//CHECK-NEXT: String:   ' '
-//CHECK-NEXT: String:   _ZTS7derived
-//CHECK-NEXT: String:   .
-//CHECK-NEXT: String:   ' '
-//CHECK-NEXT: String:   '('
-//CHECK-NEXT: String:   struct base
-//CHECK-NEXT: String:   ')'
-
-//CHECK: --- !Passed
-//CHECK: Pass:{{.*}}sycl
-//CHECK: Name:{{.*}}Region
-//CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-//CHECK: Line: 11, Column: 8 }
-//CHECK: Function: _ZTS7derived
-//CHECK: Args:
-//CHECK-NEXT: String:  'Argument '
-//CHECK-NEXT: Argument: '1'
-//CHECK-NEXT: String:   ' for function kernel: '
-//CHECK-NEXT: String:   ''
-//CHECK-NEXT: String:   ' '
-//CHECK-NEXT: String:   _ZTS7derived
-//CHECK-NEXT: String:   .
-//CHECK-NEXT: String:   e
-//CHECK-NEXT: String:   '('
-//CHECK-NEXT: String:   struct __wrapper_class
-//CHECK-NEXT: String:   ')'
-
-//CHECK: --- !Passed
-//CHECK: Pass:{{.*}}sycl
-//CHECK: Name:{{.*}}Region
-//CHECK: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-//CHECK: Line: 86, Column: 7 }
-//CHECK: Function:  _ZTS7derived
-//CHECK: Args:
-//CHECK-NEXT: String:   'Argument '
-//CHECK-NEXT: Argument: '2'
-//CHECK-NEXT: String:   ' for function kernel: '
-//CHECK-NEXT: String:   ''
-//CHECK-NEXT: String:   ' '
-//CHECK-NEXT: String:   _ZTS7derived
-//CHECK-NEXT: String:   .
-//CHECK-NEXT: String:   a
-//CHECK-NEXT: String:   '('
-//CHECK-NEXT: String:   int
-//CHECK-NEXT: String:   ')'
-
-struct derived : base, second_base {
-  int a;
-
+struct KernelFunctor : NotDecomposedBase, DecomposedBase {
+  int A;
+  int *Ptr;
+  int Array[3];
+  sycl::sampler Sampl;
   void operator()() const {
   }
 };
 
+struct AccessorDerived : sycl::accessor<char, 1, sycl::access::mode::read> {
+  int B;
+};
+
 int main() {
   sycl::queue q;
-
-  q.submit([&](cl::sycl::handler &cgh) {
-    derived f{};
+  q.submit([&](sycl::handler &cgh) {
+    KernelFunctor f{};
     cgh.single_task(f);
+  });
+
+  AccessorDerived DerivedObject;
+  q.submit([&](sycl::handler &cgh) {
+    sycl::kernel_handler kh;
+
+    cgh.single_task<class XYZ>(
+        [=](auto) {
+          DerivedObject.use();
+        },
+        kh);
   });
 
   return 0;
 }
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '0'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for base class,
+// SPIR-NEXT: String:          struct NotDecomposedBase
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          struct NotDecomposedBase
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '4'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
+// SPIR-NEXT: String:          DecomposedBase
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          'Field:DecompVar, '
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          float
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '4'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '2'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for nested pointer,
+// SPIR-NEXT: String:          DecompPtr
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          Compiler generated
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '3'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for accessor,
+// SPIR-NEXT: String:          decompAcc
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          '__global char *'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '4'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for accessor,
+// SPIR-NEXT: String:          decompAcc
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '5'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for accessor,
+// SPIR-NEXT: String:          decompAcc
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '6'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for accessor,
+// SPIR-NEXT: String:          decompAcc
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::id<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '7'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          '__global char *'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '9'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '10'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::id<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '11'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          int
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '4'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '12'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          A
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          int
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '4'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '13'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          Ptr
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          '__global int *'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '14'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for array,
+// SPIR-NEXT: String:          Array
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          Compiler generated
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '12'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 28, Column: 8 }
+// SPIR-NEXT: Function:        _ZTS13KernelFunctor
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '15'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for sampler,
+// SPIR-NEXT: String:          Sampl
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          sampler_t
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: String:          ')'
+
+// Output for kernel XYZ
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 53, Column: 9 }
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '0'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for accessor base class,
+// SPIR-NEXT: String:          'sycl::accessor<char, 1, sycl::access::mode::read>'
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          '__global char *'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 53, Column: 9 }
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for accessor base class,
+// SPIR-NEXT: String:          'sycl::accessor<char, 1, sycl::access::mode::read>'
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 53, Column: 9 }
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '2'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for accessor base class,
+// SPIR-NEXT: String:          'sycl::accessor<char, 1, sycl::access::mode::read>'
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 53, Column: 9 }
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '3'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          Compiler generated argument for accessor base class,
+// SPIR-NEXT: String:          'sycl::accessor<char, 1, sycl::access::mode::read>'
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          'struct sycl::id<1>'
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: String:          ')'
+
+// SPIR: --- !Passed
+// SPIR: Pass:{{.*}}sycl
+// SPIR: Name:{{.*}}Region
+// SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// SPIR-NEXT: Line: 53, Column: 9 }
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Args:
+// SPIR-NEXT: String:          'Arg '
+// SPIR-NEXT: Argument:        '4'
+// SPIR-NEXT: String:          ':'
+// SPIR-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
+// SPIR-NEXT: String:          AccessorDerived
+// SPIR-NEXT: String:          '  ('
+// SPIR-NEXT: String:          'Field:B, '
+// SPIR-NEXT: String:          'Type:'
+// SPIR-NEXT: String:          int
+// SPIR-NEXT: String:          ', '
+// SPIR-NEXT: String:          'Size: '
+// SPIR-NEXT: Argument:        '4'
+// SPIR-NEXT: String:          ')'
+
+// NVPTX: --- !Passed
+// NVPTX: Pass:{{.*}}sycl
+// NVPTX: Name:{{.*}}Region
+// NVPTX: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
+// NVPTX: Line: 53, Column: 9 }
+// NVPTX-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// NVPTX-NEXT: Args:
+// NVPTX-NEXT: String:          'Arg '
+// NVPTX: Argument:        '5'
+// NVPTX-NEXT: String:          ':'
+// NVPTX-NEXT: String:          Compiler generated argument for SYCL2020 specialization constant
+// NVPTX-NEXT: String:          ''
+// NVPTX-NEXT: String:          '  ('
+// NVPTX-NEXT: String:          ''
+// NVPTX-NEXT: String:          'Type:'
+// NVPTX-NEXT: String:          '__global char *'
+// NVPTX-NEXT: String:          ', '
+// NVPTX-NEXT: String:          'Size: '
+// NVPTX-NEXT: Argument:        '8'
+// NVPTX-NEXT: String:          ')'

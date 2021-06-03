@@ -114,42 +114,45 @@ static const u32 kThreadQuarantineSize = 64;
 #endif
 
 Context::Context()
-  : initialized()
-  , report_mtx(MutexTypeReport, StatMtxReport)
-  , nreported()
-  , nmissed_expected()
-  , thread_registry(new(thread_registry_placeholder) ThreadRegistry(
-      CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse))
-  , racy_mtx(MutexTypeRacy, StatMtxRacy)
-  , racy_stacks()
-  , racy_addresses()
-  , fired_suppressions_mtx(MutexTypeFired, StatMtxFired)
-  , clock_alloc("clock allocator") {
+    : initialized(),
+      report_mtx(MutexTypeReport, StatMtxReport),
+      nreported(),
+      nmissed_expected(),
+      thread_registry(new (thread_registry_placeholder) ThreadRegistry(
+          CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse)),
+      racy_mtx(MutexTypeRacy, StatMtxRacy),
+      racy_stacks(),
+      racy_addresses(),
+      fired_suppressions_mtx(MutexTypeFired, StatMtxFired),
+      clock_alloc(LINKER_INITIALIZED, "clock allocator") {
   fired_suppressions.reserve(8);
 }
 
 // The objects are allocated in TLS, so one may rely on zero-initialization.
-ThreadState::ThreadState(Context *ctx, int tid, int unique_id, u64 epoch,
-                         unsigned reuse_count,
-                         uptr stk_addr, uptr stk_size,
+ThreadState::ThreadState(Context *ctx, u32 tid, int unique_id, u64 epoch,
+                         unsigned reuse_count, uptr stk_addr, uptr stk_size,
                          uptr tls_addr, uptr tls_size)
-  : fast_state(tid, epoch)
-  // Do not touch these, rely on zero initialization,
-  // they may be accessed before the ctor.
-  // , ignore_reads_and_writes()
-  // , ignore_interceptors()
-  , clock(tid, reuse_count)
+    : fast_state(tid, epoch)
+      // Do not touch these, rely on zero initialization,
+      // they may be accessed before the ctor.
+      // , ignore_reads_and_writes()
+      // , ignore_interceptors()
+      ,
+      clock(tid, reuse_count)
 #if !SANITIZER_GO
-  , jmp_bufs()
+      ,
+      jmp_bufs()
 #endif
-  , tid(tid)
-  , unique_id(unique_id)
-  , stk_addr(stk_addr)
-  , stk_size(stk_size)
-  , tls_addr(tls_addr)
-  , tls_size(tls_size)
+      ,
+      tid(tid),
+      unique_id(unique_id),
+      stk_addr(stk_addr),
+      stk_size(stk_size),
+      tls_addr(tls_addr),
+      tls_size(tls_size)
 #if !SANITIZER_GO
-  , last_sleep_clock(tid)
+      ,
+      last_sleep_clock(tid)
 #endif
 {
 }
@@ -371,6 +374,18 @@ static void TsanOnDeadlySignal(int signo, void *siginfo, void *context) {
 }
 #endif
 
+void CheckUnwind() {
+  // There is high probability that interceptors will check-fail as well,
+  // on the other hand there is no sense in processing interceptors
+  // since we are going to die soon.
+  ScopedIgnoreInterceptors ignore;
+#if !SANITIZER_GO
+  cur_thread()->ignore_sync++;
+  cur_thread()->ignore_reads_and_writes++;
+#endif
+  PrintCurrentStackSlow(StackTrace::GetCurrentPc());
+}
+
 void Initialize(ThreadState *thr) {
   // Thread safe because done before all threads exist.
   static bool is_initialized = false;
@@ -381,7 +396,7 @@ void Initialize(ThreadState *thr) {
   ScopedIgnoreInterceptors ignore;
   SanitizerToolName = "ThreadSanitizer";
   // Install tool-specific callbacks in sanitizer_common.
-  SetCheckFailedCallback(TsanCheckFailed);
+  SetCheckUnwindCallback(CheckUnwind);
 
   ctx = new(ctx_placeholder) Context;
   const char *env_name = SANITIZER_GO ? "GORACE" : "TSAN_OPTIONS";
@@ -519,23 +534,27 @@ int Finalize(ThreadState *thr) {
 void ForkBefore(ThreadState *thr, uptr pc) {
   ctx->thread_registry->Lock();
   ctx->report_mtx.Lock();
-  // Ignore memory accesses in the pthread_atfork callbacks.
-  // If any of them triggers a data race we will deadlock
-  // on the report_mtx.
-  // We could ignore interceptors and sync operations as well,
+  // Suppress all reports in the pthread_atfork callbacks.
+  // Reports will deadlock on the report_mtx.
+  // We could ignore sync operations as well,
   // but so far it's unclear if it will do more good or harm.
   // Unnecessarily ignoring things can lead to false positives later.
-  ThreadIgnoreBegin(thr, pc);
+  thr->suppress_reports++;
+  // On OS X, REAL(fork) can call intercepted functions (OSSpinLockLock), and
+  // we'll assert in CheckNoLocks() unless we ignore interceptors.
+  thr->ignore_interceptors++;
 }
 
 void ForkParentAfter(ThreadState *thr, uptr pc) {
-  ThreadIgnoreEnd(thr, pc);  // Begin is in ForkBefore.
+  thr->suppress_reports--;  // Enabled in ForkBefore.
+  thr->ignore_interceptors--;
   ctx->report_mtx.Unlock();
   ctx->thread_registry->Unlock();
 }
 
 void ForkChildAfter(ThreadState *thr, uptr pc) {
-  ThreadIgnoreEnd(thr, pc);  // Begin is in ForkBefore.
+  thr->suppress_reports--;  // Enabled in ForkBefore.
+  thr->ignore_interceptors--;
   ctx->report_mtx.Unlock();
   ctx->thread_registry->Unlock();
 

@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "UnwindInfoSection.h"
+#include "ConcatOutputSection.h"
 #include "Config.h"
 #include "InputSection.h"
-#include "MergedOutputSection.h"
 #include "OutputSection.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
@@ -19,6 +19,7 @@
 
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/BinaryFormat/MachO.h"
 
@@ -142,6 +143,8 @@ template <class Ptr>
 void UnwindInfoSectionImpl<Ptr>::prepareRelocations(InputSection *isec) {
   assert(isec->segname == segment_names::ld &&
          isec->name == section_names::compactUnwind);
+  assert(!isec->shouldOmitFromOutput() &&
+         "__compact_unwind section should not be omitted");
 
   for (Reloc &r : isec->relocs) {
     assert(target->hasAttr(r.type, RelocAttrBits::UNSIGNED));
@@ -174,6 +177,8 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(InputSection *isec) {
     }
 
     if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
+      assert(!referentIsec->shouldOmitFromOutput());
+
       // Personality functions can be referenced via section relocations
       // if they live in the same object file. Create placeholder synthetic
       // symbols for them in the GOT.
@@ -181,7 +186,8 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(InputSection *isec) {
       if (s == nullptr) {
         s = make<Defined>("<internal>", /*file=*/nullptr, referentIsec,
                           r.addend, /*size=*/0, /*isWeakDef=*/false,
-                          /*isExternal=*/false, /*isPrivateExtern=*/false);
+                          /*isExternal=*/false, /*isPrivateExtern=*/false,
+                          /*isThumb=*/false, /*isReferencedDynamically=*/false);
         in.got->addEntry(s);
       }
       r.referent = s;
@@ -206,9 +212,11 @@ static void checkTextSegment(InputSection *isec) {
 // is no source address to make a relative location meaningful.
 template <class Ptr>
 static void
-relocateCompactUnwind(MergedOutputSection *compactUnwindSection,
+relocateCompactUnwind(ConcatOutputSection *compactUnwindSection,
                       std::vector<CompactUnwindEntry<Ptr>> &cuVector) {
   for (const InputSection *isec : compactUnwindSection->inputs) {
+    assert(isec->parent == compactUnwindSection);
+
     uint8_t *buf =
         reinterpret_cast<uint8_t *>(cuVector.data()) + isec->outSecFileOff;
     memcpy(buf, isec->data.data(), isec->data.size());
@@ -227,7 +235,10 @@ relocateCompactUnwind(MergedOutputSection *compactUnwindSection,
         }
       } else if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
         checkTextSegment(referentIsec);
-        referentVA = referentIsec->getVA() + r.addend;
+        if (referentIsec->shouldOmitFromOutput())
+          referentVA = UINT64_MAX; // Tombstone value
+        else
+          referentVA = referentIsec->getVA() + r.addend;
       }
 
       writeAddress(buf + r.offset, referentVA, r.length);
@@ -288,11 +299,25 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
   cuPtrVector.reserve(cuCount);
   for (CompactUnwindEntry<Ptr> &cuEntry : cuVector)
     cuPtrVector.emplace_back(&cuEntry);
-  std::sort(
-      cuPtrVector.begin(), cuPtrVector.end(),
-      [](const CompactUnwindEntry<Ptr> *a, const CompactUnwindEntry<Ptr> *b) {
-        return a->functionAddress < b->functionAddress;
-      });
+  llvm::sort(cuPtrVector, [](const CompactUnwindEntry<Ptr> *a,
+                             const CompactUnwindEntry<Ptr> *b) {
+    return a->functionAddress < b->functionAddress;
+  });
+
+  // Dead-stripped functions get a functionAddress of UINT64_MAX in
+  // relocateCompactUnwind(). Filter them out here.
+  // FIXME: This doesn't yet collect associated data like LSDAs kept
+  // alive only by a now-removed CompactUnwindEntry or other comdat-like
+  // data (`kindNoneGroupSubordinate*` in ld64).
+  CompactUnwindEntry<Ptr> tombstone;
+  tombstone.functionAddress = static_cast<Ptr>(UINT64_MAX);
+  cuPtrVector.erase(
+      std::lower_bound(cuPtrVector.begin(), cuPtrVector.end(), &tombstone,
+                       [](const CompactUnwindEntry<Ptr> *a,
+                          const CompactUnwindEntry<Ptr> *b) {
+                         return a->functionAddress < b->functionAddress;
+                       }),
+      cuPtrVector.end());
 
   // Fold adjacent entries with matching encoding+personality+lsda
   // We use three iterators on the same cuPtrVector to fold in-situ:
@@ -324,15 +349,15 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
   // Make a vector of encodings, sorted by descending frequency
   for (const auto &frequency : encodingFrequencies)
     commonEncodings.emplace_back(frequency);
-  std::sort(commonEncodings.begin(), commonEncodings.end(),
-            [](const std::pair<compact_unwind_encoding_t, size_t> &a,
-               const std::pair<compact_unwind_encoding_t, size_t> &b) {
-              if (a.second == b.second)
-                // When frequencies match, secondarily sort on encoding
-                // to maintain parity with validate-unwind-info.py
-                return a.first > b.first;
-              return a.second > b.second;
-            });
+  llvm::sort(commonEncodings,
+             [](const std::pair<compact_unwind_encoding_t, size_t> &a,
+                const std::pair<compact_unwind_encoding_t, size_t> &b) {
+               if (a.second == b.second)
+                 // When frequencies match, secondarily sort on encoding
+                 // to maintain parity with validate-unwind-info.py
+                 return a.first > b.first;
+               return a.second > b.second;
+             });
 
   // Truncate the vector to 127 elements.
   // Common encoding indexes are limited to 0..126, while encoding

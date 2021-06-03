@@ -88,11 +88,6 @@
 // provided under the alternate keyword __nullptr, which changes the mangling
 // of nullptr_t. This option is ABI incompatible with GCC in C++03 mode.
 #  define _LIBCPP_ABI_ALWAYS_USE_CXX11_NULLPTR
-// Define the `pointer_safety` enum as a C++11 strongly typed enumeration
-// instead of as a class simulating an enum. If this option is enabled
-// `pointer_safety` and `get_pointer_safety()` will no longer be available
-// in C++03.
-#  define _LIBCPP_ABI_POINTER_SAFETY_ENUM_TYPE
 // Define a key function for `bad_function_call` in the library, to centralize
 // its vtable and typeinfo to libc++ rather than having all other libraries
 // using that class define their own copies.
@@ -106,6 +101,8 @@
 #  define _LIBCPP_ABI_OPTIMIZED_FUNCTION
 // All the regex constants must be distinct and nonzero.
 #  define _LIBCPP_ABI_REGEX_CONSTANTS_NONZERO
+// Use raw pointers, not wrapped ones, for std::span's iterator type.
+#  define _LIBCPP_ABI_SPAN_POINTER_ITERATORS
 // Re-worked external template instantiations for std::string with a focus on
 // performance and fast-path inlining.
 #  define _LIBCPP_ABI_STRING_OPTIMIZED_EXTERNAL_INSTANTIATION
@@ -1345,6 +1342,12 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(
 #endif
 #endif // !defined(_LIBCPP_NODEBUG_TYPE)
 
+#if __has_attribute(__standalone_debug__)
+#define _LIBCPP_STANDALONE_DEBUG __attribute__((__standalone_debug__))
+#else
+#define _LIBCPP_STANDALONE_DEBUG
+#endif
+
 #if __has_attribute(__preferred_name__)
 #define _LIBCPP_PREFERRED_NAME(x) __attribute__((__preferred_name__(x)))
 #else
@@ -1360,10 +1363,16 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(
 
 #if defined(_LIBCPP_ENABLE_CXX17_REMOVED_FEATURES)
 #define _LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR
-#define _LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS
-#define _LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE
 #define _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
+#define _LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE
+#define _LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS
 #endif // _LIBCPP_ENABLE_CXX17_REMOVED_FEATURES
+
+#if defined(_LIBCPP_ENABLE_CXX20_REMOVED_FEATURES)
+#define _LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_MEMBERS
+#define _LIBCPP_ENABLE_CXX20_REMOVED_NEGATORS
+#define _LIBCPP_ENABLE_CXX20_REMOVED_RAW_STORAGE_ITERATOR
+#endif // _LIBCPP_ENABLE_CXX20_REMOVED_FEATURES
 
 #if !defined(__cpp_deduction_guides) || __cpp_deduction_guides < 201611
 #define _LIBCPP_HAS_NO_DEDUCTION_GUIDES

@@ -319,7 +319,8 @@ void RISCVFrameLowering::adjustStackForRVV(MachineFunction &MF,
   }
 
   // 1. Multiply the number of v-slots to the length of registers
-  Register FactorRegister = TII->getVLENFactoredAmount(MF, MBB, MBBI, Amount);
+  Register FactorRegister =
+      TII->getVLENFactoredAmount(MF, MBB, MBBI, DL, Amount);
   // 2. SP = SP - RVV stack size
   BuildMI(MBB, MBBI, DL, TII->get(Opc), SPReg)
       .addReg(SPReg)
@@ -749,9 +750,12 @@ RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
       // RVV->getRVVPadding() and it can be zero. It allows us to align the RVV
       // objects to 8 bytes.
       if (MFI.getStackID(FI) == TargetStackID::Default) {
-        Offset += StackOffset::getFixed(MFI.getStackSize());
-        if (FI < 0)
-          Offset += StackOffset::getFixed(RVFI->getLibCallStackSize());
+        if (MFI.isFixedObjectIndex(FI)) {
+          Offset += StackOffset::get(MFI.getStackSize() + RVFI->getRVVPadding() 
+                        + RVFI->getLibCallStackSize(), RVFI->getRVVStackSize());
+        } else {
+          Offset += StackOffset::getFixed(MFI.getStackSize());
+        }
       } else if (MFI.getStackID(FI) == TargetStackID::ScalableVector) {
         Offset += StackOffset::get(
             alignTo(MFI.getStackSize() - RVFI->getCalleeSavedStackSize(), 8),

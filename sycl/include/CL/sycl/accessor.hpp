@@ -203,7 +203,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
+class stream;
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -838,7 +838,8 @@ protected:
   static access::mode getAdjustedMode(const PropertyListT &PropertyList) {
     access::mode AdjustedMode = AccessMode;
 
-    if (PropertyList.template has_property<property::noinit>()) {
+    if (PropertyList.template has_property<property::no_init>() ||
+        PropertyList.template has_property<property::noinit>()) {
       if (AdjustedMode == access::mode::write) {
         AdjustedMode = access::mode::discard_write;
       } else if (AdjustedMode == access::mode::read_write) {
@@ -929,6 +930,7 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
+  friend class sycl::stream;
   friend class sycl::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
 

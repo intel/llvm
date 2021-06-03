@@ -71,7 +71,21 @@ define i32 @add_undef1() {
   ret i32 %x
 }
 
+define i32 @add_poison() {
+; CHECK-LABEL: @add_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.add.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
 
+define i32 @add_poison1() {
+; CHECK-LABEL: @add_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.add.v8i32(<8 x i32> <i32 1, i32 1, i32 poison, i32 1, i32 1, i32 42, i32 1, i32 1>)
+  ret i32 %x
+}
 
 define i32 @mul_0() {
 ; CHECK-LABEL: @mul_0(
@@ -123,6 +137,21 @@ define i32 @mul_undef1() {
   ret i32 %x
 }
 
+define i32 @mul_poison() {
+; CHECK-LABEL: @mul_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.mul.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
+
+define i32 @mul_poison1() {
+; CHECK-LABEL: @mul_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.mul.v8i32(<8 x i32> <i32 0, i32 1, i32 poison, i32 1, i32 1, i32 1, i32 1, i32 1>)
+  ret i32 %x
+}
 
 define i32 @and_0() {
 ; CHECK-LABEL: @and_0(
@@ -174,6 +203,21 @@ define i32 @and_undef1() {
   ret i32 %x
 }
 
+define i32 @and_poison() {
+; CHECK-LABEL: @and_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.and.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
+
+define i32 @and_poison1() {
+; CHECK-LABEL: @and_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.and.v8i32(<8 x i32> <i32 -1, i32 1, i32 poison, i32 1, i32 1, i32 1, i32 1, i32 1>)
+  ret i32 %x
+}
 
 define i32 @or_0() {
 ; CHECK-LABEL: @or_0(
@@ -225,6 +269,21 @@ define i32 @or_undef1() {
   ret i32 %x
 }
 
+define i32 @or_poison() {
+; CHECK-LABEL: @or_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.or.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
+
+define i32 @or_poison1() {
+; CHECK-LABEL: @or_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.or.v8i32(<8 x i32> <i32 1, i32 0, i32 poison, i32 1, i32 1, i32 1, i32 1, i32 1>)
+  ret i32 %x
+}
 
 define i32 @xor_0() {
 ; CHECK-LABEL: @xor_0(
@@ -276,6 +335,21 @@ define i32 @xor_undef1() {
   ret i32 %x
 }
 
+define i32 @xor_poison() {
+; CHECK-LABEL: @xor_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.xor.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
+
+define i32 @xor_poison1() {
+; CHECK-LABEL: @xor_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.xor.v8i32(<8 x i32> <i32 poison, i32 1, i32 undef, i32 1, i32 1, i32 1, i32 1, i32 1>)
+  ret i32 %x
+}
 
 define i32 @smin_0() {
 ; CHECK-LABEL: @smin_0(
@@ -327,6 +401,21 @@ define i32 @smin_undef1() {
   ret i32 %x
 }
 
+define i32 @smin_poison() {
+; CHECK-LABEL: @smin_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.smin.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
+
+define i32 @smin_poison1() {
+; CHECK-LABEL: @smin_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.smin.v8i32(<8 x i32> <i32 1, i32 1, i32 undef, i32 1, i32 poison, i32 1, i32 1, i32 1>)
+  ret i32 %x
+}
 
 define i32 @smax_0() {
 ; CHECK-LABEL: @smax_0(
@@ -378,6 +467,21 @@ define i32 @smax_undef1() {
   ret i32 %x
 }
 
+define i32 @smax_poison() {
+; CHECK-LABEL: @smax_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.smax.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
+
+define i32 @smax_poison1() {
+; CHECK-LABEL: @smax_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.smax.v8i32(<8 x i32> <i32 1, i32 1, i32 0, i32 1, i32 1, i32 1, i32 1, i32 poison>)
+  ret i32 %x
+}
 
 define i32 @umin_0() {
 ; CHECK-LABEL: @umin_0(
@@ -429,6 +533,21 @@ define i32 @umin_undef1() {
   ret i32 %x
 }
 
+define i32 @umin_poison() {
+; CHECK-LABEL: @umin_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.umin.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
+
+define i32 @umin_poison1() {
+; CHECK-LABEL: @umin_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.umin.v8i32(<8 x i32> <i32 1, i32 1, i32 -1, i32 poison, i32 1, i32 1, i32 1, i32 1>)
+  ret i32 %x
+}
 
 define i32 @umax_0() {
 ; CHECK-LABEL: @umax_0(
@@ -471,11 +590,27 @@ define i32 @umax_undef() {
   ret i32 %x
 }
 
-define i32 @umax_undef1d() {
-; CHECK-LABEL: @umax_undef1d(
+define i32 @umax_undef1() {
+; CHECK-LABEL: @umax_undef1(
 ; CHECK-NEXT:    [[X:%.*]] = call i32 @llvm.vector.reduce.umax.v8i32(<8 x i32> <i32 1, i32 1, i32 undef, i32 1, i32 1, i32 1, i32 1, i32 1>)
 ; CHECK-NEXT:    ret i32 [[X]]
 ;
   %x = call i32 @llvm.vector.reduce.umax.v8i32(<8 x i32> <i32 1, i32 1, i32 undef, i32 1, i32 1, i32 1, i32 1, i32 1>)
+  ret i32 %x
+}
+
+define i32 @umax_poison() {
+; CHECK-LABEL: @umax_poison(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.umax.v8i32(<8 x i32> poison)
+  ret i32 %x
+}
+
+define i32 @umax_poison1() {
+; CHECK-LABEL: @umax_poison1(
+; CHECK-NEXT:    ret i32 poison
+;
+  %x = call i32 @llvm.vector.reduce.umax.v8i32(<8 x i32> <i32 1, i32 1, i32 poison, i32 1, i32 1, i32 poison, i32 1, i32 1>)
   ret i32 %x
 }

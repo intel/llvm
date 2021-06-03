@@ -70,6 +70,9 @@ public:
   /// Returns the number of elements held by this attribute.
   int64_t size() const { return getNumElements(); }
 
+  /// Returns if the number of elements held by this attribute is 0.
+  bool empty() const { return size() == 0; }
+
   /// Generates a new ElementsAttr by mapping each int value to a new
   /// underlying APInt. The new values can represent either an integer or float.
   /// This ElementsAttr should contain integers.
@@ -777,15 +780,17 @@ auto SparseElementsAttr::getValues() const
   auto zeroValue = getZeroValue<T>();
   auto valueIt = getValues().getValues<T>().begin();
   const std::vector<ptrdiff_t> flatSparseIndices(getFlattenedSparseIndices());
-  // TODO: Move-capture flatSparseIndices when c++14 is available.
-  std::function<T(ptrdiff_t)> mapFn = [=](ptrdiff_t index) {
-    // Try to map the current index to one of the sparse indices.
-    for (unsigned i = 0, e = flatSparseIndices.size(); i != e; ++i)
-      if (flatSparseIndices[i] == index)
-        return *std::next(valueIt, i);
-    // Otherwise, return the zero value.
-    return zeroValue;
-  };
+  std::function<T(ptrdiff_t)> mapFn =
+      [flatSparseIndices{std::move(flatSparseIndices)},
+       valueIt{std::move(valueIt)},
+       zeroValue{std::move(zeroValue)}](ptrdiff_t index) {
+        // Try to map the current index to one of the sparse indices.
+        for (unsigned i = 0, e = flatSparseIndices.size(); i != e; ++i)
+          if (flatSparseIndices[i] == index)
+            return *std::next(valueIt, i);
+        // Otherwise, return the zero value.
+        return zeroValue;
+      };
   return llvm::map_range(llvm::seq<ptrdiff_t>(0, getNumElements()), mapFn);
 }
 

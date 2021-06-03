@@ -192,7 +192,7 @@ struct bit_not : unary_function<T, T>
 struct identity; // C++20
 
 template <class Predicate>
-class unary_negate // deprecated in C++17
+class unary_negate // deprecated in C++17, removed in C++20
     : public unary_function<typename Predicate::argument_type, bool>
 {
 public:
@@ -200,11 +200,11 @@ public:
     bool operator()(const typename Predicate::argument_type& x) const;
 };
 
-template <class Predicate> // deprecated in C++17
+template <class Predicate> // deprecated in C++17, removed in C++20
 unary_negate<Predicate> not1(const Predicate& pred);
 
 template <class Predicate>
-class binary_negate // deprecated in C++17
+class binary_negate // deprecated in C++17, removed in C++20
     : public binary_function<typename Predicate::first_argument_type,
                              typename Predicate::second_argument_type,
                              bool>
@@ -215,7 +215,7 @@ public:
                     const typename Predicate::second_argument_type& y) const;
 };
 
-template <class Predicate> // deprecated in C++17
+template <class Predicate> // deprecated in C++17, removed in C++20
 binary_negate<Predicate> not2(const Predicate& pred);
 
 template <class F>
@@ -507,6 +507,7 @@ POLICY:  For non-variadic implementations, the number of arguments is limited
 */
 
 #include <__config>
+#include <__debug>
 #include <concepts>
 #include <type_traits>
 #include <typeinfo>
@@ -1007,6 +1008,7 @@ struct _LIBCPP_TEMPLATE_VIS bit_not<void>
 };
 #endif
 
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_NEGATORS)
 template <class _Predicate>
 class _LIBCPP_TEMPLATE_VIS _LIBCPP_DEPRECATED_IN_CXX17 unary_negate
     : public unary_function<typename _Predicate::argument_type, bool>
@@ -1047,6 +1049,7 @@ template <class _Predicate>
 _LIBCPP_DEPRECATED_IN_CXX17 inline _LIBCPP_CONSTEXPR_AFTER_CXX11 _LIBCPP_INLINE_VISIBILITY
 binary_negate<_Predicate>
 not2(const _Predicate& __pred) {return binary_negate<_Predicate>(__pred);}
+#endif // _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_NEGATORS)
 
 #if _LIBCPP_STD_VER <= 14 || defined(_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS)
 template <class __Operation>
@@ -1962,11 +1965,11 @@ union __policy_storage
 // True if _Fun can safely be held in __policy_storage.__small.
 template <typename _Fun>
 struct __use_small_storage
-    : public _VSTD::integral_constant<
+    : public integral_constant<
           bool, sizeof(_Fun) <= sizeof(__policy_storage) &&
                     _LIBCPP_ALIGNOF(_Fun) <= _LIBCPP_ALIGNOF(__policy_storage) &&
-                    _VSTD::is_trivially_copy_constructible<_Fun>::value &&
-                    _VSTD::is_trivially_destructible<_Fun>::value> {};
+                    is_trivially_copy_constructible<_Fun>::value &&
+                    is_trivially_destructible<_Fun>::value> {};
 
 // Policy contains information about how to copy, destroy, and move the
 // underlying functor. You can think of it as a vtable of sorts.
@@ -2050,7 +2053,7 @@ struct __policy
 // faster for types that can be passed in registers.
 template <typename _Tp>
 using __fast_forward =
-    typename _VSTD::conditional<_VSTD::is_scalar<_Tp>::value, _Tp, _Tp&&>::type;
+    typename conditional<is_scalar<_Tp>::value, _Tp, _Tp&&>::type;
 
 // __policy_invoker calls an instance of __alloc_func held in __policy_storage.
 
@@ -3190,8 +3193,8 @@ public:
     operator () (_ForwardIterator2 __f, _ForwardIterator2 __l) const
     {
         return _VSTD::__search(__f, __l, __first_, __last_, __pred_,
-            typename _VSTD::iterator_traits<_ForwardIterator>::iterator_category(),
-            typename _VSTD::iterator_traits<_ForwardIterator2>::iterator_category());
+            typename iterator_traits<_ForwardIterator>::iterator_category(),
+            typename iterator_traits<_ForwardIterator2>::iterator_category());
     }
 
 private:

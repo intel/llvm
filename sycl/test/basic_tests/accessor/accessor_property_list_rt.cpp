@@ -10,9 +10,23 @@ using namespace sycl::ONEAPI;
 int main() {
   {
     // Single RT property
+    accessor_property_list PL{sycl::no_init};
+    static_assert(!PL.has_property<property::no_offset>(), "Property is found");
+    assert(PL.has_property<sycl::property::no_init>() && "Property not found");
+  }
+
+  {
+    // Single RT property
     accessor_property_list PL{sycl::noinit};
     static_assert(!PL.has_property<property::no_offset>(), "Property is found");
     assert(PL.has_property<sycl::property::noinit>() && "Property not found");
+  }
+
+  {
+    // Compile time and runtime properties
+    accessor_property_list PL{sycl::no_init, no_alias};
+    assert(PL.has_property<property::no_alias>() && "Property not found");
+    assert(PL.has_property<sycl::property::no_init>() && "Property not found");
   }
 
   {

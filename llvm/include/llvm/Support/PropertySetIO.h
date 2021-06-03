@@ -43,6 +43,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <type_traits>
 
 namespace llvm {
 namespace util {
@@ -183,22 +184,33 @@ public:
   // Specific property category names used by tools.
   static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
       "SYCL/specialization constants";
-  static constexpr char SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS[] =
-      "SYCL/composite specialization constants";
+  static constexpr char SYCL_SPEC_CONSTANTS_DEFAULT_VALUES[] =
+      "SYCL/specialization constants default values";
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
 
   // Function for bulk addition of an entire property set under given category
   // (property set name).
-  template <typename T>
-  void add(StringRef Category, const std::map<StringRef, T> &Props) {
+  template <typename MapTy> void add(StringRef Category, const MapTy &Props) {
+    using KeyTy = typename MapTy::value_type::first_type;
+    static_assert(std::is_same<typename std::remove_const<KeyTy>::type,
+                               llvm::StringRef>::value,
+                  "wrong key type");
+
     assert(PropSetMap.find(Category) == PropSetMap.end() &&
            "category already added");
     auto &PropSet = PropSetMap[Category];
 
     for (const auto &Prop : Props)
-      PropSet.insert(std::make_pair(Prop.first, PropertyValue(Prop.second)));
+      PropSet.insert({Prop.first, PropertyValue(Prop.second)});
+  }
+
+  // Function to add a property to a given category (property set name).
+  template <typename T>
+  void add(StringRef Category, StringRef PropName, const T &PropVal) {
+    auto &PropSet = PropSetMap[Category];
+    PropSet.insert({PropName, PropertyValue(PropVal)});
   }
 
   // Parses and creates a property set registry.

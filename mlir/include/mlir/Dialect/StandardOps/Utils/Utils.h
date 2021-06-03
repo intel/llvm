@@ -35,7 +35,7 @@ void getPositionsOfShapeOne(unsigned rank, ArrayRef<int64_t> shape,
                             llvm::SmallDenseSet<unsigned> &dimsToProject);
 
 /// Pattern to rewrite a subview op with constant arguments.
-template <typename OpType, typename CastOpFunc>
+template <typename OpType, typename ResultTypeFunc, typename CastOpFunc>
 class OpWithOffsetSizesAndStridesConstantArgumentFolder final
     : public OpRewritePattern<OpType> {
 public:
@@ -59,8 +59,12 @@ public:
     canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamicStrideOrOffset);
 
     // Create the new op in canonical form.
-    auto newOp = rewriter.create<OpType>(op.getLoc(), op.source(), mixedOffsets,
-                                         mixedSizes, mixedStrides);
+    ResultTypeFunc resultTypeFunc;
+    auto resultType =
+        resultTypeFunc(op, mixedOffsets, mixedSizes, mixedStrides);
+    auto newOp =
+        rewriter.create<OpType>(op.getLoc(), resultType, op.source(),
+                                mixedOffsets, mixedSizes, mixedStrides);
     CastOpFunc func;
     func(rewriter, op, newOp);
 
@@ -68,6 +72,22 @@ public:
   }
 };
 
+/// Helper struct to build simple arithmetic quantities with minimal type
+/// inference support.
+struct ArithBuilder {
+  ArithBuilder(OpBuilder &b, Location loc) : b(b), loc(loc) {}
+
+  Value _and(Value lhs, Value rhs);
+  Value add(Value lhs, Value rhs);
+  Value mul(Value lhs, Value rhs);
+  Value select(Value cmp, Value lhs, Value rhs);
+  Value sgt(Value lhs, Value rhs);
+  Value slt(Value lhs, Value rhs);
+
+private:
+  OpBuilder &b;
+  Location loc;
+};
 } // end namespace mlir
 
 #endif // MLIR_DIALECT_STANDARDOPS_UTILS_UTILS_H

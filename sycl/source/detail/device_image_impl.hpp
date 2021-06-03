@@ -36,6 +36,18 @@ namespace detail {
 // of specialization constants for it
 class device_image_impl {
 public:
+  // The struct maps specialization ID to offset in the binary blob where value
+  // for this spec const should be.
+  struct SpecConstDescT {
+    unsigned int ID = 0;
+    unsigned int CompositeOffset = 0;
+    unsigned int Size = 0;
+    unsigned int BlobOffset = 0;
+    bool IsSet = false;
+  };
+
+  using SpecConstMapT = std::map<std::string, std::vector<SpecConstDescT>>;
+
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::vector<kernel_id> KernelIDs, RT::PiProgram Program)
@@ -44,6 +56,16 @@ public:
         MKernelIDs(std::move(KernelIDs)) {
     updateSpecConstSymMap();
   }
+
+  device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
+                    std::vector<device> Devices, bundle_state State,
+                    std::vector<kernel_id> KernelIDs, RT::PiProgram Program,
+                    const SpecConstMapT &SpecConstMap,
+                    const std::vector<unsigned char> &SpecConstsBlob)
+      : MBinImage(BinImage), MContext(std::move(Context)),
+        MDevices(std::move(Devices)), MState(State), MProgram(Program),
+        MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
+        MSpecConstSymMap(SpecConstMap) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
@@ -75,16 +97,6 @@ public:
     assert(false && "Not implemented");
     return false;
   }
-
-  // The struct maps specialization ID to offset in the binary blob where value
-  // for this spec const should be.
-  struct SpecConstDescT {
-    unsigned int ID = 0;
-    unsigned int CompositeOffset = 0;
-    unsigned int Size = 0;
-    unsigned int BlobOffset = 0;
-    bool IsSet = false;
-  };
 
   bool has_specialization_constant(const char *SpecName) const noexcept {
     // Lock the mutex to prevent when one thread in the middle of writing a
@@ -182,8 +194,7 @@ public:
     return MSpecConstsBuffer;
   }
 
-  const std::map<std::string, std::vector<SpecConstDescT>> &
-  get_spec_const_data_ref() const noexcept {
+  const SpecConstMapT &get_spec_const_data_ref() const noexcept {
     return MSpecConstSymMap;
   }
 
@@ -217,6 +228,10 @@ private:
       const pi::DeviceBinaryImage::PropertyRange &SCRange =
           MBinImage->getSpecConstants();
       using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
+
+      // get default values for specialization constants
+      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
+          MBinImage->getSpecConstantsDefaultValues();
 
       // This variable is used to calculate spec constant value offset in a
       // flat byte array.
@@ -256,6 +271,16 @@ private:
         }
       }
       MSpecConstsBlob.resize(BlobOffset);
+
+      bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
+
+      if (HasDefaultValues) {
+        pi::ByteArray DefValDescriptors =
+            pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        std::uninitialized_copy(&DefValDescriptors[8],
+                                &DefValDescriptors[8] + MSpecConstsBlob.size(),
+                                MSpecConstsBlob.data());
+      }
     }
   }
 

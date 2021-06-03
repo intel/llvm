@@ -40,9 +40,7 @@
 
 #include "lldb/lldb-private.h"
 
-#if defined(_WIN32)
-#include "lldb/Host/windows/editlinewin.h"
-#elif !defined(__ANDROID__)
+#if !defined(_WIN32) && !defined(__ANDROID__)
 #include <histedit.h>
 #endif
 
@@ -345,6 +343,16 @@ private:
   bool CompleteCharacter(char ch, EditLineGetCharType &out);
 
   void ApplyTerminalSizeChange();
+
+  // The following set various editline parameters.  It's not any less
+  // verbose to put the editline calls into a function, but it
+  // provides type safety, since the editline functions take varargs
+  // parameters.
+  void AddFunctionToEditLine(const EditLineCharType *command,
+                             const EditLineCharType *helptext,
+                             EditlineCommandCallbackType callbackFn);
+  void SetEditLinePromptCallback(EditlinePromptCallbackType callbackFn);
+  void SetGetCharacterFunction(EditlineGetCharCallbackType callbackFn);
 
 #if LLDB_EDITLINE_USE_WCHAR
   std::wstring_convert<std::codecvt_utf8<wchar_t>> m_utf8conv;

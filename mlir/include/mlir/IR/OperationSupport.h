@@ -67,14 +67,17 @@ using OwningRewritePatternList = RewritePatternSet;
 /// the concrete operation types.
 class AbstractOperation {
 public:
-  using GetCanonicalizationPatternsFn = void (*)(RewritePatternSet &,
-                                                 MLIRContext *);
-  using FoldHookFn = LogicalResult (*)(Operation *, ArrayRef<Attribute>,
-                                       SmallVectorImpl<OpFoldResult> &);
-  using HasTraitFn = bool (*)(TypeID);
-  using ParseAssemblyFn = ParseResult (*)(OpAsmParser &, OperationState &);
-  using PrintAssemblyFn = void (*)(Operation *, OpAsmPrinter &);
-  using VerifyInvariantsFn = LogicalResult (*)(Operation *);
+  using GetCanonicalizationPatternsFn =
+      llvm::unique_function<void(RewritePatternSet &, MLIRContext *) const>;
+  using FoldHookFn = llvm::unique_function<LogicalResult(
+      Operation *, ArrayRef<Attribute>, SmallVectorImpl<OpFoldResult> &) const>;
+  using HasTraitFn = llvm::unique_function<bool(TypeID) const>;
+  using ParseAssemblyFn =
+      llvm::unique_function<ParseResult(OpAsmParser &, OperationState &) const>;
+  using PrintAssemblyFn =
+      llvm::unique_function<void(Operation *, OpAsmPrinter &) const>;
+  using VerifyInvariantsFn =
+      llvm::unique_function<LogicalResult(Operation *) const>;
 
   /// This is the name of the operation.
   const Identifier name;
@@ -89,7 +92,7 @@ public:
   ParseResult parseAssembly(OpAsmParser &parser, OperationState &result) const;
 
   /// Return the static hook for parsing this operation assembly.
-  ParseAssemblyFn getParseAssemblyFn() const { return parseAssemblyFn; }
+  const ParseAssemblyFn &getParseAssemblyFn() const { return parseAssemblyFn; }
 
   /// This hook implements the AsmPrinter for this operation.
   void printAssembly(Operation *op, OpAsmPrinter &p) const {
@@ -175,20 +178,21 @@ public:
   /// Register a new operation in a Dialect object.
   /// The use of this method is in general discouraged in favor of
   /// 'insert<CustomOp>(dialect)'.
-  static void insert(StringRef name, Dialect &dialect, TypeID typeID,
-                     ParseAssemblyFn parseAssembly,
-                     PrintAssemblyFn printAssembly,
-                     VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
-                     GetCanonicalizationPatternsFn getCanonicalizationPatterns,
-                     detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait);
+  static void
+  insert(StringRef name, Dialect &dialect, TypeID typeID,
+         ParseAssemblyFn &&parseAssembly, PrintAssemblyFn &&printAssembly,
+         VerifyInvariantsFn &&verifyInvariants, FoldHookFn &&foldHook,
+         GetCanonicalizationPatternsFn &&getCanonicalizationPatterns,
+         detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait);
 
 private:
   AbstractOperation(StringRef name, Dialect &dialect, TypeID typeID,
-                    ParseAssemblyFn parseAssembly,
-                    PrintAssemblyFn printAssembly,
-                    VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
-                    GetCanonicalizationPatternsFn getCanonicalizationPatterns,
-                    detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait);
+                    ParseAssemblyFn &&parseAssembly,
+                    PrintAssemblyFn &&printAssembly,
+                    VerifyInvariantsFn &&verifyInvariants,
+                    FoldHookFn &&foldHook,
+                    GetCanonicalizationPatternsFn &&getCanonicalizationPatterns,
+                    detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait);
 
   /// A map of interfaces that were registered to this operation.
   detail::InterfaceMap interfaceMap;
@@ -480,6 +484,7 @@ namespace detail {
 /// This class contains the information for a trailing operand storage.
 struct TrailingOperandStorage final
     : public llvm::TrailingObjects<TrailingOperandStorage, OpOperand> {
+  TrailingOperandStorage() : reserved(0), capacity(0), numOperands(0) {}
   ~TrailingOperandStorage() {
     for (auto &operand : getOperands())
       operand.~OpOperand();
@@ -490,12 +495,12 @@ struct TrailingOperandStorage final
     return {getTrailingObjects<OpOperand>(), numOperands};
   }
 
-  /// The number of operands within the storage.
-  unsigned numOperands;
-  /// The total capacity number of operands that the storage can hold.
-  unsigned capacity : 31;
   /// We reserve a range of bits for use by the operand storage.
   unsigned reserved : 1;
+  /// The total capacity number of operands that the storage can hold.
+  unsigned capacity : 31;
+  /// The number of operands within the storage.
+  unsigned numOperands;
 };
 
 /// This class handles the management of operation operands. Operands are
@@ -537,9 +542,11 @@ public:
   }
 
 private:
-  enum : uint64_t {
-    /// The bit used to mark the storage as dynamic.
-    DynamicStorageBit = 1ull << 63ull
+  /// Pointer type traits for the storage pointer that ensures that we use the
+  /// lowest bit for the storage pointer.
+  struct StoragePointerLikeTypeTraits
+      : llvm::PointerLikeTypeTraits<TrailingOperandStorage *> {
+    static constexpr int NumLowBitsAvailable = 1;
   };
 
   /// Resize the storage to the given size. Returns the array containing the new
@@ -555,27 +562,25 @@ private:
   /// Returns the storage container if the storage is inline.
   TrailingOperandStorage &getInlineStorage() {
     assert(!isDynamicStorage() && "expected storage to be inline");
-    static_assert(sizeof(TrailingOperandStorage) == sizeof(uint64_t),
-                  "inline storage representation must match the opaque "
-                  "representation");
     return inlineStorage;
   }
 
   /// Returns the storage container if this storage is dynamic.
   TrailingOperandStorage &getDynamicStorage() {
     assert(isDynamicStorage() && "expected dynamic storage");
-    uint64_t maskedRepresentation = representation & ~DynamicStorageBit;
-    return *reinterpret_cast<TrailingOperandStorage *>(maskedRepresentation);
+    return *dynamicStorage.getPointer();
   }
 
   /// Returns true if the storage is currently dynamic.
-  bool isDynamicStorage() const { return representation & DynamicStorageBit; }
+  bool isDynamicStorage() const { return dynamicStorage.getInt(); }
 
   /// The current representation of the storage. This is either a
   /// InlineOperandStorage, or a pointer to a InlineOperandStorage.
   union {
     TrailingOperandStorage inlineStorage;
-    uint64_t representation;
+    llvm::PointerIntPair<TrailingOperandStorage *, 1, bool,
+                         StoragePointerLikeTypeTraits>
+        dynamicStorage;
   };
 
   /// This stuff is used by the TrailingObjects template.

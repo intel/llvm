@@ -71,13 +71,16 @@ public:
   /// @{
 
   using BaseT::getIntImmCost;
-  int getIntImmCost(int64_t Val);
-  int getIntImmCost(const APInt &Imm, Type *Ty, TTI::TargetCostKind CostKind);
-  int getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm,
-                        Type *Ty, TTI::TargetCostKind CostKind,
-                        Instruction *Inst = nullptr);
-  int getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                          Type *Ty, TTI::TargetCostKind CostKind);
+  InstructionCost getIntImmCost(int64_t Val);
+  InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
+                                TTI::TargetCostKind CostKind);
+  InstructionCost getIntImmCostInst(unsigned Opcode, unsigned Idx,
+                                    const APInt &Imm, Type *Ty,
+                                    TTI::TargetCostKind CostKind,
+                                    Instruction *Inst = nullptr);
+  InstructionCost getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                      const APInt &Imm, Type *Ty,
+                                      TTI::TargetCostKind CostKind);
   TTI::PopcntSupportKind getPopcntSupport(unsigned TyWidth);
 
   /// @}
@@ -130,6 +133,10 @@ public:
 
   unsigned getMaxInterleaveFactor(unsigned VF);
 
+  InstructionCost getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
+                                        Align Alignment, unsigned AddressSpace,
+                                        TTI::TargetCostKind CostKind);
+
   InstructionCost getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
                                          const Value *Ptr, bool VariableMask,
                                          Align Alignment,
@@ -169,7 +176,8 @@ public:
       ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
       const Instruction *CxtI = nullptr);
 
-  int getAddressComputationCost(Type *Ty, ScalarEvolution *SE, const SCEV *Ptr);
+  InstructionCost getAddressComputationCost(Type *Ty, ScalarEvolution *SE,
+                                            const SCEV *Ptr);
 
   InstructionCost getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
                                      CmpInst::Predicate VecPred,
@@ -185,7 +193,7 @@ public:
                                   TTI::TargetCostKind CostKind,
                                   const Instruction *I = nullptr);
 
-  int getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys);
+  InstructionCost getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys);
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP);
@@ -216,8 +224,12 @@ public:
   }
 
   bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
-    if (isa<FixedVectorType>(DataType) || !ST->hasSVE())
+    if (!ST->hasSVE())
       return false;
+
+    // For fixed vectors, avoid scalarization if using SVE for them.
+    if (isa<FixedVectorType>(DataType) && !ST->useSVEForFixedLengthVectors())
+      return false; // Fall back to scalarization of masked operations.
 
     return isLegalElementTypeForSVE(DataType->getScalarType());
   }

@@ -15,6 +15,7 @@
 #include "WebAssemblyMCInstLower.h"
 #include "TargetInfo/WebAssemblyTargetInfo.h"
 #include "Utils/WebAssemblyTypeUtilities.h"
+#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssemblyAsmPrinter.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblyRuntimeLibcallSignatures.h"
@@ -46,8 +47,28 @@ static void removeRegisterOperands(const MachineInstr *MI, MCInst &OutMI);
 MCSymbol *
 WebAssemblyMCInstLower::GetGlobalAddressSymbol(const MachineOperand &MO) const {
   const GlobalValue *Global = MO.getGlobal();
-  if (!isa<Function>(Global))
-    return cast<MCSymbolWasm>(Printer.getSymbol(Global));
+  if (!isa<Function>(Global)) {
+    auto *WasmSym = cast<MCSymbolWasm>(Printer.getSymbol(Global));
+    // If the symbol doesn't have an explicit WasmSymbolType yet and the
+    // GlobalValue is actually a WebAssembly global, then ensure the symbol is a
+    // WASM_SYMBOL_TYPE_GLOBAL.
+    if (WebAssembly::isWasmVarAddressSpace(Global->getAddressSpace()) &&
+        !WasmSym->getType()) {
+      const MachineFunction &MF = *MO.getParent()->getParent()->getParent();
+      const TargetMachine &TM = MF.getTarget();
+      const Function &CurrentFunc = MF.getFunction();
+      SmallVector<MVT, 1> VTs;
+      computeLegalValueVTs(CurrentFunc, TM, Global->getValueType(), VTs);
+      if (VTs.size() != 1)
+        report_fatal_error("Aggregate globals not yet implemented");
+
+      bool Mutable = true;
+      wasm::ValType Type = WebAssembly::toValType(VTs[0]);
+      WasmSym->setType(wasm::WASM_SYMBOL_TYPE_GLOBAL);
+      WasmSym->setGlobalType(wasm::WasmGlobalType{uint8_t(Type), Mutable});
+    }
+    return WasmSym;
+  }
 
   const auto *FuncTy = cast<FunctionType>(Global->getValueType());
   const MachineFunction &MF = *MO.getParent()->getParent()->getParent();
@@ -86,9 +107,8 @@ MCSymbol *WebAssemblyMCInstLower::GetExternalSymbolSymbol(
         strcmp(Name, "__stack_pointer") == 0 || strcmp(Name, "__tls_base") == 0;
     WasmSym->setType(wasm::WASM_SYMBOL_TYPE_GLOBAL);
     WasmSym->setGlobalType(wasm::WasmGlobalType{
-        uint8_t(Subtarget.hasAddr64() && strcmp(Name, "__table_base") != 0
-                    ? wasm::WASM_TYPE_I64
-                    : wasm::WASM_TYPE_I32),
+        uint8_t(Subtarget.hasAddr64() ? wasm::WASM_TYPE_I64
+                                      : wasm::WASM_TYPE_I32),
         Mutable});
     return WasmSym;
   }
