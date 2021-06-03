@@ -246,10 +246,6 @@ static void collectKernelModuleMap(
   // Only they have sycl-module-id attribute, so any other unrefenced
   // functions are dropped.
   for (auto &F : M.functions()) {
-    if (!F.isDeclaration() && F.getCallingConv() != CallingConv::SPIR_KERNEL &&
-        F.getCallingConv() != CallingConv::SPIR_FUNC) {
-      error("Unsupported calling convention in function " + F.getName());
-    }
     if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID)) {
       switch (EntryScope) {
       case Scope_PerKernel:
@@ -650,10 +646,6 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // Only they have sycl-module-id attribute, so any other unrefenced
   // functions are dropped.
   for (auto &F : M->functions()) {
-    if (!F.isDeclaration() && F.getCallingConv() != CallingConv::SPIR_KERNEL &&
-        F.getCallingConv() != CallingConv::SPIR_FUNC) {
-      error("Unsupported calling convention in function " + F.getName());
-    }
     if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID)) {
       if (F.getMetadata("sycl_explicit_simd"))
         EsimdFunctions.push_back(&F);
