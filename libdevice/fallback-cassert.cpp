@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "wrapper.h"
+#include "atomic.hpp"
 
 #ifdef __SPIR__
 
@@ -20,10 +21,11 @@ struct AssertHappened {
 #endif
 
 // FIXME remove const after CFE changes
-extern __SYCL_GLOBAL_VAR__ const AssertHappened
-    __SYCL_AssertHappenedMem; // declaration
+// declaration
+extern __SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened  __SYCL_AssertHappenedMem;
 
-__SYCL_GLOBAL_VAR__ const AssertHappened AssertHappenedMem; // definition
+// definition
+__SYCL_GLOBAL_VAR__ __SYCL_GLOBAL__ const AssertHappened __SYCL_AssertHappenedMem;
 
 static const __attribute__((opencl_constant)) char assert_fmt[] =
     "%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] "
@@ -52,11 +54,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   //{
   //  int Expected = 0;
   //  int Desired = 1;
-  //  __spirv_AtomicCompareExchange(
-  //      &__SYCL_AssertHappenedMem.Flag, /*__spv::Scope::Device*/ 1,
-  //      /*__spv::MemorySemanticsMask::SequentiallyConsistent*/ 0x10,
-  //      /*__spv::MemorySemanticsMask::SequentiallyConsistent*/ 0x10,
-  //      Desired, Expected);
+  //  CAS(&__SYCL_AssertHappenedMem.Flag, Desired, Expected);
   //}
 
   // FIXME: call SPIR-V unreachable instead
