@@ -16,6 +16,8 @@
 // type size.
 // RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl -I%S/.. -DSYCL2020 %s -o %t.2020.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.2020.out
 // UNSUPPORTED: cuda
 
 #include <cstdint>
@@ -27,4 +29,8 @@
 using spec_const_t = uint16_t;
 using container_t = uint16_t;
 
+#ifndef SYCL2020
 #include "Inputs/spec_const_common.hpp"
+#else
+#include "Inputs/spec-const-2020-common.hpp"
+#endif
