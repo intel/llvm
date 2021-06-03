@@ -21,8 +21,8 @@ using cl::sycl::detail::is_sgeninteger;
 
 template <typename T, class BinaryOperation>
 using IsReduPlus =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::plus<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::plus<void>>::value>;
+    bool_constant<std::is_same<BinaryOperation, std::plus<T>>::value ||
+                  std::is_same<BinaryOperation, std::plus<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduMultiplies =
@@ -32,27 +32,31 @@ using IsReduMultiplies =
 template <typename T, class BinaryOperation>
 using IsReduMinimum =
     bool_constant<std::is_same<BinaryOperation, ONEAPI::minimum<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::minimum<void>>::value>;
+                  std::is_same<BinaryOperation, ONEAPI::minimum<void>>::value ||
+                  std::is_same<BinaryOperation, sycl::minimum<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::minimum<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduMaximum =
     bool_constant<std::is_same<BinaryOperation, ONEAPI::maximum<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::maximum<void>>::value>;
+                  std::is_same<BinaryOperation, ONEAPI::maximum<void>>::value ||
+                  std::is_same<BinaryOperation, sycl::maximum<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::maximum<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitOR =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_or<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::bit_or<void>>::value>;
+    bool_constant<std::is_same<BinaryOperation, std::bit_or<T>>::value ||
+                  std::is_same<BinaryOperation, std::bit_or<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitXOR =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_xor<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::bit_xor<void>>::value>;
+    bool_constant<std::is_same<BinaryOperation, std::bit_xor<T>>::value ||
+                  std::is_same<BinaryOperation, std::bit_xor<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitAND =
-    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_and<T>>::value ||
-                  std::is_same<BinaryOperation, ONEAPI::bit_and<void>>::value>;
+    bool_constant<std::is_same<BinaryOperation, std::bit_and<T>>::value ||
+                  std::is_same<BinaryOperation, std::bit_and<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
