@@ -101,9 +101,10 @@ clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 # Explicit SIMD
 SYCLLowerIR/ @kbobrovs @DenisBakhvalov
 esimd/ @kbobrovs @DenisBakhvalov
-sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs @DenisBakhvalov
+sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @DenisBakhvalov
 sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
 
 # ITT annotations
-llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims
-llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims
+llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari
+llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims @vzakhari
+llvm/test/Transforms/SPIRITTAnnotations/* @MrSidims @vzakhari

@@ -297,6 +297,16 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   if (T->isFloatingPointTy())
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
 
+  if (T->isTokenTy()) {
+    BM->getErrorLog().checkError(
+        BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_token_type),
+        SPIRVEC_RequiresExtension,
+        "SPV_INTEL_token_type\n"
+        "NOTE: LLVM module contains token type, which doesn't have analogs in "
+        "SPIR-V without extensions");
+    return mapType(T, BM->addTokenTypeINTEL());
+  }
+
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
   // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
@@ -743,6 +753,29 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
       size_t Independent = getMDOperandAsInt(LoopFuse, 1);
       BF->addDecorate(
           new SPIRVDecorateFuseLoopsInFunctionINTEL(BF, Depth, Independent));
+    }
+  }
+  if (MDNode *InitiationInterval =
+          F->getMetadata(kSPIR2MD::InitiationInterval)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
+      if (size_t Cycles = getMDOperandAsInt(InitiationInterval, 0))
+        BF->addDecorate(new SPIRVDecorateInitiationIntervalINTEL(BF, Cycles));
+    }
+  }
+  if (MDNode *MaxConcurrency = F->getMetadata(kSPIR2MD::MaxConcurrency)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
+      size_t Invocations = getMDOperandAsInt(MaxConcurrency, 0);
+      BF->addDecorate(new SPIRVDecorateMaxConcurrencyINTEL(BF, Invocations));
+    }
+  }
+  if (MDNode *DisableLoopPipelining =
+          F->getMetadata(kSPIR2MD::DisableLoopPipelining)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
+      if (size_t Disable = getMDOperandAsInt(DisableLoopPipelining, 0))
+        BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, !Disable));
     }
   }
 }
@@ -1793,7 +1826,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 }
 
 SPIRVType *LLVMToSPIRVBase::mapType(Type *T, SPIRVType *BT) {
-  TypeMap[T] = BT;
+  auto EmplaceStatus = TypeMap.try_emplace(T, BT);
+  (void)EmplaceStatus;
+  // TODO: Uncomment the assertion, once the type mapping issue is resolved
+  // assert(EmplaceStatus.second && "The type was already added to the map");
   SPIRVDBG(dbgs() << "[mapType] " << *T << " => "; spvdbgs() << *BT << '\n');
   return BT;
 }
