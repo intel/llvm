@@ -1226,7 +1226,6 @@ pi_result piextGetExtensionName(pi_extension_number ExtNumber, size_t *Size,
   return Result;
 }
 
-
 pi_result piPluginInit(pi_plugin *PluginInit) {
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
   if (CompareVersions < 0) {
