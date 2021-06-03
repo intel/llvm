@@ -41,6 +41,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
+| [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc) | Proposal | |
 
 Legend:
 

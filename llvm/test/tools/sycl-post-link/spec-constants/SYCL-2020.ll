@@ -132,6 +132,9 @@ attributes #3 = { nounwind }
 
 ; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]]}
 ;
+; CHECK-DEF: !sycl.specialization-constants-default-values = !{![[#ID4:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]]}
+; CHECK-RT-NOT: !sycl.specialization-constants-default-values
+;
 ; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_doubleEE", i32 0, i32 0, i32 8}
 ; CHECK: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
 ;
@@ -148,3 +151,8 @@ attributes #3 = { nounwind }
 ; CHECK-RT-SAME: i32 [[#SCID7]], i32 4, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID8]], i32 8, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID9]], i32 16, i32 8}
+;
+; CHECK-DEF: ![[#ID4]] = !{double 3.140000e+00}
+; CHECK-DEF: ![[#ID5]] = !{i32 42}
+; CHECK-DEF: ![[#ID6]] = !{%struct.ComposConst { i32 1, double 2.000000e+00, %struct.myConst { i32 13, float 0x4020666660000000 } }}
+; CHECK-DEF: ![[#ID7]] = !{%struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 0x40479999A0000000 }, double 2.000000e+00 }}

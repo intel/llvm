@@ -88,11 +88,6 @@
 // provided under the alternate keyword __nullptr, which changes the mangling
 // of nullptr_t. This option is ABI incompatible with GCC in C++03 mode.
 #  define _LIBCPP_ABI_ALWAYS_USE_CXX11_NULLPTR
-// Define the `pointer_safety` enum as a C++11 strongly typed enumeration
-// instead of as a class simulating an enum. If this option is enabled
-// `pointer_safety` and `get_pointer_safety()` will no longer be available
-// in C++03.
-#  define _LIBCPP_ABI_POINTER_SAFETY_ENUM_TYPE
 // Define a key function for `bad_function_call` in the library, to centralize
 // its vtable and typeinfo to libc++ rather than having all other libraries
 // using that class define their own copies.
@@ -1346,6 +1341,12 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(
 #define _LIBCPP_NODEBUG_TYPE
 #endif
 #endif // !defined(_LIBCPP_NODEBUG_TYPE)
+
+#if __has_attribute(__standalone_debug__)
+#define _LIBCPP_STANDALONE_DEBUG __attribute__((__standalone_debug__))
+#else
+#define _LIBCPP_STANDALONE_DEBUG
+#endif
 
 #if __has_attribute(__preferred_name__)
 #define _LIBCPP_PREFERRED_NAME(x) __attribute__((__preferred_name__(x)))

@@ -160,7 +160,9 @@ uint64_t Symbol::getGotVA() const {
   return in.got->getVA() + getGotOffset();
 }
 
-uint64_t Symbol::getGotOffset() const { return gotIndex * config->wordsize; }
+uint64_t Symbol::getGotOffset() const {
+  return gotIndex * target->gotEntrySize;
+}
 
 uint64_t Symbol::getGotPltVA() const {
   if (isInIplt)
@@ -170,8 +172,8 @@ uint64_t Symbol::getGotPltVA() const {
 
 uint64_t Symbol::getGotPltOffset() const {
   if (isInIplt)
-    return pltIndex * config->wordsize;
-  return (pltIndex + target->gotPltHeaderEntriesNum) * config->wordsize;
+    return pltIndex * target->gotEntrySize;
+  return (pltIndex + target->gotPltHeaderEntriesNum) * target->gotEntrySize;
 }
 
 uint64_t Symbol::getPltVA() const {
@@ -277,7 +279,7 @@ uint8_t Symbol::computeBinding() const {
   if (config->relocatable)
     return binding;
   if ((visibility != STV_DEFAULT && visibility != STV_PROTECTED) ||
-      (versionId == VER_NDX_LOCAL && isDefined()))
+      (versionId == VER_NDX_LOCAL && !isLazy()))
     return STB_LOCAL;
   if (!config->gnuUnique && binding == STB_GNU_UNIQUE)
     return STB_GLOBAL;
