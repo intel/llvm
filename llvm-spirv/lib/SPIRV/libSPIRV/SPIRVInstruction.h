@@ -1898,14 +1898,13 @@ class SPIRVCompositeExtract : public SPIRVInstruction {
 public:
   const static Op OC = OpCompositeExtract;
   // Complete constructor
-  SPIRVCompositeExtract(SPIRVType *TheType, SPIRVId TheId,
-                        SPIRVValue *TheComposite,
+  SPIRVCompositeExtract(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheComposite,
                         const std::vector<SPIRVWord> &TheIndices,
-                        SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(TheIndices.size() + 4, OC, TheType, TheId, TheBB),
-        Composite(TheComposite->getId()), Indices(TheIndices) {
+                        SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
+      : SPIRVInstruction(TheIndices.size() + 4, OC, TheType, TheId, TheBB,
+                         TheM),
+        Composite(TheComposite), Indices(TheIndices) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVCompositeExtract() : SPIRVInstruction(OC), Composite(SPIRVID_INVALID) {}
@@ -1936,16 +1935,14 @@ public:
   const static Op OC = OpCompositeInsert;
   const static SPIRVWord FixedWordCount = 5;
   // Complete constructor
-  SPIRVCompositeInsert(SPIRVId TheId, SPIRVValue *TheObject,
-                       SPIRVValue *TheComposite,
+  SPIRVCompositeInsert(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheObject,
+                       SPIRVId TheComposite,
                        const std::vector<SPIRVWord> &TheIndices,
-                       SPIRVBasicBlock *TheBB)
-      : SPIRVInstruction(TheIndices.size() + FixedWordCount, OC,
-                         TheComposite->getType(), TheId, TheBB),
-        Object(TheObject->getId()), Composite(TheComposite->getId()),
-        Indices(TheIndices) {
+                       SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
+      : SPIRVInstruction(TheIndices.size() + FixedWordCount, OC, TheType, TheId,
+                         TheBB, TheM),
+        Object(TheObject), Composite(TheComposite), Indices(TheIndices) {
     validate();
-    assert(TheBB && "Invalid BB");
   }
   // Incomplete constructor
   SPIRVCompositeInsert()
