@@ -13,8 +13,10 @@ target triple = "spir64-unknown-linux-sycldevice"
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
 ; CHECK: [SYCL/assert used]
+; CHECK-NOT: _ZTSZ4mainE11TU0_kernel1
 ; CHECK-DAG: _ZTSZ4mainE11TU0_kernel0
 ; CHECK-DAG: _ZTSZ4mainE10TU1_kernel
+; CHECK-NOT: _ZTSZ4mainE11TU0_kernel1
 
 define dso_local spir_kernel void @_ZTSZ4mainE11TU0_kernel0() #0 {
 entry:
