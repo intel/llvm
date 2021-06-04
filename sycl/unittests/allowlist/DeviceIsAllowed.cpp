@@ -158,7 +158,7 @@ TEST(DeviceIsAllowedTests,
 }
 
 TEST(DeviceIsAllowedTests,
-     CheckAssertHappensIfIncompleteDeviceDescIsPassedToTheFunc) {
+     DISABLED_CheckAssertHappensIfIncompleteDeviceDescIsPassedToTheFunc) {
   sycl::detail::DeviceDescT IncompleteDeviceDesc{{"BackendName", "level_zero"}};
   EXPECT_DEATH(sycl::detail::deviceIsAllowed(
                    IncompleteDeviceDesc,
