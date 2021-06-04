@@ -2417,8 +2417,8 @@ public:
   }
 
   ExprResult RebuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                             SourceLocation LParen,
-                                             SourceLocation RParen, Expr *E) {
+                                           SourceLocation LParen,
+                                           SourceLocation RParen, Expr *E) {
     return getSema().BuildSYCLUniqueStableIdExpr(OpLoc, LParen, RParen, E);
   }
 

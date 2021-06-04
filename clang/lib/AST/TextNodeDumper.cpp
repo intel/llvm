@@ -1024,8 +1024,7 @@ void TextNodeDumper::VisitSYCLUniqueStableNameExpr(
 }
 
 void TextNodeDumper::VisitSYCLUniqueStableIdExpr(
-    const SYCLUniqueStableIdExpr *Node) {
-}
+    const SYCLUniqueStableIdExpr *Node) {}
 
 void TextNodeDumper::VisitPredefinedExpr(const PredefinedExpr *Node) {
   OS << " " << PredefinedExpr::getIdentKindName(Node->getIdentKind());

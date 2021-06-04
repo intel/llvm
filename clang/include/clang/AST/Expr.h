@@ -2106,8 +2106,7 @@ class SYCLUniqueStableIdExpr final : public Expr {
 
   SYCLUniqueStableIdExpr(EmptyShell Empty, QualType ResultTy);
   SYCLUniqueStableIdExpr(SourceLocation OpLoc, SourceLocation LParen,
-                           SourceLocation RParen, QualType ResultTy,
-                           Expr *E);
+                         SourceLocation RParen, QualType ResultTy, Expr *E);
 
   void setExpr(Expr *E) { DRE = E; }
 
@@ -2120,9 +2119,10 @@ public:
 
   const Expr *getExpr() const { return cast<Expr>(DRE); }
 
-  static SYCLUniqueStableIdExpr *
-  Create(const ASTContext &Ctx, SourceLocation OpLoc, SourceLocation LParen,
-         SourceLocation RParen, Expr *E);
+  static SYCLUniqueStableIdExpr *Create(const ASTContext &Ctx,
+                                        SourceLocation OpLoc,
+                                        SourceLocation LParen,
+                                        SourceLocation RParen, Expr *E);
 
   static SYCLUniqueStableIdExpr *CreateEmpty(const ASTContext &Ctx);
 
