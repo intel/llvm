@@ -27,8 +27,6 @@ namespace detail {
 
 using cl::sycl::detail::bool_constant;
 using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::is_sgenfloat;
-using cl::sycl::detail::is_sgeninteger;
 using cl::sycl::detail::queue_impl;
 using cl::sycl::detail::remove_AS;
 
@@ -45,7 +43,7 @@ using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<is_sgeninteger<T>::value &&
+    bool_constant<sycl::detail::is_sgeninteger<T>::value &&
                   sycl::detail::IsValidAtomicType<T>::value &&
                   (sycl::detail::IsPlus<T, BinaryOperation>::value ||
                    sycl::detail::IsMinimum<T, BinaryOperation>::value ||
@@ -55,14 +53,23 @@ using IsReduOptForFastAtomicFetch =
                    sycl::detail::IsBitAND<T, BinaryOperation>::value)>;
 #endif
 
+// This type trait is used to detect if the group algorithm reduce() used with
+// operands of the type T and the operation BinaryOperation is available
+// for using in reduction.
+// The macro SYCL_REDUCTION_DETERMINISTIC prohibits using the reduce() algorithm
+// to produce stable results across same type devices.
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
-    bool_constant<((is_sgeninteger<T>::value &&
+#ifdef SYCL_REDUCTION_DETERMINISTIC
+    bool_constant<false>;
+#else
+    bool_constant<((sycl::detail::is_sgeninteger<T>::value &&
                     (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                   is_sgenfloat<T>::value) &&
+                   sycl::detail::is_sgenfloat<T>::value) &&
                   (sycl::detail::IsPlus<T, BinaryOperation>::value ||
                    sycl::detail::IsMinimum<T, BinaryOperation>::value ||
                    sycl::detail::IsMaximum<T, BinaryOperation>::value)>;
+#endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
 // Thus sycl::detail::tuple is used instead.
