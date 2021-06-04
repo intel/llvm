@@ -807,9 +807,9 @@ private:
     using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
 
     (void)kernel_parallel_for_wrapper_instantiator<NameWT, TransformedArgType,
-                                                  WrapperTy>::value;
+                                                   WrapperTy>::value;
     (void)kernel_parallel_for_wrapper_instantiator<NameT, TransformedArgType,
-                                                  KernelType>::value;
+                                                   KernelType>::value;
 
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
