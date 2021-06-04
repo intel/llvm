@@ -437,7 +437,8 @@ template <typename Group>
 void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
 
 template <typename Group>
-inline typename std::enable_if<detail::is_group<Group>::value>::type group_barrier(Group, memory_scope FenceScope) {
+inline typename std::enable_if<detail::is_group<Group>::value>::type
+group_barrier(Group, memory_scope FenceScope) {
   (void)FenceScope;
 #ifdef __SYCL_DEVICE_ONLY__
   // Per SYCL spec, group_barrier must perform both control barrier and memory
