@@ -89,8 +89,7 @@ using native_op_list =
               ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>,
               ONEAPI::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
               sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
-              sycl::minimum<T>, sycl::multiplies<T>, sycl::logical_or<T>,
-              sycl::logical_and<T>>;
+              sycl::minimum<T>, sycl::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
