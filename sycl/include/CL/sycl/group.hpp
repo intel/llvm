@@ -41,21 +41,6 @@ static inline void workGroupBarrier() {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-static inline void workGroupBarrier(memory_scope FenceScope) {
-  (void)FenceScope;
-#ifdef __SYCL_DEVICE_ONLY__
-  __spirv_ControlBarrier(__spv::Scope::Workgroup,
-                         sycl::detail::spirv::getScope(FenceScope),
-                         __spv::MemorySemanticsMask::AcquireRelease |
-                             __spv::MemorySemanticsMask::SubgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#else
-  throw sycl::runtime_error("Barriers are not supported on host device",
-                            PI_INVALID_DEVICE);
-#endif
-}
-
 } // namespace detail
 
 // SYCL 1.2.1rev5, section "4.8.5.3 Parallel For hierarchical invoke":
@@ -451,18 +436,24 @@ template <int Dims> group<Dims> this_group() {
 template <typename Group>
 void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
 
-template <>
-inline void group_barrier<group<1>>(group<1>, memory_scope FenceScope) {
-  detail::workGroupBarrier(FenceScope);
+template <typename Group>
+inline typename std::enable_if<detail::is_group<Group>::value>::type group_barrier(Group, memory_scope FenceScope) {
+  (void)FenceScope;
+#ifdef __SYCL_DEVICE_ONLY__
+  // Per SYCL spec, group_barrier must perform both control barrier and memory
+  // fence operations. All work-items execute release a release fence prior to
+  // barrier and acquire fence afterwards. The rest of semantics flags specify
+  // which type of memory this behavior is applied to.
+  __spirv_ControlBarrier(__spv::Scope::Workgroup,
+                         sycl::detail::spirv::getScope(FenceScope),
+                         __spv::MemorySemanticsMask::AcquireRelease |
+                             __spv::MemorySemanticsMask::SubgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+#else
+  throw sycl::runtime_error("Barriers are not supported on host device",
+                            PI_INVALID_DEVICE);
+#endif
 }
-template <>
-inline void group_barrier<group<2>>(group<2>, memory_scope FenceScope) {
-  detail::workGroupBarrier(FenceScope);
-}
-template <>
-inline void group_barrier<group<3>>(group<3>, memory_scope FenceScope) {
-  detail::workGroupBarrier(FenceScope);
-}
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
