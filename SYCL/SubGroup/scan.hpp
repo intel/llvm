@@ -30,14 +30,14 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
             ONEAPI::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               exacc[NdItem.get_global_id(0)] =
-                  exclusive_scan(sg, T(NdItem.get_global_id(0)), op);
+                  ONEAPI::exclusive_scan(sg, T(NdItem.get_global_id(0)), op);
               inacc[NdItem.get_global_id(0)] =
-                  inclusive_scan(sg, T(NdItem.get_global_id(0)), op);
+                  ONEAPI::inclusive_scan(sg, T(NdItem.get_global_id(0)), op);
             } else {
-              exacc[NdItem.get_global_id(0)] =
-                  exclusive_scan(sg, T(NdItem.get_global_id(0)), init, op);
-              inacc[NdItem.get_global_id(0)] =
-                  inclusive_scan(sg, T(NdItem.get_global_id(0)), op, init);
+              exacc[NdItem.get_global_id(0)] = ONEAPI::exclusive_scan(
+                  sg, T(NdItem.get_global_id(0)), init, op);
+              inacc[NdItem.get_global_id(0)] = ONEAPI::inclusive_scan(
+                  sg, T(NdItem.get_global_id(0)), op, init);
             }
             if (NdItem.get_global_id(0) == 0)
               sgsizeacc[0] = sg.get_max_local_range()[0];

@@ -140,24 +140,26 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
-  test<class KernelNamePlusV>(q, input, output, plus<>(), 0);
-  test<class KernelNameMinimumV>(q, input, output, minimum<>(),
+  test<class KernelNamePlusV>(q, input, output, ONEAPI::plus<>(), 0);
+  test<class KernelNameMinimumV>(q, input, output, ONEAPI::minimum<>(),
                                  std::numeric_limits<int>::max());
-  test<class KernelNameMaximumV>(q, input, output, maximum<>(),
+  test<class KernelNameMaximumV>(q, input, output, ONEAPI::maximum<>(),
                                  std::numeric_limits<int>::lowest());
 
-  test<class KernelNamePlusI>(q, input, output, plus<int>(), 0);
-  test<class KernelNameMinimumI>(q, input, output, minimum<int>(),
+  test<class KernelNamePlusI>(q, input, output, ONEAPI::plus<int>(), 0);
+  test<class KernelNameMinimumI>(q, input, output, ONEAPI::minimum<int>(),
                                  std::numeric_limits<int>::max());
-  test<class KernelNameMaximumI>(q, input, output, maximum<int>(),
+  test<class KernelNameMaximumI>(q, input, output, ONEAPI::maximum<int>(),
                                  std::numeric_limits<int>::lowest());
 
 #ifdef SPIRV_1_3
-  test<class KernelName_VzAPutpBRRJrQPB>(q, input, output, multiplies<int>(),
-                                         1);
-  test<class KernelName_UXdGbr>(q, input, output, bit_or<int>(), 0);
-  test<class KernelName_saYaodNyJknrPW>(q, input, output, bit_xor<int>(), 0);
-  test<class KernelName_GPcuAlvAOjrDyP>(q, input, output, bit_and<int>(), ~0);
+  test<class KernelName_VzAPutpBRRJrQPB>(q, input, output,
+                                         ONEAPI::multiplies<int>(), 1);
+  test<class KernelName_UXdGbr>(q, input, output, ONEAPI::bit_or<int>(), 0);
+  test<class KernelName_saYaodNyJknrPW>(q, input, output,
+                                        ONEAPI::bit_xor<int>(), 0);
+  test<class KernelName_GPcuAlvAOjrDyP>(q, input, output,
+                                        ONEAPI::bit_and<int>(), ~0);
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;
