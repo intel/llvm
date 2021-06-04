@@ -880,6 +880,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   if (SYCLTargets && SYCLfpga)
     Diag(clang::diag::err_drv_option_conflict)
         << SYCLTargets->getSpelling() << SYCLfpga->getSpelling();
+  // -ffreestanding cannot be used with -fsycl
+  if (HasValidSYCLRuntime &&
+      C.getInputArgs().hasArg(options::OPT_ffreestanding)) {
+    Diag(clang::diag::err_drv_option_conflict) << "-fsycl"
+                                               << "-ffreestanding";
+  }
 
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
