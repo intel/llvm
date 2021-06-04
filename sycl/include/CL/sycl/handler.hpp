@@ -805,31 +805,11 @@ private:
         decltype(getRangeRoundedKernelLambda<TransformedArgType, Dims>(
             KernelFunc, NumWorkItems));
     using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
-#ifdef __SYCL_NONCONST_FUNCTOR__
-    using WrapperKernelParamTy = WrapperTy;
-    using KernelParamTy = KernelFunc;
-#else
-    using WrapperKernelParamTy = const WrapperTy &;
-    using KernelParamTy = const KernelFunc &;
-#endif
 
-    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
-                      WrapperTy, ElementType>()) {
-      (void)static_cast<void (*)(WrapperKernelParamTy, kernel_handler)>(
-          kernel_parallel_for<NameWT, TransformedArgType, WrapperTy>);
-    } else {
-      (void)static_cast<void (*)(WrapperKernelParamTy)>(
-          kernel_parallel_for<NameWT, TransformedArgType, WrapperTy>);
-    }
-
-    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
-                      KernelType, ElementType>()) {
-      (void)static_cast<void (*)(KernelParamTy, kernel_handler)>(
-          kernel_parallel_for<NameT, TransformedArgType, KernelType>);
-    } else {
-      (void)static_cast<void (*)(KernelParamTy)>(
-          kernel_parallel_for<NameT, TransformedArgType, KernelType>);
-    }
+    (void)kernel_parallel_for_wrapper_instantiator<NameWT, TransformedArgType,
+                                                  WrapperTy>::value;
+    (void)kernel_parallel_for_wrapper_instantiator<NameT, TransformedArgType,
+                                                  KernelType>::value;
 
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
@@ -1049,6 +1029,34 @@ private:
       kernel_parallel_for<KernelName, ElementType>(KernelFunc);
     }
   }
+
+  // Helper instantiator type for kernel_parallel_for_wrapper that
+  // instantiates but not calls the appropriate kernel. Needed to support use of
+  // KernelInfo in  parallel_for_lambda_impl when supporting
+  // SCYL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING.
+  template <typename KernelName, typename ElementType, typename KernelType>
+  class kernel_parallel_for_wrapper_instantiator {
+    static constexpr auto func_loader() {
+#ifdef __SYCL_NONCONST_FUNCTOR__
+      using ParamTy = KernelType;
+#else
+      using ParamTy = const KernelType &;
+#endif
+      if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                        KernelType, ElementType>()) {
+        using FuncTy = void (*)(ParamTy, kernel_handler);
+        return static_cast<FuncTy>(
+            kernel_parallel_for<KernelName, ElementType, KernelType>);
+      } else {
+        using FuncTy = void (*)(ParamTy);
+        return static_cast<FuncTy>(
+            kernel_parallel_for<KernelName, ElementType, KernelType>);
+      }
+    }
+
+  public:
+    static constexpr auto value = func_loader();
+  };
 
   // Wrappers for kernel_parallel_for_work_group(...)
 
