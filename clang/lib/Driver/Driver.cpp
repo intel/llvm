@@ -5538,6 +5538,17 @@ Action *Driver::ConstructPhaseAction(
       assert(OutputTy != types::TY_INVALID &&
              "Cannot preprocess this input type!");
     }
+    if (Args.hasArg(options::OPT_fsycl) && OutputTy != types::TY_Dependencies &&
+        Args.hasArg(options::OPT_fsycl_use_footer) &&
+        TargetDeviceOffloadKind == Action::OFK_None) {
+      // Performing a host compilation with -fsycl.  Append the integrated
+      // footer to the preprocessed source file.  We then add another
+      // preprocessed step to complete the action chain.
+      auto *Preprocess = C.MakeAction<PreprocessJobAction>(Input, OutputTy);
+      auto *AppendFooter =
+          C.MakeAction<AppendFooterJobAction>(Preprocess, types::TY_CXX);
+      return C.MakeAction<PreprocessJobAction>(AppendFooter, OutputTy);
+    }
     return C.MakeAction<PreprocessJobAction>(Input, OutputTy);
   }
   case phases::Precompile: {
@@ -5583,7 +5594,8 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<CompileJobAction>(Input, types::TY_ModuleFile);
     if (Args.hasArg(options::OPT_verify_pch))
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
-    if (Args.hasArg(options::OPT_fsycl) &&
+    if (Args.hasArg(options::OPT_fsycl) && Input->getType() != types::TY_PP_C &&
+        Input->getType() != types::TY_PP_CXX &&
         Args.hasArg(options::OPT_fsycl_use_footer) &&
         TargetDeviceOffloadKind == Action::OFK_None) {
       // Performing a host compilation with -fsycl.  Append the integrated
