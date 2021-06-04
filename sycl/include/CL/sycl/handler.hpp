@@ -796,6 +796,41 @@ private:
 
     // Get the kernal name to check condition 3.
     std::string KName = typeid(NameT *).name();
+
+    // Force instantiation of the kernel before we use the kernel info to make
+    // sure __builtin_sycl_unique_stable_name doesn't cause problems.
+    // The instantiations of kernel_parallel_for must match the logic caused by
+    // kernel_parallel_for_wrapper.
+    using WrapperTy =
+        decltype(getRangeRoundedKernelLambda<TransformedArgType, Dims>(
+            KernelFunc, NumWorkItems));
+    using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
+#ifdef __SYCL_NONCONST_FUNCTOR__
+    using WrapperKernelParamTy = WrapperTy;
+    using KernelParamTy = KernelFunc;
+#else
+    using WrapperKernelParamTy = const WrapperTy &;
+    using KernelParamTy = const KernelFunc &;
+#endif
+
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      WrapperTy, ElementType>()) {
+      (void)static_cast<void (*)(WrapperKernelParamTy, kernel_handler)>(
+          kernel_parallel_for<NameWT, TransformedArgType, WrapperTy>);
+    } else {
+      (void)static_cast<void (*)(WrapperKernelParamTy)>(
+          kernel_parallel_for<NameWT, TransformedArgType, WrapperTy>);
+    }
+
+    if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
+                      KernelType, ElementType>()) {
+      (void)static_cast<void (*)(KernelParamTy, kernel_handler)>(
+          kernel_parallel_for<NameT, TransformedArgType, KernelType>);
+    } else {
+      (void)static_cast<void (*)(KernelParamTy)>(
+          kernel_parallel_for<NameT, TransformedArgType, KernelType>);
+    }
+
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
         (getenv("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") != nullptr) ||
@@ -815,7 +850,6 @@ private:
       // will yield a rounded-up value for the total range.
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
-      using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       if (getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE") != nullptr)
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
