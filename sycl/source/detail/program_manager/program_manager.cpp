@@ -53,7 +53,7 @@ static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 /// a specialization constant if INTEL_LIBITTNOTIFY64 env variable is set.
 static void enableITTAnnotationsIfNeeded(const RT::PiProgram &Prog,
                                          const plugin &Plugin) {
-  if (std::getenv(ITTProfileEnvVarName) != nullptr) {
+  if (SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::get() != nullptr) {
     constexpr char SpecValue = 1;
     Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
         Prog, ITTSpecConstId, sizeof(char), &SpecValue);

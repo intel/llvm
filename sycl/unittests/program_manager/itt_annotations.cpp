@@ -9,6 +9,7 @@
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 #include <CL/sycl.hpp>
+#include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
@@ -16,6 +17,9 @@
 #include <gtest/gtest.h>
 
 #include <stdlib.h>
+
+// Same as defined in config.def
+static constexpr auto ITTProfileEnvVarName = "INTEL_ENABLE_OFFLOAD_ANNOTATIONS";
 
 static void set_env(const char *name, const char *value) {
 #ifdef _WIN32
@@ -169,8 +173,9 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 }
 
 static void reset() {
+  using namespace sycl::detail;
   HasITTEnabled = false;
-  unset_env(sycl::detail::ITTProfileEnvVarName);
+  SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset();
 }
 
 static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
@@ -217,9 +222,9 @@ sycl::unittest::PiImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray ImgArray{Img};
 
 TEST(ITTNotify, UseKernelBundle) {
-  reset();
+  set_env(ITTProfileEnvVarName, "1");
 
-  set_env(sycl::detail::ITTProfileEnvVarName, "1");
+  reset();
 
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
@@ -253,6 +258,8 @@ TEST(ITTNotify, UseKernelBundle) {
 }
 
 TEST(ITTNotify, VarNotSet) {
+  unset_env(ITTProfileEnvVarName);
+
   reset();
 
   sycl::platform Plt{sycl::default_selector()};

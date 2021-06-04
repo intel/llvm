@@ -53,7 +53,7 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
     return false;
 
   // Disable cache for ITT-profiled images.
-  if (std::getenv(ITTProfileEnvVarName)) {
+  if (SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::get()) {
     return false;
   }
 
