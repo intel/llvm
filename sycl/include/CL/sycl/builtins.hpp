@@ -1630,6 +1630,8 @@ extern SYCL_EXTERNAL double atanh(double x);
 extern SYCL_EXTERNAL double frexp(double x, int *exp);
 extern SYCL_EXTERNAL double ldexp(double x, int exp);
 extern SYCL_EXTERNAL double hypot(double x, double y);
+
+extern SYCL_EXTERNAL void *memcpy(void *dest, const void *src, size_t n);
 }
 #ifdef __GLIBC__
 extern "C" {
