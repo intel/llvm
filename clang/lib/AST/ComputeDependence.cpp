@@ -846,3 +846,27 @@ ExprDependence clang::computeDependence(ObjCMessageExpr *E) {
     D |= A->getDependence();
   return D;
 }
+
+ExprDependence clang::computeDependence(SYCLBuiltinNumFieldsExpr *E) {
+  return toExprDependence(E->getSourceType()->getDependence()) &
+         ~ExprDependence::Type;
+}
+
+ExprDependence clang::computeDependence(SYCLBuiltinNumBasesExpr *E) {
+  return toExprDependence(E->getSourceType()->getDependence()) &
+         ~ExprDependence::Type;
+}
+
+ExprDependence clang::computeDependence(SYCLBuiltinFieldTypeExpr *E) {
+  auto D = toExprDependence(E->getSourceType()->getDependence()) &
+           ~ExprDependence::Type;
+  D |= E->getIndex()->getDependence();
+  return D;
+}
+
+ExprDependence clang::computeDependence(SYCLBuiltinBaseTypeExpr *E) {
+  auto D = toExprDependence(E->getSourceType()->getDependence()) &
+           ~ExprDependence::Type;
+  D |= E->getIndex()->getDependence();
+  return D;
+}
