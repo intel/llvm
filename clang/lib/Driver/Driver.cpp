@@ -5594,19 +5594,6 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<CompileJobAction>(Input, types::TY_ModuleFile);
     if (Args.hasArg(options::OPT_verify_pch))
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
-    if (Args.hasArg(options::OPT_fsycl) && Input->getType() != types::TY_PP_C &&
-        Input->getType() != types::TY_PP_CXX &&
-        Args.hasArg(options::OPT_fsycl_use_footer) &&
-        TargetDeviceOffloadKind == Action::OFK_None) {
-      // Performing a host compilation with -fsycl.  Append the integrated
-      // footer to the preprocessed source file.  We then add another
-      // preprocessed step so the new file is considered a full compilation.
-      auto *AppendFooter =
-          C.MakeAction<AppendFooterJobAction>(Input, types::TY_CXX);
-      auto *Preprocess =
-          C.MakeAction<PreprocessJobAction>(AppendFooter, Input->getType());
-      return C.MakeAction<CompileJobAction>(Preprocess, types::TY_LLVM_BC);
-    }
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
