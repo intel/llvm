@@ -1197,11 +1197,17 @@ def SYCLDevice : InheritableAttr {
   let Documentation = [SYCLDeviceDocs];
 }
 
+def GlobalStorageNonLocalVar : SubsetSubject<Var,
+                                             [{S->hasGlobalStorage() &&
+                                               !S->isLocalVarDeclOrParm()}],
+                                             "global variables">;
+
 def SYCLGlobalVar : InheritableAttr {
   let Spellings = [GNU<"sycl_global_var">];
-  let Subjects = SubjectList<[GlobalVar], ErrorDiag>;
+  let Subjects = SubjectList<[GlobalStorageNonLocalVar], ErrorDiag>;
   let LangOpts = [SYCLIsDevice];
-  let Documentation = [SYCLGlobalVarDocs];
+  // Only used internally by the SYCL implementation
+  let Documentation = [Undocumented];
 }
 
 def SYCLKernel : InheritableAttr {

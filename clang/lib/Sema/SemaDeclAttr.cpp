@@ -5079,14 +5079,8 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
 
 static void handleSYCLGlobalVarAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.Context.getSourceManager().isInSystemHeader(D->getLocation())) {
-    S.Diag(AL.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << AL << "system header global variables";
-  }
-
-  const auto *VD = cast<VarDecl>(D);
-  if (VD && VD->isLocalVarDecl()) {
-    S.Diag(AL.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << AL << "global variables";
+    S.Diag(AL.getLoc(), diag::err_attribute_only_system_header) << AL;
+    return;
   }
 
   handleSimpleAttribute<SYCLGlobalVarAttr>(S, D, AL);

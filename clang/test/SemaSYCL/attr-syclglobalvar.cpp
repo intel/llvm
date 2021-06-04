@@ -46,7 +46,10 @@ SYCLGLOBALVAR_ATTR_MACRO int HppGlobalWithAttrMacro;
 int HppGlobalNoAttribute;
 
 // expected-error@+1 {{attribute only applies to global variables}}
-__attribute__((sycl_global_var)) void HppF() {
+__attribute__((sycl_global_var)) void HppF(
+  // expected-error@+1 {{attribute only applies to global variables}}
+  __attribute__((sycl_global_var)) int Param
+) {
   // expected-error@+1 {{attribute only applies to global variables}}
   __attribute__((sycl_global_var)) static int StaticLocalVar;
 
@@ -54,66 +57,70 @@ __attribute__((sycl_global_var)) void HppF() {
   __attribute__((sycl_global_var)) int Local;
 
   cl::sycl::kernel_single_task<class kernel_name>([=] () {
-    (void)HppGlobalWithAttribute;
-    (void)HppExternGlobalWithAttribute;
-    (void)NS::HppNSGlobalWithAttribute;
-    (void)HppS::StaticMember;
-    (void)HppGlobalStruct.InstanceMember;
-    (void)HppStaticGlobal.InstanceMember;
-    (void)HppStructTemplate<int>::StaticMember;
-    (void)HppGlobalWithAttrMacro;
+    (void)HppGlobalWithAttribute; // ok
+    (void)HppExternGlobalWithAttribute; // ok
+    (void)NS::HppNSGlobalWithAttribute; // ok
+    (void)HppS::StaticMember; // ok
+    (void)HppGlobalStruct.InstanceMember; // ok
+    (void)HppStaticGlobal.InstanceMember; // ok
+    (void)HppAnonymousStaticUnionInstanceMember; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
+    (void)HppGlobalWithAttributeArg; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)HppStructTemplate<int>::StaticMember; // ok
+    (void)HppGlobalWithAttrMacro; // ok
     (void)HppGlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@Inputs/sycl.hpp:* {{called by}}
   });
 }
 
-# 69 "header.hpp" 2 // Return from the simulated #include (with the last line number of the "header.hpp" file)
+# 74 "header.hpp" 2 // Return from the simulated #include (with the last line number of the "header.hpp" file)
 
-// expected-error@+1 {{'sycl_global_var' attribute only applies to system header global variables}}
-__attribute__((sycl_global_var)) int GlobalWithAttribute;
+// expected-error@+1 {{'sycl_global_var' attribute only supported within a system header}}
+__attribute__((sycl_global_var)) int CppGlobalWithAttribute;
 
-// expected-error@+1 {{'sycl_global_var' attribute only applies to system header global variables}}
-__attribute__((sycl_global_var)) extern int ExternGlobalWithAttribute;
+// expected-error@+1 {{'sycl_global_var' attribute only supported within a system header}}
+__attribute__((sycl_global_var)) extern int CppExternGlobalWithAttribute;
 
 namespace NS {
-  // expected-error@+1 {{'sycl_global_var' attribute only applies to system header global variables}}
-  __attribute__((sycl_global_var)) int NSGlobalWithAttribute;
+  // expected-error@+1 {{'sycl_global_var' attribute only supported within a system header}}
+  __attribute__((sycl_global_var)) int CppNSGlobalWithAttribute;
 }
 
-struct S {
-  // expected-error@+1 {{'sycl_global_var' attribute only applies to system header global variables}}
+struct CppS {
+  // expected-error@+1 {{'sycl_global_var' attribute only supported within a system header}}
   __attribute__((sycl_global_var)) static int StaticMember;
 
   // expected-error@+1 {{'sycl_global_var' attribute only applies to global variables}}
   __attribute__((sycl_global_var)) int InstanceMember;
 };
-int S::StaticMember = 0;
+int CppS::StaticMember = 0;
 
-// expected-error@+1 {{'sycl_global_var' attribute only applies to system header global variables}}
-__attribute__((sycl_global_var)) S GlobalStruct;
+// expected-error@+1 {{'sycl_global_var' attribute only supported within a system header}}
+__attribute__((sycl_global_var)) CppS CppGlobalStruct;
 
-// expected-error@+1 {{'sycl_global_var' attribute only applies to system header global variables}}
-__attribute__((sycl_global_var)) static S StaticGlobal;
+// expected-error@+1 {{'sycl_global_var' attribute only supported within a system header}}
+__attribute__((sycl_global_var)) static CppS CppStaticGlobal;
 
 static union {
   // expected-error@+1 {{'sycl_global_var' attribute only applies to global variables}}
-  __attribute__((sycl_global_var)) int AnonymousStaticUnionInstanceMember;
+  __attribute__((sycl_global_var)) int CppAnonymousStaticUnionInstanceMember;
 };
 
 // expected-error@+1 {{attribute takes no arguments}}
-__attribute__((sycl_global_var(42))) int GlobalWithAttributeArg;
+__attribute__((sycl_global_var(42))) int CppGlobalWithAttributeArg;
 
-// expected-error@+1 {{'sycl_global_var' attribute only applies to system header global variables}}
-__attribute__((sycl_global_var)) HppStructTemplate<int> GlobalTemplateStructWithAttribute;
-HppStructTemplate<int> GlobalTemplateStructNoAttribute;
+// expected-error@+1 {{'sycl_global_var' attribute only supported within a system header}}
+__attribute__((sycl_global_var)) HppStructTemplate<int> CppGlobalTemplateStructWithAttribute;
+HppStructTemplate<int> CppGlobalTemplateStructNoAttribute;
 
-// expected-error@+1 {{'sycl_global_var' attribute only applies to system header global variables}}
-SYCLGLOBALVAR_ATTR_MACRO int GlobalWithAttrMacro;
+// expected-error@+1 {{'sycl_global_var' attribute only supported within a system header}}
+SYCLGLOBALVAR_ATTR_MACRO int CppGlobalWithAttrMacro;
 
 int GlobalNoAttribute;
 
 // expected-error@+1 {{'sycl_global_var' attribute only applies to global variables}}
-__attribute__((sycl_global_var)) void F() {
-  // expected-error@+2 {{'sycl_global_var' attribute only applies to system header global variables}}
+__attribute__((sycl_global_var)) void F(
+  // expected-error@+1 {{'sycl_global_var' attribute only applies to global variables}}
+  __attribute__((sycl_global_var)) int Param
+) {
   // expected-error@+1 {{'sycl_global_var' attribute only applies to global variables}}
   __attribute__((sycl_global_var)) static int StaticLocalVar;
 
@@ -121,14 +128,23 @@ __attribute__((sycl_global_var)) void F() {
   __attribute__((sycl_global_var)) int Local;
 
   cl::sycl::kernel_single_task<class kernel_name>([=] () {
-    (void)HppGlobalWithAttribute;
-    (void)HppExternGlobalWithAttribute;
-    (void)NS::HppNSGlobalWithAttribute;
-    (void)HppS::StaticMember;
-    (void)HppGlobalStruct.InstanceMember;
-    (void)HppStaticGlobal.InstanceMember;
-    (void)HppStructTemplate<int>::StaticMember;
-    (void)GlobalTemplateStructNoAttribute.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)HppGlobalWithAttribute; // ok
+    (void)CppGlobalWithAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)HppExternGlobalWithAttribute; // ok
+    (void)CppExternGlobalWithAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)NS::HppNSGlobalWithAttribute; // ok
+    (void)NS::CppNSGlobalWithAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)HppS::StaticMember; // ok
+    (void)CppS::StaticMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)HppGlobalStruct.InstanceMember; // ok
+    (void)CppGlobalStruct.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)HppStaticGlobal.InstanceMember; // ok
+    (void)CppStaticGlobal.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
+    (void)CppAnonymousStaticUnionInstanceMember; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
+    (void)CppGlobalWithAttributeArg; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)HppStructTemplate<int>::StaticMember; // ok
+    (void)CppGlobalTemplateStructWithAttribute.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
+    (void)CppGlobalTemplateStructNoAttribute.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
     (void)GlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@Inputs/sycl.hpp:* {{called by}}
   });
 }
