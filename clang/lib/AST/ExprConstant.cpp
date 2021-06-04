@@ -10758,6 +10758,13 @@ public:
   bool VisitConceptSpecializationExpr(const ConceptSpecializationExpr *E);
   bool VisitRequiresExpr(const RequiresExpr *E);
   // FIXME: Missing: array subscript of vector, member of vector
+
+  bool VisitSYCLBuiltinNumFieldsExpr(const SYCLBuiltinNumFieldsExpr *E) {
+    return Success(E->getNumFields(), E);
+  }
+  bool VisitSYCLBuiltinNumBasesExpr(const SYCLBuiltinNumBasesExpr *E) {
+    return Success(E->getNumBases(), E);
+  }
 };
 
 class FixedPointExprEvaluator
@@ -15180,6 +15187,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CoawaitExprClass:
   case Expr::DependentCoawaitExprClass:
   case Expr::CoyieldExprClass:
+  case Expr::SYCLBuiltinFieldTypeExprClass:
+  case Expr::SYCLBuiltinBaseTypeExprClass:
   case Expr::SYCLUniqueStableNameExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
@@ -15222,6 +15231,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ArrayTypeTraitExprClass:
   case Expr::ExpressionTraitExprClass:
   case Expr::CXXNoexceptExprClass:
+  case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinNumBasesExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {

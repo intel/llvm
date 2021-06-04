@@ -1703,6 +1703,15 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     Res = ParseTypeTrait();
     break;
 
+  case tok::kw___builtin_num_fields:
+  case tok::kw___builtin_num_bases:
+    Res = ParseSYCLBuiltinNum();
+    break;
+  case tok::kw___builtin_field_type:
+  case tok::kw___builtin_base_type:
+    Res = ParseSYCLBuiltinType();
+    break;
+
   case tok::kw___array_rank:
   case tok::kw___array_extent:
     if (NotPrimaryExpression)
@@ -1823,6 +1832,63 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     }
 
   return Res;
+}
+
+/// __builtin_num_fields '(' type-id ')' or
+/// __builtin_num_bases '(' type-id ')'
+ExprResult Parser::ParseSYCLBuiltinNum() {
+  assert(
+      Tok.isOneOf(tok::kw___builtin_num_fields, tok::kw___builtin_num_bases));
+  bool IsNumFields = Tok.is(tok::kw___builtin_num_fields);
+  ConsumeToken(); // Eat the __builtin_num_* token
+
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume(diag::err_expected_lparen_after, Tok.getName()))
+    return ExprError();
+
+  TypeResult TR = ParseTypeName();
+  if (TR.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  T.consumeClose();
+
+  if (IsNumFields)
+    return Actions.ActOnSYCLBuiltinNumFieldsExpr(TR.get());
+  return Actions.ActOnSYCLBuiltinNumBasesExpr(TR.get());
+}
+
+/// __builtin_field_type '(' type-id ',' integer-constant ')' or
+/// __builtin_base_type '(' type-id ',' integer-constant ')'
+ExprResult Parser::ParseSYCLBuiltinType() {
+  assert(
+      Tok.isOneOf(tok::kw___builtin_field_type, tok::kw___builtin_base_type));
+  bool IsFieldType = Tok.is(tok::kw___builtin_field_type);
+  ConsumeToken(); // Eat the __builtin_*_type token
+
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume(diag::err_expected_lparen_after, Tok.getName()))
+    return ExprError();
+
+  TypeResult TR = ParseTypeName();
+  if (TR.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (ExpectAndConsume(tok::comma))
+    return ExprError();
+
+  ExprResult IdxRes = ParseConstantExpression();
+  if (IdxRes.isInvalid())
+    return ExprError();
+
+  T.consumeClose();
+
+  if (IsFieldType)
+    return Actions.ActOnSYCLBuiltinFieldTypeExpr(TR.get(), IdxRes.get());
+  return Actions.ActOnSYCLBuiltinBaseTypeExpr(TR.get(), IdxRes.get());
 }
 
 /// Once the leading part of a postfix-expression is parsed, this
