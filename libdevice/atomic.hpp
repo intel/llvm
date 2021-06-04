@@ -1,4 +1,4 @@
-//==-------------- atomic.cpp - support of atomic operations ---------------==//
+//==-------------- atomic.hpp - support of atomic operations ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -56,8 +56,7 @@ struct MemorySemanticsMask {
 extern DEVICE_EXTERNAL int
 __spirv_AtomicCompareExchange(int __SYCL_GLOBAL__ *, __spv::Scope::Flag,
                               __spv::MemorySemanticsMask::Flag,
-                              __spv::MemorySemanticsMask::Flag,
-                              int, int);
+                              __spv::MemorySemanticsMask::Flag, int, int);
 
 inline void CAS(__SYCL_GLOBAL__ int *Ptr, int Expected, int Desired) {
   __spirv_AtomicCompareExchange(
