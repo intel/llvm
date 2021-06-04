@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+from toolkit import cmd_run_with_retry
 
 def do_dependency(args):
     ret = False
@@ -15,12 +16,14 @@ def do_dependency(args):
             return ret
         # fetching the recent state of base branch
         fetch_cmd = ["git", "fetch", "origin", args.base_branch]
-        print(fetch_cmd)
-        subprocess.check_call(fetch_cmd, cwd=args.src_dir)
+        return_code, _ = cmd_run_with_retry(fetch_cmd, cwd=args.src_dir)
+        if return_code != 0:
+            return False
         # fetching and checkout PR changes
         fetch_pr_cmd = ["git", "fetch", "-t", "origin", args.branch]
-        print(fetch_pr_cmd)
-        subprocess.check_call(fetch_pr_cmd, cwd=args.src_dir)
+        return_code, _ = cmd_run_with_retry(fetch_pr_cmd, cwd=args.src_dir)
+        if return_code != 0:
+            return False
         checkout_cmd = ["git", "checkout", "-B", args.branch]
         print(checkout_cmd)
         subprocess.check_call(checkout_cmd, cwd=args.src_dir)
@@ -51,10 +54,14 @@ def do_dependency(args):
     if not os.path.isdir(ocl_header_dir):
         clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers",
                      "OpenCL-Headers", "-b", "master"]
-        subprocess.check_call(clone_cmd, cwd=args.obj_dir)
+        return_code, _ = cmd_run_with_retry(clone_cmd, cwd=args.obj_dir)
+        if return_code != 0:
+            return False
     else:
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]
-        subprocess.check_call(fetch_cmd, cwd=ocl_header_dir)
+        return_code, _ = cmd_run_with_retry(fetch_cmd, cwd=ocl_header_dir)
+        if return_code != 0:
+            return False
 
     # Checkout fixed version to avoid unexpected issues coming from upstream
     # Specific version can be uplifted as soon as such need arise
@@ -68,10 +75,14 @@ def do_dependency(args):
                      "https://github.com/KhronosGroup/OpenCL-ICD-Loader",
                      "OpenCL-ICD-Loader", "-b", "master"]
 
-        subprocess.check_call(clone_cmd, cwd=args.obj_dir)
+        return_code, _ = cmd_run_with_retry(clone_cmd, cwd=args.obj_dir)
+        if return_code != 0:
+            return False
     else:
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]
-        subprocess.check_call(fetch_cmd, cwd=icd_loader_dir)
+        return_code, _ = cmd_run_with_retry(fetch_cmd, cwd=icd_loader_dir)
+        if return_code != 0:
+            return False
 
     # Checkout fixed version to avoid unexpected issues coming from upstream
     # Specific version can be uplifted as soon as such need arise
