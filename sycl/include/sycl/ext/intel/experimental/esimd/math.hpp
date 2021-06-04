@@ -1795,7 +1795,7 @@ ESIMD_INLINE simd<float, N> esimd_tanh_cody_waite_impl(simd<float, N> x) {
    *  |   x   | rational polynomial | 1 - 2/(1 + exp(2*x)) |  1
    *
    * rational polynomial for single precision = x + x * (g * (p[1] * g + p[0]) /
-   * (g + q[0]) g = x^2 p0 = âˆ’0.82377 28127 E+00 p1 = âˆ’0.38310 10665 E-02 q0 =
+   * (g + q[0]) g = x^2 p0 = -0.82377 28127 E+00 p1 = -0.38310 10665 E-02 q0 =
    * 0.24713 19654 E+01 q1 = 1.00000 00000 E+00
    *
    */
