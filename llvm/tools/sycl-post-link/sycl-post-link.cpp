@@ -272,23 +272,22 @@ static void collectKernelModuleMap(
   }
 }
 
-// Collect all the dependencies for the function.
-static bool collectFunctionCallGraphNodes(llvm::Function *Func) {
+// Go through function call graph searching for assert call.
+static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
   std::vector<llvm::Function *> Workqueue;
   Workqueue.push_back(Func);
 
   while (!Workqueue.empty()) {
-    Function *F = &*Workqueue.back(); // To remove &*
+    Function *F = Workqueue.back();
     Workqueue.pop_back();
     for (auto &I : instructions(F)) {
       if (CallBase *CB = dyn_cast<CallBase>(&I))
-        if (Function *CF = CB->getCalledFunction())
-          if (!CF->isDeclaration()) {
-            if (CF->getName().startswith("__devicelib_assert_fail")) {
-              return true;
-            }
+        if (Function *CF = CB->getCalledFunction()) {
+          if (CF->getName().startswith("__devicelib_assert_fail"))
+            return true;
+          if (!CF->isDeclaration())
             Workqueue.push_back(CF);
-          }
+        }
     }
   }
   return false;
@@ -491,7 +490,7 @@ static string_vector saveDeviceImageProperty(
       std::vector<Function *> SyclKernels;
       for (auto &F : M->functions()) {
         if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-          if (collectFunctionCallGraphNodes(&F)) {
+          if (hasAssertInFunctionCallGraph(&F)) {
             SyclKernels.push_back(&F);
             PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
                 {F.getName(), true});
