@@ -11,6 +11,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/platform_info.hpp>
 
+#include <algorithm>
 #include <regex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
