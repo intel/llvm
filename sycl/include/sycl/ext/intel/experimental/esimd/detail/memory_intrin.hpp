@@ -121,22 +121,22 @@ __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
                     __SEIEED::vector_type_t<Ty, N> vals);
 
 // flat_read4 does flat-address gather4
-template <typename Ty, int N, __SEIEE::ChannelMaskType Mask,
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
           __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
-__SEIEED::vector_type_t<Ty, N * NumChannels(Mask)>
+__SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
     SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
     __esimd_flat_read4(__SEIEED::vector_type_t<uint64_t, N> addrs,
                        __SEIEED::vector_type_t<uint16_t, N> pred = 1);
 
 // flat_write does flat-address scatter
-template <typename Ty, int N, __SEIEE::ChannelMaskType Mask,
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
           __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
-__esimd_flat_write4(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                    __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)> vals,
-                    __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_flat_write4(
+    __SEIEED::vector_type_t<uint64_t, N> addrs,
+    __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
+    __SEIEED::vector_type_t<uint16_t, N> pred = 1);
 
 // Low-level surface-based gather. Collects elements located at given offsets in
 // a surface and returns them as a single \ref simd object. Element can be
@@ -224,14 +224,14 @@ __esimd_surf_write(__SEIEED::vector_type_t<uint16_t, N> pred, int16_t scale,
 // correponsing BE intrinsicics parameter order.
 
 // flat_atomic: flat-address atomic
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N,
+template <__SEIEE::atomic_op Op, typename Ty, int N,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
           __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<uint16_t, N> pred);
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N,
+template <__SEIEE::atomic_op Op, typename Ty, int N,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
           __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
@@ -239,7 +239,7 @@ __esimd_flat_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,
                      __SEIEED::vector_type_t<uint16_t, N> pred);
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N,
+template <__SEIEE::atomic_op Op, typename Ty, int N,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
           __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
@@ -253,7 +253,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_barrier();
 
 // generic work-group split barrier
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
-__esimd_sbarrier(__SEIEE::EsimdSbarrierType flag);
+__esimd_sbarrier(__SEIEE::split_barrier_action flag);
 
 // slm_fence sets the SLM read/write order
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_slm_fence(uint8_t cntl);
@@ -282,32 +282,32 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_slm_block_write(uint32_t addr, __SEIEED::vector_type_t<Ty, N> vals);
 
 // slm_read4 does SLM gather4
-template <typename Ty, int N, __SEIEE::ChannelMaskType Mask>
-SYCL_EXTERNAL
-    SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)>
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+    __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
     __esimd_slm_read4(__SEIEED::vector_type_t<uint32_t, N> addrs,
                       __SEIEED::vector_type_t<uint16_t, N> pred = 1);
 
 // slm_write4 does SLM scatter4
-template <typename Ty, int N, __SEIEE::ChannelMaskType Mask>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
-__esimd_slm_write4(__SEIEED::vector_type_t<uint32_t, N> addrs,
-                   __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)> vals,
-                   __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_slm_write4(
+    __SEIEED::vector_type_t<uint32_t, N> addrs,
+    __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
+    __SEIEED::vector_type_t<uint16_t, N> pred = 1);
 
 // slm_atomic: SLM atomic
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic0(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<uint16_t, N> pred);
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic1(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
                     __SEIEED::vector_type_t<uint16_t, N> pred);
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic2(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
@@ -547,15 +547,15 @@ __esimd_flat_read(__SEIEED::vector_type_t<uint64_t, N> addrs, int ElemsPerAddr,
   return V;
 }
 
-template <typename Ty, int N, __SEIEE::ChannelMaskType Mask,
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
           __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
-inline __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)>
+inline __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
 __esimd_flat_read4(__SEIEED::vector_type_t<uint64_t, N> addrs,
                    __SEIEED::vector_type_t<uint16_t, N> pred) {
-  __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)> V;
+  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
   unsigned int Next = 0;
 
-  if constexpr (HasR(Mask)) {
+  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
         Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
@@ -564,7 +564,7 @@ __esimd_flat_read4(__SEIEED::vector_type_t<uint64_t, N> addrs,
     }
   }
 
-  if constexpr (HasG(Mask)) {
+  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
         Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty));
@@ -573,7 +573,7 @@ __esimd_flat_read4(__SEIEED::vector_type_t<uint64_t, N> addrs,
     }
   }
 
-  if constexpr (HasB(Mask)) {
+  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
         Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty) + sizeof(Ty));
@@ -582,7 +582,7 @@ __esimd_flat_read4(__SEIEED::vector_type_t<uint64_t, N> addrs,
     }
   }
 
-  if constexpr (HasA(Mask)) {
+  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
         Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty) + sizeof(Ty) +
@@ -621,16 +621,16 @@ inline void __esimd_flat_write(
   }
 }
 
-template <typename Ty, int N, __SEIEE::ChannelMaskType Mask,
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
           __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
-inline void
-__esimd_flat_write4(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                    __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)> vals,
-                    __SEIEED::vector_type_t<uint16_t, N> pred) {
-  __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)> V;
+inline void __esimd_flat_write4(
+    __SEIEED::vector_type_t<uint64_t, N> addrs,
+    __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
+    __SEIEED::vector_type_t<uint16_t, N> pred) {
+  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
   unsigned int Next = 0;
 
-  if constexpr (HasR(Mask)) {
+  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
         Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
@@ -639,7 +639,7 @@ __esimd_flat_write4(__SEIEED::vector_type_t<uint64_t, N> addrs,
     }
   }
 
-  if constexpr (HasG(Mask)) {
+  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
         Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty));
@@ -648,7 +648,7 @@ __esimd_flat_write4(__SEIEED::vector_type_t<uint64_t, N> addrs,
     }
   }
 
-  if constexpr (HasB(Mask)) {
+  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
         Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty) + sizeof(Ty));
@@ -657,7 +657,7 @@ __esimd_flat_write4(__SEIEED::vector_type_t<uint64_t, N> addrs,
     }
   }
 
-  if constexpr (HasA(Mask)) {
+  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
         Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty) + sizeof(Ty) +
@@ -823,7 +823,7 @@ __esimd_dp4(__SEIEED::vector_type_t<Ty, N> v1,
 /// TODO
 inline void __esimd_barrier() {}
 
-inline void __esimd_sbarrier(__SEIEE::EsimdSbarrierType flag) {}
+inline void __esimd_sbarrier(__SEIEE::split_barrier_action flag) {}
 
 inline void __esimd_slm_fence(uint8_t cntl) {}
 
@@ -854,23 +854,23 @@ inline void __esimd_slm_block_write(uint32_t addr,
                                     __SEIEED::vector_type_t<Ty, N> vals) {}
 
 // slm_read4 does SLM gather4
-template <typename Ty, int N, __SEIEE::ChannelMaskType Mask>
-inline __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)>
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
+inline __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
 __esimd_slm_read4(__SEIEED::vector_type_t<uint32_t, N> addrs,
                   __SEIEED::vector_type_t<uint16_t, N> pred) {
-  __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)> retv;
+  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv;
   return retv;
 }
 
 // slm_write4 does SLM scatter4
-template <typename Ty, int N, __SEIEE::ChannelMaskType Mask>
-inline void
-__esimd_slm_write4(__SEIEED::vector_type_t<uint32_t, N> addrs,
-                   __SEIEED::vector_type_t<Ty, N * NumChannels(Mask)> vals,
-                   __SEIEED::vector_type_t<uint16_t, N> pred) {}
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
+inline void __esimd_slm_write4(
+    __SEIEED::vector_type_t<uint32_t, N> addrs,
+    __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
+    __SEIEED::vector_type_t<uint16_t, N> pred) {}
 
 // slm_atomic: SLM atomic
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic0(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<uint16_t, N> pred) {
@@ -878,7 +878,7 @@ __esimd_slm_atomic0(__SEIEED::vector_type_t<uint32_t, N> addrs,
   return retv;
 }
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic1(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
@@ -887,7 +887,7 @@ __esimd_slm_atomic1(__SEIEED::vector_type_t<uint32_t, N> addrs,
   return retv;
 }
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic2(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
@@ -897,8 +897,8 @@ __esimd_slm_atomic2(__SEIEED::vector_type_t<uint32_t, N> addrs,
   return retv;
 }
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
+template <__SEIEE::atomic_op Op, typename Ty, int N, __SEIEE::CacheHint L1H,
+          __SEIEE::CacheHint L3H>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<uint16_t, N> pred) {
@@ -906,8 +906,8 @@ __esimd_flat_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
   return retv;
 }
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
+template <__SEIEE::atomic_op Op, typename Ty, int N, __SEIEE::CacheHint L1H,
+          __SEIEE::CacheHint L3H>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,
@@ -916,8 +916,8 @@ __esimd_flat_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
   return retv;
 }
 
-template <__SEIEE::EsimdAtomicOpType Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
+template <__SEIEE::atomic_op Op, typename Ty, int N, __SEIEE::CacheHint L1H,
+          __SEIEE::CacheHint L3H>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,

@@ -102,6 +102,7 @@ set(SYCL_SOURCES
     "backend/level_zero.cpp"
     "backend.cpp"
     "detail/accessor_impl.cpp"
+    "detail/allowlist.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
     "detail/builtins_geometric.cpp"

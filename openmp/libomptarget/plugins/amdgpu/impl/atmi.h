@@ -14,24 +14,6 @@
  */
 
 /**
- * @brief Status codes.
- */
-typedef enum atmi_status_t {
-  /**
-   * The function has been executed successfully.
-   */
-  ATMI_STATUS_SUCCESS = 0,
-  /**
-   * A undocumented error has occurred.
-   */
-  ATMI_STATUS_UNKNOWN = 1,
-  /**
-   * A generic error has occurred.
-   */
-  ATMI_STATUS_ERROR = 2,
-} atmi_status_t;
-
-/**
  * @brief Device Types.
  */
 typedef enum atmi_devtype_s {
@@ -75,30 +57,6 @@ typedef struct atmi_place_s {
    */
   int device_id;
 } atmi_place_t;
-
-/**
- * @brief ATMI Memory Place
- */
-typedef struct atmi_mem_place_s {
-  /**
-   * The node in a cluster where computation should occur.
-   * Default is node_id = 0 for local computations.
-   */
-  unsigned int node_id;
-  /**
-   * Device type: CPU, GPU or DSP
-   */
-  atmi_devtype_t dev_type;
-  /**
-   * The device ordinal number ordered by runtime; -1 for any
-   */
-  int dev_id;
-  // atmi_memtype_t mem_type;        // Fine grained or Coarse grained
-  /**
-   * The memory space/region ordinal number ordered by runtime; -1 for any
-   */
-  int mem_id;
-} atmi_mem_place_t;
 
 /**
  * @brief ATMI Memory Space/region Structure

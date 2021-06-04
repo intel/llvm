@@ -437,6 +437,9 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::CoawaitExprClass:
   case Expr::CoyieldExprClass:
     return ClassifyInternal(Ctx, cast<CoroutineSuspendExpr>(E)->getResumeExpr());
+  case Expr::SYCLUniqueStableNameExprClass:
+    return Cl::CL_PRValue;
+    break;
   }
 
   llvm_unreachable("unhandled expression kind in classification");
