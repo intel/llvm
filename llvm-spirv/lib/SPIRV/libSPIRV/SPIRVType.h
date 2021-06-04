@@ -1036,5 +1036,26 @@ _SPIRV_OP(AvcImeDualReferenceStreamin)
 _SPIRV_OP(AvcRefResult)
 _SPIRV_OP(AvcSicResult)
 #undef _SPIRV_OP
+
+class SPIRVTypeTokenINTEL : public SPIRVType {
+public:
+  // Complete constructor
+  SPIRVTypeTokenINTEL(SPIRVModule *M, SPIRVId TheId)
+      : SPIRVType(M, 2, internal::OpTypeTokenINTEL, TheId) {}
+  // Incomplete constructor
+  SPIRVTypeTokenINTEL() : SPIRVType(internal::OpTypeTokenINTEL) {}
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityTokenTypeINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_token_type;
+  }
+
+protected:
+  _SPIRV_DEF_ENCDEC1(Id)
+};
+
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVTYPE_H
