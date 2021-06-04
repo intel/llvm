@@ -151,11 +151,11 @@ int main() {
                                  std::numeric_limits<int>::lowest());
 
 #ifdef SPIRV_1_3
-  test<class KernelName_VzAPutpBRRJrQPB>(q, input, output, multiplies<int>(),
+  test<class KernelName_VzAPutpBRRJrQPB>(q, input, output, sycl::multiplies<int>(),
                                          1);
-  test<class KernelName_UXdGbr>(q, input, output, bit_or<int>(), 0);
-  test<class KernelName_saYaodNyJknrPW>(q, input, output, bit_xor<int>(), 0);
-  test<class KernelName_GPcuAlvAOjrDyP>(q, input, output, bit_and<int>(), ~0);
+  test<class KernelName_UXdGbr>(q, input, output, sycl::bit_or<int>(), 0);
+  test<class KernelName_saYaodNyJknrPW>(q, input, output, sycl::bit_xor<int>(), 0);
+  test<class KernelName_GPcuAlvAOjrDyP>(q, input, output, sycl::bit_and<int>(), ~0);
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;

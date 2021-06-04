@@ -88,10 +88,10 @@ int main() {
 
 #ifdef SPIRV_1_3
   test<class KernelName_WonwuUVPUPOTKRKIBtT>(q, input, output,
-                                             multiplies<int>(), 1);
-  test<class KernelName_qYBaJDZTMGkdIwD>(q, input, output, bit_or<int>(), 0);
-  test<class KernelName_eLSFt>(q, input, output, bit_xor<int>(), 0);
-  test<class KernelName_uFhJnxSVhNAiFPTG>(q, input, output, bit_and<int>(), ~0);
+                                             sycl::multiplies<int>(), 1);
+  test<class KernelName_qYBaJDZTMGkdIwD>(q, input, output, sycl::bit_or<int>(), 0);
+  test<class KernelName_eLSFt>(q, input, output, sycl::bit_xor<int>(), 0);
+  test<class KernelName_uFhJnxSVhNAiFPTG>(q, input, output, sycl::bit_and<int>(), ~0);
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;

@@ -152,11 +152,11 @@ int main() {
 
 #ifdef SPIRV_1_3
   test<class KernelName_zMyjxUrBgeUGoxmDwhvJ>(q, input, output,
-                                              multiplies<int>(), 1);
-  test<class KernelName_SljjtroxNRaAXoVnT>(q, input, output, bit_or<int>(), 0);
-  test<class KernelName_yXIZfjwjxQGiPeQAnc>(q, input, output, bit_xor<int>(),
+                                              sycl::multiplies<int>(), 1);
+  test<class KernelName_SljjtroxNRaAXoVnT>(q, input, output, sycl::bit_or<int>(), 0);
+  test<class KernelName_yXIZfjwjxQGiPeQAnc>(q, input, output, sycl::bit_xor<int>(),
                                             0);
-  test<class KernelName_xGnAnMYHvqekCk>(q, input, output, bit_and<int>(), ~0);
+  test<class KernelName_xGnAnMYHvqekCk>(q, input, output, sycl::bit_and<int>(), ~0);
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;
