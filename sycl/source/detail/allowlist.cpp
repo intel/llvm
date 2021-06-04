@@ -239,12 +239,14 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
 // Checking if we can allow device with device description DeviceDesc
 bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
                      const AllowListParsedT &AllowListParsed) {
-  for (const auto &SupportedKeyName : SupportedAllowListKeyNames) {
-    (void)SupportedKeyName;
-    assert((DeviceDesc.find(SupportedKeyName) != DeviceDesc.end()) &&
-           "DeviceDesc map should have all supported keys for "
-           "SYCL_DEVICE_ALLOWLIST.");
-  }
+  assert(std::all_of(SupportedAllowListKeyNames.begin(),
+                     SupportedAllowListKeyNames.end(),
+                     [&DeviceDesc](const auto &SupportedKeyName) {
+                       return DeviceDesc.find(SupportedKeyName) !=
+                              DeviceDesc.end();
+                     }) &&
+         "DeviceDesc map should have all supported keys for "
+         "SYCL_DEVICE_ALLOWLIST.");
   auto EqualityComp = [&](const std::string &KeyName,
                           const DeviceDescT &AllowListDeviceDesc) {
     // change to map::contains after switching DPC++ RT to C++20
