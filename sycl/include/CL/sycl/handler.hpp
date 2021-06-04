@@ -797,39 +797,17 @@ private:
     // Get the kernal name to check condition 3.
     std::string KName = typeid(NameT *).name();
 
-    // Force instantiation of the kernel before we use the kernel info to make
-    // sure __builtin_sycl_unique_stable_name doesn't cause problems.
-    // The instantiations of kernel_parallel_for must match the logic caused by
-    // kernel_parallel_for_wrapper.
-    using WrapperTy =
-        decltype(getRangeRoundedKernelLambda<TransformedArgType, Dims>(
-            KernelFunc, NumWorkItems));
-    using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
-
-    (void)kernel_parallel_for_wrapper_instantiator<NameWT, TransformedArgType,
-                                                   WrapperTy>::value;
-    (void)kernel_parallel_for_wrapper_instantiator<NameT, TransformedArgType,
-                                                   KernelType>::value;
-
-    using KI = detail::KernelInfo<KernelName>;
-    bool DisableRounding =
-        (getenv("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") != nullptr) ||
-        (KName.find("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") !=
-         std::string::npos) ||
-        (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
-        (KI::callsThisItem());
-
     // Perform range rounding if rounding-up is enabled
     // and there are sufficient work-items to need rounding
     // and the user-specified range is not a multiple of a "good" value.
-    if (!DisableRounding && (NumWorkItems[0] >= MinRangeX) &&
-        (NumWorkItems[0] % MinFactorX != 0)) {
+    if ((NumWorkItems[0] >= MinRangeX) && (NumWorkItems[0] % MinFactorX != 0)) {
       // It is sufficient to round up just the first dimension.
       // Multiplying the rounded-up value of the first dimension
       // by the values of the remaining dimensions (if any)
       // will yield a rounded-up value for the total range.
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
+      using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       if (getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE") != nullptr)
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
@@ -924,7 +902,7 @@ private:
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __SYCL_KERNEL_ATTR__ static void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for(KernelType KernelFunc) {
 #else
@@ -940,7 +918,7 @@ private:
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __SYCL_KERNEL_ATTR__ static void
+  __SYCL_KERNEL_ATTR__ void
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for(KernelType KernelFunc, kernel_handler KH) {
 #else
@@ -1029,34 +1007,6 @@ private:
       kernel_parallel_for<KernelName, ElementType>(KernelFunc);
     }
   }
-
-  // Helper instantiator type for kernel_parallel_for_wrapper that
-  // instantiates but not calls the appropriate kernel. Needed to support use of
-  // KernelInfo in  parallel_for_lambda_impl when supporting
-  // SCYL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING.
-  template <typename KernelName, typename ElementType, typename KernelType>
-  class kernel_parallel_for_wrapper_instantiator {
-    static constexpr auto func_loader() {
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      using ParamTy = KernelType;
-#else
-      using ParamTy = const KernelType &;
-#endif
-      if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
-                        KernelType, ElementType>()) {
-        using FuncTy = void (*)(ParamTy, kernel_handler);
-        return static_cast<FuncTy>(
-            kernel_parallel_for<KernelName, ElementType, KernelType>);
-      } else {
-        using FuncTy = void (*)(ParamTy);
-        return static_cast<FuncTy>(
-            kernel_parallel_for<KernelName, ElementType, KernelType>);
-      }
-    }
-
-  public:
-    static constexpr auto value = func_loader();
-  };
 
   // Wrappers for kernel_parallel_for_work_group(...)
 
