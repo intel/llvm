@@ -7,7 +7,11 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <cstdint>
+
 #include "device.h"
+
+#ifdef __SPIR__
 
 #define __SYCL_GLOBAL__ __attribute__((opencl_global))
 
@@ -64,3 +68,4 @@ inline void CAS(__SYCL_GLOBAL__ int *Ptr, int Expected, int Desired) {
       __spv::MemorySemanticsMask::SequentiallyConsistent,
       __spv::MemorySemanticsMask::SequentiallyConsistent, Desired, Expected);
 }
+#endif // __SPIR__
