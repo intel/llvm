@@ -18,7 +18,7 @@ static constexpr unsigned int NUM_CENTROIDS_ACTUAL = 20;
 static constexpr unsigned int NUM_CENTROIDS_ALLOCATED =
     ((NUM_CENTROIDS_ACTUAL + 15) / 16) * 16;
 static constexpr unsigned int SIMD_SIZE = 16;
-static constexpr unsigned int NUM_ITERATIONS = 21;
+static constexpr unsigned int NUM_ITERATIONS = 7;
 
 typedef struct {
   float x;
